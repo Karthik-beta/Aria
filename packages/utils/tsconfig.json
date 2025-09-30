@@ -1,0 +1,19 @@
+{
+  "extends": "@aria/tsconfig/base.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "composite": true,
+    "declaration": true,
+    "declarationMap": true,
+    "outDir": "dist",
+    "paths": {
+      "@aria/types": ["../types/src/index.ts"]
+    }
+  },
+  "include": ["src"],
+  "references": [
+    {
+      "path": "../types"
+    }
+  ]
+}

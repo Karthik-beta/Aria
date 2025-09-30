@@ -1,0 +1,87 @@
+version: '3.9'
+
+services:
+  traefik:
+    image: traefik:v3.1
+    command:
+      - '--providers.docker=true'
+      - '--entrypoints.web.address=:80'
+      - '--entrypoints.websecure.address=:443'
+      - '--certificatesresolvers.le.acme.httpchallenge=true'
+      - '--certificatesresolvers.le.acme.httpchallenge.entrypoint=web'
+      - '--certificatesresolvers.le.acme.email=admin@example.com'
+      - '--certificatesresolvers.le.acme.storage=/letsencrypt/acme.json'
+    ports:
+      - '80:80'
+      - '443:443'
+    volumes:
+      - '/var/run/docker.sock:/var/run/docker.sock:ro'
+      - 'traefik-acme:/letsencrypt'
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: aria
+      POSTGRES_USER: aria
+      POSTGRES_PASSWORD: aria
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -d aria -U aria']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./apps/backend
+      dockerfile: Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://aria:aria@postgres:5432/aria
+    labels:
+      - 'traefik.enable=true'
+      - 'traefik.http.routers.backend.rule=Host(`api.aria.local`)'
+      - 'traefik.http.routers.backend.entrypoints=web'
+
+  asset:
+    build:
+      context: ./apps/frontend/asset
+      dockerfile: Dockerfile
+    labels:
+      - 'traefik.enable=true'
+      - 'traefik.http.routers.asset.rule=Host(`asset.aria.local`)'
+      - 'traefik.http.services.asset.loadbalancer.server.port=3000'
+
+  hrms:
+    build:
+      context: ./apps/frontend/hrms
+      dockerfile: Dockerfile
+    labels:
+      - 'traefik.enable=true'
+      - 'traefik.http.routers.hrms.rule=Host(`hrms.aria.local`)'
+      - 'traefik.http.services.hrms.loadbalancer.server.port=3000'
+
+  inventory:
+    build:
+      context: ./apps/frontend/inventory
+      dockerfile: Dockerfile
+    labels:
+      - 'traefik.enable=true'
+      - 'traefik.http.routers.inventory.rule=Host(`inventory.aria.local`)'
+      - 'traefik.http.services.inventory.loadbalancer.server.port=3000'
+
+  crm:
+    build:
+      context: ./apps/frontend/CRM
+      dockerfile: Dockerfile
+    labels:
+      - 'traefik.enable=true'
+      - 'traefik.http.routers.crm.rule=Host(`crm.aria.local`)'
+      - 'traefik.http.services.crm.loadbalancer.server.port=3000'
+
+volumes:
+  traefik-acme:
+  postgres-data:
