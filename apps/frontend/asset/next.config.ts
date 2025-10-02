@@ -14,9 +14,10 @@ const nextConfig: NextConfig = {
   },
   // Enable standalone output for Docker
   output: 'standalone',
-  // Configure asset prefix for path-based routing
-  assetPrefix: basePath || undefined,
-  basePath: basePath || undefined,
+  // Configure basePath and assetPrefix for path-based routing
+  // Both are required for Image component to work correctly with unoptimized images
+  basePath: basePath,
+  assetPrefix: basePath,
   // Optimize images for Docker deployment
   images: {
     unoptimized: true, // Required for standalone output
@@ -26,6 +27,10 @@ const nextConfig: NextConfig = {
   // Skip ESLint during production build in Docker
   eslint: {
     ignoreDuringBuilds: isDocker,
+  },
+  // Expose basePath to client-side code
+  env: {
+    NEXT_PUBLIC_BASE_PATH: basePath,
   },
 };
 
