@@ -7,7 +7,7 @@ tls:
       keyFile: /etc/ssl/traefik/server.key
       stores:
         - default
-  
+
   # Default TLS store configuration
   stores:
     default:
@@ -18,13 +18,13 @@ tls:
   # TLS options for enhanced security
   options:
     default:
-      minVersion: "VersionTLS12"
+      minVersion: 'VersionTLS12'
       cipherSuites:
-        - "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384"
-        - "TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305"
-        - "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"
-        - "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256"
+        - 'TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384'
+        - 'TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305'
+        - 'TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256'
+        - 'TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256'
       curvePreferences:
-        - "CurveP521"
-        - "CurveP384"
+        - 'CurveP521'
+        - 'CurveP384'
       sniStrict: false

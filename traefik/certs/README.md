@@ -5,6 +5,7 @@ This directory contains SSL/TLS certificates for HTTPS support in the Aria ERP s
 ## Files
 
 ### Active Certificates
+
 - **`server.crt`** - Public SSL certificate (self-signed for development)
 - **`server.key`** - Private key for SSL certificate
 - **`openssl.conf`** - OpenSSL configuration for certificate generation
@@ -61,11 +62,11 @@ Configure Traefik ACME integration in `docker-compose.yml`:
 
 ```yaml
 command:
-  - "--certificatesresolvers.letsencrypt.acme.tlschallenge=true"
-  - "--certificatesresolvers.letsencrypt.acme.email=your-email@example.com"
-  - "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json"
+  - '--certificatesresolvers.letsencrypt.acme.tlschallenge=true'
+  - '--certificatesresolvers.letsencrypt.acme.email=your-email@example.com'
+  - '--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json'
 volumes:
-  - "./letsencrypt:/letsencrypt"
+  - './letsencrypt:/letsencrypt'
 ```
 
 Then update router configurations to use the resolver:
@@ -119,7 +120,8 @@ openssl x509 -noout -dates -in server.crt
 
 **Cause**: Certificate file is corrupted or not in PEM format
 
-**Solution**: 
+**Solution**:
+
 - Regenerate certificates using commands above
 - Ensure files use LF line endings (not CRLF)
 - Verify files aren't empty: `cat server.crt`
@@ -134,7 +136,8 @@ openssl x509 -noout -dates -in server.crt
 
 **Cause**: Self-signed certificate is not trusted
 
-**Solution**: 
+**Solution**:
+
 - Expected behavior for self-signed certs
 - Accept the warning for development
 - Use production certificates for public deployment

@@ -5,6 +5,7 @@ This guide documents the complete Docker-based deployment architecture for the A
 ## Architecture Overview
 
 The Aria ERP system consists of:
+
 - **Traefik** (v3.1): Reverse proxy with automatic HTTPS/TLS termination
 - **PostgreSQL** (16): Database service
 - **Backend** (NestJS 11): API service on Node 22-alpine
@@ -14,13 +15,13 @@ All services communicate over a Docker network (`aria_default`) and are accessib
 
 ## Service Access Points
 
-| Service | URL | Description |
-|---------|-----|-------------|
-| Backend API | `https://localhost/api/` | NestJS REST API |
-| Asset Management | `https://localhost/asset/` | Asset tracking frontend |
-| CRM | `https://localhost/crm/` | Customer relationship management |
-| HRMS | `https://localhost/hrms/` | Human resources management |
-| Inventory | `https://localhost/inventory/` | Inventory management |
+| Service          | URL                            | Description                      |
+| ---------------- | ------------------------------ | -------------------------------- |
+| Backend API      | `https://localhost/api/`       | NestJS REST API                  |
+| Asset Management | `https://localhost/asset/`     | Asset tracking frontend          |
+| CRM              | `https://localhost/crm/`       | Customer relationship management |
+| HRMS             | `https://localhost/hrms/`      | Human resources management       |
+| Inventory        | `https://localhost/inventory/` | Inventory management             |
 
 ## Directory Structure
 
@@ -51,6 +52,7 @@ Aria/
 ### Development Certificates (Self-Signed)
 
 The repository includes self-signed SSL certificates for local development. These certificates:
+
 - Use 4096-bit RSA encryption
 - Are valid for 365 days
 - Include SAN (Subject Alternative Name) entries for localhost and service names
@@ -85,6 +87,7 @@ openssl req -x509 -nodes -days 365 -newkey rsa:4096 \
 ### Production Certificates
 
 For production deployment, replace the self-signed certificates with:
+
 1. **Let's Encrypt** (automated via Traefik ACME)
 2. **Commercial certificates** from a trusted CA
 
@@ -98,16 +101,17 @@ Traefik is configured via Docker labels and command arguments:
 
 ```yaml
 command:
-  - "--api.insecure=true"
-  - "--providers.docker=true"
-  - "--providers.docker.exposedbydefault=false"
-  - "--providers.file.directory=/etc/traefik/dynamic"
-  - "--providers.file.watch=true"
-  - "--entrypoints.web.address=:80"
-  - "--entrypoints.websecure.address=:443"
+  - '--api.insecure=true'
+  - '--providers.docker=true'
+  - '--providers.docker.exposedbydefault=false'
+  - '--providers.file.directory=/etc/traefik/dynamic'
+  - '--providers.file.watch=true'
+  - '--entrypoints.web.address=:80'
+  - '--entrypoints.websecure.address=:443'
 ```
 
 Key features:
+
 - Docker provider for container auto-discovery
 - File provider for custom routing (`/etc/traefik/dynamic`)
 - HTTP on port 80, HTTPS on port 443
@@ -121,13 +125,13 @@ Path-based routing configuration:
 http:
   routers:
     backend-static:
-      rule: "PathPrefix(`/api`)"
+      rule: 'PathPrefix(`/api`)'
       service: backend
       middlewares:
-        - backend-stripprefix  # Strips /api before forwarding
-    
+        - backend-stripprefix # Strips /api before forwarding
+
     asset-static:
-      rule: "PathPrefix(`/asset`)"
+      rule: 'PathPrefix(`/asset`)'
       service: asset
       # No stripprefix - Next.js needs full path with basePath
 ```
@@ -188,6 +192,7 @@ CMD ["node", "dist/main"]
 ```
 
 **Key Points**:
+
 - Uses `pnpm deploy --legacy` to create a proper production `node_modules` structure
 - The `--legacy` flag is crucial for NestJS module resolution
 - Separates deps, build, prod-deps, and runtime stages for optimal caching
@@ -230,6 +235,7 @@ CMD ["node", "apps/frontend/asset/server.js"]
 ```
 
 **Key Points**:
+
 - Uses Next.js `output: 'standalone'` mode for optimized production builds
 - `basePath` configured per app for path-based routing
 - Turbopack enabled for faster builds
@@ -250,6 +256,7 @@ environment:
 ### Frontend Environment Variables
 
 All frontends share:
+
 ```yaml
 environment:
   NODE_ENV: production
@@ -311,6 +318,7 @@ docker compose restart backend
 **Symptom**: Traefik fails to start with "failed to find any PEM data in certificate input"
 
 **Solution**: Regenerate certificates using the commands above. Ensure:
+
 - `server.crt` is a valid PEM-encoded certificate
 - `server.key` is a valid PEM-encoded private key
 - Files have proper line endings (LF, not CRLF)
@@ -325,7 +333,8 @@ docker compose restart backend
 
 **Symptom**: Frontend returns 404 for static assets (`/_next/static/*`)
 
-**Solution**: 
+**Solution**:
+
 - Verify `basePath` is set in `next.config.ts`
 - Ensure Traefik does NOT use `stripprefix` middleware for frontend routes
 - Check health check paths include basePath (e.g., `/asset/`, not `/`)
@@ -335,6 +344,7 @@ docker compose restart backend
 **Symptom**: Traefik returns 503 with "no available server"
 
 **Solution**:
+
 - Check health check endpoints return HTTP 200
 - Verify service names match Docker Compose service definitions
 - Ensure containers are running: `docker compose ps`
@@ -344,6 +354,7 @@ docker compose restart backend
 **Symptom**: Browser shows "too many redirects"
 
 **Solution**:
+
 - Check `X-Forwarded-Proto: https` header is set in middleware
 - Verify Next.js apps don't have conflicting HTTPS redirect logic
 - Review Traefik router priority values
@@ -353,6 +364,7 @@ docker compose restart backend
 ### Development Environment
 
 The current setup uses:
+
 - Self-signed certificates (browser will show warnings)
 - Insecure Traefik API on port 8080
 - Default database credentials
@@ -414,6 +426,7 @@ Before deploying to production:
 ### Traefik Metrics
 
 Access Traefik dashboard:
+
 ```
 http://localhost:8080/dashboard/
 ```
@@ -421,6 +434,7 @@ http://localhost:8080/dashboard/
 ### Service Health
 
 Check service health:
+
 ```bash
 # Backend
 curl --insecure https://localhost/api/
@@ -452,6 +466,7 @@ docker stats aria-backend-1 aria-asset-1
 ## CI/CD Integration
 
 The project includes GitHub Actions CI at `.github/workflows/ci.yml` that runs:
+
 1. `pnpm install --frozen-lockfile`
 2. `pnpm lint`
 3. `pnpm test`
@@ -464,7 +479,7 @@ For Docker-based CI/CD:
 - name: Build Docker images
   run: |
     docker compose build
-    
+
 - name: Push to registry
   run: |
     docker compose push
@@ -480,6 +495,7 @@ For Docker-based CI/CD:
 ## Support
 
 For issues or questions:
+
 1. Check this documentation
 2. Review logs: `docker compose logs`
 3. Check running containers: `docker compose ps`
