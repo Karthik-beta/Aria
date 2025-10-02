@@ -9,154 +9,92 @@ services:
       - '--entrypoints.websecure.address=:443'
       - '--entrypoints.web.http.redirections.entrypoint.to=websecure'
       - '--entrypoints.web.http.redirections.entrypoint.scheme=https'
-      # Conditional Let's Encrypt for domain deployments
-      - '--certificatesresolvers.le.acme.httpchallenge=${ENABLE_LETSENCRYPT:-false}'
-      - '--certificatesresolvers.le.acme.httpchallenge.entrypoint=web'
-      - '--certificatesresolvers.le.acme.email=${ACME_EMAIL:-admin@example.com}'
-      - '--certificatesresolvers.le.acme.storage=/letsencrypt/acme.json'
-      # Enable dashboard for debugging (optional)
-      - '--api.dashboard=true'
-      - '--api.insecure=${ENABLE_DASHBOARD:-false}'
     ports:
       - '80:80'
       - '443:443'
-      - '8080:8080'  # Dashboard (only if enabled)
     volumes:
       - '/var/run/docker.sock:/var/run/docker.sock:ro'
       - './traefik/dynamic:/etc/traefik/dynamic:ro'
       - './traefik/certs:/etc/ssl/traefik:ro'
-      - 'traefik-acme:/letsencrypt'
-    environment:
-      - DEPLOYMENT_MODE=${DEPLOYMENT_MODE:-domain}
-      - STATIC_IP=${STATIC_IP:-}
-    networks:
-      - aria-network
 
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-aria}
-      POSTGRES_USER: ${POSTGRES_USER:-aria}
+      POSTGRES_DB: aria
+      POSTGRES_USER: aria
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-aria}
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -d ${POSTGRES_DB:-aria} -U ${POSTGRES_USER:-aria}']
+      test: ['CMD-SHELL', 'pg_isready -d aria -U aria']
       interval: 10s
       timeout: 5s
       retries: 5
-    networks:
-      - aria-network
 
   backend:
     build:
-      context: ./apps/backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: apps/backend/Dockerfile
     depends_on:
       postgres:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-aria}:${POSTGRES_PASSWORD:-aria}@postgres:5432/${POSTGRES_DB:-aria}
-      NODE_ENV: ${NODE_ENV:-production}
-    networks:
-      - aria-network
-    # Labels for domain-based routing (when using domains)
-    labels:
-      - 'traefik.enable=${ENABLE_DOMAIN_ROUTING:-false}'
-      - 'traefik.http.routers.backend-domain.rule=Host(`${BACKEND_DOMAIN:-api.aria.local}`)'
-      - 'traefik.http.routers.backend-domain.entrypoints=websecure'
-      - 'traefik.http.routers.backend-domain.tls=${ENABLE_LETSENCRYPT:-false}'
-      - 'traefik.http.routers.backend-domain.tls.certresolver=${ENABLE_LETSENCRYPT:+le}'
-      - 'traefik.http.services.backend-domain.loadbalancer.server.port=3000'
+      DATABASE_URL: postgresql://aria:${POSTGRES_PASSWORD:-aria}@postgres:5432/aria
+    expose:
+      - "3000"
+    restart: unless-stopped
 
-  # Asset Management Module
   asset:
     build:
-      context: ./apps/frontend/asset
-      dockerfile: Dockerfile
-    environment:
-      NODE_ENV: ${NODE_ENV:-production}
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-/api}
-    networks:
-      - aria-network
+      context: .
+      dockerfile: apps/frontend/asset/Dockerfile
     profiles:
       - asset
       - full
-    labels:
-      - 'traefik.enable=${ENABLE_DOMAIN_ROUTING:-false}'
-      - 'traefik.http.routers.asset-domain.rule=Host(`${ASSET_DOMAIN:-asset.aria.local}`)'
-      - 'traefik.http.routers.asset-domain.entrypoints=websecure'
-      - 'traefik.http.routers.asset-domain.tls=${ENABLE_LETSENCRYPT:-false}'
-      - 'traefik.http.routers.asset-domain.tls.certresolver=${ENABLE_LETSENCRYPT:+le}'
-      - 'traefik.http.services.asset-domain.loadbalancer.server.port=3000'
-
-  # HRMS Module
+    environment:
+      DOCKER_ENV: "true"
+    expose:
+      - "3000"
+    restart: unless-stopped
+    
   hrms:
     build:
-      context: ./apps/frontend/hrms
-      dockerfile: Dockerfile
-    environment:
-      NODE_ENV: ${NODE_ENV:-production}
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-/api}
-    networks:
-      - aria-network
+      context: .
+      dockerfile: apps/frontend/hrms/Dockerfile
     profiles:
       - hrms
       - full
-    labels:
-      - 'traefik.enable=${ENABLE_DOMAIN_ROUTING:-false}'
-      - 'traefik.http.routers.hrms-domain.rule=Host(`${HRMS_DOMAIN:-hrms.aria.local}`)'
-      - 'traefik.http.routers.hrms-domain.entrypoints=websecure'
-      - 'traefik.http.routers.hrms-domain.tls=${ENABLE_LETSENCRYPT:-false}'
-      - 'traefik.http.routers.hrms-domain.tls.certresolver=${ENABLE_LETSENCRYPT:+le}'
-      - 'traefik.http.services.hrms-domain.loadbalancer.server.port=3000'
-
-  # Inventory Module
+    environment:
+      DOCKER_ENV: "true"
+    expose:
+      - "3000"
+    restart: unless-stopped
+    
   inventory:
     build:
-      context: ./apps/frontend/inventory
-      dockerfile: Dockerfile
-    environment:
-      NODE_ENV: ${NODE_ENV:-production}
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-/api}
-    networks:
-      - aria-network
+      context: .
+      dockerfile: apps/frontend/inventory/Dockerfile
     profiles:
       - inventory
       - full
-    labels:
-      - 'traefik.enable=${ENABLE_DOMAIN_ROUTING:-false}'
-      - 'traefik.http.routers.inventory-domain.rule=Host(`${INVENTORY_DOMAIN:-inventory.aria.local}`)'
-      - 'traefik.http.routers.inventory-domain.entrypoints=websecure'
-      - 'traefik.http.routers.inventory-domain.tls=${ENABLE_LETSENCRYPT:-false}'
-      - 'traefik.http.routers.inventory-domain.tls.certresolver=${ENABLE_LETSENCRYPT:+le}'
-      - 'traefik.http.services.inventory-domain.loadbalancer.server.port=3000'
-
-  # CRM Module
+    environment:
+      DOCKER_ENV: "true"
+    expose:
+      - "3000"
+    restart: unless-stopped
+    
   crm:
     build:
-      context: ./apps/frontend/CRM
-      dockerfile: Dockerfile
-    environment:
-      NODE_ENV: ${NODE_ENV:-production}
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-/api}
-    networks:
-      - aria-network
+      context: .
+      dockerfile: apps/frontend/CRM/Dockerfile
     profiles:
       - crm
       - full
-    labels:
-      - 'traefik.enable=${ENABLE_DOMAIN_ROUTING:-false}'
-      - 'traefik.http.routers.crm-domain.rule=Host(`${CRM_DOMAIN:-crm.aria.local}`)'
-      - 'traefik.http.routers.crm-domain.entrypoints=websecure'
-      - 'traefik.http.routers.crm-domain.tls=${ENABLE_LETSENCRYPT:-false}'
-      - 'traefik.http.routers.crm-domain.tls.certresolver=${ENABLE_LETSENCRYPT:+le}'
-      - 'traefik.http.services.crm-domain.loadbalancer.server.port=3000'
+    environment:
+      DOCKER_ENV: "true"
+    expose:
+      - "3000"
+    restart: unless-stopped
 
 volumes:
-  traefik-acme:
   postgres-data:
-
-networks:
-  aria-network:
-    driver: bridge
