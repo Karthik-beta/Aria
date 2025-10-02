@@ -76,6 +76,38 @@ Refer to [`AGENTS.md`](./AGENTS.md) for detailed responsibilities, checklists, a
 - Add Playwright smoke tests per frontend under `apps/frontend/<app>/e2e` (planned).
 - Keep coverage thresholds documented per surface and report failures in CI.
 
+### Docker Testing
+
+Comprehensive Docker testing suite for validating builds, deployments, and Next.js 15 static asset handling:
+
+```bash
+# Run complete test suite (Windows)
+.\scripts\test-docker-setup.ps1 -Profile full
+
+# Run complete test suite (Linux/Mac)
+./scripts/test-docker-setup.sh full
+
+# Verify static assets after deployment
+.\scripts\verify-static-assets.ps1
+
+# Pre-deployment validation
+.\scripts\run-all-tests.ps1
+```
+
+**📚 Documentation:**
+- **Quick Start:** [scripts/QUICK_START.md](scripts/QUICK_START.md) - Get testing in 5 minutes
+- **Comprehensive Guide:** [scripts/DOCKER_TESTING_GUIDE.md](scripts/DOCKER_TESTING_GUIDE.md) - Full testing methodology
+- **Quick Reference:** [scripts/QUICK_REFERENCE.md](scripts/QUICK_REFERENCE.md) - Command cheat sheet
+- **Implementation Details:** [scripts/TEST_IMPLEMENTATION_SUMMARY.md](scripts/TEST_IMPLEMENTATION_SUMMARY.md) - Technical overview
+
+**Key Features:**
+- ✅ Next.js 15.5.4 static asset verification (critical for path-based routing)
+- ✅ Profile-based testing (full, asset, hrms, inventory, crm)
+- ✅ Automated SSL certificate generation for testing
+- ✅ Health check validation for all services
+- ✅ Container log analysis
+- ✅ Cross-platform support (PowerShell + Bash)
+
 ## CI & automation
 
 GitHub Actions (`.github/workflows/ci.yml`) enforces `pnpm lint`, `pnpm test`, and `pnpm build`. Extend the workflow whenever you add new quality gates (e.g., Playwright, typegen). Turborepo caching accelerates repeated runs—declare task outputs when adding generated artifacts.

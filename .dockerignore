@@ -1,5 +1,8 @@
-# Dependencies
+# Exclude node_modules completely
+**/node_modules
 node_modules
+
+# Dependencies
 .pnp
 .pnp.js
 
@@ -8,23 +11,28 @@ coverage
 .nyc_output
 
 # Next.js
+**/.next
 .next/
+**/out
 out/
+**/build
 build
+**/dist
 dist
 
 # Misc
 .DS_Store
 *.pem
 
-# Debug
+# Debug logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+*.log
 
 # Local env files
-.env
-.env*.local
+.env*
+!.env.example
 
 # Vercel
 .vercel
@@ -35,41 +43,17 @@ next-env.d.ts
 
 # Turbo
 .turbo
+**/.turbo
 
 # Git
 .git
 .gitignore
-README.md
 
 # Documentation
 *.md
-AGENTS.md
-SPEC_SHEET_FOR_SETUP.md
-
-# Scripts
-scripts/
-
-# Traefik (exclude from container builds)
-traefik/
+!README.md
+LICENSE
 
 # IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-
-# OS
-Thumbs.db
-ehthumbs.db
-Desktop.ini
-$RECYCLE.BIN/
-
-# Logs
-logs
-*.log
-
-# Runtime data
-pids
-*.pid
-*.seed
+.vscode
+.idea

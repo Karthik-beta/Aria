@@ -13,6 +13,8 @@ http:
       tls:
         options: default
       priority: 100
+      middlewares:
+        - backend-stripprefix
     
     # Asset Management Router
     asset-static:
@@ -23,8 +25,6 @@ http:
       tls:
         options: default
       priority: 90
-      middlewares:
-        - asset-stripprefix
     
     # HRMS Router
     hrms-static:
@@ -35,8 +35,6 @@ http:
       tls:
         options: default
       priority: 80
-      middlewares:
-        - hrms-stripprefix
     
     # Inventory Router
     inventory-static:
@@ -47,8 +45,6 @@ http:
       tls:
         options: default
       priority: 70
-      middlewares:
-        - inventory-stripprefix
     
     # CRM Router
     crm-static:
@@ -59,8 +55,6 @@ http:
       tls:
         options: default
       priority: 60
-      middlewares:
-        - crm-stripprefix
     
     # Default/Landing Router (serves Asset as default if available)
     default-static:
@@ -79,7 +73,7 @@ http:
         servers:
           - url: "http://backend:3000"
         healthCheck:
-          path: "/health"
+          path: "/"
           interval: "30s"
           timeout: "5s"
     
@@ -89,7 +83,7 @@ http:
         servers:
           - url: "http://asset:3000"
         healthCheck:
-          path: "/"
+          path: "/asset/"
           interval: "30s"
           timeout: "5s"
     
@@ -99,7 +93,7 @@ http:
         servers:
           - url: "http://hrms:3000"
         healthCheck:
-          path: "/"
+          path: "/hrms/"
           interval: "30s"
           timeout: "5s"
     
@@ -109,7 +103,7 @@ http:
         servers:
           - url: "http://inventory:3000"
         healthCheck:
-          path: "/"
+          path: "/inventory/"
           interval: "30s"
           timeout: "5s"
     
@@ -119,34 +113,17 @@ http:
         servers:
           - url: "http://crm:3000"
         healthCheck:
-          path: "/"
+          path: "/crm/"
           interval: "30s"
           timeout: "5s"
 
   middlewares:
-    # Strip prefix middlewares for frontend apps
-    asset-stripprefix:
+    # Strip prefix middleware for backend API
+    # This removes /api prefix before forwarding to backend service
+    backend-stripprefix:
       stripPrefix:
         prefixes:
-          - "/asset"
-        forceSlash: false
-    
-    hrms-stripprefix:
-      stripPrefix:
-        prefixes:
-          - "/hrms"
-        forceSlash: false
-    
-    inventory-stripprefix:
-      stripPrefix:
-        prefixes:
-          - "/inventory"
-        forceSlash: false
-    
-    crm-stripprefix:
-      stripPrefix:
-        prefixes:
-          - "/crm"
+          - "/api"
         forceSlash: false
     
     # Security headers middleware
