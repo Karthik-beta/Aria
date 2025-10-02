@@ -1,10 +1,75 @@
+# Dependencies
 node_modules
-pnpm-lock.yaml
-.env*
+.pnp
+.pnp.js
+
+# Testing
+coverage
+.nyc_output
+
+# Next.js
+.next/
+out/
+build
+dist
+
+# Misc
+.DS_Store
+*.pem
+
+# Debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Local env files
+.env
+.env*.local
+
+# Vercel
+.vercel
+
+# Typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# Turbo
+.turbo
+
+# Git
 .git
 .gitignore
-.turbo
-.next
-coverage
-dist
-build
+README.md
+
+# Documentation
+*.md
+AGENTS.md
+SPEC_SHEET_FOR_SETUP.md
+
+# Scripts
+scripts/
+
+# Traefik (exclude from container builds)
+traefik/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Logs
+logs
+*.log
+
+# Runtime data
+pids
+*.pid
+*.seed
