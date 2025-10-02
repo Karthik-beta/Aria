@@ -1,0 +1,164 @@
+# Static IP Routing Configuration
+# This file configures path-based routing for static IP deployments
+# Each application is accessible via different paths on the same IP
+
+http:
+  routers:
+    # Backend API Router
+    backend-static:
+      rule: "PathPrefix(`/api`)"
+      service: backend
+      entrypoints:
+        - websecure
+      tls:
+        options: default
+      priority: 100
+    
+    # Asset Management Router
+    asset-static:
+      rule: "PathPrefix(`/asset`)"
+      service: asset
+      entrypoints:
+        - websecure
+      tls:
+        options: default
+      priority: 90
+      middlewares:
+        - asset-stripprefix
+    
+    # HRMS Router
+    hrms-static:
+      rule: "PathPrefix(`/hrms`)"
+      service: hrms
+      entrypoints:
+        - websecure
+      tls:
+        options: default
+      priority: 80
+      middlewares:
+        - hrms-stripprefix
+    
+    # Inventory Router
+    inventory-static:
+      rule: "PathPrefix(`/inventory`)"
+      service: inventory
+      entrypoints:
+        - websecure
+      tls:
+        options: default
+      priority: 70
+      middlewares:
+        - inventory-stripprefix
+    
+    # CRM Router
+    crm-static:
+      rule: "PathPrefix(`/crm`)"
+      service: crm
+      entrypoints:
+        - websecure
+      tls:
+        options: default
+      priority: 60
+      middlewares:
+        - crm-stripprefix
+    
+    # Default/Landing Router (serves Asset as default if available)
+    default-static:
+      rule: "PathPrefix(`/`)"
+      service: asset
+      entrypoints:
+        - websecure
+      tls:
+        options: default
+      priority: 1
+
+  services:
+    # Backend API Service
+    backend:
+      loadBalancer:
+        servers:
+          - url: "http://backend:3000"
+        healthCheck:
+          path: "/health"
+          interval: "30s"
+          timeout: "5s"
+    
+    # Asset Management Service
+    asset:
+      loadBalancer:
+        servers:
+          - url: "http://asset:3000"
+        healthCheck:
+          path: "/"
+          interval: "30s"
+          timeout: "5s"
+    
+    # HRMS Service
+    hrms:
+      loadBalancer:
+        servers:
+          - url: "http://hrms:3000"
+        healthCheck:
+          path: "/"
+          interval: "30s"
+          timeout: "5s"
+    
+    # Inventory Service
+    inventory:
+      loadBalancer:
+        servers:
+          - url: "http://inventory:3000"
+        healthCheck:
+          path: "/"
+          interval: "30s"
+          timeout: "5s"
+    
+    # CRM Service
+    crm:
+      loadBalancer:
+        servers:
+          - url: "http://crm:3000"
+        healthCheck:
+          path: "/"
+          interval: "30s"
+          timeout: "5s"
+
+  middlewares:
+    # Strip prefix middlewares for frontend apps
+    asset-stripprefix:
+      stripPrefix:
+        prefixes:
+          - "/asset"
+        forceSlash: false
+    
+    hrms-stripprefix:
+      stripPrefix:
+        prefixes:
+          - "/hrms"
+        forceSlash: false
+    
+    inventory-stripprefix:
+      stripPrefix:
+        prefixes:
+          - "/inventory"
+        forceSlash: false
+    
+    crm-stripprefix:
+      stripPrefix:
+        prefixes:
+          - "/crm"
+        forceSlash: false
+    
+    # Security headers middleware
+    security-headers:
+      headers:
+        customRequestHeaders:
+          X-Forwarded-Proto: "https"
+        customResponseHeaders:
+          X-Content-Type-Options: "nosniff"
+          X-Frame-Options: "DENY"
+          X-XSS-Protection: "1; mode=block"
+          Strict-Transport-Security: "max-age=31536000; includeSubDomains"
+        contentTypeNosniff: true
+        frameDeny: true
+        referrerPolicy: "strict-origin-when-cross-origin"
