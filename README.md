@@ -41,14 +41,14 @@ pnpm install
 
 ## Core commands
 
-| Task | Command | Notes |
-| --- | --- | --- |
-| Format code | `pnpm format` | Runs Prettier across the entire workspace. |
-| Check formatting | `pnpm format:check` | Useful for CI or local verification. |
-| Lint | `pnpm lint` | Executes ESLint with Prettier integration in every package. |
-| Test | `pnpm test` | Delegates to package-level test suites (Vitest/Jest as they land). |
-| Build | `pnpm build` | Runs production builds for backend + all frontends. |
-| Dev servers | `pnpm --filter <app> dev` | Launches an individual frontend (`asset`, `crm`, `hrms`, `inventory`) or backend (`backend`). |
+| Task             | Command                   | Notes                                                                                         |
+| ---------------- | ------------------------- | --------------------------------------------------------------------------------------------- |
+| Format code      | `pnpm format`             | Runs Prettier across the entire workspace.                                                    |
+| Check formatting | `pnpm format:check`       | Useful for CI or local verification.                                                          |
+| Lint             | `pnpm lint`               | Executes ESLint with Prettier integration in every package.                                   |
+| Test             | `pnpm test`               | Delegates to package-level test suites (Vitest/Jest as they land).                            |
+| Build            | `pnpm build`              | Runs production builds for backend + all frontends.                                           |
+| Dev servers      | `pnpm --filter <app> dev` | Launches an individual frontend (`asset`, `crm`, `hrms`, `inventory`) or backend (`backend`). |
 
 Use Turborepo filters to scope commands, e.g. `pnpm --filter asset lint`.
 
@@ -95,12 +95,14 @@ Comprehensive Docker testing suite for validating builds, deployments, and Next.
 ```
 
 **📚 Documentation:**
+
 - **Quick Start:** [scripts/QUICK_START.md](scripts/QUICK_START.md) - Get testing in 5 minutes
 - **Comprehensive Guide:** [scripts/DOCKER_TESTING_GUIDE.md](scripts/DOCKER_TESTING_GUIDE.md) - Full testing methodology
 - **Quick Reference:** [scripts/QUICK_REFERENCE.md](scripts/QUICK_REFERENCE.md) - Command cheat sheet
 - **Implementation Details:** [scripts/TEST_IMPLEMENTATION_SUMMARY.md](scripts/TEST_IMPLEMENTATION_SUMMARY.md) - Technical overview
 
 **Key Features:**
+
 - ✅ Next.js 15.5.4 static asset verification (critical for path-based routing)
 - ✅ Profile-based testing (full, asset, hrms, inventory, crm)
 - ✅ Automated SSL certificate generation for testing

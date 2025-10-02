@@ -41,7 +41,7 @@ services:
     environment:
       DATABASE_URL: postgresql://aria:${POSTGRES_PASSWORD:-aria}@postgres:5432/aria
     expose:
-      - "3000"
+      - '3000'
     restart: unless-stopped
 
   asset:
@@ -52,11 +52,11 @@ services:
       - asset
       - full
     environment:
-      DOCKER_ENV: "true"
+      DOCKER_ENV: 'true'
     expose:
-      - "3000"
+      - '3000'
     restart: unless-stopped
-    
+
   hrms:
     build:
       context: .
@@ -65,11 +65,11 @@ services:
       - hrms
       - full
     environment:
-      DOCKER_ENV: "true"
+      DOCKER_ENV: 'true'
     expose:
-      - "3000"
+      - '3000'
     restart: unless-stopped
-    
+
   inventory:
     build:
       context: .
@@ -78,11 +78,11 @@ services:
       - inventory
       - full
     environment:
-      DOCKER_ENV: "true"
+      DOCKER_ENV: 'true'
     expose:
-      - "3000"
+      - '3000'
     restart: unless-stopped
-    
+
   crm:
     build:
       context: .
@@ -91,9 +91,9 @@ services:
       - crm
       - full
     environment:
-      DOCKER_ENV: "true"
+      DOCKER_ENV: 'true'
     expose:
-      - "3000"
+      - '3000'
     restart: unless-stopped
 
 volumes:
