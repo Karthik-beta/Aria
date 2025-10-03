@@ -277,12 +277,12 @@ Accept the self-signed certificate warning in your browser.
    notepad C:\Windows\System32\drivers\etc\hosts
    ```
    
-   Add entries:
+   Add entry (only one needed for path-based routing):
    ```
    127.0.0.1    yourdomain.com
-   127.0.0.1    asset.yourdomain.com
-   127.0.0.1    crm.yourdomain.com
    ```
+   
+   **Note**: Path-based routing uses a single domain, not subdomains.
 
 3. **Flush DNS cache:**
    ```bash

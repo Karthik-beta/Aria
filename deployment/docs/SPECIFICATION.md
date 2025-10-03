@@ -47,17 +47,24 @@ This specification defines the infrastructure layer for deploying Aria ERP as a 
 ```
 aria-erp-v{version}/
 ├── bin/
-│   ├── install.sh           # Linux installation script
-│   ├── install.ps1          # Windows installation script  
-│   ├── uninstall.sh         # Linux removal script
-│   └── uninstall.ps1        # Windows removal script
-├── services/
-│   ├── docker/
-│   │   ├── compose.yml      # Production Docker Compose
-│   │   ├── images/          # Pre-built Docker images
-│   │   └── volumes/         # Persistent data templates
-│   └── native/
-│       ├── windows/         # Windows service definitions
+│   ├── install-linux.sh           # Linux installation script
+│   ├── install-windows.ps1        # Windows installation script  
+│   ├── uninstall-linux.sh         # Linux removal script
+│   ├── uninstall-windows.ps1      # Windows removal script
+│   ├── load-images.sh             # Load Docker images (Linux)
+│   └── load-images.ps1            # Load Docker images (Windows)
+├── images/
+│   └── *.tar                      # Pre-built Docker images
+├── config/
+│   └── traefik/                   # Traefik proxy configuration
+├── docs/
+│   ├── INSTALLATION.md            # Installation guide
+│   ├── CONFIGURATION.md           # Configuration reference
+│   ├── SPECIFICATION.md           # Technical specifications
+│   └── TROUBLESHOOTING.md         # Troubleshooting guide
+├── docker-compose.production.yml  # Production Docker Compose
+├── .env.template                  # Environment configuration template
+└── VERSION                        # Package version
 │       └── linux/           # Systemd service definitions
 ├── config/
 │   ├── templates/           # Configuration templates

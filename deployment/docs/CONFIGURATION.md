@@ -89,15 +89,17 @@ LICENSED_MODULES=inventory
 
 ### Module URLs
 
-Each module is accessible via a subdomain:
+All modules are accessible via path-based routing:
 
 | Module | URL Pattern |
 |--------|-------------|
-| Asset | `https://asset.{DOMAIN}` |
-| CRM | `https://crm.{DOMAIN}` |
-| HRMS | `https://hrms.{DOMAIN}` |
-| Inventory | `https://inventory.{DOMAIN}` |
-| Backend API | `https://{DOMAIN}/api` |
+| Asset | `https://{DOMAIN}/asset/` |
+| CRM | `https://{DOMAIN}/crm/` |
+| HRMS | `https://{DOMAIN}/hrms/` |
+| Inventory | `https://{DOMAIN}/inventory/` |
+| Backend API | `https://{DOMAIN}/api/` |
+
+**Note**: This deployment uses path-based routing, not subdomain-based routing. All modules share a single IP/domain.
 
 ## Database Configuration
 
@@ -240,21 +242,27 @@ New-NetFirewallRule -DisplayName "Aria ERP HTTPS" -Direction Inbound -Protocol T
 
 ### DNS Configuration
 
-For production deployment:
+For production deployment with path-based routing:
 
-1. Create A records for your domain:
+**Option 1: Use Server IP Directly**
+- No DNS configuration needed
+- Access via `https://<server-ip>/<module>/`
+
+**Option 2: Configure Domain Name**
+1. Create a single A record for your domain:
    ```
    yourdomain.com       A    YOUR_SERVER_IP
-   *.yourdomain.com     A    YOUR_SERVER_IP
    ```
 
-2. Or create specific subdomains:
+2. Access modules via paths:
    ```
-   asset.yourdomain.com      A    YOUR_SERVER_IP
-   crm.yourdomain.com        A    YOUR_SERVER_IP
-   hrms.yourdomain.com       A    YOUR_SERVER_IP
-   inventory.yourdomain.com  A    YOUR_SERVER_IP
+   https://yourdomain.com/asset/
+   https://yourdomain.com/crm/
+   https://yourdomain.com/hrms/
+   https://yourdomain.com/inventory/
    ```
+
+**Note**: With path-based routing, you only need ONE DNS record, not subdomains.
 
 ## Performance Tuning
 

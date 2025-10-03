@@ -216,15 +216,15 @@ The system is pre-configured for Let's Encrypt. Ensure:
 
 ### 3. Access the Application
 
-After installation, access your Aria ERP:
+After installation, access your Aria ERP via path-based URLs:
 
-- **Backend API**: `https://your-domain.com/api`
-- **Asset Management**: `https://asset.your-domain.com`
-- **CRM**: `https://crm.your-domain.com`
-- **HRMS**: `https://hrms.your-domain.com`
-- **Inventory**: `https://inventory.your-domain.com`
+- **Backend API**: `https://<server-ip>/api/`
+- **Asset Management**: `https://<server-ip>/asset/`
+- **CRM**: `https://<server-ip>/crm/`
+- **HRMS**: `https://<server-ip>/hrms/`
+- **Inventory**: `https://<server-ip>/inventory/`
 
-For localhost testing, use `http://localhost` or the configured domain.
+Replace `<server-ip>` with your actual server IP address or configured domain name.
 
 ### 4. Initial Setup
 

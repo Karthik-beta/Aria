@@ -163,21 +163,23 @@ Keep documentation in sync with code changes.
 
 ### Installation Scripts
 
-#### install-linux.sh
-- Checks prerequisites
+#### bin/install-linux.sh (in packaged distribution)
+- Checks prerequisites (Docker, ports, permissions)
 - Creates installation directories
-- Copies files
-- Configures environment
+- Copies configuration files
+- Configures environment variables
 - Installs systemd service
 - Starts services
 
-#### install-windows.ps1
+#### bin/install-windows.ps1 (in packaged distribution)
 - Checks for admin privileges
-- Verifies Docker Desktop
-- Creates directories
-- Copies configuration
-- Creates scheduled task
+- Verifies Docker Desktop is running
+- Creates installation directories
+- Copies configuration files
+- Creates scheduled task for auto-start
 - Starts services
+
+**Note**: The build script (`deployment/scripts/build-package.sh`) copies scripts from `deployment/scripts/` into `bin/` in the packaged distribution.
 
 ### Docker Compose Template
 
