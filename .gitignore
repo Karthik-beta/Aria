@@ -9,3 +9,10 @@ build/
 .vscode/
 .env*
 .DS_Store
+
+# SSL/TLS Private Keys - NEVER commit to version control
+*.key
+*.pem
+traefik/certs/server.key
+traefik/certs/*.key
+traefik/certs/*.pem

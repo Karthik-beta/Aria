@@ -1,6 +1,20 @@
 # Aria ERP Monorepo
 
-Monorepo for the Aria B2B ERP suite. The workspace combines a NestJS 11 backend, four Next.js 15 frontends, and shared infrastructure packages powered by pnpm and Turborepo. Every contribution follows the four-agent charter in [`AGENTS.md`](./AGENTS.md) to keep the platform simple, type-safe, automated, and high quality.
+Monorepo for the Aria B2B ERP suite. The workspace combines a NestJS 11 backend, four Next.js 1## Docker & environments
+
+`docker-compose.yml` outlines the intended production topology (Traefik, backend, frontends, Postgres). As services mature:
+
+- Document required environment variables in each app's README and `.env.example`.
+- Keep Dockerfiles in sync with the runtime commands shipped in package scripts.
+- Run `docker compose up` for local smoke tests once images are available.
+
+**📚 Deployment Documentation:**
+
+- **[DOCKER_HTTPS_SETUP.md](./DOCKER_HTTPS_SETUP.md)** - Complete Docker architecture and HTTPS setup
+- **[PRODUCTION_DEPLOYMENT.md](./PRODUCTION_DEPLOYMENT.md)** - Production security, secrets management, and deployment strategies
+- **[.env.example](./.env.example)** - Environment variable templates
+
+⚠️ **Security Note**: The included SSL certificates are self-signed and FOR DEVELOPMENT ONLY. See [PRODUCTION_DEPLOYMENT.md](./PRODUCTION_DEPLOYMENT.md) for production certificate options (Let's Encrypt, Docker secrets, commercial CA).ends, and shared infrastructure packages powered by pnpm and Turborepo. Every contribution follows the four-agent charter in [`AGENTS.md`](./AGENTS.md) to keep the platform simple, type-safe, automated, and high quality.
 
 ## Project layout
 
@@ -41,14 +55,14 @@ pnpm install
 
 ## Core commands
 
-| Task | Command | Notes |
-| --- | --- | --- |
-| Format code | `pnpm format` | Runs Prettier across the entire workspace. |
-| Check formatting | `pnpm format:check` | Useful for CI or local verification. |
-| Lint | `pnpm lint` | Executes ESLint with Prettier integration in every package. |
-| Test | `pnpm test` | Delegates to package-level test suites (Vitest/Jest as they land). |
-| Build | `pnpm build` | Runs production builds for backend + all frontends. |
-| Dev servers | `pnpm --filter <app> dev` | Launches an individual frontend (`asset`, `crm`, `hrms`, `inventory`) or backend (`backend`). |
+| Task             | Command                   | Notes                                                                                         |
+| ---------------- | ------------------------- | --------------------------------------------------------------------------------------------- |
+| Format code      | `pnpm format`             | Runs Prettier across the entire workspace.                                                    |
+| Check formatting | `pnpm format:check`       | Useful for CI or local verification.                                                          |
+| Lint             | `pnpm lint`               | Executes ESLint with Prettier integration in every package.                                   |
+| Test             | `pnpm test`               | Delegates to package-level test suites (Vitest/Jest as they land).                            |
+| Build            | `pnpm build`              | Runs production builds for backend + all frontends.                                           |
+| Dev servers      | `pnpm --filter <app> dev` | Launches an individual frontend (`asset`, `crm`, `hrms`, `inventory`) or backend (`backend`). |
 
 Use Turborepo filters to scope commands, e.g. `pnpm --filter asset lint`.
 
@@ -75,6 +89,40 @@ Refer to [`AGENTS.md`](./AGENTS.md) for detailed responsibilities, checklists, a
 - Maintain Jest-based unit and e2e tests in `apps/backend/test`.
 - Add Playwright smoke tests per frontend under `apps/frontend/<app>/e2e` (planned).
 - Keep coverage thresholds documented per surface and report failures in CI.
+
+### Docker Testing
+
+Comprehensive Docker testing suite for validating builds, deployments, and Next.js 15 static asset handling:
+
+```bash
+# Run complete test suite (Windows)
+.\scripts\test-docker-setup.ps1 -Profile full
+
+# Run complete test suite (Linux/Mac)
+./scripts/test-docker-setup.sh full
+
+# Verify static assets after deployment
+.\scripts\verify-static-assets.ps1
+
+# Pre-deployment validation
+.\scripts\run-all-tests.ps1
+```
+
+**📚 Documentation:**
+
+- **Quick Start:** [scripts/QUICK_START.md](scripts/QUICK_START.md) - Get testing in 5 minutes
+- **Comprehensive Guide:** [scripts/DOCKER_TESTING_GUIDE.md](scripts/DOCKER_TESTING_GUIDE.md) - Full testing methodology
+- **Quick Reference:** [scripts/QUICK_REFERENCE.md](scripts/QUICK_REFERENCE.md) - Command cheat sheet
+- **Implementation Details:** [scripts/TEST_IMPLEMENTATION_SUMMARY.md](scripts/TEST_IMPLEMENTATION_SUMMARY.md) - Technical overview
+
+**Key Features:**
+
+- ✅ Next.js 15.5.4 static asset verification (critical for path-based routing)
+- ✅ Profile-based testing (full, asset, hrms, inventory, crm)
+- ✅ Automated SSL certificate generation for testing
+- ✅ Health check validation for all services
+- ✅ Container log analysis
+- ✅ Cross-platform support (PowerShell + Bash)
 
 ## CI & automation
 

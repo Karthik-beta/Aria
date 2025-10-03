@@ -1,29 +1,30 @@
-version: '3.9'
-
 services:
   traefik:
-    image: traefik:v3.1
+    image: traefik:v3.5
     command:
       - '--providers.docker=true'
+      - '--providers.file.directory=/etc/traefik/dynamic'
+      - '--providers.file.watch=true'
       - '--entrypoints.web.address=:80'
       - '--entrypoints.websecure.address=:443'
-      - '--certificatesresolvers.le.acme.httpchallenge=true'
-      - '--certificatesresolvers.le.acme.httpchallenge.entrypoint=web'
-      - '--certificatesresolvers.le.acme.email=admin@example.com'
-      - '--certificatesresolvers.le.acme.storage=/letsencrypt/acme.json'
+      - '--entrypoints.web.http.redirections.entrypoint.to=websecure'
+      - '--entrypoints.web.http.redirections.entrypoint.scheme=https'
     ports:
       - '80:80'
       - '443:443'
     volumes:
       - '/var/run/docker.sock:/var/run/docker.sock:ro'
-      - 'traefik-acme:/letsencrypt'
+      - './traefik/dynamic:/etc/traefik/dynamic:ro'
+      # For production: use Docker secrets or external volume
+      # Example: ${TRAEFIK_CERTS_PATH:-./traefik/certs}:/etc/ssl/traefik:ro
+      - './traefik/certs:/etc/ssl/traefik:ro'
 
   postgres:
-    image: postgres:16-alpine
+    image: postgres:18
     environment:
       POSTGRES_DB: aria
       POSTGRES_USER: aria
-      POSTGRES_PASSWORD: aria
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-aria}
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
@@ -34,54 +35,68 @@ services:
 
   backend:
     build:
-      context: ./apps/backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: apps/backend/Dockerfile
     depends_on:
       postgres:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql://aria:aria@postgres:5432/aria
-    labels:
-      - 'traefik.enable=true'
-      - 'traefik.http.routers.backend.rule=Host(`api.aria.local`)'
-      - 'traefik.http.routers.backend.entrypoints=web'
+      DATABASE_URL: postgresql://aria:${POSTGRES_PASSWORD:-aria}@postgres:5432/aria
+    expose:
+      - '3000'
+    restart: unless-stopped
 
   asset:
     build:
-      context: ./apps/frontend/asset
-      dockerfile: Dockerfile
-    labels:
-      - 'traefik.enable=true'
-      - 'traefik.http.routers.asset.rule=Host(`asset.aria.local`)'
-      - 'traefik.http.services.asset.loadbalancer.server.port=3000'
+      context: .
+      dockerfile: apps/frontend/asset/Dockerfile
+    profiles:
+      - asset
+      - full
+    environment:
+      DOCKER_ENV: 'true'
+    expose:
+      - '3000'
+    restart: unless-stopped
 
   hrms:
     build:
-      context: ./apps/frontend/hrms
-      dockerfile: Dockerfile
-    labels:
-      - 'traefik.enable=true'
-      - 'traefik.http.routers.hrms.rule=Host(`hrms.aria.local`)'
-      - 'traefik.http.services.hrms.loadbalancer.server.port=3000'
+      context: .
+      dockerfile: apps/frontend/hrms/Dockerfile
+    profiles:
+      - hrms
+      - full
+    environment:
+      DOCKER_ENV: 'true'
+    expose:
+      - '3000'
+    restart: unless-stopped
 
   inventory:
     build:
-      context: ./apps/frontend/inventory
-      dockerfile: Dockerfile
-    labels:
-      - 'traefik.enable=true'
-      - 'traefik.http.routers.inventory.rule=Host(`inventory.aria.local`)'
-      - 'traefik.http.services.inventory.loadbalancer.server.port=3000'
+      context: .
+      dockerfile: apps/frontend/inventory/Dockerfile
+    profiles:
+      - inventory
+      - full
+    environment:
+      DOCKER_ENV: 'true'
+    expose:
+      - '3000'
+    restart: unless-stopped
 
   crm:
     build:
-      context: ./apps/frontend/CRM
-      dockerfile: Dockerfile
-    labels:
-      - 'traefik.enable=true'
-      - 'traefik.http.routers.crm.rule=Host(`crm.aria.local`)'
-      - 'traefik.http.services.crm.loadbalancer.server.port=3000'
+      context: .
+      dockerfile: apps/frontend/CRM/Dockerfile
+    profiles:
+      - crm
+      - full
+    environment:
+      DOCKER_ENV: 'true'
+    expose:
+      - '3000'
+    restart: unless-stopped
 
 volumes:
-  traefik-acme:
   postgres-data:
