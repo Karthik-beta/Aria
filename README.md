@@ -113,7 +113,7 @@ Before opening a pull request:
 
 ## Support & Security
 
-- For deployment assistance, review the troubleshooting guide above or the quick reference in `deployment/QUICK_REFERENCE.md`.
+- For deployment assistance, review the [Troubleshooting Guide](./deployment/docs/TROUBLESHOOTING.md) or [Deployment Guide](./deployment/README.md).
 - ⚠️ Development SSL certificates in `traefik/certs/` are self-signed and intended only for local use. Production deployments should rely on certificates provisioned by the on-prem package (Let's Encrypt or custom CA).
 - Security questions and disclosures should follow the process outlined in `SECURITY.md`.
 

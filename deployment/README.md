@@ -1,4 +1,4 @@
-# Aria ERP On-Premise Deployment# Aria ERP On-Premise Deployment# Aria ERP On-Premise Deployment
+# Aria ERP On-Premise Deployment# Aria ERP On-Premise Deployment# Aria ERP On-Premise Deployment# Aria ERP On-Premise Deployment
 
 
 
@@ -6,7 +6,7 @@ Production-ready deployment infrastructure for Aria ERP with **path-based routin
 
 
 
-## OverviewProduction-ready deployment infrastructure for Aria ERP with **path-based routing** for static IP deployments.Production-ready deployment infrastructure for Aria ERP with **path-based routing** for static IP deployments.
+## OverviewProduction-ready deployment infrastructure for Aria ERP with **path-based routing** for static IP deployments.
 
 
 
@@ -14,7 +14,7 @@ This deployment package provides everything needed to install and run Aria ERP i
 
 
 
-- **Path-Based Routing**: Access all modules via `https://<ip>/<module>/`## Overview## Overview
+- **Path-Based Routing**: Access all modules via `https://<ip>/<module>/`## OverviewProduction-ready deployment infrastructure for Aria ERP with **path-based routing** for static IP deployments.Production-ready deployment infrastructure for Aria ERP with **path-based routing** for static IP deployments.
 
 - **Static IP Support**: No domain name required  
 
@@ -22,7 +22,7 @@ This deployment package provides everything needed to install and run Aria ERP i
 
 - **Cross-Platform**: Native Windows and Linux support
 
-- **Modular**: Enable only the modules you needThis deployment package provides everything needed to install and run Aria ERP in client environments:This deployment package provides everything needed to install and run Aria ERP in client environments:
+- **Modular**: Enable only the modules you needThis deployment package provides everything needed to install and run Aria ERP in client environments:
 
 
 
@@ -30,23 +30,23 @@ This deployment package provides everything needed to install and run Aria ERP i
 
 
 
-### Prerequisites- **Path-Based Routing**: Access all modules via `https://<ip>/<module>/`- **Path-Based Routing**: Access all modules via `https://<ip>/<module>/`
+### Prerequisites- **Path-Based Routing**: Access all modules via `https://<ip>/<module>/`## Overview## Overview
 
 
 
-**Minimum Requirements:**- **Static IP Support**: No domain name required- **Static IP Support**: No domain name required
+**Minimum Requirements:**- **Static IP Support**: No domain name required  
 
 - 2 CPU cores
 
-- 4 GB RAM- **200 User Capacity**: Optimized for ~200 concurrent users- **200 User Capacity**: Optimized for ~200 concurrent users
+- 4 GB RAM- **200 User Capacity**: Optimized for ~200 concurrent users
 
 - 20 GB disk space
 
-- Docker 20.10+ and Docker Compose 2.0+- **Cross-Platform**: Native Windows and Linux support- **Cross-Platform**: Native Windows and Linux support
+- Docker 20.10+ and Docker Compose 2.0+- **Cross-Platform**: Native Windows and Linux support
 
 - Ports 80 and 443 available
 
-- **Modular**: Enable only the modules you need- **Modular**: Enable only the modules you need
+- **Modular**: Enable only the modules you needThis deployment package provides everything needed to install and run Aria ERP in client environments:This deployment package provides everything needed to install and run Aria ERP in client environments:
 
 **Recommended:**
 
@@ -54,7 +54,7 @@ This deployment package provides everything needed to install and run Aria ERP i
 
 - 8 GB RAM
 
-- 50 GB SSD## Quick Start## Quick Start
+- 50 GB SSD## Quick Start
 
 - 1 Gbps network
 
@@ -62,7 +62,7 @@ This deployment package provides everything needed to install and run Aria ERP i
 
 **Supported Platforms:**
 
-- **Linux**: Ubuntu 20.04+, Debian 11+, RHEL/CentOS 8+### Prerequisites### Prerequisites
+- **Linux**: Ubuntu 20.04+, Debian 11+, RHEL/CentOS 8+### Prerequisites- **Path-Based Routing**: Access all modules via `https://<ip>/<module>/`- **Path-Based Routing**: Access all modules via `https://<ip>/<module>/`
 
 - **Windows**: Windows 10/11, Server 2019+
 
@@ -70,51 +70,51 @@ This deployment package provides everything needed to install and run Aria ERP i
 
 ### Installation
 
-**Minimum Requirements:****Minimum Requirements:**
+**Minimum Requirements:**- **Static IP Support**: No domain name required- **Static IP Support**: No domain name required
 
 **Linux:**
 
-- 2 CPU cores- 2 CPU cores
+- 2 CPU cores
 
 ```bash
 
-# Extract package- 4 GB RAM- 4 GB RAM
+# Extract package- 4 GB RAM- **200 User Capacity**: Optimized for ~200 concurrent users- **200 User Capacity**: Optimized for ~200 concurrent users
 
 tar -xzf aria-erp-v0.1.0-linux.tar.gz
 
-cd aria-erp-v0.1.0- 20 GB disk space- 20 GB disk space
+cd aria-erp-v0.1.0- 20 GB disk space
 
 
 
-# Load Docker images- Docker 20.10+ and Docker Compose 2.0+- Docker 20.10+ and Docker Compose 2.0+
+# Load Docker images- Docker 20.10+ and Docker Compose 2.0+- **Cross-Platform**: Native Windows and Linux support- **Cross-Platform**: Native Windows and Linux support
 
 sudo ./bin/load-images.sh
 
-- Ports 80 and 443 available- Ports 80 and 443 available
+- Ports 80 and 443 available
 
 # Install (modules: full, asset, crm, hrms, or inventory)
 
-sudo ./bin/install-linux.sh --modules full
+sudo ./bin/install-linux.sh --modules full- **Modular**: Enable only the modules you need- **Modular**: Enable only the modules you need
 
 ```
 
-**Recommended:****Recommended:**
+**Recommended:**
 
 **Windows (PowerShell as Administrator):**
 
-- 4 CPU cores- 4 CPU cores
+- 4 CPU cores
 
 ```powershell
 
-# Extract ZIP file and navigate to folder- 8 GB RAM- 8 GB RAM
+# Extract ZIP file and navigate to folder- 8 GB RAM
 
 cd aria-erp-v0.1.0
 
-- 50 GB SSD- 50 GB SSD
+- 50 GB SSD## Quick Start## Quick Start
 
 # Load Docker images
 
-.\bin\load-images.ps1- 1 Gbps network- 1 Gbps network
+.\bin\load-images.ps1- 1 Gbps network
 
 
 
@@ -122,15 +122,15 @@ cd aria-erp-v0.1.0
 
 .\bin\install-windows.ps1 -Modules "full"
 
-```**Supported Platforms:****Supported Platforms:**
+```**Supported Platforms:**
 
 
 
-### Access URLs- **Linux**: Ubuntu 20.04+, Debian 11+, RHEL/CentOS 8+- **Linux**: Ubuntu 20.04+, Debian 11+, RHEL/CentOS 8+
+### Access URLs- **Linux**: Ubuntu 20.04+, Debian 11+, RHEL/CentOS 8+### Prerequisites### Prerequisites
 
 
 
-After installation, access modules via:- **Windows**: Windows 10/11, Server 2019+- **Windows**: Windows 10/11, Server 2019+
+After installation, access modules via:- **Windows**: Windows 10/11, Server 2019+
 
 
 
@@ -138,35 +138,35 @@ After installation, access modules via:- **Windows**: Windows 10/11, Server 2019
 
 https://<server-ip>/asset/       # Asset Management
 
-https://<server-ip>/crm/         # Customer Relationship Management### Installation### Installation
+https://<server-ip>/crm/         # Customer Relationship Management### Installation
 
 https://<server-ip>/hrms/        # Human Resources
 
-https://<server-ip>/inventory/   # Inventory Management
+https://<server-ip>/inventory/   # Inventory Management**Minimum Requirements:****Minimum Requirements:**
 
 https://<server-ip>/api/         # Backend API
 
-```**Linux:****Linux:**
+```**Linux:**
 
 
 
-## Documentation
+## Documentation- 2 CPU cores- 2 CPU cores
 
 
 
-- **[Installation Guide](docs/INSTALLATION.md)** - Detailed installation instructions```bash```bash
+- **[Installation Guide](docs/INSTALLATION.md)** - Detailed installation instructions```bash
 
 - **[Configuration Reference](docs/CONFIGURATION.md)** - Configuration options and settings
 
-- **[Troubleshooting Guide](docs/TROUBLESHOOTING.md)** - Common issues and solutions# Extract package# Extract package
+- **[Troubleshooting Guide](docs/TROUBLESHOOTING.md)** - Common issues and solutions# Extract package- 4 GB RAM- 4 GB RAM
 
 - **[Specification](docs/SPECIFICATION.md)** - Technical specifications
 
-- **[Development Guide](DEVELOPMENT.md)** - Building and testing the packagetar -xzf aria-erp-v0.1.0-linux.tar.gztar -xzf aria-erp-v0.1.0-linux.tar.gz
+- **[Development Guide](DEVELOPMENT.md)** - Building and testing the packagetar -xzf aria-erp-v0.1.0-linux.tar.gz
 
 
 
-## Available Modulescd aria-erp-v0.1.0cd aria-erp-v0.1.0
+## Available Modulescd aria-erp-v0.1.0- 20 GB disk space- 20 GB disk space
 
 
 
@@ -174,99 +174,99 @@ https://<server-ip>/api/         # Backend API
 
 |--------|-------------|-------------|
 
-| Asset | Asset management and tracking | `asset` |# Generate SSL certificate# Generate SSL certificate with all server IPs
+| Asset | Asset management and tracking | `asset` |# Load Docker images- Docker 20.10+ and Docker Compose 2.0+- Docker 20.10+ and Docker Compose 2.0+
 
 | CRM | Customer relationship management | `crm` |
 
-| HRMS | Human resources and payroll | `hrms` |sudo ./scripts/generate-ssl-cert-linux.shsudo ./scripts/generate-ssl-cert-linux.sh ./volumes/traefik
+| HRMS | Human resources and payroll | `hrms` |sudo ./bin/load-images.sh
 
 | Inventory | Inventory control and warehousing | `inventory` |
 
-
+- Ports 80 and 443 available- Ports 80 and 443 available
 
 **Module Selection:**
 
-# Load Docker images# Load Docker images
+# Install (modules: full, asset, crm, hrms, or inventory)
 
 ```bash
 
-# Install all modulessudo ./scripts/load-images.sh
+# Install all modulessudo ./bin/install-linux.sh --modules full
 
 --modules full
 
-- **Windows**: Windows 10/11, Server 2019+sudo ./scripts/load-images.sh
+```
 
 # Install specific modules
 
---modules asset,crm,hrms# Install (modules: full, asset, crm, hrms, or inventory)
+--modules asset,crm,hrms**Recommended:****Recommended:**
 
 ```
 
-sudo ./scripts/install-linux.sh --modules full
+**Windows (PowerShell as Administrator):**
 
 ## Package Structure
 
-```
+- 4 CPU cores- 4 CPU cores
 
 The extracted deployment package has the following structure:
 
-### Installation# Install (modules: full, asset,crm, hrms, or inventory)
+```powershell
 
 ```
 
-aria-erp-v{version}/**Windows (PowerShell as Administrator):**
+aria-erp-v{version}/# Extract ZIP file and navigate to folder- 8 GB RAM- 8 GB RAM
 
 ├── bin/
 
-│   ├── install-linux.sh           # Linux installation scriptsudo ./scripts/install-linux.sh --modules full
+│   ├── install-linux.sh           # Linux installation scriptcd aria-erp-v0.1.0
 
 │   ├── install-windows.ps1        # Windows installation script
 
-│   ├── uninstall-linux.sh         # Linux removal script```powershell
+│   ├── uninstall-linux.sh         # Linux removal script- 50 GB SSD- 50 GB SSD
 
 │   ├── uninstall-windows.ps1      # Windows removal script
 
-│   ├── load-images.sh             # Load Docker images (Linux)# Extract ZIP file and navigate to folder**Linux:**```
+│   ├── load-images.sh             # Load Docker images (Linux)# Load Docker images
 
 │   └── load-images.ps1            # Load Docker images (Windows)
 
-├── images/cd aria-erp-v0.1.0
+├── images/.\bin\load-images.ps1- 1 Gbps network- 1 Gbps network
 
 │   └── *.tar                      # Pre-built Docker images
 
-├── config/```bash
+├── config/
 
 │   └── traefik/                   # Traefik proxy configuration
 
-├── docs/# Generate SSL certificate
+├── docs/# Install (modules: full, asset, crm, hrms, or inventory)
 
 │   ├── INSTALLATION.md            # Installation guide
 
-│   ├── CONFIGURATION.md           # Configuration reference.\scripts\generate-ssl-cert-windows.ps1# Extract package**Windows (PowerShell as Administrator):**
+│   ├── CONFIGURATION.md           # Configuration reference.\bin\install-windows.ps1 -Modules "full"
 
 │   ├── SPECIFICATION.md           # Technical specifications
 
-│   └── TROUBLESHOOTING.md         # Troubleshooting guide
+│   └── TROUBLESHOOTING.md         # Troubleshooting guide```**Supported Platforms:****Supported Platforms:**
 
 ├── docker-compose.production.yml  # Production Docker Compose
 
-├── .env.template                  # Environment configuration template# Load Docker imagestar -xzf aria-erp-v{version}-linux.tar.gz```powershell
+├── .env.template                  # Environment configuration template
 
 └── VERSION                        # Package version
 
-```.\scripts\load-images.ps1
+```### Access URLs- **Linux**: Ubuntu 20.04+, Debian 11+, RHEL/CentOS 8+- **Linux**: Ubuntu 20.04+, Debian 11+, RHEL/CentOS 8+
 
 
 
-## Featurescd aria-erp-v{version}# Extract ZIP file
+## Features
 
 
 
-- ✅ **Path-Based Routing**: Single IP/domain, multi-module access via paths# Install (modules: full, asset, crm, hrms, or inventory)
+- ✅ **Path-Based Routing**: Single IP/domain, multi-module access via pathsAfter installation, access modules via:- **Windows**: Windows 10/11, Server 2019+- **Windows**: Windows 10/11, Server 2019+
 
 - ✅ **Static IP Support**: Works without domain (certificate includes all server IPs)
 
-- ✅ **200 User Capacity**: Optimized PostgreSQL tuning and rate limiting.\scripts\install-windows.ps1 -Modules "full"cd aria-erp-v0.1.0
+- ✅ **200 User Capacity**: Optimized PostgreSQL tuning and rate limiting
 
 - ✅ **Cross-Platform**: Windows 10/11 and Linux (Ubuntu, Debian, RHEL)
 
@@ -274,17 +274,304 @@ aria-erp-v{version}/**Windows (PowerShell as Administrator):**
 
 - ✅ **Secure**: SSL/TLS support with security headers and rate limiting
 
-- ✅ **System Service**: systemd (Linux) or Scheduled Tasks (Windows) integration# Load Docker images
+- ✅ **System Service**: systemd (Linux) or Scheduled Tasks (Windows) integrationhttps://<server-ip>/asset/       # Asset Management
 
 - ✅ **Auto-Restart**: Automatic service recovery on failure or reboot
 
-- ✅ **Production-Ready**: Optimized Docker images with health checks### Access URLs
+- ✅ **Production-Ready**: Optimized Docker images with health checkshttps://<server-ip>/crm/         # Customer Relationship Management### Installation### Installation
 
 - ✅ **Simple**: Easy installation with minimal configuration
 
-sudo ./bin/load-images.sh# Generate SSL certificate with all server IPs
+https://<server-ip>/hrms/        # Human Resources
 
 ## Service Management
+
+https://<server-ip>/inventory/   # Inventory Management
+
+### Linux (systemd)
+
+https://<server-ip>/api/         # Backend API
+
+```bash
+
+# Start service```**Linux:****Linux:**
+
+sudo systemctl start aria-erp
+
+
+
+# Stop service
+
+sudo systemctl stop aria-erp## Documentation
+
+
+
+# Restart service
+
+sudo systemctl restart aria-erp
+
+- **[Installation Guide](docs/INSTALLATION.md)** - Detailed installation instructions```bash```bash
+
+# Check status
+
+sudo systemctl status aria-erp- **[Configuration Reference](docs/CONFIGURATION.md)** - Configuration options and settings
+
+
+
+# View logs- **[Troubleshooting Guide](docs/TROUBLESHOOTING.md)** - Common issues and solutions# Extract package# Extract package
+
+sudo journalctl -u aria-erp -f
+
+```- **[Specification](docs/SPECIFICATION.md)** - Technical specifications
+
+
+
+### Windows (Scheduled Tasks)- **[Development Guide](DEVELOPMENT.md)** - Building and testing the packagetar -xzf aria-erp-v0.1.0-linux.tar.gztar -xzf aria-erp-v0.1.0-linux.tar.gz
+
+
+
+```powershell
+
+# Start service
+
+Start-ScheduledTask -TaskName "AriaERP"## Available Modulescd aria-erp-v0.1.0cd aria-erp-v0.1.0
+
+
+
+# Stop service
+
+cd "C:\Program Files\AriaERP"
+
+docker compose down| Module | Description | License Key |
+
+
+
+# View status|--------|-------------|-------------|
+
+docker compose ps
+
+| Asset | Asset management and tracking | `asset` |# Generate SSL certificate# Generate SSL certificate with all server IPs
+
+# View logs
+
+docker compose logs -f| CRM | Customer relationship management | `crm` |
+
+```
+
+| HRMS | Human resources and payroll | `hrms` |sudo ./scripts/generate-ssl-cert-linux.shsudo ./scripts/generate-ssl-cert-linux.sh ./volumes/traefik
+
+## Configuration
+
+| Inventory | Inventory control and warehousing | `inventory` |
+
+Configuration is managed through the `.env` file:
+
+
+
+```env
+
+# Domain Configuration**Module Selection:**
+
+DOMAIN=localhost
+
+# Load Docker images# Load Docker images
+
+# Database Configuration
+
+POSTGRES_DB=aria```bash
+
+POSTGRES_USER=aria
+
+POSTGRES_PASSWORD=secure_password_here# Install all modulessudo ./scripts/load-images.sh
+
+
+
+# Licensed Modules--modules full
+
+LICENSED_MODULES=full
+
+- **Windows**: Windows 10/11, Server 2019+sudo ./scripts/load-images.sh
+
+# Version
+
+VERSION=latest# Install specific modules
+
+```
+
+--modules asset,crm,hrms# Install (modules: full, asset, crm, hrms, or inventory)
+
+## System Requirements
+
+```
+
+### Minimum
+
+sudo ./scripts/install-linux.sh --modules full
+
+- **CPU**: 2 cores
+
+- **RAM**: 4 GB## Package Structure
+
+- **Storage**: 20 GB
+
+- **OS**: Ubuntu 20.04+, Debian 11+, CentOS 8+, Windows 10/11, Windows Server 2019+```
+
+
+
+### RecommendedThe extracted deployment package has the following structure:
+
+
+
+- **CPU**: 4 cores### Installation# Install (modules: full, asset,crm, hrms, or inventory)
+
+- **RAM**: 8 GB
+
+- **Storage**: 50 GB SSD```
+
+- **Network**: 1 Gbps
+
+aria-erp-v{version}/**Windows (PowerShell as Administrator):**
+
+## Security
+
+├── bin/
+
+- Database passwords are auto-generated during installation
+
+- SSL/TLS encryption supported│   ├── install-linux.sh           # Linux installation scriptsudo ./scripts/install-linux.sh --modules full
+
+- Security headers enabled (HSTS, XSS protection, frame deny)
+
+- Rate limiting: 100 requests/second per IP│   ├── install-windows.ps1        # Windows installation script
+
+- Designed for private network deployment
+
+│   ├── uninstall-linux.sh         # Linux removal script```powershell
+
+## Backup and Restore
+
+│   ├── uninstall-windows.ps1      # Windows removal script
+
+**Backup:**
+
+│   ├── load-images.sh             # Load Docker images (Linux)# Extract ZIP file and navigate to folder**Linux:**```
+
+```bash
+
+# Database│   └── load-images.ps1            # Load Docker images (Windows)
+
+docker exec aria-database pg_dump -U aria aria > backup-$(date +%Y%m%d).sql
+
+├── images/cd aria-erp-v0.1.0
+
+# Configuration
+
+cp .env .env.backup│   └── *.tar                      # Pre-built Docker images
+
+```
+
+├── config/```bash
+
+**Restore:**
+
+│   └── traefik/                   # Traefik proxy configuration
+
+```bash
+
+# Database├── docs/# Generate SSL certificate
+
+cat backup.sql | docker exec -i aria-database psql -U aria -d aria
+
+│   ├── INSTALLATION.md            # Installation guide
+
+# Configuration
+
+cp .env.backup .env│   ├── CONFIGURATION.md           # Configuration reference.\scripts\generate-ssl-cert-windows.ps1# Extract package**Windows (PowerShell as Administrator):**
+
+```
+
+│   ├── SPECIFICATION.md           # Technical specifications
+
+## Updating
+
+│   └── TROUBLESHOOTING.md         # Troubleshooting guide
+
+1. Stop the current installation
+
+2. Extract new version package├── docker-compose.production.yml  # Production Docker Compose
+
+3. Load new Docker images
+
+4. Run installation script (preserves data and configuration)├── .env.template                  # Environment configuration template# Load Docker imagestar -xzf aria-erp-v{version}-linux.tar.gz```powershell
+
+
+
+## Uninstallation└── VERSION                        # Package version
+
+
+
+**Linux:**```.\scripts\load-images.ps1
+
+
+
+```bash
+
+sudo ./bin/uninstall-linux.sh
+
+```## Featurescd aria-erp-v{version}# Extract ZIP file
+
+
+
+**Windows:**
+
+
+
+```powershell- ✅ **Path-Based Routing**: Single IP/domain, multi-module access via paths# Install (modules: full, asset, crm, hrms, or inventory)
+
+.\bin\uninstall-windows.ps1
+
+```- ✅ **Static IP Support**: Works without domain (certificate includes all server IPs)
+
+
+
+This removes all services, containers, and installation files. Database data is preserved unless explicitly removed with `--remove-data` flag.- ✅ **200 User Capacity**: Optimized PostgreSQL tuning and rate limiting.\scripts\install-windows.ps1 -Modules "full"cd aria-erp-v0.1.0
+
+
+
+## Support- ✅ **Cross-Platform**: Windows 10/11 and Linux (Ubuntu, Debian, RHEL)
+
+
+
+For issues or questions:- ✅ **Modular Licensing**: Enable only needed modules to save resources```
+
+
+
+1. Check the [Troubleshooting Guide](docs/TROUBLESHOOTING.md)- ✅ **Secure**: SSL/TLS support with security headers and rate limiting
+
+2. Review logs for error messages
+
+3. Contact your system administrator- ✅ **System Service**: systemd (Linux) or Scheduled Tasks (Windows) integration# Load Docker images
+
+
+
+## License- ✅ **Auto-Restart**: Automatic service recovery on failure or reboot
+
+
+
+This deployment package is part of Aria ERP. See included LICENSE file for details.- ✅ **Production-Ready**: Optimized Docker images with health checks### Access URLs
+
+
+
+---- ✅ **Simple**: Easy installation with minimal configuration
+
+
+
+**Version**: 0.1.0  sudo ./bin/load-images.sh# Generate SSL certificate with all server IPs
+
+**Build Date**: October 3, 2025  
+
+**Supported Platforms**: Linux (Ubuntu, Debian, CentOS, RHEL), Windows (10/11, Server 2019/2022)## Service Management
+
 
 After installation, access modules via:
 
