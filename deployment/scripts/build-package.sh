@@ -6,9 +6,14 @@
 
 set -e
 
-# Configuration
+# Configuration - Determine project root
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
+cd "$ROOT_DIR"
+
 VERSION=${VERSION:-$(cat package.json | grep '"version"' | head -1 | awk -F: '{ print $2 }' | sed 's/[",]//g' | tr -d '[[:space:]]')}
-BUILD_DIR="dist"
+BUILD_DIR="$ROOT_DIR/dist"
 PACKAGE_NAME="aria-erp-v${VERSION}"
 PLATFORMS=("linux" "windows")
 
@@ -100,8 +105,8 @@ create_package_structure() {
     cp deployment/templates/.env.template "$pkg_dir/.env.template"
     
     # Copy Traefik configuration
-    if [ -d "traefik/dynamic" ]; then
-        cp -r traefik/dynamic "$pkg_dir/config/traefik/"
+    if [ -d "deployment/templates/config/traefik" ]; then
+        cp deployment/templates/config/traefik/* "$pkg_dir/config/traefik/"
     fi
     
     # Copy Docker images

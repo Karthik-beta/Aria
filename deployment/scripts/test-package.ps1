@@ -12,6 +12,9 @@ param()
 
 $ErrorActionPreference = "Stop"
 
+# Configuration
+$ROOT_DIR = (Get-Item $PSScriptRoot).Parent.Parent.FullName
+
 function Write-Info {
     param([string]$Message)
     Write-Host "[TEST] $Message" -ForegroundColor Green
@@ -64,7 +67,8 @@ function Test-RequiredFiles {
     
     $allExist = $true
     foreach ($file in $requiredFiles) {
-        if (Test-Path $file) {
+        $fullPath = Join-Path $ROOT_DIR $file
+        if (Test-Path $fullPath) {
             Write-Info "$(Split-Path $file -Leaf) exists"
         }
         else {
@@ -89,7 +93,8 @@ function Test-Documentation {
     
     $allExist = $true
     foreach ($doc in $docs) {
-        if (Test-Path $doc) {
+        $fullPath = Join-Path $ROOT_DIR $doc
+        if (Test-Path $fullPath) {
             Write-Info "$(Split-Path $doc -Leaf) exists"
         }
         else {
@@ -105,7 +110,8 @@ function Test-Documentation {
 function Test-ScriptSyntax {
     Write-Info "Testing PowerShell script syntax..."
     
-    $scripts = Get-ChildItem "deployment\scripts\*.ps1" -ErrorAction SilentlyContinue
+    $scriptsPath = Join-Path $ROOT_DIR "deployment\scripts\*.ps1"
+    $scripts = Get-ChildItem $scriptsPath -ErrorAction SilentlyContinue
     $allValid = $true
     
     foreach ($script in $scripts) {
@@ -127,7 +133,8 @@ function Test-ScriptSyntax {
 function Test-ComposeConfiguration {
     Write-Info "Testing Docker Compose configuration..."
     
-    Push-Location "deployment\templates"
+    $templatesPath = Join-Path $ROOT_DIR "deployment\templates"
+    Push-Location $templatesPath
     
     try {
         # Create test .env
@@ -164,6 +171,8 @@ NEXT_TELEMETRY_DISABLED=1
 function Test-ImageBuild {
     Write-Info "Testing Docker image build (backend only)..."
     
+    Push-Location $ROOT_DIR
+    
     try {
         Write-Info "Building test backend image..."
         docker build -t aria-backend:test -f apps/backend/Dockerfile . 2>&1 | Out-Null
@@ -180,6 +189,9 @@ function Test-ImageBuild {
     catch {
         Write-TestError "Failed to build backend image: $($_.Exception.Message)"
         return $false
+    }
+    finally {
+        Pop-Location
     }
 }
 

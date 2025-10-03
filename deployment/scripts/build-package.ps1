@@ -21,12 +21,13 @@ param(
 )
 
 # Configuration
+$ROOT_DIR = (Get-Item $PSScriptRoot).Parent.Parent.FullName
 if ([string]::IsNullOrEmpty($Version)) {
-    $packageJson = Get-Content "package.json" | ConvertFrom-Json
+    $packageJson = Get-Content "$ROOT_DIR\package.json" | ConvertFrom-Json
     $Version = $packageJson.version
 }
 
-$BUILD_DIR = "dist"
+$BUILD_DIR = "$ROOT_DIR\dist"
 $PACKAGE_NAME = "aria-erp-v$Version"
 
 # Colors
@@ -49,14 +50,26 @@ function Write-Warn {
 function Clear-BuildDirectory {
     Write-Info "Cleaning build directory..."
     if (Test-Path $BUILD_DIR) {
-        Remove-Item -Path $BUILD_DIR -Recurse -Force
+        try {
+            # Try to remove with retry for locked files
+            Remove-Item -Path $BUILD_DIR -Recurse -Force -ErrorAction Stop
+        }
+        catch {
+            Write-Warn "Build directory in use. Cleaning contents only..."
+            Get-ChildItem -Path $BUILD_DIR -Recurse | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+        }
     }
-    New-Item -ItemType Directory -Path $BUILD_DIR | Out-Null
+    
+    if (-not (Test-Path $BUILD_DIR)) {
+        New-Item -ItemType Directory -Path $BUILD_DIR | Out-Null
+    }
 }
 
 # Build Docker images
 function Build-DockerImages {
     Write-Info "Building Docker images..."
+    
+    Push-Location $ROOT_DIR
     
     # Build backend
     Write-Info "Building backend image..."
@@ -76,11 +89,13 @@ function Build-DockerImages {
             docker build -t "aria-${frontend}:$Version" -f "apps/frontend/$frontend/Dockerfile" .
         }
         if ($LASTEXITCODE -ne 0) {
+            Pop-Location
             Write-Error "Failed to build $frontend image"
             exit 1
         }
     }
     
+    Pop-Location
     Write-Info "Docker images built successfully."
 }
 
@@ -132,31 +147,31 @@ function New-PackageStructure {
     New-Item -ItemType Directory -Path "$pkgDir\docs" -Force | Out-Null
     
     # Copy installation scripts
-    Copy-Item "deployment\scripts\install-linux.sh" "$pkgDir\bin\" -Force
-    Copy-Item "deployment\scripts\install-windows.ps1" "$pkgDir\bin\" -Force
-    Copy-Item "deployment\scripts\uninstall-linux.sh" "$pkgDir\bin\" -Force
-    Copy-Item "deployment\scripts\uninstall-windows.ps1" "$pkgDir\bin\" -Force
+    Copy-Item "$ROOT_DIR\deployment\scripts\install-linux.sh" "$pkgDir\bin\" -Force
+    Copy-Item "$ROOT_DIR\deployment\scripts\install-windows.ps1" "$pkgDir\bin\" -Force
+    Copy-Item "$ROOT_DIR\deployment\scripts\uninstall-linux.sh" "$pkgDir\bin\" -Force
+    Copy-Item "$ROOT_DIR\deployment\scripts\uninstall-windows.ps1" "$pkgDir\bin\" -Force
     
     # Copy Docker Compose template
-    Copy-Item "deployment\templates\docker-compose.production.yml" "$pkgDir\docker-compose.production.yml" -Force
+    Copy-Item "$ROOT_DIR\deployment\templates\docker-compose.production.yml" "$pkgDir\docker-compose.production.yml" -Force
     
     # Copy environment template
-    Copy-Item "deployment\templates\.env.template" "$pkgDir\.env.template" -Force
+    Copy-Item "$ROOT_DIR\deployment\templates\.env.template" "$pkgDir\.env.template" -Force
     
     # Copy Traefik configuration
-    if (Test-Path "deployment\templates\config\traefik") {
-        Copy-Item "deployment\templates\config\traefik\*" "$pkgDir\config\traefik\" -Recurse -Force
+    if (Test-Path "$ROOT_DIR\deployment\templates\config\traefik") {
+        Copy-Item "$ROOT_DIR\deployment\templates\config\traefik\*" "$pkgDir\config\traefik\" -Force
     }
     
     # Copy Docker images
     Copy-Item "$BUILD_DIR\images\*.tar" "$pkgDir\images\" -Force
     
     # Copy documentation
-    if (Test-Path "deployment\docs") {
-        Copy-Item "deployment\docs\*.md" "$pkgDir\docs\" -Force
+    if (Test-Path "$ROOT_DIR\deployment\docs") {
+        Copy-Item "$ROOT_DIR\deployment\docs\*.md" "$pkgDir\docs\" -Force
     }
-    if (Test-Path "README.md") {
-        Copy-Item "README.md" "$pkgDir\docs\PROJECT_README.md" -Force
+    if (Test-Path "$ROOT_DIR\README.md") {
+        Copy-Item "$ROOT_DIR\README.md" "$pkgDir\docs\PROJECT_README.md" -Force
     }
     
     # Create VERSION file
