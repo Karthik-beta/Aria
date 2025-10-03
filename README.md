@@ -1,6 +1,20 @@
 # Aria ERP Monorepo
 
-Monorepo for the Aria B2B ERP suite. The workspace combines a NestJS 11 backend, four Next.js 15 frontends, and shared infrastructure packages powered by pnpm and Turborepo. Every contribution follows the four-agent charter in [`AGENTS.md`](./AGENTS.md) to keep the platform simple, type-safe, automated, and high quality.
+Monorepo for the Aria B2B ERP suite. The workspace combines a NestJS 11 backend, four Next.js 1## Docker & environments
+
+`docker-compose.yml` outlines the intended production topology (Traefik, backend, frontends, Postgres). As services mature:
+
+- Document required environment variables in each app's README and `.env.example`.
+- Keep Dockerfiles in sync with the runtime commands shipped in package scripts.
+- Run `docker compose up` for local smoke tests once images are available.
+
+**📚 Deployment Documentation:**
+
+- **[DOCKER_HTTPS_SETUP.md](./DOCKER_HTTPS_SETUP.md)** - Complete Docker architecture and HTTPS setup
+- **[PRODUCTION_DEPLOYMENT.md](./PRODUCTION_DEPLOYMENT.md)** - Production security, secrets management, and deployment strategies
+- **[.env.example](./.env.example)** - Environment variable templates
+
+⚠️ **Security Note**: The included SSL certificates are self-signed and FOR DEVELOPMENT ONLY. See [PRODUCTION_DEPLOYMENT.md](./PRODUCTION_DEPLOYMENT.md) for production certificate options (Let's Encrypt, Docker secrets, commercial CA).ends, and shared infrastructure packages powered by pnpm and Turborepo. Every contribution follows the four-agent charter in [`AGENTS.md`](./AGENTS.md) to keep the platform simple, type-safe, automated, and high quality.
 
 ## Project layout
 

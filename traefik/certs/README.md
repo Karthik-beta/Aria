@@ -2,12 +2,32 @@
 
 This directory contains SSL/TLS certificates for HTTPS support in the Aria ERP system.
 
+## ⚠️ SECURITY WARNINGS
+
+### Development vs. Production
+
+**The certificates in this directory are ONLY for local development and MUST NOT be used in production.**
+
+- ✅ **Development**: Self-signed certificates are acceptable for local testing
+- ❌ **Production**: Use trusted CA certificates or Let's Encrypt instead
+
+### Private Key Security
+
+**⚠️ CRITICAL**: Private keys (`.key`, `.pem` files) should NEVER be committed to version control.
+
+- The included `server.key` is for development convenience only
+- For production, use:
+  - Docker secrets (`docker secret create`)
+  - Environment variables pointing to mounted volumes
+  - External secrets management (AWS Secrets Manager, Azure Key Vault, HashiCorp Vault)
+  - Traefik's ACME/Let's Encrypt integration (no manual keys needed)
+
 ## Files
 
 ### Active Certificates
 
 - **`server.crt`** - Public SSL certificate (self-signed for development)
-- **`server.key`** - Private key for SSL certificate
+- **`server.key`** - Private key for SSL certificate (⚠️ DEV ONLY - excluded from git)
 - **`openssl.conf`** - OpenSSL configuration for certificate generation
 
 ## Certificate Details
@@ -52,19 +72,21 @@ openssl req -x509 -nodes -days 365 -newkey rsa:4096 \
 
 ## Production Deployment
 
-**⚠️ WARNING**: The self-signed certificates are for development only and will trigger browser security warnings.
+**⚠️ CRITICAL WARNING**: The self-signed certificates are for development only and will trigger browser security warnings.
 
-For production, you have two options:
+### Production Certificate Options
 
-### Option 1: Let's Encrypt (Automated)
+For production deployments, you MUST use one of these options:
+
+#### Option 1: Let's Encrypt (Recommended - Free & Automated)
 
 Configure Traefik ACME integration in `docker-compose.yml`:
 
 ```yaml
 command:
-  - '--certificatesresolvers.letsencrypt.acme.tlschallenge=true'
   - '--certificatesresolvers.letsencrypt.acme.email=your-email@example.com'
   - '--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json'
+  - '--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web'
 volumes:
   - './letsencrypt:/letsencrypt'
 ```
@@ -78,24 +100,85 @@ routers:
       certResolver: letsencrypt
 ```
 
-### Option 2: Commercial Certificate
+**Benefits**:
+- Free, automated certificate issuance and renewal
+- Trusted by all browsers
+- Renews automatically every 60 days
 
-1. Obtain certificate and private key from your CA
-2. Replace `server.crt` and `server.key` with production files
-3. Update ownership/permissions:
-   ```bash
-   chmod 600 server.key
-   chmod 644 server.crt
-   ```
+#### Option 2: Docker Secrets (For Commercial/Internal CA Certificates)
+
+**NEVER** put production certificates directly in this directory.
+
+1. Store certificates securely outside the repository
+2. Use Docker secrets:
+
+```yaml
+# docker-compose.yml
+services:
+  traefik:
+    secrets:
+      - traefik_cert
+      - traefik_key
+
+secrets:
+  traefik_cert:
+    file: /secure/external/path/server.crt
+  traefik_key:
+    file: /secure/external/path/server.key
+```
+
+3. Update `traefik/dynamic/tls.yml`:
+
+```yaml
+tls:
+  certificates:
+    - certFile: /run/secrets/traefik_cert
+      keyFile: /run/secrets/traefik_key
+```
+
+#### Option 3: External Secrets Manager
+
+Use enterprise secrets management systems:
+- AWS Secrets Manager
+- Azure Key Vault  
+- HashiCorp Vault
+- Google Secret Manager
+
+See [PRODUCTION_DEPLOYMENT.md](../../PRODUCTION_DEPLOYMENT.md#secrets-management) for detailed configuration.
 
 ## Security Best Practices
 
-1. **Never commit production private keys** to version control
-2. Use Docker secrets or environment variables for production credentials
-3. Rotate certificates before expiration
-4. Use 2048-bit or higher key sizes
-5. Enable TLS 1.2+ only (configured in `traefik/dynamic/tls.yml`)
-6. Monitor certificate expiration dates
+### 🔴 Critical Security Rules
+
+1. **NEVER commit production private keys to version control**
+   - The included `server.key` is excluded from git via `.gitignore`
+   - This file is for development convenience only
+
+2. **NEVER use development certificates in production**
+   - Self-signed certificates will cause browser warnings
+   - Users may ignore security warnings, creating vulnerabilities
+
+3. **NEVER reuse private keys across environments**
+   - Generate unique keys for dev, staging, and production
+
+### ✅ Recommended Practices
+
+1. **Use Docker secrets or environment variables** for production credentials
+2. **Rotate certificates before expiration** (Let's Encrypt auto-renews)
+3. **Use 4096-bit RSA or 256-bit ECDSA** key sizes minimum
+4. **Enable TLS 1.2+ only** (configured in `traefik/dynamic/tls.yml`)
+5. **Monitor certificate expiration dates** (set 30-day alerts)
+6. **Set proper file permissions**:
+   ```bash
+   chmod 600 server.key  # Private key readable only by owner
+   chmod 644 server.crt  # Public certificate readable by all
+   ```
+
+### 📚 Additional Resources
+
+- [PRODUCTION_DEPLOYMENT.md](../../PRODUCTION_DEPLOYMENT.md) - Complete production deployment guide
+- [SECURITY.md](../../SECURITY.md) - Security best practices quick reference
+- [DOCKER_HTTPS_SETUP.md](../../DOCKER_HTTPS_SETUP.md) - HTTPS setup documentation
 
 ## Verifying Certificates
 

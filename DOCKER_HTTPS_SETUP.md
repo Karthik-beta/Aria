@@ -51,6 +51,8 @@ Aria/
 
 ### Development Certificates (Self-Signed)
 
+⚠️ **FOR DEVELOPMENT ONLY** - Do not use in production environments.
+
 The repository includes self-signed SSL certificates for local development. These certificates:
 
 - Use 4096-bit RSA encryption
@@ -61,12 +63,12 @@ The repository includes self-signed SSL certificates for local development. Thes
 ### Certificate Files
 
 - `traefik/certs/server.crt` - Public certificate
-- `traefik/certs/server.key` - Private key
+- `traefik/certs/server.key` - Private key (⚠️ excluded from git)
 - `traefik/certs/openssl.conf` - OpenSSL configuration
 
-### Regenerating Certificates
+### Regenerating Development Certificates
 
-If you need to regenerate the certificates:
+If you need to regenerate the development certificates:
 
 ```powershell
 # On Windows (using Git's OpenSSL)
@@ -84,14 +86,154 @@ openssl req -x509 -nodes -days 365 -newkey rsa:4096 \
   -extensions v3_req
 ```
 
-### Production Certificates
+### Production Certificate Options
 
-For production deployment, replace the self-signed certificates with:
+⚠️ **SECURITY REQUIREMENTS FOR PRODUCTION**:
 
-1. **Let's Encrypt** (automated via Traefik ACME)
-2. **Commercial certificates** from a trusted CA
+1. **Private keys MUST NOT be committed to version control**
+2. **Use trusted certificates from a CA or Let's Encrypt**
+3. **Implement proper secrets management**
 
-Update `traefik/dynamic/tls.yml` to point to production certificate paths.
+#### Option 1: Let's Encrypt with Traefik ACME (Recommended)
+
+Traefik can automatically obtain and renew certificates from Let's Encrypt:
+
+```yaml
+# Add to docker-compose.yml traefik command section
+services:
+  traefik:
+    command:
+      # ... existing commands ...
+      - '--certificatesresolvers.letsencrypt.acme.email=your-email@example.com'
+      - '--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json'
+      - '--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web'
+    volumes:
+      - './letsencrypt:/letsencrypt'
+```
+
+Update routers in `traefik/dynamic/static-ip-routes.yml`:
+
+```yaml
+http:
+  routers:
+    backend-static:
+      rule: 'PathPrefix(`/api`)'
+      service: backend
+      tls:
+        certResolver: letsencrypt
+```
+
+**Benefits**:
+- Automatic certificate issuance and renewal
+- No manual certificate management
+- Free and trusted by all browsers
+
+#### Option 2: Docker Secrets (For Custom CA Certificates)
+
+Recommended for organizations with internal CAs:
+
+```yaml
+# docker-compose.yml
+services:
+  traefik:
+    secrets:
+      - traefik_cert
+      - traefik_key
+    volumes:
+      - './traefik/dynamic:/etc/traefik/dynamic:ro'
+
+secrets:
+  traefik_cert:
+    file: /path/to/external/server.crt
+  traefik_key:
+    file: /path/to/external/server.key
+```
+
+Update `traefik/dynamic/tls.yml`:
+
+```yaml
+tls:
+  certificates:
+    - certFile: /run/secrets/traefik_cert
+      keyFile: /run/secrets/traefik_key
+```
+
+**Benefits**:
+- Secrets encrypted at rest in Swarm mode
+- Not stored in container filesystem
+- Can be rotated without rebuilding images
+
+#### Option 3: External Volume Mount
+
+Mount certificates from a secure external location:
+
+```yaml
+# docker-compose.yml
+services:
+  traefik:
+    volumes:
+      - '${CERT_PATH}:/etc/ssl/traefik:ro'
+```
+
+```bash
+# .env (not committed to git)
+CERT_PATH=/secure/path/to/certificates
+```
+
+**Requirements**:
+- Store certificates in a secure location outside the repository
+- Use environment variables to reference the path
+- Set proper file permissions (e.g., `chmod 600` for private keys)
+
+#### Option 4: Secrets Management Systems
+
+For enterprise deployments, integrate with dedicated secrets management:
+
+- **AWS Secrets Manager**: Use ECS task definitions or Lambda to inject secrets
+- **Azure Key Vault**: Mount secrets as volumes in AKS
+- **HashiCorp Vault**: Use Vault Agent to fetch and renew certificates
+- **Google Secret Manager**: Use GKE Workload Identity
+
+Example with HashiCorp Vault:
+
+```yaml
+services:
+  traefik:
+    volumes:
+      - '/vault/secrets:/etc/ssl/traefik:ro'
+    environment:
+      VAULT_ADDR: 'https://vault.example.com'
+      VAULT_TOKEN: '${VAULT_TOKEN}'
+```
+
+### Certificate Security Best Practices
+
+1. **Never commit private keys**:
+   - Add `*.key` and `*.pem` to `.gitignore`
+   - Use `.env.example` for documentation, not actual secrets
+
+2. **Rotate certificates regularly**:
+   - Let's Encrypt certificates auto-renew every 90 days
+   - Manual certificates should be rotated annually or per policy
+
+3. **Use strong key sizes**:
+   - Minimum 2048-bit RSA
+   - Prefer 4096-bit for long-lived certificates
+   - Consider ECDSA (256-bit) for better performance
+
+4. **Restrict file permissions**:
+   ```bash
+   chmod 644 server.crt
+   chmod 600 server.key
+   ```
+
+5. **Monitor certificate expiration**:
+   - Set up alerts 30 days before expiry
+   - Use tools like `certbot`, `cert-manager`, or monitoring services
+
+6. **Use HTTPS-only**:
+   - Force HTTPS redirects (already configured)
+   - Enable HSTS headers for production
 
 ## Traefik Configuration
 
