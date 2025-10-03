@@ -1,0 +1,144 @@
+services:
+  traefik:
+    image: traefik:v3.5
+    container_name: aria-proxy
+    restart: unless-stopped
+    command:
+      - '--providers.docker=true'
+      - '--providers.file.directory=/etc/traefik/dynamic'
+      - '--entrypoints.web.address=:80'
+      - '--entrypoints.websecure.address=:443'
+      - '--api.dashboard=false'
+      - '--log.level=INFO'
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./config/traefik:/etc/traefik/dynamic:ro
+      - ./volumes/traefik:/etc/ssl/traefik:ro
+    networks:
+      - aria-network
+
+  postgres:
+    image: postgres:18-alpine
+    container_name: aria-database
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-aria}
+      POSTGRES_USER: ${POSTGRES_USER:-aria}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    volumes:
+      - ./volumes/postgres:/var/lib/postgresql/data
+    networks:
+      - aria-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -d ${POSTGRES_DB:-aria} -U ${POSTGRES_USER:-aria}"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  backend:
+    image: aria-backend:${VERSION:-latest}
+    container_name: aria-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-aria}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aria}
+      PORT: 3000
+    volumes:
+      - ./volumes/uploads:/app/uploads
+      - ./logs/backend:/app/logs
+    networks:
+      - aria-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.backend.rule=Host(`${DOMAIN:-localhost}`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.backend.entrypoints=websecure"
+      - "traefik.http.services.backend.loadbalancer.server.port=3000"
+
+  asset:
+    image: aria-asset:${VERSION:-latest}
+    container_name: aria-asset
+    restart: unless-stopped
+    profiles:
+      - asset
+      - full
+    environment:
+      NODE_ENV: production
+      NEXT_TELEMETRY_DISABLED: 1
+      DOCKER_ENV: 'true'
+    networks:
+      - aria-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.asset.rule=Host(`asset.${DOMAIN:-localhost}`)"
+      - "traefik.http.routers.asset.entrypoints=websecure"
+      - "traefik.http.services.asset.loadbalancer.server.port=3000"
+
+  crm:
+    image: aria-crm:${VERSION:-latest}
+    container_name: aria-crm
+    restart: unless-stopped
+    profiles:
+      - crm
+      - full
+    environment:
+      NODE_ENV: production
+      NEXT_TELEMETRY_DISABLED: 1
+      DOCKER_ENV: 'true'
+    networks:
+      - aria-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.crm.rule=Host(`crm.${DOMAIN:-localhost}`)"
+      - "traefik.http.routers.crm.entrypoints=websecure"
+      - "traefik.http.services.crm.loadbalancer.server.port=3000"
+
+  hrms:
+    image: aria-hrms:${VERSION:-latest}
+    container_name: aria-hrms
+    restart: unless-stopped
+    profiles:
+      - hrms
+      - full
+    environment:
+      NODE_ENV: production
+      NEXT_TELEMETRY_DISABLED: 1
+      DOCKER_ENV: 'true'
+    networks:
+      - aria-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.hrms.rule=Host(`hrms.${DOMAIN:-localhost}`)"
+      - "traefik.http.routers.hrms.entrypoints=websecure"
+      - "traefik.http.services.hrms.loadbalancer.server.port=3000"
+
+  inventory:
+    image: aria-inventory:${VERSION:-latest}
+    container_name: aria-inventory
+    restart: unless-stopped
+    profiles:
+      - inventory
+      - full
+    environment:
+      NODE_ENV: production
+      NEXT_TELEMETRY_DISABLED: 1
+      DOCKER_ENV: 'true'
+    networks:
+      - aria-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.inventory.rule=Host(`inventory.${DOMAIN:-localhost}`)"
+      - "traefik.http.routers.inventory.entrypoints=websecure"
+      - "traefik.http.services.inventory.loadbalancer.server.port=3000"
+
+networks:
+  aria-network:
+    driver: bridge
+
+volumes:
+  postgres-data:

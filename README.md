@@ -1,6 +1,6 @@
 # Aria ERP Monorepo
 
-Monorepo for the Aria B2B ERP suite. The workspace combines a NestJS 11 backend, four Next.js 1## Docker & environments
+Monorepo for the Aria B2B ERP suite. The workspace combines a NestJS 11 backend, four Next.js 1## Docker & ## Docker & environments
 
 `docker-compose.yml` outlines the intended production topology (Traefik, backend, frontends, Postgres). As services mature:
 
@@ -8,13 +8,66 @@ Monorepo for the Aria B2B ERP suite. The workspace combines a NestJS 11 backend,
 - Keep Dockerfiles in sync with the runtime commands shipped in package scripts.
 - Run `docker compose up` for local smoke tests once images are available.
 
-**📚 Deployment Documentation:**
+## On-Premise Deployment
 
-- **[DOCKER_HTTPS_SETUP.md](./DOCKER_HTTPS_SETUP.md)** - Complete Docker architecture and HTTPS setup
-- **[PRODUCTION_DEPLOYMENT.md](./PRODUCTION_DEPLOYMENT.md)** - Production security, secrets management, and deployment strategies
-- **[.env.example](./.env.example)** - Environment variable templates
+Aria ERP supports professional on-premise deployment to client environments with cross-platform support for Windows and Linux.
 
-⚠️ **Security Note**: The included SSL certificates are self-signed and FOR DEVELOPMENT ONLY. See [PRODUCTION_DEPLOYMENT.md](./PRODUCTION_DEPLOYMENT.md) for production certificate options (Let's Encrypt, Docker secrets, commercial CA).ends, and shared infrastructure packages powered by pnpm and Turborepo. Every contribution follows the four-agent charter in [`AGENTS.md`](./AGENTS.md) to keep the platform simple, type-safe, automated, and high quality.
+### Creating Deployment Packages
+
+```bash
+# Build all applications
+pnpm build
+
+# Create deployment package
+pnpm package
+
+# Test the package
+pnpm package:test
+```
+
+### Installation
+
+**Linux:**
+```bash
+tar -xzf aria-erp-v0.1.0-linux.tar.gz
+cd aria-erp-v0.1.0
+sudo ./bin/load-images.sh
+sudo ./bin/install-linux.sh --domain erp.company.com --modules full
+```
+
+**Windows (PowerShell as Administrator):**
+```powershell
+# Extract ZIP file, then:
+.\bin\load-images.ps1
+.\bin\install-windows.ps1 -Domain "erp.company.com" -Modules "full"
+```
+
+### Documentation
+
+- **[Deployment README](deployment/README.md)** - Package overview and quick start
+- **[Installation Guide](deployment/docs/INSTALLATION.md)** - Detailed installation instructions
+- **[Configuration Reference](deployment/docs/CONFIGURATION.md)** - Configuration options
+- **[Troubleshooting Guide](deployment/docs/TROUBLESHOOTING.md)** - Common issues and solutions
+- **[Development Guide](deployment/DEVELOPMENT.md)** - For developers building packages
+
+### Features
+
+- ✅ Cross-platform (Windows/Linux)
+- ✅ Modular frontend selection based on licensing
+- ✅ System service integration (systemd/scheduled tasks)
+- ✅ Auto-restart and auto-start on boot
+- ✅ SSL/TLS support
+- ✅ Comprehensive documentation
+
+## Contribution checklistnts
+
+`docker-compose.yml` outlines the intended production topology (Traefik, backend, frontends, Postgres). As services mature:
+
+- Document required environment variables in each app's README and `.env.example`.
+- Keep Dockerfiles in sync with the runtime commands shipped in package scripts.
+- Run `docker compose up` for local smoke tests once images are available.
+
+⚠️ **Security Note**: The included SSL certificates in `traefik/certs/` are self-signed and FOR DEVELOPMENT ONLY. For production deployment, use the on-premise deployment package which supports Let's Encrypt and custom certificates.
 
 ## Project layout
 

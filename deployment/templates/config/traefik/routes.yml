@@ -1,0 +1,67 @@
+http:
+  routers:
+    # Backend API Router
+    backend:
+      rule: "Host(`{{ env "DOMAIN" }}`) && PathPrefix(`/api`)"
+      service: backend
+      entryPoints:
+        - websecure
+      tls: {}
+    
+    # Asset Module Router
+    asset:
+      rule: "Host(`asset.{{ env "DOMAIN" }}`)"
+      service: asset
+      entryPoints:
+        - websecure
+      tls: {}
+    
+    # CRM Module Router
+    crm:
+      rule: "Host(`crm.{{ env "DOMAIN" }}`)"
+      service: crm
+      entryPoints:
+        - websecure
+      tls: {}
+    
+    # HRMS Module Router
+    hrms:
+      rule: "Host(`hrms.{{ env "DOMAIN" }}`)"
+      service: hrms
+      entryPoints:
+        - websecure
+      tls: {}
+    
+    # Inventory Module Router
+    inventory:
+      rule: "Host(`inventory.{{ env "DOMAIN" }}`)"
+      service: inventory
+      entryPoints:
+        - websecure
+      tls: {}
+
+  services:
+    backend:
+      loadBalancer:
+        servers:
+          - url: "http://backend:3000"
+    
+    asset:
+      loadBalancer:
+        servers:
+          - url: "http://asset:3000"
+    
+    crm:
+      loadBalancer:
+        servers:
+          - url: "http://crm:3000"
+    
+    hrms:
+      loadBalancer:
+        servers:
+          - url: "http://hrms:3000"
+    
+    inventory:
+      loadBalancer:
+        servers:
+          - url: "http://inventory:3000"
