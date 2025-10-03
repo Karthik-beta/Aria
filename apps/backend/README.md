@@ -1,60 +1,221 @@
-# Backend Service
+# 🔧 Backend API Service
 
-NestJS 11 application that powers the Aria ERP APIs. It follows the four-agent charter to stay simple, type-safe, automated, and well-tested.
+The **Backend** is the heart of the Aria ERP system. It's built with **NestJS**, a powerful Node.js framework that makes building server applications easy and organized.
 
-## Daily Runbook
+## 📋 What Does This Do?
 
-| Task             | Command                                   | Notes                                                  |
-| ---------------- | ----------------------------------------- | ------------------------------------------------------ |
-| Install deps     | `pnpm install` (run at repo root)         | Keep lockfile committed.                               |
-| Start dev server | `pnpm --filter backend start:dev`         | Hot-reload with Nest CLI watcher.                      |
-| Lint             | `pnpm --filter backend lint`              | Uses `@aria/eslint-config`; includes fixable rules.    |
-| Type-check       | `pnpm --filter backend exec tsc --noEmit` | Extends `@aria/tsconfig/nest.json`.                    |
-| Build            | `pnpm --filter backend build`             | Emits to `dist/`; driven by Nest CLI.                  |
-| Unit tests       | `pnpm --filter backend test`              | Jest runner; co-locate specs under `src/**/*.spec.ts`. |
-| E2E tests        | `pnpm --filter backend test:e2e`          | Use dedicated test module + SuperTest.                 |
-| Coverage         | `pnpm --filter backend test:cov`          | Maintain ≥90% coverage for core modules.               |
+This backend service:
+- Handles all business logic (calculations, data processing)
+- Manages the database (stores and retrieves data)
+- Provides secure APIs that frontends can call
+- Enforces authentication and authorization rules
 
-## Agent Alignment
+Think of it as a restaurant kitchen—the frontends take orders, but the backend does all the cooking!
 
-### Simplicity Advocate
+## 🚀 Quick Start
 
-- Generate modules, controllers, and services via `pnpx nest g` to preserve the Nest module graph.
-- Organize domain logic under `src/modules/<domain>`; reserve `src/common` for cross-cutting concerns.
-- Keep configuration centralized (`src/config`) and load via `ConfigModule` to avoid bespoke env handling.
+### First Time Setup
 
-### Type Safety Guardian
+```bash
+# 1. Install all dependencies (run from project root)
+pnpm install
 
-- Export DTOs, contracts, and enums from `@aria/types` and reuse them in controllers/services.
-- Use `@nestjs/mapped-types` or `zod` wrappers to ensure runtime validation aligns with TypeScript signatures.
-- Ensure Prisma (when integrated) generates types that flow back into `@aria/types` instead of duplicating shapes.
+# 2. Start the development server
+pnpm --filter backend start:dev
+```
 
-### Automation Steward
+The server will start at `http://localhost:3000` with hot-reload enabled (changes apply automatically).
 
-- Update `turbo.json` outputs if new build artifacts (OpenAPI specs, Prisma client) are generated.
-- Reflect any new scripts (seeders, migrations) in CI workflows and document them below.
-- Keep Docker Compose service definitions in sync with Nest entrypoints (`apps/backend` context).
+### Common Commands
 
-### Quality Sentinel
+| What You Want To Do | Command | What Happens |
+|---------------------|---------|--------------|
+| Start the server | `pnpm --filter backend start:dev` | Runs in development mode with auto-reload |
+| Build for production | `pnpm --filter backend build` | Creates optimized production files |
+| Run tests | `pnpm --filter backend test` | Runs all unit tests |
+| Run end-to-end tests | `pnpm --filter backend test:e2e` | Tests complete workflows |
+| Check code style | `pnpm --filter backend lint` | Finds and fixes code formatting issues |
+| See test coverage | `pnpm --filter backend test:cov` | Shows how much code is tested |
 
-- Co-locate unit tests with services to cover business logic paths.
-- Write integration specs under `apps/backend/test` exercising HTTP endpoints via SuperTest.
-- Capture metrics/logging with consistent structure so observability can evolve.
-- Maintain a runbook for breaking schema migrations prior to release.
+## 📁 Project Structure
 
-## Testing & Automation Checklist
+```
+apps/backend/
+├── src/
+│   ├── main.ts                    # Application entry point (starts here!)
+│   ├── app.module.ts              # Root module (connects everything)
+│   ├── modules/                   # Feature modules
+│   │   ├── auth/                  # User authentication
+│   │   ├── assets/                # Asset management
+│   │   ├── crm/                   # Customer relationships
+│   │   ├── hrms/                  # Human resources
+│   │   └── inventory/             # Stock management
+│   └── common/                    # Shared utilities
+│       ├── guards/                # Security checks
+│       ├── pipes/                 # Data validation
+│       └── interceptors/          # Request/response handling
+└── test/                          # End-to-end test files
+```
 
-- [ ] Introduce contract tests that compare serialized DTOs with shared types.
-- [ ] Add smoke E2E tests covering authentication and core domain workflows once modules are available.
-- [ ] Automate database migrations with `pnpm --filter backend exec prisma migrate deploy` (pending Prisma setup).
-- [ ] Generate and publish OpenAPI spec snapshots for frontend consumption when modules stabilize.
+### Understanding the Structure
 
-## Module Layout
+- **`modules/`**: Each business domain (CRM, HR, etc.) has its own folder with controllers, services, and tests
+- **`common/`**: Code that's used across multiple modules (like authentication checks)
+- **`main.ts`**: The starting point—this file boots up the entire application
 
-- `src/main.ts` — Nest bootstrap entry point.
-- `src/app.module.ts` — root module; import feature modules here.
-- `src/modules/**` — domain modules (asset, CRM, HR, inventory, auth).
-- `src/common/**` — shared pipes, guards, interceptors.
-- `test/**` — e2e specs executed via Jest.
+## 🛠️ Adding New Features
 
-Keep this README updated as modules ship. PRs should call out any deviations from agent expectations with remediation tasks.
+### Creating a New Module
+
+NestJS provides CLI commands to generate code automatically:
+
+```bash
+# Navigate to backend directory
+cd apps/backend
+
+# Generate a new module (e.g., "reports")
+pnpm nest g module reports
+
+# Generate a controller (handles HTTP requests)
+pnpm nest g controller reports
+
+# Generate a service (handles business logic)
+pnpm nest g service reports
+```
+
+This creates all necessary files with proper structure!
+
+### Best Practices
+
+1. **Keep controllers thin**: Controllers should just receive requests and pass them to services
+2. **Put logic in services**: All business logic, calculations, and data operations go in services
+3. **Write tests**: Create a `.spec.ts` file next to your code with test cases
+4. **Use shared types**: Import types from `@aria/types` instead of creating new ones
+
+## 🧪 Testing Guide
+
+### Unit Tests
+
+Unit tests check individual functions in isolation:
+
+```bash
+# Run all tests
+pnpm --filter backend test
+
+# Run tests in watch mode (re-runs on changes)
+pnpm --filter backend test:watch
+
+# Run tests with coverage report
+pnpm --filter backend test:cov
+```
+
+### End-to-End (E2E) Tests
+
+E2E tests check complete workflows (like logging in and creating a record):
+
+```bash
+pnpm --filter backend test:e2e
+```
+
+**Test files**: Place unit tests next to the code as `*.spec.ts`, and E2E tests in the `test/` folder.
+
+## 🔒 Type Safety & Shared Code
+
+### Using Shared Types
+
+Always import types from the shared package:
+
+```typescript
+// ✅ Good: Import from shared package
+import { Asset, User } from '@aria/types';
+
+// ❌ Bad: Creating types locally
+interface Asset { /* ... */ }
+```
+
+### Using Shared Utilities
+
+```typescript
+// Import pure helper functions
+import { formatCurrency, calculateTotal } from '@aria/utils';
+```
+
+This ensures consistency across the entire application!
+
+## 🐛 Debugging Tips
+
+### Server Won't Start?
+
+1. **Check if port 3000 is already in use**:
+   ```bash
+   # Windows
+   netstat -ano | findstr :3000
+   
+   # Linux/Mac
+   lsof -i :3000
+   ```
+
+2. **Make sure dependencies are installed**:
+   ```bash
+   pnpm install
+   ```
+
+3. **Check for TypeScript errors**:
+   ```bash
+   pnpm --filter backend exec tsc --noEmit
+   ```
+
+### Tests Failing?
+
+- Ensure your database is running (if using one)
+- Check that you've mocked external dependencies
+- Look at the error message—it usually tells you what's wrong!
+
+## 📚 Learning Resources
+
+### New to NestJS?
+
+- [Official NestJS Documentation](https://docs.nestjs.com/) - Comprehensive guides
+- [NestJS Fundamentals](https://docs.nestjs.com/first-steps) - Start here if you're brand new
+- [Controllers](https://docs.nestjs.com/controllers) - How to handle HTTP requests
+- [Providers/Services](https://docs.nestjs.com/providers) - Where business logic lives
+
+### New to Testing?
+
+- [Jest Documentation](https://jestjs.io/docs/getting-started) - Testing framework we use
+- [Testing NestJS Applications](https://docs.nestjs.com/fundamentals/testing) - NestJS-specific testing guide
+
+## 🎯 Development Workflow
+
+1. **Create a new branch** for your feature
+2. **Generate modules/controllers/services** using NestJS CLI
+3. **Write your code** following the structure
+4. **Add tests** for your new functionality
+5. **Run lint and tests** before committing:
+   ```bash
+   pnpm --filter backend lint
+   pnpm --filter backend test
+   ```
+6. **Build to verify everything works**:
+   ```bash
+   pnpm --filter backend build
+   ```
+
+## 💡 Pro Tips
+
+- **Use the CLI**: Let NestJS generate boilerplate code for you
+- **Keep it modular**: Each feature should be in its own module
+- **Test as you go**: Don't wait until the end to write tests
+- **Check the logs**: When something breaks, the console usually tells you why
+- **Ask for help**: Review the `AGENTS.md` file for architectural guidance
+
+## 🔗 Related Documentation
+
+- [Aria Project Overview](../../README.md) - Main project documentation
+- [Shared Type Definitions](../../packages/types/README.md) - TypeScript types used across the app
+- [Development Agents](../../AGENTS.md) - Architectural principles and best practices
+- [Security Guidelines](../../SECURITY.md) - Security policies
+
+---
+
+**Questions?** Check out the [NestJS Discord](https://discord.gg/nestjs) or review existing code in the `modules/` directory for examples!

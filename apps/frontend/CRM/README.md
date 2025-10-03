@@ -1,55 +1,136 @@
-# CRM Frontend
+# 🤝 Customer Relationship Management (CRM) Frontend
 
-Next.js 15 + Turbopack app dedicated to customer lifecycle management. It shares contracts via `@aria/types`, uses `@aria/utils` for pure helpers, and adheres to the cross-agent guidelines defined in `AGENTS.md`.
+The **CRM Frontend** helps you manage relationships with customers from first contact to closed deals. Built with **Next.js 15**, it streamlines your sales process and customer interactions.
 
-## Daily Runbook
+## 📋 What Does This Do?
 
-| Task                     | Command                                  | Notes                                                                |
-| ------------------------ | ---------------------------------------- | -------------------------------------------------------------------- |
-| Start dev server         | `pnpm --filter crm dev`                  | Turbopack hot reload with workspace root as the project root.        |
-| Lint                     | `pnpm --filter crm lint`                 | Flat ESLint config propagates from `@aria/eslint-config`.            |
-| Type-check               | `pnpm --filter crm exec tsc --noEmit`    | Extends `@aria/tsconfig/next.json`; keep strict typing.              |
-| Build                    | `pnpm --filter crm build`                | Mirrors CI output; should be green before PR.                        |
-| Component tests (Vitest) | `pnpm --filter crm test`                 | Configure once components exist; colocate under `src/**/*.test.tsx`. |
-| E2E tests (Playwright)   | `pnpm --filter crm exec playwright test` | Add `apps/frontend/CRM/e2e` to cover lead-to-deal lifecycle.         |
+This application helps you:
+- **Manage contacts** - Store customer information in one place
+- **Track leads** - Monitor potential customers through your sales pipeline
+- **Close deals** - Move opportunities from lead to customer
+- **Log activities** - Record calls, meetings, and emails
+- **View reports** - Analyze sales performance and customer trends
 
-## Agent Alignment
+Think of it as your sales team's command center!
 
-### Simplicity Advocate
+## 🚀 Quick Start
 
-- Favor App Router conventions and server components; use React Client Components only when interactivity is required.
-- Centralize CRM-specific form logic in reusable hooks/components to avoid copy-paste across feature routes.
-- Record any environment variable usage (e.g., analytics keys) in `.env.example` and reference them here.
+### First Time Setup
 
-### Type Safety Guardian
+```bash
+# 1. Install all dependencies (run from project root)
+pnpm install
 
-- Source all API contracts from `@aria/types` (`CRM.Contact`, `CRM.PipelineStage`, etc.).
-- Maintain the `@crm/*` path alias for internal modules and update both `tsconfig.json` and ESLint if new aliases are introduced.
-- Use discriminated unions or branded types to capture CRM domain nuances (lead vs. opportunity) instead of runtime flags.
+# 2. Start the development server
+pnpm --filter crm dev
+```
 
-### Automation Steward
+The app will open at `http://localhost:3002` (or the next available port).
 
-- Add new scripts to `package.json` only as thin wrappers around shared tooling (Vitest, Playwright, Storybook when introduced).
-- If tasks produce artifacts (reports, coverage), list them in `turbo.json` outputs to keep caching deterministic.
-- Mirror any new QA task inside `.github/workflows/ci.yml` so CI stays in lockstep with local workflows.
+### Common Commands
 
-### Quality Sentinel
+| What You Want To Do | Command | What Happens |
+|---------------------|---------|--------------||
+| Start the app | `pnpm --filter crm dev` | Runs in development mode with hot-reload |
+| Build for production | `pnpm --filter crm build` | Creates optimized production build |
+| Run tests | `pnpm --filter crm test` | Runs component tests |
+| Check code style | `pnpm --filter crm lint` | Finds and fixes formatting issues |
 
-- Target high-value flows for Playwright coverage: lead import, pipeline stage dragging, activity logging.
-- Use Vitest DOM testing library utilities for component-level accessibility assertions.
-- Keep Storybook (planned) stories in sync with Vitest tests to catch regressions early.
+## 📁 Project Structure
 
-## Testing & Automation Checklist
+```
+apps/frontend/CRM/
+├── src/
+│   ├── app/                       # Next.js App Router pages
+│   │   ├── page.tsx               # Home page (CRM dashboard)
+│   │   ├── contacts/              # Contact management
+│   │   ├── leads/                 # Lead tracking
+│   │   ├── deals/                 # Deal pipeline
+│   │   └── layout.tsx             # Shared layout
+│   ├── components/                # Reusable UI components
+│   │   ├── ContactCard.tsx
+│   │   ├── PipelineView.tsx
+│   │   └── ActivityLog.tsx
+│   ├── lib/                       # Utilities and helpers
+│   └── styles/                    # Global styles
+└── public/                        # Static assets
+```
 
-- [ ] Implement Vitest setup using shared test utilities from `@aria/utils/testing` once available.
-- [ ] Seed Playwright with fixture data that mirrors backend DTOs to prevent contract drift.
-- [ ] Enforce `pnpm lint` and `pnpm test` in pre-commit hooks once the repo adopts them.
-- [ ] Configure bundle-size checks when CRM dashboards grow past baseline limits.
+## 🔒 Type Safety & Shared Code
 
-## Shared References
+### Using Shared Types
 
-- Types: `import { CRM } from "@aria/types"`.
-- Utilities: `import { formatPhoneNumber } from "@aria/utils"` (pending helper).
-- Backend routing: traffic proxied via Traefik (`crm.api.localhost` inside Docker).
+```typescript
+// Import CRM-specific types from shared package
+import { CRM } from '@aria/types';
 
-Document deviations from these expectations and list remediation tasks in your PR summaries.
+function ContactList({ contacts }: { contacts: CRM.Contact[] }) {
+  return (
+    <div>
+      {contacts.map(contact => (
+        <div key={contact.id}>{contact.name}</div>
+      ))}
+    </div>
+  );
+}
+```
+
+### Path Aliases
+
+```typescript
+// Use @crm/* for clean imports
+import { ContactCard } from '@crm/components/ContactCard';
+import { fetchContacts } from '@crm/lib/api';
+```
+
+## 📚 Key Features to Implement
+
+### Contact Management
+- Create, edit, and delete contacts
+- Store contact information (name, email, phone, company)
+- Link contacts to deals and activities
+
+### Lead Tracking
+- Capture new leads from forms
+- Qualify leads (hot, warm, cold)
+- Convert leads to customers
+
+### Sales Pipeline
+- Visual pipeline with drag-and-drop
+- Stages: Lead → Qualified → Proposal → Negotiation → Closed
+- Track deal value and probability
+
+### Activity Logging
+- Record calls, emails, and meetings
+- Set follow-up reminders
+- View activity timeline
+
+## 💡 Pro Tips for CRM
+
+- **Keyboard Shortcuts**: Add keyboard shortcuts for quick actions (Ctrl+N for new contact)
+- **Search**: Implement fast search across all contacts and companies
+- **Filters**: Let users filter by stage, owner, date range
+- **Export**: Allow exporting contacts/leads to CSV
+- **Mobile-First**: Many sales reps use mobile devices—design accordingly
+
+## 🐛 Common Issues
+
+### Drag-and-Drop Not Working?
+- Ensure you're using a drag-and-drop library (like `@dnd-kit/core`)
+- Check that you've added `'use client'` to interactive components
+
+### Forms Not Submitting?
+- Verify backend API is running
+- Check network tab for errors
+- Ensure form data matches the expected type
+
+## 🔗 Related Documentation
+
+- [Main Project README](../../../README.md)
+- [Backend API README](../../backend/README.md)
+- [Shared Types](../../../packages/types/README.md)
+- [Next.js Documentation](https://nextjs.org/docs)
+
+---
+
+**Need Help?** Review the `src/components/` directory for component examples!
