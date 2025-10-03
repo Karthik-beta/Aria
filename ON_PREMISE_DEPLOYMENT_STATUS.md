@@ -265,7 +265,39 @@ Removed redundant internal documentation:
 **Implementation Date**: January 2025  
 **Tested Environment**: Windows 11, Docker Desktop 28.3.2, pnpm 10.17.1, Node.js 22  
 **Test Results**: 5/5 tests passing  
+**Deployment Type**: Path-based routing on static IP  
+**User Capacity**: ~200 concurrent users  
 **Status**: ✅ **PRODUCTION READY**
+
+---
+
+## Latest Update: Path-Based Routing ✨
+
+**Date**: January 2025
+
+### What Changed
+- ✅ **Routing**: Domain-based → Path-based (`https://<ip>/<module>/`)
+- ✅ **SSL**: Auto-generation scripts include all server IPs in SAN
+- ✅ **Capacity**: Optimized for ~200 concurrent users
+- ✅ **PostgreSQL**: Tuned for 250 max connections
+- ✅ **Rate Limiting**: 100 req/s average, 200 burst
+- ✅ **Development**: Separated dev docker-compose from production
+- ✅ **Documentation**: Added PATH_BASED_ROUTING.md guide
+
+### Access Pattern
+```
+Before: https://asset.domain.com/
+After:  https://192.168.1.100/asset/
+```
+
+All modules accessible via single IP with path prefixes:
+- `/asset/` - Asset Management
+- `/crm/` - Customer Relationship Management
+- `/hrms/` - Human Resources
+- `/inventory/` - Inventory Management
+- `/api/` - Backend API
+
+**See**: `deployment/PATH_BASED_ROUTING_IMPLEMENTATION.md` for complete details
 
 ---
 

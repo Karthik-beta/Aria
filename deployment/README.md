@@ -1,10 +1,15 @@
 # Aria ERP On-Premise Deployment
 
-Production-ready deployment infrastructure for Aria ERP on-premise installations.
+Production-ready deployment infrastructure for Aria ERP with **path-based routing** for static IP deployments.
 
 ## Overview
 
-This deployment package provides everything needed to install and run Aria ERP in client environments, supporting both Windows and Linux platforms with modular frontend selection based on licensing.
+This deployment package provides everything needed to install and run Aria ERP in client environments:
+- **Path-based routing**: All modules accessible via `https://<ip>/<module>/`
+- **Static IP support**: Works with or without domain assignment
+- **200 user capacity**: Optimized for ~200 concurrent users
+- **Cross-platform**: Windows and Linux support
+- **Modular licensing**: Enable only the modules you need
 
 ## Quick Start
 
@@ -23,27 +28,51 @@ This deployment package provides everything needed to install and run Aria ERP i
 tar -xzf aria-erp-v0.1.0-linux.tar.gz
 cd aria-erp-v0.1.0
 
-# Load Docker images
-sudo ./bin/load-images.sh
+# Generate SSL certificate with all server IPs
+sudo ./scripts/generate-ssl-cert-linux.sh ./volumes/traefik
 
-# Install
-sudo ./bin/install-linux.sh --domain erp.company.com --modules full
+# Load Docker images
+sudo ./scripts/load-images.sh
+
+# Install (modules: full, asset,crm, hrms, or inventory)
+sudo ./scripts/install-linux.sh --modules full
 ```
 
-**Windows:**
+**Windows (PowerShell as Administrator):**
 ```powershell
-# Extract ZIP file and open PowerShell as Administrator
+# Extract ZIP file
 cd aria-erp-v0.1.0
 
-# Load Docker images
-.\bin\load-images.ps1
+# Generate SSL certificate with all server IPs
+.\scripts\generate-ssl-cert-windows.ps1
 
-# Install
-.\bin\install-windows.ps1 -Domain "erp.company.com" -Modules "full"
+# Load Docker images
+.\scripts\load-images.ps1
+
+# Install (modules: full, asset,crm, hrms, or inventory)
+.\scripts\install-windows.ps1 -Modules "full"
 ```
+
+**Access after installation:**
+```
+https://<server-ip>/asset/
+https://<server-ip>/crm/
+https://<server-ip>/hrms/
+https://<server-ip>/inventory/
+```
+
+## Access URLs
+
+After installation, access modules via:
+- `https://<server-ip>/asset/` - Asset Management
+- `https://<server-ip>/crm/` - Customer Relationship Management
+- `https://<server-ip>/hrms/` - Human Resources
+- `https://<server-ip>/inventory/` - Inventory Management
+- `https://<server-ip>/api/` - Backend API
 
 ## Documentation
 
+- **[Path-Based Routing](docs/PATH_BASED_ROUTING.md)** - URL structure and SSL configuration ✨
 - [Installation Guide](docs/INSTALLATION.md) - Detailed installation instructions
 - [Configuration Reference](docs/CONFIGURATION.md) - Configuration options and settings
 - [Troubleshooting Guide](docs/TROUBLESHOOTING.md) - Common issues and solutions
@@ -74,10 +103,15 @@ aria-erp-v{version}/
 
 ## Features
 
-- ✅ **Cross-Platform**: Supports Windows and Linux
-- ✅ **Modular**: Selective frontend deployment based on licensing
-- ✅ **Secure**: Code obfuscation, SSL/TLS support
-- ✅ **Automated**: System service integration with auto-restart
+- ✅ **Path-Based Routing**: Single IP/domain, multi-module access via paths
+- ✅ **Static IP Support**: Works without domain (certificate includes all server IPs)
+- ✅ **200 User Capacity**: Optimized PostgreSQL tuning and rate limiting
+- ✅ **Cross-Platform**: Windows 10/11 and Linux (Ubuntu, Debian, RHEL)
+- ✅ **Modular Licensing**: Enable only needed modules to save resources
+- ✅ **Auto-SSL Generation**: Scripts generate certificates with all server IPs
+- ✅ **Secure**: SSL/TLS support with security headers and rate limiting
+- ✅ **System Service**: systemd (Linux) or Scheduled Tasks (Windows) integration
+- ✅ **Auto-Restart**: Automatic service recovery on failure or reboot
 - ✅ **Production-Ready**: Optimized Docker images with health checks
 - ✅ **Simple**: Easy installation with minimal configuration
 

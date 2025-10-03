@@ -1,67 +1,175 @@
+# Aria ERP - Path-Based Routing Configuration
+# Supports deployment on static IP addresses (with or without domain)
+# All applications accessible via: https://<ip-or-domain>/<module>/
+# Optimized for ~200 concurrent users
+
 http:
   routers:
-    # Backend API Router
-    backend:
-      rule: "Host(`{{ env "DOMAIN" }}`) && PathPrefix(`/api`)"
+    # Backend API Router - Highest priority
+    # Access: https://<ip-or-domain>/api/*
+    backend-api:
+      rule: 'PathPrefix(`/api`)'
       service: backend
-      entryPoints:
+      entrypoints:
         - websecure
-      tls: {}
-    
-    # Asset Module Router
-    asset:
-      rule: "Host(`asset.{{ env "DOMAIN" }}`)"
+      tls:
+        options: default
+      priority: 100
+      middlewares:
+        - backend-stripprefix
+        - security-headers
+        - rate-limit
+
+    # Asset Management Router
+    # Access: https://<ip-or-domain>/asset/
+    asset-module:
+      rule: 'PathPrefix(`/asset`)'
       service: asset
-      entryPoints:
+      entrypoints:
         - websecure
-      tls: {}
-    
-    # CRM Module Router
-    crm:
-      rule: "Host(`crm.{{ env "DOMAIN" }}`)"
+      tls:
+        options: default
+      priority: 90
+      middlewares:
+        - security-headers
+
+    # CRM Router
+    # Access: https://<ip-or-domain>/crm/
+    crm-module:
+      rule: 'PathPrefix(`/crm`)'
       service: crm
-      entryPoints:
+      entrypoints:
         - websecure
-      tls: {}
-    
-    # HRMS Module Router
-    hrms:
-      rule: "Host(`hrms.{{ env "DOMAIN" }}`)"
+      tls:
+        options: default
+      priority: 80
+      middlewares:
+        - security-headers
+
+    # HRMS Router
+    # Access: https://<ip-or-domain>/hrms/
+    hrms-module:
+      rule: 'PathPrefix(`/hrms`)'
       service: hrms
-      entryPoints:
+      entrypoints:
         - websecure
-      tls: {}
-    
-    # Inventory Module Router
-    inventory:
-      rule: "Host(`inventory.{{ env "DOMAIN" }}`)"
+      tls:
+        options: default
+      priority: 70
+      middlewares:
+        - security-headers
+
+    # Inventory Router
+    # Access: https://<ip-or-domain>/inventory/
+    inventory-module:
+      rule: 'PathPrefix(`/inventory`)'
       service: inventory
-      entryPoints:
+      entrypoints:
         - websecure
-      tls: {}
+      tls:
+        options: default
+      priority: 60
+      middlewares:
+        - security-headers
+
+    # Root/Default Router - Redirects to first available module
+    # Priority: asset > crm > hrms > inventory
+    default-redirect:
+      rule: 'PathPrefix(`/`)'
+      service: asset
+      entrypoints:
+        - websecure
+      tls:
+        options: default
+      priority: 1
+      middlewares:
+        - security-headers
 
   services:
+    # Backend API Service
     backend:
       loadBalancer:
         servers:
-          - url: "http://backend:3000"
-    
+          - url: 'http://backend:3000'
+        healthCheck:
+          path: '/'
+          interval: '30s'
+          timeout: '5s'
+        # Sticky sessions for API (optional, helps with stateful operations)
+        sticky:
+          cookie:
+            name: aria_backend_session
+            secure: true
+            httpOnly: true
+
+    # Asset Management Service
     asset:
       loadBalancer:
         servers:
-          - url: "http://asset:3000"
-    
+          - url: 'http://asset:3000'
+        healthCheck:
+          path: '/asset/'
+          interval: '30s'
+          timeout: '5s'
+
+    # CRM Service
     crm:
       loadBalancer:
         servers:
-          - url: "http://crm:3000"
-    
+          - url: 'http://crm:3000'
+        healthCheck:
+          path: '/crm/'
+          interval: '30s'
+          timeout: '5s'
+
+    # HRMS Service
     hrms:
       loadBalancer:
         servers:
-          - url: "http://hrms:3000"
-    
+          - url: 'http://hrms:3000'
+        healthCheck:
+          path: '/hrms/'
+          interval: '30s'
+          timeout: '5s'
+
+    # Inventory Service
     inventory:
       loadBalancer:
         servers:
-          - url: "http://inventory:3000"
+          - url: 'http://inventory:3000'
+        healthCheck:
+          path: '/inventory/'
+          interval: '30s'
+          timeout: '5s'
+
+  middlewares:
+    # Strip /api prefix before forwarding to backend
+    backend-stripprefix:
+      stripPrefix:
+        prefixes:
+          - '/api'
+        forceSlash: false
+
+    # Security headers for all services
+    security-headers:
+      headers:
+        customRequestHeaders:
+          X-Forwarded-Proto: 'https'
+        customResponseHeaders:
+          X-Content-Type-Options: 'nosniff'
+          X-Frame-Options: 'SAMEORIGIN'
+          X-XSS-Protection: '1; mode=block'
+          Strict-Transport-Security: 'max-age=31536000; includeSubDomains'
+          Referrer-Policy: 'strict-origin-when-cross-origin'
+        contentTypeNosniff: true
+        frameDeny: false
+        customFrameOptionsValue: 'SAMEORIGIN'
+        referrerPolicy: 'strict-origin-when-cross-origin'
+
+    # Rate limiting for API endpoints (supports ~200 users)
+    # Allows burst of requests but prevents abuse
+    rate-limit:
+      rateLimit:
+        average: 100  # Average requests per second
+        period: 1s
+        burst: 200    # Allow burst for concurrent users

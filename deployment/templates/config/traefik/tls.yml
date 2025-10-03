@@ -1,11 +1,35 @@
+# Aria ERP - TLS Configuration for Path-Based Routing
+# Certificate should include all server IP addresses in Subject Alternative Names (SAN)
+# Supports ~200 concurrent users with optimized TLS settings
+
 tls:
   certificates:
     - certFile: /etc/ssl/traefik/server.crt
       keyFile: /etc/ssl/traefik/server.key
+      stores:
+        - default
+
+  stores:
+    default:
+      defaultCertificate:
+        certFile: /etc/ssl/traefik/server.crt
+        keyFile: /etc/ssl/traefik/server.key
+
   options:
     default:
       minVersion: VersionTLS12
+      maxVersion: VersionTLS13
       cipherSuites:
-        - TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+        # TLS 1.3 (preferred)
+        - TLS_AES_256_GCM_SHA384
+        - TLS_AES_128_GCM_SHA256
+        - TLS_CHACHA20_POLY1305_SHA256
+        # TLS 1.2 (compatibility)
         - TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
+        - TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
         - TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305
+      curvePreferences:
+        - CurveP521
+        - CurveP384
+      sniStrict: false
+      preferServerCipherSuites: true

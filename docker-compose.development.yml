@@ -1,0 +1,152 @@
+# Aria ERP Development Environment
+# This docker-compose.yml is for LOCAL DEVELOPMENT ONLY
+# For production deployment, use the deployment package: pnpm package
+
+services:
+  traefik:
+    image: traefik:v3.5
+    container_name: aria-dev-proxy
+    command:
+      - '--providers.docker=true'
+      - '--providers.file.directory=/etc/traefik/dynamic'
+      - '--providers.file.watch=true'
+      - '--entrypoints.web.address=:80'
+      - '--entrypoints.websecure.address=:443'
+      - '--entrypoints.web.http.redirections.entrypoint.to=websecure'
+      - '--entrypoints.web.http.redirections.entrypoint.scheme=https'
+      - '--api.dashboard=true'
+      - '--api.insecure=true'
+      - '--log.level=DEBUG'
+    ports:
+      - '80:80'
+      - '443:443'
+      - '8080:8080'  # Traefik dashboard
+    volumes:
+      - '/var/run/docker.sock:/var/run/docker.sock:ro'
+      - './traefik/dynamic:/etc/traefik/dynamic:ro'
+      - './traefik/certs:/etc/ssl/traefik:ro'
+
+  postgres:
+    image: postgres:18
+    container_name: aria-dev-database
+    environment:
+      POSTGRES_DB: aria
+      POSTGRES_USER: aria
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-aria_dev_password}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - '5432:5432'  # Expose for local development tools
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -d aria -U aria']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+    container_name: aria-dev-backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://aria:${POSTGRES_PASSWORD:-aria_dev_password}@postgres:5432/aria
+    expose:
+      - '3000'
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.backend-dev.rule=PathPrefix(`/api`)"
+      - "traefik.http.routers.backend-dev.entrypoints=websecure"
+      - "traefik.http.routers.backend-dev.tls=true"
+      - "traefik.http.services.backend-dev.loadbalancer.server.port=3000"
+
+  asset:
+    build:
+      context: .
+      dockerfile: apps/frontend/asset/Dockerfile
+    container_name: aria-dev-asset
+    profiles:
+      - asset
+      - full
+    environment:
+      NODE_ENV: development
+      DOCKER_ENV: 'true'
+    expose:
+      - '3000'
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.asset-dev.rule=PathPrefix(`/asset`)"
+      - "traefik.http.routers.asset-dev.entrypoints=websecure"
+      - "traefik.http.routers.asset-dev.tls=true"
+      - "traefik.http.services.asset-dev.loadbalancer.server.port=3000"
+
+  hrms:
+    build:
+      context: .
+      dockerfile: apps/frontend/hrms/Dockerfile
+    container_name: aria-dev-hrms
+    profiles:
+      - hrms
+      - full
+    environment:
+      NODE_ENV: development
+      DOCKER_ENV: 'true'
+    expose:
+      - '3000'
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.hrms-dev.rule=PathPrefix(`/hrms`)"
+      - "traefik.http.routers.hrms-dev.entrypoints=websecure"
+      - "traefik.http.routers.hrms-dev.tls=true"
+      - "traefik.http.services.hrms-dev.loadbalancer.server.port=3000"
+
+  inventory:
+    build:
+      context: .
+      dockerfile: apps/frontend/inventory/Dockerfile
+    container_name: aria-dev-inventory
+    profiles:
+      - inventory
+      - full
+    environment:
+      NODE_ENV: development
+      DOCKER_ENV: 'true'
+    expose:
+      - '3000'
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.inventory-dev.rule=PathPrefix(`/inventory`)"
+      - "traefik.http.routers.inventory-dev.entrypoints=websecure"
+      - "traefik.http.routers.inventory-dev.tls=true"
+      - "traefik.http.services.inventory-dev.loadbalancer.server.port=3000"
+
+  crm:
+    build:
+      context: .
+      dockerfile: apps/frontend/CRM/Dockerfile
+    container_name: aria-dev-crm
+    profiles:
+      - crm
+      - full
+    environment:
+      NODE_ENV: development
+      DOCKER_ENV: 'true'
+    expose:
+      - '3000'
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.crm-dev.rule=PathPrefix(`/crm`)"
+      - "traefik.http.routers.crm-dev.entrypoints=websecure"
+      - "traefik.http.routers.crm-dev.tls=true"
+      - "traefik.http.services.crm-dev.loadbalancer.server.port=3000"
+
+volumes:
+  postgres-data:
