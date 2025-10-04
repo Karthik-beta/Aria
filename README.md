@@ -1,142 +1,62 @@
-# Aria ERP Monorepo
+## Aria ERP Monorepo
 
-Monorepo for the Aria B2B ERP suite. The workspace combines a NestJS 11 backend, four Next.js 1## Docker & environments
+Aria ERP is a full-stack TypeScript workspace that powers a modular B2B ERP suite. The repository is organized as a pnpm + Turborepo monorepo with a NestJS backend, four Next.js 15 frontends, and shared packages that centralize configuration, types, and utilities. An on-premise deployment toolkit lives under `deployment/` for air-gapped or self-hosted environments.
 
-`docker-compose.yml` outlines the intended production topology (Traefik, backend, frontends, Postgres). As services mature:
+## Architecture at a Glance
 
-- Document required environment variables in each app's README and `.env.example`.
-- Keep Dockerfiles in sync with the runtime commands shipped in package scripts.
-- Run `docker compose up` for local smoke tests once images are available.
+| Surface     | Location                                 | Highlights                                                                 |
+| ----------- | ---------------------------------------- | -------------------------------------------------------------------------- |
+| Backend     | `apps/backend`                           | NestJS 11 API service generated with the `nest` CLI, Jest unit and e2e tests, strict TypeScript. |
+| Frontends   | `apps/frontend/{asset,CRM,hrms,inventory}` | Next.js 15 App Router apps using Turbopack, Tailwind 4, and shared contracts imported from `@aria/types`. |
+| Shared libs | `packages/{config-eslint,config-typescript,types,utils}` | Flat ESLint presets, tsconfig bases, canonical DTOs, and pure utilities reused across the suite. |
+| Deployment  | `deployment/`                            | Cross-platform Docker-based installer with Traefik path-based routing plus PowerShell/Bash automation. |
 
-**📚 Deployment Documentation:**
+## Requirements
 
-- **[DOCKER_HTTPS_SETUP.md](./DOCKER_HTTPS_SETUP.md)** - Complete Docker architecture and HTTPS setup
-- **[PRODUCTION_DEPLOYMENT.md](./PRODUCTION_DEPLOYMENT.md)** - Production security, secrets management, and deployment strategies
-- **[.env.example](./.env.example)** - Environment variable templates
+- Node.js 20 or 22 (recommended via `corepack enable pnpm`)
+- pnpm 10.x
+- Docker 20.10+ and Docker Compose 2.0+ (required for deployment tooling)
+- Git
 
-⚠️ **Security Note**: The included SSL certificates are self-signed and FOR DEVELOPMENT ONLY. See [PRODUCTION_DEPLOYMENT.md](./PRODUCTION_DEPLOYMENT.md) for production certificate options (Let's Encrypt, Docker secrets, commercial CA).ends, and shared infrastructure packages powered by pnpm and Turborepo. Every contribution follows the four-agent charter in [`AGENTS.md`](./AGENTS.md) to keep the platform simple, type-safe, automated, and high quality.
+## Quick Start
 
-## Project layout
-
-```
-/Aria
-├── apps/
-│   ├── backend/            # NestJS API service
-│   └── frontend/
-│       ├── asset/          # Asset management frontend
-│       ├── CRM/            # Customer management frontend
-│       ├── hrms/           # HR and payroll frontend
-│       └── inventory/      # Inventory control frontend
-├── packages/
-│   ├── config-eslint/      # Shared flat ESLint presets (Prettier integrated)
-│   ├── config-typescript/  # Shared tsconfig profiles
-│   ├── types/              # Canonical TypeScript contracts
-│   └── utils/              # Pure, reusable helpers
-├── .github/workflows/ci.yml # CI guardrails (lint, test, build)
-├── docker-compose.yml       # Traefik + service orchestration (future)
-├── README.md                # You are here
-└── AGENTS.md                # Agent charter & governance
-```
-
-Each app/package keeps a README with day-to-day runbooks and testing roadmaps. Start there for surface-specific guidance.
-
-## Prerequisites
-
-- Node.js 22.x (managed via `nvm`/`nvs` recommended)
-- pnpm 10.x (`corepack enable` or install manually)
-- Git and a shell capable of running Turborepo commands
-- (Optional) Docker + Docker Compose for full-stack orchestration
-
-After cloning the repository, install dependencies once:
+**New to the project?** Check out our [**Getting Started Guide**](./GETTING_STARTED.md) for a complete walkthrough!
 
 ```bash
+# Install dependencies (run once after clone)
 pnpm install
+
+# Start the backend API (NestJS)
+pnpm --filter backend start:dev
+
+# Start individual frontends (Next.js 15)
+pnpm --filter asset dev
+pnpm --filter crm dev
+pnpm --filter hrms dev
+pnpm --filter inventory dev
 ```
 
-## Core commands
+## Workspace Commands
 
-| Task             | Command                   | Notes                                                                                         |
-| ---------------- | ------------------------- | --------------------------------------------------------------------------------------------- |
-| Format code      | `pnpm format`             | Runs Prettier across the entire workspace.                                                    |
-| Check formatting | `pnpm format:check`       | Useful for CI or local verification.                                                          |
-| Lint             | `pnpm lint`               | Executes ESLint with Prettier integration in every package.                                   |
-| Test             | `pnpm test`               | Delegates to package-level test suites (Vitest/Jest as they land).                            |
-| Build            | `pnpm build`              | Runs production builds for backend + all frontends.                                           |
-| Dev servers      | `pnpm --filter <app> dev` | Launches an individual frontend (`asset`, `crm`, `hrms`, `inventory`) or backend (`backend`). |
+| Task          | Command             | Notes                                                                 |
+| ------------- | ------------------- | --------------------------------------------------------------------- |
+| Format        | `pnpm format`       | Runs Prettier via the shared flat ESLint config.                      |
+| Lint          | `pnpm lint`         | Executes workspace-wide ESLint with Turborepo caching.                |
+| Test          | `pnpm test`         | Runs package-level test suites (Jest/Vitest).                         |
+| Build         | `pnpm build`        | Produces production bundles for the backend and all frontends.        |
+| Package       | `pnpm package`      | Builds the on-prem deployment artifacts into `deployment/dist`.       |
+| Package check | `pnpm package:test` | Validates the generated deployment bundles and path-based routing.    |
 
-Use Turborepo filters to scope commands, e.g. `pnpm --filter asset lint`.
+> Turborepo caches command outputs. When you add build or test steps, declare their outputs in `turbo.json` to keep incremental runs fast.
 
-## Development workflow
+## Development Practices
 
-1. Install dependencies (`pnpm install`).
-2. Start the needed dev server(s) with `pnpm --filter <app> dev`.
-3. Keep `pnpm lint` and `pnpm test` green while iterating. Prettier errors show up as ESLint violations—run `pnpm format` before committing.
-4. Update the relevant app/package README with new capabilities or environment variables.
-5. Summarize changes against the four agents in your PR description.
+- **Simplicity:** Prefer framework CLIs (Nest generators, Next.js scaffolds) and existing shared packages over bespoke configuration.
+- **Types-first:** Import contracts from `@aria/types` and extend `@aria/tsconfig` everywhere to keep the suite consistent.
+- **Automation:** Surface new workflows through `package.json` scripts and mirror them in CI (`.github/workflows/ci.yml`).
+- **Quality:** Ship tests with each feature and uphold accessibility expectations for UI work.
 
-## Agent-aligned expectations
-
-- **Simplicity Advocate**: follow framework generators (`pnpx next`, `pnpx nest g`), avoid bespoke configs, and reuse shared packages.
-- **Type Safety Guardian**: import contracts from `@aria/types`, extend `@aria/tsconfig`, and keep strict TypeScript settings intact.
-- **Automation Steward**: expose scripts via package `package.json`, keep Turborepo tasks cached, and mirror workflows in CI.
-- **Quality Sentinel**: add or update unit/integration/E2E tests alongside features and enforce accessibility and observability standards.
-
-Refer to [`AGENTS.md`](./AGENTS.md) for detailed responsibilities, checklists, and cross-agent rituals.
-
-## Testing & QA
-
-- Backfill Vitest suites for utilities and React components (packages and frontends).
-- Maintain Jest-based unit and e2e tests in `apps/backend/test`.
-- Add Playwright smoke tests per frontend under `apps/frontend/<app>/e2e` (planned).
-- Keep coverage thresholds documented per surface and report failures in CI.
-
-### Docker Testing
-
-Comprehensive Docker testing suite for validating builds, deployments, and Next.js 15 static asset handling:
-
-```bash
-# Run complete test suite (Windows)
-.\scripts\test-docker-setup.ps1 -Profile full
-
-# Run complete test suite (Linux/Mac)
-./scripts/test-docker-setup.sh full
-
-# Verify static assets after deployment
-.\scripts\verify-static-assets.ps1
-
-# Pre-deployment validation
-.\scripts\run-all-tests.ps1
-```
-
-**📚 Documentation:**
-
-- **Quick Start:** [scripts/QUICK_START.md](scripts/QUICK_START.md) - Get testing in 5 minutes
-- **Comprehensive Guide:** [scripts/DOCKER_TESTING_GUIDE.md](scripts/DOCKER_TESTING_GUIDE.md) - Full testing methodology
-- **Quick Reference:** [scripts/QUICK_REFERENCE.md](scripts/QUICK_REFERENCE.md) - Command cheat sheet
-- **Implementation Details:** [scripts/TEST_IMPLEMENTATION_SUMMARY.md](scripts/TEST_IMPLEMENTATION_SUMMARY.md) - Technical overview
-
-**Key Features:**
-
-- ✅ Next.js 15.5.4 static asset verification (critical for path-based routing)
-- ✅ Profile-based testing (full, asset, hrms, inventory, crm)
-- ✅ Automated SSL certificate generation for testing
-- ✅ Health check validation for all services
-- ✅ Container log analysis
-- ✅ Cross-platform support (PowerShell + Bash)
-
-## CI & automation
-
-GitHub Actions (`.github/workflows/ci.yml`) enforces `pnpm lint`, `pnpm test`, and `pnpm build`. Extend the workflow whenever you add new quality gates (e.g., Playwright, typegen). Turborepo caching accelerates repeated runs—declare task outputs when adding generated artifacts.
-
-## Docker & environments
-
-`docker-compose.yml` outlines the intended production topology (Traefik, backend, frontends, Postgres). As services mature:
-
-- Document required environment variables in each app’s README and `.env.example`.
-- Keep Dockerfiles in sync with the runtime commands shipped in package scripts.
-- Run `docker compose up` for local smoke tests once images are available.
-
-## Contribution checklist
+### Contributing Checklist
 
 Before opening a pull request:
 
@@ -144,6 +64,59 @@ Before opening a pull request:
 - [ ] `pnpm lint`
 - [ ] `pnpm test`
 - [ ] `pnpm build`
-- [ ] Update applicable READMEs and note agent coverage in the PR summary
+- [ ] Update relevant documentation and reference applicable development agents in the PR summary (see `AGENTS.md`).
 
-Staying disciplined with these steps keeps the Aria suite cohesive and production-ready as it grows. Happy building! 👋
+## Deployment Toolkit
+
+- The on-premise installer, automation scripts, and environment guidance live in `deployment/`.
+- Start with `deployment/README.md` for installation prerequisites, walkthroughs, and service management.
+- Additional references:
+  - `deployment/docs/INSTALLATION.md` — detailed setup instructions.
+  - `deployment/docs/TROUBLESHOOTING.md` — common issues and resolutions.
+  - `deployment/scripts/` — PowerShell and Bash helpers for build, test, install, and uninstall flows.
+
+## Documentation Map
+
+### For Beginners
+
+- **[Getting Started Guide](./GETTING_STARTED.md)** — Your first steps with Aria ERP
+- **[Contributing Guide](./CONTRIBUTING.md)** — How to contribute to the project
+- **[FAQ](./FAQ.md)** — Frequently asked questions and troubleshooting
+
+### For Developers
+
+- **[Development Agents](./AGENTS.md)** — Development philosophy and architectural principles
+- **[Backend Guide](./apps/backend/README.md)** — NestJS API development
+- **[Frontend Guides](./apps/frontend/)** — Next.js web app development
+  - [Asset Management](./apps/frontend/asset/README.md)
+  - [CRM](./apps/frontend/CRM/README.md)
+  - [HRMS](./apps/frontend/hrms/README.md)
+  - [Inventory](./apps/frontend/inventory/README.md)
+
+### Shared Packages
+
+- **[@aria/types](./packages/types/README.md)** — Shared TypeScript type definitions
+- **[@aria/utils](./packages/utils/README.md)** — Shared utility functions
+- **[@aria/eslint-config](./packages/config-eslint/README.md)** — Code style configuration
+- **[@aria/tsconfig](./packages/config-typescript/README.md)** — TypeScript configuration
+
+### Deployment & Operations
+
+- **[Deployment Guide](./deployment/README.md)** — On-premise installation
+- **[Installation Guide](./deployment/docs/INSTALLATION.md)** — Detailed setup instructions
+- **[Configuration Reference](./deployment/docs/CONFIGURATION.md)** — Environment and settings
+- **[Troubleshooting Guide](./deployment/docs/TROUBLESHOOTING.md)** — Common issues and solutions
+
+### Security
+
+- **[Security Policy](./SECURITY.md)** — Security guidelines and vulnerability reporting
+
+## Support & Security
+
+- For deployment assistance, review the [Troubleshooting Guide](./deployment/docs/TROUBLESHOOTING.md) or [Deployment Guide](./deployment/README.md).
+- ⚠️ Development SSL certificates in `traefik/certs/` are self-signed and intended only for local use. Production deployments should rely on certificates provisioned by the on-prem package (Let's Encrypt or custom CA).
+- Security questions and disclosures should follow the process outlined in `SECURITY.md`.
+
+## License
+
+Proprietary – All rights reserved.

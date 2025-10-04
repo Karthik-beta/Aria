@@ -1,11 +1,13 @@
-# Static IP Routing Configuration
-# This file configures path-based routing for static IP deployments
-# Each application is accessible via different paths on the same IP
+# Aria ERP - Path-Based Routing Configuration
+# Supports deployment on static IP addresses (with or without domain)
+# All applications accessible via: https://<ip-or-domain>/<module>/
+# Optimized for ~200 concurrent users
 
 http:
   routers:
-    # Backend API Router
-    backend-static:
+    # Backend API Router - Highest priority
+    # Access: https://<ip-or-domain>/api/*
+    backend-api:
       rule: 'PathPrefix(`/api`)'
       service: backend
       entrypoints:
@@ -15,9 +17,12 @@ http:
       priority: 100
       middlewares:
         - backend-stripprefix
+        - security-headers
+        - rate-limit
 
     # Asset Management Router
-    asset-static:
+    # Access: https://<ip-or-domain>/asset/
+    asset-module:
       rule: 'PathPrefix(`/asset`)'
       service: asset
       entrypoints:
@@ -25,39 +30,51 @@ http:
       tls:
         options: default
       priority: 90
-
-    # HRMS Router
-    hrms-static:
-      rule: 'PathPrefix(`/hrms`)'
-      service: hrms
-      entrypoints:
-        - websecure
-      tls:
-        options: default
-      priority: 80
-
-    # Inventory Router
-    inventory-static:
-      rule: 'PathPrefix(`/inventory`)'
-      service: inventory
-      entrypoints:
-        - websecure
-      tls:
-        options: default
-      priority: 70
+      middlewares:
+        - security-headers
 
     # CRM Router
-    crm-static:
+    # Access: https://<ip-or-domain>/crm/
+    crm-module:
       rule: 'PathPrefix(`/crm`)'
       service: crm
       entrypoints:
         - websecure
       tls:
         options: default
-      priority: 60
+      priority: 80
+      middlewares:
+        - security-headers
 
-    # Default/Landing Router (serves Asset as default if available)
-    default-static:
+    # HRMS Router
+    # Access: https://<ip-or-domain>/hrms/
+    hrms-module:
+      rule: 'PathPrefix(`/hrms`)'
+      service: hrms
+      entrypoints:
+        - websecure
+      tls:
+        options: default
+      priority: 70
+      middlewares:
+        - security-headers
+
+    # Inventory Router
+    # Access: https://<ip-or-domain>/inventory/
+    inventory-module:
+      rule: 'PathPrefix(`/inventory`)'
+      service: inventory
+      entrypoints:
+        - websecure
+      tls:
+        options: default
+      priority: 60
+      middlewares:
+        - security-headers
+
+    # Root/Default Router - Redirects to first available module
+    # Priority: asset > crm > hrms > inventory
+    default-redirect:
       rule: 'PathPrefix(`/`)'
       service: asset
       entrypoints:
@@ -65,6 +82,8 @@ http:
       tls:
         options: default
       priority: 1
+      middlewares:
+        - security-headers
 
   services:
     # Backend API Service
@@ -76,6 +95,12 @@ http:
           path: '/'
           interval: '30s'
           timeout: '5s'
+        # Sticky sessions for API (optional, helps with stateful operations)
+        sticky:
+          cookie:
+            name: aria_backend_session
+            secure: true
+            httpOnly: true
 
     # Asset Management Service
     asset:
@@ -84,6 +109,16 @@ http:
           - url: 'http://asset:3000'
         healthCheck:
           path: '/asset/'
+          interval: '30s'
+          timeout: '5s'
+
+    # CRM Service
+    crm:
+      loadBalancer:
+        servers:
+          - url: 'http://crm:3000'
+        healthCheck:
+          path: '/crm/'
           interval: '30s'
           timeout: '5s'
 
@@ -107,35 +142,34 @@ http:
           interval: '30s'
           timeout: '5s'
 
-    # CRM Service
-    crm:
-      loadBalancer:
-        servers:
-          - url: 'http://crm:3000'
-        healthCheck:
-          path: '/crm/'
-          interval: '30s'
-          timeout: '5s'
-
   middlewares:
-    # Strip prefix middleware for backend API
-    # This removes /api prefix before forwarding to backend service
+    # Strip /api prefix before forwarding to backend
     backend-stripprefix:
       stripPrefix:
         prefixes:
           - '/api'
         forceSlash: false
 
-    # Security headers middleware
+    # Security headers for all services
     security-headers:
       headers:
         customRequestHeaders:
           X-Forwarded-Proto: 'https'
         customResponseHeaders:
           X-Content-Type-Options: 'nosniff'
-          X-Frame-Options: 'DENY'
+          X-Frame-Options: 'SAMEORIGIN'
           X-XSS-Protection: '1; mode=block'
           Strict-Transport-Security: 'max-age=31536000; includeSubDomains'
+          Referrer-Policy: 'strict-origin-when-cross-origin'
         contentTypeNosniff: true
-        frameDeny: true
+        frameDeny: false
+        customFrameOptionsValue: 'SAMEORIGIN'
         referrerPolicy: 'strict-origin-when-cross-origin'
+
+    # Rate limiting for API endpoints (supports ~200 users)
+    # Allows burst of requests but prevents abuse
+    rate-limit:
+      rateLimit:
+        average: 100  # Average requests per second
+        period: 1s
+        burst: 200    # Allow burst for concurrent users

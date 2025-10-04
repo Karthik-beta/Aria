@@ -18,6 +18,11 @@
     "test": {
       "dependsOn": ["^test"],
       "outputs": []
+    },
+    "package": {
+      "dependsOn": ["build"],
+      "outputs": ["dist/**"],
+      "cache": false
     }
   }
 }

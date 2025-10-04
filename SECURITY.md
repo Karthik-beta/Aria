@@ -13,11 +13,11 @@ Quick reference for maintaining security across the Aria ERP monorepo.
 - ❌ **NEVER** use development certificates in production
 - ✅ Use Let's Encrypt (recommended - free, automated)
 - ✅ Use commercial CA certificates (for organizations)
-- ✅ Store private keys using Docker secrets or secrets manager
+- ✅ Store private keys securely in deployment environment
 - ✅ Monitor certificate expiration (30-day alerts)
 - ✅ Implement automatic renewal workflows
 
-**Reference**: [PRODUCTION_DEPLOYMENT.md](./PRODUCTION_DEPLOYMENT.md#ssltls-certificate-management)
+**Reference**: See `deployment/docs/CONFIGURATION.md` for SSL/TLS configuration in production
 
 ## 🔑 Secrets Management
 
@@ -35,7 +35,7 @@ Quick reference for maintaining security across the Aria ERP monorepo.
 - ✅ External secrets managers (Vault, AWS Secrets Manager, Azure Key Vault)
 - ✅ CI/CD secret stores (GitHub Secrets, GitLab CI Variables)
 
-**Reference**: [PRODUCTION_DEPLOYMENT.md](./PRODUCTION_DEPLOYMENT.md#secrets-management)
+**Reference**: See `deployment/docs/CONFIGURATION.md` for production secrets management
 
 ## 🛡️ Container Security
 
@@ -147,7 +147,7 @@ docker-compose build
 - ✅ Measure and maintain RTO/RPO targets
 - ✅ Practice disaster recovery drills
 
-**Reference**: [PRODUCTION_DEPLOYMENT.md](./PRODUCTION_DEPLOYMENT.md#disaster-recovery)
+**Reference**: See `deployment/docs/CONFIGURATION.md` for backup and restore procedures
 
 ## 🧪 Security Testing
 
@@ -215,10 +215,10 @@ Before deploying to production:
 
 ## 📚 Additional Resources
 
-- [PRODUCTION_DEPLOYMENT.md](./PRODUCTION_DEPLOYMENT.md) - Comprehensive production deployment guide
-- [DOCKER_HTTPS_SETUP.md](./DOCKER_HTTPS_SETUP.md) - Docker and HTTPS configuration
-- [traefik/certs/README.md](./traefik/certs/README.md) - Certificate management
-- [.env.example](./.env.example) - Environment variable templates
+- [deployment/README.md](./deployment/README.md) - On-premise deployment overview
+- [deployment/docs/INSTALLATION.md](./deployment/docs/INSTALLATION.md) - Installation guide
+- [deployment/docs/CONFIGURATION.md](./deployment/docs/CONFIGURATION.md) - Configuration reference including SSL/TLS
+- [traefik/certs/README.md](./traefik/certs/README.md) - Certificate management for development
 
 ## 🤝 Security Contact
 

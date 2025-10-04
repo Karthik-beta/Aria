@@ -144,7 +144,7 @@ Use enterprise secrets management systems:
 - HashiCorp Vault
 - Google Secret Manager
 
-See [PRODUCTION_DEPLOYMENT.md](../../PRODUCTION_DEPLOYMENT.md#secrets-management) for detailed configuration.
+See [deployment/docs/CONFIGURATION.md](../../deployment/docs/CONFIGURATION.md) for production secrets management.
 
 ## Security Best Practices
 
@@ -176,9 +176,9 @@ See [PRODUCTION_DEPLOYMENT.md](../../PRODUCTION_DEPLOYMENT.md#secrets-management
 
 ### 📚 Additional Resources
 
-- [PRODUCTION_DEPLOYMENT.md](../../PRODUCTION_DEPLOYMENT.md) - Complete production deployment guide
+- [deployment/docs/CONFIGURATION.md](../../deployment/docs/CONFIGURATION.md) - Production SSL/TLS configuration
 - [SECURITY.md](../../SECURITY.md) - Security best practices quick reference
-- [DOCKER_HTTPS_SETUP.md](../../DOCKER_HTTPS_SETUP.md) - HTTPS setup documentation
+- [deployment/README.md](../../deployment/README.md) - On-premise deployment guide
 
 ## Verifying Certificates
 

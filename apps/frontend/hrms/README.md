@@ -1,55 +1,154 @@
-# HRMS Frontend
+# 👥 Human Resource Management System (HRMS) Frontend
 
-Next.js 15 application for employee and payroll experiences. It aligns with the monorepo’s four-agent charter and shares runtime contracts via `@aria/types`.
+The **HRMS Frontend** helps you manage everything related to employees—from hiring to payroll. Built with **Next.js 15**, it makes HR tasks simple and organized.
 
-## Daily Runbook
+## 📋 What Does This Do?
 
-| Task            | Command                                   | Notes                                                 |
-| --------------- | ----------------------------------------- | ----------------------------------------------------- |
-| Development     | `pnpm --filter hrms dev`                  | Turbopack with workspace root as compilation root.    |
-| Lint            | `pnpm --filter hrms lint`                 | Uses `@aria/eslint-config`; keep zero lint debt.      |
-| Type-check      | `pnpm --filter hrms exec tsc --noEmit`    | Extend shared tsconfig; no implicit anys.             |
-| Build           | `pnpm --filter hrms build`                | CI-equivalent build; rely on caching for speed.       |
-| Component tests | `pnpm --filter hrms test`                 | Add Vitest soon; colocate specs alongside components. |
-| E2E             | `pnpm --filter hrms exec playwright test` | Future Playwright suite for onboarding/payroll flows. |
+This application helps you:
+- **Manage employees** - Store all employee information in one place
+- **Track attendance** - Monitor who's present, absent, or on leave
+- **Process payroll** - Calculate salaries, deductions, and bonuses
+- **Handle leave requests** - Approve or reject time-off requests
+- **Track performance** - Record reviews and goals
+- **Onboard new hires** - Guide new employees through the joining process
 
-## Agent Alignment
+Think of it as your HR department's digital assistant!
 
-### Simplicity Advocate
+## 🚀 Quick Start
 
-- Rely on Next.js App Router and server components for data-driven screens (benefits, leave balances).
-- Prefer shared UI primitives; avoid ad-hoc styling if Tailwind or shared components suffice.
-- Document all environment variables (SSO, payroll integrations) and keep them synchronized with `.env.example`.
+### First Time Setup
 
-### Type Safety Guardian
+```bash
+# 1. Install all dependencies (run from project root)
+pnpm install
 
-- Reference `@aria/types` HR domain models (`HR.Employee`, `HR.Payroll`) and avoid local duplications.
-- Preserve the `@hrms/*` alias to keep imports maintainable.
-- Validate third-party payloads (e.g., HRIS webhooks) with schema validators before use.
+# 2. Start the development server
+pnpm --filter hrms dev
+```
 
-### Automation Steward
+The app will open at `http://localhost:3003` (or the next available port).
 
-- Add new scripts only if they delegate to shared tooling; no bespoke build pipelines.
-- Configure `turbo.json` outputs when introducing static asset generation or report exports.
-- Ensure `.github/workflows/ci.yml` mirrors any added testing/linting stages.
+### Common Commands
 
-### Quality Sentinel
+| What You Want To Do | Command | What Happens |
+|---------------------|---------|--------------||
+| Start the app | `pnpm --filter hrms dev` | Runs in development mode with hot-reload |
+| Build for production | `pnpm --filter hrms build` | Creates optimized production build |
+| Run tests | `pnpm --filter hrms test` | Runs component tests |
+| Check code style | `pnpm --filter hrms lint` | Finds and fixes formatting issues |
 
-- Plan Vitest suites for key components like the employee profile editor and time-off request flows.
-- Record Playwright scenarios covering hire-to-retire, approvals, and payroll preview.
-- Evaluate accessibility for HR-critical tasks: keyboard navigation, screen reader labels, form validation feedback.
+## 📁 Project Structure
 
-## Testing & Automation Checklist
+```
+apps/frontend/hrms/
+├── src/
+│   ├── app/                       # Next.js App Router pages
+│   │   ├── page.tsx               # Home page (HR dashboard)
+│   │   ├── employees/             # Employee directory
+│   │   ├── attendance/            # Time tracking
+│   │   ├── payroll/               # Salary management
+│   │   ├── leaves/                # Leave requests
+│   │   └── layout.tsx             # Shared layout
+│   ├── components/                # Reusable UI components
+│   │   ├── EmployeeCard.tsx
+│   │   ├── AttendanceCalendar.tsx
+│   │   └── PayslipGenerator.tsx
+│   ├── lib/                       # Utilities and helpers
+│   └── styles/                    # Global styles
+└── public/                        # Static assets
+```
 
-- [ ] Establish Vitest + Testing Library config reused across frontends.
-- [ ] Seed Playwright with HR fixtures matching backend DTOs.
-- [ ] Track coverage thresholds once Vitest suite exists (target ≥80%).
-- [ ] Integrate CI artifacts (screenshots, traces) collection for flaky flows.
+## 🔒 Type Safety & Shared Code
 
-## Shared References
+### Using Shared Types
 
-- Types: `import { HR } from "@aria/types"`.
-- Utilities: `import { formatDateRange } from "@aria/utils"` once implemented.
-- Backend base URL proxied behind Traefik (`hrms.api.localhost`).
+```typescript
+// Import HR-specific types
+import { HR } from '@aria/types';
 
-Keep this document updated as features land. Note any exceptions to agent guidance inside PR summaries with follow-up tasks.
+function EmployeeList({ employees }: { employees: HR.Employee[] }) {
+  return (
+    <div>
+      {employees.map(emp => (
+        <div key={emp.id}>
+          {emp.firstName} {emp.lastName} - {emp.department}
+        </div>
+      ))}
+    </div>
+  );
+}
+```
+
+### Path Aliases
+
+```typescript
+// Use @hrms/* for clean imports
+import { EmployeeCard } from '@hrms/components/EmployeeCard';
+import { calculateSalary } from '@hrms/lib/payroll';
+```
+
+## 📚 Key Features to Implement
+
+### Employee Management
+- Add, edit, and archive employee records
+- Store personal details, contact info, and emergency contacts
+- Track employment history and position changes
+
+### Attendance Tracking
+- Clock in/out functionality
+- Calendar view of attendance
+- Overtime calculation
+- Attendance reports
+
+### Leave Management
+- Submit leave requests
+- Manager approval workflow
+- Leave balance tracking
+- Leave calendar view
+
+### Payroll Processing
+- Salary calculation with deductions
+- Tax computation
+- Generate payslips
+- Payment history
+
+### Performance Management
+- Set goals and objectives
+- Conduct reviews
+- Track performance ratings
+- Career development plans
+
+## 💡 Pro Tips for HRMS
+
+- **Calendar Integration**: Use a date picker library like `react-day-picker` for attendance/leave
+- **PDF Generation**: Use libraries like `react-pdf` or `jsPDF` for payslips
+- **Privacy First**: Implement role-based access—not everyone should see salaries!
+- **Notifications**: Send email alerts for leave approvals, payroll processing
+- **Mobile Friendly**: Employees often check attendance from phones
+
+## 🐛 Common Issues
+
+### Date/Time Issues?
+- Use a library like `date-fns` or `dayjs` for consistent date handling
+- Always store dates in UTC, display in local timezone
+
+### Payroll Calculations Wrong?
+- Double-check tax brackets and deduction rules
+- Write unit tests for salary calculation functions
+- Validate against expected results
+
+### Performance Slow with Large Employee Lists?
+- Implement pagination (show 50 employees per page)
+- Add search and filters
+- Use virtual scrolling for very large lists
+
+## 🔗 Related Documentation
+
+- [Main Project README](../../../README.md)
+- [Backend API README](../../backend/README.md)
+- [Shared Types](../../../packages/types/README.md)
+- [Next.js Documentation](https://nextjs.org/docs)
+
+---
+
+**Need Help?** Review the `src/components/` directory for component examples!
