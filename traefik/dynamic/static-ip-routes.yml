@@ -170,6 +170,6 @@ http:
     # Allows burst of requests but prevents abuse
     rate-limit:
       rateLimit:
-        average: 100  # Average requests per second
+        average: 100 # Average requests per second
         period: 1s
-        burst: 200    # Allow burst for concurrent users
+        burst: 200 # Allow burst for concurrent users

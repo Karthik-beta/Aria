@@ -101,6 +101,7 @@ routers:
 ```
 
 **Benefits**:
+
 - Free, automated certificate issuance and renewal
 - Trusted by all browsers
 - Renews automatically every 60 days
@@ -139,8 +140,9 @@ tls:
 #### Option 3: External Secrets Manager
 
 Use enterprise secrets management systems:
+
 - AWS Secrets Manager
-- Azure Key Vault  
+- Azure Key Vault
 - HashiCorp Vault
 - Google Secret Manager
 

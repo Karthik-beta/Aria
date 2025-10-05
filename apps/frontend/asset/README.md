@@ -5,6 +5,7 @@ The **Asset Frontend** helps you track and manage company assets like computers,
 ## 📋 What Does This Do?
 
 This application lets you:
+
 - **View all assets** in one place with search and filters
 - **Track asset details** like location, condition, and assigned employee
 - **Manage assignments** (who has what asset)
@@ -121,7 +122,9 @@ function AssetList({ assets }: { assets: Asset[] }) {
 }
 
 // ❌ Bad: Creating types locally
-interface Asset { /* ... */ }
+interface Asset {
+  /* ... */
+}
 ```
 
 ### Using Path Aliases
@@ -142,11 +145,13 @@ import { AssetCard } from '../../components/AssetCard';
 ### App Won't Start?
 
 1. **Make sure dependencies are installed**:
+
    ```bash
    pnpm install
    ```
 
 2. **Check for TypeScript errors**:
+
    ```bash
    pnpm --filter asset exec tsc --noEmit
    ```

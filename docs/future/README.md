@@ -7,6 +7,7 @@ This directory contains specifications for features planned for future releases 
 **All documents in this directory describe PLANNED features that are NOT yet implemented.**
 
 These are specification documents created during the planning phase. They serve as:
+
 - Technical blueprints for future development
 - Reference material for implementation teams
 - Roadmap visibility for stakeholders
@@ -14,11 +15,13 @@ These are specification documents created during the planning phase. They serve 
 ## Documents
 
 ### v0.2.0-RELIABILITY_SECURITY_SPEC.md
+
 **Status**: Not Implemented  
 **Target Release**: v0.2.0 (Planned for Q1 2026)  
 **Description**: Comprehensive specification for enterprise-grade reliability, automated backups, system stability monitoring, and security enhancements including code signing.
 
 **Key Features Planned**:
+
 - Enhanced health monitoring and alerting
 - PostgreSQL streaming replication (master-slave)
 - Automated backup system with smart storage detection
@@ -34,6 +37,7 @@ See [IMPLEMENTATION_STATUS.md](../../IMPLEMENTATION_STATUS.md) in the root direc
 ## How to Use These Documents
 
 ### For Development Teams
+
 1. Review the specification before starting implementation
 2. Break down features into manageable tasks
 3. Update the spec if implementation reveals necessary changes
@@ -41,22 +45,24 @@ See [IMPLEMENTATION_STATUS.md](../../IMPLEMENTATION_STATUS.md) in the root direc
 5. Move completed features to main documentation
 
 ### For Stakeholders
+
 - These documents show what we're planning, not what's available
 - For current capabilities, see the main [README.md](../../README.md)
 - For deployment documentation, see [deployment/README.md](../../deployment/README.md)
 
 ### For Contributors
+
 - Feel free to suggest improvements to specifications
 - Raise questions or concerns about planned features
 - Propose alternative approaches via pull requests
 
 ## Version Status
 
-| Version | Status | Description | Target Date |
-|---------|--------|-------------|-------------|
-| v0.1.0 | ✅ Released | Basic deployment infrastructure | October 2025 |
-| v0.2.0 | 📋 Planned | Reliability & Security enhancements | Q1 2026 |
-| v0.3.0 | 💭 Concept | TBD | Q2 2026 |
+| Version | Status      | Description                         | Target Date  |
+| ------- | ----------- | ----------------------------------- | ------------ |
+| v0.1.0  | ✅ Released | Basic deployment infrastructure     | October 2025 |
+| v0.2.0  | 📋 Planned  | Reliability & Security enhancements | Q1 2026      |
+| v0.3.0  | 💭 Concept  | TBD                                 | Q2 2026      |
 
 ## Contributing Specifications
 

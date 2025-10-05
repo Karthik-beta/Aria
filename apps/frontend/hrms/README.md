@@ -5,6 +5,7 @@ The **HRMS Frontend** helps you manage everything related to employees—from hi
 ## 📋 What Does This Do?
 
 This application helps you:
+
 - **Manage employees** - Store all employee information in one place
 - **Track attendance** - Monitor who's present, absent, or on leave
 - **Process payroll** - Calculate salaries, deductions, and bonuses
@@ -90,29 +91,34 @@ import { calculateSalary } from '@hrms/lib/payroll';
 ## 📚 Key Features to Implement
 
 ### Employee Management
+
 - Add, edit, and archive employee records
 - Store personal details, contact info, and emergency contacts
 - Track employment history and position changes
 
 ### Attendance Tracking
+
 - Clock in/out functionality
 - Calendar view of attendance
 - Overtime calculation
 - Attendance reports
 
 ### Leave Management
+
 - Submit leave requests
 - Manager approval workflow
 - Leave balance tracking
 - Leave calendar view
 
 ### Payroll Processing
+
 - Salary calculation with deductions
 - Tax computation
 - Generate payslips
 - Payment history
 
 ### Performance Management
+
 - Set goals and objectives
 - Conduct reviews
 - Track performance ratings
@@ -129,15 +135,18 @@ import { calculateSalary } from '@hrms/lib/payroll';
 ## 🐛 Common Issues
 
 ### Date/Time Issues?
+
 - Use a library like `date-fns` or `dayjs` for consistent date handling
 - Always store dates in UTC, display in local timezone
 
 ### Payroll Calculations Wrong?
+
 - Double-check tax brackets and deduction rules
 - Write unit tests for salary calculation functions
 - Validate against expected results
 
 ### Performance Slow with Large Employee Lists?
+
 - Implement pagination (show 50 employees per page)
 - Add search and filters
 - Use virtual scrolling for very large lists

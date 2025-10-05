@@ -1,82 +1,60 @@
 # Aria ERP On-Premise Deployment# Aria ERP On-Premise Deployment# Aria ERP On-Premise Deployment# Aria ERP On-Premise Deployment# Aria ERP On-Premise Deployment
 
+**Version**: 1.0.0
 
-
-**Version**: 1.0.0  
-
-**Last Updated**: October 4, 2025  
+**Last Updated**: October 4, 2025
 
 **Status**: Production Ready (100% Test Pass Rate)Production-ready deployment infrastructure for Aria ERP with **path-based routing** for static IP deployments.
 
-
-
 ---
-
-
 
 ## 📘 Documentation## OverviewProduction-ready deployment infrastructure for Aria ERP with **path-based routing** for static IP deployments.
 
-
-
 **👉 [START HERE: Complete Deployment Guide](./DEPLOYMENT_GUIDE.md)**
-
-
 
 This README provides quick reference only. For complete instructions, see the comprehensive deployment guide.This deployment package provides everything needed to install and run Aria ERP in client environments:
 
-
-
 ### Documentation Structure
-
-
 
 ```- **Path-Based Routing**: Access all modules via `https://<ip>/<module>/`## OverviewProduction-ready deployment infrastructure for Aria ERP with **path-based routing** for static IP deployments.Production-ready deployment infrastructure for Aria ERP with **path-based routing** for static IP deployments.
 
 deployment/
 
-├── 📘 DEPLOYMENT_GUIDE.md       ⭐ Complete deployment guide (START HERE)- **Static IP Support**: No domain name required  
+├── 📘 DEPLOYMENT_GUIDE.md ⭐ Complete deployment guide (START HERE)- **Static IP Support**: No domain name required
 
-├── 📄 README.md                 ℹ️ This file (quick reference)
+├── 📄 README.md ℹ️ This file (quick reference)
 
-├── 🔧 DEVELOPMENT.md            💻 Development environment setup- **200 User Capacity**: Optimized for ~200 concurrent users
+├── 🔧 DEVELOPMENT.md 💻 Development environment setup- **200 User Capacity**: Optimized for ~200 concurrent users
 
 ├── docs/
 
-│   ├── INSTALLATION.md          🔨 Detailed installation procedures- **Cross-Platform**: Native Windows and Linux support
+│ ├── INSTALLATION.md 🔨 Detailed installation procedures- **Cross-Platform**: Native Windows and Linux support
 
-│   ├── CONFIGURATION.md         ⚙️ Configuration reference
+│ ├── CONFIGURATION.md ⚙️ Configuration reference
 
-│   ├── TROUBLESHOOTING.md       🩺 Problem resolution guide- **Modular**: Enable only the modules you needThis deployment package provides everything needed to install and run Aria ERP in client environments:
+│ ├── TROUBLESHOOTING.md 🩺 Problem resolution guide- **Modular**: Enable only the modules you needThis deployment package provides everything needed to install and run Aria ERP in client environments:
 
-│   └── SPECIFICATION.md         📋 Technical specifications
+│ └── SPECIFICATION.md 📋 Technical specifications
 
 ├── scripts/
 
-│   ├── backup/                  📦 Phase 1: Backup system
+│ ├── backup/ 📦 Phase 1: Backup system
 
-│   ├── monitoring/              🏥 Phase 2: Health monitoring## Quick Start
+│ ├── monitoring/ 🏥 Phase 2: Health monitoring## Quick Start
 
-│   ├── restore/                 🔄 Phase 3: Disaster recovery
+│ ├── restore/ 🔄 Phase 3: Disaster recovery
 
-│   └── *.sh, *.ps1              🚀 Installation/management scripts
+│ └── _.sh, _.ps1 🚀 Installation/management scripts
 
-└── templates/                   📝 Configuration templates
+└── templates/ 📝 Configuration templates
 
 ```### Prerequisites- **Path-Based Routing**: Access all modules via `https://<ip>/<module>/`## Overview## Overview
 
-
-
 ---
 
-
-
-## 🚀 Quick Start**Minimum Requirements:**- **Static IP Support**: No domain name required  
-
-
+## 🚀 Quick Start**Minimum Requirements:**- **Static IP Support**: No domain name required
 
 ### Prerequisites- 2 CPU cores
-
-
 
 - **Hardware**: 2+ CPU cores, 4GB+ RAM, 20GB+ disk- 4 GB RAM- **200 User Capacity**: Optimized for ~200 concurrent users
 
@@ -84,11 +62,7 @@ deployment/
 
 - **Network**: Static IP address- 20 GB disk space
 
-
-
 ### 5-Minute Installation- Docker 20.10+ and Docker Compose 2.0+- **Cross-Platform**: Native Windows and Linux support
-
-
 
 **Linux:**- Ports 80 and 443 available
 
@@ -120,11 +94,9 @@ sudo bash deployment/scripts/monitoring/health-check.sh
 
 ```
 
+**Windows:\*\***Supported Platforms:\*\*
 
-
-**Windows:****Supported Platforms:**
-
-```powershell
+````powershell
 
 # 1. Download from GitHub releases and extract- **Linux**: Ubuntu 20.04+, Debian 11+, RHEL/CentOS 8+### Prerequisites- **Path-Based Routing**: Access all modules via `https://<ip>/<module>/`- **Path-Based Routing**: Access all modules via `https://<ip>/<module>/`
 
@@ -176,11 +148,11 @@ cd aria-erp-v0.1.0- 20 GB disk space
 
 # Load Docker images- Docker 20.10+ and Docker Compose 2.0+- **Cross-Platform**: Native Windows and Linux support- **Cross-Platform**: Native Windows and Linux support
 
-```
+````
 
 Internet → Traefik (80/443) → Frontends (Asset/CRM/HRMS/Inventory) → Backend API → PostgreSQLsudo ./bin/load-images.sh
 
-```
+````
 
 - Ports 80 and 443 available
 
@@ -424,9 +396,9 @@ docker-compose logs traefik-proxy # Check Traefik logs
 
 sudo ufw status                   # Check firewall (Linux)```powershell
 
-```
+````
 
-```
+````
 
 **Database connection errors:**
 
@@ -436,13 +408,13 @@ docker-compose logs aria-database
 
 docker exec aria-database psql -U aria -d aria -c "SELECT 1;"├── bin/
 
-```
+````
 
-│   ├── install-linux.sh           # Linux installation scriptcd aria-erp-v0.1.0
+│ ├── install-linux.sh # Linux installation scriptcd aria-erp-v0.1.0
 
 **High resource usage:**
 
-```bash│   ├── install-windows.ps1        # Windows installation script
+```bash│ ├── install-windows.ps1        # Windows installation script
 
 docker stats                      # Monitor resources
 
@@ -450,15 +422,15 @@ docker stats                      # Monitor resources
 
 ```
 
-│   ├── uninstall-windows.ps1      # Windows removal script
+│ ├── uninstall-windows.ps1 # Windows removal script
 
 **For detailed troubleshooting**: See `docs/TROUBLESHOOTING.md`
 
-│   ├── load-images.sh             # Load Docker images (Linux)# Load Docker images
+│ ├── load-images.sh # Load Docker images (Linux)# Load Docker images
 
 ---
 
-│   └── load-images.ps1            # Load Docker images (Windows)
+│ └── load-images.ps1 # Load Docker images (Windows)
 
 ## 📚 Additional Resources
 
@@ -466,7 +438,7 @@ docker stats                      # Monitor resources
 
 ### Essential Documentation
 
-- **[Complete Deployment Guide](./DEPLOYMENT_GUIDE.md)** - Start here for full instructions│   └── *.tar                      # Pre-built Docker images
+- **[Complete Deployment Guide](./DEPLOYMENT_GUIDE.md)** - Start here for full instructions│ └── \*.tar # Pre-built Docker images
 
 - **[Testing Report](../TESTING_REPORT.md)** - Comprehensive testing documentation
 
@@ -474,7 +446,7 @@ docker stats                      # Monitor resources
 
 - **[Implementation Progress](../IMPLEMENTATION_PROGRESS.md)** - Development timeline
 
-│   └── traefik/                   # Traefik proxy configuration
+│ └── traefik/ # Traefik proxy configuration
 
 ### Technical References
 
@@ -482,35 +454,33 @@ docker stats                      # Monitor resources
 
 - **[Configuration Reference](./docs/CONFIGURATION.md)** - All configuration options
 
-- **[Troubleshooting Guide](./docs/TROUBLESHOOTING.md)** - Problem resolution procedures│   ├── INSTALLATION.md            # Installation guide
+- **[Troubleshooting Guide](./docs/TROUBLESHOOTING.md)** - Problem resolution procedures│ ├── INSTALLATION.md # Installation guide
 
 - **[Technical Specification](./docs/SPECIFICATION.md)** - System architecture and design
 
-│   ├── CONFIGURATION.md           # Configuration reference.\bin\install-windows.ps1 -Modules "full"
+│ ├── CONFIGURATION.md # Configuration reference.\bin\install-windows.ps1 -Modules "full"
 
 ### Script Documentation
 
-- **[Backup System](./scripts/backup/README.md)** - Phase 1 automated backups│   ├── SPECIFICATION.md           # Technical specifications
+- **[Backup System](./scripts/backup/README.md)** - Phase 1 automated backups│ ├── SPECIFICATION.md # Technical specifications
 
 - **[Health Monitoring](./scripts/monitoring/README.md)** - Phase 2 system health checks
 
-- **[Recovery System](./scripts/restore/README.md)** - Phase 3 disaster recovery│   └── TROUBLESHOOTING.md         # Troubleshooting guide```**Supported Platforms:****Supported Platforms:**
+- **[Recovery System](./scripts/restore/README.md)** - Phase 3 disaster recovery│ └── TROUBLESHOOTING.md # Troubleshooting guide```**Supported Platforms:\*\***Supported Platforms:\*\*
 
-
-
-### Project Guides├── docker-compose.production.yml  # Production Docker Compose
+### Project Guides├── docker-compose.production.yml # Production Docker Compose
 
 - **[Agent Principles](../AGENTS.md)** - Architecture and development philosophy
 
-- **[Contributing Guide](../CONTRIBUTING.md)** - Contribution guidelines├── .env.template                  # Environment configuration template
+- **[Contributing Guide](../CONTRIBUTING.md)** - Contribution guidelines├── .env.template # Environment configuration template
 
 - **[Security Guide](../SECURITY.md)** - Security best practices
 
-└── VERSION                        # Package version
+└── VERSION # Package version
 
 ---
 
-```### Access URLs- **Linux**: Ubuntu 20.04+, Debian 11+, RHEL/CentOS 8+- **Linux**: Ubuntu 20.04+, Debian 11+, RHEL/CentOS 8+
+````### Access URLs- **Linux**: Ubuntu 20.04+, Debian 11+, RHEL/CentOS 8+- **Linux**: Ubuntu 20.04+, Debian 11+, RHEL/CentOS 8+
 
 ## 🔄 Maintenance Schedule
 
@@ -644,7 +614,7 @@ See main project LICENSE file.
 
 **Aria ERP On-Premise Deployment**  sudo journalctl -u aria-erp -f
 
-**Ready for Production** | **Fully Tested** | **Comprehensive Documentation**  
+**Ready for Production** | **Fully Tested** | **Comprehensive Documentation**
 
 For complete instructions, see [DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md)```- **[Specification](docs/SPECIFICATION.md)** - Technical specifications
 
@@ -681,7 +651,7 @@ docker compose ps
 
 docker compose logs -f| CRM | Customer relationship management | `crm` |
 
-```
+````
 
 | HRMS | Human resources and payroll | `hrms` |sudo ./scripts/generate-ssl-cert-linux.shsudo ./scripts/generate-ssl-cert-linux.sh ./volumes/traefik
 
@@ -691,9 +661,7 @@ docker compose logs -f| CRM | Customer relationship management | `crm` |
 
 Configuration is managed through the `.env` file:
 
-
-
-```env
+````env
 
 # Domain Configuration**Module Selection:**
 
@@ -721,13 +689,13 @@ LICENSED_MODULES=full
 
 VERSION=latest# Install specific modules
 
-```
+````
 
 --modules asset,crm,hrms# Install (modules: full, asset, crm, hrms, or inventory)
 
 ## System Requirements
 
-```
+````
 
 ### Minimum
 
@@ -793,13 +761,13 @@ docker exec aria-database pg_dump -U aria aria > backup-$(date +%Y%m%d).sql
 
 cp .env .env.backup│   └── *.tar                      # Pre-built Docker images
 
-```
+````
 
 ├── config/```bash
 
 **Restore:**
 
-│   └── traefik/                   # Traefik proxy configuration
+│ └── traefik/ # Traefik proxy configuration
 
 ```bash
 
@@ -815,31 +783,25 @@ cp .env.backup .env│   ├── CONFIGURATION.md           # Configuration re
 
 ```
 
-│   ├── SPECIFICATION.md           # Technical specifications
+│ ├── SPECIFICATION.md # Technical specifications
 
 ## Updating
 
-│   └── TROUBLESHOOTING.md         # Troubleshooting guide
+│ └── TROUBLESHOOTING.md # Troubleshooting guide
 
 1. Stop the current installation
 
-2. Extract new version package├── docker-compose.production.yml  # Production Docker Compose
+2. Extract new version package├── docker-compose.production.yml # Production Docker Compose
 
 3. Load new Docker images
 
-4. Run installation script (preserves data and configuration)├── .env.template                  # Environment configuration template# Load Docker imagestar -xzf aria-erp-v{version}-linux.tar.gz```powershell
+4. Run installation script (preserves data and configuration)├── .env.template # Environment configuration template# Load Docker imagestar -xzf aria-erp-v{version}-linux.tar.gz```powershell
 
-
-
-## Uninstallation└── VERSION                        # Package version
-
-
+## Uninstallation└── VERSION # Package version
 
 **Linux:**```.\scripts\load-images.ps1
 
-
-
-```bash
+````bash
 
 sudo ./bin/uninstall-linux.sh
 
@@ -893,7 +855,7 @@ This deployment package is part of Aria ERP. See included LICENSE file for detai
 
 **Version**: 0.1.0  sudo ./bin/load-images.sh# Generate SSL certificate with all server IPs
 
-**Build Date**: October 3, 2025  
+**Build Date**: October 3, 2025
 
 **Supported Platforms**: Linux (Ubuntu, Debian, CentOS, RHEL), Windows (10/11, Server 2019/2022)## Service Management
 
@@ -934,15 +896,11 @@ sudo systemctl status aria-erphttps://<server-ip>/api/         # Backend API```.
 
 sudo journalctl -u aria-erp -f
 
-```
-
-
+````
 
 ### Windows (Scheduled Tasks)## Documentation
 
-
-
-```powershell**Windows (Run as Administrator):**# Install (modules: full, asset,crm, hrms, or inventory)
+````powershell**Windows (Run as Administrator):**# Install (modules: full, asset,crm, hrms, or inventory)
 
 # Start service
 
@@ -968,9 +926,7 @@ docker compose ps
 
 docker compose logs -f## Available Modulescd aria-erp-v{version}
 
-```
-
-
+````
 
 ## Configuration
 
@@ -980,7 +936,7 @@ Configuration is managed through the `.env` file:
 
 |--------|-------------|-------------|
 
-```env
+````env
 
 # Domain Configuration| Asset | Asset management and tracking | `asset` |# Load Docker images```
 
@@ -1008,9 +964,9 @@ LICENSED_MODULES=full
 
 VERSION=latest# Install with all moduleshttps://<server-ip>/hrms/
 
-```
+````
 
-```bash
+```````bash
 
 ## System Requirements
 
@@ -1080,13 +1036,13 @@ docker exec aria-database pg_dump -U aria aria > backup-$(date +%Y%m%d).sql
 
 cp .env .env.backup│   ├── load-images.sh             # Load Docker images (Linux)https://<server-ip>/asset/       # Asset Management- `https://<server-ip>/hrms/` - Human Resources
 
-```
+```````
 
-│   ├── load-images.ps1            # Load Docker images (Windows)
+│ ├── load-images.ps1 # Load Docker images (Windows)
 
 **Restore:**
 
-│   ├── generate-ssl-cert-linux.sh # SSL certificate generator (Linux)https://<server-ip>/crm/         # Customer Relationship Management- `https://<server-ip>/inventory/` - Inventory Management
+│ ├── generate-ssl-cert-linux.sh # SSL certificate generator (Linux)https://<server-ip>/crm/ # Customer Relationship Management- `https://<server-ip>/inventory/` - Inventory Management
 
 ```bash
 
@@ -1102,31 +1058,25 @@ cp .env.backup .env│   └── *.tar                      # Pre-built Docker
 
 ```
 
-├── config/https://<server-ip>/inventory/   # Inventory Management
+├── config/https://<server-ip>/inventory/ # Inventory Management
 
 ## Updating
 
-│   └── traefik/                   # Traefik proxy configuration
+│ └── traefik/ # Traefik proxy configuration
 
 1. Stop the current installation
 
-2. Extract new version package├── docs/https://<server-ip>/api/         # Backend API## Documentation
+2. Extract new version package├── docs/https://<server-ip>/api/ # Backend API## Documentation
 
 3. Load new Docker images
 
-4. Run installation script (preserves data and configuration)│   ├── INSTALLATION.md
+4. Run installation script (preserves data and configuration)│ ├── INSTALLATION.md
 
+## Uninstallation│ ├── CONFIGURATION.md```
 
+**Linux:**│ ├── SPECIFICATION.md
 
-## Uninstallation│   ├── CONFIGURATION.md```
-
-
-
-**Linux:**│   ├── SPECIFICATION.md
-
-
-
-```bash│   └── TROUBLESHOOTING.md- **[Path-Based Routing](docs/PATH_BASED_ROUTING.md)** - URL structure and SSL configuration ✨
+```````bash│ └── TROUBLESHOOTING.md- **[Path-Based Routing](docs/PATH_BASED_ROUTING.md)** - URL structure and SSL configuration ✨
 
 sudo ./bin/uninstall-linux.sh
 
@@ -1180,7 +1130,7 @@ This deployment package is part of Aria ERP. See included LICENSE file for detai
 
 **Version**: 0.1.0  - ✅ **Auto-SSL Generation**: Scripts generate certificates with all server IPs| Asset | Asset management and tracking | `asset` |
 
-**Build Date**: October 3, 2025  
+**Build Date**: October 3, 2025
 
 **Supported Platforms**: Linux (Ubuntu, Debian, CentOS, RHEL), Windows (10/11, Server 2019/2022)- ✅ **Secure**: SSL/TLS support with security headers and rate limiting| CRM | Customer relationship management | `crm` |
 
@@ -1215,7 +1165,7 @@ sudo systemctl start aria-erp```
 
 sudo systemctl stop aria-erp
 
-```
+```````
 
 # Restart servicearia-erp-v{version}/
 
@@ -1225,15 +1175,13 @@ sudo systemctl restart aria-erp
 
 # Check status
 
-sudo systemctl status aria-erp**Module Selection:**│   ├── install-linux.sh           # Linux installation script
+sudo systemctl status aria-erp**Module Selection:**│ ├── install-linux.sh # Linux installation script
 
-
-
-# View logs│   ├── install-windows.ps1        # Windows installation script
+# View logs│ ├── install-windows.ps1 # Windows installation script
 
 sudo journalctl -u aria-erp -f
 
-``````bash│   ├── uninstall-linux.sh         # Linux removal script
+````bash│ ├── uninstall-linux.sh         # Linux removal script
 
 
 
@@ -1479,7 +1427,7 @@ This deployment package is part of Aria ERP. See included LICENSE file for detai
 
 **Version**: 0.1.0  docker compose downsudo systemctl restart aria-erp
 
-**Build Date**: October 3, 2025  
+**Build Date**: October 3, 2025
 
 **Supported Platforms**: Linux (Ubuntu, Debian, CentOS, RHEL), Windows (10/11, Server 2019/2022)
 
@@ -1494,13 +1442,9 @@ docker compose pssudo systemctl status aria-erp
 
 docker compose logs -fsudo journalctl -u aria-erp -f
 
-``````
-
-
+````
 
 ## Configuration### Windows
-
-
 
 Configuration is managed through environment variables in the `.env` file:```powershell
 
@@ -1538,8 +1482,6 @@ NODE_ENV=production
 
 ```Configuration is managed through the `.env` file:
 
-
-
 ## Security```env
 
 # Domain Configuration
@@ -1562,9 +1504,7 @@ POSTGRES_PASSWORD=secure_password_here
 
 ### Database BackupLICENSED_MODULES=full
 
-
-
-```bash# Version
+````bash# Version
 
 # Create backupVERSION=latest
 
@@ -1634,7 +1574,7 @@ sudo ./bin/uninstall-linux.sh
 
 .\bin\uninstall-windows.ps1- Designed for private network deployment
 
-```
+````
 
 ## Backup and Restore
 
@@ -1654,7 +1594,7 @@ sudo ./bin/uninstall-linux.sh
 
 - **[Specification](docs/SPECIFICATION.md)** - Technical specificationscp .env .env.backup
 
-```
+````
 
 ## Features
 
@@ -1714,7 +1654,7 @@ Proprietary software. See LICENSE file for terms and conditions.```
 
 **Package Version**: 0.1.0  ## Support
 
-**Release Date**: October 2025  
+**Release Date**: October 2025
 
 **Minimum Docker Version**: 20.10  For issues or questions:
 
@@ -1730,6 +1670,7 @@ This deployment package is part of Aria ERP. See included LICENSE file for detai
 
 ---
 
-**Version**: 0.1.0  
-**Build Date**: October 3, 2025  
+**Version**: 0.1.0
+**Build Date**: October 3, 2025
 **Supported Platforms**: Linux (Ubuntu, Debian, CentOS, RHEL), Windows (10/11, Server 2019/2022)
+````

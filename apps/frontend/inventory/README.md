@@ -5,6 +5,7 @@ The **Inventory Frontend** helps you track stock levels, manage warehouses, and 
 ## 📋 What Does This Do?
 
 This application helps you:
+
 - **Track stock levels** - See what's in stock, running low, or out of stock
 - **Manage warehouses** - Handle multiple storage locations
 - **Process transfers** - Move items between warehouses
@@ -90,30 +91,35 @@ import { fetchStock } from '@inventory/lib/api';
 ## 📚 Key Features to Implement
 
 ### Item Management
+
 - Add, edit, and archive inventory items
 - Store SKU, description, unit of measure
 - Track item categories and subcategories
 - Set reorder levels and lead times
 
 ### Stock Tracking
+
 - Real-time stock levels across warehouses
 - Low stock alerts
 - Stock history and movements
 - Batch and serial number tracking
 
 ### Warehouse Management
+
 - Multiple warehouse support
 - Location tracking (aisle, rack, bin)
 - Warehouse capacity planning
 - Physical inventory counts
 
 ### Purchase Orders
+
 - Create and manage purchase orders
 - Track order status (pending, received, completed)
 - Vendor management
 - Receiving and quality checks
 
 ### Stock Transfers
+
 - Transfer items between warehouses
 - Track transfer status
 - Handle in-transit inventory
@@ -130,17 +136,20 @@ import { fetchStock } from '@inventory/lib/api';
 ## 🐛 Common Issues
 
 ### Stock Counts Don't Match?
+
 - Implement double-entry system (every transaction has source and destination)
 - Add audit logs for all stock changes
 - Run regular reconciliation reports
 
 ### Performance Issues with Large Inventories?
+
 - Use pagination (50-100 items per page)
 - Implement server-side search and filtering
 - Add database indexes on frequently queried fields
 - Consider caching for frequently accessed data
 
 ### Negative Stock Values?
+
 - Add validation to prevent withdrawals exceeding available stock
 - Implement reservation system for pending orders
 - Run regular data integrity checks

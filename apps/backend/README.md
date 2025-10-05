@@ -5,6 +5,7 @@ The **Backend** is the heart of the Aria ERP system. It's built with **NestJS**,
 ## 📋 What Does This Do?
 
 This backend service:
+
 - Handles all business logic (calculations, data processing)
 - Manages the database (stores and retrieves data)
 - Provides secure APIs that frontends can call
@@ -28,14 +29,14 @@ The server will start at `http://localhost:3000` with hot-reload enabled (change
 
 ### Common Commands
 
-| What You Want To Do | Command | What Happens |
-|---------------------|---------|--------------|
-| Start the server | `pnpm --filter backend start:dev` | Runs in development mode with auto-reload |
-| Build for production | `pnpm --filter backend build` | Creates optimized production files |
-| Run tests | `pnpm --filter backend test` | Runs all unit tests |
-| Run end-to-end tests | `pnpm --filter backend test:e2e` | Tests complete workflows |
-| Check code style | `pnpm --filter backend lint` | Finds and fixes code formatting issues |
-| See test coverage | `pnpm --filter backend test:cov` | Shows how much code is tested |
+| What You Want To Do  | Command                           | What Happens                              |
+| -------------------- | --------------------------------- | ----------------------------------------- |
+| Start the server     | `pnpm --filter backend start:dev` | Runs in development mode with auto-reload |
+| Build for production | `pnpm --filter backend build`     | Creates optimized production files        |
+| Run tests            | `pnpm --filter backend test`      | Runs all unit tests                       |
+| Run end-to-end tests | `pnpm --filter backend test:e2e`  | Tests complete workflows                  |
+| Check code style     | `pnpm --filter backend lint`      | Finds and fixes code formatting issues    |
+| See test coverage    | `pnpm --filter backend test:cov`  | Shows how much code is tested             |
 
 ## 📁 Project Structure
 
@@ -130,7 +131,9 @@ Always import types from the shared package:
 import { Asset, User } from '@aria/types';
 
 // ❌ Bad: Creating types locally
-interface Asset { /* ... */ }
+interface Asset {
+  /* ... */
+}
 ```
 
 ### Using Shared Utilities
@@ -147,15 +150,17 @@ This ensures consistency across the entire application!
 ### Server Won't Start?
 
 1. **Check if port 3000 is already in use**:
+
    ```bash
    # Windows
    netstat -ano | findstr :3000
-   
+
    # Linux/Mac
    lsof -i :3000
    ```
 
 2. **Make sure dependencies are installed**:
+
    ```bash
    pnpm install
    ```

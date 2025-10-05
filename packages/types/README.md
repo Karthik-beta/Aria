@@ -4,9 +4,10 @@ This package contains **all the TypeScript type definitions** used across the Ar
 
 ## 🎯 Why Do We Need This?
 
-Imagine the backend says a "Customer" has a `phoneNumber`, but the frontend expects `phone`. Things break! 
+Imagine the backend says a "Customer" has a `phoneNumber`, but the frontend expects `phone`. Things break!
 
 This package solves that by:
+
 - **Single source of truth**: One definition of each data type
 - **Prevents mistakes**: TypeScript catches mismatches before runtime
 - **Easy updates**: Change a type once, everyone gets the update
@@ -26,7 +27,7 @@ const asset: Asset.Item = {
   id: '123',
   name: 'Laptop',
   category: 'Electronics',
-  assignedTo: 'emp-456'
+  assignedTo: 'emp-456',
 };
 
 // CRM types
@@ -34,7 +35,7 @@ const contact: CRM.Contact = {
   id: '789',
   name: 'John Doe',
   email: 'john@example.com',
-  company: 'Acme Corp'
+  company: 'Acme Corp',
 };
 
 // HR types
@@ -42,7 +43,7 @@ const employee: HR.Employee = {
   id: 'emp-456',
   firstName: 'Jane',
   lastName: 'Smith',
-  department: 'Engineering'
+  department: 'Engineering',
 };
 
 // Inventory types
@@ -50,7 +51,7 @@ const item: Inventory.Item = {
   sku: 'WIDGET-001',
   name: 'Widget',
   quantity: 100,
-  warehouse: 'WH-A'
+  warehouse: 'WH-A',
 };
 ```
 
@@ -87,7 +88,8 @@ import { Controller, Get } from '@nestjs/common';
 @Controller('contacts')
 export class ContactsController {
   @Get()
-  findAll(): CRM.Contact[] {  // ✅ Same type as frontend
+  findAll(): CRM.Contact[] {
+    // ✅ Same type as frontend
     return this.contactsService.findAll();
   }
 }
@@ -114,15 +116,15 @@ export namespace CRM {
     id: string;
     name: string;
     email: string;
-    phone?: string;  // Optional property
+    phone?: string; // Optional property
     company?: string;
     createdAt: Date;
   }
-  
+
   export enum ContactStatus {
     Active = 'ACTIVE',
     Inactive = 'INACTIVE',
-    Archived = 'ARCHIVED'
+    Archived = 'ARCHIVED',
   }
 }
 ```
@@ -173,10 +175,10 @@ interface Employee {
 
 ```typescript
 interface Contact {
-  id: string;           // Required
-  name: string;         // Required
-  email?: string;       // Optional (notice the ?)
-  phone?: string;       // Optional
+  id: string; // Required
+  name: string; // Required
+  email?: string; // Optional (notice the ?)
+  phone?: string; // Optional
 }
 ```
 
@@ -184,14 +186,14 @@ interface Contact {
 
 ```typescript
 // ❌ Bad: String literals everywhere
-function setStatus(status: 'active' | 'inactive') { }
+function setStatus(status: 'active' | 'inactive') {}
 
 // ✅ Good: Enum with autocomplete
 enum Status {
   Active = 'ACTIVE',
-  Inactive = 'INACTIVE'
+  Inactive = 'INACTIVE',
 }
-function setStatus(status: Status) { }
+function setStatus(status: Status) {}
 ```
 
 ### 4. Document Complex Types
@@ -200,10 +202,10 @@ function setStatus(status: Status) { }
 export interface PayrollCalculation {
   /** Base salary before any deductions */
   baseSalary: number;
-  
+
   /** Total tax deductions (federal + state) */
   taxDeductions: number;
-  
+
   /** Final amount paid to employee */
   netPay: number;
 }

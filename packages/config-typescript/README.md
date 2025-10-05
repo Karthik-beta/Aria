@@ -5,6 +5,7 @@ This package contains **TypeScript configuration files** that tell TypeScript ho
 ## 🎯 What is TypeScript Configuration?
 
 The `tsconfig.json` file controls:
+
 - **How strict** TypeScript checks your code
 - **Which JavaScript version** to compile to
 - **Path aliases** (like `@aria/types` instead of `../../../packages/types`)
@@ -23,6 +24,7 @@ The `tsconfig.json` file controls:
 ```
 
 **What you get**:
+
 - React/JSX support
 - Next.js path aliases
 - Browser-compatible settings
@@ -39,6 +41,7 @@ The `tsconfig.json` file controls:
 ```
 
 **What you get**:
+
 - Node.js compatibility
 - Decorator support (for NestJS)
 - CommonJS modules
@@ -55,6 +58,7 @@ The `tsconfig.json` file controls:
 ```
 
 **What you get**:
+
 - Universal TypeScript settings
 - No framework-specific rules
 - Works everywhere
@@ -67,7 +71,8 @@ All configs have **strict mode enabled**, which catches more errors:
 
 ```typescript
 // ❌ TypeScript catches this:
-function greet(name) {  // Error: Parameter 'name' needs a type
+function greet(name) {
+  // Error: Parameter 'name' needs a type
   return `Hello ${name}`;
 }
 
@@ -92,6 +97,7 @@ import { formatDate } from '@aria/utils';
 ```
 
 Configured path aliases:
+
 - `@aria/types` → Shared type definitions
 - `@aria/utils` → Shared utilities
 - `@asset/*` → Asset app internal paths
@@ -102,6 +108,7 @@ Configured path aliases:
 ### 3. Modern JavaScript Output
 
 All configs compile to **ES2022**, which means:
+
 - Modern JavaScript features available
 - Better performance
 - Cleaner output code
@@ -113,6 +120,7 @@ All configs compile to **ES2022**, which means:
 **Cause**: Package not built or not installed
 
 **Fix**:
+
 ```bash
 pnpm install
 pnpm --filter @aria/types build
@@ -126,12 +134,12 @@ pnpm --filter @aria/types build
 
 ```typescript
 // ❌ Error:
-const age: number = "25";  // String to number
+const age: number = '25'; // String to number
 
 // ✅ Fixed:
-const age: number = 25;     // Correct type
+const age: number = 25; // Correct type
 // or
-const age: number = parseInt("25");  // Convert string to number
+const age: number = parseInt('25'); // Convert string to number
 ```
 
 ### Error: "Object is possibly 'undefined'"
@@ -143,7 +151,7 @@ const age: number = parseInt("25");  // Convert string to number
 ```typescript
 // ❌ Error:
 function greet(name?: string) {
-  return name.toUpperCase();  // name might be undefined
+  return name.toUpperCase(); // name might be undefined
 }
 
 // ✅ Fixed:
@@ -170,12 +178,12 @@ interface User {
   name: string;
 }
 const user: User = { name: 'John' };
-console.log(user.age);  // 'age' doesn't exist
+console.log(user.age); // 'age' doesn't exist
 
 // ✅ Fixed: Add the property
 interface User {
   name: string;
-  age?: number;  // Optional property
+  age?: number; // Optional property
 }
 const user: User = { name: 'John', age: 30 };
 console.log(user.age);
@@ -186,6 +194,7 @@ console.log(user.age);
 ### Visual Studio Code
 
 VSCode has built-in TypeScript support! It will:
+
 - Show type errors with red squiggles
 - Provide autocomplete based on types
 - Show type information on hover
@@ -208,21 +217,21 @@ VSCode has built-in TypeScript support! It will:
 {
   "compilerOptions": {
     // Type Checking
-    "strict": true,              // Enable all strict checks
-    "noImplicitAny": true,       // Don't allow 'any' type implicitly
-    
+    "strict": true, // Enable all strict checks
+    "noImplicitAny": true, // Don't allow 'any' type implicitly
+
     // Modules
-    "module": "ESNext",          // Use modern modules
+    "module": "ESNext", // Use modern modules
     "moduleResolution": "bundler", // How to resolve imports
-    
+
     // Emit
-    "noEmit": true,              // Don't output files (Next.js handles this)
-    "target": "ES2022",          // Output JavaScript version
-    
+    "noEmit": true, // Don't output files (Next.js handles this)
+    "target": "ES2022", // Output JavaScript version
+
     // Paths
     "baseUrl": ".",
     "paths": {
-      "@aria/*": ["../../packages/*"]  // Path aliases
+      "@aria/*": ["../../packages/*"] // Path aliases
     }
   }
 }
@@ -259,13 +268,14 @@ pnpm --filter <app-name> exec tsc --noEmit --watch
 
 ```typescript
 // ❌ Don't over-annotate:
-const name: string = 'John';  // TypeScript already knows it's a string
+const name: string = 'John'; // TypeScript already knows it's a string
 
 // ✅ Let TypeScript infer:
-const name = 'John';  // TypeScript infers string type
+const name = 'John'; // TypeScript infers string type
 
 // ✅ Do annotate function returns:
-function getName(): string {  // Good to be explicit here
+function getName(): string {
+  // Good to be explicit here
   return 'John';
 }
 ```

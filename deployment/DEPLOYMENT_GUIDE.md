@@ -38,21 +38,25 @@ Aria ERP is a comprehensive Business Resource Planning system designed for on-pr
 ### Deployment Features
 
 ✅ **Production-Ready**
+
 - Automated backup system
 - Health monitoring
 - Disaster recovery
 - Security hardening
 
 ✅ **Path-Based Routing**
+
 - Access via `https://<ip>/<module>/`
 - No domain name required
 - Static IP support
 
 ✅ **Cross-Platform**
+
 - Windows Server 2019+
 - Linux (Ubuntu 20.04+, CentOS 8+, RHEL 8+)
 
 ✅ **Scalable**
+
 - Supports ~200 concurrent users
 - Resource-efficient design
 - Horizontal scaling ready
@@ -105,17 +109,18 @@ Aria ERP is a comprehensive Business Resource Planning system designed for on-pr
 
 ### Container Architecture
 
-| Container | Purpose | Port | Resources |
-|-----------|---------|------|-----------|
-| **traefik-proxy** | Reverse proxy & routing | 80, 443 | 512MB RAM |
-| **aria-frontend-asset** | Asset management UI | 3001 | 512MB RAM |
-| **aria-frontend-crm** | CRM UI | 3002 | 512MB RAM |
-| **aria-frontend-hrms** | HRMS UI | 3003 | 512MB RAM |
-| **aria-frontend-inventory** | Inventory UI | 3004 | 512MB RAM |
-| **aria-backend** | Business logic API | 3000 | 1GB RAM |
-| **aria-database** | PostgreSQL 18 | 5432 | 2GB RAM |
+| Container                   | Purpose                 | Port    | Resources |
+| --------------------------- | ----------------------- | ------- | --------- |
+| **traefik-proxy**           | Reverse proxy & routing | 80, 443 | 512MB RAM |
+| **aria-frontend-asset**     | Asset management UI     | 3001    | 512MB RAM |
+| **aria-frontend-crm**       | CRM UI                  | 3002    | 512MB RAM |
+| **aria-frontend-hrms**      | HRMS UI                 | 3003    | 512MB RAM |
+| **aria-frontend-inventory** | Inventory UI            | 3004    | 512MB RAM |
+| **aria-backend**            | Business logic API      | 3000    | 1GB RAM   |
+| **aria-database**           | PostgreSQL 18           | 5432    | 2GB RAM   |
 
 **Total Resource Requirements:**
+
 - CPU: 2 cores minimum, 4 cores recommended
 - RAM: 4GB minimum, 8GB recommended
 - Disk: 20GB minimum, 50GB recommended
@@ -123,6 +128,7 @@ Aria ERP is a comprehensive Business Resource Planning system designed for on-pr
 ### Network Architecture
 
 **Path-Based Routing:**
+
 - `https://<ip>/` → Asset Management (default)
 - `https://<ip>/crm/` → CRM
 - `https://<ip>/hrms/` → HRMS
@@ -130,6 +136,7 @@ Aria ERP is a comprehensive Business Resource Planning system designed for on-pr
 - `https://<ip>/api/` → Backend API
 
 **Internal Communication:**
+
 - All containers on `aria-network` bridge network
 - Database accessible only from backend
 - Frontend → Backend → Database flow
@@ -141,12 +148,14 @@ Aria ERP is a comprehensive Business Resource Planning system designed for on-pr
 ### Hardware Requirements
 
 **Minimum Configuration:**
+
 - **CPU**: 2 cores (x86_64)
 - **RAM**: 4 GB
 - **Disk**: 20 GB
 - **Network**: 100 Mbps
 
 **Recommended Configuration:**
+
 - **CPU**: 4 cores (x86_64)
 - **RAM**: 8 GB
 - **Disk**: 50 GB (SSD preferred)
@@ -155,12 +164,14 @@ Aria ERP is a comprehensive Business Resource Planning system designed for on-pr
 ### Software Requirements
 
 **Windows:**
+
 - Windows Server 2019 or later
 - Docker Desktop 24.0+ or Docker Engine
 - PowerShell 5.1 or later
 - Administrator privileges
 
 **Linux:**
+
 - Ubuntu 20.04+, CentOS 8+, or RHEL 8+
 - Docker Engine 20.10+
 - Docker Compose 2.0+
@@ -169,11 +180,13 @@ Aria ERP is a comprehensive Business Resource Planning system designed for on-pr
 ### Network Requirements
 
 **Ports Required:**
+
 - **80 (HTTP)**: Web access (redirects to HTTPS)
 - **443 (HTTPS)**: Secure web access
 - **5432 (Optional)**: PostgreSQL external access
 
 **Firewall Rules:**
+
 ```bash
 # Allow HTTP and HTTPS
 sudo ufw allow 80/tcp
@@ -274,12 +287,14 @@ docker-compose up -d
 #### Step 1: Download Deployment Package
 
 **Option A: From GitHub Releases**
+
 ```bash
 wget https://github.com/Karthik-beta/Aria/releases/latest/download/aria-erp-deployment.tar.gz
 tar -xzf aria-erp-deployment.tar.gz
 ```
 
 **Option B: From Git Repository**
+
 ```bash
 git clone https://github.com/Karthik-beta/Aria.git
 cd Aria/deployment
@@ -288,6 +303,7 @@ cd Aria/deployment
 #### Step 2: Verify Prerequisites
 
 **Linux:**
+
 ```bash
 # Check Docker
 docker --version  # Should be 20.10+
@@ -301,6 +317,7 @@ df -h /opt  # Should have 20GB+ available
 ```
 
 **Windows:**
+
 ```powershell
 # Check Docker
 docker --version
@@ -315,6 +332,7 @@ Get-PSDrive C  # Should have 20GB+ available
 #### Step 3: Run Installation Script
 
 **Linux:**
+
 ```bash
 cd aria-erp-deployment
 sudo bash scripts/install-linux.sh
@@ -329,6 +347,7 @@ sudo bash scripts/install-linux.sh
 ```
 
 **Windows:**
+
 ```powershell
 cd aria-erp-deployment
 .\scripts\install-windows.ps1
@@ -347,16 +366,19 @@ cd aria-erp-deployment
 Edit `.env` file:
 
 **Linux:**
+
 ```bash
 sudo nano /opt/aria-erp/.env
 ```
 
 **Windows:**
+
 ```powershell
 notepad C:\ProgramData\Aria-ERP\.env
 ```
 
 **Required Configuration:**
+
 ```ini
 # Server Configuration
 SERVER_IP=192.168.1.100        # Your server's static IP
@@ -380,18 +402,21 @@ ENABLE_INVENTORY=true
 #### Step 5: Generate SSL Certificates
 
 **Linux:**
+
 ```bash
 cd /opt/aria-erp
 sudo bash deployment/scripts/security/linux/generate-ssl-cert.sh
 ```
 
 **Windows:**
+
 ```powershell
 cd C:\ProgramData\Aria-ERP
 .\deployment\scripts\generate-ssl-cert-windows.ps1
 ```
 
 This generates self-signed certificates for HTTPS. For production, consider:
+
 - Using Let's Encrypt (free, trusted)
 - Using company CA certificates
 - Purchasing commercial SSL certificates
@@ -399,6 +424,7 @@ This generates self-signed certificates for HTTPS. For production, consider:
 #### Step 6: Start Services
 
 **Linux:**
+
 ```bash
 cd /opt/aria-erp
 sudo docker-compose up -d
@@ -408,6 +434,7 @@ sudo docker-compose ps
 ```
 
 **Windows:**
+
 ```powershell
 cd C:\ProgramData\Aria-ERP
 docker-compose up -d
@@ -417,6 +444,7 @@ docker-compose ps
 ```
 
 **Expected Output:**
+
 ```
 NAME                      STATUS              PORTS
 aria-backend              Up 10 seconds       0.0.0.0:3000->3000/tcp
@@ -431,6 +459,7 @@ traefik-proxy             Up 12 seconds       0.0.0.0:80->80/tcp, 0.0.0.0:443->4
 #### Step 7: Verify Installation
 
 **Run Health Check:**
+
 ```bash
 # Linux
 sudo bash deployment/scripts/monitoring/health-check.sh
@@ -442,11 +471,13 @@ sudo bash deployment/scripts/monitoring/health-check.sh
 **Expected: HEALTHY status**
 
 **Test Web Access:**
+
 ```bash
 curl -k https://<your-server-ip>/api/health
 ```
 
 **Expected Output:**
+
 ```json
 {
   "status": "OK",
@@ -457,6 +488,7 @@ curl -k https://<your-server-ip>/api/health
 #### Step 8: Configure Backups
 
 **Linux (systemd timer):**
+
 ```bash
 # Copy timer and service files
 sudo cp deployment/templates/aria-backup.service /etc/systemd/system/
@@ -471,6 +503,7 @@ sudo systemctl status aria-backup.timer
 ```
 
 **Windows (Task Scheduler):**
+
 ```powershell
 # Open Task Scheduler
 taskschd.msc
@@ -487,6 +520,7 @@ taskschd.msc
 #### Step 9: Configure Monitoring
 
 **Linux (systemd timer):**
+
 ```bash
 # Copy timer and service files
 sudo cp deployment/templates/aria-health.service /etc/systemd/system/
@@ -501,6 +535,7 @@ sudo systemctl status aria-health.timer
 ```
 
 **Windows (Task Scheduler):**
+
 ```powershell
 # Create new task:
 # - Name: Aria ERP Health Check
@@ -514,6 +549,7 @@ sudo systemctl status aria-health.timer
 #### Step 10: Security Hardening
 
 See [Security](#security) section for:
+
 - [ ] Change default passwords
 - [ ] Configure firewall rules
 - [ ] Set up SSL with trusted certificates
@@ -618,6 +654,7 @@ LOG_RETENTION_DAYS=30             # Keep logs for 30 days
 The `docker-compose.yml` file defines all services. Key sections:
 
 **Networks:**
+
 ```yaml
 networks:
   aria-network:
@@ -628,14 +665,16 @@ networks:
 ```
 
 **Volumes:**
+
 ```yaml
 volumes:
-  postgres-data:         # Database persistent storage
-  traefik-certs:         # SSL certificates
-  backend-uploads:       # File uploads
+  postgres-data: # Database persistent storage
+  traefik-certs: # SSL certificates
+  backend-uploads: # File uploads
 ```
 
 **Service Resource Limits:**
+
 ```yaml
 deploy:
   resources:
@@ -650,23 +689,25 @@ deploy:
 ### Traefik Configuration
 
 **Path-Based Routing (`config/traefik/routes.yml`):**
+
 ```yaml
 http:
   routers:
     asset-router:
-      rule: "PathPrefix(`/`)"
+      rule: 'PathPrefix(`/`)'
       service: asset-service
       priority: 1
-    
+
     crm-router:
-      rule: "PathPrefix(`/crm`)"
+      rule: 'PathPrefix(`/crm`)'
       service: crm-service
       priority: 2
-    
+
     # ... other routes
 ```
 
 **TLS Configuration (`config/traefik/tls.yml`):**
+
 ```yaml
 tls:
   certificates:
@@ -681,6 +722,7 @@ tls:
 ### Starting Services
 
 **All Services:**
+
 ```bash
 # Linux
 cd /opt/aria-erp
@@ -692,6 +734,7 @@ docker-compose up -d
 ```
 
 **Individual Service:**
+
 ```bash
 docker-compose up -d aria-backend
 docker-compose up -d aria-database
@@ -700,11 +743,13 @@ docker-compose up -d aria-database
 ### Stopping Services
 
 **All Services:**
+
 ```bash
 docker-compose down
 ```
 
 **Individual Service:**
+
 ```bash
 docker-compose stop aria-backend
 ```
@@ -712,11 +757,13 @@ docker-compose stop aria-backend
 ### Restarting Services
 
 **All Services:**
+
 ```bash
 docker-compose restart
 ```
 
 **Individual Service:**
+
 ```bash
 docker-compose restart aria-backend
 ```
@@ -724,16 +771,19 @@ docker-compose restart aria-backend
 ### Viewing Logs
 
 **All Services:**
+
 ```bash
 docker-compose logs -f
 ```
 
 **Individual Service:**
+
 ```bash
 docker-compose logs -f aria-backend
 ```
 
 **Last 100 Lines:**
+
 ```bash
 docker-compose logs --tail=100 aria-backend
 ```
@@ -741,11 +791,13 @@ docker-compose logs --tail=100 aria-backend
 ### Checking Status
 
 **Docker Compose:**
+
 ```bash
 docker-compose ps
 ```
 
 **Health Check:**
+
 ```bash
 # Linux
 sudo bash deployment/scripts/monitoring/health-check.sh
@@ -757,16 +809,19 @@ sudo bash deployment/scripts/monitoring/health-check.sh
 ### Updating Services
 
 **Pull Latest Images:**
+
 ```bash
 docker-compose pull
 ```
 
 **Recreate Containers:**
+
 ```bash
 docker-compose up -d --force-recreate
 ```
 
 **Update Specific Service:**
+
 ```bash
 docker-compose pull aria-backend
 docker-compose up -d --force-recreate aria-backend
@@ -781,10 +836,12 @@ docker-compose up -d --force-recreate aria-backend
 #### Issue 1: Cannot Access Web Interface
 
 **Symptoms:**
+
 - Browser shows "Connection refused"
 - Timeout when accessing `https://<ip>/`
 
 **Diagnosis:**
+
 ```bash
 # Check if containers are running
 docker-compose ps
@@ -800,6 +857,7 @@ netsh advfirewall show allprofiles
 ```
 
 **Solutions:**
+
 1. Ensure all containers are running: `docker-compose ps`
 2. Check firewall allows ports 80 and 443
 3. Verify SERVER_IP in `.env` matches actual IP
@@ -808,10 +866,12 @@ netsh advfirewall show allprofiles
 #### Issue 2: Database Connection Errors
 
 **Symptoms:**
+
 - Backend logs show "Connection to database failed"
 - Health check shows database unreachable
 
 **Diagnosis:**
+
 ```bash
 # Check database container
 docker-compose logs aria-database
@@ -821,6 +881,7 @@ docker exec aria-database psql -U aria -d aria -c "SELECT 1;"
 ```
 
 **Solutions:**
+
 1. Verify POSTGRES_PASSWORD in `.env`
 2. Check database container is running
 3. Wait for database initialization (may take 30s on first start)
@@ -829,10 +890,12 @@ docker exec aria-database psql -U aria -d aria -c "SELECT 1;"
 #### Issue 3: High Memory Usage
 
 **Symptoms:**
+
 - System becomes slow
 - Docker containers restarting frequently
 
 **Diagnosis:**
+
 ```bash
 # Check container resources
 docker stats
@@ -843,6 +906,7 @@ Get-ComputerInfo | Select-Object OsTotalVisibleMemorySize,OsFreePhysicalMemory  
 ```
 
 **Solutions:**
+
 1. Adjust resource limits in `docker-compose.yml`
 2. Disable unused modules in `.env`
 3. Add more RAM if consistently over 80%
@@ -851,14 +915,17 @@ Get-ComputerInfo | Select-Object OsTotalVisibleMemorySize,OsFreePhysicalMemory  
 #### Issue 4: SSL Certificate Errors
 
 **Symptoms:**
+
 - Browser shows "Your connection is not private"
 - Certificate warnings
 
 **Expected Behavior:**
+
 - Self-signed certificates will show warnings
 - This is normal for first deployment
 
 **Solutions:**
+
 1. **Accept warning** (for testing)
 2. **Install certificate** in client browsers
 3. **Use Let's Encrypt** for trusted certificates
@@ -873,6 +940,7 @@ For detailed troubleshooting, see: `deployment/docs/TROUBLESHOOTING.md`
 ### Security Checklist
 
 #### Immediate (Before Production)
+
 - [ ] Change default `admin` password
 - [ ] Set strong `POSTGRES_PASSWORD`
 - [ ] Generate secure `JWT_SECRET`
@@ -881,6 +949,7 @@ For detailed troubleshooting, see: `deployment/docs/TROUBLESHOOTING.md`
 - [ ] Configure SSL with trusted certificates
 
 #### Regular (Ongoing)
+
 - [ ] Apply security updates monthly
 - [ ] Review access logs weekly
 - [ ] Test backups weekly
@@ -891,16 +960,19 @@ For detailed troubleshooting, see: `deployment/docs/TROUBLESHOOTING.md`
 ### Password Requirements
 
 **Database Password:**
+
 - Minimum 16 characters
 - Include uppercase, lowercase, numbers, symbols
 - Generate with: `openssl rand -base64 24`
 
 **JWT Secret:**
+
 - Minimum 32 characters
 - Cryptographically random
 - Generate with: `openssl rand -base64 32`
 
 **User Passwords:**
+
 - Minimum 12 characters
 - Complexity enforced by application
 - Must change on first login
@@ -908,6 +980,7 @@ For detailed troubleshooting, see: `deployment/docs/TROUBLESHOOTING.md`
 ### Firewall Configuration
 
 **Linux (ufw):**
+
 ```bash
 # Allow SSH (if remote)
 sudo ufw allow 22/tcp
@@ -924,6 +997,7 @@ sudo ufw enable
 ```
 
 **Windows:**
+
 ```powershell
 # Allow HTTP
 New-NetFirewallRule -DisplayName "Aria ERP HTTP" -Direction Inbound -Protocol TCP -LocalPort 80 -Action Allow
@@ -935,12 +1009,14 @@ New-NetFirewallRule -DisplayName "Aria ERP HTTPS" -Direction Inbound -Protocol T
 ### SSL/TLS Configuration
 
 **Option 1: Self-Signed (Development)**
+
 ```bash
 # Already generated by install script
 # Located in: config/traefik/certs/
 ```
 
 **Option 2: Let's Encrypt (Recommended)**
+
 ```bash
 # Install certbot
 sudo apt install certbot  # Ubuntu
@@ -958,6 +1034,7 @@ docker-compose restart traefik-proxy
 ```
 
 **Option 3: Company CA**
+
 ```bash
 # Copy your company certificates
 cp /path/to/company.crt config/traefik/certs/server.crt
@@ -970,6 +1047,7 @@ docker-compose restart traefik-proxy
 ### Backup Encryption
 
 **Encrypt Backups:**
+
 ```bash
 # Linux (GPG)
 gpg --symmetric --cipher-algo AES256 database.sql
@@ -979,6 +1057,7 @@ gpg --symmetric --cipher-algo AES256 database.sql
 ```
 
 **Decrypt for Restoration:**
+
 ```bash
 # Linux
 gpg --decrypt database.sql.gpg > database.sql
@@ -990,11 +1069,13 @@ gpg --decrypt database.sql.gpg > database.sql
 ### Network Security
 
 **Docker Network Isolation:**
+
 - All containers on isolated `aria-network`
 - Database not exposed externally by default
 - Inter-container communication only
 
 **Restrict External Access:**
+
 ```yaml
 # In docker-compose.yml
 # Remove port mappings for internal services
@@ -1010,11 +1091,13 @@ gpg --decrypt database.sql.gpg > database.sql
 ### Daily Tasks
 
 **Automated:**
+
 - Health checks (every 5 minutes)
 - Log rotation
 - Temporary file cleanup
 
 **Manual:**
+
 - Review health check alerts
 - Check disk space usage
 - Monitor performance metrics
@@ -1039,6 +1122,7 @@ gpg --decrypt database.sql.gpg > database.sql
 ### Backup Management
 
 **Manual Backup:**
+
 ```bash
 # Linux
 sudo bash deployment/scripts/backup/backup-manager.sh
@@ -1048,6 +1132,7 @@ sudo bash deployment/scripts/backup/backup-manager.sh
 ```
 
 **Verify Backup:**
+
 ```bash
 # Check backup directory
 ls -lh /opt/aria-erp/backups/  # Linux
@@ -1058,6 +1143,7 @@ gunzip -t /opt/aria-erp/backups/latest/database.sql.gz  # Linux
 ```
 
 **Restore from Backup:**
+
 ```bash
 # Full system recovery
 # Linux
@@ -1070,16 +1156,19 @@ sudo bash deployment/scripts/restore/full-restore.sh
 ### Database Maintenance
 
 **Vacuum Database:**
+
 ```bash
 docker exec aria-database psql -U aria -d aria -c "VACUUM ANALYZE;"
 ```
 
 **Check Database Size:**
+
 ```bash
 docker exec aria-database psql -U aria -d aria -c "SELECT pg_size_pretty(pg_database_size('aria'));"
 ```
 
 **Backup Database Only:**
+
 ```bash
 docker exec aria-database pg_dump -U aria aria > backup-$(date +%Y%m%d).sql
 ```
@@ -1089,6 +1178,7 @@ docker exec aria-database pg_dump -U aria aria > backup-$(date +%Y%m%d).sql
 > **📘 See [Log Management Guide](docs/LOG_MANAGEMENT.md)** for complete documentation on log rotation, retention policies, and troubleshooting.
 
 **View Container Logs:**
+
 ```bash
 # All containers
 docker-compose logs -f
@@ -1101,6 +1191,7 @@ docker logs aria-backend > backend-logs.txt
 ```
 
 **Log Rotation:**
+
 ```bash
 # Linux - Run manually or via cron
 bash scripts/rotate-logs-linux.sh
@@ -1110,6 +1201,7 @@ bash scripts/rotate-logs-linux.sh
 ```
 
 **Check Log Disk Usage:**
+
 ```bash
 # Linux
 du -sh /opt/aria-erp/logs
@@ -1120,6 +1212,7 @@ Get-ChildItem -Path "C:\aria-erp\logs" -Recurse | Measure-Object -Property Lengt
 
 **Log Configuration:**
 Edit `.env` to adjust log rotation settings:
+
 ```bash
 LOG_MAX_SIZE=10m          # Max size per Docker log file
 LOG_MAX_FILES=3           # Number of rotated files to keep
@@ -1130,6 +1223,7 @@ LOG_COMPRESS_ENABLED=true # Compress rotated logs
 ### Performance Monitoring
 
 **Resource Usage:**
+
 ```bash
 # Real-time
 docker stats
@@ -1139,6 +1233,7 @@ docker stats --no-stream --format "table {{.Container}}\t{{.CPUPerc}}\t{{.MemUsa
 ```
 
 **Database Performance:**
+
 ```bash
 # Active connections
 docker exec aria-database psql -U aria -d aria -c "SELECT count(*) FROM pg_stat_activity;"
@@ -1150,6 +1245,7 @@ docker exec aria-database psql -U aria -d aria -c "SELECT query, calls, total_ti
 ### Update Procedures
 
 **Update Application:**
+
 1. Backup current installation
 2. Pull latest images
 3. Stop services
@@ -1197,12 +1293,14 @@ bash deployment/scripts/monitoring/health-check.sh
 ### Support
 
 **For Issues:**
+
 1. Check troubleshooting guide
 2. Review relevant logs
 3. Consult documentation
 4. Contact system administrator
 
 **For Enhancements:**
+
 1. Review AGENTS.md for architecture principles
 2. Follow contribution guidelines
 3. Maintain documentation standards
@@ -1214,36 +1312,43 @@ bash deployment/scripts/monitoring/health-check.sh
 ### Quick Reference Commands
 
 **Start System:**
+
 ```bash
 cd /opt/aria-erp && docker-compose up -d
 ```
 
 **Stop System:**
+
 ```bash
 cd /opt/aria-erp && docker-compose down
 ```
 
 **Check Health:**
+
 ```bash
 bash deployment/scripts/monitoring/health-check.sh
 ```
 
 **Create Backup:**
+
 ```bash
 bash deployment/scripts/backup/backup-manager.sh
 ```
 
 **Restore Backup:**
+
 ```bash
 bash deployment/scripts/restore/full-restore.sh
 ```
 
 **View Logs:**
+
 ```bash
 docker-compose logs -f aria-backend
 ```
 
 **Rotate Logs:**
+
 ```bash
 # Linux
 bash scripts/rotate-logs-linux.sh
@@ -1255,12 +1360,14 @@ bash scripts/rotate-logs-linux.sh
 ### Default Locations
 
 **Linux:**
+
 - Installation: `/opt/aria-erp`
 - Backups: `/opt/aria-erp/backups`
 - Logs: `/opt/aria-erp/logs`
 - Configuration: `/opt/aria-erp/.env`
 
 **Windows:**
+
 - Installation: `C:\aria-erp`
 - Backups: `C:\aria-erp\backups`
 - Logs: `C:\aria-erp\logs`
@@ -1268,16 +1375,16 @@ bash scripts/rotate-logs-linux.sh
 
 ### Port Reference
 
-| Service | Internal Port | External Port | Protocol |
-|---------|---------------|---------------|----------|
-| Traefik HTTP | 80 | 80 | HTTP |
-| Traefik HTTPS | 443 | 443 | HTTPS |
-| Backend API | 3000 | - | HTTP |
-| Asset Frontend | 3001 | - | HTTP |
-| CRM Frontend | 3002 | - | HTTP |
-| HRMS Frontend | 3003 | - | HTTP |
-| Inventory Frontend | 3004 | - | HTTP |
-| PostgreSQL | 5432 | (Optional) | PostgreSQL |
+| Service            | Internal Port | External Port | Protocol   |
+| ------------------ | ------------- | ------------- | ---------- |
+| Traefik HTTP       | 80            | 80            | HTTP       |
+| Traefik HTTPS      | 443           | 443           | HTTPS      |
+| Backend API        | 3000          | -             | HTTP       |
+| Asset Frontend     | 3001          | -             | HTTP       |
+| CRM Frontend       | 3002          | -             | HTTP       |
+| HRMS Frontend      | 3003          | -             | HTTP       |
+| Inventory Frontend | 3004          | -             | HTTP       |
+| PostgreSQL         | 5432          | (Optional)    | PostgreSQL |
 
 ### Environment Variable Reference
 

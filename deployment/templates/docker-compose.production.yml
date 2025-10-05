@@ -22,8 +22,8 @@ services:
       - '--accesslog.filepath=/var/log/traefik/access.log'
       - '--accesslog.bufferingsize=100'
     ports:
-      - "80:80"
-      - "443:443"
+      - '80:80'
+      - '443:443'
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./config/traefik:/etc/traefik/dynamic:ro
@@ -32,11 +32,11 @@ services:
     networks:
       - aria-network
     logging:
-      driver: "json-file"
+      driver: 'json-file'
       options:
-        max-size: "${LOG_MAX_SIZE:-10m}"
-        max-file: "${LOG_MAX_FILES:-3}"
-        compress: "true"
+        max-size: '${LOG_MAX_SIZE:-10m}'
+        max-file: '${LOG_MAX_FILES:-3}'
+        compress: 'true'
     deploy:
       resources:
         limits:
@@ -55,58 +55,58 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-aria}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
       # PostgreSQL performance tuning for ~200 users
-      POSTGRES_INITDB_ARGS: "-E UTF8 --locale=C"
+      POSTGRES_INITDB_ARGS: '-E UTF8 --locale=C'
     command:
-      - "postgres"
-      - "-c"
-      - "max_connections=250"
-      - "-c"
-      - "shared_buffers=512MB"
-      - "-c"
-      - "effective_cache_size=1536MB"
-      - "-c"
-      - "maintenance_work_mem=128MB"
-      - "-c"
-      - "checkpoint_completion_target=0.9"
-      - "-c"
-      - "wal_buffers=16MB"
-      - "-c"
-      - "default_statistics_target=100"
-      - "-c"
-      - "random_page_cost=1.1"
-      - "-c"
-      - "effective_io_concurrency=200"
-      - "-c"
-      - "work_mem=2MB"
-      - "-c"
-      - "min_wal_size=1GB"
-      - "-c"
-      - "max_wal_size=4GB"
-      - "-c"
-      - "logging_collector=on"
-      - "-c"
-      - "log_directory=/var/log/postgresql"
-      - "-c"
-      - "log_filename=postgresql-%Y-%m-%d.log"
-      - "-c"
-      - "log_rotation_age=1d"
-      - "-c"
-      - "log_rotation_size=100MB"
-      - "-c"
-      - "log_truncate_on_rotation=off"
+      - 'postgres'
+      - '-c'
+      - 'max_connections=250'
+      - '-c'
+      - 'shared_buffers=512MB'
+      - '-c'
+      - 'effective_cache_size=1536MB'
+      - '-c'
+      - 'maintenance_work_mem=128MB'
+      - '-c'
+      - 'checkpoint_completion_target=0.9'
+      - '-c'
+      - 'wal_buffers=16MB'
+      - '-c'
+      - 'default_statistics_target=100'
+      - '-c'
+      - 'random_page_cost=1.1'
+      - '-c'
+      - 'effective_io_concurrency=200'
+      - '-c'
+      - 'work_mem=2MB'
+      - '-c'
+      - 'min_wal_size=1GB'
+      - '-c'
+      - 'max_wal_size=4GB'
+      - '-c'
+      - 'logging_collector=on'
+      - '-c'
+      - 'log_directory=/var/log/postgresql'
+      - '-c'
+      - 'log_filename=postgresql-%Y-%m-%d.log'
+      - '-c'
+      - 'log_rotation_age=1d'
+      - '-c'
+      - 'log_rotation_size=100MB'
+      - '-c'
+      - 'log_truncate_on_rotation=off'
     volumes:
       - ./volumes/postgres:/var/lib/postgresql/data
       - ./logs/postgres:/var/log/postgresql
     networks:
       - aria-network
     logging:
-      driver: "json-file"
+      driver: 'json-file'
       options:
-        max-size: "${LOG_MAX_SIZE:-10m}"
-        max-file: "${LOG_MAX_FILES:-3}"
-        compress: "true"
+        max-size: '${LOG_MAX_SIZE:-10m}'
+        max-file: '${LOG_MAX_FILES:-3}'
+        compress: 'true'
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -d ${POSTGRES_DB:-aria} -U ${POSTGRES_USER:-aria}"]
+      test: ['CMD-SHELL', 'pg_isready -d ${POSTGRES_DB:-aria} -U ${POSTGRES_USER:-aria}']
       interval: 30s
       timeout: 10s
       retries: 5
@@ -136,21 +136,21 @@ services:
     networks:
       - aria-network
     logging:
-      driver: "json-file"
+      driver: 'json-file'
       options:
-        max-size: "${LOG_MAX_SIZE:-10m}"
-        max-file: "${LOG_MAX_FILES:-3}"
-        compress: "true"
+        max-size: '${LOG_MAX_SIZE:-10m}'
+        max-file: '${LOG_MAX_FILES:-3}'
+        compress: 'true'
     labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.backend.rule=PathPrefix(`/api`)"
-      - "traefik.http.routers.backend.entrypoints=websecure"
-      - "traefik.http.routers.backend.tls=true"
-      - "traefik.http.routers.backend.priority=100"
-      - "traefik.http.services.backend.loadbalancer.server.port=3000"
-      - "traefik.http.middlewares.backend-stripprefix.stripprefix.prefixes=/api"
-      - "traefik.http.middlewares.backend-stripprefix.stripprefix.forceslash=false"
-      - "traefik.http.routers.backend.middlewares=backend-stripprefix"
+      - 'traefik.enable=true'
+      - 'traefik.http.routers.backend.rule=PathPrefix(`/api`)'
+      - 'traefik.http.routers.backend.entrypoints=websecure'
+      - 'traefik.http.routers.backend.tls=true'
+      - 'traefik.http.routers.backend.priority=100'
+      - 'traefik.http.services.backend.loadbalancer.server.port=3000'
+      - 'traefik.http.middlewares.backend-stripprefix.stripprefix.prefixes=/api'
+      - 'traefik.http.middlewares.backend-stripprefix.stripprefix.forceslash=false'
+      - 'traefik.http.routers.backend.middlewares=backend-stripprefix'
     deploy:
       resources:
         limits:
@@ -174,18 +174,18 @@ services:
     networks:
       - aria-network
     logging:
-      driver: "json-file"
+      driver: 'json-file'
       options:
-        max-size: "${LOG_MAX_SIZE:-10m}"
-        max-file: "${LOG_MAX_FILES:-3}"
-        compress: "true"
+        max-size: '${LOG_MAX_SIZE:-10m}'
+        max-file: '${LOG_MAX_FILES:-3}'
+        compress: 'true'
     labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.asset.rule=PathPrefix(`/asset`)"
-      - "traefik.http.routers.asset.entrypoints=websecure"
-      - "traefik.http.routers.asset.tls=true"
-      - "traefik.http.routers.asset.priority=90"
-      - "traefik.http.services.asset.loadbalancer.server.port=3000"
+      - 'traefik.enable=true'
+      - 'traefik.http.routers.asset.rule=PathPrefix(`/asset`)'
+      - 'traefik.http.routers.asset.entrypoints=websecure'
+      - 'traefik.http.routers.asset.tls=true'
+      - 'traefik.http.routers.asset.priority=90'
+      - 'traefik.http.services.asset.loadbalancer.server.port=3000'
     deploy:
       resources:
         limits:
@@ -209,18 +209,18 @@ services:
     networks:
       - aria-network
     logging:
-      driver: "json-file"
+      driver: 'json-file'
       options:
-        max-size: "${LOG_MAX_SIZE:-10m}"
-        max-file: "${LOG_MAX_FILES:-3}"
-        compress: "true"
+        max-size: '${LOG_MAX_SIZE:-10m}'
+        max-file: '${LOG_MAX_FILES:-3}'
+        compress: 'true'
     labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.crm.rule=PathPrefix(`/crm`)"
-      - "traefik.http.routers.crm.entrypoints=websecure"
-      - "traefik.http.routers.crm.tls=true"
-      - "traefik.http.routers.crm.priority=80"
-      - "traefik.http.services.crm.loadbalancer.server.port=3000"
+      - 'traefik.enable=true'
+      - 'traefik.http.routers.crm.rule=PathPrefix(`/crm`)'
+      - 'traefik.http.routers.crm.entrypoints=websecure'
+      - 'traefik.http.routers.crm.tls=true'
+      - 'traefik.http.routers.crm.priority=80'
+      - 'traefik.http.services.crm.loadbalancer.server.port=3000'
     deploy:
       resources:
         limits:
@@ -244,18 +244,18 @@ services:
     networks:
       - aria-network
     logging:
-      driver: "json-file"
+      driver: 'json-file'
       options:
-        max-size: "${LOG_MAX_SIZE:-10m}"
-        max-file: "${LOG_MAX_FILES:-3}"
-        compress: "true"
+        max-size: '${LOG_MAX_SIZE:-10m}'
+        max-file: '${LOG_MAX_FILES:-3}'
+        compress: 'true'
     labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.hrms.rule=PathPrefix(`/hrms`)"
-      - "traefik.http.routers.hrms.entrypoints=websecure"
-      - "traefik.http.routers.hrms.tls=true"
-      - "traefik.http.routers.hrms.priority=70"
-      - "traefik.http.services.hrms.loadbalancer.server.port=3000"
+      - 'traefik.enable=true'
+      - 'traefik.http.routers.hrms.rule=PathPrefix(`/hrms`)'
+      - 'traefik.http.routers.hrms.entrypoints=websecure'
+      - 'traefik.http.routers.hrms.tls=true'
+      - 'traefik.http.routers.hrms.priority=70'
+      - 'traefik.http.services.hrms.loadbalancer.server.port=3000'
     deploy:
       resources:
         limits:
@@ -279,18 +279,18 @@ services:
     networks:
       - aria-network
     logging:
-      driver: "json-file"
+      driver: 'json-file'
       options:
-        max-size: "${LOG_MAX_SIZE:-10m}"
-        max-file: "${LOG_MAX_FILES:-3}"
-        compress: "true"
+        max-size: '${LOG_MAX_SIZE:-10m}'
+        max-file: '${LOG_MAX_FILES:-3}'
+        compress: 'true'
     labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.inventory.rule=PathPrefix(`/inventory`)"
-      - "traefik.http.routers.inventory.entrypoints=websecure"
-      - "traefik.http.routers.inventory.tls=true"
-      - "traefik.http.routers.inventory.priority=60"
-      - "traefik.http.services.inventory.loadbalancer.server.port=3000"
+      - 'traefik.enable=true'
+      - 'traefik.http.routers.inventory.rule=PathPrefix(`/inventory`)'
+      - 'traefik.http.routers.inventory.entrypoints=websecure'
+      - 'traefik.http.routers.inventory.tls=true'
+      - 'traefik.http.routers.inventory.priority=60'
+      - 'traefik.http.services.inventory.loadbalancer.server.port=3000'
     deploy:
       resources:
         limits:
