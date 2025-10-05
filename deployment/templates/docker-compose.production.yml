@@ -19,6 +19,8 @@ services:
       - '--api.dashboard=false'
       - '--log.level=INFO'
       - '--accesslog=true'
+      - '--accesslog.filepath=/var/log/traefik/access.log'
+      - '--accesslog.bufferingsize=100'
     ports:
       - "80:80"
       - "443:443"
@@ -29,6 +31,12 @@ services:
       - ./logs/traefik:/var/log/traefik
     networks:
       - aria-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "${LOG_MAX_SIZE:-10m}"
+        max-file: "${LOG_MAX_FILES:-3}"
+        compress: "true"
     deploy:
       resources:
         limits:
@@ -74,10 +82,29 @@ services:
       - "min_wal_size=1GB"
       - "-c"
       - "max_wal_size=4GB"
+      - "-c"
+      - "logging_collector=on"
+      - "-c"
+      - "log_directory=/var/log/postgresql"
+      - "-c"
+      - "log_filename=postgresql-%Y-%m-%d.log"
+      - "-c"
+      - "log_rotation_age=1d"
+      - "-c"
+      - "log_rotation_size=100MB"
+      - "-c"
+      - "log_truncate_on_rotation=off"
     volumes:
       - ./volumes/postgres:/var/lib/postgresql/data
+      - ./logs/postgres:/var/log/postgresql
     networks:
       - aria-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "${LOG_MAX_SIZE:-10m}"
+        max-file: "${LOG_MAX_FILES:-3}"
+        compress: "true"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -d ${POSTGRES_DB:-aria} -U ${POSTGRES_USER:-aria}"]
       interval: 30s
@@ -108,6 +135,12 @@ services:
       - ./logs/backend:/app/logs
     networks:
       - aria-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "${LOG_MAX_SIZE:-10m}"
+        max-file: "${LOG_MAX_FILES:-3}"
+        compress: "true"
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.backend.rule=PathPrefix(`/api`)"
@@ -140,6 +173,12 @@ services:
       DOCKER_ENV: 'true'
     networks:
       - aria-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "${LOG_MAX_SIZE:-10m}"
+        max-file: "${LOG_MAX_FILES:-3}"
+        compress: "true"
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.asset.rule=PathPrefix(`/asset`)"
@@ -169,6 +208,12 @@ services:
       DOCKER_ENV: 'true'
     networks:
       - aria-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "${LOG_MAX_SIZE:-10m}"
+        max-file: "${LOG_MAX_FILES:-3}"
+        compress: "true"
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.crm.rule=PathPrefix(`/crm`)"
@@ -198,6 +243,12 @@ services:
       DOCKER_ENV: 'true'
     networks:
       - aria-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "${LOG_MAX_SIZE:-10m}"
+        max-file: "${LOG_MAX_FILES:-3}"
+        compress: "true"
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.hrms.rule=PathPrefix(`/hrms`)"
@@ -227,6 +278,12 @@ services:
       DOCKER_ENV: 'true'
     networks:
       - aria-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "${LOG_MAX_SIZE:-10m}"
+        max-file: "${LOG_MAX_FILES:-3}"
+        compress: "true"
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.inventory.rule=PathPrefix(`/inventory`)"

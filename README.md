@@ -73,7 +73,7 @@ Before opening a pull request:
 - Additional references:
   - `deployment/docs/INSTALLATION.md` — detailed setup instructions.
   - `deployment/docs/TROUBLESHOOTING.md` — common issues and resolutions.
-  - `deployment/scripts/` — PowerShell and Bash helpers for build, test, install, and uninstall flows.
+  - `deployment/scripts/` — Organized collection of PowerShell and Bash helpers for build, installation, security, maintenance, testing, backup, monitoring, and restore operations.
 
 ## Documentation Map
 
@@ -105,6 +105,7 @@ Before opening a pull request:
 - **[Deployment Guide](./deployment/README.md)** — On-premise installation
 - **[Installation Guide](./deployment/docs/INSTALLATION.md)** — Detailed setup instructions
 - **[Configuration Reference](./deployment/docs/CONFIGURATION.md)** — Environment and settings
+- **[Log Management Guide](./deployment/docs/LOG_MANAGEMENT.md)** — Log rotation and retention
 - **[Troubleshooting Guide](./deployment/docs/TROUBLESHOOTING.md)** — Common issues and solutions
 
 ### Security

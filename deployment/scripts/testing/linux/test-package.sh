@@ -102,8 +102,8 @@ EOF
 test_script_syntax() {
     log_info "Testing script syntax..."
     
-    # Test bash scripts
-    for script in deployment/scripts/*.sh; do
+    # Test bash scripts in new structure
+    for script in deployment/scripts/*/linux/*.sh deployment/scripts/backup/*.sh deployment/scripts/monitoring/*.sh deployment/scripts/restore/*.sh; do
         if [ -f "$script" ]; then
             log_info "Checking $(basename $script)..."
             if bash -n "$script"; then
@@ -115,9 +115,9 @@ test_script_syntax() {
         fi
     done
     
-    # Test PowerShell scripts
+    # Test PowerShell scripts in new structure
     if command -v pwsh &> /dev/null; then
-        for script in deployment/scripts/*.ps1; do
+        for script in deployment/scripts/*/windows/*.ps1 deployment/scripts/backup/*.ps1 deployment/scripts/monitoring/*.ps1 deployment/scripts/restore/*.ps1; do
             if [ -f "$script" ]; then
                 log_info "Checking $(basename $script)..."
                 if pwsh -NoProfile -Command "Test-Path $script" &> /dev/null; then
@@ -153,11 +153,11 @@ test_required_files() {
     local required_files=(
         "deployment/templates/docker-compose.production.yml"
         "deployment/templates/.env.template"
-        "deployment/scripts/install-linux.sh"
-        "deployment/scripts/install-windows.ps1"
-        "deployment/scripts/uninstall-linux.sh"
-        "deployment/scripts/uninstall-windows.ps1"
-        "deployment/scripts/build-package.sh"
+        "deployment/scripts/install/linux/install.sh"
+        "deployment/scripts/install/windows/install.ps1"
+        "deployment/scripts/install/linux/uninstall.sh"
+        "deployment/scripts/install/windows/uninstall.ps1"
+        "deployment/scripts/build/linux/build-package.sh"
     )
     
     for file in "${required_files[@]}"; do

@@ -92,10 +92,10 @@ create_package_structure() {
     mkdir -p "$pkg_dir/docs"
     
     # Copy installation scripts
-    cp deployment/scripts/install-linux.sh "$pkg_dir/bin/"
-    cp deployment/scripts/install-windows.ps1 "$pkg_dir/bin/"
-    cp deployment/scripts/uninstall-linux.sh "$pkg_dir/bin/"
-    cp deployment/scripts/uninstall-windows.ps1 "$pkg_dir/bin/"
+    cp deployment/scripts/install/linux/install.sh "$pkg_dir/bin/"
+    cp deployment/scripts/install/windows/install.ps1 "$pkg_dir/bin/"
+    cp deployment/scripts/install/linux/uninstall.sh "$pkg_dir/bin/"
+    cp deployment/scripts/install/windows/uninstall.ps1 "$pkg_dir/bin/"
     chmod +x "$pkg_dir/bin"/*.sh
     
     # Copy Docker Compose template
