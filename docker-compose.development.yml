@@ -20,7 +20,7 @@ services:
     ports:
       - '80:80'
       - '443:443'
-      - '8080:8080'  # Traefik dashboard
+      - '8080:8080' # Traefik dashboard
     volumes:
       - '/var/run/docker.sock:/var/run/docker.sock:ro'
       - './traefik/dynamic:/etc/traefik/dynamic:ro'
@@ -36,7 +36,7 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql/data
     ports:
-      - '5432:5432'  # Expose for local development tools
+      - '5432:5432' # Expose for local development tools
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -d aria -U aria']
       interval: 10s
@@ -58,11 +58,11 @@ services:
       - '3000'
     restart: unless-stopped
     labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.backend-dev.rule=PathPrefix(`/api`)"
-      - "traefik.http.routers.backend-dev.entrypoints=websecure"
-      - "traefik.http.routers.backend-dev.tls=true"
-      - "traefik.http.services.backend-dev.loadbalancer.server.port=3000"
+      - 'traefik.enable=true'
+      - 'traefik.http.routers.backend-dev.rule=PathPrefix(`/api`)'
+      - 'traefik.http.routers.backend-dev.entrypoints=websecure'
+      - 'traefik.http.routers.backend-dev.tls=true'
+      - 'traefik.http.services.backend-dev.loadbalancer.server.port=3000'
 
   asset:
     build:
@@ -79,11 +79,11 @@ services:
       - '3000'
     restart: unless-stopped
     labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.asset-dev.rule=PathPrefix(`/asset`)"
-      - "traefik.http.routers.asset-dev.entrypoints=websecure"
-      - "traefik.http.routers.asset-dev.tls=true"
-      - "traefik.http.services.asset-dev.loadbalancer.server.port=3000"
+      - 'traefik.enable=true'
+      - 'traefik.http.routers.asset-dev.rule=PathPrefix(`/asset`)'
+      - 'traefik.http.routers.asset-dev.entrypoints=websecure'
+      - 'traefik.http.routers.asset-dev.tls=true'
+      - 'traefik.http.services.asset-dev.loadbalancer.server.port=3000'
 
   hrms:
     build:
@@ -100,11 +100,11 @@ services:
       - '3000'
     restart: unless-stopped
     labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.hrms-dev.rule=PathPrefix(`/hrms`)"
-      - "traefik.http.routers.hrms-dev.entrypoints=websecure"
-      - "traefik.http.routers.hrms-dev.tls=true"
-      - "traefik.http.services.hrms-dev.loadbalancer.server.port=3000"
+      - 'traefik.enable=true'
+      - 'traefik.http.routers.hrms-dev.rule=PathPrefix(`/hrms`)'
+      - 'traefik.http.routers.hrms-dev.entrypoints=websecure'
+      - 'traefik.http.routers.hrms-dev.tls=true'
+      - 'traefik.http.services.hrms-dev.loadbalancer.server.port=3000'
 
   inventory:
     build:
@@ -121,11 +121,11 @@ services:
       - '3000'
     restart: unless-stopped
     labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.inventory-dev.rule=PathPrefix(`/inventory`)"
-      - "traefik.http.routers.inventory-dev.entrypoints=websecure"
-      - "traefik.http.routers.inventory-dev.tls=true"
-      - "traefik.http.services.inventory-dev.loadbalancer.server.port=3000"
+      - 'traefik.enable=true'
+      - 'traefik.http.routers.inventory-dev.rule=PathPrefix(`/inventory`)'
+      - 'traefik.http.routers.inventory-dev.entrypoints=websecure'
+      - 'traefik.http.routers.inventory-dev.tls=true'
+      - 'traefik.http.services.inventory-dev.loadbalancer.server.port=3000'
 
   crm:
     build:
@@ -142,11 +142,11 @@ services:
       - '3000'
     restart: unless-stopped
     labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.crm-dev.rule=PathPrefix(`/crm`)"
-      - "traefik.http.routers.crm-dev.entrypoints=websecure"
-      - "traefik.http.routers.crm-dev.tls=true"
-      - "traefik.http.services.crm-dev.loadbalancer.server.port=3000"
+      - 'traefik.enable=true'
+      - 'traefik.http.routers.crm-dev.rule=PathPrefix(`/crm`)'
+      - 'traefik.http.routers.crm-dev.entrypoints=websecure'
+      - 'traefik.http.routers.crm-dev.tls=true'
+      - 'traefik.http.services.crm-dev.loadbalancer.server.port=3000'
 
 volumes:
   postgres-data:

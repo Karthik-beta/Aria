@@ -5,6 +5,7 @@ This guide is for developers who need to build and test the deployment package.
 ## Overview
 
 The deployment infrastructure provides:
+
 - Automated packaging scripts
 - Cross-platform installation (Windows/Linux)
 - Docker-based containerization
@@ -46,11 +47,13 @@ deployment/
 ### Build Process
 
 1. **Build all applications:**
+
    ```bash
    pnpm build
    ```
 
 2. **Create deployment package:**
+
    ```bash
    pnpm package
    ```
@@ -73,11 +76,13 @@ deployment/
 ### Automated Tests
 
 Run the test suite:
+
 ```bash
 pnpm package:test
 ```
 
 This validates:
+
 - Docker availability
 - Required files present
 - Script syntax correctness
@@ -90,28 +95,33 @@ This validates:
 #### Linux Testing
 
 1. **Extract package:**
+
    ```bash
    tar -xzf dist/aria-erp-v0.1.0-linux.tar.gz
    cd aria-erp-v0.1.0
    ```
 
 2. **Load images:**
+
    ```bash
    sudo ./bin/load-images.sh
    ```
 
 3. **Install:**
+
    ```bash
    sudo ./bin/install-linux.sh --domain test.local --modules full
    ```
 
 4. **Verify installation:**
+
    ```bash
    sudo systemctl status aria-erp
    docker compose ps
    ```
 
 5. **Test access:**
+
    ```bash
    curl http://localhost
    ```
@@ -153,6 +163,7 @@ This validates:
 ### Updating Documentation
 
 Documentation is in `deployment/docs/`:
+
 - **INSTALLATION.md** - Installation procedures
 - **CONFIGURATION.md** - Configuration reference
 - **TROUBLESHOOTING.md** - Common issues and solutions
@@ -164,6 +175,7 @@ Keep documentation in sync with code changes.
 ### Installation Scripts
 
 #### bin/install-linux.sh (in packaged distribution)
+
 - Checks prerequisites (Docker, ports, permissions)
 - Creates installation directories
 - Copies configuration files
@@ -172,6 +184,7 @@ Keep documentation in sync with code changes.
 - Starts services
 
 #### bin/install-windows.ps1 (in packaged distribution)
+
 - Checks for admin privileges
 - Verifies Docker Desktop is running
 - Creates installation directories
@@ -184,6 +197,7 @@ Keep documentation in sync with code changes.
 ### Docker Compose Template
 
 The production compose file (`docker-compose.production.yml`) includes:
+
 - Traefik reverse proxy
 - PostgreSQL database
 - Backend API
@@ -192,6 +206,7 @@ The production compose file (`docker-compose.production.yml`) includes:
 ### Environment Configuration
 
 `.env.template` provides:
+
 - Version settings
 - Domain configuration
 - Database credentials
@@ -201,6 +216,7 @@ The production compose file (`docker-compose.production.yml`) includes:
 ### Traefik Configuration
 
 Static configuration files:
+
 - `routes.yml` - HTTP routing rules
 - `tls.yml` - SSL/TLS configuration
 
@@ -209,6 +225,7 @@ Static configuration files:
 ### Build Fails
 
 **Docker images won't build:**
+
 ```bash
 # Check Docker
 docker version
@@ -221,6 +238,7 @@ df -h
 ```
 
 **Package script fails:**
+
 ```bash
 # Run with verbose output
 bash -x deployment/scripts/build/linux/build-package.sh
@@ -229,6 +247,7 @@ bash -x deployment/scripts/build/linux/build-package.sh
 ### Test Failures
 
 **Script syntax errors:**
+
 ```bash
 # Check specific script
 bash -n deployment/scripts/install/linux/install.sh
@@ -238,6 +257,7 @@ shellcheck deployment/scripts/*.sh
 ```
 
 **Docker Compose validation fails:**
+
 ```bash
 cd deployment/templates
 docker compose -f docker-compose.production.yml config
@@ -246,6 +266,7 @@ docker compose -f docker-compose.production.yml config
 ### Installation Test Fails
 
 **Services won't start:**
+
 ```bash
 # Check Docker logs
 docker compose logs
@@ -258,6 +279,7 @@ cat .env
 ```
 
 **Port conflicts:**
+
 ```bash
 # Find what's using port 80/443
 sudo netstat -tulpn | grep -E ':(80|443)'
@@ -282,24 +304,24 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      
+
       - name: Setup pnpm
         uses: pnpm/action-setup@v2
         with:
           version: 10
-      
+
       - name: Install dependencies
         run: pnpm install
-      
+
       - name: Build applications
         run: pnpm build
-      
+
       - name: Run tests
         run: pnpm package:test
-      
+
       - name: Build package
         run: pnpm package
-      
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v3
         with:
@@ -353,27 +375,32 @@ jobs:
 ### Log Locations
 
 **Linux:**
+
 - System logs: `journalctl -u aria-erp`
 - Docker logs: `docker compose logs`
 - Installation: `/opt/aria-erp/logs/`
 
 **Windows:**
+
 - Docker logs: `docker compose logs`
 - Installation: `C:\Program Files\AriaERP\logs\`
 
 ### Common Development Issues
 
 **"Image not found" during installation:**
+
 - Ensure images are loaded: `docker images | grep aria`
 - Check image names match compose file
 - Verify VERSION in .env
 
 **Services restart continuously:**
+
 - Check environment variables
 - Verify database connectivity
 - Review container logs
 
 **Module not accessible:**
+
 - Check LICENSED_MODULES in .env
 - Verify Traefik routing
 - Check DNS/hosts file

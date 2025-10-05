@@ -10,8 +10,9 @@
 This specification defines the infrastructure layer for deploying Aria ERP as a compiled, distributable package to client on-premise environments. The solution enables secure, professional deployment across Windows and Linux systems with modular frontend selection based on client licensing.
 
 ### 1.1 Business Context
+
 - **Deployment Model**: On-premise client installations via USB/FTP transfer
-- **Target Environments**: Windows and Linux servers/computers  
+- **Target Environments**: Windows and Linux servers/computers
 - **Licensing Model**: Single backend with selective frontend modules (Asset, CRM, HRMS, Inventory)
 - **Security Requirements**: Code obfuscation, proper signing, system service integration
 
@@ -19,26 +20,26 @@ This specification defines the infrastructure layer for deploying Aria ERP as a 
 
 ### 2.1 Functional Requirements
 
-| ID | Requirement | Priority | Description |
-|---|---|---|---|
-| FR-001 | Compiled Distribution | Critical | Generate deployment packages without raw source code |
-| FR-002 | Cross-Platform Support | Critical | Support Windows and Linux deployment targets |
-| FR-003 | Modular Frontend Selection | Critical | Include only licensed frontend applications |
-| FR-004 | System Service Integration | High | Deploy as native system service with auto-restart |
-| FR-005 | Code Protection | High | Obfuscate/minify all application code |
-| FR-006 | Digital Signing | High | Sign Windows deployments with valid certificates |
-| FR-007 | Database Integration | Critical | Include PostgreSQL with automated setup |
-| FR-008 | Configuration Management | High | Environment-specific configuration system |
+| ID     | Requirement                | Priority | Description                                          |
+| ------ | -------------------------- | -------- | ---------------------------------------------------- |
+| FR-001 | Compiled Distribution      | Critical | Generate deployment packages without raw source code |
+| FR-002 | Cross-Platform Support     | Critical | Support Windows and Linux deployment targets         |
+| FR-003 | Modular Frontend Selection | Critical | Include only licensed frontend applications          |
+| FR-004 | System Service Integration | High     | Deploy as native system service with auto-restart    |
+| FR-005 | Code Protection            | High     | Obfuscate/minify all application code                |
+| FR-006 | Digital Signing            | High     | Sign Windows deployments with valid certificates     |
+| FR-007 | Database Integration       | Critical | Include PostgreSQL with automated setup              |
+| FR-008 | Configuration Management   | High     | Environment-specific configuration system            |
 
 ### 2.2 Non-Functional Requirements
 
-| ID | Requirement | Priority | Description |
-|---|---|---|---|
-| NFR-001 | Security | Critical | No exposed source code or development artifacts |
-| NFR-002 | Reliability | High | 99.9% uptime with automatic service recovery |
-| NFR-003 | Performance | Medium | <30 second startup time, <100MB memory overhead |
-| NFR-004 | Maintainability | High | Simple update/upgrade mechanisms |
-| NFR-005 | Documentation | High | Professional deployment guides and troubleshooting |
+| ID      | Requirement     | Priority | Description                                        |
+| ------- | --------------- | -------- | -------------------------------------------------- |
+| NFR-001 | Security        | Critical | No exposed source code or development artifacts    |
+| NFR-002 | Reliability     | High     | 99.9% uptime with automatic service recovery       |
+| NFR-003 | Performance     | Medium   | <30 second startup time, <100MB memory overhead    |
+| NFR-004 | Maintainability | High     | Simple update/upgrade mechanisms                   |
+| NFR-005 | Documentation   | High     | Professional deployment guides and troubleshooting |
 
 ## 3. Architecture Design
 
@@ -48,7 +49,7 @@ This specification defines the infrastructure layer for deploying Aria ERP as a 
 aria-erp-v{version}/
 ├── bin/
 │   ├── install-linux.sh           # Linux installation script
-│   ├── install-windows.ps1        # Windows installation script  
+│   ├── install-windows.ps1        # Windows installation script
 │   ├── uninstall-linux.sh         # Linux removal script
 │   ├── uninstall-windows.ps1      # Windows removal script
 │   ├── load-images.sh             # Load Docker images (Linux)
@@ -86,10 +87,10 @@ aria-erp-v{version}/
 graph TB
     subgraph "Client Environment"
         subgraph "System Service Layer"
-            WS[Windows Service] 
+            WS[Windows Service]
             SS[Systemd Service]
         end
-        
+
         subgraph "Container Layer"
             TR[Traefik Proxy]
             BE[Backend Service]
@@ -99,14 +100,14 @@ graph TB
             FE3[Frontend: HRMS]
             FE4[Frontend: Inventory]
         end
-        
+
         subgraph "Storage Layer"
             PV[Persistent Volumes]
             CF[Configuration Files]
             LG[Log Files]
         end
     end
-    
+
     WS --> TR
     SS --> TR
     TR --> BE
@@ -139,7 +140,7 @@ graph TB
       "cache": false
     },
     "package:linux": {
-      "dependsOn": ["package"],  
+      "dependsOn": ["package"],
       "outputs": ["dist/linux/**"],
       "cache": false
     }
@@ -225,8 +226,8 @@ services:
       - '--certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL}'
       - '--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json'
     ports:
-      - "80:80"
-      - "443:443"
+      - '80:80'
+      - '443:443'
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./config/traefik:/etc/traefik/dynamic:ro
@@ -248,7 +249,7 @@ services:
     networks:
       - aria-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -d ${POSTGRES_DB:-aria} -U ${POSTGRES_USER:-aria}"]
+      test: ['CMD-SHELL', 'pg_isready -d ${POSTGRES_DB:-aria} -U ${POSTGRES_USER:-aria}']
       interval: 30s
       timeout: 10s
       retries: 5
@@ -270,9 +271,9 @@ services:
     networks:
       - aria-network
     labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.backend.rule=Host(`${DOMAIN}`) && PathPrefix(`/api`)"
-      - "traefik.http.routers.backend.tls.certresolver=letsencrypt"
+      - 'traefik.enable=true'
+      - 'traefik.http.routers.backend.rule=Host(`${DOMAIN}`) && PathPrefix(`/api`)'
+      - 'traefik.http.routers.backend.tls.certresolver=letsencrypt'
 
 networks:
   aria-network:
@@ -318,13 +319,13 @@ volumes:
 param(
     [Parameter(Mandatory=$true)]
     [string]$InstallPath,
-    
+
     [Parameter(Mandatory=$false)]
     [string[]]$Modules = @("asset", "crm", "hrms", "inventory"),
-    
+
     [Parameter(Mandatory=$false)]
     [string]$Domain = "localhost",
-    
+
     [Parameter(Mandatory=$false)]
     [switch]$SkipServiceInstall
 )
@@ -363,12 +364,14 @@ WantedBy=multi-user.target
 ### 5.1 Phase 1: Core Infrastructure (Sprint 1-2)
 
 #### 5.1.1 Package Structure Setup
+
 - [ ] Create `packages/deployment` with builders and installers
-- [ ] Create `packages/config-deployment` with environment management  
+- [ ] Create `packages/config-deployment` with environment management
 - [ ] Update root `package.json` with packaging scripts
 - [ ] Extend `turbo.json` with packaging tasks
 
 #### 5.1.2 Docker Image Optimization
+
 - [ ] Create production-optimized Dockerfiles
 - [ ] Implement multi-stage builds with code obfuscation
 - [ ] Add health checks and proper signal handling
@@ -377,12 +380,14 @@ WantedBy=multi-user.target
 ### 5.2 Phase 2: Platform-Specific Integration (Sprint 3-4)
 
 #### 5.2.1 Windows Service Implementation
+
 - [ ] Implement Windows service wrapper using WinSW
 - [ ] Create PowerShell installation scripts
 - [ ] Add code signing integration with certificates
 - [ ] Implement Windows-specific configuration management
 
-#### 5.2.2 Linux Systemd Implementation  
+#### 5.2.2 Linux Systemd Implementation
+
 - [ ] Create systemd service definitions
 - [ ] Implement bash installation scripts
 - [ ] Add Linux-specific security hardening
@@ -391,12 +396,14 @@ WantedBy=multi-user.target
 ### 5.3 Phase 3: Module Licensing & Distribution (Sprint 5-6)
 
 #### 5.3.1 Frontend Module Selection
+
 - [ ] Implement license-based module inclusion/exclusion
 - [ ] Create module configuration system
 - [ ] Add runtime module verification
 - [ ] Implement graceful module loading/unloading
 
 #### 5.3.2 Distribution Packaging
+
 - [ ] Create automated packaging pipeline
 - [ ] Implement version management and checksums
 - [ ] Add package validation and testing
@@ -405,12 +412,14 @@ WantedBy=multi-user.target
 ### 5.4 Phase 4: Documentation & Testing (Sprint 7-8)
 
 #### 5.4.1 Documentation Suite
+
 - [ ] Create comprehensive installation guides
 - [ ] Document configuration options and troubleshooting
 - [ ] Create maintenance and update procedures
 - [ ] Add security best practices documentation
 
 #### 5.4.2 Testing Infrastructure
+
 - [ ] Create automated installation testing
 - [ ] Implement cross-platform compatibility testing
 - [ ] Add upgrade/downgrade testing scenarios
@@ -446,12 +455,13 @@ WantedBy=multi-user.target
 ### 6.2 Modified Files
 
 #### 6.2.1 Root Package Configuration
+
 ```json
 // package.json additions
 {
   "scripts": {
     "package": "turbo run package",
-    "package:windows": "turbo run package:windows", 
+    "package:windows": "turbo run package:windows",
     "package:linux": "turbo run package:linux",
     "sign:windows": "node deployment/scripts/signing/sign-windows.js"
   },
@@ -463,6 +473,7 @@ WantedBy=multi-user.target
 ```
 
 #### 6.2.2 Turborepo Configuration
+
 ```json
 // turbo.json additions
 {
@@ -479,16 +490,19 @@ WantedBy=multi-user.target
 ## 7. Security Considerations
 
 ### 7.1 Code Protection
+
 - Implement TypeScript/JavaScript obfuscation using tools like `terser` and `webpack-obfuscator`
 - Remove all source maps and debugging information from production builds
 - Implement runtime license validation to prevent unauthorized module access
 
 ### 7.2 Windows Code Signing
+
 - Integration with Sectigo/DigiCert code signing certificates
 - Automated signing pipeline using hardware security modules (HSMs) or cloud signing services
 - Timestamping to ensure signature validity beyond certificate expiration
 
 ### 7.3 Runtime Security
+
 - Implement container security scanning in build pipeline
 - Use non-root users in all containers
 - Enable Docker security options (seccomp, AppArmor)
@@ -497,12 +511,14 @@ WantedBy=multi-user.target
 ## 8. Quality Assurance
 
 ### 8.1 Testing Strategy
+
 - **Unit Testing**: Test all deployment utilities and configuration builders
 - **Integration Testing**: Validate complete installation on clean Windows/Linux systems
 - **Performance Testing**: Measure startup times, memory usage, and resource consumption
 - **Security Testing**: Validate code obfuscation and license enforcement
 
 ### 8.2 Acceptance Criteria
+
 - [ ] Successful installation on Windows Server 2019/2022
 - [ ] Successful installation on Ubuntu 20.04/22.04 and CentOS 8/9
 - [ ] Service starts automatically on system boot
@@ -515,29 +531,32 @@ WantedBy=multi-user.target
 ## 9. Maintenance & Support
 
 ### 9.1 Update Mechanism
+
 - Implement in-place update system that preserves data and configuration
 - Create rollback mechanism for failed updates
 - Add health checks during update process
 
 ### 9.2 Monitoring & Logging
+
 - Centralized logging with configurable log levels
 - Service health monitoring and alerting
 - Performance metrics collection and reporting
 
 ### 9.3 Support Tools
+
 - Diagnostic script for troubleshooting common issues
 - Configuration validation utility
 - System requirements checker
 
 ## 10. Success Metrics
 
-| Metric | Target | Measurement |
-|---|---|---|
-| Installation Success Rate | >95% | Automated testing across platforms |
-| Service Uptime | >99.9% | System monitoring over 30 days |
-| Installation Time | <15 minutes | Timed installation on standard hardware |
-| Package Size | <500MB | Distribution package compression |
-| Memory Usage | <512MB | Runtime resource monitoring |
-| Startup Time | <30 seconds | Time to healthy service state |
+| Metric                    | Target      | Measurement                             |
+| ------------------------- | ----------- | --------------------------------------- |
+| Installation Success Rate | >95%        | Automated testing across platforms      |
+| Service Uptime            | >99.9%      | System monitoring over 30 days          |
+| Installation Time         | <15 minutes | Timed installation on standard hardware |
+| Package Size              | <500MB      | Distribution package compression        |
+| Memory Usage              | <512MB      | Runtime resource monitoring             |
+| Startup Time              | <30 seconds | Time to healthy service state           |
 
-***
+---

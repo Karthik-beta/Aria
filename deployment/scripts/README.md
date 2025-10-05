@@ -38,10 +38,12 @@ Scripts for creating deployment packages.
 Scripts for installing and uninstalling Aria ERP.
 
 ### Linux Installation
+
 - **Install**: `install/linux/install.sh`
 - **Uninstall**: `install/linux/uninstall.sh`
 
 ### Windows Installation
+
 - **Install**: `install/windows/install.ps1`
 - **Uninstall**: `install/windows/uninstall.ps1`
 
@@ -50,11 +52,13 @@ Scripts for installing and uninstalling Aria ERP.
 Scripts for security-related operations like SSL certificate generation.
 
 ### Linux
+
 ```bash
 sudo bash security/linux/generate-ssl-cert.sh
 ```
 
 ### Windows
+
 ```powershell
 .\security\windows\generate-ssl-cert.ps1
 ```
@@ -70,6 +74,7 @@ Scripts for ongoing system maintenance tasks.
 **Purpose**: Rotates and cleans up application log files on Linux systems.
 
 **Usage**:
+
 ```bash
 # Use default settings (30-day retention, compression enabled)
 bash maintenance/linux/rotate-logs.sh
@@ -82,11 +87,13 @@ LOG_COMPRESS_ENABLED=false bash maintenance/linux/rotate-logs.sh
 ```
 
 **Environment Variables**:
+
 - `LOG_RETENTION_DAYS`: Number of days to keep logs (default: 30)
 - `LOG_COMPRESS_ENABLED`: Enable gzip compression (default: true)
 
 **Scheduling**:
 Add to crontab to run daily at 2 AM:
+
 ```bash
 0 2 * * * /opt/aria-erp/scripts/maintenance/linux/rotate-logs.sh
 ```
@@ -96,6 +103,7 @@ Add to crontab to run daily at 2 AM:
 **Purpose**: Rotates and cleans up application log files on Windows systems.
 
 **Usage**:
+
 ```powershell
 # Use default settings (30-day retention, compression enabled)
 .\maintenance\windows\rotate-logs.ps1
@@ -109,6 +117,7 @@ Add to crontab to run daily at 2 AM:
 
 **Scheduling**:
 Create a scheduled task to run daily at 2 AM:
+
 ```powershell
 $Action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-ExecutionPolicy Bypass -File C:\aria-erp\scripts\maintenance\windows\rotate-logs.ps1"
 $Trigger = New-ScheduledTaskTrigger -Daily -At 2:00AM
@@ -145,12 +154,14 @@ See [Restore Documentation](restore/README.md) for details.
 ### Script Execution Issues
 
 **Linux - Permission Denied**:
+
 ```bash
 chmod +x /opt/aria-erp/scripts/*/linux/*.sh
 chmod +x /opt/aria-erp/scripts/{backup,monitoring,restore}/*.sh
 ```
 
 **Windows - Execution Policy**:
+
 ```powershell
 Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 ```
@@ -158,6 +169,7 @@ Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 ### Script Not Found
 
 Ensure you're in the correct directory:
+
 ```bash
 # Linux
 cd /opt/aria-erp
@@ -169,28 +181,31 @@ cd C:\aria-erp
 ### Logs Not Rotating
 
 1. Check if the script runs without errors:
+
    ```bash
    # Linux
    bash -x scripts/maintenance/linux/rotate-logs.sh
-   
+
    # Windows
    .\scripts\maintenance\windows\rotate-logs.ps1 -Verbose
    ```
 
 2. Verify log directory exists:
+
    ```bash
    # Linux
    ls -la /opt/aria-erp/logs
-   
+
    # Windows
    Get-ChildItem "C:\aria-erp\logs"
    ```
 
 3. Check disk space:
+
    ```bash
    # Linux
    df -h /opt/aria-erp
-   
+
    # Windows
    Get-PSDrive C
    ```
@@ -206,6 +221,7 @@ cd C:\aria-erp
 ## Support
 
 For issues with deployment scripts:
+
 1. Check the [Troubleshooting Guide](../docs/TROUBLESHOOTING.md)
 2. Review script output for error messages
 3. Ensure all prerequisites are met

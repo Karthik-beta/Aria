@@ -79,7 +79,9 @@ deployment/
 ## Documentation Hierarchy
 
 ### Entry Point
+
 **DEPLOYMENT_GUIDE.md** - The primary, comprehensive guide containing:
+
 - Complete installation procedures
 - Configuration reference
 - Operations manual
@@ -88,13 +90,16 @@ deployment/
 - Maintenance schedules
 
 ### Quick Reference
+
 **README.md** - Concise reference containing:
+
 - Quick start instructions
 - Common operations
 - Links to detailed documentation
 - Testing status summary
 
 ### Technical Documentation (`docs/`)
+
 Detailed references for specific topics:
 
 1. **INSTALLATION.md** - Deep dive into installation process
@@ -107,16 +112,18 @@ Detailed references for specific topics:
 ## Script Organization
 
 ### Backup Scripts (`scripts/backup/`)
+
 **Purpose**: Phase 1 - Automated backup system
 
-| File | Platform | Purpose | Lines |
-|------|----------|---------|-------|
-| `backup-manager.sh` | Linux | Main backup orchestrator | 517 |
-| `backup-manager.ps1` | Windows | Main backup orchestrator | 571 |
-| `detect-storage.sh` | Linux | Storage detection logic | 283 |
-| `detect-storage.ps1` | Windows | Storage detection logic | 311 |
+| File                 | Platform | Purpose                  | Lines |
+| -------------------- | -------- | ------------------------ | ----- |
+| `backup-manager.sh`  | Linux    | Main backup orchestrator | 517   |
+| `backup-manager.ps1` | Windows  | Main backup orchestrator | 571   |
+| `detect-storage.sh`  | Linux    | Storage detection logic  | 283   |
+| `detect-storage.ps1` | Windows  | Storage detection logic  | 311   |
 
 **Features**:
+
 - Automated backup scheduling
 - Storage detection (USB, network, local)
 - Compression and integrity checking
@@ -124,14 +131,16 @@ Detailed references for specific topics:
 - Cross-platform parity
 
 ### Monitoring Scripts (`scripts/monitoring/`)
+
 **Purpose**: Phase 2 - Real-time health monitoring
 
-| File | Platform | Purpose | Lines |
-|------|----------|---------|-------|
-| `health-check.sh` | Linux | System health monitoring | 415 |
-| `health-check.ps1` | Windows | System health monitoring | 459 |
+| File               | Platform | Purpose                  | Lines |
+| ------------------ | -------- | ------------------------ | ----- |
+| `health-check.sh`  | Linux    | System health monitoring | 415   |
+| `health-check.ps1` | Windows  | System health monitoring | 459   |
 
 **Features**:
+
 - Container status monitoring
 - Resource usage tracking (CPU, memory, disk)
 - Service availability checks
@@ -139,18 +148,20 @@ Detailed references for specific topics:
 - Exit codes for automation (0=HEALTHY, 1=WARNING, 2=UNHEALTHY)
 
 ### Restore Scripts (`scripts/restore/`)
+
 **Purpose**: Phase 3 - Comprehensive disaster recovery
 
-| File | Platform | Purpose | Lines |
-|------|----------|---------|-------|
-| `restore-database.sh` | Linux | Database restoration | 504 |
-| `restore-database.ps1` | Windows | Database restoration | 553 |
-| `restore-config.sh` | Linux | Configuration restoration | 353 |
-| `restore-config.ps1` | Windows | Configuration restoration | 405 |
-| `full-restore.sh` | Linux | Full system recovery | 586 |
-| `full-restore.ps1` | Windows | Full system recovery | 687 |
+| File                   | Platform | Purpose                   | Lines |
+| ---------------------- | -------- | ------------------------- | ----- |
+| `restore-database.sh`  | Linux    | Database restoration      | 504   |
+| `restore-database.ps1` | Windows  | Database restoration      | 553   |
+| `restore-config.sh`    | Linux    | Configuration restoration | 353   |
+| `restore-config.ps1`   | Windows  | Configuration restoration | 405   |
+| `full-restore.sh`      | Linux    | Full system recovery      | 586   |
+| `full-restore.ps1`     | Windows  | Full system recovery      | 687   |
 
 **Features**:
+
 - Database backup restoration
 - Configuration recovery
 - Full system orchestration
@@ -159,25 +170,28 @@ Detailed references for specific topics:
 - Rollback capability
 
 ### Installation Scripts (`scripts/`)
+
 **Purpose**: System installation and management
 
-| File | Platform | Purpose |
-|------|----------|---------|
-| `install-linux.sh` | Linux | Main installation script |
-| `install-windows.ps1` | Windows | Main installation script |
-| `uninstall-linux.sh` | Linux | Clean uninstallation |
-| `uninstall-windows.ps1` | Windows | Clean uninstallation |
-| `build-package.sh` | Linux | Package builder |
-| `build-package.ps1` | Windows | Package builder |
-| `test-package.sh` | Linux | Package tester |
-| `test-package.ps1` | Windows | Package tester |
+| File                    | Platform | Purpose                  |
+| ----------------------- | -------- | ------------------------ |
+| `install-linux.sh`      | Linux    | Main installation script |
+| `install-windows.ps1`   | Windows  | Main installation script |
+| `uninstall-linux.sh`    | Linux    | Clean uninstallation     |
+| `uninstall-windows.ps1` | Windows  | Clean uninstallation     |
+| `build-package.sh`      | Linux    | Package builder          |
+| `build-package.ps1`     | Windows  | Package builder          |
+| `test-package.sh`       | Linux    | Package tester           |
+| `test-package.ps1`      | Windows  | Package tester           |
 
 ---
 
 ## Template Organization
 
 ### Docker Compose (`templates/`)
+
 **docker-compose.production.yml** - Production container orchestration:
+
 - 7 service definitions (Traefik, 4 frontends, backend, database)
 - Network configuration (aria-network bridge)
 - Volume management (postgres-data, traefik-certs, uploads)
@@ -186,6 +200,7 @@ Detailed references for specific topics:
 - Restart policies
 
 ### Traefik Configuration (`templates/config/traefik/`)
+
 **Path-based routing configuration**:
 
 1. **static-ip-routes.yml** - HTTP routing rules:
@@ -206,7 +221,9 @@ Detailed references for specific topics:
    - Certificate documentation
 
 ### Service Templates
+
 **aria-erp.service.template** - systemd service template for Linux:
+
 - Service definition
 - Dependency management
 - Restart policies
@@ -217,16 +234,19 @@ Detailed references for specific topics:
 ## File Naming Conventions
 
 ### Scripts
+
 - **Linux**: `.sh` extension, lowercase with hyphens (`backup-manager.sh`)
 - **Windows**: `.ps1` extension, lowercase with hyphens (`backup-manager.ps1`)
 - **Paired implementations**: Same base name across platforms
 
 ### Documentation
+
 - **Uppercase names**: `README.md`, `INSTALLATION.md`, `CONFIGURATION.md`
 - **Descriptive titles**: Clear indication of content
 - **Markdown format**: All documentation in `.md` format
 
 ### Configuration
+
 - **Lowercase names**: `docker-compose.production.yml`, `static-ip-routes.yml`
 - **Descriptive suffixes**: `.template` for templates, `.yml` for YAML
 
@@ -235,21 +255,24 @@ Detailed references for specific topics:
 ## Cross-Platform Parity
 
 ### Script Pairs
+
 Every operational script has Linux and Windows versions with identical functionality:
 
-| Linux | Windows | Functionality |
-|-------|---------|---------------|
-| `backup-manager.sh` | `backup-manager.ps1` | Backup orchestration |
-| `detect-storage.sh` | `detect-storage.ps1` | Storage detection |
-| `health-check.sh` | `health-check.ps1` | Health monitoring |
-| `restore-database.sh` | `restore-database.ps1` | Database restoration |
-| `restore-config.sh` | `restore-config.ps1` | Config restoration |
-| `full-restore.sh` | `full-restore.ps1` | Full recovery |
-| `install-linux.sh` | `install-windows.ps1` | Installation |
-| `uninstall-linux.sh` | `uninstall-windows.ps1` | Uninstallation |
+| Linux                 | Windows                 | Functionality        |
+| --------------------- | ----------------------- | -------------------- |
+| `backup-manager.sh`   | `backup-manager.ps1`    | Backup orchestration |
+| `detect-storage.sh`   | `detect-storage.ps1`    | Storage detection    |
+| `health-check.sh`     | `health-check.ps1`      | Health monitoring    |
+| `restore-database.sh` | `restore-database.ps1`  | Database restoration |
+| `restore-config.sh`   | `restore-config.ps1`    | Config restoration   |
+| `full-restore.sh`     | `full-restore.ps1`      | Full recovery        |
+| `install-linux.sh`    | `install-windows.ps1`   | Installation         |
+| `uninstall-linux.sh`  | `uninstall-windows.ps1` | Uninstallation       |
 
 ### Feature Parity Validation
+
 All scripts have been tested for:
+
 - ✅ Identical functionality
 - ✅ Consistent exit codes
 - ✅ Matching log formats
@@ -279,31 +302,33 @@ DEPLOYMENT_GUIDE.md (Start Here)
 
 1. **DEPLOYMENT_GUIDE.md** → Primary entry point, references all others
 2. **README.md** → Quick reference, points to DEPLOYMENT_GUIDE.md
-3. **docs/*.md** → Deep dives into specific topics from main guide
-4. **scripts/*/README.md** → Technical documentation for each phase
+3. **docs/\*.md** → Deep dives into specific topics from main guide
+4. **scripts/\*/README.md** → Technical documentation for each phase
 
 ---
 
 ## Size Statistics
 
 ### Documentation
-| File | Lines | Size | Purpose |
-|------|-------|------|---------|
-| DEPLOYMENT_GUIDE.md | 2,235 | ~100KB | Primary guide |
-| README.md | 330 | ~15KB | Quick reference |
-| docs/INSTALLATION.md | ~800 | ~40KB | Installation guide |
-| docs/CONFIGURATION.md | ~600 | ~30KB | Config reference |
-| docs/TROUBLESHOOTING.md | ~500 | ~25KB | Problem resolution |
-| docs/SPECIFICATION.md | ~700 | ~35KB | Technical specs |
+
+| File                    | Lines | Size   | Purpose            |
+| ----------------------- | ----- | ------ | ------------------ |
+| DEPLOYMENT_GUIDE.md     | 2,235 | ~100KB | Primary guide      |
+| README.md               | 330   | ~15KB  | Quick reference    |
+| docs/INSTALLATION.md    | ~800  | ~40KB  | Installation guide |
+| docs/CONFIGURATION.md   | ~600  | ~30KB  | Config reference   |
+| docs/TROUBLESHOOTING.md | ~500  | ~25KB  | Problem resolution |
+| docs/SPECIFICATION.md   | ~700  | ~35KB  | Technical specs    |
 
 ### Scripts (Total Lines)
-| Category | Linux | Windows | Total |
-|----------|-------|---------|-------|
-| Backup | 800 | 882 | 1,682 |
-| Monitoring | 415 | 459 | 874 |
-| Restore | 1,443 | 1,645 | 3,088 |
-| Installation | ~600 | ~700 | ~1,300 |
-| **Total** | **~3,258** | **~3,686** | **~6,944** |
+
+| Category     | Linux      | Windows    | Total      |
+| ------------ | ---------- | ---------- | ---------- |
+| Backup       | 800        | 882        | 1,682      |
+| Monitoring   | 415        | 459        | 874        |
+| Restore      | 1,443      | 1,645      | 3,088      |
+| Installation | ~600       | ~700       | ~1,300     |
+| **Total**    | **~3,258** | **~3,686** | **~6,944** |
 
 ---
 
@@ -344,6 +369,7 @@ DEPLOYMENT_GUIDE.md (Start Here)
 ## Quick Access Paths
 
 ### Most Accessed Files
+
 ```bash
 # Primary documentation
 ./DEPLOYMENT_GUIDE.md
@@ -364,6 +390,7 @@ DEPLOYMENT_GUIDE.md (Start Here)
 ### Default Installation Paths
 
 **Linux**:
+
 ```bash
 /opt/aria-erp/                      # Installation directory
 /opt/aria-erp/deployment/           # This deployment folder
@@ -372,6 +399,7 @@ DEPLOYMENT_GUIDE.md (Start Here)
 ```
 
 **Windows**:
+
 ```powershell
 C:\ProgramData\Aria-ERP\            # Installation directory
 C:\ProgramData\Aria-ERP\deployment\ # This deployment folder
@@ -384,19 +412,21 @@ C:\ProgramData\Aria-ERP\backups\    # Backup storage
 ## Testing and Validation
 
 ### Testing Status
+
 - **Total Tests**: 30
 - **Passed**: 30 (100%)
 - **Test Date**: October 4, 2025
 - **Full Report**: `../TESTING_REPORT.md`
 
 ### Validated Components
+
 ✅ All scripts (Linux & Windows)  
 ✅ Documentation accuracy  
 ✅ Cross-platform parity  
 ✅ Installation procedures  
 ✅ Backup and restore functionality  
 ✅ Health monitoring  
-✅ Security measures  
+✅ Security measures
 
 ---
 
@@ -420,6 +450,7 @@ The deployment folder is organized into clear, logical sections:
 4. **templates/**: Configuration templates and examples
 
 This structure provides:
+
 - ✅ Clear navigation path
 - ✅ Logical grouping of related files
 - ✅ Easy maintenance and updates

@@ -5,6 +5,7 @@ This package contains **ESLint configurations** that check your code for style i
 ## 🎯 What is ESLint?
 
 ESLint is a tool that:
+
 - **Finds bugs** before you run your code
 - **Enforces consistency** (everyone writes code the same way)
 - **Auto-fixes issues** (it can fix many problems automatically!)
@@ -14,12 +15,14 @@ ESLint is a tool that:
 
 ```typescript
 // ESLint catches this issue:
-if (user = null) {  // ❌ Using = instead of ===
+if ((user = null)) {
+  // ❌ Using = instead of ===
   console.log('No user');
 }
 
 // ESLint suggests:
-if (user === null) {  // ✅ Correct comparison
+if (user === null) {
+  // ✅ Correct comparison
   console.log('No user');
 }
 ```
@@ -36,6 +39,7 @@ export default [ariaNext];
 ```
 
 This includes:
+
 - React best practices
 - Next.js specific rules
 - Accessibility checks (a11y)
@@ -51,6 +55,7 @@ export default [ariaNest];
 ```
 
 This includes:
+
 - NestJS patterns
 - Node.js best practices
 - TypeScript integration
@@ -65,6 +70,7 @@ export default [ariaBase];
 ```
 
 This includes:
+
 - Core TypeScript rules
 - Universal JavaScript best practices
 
@@ -114,13 +120,13 @@ function hello() {
 ```typescript
 // ❌ ESLint warns:
 useEffect(() => {
-  console.log(user.name);  // 'user' should be in dependency array
+  console.log(user.name); // 'user' should be in dependency array
 }, []);
 
 // ✅ Fixed:
 useEffect(() => {
   console.log(user.name);
-}, [user]);  // Added user to dependencies
+}, [user]); // Added user to dependencies
 ```
 
 ### 3. Accessibility Issues
@@ -137,7 +143,7 @@ useEffect(() => {
 
 ```typescript
 // ❌ ESLint warns:
-const message = "Hello"  // Missing semicolon, wrong quotes
+const message = 'Hello'; // Missing semicolon, wrong quotes
 
 // ✅ Fixed:
 const message = 'Hello';
@@ -158,6 +164,7 @@ Error: 'user' is not defined (no-undef)
 ```
 
 This means:
+
 - **What**: Variable 'user' is not defined
 - **Rule**: no-undef (the rule that caught it)
 - **Where**: Line 15, column 20 in UserCard.tsx
@@ -184,10 +191,10 @@ export default [
   {
     rules: {
       // Customize specific rules
-      'no-console': 'warn',  // Warn on console.log
-      'prefer-const': 'error',  // Error if 'let' could be 'const'
-    }
-  }
+      'no-console': 'warn', // Warn on console.log
+      'prefer-const': 'error', // Error if 'let' could be 'const'
+    },
+  },
 ];
 ```
 
@@ -212,6 +219,7 @@ export default [
    ```
 
 Now ESLint will:
+
 - Show errors with red squiggles
 - Show warnings with yellow squiggles
 - Auto-fix issues when you save!
@@ -219,31 +227,41 @@ Now ESLint will:
 ## 📚 Rule Categories
 
 ### Possible Errors
+
 Catches actual bugs:
+
 - No duplicate keys in objects
 - No unreachable code
 - Valid regex patterns
 
 ### Best Practices
+
 Encourages good patterns:
+
 - Use `===` instead of `==`
 - No unused variables
 - Consistent return statements
 
 ### TypeScript
+
 TypeScript-specific rules:
+
 - Explicit return types for functions
 - No `any` type (use specific types)
 - Proper async/await usage
 
 ### React/Next.js
+
 React-specific rules:
+
 - Hook dependencies
 - Key props in lists
 - Proper component patterns
 
 ### Accessibility (a11y)
+
 Ensures accessible code:
+
 - Alt text for images
 - Proper ARIA labels
 - Keyboard navigation support

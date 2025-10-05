@@ -7,12 +7,14 @@ Aria ERP implements a comprehensive log management system to prevent disk space 
 ## Log Types
 
 ### 1. Docker Container Logs
+
 - **Location**: Managed internally by Docker
 - **Content**: Container stdout and stderr output
 - **Rotation**: Automatic (configured in docker-compose)
 - **Retention**: Controlled by `LOG_MAX_SIZE` and `LOG_MAX_FILES`
 
 ### 2. Application File Logs
+
 - **Location**: `./logs/` directory
 - **Content**: Application-specific log files
 - **Rotation**: Manual scripts (cron/Task Scheduler)
@@ -21,16 +23,19 @@ Aria ERP implements a comprehensive log management system to prevent disk space 
 ### 3. Service-Specific Logs
 
 #### Traefik Access Logs
+
 - **Path**: `./logs/traefik/access.log`
 - **Rotation**: When file exceeds 100MB
 - **Format**: JSON (structured logging)
 
 #### PostgreSQL Logs
+
 - **Path**: `./logs/postgres/postgresql-*.log`
 - **Rotation**: Daily or when file exceeds 100MB
 - **Format**: PostgreSQL standard log format
 
 #### Backend Application Logs
+
 - **Path**: `./logs/backend/*.log`
 - **Rotation**: When file exceeds 50MB
 - **Format**: Application-dependent
@@ -54,6 +59,7 @@ LOG_COMPRESS_ENABLED=true # Compress rotated logs
 ### Default Values
 
 If not specified, the system uses these defaults:
+
 - `LOG_MAX_SIZE`: 10m (10 megabytes)
 - `LOG_MAX_FILES`: 3 files
 - `LOG_RETENTION_DAYS`: 30 days
@@ -66,21 +72,25 @@ If not specified, the system uses these defaults:
 #### Using Cron
 
 1. Make the script executable:
+
 ```bash
 chmod +x /opt/aria-erp/scripts/rotate-logs-linux.sh
 ```
 
 2. Open crontab editor:
+
 ```bash
 crontab -e
 ```
 
 3. Add this line to run daily at 2 AM:
+
 ```bash
 0 2 * * * /opt/aria-erp/scripts/rotate-logs-linux.sh
 ```
 
 4. Optional: Run with custom retention:
+
 ```bash
 0 2 * * * LOG_RETENTION_DAYS=60 /opt/aria-erp/scripts/rotate-logs-linux.sh
 ```
@@ -88,6 +98,7 @@ crontab -e
 #### Using systemd Timer (Alternative)
 
 1. Create service file `/etc/systemd/system/aria-log-rotation.service`:
+
 ```ini
 [Unit]
 Description=Aria ERP Log Rotation
@@ -103,6 +114,7 @@ Environment="LOG_COMPRESS_ENABLED=true"
 ```
 
 2. Create timer file `/etc/systemd/system/aria-log-rotation.timer`:
+
 ```ini
 [Unit]
 Description=Daily Aria ERP Log Rotation
@@ -118,6 +130,7 @@ WantedBy=timers.target
 ```
 
 3. Enable and start the timer:
+
 ```bash
 sudo systemctl daemon-reload
 sudo systemctl enable aria-log-rotation.timer
@@ -137,7 +150,8 @@ sudo systemctl start aria-log-rotation.timer
    - **Trigger**: Daily at 2:00 AM
    - **Action**: Start a program
    - **Program**: `powershell.exe`
-   - **Arguments**: 
+   - **Arguments**:
+
    ```
    -ExecutionPolicy Bypass -File "C:\aria-erp\scripts\rotate-logs-windows.ps1"
    ```
@@ -236,6 +250,7 @@ The rotation scripts handle application-specific log files:
 ### Check Current Disk Usage
 
 **Linux:**
+
 ```bash
 # Total logs directory size
 du -sh /opt/aria-erp/logs
@@ -248,6 +263,7 @@ du -h --max-depth=2 /opt/aria-erp/logs
 ```
 
 **Windows:**
+
 ```powershell
 # Total logs directory size
 Get-ChildItem -Path "C:\aria-erp\logs" -Recurse | Measure-Object -Property Length -Sum | Select-Object @{Name="Size(MB)";Expression={[math]::Round($_.Sum / 1MB, 2)}}
@@ -279,25 +295,28 @@ docker logs aria-database --tail 100
 ### Issue: Logs Not Rotating
 
 **Symptoms:**
+
 - Log files growing indefinitely
 - No rotated log files with timestamps
 
 **Solutions:**
 
 1. Check if rotation script is scheduled:
+
    ```bash
    # Linux
    crontab -l | grep rotate-logs
-   
+
    # Windows
    Get-ScheduledTask | Where-Object {$_.TaskName -like "*Log Rotation*"}
    ```
 
 2. Run rotation script manually to test:
+
    ```bash
    # Linux
    bash -x /opt/aria-erp/scripts/rotate-logs-linux.sh
-   
+
    # Windows
    powershell -ExecutionPolicy Bypass -File "C:\aria-erp\scripts\rotate-logs-windows.ps1"
    ```
@@ -311,17 +330,20 @@ docker logs aria-database --tail 100
 ### Issue: Docker Logs Growing Too Large
 
 **Symptoms:**
+
 - High disk usage despite rotation scripts
 - Container logs consuming excessive space
 
 **Solutions:**
 
 1. Check current Docker logging configuration:
+
    ```bash
    docker inspect aria-backend | grep -A 10 LogConfig
    ```
 
 2. Update `LOG_MAX_SIZE` and `LOG_MAX_FILES` in `.env`:
+
    ```bash
    LOG_MAX_SIZE=5m    # Reduce to 5MB
    LOG_MAX_FILES=2    # Keep only 2 rotated files
@@ -335,6 +357,7 @@ docker logs aria-database --tail 100
 ### Issue: Old Logs Not Being Deleted
 
 **Symptoms:**
+
 - Logs older than retention period still present
 - Disk usage not decreasing after rotation
 
@@ -343,19 +366,21 @@ docker logs aria-database --tail 100
 1. Verify `LOG_RETENTION_DAYS` setting in `.env`
 
 2. Check for permission issues:
+
    ```bash
    # Linux
    ls -la /opt/aria-erp/logs/
-   
+
    # Windows
    Get-Acl "C:\aria-erp\logs"
    ```
 
 3. Run cleanup manually with verbose output:
+
    ```bash
    # Linux
    bash -x /opt/aria-erp/scripts/rotate-logs-linux.sh
-   
+
    # Windows
    .\scripts\rotate-logs-windows.ps1 -Verbose
    ```
@@ -363,21 +388,24 @@ docker logs aria-database --tail 100
 ### Issue: Compression Not Working
 
 **Symptoms:**
+
 - Rotated logs remain uncompressed
 - `.log.gz` or `.log.zip` files not created
 
 **Solutions:**
 
 1. Check if compression is enabled in `.env`:
+
    ```bash
    LOG_COMPRESS_ENABLED=true
    ```
 
 2. Verify compression tools are installed:
+
    ```bash
    # Linux
    which gzip
-   
+
    # Windows (built-in, but check PowerShell version)
    $PSVersionTable.PSVersion
    ```
@@ -388,36 +416,39 @@ docker logs aria-database --tail 100
 
 ### Expected Log Sizes (200 concurrent users)
 
-| Component | Daily Growth | With 30-Day Retention | With Compression |
-|-----------|--------------|----------------------|------------------|
-| Traefik Access | 100-500 MB | 3-15 GB | 1-5 GB |
-| Backend App | 50-200 MB | 1.5-6 GB | 500 MB-2 GB |
-| PostgreSQL | 20-100 MB | 600 MB-3 GB | 200 MB-1 GB |
-| Docker Logs | 50-150 MB | 1.5-4.5 GB | N/A (auto-compressed) |
-| **Total** | **220-950 MB** | **~7-29 GB** | **~2-8 GB** |
+| Component      | Daily Growth   | With 30-Day Retention | With Compression      |
+| -------------- | -------------- | --------------------- | --------------------- |
+| Traefik Access | 100-500 MB     | 3-15 GB               | 1-5 GB                |
+| Backend App    | 50-200 MB      | 1.5-6 GB              | 500 MB-2 GB           |
+| PostgreSQL     | 20-100 MB      | 600 MB-3 GB           | 200 MB-1 GB           |
+| Docker Logs    | 50-150 MB      | 1.5-4.5 GB            | N/A (auto-compressed) |
+| **Total**      | **220-950 MB** | **~7-29 GB**          | **~2-8 GB**           |
 
 ### Recommendations
 
-| Deployment Size | Retention Period | Recommended Storage |
-|----------------|------------------|---------------------|
-| Small (<50 users) | 30 days | 10 GB |
-| Medium (50-100 users) | 30 days | 20 GB |
-| Large (100-200 users) | 30 days | 50 GB |
-| Enterprise (200+ users) | 60 days | 100 GB |
+| Deployment Size         | Retention Period | Recommended Storage |
+| ----------------------- | ---------------- | ------------------- |
+| Small (<50 users)       | 30 days          | 10 GB               |
+| Medium (50-100 users)   | 30 days          | 20 GB               |
+| Large (100-200 users)   | 30 days          | 50 GB               |
+| Enterprise (200+ users) | 60 days          | 100 GB              |
 
 ### Adjusting for Your Environment
 
 **Low disk space?** Reduce retention:
+
 ```bash
 LOG_RETENTION_DAYS=14  # Keep only 2 weeks
 ```
 
 **High compliance requirements?** Increase retention:
+
 ```bash
 LOG_RETENTION_DAYS=90  # Keep 3 months
 ```
 
 **Very high traffic?** Reduce max log sizes:
+
 ```bash
 LOG_MAX_SIZE=5m        # Rotate more frequently
 LOG_MAX_FILES=2        # Keep fewer rotated files
@@ -428,6 +459,7 @@ LOG_MAX_FILES=2        # Keep fewer rotated files
 1. **Enable Compression**: Always keep `LOG_COMPRESS_ENABLED=true` to save 60-80% disk space
 
 2. **Monitor Disk Usage**: Set up alerts for disk usage above 80%
+
    ```bash
    # Example: Alert if logs exceed 40GB
    LOGS_SIZE=$(du -sb /opt/aria-erp/logs | cut -f1)
@@ -437,18 +469,21 @@ LOG_MAX_FILES=2        # Keep fewer rotated files
    ```
 
 3. **Regular Testing**: Test rotation scripts monthly to ensure they work:
+
    ```bash
    # Schedule test run
    0 2 1 * * /opt/aria-erp/scripts/rotate-logs-linux.sh
    ```
 
 4. **Backup Important Logs**: Before deletion, consider backing up critical logs:
+
    ```bash
    # Example: Backup error logs before rotation
    find /opt/aria-erp/logs -name "*error*.log" -exec cp {} /backup/logs/ \;
    ```
 
 5. **Document Custom Settings**: If you adjust retention policies, document why:
+
    ```bash
    # Compliance requires 60-day retention for audit logs
    LOG_RETENTION_DAYS=60
@@ -461,6 +496,7 @@ LOG_MAX_FILES=2        # Keep fewer rotated files
 ### Prometheus Metrics (Future)
 
 Monitor log metrics:
+
 - Log rotation events per day
 - Total log disk usage
 - Average log file size
@@ -469,6 +505,7 @@ Monitor log metrics:
 ### Alerting Rules
 
 Set up alerts for:
+
 - Disk usage > 80%
 - Log rotation failures
 - Unusually large log files

@@ -17,12 +17,14 @@ Common issues and their solutions for Aria ERP on-premise deployment.
 ### Docker is not installed or not running
 
 **Symptoms:**
+
 - Installation script fails with "Docker not found"
 - Commands like `docker version` fail
 
 **Solution:**
 
 **Linux:**
+
 ```bash
 # Install Docker
 curl -fsSL https://get.docker.com -o get-docker.sh
@@ -37,6 +39,7 @@ docker version
 ```
 
 **Windows:**
+
 1. Download Docker Desktop from https://www.docker.com/products/docker-desktop
 2. Install and restart your computer
 3. Start Docker Desktop
@@ -45,10 +48,12 @@ docker version
 ### Permission denied errors (Linux)
 
 **Symptoms:**
+
 - "Permission denied" when running installation script
 - Docker commands fail with permission errors
 
 **Solution:**
+
 ```bash
 # Run installation script with sudo
 sudo ./bin/install-linux.sh
@@ -63,12 +68,14 @@ sudo usermod -aG docker $USER
 ### Port 80 or 443 already in use
 
 **Symptoms:**
+
 - Installation fails with "port already allocated"
 - Services won't start
 
 **Solution:**
 
 **Find what's using the port:**
+
 ```bash
 # Linux
 sudo netstat -tulpn | grep :80
@@ -80,21 +87,24 @@ netstat -ano | findstr :443
 ```
 
 **Options:**
+
 1. Stop the conflicting service
 2. Or change Aria ERP ports in `docker-compose.yml`:
    ```yaml
    traefik:
      ports:
-       - "8080:80"
-       - "8443:443"
+       - '8080:80'
+       - '8443:443'
    ```
 
 ### Disk space issues
 
 **Symptoms:**
+
 - Installation fails with "no space left on device"
 
 **Solution:**
+
 ```bash
 # Check disk space
 df -h
@@ -111,12 +121,14 @@ docker image prune -a
 ### Services won't start
 
 **Symptoms:**
+
 - Services fail to start after installation
 - `docker compose ps` shows services as "Exited"
 
 **Solution:**
 
 **Check service status:**
+
 ```bash
 # Linux
 sudo systemctl status aria-erp
@@ -127,6 +139,7 @@ docker compose ps
 ```
 
 **Check logs:**
+
 ```bash
 # Linux
 sudo journalctl -u aria-erp -n 100
@@ -137,14 +150,16 @@ docker compose logs
 ```
 
 **Common fixes:**
+
 1. Verify `.env` file exists and is properly configured
 2. Check Docker daemon is running
 3. Ensure all required images are loaded
 4. Restart services:
+
    ```bash
    # Linux
    sudo systemctl restart aria-erp
-   
+
    # Windows
    docker compose down
    docker compose --env-file .env up -d
@@ -153,12 +168,14 @@ docker compose logs
 ### Service keeps restarting
 
 **Symptoms:**
+
 - Container status shows "Restarting"
 - Service is unstable
 
 **Solution:**
 
 **Check container logs:**
+
 ```bash
 docker logs aria-backend
 docker logs aria-database
@@ -166,6 +183,7 @@ docker logs aria-proxy
 ```
 
 **Common causes:**
+
 1. **Database connection issues** - Check POSTGRES_PASSWORD in `.env`
 2. **Missing environment variables** - Verify `.env` file
 3. **Port conflicts** - Check if ports are available
@@ -174,17 +192,20 @@ docker logs aria-proxy
 ### Cannot access service after installation
 
 **Symptoms:**
+
 - Services are running but not accessible via browser
 - Connection timeout or refused
 
 **Solution:**
 
 **Verify services are running:**
+
 ```bash
 docker compose ps
 ```
 
 **Check network connectivity:**
+
 ```bash
 # Test locally
 curl http://localhost
@@ -200,6 +221,7 @@ netstat -ano | findstr :443
 ```
 
 **Check firewall:**
+
 ```bash
 # Linux (UFW)
 sudo ufw status
@@ -214,6 +236,7 @@ sudo firewall-cmd --reload
 ```
 
 **Windows Firewall:**
+
 ```powershell
 # Check if rules exist
 Get-NetFirewallRule | Where-Object {$_.DisplayName -like "*Aria*"}
@@ -228,6 +251,7 @@ New-NetFirewallRule -DisplayName "Aria HTTPS" -Direction Inbound -Protocol TCP -
 ### SSL certificate errors
 
 **Symptoms:**
+
 - "Your connection is not private" in browser
 - Certificate warnings
 
@@ -239,15 +263,17 @@ Accept the self-signed certificate warning in your browser.
 **For production:**
 
 1. Verify certificates exist:
+
    ```bash
    # Linux
    ls -la /opt/aria-erp/volumes/traefik/
-   
+
    # Windows
    dir "C:\Program Files\AriaERP\volumes\traefik"
    ```
 
 2. Check certificate validity:
+
    ```bash
    openssl x509 -in server.crt -text -noout
    ```
@@ -257,38 +283,43 @@ Accept the self-signed certificate warning in your browser.
 ### Domain not resolving
 
 **Symptoms:**
+
 - Can access via IP but not domain name
 - DNS lookup fails
 
 **Solution:**
 
 1. **Verify DNS configuration:**
+
    ```bash
    nslookup yourdomain.com
    dig yourdomain.com
    ```
 
 2. **Check hosts file for local testing:**
+
    ```bash
    # Linux
    sudo nano /etc/hosts
-   
+
    # Windows
    notepad C:\Windows\System32\drivers\etc\hosts
    ```
-   
+
    Add entry (only one needed for path-based routing):
+
    ```
    127.0.0.1    yourdomain.com
    ```
-   
+
    **Note**: Path-based routing uses a single domain, not subdomains.
 
 3. **Flush DNS cache:**
+
    ```bash
    # Linux
    sudo systemd-resolve --flush-caches
-   
+
    # Windows
    ipconfig /flushdns
    ```
@@ -296,26 +327,29 @@ Accept the self-signed certificate warning in your browser.
 ### Cannot connect from external network
 
 **Symptoms:**
+
 - Works locally but not from other computers
 - External access fails
 
 **Solution:**
 
 1. **Verify server IP:**
+
    ```bash
    # Linux
    ip addr show
    hostname -I
-   
+
    # Windows
    ipconfig
    ```
 
 2. **Check firewall allows external connections:**
+
    ```bash
    # Linux
    sudo ufw status verbose
-   
+
    # Windows
    Get-NetFirewallProfile | Select Name, Enabled
    ```
@@ -329,41 +363,49 @@ Accept the self-signed certificate warning in your browser.
 ### Database connection failures
 
 **Symptoms:**
+
 - Backend logs show "connection refused"
 - "Could not connect to database" errors
 
 **Solution:**
 
 **Check database container:**
+
 ```bash
 docker ps | grep postgres
 docker logs aria-database
 ```
 
 **Verify database is healthy:**
+
 ```bash
 docker exec aria-database pg_isready -d aria -U aria
 ```
 
 **Check connection string:**
+
 ```bash
 # Verify .env file
 cat .env | grep POSTGRES
 ```
 
 **Test database connection:**
+
 ```bash
 docker exec -it aria-database psql -U aria -d aria
 # If successful, type \q to exit
 ```
 
 **Common fixes:**
+
 1. Restart database container:
+
    ```bash
    docker restart aria-database
    ```
 
 2. Check database logs for errors:
+
    ```bash
    docker logs aria-database --tail 100
    ```
@@ -377,6 +419,7 @@ docker exec -it aria-database psql -U aria -d aria
 ### Database data corruption
 
 **Symptoms:**
+
 - Services won't start
 - Database logs show corruption errors
 - Data inconsistencies
@@ -384,15 +427,17 @@ docker exec -it aria-database psql -U aria -d aria
 **Solution:**
 
 1. **Stop all services:**
+
    ```bash
    # Linux
    sudo systemctl stop aria-erp
-   
+
    # Windows
    docker compose down
    ```
 
 2. **Restore from backup:**
+
    ```bash
    cat backup.sql | docker exec -i aria-database psql -U aria -d aria
    ```
@@ -407,18 +452,21 @@ docker exec -it aria-database psql -U aria -d aria
 ### Out of disk space (database)
 
 **Symptoms:**
+
 - Database writes fail
 - "No space left on device" in logs
 
 **Solution:**
 
 1. **Check disk usage:**
+
    ```bash
    df -h
    docker system df
    ```
 
 2. **Clean up Docker resources:**
+
    ```bash
    docker system prune -a
    docker volume prune
@@ -433,12 +481,14 @@ docker exec -it aria-database psql -U aria -d aria
 ### Slow response times
 
 **Symptoms:**
+
 - Pages load slowly
 - API requests timeout
 
 **Solution:**
 
 1. **Check resource usage:**
+
    ```bash
    docker stats
    ```
@@ -448,6 +498,7 @@ docker exec -it aria-database psql -U aria -d aria
    - **Windows**: Docker Desktop → Settings → Resources
 
 3. **Check database performance:**
+
    ```bash
    docker exec -it aria-database psql -U aria -d aria
    # Run: SELECT * FROM pg_stat_activity;
@@ -461,6 +512,7 @@ docker exec -it aria-database psql -U aria -d aria
 ### High memory usage
 
 **Symptoms:**
+
 - System running out of memory
 - Docker containers being killed
 
@@ -469,6 +521,7 @@ docker exec -it aria-database psql -U aria -d aria
 1. **Increase system RAM** or Docker memory limit
 
 2. **Add memory limits to services** in `docker-compose.yml`:
+
    ```yaml
    backend:
      deploy:
@@ -487,12 +540,14 @@ docker exec -it aria-database psql -U aria -d aria
 ### Module not loading
 
 **Symptoms:**
+
 - Specific frontend module returns 404
 - Module appears disabled
 
 **Solution:**
 
 1. **Check module is enabled in `.env`:**
+
    ```env
    LICENSED_MODULES=asset,crm,hrms,inventory
    # or
@@ -500,11 +555,13 @@ docker exec -it aria-database psql -U aria -d aria
    ```
 
 2. **Verify container is running:**
+
    ```bash
    docker compose ps
    ```
 
 3. **Check container logs:**
+
    ```bash
    docker logs aria-asset
    docker logs aria-crm
@@ -518,6 +575,7 @@ docker exec -it aria-database psql -U aria -d aria
 ### Module shows blank page
 
 **Symptoms:**
+
 - Module loads but displays blank/white page
 - No error messages visible
 
@@ -526,11 +584,13 @@ docker exec -it aria-database psql -U aria -d aria
 1. **Check browser console** (F12) for JavaScript errors
 
 2. **Verify environment variables:**
+
    ```bash
    docker exec aria-asset env | grep DOCKER_ENV
    ```
 
 3. **Check module logs:**
+
    ```bash
    docker logs aria-asset --tail 100
    ```
@@ -545,6 +605,7 @@ docker exec -it aria-database psql -U aria -d aria
 ### Comprehensive health check script
 
 **Linux:**
+
 ```bash
 #!/bin/bash
 echo "=== Aria ERP Health Check ==="
@@ -569,6 +630,7 @@ docker compose logs --tail=20
 ```
 
 **Windows (PowerShell):**
+
 ```powershell
 Write-Host "=== Aria ERP Health Check ===" -ForegroundColor Green
 Write-Host ""
@@ -591,6 +653,7 @@ docker compose logs --tail=20
 ### Collect logs for support
 
 **Linux:**
+
 ```bash
 # Create log bundle
 mkdir -p /tmp/aria-logs
@@ -601,6 +664,7 @@ tar -czf aria-logs-$(date +%Y%m%d-%H%M%S).tar.gz -C /tmp aria-logs
 ```
 
 **Windows:**
+
 ```powershell
 # Create log bundle
 $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"

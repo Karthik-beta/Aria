@@ -7,6 +7,7 @@ The deployment scripts directory has been reorganized from a flat structure to a
 ## What Changed
 
 ### Old Structure (Flat)
+
 ```
 deployment/scripts/
 ├── build-package.sh
@@ -29,6 +30,7 @@ deployment/scripts/
 ```
 
 ### New Structure (Organized)
+
 ```
 deployment/scripts/
 ├── build/
@@ -67,28 +69,29 @@ deployment/scripts/
 
 ## Script Path Mapping
 
-| Old Path | New Path | Notes |
-|----------|----------|-------|
-| `build-package.sh` | `build/linux/build-package.sh` | Build script for Linux |
-| `build-package.ps1` | `build/windows/build-package.ps1` | Build script for Windows |
-| `install-linux.sh` | `install/linux/install.sh` | Platform suffix removed |
-| `install-windows.ps1` | `install/windows/install.ps1` | Platform suffix removed |
-| `uninstall-linux.sh` | `install/linux/uninstall.sh` | Platform suffix removed |
-| `uninstall-windows.ps1` | `install/windows/uninstall.ps1` | Platform suffix removed |
-| `generate-ssl-cert-linux.sh` | `security/linux/generate-ssl-cert.sh` | Platform suffix removed |
-| `generate-ssl-cert-windows.ps1` | `security/windows/generate-ssl-cert.ps1` | Platform suffix removed |
-| `rotate-logs-linux.sh` | `maintenance/linux/rotate-logs.sh` | Platform suffix removed |
-| `rotate-logs-windows.ps1` | `maintenance/windows/rotate-logs.ps1` | Platform suffix removed |
-| `test-package.sh` | `testing/linux/test-package.sh` | Testing category added |
-| `test-package.ps1` | `testing/windows/test-package.ps1` | Testing category added |
-| `validate-bash-scripts.sh` | `testing/linux/validate-scripts.sh` | Renamed for consistency |
-| `validate-bash-scripts.ps1` | `testing/windows/validate-scripts.ps1` | Renamed for consistency |
+| Old Path                        | New Path                                 | Notes                    |
+| ------------------------------- | ---------------------------------------- | ------------------------ |
+| `build-package.sh`              | `build/linux/build-package.sh`           | Build script for Linux   |
+| `build-package.ps1`             | `build/windows/build-package.ps1`        | Build script for Windows |
+| `install-linux.sh`              | `install/linux/install.sh`               | Platform suffix removed  |
+| `install-windows.ps1`           | `install/windows/install.ps1`            | Platform suffix removed  |
+| `uninstall-linux.sh`            | `install/linux/uninstall.sh`             | Platform suffix removed  |
+| `uninstall-windows.ps1`         | `install/windows/uninstall.ps1`          | Platform suffix removed  |
+| `generate-ssl-cert-linux.sh`    | `security/linux/generate-ssl-cert.sh`    | Platform suffix removed  |
+| `generate-ssl-cert-windows.ps1` | `security/windows/generate-ssl-cert.ps1` | Platform suffix removed  |
+| `rotate-logs-linux.sh`          | `maintenance/linux/rotate-logs.sh`       | Platform suffix removed  |
+| `rotate-logs-windows.ps1`       | `maintenance/windows/rotate-logs.ps1`    | Platform suffix removed  |
+| `test-package.sh`               | `testing/linux/test-package.sh`          | Testing category added   |
+| `test-package.ps1`              | `testing/windows/test-package.ps1`       | Testing category added   |
+| `validate-bash-scripts.sh`      | `testing/linux/validate-scripts.sh`      | Renamed for consistency  |
+| `validate-bash-scripts.ps1`     | `testing/windows/validate-scripts.ps1`   | Renamed for consistency  |
 
 ## Migration Steps for Existing Deployments
 
 ### 1. Update Package.json Scripts
 
 **Before:**
+
 ```json
 {
   "scripts": {
@@ -99,6 +102,7 @@ deployment/scripts/
 ```
 
 **After:**
+
 ```json
 {
   "scripts": {
@@ -113,11 +117,13 @@ deployment/scripts/
 #### Linux Cron Jobs
 
 **Before:**
+
 ```bash
 0 2 * * * /opt/aria-erp/scripts/rotate-logs-linux.sh
 ```
 
 **After:**
+
 ```bash
 0 2 * * * /opt/aria-erp/scripts/maintenance/linux/rotate-logs.sh
 ```
@@ -125,11 +131,13 @@ deployment/scripts/
 #### Windows Scheduled Tasks
 
 **Before:**
+
 ```powershell
 $Action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-ExecutionPolicy Bypass -File C:\aria-erp\scripts\rotate-logs-windows.ps1"
 ```
 
 **After:**
+
 ```powershell
 $Action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-ExecutionPolicy Bypass -File C:\aria-erp\scripts\maintenance\windows\rotate-logs.ps1"
 ```
@@ -139,12 +147,14 @@ $Action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-Executio
 If you have custom CI/CD pipelines referencing these scripts, update the paths accordingly:
 
 **Before:**
+
 ```yaml
 - bash deployment/scripts/build-package.sh
 - bash deployment/scripts/test-package.sh
 ```
 
 **After:**
+
 ```yaml
 - bash deployment/scripts/build/linux/build-package.sh
 - bash deployment/scripts/testing/linux/test-package.sh
@@ -197,6 +207,7 @@ If you have an existing installation with scheduled tasks or custom automation:
 After updating your references, verify everything works:
 
 ### Test Build Scripts
+
 ```bash
 # Linux
 bash deployment/scripts/build/linux/build-package.sh
@@ -206,11 +217,13 @@ pwsh -File deployment/scripts/build/windows/build-package.ps1
 ```
 
 ### Test Package.json Scripts
+
 ```bash
 pnpm package:test
 ```
 
 ### Test Script Validation
+
 ```bash
 # Linux
 bash deployment/scripts/testing/linux/validate-scripts.sh
@@ -220,6 +233,7 @@ pwsh -File deployment/scripts/testing/windows/validate-scripts.ps1
 ```
 
 ### Verify Script Permissions (Linux)
+
 ```bash
 find deployment/scripts -name "*.sh" -exec chmod +x {} \;
 ```
@@ -248,6 +262,7 @@ If you encounter issues during migration:
 ## Changelog
 
 ### Version 0.1.0 (October 2025)
+
 - **Breaking Change**: Reorganized deployment scripts directory structure
 - Scripts grouped by purpose (build, install, security, maintenance, testing)
 - Scripts separated by platform (linux, windows) within each category

@@ -36,19 +36,20 @@ sudo ./health-check.sh
 
 #### Checks Performed
 
-| Check | Description | Status Codes |
-|-------|-------------|--------------|
-| Docker Status | Verifies Docker daemon is running | ✓ SUCCESS / ✗ ERROR |
-| Container Health | Checks all 7 Aria containers | ✓ HEALTHY / ! STARTING / ✗ UNHEALTHY |
-| Database Connectivity | Tests PostgreSQL connection | ✓ SUCCESS / ✗ ERROR |
-| API Health | Queries backend health endpoint | ✓ SUCCESS / ! WARN / ✗ ERROR |
-| Disk Space | Monitors disk usage | ✓ <80% / ! 80-90% / ✗ >90% |
-| Memory Usage | Tracks system and container memory | INFO |
-| Container Logs | Scans for recent errors | ✓ NO ERRORS / ! ERRORS FOUND |
+| Check                 | Description                        | Status Codes                         |
+| --------------------- | ---------------------------------- | ------------------------------------ |
+| Docker Status         | Verifies Docker daemon is running  | ✓ SUCCESS / ✗ ERROR                  |
+| Container Health      | Checks all 7 Aria containers       | ✓ HEALTHY / ! STARTING / ✗ UNHEALTHY |
+| Database Connectivity | Tests PostgreSQL connection        | ✓ SUCCESS / ✗ ERROR                  |
+| API Health            | Queries backend health endpoint    | ✓ SUCCESS / ! WARN / ✗ ERROR         |
+| Disk Space            | Monitors disk usage                | ✓ <80% / ! 80-90% / ✗ >90%           |
+| Memory Usage          | Tracks system and container memory | INFO                                 |
+| Container Logs        | Scans for recent errors            | ✓ NO ERRORS / ! ERRORS FOUND         |
 
 #### Output Format
 
 **Standard Output** (default):
+
 ```
 ========================================
     Aria ERP Health Check
@@ -75,6 +76,7 @@ Timestamp: 2025-01-04 10:30:00
 ```
 
 **JSON Output** (`-Json` flag):
+
 ```json
 {
   "Status": "HEALTHY",
@@ -107,6 +109,7 @@ The backend API now includes two health endpoints:
 **Endpoint**: `GET /api/health`
 
 **Response**:
+
 ```json
 {
   "status": "ok",
@@ -122,6 +125,7 @@ The backend API now includes two health endpoints:
 **Endpoint**: `GET /api/health/detailed`
 
 **Response**:
+
 ```json
 {
   "status": "ok",
@@ -258,11 +262,11 @@ while true; do
     # Run health check and export metrics
     /opt/aria-erp/scripts/monitoring/health-check.sh > /dev/null 2>&1
     status=$?
-    
+
     # Export to Prometheus format
     echo "aria_health_status $status" > /var/lib/node_exporter/textfile_collector/aria_health.prom
     echo "aria_health_last_check $(date +%s)" >> /var/lib/node_exporter/textfile_collector/aria_health.prom
-    
+
     sleep 60
 done
 ```
@@ -287,6 +291,7 @@ EOF
 ### Health check returns UNHEALTHY
 
 1. **Check Docker**:
+
    ```bash
    docker ps -a
    docker logs aria-database
@@ -294,6 +299,7 @@ EOF
    ```
 
 2. **Check container health**:
+
    ```bash
    docker inspect aria-database --format='{{.State.Health.Status}}'
    ```
@@ -311,15 +317,15 @@ Add health checks to docker-compose.yml:
 services:
   backend:
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      test: ['CMD', 'curl', '-f', 'http://localhost:3000/health']
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
-  
+
   database:
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U aria"]
+      test: ['CMD-SHELL', 'pg_isready -U aria']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -328,11 +334,13 @@ services:
 ### API health endpoint unreachable
 
 1. **Check Traefik routing**:
+
    ```bash
    curl -v http://localhost/api/health
    ```
 
 2. **Check backend container**:
+
    ```bash
    docker exec aria-backend curl http://localhost:3000/health
    ```
@@ -453,6 +461,7 @@ docker start aria-backend
 ## 📝 Changelog
 
 ### Version 1.0.0 (2025-01-04)
+
 - Initial implementation
 - Cross-platform support (Linux/Windows)
 - Container health monitoring

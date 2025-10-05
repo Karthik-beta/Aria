@@ -20,6 +20,7 @@ This directory contains automated backup scripts for the Aria ERP deployment sys
 **Windows**: `detect-storage.ps1`
 
 Detects available backup storage in priority order:
+
 1. External USB/storage devices
 2. Network storage (NFS, CIFS, mapped drives)
 3. Local storage (fallback)
@@ -41,6 +42,7 @@ sudo ./detect-storage.sh
 ```
 
 Examples:
+
 - `external:/media/usb/backups`
 - `network:/mnt/nas/backups`
 - `local:/opt/aria-erp/backups`
@@ -51,6 +53,7 @@ Examples:
 **Windows**: `backup-manager.ps1`
 
 Performs complete system backups including:
+
 - PostgreSQL database dump
 - Docker Compose configuration
 - Environment variables
@@ -68,12 +71,12 @@ sudo ./backup-manager.sh
 
 #### Environment Variables
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `BACKUP_RETENTION_DAYS` | 7 | Number of days to keep backups |
-| `BACKUP_COMPRESSION` | gzip/zip | Compression format |
-| `COMPOSE_FILE` | /opt/aria-erp/docker-compose.yml | Docker Compose file location |
-| `ENV_FILE` | /opt/aria-erp/.env | Environment file location |
+| Variable                | Default                          | Description                    |
+| ----------------------- | -------------------------------- | ------------------------------ |
+| `BACKUP_RETENTION_DAYS` | 7                                | Number of days to keep backups |
+| `BACKUP_COMPRESSION`    | gzip/zip                         | Compression format             |
+| `COMPOSE_FILE`          | /opt/aria-erp/docker-compose.yml | Docker Compose file location   |
+| `ENV_FILE`              | /opt/aria-erp/.env               | Environment file location      |
 
 ## 🔄 Automated Scheduling
 
@@ -171,6 +174,7 @@ aria-erp-backup-20250104_020000/
 ## 🔍 Verification
 
 The backup system automatically verifies:
+
 - Database dump file exists
 - Configuration files are present
 - Manifest is generated
@@ -188,6 +192,7 @@ The backup system automatically verifies:
 ### Storage detection fails
 
 **Linux**:
+
 ```bash
 # Check available storage
 df -h
@@ -201,6 +206,7 @@ mount | grep -E 'nfs|cifs'
 ```
 
 **Windows**:
+
 ```powershell
 # Check available drives
 Get-PSDrive -PSProvider FileSystem
@@ -215,11 +221,13 @@ Get-PSDrive | Where-Object { $_.DisplayRoot -like "\\*" }
 ### Database backup fails
 
 Check if container is running:
+
 ```bash
 docker ps | grep aria-database
 ```
 
 Check database credentials:
+
 ```bash
 # Linux
 cat /opt/aria-erp/.env | grep POSTGRES
@@ -229,6 +237,7 @@ Get-Content "C:\Program Files\AriaERP\.env" | Select-String "POSTGRES"
 ```
 
 Test database connection:
+
 ```bash
 docker exec aria-database pg_dump -U aria aria --version
 ```
@@ -236,10 +245,12 @@ docker exec aria-database pg_dump -U aria aria --version
 ### Insufficient disk space
 
 Check required space:
+
 - Database size: Run `docker exec aria-database psql -U aria -c "SELECT pg_size_pretty(pg_database_size('aria'));"`
 - Minimum 5GB free space required
 
 Clean up old backups manually:
+
 ```bash
 # Linux
 find /backup/location -name "aria-erp-backup-*" -mtime +7 -exec rm -rf {} \;
@@ -271,6 +282,7 @@ sudo ./backup-manager.sh
 ```
 
 Verify backup files:
+
 ```bash
 # Linux
 ls -lh /path/to/backup/aria-erp-backup-*/
@@ -282,6 +294,7 @@ Get-ChildItem "C:\Backups\aria-erp-backup-*" -Recurse
 ## 📝 Changelog
 
 ### Version 1.0.0 (2025-01-04)
+
 - Initial implementation
 - Cross-platform support (Linux/Windows)
 - Smart storage detection

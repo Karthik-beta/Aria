@@ -5,11 +5,13 @@ Quick reference for maintaining security across the Aria ERP monorepo.
 ## 🔐 Certificate Management
 
 ### Development
+
 - ✅ Use self-signed certificates included in repo
 - ✅ Certificates are in `.gitignore` patterns
 - ⚠️ Private keys should be regenerated locally if needed
 
 ### Production
+
 - ❌ **NEVER** use development certificates in production
 - ✅ Use Let's Encrypt (recommended - free, automated)
 - ✅ Use commercial CA certificates (for organizations)
@@ -22,6 +24,7 @@ Quick reference for maintaining security across the Aria ERP monorepo.
 ## 🔑 Secrets Management
 
 ### Never Commit These to Git
+
 - ❌ Private keys (`.key`, `.pem` files)
 - ❌ Passwords or API keys in code
 - ❌ `.env` files with real credentials
@@ -29,6 +32,7 @@ Quick reference for maintaining security across the Aria ERP monorepo.
 - ❌ JWT secrets or encryption keys
 
 ### Use These Instead
+
 - ✅ `.env.example` for documentation (no real values)
 - ✅ Environment variables at runtime
 - ✅ Docker secrets (Swarm mode)
@@ -40,6 +44,7 @@ Quick reference for maintaining security across the Aria ERP monorepo.
 ## 🛡️ Container Security
 
 ### Dockerfile Best Practices
+
 - ✅ Use official base images (`node:22-alpine`)
 - ✅ Multi-stage builds to minimize attack surface
 - ✅ Run as non-root user
@@ -49,6 +54,7 @@ Quick reference for maintaining security across the Aria ERP monorepo.
 - ❌ Don't expose internal ports unnecessarily
 
 ### Runtime Security
+
 - ✅ Use Docker networks to isolate services
 - ✅ Run containers with read-only filesystems where possible
 - ✅ Set resource limits (CPU, memory)
@@ -59,6 +65,7 @@ Quick reference for maintaining security across the Aria ERP monorepo.
 ## 🌐 Network Security
 
 ### Traefik Configuration
+
 - ✅ HTTPS-only (redirect HTTP → HTTPS)
 - ✅ Enable HSTS headers
 - ✅ Configure security headers (CSP, X-Frame-Options)
@@ -67,6 +74,7 @@ Quick reference for maintaining security across the Aria ERP monorepo.
 - ❌ Don't expose unnecessary ports to host
 
 ### Firewall Rules
+
 ```bash
 # Allow only HTTPS
 ufw allow 443/tcp
@@ -81,6 +89,7 @@ ufw deny 3000/tcp
 ## 🔍 Monitoring & Auditing
 
 ### What to Monitor
+
 - ✅ Failed authentication attempts
 - ✅ Certificate expiration dates
 - ✅ Unusual access patterns
@@ -89,6 +98,7 @@ ufw deny 3000/tcp
 - ✅ Security scan results
 
 ### Logging Requirements
+
 - ✅ Centralized log aggregation
 - ✅ Log security events (auth, authz, config changes)
 - ✅ Retain logs per compliance requirements
@@ -98,6 +108,7 @@ ufw deny 3000/tcp
 ## 📝 Configuration Management
 
 ### Environment Variables
+
 ```bash
 # ✅ GOOD: Use environment variables
 DATABASE_URL=${DATABASE_URL}
@@ -107,6 +118,7 @@ DATABASE_URL=postgresql://user:password@host/db
 ```
 
 ### Configuration Files
+
 - ✅ Use `.env.example` for templates
 - ✅ Document all required variables
 - ✅ Validate required variables at startup
@@ -117,6 +129,7 @@ DATABASE_URL=postgresql://user:password@host/db
 ## 🔄 Update & Patch Management
 
 ### Regular Updates
+
 - ✅ Update dependencies monthly (security patches weekly)
 - ✅ Use `pnpm audit` to check for vulnerabilities
 - ✅ Subscribe to security advisories
@@ -124,6 +137,7 @@ DATABASE_URL=postgresql://user:password@host/db
 - ✅ Have rollback plan ready
 
 ### Docker Images
+
 ```bash
 # Check for vulnerabilities
 docker scan aria/backend:latest
@@ -136,12 +150,14 @@ docker-compose build
 ## 💾 Backup & Recovery
 
 ### What to Backup
+
 - ✅ Database (automated daily backups)
 - ✅ Docker volumes (persistent data)
 - ✅ Configuration files (in version control)
 - ✅ Secrets (in encrypted backup, separate from code)
 
 ### Recovery Testing
+
 - ✅ Test backup restoration quarterly
 - ✅ Document recovery procedures
 - ✅ Measure and maintain RTO/RPO targets
@@ -152,6 +168,7 @@ docker-compose build
 ## 🧪 Security Testing
 
 ### Before Each Release
+
 - ✅ Dependency vulnerability scan (`pnpm audit`)
 - ✅ Container image scan (`docker scan`)
 - ✅ Static analysis (ESLint security rules)
@@ -159,6 +176,7 @@ docker-compose build
 - ✅ Input validation testing
 
 ### Periodic Security Audits
+
 - ✅ Penetration testing (annually)
 - ✅ Code security review (quarterly)
 - ✅ Access control audit (quarterly)
@@ -223,6 +241,7 @@ Before deploying to production:
 ## 🤝 Security Contact
 
 For security vulnerabilities or concerns:
+
 - **DO NOT** create public GitHub issues
 - Contact: [security@ariaerp.example.com](mailto:security@ariaerp.example.com)
 - Use encrypted communication when sharing sensitive details

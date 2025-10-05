@@ -5,6 +5,7 @@ The **CRM Frontend** helps you manage relationships with customers from first co
 ## 📋 What Does This Do?
 
 This application helps you:
+
 - **Manage contacts** - Store customer information in one place
 - **Track leads** - Monitor potential customers through your sales pipeline
 - **Close deals** - Move opportunities from lead to customer
@@ -86,21 +87,25 @@ import { fetchContacts } from '@crm/lib/api';
 ## 📚 Key Features to Implement
 
 ### Contact Management
+
 - Create, edit, and delete contacts
 - Store contact information (name, email, phone, company)
 - Link contacts to deals and activities
 
 ### Lead Tracking
+
 - Capture new leads from forms
 - Qualify leads (hot, warm, cold)
 - Convert leads to customers
 
 ### Sales Pipeline
+
 - Visual pipeline with drag-and-drop
 - Stages: Lead → Qualified → Proposal → Negotiation → Closed
 - Track deal value and probability
 
 ### Activity Logging
+
 - Record calls, emails, and meetings
 - Set follow-up reminders
 - View activity timeline
@@ -116,10 +121,12 @@ import { fetchContacts } from '@crm/lib/api';
 ## 🐛 Common Issues
 
 ### Drag-and-Drop Not Working?
+
 - Ensure you're using a drag-and-drop library (like `@dnd-kit/core`)
 - Check that you've added `'use client'` to interactive components
 
 ### Forms Not Submitting?
+
 - Verify backend API is running
 - Check network tab for errors
 - Ensure form data matches the expected type

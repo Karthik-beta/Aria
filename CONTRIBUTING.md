@@ -15,7 +15,7 @@ Thank you for your interest in contributing to Aria ERP! This guide will help yo
 
 ### Prerequisites
 
-Before you begin, make sure you've completed the [Getting Started Guide](./GETTING_STARTED.md).
+Before you begin, make sure you've completed the [Getting Started Guide](./docs/getting-started.md).
 
 ### Finding Something to Work On
 
@@ -54,6 +54,7 @@ git checkout -b fix/bug-description
 ```
 
 **Branch Naming Convention**:
+
 - `feature/` - New features
 - `fix/` - Bug fixes
 - `docs/` - Documentation changes
@@ -103,6 +104,7 @@ git commit -m "feat: add user authentication module"
 ```
 
 **Types**:
+
 - `feat` - New feature
 - `fix` - Bug fix
 - `docs` - Documentation changes
@@ -171,7 +173,7 @@ interface User {
 export default function UserList({ users }: { users: User[] }) {
   return (
     <div>
-      {users.map(user => (
+      {users.map((user) => (
         <div key={user.id}>{user.name}</div>
       ))}
     </div>
@@ -179,7 +181,7 @@ export default function UserList({ users }: { users: User[] }) {
 }
 
 // Only use 'use client' when needed
-'use client';
+('use client');
 export function InteractiveButton() {
   const [count, setCount] = useState(0);
   return <button onClick={() => setCount(count + 1)}>{count}</button>;
@@ -232,7 +234,7 @@ export class UsersService {
   async findAll() {
     // All business logic here
     const users = await this.userRepository.find();
-    return users.map(user => this.transformUser(user));
+    return users.map((user) => this.transformUser(user));
   }
 }
 ```
@@ -313,31 +315,38 @@ Before submitting, ensure:
 
 ```markdown
 ## Description
+
 Brief summary of what this PR does
 
 ## Type of Change
+
 - [ ] Bug fix
 - [ ] New feature
 - [ ] Breaking change
 - [ ] Documentation update
 
 ## Related Issues
+
 Closes #123
 
 ## Changes Made
+
 - Added user authentication module
 - Updated login page UI
 - Added tests for auth service
 
 ## Testing
+
 - Tested login flow manually
 - All unit tests pass
 - Added integration tests for auth endpoints
 
 ## Screenshots (if applicable)
+
 [Add screenshots for UI changes]
 
 ## Development Agents Alignment
+
 - **Simplicity**: Used NestJS CLI for code generation
 - **Type Safety**: Imported types from @aria/types
 - **Automation**: Added tests and updated CI
@@ -403,7 +412,7 @@ export namespace Inventory {
     name: string;
     quantity: number;
   }
-  
+
   export enum ItemStatus {
     InStock = 'IN_STOCK',
     LowStock = 'LOW_STOCK',

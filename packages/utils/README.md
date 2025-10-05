@@ -5,11 +5,13 @@ This package contains **helper functions** that are used throughout the Aria ERP
 ## 🎯 Why Do We Need This?
 
 Imagine you need to format currency in 10 different places. Without shared utils:
+
 - ❌ Copy-paste the same code 10 times
 - ❌ If you find a bug, fix it in 10 places
 - ❌ Different developers might format things differently
 
 With shared utils:
+
 - ✅ Write the function once
 - ✅ Fix bugs in one place
 - ✅ Everyone formats things the same way
@@ -22,15 +24,15 @@ With shared utils:
 import { formatCurrency, formatDate, formatPhone } from '@aria/utils';
 
 // Currency formatting
-formatCurrency(1234.56);  // "$1,234.56"
-formatCurrency(1234.56, 'EUR');  // "€1,234.56"
+formatCurrency(1234.56); // "$1,234.56"
+formatCurrency(1234.56, 'EUR'); // "€1,234.56"
 
 // Date formatting
-formatDate(new Date());  // "Jan 15, 2024"
-formatDate(new Date(), 'short');  // "1/15/24"
+formatDate(new Date()); // "Jan 15, 2024"
+formatDate(new Date(), 'short'); // "1/15/24"
 
 // Phone number formatting
-formatPhone('1234567890');  // "(123) 456-7890"
+formatPhone('1234567890'); // "(123) 456-7890"
 ```
 
 ### Validation Functions
@@ -39,16 +41,16 @@ formatPhone('1234567890');  // "(123) 456-7890"
 import { isValidEmail, isValidPhone, isValidURL } from '@aria/utils';
 
 // Email validation
-isValidEmail('user@example.com');  // true
-isValidEmail('invalid-email');  // false
+isValidEmail('user@example.com'); // true
+isValidEmail('invalid-email'); // false
 
 // Phone validation
-isValidPhone('(123) 456-7890');  // true
-isValidPhone('12345');  // false
+isValidPhone('(123) 456-7890'); // true
+isValidPhone('12345'); // false
 
 // URL validation
-isValidURL('https://example.com');  // true
-isValidURL('not a url');  // false
+isValidURL('https://example.com'); // true
+isValidURL('not a url'); // false
 ```
 
 ### Calculation Functions
@@ -57,13 +59,13 @@ isValidURL('not a url');  // false
 import { calculateTax, calculateDiscount, roundTo } from '@aria/utils';
 
 // Tax calculation
-calculateTax(100, 0.08);  // 8 (8% of 100)
+calculateTax(100, 0.08); // 8 (8% of 100)
 
 // Discount calculation
-calculateDiscount(100, 20);  // 80 (20% off 100)
+calculateDiscount(100, 20); // 80 (20% off 100)
 
 // Round to specific decimal places
-roundTo(3.14159, 2);  // 3.14
+roundTo(3.14159, 2); // 3.14
 ```
 
 ### String Manipulation
@@ -72,13 +74,13 @@ roundTo(3.14159, 2);  // 3.14
 import { capitalize, truncate, slugify } from '@aria/utils';
 
 // Capitalize first letter
-capitalize('hello world');  // "Hello world"
+capitalize('hello world'); // "Hello world"
 
 // Truncate long strings
-truncate('This is a very long text...', 20);  // "This is a very lo..."
+truncate('This is a very long text...', 20); // "This is a very lo..."
 
 // Create URL-friendly slugs
-slugify('Hello World!');  // "hello-world"
+slugify('Hello World!'); // "hello-world"
 ```
 
 ## 🚀 How to Use
@@ -150,8 +152,8 @@ pnpm --filter @aria/utils build
 ```typescript
 import { formatPercentage } from '@aria/utils';
 
-formatPercentage(0.15);     // "15%"
-formatPercentage(0.1567, 2);  // "15.67%"
+formatPercentage(0.15); // "15%"
+formatPercentage(0.1567, 2); // "15.67%"
 ```
 
 ## 💡 Best Practices
@@ -162,12 +164,12 @@ formatPercentage(0.1567, 2);  // "15.67%"
 // ❌ Bad: Has side effects (modifies external state)
 let total = 0;
 function addToTotal(value: number) {
-  total += value;  // Modifies external variable
+  total += value; // Modifies external variable
 }
 
 // ✅ Good: Pure function (no side effects)
 function add(a: number, b: number): number {
-  return a + b;  // Only uses inputs, returns output
+  return a + b; // Only uses inputs, returns output
 }
 ```
 
@@ -180,10 +182,7 @@ function format(value, currency) {
 }
 
 // ✅ Good: With types
-function formatCurrency(
-  value: number, 
-  currency: string = 'USD'
-): string {
+function formatCurrency(value: number, currency: string = 'USD'): string {
   return `${currency}${value.toFixed(2)}`;
 }
 ```
@@ -199,10 +198,7 @@ function formatCurrency(
  * @example
  * calculateDiscount(100, 20)  // Returns 20
  */
-export function calculateDiscount(
-  price: number, 
-  discountPercent: number
-): number {
+export function calculateDiscount(price: number, discountPercent: number): number {
   return (price * discountPercent) / 100;
 }
 ```
@@ -227,15 +223,16 @@ test('formatCurrency formats correctly', () => {
 ```typescript
 // ❌ Bad: Makes API calls
 export function fetchAndFormat(id: string) {
-  const data = fetch(`/api/${id}`);  // API call = side effect!
+  const data = fetch(`/api/${id}`); // API call = side effect!
   return format(data);
 }
 
 // ✅ Good: Just formatting
 export function formatData(data: any) {
-  return {  // Pure transformation
+  return {
+    // Pure transformation
     ...data,
-    formatted: true
+    formatted: true,
   };
 }
 ```
@@ -249,10 +246,7 @@ export function formatName(firstName: string, lastName: string) {
 }
 
 // ✅ Good: Handles edge cases
-export function formatName(
-  firstName?: string, 
-  lastName?: string
-): string {
+export function formatName(firstName?: string, lastName?: string): string {
   if (!firstName && !lastName) return 'Unknown';
   if (!firstName) return lastName!;
   if (!lastName) return firstName;

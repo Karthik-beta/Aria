@@ -18,7 +18,7 @@ This guide provides step-by-step instructions for installing Aria ERP on-premise
 - **CPU**: 2 cores
 - **RAM**: 4 GB
 - **Storage**: 20 GB free space
-- **OS**: 
+- **OS**:
   - Linux: Ubuntu 20.04+, Debian 11+, CentOS 8+, RHEL 8+
   - Windows: Windows 10/11, Windows Server 2019/2022
 
@@ -39,6 +39,7 @@ This guide provides step-by-step instructions for installing Aria ERP on-premise
 #### Linux
 
 **Ubuntu/Debian:**
+
 ```bash
 curl -fsSL https://get.docker.com -o get-docker.sh
 sudo sh get-docker.sh
@@ -46,6 +47,7 @@ sudo usermod -aG docker $USER
 ```
 
 **CentOS/RHEL:**
+
 ```bash
 sudo yum install -y yum-utils
 sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
@@ -61,6 +63,7 @@ Download and install Docker Desktop from: https://www.docker.com/products/docker
 ### 2. Extract Installation Package
 
 **Linux:**
+
 ```bash
 tar -xzf aria-erp-v0.1.0-linux.tar.gz
 cd aria-erp-v0.1.0
@@ -72,11 +75,13 @@ Extract the ZIP file and navigate to the extracted folder.
 ### 3. Load Docker Images
 
 **Linux:**
+
 ```bash
 sudo ./bin/load-images.sh
 ```
 
 **Windows (PowerShell as Administrator):**
+
 ```powershell
 .\bin\load-images.ps1
 ```
@@ -153,23 +158,27 @@ Run PowerShell as Administrator:
 ### Service Management
 
 **Start Service:**
+
 ```powershell
 Start-ScheduledTask -TaskName "AriaERP"
 ```
 
 **Stop Service:**
+
 ```powershell
 cd "C:\Program Files\AriaERP"
 docker compose down
 ```
 
 **Check Status:**
+
 ```powershell
 cd "C:\Program Files\AriaERP"
 docker compose ps
 ```
 
 **View Logs:**
+
 ```powershell
 cd "C:\Program Files\AriaERP"
 docker compose logs -f
@@ -182,16 +191,19 @@ docker compose logs -f
 Edit the `.env` file in the installation directory:
 
 **Linux:**
+
 ```bash
 sudo nano /opt/aria-erp/.env
 ```
 
 **Windows:**
+
 ```
 notepad "C:\Program Files\AriaERP\.env"
 ```
 
 Key configuration options:
+
 - `DOMAIN`: Your domain name
 - `POSTGRES_PASSWORD`: Database password (auto-generated, keep secure)
 - `LICENSED_MODULES`: Modules to enable
@@ -211,6 +223,7 @@ For production use, configure SSL certificates:
 **Using Let's Encrypt:**
 
 The system is pre-configured for Let's Encrypt. Ensure:
+
 - Your domain points to the server IP
 - Ports 80 and 443 are accessible from the internet
 
@@ -238,6 +251,7 @@ Replace `<server-ip>` with your actual server IP address or configured domain na
 ### Services won't start
 
 **Check Docker is running:**
+
 ```bash
 # Linux
 sudo systemctl status docker
@@ -247,6 +261,7 @@ docker version
 ```
 
 **Check logs:**
+
 ```bash
 # Linux
 sudo journalctl -u aria-erp -n 50
@@ -275,15 +290,17 @@ If ports 80 or 443 are in use:
 ### Module not loading
 
 1. Verify module is enabled in `.env`:
+
    ```
    LICENSED_MODULES=asset,crm,hrms,inventory
    ```
 
 2. Restart services:
+
    ```bash
    # Linux
    sudo systemctl restart aria-erp
-   
+
    # Windows
    docker compose down && docker compose --env-file .env up -d
    ```
@@ -291,6 +308,7 @@ If ports 80 or 443 are in use:
 ### Permission issues (Linux)
 
 Ensure proper ownership:
+
 ```bash
 sudo chown -R root:root /opt/aria-erp
 sudo chmod -R 755 /opt/aria-erp
@@ -307,6 +325,7 @@ sudo ./bin/uninstall-linux.sh
 ### Windows
 
 Run PowerShell as Administrator:
+
 ```powershell
 .\bin\uninstall-windows.ps1
 ```

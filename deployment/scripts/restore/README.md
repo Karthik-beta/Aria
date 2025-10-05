@@ -153,16 +153,19 @@ deployment/scripts/restore/
 ### Full System Recovery
 
 **Linux:**
+
 ```bash
 sudo bash deployment/scripts/restore/full-restore.sh
 ```
 
 **Windows (Administrator PowerShell):**
+
 ```powershell
 .\deployment\scripts\restore\full-restore.ps1
 ```
 
 The script will:
+
 1. Display available backups
 2. Let you select one interactively
 3. Verify backup integrity
@@ -173,11 +176,13 @@ The script will:
 ### Database Only Recovery
 
 **Linux:**
+
 ```bash
 sudo bash deployment/scripts/restore/restore-database.sh
 ```
 
 **Windows:**
+
 ```powershell
 .\deployment\scripts\restore\restore-database.ps1
 ```
@@ -185,11 +190,13 @@ sudo bash deployment/scripts/restore/restore-database.sh
 ### Configuration Only Recovery
 
 **Linux:**
+
 ```bash
 sudo bash deployment/scripts/restore/restore-config.sh
 ```
 
 **Windows:**
+
 ```powershell
 .\deployment\scripts\restore\restore-config.ps1
 ```
@@ -201,6 +208,7 @@ sudo bash deployment/scripts/restore/restore-config.sh
 Restores PostgreSQL database from backup files.
 
 **Features:**
+
 - Lists available backups with metadata
 - Interactive backup selection
 - Integrity verification (gzip/zip test)
@@ -211,6 +219,7 @@ Restores PostgreSQL database from backup files.
 - Automatic rollback on failure
 
 **Usage:**
+
 ```bash
 # Linux
 sudo bash restore-database.sh
@@ -222,6 +231,7 @@ sudo bash restore-database.sh
 **Key Functions:**
 
 Linux:
+
 - `list_backups()` - Find and display backups
 - `select_backup()` - Interactive selection UI
 - `verify_backup()` - Test gzip integrity
@@ -230,6 +240,7 @@ Linux:
 - `rollback_restoration()` - Revert on failure
 
 Windows:
+
 - `Get-AvailableBackups` - Find backups
 - `Select-Backup` - Interactive selection
 - `Test-BackupIntegrity` - ZIP validation
@@ -238,6 +249,7 @@ Windows:
 - `Invoke-Rollback` - Revert on failure
 
 **Exit Codes:**
+
 - `0` - Success
 - `1` - Error (check logs)
 - `2` - Verification failed
@@ -247,6 +259,7 @@ Windows:
 Restores system configuration files including `.env`, `docker-compose.yml`, and Traefik configuration.
 
 **Features:**
+
 - Backs up current configuration before restoration
 - Validates configuration files
 - Restores with proper file permissions
@@ -254,6 +267,7 @@ Restores system configuration files including `.env`, `docker-compose.yml`, and 
 - Rollback capability
 
 **Usage:**
+
 ```bash
 # Linux
 sudo bash restore-config.sh
@@ -263,6 +277,7 @@ sudo bash restore-config.sh
 ```
 
 **Restored Files:**
+
 - `.env` - Environment variables
 - `docker-compose.yml` - Service definitions
 - `config/traefik/*` - Traefik configuration
@@ -270,6 +285,7 @@ sudo bash restore-config.sh
 **Key Functions:**
 
 Linux:
+
 - `backup_current_config()` - Backup existing config
 - `validate_config()` - Check required vars
 - `restore_env_file()` - Restore with chmod 600
@@ -279,6 +295,7 @@ Linux:
 - `rollback_config()` - Revert on failure
 
 Windows:
+
 - `Backup-CurrentConfig` - Backup existing
 - `Test-ConfigValidity` - Validate structure
 - `Restore-EnvFile` - Restore with ACLs
@@ -288,6 +305,7 @@ Windows:
 - `Invoke-ConfigRollback` - Revert on failure
 
 **Exit Codes:**
+
 - `0` - Success
 - `1` - Validation/restoration failed
 
@@ -296,6 +314,7 @@ Windows:
 Orchestrates complete system restoration combining database and configuration recovery.
 
 **Features:**
+
 - Single-command full recovery
 - Comprehensive prerequisite checks
 - Interactive backup selection with metadata
@@ -307,6 +326,7 @@ Orchestrates complete system restoration combining database and configuration re
 - Automatic rollback on any failure
 
 **Usage:**
+
 ```bash
 # Linux
 sudo bash full-restore.sh
@@ -316,6 +336,7 @@ sudo bash full-restore.sh
 ```
 
 **Recovery Steps:**
+
 1. Check prerequisites (Docker, scripts, health check)
 2. Display available backups with metadata
 3. Interactive backup selection
@@ -332,6 +353,7 @@ sudo bash full-restore.sh
 **Key Functions:**
 
 Linux:
+
 - `check_prerequisites()` - Verify requirements
 - `select_backup()` - Interactive UI
 - `verify_backup()` - Integrity checks
@@ -344,6 +366,7 @@ Linux:
 - `rollback_recovery()` - Complete rollback
 
 Windows:
+
 - `Test-Prerequisites` - Verify requirements
 - `Select-Backup` - Interactive UI
 - `Test-BackupIntegrity` - Integrity checks
@@ -356,6 +379,7 @@ Windows:
 - `Invoke-RecoveryRollback` - Complete rollback
 
 **Exit Codes:**
+
 - `0` - Full recovery successful
 - `1` - Recovery failed (rollback offered)
 
@@ -364,11 +388,13 @@ Windows:
 ### Scenario 1: Database Corruption
 
 **Symptoms:**
+
 - Database connection errors
 - Data integrity issues
 - Application crashes on database queries
 
 **Solution:**
+
 ```bash
 # 1. Stop the application (optional, script does this)
 cd /opt/aria-erp
@@ -386,17 +412,20 @@ docker exec aria-database psql -U aria -d aria -c "\dt"
 ### Scenario 2: Configuration Issues
 
 **Symptoms:**
+
 - Services not starting
 - Environment variable errors
 - Traefik routing issues
 
 **Solution:**
+
 ```bash
 # Run configuration restoration
 sudo bash deployment/scripts/restore/restore-config.sh
 ```
 
 The script will:
+
 - Backup current configuration
 - Validate backup files
 - Restore all configuration files
@@ -407,17 +436,20 @@ The script will:
 ### Scenario 3: Complete System Failure
 
 **Symptoms:**
+
 - Multiple services down
 - Database and config issues
 - Application completely unavailable
 
 **Solution:**
+
 ```bash
 # Run full system recovery
 sudo bash deployment/scripts/restore/full-restore.sh
 ```
 
 This performs:
+
 - Complete database restoration
 - Full configuration recovery
 - Service orchestration
@@ -428,6 +460,7 @@ This performs:
 ### Scenario 4: Testing Backup Validity
 
 **Before Production Issues:**
+
 ```bash
 # 1. Create test restoration environment
 mkdir /tmp/aria-test-restore
@@ -449,6 +482,7 @@ curl http://localhost/health
 ### Scenario 5: Point-in-Time Recovery
 
 **Recovering to Specific Time:**
+
 ```bash
 # 1. List backups with timestamps
 ls -lh /opt/aria-erp/backups/
@@ -467,6 +501,7 @@ sudo bash deployment/scripts/restore/full-restore.sh
 ### Testing Recovery Scripts
 
 **1. Create Test Backup:**
+
 ```bash
 # Generate test backup
 cd deployment/scripts/backup
@@ -476,6 +511,7 @@ sudo bash backup-manager.sh
 ```
 
 **2. Test Database Restoration:**
+
 ```bash
 # Linux
 cd deployment/scripts/restore
@@ -490,6 +526,7 @@ docker exec aria-database psql -U aria -d aria -c "SELECT count(*) FROM users;"
 ```
 
 **3. Test Configuration Restoration:**
+
 ```bash
 # Modify a config file to test restoration
 echo "TEST_VAR=test" >> /opt/aria-erp/.env
@@ -502,6 +539,7 @@ grep TEST_VAR /opt/aria-erp/.env
 ```
 
 **4. Test Full System Recovery:**
+
 ```bash
 # Run full recovery
 sudo bash full-restore.sh
@@ -515,6 +553,7 @@ curl http://localhost/health
 ```
 
 **5. Test Rollback Mechanism:**
+
 ```bash
 # Simulate failure by providing invalid backup
 # Script should offer rollback
@@ -526,6 +565,7 @@ curl http://localhost/health
 ### Automated Testing
 
 Create test script (`test-recovery.sh`):
+
 ```bash
 #!/bin/bash
 
@@ -590,11 +630,13 @@ Before production use:
 #### 1. "Docker is not running"
 
 **Error:**
+
 ```
 [ERROR] Docker daemon is not running
 ```
 
 **Solution:**
+
 ```bash
 # Linux
 sudo systemctl start docker
@@ -606,11 +648,13 @@ sudo systemctl start docker
 #### 2. "No backups found"
 
 **Error:**
+
 ```
 [ERROR] No backups found
 ```
 
 **Solution:**
+
 ```bash
 # Check backup locations
 ls -lh /opt/aria-erp/backups/
@@ -625,11 +669,13 @@ sudo bash backup-manager.sh
 #### 3. "Database backup is corrupted"
 
 **Error:**
+
 ```
 [ERROR] Database backup is corrupted
 ```
 
 **Solution:**
+
 ```bash
 # Test backup integrity manually
 gzip -t /path/to/database.sql.gz
@@ -641,11 +687,13 @@ gzip -t /path/to/database.sql.gz
 #### 4. "Permission denied"
 
 **Error:**
+
 ```
 [ERROR] Permission denied when accessing backup
 ```
 
 **Solution:**
+
 ```bash
 # Ensure running as root
 sudo -i
@@ -660,11 +708,13 @@ chmod 600 /path/to/backup/.env
 #### 5. "Services won't start after restoration"
 
 **Error:**
+
 ```
 [ERROR] Failed to start services
 ```
 
 **Solution:**
+
 ```bash
 # Check Docker logs
 docker-compose logs
@@ -683,11 +733,13 @@ docker-compose up -d
 #### 6. "Database connection failed"
 
 **Error:**
+
 ```
 [ERROR] Could not connect to database
 ```
 
 **Solution:**
+
 ```bash
 # Check database container
 docker ps | grep aria-database
@@ -706,11 +758,13 @@ docker exec aria-database psql -U aria -d aria -c "SELECT 1;"
 #### 7. "Health check failed after recovery"
 
 **Error:**
+
 ```
 [WARN] System health check failed
 ```
 
 **Solution:**
+
 ```bash
 # Check individual services
 curl http://localhost/health
@@ -730,6 +784,7 @@ sleep 30 && bash deployment/scripts/monitoring/health-check.sh
 **Enable verbose logging:**
 
 Linux:
+
 ```bash
 # Add to script
 set -x  # Enable debug mode
@@ -739,6 +794,7 @@ bash -x restore-database.sh
 ```
 
 Windows:
+
 ```powershell
 # Add to script
 $VerbosePreference = "Continue"
@@ -753,14 +809,17 @@ $DebugPreference = "Continue"
 Recovery operations log to:
 
 **Linux:**
+
 - Console output (stdout/stderr)
 - System logs: `/var/log/syslog`
 
 **Windows:**
+
 - Console output
 - Event Viewer: Application logs
 
 **Capture logs:**
+
 ```bash
 # Linux
 sudo bash full-restore.sh 2>&1 | tee recovery-$(date +%Y%m%d_%H%M%S).log
@@ -774,6 +833,7 @@ sudo bash full-restore.sh 2>&1 | tee recovery-$(date +%Y%m%d_%H%M%S).log
 ### File Permissions
 
 **Linux:**
+
 ```bash
 # Environment file (sensitive credentials)
 chmod 600 /opt/aria-erp/.env
@@ -786,6 +846,7 @@ chmod 700 deployment/scripts/restore/*.sh
 ```
 
 **Windows:**
+
 ```powershell
 # Environment file ACLs
 icacls "C:\ProgramData\Aria-ERP\.env" /inheritance:r /grant:r "SYSTEM:(F)" "Administrators:(F)"
@@ -797,6 +858,7 @@ icacls "C:\ProgramData\Aria-ERP\backups" /inheritance:r /grant:r "SYSTEM:(F)" "A
 ### Backup Encryption
 
 **Encrypt backups at rest:**
+
 ```bash
 # Linux (using GPG)
 gpg --symmetric --cipher-algo AES256 database.sql
@@ -806,6 +868,7 @@ gpg --symmetric --cipher-algo AES256 database.sql
 ```
 
 **Decrypt before restoration:**
+
 ```bash
 # Linux
 gpg --decrypt database.sql.gpg > database.sql
@@ -828,18 +891,20 @@ Scripts automatically create pre-recovery snapshots:
 **Windows:** `%TEMP%\aria-pre-recovery-YYYYMMDD_HHMMSS\`
 
 **Retention:**
+
 - Kept for 7 days by default
 - Contains full database and configuration snapshot
 - Used for emergency rollback
 
 **Manual cleanup:**
+
 ```bash
 # Linux
 find /tmp -name "aria-pre-recovery-*" -mtime +7 -exec rm -rf {} \;
 
 # Windows
-Get-ChildItem $env:TEMP -Directory -Filter "aria-pre-recovery-*" | 
-    Where-Object { $_.CreationTime -lt (Get-Date).AddDays(-7) } | 
+Get-ChildItem $env:TEMP -Directory -Filter "aria-pre-recovery-*" |
+    Where-Object { $_.CreationTime -lt (Get-Date).AddDays(-7) } |
     Remove-Item -Recurse -Force
 ```
 
@@ -869,6 +934,7 @@ deployment/scripts/
 ```
 
 **Workflow:**
+
 1. Backup system creates backups (Phase 1)
 2. Health monitoring detects issues (Phase 2)
 3. Recovery system restores from backups (Phase 3)
@@ -888,6 +954,7 @@ bash deployment/scripts/monitoring/health-check.sh
 ```
 
 **Automated Health Verification:**
+
 - Full restore script calls health check automatically
 - Rollback triggered if health check fails
 - Integration ensures recovered system is functional
@@ -895,6 +962,7 @@ bash deployment/scripts/monitoring/health-check.sh
 ### CI/CD Integration
 
 **GitLab CI Example:**
+
 ```yaml
 disaster_recovery_test:
   stage: test
@@ -910,11 +978,12 @@ disaster_recovery_test:
 ```
 
 **GitHub Actions Example:**
+
 ```yaml
 name: Disaster Recovery Test
 on:
   schedule:
-    - cron: '0 2 * * 0'  # Weekly
+    - cron: '0 2 * * 0' # Weekly
 jobs:
   recovery-test:
     runs-on: ubuntu-latest
@@ -931,6 +1000,7 @@ jobs:
 ### Monitoring Integration
 
 **Prometheus Metrics:**
+
 ```yaml
 # Add to monitoring
 - job_name: 'aria_recovery'
@@ -940,6 +1010,7 @@ jobs:
 ```
 
 **Metrics to track:**
+
 - `aria_recovery_duration_seconds` - Recovery time
 - `aria_recovery_success_total` - Successful recoveries
 - `aria_recovery_failure_total` - Failed recoveries
@@ -948,6 +1019,7 @@ jobs:
 ### Alerting Integration
 
 **Alert on old backups:**
+
 ```yaml
 groups:
   - name: aria_recovery
@@ -955,7 +1027,7 @@ groups:
       - alert: BackupTooOld
         expr: aria_backup_age_seconds > 86400
         annotations:
-          summary: "Aria ERP backup is over 24 hours old"
+          summary: 'Aria ERP backup is over 24 hours old'
 ```
 
 ## Best Practices
