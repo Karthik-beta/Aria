@@ -17,7 +17,17 @@ Welcome to the Aria ERP documentation hub. This guide will help you find the rig
 
 - **[Contributing Guide](../CONTRIBUTING.md)** - How to contribute code and documentation
 - **[Architecture Guide](./architecture.md)** - System design and technical overview
+- **[API Documentation](./API.md)** - REST API reference and endpoints
 - **[Development Agents](../AGENTS.md)** - Development philosophy and best practices
+- **[Code of Conduct](../CODE_OF_CONDUCT.md)** - Community standards
+
+### Project Management
+
+**Planning and releases:**
+
+- **[Roadmap](../ROADMAP.md)** - Future plans and milestones
+- **[Changelog](../CHANGELOG.md)** - Version history and release notes
+- **[Support](../SUPPORT.md)** - Get help and support resources
 
 ### Deployment & Operations
 
