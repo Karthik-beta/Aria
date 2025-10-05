@@ -296,6 +296,26 @@ pnpm --filter backend build
 pnpm --filter asset build
 ```
 
+### How do I manage logs in production?
+
+Aria ERP includes automatic log rotation and retention policies:
+
+- **Docker logs**: Automatically rotated when they reach 10MB (configurable)
+- **Application logs**: Managed by rotation scripts (Linux/Windows)
+- **Default retention**: 30 days (configurable)
+- **Compression**: Enabled by default to save disk space
+
+See the [Log Management Guide](./deployment/docs/LOG_MANAGEMENT.md) for complete details.
+
+**Quick commands:**
+```bash
+# Linux
+bash deployment/scripts/rotate-logs-linux.sh
+
+# Windows
+.\deployment\scripts\rotate-logs-windows.ps1
+```
+
 ## 🔥 Troubleshooting
 
 ### My editor shows TypeScript errors but the code runs fine

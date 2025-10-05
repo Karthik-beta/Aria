@@ -105,6 +105,7 @@ Before opening a pull request:
 - **[Deployment Guide](./deployment/README.md)** — On-premise installation
 - **[Installation Guide](./deployment/docs/INSTALLATION.md)** — Detailed setup instructions
 - **[Configuration Reference](./deployment/docs/CONFIGURATION.md)** — Environment and settings
+- **[Log Management Guide](./deployment/docs/LOG_MANAGEMENT.md)** — Log rotation and retention
 - **[Troubleshooting Guide](./deployment/docs/TROUBLESHOOTING.md)** — Common issues and solutions
 
 ### Security
