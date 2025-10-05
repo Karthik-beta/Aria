@@ -92,6 +92,8 @@ function Remove-Installation {
     Write-Info "Installation directory removed."
 }
 
+# Docker engine and Docker Desktop are intentionally NOT removed by this script.
+
 function Uninstall-AriaERP {
     Write-Info "Starting Aria ERP uninstallation..."
     
@@ -105,6 +107,8 @@ function Uninstall-AriaERP {
     Remove-AriaService
     Remove-Installation
     
+    # Docker Desktop and host Docker data are preserved by design.
+
     Write-Info "Aria ERP has been completely removed."
 }
 

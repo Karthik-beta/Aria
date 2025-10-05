@@ -35,7 +35,7 @@ check_root() {
 }
 
 confirm_uninstall() {
-    log_warn "This will remove Aria ERP and all associated data."
+    log_warn "This will remove Aria ERP and all associated data (application files, containers, volumes created by Aria). Docker engine will NOT be removed."
     read -p "Are you sure you want to continue? (yes/no): " -r
     echo
     if [[ ! $REPLY =~ ^[Yy][Ee][Ss]$ ]]; then
@@ -43,6 +43,8 @@ confirm_uninstall() {
         exit 0
     fi
 }
+
+# No command-line flags are supported for destructive Docker removal. Docker engine is preserved.
 
 stop_service() {
     log_info "Stopping Aria ERP service..."
@@ -80,6 +82,8 @@ remove_service() {
     log_info "Service removed."
 }
 
+# Docker engine removal intentionally omitted. The system Docker installation is not modified by this script.
+
 remove_installation() {
     log_info "Removing installation directory..."
     
@@ -99,6 +103,8 @@ main() {
     remove_containers
     remove_service
     remove_installation
+    
+    # Docker engine and host-wide Docker data are left intact by design.
     
     log_info "Aria ERP has been completely removed."
 }

@@ -39,23 +39,89 @@ check_root() {
     fi
 }
 
+# Attempt to install Docker automatically using the official convenience script
+install_docker() {
+    log_info "Docker not found. Attempting automated installation using the official Docker convenience script..."
+
+    if ! command -v curl &> /dev/null; then
+        log_error "curl is required to install Docker automatically. Please install curl or install Docker manually."
+        return 1
+    fi
+
+    if curl -fsSL https://get.docker.com -o /tmp/get-docker.sh; then
+        sh /tmp/get-docker.sh
+        rm -f /tmp/get-docker.sh
+    else
+        log_error "Failed to download Docker install script. Please install Docker manually: https://docs.docker.com/engine/install/"
+        return 1
+    fi
+
+    if command -v systemctl &> /dev/null; then
+        systemctl enable docker || true
+        systemctl start docker || true
+    fi
+
+    if ! command -v docker &> /dev/null; then
+        log_error "Docker install attempted but 'docker' command not found. Install Docker manually."
+        return 1
+    fi
+
+    log_info "Docker installed successfully."
+    return 0
+}
+
+# Attempt to ensure Docker Compose is available (plugin or binary)
+install_docker_compose() {
+    log_info "Checking Docker Compose availability..."
+
+    if docker compose version &> /dev/null; then
+        log_info "Docker Compose (v2) is already available via 'docker compose'."
+        return 0
+    fi
+
+    log_info "Attempting to install Docker Compose plugin/package..."
+
+    if command -v apt-get &> /dev/null; then
+        apt-get update
+        apt-get install -y docker-compose-plugin || true
+    elif command -v dnf &> /dev/null; then
+        dnf install -y docker-compose-plugin || true
+    elif command -v yum &> /dev/null; then
+        yum install -y docker-compose-plugin || true
+    fi
+
+    if docker compose version &> /dev/null; then
+        log_info "Docker Compose installed successfully."
+        return 0
+    fi
+
+    log_warn "Docker Compose not available. You can still use the 'docker-compose' binary or install the compose plugin manually: https://docs.docker.com/compose/install/"
+    return 1
+}
+
 check_dependencies() {
     log_info "Checking dependencies..."
     
     local missing_deps=()
     
     if ! command -v docker &> /dev/null; then
-        missing_deps+=("docker")
+        # Try to install Docker automatically; if it fails, mark as missing
+        if ! install_docker; then
+            missing_deps+=("docker")
+        fi
     fi
     
     if ! command -v docker-compose &> /dev/null && ! docker compose version &> /dev/null; then
-        missing_deps+=("docker-compose")
+        # Try to install compose plugin/binary
+        if ! install_docker_compose; then
+            missing_deps+=("docker-compose")
+        fi
     fi
     
     if [ ${#missing_deps[@]} -ne 0 ]; then
         log_error "Missing required dependencies: ${missing_deps[*]}"
-        log_info "Please install Docker and Docker Compose first."
-        log_info "Visit: https://docs.docker.com/engine/install/"
+        log_info "Please install the missing dependencies manually or ensure the installer has network access."
+        log_info "Docker docs: https://docs.docker.com/"
         exit 1
     fi
     

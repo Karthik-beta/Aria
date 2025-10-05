@@ -59,9 +59,19 @@ function Test-Dependencies {
     
     $dockerInstalled = Get-Command docker -ErrorAction SilentlyContinue
     if (-not $dockerInstalled) {
-        Write-Error "Docker is not installed. Please install Docker Desktop for Windows."
-        Write-Info "Download from: https://www.docker.com/products/docker-desktop"
-        exit 1
+        Write-Warn "Docker is not installed. Attempting automated install of Docker Desktop..."
+        if (-not (Install-DockerDesktop)) {
+            Write-Error "Docker is not installed and automated installation failed. Please install Docker Desktop for Windows manually."
+            Write-Info "Download from: https://www.docker.com/products/docker-desktop"
+            exit 1
+        }
+        # Refresh command discovery
+        Start-Sleep -Seconds 3
+        $dockerInstalled = Get-Command docker -ErrorAction SilentlyContinue
+        if (-not $dockerInstalled) {
+            Write-Error "Docker installation completed but 'docker' command not found in PATH. Please start Docker Desktop or log out/log in."
+            exit 1
+        }
     }
     
     # Check if Docker is running
@@ -235,3 +245,34 @@ function Install-AriaERP {
 
 # Run installation
 Install-AriaERP
+
+
+# Attempt to install Docker Desktop using winget or Chocolatey
+function Install-DockerDesktop {
+    Write-Info "Trying to install Docker Desktop via winget or Chocolatey. This requires internet access and admin rights."
+
+    # Try winget first
+    if (Get-Command winget -ErrorAction SilentlyContinue) {
+        try {
+            winget install --id Docker.DockerDesktop -e --silent
+            Write-Info "Triggered winget install for Docker Desktop."
+            return $true
+        } catch {
+            Write-Warn "winget installation failed or not available for Docker Desktop."
+        }
+    }
+
+    # Try Chocolatey as a fallback
+    if (Get-Command choco -ErrorAction SilentlyContinue) {
+        try {
+            choco install docker-desktop -y
+            Write-Info "Triggered Chocolatey install for Docker Desktop."
+            return $true
+        } catch {
+            Write-Warn "Chocolatey installation failed."
+        }
+    }
+
+    Write-Warn "Automated Docker Desktop install tools not available or install failed."
+    return $false
+}
