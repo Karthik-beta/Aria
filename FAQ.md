@@ -310,7 +310,7 @@ See the [Log Management Guide](./deployment/docs/LOG_MANAGEMENT.md) for complete
 **Quick commands:**
 ```bash
 # Linux
-bash deployment/scripts/rotate-logs-linux.sh
+bash deployment/scripts/maintenance/linux/rotate-logs.sh
 
 # Windows
 .\deployment\scripts\rotate-logs-windows.ps1

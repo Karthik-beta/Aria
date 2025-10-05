@@ -1,86 +1,126 @@
 # Deployment Scripts
 
-This directory contains scripts for managing Aria ERP deployment, including installation, backup, monitoring, and log management.
+This directory contains scripts for managing Aria ERP deployment, organized by purpose and platform for improved maintainability.
 
-## Log Rotation Scripts
+## Directory Structure
 
-### rotate-logs-linux.sh
+```
+deployment/scripts/
+├── build/              # Package building and distribution
+│   ├── linux/          # Linux build scripts
+│   └── windows/        # Windows build scripts
+├── install/            # Installation and uninstallation
+│   ├── linux/          # Linux install/uninstall scripts
+│   └── windows/        # Windows install/uninstall scripts
+├── security/           # Security-related operations
+│   ├── linux/          # Linux security scripts
+│   └── windows/        # Windows security scripts
+├── maintenance/        # Ongoing maintenance tasks
+│   ├── linux/          # Linux maintenance scripts
+│   └── windows/        # Windows maintenance scripts
+├── testing/            # Testing and validation
+│   ├── linux/          # Linux test scripts
+│   └── windows/        # Windows test scripts
+├── backup/             # Automated backup management
+├── monitoring/         # Health checks and monitoring
+└── restore/            # Disaster recovery operations
+```
+
+## Build Scripts (`build/`)
+
+Scripts for creating deployment packages.
+
+- **Linux**: `build/linux/build-package.sh`
+- **Windows**: `build/windows/build-package.ps1`
+
+## Installation Scripts (`install/`)
+
+Scripts for installing and uninstalling Aria ERP.
+
+### Linux Installation
+- **Install**: `install/linux/install.sh`
+- **Uninstall**: `install/linux/uninstall.sh`
+
+### Windows Installation
+- **Install**: `install/windows/install.ps1`
+- **Uninstall**: `install/windows/uninstall.ps1`
+
+## Security Scripts (`security/`)
+
+Scripts for security-related operations like SSL certificate generation.
+
+### Linux
+```bash
+sudo bash security/linux/generate-ssl-cert.sh
+```
+
+### Windows
+```powershell
+.\security\windows\generate-ssl-cert.ps1
+```
+
+## Maintenance Scripts (`maintenance/`)
+
+Scripts for ongoing system maintenance tasks.
+
+### Log Rotation
+
+**Linux**: `maintenance/linux/rotate-logs.sh`
 
 **Purpose**: Rotates and cleans up application log files on Linux systems.
 
 **Usage**:
 ```bash
 # Use default settings (30-day retention, compression enabled)
-bash rotate-logs-linux.sh
+bash maintenance/linux/rotate-logs.sh
 
 # Custom retention period
-LOG_RETENTION_DAYS=60 bash rotate-logs-linux.sh
+LOG_RETENTION_DAYS=60 bash maintenance/linux/rotate-logs.sh
 
 # Disable compression
-LOG_COMPRESS_ENABLED=false bash rotate-logs-linux.sh
+LOG_COMPRESS_ENABLED=false bash maintenance/linux/rotate-logs.sh
 ```
 
 **Environment Variables**:
 - `LOG_RETENTION_DAYS`: Number of days to keep logs (default: 30)
 - `LOG_COMPRESS_ENABLED`: Enable gzip compression (default: true)
 
-**What it does**:
-1. Rotates Traefik access logs when they exceed 100MB
-2. Rotates backend application logs when they exceed 50MB
-3. Checks PostgreSQL logs (PostgreSQL handles its own rotation)
-4. Deletes log files older than the retention period
-5. Compresses rotated logs to save disk space
-
 **Scheduling**:
 Add to crontab to run daily at 2 AM:
 ```bash
-0 2 * * * /opt/aria-erp/scripts/rotate-logs-linux.sh
+0 2 * * * /opt/aria-erp/scripts/maintenance/linux/rotate-logs.sh
 ```
 
-### rotate-logs-windows.ps1
+**Windows**: `maintenance/windows/rotate-logs.ps1`
 
 **Purpose**: Rotates and cleans up application log files on Windows systems.
 
 **Usage**:
 ```powershell
 # Use default settings (30-day retention, compression enabled)
-.\rotate-logs-windows.ps1
+.\maintenance\windows\rotate-logs.ps1
 
 # Custom retention period
-.\rotate-logs-windows.ps1 -RetentionDays 60
+.\maintenance\windows\rotate-logs.ps1 -RetentionDays 60
 
 # Disable compression
-.\rotate-logs-windows.ps1 -CompressLogs $false
+.\maintenance\windows\rotate-logs.ps1 -CompressLogs $false
 ```
-
-**Parameters**:
-- `-RetentionDays`: Number of days to keep logs (default: 30)
-- `-CompressLogs`: Enable ZIP compression (default: true)
-
-**What it does**:
-1. Rotates Traefik access logs when they exceed 100MB
-2. Rotates backend application logs when they exceed 50MB
-3. Checks PostgreSQL logs (PostgreSQL handles its own rotation)
-4. Deletes log files older than the retention period
-5. Compresses rotated logs to save disk space
 
 **Scheduling**:
 Create a scheduled task to run daily at 2 AM:
 ```powershell
-$Action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-ExecutionPolicy Bypass -File C:\aria-erp\scripts\rotate-logs-windows.ps1"
+$Action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-ExecutionPolicy Bypass -File C:\aria-erp\scripts\maintenance\windows\rotate-logs.ps1"
 $Trigger = New-ScheduledTaskTrigger -Daily -At 2:00AM
 Register-ScheduledTask -TaskName "Aria ERP Log Rotation" -Action $Action -Trigger $Trigger
 ```
 
-## Installation Scripts
+## Testing Scripts (`testing/`)
 
-### install-linux.sh
+Scripts for testing and validating the deployment package.
 
-Automated installation script for Linux systems (Ubuntu, CentOS, RHEL).
-
-### install-windows.ps1
-
-Automated installation script for Windows Server 2019+.
+- **Linux**: `testing/linux/test-package.sh`, `testing/linux/validate-scripts.sh`
+- **Windows**: `testing/windows/test-package.ps1`, `testing/windows/validate-scripts.ps1`
 
 ## Backup Scripts
 
@@ -106,7 +146,8 @@ See [Restore Documentation](restore/README.md) for details.
 
 **Linux - Permission Denied**:
 ```bash
-chmod +x /opt/aria-erp/scripts/*.sh
+chmod +x /opt/aria-erp/scripts/*/linux/*.sh
+chmod +x /opt/aria-erp/scripts/{backup,monitoring,restore}/*.sh
 ```
 
 **Windows - Execution Policy**:
@@ -130,10 +171,10 @@ cd C:\aria-erp
 1. Check if the script runs without errors:
    ```bash
    # Linux
-   bash -x scripts/rotate-logs-linux.sh
+   bash -x scripts/maintenance/linux/rotate-logs.sh
    
    # Windows
-   .\scripts\rotate-logs-windows.ps1 -Verbose
+   .\scripts\maintenance\windows\rotate-logs.ps1 -Verbose
    ```
 
 2. Verify log directory exists:

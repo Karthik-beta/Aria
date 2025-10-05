@@ -382,7 +382,7 @@ ENABLE_INVENTORY=true
 **Linux:**
 ```bash
 cd /opt/aria-erp
-sudo bash deployment/scripts/generate-ssl-cert-linux.sh
+sudo bash deployment/scripts/security/linux/generate-ssl-cert.sh
 ```
 
 **Windows:**

@@ -179,7 +179,7 @@ Keep documentation in sync with code changes.
 - Creates scheduled task for auto-start
 - Starts services
 
-**Note**: The build script (`deployment/scripts/build-package.sh`) copies scripts from `deployment/scripts/` into `bin/` in the packaged distribution.
+**Note**: The build script (`deployment/scripts/build/linux/build-package.sh`) copies installation scripts from `deployment/scripts/install/` into `bin/` in the packaged distribution.
 
 ### Docker Compose Template
 
@@ -223,7 +223,7 @@ df -h
 **Package script fails:**
 ```bash
 # Run with verbose output
-bash -x deployment/scripts/build-package.sh
+bash -x deployment/scripts/build/linux/build-package.sh
 ```
 
 ### Test Failures
@@ -231,7 +231,7 @@ bash -x deployment/scripts/build-package.sh
 **Script syntax errors:**
 ```bash
 # Check specific script
-bash -n deployment/scripts/install-linux.sh
+bash -n deployment/scripts/install/linux/install.sh
 
 # Check with shellcheck (if installed)
 shellcheck deployment/scripts/*.sh

@@ -147,10 +147,10 @@ function New-PackageStructure {
     New-Item -ItemType Directory -Path "$pkgDir\docs" -Force | Out-Null
     
     # Copy installation scripts
-    Copy-Item "$ROOT_DIR\deployment\scripts\install-linux.sh" "$pkgDir\bin\" -Force
-    Copy-Item "$ROOT_DIR\deployment\scripts\install-windows.ps1" "$pkgDir\bin\" -Force
-    Copy-Item "$ROOT_DIR\deployment\scripts\uninstall-linux.sh" "$pkgDir\bin\" -Force
-    Copy-Item "$ROOT_DIR\deployment\scripts\uninstall-windows.ps1" "$pkgDir\bin\" -Force
+    Copy-Item "$ROOT_DIR\deployment\scripts\install\linux\install.sh" "$pkgDir\bin\" -Force
+    Copy-Item "$ROOT_DIR\deployment\scripts\install\windows\install.ps1" "$pkgDir\bin\" -Force
+    Copy-Item "$ROOT_DIR\deployment\scripts\install\linux\uninstall.sh" "$pkgDir\bin\" -Force
+    Copy-Item "$ROOT_DIR\deployment\scripts\install\windows\uninstall.ps1" "$pkgDir\bin\" -Force
     
     # Copy Docker Compose template
     Copy-Item "$ROOT_DIR\deployment\templates\docker-compose.production.yml" "$pkgDir\docker-compose.production.yml" -Force

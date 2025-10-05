@@ -87,7 +87,7 @@ Logs stored in: `./logs/traefik/`
 ### 4. Log Rotation Scripts
 
 #### Linux Script
-**File**: `deployment/scripts/rotate-logs-linux.sh`
+**File**: `deployment/scripts/maintenance/linux/rotate-logs.sh`
 
 Features:
 - Bash script with colored output
@@ -108,7 +108,7 @@ LOG_RETENTION_DAYS=60 bash rotate-logs-linux.sh
 ```
 
 #### Windows Script
-**File**: `deployment/scripts/rotate-logs-windows.ps1`
+**File**: `deployment/scripts/maintenance/windows/rotate-logs.ps1`
 
 Features:
 - PowerShell script with parameters
@@ -283,8 +283,8 @@ These can be tested after deployment to a test environment.
 
 ## Files Created
 
-1. `deployment/scripts/rotate-logs-linux.sh` - Linux rotation script
-2. `deployment/scripts/rotate-logs-windows.ps1` - Windows rotation script
+1. `deployment/scripts/maintenance/linux/rotate-logs.sh` - Linux rotation script
+2. `deployment/scripts/maintenance/windows/rotate-logs.ps1` - Windows rotation script
 3. `deployment/docs/LOG_MANAGEMENT.md` - Comprehensive documentation
 4. `deployment/scripts/README.md` - Scripts documentation
 5. `deployment/templates/.env.example` - Configuration template

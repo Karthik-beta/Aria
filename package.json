@@ -9,8 +9,8 @@
     "dev": "turbo run dev",
     "lint": "turbo run lint",
     "test": "turbo run test",
-    "package": "pwsh -File deployment/scripts/build-package.ps1",
-    "package:test": "pwsh -File deployment/scripts/test-package.ps1"
+    "package": "pwsh -File deployment/scripts/build/windows/build-package.ps1",
+    "package:test": "pwsh -File deployment/scripts/testing/windows/test-package.ps1"
   },
   "devDependencies": {
     "eslint-config-prettier": "^10.1.8",

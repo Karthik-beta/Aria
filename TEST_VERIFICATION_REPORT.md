@@ -30,7 +30,7 @@ The current deployment (v0.1.0) provides only basic infrastructure:
 ## Verification Results
 
 ### 1. Script Validation ✅ PASSED
-**Tool**: `deployment/scripts/validate-bash-scripts.ps1`  
+**Tool**: `deployment/scripts/testing/windows/validate-scripts.ps1`  
 **Results**: 26/26 tests passed
 
 ```
