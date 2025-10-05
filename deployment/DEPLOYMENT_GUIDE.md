@@ -1086,6 +1086,8 @@ docker exec aria-database pg_dump -U aria aria > backup-$(date +%Y%m%d).sql
 
 ### Log Management
 
+> **📘 See [Log Management Guide](docs/LOG_MANAGEMENT.md)** for complete documentation on log rotation, retention policies, and troubleshooting.
+
 **View Container Logs:**
 ```bash
 # All containers
@@ -1098,14 +1100,31 @@ docker logs --since 1h aria-backend
 docker logs aria-backend > backend-logs.txt
 ```
 
-**Clear Logs:**
+**Log Rotation:**
+```bash
+# Linux - Run manually or via cron
+bash scripts/rotate-logs-linux.sh
+
+# Windows - Run manually or via Task Scheduler
+.\scripts\rotate-logs-windows.ps1
+```
+
+**Check Log Disk Usage:**
 ```bash
 # Linux
-sudo truncate -s 0 $(docker inspect --format='{{.LogPath}}' aria-backend)
+du -sh /opt/aria-erp/logs
 
 # Windows
-docker-compose down
-docker-compose up -d
+Get-ChildItem -Path "C:\aria-erp\logs" -Recurse | Measure-Object -Property Length -Sum
+```
+
+**Log Configuration:**
+Edit `.env` to adjust log rotation settings:
+```bash
+LOG_MAX_SIZE=10m          # Max size per Docker log file
+LOG_MAX_FILES=3           # Number of rotated files to keep
+LOG_RETENTION_DAYS=30     # Days to retain application logs
+LOG_COMPRESS_ENABLED=true # Compress rotated logs
 ```
 
 ### Performance Monitoring
@@ -1224,19 +1243,28 @@ bash deployment/scripts/restore/full-restore.sh
 docker-compose logs -f aria-backend
 ```
 
+**Rotate Logs:**
+```bash
+# Linux
+bash scripts/rotate-logs-linux.sh
+
+# Windows
+.\scripts\rotate-logs-windows.ps1
+```
+
 ### Default Locations
 
 **Linux:**
 - Installation: `/opt/aria-erp`
 - Backups: `/opt/aria-erp/backups`
-- Logs: `/var/log/aria-erp`
+- Logs: `/opt/aria-erp/logs`
 - Configuration: `/opt/aria-erp/.env`
 
 **Windows:**
-- Installation: `C:\ProgramData\Aria-ERP`
-- Backups: `C:\ProgramData\Aria-ERP\backups`
-- Logs: Windows Event Viewer
-- Configuration: `C:\ProgramData\Aria-ERP\.env`
+- Installation: `C:\aria-erp`
+- Backups: `C:\aria-erp\backups`
+- Logs: `C:\aria-erp\logs`
+- Configuration: `C:\aria-erp\.env`
 
 ### Port Reference
 

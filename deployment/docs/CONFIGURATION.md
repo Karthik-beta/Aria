@@ -34,6 +34,17 @@ All configuration is managed through the `.env` file in the installation directo
 
 **Security Note**: Always change the default database password before deploying to production.
 
+### Log Management Settings
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `LOG_MAX_SIZE` | `10m` | Maximum size of Docker container logs before rotation |
+| `LOG_MAX_FILES` | `3` | Number of rotated log files to keep per container |
+| `LOG_RETENTION_DAYS` | `30` | Days to retain application log files |
+| `LOG_COMPRESS_ENABLED` | `true` | Enable compression of rotated log files |
+
+**See**: [Log Management Guide](LOG_MANAGEMENT.md) for complete log rotation and retention documentation.
+
 ### Module Licensing
 
 | Variable | Default | Description |
