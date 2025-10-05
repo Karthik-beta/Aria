@@ -83,6 +83,14 @@ See [Getting Started Guide](./docs/getting-started.md) for detailed instructions
 
 **Complete documentation**: [docs/README.md](./docs/README.md)
 
+## Project Resources
+
+- **[Roadmap](./ROADMAP.md)** - Future plans and milestones
+- **[Changelog](./CHANGELOG.md)** - Version history and release notes
+- **[API Documentation](./docs/API.md)** - REST API reference
+- **[Support](./SUPPORT.md)** - Get help and support
+- **[Code of Conduct](./CODE_OF_CONDUCT.md)** - Community standards
+
 ## Contributing
 
 We welcome contributions! Please read our [Contributing Guide](./CONTRIBUTING.md) before submitting pull requests.
@@ -101,4 +109,4 @@ Report security vulnerabilities following our [Security Policy](./SECURITY.md).
 
 ## License
 
-Proprietary – All rights reserved.
+MIT License - see [LICENSE](./LICENSE) file for details.
