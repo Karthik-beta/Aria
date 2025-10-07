@@ -1,4 +1,5 @@
-/* Import shared UI styles from @aria/ui package */
+@import 'tailwindcss';
+@import 'tw-animate-css';
 @import '@aria/ui/styles.css';
 
 /* App-specific customizations can go here */

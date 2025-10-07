@@ -1,5 +1,5 @@
-@import 'tailwindcss';
-@import 'tw-animate-css';
+/* Shared theme variables for all Aria apps */
+/* Note: Import Tailwind CSS in your app's globals.css, not here */
 
 :root {
   --background: hsl(0 0% 100%);
