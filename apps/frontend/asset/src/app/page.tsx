@@ -1,53 +1,91 @@
+import { Button } from '@aria/ui';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@aria/ui';
+import { Input } from '@aria/ui';
+import { Label } from '@aria/ui';
+
 export default function Home() {
   return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-center sm:text-left">
-          Welcome to{' '}
-          <span className="text-[#CC785C]">
-            Assets
-            <span className="text-sm sm:text-base font-medium text-center sm:text-left text-[#c4c9ce]">
-              by Pivotr
+    <div className="min-h-screen p-8 pb-20 gap-16 sm:p-20">
+      <main className="max-w-4xl mx-auto space-y-8">
+        <div className="text-center space-y-4">
+          <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight">
+            Welcome to{' '}
+            <span className="text-primary">
+              Aria ERP
+              <span className="text-sm sm:text-base font-medium block text-muted-foreground">
+                Asset Management System
+              </span>
             </span>
-          </span>
-        </h1>
-        <img className="dark:invert" src="next.svg" alt="Next.js logo" width={180} height={38} />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{' '}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">Save and see your changes instantly.</li>
-        </ol>
-
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <img
-              className="dark:invert"
-              src="vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+          </h1>
+          <p className="text-muted-foreground text-lg">Powered by Shadcn UI & Tailwind CSS v4</p>
         </div>
+
+        <div className="grid gap-6 md:grid-cols-2">
+          <Card>
+            <CardHeader>
+              <CardTitle>Components Demo</CardTitle>
+              <CardDescription>
+                Explore the shared UI components from @aria/ui package
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input id="email" type="email" placeholder="Enter your email" />
+              </div>
+              <div className="flex gap-2">
+                <Button>Primary Button</Button>
+                <Button variant="secondary">Secondary</Button>
+                <Button variant="outline">Outline</Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Monorepo Architecture</CardTitle>
+              <CardDescription>Shared components across all frontend apps</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <p className="text-sm text-muted-foreground">
+                This monorepo includes 4 Next.js frontends sharing a common UI library:
+              </p>
+              <ul className="list-disc list-inside text-sm space-y-1 text-muted-foreground">
+                <li>Asset Management</li>
+                <li>CRM System</li>
+                <li>HRMS Platform</li>
+                <li>Inventory Control</li>
+              </ul>
+            </CardContent>
+          </Card>
+        </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Technology Stack</CardTitle>
+            <CardDescription>Latest tools and frameworks</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+              <div className="space-y-2">
+                <div className="text-2xl font-bold">Next.js</div>
+                <div className="text-sm text-muted-foreground">15.5.4</div>
+              </div>
+              <div className="space-y-2">
+                <div className="text-2xl font-bold">React</div>
+                <div className="text-sm text-muted-foreground">19.1.0</div>
+              </div>
+              <div className="space-y-2">
+                <div className="text-2xl font-bold">Tailwind</div>
+                <div className="text-sm text-muted-foreground">v4</div>
+              </div>
+              <div className="space-y-2">
+                <div className="text-2xl font-bold">Shadcn UI</div>
+                <div className="text-sm text-muted-foreground">Latest</div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </main>
       <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
         <a
