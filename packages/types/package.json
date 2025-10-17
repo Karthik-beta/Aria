@@ -6,6 +6,9 @@
   "scripts": {
     "build": "tsc --build tsconfig.json"
   },
+  "dependencies": {
+    "zod": "^4.1.12"
+  },
   "devDependencies": {
     "typescript": "^5.5.0",
     "@aria/tsconfig": "workspace:*"
