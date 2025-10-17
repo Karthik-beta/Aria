@@ -6,8 +6,8 @@ This document outlines the commands and workflow for developing, building, and t
 
 This is a pnpm monorepo containing multiple applications:
 
--   **Frontend Apps:** Located in `apps/frontend`, built with Next.js.
--   **Backend App:** Located in `apps/backend`, built with Nest.js.
+- **Frontend Apps:** Located in `apps/frontend`, built with Next.js.
+- **Backend App:** Located in `apps/backend`, built with Nest.js.
 
 ## Installation
 

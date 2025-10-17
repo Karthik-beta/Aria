@@ -8,7 +8,7 @@
       }
     ],
     "paths": {
-      "@inventory/*": ["./src/*"]
+      "@/*": ["./src/*"]
     },
     "resolveJsonModule": true,
     "isolatedModules": true
