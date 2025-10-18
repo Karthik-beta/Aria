@@ -1,5 +1,7 @@
 # 📋 @aria/types - Shared Type Definitions
 
+> **For Beginners:** This package is like a rulebook that tells TypeScript what kind of data to expect. It prevents bugs by making sure everyone uses data the same way! 🎯
+
 This package contains **all the TypeScript type definitions** used across the Aria ERP system. Think of it as a dictionary that ensures the backend and all frontends speak the same language!
 
 ## 🎯 Why Do We Need This?

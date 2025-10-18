@@ -99,6 +99,21 @@ ${colorConfig
 
 const ChartTooltip = RechartsPrimitive.Tooltip;
 
+// Simpler, beginner-friendly type definition
+type ChartTooltipContentProps = React.ComponentProps<typeof RechartsPrimitive.Tooltip> &
+  React.ComponentProps<'div'> & {
+    /** Hide the tooltip label */
+    hideLabel?: boolean;
+    /** Hide the indicator dot/line */
+    hideIndicator?: boolean;
+    /** Visual indicator style */
+    indicator?: 'line' | 'dot' | 'dashed';
+    /** Key to use for the name field */
+    nameKey?: string;
+    /** Key to use for the label field */
+    labelKey?: string;
+  };
+
 function ChartTooltipContent({
   active,
   payload,
@@ -113,14 +128,7 @@ function ChartTooltipContent({
   color,
   nameKey,
   labelKey,
-}: React.ComponentProps<typeof RechartsPrimitive.Tooltip> &
-  React.ComponentProps<'div'> & {
-    hideLabel?: boolean;
-    hideIndicator?: boolean;
-    indicator?: 'line' | 'dot' | 'dashed';
-    nameKey?: string;
-    labelKey?: string;
-  }) {
+}: ChartTooltipContentProps) {
   const { config } = useChart();
 
   const tooltipLabel = React.useMemo(() => {

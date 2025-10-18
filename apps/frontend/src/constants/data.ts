@@ -5,6 +5,9 @@
 
 import type { Product } from '@aria/types';
 
+// Re-export the Product type for convenience
+export type { Product };
+
 // Mock product data for product listing components
 export const mockProducts: Product[] = [
   {

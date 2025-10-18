@@ -10,7 +10,7 @@
     "zod": "^4.1.12"
   },
   "devDependencies": {
-    "typescript": "^5.5.0",
-    "@aria/tsconfig": "workspace:*"
+    "@aria/tsconfig": "workspace:*",
+    "typescript": "^5.9.3"
   }
 }
