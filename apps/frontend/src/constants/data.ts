@@ -3,16 +3,7 @@
  * This file contains shared data types used across the application
  */
 
-export type Product = {
-  photo_url: string;
-  name: string;
-  description: string;
-  created_at: string;
-  price: number;
-  id: number;
-  category: string;
-  updated_at: string;
-};
+import type { Product } from '@aria/types';
 
 // Mock product data for product listing components
 export const mockProducts: Product[] = [
