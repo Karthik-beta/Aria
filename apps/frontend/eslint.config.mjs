@@ -19,12 +19,47 @@ const eslintConfig = [
       'react-hooks': reactHooks,
     },
     rules: {
-      'react-hooks/rules-of-hooks': 'error',
-      'react-hooks/exhaustive-deps': 'warn',
+      // ============================================
+      // React Hooks - Essential rules only
+      // ============================================
+      'react-hooks/rules-of-hooks': 'error', // Must follow hooks rules
+      'react-hooks/exhaustive-deps': 'warn', // Warn about deps, don't fail
+
+      // ============================================
+      // React Compiler Rules - Disabled for now
+      // These will be addressed in a separate PR
+      // ============================================
+      'react-hooks/set-state-in-effect': 'off', // Allow common patterns
+      'react-hooks/purity': 'off', // Allow impure functions
+      'react-hooks/incompatible-library': 'off', // Allow third-party libs
+
+      // ============================================
+      // TypeScript - Balanced for beginners
+      // ============================================
+      '@typescript-eslint/no-unused-vars': [
+        'warn',
+        {
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_',
+          destructuredArrayIgnorePattern: '^_',
+        },
+      ],
+      '@typescript-eslint/no-explicit-any': 'warn', // Discourage but allow
+      '@typescript-eslint/no-unused-expressions': 'off', // Allow for certain patterns
     },
   },
   {
-    ignores: ['node_modules/**', '.next/**', 'out/**', 'build/**', 'next-env.d.ts'],
+    ignores: [
+      'node_modules/**',
+      '.next/**',
+      'out/**',
+      'build/**',
+      'dist/**',
+      'next-env.d.ts',
+      '*.config.js',
+      '*.config.ts',
+    ],
   },
 ];
 

@@ -4,7 +4,8 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "build": "tsc --build tsconfig.json"
+    "build": "tsc --build tsconfig.json",
+    "clean": "rimraf dist .turbo"
   },
   "dependencies": {
     "@aria/types": "workspace:*"
@@ -12,6 +13,7 @@
   "devDependencies": {
     "@aria/tsconfig": "workspace:*",
     "@types/node": "^24.8.1",
+    "rimraf": "^6.0.1",
     "typescript": "^5.9.3"
   }
 }
