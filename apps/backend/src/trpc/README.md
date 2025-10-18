@@ -40,6 +40,7 @@ src/
 4. Register in `trpc/trpc.service.ts`
 
 Example:
+
 ```typescript
 @Injectable()
 export class MyRouter {

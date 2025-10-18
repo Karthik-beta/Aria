@@ -6,8 +6,8 @@ import type { Metadata } from 'next';
 import { cookies } from 'next/headers';
 
 export const metadata: Metadata = {
-  title: 'CRM by Pivotr',
-  description: 'Customer relationship management system from Pivotr',
+  title: 'HRMS by Pivotr',
+  description: 'Human resource management system from Pivotr',
 };
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {

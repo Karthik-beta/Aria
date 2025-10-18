@@ -1,8 +1,6 @@
-import { delay } from '@/constants/mock-api';
-import { BarGraph } from '@/features/overview/components/bar-graph';
+import { StockLevelChart } from '@/features/inventory/components/stock-level-chart';
 
-export default async function BarStats() {
-  await await delay(1000);
-
-  return <BarGraph />;
+export default async function Page() {
+  await new Promise((resolve) => setTimeout(resolve, 3000));
+  return <StockLevelChart />;
 }

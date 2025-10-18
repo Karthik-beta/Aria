@@ -19,7 +19,7 @@ export default function KBar({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
   // Determine active app based on current route
-  const activeApp = apps.find(app => pathname.startsWith(app.route)) || apps[0];
+  const activeApp = apps.find((app) => pathname.startsWith(app.route)) || apps[0];
   const activeAppId = activeApp.name.toLowerCase();
   const navItems = getAppNavItems(activeAppId);
 

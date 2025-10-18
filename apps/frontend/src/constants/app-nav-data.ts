@@ -130,6 +130,134 @@ export const inventoryNavItems: NavItem[] = [
         title: 'Brand',
         url: '/inventory/brands',
       },
+      {
+        title: 'Item Attribute',
+        url: '/inventory/item-attributes',
+      },
+    ],
+  },
+  {
+    title: 'Serial No and Batch',
+    url: '#',
+    icon: 'serial',
+    isActive: false,
+    items: [
+      {
+        title: 'Serial No',
+        url: '/inventory/serial-nos',
+      },
+      {
+        title: 'Batch',
+        url: '/inventory/batches',
+      },
+      {
+        title: 'Installation Note',
+        url: '/inventory/installation-notes',
+      },
+      {
+        title: 'Serial No Service Contract Expiry',
+        url: '/inventory/serial-no-service-contract-expiry',
+      },
+      {
+        title: 'Serial No Status',
+        url: '/inventory/serial-no-status',
+      },
+      {
+        title: 'Serial No Warranty Expiry',
+        url: '/inventory/serial-no-warranty-expiry',
+      },
+    ],
+  },
+  {
+    title: 'Tools',
+    url: '#',
+    icon: 'tools',
+    isActive: false,
+    items: [
+      {
+        title: 'Packing Slip',
+        url: '/inventory/packing-slip',
+      },
+      {
+        title: 'Quality Inspection Template',
+        url: '/inventory/quality-inspection-template',
+      },
+      {
+        title: 'Quick Stock Balance',
+        url: '/inventory/quick-stock-balance',
+      },
+    ],
+  },
+  {
+    title: 'Key Reports',
+    url: '#',
+    icon: 'report',
+    isActive: false,
+    items: [
+      {
+        title: 'Stock Analytics',
+        url: '/inventory/reports/stock-analytics',
+      },
+      {
+        title: 'Delivery Note Trends',
+        url: '/inventory/reports/delivery-note-trends',
+      },
+      {
+        title: 'Purchase Receipt Trends',
+        url: '/inventory/reports/purchase-receipt-trends',
+      },
+      {
+        title: 'Sales Order Analysis',
+        url: '/inventory/reports/sales-order-analysis',
+      },
+      {
+        title: 'Purchase Order Analysis',
+        url: '/inventory/reports/purchase-order-analysis',
+      },
+      {
+        title: 'Item Shortage Report',
+        url: '/inventory/reports/item-shortage',
+      },
+      {
+        title: 'Batch-Wise Balance History',
+        url: '/inventory/reports/batch-wise-balance-history',
+      },
+    ],
+  },
+  {
+    title: 'Other Reports',
+    url: '#',
+    icon: 'report',
+    isActive: false,
+    items: [
+      {
+        title: 'Requested Items To Be Transferred',
+        url: '/inventory/reports/requested-items-transferred',
+      },
+      {
+        title: 'Batch Item Expiry Status',
+        url: '/inventory/reports/batch-item-expiry-status',
+      },
+      {
+        title: 'Item Prices',
+        url: '/inventory/reports/item-prices',
+      },
+      {
+        title: 'Itemwise Recommended Reorder Level',
+        url: '/inventory/reports/itemwise-reorder-level',
+      },
+      {
+        title: 'Item Variant Details',
+        url: '/inventory/reports/item-variant-details',
+      },
+      {
+        title: 'Subcontracted Raw Materials To Be Transferred',
+        url: '/inventory/reports/subcontracted-raw-materials-transferred',
+      },
+      {
+        title: 'Subcontracted Item To Be Received',
+        url: '/inventory/reports/subcontracted-item-received',
+      },
     ],
   },
 ];
@@ -150,40 +278,60 @@ export const assetNavItems: NavItem[] = [
     isActive: false,
     items: [
       {
-        title: 'Asset List',
-        url: '/asset/assets',
+        title: 'Asset',
+        url: '/asset/asset',
       },
       {
-        title: 'Asset Categories',
-        url: '/asset/categories',
+        title: 'Location',
+        url: '/asset/location',
       },
       {
-        title: 'Asset Depreciation',
-        url: '/asset/depreciation',
-      },
-      {
-        title: 'Maintenance Schedule',
-        url: '/asset/maintenance',
+        title: 'Asset Category',
+        url: '/asset/asset-category',
       },
     ],
   },
   {
-    title: 'Asset Reports',
+    title: 'Maintenance',
+    url: '#',
+    icon: 'dashboard',
+    isActive: false,
+    items: [
+      {
+        title: 'Asset Maintenance Team',
+        url: '/asset/maintenance-team',
+      },
+      {
+        title: 'Asset Maintenance',
+        url: '/asset/maintenance',
+      },
+      {
+        title: 'Asset Maintenance Log',
+        url: '/asset/maintenance-log',
+      },
+      {
+        title: 'Asset Value Adjustment',
+        url: '/asset/value-adjustment',
+      },
+    ],
+  },
+  {
+    title: 'Reports',
     url: '#',
     icon: 'report',
     isActive: false,
     items: [
       {
-        title: 'Asset Valuation',
-        url: '/asset/reports/valuation',
+        title: 'Asset Depreciation Ledger',
+        url: '/asset/reports/depreciation-ledger',
       },
       {
-        title: 'Depreciation Report',
-        url: '/asset/reports/depreciation',
+        title: 'Asset Depreciations and Balances',
+        url: '/asset/reports/depreciations-balances',
       },
       {
-        title: 'Asset Location Report',
-        url: '/asset/reports/location',
+        title: 'Asset Activity',
+        url: '/asset/reports/activity',
       },
     ],
   },
@@ -219,70 +367,142 @@ export const crmNavItems: NavItem[] = [
     items: [],
   },
   {
-    title: 'Customers',
+    title: 'Sales Pipeline',
     url: '#',
     icon: 'dashboard',
     isActive: false,
     items: [
       {
-        title: 'Customer List',
-        url: '/crm/customers',
-      },
-      {
-        title: 'Customer Groups',
-        url: '/crm/customer-groups',
-      },
-      {
-        title: 'Leads',
+        title: 'Lead',
         url: '/crm/leads',
       },
       {
-        title: 'Opportunities',
+        title: 'Opportunity',
         url: '/crm/opportunities',
+      },
+      {
+        title: 'Customer',
+        url: '/crm/customers',
+      },
+      {
+        title: 'Appointment',
+        url: '/crm/appointments',
+      },
+      {
+        title: 'Communication',
+        url: '/crm/communications',
       },
     ],
   },
   {
-    title: 'Sales',
+    title: 'Masters',
     url: '#',
     icon: 'dashboard',
     isActive: false,
     items: [
       {
-        title: 'Quotation',
-        url: '/crm/quotations',
+        title: 'Territory',
+        url: '/crm/territories',
       },
       {
-        title: 'Sales Order',
-        url: '/crm/sales-orders',
+        title: 'Customer Group',
+        url: '/crm/customer-groups',
       },
       {
-        title: 'Sales Invoice',
-        url: '/crm/invoices',
+        title: 'Contact',
+        url: '/crm/contacts',
       },
       {
-        title: 'Payment',
-        url: '/crm/payments',
+        title: 'Prospect',
+        url: '/crm/prospects',
+      },
+      {
+        title: 'Sales Person',
+        url: '/crm/sales-persons',
+      },
+      {
+        title: 'Lead Source',
+        url: '/crm/lead-sources',
       },
     ],
   },
   {
-    title: 'CRM Reports',
+    title: 'Reports',
     url: '#',
     icon: 'report',
     isActive: false,
     items: [
       {
-        title: 'Sales Pipeline',
-        url: '/crm/reports/pipeline',
+        title: 'Lead Details',
+        url: '/crm/reports/lead-details',
       },
       {
-        title: 'Revenue Report',
-        url: '/crm/reports/revenue',
+        title: 'Sales Pipeline Analytics',
+        url: '/crm/reports/sales-pipeline-analytics',
       },
       {
-        title: 'Customer Report',
-        url: '/crm/reports/customers',
+        title: 'Opportunity Summary by Sales Stage',
+        url: '/crm/reports/opportunity-summary',
+      },
+      {
+        title: 'Prospects Engaged But Not Converted',
+        url: '/crm/reports/prospects-engaged',
+      },
+      {
+        title: 'First Response Time for Opportunity',
+        url: '/crm/reports/first-response-time',
+      },
+      {
+        title: 'Inactive Customers',
+        url: '/crm/reports/inactive-customers',
+      },
+      {
+        title: 'Campaign Efficiency',
+        url: '/crm/reports/campaign-efficiency',
+      },
+      {
+        title: 'Lead Owner Efficiency',
+        url: '/crm/reports/lead-owner-efficiency',
+      },
+    ],
+  },
+  {
+    title: 'Campaign',
+    url: '#',
+    icon: 'dashboard',
+    isActive: false,
+    items: [
+      {
+        title: 'Campaign',
+        url: '/crm/campaigns',
+      },
+    ],
+  },
+  {
+    title: 'Settings',
+    url: '#',
+    icon: 'settings',
+    isActive: false,
+    items: [
+      {
+        title: 'CRM Settings',
+        url: '/crm/settings',
+      },
+    ],
+  },
+  {
+    title: 'Maintenance',
+    url: '#',
+    icon: 'dashboard',
+    isActive: false,
+    items: [
+      {
+        title: 'Maintenance Visit',
+        url: '/crm/maintenance-visits',
+      },
+      {
+        title: 'Warranty Claim',
+        url: '/crm/warranty-claims',
       },
     ],
   },
@@ -298,26 +518,70 @@ export const hrmsNavItems: NavItem[] = [
     items: [],
   },
   {
-    title: 'Employees',
+    title: 'Setup',
     url: '#',
     icon: 'dashboard',
     isActive: false,
     items: [
       {
-        title: 'Employee List',
-        url: '/hrms/employees',
+        title: 'Company',
+        url: '/hrms/company',
       },
       {
-        title: 'Departments',
+        title: 'Branch',
+        url: '/hrms/branches',
+      },
+      {
+        title: 'Department',
         url: '/hrms/departments',
       },
       {
-        title: 'Designations',
+        title: 'Designation',
         url: '/hrms/designations',
       },
+    ],
+  },
+  {
+    title: 'Employee',
+    url: '#',
+    icon: 'dashboard',
+    isActive: false,
+    items: [
       {
-        title: 'Employee Groups',
-        url: '/hrms/employee-groups',
+        title: 'Employee',
+        url: '/hrms/employees',
+      },
+      {
+        title: 'Employee Grade',
+        url: '/hrms/employee-grades',
+      },
+    ],
+  },
+  {
+    title: 'Leaves',
+    url: '#',
+    icon: 'dashboard',
+    isActive: false,
+    items: [
+      {
+        title: 'Leave Application',
+        url: '/hrms/leave-applications',
+      },
+      {
+        title: 'Compensatory Leave Request',
+        url: '/hrms/compensatory-leave-requests',
+      },
+    ],
+  },
+  {
+    title: 'Settings',
+    url: '#',
+    icon: 'settings',
+    isActive: false,
+    items: [
+      {
+        title: 'HR Settings',
+        url: '/hrms/settings',
       },
     ],
   },
@@ -332,72 +596,88 @@ export const hrmsNavItems: NavItem[] = [
         url: '/hrms/attendance',
       },
       {
-        title: 'Checkin',
-        url: '/hrms/checkin',
+        title: 'Attendance Request',
+        url: '/hrms/attendance-requests',
       },
       {
-        title: 'Shift Management',
-        url: '/hrms/shifts',
+        title: 'Employee Checkin',
+        url: '/hrms/employee-checkins',
       },
     ],
   },
   {
-    title: 'Leave Management',
+    title: 'Expense Claim',
     url: '#',
     icon: 'dashboard',
     isActive: false,
     items: [
       {
-        title: 'Leave Application',
-        url: '/hrms/leave-applications',
+        title: 'Expense Claim',
+        url: '/hrms/expense-claims',
       },
       {
-        title: 'Leave Type',
-        url: '/hrms/leave-types',
-      },
-      {
-        title: 'Holiday',
-        url: '/hrms/holidays',
+        title: 'Employee Advance',
+        url: '/hrms/employee-advances',
       },
     ],
   },
   {
-    title: 'Payroll',
+    title: 'Key Reports',
     url: '#',
-    icon: 'dashboard',
+    icon: 'report',
     isActive: false,
     items: [
       {
-        title: 'Salary Structure',
-        url: '/hrms/salary-structures',
+        title: 'Monthly Attendance Sheet',
+        url: '/hrms/reports/monthly-attendance',
       },
       {
-        title: 'Salary Slip',
-        url: '/hrms/salary-slips',
+        title: 'Recruitment Analytics',
+        url: '/hrms/reports/recruitment-analytics',
       },
       {
-        title: 'Payroll Period',
-        url: '/hrms/payroll-periods',
+        title: 'Employee Analytics',
+        url: '/hrms/reports/employee-analytics',
+      },
+      {
+        title: 'Employee Leave Balance',
+        url: '/hrms/reports/employee-leave-balance',
+      },
+      {
+        title: 'Employee Leave Balance Summary',
+        url: '/hrms/reports/employee-leave-balance-summary',
+      },
+      {
+        title: 'Employee Advance Summary',
+        url: '/hrms/reports/employee-advance-summary',
+      },
+      {
+        title: 'Employee Exits',
+        url: '/hrms/reports/employee-exits',
       },
     ],
   },
   {
-    title: 'HR Reports',
+    title: 'Other Reports',
     url: '#',
-    icon: 'dashboard',
+    icon: 'report',
     isActive: false,
     items: [
       {
-        title: 'Employee Report',
-        url: '/hrms/reports/employees',
+        title: 'Employee Information',
+        url: '/hrms/reports/employee-information',
       },
       {
-        title: 'Attendance Report',
-        url: '/hrms/reports/attendance',
+        title: 'Employee Birthday',
+        url: '/hrms/reports/employee-birthday',
       },
       {
-        title: 'Salary Report',
-        url: '/hrms/reports/salary',
+        title: 'Employees Working on a Holiday',
+        url: '/hrms/reports/employees-holiday',
+      },
+      {
+        title: 'Daily Work Summary Replies',
+        url: '/hrms/reports/daily-work-summary',
       },
     ],
   },
@@ -405,56 +685,61 @@ export const hrmsNavItems: NavItem[] = [
 
 /**
  * Metadata for each app (used for headers, labels, etc.)
+ * Frozen for performance optimization
  */
-export const appMetadata: Record<
-  string,
-  {
-    label: string;
-    description: string;
-  }
-> = {
-  inventory: {
+export const appMetadata = Object.freeze({
+  inventory: Object.freeze({
     label: 'Inventory Management',
     description: 'Manage stock, items, and warehouse operations',
-  },
-  asset: {
+  }),
+  asset: Object.freeze({
     label: 'Asset Management',
     description: 'Track and manage company assets',
-  },
-  crm: {
+  }),
+  crm: Object.freeze({
     label: 'Customer Relations',
     description: 'Manage customers, leads, and sales',
-  },
-  hrms: {
+  }),
+  hrms: Object.freeze({
     label: 'Human Resources',
     description: 'Manage employees, payroll, and attendance',
-  },
-};
+  }),
+} as const);
+
+/**
+ * Pre-computed navigation map for fast lookups
+ * Frozen for performance optimization
+ */
+const NAV_MAP = Object.freeze({
+  inventory: inventoryNavItems,
+  asset: assetNavItems,
+  crm: crmNavItems,
+  hrms: hrmsNavItems,
+} as const);
+
+/**
+ * Type for valid app names
+ */
+type AppName = keyof typeof NAV_MAP;
 
 /**
  * Get navigation items for a specific app
+ * Optimized with pre-computed map and type safety
  * @param appName - The app name (e.g., 'inventory', 'asset', 'crm', 'hrms')
  * @returns Array of navigation items for the app
  */
 export const getAppNavItems = (appName: string): NavItem[] => {
-  const lowerAppName = appName.toLowerCase();
-
-  const navMap: Record<string, NavItem[]> = {
-    inventory: inventoryNavItems,
-    asset: assetNavItems,
-    crm: crmNavItems,
-    hrms: hrmsNavItems,
-  };
-
-  return navMap[lowerAppName] || inventoryNavItems; // Default to inventory if app not found
+  const lowerAppName = appName.toLowerCase() as AppName;
+  return NAV_MAP[lowerAppName] ?? inventoryNavItems; // Default to inventory if app not found
 };
 
 /**
  * Get metadata for a specific app
+ * Optimized with direct object access
  * @param appName - The app name
  * @returns Metadata object for the app
  */
 export const getAppMetadata = (appName: string) => {
-  const lowerAppName = appName.toLowerCase();
-  return appMetadata[lowerAppName] || appMetadata['inventory'];
+  const lowerAppName = appName.toLowerCase() as AppName;
+  return appMetadata[lowerAppName] ?? appMetadata.inventory;
 };

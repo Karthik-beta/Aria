@@ -14,7 +14,7 @@ export default function RenderResults() {
       return;
     }
     // Check if item has a shortcut property
-    if ((item as any).shortcut && (item as any).shortcut.length > 0) {
+    if ('shortcut' in item && item.shortcut && item.shortcut.length > 0) {
       quickAccessResults.push(item);
     } else {
       generalResults.push(item);
@@ -23,14 +23,14 @@ export default function RenderResults() {
 
   // Combine with section headers
   const organizedResults: typeof results = [];
-  
+
   if (quickAccessResults.length > 0) {
-    organizedResults.push('Quick Access' as any);
+    organizedResults.push('Quick Access');
     organizedResults.push(...quickAccessResults);
   }
-  
+
   if (generalResults.length > 0) {
-    organizedResults.push('General' as any);
+    organizedResults.push('General');
     organizedResults.push(...generalResults);
   }
 

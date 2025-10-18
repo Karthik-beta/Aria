@@ -17,20 +17,20 @@ import {
 import { cn } from '@/lib/utils';
 import { Label } from '@/components/ui/label';
 
-const Form = ({
+const Form = <T extends FieldValues = FieldValues>({
   children,
   onSubmit,
   form,
   className,
 }: {
   children: React.ReactNode;
-  onSubmit: (data: any) => void;
-  form: UseFormReturn<any, any, undefined>;
+  onSubmit: (data: T) => void;
+  form: UseFormReturn<T>;
   className?: string;
 }) => {
   return (
     <FormProvider {...form}>
-      <form onSubmit={onSubmit} className={className}>
+      <form onSubmit={form.handleSubmit(onSubmit)} className={className}>
         {children}
       </form>
     </FormProvider>

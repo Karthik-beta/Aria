@@ -29,7 +29,7 @@ if (!isDev && !process.env.NEXT_PUBLIC_SENTRY_DISABLED) {
 
     // Setting this option to true will print useful information to the console while you're setting up Sentry.
     debug: false,
-    
+
     // Explicitly enable (production only)
     enabled: true,
   });

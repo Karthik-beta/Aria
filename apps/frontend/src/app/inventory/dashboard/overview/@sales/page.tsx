@@ -1,7 +1,6 @@
-import { delay } from '@/constants/mock-api';
-import { RecentSales } from '@/features/overview/components/recent-sales';
+import { RecentStockMovements } from '@/features/inventory/components/recent-stock-movements';
 
-export default async function Sales() {
-  await delay(3000);
-  return <RecentSales />;
+export default async function Page() {
+  await new Promise((resolve) => setTimeout(resolve, 3000));
+  return <RecentStockMovements />;
 }

@@ -50,9 +50,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         )}
       >
         <NextTopLoader color="var(--primary)" showSpinner={false} />
-        <NuqsAdapter>
-          {children}
-        </NuqsAdapter>
+        <NuqsAdapter>{children}</NuqsAdapter>
       </body>
     </html>
   );

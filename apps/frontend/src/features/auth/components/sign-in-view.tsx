@@ -1,10 +1,13 @@
+'use client';
+
 import { buttonVariants } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { GitHubLogoIcon } from '@radix-ui/react-icons';
-import { IconStar } from '@tabler/icons-react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 
-export default function SignInViewPage({ stars }: { stars: number }) {
+export default function SignInViewPage() {
+  const searchParams = useSearchParams();
+  const callbackUrl = searchParams.get('callbackUrl');
   return (
     <div className="relative h-screen flex-col items-center justify-center md:grid lg:max-w-none lg:grid-cols-2 lg:px-0">
       <Link
@@ -31,22 +34,22 @@ export default function SignInViewPage({ stars }: { stars: number }) {
           >
             <path d="M15 6v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3V6a3 3 0 1 0-3 3h12a3 3 0 1 0-3-3" />
           </svg>
-          Logo
+          Pivotr
         </div>
         <div className="relative z-20 mt-auto">
           <blockquote className="space-y-2">
             <p className="text-lg">
-              &ldquo;This starter template has saved me countless hours of work and helped me
-              deliver projects to my clients faster than ever before.&rdquo;
+              &ldquo;Aria ERP unifies all our business operations—assets, CRM, HR, and
+              inventory—into one seamless, modern platform.&rdquo;
             </p>
-            <footer className="text-sm">Random Dude</footer>
+            <footer className="text-sm">Pivotr Team</footer>
           </blockquote>
         </div>
       </div>
       <div className="flex h-full items-center justify-center p-4 lg:p-8">
         <div className="flex w-full max-w-md flex-col items-center justify-center space-y-6">
           {/* github link  */}
-          <Link
+          {/* <Link
             className={cn('group inline-flex hover:text-yellow-200')}
             target="_blank"
             href={'https://github.com/kiranism/next-shadcn-dashboard-starter'}
@@ -62,15 +65,15 @@ export default function SignInViewPage({ stars }: { stars: number }) {
               />
               <span className="font-display font-medium">{stars}</span>
             </div>
-          </Link>
+          </Link> */}
           <div className="flex w-full flex-col items-center gap-4 rounded-xl border border-dashed border-primary/40 bg-muted/40 p-6 text-center">
             <span className="text-lg font-semibold">Authentication disabled</span>
             <p className="text-muted-foreground text-sm">
-              User sign-in is not required for this preview build. Head straight to the inventory
-              dashboard to explore the experience.
+              User sign-in is not required for this preview build. Head straight to the dashboard to
+              explore the experience.
             </p>
             <Link
-              href="/dashboard/overview"
+              href={callbackUrl || '/inventory/dashboard/overview'}
               className={cn(buttonVariants({ variant: 'default' }), 'w-full md:w-auto')}
             >
               Continue to dashboard

@@ -68,7 +68,7 @@ export default function ProductForm({
         <CardTitle className="text-left text-2xl font-bold">{pageTitle}</CardTitle>
       </CardHeader>
       <CardContent>
-        <Form form={form} onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+        <Form form={form} onSubmit={onSubmit} className="space-y-8">
           <FormFileUpload
             control={form.control}
             name="image"

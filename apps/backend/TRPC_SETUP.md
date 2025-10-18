@@ -31,6 +31,7 @@ Replaced incompatible `nestjs-trpc@1.6.1` with native tRPC v11 integration follo
 ## Usage Example
 
 ### Backend (Router Definition)
+
 ```typescript
 @Injectable()
 export class InventoryRouter {
@@ -56,6 +57,7 @@ export class InventoryRouter {
 ```
 
 ### Frontend (Type-Safe Client)
+
 ```typescript
 import { createTRPCClient, httpBatchLink } from '@trpc/client';
 import type { AppRouter } from 'backend/src/trpc/trpc.service';
@@ -84,7 +86,7 @@ const newItem = await client.inventory.createItem.mutate({
 ✅ **Native Integration**: No third-party adapters  
 ✅ **NestJS DI**: Full dependency injection support  
 ✅ **Zod v4**: Latest validation features  
-✅ **Framework Aligned**: Follows NestJS patterns  
+✅ **Framework Aligned**: Follows NestJS patterns
 
 ## Next Steps
 

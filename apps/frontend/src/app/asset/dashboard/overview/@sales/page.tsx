@@ -1,7 +1,6 @@
-import { delay } from '@/constants/mock-api';
-import { RecentSales } from '@/features/overview/components/recent-sales';
+import { RecentAssetActivities } from '@/features/asset/components/recent-asset-activities';
 
 export default async function Sales() {
-  await delay(3000);
-  return <RecentSales />;
+  await new Promise((resolve) => setTimeout(resolve, 3000));
+  return <RecentAssetActivities />;
 }

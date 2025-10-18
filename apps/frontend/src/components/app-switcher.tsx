@@ -1,6 +1,6 @@
 'use client';
 
-import { Check, ChevronsUpDown, GalleryVerticalEnd } from 'lucide-react';
+import { Check, ChevronsUpDown } from 'lucide-react';
 import * as React from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 
@@ -9,10 +9,9 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuShortcut,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+} from '@/components/ui/dropdown-menu';
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
 
 interface App {
@@ -22,21 +21,15 @@ interface App {
   route: string; // Add route property
 }
 
-export function AppSwitcher({
-  apps,
-  defaultApp,
-}: {
-  apps: App[];
-  defaultApp: App;
-}) {
+export function AppSwitcher({ apps, defaultApp }: { apps: App[]; defaultApp: App }) {
   const router = useRouter();
   const pathname = usePathname();
   const [isMounted, setIsMounted] = React.useState(false);
   const [isNavigating, setIsNavigating] = React.useState(false);
-  
+
   // Determine active app based on current route - memoized for performance
   const activeApp = React.useMemo(() => {
-    const currentApp = apps.find(app => pathname.startsWith(app.route));
+    const currentApp = apps.find((app) => pathname.startsWith(app.route));
     return currentApp || defaultApp || apps[0];
   }, [apps, pathname, defaultApp]);
 
@@ -53,19 +46,22 @@ export function AppSwitcher({
     setIsNavigating(false); // Reset loading state when navigation completes
   }, [activeApp]);
 
-  const handleAppSwitch = React.useCallback((app: App) => {
-    // Don't navigate if already on the same app or currently navigating
-    if (app.id === selectedApp.id || isNavigating) return;
-    
-    // Immediately show loading state for user feedback
-    setIsNavigating(true);
-    setSelectedApp(app); // Optimistically update UI
-    
-    // Navigate after a brief moment to show the selection
-    setTimeout(() => {
-      router.push(app.route);
-    }, 150);
-  }, [router, selectedApp.id, isNavigating]);
+  const handleAppSwitch = React.useCallback(
+    (app: App) => {
+      // Don't navigate if already on the same app or currently navigating
+      if (app.id === selectedApp.id || isNavigating) return;
+
+      // Immediately show loading state for user feedback
+      setIsNavigating(true);
+      setSelectedApp(app); // Optimistically update UI
+
+      // Navigate after a brief moment to show the selection
+      setTimeout(() => {
+        router.push(app.route);
+      }, 150);
+    },
+    [router, selectedApp.id, isNavigating]
+  );
 
   // Show a loading skeleton while hydrating to improve perceived performance
   if (!isMounted) {
@@ -134,13 +130,11 @@ export function AppSwitcher({
             align="start"
             sideOffset={4}
           >
-            <DropdownMenuLabel className="text-muted-foreground text-xs">
-              Apps
-            </DropdownMenuLabel>
+            <DropdownMenuLabel className="text-muted-foreground text-xs">Apps</DropdownMenuLabel>
             {apps.map((app, index) => {
               const isActive = app.id === selectedApp.id;
               const isCurrentlyNavigating = isNavigating && app.id === selectedApp.id;
-              
+
               return (
                 <DropdownMenuItem
                   key={app.name}
@@ -155,9 +149,7 @@ export function AppSwitcher({
                       <app.logo className="size-3.5 shrink-0" />
                     )}
                   </div>
-                  <span className={isActive ? 'font-semibold' : ''}>
-                    {app.name}
-                  </span>
+                  <span className={isActive ? 'font-semibold' : ''}>{app.name}</span>
                   {isActive && <Check className="ml-auto size-4" />}
                   <DropdownMenuShortcut>⌘{index + 1}</DropdownMenuShortcut>
                 </DropdownMenuItem>

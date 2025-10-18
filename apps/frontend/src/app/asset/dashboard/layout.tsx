@@ -1,13 +1,13 @@
-import KBar from '@/components/kbar';
 import AppSidebar from '@/components/layout/app-sidebar';
 import Header from '@/components/layout/header';
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 import type { Metadata } from 'next';
 import { cookies } from 'next/headers';
+import KBar from '@/components/kbar';
 
 export const metadata: Metadata = {
-  title: 'CRM by Pivotr',
-  description: 'Customer relationship management system from Pivotr',
+  title: 'Asset by Pivotr',
+  description: 'Asset management system from Pivotr',
 };
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {

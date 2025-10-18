@@ -3,29 +3,63 @@
 This is the unified multi-zone Next.js application that consolidates all four Aria ERP modules:
 
 - **Asset Management** - `/asset` route
-- **CRM** - `/crm` route  
+- **CRM** - `/crm` route
 - **HRMS** - `/hrms` route
 - **Inventory** - `/inventory` route
 
+## 🔐 Single Sign-On (SSO) Authentication
+
+All apps share **centralized authentication** for a seamless experience:
+
+- ✅ **Sign in once**, access all apps
+- ✅ **Shared session** across Asset, CRM, HRMS, and Inventory
+- ✅ **Automatic redirects** to original destination after login
+- ✅ **Centralized security** and session management
+
+**Auth Routes:**
+
+- `/auth/sign-in` - Unified sign-in for all apps
+- `/auth/sign-up` - Unified registration
+
+See [`SSO_AUTH_GUIDE.md`](./SSO_AUTH_GUIDE.md) for complete authentication documentation.
+
 ## Architecture
 
-This app uses **Next.js layout groups** for multi-zone architecture:
+This app uses **Next.js App Router** with route segments for multi-zone architecture:
 
 ```
 src/app/
-├── (asset)/           # Asset management zone
-├── (crm)/             # CRM zone
-├── (hrms)/            # HRMS zone
-├── (inventory)/       # Inventory zone
+├── auth/              # Centralized SSO authentication
+│   ├── sign-in/
+│   └── sign-up/
+├── asset/             # Asset management zone
+│   ├── layout.tsx
+│   ├── page.tsx
+│   └── dashboard/
+├── crm/               # CRM zone
+│   ├── layout.tsx
+│   ├── page.tsx
+│   └── dashboard/
+├── hrms/              # HRMS zone
+│   ├── layout.tsx
+│   ├── page.tsx
+│   └── dashboard/
+├── inventory/         # Inventory zone
+│   ├── layout.tsx
+│   ├── page.tsx
+│   └── dashboard/
 ├── layout.tsx         # Shared root layout
-└── page.tsx           # Root page (redirects to default app)
+└── page.tsx           # Root page (app selector)
 ```
 
 Each zone operates independently with its own routes, layouts, and components, while sharing:
+
+- **Authentication & Sessions** - SSO across all modules
 - Root HTML structure and providers
 - App switcher for instant navigation between modules
-- Common utilities and UI components from `@aria/ui`
+- Common utilities and UI components
 - Centralized types from `@aria/types`
+- Global styles, themes, and error handlers
 
 ## Benefits Over Separate Apps
 
@@ -52,9 +86,10 @@ pnpm --filter combined start
 ```
 
 The app will be available at `http://localhost:3000` with routes:
+
 - `/asset` - Asset management interface
 - `/crm` - Customer relationship management
-- `/hrms` - Human resources management  
+- `/hrms` - Human resources management
 - `/inventory` - Inventory management (default)
 
 ## App Switcher
@@ -64,6 +99,7 @@ The shared root navigation includes an app switcher dropdown that allows users t
 ## Deployment
 
 This app is configured for:
+
 - **Turbopack** for fast builds
 - **Standalone output** for Docker deployment
 - **Image optimization** with unoptimized flag for flexibility
@@ -86,6 +122,7 @@ All existing component code from the separate apps (`asset`, `CRM`, `hrms`, `inv
 ## Documentation
 
 For more details on the multi-zone architecture decision, see:
+
 - `ARCHITECTURE_FINAL_ANSWER.md`
 - `MULTI_ZONE_IMPLEMENTATION.md`
 - `MULTI_ZONE_VS_SEPARATE_APPS.md`

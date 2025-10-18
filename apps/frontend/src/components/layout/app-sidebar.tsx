@@ -14,7 +14,6 @@ import {
   SidebarContent,
   SidebarFooter,
   SidebarGroup,
-  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
@@ -39,7 +38,7 @@ import {
   IconBox,
   IconBlocks,
   IconBrandAsana,
-  IconUsers
+  IconUsers,
 } from '@tabler/icons-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -67,6 +66,73 @@ const fallbackUser = {
   imageUrl: '',
 };
 
+/**
+ * Memoized navigation sub-item component for better performance
+ */
+const NavSubItem = React.memo(({ subItem, pathname }: { subItem: NavItem; pathname: string }) => (
+  <SidebarMenuSubItem>
+    <SidebarMenuSubButton asChild isActive={pathname === subItem.url}>
+      <Link
+        href={subItem.url}
+        title={subItem.title.length > LONG_NAV_LABEL_THRESHOLD ? subItem.title : undefined}
+      >
+        <span>{subItem.title}</span>
+      </Link>
+    </SidebarMenuSubButton>
+  </SidebarMenuSubItem>
+));
+NavSubItem.displayName = 'NavSubItem';
+
+/**
+ * Memoized navigation item component for better performance
+ */
+const NavItemComponent = React.memo(({ item, pathname }: { item: NavItem; pathname: string }) => {
+  const Icon = item.icon ? Icons[item.icon as keyof typeof Icons] : Icons.logo;
+
+  if (item?.items && item?.items?.length > 0) {
+    return (
+      <Collapsible
+        key={item.title}
+        asChild
+        defaultOpen={item.isActive}
+        className="group/collapsible"
+      >
+        <SidebarMenuItem>
+          <CollapsibleTrigger asChild>
+            <SidebarMenuButton tooltip={item.title} isActive={pathname === item.url}>
+              {item.icon && <Icon />}
+              <span>{item.title}</span>
+              <IconChevronRight className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+            </SidebarMenuButton>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <SidebarMenuSub>
+              {item.items?.map((subItem: NavItem) => (
+                <NavSubItem key={subItem.title} subItem={subItem} pathname={pathname} />
+              ))}
+            </SidebarMenuSub>
+          </CollapsibleContent>
+        </SidebarMenuItem>
+      </Collapsible>
+    );
+  }
+
+  return (
+    <SidebarMenuItem key={item.title}>
+      <SidebarMenuButton asChild tooltip={item.title} isActive={pathname === item.url}>
+        <Link
+          href={item.url}
+          title={item.title.length > LONG_NAV_LABEL_THRESHOLD ? item.title : undefined}
+        >
+          <Icon />
+          <span>{item.title}</span>
+        </Link>
+      </SidebarMenuButton>
+    </SidebarMenuItem>
+  );
+});
+NavItemComponent.displayName = 'NavItemComponent';
+
 export default function AppSidebar() {
   const pathname = usePathname();
   const { isOpen } = useMediaQuery();
@@ -74,12 +140,16 @@ export default function AppSidebar() {
   const router = useRouter();
   const [isMounted, setIsMounted] = React.useState(false);
 
-  // Determine active app based on current route
-  const activeApp = apps.find(app => pathname.startsWith(app.route)) || apps[0];
-  const activeAppId = activeApp.name.toLowerCase(); // e.g., 'inventory'
-  
-  // Get app-specific navigation items
-  const appNavItems = getAppNavItems(activeAppId);
+  // Memoize active app calculation to avoid recalculation on every render
+  const activeApp = React.useMemo(
+    () => apps.find((app) => pathname.startsWith(app.route)) || apps[0],
+    [pathname]
+  );
+
+  const activeAppId = React.useMemo(() => activeApp.name.toLowerCase(), [activeApp.name]);
+
+  // Memoize navigation items to prevent unnecessary recalculations
+  const appNavItems = React.useMemo(() => getAppNavItems(activeAppId), [activeAppId]);
 
   // Ensure component only renders after hydration to avoid ID mismatch
   React.useEffect(() => {
@@ -103,61 +173,9 @@ export default function AppSidebar() {
         <SidebarGroup>
           {/* <SidebarGroupLabel>Overview</SidebarGroupLabel> */}
           <SidebarMenu>
-            {appNavItems.map((item: NavItem) => {
-              const Icon = item.icon ? Icons[item.icon as keyof typeof Icons] : Icons.logo;
-              return item?.items && item?.items?.length > 0 ? (
-                <Collapsible
-                  key={item.title}
-                  asChild
-                  defaultOpen={item.isActive}
-                  className="group/collapsible"
-                >
-                  <SidebarMenuItem>
-                    <CollapsibleTrigger asChild>
-                      <SidebarMenuButton tooltip={item.title} isActive={pathname === item.url}>
-                        {item.icon && <Icon />}
-                        <span>{item.title}</span>
-                        <IconChevronRight className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
-                      </SidebarMenuButton>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent>
-                      <SidebarMenuSub>
-                        {item.items?.map((subItem: NavItem) => (
-                          <SidebarMenuSubItem key={subItem.title}>
-                            <SidebarMenuSubButton asChild isActive={pathname === subItem.url}>
-                              <Link
-                                href={subItem.url}
-                                title={
-                                  subItem.title.length > LONG_NAV_LABEL_THRESHOLD
-                                    ? subItem.title
-                                    : undefined
-                                }
-                              >
-                                <span>{subItem.title}</span>
-                              </Link>
-                            </SidebarMenuSubButton>
-                          </SidebarMenuSubItem>
-                        ))}
-                      </SidebarMenuSub>
-                    </CollapsibleContent>
-                  </SidebarMenuItem>
-                </Collapsible>
-              ) : (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild tooltip={item.title} isActive={pathname === item.url}>
-                    <Link
-                      href={item.url}
-                      title={
-                        item.title.length > LONG_NAV_LABEL_THRESHOLD ? item.title : undefined
-                      }
-                    >
-                      <Icon />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              );
-            })}
+            {appNavItems.map((item: NavItem) => (
+              <NavItemComponent key={item.title} item={item} pathname={pathname} />
+            ))}
           </SidebarMenu>
         </SidebarGroup>
       </SidebarContent>
