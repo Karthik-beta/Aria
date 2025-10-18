@@ -16,9 +16,14 @@ datasource db {
 
 model InventoryItem {
   id        String   @id @default(cuid())
-  name      String
-  sku       String   @unique
+  name      String   @db.VarChar(255)
+  sku       String   @unique @db.VarChar(100)
   quantity  Int      @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([sku])
+  @@index([name])
+  @@index([createdAt])
+  @@map("inventory_items")
 }

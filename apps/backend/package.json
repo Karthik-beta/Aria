@@ -8,6 +8,8 @@
   "scripts": {
     "build": "nest build",
     "dev": "nest start --watch",
+    "db:start": "npx prisma dev db start",
+    "studio": "npx prisma studio",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
     "start:dev": "nest start --watch",

@@ -11,6 +11,14 @@
       "persistent": true,
       "cache": false
     },
+    "db:start": {
+      "persistent": true,
+      "cache": false
+    },
+    "studio": {
+      "persistent": true,
+      "cache": false
+    },
     "lint": {
       "dependsOn": ["^lint"],
       "outputs": []

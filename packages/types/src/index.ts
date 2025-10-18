@@ -20,7 +20,7 @@ export interface ApiResponse<T> {
 
 export namespace Inventory {
   /**
-   * Inventory item database model
+   * Inventory item - matches Prisma schema
    */
   export interface Item {
     id: string;
@@ -32,7 +32,7 @@ export namespace Inventory {
   }
 
   /**
-   * Input for creating new inventory items
+   * Create inventory item input
    */
   export interface CreateInput {
     name: string;
@@ -41,23 +41,35 @@ export namespace Inventory {
   }
 
   /**
-   * Zod schema for validating inventory items
+   * Update inventory item input
    */
-  export const itemSchema = z.object({
-    id: z.string(),
-    name: z.string(),
-    sku: z.string(),
-    quantity: z.number().int().nonnegative(),
-    createdAt: z.coerce.date(),
-    updatedAt: z.coerce.date(),
-  }) satisfies z.ZodType<Item>;
+  export interface UpdateInput {
+    id: string;
+    name?: string;
+    sku?: string;
+    quantity?: number;
+  }
+
+  // ============================================================================
+  // Zod Schemas - Simple validation
+  // ============================================================================
 
   /**
-   * Zod schema for creating inventory items
+   * Schema for creating inventory items
    */
-  export const createInputSchema = z.object({
-    name: z.string().min(1, 'Item name is required'),
-    sku: z.string().min(1, 'SKU is required'),
-    quantity: z.number().int().min(0, 'Quantity must be non-negative').default(0),
-  }) satisfies z.ZodType<CreateInput>;
+  export const createSchema = z.object({
+    name: z.string().min(1, 'Name is required').max(255).trim(),
+    sku: z.string().min(1, 'SKU is required').max(100).trim().toUpperCase(),
+    quantity: z.number().int().min(0).default(0),
+  });
+
+  /**
+   * Schema for updating inventory items
+   */
+  export const updateSchema = z.object({
+    id: z.string().cuid(),
+    name: z.string().min(1).max(255).trim().optional(),
+    sku: z.string().min(1).max(100).trim().toUpperCase().optional(),
+    quantity: z.number().int().min(0).optional(),
+  });
 }

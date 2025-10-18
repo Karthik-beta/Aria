@@ -92,6 +92,34 @@ The app will be available at `http://localhost:3000` with routes:
 - `/hrms` - Human resources management
 - `/inventory` - Inventory management (default)
 
+## 🚀 tRPC + TanStack Query Integration
+
+The frontend is configured with **type-safe API calls** using tRPC and TanStack Query:
+
+- ✅ **Full type safety** between frontend and backend
+- ✅ **Automatic autocomplete** for all API endpoints
+- ✅ **React Query DevTools** in development mode
+- ✅ **Request batching** for optimal performance
+- ✅ **Server & Client component** support
+
+**Quick Start:**
+
+```tsx
+'use client';
+
+import { trpc } from '@/lib/trpc';
+
+function MyComponent() {
+  const { data, isLoading } = trpc.inventory.listItems.useQuery();
+  return <div>{data?.length} items</div>;
+}
+```
+
+**Documentation:**
+
+- [`TRPC_SETUP.md`](./TRPC_SETUP.md) - Complete setup documentation
+- [`TRPC_QUICKSTART.md`](./TRPC_QUICKSTART.md) - Quick start guide with examples
+
 ## App Switcher
 
 The shared root navigation includes an app switcher dropdown that allows users to seamlessly navigate between modules. The current module is highlighted, and switching happens instantly via client-side navigation.

@@ -1,4 +1,5 @@
 import { fontVariables } from '@/lib/font';
+import { TRPCProvider } from '@/lib/trpc';
 import { cn } from '@/lib/utils';
 import type { Metadata, Viewport } from 'next';
 import { cookies } from 'next/headers';
@@ -49,8 +50,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           fontVariables
         )}
       >
-        <NextTopLoader color="var(--primary)" showSpinner={false} />
-        <NuqsAdapter>{children}</NuqsAdapter>
+        <TRPCProvider>
+          <NextTopLoader color="var(--primary)" showSpinner={false} />
+          <NuqsAdapter>{children}</NuqsAdapter>
+        </TRPCProvider>
       </body>
     </html>
   );

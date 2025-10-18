@@ -1,0 +1,63 @@
+/**
+ * Example tRPC Usage Component
+ *
+ * This demonstrates how to use tRPC with TanStack Query in a Next.js component.
+ *
+ * Usage:
+ * ```tsx
+ * import { ExampleTRPCUsage } from '@/lib/trpc/example';
+ *
+ * function MyPage() {
+ *   return <ExampleTRPCUsage />;
+ * }
+ * ```
+ */
+
+'use client';
+
+import { trpc } from './client';
+
+export function ExampleTRPCUsage() {
+  // Type-safe query hook - autocomplete works!
+  const { data, isLoading, error } = trpc.inventory.listItems.useQuery();
+
+  // Type-safe mutation hook
+  const createItem = trpc.inventory.createItem.useMutation({
+    onSuccess: () => {
+      console.log('Item created successfully!');
+    },
+  });
+
+  if (isLoading) {
+    return <div>Loading inventory items...</div>;
+  }
+
+  if (error) {
+    return <div>Error: {error.message}</div>;
+  }
+
+  return (
+    <div>
+      <h2>Inventory Items</h2>
+      <ul>
+        {data?.map((item) => (
+          <li key={item.id}>
+            {item.name} - Quantity: {item.quantity}
+          </li>
+        ))}
+      </ul>
+
+      <button
+        onClick={() =>
+          createItem.mutate({
+            name: 'New Item',
+            quantity: 10,
+            sku: `SKU-${Date.now()}`,
+          })
+        }
+      >
+        Add Item
+      </button>
+    </div>
+  );
+}
