@@ -95,13 +95,13 @@ function downloadBlob(blob: Blob, filename: string): void {
 export async function parseCSV(file: File): Promise<Record<string, any>[]> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    
+
     reader.onload = (e) => {
       try {
         const text = e.target?.result as string;
         const lines = text.split('\n');
         const headers = lines[0].split(',').map((h) => h.trim());
-        
+
         const data = lines.slice(1).map((line) => {
           const values = line.split(',').map((v) => v.trim());
           const obj: Record<string, any> = {};
@@ -110,13 +110,13 @@ export async function parseCSV(file: File): Promise<Record<string, any>[]> {
           });
           return obj;
         });
-        
+
         resolve(data.filter((row) => Object.values(row).some((v) => v)));
       } catch (error) {
         reject(error);
       }
     };
-    
+
     reader.onerror = () => reject(reader.error);
     reader.readAsText(file);
   });
@@ -138,7 +138,7 @@ export async function parseExcel(file: File): Promise<Record<string, any>[]> {
 export async function parseJSON(file: File): Promise<Record<string, any>[]> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    
+
     reader.onload = (e) => {
       try {
         const text = e.target?.result as string;
@@ -148,7 +148,7 @@ export async function parseJSON(file: File): Promise<Record<string, any>[]> {
         reject(error);
       }
     };
-    
+
     reader.onerror = () => reject(reader.error);
     reader.readAsText(file);
   });
@@ -164,7 +164,7 @@ export async function exportData<TData>(
 ): Promise<void> {
   const timestamp = new Date().toISOString().split('T')[0];
   const defaultFilename = `export-${timestamp}`;
-  
+
   switch (format) {
     case 'csv':
       await exportToCSV(rows, filename || `${defaultFilename}.csv`);
@@ -188,7 +188,7 @@ export async function exportData<TData>(
  */
 export async function importData(file: File): Promise<Record<string, any>[]> {
   const extension = file.name.split('.').pop()?.toLowerCase();
-  
+
   switch (extension) {
     case 'csv':
       return parseCSV(file);
@@ -210,13 +210,13 @@ export function debounce<T extends (...args: any[]) => any>(
   wait: number
 ): (...args: Parameters<T>) => void {
   let timeout: NodeJS.Timeout;
-  
+
   return function executedFunction(...args: Parameters<T>) {
     const later = () => {
       clearTimeout(timeout);
       func(...args);
     };
-    
+
     clearTimeout(timeout);
     timeout = setTimeout(later, wait);
   };
@@ -230,7 +230,7 @@ export function throttle<T extends (...args: any[]) => any>(
   limit: number
 ): (...args: Parameters<T>) => void {
   let inThrottle: boolean;
-  
+
   return function executedFunction(...args: Parameters<T>) {
     if (!inThrottle) {
       func(...args);

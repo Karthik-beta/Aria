@@ -10,7 +10,7 @@ export type { NavItem };
 export const inventoryNavItems: NavItem[] = [
   {
     title: 'Dashboard',
-    url: '/inventory/dashboard',
+    url: '/inventory/dashboard/overview',
     icon: 'dashboard',
     isActive: false,
     shortcut: ['d', 'd'],
@@ -24,7 +24,7 @@ export const inventoryNavItems: NavItem[] = [
     items: [
       {
         title: 'Item',
-        url: '/inventory/items',
+        url: '/inventory/items-catalogue/item',
       },
       {
         title: 'Item Group',

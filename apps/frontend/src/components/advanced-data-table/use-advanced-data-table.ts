@@ -28,6 +28,8 @@ export interface UseAdvancedDataTableProps<TData> {
   columns: ColumnDef<TData, any>[];
   pageCount?: number;
   initialPageSize?: number;
+  initialSorting?: SortingState;
+  initialColumnVisibility?: VisibilityState;
   enableRowSelection?: boolean;
   enableMultiRowSelection?: boolean;
   enableColumnResizing?: boolean;
@@ -44,6 +46,8 @@ export function useAdvancedDataTable<TData>({
   columns,
   pageCount = -1,
   initialPageSize = 10,
+  initialSorting = [],
+  initialColumnVisibility = {},
   enableRowSelection = true,
   enableMultiRowSelection = true,
   enableColumnResizing = true,
@@ -55,14 +59,21 @@ export function useAdvancedDataTable<TData>({
   onGlobalFilterChange,
 }: UseAdvancedDataTableProps<TData>) {
   const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({});
-  const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
+  const [columnVisibility, setColumnVisibility] =
+    React.useState<VisibilityState>(initialColumnVisibility);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
-  const [sorting, setSorting] = React.useState<SortingState>([]);
+  const [sorting, setSorting] = React.useState<SortingState>(initialSorting);
   const [globalFilter, setGlobalFilter] = React.useState('');
   const [pagination, setPagination] = React.useState<PaginationState>({
     pageIndex: 0,
     pageSize: initialPageSize,
   });
+
+  // Calculate actual page count from data
+  const calculatedPageCount = React.useMemo(() => {
+    if (pageCount > 0) return pageCount;
+    return Math.ceil(data.length / pagination.pageSize);
+  }, [data.length, pagination.pageSize, pageCount]);
 
   // Handle state changes with callbacks
   React.useEffect(() => {
@@ -98,7 +109,7 @@ export function useAdvancedDataTable<TData>({
   const table = useReactTable({
     data,
     columns,
-    pageCount,
+    pageCount: pageCount > 0 ? pageCount : calculatedPageCount,
     state: {
       sorting,
       columnFilters,

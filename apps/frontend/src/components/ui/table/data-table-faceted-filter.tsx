@@ -6,6 +6,7 @@ import { PlusCircle, XCircle } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Command,
   CommandEmpty,
@@ -17,9 +18,7 @@ import {
 } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Separator } from '@/components/ui/separator';
-import { cn } from '@/lib/utils';
 import * as React from 'react';
-import { CheckIcon } from '@radix-ui/react-icons';
 
 interface DataTableFacetedFilterProps<TData, TValue> {
   column?: Column<TData, TValue>;
@@ -132,15 +131,13 @@ export function DataTableFacetedFilter<TData, TValue>({
 
                 return (
                   <CommandItem key={option.value} onSelect={() => onItemSelect(option, isSelected)}>
-                    <div
-                      className={cn(
-                        'border-primary flex size-4 items-center justify-center rounded-sm border',
-                        isSelected ? 'bg-primary' : 'opacity-50 [&_svg]:invisible'
-                      )}
-                    >
-                      <CheckIcon />
-                    </div>
-                    {option.icon && <option.icon />}
+                    <Checkbox
+                      checked={isSelected}
+                      onCheckedChange={() => onItemSelect(option, isSelected)}
+                      aria-label={`Select ${option.label}`}
+                      className="mr-2"
+                    />
+                    {option.icon && <option.icon className="mr-2 h-4 w-4" />}
                     <span className="truncate">{option.label}</span>
                     {option.count && (
                       <span className="ml-auto font-mono text-xs">{option.count}</span>

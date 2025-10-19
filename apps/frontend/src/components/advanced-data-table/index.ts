@@ -1,7 +1,7 @@
 /**
  * Advanced Data Table - Main Export
  * Enterprise-grade reusable data table component for Aria ERP
- * 
+ *
  * Features:
  * - Advanced sorting and filtering (multi-column, Excel-style)
  * - Comprehensive global and column-specific search with autocomplete
@@ -18,18 +18,18 @@
  * - Fully responsive design
  * - Keyboard navigation and accessibility
  * - Real-time updates via tRPC subscriptions
- * 
+ *
  * @example
  * ```tsx
  * import { AdvancedDataTable, useAdvancedDataTable } from '@/components/advanced-data-table';
- * 
+ *
  * function MyTable() {
  *   const { table } = useAdvancedDataTable({
  *     data: myData,
  *     columns: myColumns,
  *     pageCount: totalPages,
  *   });
- * 
+ *
  *   return (
  *     <AdvancedDataTable
  *       table={table}

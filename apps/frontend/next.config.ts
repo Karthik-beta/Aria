@@ -155,6 +155,20 @@ const nextConfig: NextConfig = {
     ];
   },
 
+  // Proxy /trpc requests to backend in development
+  async rewrites() {
+    if (!isDev) return [];
+
+    const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+
+    return [
+      {
+        source: '/trpc/:path*',
+        destination: `${backendUrl}/trpc/:path*`,
+      },
+    ];
+  },
+
   // Compression for faster loads
   compress: true,
 

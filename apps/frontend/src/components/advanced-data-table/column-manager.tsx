@@ -17,8 +17,20 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Settings2 } from 'lucide-react';
 import type { Table } from '@tanstack/react-table';
-import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
-import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { GripVertical } from 'lucide-react';
@@ -34,7 +46,9 @@ interface SortableItemProps {
 }
 
 function SortableItem({ id, children }: SortableItemProps) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id,
+  });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -52,7 +66,10 @@ function SortableItem({ id, children }: SortableItemProps) {
   );
 }
 
-export function ColumnManager<TData>({ table, enableReordering = true }: ColumnManagerProps<TData>) {
+export function ColumnManager<TData>({
+  table,
+  enableReordering = true,
+}: ColumnManagerProps<TData>) {
   const [open, setOpen] = React.useState(false);
   const columns = table.getAllColumns().filter((column) => column.getCanHide());
 
@@ -76,10 +93,10 @@ export function ColumnManager<TData>({ table, enableReordering = true }: ColumnM
         const oldIndex = items.indexOf(active.id);
         const newIndex = items.indexOf(over.id);
         const newOrder = arrayMove(items, oldIndex, newIndex);
-        
+
         // Update table column order
         table.setColumnOrder(newOrder);
-        
+
         return newOrder;
       });
     }
@@ -106,9 +123,13 @@ export function ColumnManager<TData>({ table, enableReordering = true }: ColumnM
       <DropdownMenuContent align="end" className="w-[250px]">
         <DropdownMenuLabel>Manage Columns</DropdownMenuLabel>
         <DropdownMenuSeparator />
-        
+
         {enableReordering ? (
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
             <SortableContext items={columnOrder} strategy={verticalListSortingStrategy}>
               <div className="max-h-[300px] overflow-y-auto">
                 {columnOrder.map((columnId) => {
@@ -149,14 +170,19 @@ export function ColumnManager<TData>({ table, enableReordering = true }: ColumnM
             ))}
           </div>
         )}
-        
+
         <DropdownMenuSeparator />
-        <div className="flex gap-2 p-2">
-          <Button variant="outline" size="sm" className="flex-1" onClick={handleResetVisibility}>
+        <div className="grid grid-cols-2 gap-2 p-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 text-xs"
+            onClick={handleResetVisibility}
+          >
             Reset Visibility
           </Button>
           {enableReordering && (
-            <Button variant="outline" size="sm" className="flex-1" onClick={handleResetOrder}>
+            <Button variant="outline" size="sm" className="h-8 text-xs" onClick={handleResetOrder}>
               Reset Order
             </Button>
           )}

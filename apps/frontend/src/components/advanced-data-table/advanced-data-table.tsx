@@ -7,12 +7,7 @@
 
 import * as React from 'react';
 import { type Table as TanstackTable, flexRender } from '@tanstack/react-table';
-import {
-  Table,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
+import { Table, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { DataTablePagination } from '@/components/ui/table/data-table-pagination';
 import { AdvancedTableToolbar } from './advanced-table-toolbar';
@@ -151,16 +146,17 @@ export function AdvancedDataTable<TData, TValue>({
       )}
 
       {/* Table Container */}
-      <div className={cn('relative flex flex-1', className)}>
-        <div className="absolute inset-0 flex overflow-hidden rounded-lg border">
-          <ScrollArea className="h-full w-full">
+      <div className={cn('relative w-full', className)}>
+        <div className="rounded-lg border bg-background overflow-hidden">
+          <div className="w-full overflow-auto">
             <Table
               style={{
                 width: enableColumnResizing ? table.getCenterTotalSize() : '100%',
+                minWidth: '100%',
               }}
             >
               {/* Table Header with Sticky Headers */}
-              <TableHeader className="bg-muted sticky top-0 z-10">
+              <TableHeader className="bg-muted/95 backdrop-blur supports-[backdrop-filter]:bg-muted/60">
                 {table.getHeaderGroups().map((headerGroup) => (
                   <TableRow key={headerGroup.id}>
                     {headerGroup.headers.map((header) => (
@@ -172,11 +168,12 @@ export function AdvancedDataTable<TData, TValue>({
                           width: enableColumnResizing ? header.getSize() : undefined,
                           position: 'relative',
                         }}
+                        className="font-semibold whitespace-nowrap"
                       >
                         {header.isPlaceholder
                           ? null
                           : flexRender(header.column.columnDef.header, header.getContext())}
-                        
+
                         {/* Column Resizer */}
                         {enableColumnResizing && header.column.getCanResize() && (
                           <div
@@ -184,9 +181,10 @@ export function AdvancedDataTable<TData, TValue>({
                             onTouchStart={header.getResizeHandler()}
                             className={cn(
                               'absolute right-0 top-0 h-full w-1 cursor-col-resize select-none touch-none',
-                              'hover:bg-primary/50',
+                              'hover:bg-primary/50 transition-colors',
                               header.column.getIsResizing() && 'bg-primary'
                             )}
+                            aria-label={`Resize ${header.column.id} column`}
                           />
                         )}
                       </TableHead>
@@ -204,8 +202,7 @@ export function AdvancedDataTable<TData, TValue>({
                 isLoading={isLoading}
               />
             </Table>
-            <ScrollBar orientation="horizontal" />
-          </ScrollArea>
+          </div>
         </div>
       </div>
 

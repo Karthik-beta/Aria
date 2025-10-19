@@ -6,7 +6,11 @@
 'use client';
 
 import * as React from 'react';
-import { AdvancedDataTable, useAdvancedDataTable, type BulkAction } from '@/components/advanced-data-table';
+import {
+  AdvancedDataTable,
+  useAdvancedDataTable,
+  type BulkAction,
+} from '@/components/advanced-data-table';
 import { type ColumnDef } from '@tanstack/react-table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -59,9 +63,7 @@ const columns: ColumnDef<Product>[] = [
   {
     accessorKey: 'name',
     header: ({ column }) => <DataTableColumnHeader column={column} title="Product Name" />,
-    cell: ({ row }) => (
-      <div className="font-medium">{row.getValue('name')}</div>
-    ),
+    cell: ({ row }) => <div className="font-medium">{row.getValue('name')}</div>,
     meta: {
       label: 'Product Name',
       placeholder: 'Search products...',
@@ -77,9 +79,7 @@ const columns: ColumnDef<Product>[] = [
   {
     accessorKey: 'sku',
     header: ({ column }) => <DataTableColumnHeader column={column} title="SKU" />,
-    cell: ({ row }) => (
-      <code className="text-xs">{row.getValue('sku')}</code>
-    ),
+    cell: ({ row }) => <code className="text-xs">{row.getValue('sku')}</code>,
     meta: {
       label: 'SKU',
       variant: 'text',
@@ -141,11 +141,7 @@ const columns: ColumnDef<Product>[] = [
     header: ({ column }) => <DataTableColumnHeader column={column} title="Stock" />,
     cell: ({ row }) => {
       const stock = row.getValue('stock') as number;
-      return (
-        <div className={stock < 10 ? 'text-red-600' : 'text-green-600'}>
-          {stock} units
-        </div>
-      );
+      return <div className={stock < 10 ? 'text-red-600' : 'text-green-600'}>{stock} units</div>;
     },
     meta: {
       label: 'Stock',
@@ -163,7 +159,7 @@ const columns: ColumnDef<Product>[] = [
       const status = row.getValue('status') as Product['status'];
       const Icon = status === 'active' ? CheckCircle : XCircle;
       const variant = status === 'active' ? 'default' : 'secondary';
-      
+
       return (
         <Badge variant={variant} className="capitalize">
           <Icon className="mr-1 h-3 w-3" />
@@ -273,7 +269,8 @@ export function AdvancedDataTableExample() {
       },
       variant: 'destructive',
       requiresConfirmation: true,
-      confirmationMessage: 'This will permanently delete the selected products. This action cannot be undone.',
+      confirmationMessage:
+        'This will permanently delete the selected products. This action cannot be undone.',
     },
   ];
 

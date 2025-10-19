@@ -36,18 +36,18 @@ return <AdvancedDataTable table={table} data={data} />;
 
 ## 📦 What You Get Out of the Box
 
-| Feature | Enabled by Default | Prop to Control |
-|---------|-------------------|-----------------|
-| Global Search | ✅ Yes | `enableGlobalSearch` |
-| Column Filters | ✅ Yes | Column `meta.variant` |
-| Sorting | ✅ Yes | Column `enableSorting` |
-| Pagination | ✅ Yes | Built-in |
-| Export | ✅ Yes | `enableExport` |
-| Import | ✅ Yes | `enableImport` |
-| Bulk Actions | ⚪ Optional | `enableBulkActions` |
-| Virtualization | ✅ Auto (>50 rows) | `enableVirtualization` |
-| Column Resizing | ✅ Yes | `enableColumnResizing` |
-| Column Reordering | ✅ Yes | `enableColumnReordering` |
+| Feature           | Enabled by Default | Prop to Control          |
+| ----------------- | ------------------ | ------------------------ |
+| Global Search     | ✅ Yes             | `enableGlobalSearch`     |
+| Column Filters    | ✅ Yes             | Column `meta.variant`    |
+| Sorting           | ✅ Yes             | Column `enableSorting`   |
+| Pagination        | ✅ Yes             | Built-in                 |
+| Export            | ✅ Yes             | `enableExport`           |
+| Import            | ✅ Yes             | `enableImport`           |
+| Bulk Actions      | ⚪ Optional        | `enableBulkActions`      |
+| Virtualization    | ✅ Auto (>50 rows) | `enableVirtualization`   |
+| Column Resizing   | ✅ Yes             | `enableColumnResizing`   |
+| Column Reordering | ✅ Yes             | `enableColumnReordering` |
 
 ## 🎨 Common Patterns
 
@@ -68,13 +68,15 @@ const { table } = useAdvancedDataTable({
 const bulkActions = [
   {
     label: 'Delete',
-    action: async (rows) => { await deleteMultiple(rows.map(r => r.original.id)) },
+    action: async (rows) => {
+      await deleteMultiple(rows.map((r) => r.original.id));
+    },
     variant: 'destructive',
     requiresConfirmation: true,
   },
 ];
 
-<AdvancedDataTable bulkActions={bulkActions} enableBulkActions />
+<AdvancedDataTable bulkActions={bulkActions} enableBulkActions />;
 ```
 
 ### With Custom Export
@@ -82,7 +84,7 @@ const bulkActions = [
 ```tsx
 <AdvancedDataTable
   onExport={async (format, rows) => {
-    const data = rows.map(r => r.original);
+    const data = rows.map((r) => r.original);
     await myCustomExport(format, data);
   }}
 />
@@ -94,7 +96,7 @@ const bulkActions = [
 {
   accessorKey: 'fieldName',
   header: 'Display Name',
-  
+
   // Filter configuration
   meta: {
     variant: 'text' | 'number' | 'select' | 'multiSelect' | 'date' | 'dateRange',
@@ -103,7 +105,7 @@ const bulkActions = [
     searchable: true,    // Include in global search
     exportable: true,    // Include in exports
   },
-  
+
   // Enable features
   enableSorting: true,
   enableColumnFilter: true,
@@ -127,22 +129,22 @@ const bulkActions = [
 <AdvancedDataTable
   table={table}                    // Required: TanStack Table instance
   data={data}                      // Required: Your data array
-  
+
   // Features (all optional, defaults shown)
   enableGlobalSearch={true}
   enableExport={true}
   enableImport={true}
   enableBulkActions={false}
   enableVirtualization={true}
-  
+
   // Export/Import
   exportFormats={['csv', 'excel', 'json']}
   onExport={async (format, rows) => {}}
   onImport={async (data) => {}}
-  
+
   // Bulk Actions
   bulkActions={[...]}
-  
+
   // Customization
   className="custom-class"
   ariaLabel="My Table"
@@ -151,15 +153,15 @@ const bulkActions = [
 
 ## 📝 Filter Variants
 
-| Variant | Use For | Example |
-|---------|---------|---------|
-| `text` | Strings | Names, descriptions |
-| `number` | Numbers | Prices, quantities |
-| `select` | Single choice | Status (one value) |
-| `multiSelect` | Multiple choice | Categories, tags |
-| `date` | Single date | Created date |
-| `dateRange` | Date range | Date between |
-| `boolean` | True/false | Active/inactive |
+| Variant       | Use For         | Example             |
+| ------------- | --------------- | ------------------- |
+| `text`        | Strings         | Names, descriptions |
+| `number`      | Numbers         | Prices, quantities  |
+| `select`      | Single choice   | Status (one value)  |
+| `multiSelect` | Multiple choice | Categories, tags    |
+| `date`        | Single date     | Created date        |
+| `dateRange`   | Date range      | Date between        |
+| `boolean`     | True/false      | Active/inactive     |
 
 ## 🎭 Common Customizations
 
@@ -169,7 +171,7 @@ const bulkActions = [
 {
   id: 'select',
   header: ({ table }) => (
-    <input type="checkbox" 
+    <input type="checkbox"
       checked={table.getIsAllPageRowsSelected()}
       onChange={e => table.toggleAllPageRowsSelected(e.target.checked)} />
   ),
@@ -208,12 +210,12 @@ const bulkActions = [
 
 ## 🐛 Troubleshooting
 
-| Problem | Solution |
-|---------|----------|
-| No search results | Check `enableColumnFilter: true` on columns |
-| Export button missing | Set `enableExport={true}` |
-| Virtualization slow | Adjust `virtualScrollEstimateSize` |
-| Filters not showing | Add `meta.variant` to column definition |
+| Problem               | Solution                                    |
+| --------------------- | ------------------------------------------- |
+| No search results     | Check `enableColumnFilter: true` on columns |
+| Export button missing | Set `enableExport={true}`                   |
+| Virtualization slow   | Adjust `virtualScrollEstimateSize`          |
+| Filters not showing   | Add `meta.variant` to column definition     |
 
 ## 📚 Files to Reference
 

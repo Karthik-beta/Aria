@@ -4,22 +4,23 @@ This guide helps you migrate from the existing `DataTable` component to the new 
 
 ## Quick Comparison
 
-| Feature | Existing DataTable | Advanced DataTable |
-|---------|-------------------|-------------------|
-| Basic filtering | ✅ | ✅ Enhanced |
-| Global search | ❌ | ✅ With autocomplete |
-| Export/Import | ❌ | ✅ Multiple formats |
-| Bulk actions | ❌ | ✅ Configurable |
-| Column reordering | ❌ | ✅ Drag & drop |
-| Column resizing | ❌ | ✅ |
-| Virtualization | ❌ | ✅ For large datasets |
-| Real-time updates | ❌ | ✅ Via tRPC subscriptions |
+| Feature           | Existing DataTable | Advanced DataTable        |
+| ----------------- | ------------------ | ------------------------- |
+| Basic filtering   | ✅                 | ✅ Enhanced               |
+| Global search     | ❌                 | ✅ With autocomplete      |
+| Export/Import     | ❌                 | ✅ Multiple formats       |
+| Bulk actions      | ❌                 | ✅ Configurable           |
+| Column reordering | ❌                 | ✅ Drag & drop            |
+| Column resizing   | ❌                 | ✅                        |
+| Virtualization    | ❌                 | ✅ For large datasets     |
+| Real-time updates | ❌                 | ✅ Via tRPC subscriptions |
 
 ## Step-by-Step Migration
 
 ### 1. Update Imports
 
 **Before:**
+
 ```tsx
 import { DataTable } from '@/components/ui/table/data-table';
 import { DataTableToolbar } from '@/components/ui/table/data-table-toolbar';
@@ -27,6 +28,7 @@ import { useDataTable } from '@/hooks/use-data-table';
 ```
 
 **After:**
+
 ```tsx
 import { AdvancedDataTable, useAdvancedDataTable } from '@/components/advanced-data-table';
 ```
@@ -34,6 +36,7 @@ import { AdvancedDataTable, useAdvancedDataTable } from '@/components/advanced-d
 ### 2. Update Hook Usage
 
 **Before:**
+
 ```tsx
 const { table } = useDataTable({
   data,
@@ -45,6 +48,7 @@ const { table } = useDataTable({
 ```
 
 **After:**
+
 ```tsx
 const { table } = useAdvancedDataTable({
   data,
@@ -59,6 +63,7 @@ const { table } = useAdvancedDataTable({
 ### 3. Update Component Usage
 
 **Before:**
+
 ```tsx
 <DataTable table={table}>
   <DataTableToolbar table={table} />
@@ -66,14 +71,9 @@ const { table } = useAdvancedDataTable({
 ```
 
 **After:**
+
 ```tsx
-<AdvancedDataTable
-  table={table}
-  data={data}
-  enableGlobalSearch
-  enableExport
-  enableBulkActions
-/>
+<AdvancedDataTable table={table} data={data} enableGlobalSearch enableExport enableBulkActions />
 ```
 
 ### 4. Update Column Definitions
@@ -81,6 +81,7 @@ const { table } = useAdvancedDataTable({
 The column meta structure is mostly compatible, but you can add new features:
 
 **Before:**
+
 ```tsx
 {
   accessorKey: 'category',
@@ -95,6 +96,7 @@ The column meta structure is mostly compatible, but you can add new features:
 ```
 
 **After (enhanced):**
+
 ```tsx
 {
   accessorKey: 'category',
@@ -157,12 +159,7 @@ const bulkActions: BulkAction<YourDataType>[] = [
   },
 ];
 
-<AdvancedDataTable
-  table={table}
-  data={data}
-  bulkActions={bulkActions}
-  enableBulkActions
-/>
+<AdvancedDataTable table={table} data={data} bulkActions={bulkActions} enableBulkActions />;
 ```
 
 ### 7. Add Export/Import (Optional)
@@ -234,7 +231,11 @@ export function ProductTable<TData, TValue>({
 ```tsx
 'use client';
 
-import { AdvancedDataTable, useAdvancedDataTable, BulkAction } from '@/components/advanced-data-table';
+import {
+  AdvancedDataTable,
+  useAdvancedDataTable,
+  BulkAction,
+} from '@/components/advanced-data-table';
 import { ColumnDef } from '@tanstack/react-table';
 import { parseAsInteger, useQueryState } from 'nuqs';
 import { Trash, Edit } from 'lucide-react';
@@ -298,7 +299,8 @@ export function ProductTable<TData, TValue>({
 
 ### Issue: "Virtualization not working"
 
-**Solution:** 
+**Solution:**
+
 - Ensure dataset has > 50 rows
 - Check that `enableVirtualization` is `true`
 - Verify the table container has proper height
@@ -306,6 +308,7 @@ export function ProductTable<TData, TValue>({
 ### Issue: "Bulk actions not appearing"
 
 **Solution:**
+
 - Enable row selection in your columns (add selection column)
 - Set `enableBulkActions={true}`
 - Define `bulkActions` array
@@ -314,6 +317,7 @@ export function ProductTable<TData, TValue>({
 ### Issue: "Export button not showing"
 
 **Solution:**
+
 - Set `enableExport={true}`
 - Optionally provide `exportFormats` array
 - Check that columns have `meta.exportable: true`
@@ -372,7 +376,11 @@ import { useDataTable } from '@/hooks/use-data-table';
 
 // And use the old component
 const { table } = useDataTable({ data, columns, pageCount });
-return <DataTable table={table}><DataTableToolbar table={table} /></DataTable>;
+return (
+  <DataTable table={table}>
+    <DataTableToolbar table={table} />
+  </DataTable>
+);
 ```
 
 Both components can coexist in the codebase during the migration period.

@@ -47,11 +47,11 @@ export type BulkAction<TData> = {
 export interface AdvancedDataTableProps<TData, TValue> {
   // Core table configuration
   table: Table<TData>;
-  
+
   // Data and columns
   data: TData[];
   totalItems?: number;
-  
+
   // Features configuration
   enableGlobalSearch?: boolean;
   enableColumnSearch?: boolean;
@@ -64,47 +64,47 @@ export interface AdvancedDataTableProps<TData, TValue> {
   enableColumnResizing?: boolean;
   enableColumnReordering?: boolean;
   enableColumnFreezing?: boolean;
-  
+
   // Export configuration
   exportFormats?: ExportFormat[];
   onExport?: (format: ExportFormat, rows: Row<TData>[]) => void | Promise<void>;
-  
+
   // Import configuration
   onImport?: (file: File) => void | Promise<void>;
-  
+
   // Bulk actions
   bulkActions?: BulkAction<TData>[];
-  
+
   // CRUD operations
   onRowCreate?: () => void | Promise<void>;
   onRowUpdate?: (row: Row<TData>) => void | Promise<void>;
   onRowDelete?: (rows: Row<TData>[]) => void | Promise<void>;
-  
+
   // Real-time updates via tRPC subscription
   subscriptionKey?: string;
   onSubscriptionUpdate?: (data: TData) => void;
-  
+
   // Virtualization settings
   virtualScrollEstimateSize?: number;
   virtualScrollOverscan?: number;
-  
+
   // UI customization
   toolbar?: React.ReactNode;
   actionBar?: React.ReactNode;
   emptyState?: React.ReactNode;
   loadingState?: React.ReactNode;
-  
+
   // Accessibility
   ariaLabel?: string;
   ariaDescription?: string;
-  
+
   // Callbacks
   onStateChange?: (state: TableState) => void;
   onError?: (error: Error) => void;
-  
+
   // Advanced filtering
   enableAdvancedFilter?: boolean;
-  
+
   // Styling
   className?: string;
   containerClassName?: string;

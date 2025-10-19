@@ -164,17 +164,17 @@ export function ProductsTableWithTRPC() {
 
 ```tsx
 interface ColumnMeta {
-  label?: string;           // Display label for filters
-  placeholder?: string;     // Placeholder for search inputs
-  variant?: FilterVariant;  // Filter type: 'text' | 'number' | 'select' | 'multiSelect' | 'date' | 'dateRange'
-  options?: Option[];       // Options for select/multiSelect filters
+  label?: string; // Display label for filters
+  placeholder?: string; // Placeholder for search inputs
+  variant?: FilterVariant; // Filter type: 'text' | 'number' | 'select' | 'multiSelect' | 'date' | 'dateRange'
+  options?: Option[]; // Options for select/multiSelect filters
   range?: [number, number]; // Range for numeric filters
-  unit?: string;            // Unit for numeric values (e.g., '$', 'kg')
-  icon?: React.FC;          // Icon component
-  exportable?: boolean;     // Include in exports
-  searchable?: boolean;     // Enable column search
-  resizable?: boolean;      // Allow column resizing
-  freezable?: boolean;      // Allow column pinning
+  unit?: string; // Unit for numeric values (e.g., '$', 'kg')
+  icon?: React.FC; // Icon component
+  exportable?: boolean; // Include in exports
+  searchable?: boolean; // Enable column search
+  resizable?: boolean; // Allow column resizing
+  freezable?: boolean; // Allow column pinning
 }
 ```
 
@@ -237,11 +237,7 @@ const bulkActions: BulkAction<Product>[] = [
   },
 ];
 
-<AdvancedDataTable
-  table={table}
-  data={data}
-  bulkActions={bulkActions}
-/>
+<AdvancedDataTable table={table} data={data} bulkActions={bulkActions} />;
 ```
 
 ## Export/Import
@@ -256,7 +252,7 @@ const bulkActions: BulkAction<Product>[] = [
   exportFormats={['csv', 'excel', 'json']}
   onExport={async (format, rows) => {
     // Custom export logic
-    const data = rows.map(r => r.original);
+    const data = rows.map((r) => r.original);
     await customExportFunction(format, data);
   }}
 />
@@ -281,27 +277,27 @@ const bulkActions: BulkAction<Product>[] = [
 
 ### AdvancedDataTable Props
 
-| Prop | Type | Default | Description |
-|------|------|---------|-------------|
-| `table` | `Table<TData>` | Required | TanStack Table instance |
-| `data` | `TData[]` | Required | Table data array |
-| `totalItems` | `number` | - | Total items for pagination |
-| `enableGlobalSearch` | `boolean` | `true` | Enable global search |
-| `enableColumnSearch` | `boolean` | `true` | Enable column-specific search |
-| `enableExport` | `boolean` | `true` | Enable data export |
-| `enableImport` | `boolean` | `true` | Enable data import |
-| `enableBulkActions` | `boolean` | `true` | Enable bulk operations |
-| `enableVirtualization` | `boolean` | `true` | Enable row virtualization |
-| `enableRealtime` | `boolean` | `false` | Enable real-time updates |
-| `enableColumnResizing` | `boolean` | `true` | Enable column resizing |
-| `enableColumnReordering` | `boolean` | `true` | Enable column reordering |
-| `enableColumnFreezing` | `boolean` | `true` | Enable column pinning |
-| `exportFormats` | `ExportFormat[]` | `['csv', 'excel', 'json']` | Available export formats |
-| `bulkActions` | `BulkAction<TData>[]` | - | Bulk action configurations |
-| `onExport` | `Function` | - | Custom export handler |
-| `onImport` | `Function` | - | Custom import handler |
-| `virtualScrollEstimateSize` | `number` | `50` | Estimated row height for virtualization |
-| `virtualScrollOverscan` | `number` | `5` | Overscan rows for virtualization |
+| Prop                        | Type                  | Default                    | Description                             |
+| --------------------------- | --------------------- | -------------------------- | --------------------------------------- |
+| `table`                     | `Table<TData>`        | Required                   | TanStack Table instance                 |
+| `data`                      | `TData[]`             | Required                   | Table data array                        |
+| `totalItems`                | `number`              | -                          | Total items for pagination              |
+| `enableGlobalSearch`        | `boolean`             | `true`                     | Enable global search                    |
+| `enableColumnSearch`        | `boolean`             | `true`                     | Enable column-specific search           |
+| `enableExport`              | `boolean`             | `true`                     | Enable data export                      |
+| `enableImport`              | `boolean`             | `true`                     | Enable data import                      |
+| `enableBulkActions`         | `boolean`             | `true`                     | Enable bulk operations                  |
+| `enableVirtualization`      | `boolean`             | `true`                     | Enable row virtualization               |
+| `enableRealtime`            | `boolean`             | `false`                    | Enable real-time updates                |
+| `enableColumnResizing`      | `boolean`             | `true`                     | Enable column resizing                  |
+| `enableColumnReordering`    | `boolean`             | `true`                     | Enable column reordering                |
+| `enableColumnFreezing`      | `boolean`             | `true`                     | Enable column pinning                   |
+| `exportFormats`             | `ExportFormat[]`      | `['csv', 'excel', 'json']` | Available export formats                |
+| `bulkActions`               | `BulkAction<TData>[]` | -                          | Bulk action configurations              |
+| `onExport`                  | `Function`            | -                          | Custom export handler                   |
+| `onImport`                  | `Function`            | -                          | Custom import handler                   |
+| `virtualScrollEstimateSize` | `number`              | `50`                       | Estimated row height for virtualization |
+| `virtualScrollOverscan`     | `number`              | `5`                        | Overscan rows for virtualization        |
 
 ## Keyboard Shortcuts
 
@@ -340,16 +336,19 @@ See the `product-tables` folder in `features/products/components` for a referenc
 ## Troubleshooting
 
 ### Virtual scrolling not working
+
 - Ensure dataset has > 50 rows
 - Check `enableVirtualization` prop is `true`
 - Verify scroll container has proper height
 
 ### Filters not applying
+
 - Check column `enableColumnFilter` is `true`
 - Verify `meta.variant` is set correctly
 - Ensure filter options are provided for select/multiSelect
 
 ### Export not working
+
 - Check browser console for errors
 - Verify data has exportable values
 - Ensure proper permissions for file downloads

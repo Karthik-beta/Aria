@@ -11,6 +11,7 @@ import { flexRender, type Table as TanstackTable } from '@tanstack/react-table';
 import { TableBody, TableCell, TableRow } from '@/components/ui/table';
 import { getCommonPinningStyles } from '@/lib/data-table';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Package, Search } from 'lucide-react';
 
 interface VirtualizedTableBodyProps<TData> {
   table: TanstackTable<TData>;
@@ -28,7 +29,9 @@ export function VirtualizedTableBody<TData>({
   isLoading = false,
 }: VirtualizedTableBodyProps<TData>) {
   const tableContainerRef = React.useRef<HTMLTableSectionElement>(null);
-  const rows = table.getRowModel().rows;
+
+  // Memoize rows to prevent state update issues during render
+  const rows = React.useMemo(() => table.getRowModel().rows, [table]);
 
   const rowVirtualizer = useVirtualizer({
     count: rows.length,
@@ -65,8 +68,20 @@ export function VirtualizedTableBody<TData>({
     return (
       <TableBody>
         <TableRow>
-          <TableCell colSpan={table.getAllColumns().length} className="h-24 text-center">
-            No results found.
+          <TableCell colSpan={table.getAllColumns().length} className="h-64">
+            <div className="flex flex-col items-center justify-center gap-4 text-center">
+              <div className="rounded-full bg-muted p-4">
+                <Package className="h-10 w-10 text-muted-foreground" />
+              </div>
+              <div className="space-y-2">
+                <h3 className="text-lg font-semibold">No data available</h3>
+                <p className="text-sm text-muted-foreground max-w-sm">
+                  {table.getState().columnFilters.length > 0 || table.getState().globalFilter
+                    ? 'No results match your search criteria. Try adjusting your filters.'
+                    : 'There are no items in this table yet. Get started by adding your first item.'}
+                </p>
+              </div>
+            </div>
           </TableCell>
         </TableRow>
       </TableBody>
@@ -127,7 +142,10 @@ export function VirtualizedTableBody<TData>({
       })}
       {paddingBottom > 0 && (
         <TableRow>
-          <TableCell colSpan={table.getAllColumns().length} style={{ height: `${paddingBottom}px` }} />
+          <TableCell
+            colSpan={table.getAllColumns().length}
+            style={{ height: `${paddingBottom}px` }}
+          />
         </TableRow>
       )}
     </TableBody>

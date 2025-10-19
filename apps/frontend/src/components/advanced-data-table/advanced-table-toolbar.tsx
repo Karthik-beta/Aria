@@ -11,7 +11,6 @@ import { GlobalSearch } from './global-search';
 import { ExportImportActions } from './export-import-actions';
 import { ColumnManager } from './column-manager';
 import { DataTableFacetedFilter } from '@/components/ui/table/data-table-faceted-filter';
-import { DataTableViewOptions } from '@/components/ui/table/data-table-view-options';
 import { Button } from '@/components/ui/button';
 import { Cross2Icon } from '@radix-ui/react-icons';
 import { cn } from '@/lib/utils';
@@ -42,7 +41,8 @@ export function AdvancedTableToolbar<TData>({
   className,
   ...props
 }: AdvancedTableToolbarProps<TData>) {
-  const isFiltered = table.getState().columnFilters.length > 0;
+  // Memoize state access to prevent render issues
+  const isFiltered = React.useMemo(() => table.getState().columnFilters.length > 0, [table]);
 
   const columns = React.useMemo(
     () => table.getAllColumns().filter((column) => column.getCanFilter()),
@@ -114,10 +114,7 @@ export function AdvancedTableToolbar<TData>({
             </Button>
           )}
         </div>
-        <div className="flex items-center gap-2">
-          {children}
-          <DataTableViewOptions table={table} />
-        </div>
+        <div className="flex items-center gap-2">{children}</div>
       </div>
     </div>
   );

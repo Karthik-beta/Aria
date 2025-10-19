@@ -29,6 +29,7 @@ import { ChevronDown } from 'lucide-react';
 import type { Table } from '@tanstack/react-table';
 import type { BulkAction } from './types';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
 
 interface BulkActionsProps<TData> {
   table: Table<TData>;
@@ -39,6 +40,7 @@ export function BulkActions<TData>({ table, actions }: BulkActionsProps<TData>) 
   const [isExecuting, setIsExecuting] = React.useState(false);
   const [pendingAction, setPendingAction] = React.useState<BulkAction<TData> | null>(null);
 
+  // Get selected rows dynamically without memoization to ensure fresh data
   const selectedRows = table.getFilteredSelectedRowModel().rows;
   const selectedCount = selectedRows.length;
 
@@ -58,7 +60,9 @@ export function BulkActions<TData>({ table, actions }: BulkActionsProps<TData>) 
       table.resetRowSelection();
     } catch (error) {
       console.error('Bulk action error:', error);
-      toast.error(`Failed to perform action: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      toast.error(
+        `Failed to perform action: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     } finally {
       setIsExecuting(false);
       setPendingAction(null);
@@ -81,40 +85,43 @@ export function BulkActions<TData>({ table, actions }: BulkActionsProps<TData>) 
 
   return (
     <>
-      <div className="flex items-center gap-2">
-        <span className="text-sm text-muted-foreground">
-          {selectedCount} row(s) selected
+      <div className="flex items-center justify-between gap-4 rounded-lg border border-primary/50 bg-primary/5 px-4 py-3">
+        <span className="text-sm font-medium">
+          {selectedCount} row{selectedCount !== 1 ? 's' : ''} selected
         </span>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" disabled={isExecuting}>
-              {isExecuting ? 'Processing...' : 'Bulk Actions'}
-              <ChevronDown className="ml-2 h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuLabel>Bulk Operations</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            {actions.map((action, index) => (
-              <DropdownMenuItem
-                key={index}
-                onClick={() => handleActionClick(action)}
-                disabled={isExecuting}
-              >
-                {action.icon && <span className="mr-2">{action.icon}</span>}
-                {action.label}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => table.resetRowSelection()}
-          disabled={isExecuting}
-        >
-          Clear Selection
-        </Button>
+        <div className="flex items-center gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="default" size="sm" disabled={isExecuting}>
+                {isExecuting ? 'Processing...' : 'Bulk Actions'}
+                <ChevronDown className="ml-2 h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>Bulk Operations</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {actions.map((action, index) => (
+                <DropdownMenuItem
+                  key={index}
+                  onClick={() => handleActionClick(action)}
+                  disabled={isExecuting}
+                  className={cn(action.variant === 'destructive' && 'text-destructive')}
+                >
+                  {action.icon && <span className="mr-2">{action.icon}</span>}
+                  {action.label}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => table.resetRowSelection()}
+            disabled={isExecuting}
+          >
+            Clear
+          </Button>
+        </div>
       </div>
 
       <AlertDialog open={!!pendingAction} onOpenChange={(open) => !open && handleCancel()}>

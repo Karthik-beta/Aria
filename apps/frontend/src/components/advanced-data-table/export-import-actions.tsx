@@ -44,7 +44,8 @@ export function ExportImportActions<TData>({
     try {
       setIsExporting(true);
       const selectedRows = table.getFilteredSelectedRowModel().rows;
-      const rowsToExport = selectedRows.length > 0 ? selectedRows : table.getFilteredRowModel().rows;
+      const rowsToExport =
+        selectedRows.length > 0 ? selectedRows : table.getFilteredRowModel().rows;
 
       if (onExport) {
         await onExport(format, rowsToExport);
@@ -55,7 +56,9 @@ export function ExportImportActions<TData>({
       toast.success(`Successfully exported ${rowsToExport.length} rows to ${format.toUpperCase()}`);
     } catch (error) {
       console.error('Export error:', error);
-      toast.error(`Failed to export data: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      toast.error(
+        `Failed to export data: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     } finally {
       setIsExporting(false);
     }
@@ -80,7 +83,9 @@ export function ExportImportActions<TData>({
       toast.success(`Successfully imported ${data.length} rows from ${file.name}`);
     } catch (error) {
       console.error('Import error:', error);
-      toast.error(`Failed to import data: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      toast.error(
+        `Failed to import data: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     } finally {
       setIsImporting(false);
       // Reset file input
