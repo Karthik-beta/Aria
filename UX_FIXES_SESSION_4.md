@@ -14,22 +14,26 @@ Based on user testing with the live application, three critical UX issues were i
 
 **Problem**: Search suggestions were using native HTML5 `<datalist>` which has inconsistent styling across browsers and limited customization.
 
-**Root Cause**: 
+**Root Cause**:
+
 - In the previous session, we implemented a lightweight solution using HTML5 datalist
 - While functional, it lacked consistent styling and didn't match the design system
 - Browser-native datalist has limited control over appearance and behavior
 
 **Solution**:
+
 - Replaced HTML5 `<datalist>` with shadcn/ui `Command` + `Popover` components
 - Implemented proper Popover trigger on input focus with 2+ characters
 - Added click-to-select functionality for suggestions
 - Styled suggestions to match the design system with icons and proper spacing
 - Popover width automatically matches input width using CSS variable
 
-**Files Modified**: 
+**Files Modified**:
+
 - `apps/frontend/src/components/advanced-data-table/global-search.tsx`
 
 **Code Changes**:
+
 ```tsx
 // Before: HTML5 datalist (inconsistent across browsers)
 <input list={datalistId} ... />
@@ -72,6 +76,7 @@ Based on user testing with the live application, three critical UX issues were i
 ```
 
 **Features**:
+
 - ✅ Consistent styling across all browsers
 - ✅ Keyboard navigation (↑↓ arrows, Enter to select)
 - ✅ Click to select suggestions
@@ -88,21 +93,25 @@ Based on user testing with the live application, three critical UX issues were i
 
 **Problem**: In the faceted filter dropdown (e.g., Stock Status filter), checkboxes didn't show proper visual feedback when selected.
 
-**Root Cause**: 
+**Root Cause**:
+
 - Using a custom div-based checkbox indicator with CSS classes
 - The implementation used `@radix-ui/react-icons` CheckIcon instead of the proper shadcn/ui Checkbox component
 - Inconsistent with the rest of the application's checkbox implementation
 
 **Solution**:
+
 - Replaced custom div-based checkbox with shadcn/ui `Checkbox` component
 - Properly wired `onCheckedChange` handler
 - Added consistent spacing with `mr-2` className
 - Icons now render correctly next to option labels
 
-**Files Modified**: 
+**Files Modified**:
+
 - `apps/frontend/src/components/ui/table/data-table-faceted-filter.tsx`
 
 **Code Changes**:
+
 ```tsx
 // Before: Custom div-based checkbox (inconsistent styling)
 <div
@@ -124,6 +133,7 @@ Based on user testing with the live application, three critical UX issues were i
 ```
 
 **Improvements**:
+
 - ✅ Consistent checkbox styling across entire app
 - ✅ Proper checkmark icon that shows/hides correctly
 - ✅ Smooth transitions when selecting/deselecting
@@ -136,25 +146,30 @@ Based on user testing with the live application, three critical UX issues were i
 ### 3. ✅ Header Checkbox & Spacing Issues
 
 **Problem**: Multiple issues with row selection:
+
 1. Clicking header checkbox wasn't selecting all rows on the page
 2. No indeterminate (partially selected) state when some rows selected
 3. Large gap between checkbox column and first data column
 
-**Root Cause**: 
+**Root Cause**:
+
 - The `SelectAllCheckbox` component was already properly implemented with indeterminate support
 - However, the checkbox column didn't have a fixed width, causing layout issues
 - TanStack Table needs explicit column sizing for proper spacing
 
 **Solution**:
+
 - Added explicit `size: 40` to the select column definition
 - Added `enableResizing: false` to prevent users from resizing the checkbox column
 - This ensures consistent spacing between checkbox and first data column
 - The indeterminate state was already working, just needed proper layout
 
-**Files Modified**: 
+**Files Modified**:
+
 - `apps/frontend/src/app/inventory/items-catalogue/item/page.tsx`
 
 **Code Changes**:
+
 ```tsx
 // Before: No explicit sizing
 {
@@ -180,6 +195,7 @@ Based on user testing with the live application, three critical UX issues were i
 **How Header Checkbox Works**:
 
 The `SelectAllCheckbox` component has three states:
+
 1. **Unchecked** (☐): No rows selected
 2. **Indeterminate** (⊟): Some rows selected but not all
 3. **Checked** (☑): All rows on current page selected
@@ -193,6 +209,7 @@ The `SelectAllCheckbox` component has three states:
 ```
 
 **Behavior**:
+
 - ✅ Click once: Select all rows on current page
 - ✅ Click again: Deselect all rows
 - ✅ Shows dash (⊟) when some rows selected
@@ -204,21 +221,25 @@ The `SelectAllCheckbox` component has three states:
 ## Technical Improvements
 
 ### Component Architecture
+
 - **Global Search**: Now uses proper Radix UI primitives through shadcn/ui
 - **Faceted Filter**: Consistent Checkbox component throughout
 - **Table Layout**: Fixed column sizing for predictable behavior
 
 ### State Management
+
 - Proper controlled Popover state for suggestions
 - Debounced search still works with new Popover implementation
 - Filter selections properly synced with column filter values
 
 ### Performance
+
 - Suggestions still limited to first 100 rows (performance optimization)
 - Maximum 8 suggestions shown (prevents overwhelming UI)
 - Popover only opens when meaningful (2+ characters typed)
 
 ### Accessibility
+
 - All checkboxes have proper `aria-label` attributes
 - Keyboard navigation works in suggestion dropdown
 - Screen reader compatible throughout
@@ -257,20 +278,21 @@ The `SelectAllCheckbox` component has three states:
 
 ### Before vs After
 
-| Issue | Before | After |
-|-------|--------|-------|
-| **Search Suggestions** | HTML5 datalist, inconsistent styling | shadcn/ui Command dropdown, consistent design |
-| **Suggestion Selection** | Type only, no click | Click or keyboard to select |
-| **Filter Checkboxes** | Custom div, inconsistent | shadcn/ui Checkbox, consistent |
-| **Checkbox Spacing** | Variable width, large gap | Fixed 40px, perfect spacing |
-| **Header Select All** | Working but layout issues | Working with perfect layout |
-| **Indeterminate State** | Present but hard to see | Clear visual indication |
+| Issue                    | Before                               | After                                         |
+| ------------------------ | ------------------------------------ | --------------------------------------------- |
+| **Search Suggestions**   | HTML5 datalist, inconsistent styling | shadcn/ui Command dropdown, consistent design |
+| **Suggestion Selection** | Type only, no click                  | Click or keyboard to select                   |
+| **Filter Checkboxes**    | Custom div, inconsistent             | shadcn/ui Checkbox, consistent                |
+| **Checkbox Spacing**     | Variable width, large gap            | Fixed 40px, perfect spacing                   |
+| **Header Select All**    | Working but layout issues            | Working with perfect layout                   |
+| **Indeterminate State**  | Present but hard to see              | Clear visual indication                       |
 
 ---
 
 ## Design System Compliance
 
 All components now use shadcn/ui primitives:
+
 - ✅ `Checkbox` for all checkbox interactions
 - ✅ `Command` + `Popover` for dropdown suggestions
 - ✅ `CommandItem` for suggestion list items
@@ -283,6 +305,7 @@ All components now use shadcn/ui primitives:
 ### Manual Testing Checklist
 
 **Search Suggestions:**
+
 - [ ] Type 2+ characters in search input
 - [ ] Verify suggestion dropdown appears
 - [ ] Click a suggestion to populate search
@@ -292,6 +315,7 @@ All components now use shadcn/ui primitives:
 - [ ] Check dropdown width matches input width
 
 **Filter Checkboxes:**
+
 - [ ] Open Stock Status filter dropdown
 - [ ] Click checkboxes to see checkmark appear
 - [ ] Verify multiple selections work
@@ -299,6 +323,7 @@ All components now use shadcn/ui primitives:
 - [ ] Test with keyboard navigation
 
 **Header Checkbox:**
+
 - [ ] Click header checkbox to select all rows
 - [ ] Verify all checkboxes on page are checked
 - [ ] Select only some rows manually
@@ -307,12 +332,14 @@ All components now use shadcn/ui primitives:
 - [ ] Verify consistent spacing to first column
 
 ### Browser Testing
+
 - [ ] Chrome 120+ (primary browser)
 - [ ] Firefox 121+ (verify Popover positioning)
 - [ ] Safari 17+ (test macOS interactions)
 - [ ] Edge 120+ (Windows specific testing)
 
 ### Responsive Testing
+
 - [ ] Desktop (1920px+): All features work
 - [ ] Laptop (1366px): Proper dropdown sizing
 - [ ] Tablet (768px): Touch interactions work
@@ -329,6 +356,7 @@ All changes are **100% backward compatible**. No API changes, no breaking change
 If you're implementing similar patterns:
 
 **Search with Suggestions:**
+
 ```tsx
 import { Command, CommandItem } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -353,18 +381,16 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 ```
 
 **Filter Checkboxes:**
+
 ```tsx
 import { Checkbox } from '@/components/ui/checkbox';
 
 // Use Checkbox component, not custom divs
-<Checkbox
-  checked={isSelected}
-  onCheckedChange={handleChange}
-  aria-label="Select option"
-/>
+<Checkbox checked={isSelected} onCheckedChange={handleChange} aria-label="Select option" />;
 ```
 
 **Fixed Width Columns:**
+
 ```tsx
 // Add explicit size for non-resizable columns
 {

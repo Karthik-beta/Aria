@@ -59,15 +59,41 @@ const getStockStatus = (quantity: number) => {
 
 // Memoized header checkbox component to prevent state update warnings
 const SelectAllCheckbox = React.memo(({ table }: { table: TanstackTable<Inventory.Item> }) => {
-  const isAllSelected = table.getIsAllPageRowsSelected();
-  const isSomeSelected = table.getIsSomePageRowsSelected();
+  // Use getIsAllRowsSelected instead of getIsAllPageRowsSelected for global selection
+  const isAllPageRowsSelected = table.getIsAllPageRowsSelected();
+  const isSomePageRowsSelected = table.getIsSomePageRowsSelected();
+
+  // Get counts from the current page after all filters
+  const currentPageRows = table.getRowModel().rows;
+  const selectedRowsOnPage = currentPageRows.filter((row) => row.getIsSelected());
+  const selectedCount = selectedRowsOnPage.length;
+  const totalCount = currentPageRows.length;
+
+  const handleCheckedChange = React.useCallback(
+    (value: boolean) => {
+      table.toggleAllPageRowsSelected(!!value);
+    },
+    [table]
+  );
 
   return (
-    <Checkbox
-      checked={isAllSelected || (isSomeSelected ? 'indeterminate' : false)}
-      onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
-      aria-label="Select all"
-    />
+    <div className="flex items-center gap-2">
+      <Checkbox
+        checked={isAllPageRowsSelected || (isSomePageRowsSelected ? 'indeterminate' : false)}
+        onCheckedChange={handleCheckedChange}
+        aria-label={
+          isAllPageRowsSelected
+            ? 'Deselect all rows'
+            : isSomePageRowsSelected
+              ? `${selectedCount} of ${totalCount} rows selected`
+              : 'Select all rows'
+        }
+        className="data-[state=indeterminate]:bg-primary data-[state=indeterminate]:text-primary-foreground"
+      />
+      {isSomePageRowsSelected && !isAllPageRowsSelected && totalCount > 0 && (
+        <span className="text-xs text-muted-foreground tabular-nums">{selectedCount}</span>
+      )}
+    </div>
   );
 });
 
@@ -105,9 +131,31 @@ export default function InventoryItemsPage() {
   );
 
   // Real-time subscription for CRUD events - Only enabled when component is mounted
+  const [subscriptionStatus, setSubscriptionStatus] = React.useState<
+    'connecting' | 'connected' | 'error' | 'reconnecting'
+  >('connecting');
+  const errorCountRef = React.useRef(0);
+  const lastErrorTimeRef = React.useRef(0);
+
   trpc.inventory.onItemsChanged.useSubscription(undefined, {
     enabled: !isLoading, // Only subscribe after initial load
+    onStarted: () => {
+      setSubscriptionStatus('connected');
+      errorCountRef.current = 0; // Reset error count on successful connection
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[Real-time] Subscription connected to inventory updates');
+      }
+    },
     onData: (event) => {
+      // Ensure we're marked as connected when receiving data
+      if (subscriptionStatus !== 'connected') {
+        setSubscriptionStatus('connected');
+      }
+
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[Real-time] Received event:', event.type, event.data);
+      }
+
       // Invalidate and refetch the list when any CRUD operation occurs
       utils.inventory.listItems.invalidate();
 
@@ -121,10 +169,31 @@ export default function InventoryItemsPage() {
       }
     },
     onError: (error) => {
-      // Silently log subscription errors to avoid console spam
-      // Subscription errors are often transient (e.g., backend restart)
-      if (process.env.NODE_ENV === 'development') {
-        console.warn('Subscription temporarily unavailable:', error.message);
+      errorCountRef.current += 1;
+      const now = Date.now();
+      const timeSinceLastError = now - lastErrorTimeRef.current;
+      lastErrorTimeRef.current = now;
+
+      // Transient errors during initial connection are normal
+      // Only treat as error if it persists beyond 3 attempts
+      if (errorCountRef.current < 3) {
+        setSubscriptionStatus('reconnecting');
+        if (process.env.NODE_ENV === 'development') {
+          console.warn(
+            `[Real-time] Connection attempt ${errorCountRef.current} failed, retrying...`,
+            error.message || 'Connection interrupted'
+          );
+        }
+      } else {
+        setSubscriptionStatus('error');
+        // Only show toast for persistent errors (not rapid reconnections)
+        if (timeSinceLastError > 5000) {
+          const errorMsg = error.message || 'Connection interrupted';
+          if (process.env.NODE_ENV === 'development') {
+            console.error('[Real-time] Subscription error:', errorMsg);
+            toast.error(`Real-time updates disconnected: ${errorMsg}`);
+          }
+        }
       }
     },
   });
@@ -136,22 +205,66 @@ export default function InventoryItemsPage() {
     }
   }, [queryError]);
 
-  // Delete mutation
+  // Delete mutation with optimistic updates
   const deleteMutation = trpc.inventory.deleteItem.useMutation({
+    onMutate: async (variables) => {
+      // Cancel outgoing refetches to avoid overwriting optimistic update
+      await utils.inventory.listItems.cancel();
+
+      // Snapshot the previous value
+      const previousItems = utils.inventory.listItems.getData();
+
+      // Optimistically update the cache
+      utils.inventory.listItems.setData(undefined, (old) => {
+        if (!old) return old;
+        return old.filter((item) => item.id !== variables.id);
+      });
+
+      // Return context with snapshot for rollback
+      return { previousItems };
+    },
     onSuccess: () => {
-      utils.inventory.listItems.invalidate();
       toast.success('Item deleted successfully');
       setIsDeleteDialogOpen(false);
       setItemToDelete(null);
     },
-    onError: (error) => {
+    onError: (error, variables, context) => {
+      // Rollback on error
+      if (context?.previousItems) {
+        utils.inventory.listItems.setData(undefined, context.previousItems);
+      }
       toast.error(`Failed to delete item: ${error.message}`);
+    },
+    onSettled: () => {
+      // Always refetch after mutation to ensure data consistency
+      utils.inventory.listItems.invalidate();
     },
   });
 
-  // Bulk delete mutation
+  // Bulk delete mutation with optimistic updates
   const bulkDeleteMutation = trpc.inventory.deleteItem.useMutation({
-    onSuccess: () => {
+    onMutate: async (variables) => {
+      // Cancel outgoing refetches
+      await utils.inventory.listItems.cancel();
+
+      // Snapshot the previous value
+      const previousItems = utils.inventory.listItems.getData();
+
+      // Optimistically remove item
+      utils.inventory.listItems.setData(undefined, (old) => {
+        if (!old) return old;
+        return old.filter((item) => item.id !== variables.id);
+      });
+
+      return { previousItems };
+    },
+    onError: (error, variables, context) => {
+      // Rollback on error
+      if (context?.previousItems) {
+        utils.inventory.listItems.setData(undefined, context.previousItems);
+      }
+    },
+    onSettled: () => {
       utils.inventory.listItems.invalidate();
     },
   });
@@ -186,6 +299,8 @@ export default function InventoryItemsPage() {
         enableSorting: false,
         enableHiding: false,
         enableResizing: false,
+        enableColumnFilter: false,
+        enableGlobalFilter: false,
       },
 
       // Name column
@@ -380,6 +495,9 @@ export default function InventoryItemsPage() {
         },
         enableSorting: false,
         enableHiding: false,
+        enableResizing: false,
+        enableColumnFilter: false,
+        enableGlobalFilter: false,
       },
     ],
     []
@@ -428,11 +546,13 @@ export default function InventoryItemsPage() {
     <div className="container mx-auto py-6 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Inventory Items</h1>
-          <p className="text-muted-foreground">
-            Manage your inventory items with advanced filtering, sorting, and bulk operations
-          </p>
+        <div className="flex items-center gap-4">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Inventory Items</h1>
+            <p className="text-muted-foreground">
+              Manage your inventory items with advanced filtering, sorting, and bulk operations
+            </p>
+          </div>
         </div>
         <Link
           href="/inventory/items-catalogue/item/form"

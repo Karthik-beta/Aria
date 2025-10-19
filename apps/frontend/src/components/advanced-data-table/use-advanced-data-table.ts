@@ -9,6 +9,7 @@ import * as React from 'react';
 import {
   type ColumnDef,
   type ColumnFiltersState,
+  type ColumnOrderState,
   type PaginationState,
   type RowSelectionState,
   type SortingState,
@@ -68,6 +69,7 @@ export function useAdvancedDataTable<TData>({
     pageIndex: 0,
     pageSize: initialPageSize,
   });
+  const [columnOrder, setColumnOrder] = React.useState<string[]>([]);
 
   // Calculate actual page count from data
   const calculatedPageCount = React.useMemo(() => {
@@ -117,6 +119,7 @@ export function useAdvancedDataTable<TData>({
       rowSelection,
       pagination,
       globalFilter,
+      columnOrder,
     },
     enableRowSelection,
     enableMultiRowSelection,
@@ -129,6 +132,7 @@ export function useAdvancedDataTable<TData>({
     onColumnVisibilityChange: setColumnVisibility,
     onPaginationChange: setPagination,
     onGlobalFilterChange: setGlobalFilter,
+    onColumnOrderChange: setColumnOrder,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
@@ -149,6 +153,7 @@ export function useAdvancedDataTable<TData>({
       sorting,
       globalFilter,
       pagination,
+      columnOrder,
     },
     // Expose setters for external control
     setRowSelection,
@@ -157,5 +162,6 @@ export function useAdvancedDataTable<TData>({
     setSorting,
     setGlobalFilter,
     setPagination,
+    setColumnOrder,
   };
 }

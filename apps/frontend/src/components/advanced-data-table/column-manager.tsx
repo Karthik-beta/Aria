@@ -73,9 +73,9 @@ export function ColumnManager<TData>({
   const [open, setOpen] = React.useState(false);
   const columns = table.getAllColumns().filter((column) => column.getCanHide());
 
-  // State for column order
+  // State for column order - exclude 'select' and 'actions' from reordering
   const [columnOrder, setColumnOrder] = React.useState<string[]>(
-    columns.map((column) => column.id)
+    columns.filter((col) => col.id !== 'select' && col.id !== 'actions').map((column) => column.id)
   );
 
   const sensors = useSensors(
@@ -94,8 +94,11 @@ export function ColumnManager<TData>({
         const newIndex = items.indexOf(over.id);
         const newOrder = arrayMove(items, oldIndex, newIndex);
 
+        // Prepend 'select' and append 'actions' to maintain fixed positions
+        const fullOrder = ['select', ...newOrder, 'actions'];
+
         // Update table column order
-        table.setColumnOrder(newOrder);
+        table.setColumnOrder(fullOrder);
 
         return newOrder;
       });
@@ -103,9 +106,11 @@ export function ColumnManager<TData>({
   };
 
   const handleResetOrder = () => {
-    const defaultOrder = columns.map((column) => column.id);
+    const defaultOrder = columns
+      .filter((col) => col.id !== 'select' && col.id !== 'actions')
+      .map((column) => column.id);
     setColumnOrder(defaultOrder);
-    table.setColumnOrder(defaultOrder);
+    table.setColumnOrder(['select', ...defaultOrder, 'actions']);
   };
 
   const handleResetVisibility = () => {

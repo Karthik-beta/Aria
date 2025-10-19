@@ -40,7 +40,7 @@ export class InventoryRouter {
         }),
 
       deleteItem: publicProcedure
-        .input(z.object({ id: z.cuid() }))
+        .input(z.object({ id: z.string().min(1) }))
         .mutation(async ({ input }) => {
           await this.inventoryService.delete(input.id);
           // Emit event for subscriptions

@@ -14,20 +14,24 @@ Based on user testing and feedback, three critical issues were identified and re
 
 **Problem**: When selecting rows in the table, checkboxes didn't show a visible tick mark or visual indication of being selected.
 
-**Root Cause**: 
+**Root Cause**:
+
 - Using raw HTML `<input type="checkbox">` instead of the shadcn/ui `Checkbox` component
 - The raw HTML input lacked proper styling and the checkmark icon
 
 **Solution**:
+
 - Replaced all raw HTML checkboxes with the shadcn/ui `Checkbox` component
 - The Radix UI primitive includes proper styling with a `CheckIcon` from lucide-react
 - Added support for indeterminate state in the header "select all" checkbox
 - Simplified the SelectAllCheckbox component to use Checkbox's built-in indeterminate support
 
-**Files Modified**: 
+**Files Modified**:
+
 - `apps/frontend/src/app/inventory/items-catalogue/item/page.tsx`
 
 **Code Changes**:
+
 ```tsx
 // Before: Raw HTML checkbox (no visual feedback)
 <input
@@ -53,6 +57,7 @@ Based on user testing and feedback, three critical issues were identified and re
 ```
 
 **Visual Improvements**:
+
 - ✅ Clear checkmark icon (CheckIcon from lucide-react)
 - ✅ Primary color when selected
 - ✅ Indeterminate state (dash) when some rows selected
@@ -66,27 +71,28 @@ Based on user testing and feedback, three critical issues were identified and re
 
 **Problem**: Bulk actions bar wasn't responding correctly to row selections or was showing stale selection counts.
 
-**Root Cause**: 
+**Root Cause**:
+
 - Over-memoization of selected rows using `React.useMemo`
 - The memoization dependency was the entire `table` object, which doesn't change reference often
 - This caused the bulk actions to display stale data
 
 **Solution**:
+
 - Removed the `React.useMemo` wrapper from selected rows calculation
 - Changed to direct call to `table.getFilteredSelectedRowModel().rows`
 - This ensures fresh selection data on every render
 - React will automatically optimize re-renders due to component structure
 
-**Files Modified**: 
+**Files Modified**:
+
 - `apps/frontend/src/components/advanced-data-table/bulk-actions.tsx`
 
 **Code Changes**:
+
 ```tsx
 // Before: Memoized (causing stale data)
-const selectedRows = React.useMemo(
-  () => table.getFilteredSelectedRowModel().rows,
-  [table]
-);
+const selectedRows = React.useMemo(() => table.getFilteredSelectedRowModel().rows, [table]);
 
 // After: Direct call (always fresh data)
 const selectedRows = table.getFilteredSelectedRowModel().rows;
@@ -94,6 +100,7 @@ const selectedCount = selectedRows.length;
 ```
 
 **Behavior Improvements**:
+
 - ✅ Bulk actions bar appears immediately when rows are selected
 - ✅ Selection count updates in real-time
 - ✅ Bulk actions execute with correct row data
@@ -105,21 +112,25 @@ const selectedCount = selectedRows.length;
 
 **Problem**: The search input had no autocomplete suggestions, making it harder to discover searchable values.
 
-**Root Cause**: 
+**Root Cause**:
+
 - In the previous session, we removed the Popover-based autocomplete entirely to fix input responsiveness
 - This left users without any search assistance
 
 **Solution**:
+
 - Implemented a lightweight autocomplete using native HTML5 `<datalist>` element
 - Generates suggestions from visible table data (first 100 rows for performance)
 - Shows up to 8 relevant suggestions based on what the user types
 - Only triggers after 2+ characters to avoid performance issues
 - Uses browser's native autocomplete UI (no complex Popover needed)
 
-**Files Modified**: 
+**Files Modified**:
+
 - `apps/frontend/src/components/advanced-data-table/global-search.tsx`
 
 **Code Changes**:
+
 ```tsx
 // Added suggestion generation
 const generateSuggestions = React.useCallback(
@@ -150,21 +161,20 @@ const generateSuggestions = React.useCallback(
 );
 
 // Native HTML5 datalist for autocomplete
-<input
-  type="text"
-  list={showSuggestions ? datalistId : undefined}
-  {...otherProps}
-/>
-{showSuggestions && suggestions.length > 0 && (
-  <datalist id={datalistId}>
-    {suggestions.map((suggestion, index) => (
-      <option key={index} value={suggestion} />
-    ))}
-  </datalist>
-)}
+<input type="text" list={showSuggestions ? datalistId : undefined} {...otherProps} />;
+{
+  showSuggestions && suggestions.length > 0 && (
+    <datalist id={datalistId}>
+      {suggestions.map((suggestion, index) => (
+        <option key={index} value={suggestion} />
+      ))}
+    </datalist>
+  );
+}
 ```
 
 **Features**:
+
 - ✅ Native browser autocomplete dropdown
 - ✅ Lightweight (no Popover, no Command component)
 - ✅ Performance optimized (max 100 rows, max 8 suggestions)
@@ -178,23 +188,27 @@ const generateSuggestions = React.useCallback(
 ## Technical Improvements
 
 ### Type Safety Enhancements
+
 - Added proper TypeScript type for SelectAllCheckbox: `TanstackTable<Inventory.Item>`
 - Changed `any` types to `unknown` in suggestion generation
 - Prefixed unused error variable with underscore: `_error`
 
 ### Code Quality
+
 - ✅ 0 ESLint errors
 - ✅ 0 ESLint warnings
 - ✅ All files properly formatted with Prettier
 - ✅ Improved component composition
 
 ### Performance
+
 - Suggestion generation limited to first 100 rows
 - Maximum 8 suggestions shown
 - Debounced search (300ms default)
 - Native browser rendering (no React dropdown overhead)
 
 ### Accessibility
+
 - Proper ARIA labels on all checkboxes
 - Keyboard navigation works correctly
 - Focus indicators on interactive elements
@@ -235,19 +249,20 @@ const generateSuggestions = React.useCallback(
 
 ### Before vs After
 
-| Issue | Before | After |
-|-------|--------|-------|
-| **Checkbox Tick** | No visual indication when selected | Clear checkmark with primary color |
-| **Indeterminate State** | Not supported | Shows dash when some rows selected |
-| **Bulk Actions** | Stale data, incorrect counts | Real-time updates, accurate counts |
-| **Search Suggestions** | None available | Native autocomplete with 8 suggestions |
-| **Input Performance** | Still responsive | Maintained responsiveness |
+| Issue                   | Before                             | After                                  |
+| ----------------------- | ---------------------------------- | -------------------------------------- |
+| **Checkbox Tick**       | No visual indication when selected | Clear checkmark with primary color     |
+| **Indeterminate State** | Not supported                      | Shows dash when some rows selected     |
+| **Bulk Actions**        | Stale data, incorrect counts       | Real-time updates, accurate counts     |
+| **Search Suggestions**  | None available                     | Native autocomplete with 8 suggestions |
+| **Input Performance**   | Still responsive                   | Maintained responsiveness              |
 
 ---
 
 ## Testing Recommendations
 
 ### Manual Testing Checklist
+
 - [x] Click checkboxes to see checkmark appear
 - [x] Select all rows to see all checkmarks
 - [x] Verify indeterminate state on header checkbox (select 1 of many)
@@ -259,12 +274,14 @@ const generateSuggestions = React.useCallback(
 - [x] Execute bulk delete action on selected rows
 
 ### Component Integration
+
 - [ ] Test with different table sizes (10, 100, 1000+ rows)
 - [ ] Test with various column types (text, numbers, dates)
 - [ ] Verify keyboard navigation (Tab, Space, Enter)
 - [ ] Test on mobile devices (touch interactions)
 
 ### Browser Testing
+
 - [ ] Chrome 120+ (native datalist styling)
 - [ ] Firefox 121+ (different datalist appearance)
 - [ ] Safari 17+ (minimal datalist styling)
@@ -274,7 +291,7 @@ const generateSuggestions = React.useCallback(
 
 ## Migration Notes
 
-All changes are **100% backward compatible**. No API changes, no breaking changes. 
+All changes are **100% backward compatible**. No API changes, no breaking changes.
 
 ### For Existing Implementations
 
@@ -292,6 +309,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 ### New Props Available
 
 `GlobalSearch` component now accepts:
+
 ```typescript
 interface GlobalSearchProps<TData> {
   showSuggestions?: boolean; // default: true

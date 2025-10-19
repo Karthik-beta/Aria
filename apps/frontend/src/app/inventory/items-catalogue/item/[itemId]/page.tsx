@@ -36,10 +36,12 @@ import { cn } from '@/lib/utils';
 
 // Stock status helper
 const getStockStatus = (quantity: number) => {
-  if (quantity === 0)
+  if (quantity === 0) {
     return { label: 'Out of Stock', variant: 'destructive' as const, icon: XCircle };
-  if (quantity < 10)
+  }
+  if (quantity < 10) {
     return { label: 'Low Stock', variant: 'secondary' as const, icon: AlertTriangle };
+  }
   return { label: 'In Stock', variant: 'default' as const, icon: CheckCircle2 };
 };
 

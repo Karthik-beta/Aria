@@ -130,17 +130,29 @@ export function DataTableFacetedFilter<TData, TValue>({
                 const isSelected = selectedValues.has(option.value);
 
                 return (
-                  <CommandItem key={option.value} onSelect={() => onItemSelect(option, isSelected)}>
+                  <CommandItem
+                    key={option.value}
+                    onSelect={() => onItemSelect(option, isSelected)}
+                    className="cursor-pointer"
+                  >
                     <Checkbox
                       checked={isSelected}
                       onCheckedChange={() => onItemSelect(option, isSelected)}
+                      onClick={(e) => {
+                        // Stop propagation to prevent double-triggering
+                        e.stopPropagation();
+                      }}
                       aria-label={`Select ${option.label}`}
                       className="mr-2"
                     />
-                    {option.icon && <option.icon className="mr-2 h-4 w-4" />}
-                    <span className="truncate">{option.label}</span>
-                    {option.count && (
-                      <span className="ml-auto font-mono text-xs">{option.count}</span>
+                    {option.icon && (
+                      <option.icon className="mr-2 h-4 w-4 shrink-0 text-muted-foreground" />
+                    )}
+                    <span className="truncate flex-1">{option.label}</span>
+                    {option.count !== undefined && (
+                      <span className="ml-auto shrink-0 font-mono text-xs text-muted-foreground tabular-nums">
+                        {option.count}
+                      </span>
                     )}
                   </CommandItem>
                 );

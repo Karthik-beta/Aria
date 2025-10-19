@@ -11,13 +11,16 @@
 Based on the screenshot and user feedback, the following critical UX issues were identified and resolved:
 
 ### 1. ✅ Search Input Not Responsive
+
 **Problem**: Global search input was not accepting input properly, felt sluggish or unresponsive.
 
-**Root Cause**: 
+**Root Cause**:
+
 - The input was wrapped in a Popover and PopoverTrigger component which interfered with normal input behavior
 - The complex autocomplete logic was causing event propagation issues
 
 **Solution**:
+
 - Removed the Popover wrapper completely
 - Simplified to a direct input element with debounced search
 - Changed from `bg-transparent` to `bg-background` for better visibility
@@ -26,6 +29,7 @@ Based on the screenshot and user feedback, the following critical UX issues were
 **Files Modified**: `apps/frontend/src/components/advanced-data-table/global-search.tsx`
 
 **Code Changes**:
+
 ```tsx
 // Before: Complex Popover wrapper
 <Popover open={open} onOpenChange={setOpen}>
@@ -46,13 +50,16 @@ Based on the screenshot and user feedback, the following critical UX issues were
 ```
 
 ### 2. ✅ Rows Per Page - No Default Selection
+
 **Problem**: The dropdown showed empty/blank instead of displaying the current page size.
 
 **Root Cause**:
+
 - SelectValue was using `placeholder` instead of direct children
 - Missing `defaultValue` prop on Select component
 
 **Solution**:
+
 - Changed SelectValue to render the current page size directly as children
 - Added `defaultValue` prop to Select component
 - Increased width from `w-[4.5rem]` to `w-[70px]` for better visibility
@@ -60,6 +67,7 @@ Based on the screenshot and user feedback, the following critical UX issues were
 **Files Modified**: `apps/frontend/src/components/ui/table/data-table-pagination.tsx`
 
 **Code Changes**:
+
 ```tsx
 // Before
 <SelectValue placeholder={`${currentPageSize}`} />
@@ -73,14 +81,17 @@ Based on the screenshot and user feedback, the following critical UX issues were
 ```
 
 ### 3. ✅ Table Alignment Issues
+
 **Problem**: Table content was not properly aligned and had layout problems.
 
 **Root Cause**:
+
 - Complex nested ScrollArea structure causing alignment issues
 - Absolute positioning and flex-1 causing overflow problems
 - Sticky header z-index conflicts
 
 **Solution**:
+
 - Simplified container structure from `flex flex-1 flex-col` to `relative w-full`
 - Removed ScrollArea wrapper and used native overflow
 - Changed to direct `overflow-auto` on a simple div wrapper
@@ -89,6 +100,7 @@ Based on the screenshot and user feedback, the following critical UX issues were
 **Files Modified**: `apps/frontend/src/components/advanced-data-table/advanced-data-table.tsx`
 
 **Code Changes**:
+
 ```tsx
 // Before
 <div className="relative flex flex-1 flex-col">
@@ -110,9 +122,11 @@ Based on the screenshot and user feedback, the following critical UX issues were
 ```
 
 ### 4. ✅ Table Not Responsive to Screen Size
+
 **Problem**: Table didn't adapt properly to different screen widths.
 
 **Solution**:
+
 - Changed table container to use `overflow-auto` instead of fixed ScrollArea
 - Added `minWidth: '100%'` to table style
 - Added `overflow-hidden` to outer container for clean edges
@@ -121,9 +135,11 @@ Based on the screenshot and user feedback, the following critical UX issues were
 **Files Modified**: `apps/frontend/src/components/advanced-data-table/advanced-data-table.tsx`
 
 ### 5. ✅ Bulk Actions Not Visible/Prominent
+
 **Problem**: Bulk actions bar was not noticeable when rows were selected.
 
 **Solution**:
+
 - Redesigned bulk actions bar with prominent styling
 - Added colored border (`border-primary/50`) and background (`bg-primary/5`)
 - Made the component stand out with better spacing and padding
@@ -134,6 +150,7 @@ Based on the screenshot and user feedback, the following critical UX issues were
 **Files Modified**: `apps/frontend/src/components/advanced-data-table/bulk-actions.tsx`
 
 **Code Changes**:
+
 ```tsx
 // Before
 <div className="flex items-center gap-2">
@@ -161,21 +178,25 @@ Based on the screenshot and user feedback, the following critical UX issues were
 ## Technical Improvements
 
 ### Component Simplification
+
 - **Global Search**: Removed 50+ lines of complex Popover code
 - **Table Container**: Simplified nested structure from 4 levels to 3
 - **Bulk Actions**: Better visual hierarchy and prominence
 
 ### Performance Enhancements
+
 - Direct input onChange instead of Popover state management
 - Removed unnecessary z-index layering
 - Native browser scroll instead of custom ScrollArea
 
 ### Accessibility
+
 - Search input now works correctly with screen readers
 - Proper focus management without Popover interference
 - Better button labeling and hierarchy
 
 ### Responsive Design
+
 - Table adapts to all screen widths naturally
 - Mobile-friendly scroll behavior
 - Proper text wrapping in headers with `whitespace-nowrap`
@@ -217,19 +238,20 @@ Based on the screenshot and user feedback, the following critical UX issues were
 
 ### Before vs After
 
-| Issue | Before | After |
-|-------|--------|-------|
-| Search Input | Unresponsive, wrapped in Popover | Direct, instant response |
-| Page Size Dropdown | Empty/blank display | Shows "25" clearly |
-| Table Layout | Misaligned, overflow issues | Clean, proper alignment |
-| Responsiveness | Fixed height, no adaptation | Adapts to screen width |
-| Bulk Actions | Subtle, easy to miss | Prominent with colored background |
+| Issue              | Before                           | After                             |
+| ------------------ | -------------------------------- | --------------------------------- |
+| Search Input       | Unresponsive, wrapped in Popover | Direct, instant response          |
+| Page Size Dropdown | Empty/blank display              | Shows "25" clearly                |
+| Table Layout       | Misaligned, overflow issues      | Clean, proper alignment           |
+| Responsiveness     | Fixed height, no adaptation      | Adapts to screen width            |
+| Bulk Actions       | Subtle, easy to miss             | Prominent with colored background |
 
 ---
 
 ## Testing Recommendations
 
 ### Manual Testing Checklist
+
 - [x] Search input accepts text immediately
 - [x] Search clears properly with X button
 - [x] Rows per page shows current value
@@ -240,12 +262,14 @@ Based on the screenshot and user feedback, the following critical UX issues were
 - [x] Clear button works correctly
 
 ### Responsive Testing
+
 - [ ] Test on mobile (320px - 480px)
 - [ ] Test on tablet (768px - 1024px)
 - [ ] Test on desktop (1920px+)
 - [ ] Test on ultrawide (2560px+)
 
 ### Browser Testing
+
 - [ ] Chrome 120+
 - [ ] Firefox 121+
 - [ ] Safari 17+
