@@ -9,6 +9,7 @@
     "build": "turbo run build",
     "dev": "turbo run dev db:start",
     "dev:full": "turbo run dev db:start studio",
+    "start": "turbo run start",
     "lint": "turbo run lint",
     "test": "turbo run test",
     "package": "pwsh -File deployment/scripts/build/windows/build-package.ps1",

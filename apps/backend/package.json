@@ -9,7 +9,7 @@
     "build": "nest build",
     "clean": "rimraf dist .turbo",
     "dev": "nest start --watch",
-    "db:start": "npx prisma dev db start",
+    "db:start": "npx prisma dev",
     "db:generate": "prisma generate",
     "postinstall": "prisma generate",
     "studio": "npx prisma studio",

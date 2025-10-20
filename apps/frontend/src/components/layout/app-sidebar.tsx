@@ -61,8 +61,8 @@ const apps = [
 ];
 
 const fallbackUser = {
-  fullName: 'Inventory Admin',
-  emailAddresses: [{ emailAddress: 'inventory.admin@example.com' }],
+  fullName: 'Admin',
+  emailAddresses: [{ emailAddress: 'admin@example.com' }],
   imageUrl: '',
 };
 

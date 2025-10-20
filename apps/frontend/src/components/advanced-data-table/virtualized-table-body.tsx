@@ -30,8 +30,9 @@ export function VirtualizedTableBody<TData>({
 }: VirtualizedTableBodyProps<TData>) {
   const tableContainerRef = React.useRef<HTMLTableSectionElement>(null);
 
-  // Memoize rows to prevent state update issues during render
-  const rows = React.useMemo(() => table.getRowModel().rows, [table]);
+  // Get rows directly - table.getRowModel() returns filtered/sorted rows automatically
+  // DO NOT memoize with [table] as dependency - it prevents updates when filters change
+  const rows = table.getRowModel().rows;
 
   const rowVirtualizer = useVirtualizer({
     count: rows.length,

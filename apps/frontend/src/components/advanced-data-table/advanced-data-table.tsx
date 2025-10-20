@@ -12,7 +12,6 @@ import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { DataTablePagination } from '@/components/ui/table/data-table-pagination';
 import { AdvancedTableToolbar } from './advanced-table-toolbar';
 import { VirtualizedTableBody } from './virtualized-table-body';
-import { BulkActions } from './bulk-actions';
 import { getCommonPinningStyles } from '@/lib/data-table';
 import { cn } from '@/lib/utils';
 import type { AdvancedDataTableProps } from './types';
@@ -44,6 +43,7 @@ export function AdvancedDataTable<TData, TValue>({
   virtualScrollEstimateSize = 50,
   virtualScrollOverscan = 5,
   toolbar,
+  primaryAction,
   actionBar,
   emptyState,
   loadingState,
@@ -126,7 +126,7 @@ export function AdvancedDataTable<TData, TValue>({
       aria-label={ariaLabel}
       aria-description={ariaDescription}
     >
-      {/* Toolbar */}
+      {/* Toolbar with integrated bulk actions */}
       {toolbar || (
         <AdvancedTableToolbar
           table={table}
@@ -137,12 +137,9 @@ export function AdvancedDataTable<TData, TValue>({
           onExport={onExport}
           onImport={onImport ? (data) => onImport(data as any) : undefined}
           enableColumnReordering={enableColumnReordering}
+          bulkActions={enableBulkActions ? bulkActions : []}
+          primaryAction={primaryAction}
         />
-      )}
-
-      {/* Bulk Actions */}
-      {enableBulkActions && bulkActions && bulkActions.length > 0 && (
-        <BulkActions table={table} actions={bulkActions} />
       )}
 
       {/* Table Container */}

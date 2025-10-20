@@ -325,6 +325,7 @@ export default function InventoryItemsPage() {
         },
         enableSorting: true,
         enableColumnFilter: true,
+        enableGlobalFilter: true,
       },
 
       // SKU column
@@ -345,6 +346,7 @@ export default function InventoryItemsPage() {
         },
         enableSorting: true,
         enableColumnFilter: true,
+        enableGlobalFilter: true,
       },
 
       // Quantity column
@@ -540,6 +542,7 @@ export default function InventoryItemsPage() {
     initialSorting: [{ id: 'createdAt', desc: true }], // Sort by newest first
     enableRowSelection: true,
     enableMultiRowSelection: true,
+    enableGlobalFilter: true,
   });
 
   return (
@@ -554,13 +557,6 @@ export default function InventoryItemsPage() {
             </p>
           </div>
         </div>
-        <Link
-          href="/inventory/items-catalogue/item/form"
-          className={cn(buttonVariants({ variant: 'default' }))}
-        >
-          <Plus className="mr-2 h-4 w-4" />
-          Add Item
-        </Link>
       </div>
 
       {/* Loading State */}
@@ -601,6 +597,15 @@ export default function InventoryItemsPage() {
           enableColumnReordering
           exportFormats={['csv', 'excel', 'json', 'pdf']}
           bulkActions={bulkActions}
+          primaryAction={
+            <Link
+              href="/inventory/items-catalogue/item/form"
+              className={cn(buttonVariants({ variant: 'default', size: 'sm' }))}
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Add Item
+            </Link>
+          }
           ariaLabel="Inventory items table"
           ariaDescription="A table of all inventory items with advanced filtering, sorting, and bulk actions"
         />

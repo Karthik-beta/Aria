@@ -32,22 +32,28 @@ export function GlobalSearch<TData>({
   debounceMs = 300,
   showSuggestions = true,
 }: GlobalSearchProps<TData>) {
-  const [value, setValue] = React.useState('');
+  const [inputValue, setInputValue] = React.useState('');
   const [open, setOpen] = React.useState(false);
   const [suggestions, setSuggestions] = React.useState<string[]>([]);
-  const timeoutRef = React.useRef<NodeJS.Timeout | undefined>(undefined);
+  const debounceTimerRef = React.useRef<NodeJS.Timeout | null>(null);
+  const inputRef = React.useRef<HTMLInputElement>(null);
 
-  // Debounced search
-  const debouncedSetGlobalFilter = React.useMemo(() => {
-    return (value: string) => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
+  // Sync input value with table's global filter state
+  const tableGlobalFilter = table.getState().globalFilter as string;
+
+  React.useEffect(() => {
+    if (tableGlobalFilter !== inputValue) {
+      setInputValue(tableGlobalFilter ?? '');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tableGlobalFilter]); // Cleanup debounce timer on unmount
+  React.useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
       }
-      timeoutRef.current = setTimeout(() => {
-        table.setGlobalFilter(value);
-      }, debounceMs);
     };
-  }, [table, debounceMs]);
+  }, []);
 
   // Generate simple suggestions from visible data
   const generateSuggestions = React.useCallback(
@@ -78,91 +84,142 @@ export function GlobalSearch<TData>({
     [table, showSuggestions]
   );
 
-  const handleValueChange = React.useCallback(
+  // Handle input change with debounced filter update
+  const handleInputChange = React.useCallback(
     (newValue: string) => {
-      setValue(newValue);
-      debouncedSetGlobalFilter(newValue);
+      setInputValue(newValue);
+
+      // Clear existing timer
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+
+      // Set new debounced timer to update table filter
+      debounceTimerRef.current = setTimeout(() => {
+        table.setGlobalFilter(newValue || undefined);
+      }, debounceMs);
+
+      // Generate suggestions immediately for better UX
       generateSuggestions(newValue);
+
       if (showSuggestions && newValue.length >= 2) {
         setOpen(true);
       } else {
         setOpen(false);
       }
     },
-    [debouncedSetGlobalFilter, generateSuggestions, showSuggestions]
+    [table, debounceMs, generateSuggestions, showSuggestions]
   );
 
   const handleClear = React.useCallback(() => {
-    setValue('');
-    table.setGlobalFilter('');
+    setInputValue('');
+    table.setGlobalFilter(undefined);
     setSuggestions([]);
     setOpen(false);
+
+    // Clear any pending debounce
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+
+    // Focus input after clearing
+    inputRef.current?.focus();
   }, [table]);
 
   const handleSelectSuggestion = React.useCallback(
     (suggestion: string) => {
-      setValue(suggestion);
+      console.log('[GlobalSearch] Selected suggestion:', suggestion);
+      console.log('[GlobalSearch] Current filter before:', table.getState().globalFilter);
+      console.log('[GlobalSearch] Filtered rows before:', table.getFilteredRowModel().rows.length);
+      
+      setInputValue(suggestion);
       table.setGlobalFilter(suggestion);
+      
+      // Log after state update (will show in next render due to React batching)
+      requestAnimationFrame(() => {
+        console.log('[GlobalSearch] Filter after update:', table.getState().globalFilter);
+        console.log('[GlobalSearch] Filtered rows after:', table.getFilteredRowModel().rows.length);
+      });
+      
       setOpen(false);
+
+      // Clear any pending debounce
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+
+      // Focus input after selection
+      inputRef.current?.focus();
     },
     [table]
   );
 
   return (
-    <Popover open={open && suggestions.length > 0} onOpenChange={setOpen}>
-      <div className="relative w-full max-w-sm">
+    <div className="relative w-full max-w-sm">
+      <Popover open={open && suggestions.length > 0} onOpenChange={setOpen}>
         <SearchIcon className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none z-10" />
         <PopoverTrigger asChild>
-          <input
-            type="text"
-            placeholder={placeholder}
-            value={value}
-            onChange={(e) => handleValueChange(e.target.value)}
-            onFocus={() => {
-              if (value.length >= 2 && suggestions.length > 0) {
-                setOpen(true);
-              }
-            }}
-            className={cn(
-              'flex h-9 w-full rounded-md border border-input bg-background px-8 py-1 text-sm shadow-sm transition-colors',
-              'file:border-0 file:bg-transparent file:text-sm file:font-medium',
-              'placeholder:text-muted-foreground',
-              'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring',
-              'disabled:cursor-not-allowed disabled:opacity-50'
-            )}
-          />
+          <div>
+            <input
+              ref={inputRef}
+              type="text"
+              placeholder={placeholder}
+              value={inputValue}
+              onChange={(e) => handleInputChange(e.target.value)}
+              onFocus={() => {
+                if (inputValue.length >= 2 && suggestions.length > 0) {
+                  setOpen(true);
+                }
+              }}
+              className={cn(
+                'flex h-9 w-full rounded-md border border-input bg-background px-8 py-1 text-sm shadow-sm transition-colors',
+                'file:border-0 file:bg-transparent file:text-sm file:font-medium',
+                'placeholder:text-muted-foreground',
+                'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring',
+                'disabled:cursor-not-allowed disabled:opacity-50'
+              )}
+            />
+          </div>
         </PopoverTrigger>
-        {value && (
+        {inputValue && (
           <Button
             variant="ghost"
             size="sm"
             className="absolute right-0 top-0 h-9 w-9 p-0 z-10"
             onClick={handleClear}
+            type="button"
           >
             <XIcon className="h-4 w-4" />
             <span className="sr-only">Clear search</span>
           </Button>
         )}
-      </div>
-      <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
-        <Command>
-          <CommandList>
-            <CommandEmpty>No suggestions found.</CommandEmpty>
-            <CommandGroup heading="Suggestions">
-              {suggestions.map((suggestion, index) => (
-                <CommandItem
-                  key={index}
-                  value={suggestion}
-                  onSelect={() => handleSelectSuggestion(suggestion)}
-                >
-                  <SearchIcon className="mr-2 h-4 w-4" />
-                  {suggestion}
-                </CommandItem>
-              ))}
-            </CommandGroup>
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
+        <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+          <Command shouldFilter={false}>
+            <CommandList>
+              <CommandEmpty>No suggestions found.</CommandEmpty>
+              <CommandGroup heading="Suggestions">
+                {suggestions.map((suggestion, index) => (
+                  <CommandItem
+                    key={`${suggestion}-${index}`}
+                    value={suggestion}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      handleSelectSuggestion(suggestion);
+                    }}
+                    onSelect={() => {
+                      // CommandItem's onSelect also triggers, using the same handler
+                      handleSelectSuggestion(suggestion);
+                    }}
+                  >
+                    <SearchIcon className="mr-2 h-4 w-4" />
+                    {suggestion}
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+    </div>
   );
 }

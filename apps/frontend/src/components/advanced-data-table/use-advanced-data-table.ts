@@ -125,6 +125,7 @@ export function useAdvancedDataTable<TData>({
     enableMultiRowSelection,
     enableColumnResizing,
     enableGlobalFilter,
+    globalFilterFn: 'includesString', // Use built-in case-insensitive filter
     columnResizeMode: 'onChange',
     onRowSelectionChange: setRowSelection,
     onSortingChange: setSorting,

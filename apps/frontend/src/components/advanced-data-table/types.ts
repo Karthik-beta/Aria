@@ -90,6 +90,7 @@ export interface AdvancedDataTableProps<TData, TValue> {
 
   // UI customization
   toolbar?: React.ReactNode;
+  primaryAction?: React.ReactNode; // Primary action button that converts to "Actions" when rows are selected
   actionBar?: React.ReactNode;
   emptyState?: React.ReactNode;
   loadingState?: React.ReactNode;
