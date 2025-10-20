@@ -57,9 +57,9 @@ const getStockStatus = (quantity: number) => {
   return { label: 'In Stock', variant: 'default' as const, icon: CheckCircle2 };
 };
 
-// Memoized header checkbox component to prevent state update warnings
-const SelectAllCheckbox = React.memo(({ table }: { table: TanstackTable<Inventory.Item> }) => {
-  // Use getIsAllRowsSelected instead of getIsAllPageRowsSelected for global selection
+// Header checkbox component - NOT memoized to ensure it re-renders with selection changes
+const SelectAllCheckbox = ({ table }: { table: TanstackTable<Inventory.Item> }) => {
+  // Use getIsAllPageRowsSelected for current page selection
   const isAllPageRowsSelected = table.getIsAllPageRowsSelected();
   const isSomePageRowsSelected = table.getIsSomePageRowsSelected();
 
@@ -95,7 +95,7 @@ const SelectAllCheckbox = React.memo(({ table }: { table: TanstackTable<Inventor
       )}
     </div>
   );
-});
+};
 
 SelectAllCheckbox.displayName = 'SelectAllCheckbox';
 
