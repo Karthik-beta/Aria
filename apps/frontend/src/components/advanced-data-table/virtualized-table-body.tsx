@@ -1,27 +1,41 @@
 /**
  * Advanced Data Table - Virtualized Table Body
  * Uses @tanstack/react-virtual for efficient rendering of large datasets
+ * @module advanced-data-table/virtualized-table-body
  */
 
 'use client';
 
 import * as React from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { flexRender, type Table as TanstackTable } from '@tanstack/react-table';
+import { flexRender, type Table as TanstackTable, type RowData } from '@tanstack/react-table';
 import { TableBody, TableCell, TableRow } from '@/components/ui/table';
 import { getCommonPinningStyles } from '@/lib/data-table';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Package, Search } from 'lucide-react';
 
-interface VirtualizedTableBodyProps<TData> {
+interface VirtualizedTableBodyProps<TData extends RowData> {
+  /** Table instance */
   table: TanstackTable<TData>;
+
+  /** Enable virtualization for large datasets */
   enableVirtualization?: boolean;
+
+  /** Estimated row height in pixels */
   estimateSize?: number;
+
+  /** Number of rows to render outside viewport */
   overscan?: number;
+
+  /** Loading state */
   isLoading?: boolean;
 }
 
-export function VirtualizedTableBody<TData>({
+/**
+ * Virtualized Table Body Component
+ * Efficiently renders large datasets using virtual scrolling
+ */
+export function VirtualizedTableBody<TData extends RowData>({
   table,
   enableVirtualization = true,
   estimateSize = 50,
@@ -30,24 +44,28 @@ export function VirtualizedTableBody<TData>({
 }: VirtualizedTableBodyProps<TData>) {
   const tableContainerRef = React.useRef<HTMLTableSectionElement>(null);
 
-  // Get rows directly - table.getRowModel() returns filtered/sorted rows automatically
-  // DO NOT memoize with [table] as dependency - it prevents updates when filters change
+  // Get rows - returns filtered/sorted rows automatically
+  // NOTE: Do not memoize rows to allow proper reactivity
   const rows = table.getRowModel().rows;
 
+  // Create virtualizer with proper configuration
+  // NOTE: useVirtualizer handles its own memoization internally
   const rowVirtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => tableContainerRef.current?.parentElement || null,
     estimateSize: () => estimateSize,
-    overscan: overscan,
+    overscan,
     enabled: enableVirtualization && rows.length > 50,
   });
 
+  // Get virtual items - DON'T memoize, this needs to update on scroll
   const virtualRows = rowVirtualizer.getVirtualItems();
   const totalSize = rowVirtualizer.getTotalSize();
 
-  const paddingTop = virtualRows.length > 0 ? virtualRows[0]?.start || 0 : 0;
+  // Calculate padding
+  const paddingTop = virtualRows.length > 0 ? (virtualRows[0]?.start ?? 0) : 0;
   const paddingBottom =
-    virtualRows.length > 0 ? totalSize - (virtualRows[virtualRows.length - 1]?.end || 0) : 0;
+    virtualRows.length > 0 ? totalSize - (virtualRows[virtualRows.length - 1]?.end ?? 0) : 0;
 
   if (isLoading) {
     return (

@@ -86,9 +86,9 @@ export function BulkActions<TData>({ table, actions }: BulkActionsProps<TData>) 
   return (
     <>
       <div className="flex items-center justify-between gap-4 rounded-lg border border-primary/50 bg-primary/5 px-4 py-3">
-        <span className="text-sm font-medium">
+        {/* <span className="text-sm font-medium">
           {selectedCount} row{selectedCount !== 1 ? 's' : ''} selected
-        </span>
+        </span> */}
         <div className="flex items-center gap-2">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

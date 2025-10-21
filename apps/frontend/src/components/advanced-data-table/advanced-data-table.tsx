@@ -1,12 +1,13 @@
 /**
  * Advanced Data Table - Main Component
  * Enterprise-grade data table with all advanced features
+ * @module advanced-data-table/advanced-data-table
  */
 
 'use client';
 
 import * as React from 'react';
-import { type Table as TanstackTable, flexRender } from '@tanstack/react-table';
+import { type Table as TanstackTable, type RowData, flexRender } from '@tanstack/react-table';
 import { Table, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { DataTablePagination } from '@/components/ui/table/data-table-pagination';
@@ -14,9 +15,27 @@ import { AdvancedTableToolbar } from './advanced-table-toolbar';
 import { VirtualizedTableBody } from './virtualized-table-body';
 import { getCommonPinningStyles } from '@/lib/data-table';
 import { cn } from '@/lib/utils';
-import type { AdvancedDataTableProps } from './types';
+import type { AdvancedDataTableProps, AdvancedDataTableError } from './types';
 
-export function AdvancedDataTable<TData, TValue>({
+/**
+ * Create a standardized error object
+ */
+function createError(
+  type: AdvancedDataTableError['type'],
+  message: string,
+  cause?: unknown,
+  extra?: Record<string, unknown>
+): AdvancedDataTableError {
+  return { type, message, cause, ...extra } as AdvancedDataTableError;
+}
+
+/**
+ * Advanced Data Table Component
+ * Provides enterprise-grade table functionality with virtualization, filtering, and more
+ * @template TData - The row data type
+ * @template TValue - The cell value type (optional)
+ */
+export function AdvancedDataTable<TData extends RowData, TValue = unknown>({
   table,
   data,
   totalItems,
@@ -56,68 +75,134 @@ export function AdvancedDataTable<TData, TValue>({
   containerClassName,
 }: AdvancedDataTableProps<TData, TValue>) {
   const [isLoading, setIsLoading] = React.useState(false);
+  const [error, setError] = React.useState<AdvancedDataTableError | null>(null);
+
+  // Store callback refs to prevent stale closures
+  const onErrorRef = React.useRef(onError);
+  const onStateChangeRef = React.useRef(onStateChange);
+  const onSubscriptionUpdateRef = React.useRef(onSubscriptionUpdate);
+
+  // Update refs when callbacks change
+  React.useEffect(() => {
+    onErrorRef.current = onError;
+  }, [onError]);
+
+  React.useEffect(() => {
+    onStateChangeRef.current = onStateChange;
+  }, [onStateChange]);
+
+  React.useEffect(() => {
+    onSubscriptionUpdateRef.current = onSubscriptionUpdate;
+  }, [onSubscriptionUpdate]);
+
+  // Centralized error handler
+  const handleError = React.useCallback((error: AdvancedDataTableError) => {
+    setError(error);
+    onErrorRef.current?.(error);
+    console.error('[AdvancedDataTable]', error);
+  }, []);
 
   // Handle real-time updates via tRPC subscription
   React.useEffect(() => {
     if (!enableRealtime || !subscriptionKey) return;
 
-    // TODO: Implement tRPC subscription
+    // TODO: Implement tRPC subscription when ready
+    // Example implementation:
     // const subscription = trpc.subscribeToUpdates.useSubscription(
     //   { key: subscriptionKey },
     //   {
     //     onData: (data) => {
-    //       if (onSubscriptionUpdate) {
-    //         onSubscriptionUpdate(data);
+    //       try {
+    //         onSubscriptionUpdateRef.current?.(data);
+    //       } catch (err) {
+    //         handleError(createError('network', 'Failed to process subscription update', err));
     //       }
     //     },
-    //     onError: (error) => {
-    //       if (onError) {
-    //         onError(error);
-    //       }
+    //     onError: (err) => {
+    //       handleError(createError('network', 'Subscription error occurred', err));
     //     },
     //   }
     // );
+    //
+    // return () => {
+    //   subscription.unsubscribe();
+    // };
 
-    // return () => subscription.unsubscribe();
-  }, [enableRealtime, subscriptionKey, onSubscriptionUpdate, onError]);
+    // Cleanup function (currently no-op until subscription is implemented)
+    return () => {
+      // Cleanup subscription when component unmounts or dependencies change
+    };
+  }, [enableRealtime, subscriptionKey, handleError]);
 
-  // Monitor table state changes
+  // Monitor table state changes (debounced to avoid excessive callbacks)
   React.useEffect(() => {
-    if (!onStateChange) return;
+    if (!onStateChangeRef.current) return;
 
+    const tableState = table.getState();
     const state = {
-      sorting: table.getState().sorting,
-      columnFilters: table.getState().columnFilters,
-      columnVisibility: table.getState().columnVisibility,
-      rowSelection: table.getState().rowSelection,
-      pagination: table.getState().pagination,
+      sorting: tableState.sorting,
+      columnFilters: tableState.columnFilters,
+      columnVisibility: tableState.columnVisibility,
+      rowSelection: tableState.rowSelection,
+      pagination: tableState.pagination,
+      globalFilter: tableState.globalFilter as string | undefined,
     };
 
-    onStateChange(state);
-  }, [table.getState(), onStateChange]);
+    try {
+      onStateChangeRef.current(state);
+    } catch (err) {
+      handleError(createError('unknown', 'Error in state change callback', err));
+    }
+  }, [
+    table.getState().sorting,
+    table.getState().columnFilters,
+    table.getState().columnVisibility,
+    table.getState().rowSelection,
+    table.getState().pagination,
+    table.getState().globalFilter,
+    handleError,
+  ]);
 
-  // Keyboard navigation
+  // Keyboard navigation with proper cleanup
   React.useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      const { key, ctrlKey, metaKey } = event;
-      const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
-      const modKey = isMac ? metaKey : ctrlKey;
+      try {
+        const { key, ctrlKey, metaKey, target } = event;
 
-      // Ctrl/Cmd + A: Select all rows
-      if (modKey && key === 'a') {
-        event.preventDefault();
-        table.toggleAllRowsSelected();
-      }
+        // Don't interfere with input fields
+        if (
+          target instanceof HTMLInputElement ||
+          target instanceof HTMLTextAreaElement ||
+          target instanceof HTMLSelectElement
+        ) {
+          return;
+        }
 
-      // Escape: Clear selection
-      if (key === 'Escape') {
-        table.resetRowSelection();
+        const isMac =
+          typeof navigator !== 'undefined' && navigator.platform.toUpperCase().includes('MAC');
+        const modKey = isMac ? metaKey : ctrlKey;
+
+        // Ctrl/Cmd + A: Select all rows
+        if (modKey && key === 'a') {
+          event.preventDefault();
+          table.toggleAllRowsSelected();
+        }
+
+        // Escape: Clear selection
+        if (key === 'Escape') {
+          event.preventDefault();
+          table.resetRowSelection();
+        }
+      } catch (err) {
+        handleError(createError('unknown', 'Keyboard navigation error', err));
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [table]);
+    window.addEventListener('keydown', handleKeyDown, { passive: false });
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [table, handleError]);
 
   return (
     <div

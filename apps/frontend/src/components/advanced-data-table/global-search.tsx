@@ -38,24 +38,27 @@ export function GlobalSearch<TData>({
   const debounceTimerRef = React.useRef<NodeJS.Timeout | null>(null);
   const inputRef = React.useRef<HTMLInputElement>(null);
 
-  // Sync input value with table's global filter state
-  const tableGlobalFilter = table.getState().globalFilter as string;
+  // Sync input value with table's global filter state (external changes)
+  const tableGlobalFilter = table.getState().globalFilter as string | undefined;
 
   React.useEffect(() => {
-    if (tableGlobalFilter !== inputValue) {
-      setInputValue(tableGlobalFilter ?? '');
+    const newValue = tableGlobalFilter ?? '';
+    if (newValue !== inputValue) {
+      setInputValue(newValue);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tableGlobalFilter]); // Cleanup debounce timer on unmount
+  }, [tableGlobalFilter]); // Intentionally omit inputValue to prevent infinite loop
+
+  // Cleanup debounce timer on unmount
   React.useEffect(() => {
     return () => {
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
+        debounceTimerRef.current = null;
       }
     };
   }, []);
 
-  // Generate simple suggestions from visible data
+  // Generate simple suggestions from visible data (memoized for performance)
   const generateSuggestions = React.useCallback(
     (searchValue: string) => {
       if (!searchValue || !showSuggestions || searchValue.length < 2) {
@@ -63,23 +66,31 @@ export function GlobalSearch<TData>({
         return;
       }
 
-      const uniqueValues = new Set<string>();
-      const rows = table.getPreFilteredRowModel().rows.slice(0, 100); // Limit to first 100 rows for performance
+      try {
+        const uniqueValues = new Set<string>();
+        const rows = table.getPreFilteredRowModel().rows.slice(0, 100); // Limit for performance
+        const lowerSearch = searchValue.toLowerCase();
 
-      rows.forEach((row) => {
-        Object.values(row.original as Record<string, unknown>).forEach((val) => {
-          if (val != null && typeof val === 'string') {
-            const lowerVal = val.toLowerCase();
-            const lowerSearch = searchValue.toLowerCase();
-            if (lowerVal.includes(lowerSearch) && val.length < 50) {
-              // Limit suggestion length
-              uniqueValues.add(val);
+        rows.forEach((row) => {
+          if (uniqueValues.size >= 8) return; // Early exit when we have enough
+
+          Object.values(row.original as Record<string, unknown>).forEach((val) => {
+            if (uniqueValues.size >= 8) return;
+
+            if (val != null && typeof val === 'string' && val.length < 50) {
+              const lowerVal = val.toLowerCase();
+              if (lowerVal.includes(lowerSearch)) {
+                uniqueValues.add(val);
+              }
             }
-          }
+          });
         });
-      });
 
-      setSuggestions(Array.from(uniqueValues).slice(0, 8)); // Limit to 8 suggestions
+        setSuggestions(Array.from(uniqueValues).slice(0, 8));
+      } catch (error) {
+        console.error('[GlobalSearch] Error generating suggestions:', error);
+        setSuggestions([]);
+      }
     },
     [table, showSuggestions]
   );
@@ -120,6 +131,7 @@ export function GlobalSearch<TData>({
     // Clear any pending debounce
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
     }
 
     // Focus input after clearing
@@ -128,24 +140,14 @@ export function GlobalSearch<TData>({
 
   const handleSelectSuggestion = React.useCallback(
     (suggestion: string) => {
-      console.log('[GlobalSearch] Selected suggestion:', suggestion);
-      console.log('[GlobalSearch] Current filter before:', table.getState().globalFilter);
-      console.log('[GlobalSearch] Filtered rows before:', table.getFilteredRowModel().rows.length);
-      
       setInputValue(suggestion);
       table.setGlobalFilter(suggestion);
-      
-      // Log after state update (will show in next render due to React batching)
-      requestAnimationFrame(() => {
-        console.log('[GlobalSearch] Filter after update:', table.getState().globalFilter);
-        console.log('[GlobalSearch] Filtered rows after:', table.getFilteredRowModel().rows.length);
-      });
-      
       setOpen(false);
 
       // Clear any pending debounce
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
+        debounceTimerRef.current = null;
       }
 
       // Focus input after selection

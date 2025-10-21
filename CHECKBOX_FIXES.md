@@ -22,7 +22,8 @@ const SelectAllCheckbox = ({ table }: { table: TanstackTable<Inventory.Item> }) 
 };
 ```
 
-**Why This Works**: 
+**Why This Works**:
+
 - TanStack Table's state updates trigger parent component re-renders
 - Child components without memo will re-render with parent
 - The checkbox now properly reflects `isAllPageRowsSelected` and `isSomePageRowsSelected` states
@@ -57,6 +58,7 @@ const SelectAllCheckbox = ({ table }: { table: TanstackTable<Inventory.Item> }) 
 ```
 
 **Visual Improvements**:
+
 - ✅ Checkmark is clearly visible when selected
 - ✅ Border shows selection state
 - ✅ Unselected state shows faded border with invisible checkmark
@@ -89,11 +91,13 @@ const SelectAllCheckbox = ({ table }: { table: TanstackTable<Inventory.Item> }) 
 ### React Memoization Best Practices
 
 The `React.memo()` optimization should only be used when:
+
 1. Component receives stable props that don't change often
 2. Component is expensive to render
 3. Props equality check is cheap to perform
 
 In our case:
+
 - ❌ The `table` prop reference is stable BUT its internal state changes
 - ❌ Component reads live state from table (`.getIsAllPageRowsSelected()`)
 - ❌ Memoization prevents necessary re-renders
@@ -116,21 +120,25 @@ The shadcn/ui library provides two checkbox patterns:
 ## Agent Responsibilities
 
 ### Simplicity Advocate ✅
+
 - Used standard React patterns (removed unnecessary memoization)
 - Followed shadcn/ui design system conventions
 - No custom complex logic
 
 ### Type Safety Guardian ✅
+
 - All types properly maintained
 - No TypeScript errors introduced
 - Component props remain type-safe
 
 ### Automation Steward ✅
+
 - Changes follow React best practices
 - No performance regressions
 - Proper re-render behavior
 
 ### Quality Sentinel ✅
+
 - Fixed user-reported UX issues
 - Improved visual consistency
 - Better accessibility (checkmarks are clearer)

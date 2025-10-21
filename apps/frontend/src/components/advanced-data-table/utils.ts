@@ -1,78 +1,126 @@
 /**
  * Advanced Data Table Utilities
  * Helper functions for export, import, and data manipulation
+ * @module advanced-data-table/utils
  */
 
-import type { Row } from '@tanstack/react-table';
-import type { ExportFormat } from './types';
+import type { Row, RowData } from '@tanstack/react-table';
+import type { ExportFormat, AdvancedDataTableError } from './types';
+
+/**
+ * Create export error
+ */
+function createExportError(
+  format: ExportFormat,
+  message: string,
+  cause?: unknown
+): AdvancedDataTableError {
+  return { type: 'export', format, message, cause };
+}
+
+/**
+ * Create import error
+ */
+function createImportError(
+  fileName: string,
+  message: string,
+  cause?: unknown
+): AdvancedDataTableError {
+  return { type: 'import', fileName, message, cause };
+}
 
 /**
  * Export table data to CSV format
+ * @throws {AdvancedDataTableError} If export fails
  */
-export async function exportToCSV<TData>(
-  rows: Row<TData>[],
+export async function exportToCSV<TData extends RowData>(
+  rows: readonly Row<TData>[],
   filename: string = 'export.csv'
 ): Promise<void> {
-  if (rows.length === 0) return;
+  if (rows.length === 0) {
+    throw createExportError('csv', 'No data to export');
+  }
 
-  const headers = Object.keys(rows[0].original as object);
-  const csvContent = [
-    headers.join(','),
-    ...rows.map((row) =>
-      headers
-        .map((header) => {
-          const value = (row.original as any)[header];
-          // Escape commas and quotes in CSV
-          const stringValue = String(value ?? '');
-          return stringValue.includes(',') || stringValue.includes('"')
-            ? `"${stringValue.replace(/"/g, '""')}"`
-            : stringValue;
-        })
-        .join(',')
-    ),
-  ].join('\n');
+  try {
+    const headers = Object.keys(rows[0].original as object);
+    const csvContent = [
+      headers.join(','),
+      ...rows.map((row) =>
+        headers
+          .map((header) => {
+            const value = (row.original as Record<string, unknown>)[header];
+            // Escape commas and quotes in CSV
+            const stringValue = String(value ?? '');
+            return stringValue.includes(',') || stringValue.includes('"')
+              ? `"${stringValue.replace(/"/g, '""')}"`
+              : stringValue;
+          })
+          .join(',')
+      ),
+    ].join('\n');
 
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-  downloadBlob(blob, filename);
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    downloadBlob(blob, filename);
+  } catch (error) {
+    throw createExportError('csv', 'Failed to generate CSV file', error);
+  }
 }
 
 /**
  * Export table data to JSON format
+ * @throws {AdvancedDataTableError} If export fails
  */
-export async function exportToJSON<TData>(
-  rows: Row<TData>[],
+export async function exportToJSON<TData extends RowData>(
+  rows: readonly Row<TData>[],
   filename: string = 'export.json'
 ): Promise<void> {
-  const data = rows.map((row) => row.original);
-  const jsonContent = JSON.stringify(data, null, 2);
-  const blob = new Blob([jsonContent], { type: 'application/json' });
-  downloadBlob(blob, filename);
+  if (rows.length === 0) {
+    throw createExportError('json', 'No data to export');
+  }
+
+  try {
+    const data = rows.map((row) => row.original);
+    const jsonContent = JSON.stringify(data, null, 2);
+    const blob = new Blob([jsonContent], { type: 'application/json' });
+    downloadBlob(blob, filename);
+  } catch (error) {
+    throw createExportError('json', 'Failed to generate JSON file', error);
+  }
 }
 
 /**
  * Export table data to Excel format (using CSV with .xlsx extension)
  * Note: For true Excel export, consider using a library like xlsx
+ * @throws {AdvancedDataTableError} If export fails
  */
-export async function exportToExcel<TData>(
-  rows: Row<TData>[],
+export async function exportToExcel<TData extends RowData>(
+  rows: readonly Row<TData>[],
   filename: string = 'export.xlsx'
 ): Promise<void> {
-  // For now, we'll export as CSV with .xlsx extension
-  // In production, use a library like 'xlsx' or 'exceljs'
-  await exportToCSV(rows, filename.replace('.xlsx', '.csv'));
+  try {
+    // For now, export as CSV (in production, use 'xlsx' or 'exceljs')
+    await exportToCSV(rows, filename.replace('.xlsx', '.csv'));
+  } catch (error) {
+    throw createExportError('excel', 'Failed to generate Excel file', error);
+  }
 }
 
 /**
  * Export table data to PDF format
  * Note: This requires a PDF library like jsPDF
+ * @throws {AdvancedDataTableError} If export fails
  */
-export async function exportToPDF<TData>(
-  rows: Row<TData>[],
+export async function exportToPDF<TData extends RowData>(
+  rows: readonly Row<TData>[],
   filename: string = 'export.pdf'
 ): Promise<void> {
-  // Placeholder - implement with jsPDF or similar library
-  console.warn('PDF export not yet implemented. Use CSV or Excel instead.');
-  await exportToJSON(rows, filename.replace('.pdf', '.json'));
+  try {
+    // Placeholder - implement with jsPDF or similar library
+    console.warn('[Export] PDF export not yet implemented. Using JSON instead.');
+    await exportToJSON(rows, filename.replace('.pdf', '.json'));
+  } catch (error) {
+    throw createExportError('pdf', 'Failed to generate PDF file', error);
+  }
 }
 
 /**
@@ -156,10 +204,11 @@ export async function parseJSON(file: File): Promise<Record<string, any>[]> {
 
 /**
  * Main export function that handles all formats
+ * @throws {AdvancedDataTableError} If export fails
  */
-export async function exportData<TData>(
+export async function exportData<TData extends RowData>(
   format: ExportFormat,
-  rows: Row<TData>[],
+  rows: readonly Row<TData>[],
   filename?: string
 ): Promise<void> {
   const timestamp = new Date().toISOString().split('T')[0];
@@ -167,19 +216,19 @@ export async function exportData<TData>(
 
   switch (format) {
     case 'csv':
-      await exportToCSV(rows, filename || `${defaultFilename}.csv`);
+      await exportToCSV(rows, filename ?? `${defaultFilename}.csv`);
       break;
     case 'excel':
-      await exportToExcel(rows, filename || `${defaultFilename}.xlsx`);
+      await exportToExcel(rows, filename ?? `${defaultFilename}.xlsx`);
       break;
     case 'pdf':
-      await exportToPDF(rows, filename || `${defaultFilename}.pdf`);
+      await exportToPDF(rows, filename ?? `${defaultFilename}.pdf`);
       break;
     case 'json':
-      await exportToJSON(rows, filename || `${defaultFilename}.json`);
+      await exportToJSON(rows, filename ?? `${defaultFilename}.json`);
       break;
     default:
-      throw new Error(`Unsupported export format: ${format}`);
+      throw createExportError(format, `Unsupported export format: ${format}`);
   }
 }
 
@@ -203,39 +252,70 @@ export async function importData(file: File): Promise<Record<string, any>[]> {
 }
 
 /**
- * Debounce function for search inputs
+ * Debounce function for search inputs with proper cleanup
+ * @param func - Function to debounce
+ * @param wait - Wait time in milliseconds
+ * @returns Debounced function with cancel method
  */
-export function debounce<T extends (...args: any[]) => any>(
+export function debounce<T extends (...args: unknown[]) => unknown>(
   func: T,
   wait: number
-): (...args: Parameters<T>) => void {
-  let timeout: NodeJS.Timeout;
+): ((...args: Parameters<T>) => void) & { cancel: () => void } {
+  let timeout: NodeJS.Timeout | null = null;
 
-  return function executedFunction(...args: Parameters<T>) {
+  const debounced = function executedFunction(...args: Parameters<T>) {
     const later = () => {
-      clearTimeout(timeout);
+      timeout = null;
       func(...args);
     };
 
-    clearTimeout(timeout);
+    if (timeout !== null) {
+      clearTimeout(timeout);
+    }
     timeout = setTimeout(later, wait);
   };
+
+  debounced.cancel = () => {
+    if (timeout !== null) {
+      clearTimeout(timeout);
+      timeout = null;
+    }
+  };
+
+  return debounced;
 }
 
 /**
- * Throttle function for performance-critical operations
+ * Throttle function for performance-critical operations with proper cleanup
+ * @param func - Function to throttle
+ * @param limit - Throttle limit in milliseconds
+ * @returns Throttled function with cancel method
  */
-export function throttle<T extends (...args: any[]) => any>(
+export function throttle<T extends (...args: unknown[]) => unknown>(
   func: T,
   limit: number
-): (...args: Parameters<T>) => void {
-  let inThrottle: boolean;
+): ((...args: Parameters<T>) => void) & { cancel: () => void } {
+  let inThrottle = false;
+  let timeout: NodeJS.Timeout | null = null;
 
-  return function executedFunction(...args: Parameters<T>) {
+  const throttled = function executedFunction(...args: Parameters<T>) {
     if (!inThrottle) {
       func(...args);
       inThrottle = true;
-      setTimeout(() => (inThrottle = false), limit);
+      timeout = setTimeout(() => {
+        inThrottle = false;
+        timeout = null;
+      }, limit);
     }
   };
+
+  throttled.cancel = () => {
+    inThrottle = false;
+    if (timeout !== null) {
+      clearTimeout(timeout);
+      timeout = null;
+    }
+  };
+
+  return throttled;
 }

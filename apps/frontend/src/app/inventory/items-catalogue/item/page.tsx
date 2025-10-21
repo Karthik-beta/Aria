@@ -15,7 +15,7 @@ import {
   useAdvancedDataTable,
   type BulkAction,
 } from '@/components/advanced-data-table';
-import { type ColumnDef } from '@tanstack/react-table';
+import { type ColumnDef, type Row } from '@tanstack/react-table';
 import type { Table as TanstackTable } from '@tanstack/react-table';
 import { type Inventory } from '@aria/types';
 import { trpc } from '@/lib/trpc';
@@ -57,48 +57,6 @@ const getStockStatus = (quantity: number) => {
   return { label: 'In Stock', variant: 'default' as const, icon: CheckCircle2 };
 };
 
-// Header checkbox component - NOT memoized to ensure it re-renders with selection changes
-const SelectAllCheckbox = ({ table }: { table: TanstackTable<Inventory.Item> }) => {
-  // Use getIsAllPageRowsSelected for current page selection
-  const isAllPageRowsSelected = table.getIsAllPageRowsSelected();
-  const isSomePageRowsSelected = table.getIsSomePageRowsSelected();
-
-  // Get counts from the current page after all filters
-  const currentPageRows = table.getRowModel().rows;
-  const selectedRowsOnPage = currentPageRows.filter((row) => row.getIsSelected());
-  const selectedCount = selectedRowsOnPage.length;
-  const totalCount = currentPageRows.length;
-
-  const handleCheckedChange = React.useCallback(
-    (value: boolean) => {
-      table.toggleAllPageRowsSelected(!!value);
-    },
-    [table]
-  );
-
-  return (
-    <div className="flex items-center gap-2">
-      <Checkbox
-        checked={isAllPageRowsSelected || (isSomePageRowsSelected ? 'indeterminate' : false)}
-        onCheckedChange={handleCheckedChange}
-        aria-label={
-          isAllPageRowsSelected
-            ? 'Deselect all rows'
-            : isSomePageRowsSelected
-              ? `${selectedCount} of ${totalCount} rows selected`
-              : 'Select all rows'
-        }
-        className="data-[state=indeterminate]:bg-primary data-[state=indeterminate]:text-primary-foreground"
-      />
-      {isSomePageRowsSelected && !isAllPageRowsSelected && totalCount > 0 && (
-        <span className="text-xs text-muted-foreground tabular-nums">{selectedCount}</span>
-      )}
-    </div>
-  );
-};
-
-SelectAllCheckbox.displayName = 'SelectAllCheckbox';
-
 export default function InventoryItemsPage() {
   const utils = trpc.useUtils();
 
@@ -138,7 +96,6 @@ export default function InventoryItemsPage() {
   const lastErrorTimeRef = React.useRef(0);
 
   trpc.inventory.onItemsChanged.useSubscription(undefined, {
-    enabled: !isLoading, // Only subscribe after initial load
     onStarted: () => {
       setSubscriptionStatus('connected');
       errorCountRef.current = 0; // Reset error count on successful connection
@@ -147,11 +104,6 @@ export default function InventoryItemsPage() {
       }
     },
     onData: (event) => {
-      // Ensure we're marked as connected when receiving data
-      if (subscriptionStatus !== 'connected') {
-        setSubscriptionStatus('connected');
-      }
-
       if (process.env.NODE_ENV === 'development') {
         console.log('[Real-time] Received event:', event.type, event.data);
       }
@@ -269,25 +221,55 @@ export default function InventoryItemsPage() {
     },
   });
 
-  // Handlers
-  const handleDelete = (id: string) => {
+  // Handlers - Memoized to prevent recreating on every render
+  const handleDelete = React.useCallback((id: string) => {
     setItemToDelete(id);
     setIsDeleteDialogOpen(true);
-  };
+  }, []);
 
-  const confirmDelete = () => {
+  const confirmDelete = React.useCallback(() => {
     if (itemToDelete) {
       deleteMutation.mutate({ id: itemToDelete });
     }
-  };
+  }, [itemToDelete, deleteMutation]);
 
-  // Column definitions - Memoized to prevent recreation on every render
+  // Column definitions - Properly memoized with stable functions
   const columns = React.useMemo<ColumnDef<Inventory.Item>[]>(
     () => [
       // Selection column
       {
         id: 'select',
-        header: ({ table }) => <SelectAllCheckbox table={table} />,
+        header: ({ table }) => {
+          // Render checkbox inline to avoid state update issues
+          const isAllPageRowsSelected = table.getIsAllPageRowsSelected();
+          const isSomePageRowsSelected = table.getIsSomePageRowsSelected();
+          const currentPageRows = table.getRowModel().rows;
+          const selectedRowsOnPage = currentPageRows.filter((row) => row.getIsSelected());
+          const selectedCount = selectedRowsOnPage.length;
+          const totalCount = currentPageRows.length;
+
+          return (
+            <div className="flex items-center gap-2">
+              <Checkbox
+                checked={
+                  isAllPageRowsSelected || (isSomePageRowsSelected ? 'indeterminate' : false)
+                }
+                onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+                aria-label={
+                  isAllPageRowsSelected
+                    ? 'Deselect all rows'
+                    : isSomePageRowsSelected
+                      ? `${selectedCount} of ${totalCount} rows selected`
+                      : 'Select all rows'
+                }
+                className="data-[state=indeterminate]:bg-primary data-[state=indeterminate]:text-primary-foreground"
+              />
+              {isSomePageRowsSelected && !isAllPageRowsSelected && totalCount > 0 && (
+                <span className="text-xs text-muted-foreground tabular-nums">{selectedCount}</span>
+              )}
+            </div>
+          );
+        },
         cell: ({ row }) => (
           <Checkbox
             checked={row.getIsSelected()}
@@ -502,37 +484,49 @@ export default function InventoryItemsPage() {
         enableGlobalFilter: false,
       },
     ],
-    []
-  ); // Empty dependency array since columns don't depend on any props/state
+    [handleDelete]
+  ); // Include handleDelete since it's used in the actions column
 
-  // Bulk actions - Memoized for performance
+  // Bulk delete handler - Memoized separately to prevent recreating bulk actions
+  const handleBulkDelete = React.useCallback(
+    async (rows: readonly Row<Inventory.Item>[]) => {
+      const ids = rows.map((r) => r.original.id);
+
+      try {
+        // Delete items sequentially
+        for (const id of ids) {
+          await bulkDeleteMutation.mutateAsync({ id });
+        }
+        toast.success(`Successfully deleted ${ids.length} item(s)`);
+        await utils.inventory.listItems.invalidate();
+      } catch (_error) {
+        toast.error('Failed to delete some items');
+      }
+    },
+    [bulkDeleteMutation, utils]
+  );
+
+  // Bulk actions - Memoized with stable handler reference
   const bulkActions = React.useMemo<BulkAction<Inventory.Item>[]>(
     () => [
       {
         label: 'Delete Selected',
         icon: <Trash className="h-4 w-4" />,
-        action: async (rows) => {
-          const ids = rows.map((r) => r.original.id);
-
-          try {
-            // Delete items sequentially
-            for (const id of ids) {
-              await bulkDeleteMutation.mutateAsync({ id });
-            }
-            toast.success(`Successfully deleted ${ids.length} item(s)`);
-            utils.inventory.listItems.invalidate();
-          } catch (_error) {
-            toast.error('Failed to delete some items');
-          }
-        },
+        action: handleBulkDelete,
         variant: 'destructive',
         requiresConfirmation: true,
         confirmationMessage:
           'This will permanently delete the selected inventory items. This action cannot be undone.',
       },
     ],
-    [bulkDeleteMutation, utils]
+    [handleBulkDelete]
   );
+
+  // Reload handler - Memoized to prevent table re-initialization
+  const handleReload = React.useCallback(async () => {
+    // Trigger a network refetch of the items
+    await utils.inventory.listItems.refetch();
+  }, [utils]);
 
   // Table setup - Memoized to prevent unnecessary re-initialization
   const { table } = useAdvancedDataTable({
@@ -543,6 +537,7 @@ export default function InventoryItemsPage() {
     enableRowSelection: true,
     enableMultiRowSelection: true,
     enableGlobalFilter: true,
+    onReload: handleReload,
   });
 
   return (

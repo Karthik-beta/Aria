@@ -25,6 +25,7 @@ The global search component in the Advanced Data Table had several UX issues:
 ### Changes to `global-search.tsx`
 
 #### 1. **Proper State Management**
+
 ```typescript
 // Before: Single value state
 const [value, setValue] = React.useState('');
@@ -41,6 +42,7 @@ React.useEffect(() => {
 ```
 
 #### 2. **Fixed PopoverTrigger Structure**
+
 ```typescript
 // Before: Input wrapped directly
 <PopoverTrigger asChild>
@@ -56,11 +58,12 @@ React.useEffect(() => {
 ```
 
 #### 3. **Improved Debounce Implementation**
+
 ```typescript
 const handleInputChange = React.useCallback(
   (newValue: string) => {
     setInputValue(newValue);
-    
+
     // Clear existing timer
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
@@ -73,7 +76,7 @@ const handleInputChange = React.useCallback(
 
     // Generate suggestions immediately for better UX
     generateSuggestions(newValue);
-    
+
     if (showSuggestions && newValue.length >= 2) {
       setOpen(true);
     } else {
@@ -85,18 +88,19 @@ const handleInputChange = React.useCallback(
 ```
 
 #### 4. **Fixed Suggestion Selection**
+
 ```typescript
 const handleSelectSuggestion = React.useCallback(
   (suggestion: string) => {
     setInputValue(suggestion);
     table.setGlobalFilter(suggestion); // Direct update, no debounce
     setOpen(false);
-    
+
     // Clear any pending debounce
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
     }
-    
+
     // Focus input after selection
     inputRef.current?.focus();
   },
@@ -105,6 +109,7 @@ const handleSelectSuggestion = React.useCallback(
 ```
 
 #### 5. **Disabled Command Component Filtering**
+
 ```typescript
 // Prevent Command from filtering our pre-filtered suggestions
 <Command shouldFilter={false}>
@@ -115,6 +120,7 @@ const handleSelectSuggestion = React.useCallback(
 ```
 
 #### 6. **Fixed CommandItem Click Handler**
+
 ```typescript
 // Use both onMouseDown and onSelect to handle clicks reliably
 // CommandItem's onSelect can receive transformed values, so we use our closure
@@ -135,6 +141,7 @@ const handleSelectSuggestion = React.useCallback(
 ```
 
 #### 7. **Enabled Global Filter on Searchable Columns**
+
 ```typescript
 // In items page, explicitly enable global filtering on searchable columns
 {
@@ -156,6 +163,7 @@ const handleSelectSuggestion = React.useCallback(
 ```
 
 #### 8. **❗ CRITICAL: Set Global Filter Function**
+
 ```typescript
 // In use-advanced-data-table.ts
 const table = useReactTable({
@@ -167,6 +175,7 @@ const table = useReactTable({
 ```
 
 **Without this**, TanStack Table uses a default filter that's too strict and won't find matches properly. The `'includesString'` filter:
+
 - Is **case-insensitive** (finds "Test" when searching for "test")
 - Does **partial matching** (finds "regdfg" in a longer string)
 - Works across **all enabled columns**
@@ -186,6 +195,7 @@ const rows = table.getRowModel().rows;
 **This was the main reason the table wasn't updating!** The `table` object is stable across renders, so `useMemo([table])` never invalidated the cache even when filter state changed inside the table. TanStack Table already handles efficient re-computation internally, so we don't need to memoize the rows.
 
 #### 10. **Proper Cleanup**
+
 ```typescript
 // Cleanup debounce timer on unmount
 React.useEffect(() => {
@@ -200,22 +210,26 @@ React.useEffect(() => {
 ## Key Improvements
 
 ### 1. **Immediate Visual Feedback**
+
 - Input value updates immediately when typing
 - Suggestions appear instantly (no debounce on UI)
 - Table filtering happens after debounce period (300ms default)
 
 ### 2. **Reliable Suggestion Selection**
+
 - Clicking a suggestion immediately updates the table filter
 - No debounce delay when selecting suggestions
 - Automatic focus return to input after selection
 - Clear button properly resets all state
 
 ### 3. **Proper State Synchronization**
+
 - Input value stays in sync with table's global filter state
 - External changes to global filter properly update the input
 - No infinite loops or race conditions
 
 ### 4. **Better Resource Management**
+
 - Debounce timers are properly cleaned up
 - No memory leaks from lingering timeouts
 - Refs used appropriately for DOM access
@@ -261,6 +275,7 @@ The implementation follows TanStack Table's official patterns:
 If suggestions still don't work:
 
 1. **Check browser console** for the debug logs:
+
    ```
    [GlobalSearch] Selected suggestion: <value>
    [GlobalSearch] Filter set to: <value>
@@ -292,21 +307,25 @@ If suggestions still don't work:
 ## Agent Responsibilities
 
 ### Simplicity Advocate ✅
+
 - Used official TanStack Table methods (`setGlobalFilter`, `getState().globalFilter`)
 - No custom filtering logic beyond official API
 - Standard React patterns (useState, useEffect, useCallback)
 
 ### Type Safety Guardian ✅
+
 - All types properly defined from `@tanstack/react-table`
 - No `any` types introduced
 - Type-safe generic component `<TData>`
 
 ### Automation Steward ✅
+
 - Proper cleanup in useEffect
 - Resource management (timers)
 - No manual DOM manipulation beyond refs
 
 ### Quality Sentinel ✅
+
 - Fixed UX issues completely
 - Improved user experience
 - No regressions introduced
