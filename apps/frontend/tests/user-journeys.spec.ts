@@ -20,7 +20,7 @@ test.describe('Critical User Journeys', () => {
       const searchInput = page.locator('input[type="search"]').first();
       if (await searchInput.isVisible()) {
         await searchInput.fill('test');
-        await page.waitForTimeout(500);
+        await page.waitForLoadState('networkidle');
 
         // Verify search results
         await expect(table).toBeVisible();
@@ -30,7 +30,9 @@ test.describe('Critical User Journeys', () => {
       const nameHeader = page.getByRole('columnheader', { name: /name/i });
       if (await nameHeader.isVisible()) {
         await nameHeader.click();
-        await page.waitForTimeout(300);
+        await page.waitForSelector('[data-slot="table"]', { timeout: 5000 });
+
+        // Verify table still renders
         await expect(table).toBeVisible();
       }
 
@@ -48,7 +50,7 @@ test.describe('Critical User Journeys', () => {
         const option = page.getByRole('option', { name: '50' });
         if (await option.isVisible()) {
           await option.click();
-          await page.waitForTimeout(500);
+          await page.waitForSelector('[data-slot="table"]', { timeout: 5000 });
         }
       }
     });
@@ -63,22 +65,19 @@ test.describe('Critical User Journeys', () => {
       if ((await nextButton.isVisible()) && (await nextButton.isEnabled())) {
         // Page 1 → Page 2
         await nextButton.click();
-        await page.waitForTimeout(300);
-        await expect(page.locator('[data-slot="table"]')).toBeVisible();
+        await page.waitForSelector('[data-slot="table"]', { timeout: 5000 });
 
         // Page 2 → Page 3 (if available)
         if (await nextButton.isEnabled()) {
           await nextButton.click();
-          await page.waitForTimeout(300);
-          await expect(page.locator('[data-slot="table"]')).toBeVisible();
+          await page.waitForSelector('[data-slot="table"]', { timeout: 5000 });
         }
 
         // Navigate back
         const prevButton = page.getByRole('button', { name: /previous/i });
         if (await prevButton.isEnabled()) {
           await prevButton.click();
-          await page.waitForTimeout(300);
-          await expect(page.locator('[data-slot="table"]')).toBeVisible();
+          await page.waitForSelector('[data-slot="table"]', { timeout: 5000 });
         }
       }
     });
@@ -93,14 +92,14 @@ test.describe('Critical User Journeys', () => {
       const searchInput = page.locator('input[type="search"]').first();
       if (await searchInput.isVisible()) {
         await searchInput.fill('product');
-        await page.waitForTimeout(500);
+        await page.waitForLoadState('networkidle');
       }
 
       // Apply column sort
       const nameHeader = page.getByRole('columnheader').first();
       if (await nameHeader.isVisible()) {
         await nameHeader.click();
-        await page.waitForTimeout(300);
+        await page.waitForSelector('[data-slot="table"]', { timeout: 5000 });
       }
 
       // Verify table still displays data
@@ -115,11 +114,11 @@ test.describe('Critical User Journeys', () => {
       const searchInput = page.locator('input[type="search"]').first();
       if (await searchInput.isVisible()) {
         await searchInput.fill('test');
-        await page.waitForTimeout(500);
+        await page.waitForLoadState('networkidle');
 
         // Clear
         await searchInput.clear();
-        await page.waitForTimeout(500);
+        await page.waitForLoadState('networkidle');
 
         // Verify cleared
         await expect(searchInput).toHaveValue('');
@@ -135,7 +134,7 @@ test.describe('Critical User Journeys', () => {
       // Open column manager
       const columnButton = page.getByRole('button', { name: /columns/i });
       await columnButton.click();
-      await page.waitForTimeout(300);
+      await page.waitForSelector('[role="menuitemcheckbox"]', { timeout: 5000 });
 
       // Toggle column visibility
       const toggles = page.locator('[role="menuitemcheckbox"]');
@@ -144,11 +143,11 @@ test.describe('Critical User Journeys', () => {
       if (count > 0) {
         // Toggle first column
         await toggles.first().click();
-        await page.waitForTimeout(300);
+        await page.waitForSelector('[data-slot="table"]', { timeout: 5000 });
 
         // Close menu
         await page.keyboard.press('Escape');
-        await page.waitForTimeout(300);
+        await page.waitForSelector('[data-slot="table"]', { timeout: 5000 });
 
         // Verify table still renders
         await expect(page.locator('[data-slot="table"]')).toBeVisible();
@@ -194,7 +193,7 @@ test.describe('Critical User Journeys', () => {
         const nextButton = page.getByRole('button', { name: /next/i });
         if ((await nextButton.isVisible()) && (await nextButton.isEnabled())) {
           await nextButton.click();
-          await page.waitForTimeout(300);
+          await page.waitForSelector('[data-slot="table"]', { timeout: 5000 });
 
           // Select item on page 2
           const secondPageCheckbox = page.locator('tbody input[type="checkbox"]').first();
@@ -258,7 +257,7 @@ test.describe('Critical User Journeys', () => {
       const reloadButton = page.getByLabel('Reload');
       if (await reloadButton.isVisible()) {
         await reloadButton.click();
-        await page.waitForTimeout(1000);
+        await page.waitForLoadState('networkidle');
       }
 
       // Go back online
@@ -267,7 +266,7 @@ test.describe('Critical User Journeys', () => {
       // Reload again
       if (await reloadButton.isVisible()) {
         await reloadButton.click();
-        await page.waitForTimeout(1000);
+        await page.waitForLoadState('networkidle');
 
         // Table should be visible again
         await expect(page.locator('[data-slot="table"]')).toBeVisible();
@@ -282,7 +281,7 @@ test.describe('Critical User Journeys', () => {
       const searchInput = page.locator('input[type="search"]').first();
       if (await searchInput.isVisible()) {
         await searchInput.fill('xyznonexistentitem123');
-        await page.waitForTimeout(500);
+        await page.waitForLoadState('networkidle');
 
         // Should show "no results" message
         const noResults = page.locator('text=/no.*results|no.*items|empty/i');
@@ -308,7 +307,7 @@ test.describe('Critical User Journeys', () => {
         await header.click();
         await header.click();
         await header.click();
-        await page.waitForTimeout(500);
+        await page.waitForSelector('[data-slot="table"]', { timeout: 5000 });
 
         // Table should still be functional
         await expect(page.locator('[data-slot="table"]')).toBeVisible();
@@ -323,7 +322,7 @@ test.describe('Critical User Journeys', () => {
         if (await prevButton.isEnabled()) {
           await prevButton.click();
           await nextButton.click();
-          await page.waitForTimeout(500);
+          await page.waitForSelector('[data-slot="table"]', { timeout: 5000 });
         }
 
         // Table should still be functional
@@ -343,7 +342,7 @@ test.describe('Critical User Journeys', () => {
 
       // Press Enter to interact
       await page.keyboard.press('Enter');
-      await page.waitForTimeout(300);
+      await page.waitForSelector('[data-slot="table"]', { timeout: 5000 });
 
       // Continue tabbing
       await page.keyboard.press('Tab');
