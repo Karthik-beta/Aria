@@ -19,7 +19,7 @@ const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/web
 const formSchema = z.object({
   image: z
     .any()
-    .refine((files) => files?.length == 1, 'Image is required.')
+    .refine((files) => files?.length === 1, 'Image is required.')
     .refine((files) => files?.[0]?.size <= MAX_FILE_SIZE, `Max file size is 5MB.`)
     .refine(
       (files) => ACCEPTED_IMAGE_TYPES.includes(files?.[0]?.type),
@@ -58,7 +58,7 @@ export default function ProductForm({
 
   function onSubmit(values: z.infer<typeof formSchema>) {
     // Form submission logic would be implemented here
-    console.log(values);
+    console.info(values);
     router.push('/dashboard/product');
   }
 

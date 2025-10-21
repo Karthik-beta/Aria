@@ -28,7 +28,7 @@ vi.mock('next/navigation', () => ({
 
 // Mock Next.js Link
 vi.mock('next/link', () => ({
-  default: ({ children, href }: { children: React.ReactNode; href: string }) => children,
+  default: ({ children, _href }: { children: React.ReactNode; _href: string }) => children,
 }));
 
 // Mock window.matchMedia
@@ -48,22 +48,38 @@ Object.defineProperty(window, 'matchMedia', {
 
 // Mock IntersectionObserver
 global.IntersectionObserver = class IntersectionObserver {
-  constructor() {}
-  disconnect() {}
-  observe() {}
+  constructor() {
+    // Test mock - no implementation needed
+  }
+  disconnect() {
+    // Test mock - no implementation needed
+  }
+  observe() {
+    // Test mock - no implementation needed
+  }
   takeRecords() {
     return [];
   }
-  unobserve() {}
+  unobserve() {
+    // Test mock - no implementation needed
+  }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
 } as any;
 
 // Mock ResizeObserver
 global.ResizeObserver = class ResizeObserver {
-  constructor() {}
-  disconnect() {}
-  observe() {}
-  unobserve() {}
+  constructor() {
+    // Test mock - no implementation needed
+  }
+  disconnect() {
+    // Test mock - no implementation needed
+  }
+  observe() {
+    // Test mock - no implementation needed
+  }
+  unobserve() {
+    // Test mock - no implementation needed
+  }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
 } as any;
 

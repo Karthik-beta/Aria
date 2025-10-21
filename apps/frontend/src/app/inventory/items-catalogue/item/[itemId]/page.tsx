@@ -59,7 +59,7 @@ export default function InventoryItemDetailPage() {
     refetchOnWindowFocus: false,
   });
 
-  const item = items.find((i) => i.id === itemId);
+  const item = items.find((i) => i.id === itemId) as Inventory.Item | undefined;
 
   // Delete mutation - only router.push after successful delete
   const deleteMutation = trpc.inventory.deleteItem.useMutation({
@@ -101,7 +101,7 @@ export default function InventoryItemDetailPage() {
           <CardHeader>
             <CardTitle>Item Not Found</CardTitle>
             <CardDescription>
-              The inventory item you're looking for doesn't exist or has been deleted.
+              The inventory item you&apos;re looking for doesn&apos;t exist or has been deleted.
             </CardDescription>
           </CardHeader>
           <CardContent>

@@ -11,12 +11,12 @@ import { useAdvancedDataTable } from './use-advanced-data-table';
 import type { ColumnDef } from '@tanstack/react-table';
 
 // Test data type
-interface TestProduct {
+type TestProduct = {
   id: string;
   name: string;
   price: number;
   stock: number;
-}
+};
 
 // Test data
 const products: TestProduct[] = [
