@@ -23,7 +23,7 @@ import NewSectionDialog from './new-section-dialog';
 import { TaskCard } from './task-card';
 // import { coordinateGetter } from "./multipleContainersKeyboardPreset";
 
-const defaultCols = [
+const _defaultCols = [
   {
     id: 'TODO' as const,
     title: 'Todo',
@@ -38,7 +38,7 @@ const defaultCols = [
   },
 ] satisfies Column[];
 
-export type ColumnId = (typeof defaultCols)[number]['id'];
+export type ColumnId = (typeof _defaultCols)[number]['id'];
 
 export function KanbanBoard() {
   // const [columns, setColumns] = useState<Column[]>(defaultCols);

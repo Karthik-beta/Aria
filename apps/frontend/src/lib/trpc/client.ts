@@ -7,11 +7,11 @@ import type { AppRouter } from '../../../../backend/src/trpc/trpc.service';
  */
 function getBaseUrl() {
   if (typeof window !== 'undefined') {
-    // Browser should use relative path
-    return '';
+    // Browser should use relative path or configured backend URL
+    return process.env.NEXT_PUBLIC_API_URL || '';
   }
-  // SSR should use localhost
-  return `http://localhost:${process.env.PORT ?? 3000}`;
+  // SSR should use backend URL
+  return process.env.NEXT_PUBLIC_API_URL || `http://localhost:3001`;
 }
 
 /**

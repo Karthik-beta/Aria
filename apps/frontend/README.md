@@ -120,6 +120,66 @@ function MyComponent() {
 - [`TRPC_SETUP.md`](./TRPC_SETUP.md) - Complete setup documentation
 - [`TRPC_QUICKSTART.md`](./TRPC_QUICKSTART.md) - Quick start guide with examples
 
+## 🧪 Testing
+
+The frontend has comprehensive testing infrastructure:
+
+### Unit & Component Testing (Vitest + React Testing Library)
+
+- ✅ **Fast test execution** with Vitest
+- ✅ **User-centric testing** with React Testing Library
+- ✅ **80% coverage targets** enforced
+- ✅ **Interactive UI** and coverage reports
+
+```bash
+# Run unit tests
+pnpm test
+
+# Run tests in UI mode
+pnpm test:ui
+
+# Run tests with coverage
+pnpm test:coverage
+
+# Watch mode
+pnpm test:watch
+```
+
+**Documentation:** [`TESTING.md`](./TESTING.md)
+
+### End-to-End Testing (Playwright)
+
+- ✅ **Cross-browser testing** (Chromium, Firefox, WebKit)
+- ✅ **Mobile emulation** (Pixel 5, iPhone 12)
+- ✅ **Auto-wait** for reliable tests
+- ✅ **Visual debugging** with trace viewer
+- ✅ **CI/CD ready** with GitHub Actions
+
+```bash
+# Run E2E tests
+pnpm test:e2e
+
+# Run in UI mode (interactive)
+pnpm test:e2e:ui
+
+# Run with browser visible
+pnpm test:e2e:headed
+
+# Debug tests
+pnpm test:e2e:debug
+
+# Generate tests with Codegen
+pnpm test:e2e:codegen
+
+# View HTML report
+pnpm test:e2e:report
+```
+
+**Documentation:**
+
+- [`E2E_TESTING.md`](./E2E_TESTING.md) - Complete E2E testing guide
+- [`PLAYWRIGHT_QUICK_REF.md`](./PLAYWRIGHT_QUICK_REF.md) - Quick reference
+
 ## App Switcher
 
 The shared root navigation includes an app switcher dropdown that allows users to seamlessly navigate between modules. The current module is highlighted, and switching happens instantly via client-side navigation.

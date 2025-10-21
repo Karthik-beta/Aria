@@ -7,6 +7,14 @@ import { TrpcContext } from './trpc/trpc.context';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
+  // Enable CORS for frontend
+  app.enableCors({
+    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+  });
+
   // Get tRPC services from DI container
   const trpcService = app.get(TrpcService);
   const trpcContext = app.get(TrpcContext);

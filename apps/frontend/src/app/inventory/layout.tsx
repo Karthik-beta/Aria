@@ -3,6 +3,10 @@ import { Toaster } from '@/components/ui/sonner';
 import ThemeProvider from '@/components/layout/ThemeToggle/theme-provider';
 import type { Metadata } from 'next';
 import { cookies } from 'next/headers';
+import KBar from '@/components/kbar';
+import AppSidebar from '@/components/layout/app-sidebar';
+import Header from '@/components/layout/header';
+import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 
 export const metadata: Metadata = {
   title: 'Inventory by Pivotr',
@@ -10,8 +14,11 @@ export const metadata: Metadata = {
 };
 
 export default async function InventoryLayout({ children }: { children: React.ReactNode }) {
+  // Persisting the sidebar state in the cookie.
+  // Use Promise.all for better performance if we need to read multiple cookies
   const cookieStore = await cookies();
-  const activeThemeValue = cookieStore.get('active_theme')?.value;
+  const defaultOpen = cookieStore.get('sidebar_state')?.value === 'true';
+  const activeThemeValue = cookieStore.get('active_theme')?.value || 'system';
 
   return (
     <ThemeProvider
@@ -23,7 +30,17 @@ export default async function InventoryLayout({ children }: { children: React.Re
     >
       <Providers activeThemeValue={activeThemeValue as string}>
         <Toaster />
-        {children}
+        <KBar>
+          <SidebarProvider defaultOpen={defaultOpen}>
+            <AppSidebar />
+            <SidebarInset>
+              <Header />
+              {/* page main content */}
+              {children}
+              {/* page main content ends */}
+            </SidebarInset>
+          </SidebarProvider>
+        </KBar>
       </Providers>
     </ThemeProvider>
   );

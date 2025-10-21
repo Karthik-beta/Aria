@@ -2,10 +2,11 @@
 
 import type { Option } from '@/types/data-table';
 import type { Column } from '@tanstack/react-table';
-import { PlusCircle, XCircle } from 'lucide-react';
+import { CheckIcon, PlusCircle, XCircle } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 import {
   Command,
   CommandEmpty,
@@ -17,9 +18,7 @@ import {
 } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Separator } from '@/components/ui/separator';
-import { cn } from '@/lib/utils';
 import * as React from 'react';
-import { CheckIcon } from '@radix-ui/react-icons';
 
 interface DataTableFacetedFilterProps<TData, TValue> {
   column?: Column<TData, TValue>;
@@ -131,19 +130,29 @@ export function DataTableFacetedFilter<TData, TValue>({
                 const isSelected = selectedValues.has(option.value);
 
                 return (
-                  <CommandItem key={option.value} onSelect={() => onItemSelect(option, isSelected)}>
+                  <CommandItem
+                    key={option.value}
+                    onSelect={() => onItemSelect(option, isSelected)}
+                    className="cursor-pointer"
+                  >
                     <div
                       className={cn(
-                        'border-primary flex size-4 items-center justify-center rounded-sm border',
-                        isSelected ? 'bg-primary' : 'opacity-50 [&_svg]:invisible'
+                        'border-primary flex size-4 items-center justify-center rounded-sm border mr-2',
+                        isSelected
+                          ? 'bg-primary text-primary-foreground'
+                          : 'opacity-50 [&_svg]:invisible'
                       )}
                     >
-                      <CheckIcon />
+                      <CheckIcon className="size-4" />
                     </div>
-                    {option.icon && <option.icon />}
-                    <span className="truncate">{option.label}</span>
-                    {option.count && (
-                      <span className="ml-auto font-mono text-xs">{option.count}</span>
+                    {option.icon && (
+                      <option.icon className="mr-2 h-4 w-4 shrink-0 text-muted-foreground" />
+                    )}
+                    <span className="truncate flex-1">{option.label}</span>
+                    {option.count !== undefined && (
+                      <span className="ml-auto shrink-0 font-mono text-xs text-muted-foreground tabular-nums">
+                        {option.count}
+                      </span>
                     )}
                   </CommandItem>
                 );
