@@ -3,8 +3,8 @@
 ## Error Description
 
 ```
-Can't perform a React state update on a component that hasn't mounted yet. 
-This indicates that you have a side-effect in your render function that 
+Can't perform a React state update on a component that hasn't mounted yet.
+This indicates that you have a side-effect in your render function that
 asynchronously tries to update the component. Move this work to useEffect instead.
 
 at SelectAllCheckbox (src/app/inventory/items-catalogue/item/page.tsx:64:39)
@@ -131,7 +131,7 @@ columns: [
       // Compute all values first
       const isAllSelected = table.getIsAllPageRowsSelected();
       const count = table.getSelectedRowModel().rows.length;
-      
+
       // Pass as props
       return (
         <CheckboxDisplay
@@ -171,7 +171,7 @@ But **inline rendering is simpler and recommended** for table headers/cells.
   header: ({ table, column }) => {
     const isSorted = column.getIsSorted();
     const canSort = column.getCanSort();
-    
+
     return (
       <div className="flex items-center gap-2">
         <span>{column.columnDef.header}</span>

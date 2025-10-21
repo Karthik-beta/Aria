@@ -48,12 +48,15 @@ const table = useReactTable({
 
 ```typescript
 // ❌ WRONG - Freezes state
-return React.useMemo(() => ({
-  table,
-  state: { rowSelection, pagination },
-  setRowSelection,
-  setPagination,
-}), [table, rowSelection, pagination]);
+return React.useMemo(
+  () => ({
+    table,
+    state: { rowSelection, pagination },
+    setRowSelection,
+    setPagination,
+  }),
+  [table, rowSelection, pagination]
+);
 
 // ✅ CORRECT - Always return fresh object
 return {
@@ -70,10 +73,10 @@ return {
 
 ```typescript
 // ❌ WRONG - New array on every render
-data: [...data] as TData[]
+data: [...data] as TData[];
 
 // ✅ CORRECT - Keep original reference
-data: data as TData[]
+data: data as TData[];
 ```
 
 **Why**: Spreading creates a new array reference, causing unnecessary re-renders downstream.
@@ -82,10 +85,7 @@ data: data as TData[]
 
 ```typescript
 // ❌ WRONG - Stale data
-const virtualRows = React.useMemo(
-  () => rowVirtualizer.getVirtualItems(),
-  [rowVirtualizer]
-);
+const virtualRows = React.useMemo(() => rowVirtualizer.getVirtualItems(), [rowVirtualizer]);
 
 // ✅ CORRECT - Always fresh
 const virtualRows = rowVirtualizer.getVirtualItems();
@@ -98,12 +98,12 @@ const virtualRows = rowVirtualizer.getVirtualItems();
 ```typescript
 // ❌ WRONG - Creates dependency hell
 const filterableColumns = React.useMemo(
-  () => table.getAllColumns().filter(c => c.getCanFilter()),
+  () => table.getAllColumns().filter((c) => c.getCanFilter()),
   [table] // table is a new object on every render anyway
 );
 
 // ✅ CORRECT - Simple, works perfectly
-const filterableColumns = table.getAllColumns().filter(c => c.getCanFilter());
+const filterableColumns = table.getAllColumns().filter((c) => c.getCanFilter());
 ```
 
 **Why**: If the dependency (`table`) changes on every render anyway, memoization adds overhead without benefit.
@@ -233,30 +233,33 @@ const virtualRows = rowVirtualizer.getVirtualItems(); // ✅ Fresh on every rend
 ```typescript
 // BEFORE (BROKEN)
 const filterableColumns = React.useMemo(
-  () => table.getAllColumns().filter(c => c.getCanFilter()),
+  () => table.getAllColumns().filter((c) => c.getCanFilter()),
   [table] // table changes every render anyway
 );
 
 // AFTER (FIXED)
-const filterableColumns = table.getAllColumns().filter(c => c.getCanFilter());
+const filterableColumns = table.getAllColumns().filter((c) => c.getCanFilter());
 // ✅ Simple and correct
 ```
 
 ## Performance Impact
 
 ### Before Fix (Over-Memoized)
+
 - **UI Responsiveness**: Completely frozen, checkboxes don't work
 - **State Updates**: Not propagating to UI
 - **Virtual Scrolling**: Not updating on scroll
 - **Filters**: Not working
 
 ### After Fix (Correct Optimization)
+
 - **UI Responsiveness**: Instant, fully interactive
 - **State Updates**: Propagate immediately
 - **Virtual Scrolling**: Smooth scrolling with 10,000+ rows
 - **Filters**: Working correctly
 
 ### Render Performance
+
 - **Over-memoized**: 0 re-renders (nothing updates!)
 - **Correct approach**: Only re-renders when state actually changes
 - **Result**: Better performance AND functionality
@@ -264,6 +267,7 @@ const filterableColumns = table.getAllColumns().filter(c => c.getCanFilter());
 ## Special Case: SelectAllCheckbox
 
 ### The Problem
+
 Initially tried to memoize `SelectAllCheckbox` to prevent columns array from recreating:
 
 ```typescript
@@ -274,12 +278,14 @@ const SelectAllCheckbox = React.memo(({ table }) => {
 ```
 
 ### Why It Failed
+
 1. The `table` prop is a **new object on every render** (by TanStack Table design)
 2. `React.memo` sees `table !== prevTable` and **should** re-render
 3. BUT if columns array includes this component, it also recreates when table changes
 4. This creates a circular dependency that breaks updates
 
 ### The Solution
+
 **Don't memoize components that read from frequently-changing object props**:
 
 ```typescript
@@ -290,6 +296,7 @@ const SelectAllCheckbox = ({ table }) => {
 ```
 
 ### Alternative Solutions (if needed)
+
 If you really need to prevent re-renders, extract specific values as props:
 
 ```typescript
@@ -300,12 +307,12 @@ const onToggle = React.useCallback(() => {
 }, [table]);
 
 // Component can now be memoized:
-const SelectAllCheckbox = React.memo(({ 
-  isAllSelected, 
-  onToggle 
-}: { 
-  isAllSelected: boolean; 
-  onToggle: () => void; 
+const SelectAllCheckbox = React.memo(({
+  isAllSelected,
+  onToggle
+}: {
+  isAllSelected: boolean;
+  onToggle: () => void;
 }) => {
   return <Checkbox checked={isAllSelected} onChange={onToggle} />;
 });

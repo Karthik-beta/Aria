@@ -13,6 +13,7 @@ The Items page was experiencing massive memory leaks and unresponsive UI due to 
 ## Root Causes Identified
 
 ### 1. SelectAllCheckbox Not Memoized (CORRECTION)
+
 ```typescript
 // ❌ INITIAL ATTEMPT - Memoized but breaks UI updates
 const SelectAllCheckbox = React.memo(({ table }) => { ... });
@@ -21,13 +22,15 @@ const SelectAllCheckbox = React.memo(({ table }) => { ... });
 const SelectAllCheckbox = ({ table }) => { ... };
 ```
 
-**Impact**: 
+**Impact**:
+
 - **Initial issue**: Component recreated on every render causing columns to recreate
 - **Memoization attempt**: Prevented checkbox from updating when selection changed
 - **Final solution**: Don't memoize - the component is lightweight and needs fresh table state
 - **Why this works**: The table instance is new on every render (by design), so the component gets fresh selection state automatically
 
 ### 2. Empty Columns Dependency Array
+
 ```typescript
 // ❌ BEFORE - Empty array but uses handleDelete
 const columns = React.useMemo<ColumnDef<Inventory.Item>[]>(
@@ -45,6 +48,7 @@ const columns = React.useMemo<ColumnDef<Inventory.Item>[]>(
 **Impact**: Columns were stale with old handler references, but also recreated unnecessarily when they shouldn't.
 
 ### 3. Handlers Not Memoized
+
 ```typescript
 // ❌ BEFORE - New function on every render
 const handleDelete = (id: string) => { ... };
@@ -58,6 +62,7 @@ const confirmDelete = React.useCallback(() => { ... }, [itemToDelete, deleteMuta
 **Impact**: Every render created new function references, causing columns to recreate.
 
 ### 4. Bulk Actions with Unstable Dependencies
+
 ```typescript
 // ❌ BEFORE - Inline async function + mutation dependency
 const bulkActions = React.useMemo<BulkAction<Inventory.Item>[]>(
@@ -84,6 +89,7 @@ const bulkActions = React.useMemo<BulkAction<Inventory.Item>[]>(
 **Impact**: Bulk actions array recreated on every render, causing table toolbar to re-render continuously.
 
 ### 5. tRPC Subscription Callback Instability
+
 ```typescript
 // ❌ BEFORE - Memoized callbacks object spread into subscription
 const subscriptionCallbacks = React.useMemo(() => ({
@@ -109,6 +115,7 @@ trpc.inventory.onItemsChanged.useSubscription(undefined, {
 **Impact**: The subscription was re-creating on every render and the `enabled` prop wasn't properly supported, causing connection churn.
 
 ### 6. Inline onReload Function
+
 ```typescript
 // ❌ BEFORE - New function on every render
 const { table } = useAdvancedDataTable({
@@ -130,16 +137,17 @@ const { table } = useAdvancedDataTable({
 **Impact**: Table instance was recreating unnecessarily.
 
 ### 7. Row Type Mismatch in Bulk Actions
+
 ```typescript
 // ❌ BEFORE - Wrong type expecting raw items
-async (rows: readonly typeof items[0][]) => {
+async (rows: readonly (typeof items)[0][]) => {
   const ids = rows.map((r) => r.id); // Treats Row as Item
-}
+};
 
 // ✅ AFTER - Correct Row<T> type
 async (rows: readonly Row<Inventory.Item>[]) => {
   const ids = rows.map((r) => r.original.id); // Access via .original
-}
+};
 ```
 
 **Impact**: TypeScript errors and potential runtime issues accessing item data.
@@ -147,12 +155,14 @@ async (rows: readonly Row<Inventory.Item>[]) => {
 ## Performance Improvements
 
 ### Before
+
 - **Render count**: 100+ renders per second during interaction
 - **Memory usage**: Continuously increasing, never releasing
 - **UI responsiveness**: Page freezes, checkboxes unresponsive
 - **Network**: Excessive subscription reconnections
 
 ### After
+
 - **Render count**: Only renders on actual state changes
 - **Memory usage**: Stable, proper cleanup
 - **UI responsiveness**: Instant checkbox feedback, smooth interactions
@@ -170,6 +180,7 @@ async (rows: readonly Row<Inventory.Item>[]) => {
 ## Best Practices Applied
 
 ### 1. Component Memoization
+
 ```typescript
 const MyComponent = React.memo(({ prop }) => {
   return <div>{prop}</div>;
@@ -179,13 +190,18 @@ MyComponent.displayName = 'MyComponent';
 ```
 
 ### 2. Callback Memoization
+
 ```typescript
-const handler = React.useCallback((arg) => {
-  // Use arg and stable dependencies only
-}, [stableDep1, stableDep2]);
+const handler = React.useCallback(
+  (arg) => {
+    // Use arg and stable dependencies only
+  },
+  [stableDep1, stableDep2]
+);
 ```
 
 ### 3. Computed Values Memoization
+
 ```typescript
 const computed = React.useMemo(() => {
   return expensiveOperation(data);
@@ -193,6 +209,7 @@ const computed = React.useMemo(() => {
 ```
 
 ### 4. tRPC Subscription Pattern
+
 ```typescript
 // Always inline callbacks - tRPC manages stability
 trpc.procedure.useSubscription(input, {
@@ -203,6 +220,7 @@ trpc.procedure.useSubscription(input, {
 ```
 
 ### 5. Bulk Action Handler Pattern
+
 ```typescript
 // Extract handler first
 const handleBulkAction = React.useCallback(
@@ -213,10 +231,7 @@ const handleBulkAction = React.useCallback(
 );
 
 // Reference in config
-const bulkActions = React.useMemo(
-  () => [{ action: handleBulkAction }],
-  [handleBulkAction]
-);
+const bulkActions = React.useMemo(() => [{ action: handleBulkAction }], [handleBulkAction]);
 ```
 
 ## Testing Verification
