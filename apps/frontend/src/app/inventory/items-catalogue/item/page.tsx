@@ -89,15 +89,20 @@ export default function InventoryItemsPage() {
   );
 
   // Real-time subscription for CRUD events - Only enabled when component is mounted
-  const [subscriptionStatus, setSubscriptionStatus] = React.useState<
-    'connecting' | 'connected' | 'error' | 'reconnecting'
-  >('connecting');
   const errorCountRef = React.useRef(0);
   const lastErrorTimeRef = React.useRef(0);
+  // Track mount state to avoid calling setState on unmounted component
+  const mountedRef = React.useRef(true);
+  React.useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   trpc.inventory.onItemsChanged.useSubscription(undefined, {
+    enabled: true, // Explicitly enable the subscription
     onStarted: () => {
-      setSubscriptionStatus('connected');
       errorCountRef.current = 0; // Reset error count on successful connection
       if (process.env.NODE_ENV === 'development') {
         console.log('[Real-time] Subscription connected to inventory updates');
@@ -109,7 +114,7 @@ export default function InventoryItemsPage() {
       }
 
       // Invalidate and refetch the list when any CRUD operation occurs
-      utils.inventory.listItems.invalidate();
+      void utils.inventory.listItems.invalidate();
 
       // Show appropriate toast notification
       if (event.type === 'created') {
@@ -129,7 +134,6 @@ export default function InventoryItemsPage() {
       // Transient errors during initial connection are normal
       // Only treat as error if it persists beyond 3 attempts
       if (errorCountRef.current < 3) {
-        setSubscriptionStatus('reconnecting');
         if (process.env.NODE_ENV === 'development') {
           console.warn(
             `[Real-time] Connection attempt ${errorCountRef.current} failed, retrying...`,
@@ -137,7 +141,6 @@ export default function InventoryItemsPage() {
           );
         }
       } else {
-        setSubscriptionStatus('error');
         // Only show toast for persistent errors (not rapid reconnections)
         if (timeSinceLastError > 5000) {
           const errorMsg = error.message || 'Connection interrupted';
@@ -177,8 +180,11 @@ export default function InventoryItemsPage() {
     },
     onSuccess: () => {
       toast.success('Item deleted successfully');
-      setIsDeleteDialogOpen(false);
-      setItemToDelete(null);
+      // Only update local state when component is still mounted
+      if (mountedRef.current) {
+        setIsDeleteDialogOpen(false);
+        setItemToDelete(null);
+      }
     },
     onError: (error, variables, context) => {
       // Rollback on error
@@ -239,37 +245,17 @@ export default function InventoryItemsPage() {
       // Selection column
       {
         id: 'select',
-        header: ({ table }) => {
-          // Render checkbox inline to avoid state update issues
-          const isAllPageRowsSelected = table.getIsAllPageRowsSelected();
-          const isSomePageRowsSelected = table.getIsSomePageRowsSelected();
-          const currentPageRows = table.getRowModel().rows;
-          const selectedRowsOnPage = currentPageRows.filter((row) => row.getIsSelected());
-          const selectedCount = selectedRowsOnPage.length;
-          const totalCount = currentPageRows.length;
-
-          return (
-            <div className="flex items-center gap-2">
-              <Checkbox
-                checked={
-                  isAllPageRowsSelected || (isSomePageRowsSelected ? 'indeterminate' : false)
-                }
-                onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
-                aria-label={
-                  isAllPageRowsSelected
-                    ? 'Deselect all rows'
-                    : isSomePageRowsSelected
-                      ? `${selectedCount} of ${totalCount} rows selected`
-                      : 'Select all rows'
-                }
-                className="data-[state=indeterminate]:bg-primary data-[state=indeterminate]:text-primary-foreground"
-              />
-              {isSomePageRowsSelected && !isAllPageRowsSelected && totalCount > 0 && (
-                <span className="text-xs text-muted-foreground tabular-nums">{selectedCount}</span>
-              )}
-            </div>
-          );
-        },
+        header: ({ table }) => (
+          <Checkbox
+            checked={
+              table.getIsAllPageRowsSelected() ||
+              (table.getIsSomePageRowsSelected() ? 'indeterminate' : false)
+            }
+            onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+            aria-label="Select all rows on this page"
+            className="data-[state=indeterminate]:bg-primary data-[state=indeterminate]:text-primary-foreground"
+          />
+        ),
         cell: ({ row }) => (
           <Checkbox
             checked={row.getIsSelected()}
@@ -497,10 +483,15 @@ export default function InventoryItemsPage() {
         for (const id of ids) {
           await bulkDeleteMutation.mutateAsync({ id });
         }
-        toast.success(`Successfully deleted ${ids.length} item(s)`);
+        if (mountedRef.current) {
+          toast.success(`Successfully deleted ${ids.length} item(s)`);
+        }
+        // Invalidate regardless; it's safe if component unmounted
         await utils.inventory.listItems.invalidate();
       } catch (_error) {
-        toast.error('Failed to delete some items');
+        if (mountedRef.current) {
+          toast.error('Failed to delete some items');
+        }
       }
     },
     [bulkDeleteMutation, utils]
