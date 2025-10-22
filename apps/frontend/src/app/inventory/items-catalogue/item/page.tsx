@@ -91,71 +91,78 @@ export default function InventoryItemsPage() {
   // Real-time subscription for CRUD events - Properly managed with useEffect
   const errorCountRef = React.useRef(0);
   const lastErrorTimeRef = React.useRef(0);
+  const [subscriptionEnabled, setSubscriptionEnabled] = React.useState(false);
 
-  // Use effect to ensure subscription only starts after component mounts
+  // Enable subscription only after component mounts to prevent React state update errors
   React.useEffect(() => {
-    // Subscription is now handled via the hook call below
-    // This effect just ensures we're mounted
+    setSubscriptionEnabled(true);
+  }, []);
+
+  // Memoize callbacks to prevent subscription re-initialization
+  const handleSubscriptionData = React.useCallback(
+    (event: {
+      type: 'created' | 'updated' | 'deleted';
+      data: Inventory.Item | { id: string };
+    }) => {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[Real-time] Received event:', event.type, event.data);
+      }
+
+      // Invalidate and refetch the list when any CRUD operation occurs
+      void utils.inventory.listItems.invalidate();
+
+      // Show appropriate toast notification
+      if (event.type === 'created') {
+        toast.success('New item added to inventory');
+      } else if (event.type === 'updated') {
+        toast.info('Item updated');
+      } else if (event.type === 'deleted') {
+        toast.info('Item removed from inventory');
+      }
+    },
+    [utils]
+  );
+
+  const handleSubscriptionError = React.useCallback((error: unknown) => {
+    errorCountRef.current += 1;
+    const now = Date.now();
+    const timeSinceLastError = now - lastErrorTimeRef.current;
+    lastErrorTimeRef.current = now;
+
+    const errorMessage = error instanceof Error ? error.message : 'Connection interrupted';
+
+    // Transient errors during initial connection are normal
+    // Only treat as error if it persists beyond 3 attempts
+    if (errorCountRef.current < 3) {
+      if (process.env.NODE_ENV === 'development') {
+        console.warn(
+          `[Real-time] Connection attempt ${errorCountRef.current} failed, retrying...`,
+          errorMessage
+        );
+      }
+    } else {
+      // Only show toast for persistent errors (not rapid reconnections)
+      if (timeSinceLastError > 5000) {
+        if (process.env.NODE_ENV === 'development') {
+          console.error('[Real-time] Subscription error:', errorMessage);
+          toast.error(`Real-time updates disconnected: ${errorMessage}`);
+        }
+      }
+    }
+  }, []);
+
+  const handleSubscriptionStarted = React.useCallback(() => {
+    errorCountRef.current = 0; // Reset error count on successful connection
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[Real-time] Subscription connected to inventory updates');
+    }
   }, []);
 
   trpc.inventory.onItemsChanged.useSubscription(undefined, {
-    enabled: true, // Explicitly enable the subscription
-    onStarted: () => {
-      errorCountRef.current = 0; // Reset error count on successful connection
-      if (process.env.NODE_ENV === 'development') {
-        console.log('[Real-time] Subscription connected to inventory updates');
-      }
-    },
-    onData: React.useCallback(
-      (event: {
-        type: 'created' | 'updated' | 'deleted';
-        data: Inventory.Item | { id: string };
-      }) => {
-        if (process.env.NODE_ENV === 'development') {
-          console.log('[Real-time] Received event:', event.type, event.data);
-        }
-
-        // Invalidate and refetch the list when any CRUD operation occurs
-        void utils.inventory.listItems.invalidate();
-
-        // Show appropriate toast notification
-        if (event.type === 'created') {
-          toast.success('New item added to inventory');
-        } else if (event.type === 'updated') {
-          toast.info('Item updated');
-        } else if (event.type === 'deleted') {
-          toast.info('Item removed from inventory');
-        }
-      },
-      [utils]
-    ),
-    onError: React.useCallback((error: unknown) => {
-      errorCountRef.current += 1;
-      const now = Date.now();
-      const timeSinceLastError = now - lastErrorTimeRef.current;
-      lastErrorTimeRef.current = now;
-
-      const errorMessage = error instanceof Error ? error.message : 'Connection interrupted';
-
-      // Transient errors during initial connection are normal
-      // Only treat as error if it persists beyond 3 attempts
-      if (errorCountRef.current < 3) {
-        if (process.env.NODE_ENV === 'development') {
-          console.warn(
-            `[Real-time] Connection attempt ${errorCountRef.current} failed, retrying...`,
-            errorMessage
-          );
-        }
-      } else {
-        // Only show toast for persistent errors (not rapid reconnections)
-        if (timeSinceLastError > 5000) {
-          if (process.env.NODE_ENV === 'development') {
-            console.error('[Real-time] Subscription error:', errorMessage);
-            toast.error(`Real-time updates disconnected: ${errorMessage}`);
-          }
-        }
-      }
-    }, []),
+    enabled: subscriptionEnabled, // Only enable after mount
+    onStarted: handleSubscriptionStarted,
+    onData: handleSubscriptionData,
+    onError: handleSubscriptionError,
   });
 
   // Show error state if query fails
