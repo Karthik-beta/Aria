@@ -73,7 +73,7 @@ export default function InventoryItemsPage() {
     refetchOnWindowFocus: false,
     retry: 2,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
-    staleTime: 30000, // Consider data fresh for 30 seconds
+    staleTime: Infinity, // Official TanStack Query pattern: never stale since WebSocket updates cache
     gcTime: 5 * 60 * 1000, // Keep in cache for 5 minutes (formerly cacheTime)
   });
 
