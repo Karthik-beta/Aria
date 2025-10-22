@@ -7,7 +7,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "build": "turbo run build",
-    "dev": "turbo run dev db:start",
+    "dev": "turbo run dev",
     "dev:full": "turbo run dev db:start studio",
     "start": "turbo run start",
     "lint": "turbo run lint",
