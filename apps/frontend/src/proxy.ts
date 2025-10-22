@@ -9,7 +9,7 @@ import { NextResponse } from 'next/server';
  * 2. Callback URLs preserve the original destination
  * 3. All apps share the same authentication session
  */
-export default function middleware(req: NextRequest) {
+export default function proxy(req: NextRequest) {
   const { pathname, origin } = req.nextUrl;
 
   // Skip middleware for auth routes, static files, and API routes

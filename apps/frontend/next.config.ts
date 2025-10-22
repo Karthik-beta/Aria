@@ -72,12 +72,6 @@ const nextConfig: NextConfig = {
   // Add trailing slash for consistent routing
   trailingSlash: true,
 
-  // Skip ESLint during builds for now - stricter React Compiler rules need code fixes
-  // TODO: Fix ESLint errors in separate PR (see docs/DEPENDENCIES.md for list)
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
-
   // Skip TypeScript checking during dev builds (use editor/CI instead)
   typescript: {
     ignoreBuildErrors: isDev,

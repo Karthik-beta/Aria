@@ -3,11 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "cross-env NODE_OPTIONS=--max-old-space-size=8192 next dev --turbopack",
-    "dev:debug": "cross-env NODE_OPTIONS=\"--max-old-space-size=8192 --inspect\" next dev --turbopack",
-    "dev:fast": "cross-env NODE_OPTIONS=--max-old-space-size=8192 NEXT_TELEMETRY_DISABLED=1 next dev --turbopack --experimental-https",
-    "build": "next build --turbopack",
-    "build:analyze": "cross-env ANALYZE=true next build --turbopack",
+    "dev": "cross-env NODE_OPTIONS=--max-old-space-size=8192 next dev",
+    "dev:debug": "cross-env NODE_OPTIONS=\"--max-old-space-size=8192 --inspect\" next dev",
+    "dev:fast": "cross-env NODE_OPTIONS=--max-old-space-size=8192 NEXT_TELEMETRY_DISABLED=1 next dev --experimental-https",
+    "build": "next build",
+    "build:analyze": "cross-env ANALYZE=true next build",
     "start": "next start",
     "lint": "eslint",
     "lint:fix": "eslint --fix",
@@ -75,13 +75,13 @@
     "cmdk": "^1.1.1",
     "date-fns": "^4.1.0",
     "eslint": "9.38.0",
-    "eslint-config-next": "15.5.6",
+    "eslint-config-next": "16.0.0",
     "input-otp": "^1.4.2",
     "kbar": "0.1.0-beta.48",
     "lucide-react": "^0.546.0",
     "match-sorter": "^8.1.0",
     "motion": "^12.23.24",
-    "next": "15.5.6",
+    "next": "16.0.0",
     "next-themes": "^0.4.6",
     "nextjs-toploader": "^3.9.17",
     "nuqs": "^2.7.2",
@@ -120,8 +120,8 @@
     "@testing-library/react": "^16.2.0",
     "@testing-library/user-event": "^14.6.0",
     "@types/node": "^24.8.1",
-    "@types/react": "^19.2.2",
-    "@types/react-dom": "^19.2.2",
+    "@types/react": "19.2.2",
+    "@types/react-dom": "19.2.2",
     "@types/sort-by": "^1.2.3",
     "@types/ws": "^8.18.1",
     "@typescript-eslint/eslint-plugin": "^8.46.1",
@@ -141,5 +141,11 @@
     "require-in-the-middle": "^8.0.0",
     "rimraf": "^6.0.1",
     "vitest": "^3.2.4"
+  },
+  "pnpm": {
+    "overrides": {
+      "@types/react": "19.2.2",
+      "@types/react-dom": "19.2.2"
+    }
   }
 }
