@@ -50,6 +50,7 @@ export default function InventoryItemDetailPage() {
   const router = useRouter();
   const itemId = params.itemId as string;
   const utils = trpc.useUtils();
+  const [isPending, startTransition] = React.useTransition();
 
   // State - only for delete confirmation
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
@@ -66,9 +67,10 @@ export default function InventoryItemDetailPage() {
     onSuccess: () => {
       utils.inventory.listItems.invalidate();
       toast.success('Item deleted successfully');
-      // Router.push is acceptable here because it's a one-time action after mutation
-      // The component will unmount after navigation, preventing memory leaks
-      router.push('/inventory/items-catalogue/item');
+      // Wrap router.push in startTransition to prevent React state update errors
+      startTransition(() => {
+        router.push('/inventory/items-catalogue/item');
+      });
     },
     onError: (error) => {
       toast.error(`Failed to delete item: ${error.message}`);

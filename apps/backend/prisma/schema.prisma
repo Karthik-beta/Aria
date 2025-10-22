@@ -44,6 +44,9 @@ model ItemGroup {
   // 2. The "many" side (Children)
   // This lists all children that point to this group
   children      ItemGroup[] @relation("ItemGroupHierarchy")
+  
+  // Items in this group
+  items         Item[]
 }
 
 model Item {
@@ -70,14 +73,24 @@ model Item {
   description  String?   @db.Text
   brandId     String?
   brand       Brand?    @relation(fields: [brandId], references: [id])
+  
+  // Relations
+  productBundles        ProductBundle[]
+  productBundleItems    ProductBundleItem[]
+  primaryItemAlternates ItemAlternate[] @relation("PrimaryItem")
+  alternateItems        ItemAlternate[] @relation("AlternateItem")
 }
 
 model UnitOfMeasurement {
-  id        String    @id @default(cuid())
-  name      String    @db.VarChar(255)
-  mustBeWholeNumber  isWholeNumber  Boolean   @default(true)
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  id                String    @id @default(cuid())
+  name              String    @db.VarChar(255)
+  isWholeNumber     Boolean   @default(true)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  
+  // Relations
+  items             Item[]
+  productBundleItems ProductBundleItem[]
 }
 
 model Brand {
@@ -86,16 +99,22 @@ model Brand {
   description String?   @db.Text
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
+  
+  // Relations
+  items     Item[]
 }
 
 model ProductBundle {
   id        String    @id @default(cuid())
   parentItemId String
-  parentItem   Item    @relation("BundleParentItem", fields: [parentItemId], references: [id])
+  parentItem   Item    @relation(fields: [parentItemId], references: [id])
   description String?   @db.Text
   disabled  Boolean   @default(false)
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
+  
+  // Relations
+  bundleItems ProductBundleItem[]
 }
 
 model ProductBundleItem {

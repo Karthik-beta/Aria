@@ -292,8 +292,8 @@ export function AdvancedDataTableExample() {
         onExport={async (format, rows) => {
           toast.success(`Exported ${rows.length} rows as ${format.toUpperCase()}`);
         }}
-        onImport={async (file) => {
-          toast.success(`Imported data from ${file.name}`);
+        onImport={async (data) => {
+          toast.success(`Imported ${data.length} rows`);
         }}
         ariaLabel="Products table"
         ariaDescription="A table of all products with advanced filtering, sorting, and bulk actions"

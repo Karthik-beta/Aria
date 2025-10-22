@@ -2,8 +2,9 @@
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
-import { httpBatchLink, httpSubscriptionLink, splitLink } from '@trpc/client';
+import { httpBatchLink, splitLink, wsLink, createWSClient, type TRPCLink } from '@trpc/client';
 import { useState } from 'react';
+import type { AppRouter } from '../../../../backend/src/trpc/trpc.service';
 import { trpc } from './client';
 
 /**
@@ -19,10 +20,137 @@ function getBaseUrl() {
 }
 
 /**
+ * Get the WebSocket URL for tRPC subscriptions
+ * Only call this in browser environment
+ *
+ * Note: WebSocket connections cannot be proxied by Next.js rewrites,
+ * so we connect directly to the backend WebSocket server
+ */
+function getWsUrl(): string {
+  // In development, connect directly to backend WebSocket server
+  if (process.env.NODE_ENV === 'development') {
+    const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+    return backendUrl.replace('http://', 'ws://').replace('https://', 'wss://') + '/trpc-ws';
+  }
+
+  // In production, use the same host with wss protocol
+  const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const baseUrl = process.env.NEXT_PUBLIC_API_URL;
+
+  if (baseUrl) {
+    const url = baseUrl.replace('http://', 'ws://').replace('https://', 'wss://');
+    return `${url}/trpc-ws`;
+  }
+
+  // Fallback: use current host (assumes backend is on same domain)
+  return `${wsProtocol}//${window.location.host}/trpc-ws`;
+}
+
+/**
+ * Create WebSocket client following official tRPC documentation
+ * https://trpc.io/docs/client/links/wsLink
+ *
+ * This function creates a new WebSocket client instance.
+ * It should be called ONCE per tRPC client lifecycle (not during render).
+ */
+function createWsClient() {
+  if (typeof window === 'undefined') {
+    throw new Error('WebSocket client can only be created in browser');
+  }
+
+  const wsUrl = getWsUrl();
+
+  // Create WebSocket client following official minimal pattern
+  // https://trpc.io/docs/client/links/wsLink
+  const wsClient = createWSClient({
+    url: wsUrl,
+    WebSocket: WebSocket as any,
+
+    // Optional callbacks for logging
+    onOpen: () => {
+      console.log('[WebSocket] ✅ Connected to', wsUrl);
+    },
+
+    onClose: (cause) => {
+      const code = cause?.code;
+      console.warn('[WebSocket] ❌ Disconnected - Code:', code);
+    },
+
+    onError: (error) => {
+      console.error('[WebSocket] 🔴 Error:', error);
+    },
+  });
+
+  if (process.env.NODE_ENV === 'development') {
+    console.log('[WebSocket] Client created for', wsUrl);
+  }
+
+  return wsClient;
+}
+
+/**
+ * Create tRPC links following official documentation
+ * https://trpc.io/docs/client/links/splitLink
+ *
+ * Uses splitLink to route:
+ * - subscriptions → WebSocket (wsLink)
+ * - queries & mutations → HTTP (httpBatchLink)
+ *
+ * SSR-safe: During SSR, only HTTP link is used (WebSocket client cannot be created)
+ *
+ * IMPORTANT: This function is called ONCE during tRPC client initialization,
+ * NOT during every render. The wsClient is created here and reused for the
+ * lifetime of the tRPC client.
+ *
+ * Pattern verified against official example:
+ * https://github.com/trpc/examples-next-prisma-websockets-starter/blob/main/src/utils/trpc.ts#L22-L53
+ */
+function createLinks(): TRPCLink<AppRouter>[] {
+  const httpLink = httpBatchLink({
+    url: `${getBaseUrl()}/trpc`,
+  });
+
+  // During SSR, only use HTTP
+  if (typeof window === 'undefined') {
+    return [httpLink];
+  }
+
+  // In browser, create WebSocket client and use splitLink for routing
+  // Following official pattern: https://trpc.io/docs/client/links/splitLink
+  // The wsClient is created once here, not on every render
+  const wsClient = createWsClient();
+
+  return [
+    splitLink({
+      // Route based on operation type
+      condition: (op) => op.type === 'subscription',
+
+      // Subscriptions use WebSocket
+      true: wsLink<AppRouter>({
+        client: wsClient,
+      }),
+
+      // Queries and mutations use HTTP with batching
+      false: httpLink,
+    }),
+  ];
+}
+
+/**
  * TRPCProvider wraps the app with tRPC and TanStack Query providers
- * This enables type-safe API calls throughout the application with real-time subscriptions
+ * This enables type-safe API calls throughout the application with real-time WebSocket subscriptions
+ *
+ * Pattern verified against official tRPC Next.js WebSocket example:
+ * https://github.com/trpc/examples-next-prisma-websockets-starter
+ *
+ * Key differences from Pages Router:
+ * - App Router uses 'use client' provider with useState for client initialization
+ * - QueryClient and tRPC client are created ONCE using useState initializer
+ * - No SSR/hydration recreation needed - client is stable across renders
  */
 export function TRPCProvider({ children }: { children: React.ReactNode }) {
+  // Create QueryClient once using useState initializer
+  // This ensures it's created only once, not on every render
   const [queryClient] = useState(
     () =>
       new QueryClient({
@@ -37,27 +165,12 @@ export function TRPCProvider({ children }: { children: React.ReactNode }) {
       })
   );
 
+  // Create tRPC client once using useState initializer
+  // createLinks() is called ONCE here during initialization, not during render
+  // This follows the official pattern for App Router providers
   const [trpcClient] = useState(() =>
     trpc.createClient({
-      links: [
-        splitLink({
-          // Use httpSubscriptionLink for subscriptions (SSE-based)
-          condition: (op) => op.type === 'subscription',
-          true: httpSubscriptionLink({
-            url: `${getBaseUrl()}/trpc`,
-          }),
-          // Use httpBatchLink for queries and mutations
-          false: httpBatchLink({
-            url: `${getBaseUrl()}/trpc`,
-            // You can add headers here for authentication
-            // headers() {
-            //   return {
-            //     authorization: getAuthToken(),
-            //   };
-            // },
-          }),
-        }),
-      ],
+      links: createLinks(),
     })
   );
 

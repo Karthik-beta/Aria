@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useTransition } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -32,6 +32,7 @@ export default function ItemFormPage() {
   const searchParams = useSearchParams();
   const itemId = searchParams.get('id');
   const isEditMode = Boolean(itemId);
+  const [isPending, startTransition] = useTransition();
 
   // Form setup with zod validation
   const form = useForm<Inventory.CreateInput>({
@@ -65,7 +66,9 @@ export default function ItemFormPage() {
   const createMutation = trpc.inventory.createItem.useMutation({
     onSuccess: (data) => {
       toast.success('Item created successfully!');
-      router.push(`/inventory/items-catalogue/item/${data.id}`);
+      startTransition(() => {
+        router.push(`/inventory/items-catalogue/item/${data.id}`);
+      });
     },
     onError: (error) => {
       toast.error(`Failed to create item: ${error.message}`);
@@ -76,7 +79,9 @@ export default function ItemFormPage() {
   const updateMutation = trpc.inventory.updateItem.useMutation({
     onSuccess: (data) => {
       toast.success('Item updated successfully!');
-      router.push(`/inventory/items-catalogue/item/${data.id}`);
+      startTransition(() => {
+        router.push(`/inventory/items-catalogue/item/${data.id}`);
+      });
     },
     onError: (error) => {
       toast.error(`Failed to update item: ${error.message}`);
@@ -95,7 +100,7 @@ export default function ItemFormPage() {
     }
   };
 
-  const isSubmitting = createMutation.isPending || updateMutation.isPending;
+  const isSubmitting = createMutation.isPending || updateMutation.isPending || isPending;
 
   // Show loading state while fetching item for edit
   if (isEditMode && isFetchingItem) {

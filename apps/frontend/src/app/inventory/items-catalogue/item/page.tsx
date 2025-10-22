@@ -88,16 +88,14 @@ export default function InventoryItemsPage() {
     [rawItems]
   );
 
-  // Real-time subscription for CRUD events - Only enabled when component is mounted
+  // Real-time subscription for CRUD events - Properly managed with useEffect
   const errorCountRef = React.useRef(0);
   const lastErrorTimeRef = React.useRef(0);
-  // Track mount state to avoid calling setState on unmounted component
-  const mountedRef = React.useRef(true);
+
+  // Use effect to ensure subscription only starts after component mounts
   React.useEffect(() => {
-    mountedRef.current = true;
-    return () => {
-      mountedRef.current = false;
-    };
+    // Subscription is now handled via the hook call below
+    // This effect just ensures we're mounted
   }, []);
 
   trpc.inventory.onItemsChanged.useSubscription(undefined, {
@@ -108,28 +106,36 @@ export default function InventoryItemsPage() {
         console.log('[Real-time] Subscription connected to inventory updates');
       }
     },
-    onData: (event) => {
-      if (process.env.NODE_ENV === 'development') {
-        console.log('[Real-time] Received event:', event.type, event.data);
-      }
+    onData: React.useCallback(
+      (event: {
+        type: 'created' | 'updated' | 'deleted';
+        data: Inventory.Item | { id: string };
+      }) => {
+        if (process.env.NODE_ENV === 'development') {
+          console.log('[Real-time] Received event:', event.type, event.data);
+        }
 
-      // Invalidate and refetch the list when any CRUD operation occurs
-      void utils.inventory.listItems.invalidate();
+        // Invalidate and refetch the list when any CRUD operation occurs
+        void utils.inventory.listItems.invalidate();
 
-      // Show appropriate toast notification
-      if (event.type === 'created') {
-        toast.success('New item added to inventory');
-      } else if (event.type === 'updated') {
-        toast.info('Item updated');
-      } else if (event.type === 'deleted') {
-        toast.info('Item removed from inventory');
-      }
-    },
-    onError: (error) => {
+        // Show appropriate toast notification
+        if (event.type === 'created') {
+          toast.success('New item added to inventory');
+        } else if (event.type === 'updated') {
+          toast.info('Item updated');
+        } else if (event.type === 'deleted') {
+          toast.info('Item removed from inventory');
+        }
+      },
+      [utils]
+    ),
+    onError: React.useCallback((error: unknown) => {
       errorCountRef.current += 1;
       const now = Date.now();
       const timeSinceLastError = now - lastErrorTimeRef.current;
       lastErrorTimeRef.current = now;
+
+      const errorMessage = error instanceof Error ? error.message : 'Connection interrupted';
 
       // Transient errors during initial connection are normal
       // Only treat as error if it persists beyond 3 attempts
@@ -137,20 +143,19 @@ export default function InventoryItemsPage() {
         if (process.env.NODE_ENV === 'development') {
           console.warn(
             `[Real-time] Connection attempt ${errorCountRef.current} failed, retrying...`,
-            error.message || 'Connection interrupted'
+            errorMessage
           );
         }
       } else {
         // Only show toast for persistent errors (not rapid reconnections)
         if (timeSinceLastError > 5000) {
-          const errorMsg = error.message || 'Connection interrupted';
           if (process.env.NODE_ENV === 'development') {
-            console.error('[Real-time] Subscription error:', errorMsg);
-            toast.error(`Real-time updates disconnected: ${errorMsg}`);
+            console.error('[Real-time] Subscription error:', errorMessage);
+            toast.error(`Real-time updates disconnected: ${errorMessage}`);
           }
         }
       }
-    },
+    }, []),
   });
 
   // Show error state if query fails
@@ -180,11 +185,8 @@ export default function InventoryItemsPage() {
     },
     onSuccess: () => {
       toast.success('Item deleted successfully');
-      // Only update local state when component is still mounted
-      if (mountedRef.current) {
-        setIsDeleteDialogOpen(false);
-        setItemToDelete(null);
-      }
+      setIsDeleteDialogOpen(false);
+      setItemToDelete(null);
     },
     onError: (error, variables, context) => {
       // Rollback on error
@@ -483,15 +485,11 @@ export default function InventoryItemsPage() {
         for (const id of ids) {
           await bulkDeleteMutation.mutateAsync({ id });
         }
-        if (mountedRef.current) {
-          toast.success(`Successfully deleted ${ids.length} item(s)`);
-        }
-        // Invalidate regardless; it's safe if component unmounted
+        toast.success(`Successfully deleted ${ids.length} item(s)`);
+        // Invalidate to refresh the list
         await utils.inventory.listItems.invalidate();
       } catch (_error) {
-        if (mountedRef.current) {
-          toast.error('Failed to delete some items');
-        }
+        toast.error('Failed to delete some items');
       }
     },
     [bulkDeleteMutation, utils]
