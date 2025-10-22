@@ -17,7 +17,7 @@ The four agents below interpret and enforce these principles from complementary 
 
 ## Agent 1 – Simplicity Advocate
 
-### Mission
+### Mission (Code Cleaner)
 
 Keep the codebase frictionless by stripping complexity, honoring framework defaults, and ensuring every structural decision justifies itself against a simpler alternative.
 
@@ -91,7 +91,7 @@ Guarantee that every boundary is strongly typed, ensuring backend, frontends, te
 
 Preserve the reliability of the developer experience by enforcing scripted workflows, comprehensive CI coverage, and reproducible environments from laptop to production.
 
-### Responsibilities
+### Responsibilities (Code Cleaner)
 
 - **Script parity**: every package that supports `dev`, `build`, `lint`, or `test` must expose scripts that proxy to shared tooling. Prefer `turbo run` and workspace inheritance over bespoke commands.
 - **Pipeline hygiene**: when a new task is introduced (e.g., Playwright E2E), extend `turbo.json` and `.github/workflows/ci.yml` accordingly. The CI pipeline should mirror the local workflows exactly.
@@ -149,3 +149,126 @@ Embed quality gates into daily work so that regressions are caught before they h
 ## Submission Gate
 
 Every contribution should close with a short summary mapping changes to the four agents. If an agent’s expectations are deferred, note the remediation plan and timeline. This keeps the collective bar visible and ensures the ERP suite grows without sacrificing maintainability, correctness, or velocity.
+
+## Agent 5 – Documentation Scribe
+
+### Mission (Documentation Scribe)
+
+Ship clear, concise, and professional inline documentation that helps future maintainers read code quickly and safely. The Documentation Scribe ensures every public function, exported type, and non-trivial component has a small, high-value doc comment and that complex implementation details are captured in adjacent markdown where appropriate.
+
+### Responsibilities (Documentation Scribe)
+
+- Establish minimal, high-signal inline documentation conventions developers can apply quickly.
+- Prefer TSDoc/JSDoc annotations for TypeScript code and short component-level comments for React components.
+- Keep docs factual and maintenance-friendly: include intent, inputs/outputs (types), side effects, error modes, and an example call when helpful.
+- Avoid duplicating README material inline; link to broader design docs when needed.
+
+### Conventions (short & actionable)
+
+- Use TSDoc for exported functions, classes, interfaces, and complex types. Example:
+```ts
+/**
+ * Fetches a user's profile from the API.
+ *
+ * @remarks
+ * This function calls the backend and returns a typed Profile object. It throws when the network
+ * request fails or the backend returns a non-2xx response.
+ *
+ * @param userId - The ID of the user to fetch.
+ * @returns A promise that resolves to a Profile.
+ */
+export async function fetchProfile(userId: string): Promise<Profile> {
+   /* ... */
+}
+```
+
+- For React components, add a one-paragraph comment describing purpose, key props, and rendering constraints. If the component uses client-only features (hooks, browser APIs), annotate with "Client component".
+
+```tsx
+/**
+ * InventoryItemRow — row renderer for a single inventory item used by the items table.
+ *
+ * Props: `item`, `onEdit`, `onDelete` — keep this component pure and delegate side-effects.
+ * Client component: uses hooks for local state and event callbacks.
+ */
+function InventoryItemRow({ item, onEdit, onDelete }: Props) {
+   // client component implementation
+}
+```
+
+- For non-trivial algorithms, add a short note about complexity and edge-cases (e.g., O(n) with early exit for X).
+- When adding TODOs, use a clear prefix and link to an issue where possible: `// TODO(issue-1234): reason`.
+
+### Workflow (Code Cleaner)
+
+- Small changes: add or update inline docs as part of the same PR that changes code.
+- Larger design decisions: create or update a markdown design doc in `docs/` and reference it from inline comments.
+- Reviewers should verify that exported APIs and complex components have TSDoc/JSDoc comments before approving.
+
+### Quality signals (Code Cleaner)
+
+- Comments are short (3–6 lines) and explain "why" not "what" when the code is obvious.
+- Types and signatures remain the single source of truth for shapes — comments supplement, not replace types.
+- Example calls are included only when they speed up comprehension.
+
+### Example linting/CI checks (optional follow-up)
+
+- Consider adding a lightweight doc-comment linter or a TypeDoc generation check to CI that fails for exported symbols without doc comments. This is optional and should be added in a follow-up PR if the team wants stronger enforcement.
+
+## Agent 6 – Code Cleaner
+
+### Mission
+
+Keep the codebase tidy by removing dead code, resolving small lint issues, and performing safe, low-risk refactors that improve readability without changing public behavior. The Code Cleaner reduces reviewer friction by handling cleanup tasks that don't require deep design review.
+
+### Responsibilities
+
+- Remove or refactor small blocks of unused or duplicate code (after verifying tests pass).
+- Triage and fix straightforward lint warnings (unused variables, small formatting issues) that can be auto-fixed or safely changed.
+- Create lightweight cleanup PRs scoped to a single package or module to avoid large churn.
+- Add `// TODO` comments with issue references for larger refactors that require design discussion.
+
+### Conventions
+
+- Only make changes that are covered by unit tests or extremely low-risk (formatting, renames local to a module).
+- When removing code, preserve behavior by running `pnpm test` for the affected package (or a quick unit test) before committing.
+- Use PRs titled with `chore/clean/*` or `chore/refactor/*` and include an explicit risk statement in the PR description.
+
+### Workflow
+
+- Small cleanups: open a single-purpose branch, run `pnpm format && pnpm lint --fix`, run the package tests, and open a PR.
+- Larger changes: if more invasive than a trivial rename or lint fix, create an issue, discuss with the team, then implement in a separate PR.
+
+### Quality signals
+
+- Clean PRs touch a small number of files and have passing lint and tests.
+- Each cleanup PR includes a short summary explaining the change and any follow-ups required.
+- Any removed code is referenced in the PR description and, if large, an entry added to the change log.
+
+## Agent 7 — Official Docs Enforcer
+
+### Purpose
+
+Ensure the project always implements official, recommended solutions from authoritative documentation. Prevent divergence caused by home-grown implementations when a stable, documented approach exists.
+
+### Duties
+
+1. Use the MCP tooling to locate and fetch the latest official documentation and implementation guidance for any non-trivial technology, library, or platform feature before introducing or changing code that implements that feature. The MCP tools (mcp_upstash, mcp_ddg-search_* and related context tools) must be the first source for retrieving up-to-date official docs and examples.
+2. Disallow custom or bespoke implementations that replace or reimplement officially recommended functionality unless an explicit, documented exception is approved by a designated architect or maintainer.
+3. For any accepted exception, require a short design note in `docs/` describing why the official approach was unsuitable, the fallback design, and a plan to reassess when upstream changes land.
+4. Add a checklist item to PR templates reminding contributors to reference the official docs used and to include the MCP-search results (links or resolved context IDs) in the PR description.
+
+### Enforcement
+
+- Before merging any PR that adds or modifies behavior which overlaps an official API, SDK, or recommended pattern, reviewers must verify that the author fetched and considered the official documentation via MCP tools. If the PR lacks these references, request changes.
+- Use the project's automation (CI or a pre-merge bot) to flag PRs missing an "official-docs" section in their description. This flag should be advisory at first, with progressively stricter enforcement if ignored.
+
+### Exception process
+
+1. Open an `architecture/` design note in `docs/` explaining the proposed deviation and link to the official docs that were considered.
+2. Get approval from one of the maintainers or the architecture team. Record approval in the PR.
+3. Implement the exception with tests and a migration/rollback plan, and add a TODO with a review date to reassess the exception periodically.
+
+### Interaction with other agents
+
+This agent works closely with the Automation Steward and Type Safety Guardian. The Official Docs Enforcer ensures authoritative sources are discoverable via MCP tools and that types and APIs used across the monorepo align with the official recommendations.

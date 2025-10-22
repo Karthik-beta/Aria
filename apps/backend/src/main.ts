@@ -35,7 +35,7 @@ async function bootstrap() {
 
   // Start the HTTP server
   await app.listen(process.env.PORT ?? 3001);
-  
+
   // Get the underlying HTTP server instance
   const httpServer = app.getHttpServer();
 
