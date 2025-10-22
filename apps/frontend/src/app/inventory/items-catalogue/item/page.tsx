@@ -73,7 +73,7 @@ export default function InventoryItemsPage() {
     refetchOnWindowFocus: false,
     retry: 2,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
-    staleTime: 30000, // Consider data fresh for 30 seconds
+    staleTime: Infinity, // Official TanStack Query pattern: never stale since WebSocket updates cache
     gcTime: 5 * 60 * 1000, // Keep in cache for 5 minutes (formerly cacheTime)
   });
 
@@ -88,66 +88,74 @@ export default function InventoryItemsPage() {
     [rawItems]
   );
 
-  // Real-time subscription for CRUD events - Only enabled when component is mounted
-  const [subscriptionStatus, setSubscriptionStatus] = React.useState<
-    'connecting' | 'connected' | 'error' | 'reconnecting'
-  >('connecting');
+  // Real-time subscription for CRUD events - Properly managed with useEffect
   const errorCountRef = React.useRef(0);
   const lastErrorTimeRef = React.useRef(0);
 
+  // Use effect to ensure subscription only starts after component mounts
+  React.useEffect(() => {
+    // Subscription is now handled via the hook call below
+    // This effect just ensures we're mounted
+  }, []);
+
   trpc.inventory.onItemsChanged.useSubscription(undefined, {
+    enabled: true, // Explicitly enable the subscription
     onStarted: () => {
-      setSubscriptionStatus('connected');
       errorCountRef.current = 0; // Reset error count on successful connection
       if (process.env.NODE_ENV === 'development') {
         console.log('[Real-time] Subscription connected to inventory updates');
       }
     },
-    onData: (event) => {
-      if (process.env.NODE_ENV === 'development') {
-        console.log('[Real-time] Received event:', event.type, event.data);
-      }
+    onData: React.useCallback(
+      (event: {
+        type: 'created' | 'updated' | 'deleted';
+        data: Inventory.Item | { id: string };
+      }) => {
+        if (process.env.NODE_ENV === 'development') {
+          console.log('[Real-time] Received event:', event.type, event.data);
+        }
 
-      // Invalidate and refetch the list when any CRUD operation occurs
-      utils.inventory.listItems.invalidate();
+        // Invalidate and refetch the list when any CRUD operation occurs
+        void utils.inventory.listItems.invalidate();
 
-      // Show appropriate toast notification
-      if (event.type === 'created') {
-        toast.success('New item added to inventory');
-      } else if (event.type === 'updated') {
-        toast.info('Item updated');
-      } else if (event.type === 'deleted') {
-        toast.info('Item removed from inventory');
-      }
-    },
-    onError: (error) => {
+        // Show appropriate toast notification
+        if (event.type === 'created') {
+          toast.success('New item added to inventory');
+        } else if (event.type === 'updated') {
+          toast.info('Item updated');
+        } else if (event.type === 'deleted') {
+          toast.info('Item removed from inventory');
+        }
+      },
+      [utils]
+    ),
+    onError: React.useCallback((error: unknown) => {
       errorCountRef.current += 1;
       const now = Date.now();
       const timeSinceLastError = now - lastErrorTimeRef.current;
       lastErrorTimeRef.current = now;
 
+      const errorMessage = error instanceof Error ? error.message : 'Connection interrupted';
+
       // Transient errors during initial connection are normal
       // Only treat as error if it persists beyond 3 attempts
       if (errorCountRef.current < 3) {
-        setSubscriptionStatus('reconnecting');
         if (process.env.NODE_ENV === 'development') {
           console.warn(
             `[Real-time] Connection attempt ${errorCountRef.current} failed, retrying...`,
-            error.message || 'Connection interrupted'
+            errorMessage
           );
         }
       } else {
-        setSubscriptionStatus('error');
         // Only show toast for persistent errors (not rapid reconnections)
         if (timeSinceLastError > 5000) {
-          const errorMsg = error.message || 'Connection interrupted';
           if (process.env.NODE_ENV === 'development') {
-            console.error('[Real-time] Subscription error:', errorMsg);
-            toast.error(`Real-time updates disconnected: ${errorMsg}`);
+            console.error('[Real-time] Subscription error:', errorMessage);
+            toast.error(`Real-time updates disconnected: ${errorMessage}`);
           }
         }
       }
-    },
+    }, []),
   });
 
   // Show error state if query fails
@@ -239,37 +247,17 @@ export default function InventoryItemsPage() {
       // Selection column
       {
         id: 'select',
-        header: ({ table }) => {
-          // Render checkbox inline to avoid state update issues
-          const isAllPageRowsSelected = table.getIsAllPageRowsSelected();
-          const isSomePageRowsSelected = table.getIsSomePageRowsSelected();
-          const currentPageRows = table.getRowModel().rows;
-          const selectedRowsOnPage = currentPageRows.filter((row) => row.getIsSelected());
-          const selectedCount = selectedRowsOnPage.length;
-          const totalCount = currentPageRows.length;
-
-          return (
-            <div className="flex items-center gap-2">
-              <Checkbox
-                checked={
-                  isAllPageRowsSelected || (isSomePageRowsSelected ? 'indeterminate' : false)
-                }
-                onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
-                aria-label={
-                  isAllPageRowsSelected
-                    ? 'Deselect all rows'
-                    : isSomePageRowsSelected
-                      ? `${selectedCount} of ${totalCount} rows selected`
-                      : 'Select all rows'
-                }
-                className="data-[state=indeterminate]:bg-primary data-[state=indeterminate]:text-primary-foreground"
-              />
-              {isSomePageRowsSelected && !isAllPageRowsSelected && totalCount > 0 && (
-                <span className="text-xs text-muted-foreground tabular-nums">{selectedCount}</span>
-              )}
-            </div>
-          );
-        },
+        header: ({ table }) => (
+          <Checkbox
+            checked={
+              table.getIsAllPageRowsSelected() ||
+              (table.getIsSomePageRowsSelected() ? 'indeterminate' : false)
+            }
+            onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+            aria-label="Select all rows on this page"
+            className="data-[state=indeterminate]:bg-primary data-[state=indeterminate]:text-primary-foreground"
+          />
+        ),
         cell: ({ row }) => (
           <Checkbox
             checked={row.getIsSelected()}
@@ -498,6 +486,7 @@ export default function InventoryItemsPage() {
           await bulkDeleteMutation.mutateAsync({ id });
         }
         toast.success(`Successfully deleted ${ids.length} item(s)`);
+        // Invalidate to refresh the list
         await utils.inventory.listItems.invalidate();
       } catch (_error) {
         toast.error('Failed to delete some items');

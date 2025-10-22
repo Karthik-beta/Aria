@@ -27,3 +27,143 @@ model InventoryItem {
   @@index([createdAt])
   @@map("inventory_items")
 }
+
+model ItemGroup {
+  id        String    @id @default(cuid())
+  groupName String    @db.VarChar(255)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  // --- Self-referencing relationship ---
+
+  // 1. The "one" side (Parent)
+  // This group points to its parent
+  parentId      String?
+  parentItemGroup ItemGroup? @relation("ItemGroupHierarchy", fields: [parentId], references: [id])
+
+  // 2. The "many" side (Children)
+  // This lists all children that point to this group
+  children      ItemGroup[] @relation("ItemGroupHierarchy")
+  
+  // Items in this group
+  items         Item[]
+}
+
+model Item {
+  id        String    @id @default(cuid())
+  name      String    @db.VarChar(255)
+  code      String    @unique @db.VarChar(100)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  itemGroupId String? 
+  itemGroup   ItemGroup? @relation(fields: [itemGroupId], references: [id])
+
+  disabled  Boolean   @default(false)
+  allowAlternateItem  Boolean @default(false)
+  maintainStock  Boolean @default(false)
+
+  openingStock  Int     @default(0)
+  valuationRate  Float   @default(0.0)
+  standardSellingRate  Float @default(0.0)
+
+  defaultUnitOfMeasureId String?
+  defaultUnitOfMeasure   UnitOfMeasurement? @relation(fields: [defaultUnitOfMeasureId], references: [id])
+
+  description  String?   @db.Text
+  brandId     String?
+  brand       Brand?    @relation(fields: [brandId], references: [id])
+  
+  // Relations
+  productBundles        ProductBundle[]
+  productBundleItems    ProductBundleItem[]
+  primaryItemAlternates ItemAlternate[] @relation("PrimaryItem")
+  alternateItems        ItemAlternate[] @relation("AlternateItem")
+}
+
+model UnitOfMeasurement {
+  id                String    @id @default(cuid())
+  name              String    @db.VarChar(255)
+  isWholeNumber     Boolean   @default(true)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  
+  // Relations
+  items             Item[]
+  productBundleItems ProductBundleItem[]
+}
+
+model Brand {
+  id        String    @id @default(cuid())
+  name      String    @db.VarChar(255)
+  description String?   @db.Text
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  
+  // Relations
+  items     Item[]
+}
+
+model ProductBundle {
+  id        String    @id @default(cuid())
+  parentItemId String
+  parentItem   Item    @relation(fields: [parentItemId], references: [id])
+  description String?   @db.Text
+  disabled  Boolean   @default(false)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  
+  // Relations
+  bundleItems ProductBundleItem[]
+}
+
+model ProductBundleItem {
+  id        String    @id @default(cuid())
+  bundleId  String
+  bundle    ProductBundle @relation(fields: [bundleId], references: [id])
+  itemId    String
+  item      Item      @relation(fields: [itemId], references: [id])
+  quantity  Int       @default(1)
+  description String?   @db.Text
+  UnitOfMeasurementId String?
+  unitOfMeasurement   UnitOfMeasurement? @relation(fields: [UnitOfMeasurementId], references: [id])
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@unique([bundleId, itemId])
+}
+
+model ShippingRule {
+  id        String    @id @default(cuid())
+  shippingRuleLabel String  @db.VarChar(255)
+  shippingRuleType  RuleType
+  disabled  Boolean   @default(false)
+  createdAt DateTime  @default(now()) 
+  updatedAt DateTime  @updatedAt
+
+  calculateBasedOn  CalculationType
+  shippingAmount  Float   @default(0.0)
+}
+
+enum RuleType {
+  SELLING
+  BUYING
+}
+
+enum CalculationType {
+  FIXED
+  NET_TOTAL
+  NET_WEIGHT
+}
+
+model ItemAlternate {
+  id        String    @id @default(cuid())
+  itemId    String
+  item      Item      @relation("PrimaryItem", fields: [itemId], references: [id])
+  alternateItemId String
+  alternateItem   Item    @relation("AlternateItem", fields: [alternateItemId], references: [id])
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@unique([itemId, alternateItemId])
+}
