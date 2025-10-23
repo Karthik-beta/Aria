@@ -65,6 +65,10 @@ RUN pnpm --filter "@aria/utils" build || true
 # Build the backend application
 RUN pnpm --filter backend build
 
+# Generate Prisma client for target platforms (include linux-musl for Alpine)
+# This ensures the Prisma Query Engine is present inside the image and avoids runtime errors
+RUN pnpm --filter backend exec prisma generate || pnpm --filter backend exec npx prisma generate || true
+
 # Prune development dependencies and create production deployment
 RUN pnpm --filter backend --prod deploy --legacy /app/deploy
 
@@ -92,7 +96,7 @@ COPY --from=builder --chown=nestjs:nodejs /app/apps/backend/generated ./generate
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:3001/api/health || exit 1
+    CMD wget --no-verbose --tries=1 --spider http://localhost:3001/health || exit 1
 
 # Switch to non-root user
 USER nestjs

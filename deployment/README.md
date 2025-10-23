@@ -372,10 +372,11 @@ To use custom SSL certificates:
 2. Update Caddyfile if needed (for advanced configurations)
 
 3. Restart services:
+
    ```bash
    # Linux
    sudo systemctl restart aria-erp
-   
+
    # Windows
    sc stop AriaERP && sc start AriaERP
    ```
@@ -385,6 +386,7 @@ To use custom SSL certificates:
 For public domains, Caddy automatically obtains Let's Encrypt certificates.
 
 Update your `.env`:
+
 ```env
 DOMAIN=erp.yourcompany.com
 SSL_EMAIL=admin@yourcompany.com
@@ -641,5 +643,6 @@ See the main project LICENSE file for details.
 ## Support
 
 For issues, questions, or contributions, please visit:
+
 - GitHub: https://github.com/Karthik-beta/Aria
 - Issues: https://github.com/Karthik-beta/Aria/issues

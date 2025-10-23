@@ -10,7 +10,7 @@
 - **Project**: Aria ERP Deployment Infrastructure Overhaul
 - **Branch**: refactor/deployment-rewrite
 
-***
+---
 
 ## 1. Executive Summary
 
@@ -25,7 +25,7 @@ This Technical Design Document outlines the complete rewrite of the Aria ERP dep
 - **SSL**: Automatic SSL certificate generation and management
 - **Portability**: Packaged deployment for FTP/USB distribution
 
-***
+---
 
 ## 2. Current State Analysis
 
@@ -39,7 +39,6 @@ Based on the repository analysis, the current system uses:
 - **Node.js backend** with tRPC
 - **Docker Compose** for orchestration
 
-
 ### 2.2 Identified Issues
 
 - Multiple frontend containers increase complexity
@@ -48,7 +47,7 @@ Based on the repository analysis, the current system uses:
 - No automated SSL certificate management for private networks
 - Complex deployment process for client sites
 
-***
+---
 
 ## 3. Solution Architecture
 
@@ -58,20 +57,20 @@ Based on the repository analysis, the current system uses:
 graph TB
     subgraph "Client Network"
         Client[Client Browsers]
-        
+
         subgraph "Caddy Reverse Proxy"
             Caddy[Caddy v2<br/>- HTTP/HTTPS/WSS/HTTP3<br/>- Auto SSL<br/>- Load Balancing]
         end
-        
+
         subgraph "Application Layer"
             Frontend[Next.js 16 Multi-Zone<br/>- App Switcher<br/>- All modules in one app]
             Backend[Node.js Backend<br/>- tRPC API<br/>- Business Logic]
         end
-        
+
         subgraph "Data Layer"
             DB[(PostgreSQL 18<br/>Database)]
         end
-        
+
         Client --> Caddy
         Caddy --> Frontend
         Caddy --> Backend
@@ -80,7 +79,6 @@ graph TB
     end
 ```
 
-
 ### 3.2 Multi-Zone Frontend Architecture
 
 The new frontend will use Next.js 16 multi-zone architecture within a single application:
@@ -88,14 +86,13 @@ The new frontend will use Next.js 16 multi-zone architecture within a single app
 ```
 /                 → Main landing/dashboard (default zone)
 /asset/*          → Asset Management Module
-/hrms/*           → HR Management Module  
+/hrms/*           → HR Management Module
 /inventory/*      → Inventory Management Module
 /crm/*            → CRM Module
 /api/trpc/*       → Backend API routes
 ```
 
-
-***
+---
 
 ## 4. Detailed Design
 
@@ -112,10 +109,10 @@ The new frontend will use Next.js 16 multi-zone architecture within a single app
             experimental_http3
         }
     }
-    
+
     # Auto HTTPS settings
     auto_https on
-    
+
     # Local development CA
     local_certs
 }
@@ -124,23 +121,23 @@ The new frontend will use Next.js 16 multi-zone architecture within a single app
 {$DOMAIN:localhost} {
     # Enable all protocols
     protocols h1 h2 h3
-    
+
     # Frontend routes
     route {
         # API routes to backend
         reverse_proxy /api/* backend:3001
         reverse_proxy /trpc/* backend:3001
-        
+
         # WebSocket support
         reverse_proxy /ws backend:3001 {
             header_up Upgrade {>Upgrade}
             header_up Connection {>Connection}
         }
-        
+
         # Frontend routes
         reverse_proxy frontend:3000
     }
-    
+
     # Security headers
     header {
         # Security headers
@@ -149,14 +146,14 @@ The new frontend will use Next.js 16 multi-zone architecture within a single app
         X-Frame-Options "DENY"
         X-XSS-Protection "1; mode=block"
         Referrer-Policy "strict-origin-when-cross-origin"
-        
+
         # Remove server header
         -Server
     }
-    
+
     # Compression
     encode gzip zstd
-    
+
     # Rate limiting
     rate_limit {
         zone dynamic {
@@ -165,7 +162,7 @@ The new frontend will use Next.js 16 multi-zone architecture within a single app
             window 1m
         }
     }
-    
+
     # Logging
     log {
         output file /var/log/caddy/access.log {
@@ -177,7 +174,6 @@ The new frontend will use Next.js 16 multi-zone architecture within a single app
 }
 ```
 
-
 ### 4.2 Frontend Architecture (Next.js 16)
 
 #### 4.2.1 Next.js Configuration
@@ -188,10 +184,10 @@ import type { NextConfig } from 'next';
 const nextConfig: NextConfig = {
   // Multi-zone configuration - no basePath needed in Next.js 16
   // Routes are handled natively within the single application
-  
+
   // Production optimizations
   output: process.env.NODE_ENV === 'production' ? 'standalone' : undefined,
-  
+
   // Enable HTTP/3 and modern features
   experimental: {
     // Optimize for production
@@ -199,24 +195,20 @@ const nextConfig: NextConfig = {
       '@radix-ui/react-icons',
       '@tabler/icons-react',
       'lucide-react',
-      'recharts'
+      'recharts',
     ],
-    
+
     // Enable modern web features
-    serverComponentsExternalPackages: [
-      'sharp',
-      '@prisma/client',
-      'prisma'
-    ],
+    serverComponentsExternalPackages: ['sharp', '@prisma/client', 'prisma'],
   },
-  
+
   // Image optimization
   images: {
     formats: ['image/avif', 'image/webp'],
     deviceSizes: [640, 750, 828, 1080, 1200, 1920],
     imageSizes: [16, 32, 48, 64, 96, 128, 256],
   },
-  
+
   // Headers for PWA and security
   async headers() {
     return [
@@ -225,36 +217,35 @@ const nextConfig: NextConfig = {
         headers: [
           {
             key: 'X-DNS-Prefetch-Control',
-            value: 'on'
+            value: 'on',
           },
           {
-            key: 'X-Content-Type-Options', 
-            value: 'nosniff'
-          }
+            key: 'X-Content-Type-Options',
+            value: 'nosniff',
+          },
         ],
       },
     ];
   },
-  
+
   // Route rewrites for multi-zone behavior
   async rewrites() {
     return [
       // Internal API routes
       {
         source: '/api/:path*',
-        destination: '/api/:path*'
+        destination: '/api/:path*',
       },
       {
-        source: '/trpc/:path*', 
-        destination: '/api/trpc/:path*'
-      }
+        source: '/trpc/:path*',
+        destination: '/api/trpc/:path*',
+      },
     ];
   },
 };
 
 export default nextConfig;
 ```
-
 
 #### 4.2.2 App Router Structure
 
@@ -269,7 +260,7 @@ apps/frontend/src/app/
 │   ├── layout.tsx
 │   ├── page.tsx
 │   └── [...slug]/
-├── hrms/                     # HR Management Zone  
+├── hrms/                     # HR Management Zone
 │   ├── layout.tsx
 │   ├── page.tsx
 │   └── [...slug]/
@@ -284,7 +275,6 @@ apps/frontend/src/app/
 └── components/               # Shared components
     └── app-switcher.tsx      # Navigation between zones
 ```
-
 
 ### 4.3 Docker Configuration
 
@@ -364,7 +354,6 @@ ENV PORT=3000
 CMD ["node", "apps/frontend/server.js"]
 ```
 
-
 #### 4.3.2 Backend Dockerfile
 
 ```dockerfile
@@ -392,7 +381,7 @@ FROM base AS builder
 WORKDIR /app
 
 # Copy dependencies and source
-COPY --from=deps /app/node_modules ./node_modules  
+COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/packages ./packages
 COPY apps/backend ./apps/backend
 COPY turbo.json package.json pnpm-workspace.yaml ./
@@ -429,7 +418,6 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 CMD ["node", "dist/main.js"]
 ```
 
-
 ### 4.4 Deployment Architecture
 
 #### 4.4.1 Linux Deployment (docker-compose.production.yml)
@@ -441,9 +429,9 @@ services:
     container_name: aria-caddy
     restart: unless-stopped
     ports:
-      - "80:80"
-      - "443:443"
-      - "443:443/udp"  # HTTP/3
+      - '80:80'
+      - '443:443'
+      - '443:443/udp' # HTTP/3
     volumes:
       - ./deployment/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - ./deployment/caddy/data:/data
@@ -474,7 +462,7 @@ services:
   backend:
     build:
       context: .
-      dockerfile: apps/backend/Dockerfile  
+      dockerfile: apps/backend/Dockerfile
     container_name: aria-backend
     restart: unless-stopped
     environment:
@@ -500,7 +488,7 @@ services:
     networks:
       - aria-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -d aria -U aria"]
+      test: ['CMD-SHELL', 'pg_isready -d aria -U aria']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -514,7 +502,6 @@ networks:
     driver: bridge
 ```
 
-
 #### 4.4.2 Windows 11 Deployment Configuration
 
 **docker-compose.windows.yml**
@@ -526,9 +513,9 @@ services:
     container_name: aria-caddy
     restart: unless-stopped
     ports:
-      - "80:80"
-      - "443:443"
-      - "443:443/udp"
+      - '80:80'
+      - '443:443'
+      - '443:443/udp'
     volumes:
       - type: bind
         source: ./deployment/caddy/Caddyfile
@@ -590,7 +577,7 @@ services:
     networks:
       - aria-network
     healthcheck:
-      test: ["CMD", "pg_isready", "-d", "aria", "-U", "aria"]
+      test: ['CMD', 'pg_isready', '-d', 'aria', '-U', 'aria']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -604,7 +591,6 @@ networks:
   aria-network:
     driver: nat
 ```
-
 
 ### 4.5 SSL Certificate Management
 
@@ -641,15 +627,15 @@ generate_certs() {
     local domain=${1:-localhost}
     local ips=$(ip route | awk '/src/ {print $9}' | sort -u)
     local san_entries=""
-    
+
     # Build SAN entries for all IPs
     for ip in $ips; do
         san_entries="${san_entries}IP:${ip},"
     done
-    
+
     # Remove trailing comma
     san_entries=${san_entries%,}
-    
+
     # Create OpenSSL config with SAN
     cat > "$CERT_DIR/openssl.conf" <<EOF
 [req]
@@ -698,7 +684,7 @@ EOF
     # Set permissions
     chmod 600 "$CERT_DIR/server.key"
     chmod 644 "$CERT_DIR/server.crt"
-    
+
     echo "SSL certificates generated successfully!"
     echo "Certificate: $CERT_DIR/server.crt"
     echo "Private Key: $CERT_DIR/server.key"
@@ -708,7 +694,6 @@ EOF
 # Main execution
 generate_certs "${DOMAIN:-localhost}"
 ```
-
 
 ### 4.6 Service Configuration
 
@@ -739,7 +724,6 @@ RestartSec=5s
 WantedBy=multi-user.target
 ```
 
-
 #### 4.6.2 Windows Service Configuration
 
 **deployment/windows/aria-service.xml**
@@ -749,28 +733,27 @@ WantedBy=multi-user.target
   <id>aria-erp</id>
   <name>Aria ERP</name>
   <description>Aria ERP Application Service</description>
-  
+
   <executable>docker</executable>
   <arguments>compose -f docker-compose.windows.yml up</arguments>
   <workingdirectory>C:\aria</workingdirectory>
-  
+
   <startmode>Automatic</startmode>
   <delayedAutoStart>true</delayedAutoStart>
-  
+
   <onfailure action="restart" delay="10 sec"/>
   <onfailure action="restart" delay="20 sec"/>
   <onfailure action="reboot" delay="1 day"/>
-  
+
   <resetfailure>1 day</resetfailure>
-  
+
   <logmode>roll-by-time</logmode>
   <logpath>C:\aria\logs</logpath>
-  
+
   <env name="POSTGRES_PASSWORD" value="%POSTGRES_PASSWORD%"/>
   <env name="DOMAIN" value="%DOMAIN%"/>
 </service>
 ```
-
 
 ### 4.7 Packaging and Distribution
 
@@ -819,7 +802,7 @@ POSTGRES_PASSWORD=your_secure_password_here
 # Domain Configuration (leave as localhost for auto-IP SSL)
 DOMAIN=localhost
 
-# Application Configuration  
+# Application Configuration
 NODE_ENV=production
 NEXT_TELEMETRY_DISABLED=1
 EOF
@@ -862,7 +845,6 @@ fi
 echo "Deployment package created: aria-erp-${VERSION}-${PLATFORM}.tar.gz"
 ```
 
-
 ### 4.8 Testing Strategy
 
 #### 4.8.1 Automated Testing Pipeline
@@ -882,22 +864,22 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Setup Docker
         uses: docker/setup-buildx-action@v3
-      
+
       - name: Build and test Linux deployment
         run: |
           cp .env.example .env
           docker compose -f docker-compose.production.yml build
           docker compose -f docker-compose.production.yml up -d
-          
+
       - name: Health check
         run: |
           sleep 30
           curl -f http://localhost/ || exit 1
           curl -f http://localhost/api/health || exit 1
-          
+
       - name: Cleanup
         run: docker compose -f docker-compose.production.yml down -v
 
@@ -905,27 +887,27 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-      
-      - name: Build and test Windows deployment  
+
+      - name: Build and test Windows deployment
         run: |
           Copy-Item .env.example .env
           docker compose -f docker-compose.windows.yml build
           docker compose -f docker-compose.windows.yml up -d
-          
+
       - name: Health check
         run: |
           Start-Sleep 30
           Invoke-WebRequest -Uri "http://localhost/" -UseBasicParsing
           Invoke-WebRequest -Uri "http://localhost/api/health" -UseBasicParsing
-          
-      - name: Cleanup  
+
+      - name: Cleanup
         run: docker compose -f docker-compose.windows.yml down -v
 
   security-scan:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
         with:
@@ -938,70 +920,69 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Setup and deploy
         run: |
           cp .env.example .env
           docker compose -f docker-compose.production.yml up -d
           sleep 45
-          
+
       - name: Load testing with Artillery
         run: |
           npm install -g artillery
           artillery quick --count 200 --num 20 http://localhost/
 ```
 
-
-***
+---
 
 ## 5. Implementation Plan
 
 ### 5.1 Phase 1: Infrastructure Migration (Week 1-2)
 
 1. **Replace Traefik with Caddy**
-    - Create Caddyfile configuration
-    - Test SSL certificate generation
-    - Verify HTTP/3 support
+   - Create Caddyfile configuration
+   - Test SSL certificate generation
+   - Verify HTTP/3 support
 2. **Frontend Consolidation**
-    - Migrate to Next.js 16 multi-zone architecture
-    - Implement app switcher component
-    - Update routing and navigation
+   - Migrate to Next.js 16 multi-zone architecture
+   - Implement app switcher component
+   - Update routing and navigation
 
 ### 5.2 Phase 2: Docker Optimization (Week 3)
 
 1. **Dockerfile Rewrite**
-    - Implement multi-stage builds
-    - Optimize image sizes
-    - Add health checks
+   - Implement multi-stage builds
+   - Optimize image sizes
+   - Add health checks
 2. **Windows Support**
-    - Create Windows-specific Dockerfiles
-    - Test Windows container compatibility
-    - Implement Windows service configuration
+   - Create Windows-specific Dockerfiles
+   - Test Windows container compatibility
+   - Implement Windows service configuration
 
 ### 5.3 Phase 3: Deployment Automation (Week 4)
 
 1. **Packaging System**
-    - Create build scripts
-    - Implement portable deployment packages
-    - Add installation automation
+   - Create build scripts
+   - Implement portable deployment packages
+   - Add installation automation
 2. **Service Configuration**
-    - Linux systemd service setup
-    - Windows service configuration
-    - Auto-startup configuration
+   - Linux systemd service setup
+   - Windows service configuration
+   - Auto-startup configuration
 
 ### 5.4 Phase 4: Testing and Validation (Week 5)
 
 1. **Testing Implementation**
-    - Automated deployment tests
-    - Security scanning
-    - Performance validation
-    - Cross-platform testing
+   - Automated deployment tests
+   - Security scanning
+   - Performance validation
+   - Cross-platform testing
 2. **Documentation**
-    - Deployment guides
-    - Troubleshooting documentation
-    - Operations manual
+   - Deployment guides
+   - Troubleshooting documentation
+   - Operations manual
 
-***
+---
 
 ## 6. Security Considerations
 
@@ -1011,13 +992,11 @@ jobs:
 - **HTTP/3 Support**: Latest protocol for enhanced performance and security
 - **Security Headers**: Comprehensive security header implementation via Caddy
 
-
 ### 6.2 Container Security
 
 - **Non-root Users**: All containers run with dedicated non-root users
 - **Minimal Base Images**: Alpine Linux for reduced attack surface
 - **Health Checks**: Implemented for all services to ensure availability
-
 
 ### 6.3 Network Security
 
@@ -1025,7 +1004,7 @@ jobs:
 - **Port Management**: Only necessary ports exposed
 - **Rate Limiting**: Built-in rate limiting via Caddy
 
-***
+---
 
 ## 7. Performance Optimization
 
@@ -1035,13 +1014,11 @@ jobs:
 - **Multi-zone Architecture**: Reduced bundle sizes per zone
 - **Static Asset Optimization**: Proper caching and compression
 
-
 ### 7.2 Backend Optimization
 
 - **Connection Pooling**: Optimized database connections
 - **Health Monitoring**: Comprehensive health checks
 - **Resource Limits**: Proper container resource allocation
-
 
 ### 7.3 Infrastructure Optimization
 
@@ -1049,7 +1026,7 @@ jobs:
 - **Compression**: Gzip and Zstd compression via Caddy
 - **Caching**: Strategic caching headers for static assets
 
-***
+---
 
 ## 8. Monitoring and Logging
 
@@ -1059,14 +1036,13 @@ jobs:
 - **Log Rotation**: Automatic log rotation with size limits
 - **Centralized Logging**: Container logs accessible via Docker commands
 
-
 ### 8.2 Health Monitoring
 
 - **Health Endpoints**: All services expose health check endpoints
 - **Container Health**: Docker health checks for automatic restarts
 - **Service Dependencies**: Proper startup ordering and dependency checking
 
-***
+---
 
 ## 9. Deployment Guide
 
@@ -1089,14 +1065,13 @@ sudo systemctl status aria
 curl http://localhost/
 ```
 
-
 ### 9.2 Windows 11 Deployment
 
 ```powershell
 # Extract deployment package
 Expand-Archive aria-erp-v1.0-windows.zip -DestinationPath C:\aria
 
-# Configure environment  
+# Configure environment
 Copy-Item .env.template .env
 # Edit .env file with your settings
 
@@ -1108,8 +1083,7 @@ Get-Service aria-erp
 Invoke-WebRequest http://localhost/
 ```
 
-
-***
+---
 
 ## 10. Maintenance and Updates
 
@@ -1126,7 +1100,7 @@ Invoke-WebRequest http://localhost/
 - **Application Health**: Endpoint monitoring and alerting
 - **Log Analysis**: Centralized log monitoring and analysis
 
-***
+---
 
 ## 11. Conclusion
 
@@ -1223,4 +1197,3 @@ The implementation will be conducted in phases with thorough testing at each sta
 [^39]: https://www.globalsign.com/en/blog/securing-docker-containers-ssl-tls-certificates
 
 [^40]: https://www.youtube.com/watch?v=_Mu4lI9NpPc
-

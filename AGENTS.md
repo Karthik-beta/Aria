@@ -166,6 +166,7 @@ Ship clear, concise, and professional inline documentation that helps future mai
 ### Conventions (short & actionable)
 
 - Use TSDoc for exported functions, classes, interfaces, and complex types. Example:
+
 ```ts
 /**
  * Fetches a user's profile from the API.
@@ -178,7 +179,7 @@ Ship clear, concise, and professional inline documentation that helps future mai
  * @returns A promise that resolves to a Profile.
  */
 export async function fetchProfile(userId: string): Promise<Profile> {
-   /* ... */
+  /* ... */
 }
 ```
 
@@ -192,7 +193,7 @@ export async function fetchProfile(userId: string): Promise<Profile> {
  * Client component: uses hooks for local state and event callbacks.
  */
 function InventoryItemRow({ item, onEdit, onDelete }: Props) {
-   // client component implementation
+  // client component implementation
 }
 ```
 
@@ -253,7 +254,7 @@ Ensure the project always implements official, recommended solutions from author
 
 ### Duties
 
-1. Use the MCP tooling to locate and fetch the latest official documentation and implementation guidance for any non-trivial technology, library, or platform feature before introducing or changing code that implements that feature. The MCP tools (mcp_upstash, mcp_ddg-search_* and related context tools) must be the first source for retrieving up-to-date official docs and examples.
+1. Use the MCP tooling to locate and fetch the latest official documentation and implementation guidance for any non-trivial technology, library, or platform feature before introducing or changing code that implements that feature. The MCP tools (mcp*upstash, mcp_ddg-search*\* and related context tools) must be the first source for retrieving up-to-date official docs and examples.
 2. Disallow custom or bespoke implementations that replace or reimplement officially recommended functionality unless an explicit, documented exception is approved by a designated architect or maintainer.
 3. For any accepted exception, require a short design note in `docs/` describing why the official approach was unsuitable, the fallback design, and a plan to reassess when upstream changes land.
 4. Add a checklist item to PR templates reminding contributors to reference the official docs used and to include the MCP-search results (links or resolved context IDs) in the PR description.

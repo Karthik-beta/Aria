@@ -14,9 +14,6 @@
 
 # Development server on HTTP
 :80 {
-    # Enable all protocols (HTTP/1.1, HTTP/2)
-    protocols h1 h2
-    
     # Routing configuration
     route {
         # API and tRPC routes to backend

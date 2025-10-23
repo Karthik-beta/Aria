@@ -8,8 +8,8 @@ services:
     container_name: aria-dev-caddy
     restart: unless-stopped
     ports:
-      - "80:80"
-      - "2019:2019"  # Admin API
+      - '80:80'
+      - '2019:2019' # Admin API
     volumes:
       - ./deployment/caddy/Caddyfile.development:/etc/caddy/Caddyfile:ro
       - caddy-data:/data
@@ -22,7 +22,8 @@ services:
     environment:
       - DOMAIN=${DOMAIN:-localhost}
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:2019/config/"]
+      test:
+        ['CMD', 'wget', '--no-verbose', '--tries=1', '--spider', 'http://localhost:2019/config/']
       interval: 30s
       timeout: 10s
       retries: 3
@@ -37,11 +38,22 @@ services:
     container_name: aria-dev-frontend
     restart: unless-stopped
     ports:
-      - "3000:3000"  # Exposed for direct access during dev
+      - '3000:3000' # Exposed for direct access during dev
     volumes:
-      # Mount source code for hot reload
+      # Mount app source code
       - ./apps/frontend:/app/apps/frontend
-      - ./packages:/app/packages
+
+      # Mount source code for each package
+      - ./packages/types:/app/packages/types
+      - ./packages/utils:/app/packages/utils
+
+      # Preserve node_modules in each package
+      - /app/packages/types/node_modules
+      - /app/packages/utils/node_modules
+      # - /app/packages/config-eslint/node_modules
+      # - /app/packages/config-typescript/node_modules
+
+      # Preserve app-level and root node_modules
       - /app/apps/frontend/node_modules
       - /app/apps/frontend/.next
       - /app/node_modules
@@ -66,14 +78,24 @@ services:
     container_name: aria-dev-backend
     restart: unless-stopped
     ports:
-      - "3001:3001"  # Exposed for direct access during dev
-      - "9229:9229"  # Node.js debugger
+      - '3001:3001' # Exposed for direct access during dev
+      - '9229:9229' # Node.js debugger
     volumes:
-      # Mount source code for hot reload
-      - ./apps/backend:/app/apps/backend
-      - ./packages:/app/packages
-      - /app/apps/backend/node_modules
-      - /app/apps/backend/dist
+      # Mount source files for hot reload
+      - ./apps/backend/src:/app/apps/backend/src:cached
+      - ./apps/backend/package.json:/app/apps/backend/package.json:ro
+      - ./apps/backend/tsconfig.json:/app/apps/backend/tsconfig.json:ro
+
+      # Mount source code for each package
+      - ./packages/types:/app/packages/types:cached
+      - ./packages/utils:/app/packages/utils:cached
+
+      # Preserve node_modules in each package
+      - /app/packages/types/node_modules
+      - /app/packages/utils/node_modules
+
+      # Preserve app-level and root node_modules
+      - backend-node-modules:/app/apps/backend/node_modules
       - /app/node_modules
     environment:
       - NODE_ENV=development
@@ -86,7 +108,7 @@ services:
       postgres:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/api/health"]
+      test: ['CMD', 'wget', '--no-verbose', '--tries=1', '--spider', 'http://localhost:3001/health']
       interval: 30s
       timeout: 10s
       retries: 3
@@ -99,7 +121,7 @@ services:
     container_name: aria-dev-postgres
     restart: unless-stopped
     ports:
-      - "5432:5432"  # Exposed for database tools
+      - '5432:5432' # Exposed for database tools
     environment:
       - POSTGRES_DB=aria_dev
       - POSTGRES_USER=aria_dev
@@ -110,7 +132,7 @@ services:
     networks:
       - aria-dev-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -d aria_dev -U aria_dev"]
+      test: ['CMD-SHELL', 'pg_isready -d aria_dev -U aria_dev']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -122,13 +144,13 @@ services:
     container_name: aria-dev-redis
     restart: unless-stopped
     ports:
-      - "6379:6379"  # Exposed for Redis tools
+      - '6379:6379' # Exposed for Redis tools
     volumes:
       - redis-dev-data:/data
     networks:
       - aria-dev-network
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ['CMD', 'redis-cli', 'ping']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -142,6 +164,8 @@ volumes:
   caddy-data:
     driver: local
   caddy-config:
+    driver: local
+  backend-node-modules:
     driver: local
 
 networks:

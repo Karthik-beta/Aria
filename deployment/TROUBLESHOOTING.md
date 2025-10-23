@@ -63,6 +63,7 @@ docker system df
 **Symptoms**: Container repeatedly restarting or failing to start
 
 **Diagnosis**:
+
 ```bash
 # Check container status
 docker ps -a
@@ -77,28 +78,32 @@ docker inspect aria-<service-name>
 **Solutions**:
 
 1. **Port Conflict**:
+
    ```bash
    # Check if port is already in use (Linux)
    sudo netstat -tulpn | grep :80
    sudo netstat -tulpn | grep :443
-   
+
    # Windows
    netstat -ano | findstr :80
    netstat -ano | findstr :443
    ```
+
    - Stop the conflicting process or change the port in docker-compose
 
 2. **Insufficient Resources**:
+
    ```bash
    # Increase Docker memory limit in Docker Desktop settings
    # Or modify docker-compose resource limits
    ```
 
 3. **Configuration Error**:
+
    ```bash
    # Validate environment variables
    cat .env
-   
+
    # Check for missing required variables
    grep -E "^[A-Z_]+=$" .env
    ```
@@ -115,6 +120,7 @@ docker inspect aria-<service-name>
 ### Container Keeps Restarting
 
 **Diagnosis**:
+
 ```bash
 # Check restart count
 docker inspect aria-<service> --format='{{.RestartCount}}'
@@ -126,28 +132,31 @@ docker logs aria-<service> --tail=50 --since=10m
 **Common Causes**:
 
 1. **Database Not Ready**:
+
    ```bash
    # Check database health
    docker exec aria-postgres pg_isready -U aria
-   
+
    # Wait for database
    timeout 30 bash -c 'until docker exec aria-postgres pg_isready -U aria; do sleep 1; done'
    ```
 
 2. **Failed Health Checks**:
+
    ```bash
    # Test health endpoint manually
    docker exec aria-backend curl -f http://localhost:3001/api/health
-   
+
    # Check health check configuration
    docker inspect aria-backend --format='{{json .State.Health}}' | jq
    ```
 
 3. **Application Crash**:
+
    ```bash
    # Check for errors in logs
    docker logs aria-backend 2>&1 | grep -i error
-   
+
    # Run container in foreground for debugging
    docker compose stop backend
    docker compose run --rm backend npm run start:prod
@@ -156,6 +165,7 @@ docker logs aria-<service> --tail=50 --since=10m
 ### Container Running but Not Responding
 
 **Diagnosis**:
+
 ```bash
 # Check if process is running inside container
 docker exec aria-backend ps aux
@@ -170,10 +180,11 @@ docker exec aria-caddy wget -O- http://backend:3001/api/health
 **Solutions**:
 
 1. **Application Not Listening**:
+
    ```bash
    # Check backend port configuration
    docker exec aria-backend cat /app/.env | grep PORT
-   
+
    # Restart backend
    docker restart aria-backend
    ```
@@ -187,6 +198,7 @@ docker exec aria-caddy wget -O- http://backend:3001/api/health
 **Symptoms**: Connection timeout, connection refused, or 502/504 errors
 
 **Diagnosis**:
+
 ```bash
 # Test local access (on server)
 curl -I http://localhost
@@ -203,24 +215,26 @@ docker exec aria-caddy netstat -tlnp | grep caddy
 **Solutions**:
 
 1. **Firewall Blocking**:
+
    ```bash
    # Linux - check firewall
    sudo ufw status
-   
+
    # Allow HTTP/HTTPS
    sudo ufw allow 80/tcp
    sudo ufw allow 443/tcp
    sudo ufw allow 443/udp
-   
+
    # Windows - check firewall
    Get-NetFirewallRule | Where-Object {$_.LocalPort -eq 80 -or $_.LocalPort -eq 443}
-   
+
    # Add rules if missing
    New-NetFirewallRule -DisplayName "Aria HTTP" -Direction Inbound -LocalPort 80 -Protocol TCP -Action Allow
    New-NetFirewallRule -DisplayName "Aria HTTPS" -Direction Inbound -LocalPort 443 -Protocol TCP -Action Allow
    ```
 
 2. **Docker Network Issues**:
+
    ```bash
    # Recreate network
    docker compose down
@@ -229,10 +243,11 @@ docker exec aria-caddy netstat -tlnp | grep caddy
    ```
 
 3. **Caddy Not Running**:
+
    ```bash
    # Check Caddy status
    docker logs aria-caddy --tail=50
-   
+
    # Restart Caddy
    docker restart aria-caddy
    ```
@@ -242,6 +257,7 @@ docker exec aria-caddy netstat -tlnp | grep caddy
 **Symptoms**: Backend can't reach database, frontend can't reach backend
 
 **Diagnosis**:
+
 ```bash
 # Check network connectivity
 docker exec aria-backend ping postgres -c 3
@@ -259,19 +275,21 @@ docker network inspect aria-network
 **Solutions**:
 
 1. **Network Not Created**:
+
    ```bash
    # Create network manually
    docker network create aria-network
-   
+
    # Restart services
    docker compose -f docker-compose.production.yml up -d
    ```
 
 2. **Service Name Mismatch**:
+
    ```bash
    # Verify service names in docker-compose
    docker compose config | grep -A 2 "container_name:"
-   
+
    # Ensure DATABASE_URL uses correct hostname
    cat .env | grep DATABASE_URL
    # Should be: postgresql://aria:password@postgres:5432/aria
@@ -282,6 +300,7 @@ docker network inspect aria-network
 **Symptoms**: Caddy returns 502 error
 
 **Diagnosis**:
+
 ```bash
 # Check if backend is responding
 docker exec aria-backend curl http://localhost:3001/api/health
@@ -296,25 +315,28 @@ docker logs aria-backend --tail=50
 **Solutions**:
 
 1. **Backend Not Ready**:
+
    ```bash
    # Wait for backend health check
    timeout 60 bash -c 'until docker exec aria-backend curl -f http://localhost:3001/api/health; do sleep 2; done'
    ```
 
 2. **Wrong Backend Port**:
+
    ```bash
    # Verify backend port in Caddyfile
    docker exec aria-caddy cat /etc/caddy/Caddyfile | grep reverse_proxy
-   
+
    # Should match backend port (default 3001)
    docker exec aria-backend cat /app/.env | grep PORT
    ```
 
 3. **Caddy Configuration Error**:
+
    ```bash
    # Validate Caddyfile
    docker exec aria-caddy caddy validate --config /etc/caddy/Caddyfile
-   
+
    # Reload Caddy
    docker exec aria-caddy caddy reload --config /etc/caddy/Caddyfile
    ```
@@ -326,6 +348,7 @@ docker logs aria-backend --tail=50
 **Symptoms**: Backend logs show database connection errors
 
 **Diagnosis**:
+
 ```bash
 # Check if PostgreSQL is running
 docker exec aria-postgres pg_isready -U aria
@@ -340,30 +363,33 @@ cat .env | grep DATABASE_URL
 **Solutions**:
 
 1. **Wrong Password**:
+
    ```bash
    # Verify password matches in .env
    cat .env | grep POSTGRES_PASSWORD
    cat .env | grep DATABASE_URL
-   
+
    # Update DATABASE_URL if mismatch found
    nano .env
    docker compose restart backend
    ```
 
 2. **Database Not Ready**:
+
    ```bash
    # Wait for database
    docker exec aria-postgres bash -c 'until pg_isready -U aria; do sleep 1; done'
-   
+
    # Restart backend
    docker restart aria-backend
    ```
 
 3. **Database Corrupted**:
+
    ```bash
    # Check database integrity
    docker exec aria-postgres psql -U aria -c "SELECT pg_database_size('aria');"
-   
+
    # If corrupted, restore from backup (see Recovery Procedures)
    ```
 
@@ -372,6 +398,7 @@ cat .env | grep DATABASE_URL
 **Symptoms**: Slow queries, high CPU usage
 
 **Diagnosis**:
+
 ```bash
 # Check active connections
 docker exec aria-postgres psql -U aria -c "SELECT count(*) FROM pg_stat_activity;"
@@ -386,26 +413,28 @@ docker exec aria-postgres psql -U aria -c "SELECT pg_size_pretty(pg_database_siz
 **Solutions**:
 
 1. **Too Many Connections**:
+
    ```bash
    # Increase max_connections (edit docker-compose.production.yml)
    # Add under postgres command:
    # - -c max_connections=200
-   
+
    docker compose down
    docker compose -f docker-compose.production.yml up -d
    ```
 
 2. **Missing Indexes**:
+
    ```sql
    -- Connect to database
    docker exec -it aria-postgres psql -U aria
-   
+
    -- Find missing indexes
    SELECT schemaname, tablename, attname, n_distinct, correlation
    FROM pg_stats
    WHERE schemaname = 'public'
    ORDER BY abs(correlation) DESC;
-   
+
    -- Add indexes as needed (consult with development team)
    ```
 
@@ -419,6 +448,7 @@ docker exec aria-postgres psql -U aria -c "SELECT pg_size_pretty(pg_database_siz
 ### Database Disk Full
 
 **Diagnosis**:
+
 ```bash
 # Check disk usage
 df -h
@@ -431,15 +461,17 @@ docker exec aria-postgres psql -U aria -c "SELECT pg_size_pretty(pg_database_siz
 **Solutions**:
 
 1. **Clean Old Data**:
+
    ```bash
    # Vacuum database
    docker exec aria-postgres psql -U aria -c "VACUUM FULL;"
-   
+
    # Analyze tables
    docker exec aria-postgres psql -U aria -c "ANALYZE;"
    ```
 
 2. **Clean Docker Volumes**:
+
    ```bash
    # WARNING: This will delete all unused data
    docker system prune -a --volumes
@@ -454,6 +486,7 @@ docker exec aria-postgres psql -U aria -c "SELECT pg_size_pretty(pg_database_siz
 **Symptoms**: Browser shows "Your connection is not private" or "NET::ERR_CERT_AUTHORITY_INVALID"
 
 **Diagnosis**:
+
 ```bash
 # Check certificate validity
 openssl x509 -in deployment/caddy/certs/server.crt -noout -dates -subject -issuer
@@ -469,22 +502,24 @@ docker exec aria-caddy caddy adapt --config /etc/caddy/Caddyfile
    - Or install the certificate in browser/OS trusted store
 
 2. **Expired Certificate**:
+
    ```bash
    # Regenerate certificates
    cd deployment/ssl
    ./generate-certs.sh  # Linux
    # or
    .\generate-certs.ps1  # Windows
-   
+
    # Restart Caddy
    docker restart aria-caddy
    ```
 
 3. **Certificate Not Matching Domain**:
+
    ```bash
    # Check certificate SAN (Subject Alternative Name)
    openssl x509 -in deployment/caddy/certs/server.crt -noout -text | grep "DNS:"
-   
+
    # Regenerate with correct IPs
    cd deployment/ssl
    IP_ADDRESSES="192.168.1.100,192.168.1.101" ./generate-certs.sh
@@ -493,6 +528,7 @@ docker exec aria-caddy caddy adapt --config /etc/caddy/Caddyfile
 ### HTTP/3 Not Working
 
 **Diagnosis**:
+
 ```bash
 # Check if UDP 443 is open
 nc -u -v localhost 443
@@ -507,10 +543,11 @@ curl --http3 https://localhost -k -I
 **Solutions**:
 
 1. **Firewall Blocking UDP**:
+
    ```bash
    # Linux
    sudo ufw allow 443/udp
-   
+
    # Windows
    New-NetFirewallRule -DisplayName "Aria HTTP/3" -Direction Inbound -LocalPort 443 -Protocol UDP -Action Allow
    ```
@@ -524,6 +561,7 @@ curl --http3 https://localhost -k -I
 ### Slow Response Times
 
 **Diagnosis**:
+
 ```bash
 # Test response times
 time curl -I http://localhost
@@ -538,6 +576,7 @@ docker logs aria-backend | grep -i slow
 **Solutions**:
 
 1. **Insufficient Resources**:
+
    ```bash
    # Increase container resources (edit docker-compose.production.yml)
    # Under services > backend:
@@ -551,10 +590,11 @@ docker logs aria-backend | grep -i slow
 2. **Database Query Issues** (see [Database Performance Issues](#database-performance-issues))
 
 3. **Enable Caching**:
+
    ```bash
    # Verify Redis is running
    docker exec aria-redis redis-cli ping
-   
+
    # Check Redis password configuration
    cat .env | grep REDIS_PASSWORD
    cat .env | grep REDIS_URL
@@ -563,6 +603,7 @@ docker logs aria-backend | grep -i slow
 ### High Memory Usage
 
 **Diagnosis**:
+
 ```bash
 # Check container memory usage
 docker stats --no-stream
@@ -574,6 +615,7 @@ docker exec aria-backend ps aux --sort=-%mem | head -10
 **Solutions**:
 
 1. **Memory Leak** (requires investigation by development team):
+
    ```bash
    # Restart affected service as temporary fix
    docker restart aria-backend
@@ -590,6 +632,7 @@ docker exec aria-backend ps aux --sort=-%mem | head -10
 ### High CPU Usage
 
 **Diagnosis**:
+
 ```bash
 # Check CPU usage
 docker stats --no-stream
@@ -601,11 +644,12 @@ docker exec aria-backend top -b -n 1
 **Solutions**:
 
 1. **Runaway Process**:
+
    ```bash
    # Identify and kill problematic process
    docker exec aria-backend ps aux
    docker exec aria-backend kill -9 <PID>
-   
+
    # Or restart container
    docker restart aria-backend
    ```
@@ -623,6 +667,7 @@ docker exec aria-backend top -b -n 1
 **Symptoms**: `docker compose build` fails with errors
 
 **Diagnosis**:
+
 ```bash
 # Build with verbose output
 docker compose -f docker-compose.production.yml build --progress=plain --no-cache
@@ -635,31 +680,34 @@ docker system df
 **Common Errors**:
 
 1. **COPY Failed: No Such File or Directory**:
+
    ```bash
    # Verify files exist
    ls -la apps/backend/package.json
    ls -la apps/frontend/package.json
-   
+
    # Check Dockerfile paths
    cat apps/backend/Dockerfile | grep COPY
    ```
 
 2. **npm/pnpm Install Fails**:
+
    ```bash
    # Clear npm cache
    docker builder prune -a
-   
+
    # Rebuild with fresh cache
    docker compose -f docker-compose.production.yml build --no-cache
    ```
 
 3. **Network Timeout**:
+
    ```bash
    # Configure DNS (edit /etc/docker/daemon.json)
    {
      "dns": ["8.8.8.8", "8.8.4.4"]
    }
-   
+
    # Restart Docker
    sudo systemctl restart docker
    ```
@@ -667,6 +715,7 @@ docker system df
 ### Build Succeeds but Runtime Fails
 
 **Diagnosis**:
+
 ```bash
 # Check built image
 docker images | grep aria
@@ -681,10 +730,11 @@ docker run --rm -it aria-backend:latest sh
 **Solutions**:
 
 1. **Missing Files**:
+
    ```bash
    # List files in image
    docker run --rm aria-backend:latest ls -la /app
-   
+
    # Check Dockerfile COPY commands
    cat apps/backend/Dockerfile
    ```

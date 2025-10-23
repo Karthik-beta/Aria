@@ -17,6 +17,7 @@
 **For local development with hot-reload**
 
 ### Prerequisites
+
 - Docker 24.0+ installed
 - Docker Compose 2.20+ installed
 - 8GB RAM available
@@ -75,6 +76,7 @@ docker compose -f docker-compose.development.yml down -v
 **Automated installation for Ubuntu 20.04+, Debian 11+**
 
 ### Prerequisites
+
 - Ubuntu 20.04+ or Debian 11+
 - Root/sudo access
 - Minimum 4GB RAM, 20GB disk
@@ -156,6 +158,7 @@ https://<your-server-ip>
 **Automated installation for Windows 11 with Docker Desktop**
 
 ### Prerequisites
+
 - Windows 11 Professional, Enterprise, or Education
 - Administrator access
 - Docker Desktop installed
@@ -239,6 +242,7 @@ https://<your-server-ip>
 **For developers using Docker Desktop on Mac or Windows**
 
 ### Prerequisites
+
 - Docker Desktop installed and running
 - 8GB RAM allocated to Docker
 - Git installed
@@ -420,10 +424,10 @@ Edit `docker-compose.production.yml`:
 services:
   backend:
     logging:
-      driver: "json-file"
+      driver: 'json-file'
       options:
-        max-size: "10m"
-        max-file: "3"
+        max-size: '10m'
+        max-file: '3'
 ```
 
 ### Update Application
@@ -478,6 +482,7 @@ Restart-Service AriaERP
 ```
 
 **DNS Configuration**:
+
 1. Create A record pointing to server IP
 2. Wait for DNS propagation (up to 48 hours)
 3. Caddy will automatically obtain Let's Encrypt certificate
@@ -532,16 +537,16 @@ After installation:
 
 ### Default Ports
 
-| Service    | Port(s)        | Access                   |
-|------------|----------------|--------------------------|
-| HTTP       | 80             | http://localhost         |
-| HTTPS      | 443 (TCP)      | https://localhost        |
-| HTTP/3     | 443 (UDP)      | https://localhost        |
-| Caddy Admin| 2019           | Internal only            |
-| Frontend   | 3000           | Development only         |
-| Backend    | 3001           | Development only         |
-| PostgreSQL | 5432           | Development only         |
-| Redis      | 6379           | Development only         |
+| Service     | Port(s)   | Access            |
+| ----------- | --------- | ----------------- |
+| HTTP        | 80        | http://localhost  |
+| HTTPS       | 443 (TCP) | https://localhost |
+| HTTP/3      | 443 (UDP) | https://localhost |
+| Caddy Admin | 2019      | Internal only     |
+| Frontend    | 3000      | Development only  |
+| Backend     | 3001      | Development only  |
+| PostgreSQL  | 5432      | Development only  |
+| Redis       | 6379      | Development only  |
 
 ### Useful Commands
 
@@ -567,16 +572,16 @@ docker system prune -a
 
 ### Environment Variables
 
-| Variable            | Required | Default       | Description                  |
-|---------------------|----------|---------------|------------------------------|
-| `POSTGRES_PASSWORD` | Yes      | (none)        | Database password            |
-| `REDIS_PASSWORD`    | Yes      | (none)        | Redis password               |
-| `JWT_SECRET`        | Yes      | (none)        | JWT signing secret           |
-| `DOMAIN`            | Yes      | localhost     | Server domain or IP          |
-| `LOG_LEVEL`         | No       | info          | Logging level                |
-| `DEBUG`             | No       | false         | Enable debug mode            |
-| `CORS_ORIGIN`       | No       | *             | Allowed CORS origins         |
-| `JWT_EXPIRATION`    | No       | 12h           | JWT token lifetime           |
+| Variable            | Required | Default   | Description          |
+| ------------------- | -------- | --------- | -------------------- |
+| `POSTGRES_PASSWORD` | Yes      | (none)    | Database password    |
+| `REDIS_PASSWORD`    | Yes      | (none)    | Redis password       |
+| `JWT_SECRET`        | Yes      | (none)    | JWT signing secret   |
+| `DOMAIN`            | Yes      | localhost | Server domain or IP  |
+| `LOG_LEVEL`         | No       | info      | Logging level        |
+| `DEBUG`             | No       | false     | Enable debug mode    |
+| `CORS_ORIGIN`       | No       | \*        | Allowed CORS origins |
+| `JWT_EXPIRATION`    | No       | 12h       | JWT token lifetime   |
 
 ---
 

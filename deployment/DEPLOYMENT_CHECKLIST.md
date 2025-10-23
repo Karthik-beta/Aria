@@ -74,6 +74,7 @@ Use this checklist to ensure a successful production deployment of Aria ERP.
 ### Environment Configuration
 
 - [ ] `.env` file created from template:
+
   ```bash
   cp .env.production.template .env
   ```
@@ -86,12 +87,13 @@ Use this checklist to ensure a successful production deployment of Aria ERP.
 
 - [ ] **Optional** environment variables reviewed:
   - [ ] `JWT_EXPIRATION` (default: 12h)
-  - [ ] `CORS_ORIGIN` (default: *)
+  - [ ] `CORS_ORIGIN` (default: \*)
   - [ ] `LOG_LEVEL` (default: info)
   - [ ] `DEBUG` (should be false in production)
   - [ ] `SSL_EMAIL` (for Let's Encrypt)
 
 - [ ] Environment file secured (permissions set to 600):
+
   ```bash
   chmod 600 .env
   ```
@@ -108,6 +110,7 @@ Use this checklist to ensure a successful production deployment of Aria ERP.
   - [ ] `deployment/caddy/certs/server.key`
 
 - [ ] Certificate validity verified:
+
   ```bash
   openssl x509 -in deployment/caddy/certs/server.crt -noout -dates
   ```
@@ -117,11 +120,13 @@ Use this checklist to ensure a successful production deployment of Aria ERP.
 #### Linux
 
 - [ ] Installation script has execute permissions:
+
   ```bash
   chmod +x deployment/scripts/install-linux.sh
   ```
 
 - [ ] Installation script executed:
+
   ```bash
   sudo ./deployment/scripts/install-linux.sh
   ```
@@ -129,6 +134,7 @@ Use this checklist to ensure a successful production deployment of Aria ERP.
 - [ ] Installation completed without errors
 
 - [ ] Systemd service installed and enabled:
+
   ```bash
   sudo systemctl status aria-erp
   ```
@@ -138,6 +144,7 @@ Use this checklist to ensure a successful production deployment of Aria ERP.
 - [ ] PowerShell opened as Administrator
 
 - [ ] Installation script executed:
+
   ```powershell
   .\deployment\scripts\install-windows.ps1
   ```
@@ -145,6 +152,7 @@ Use this checklist to ensure a successful production deployment of Aria ERP.
 - [ ] Installation completed without errors
 
 - [ ] Windows service installed and running:
+
   ```powershell
   Get-Service AriaERP
   ```
@@ -152,9 +160,11 @@ Use this checklist to ensure a successful production deployment of Aria ERP.
 ### Container Verification
 
 - [ ] All containers running:
+
   ```bash
   docker ps
   ```
+
   Expected containers:
   - aria-caddy
   - aria-frontend
@@ -163,6 +173,7 @@ Use this checklist to ensure a successful production deployment of Aria ERP.
   - aria-redis
 
 - [ ] All containers healthy:
+
   ```bash
   docker ps --format "table {{.Names}}\t{{.Status}}"
   ```
@@ -170,6 +181,7 @@ Use this checklist to ensure a successful production deployment of Aria ERP.
 - [ ] No containers restarting repeatedly
 
 - [ ] Container logs reviewed for errors:
+
   ```bash
   docker logs aria-backend --tail=50
   docker logs aria-frontend --tail=50
@@ -183,10 +195,11 @@ Use this checklist to ensure a successful production deployment of Aria ERP.
 ### Automated Health Checks
 
 - [ ] Health check script executed successfully:
+
   ```bash
   # Linux
   ./deployment/tests/health-check.sh
-  
+
   # Windows
   .\deployment\tests\health-check.ps1
   ```
@@ -204,26 +217,33 @@ Use this checklist to ensure a successful production deployment of Aria ERP.
 ### Manual Endpoint Testing
 
 - [ ] Frontend accessible via HTTP:
+
   ```bash
   curl -I http://<server-ip>
   ```
+
   Expected: 301 or 308 redirect to HTTPS
 
 - [ ] Frontend accessible via HTTPS:
+
   ```bash
   curl -I https://<server-ip> -k
   ```
+
   Expected: 200 OK
 
 - [ ] Backend API accessible:
+
   ```bash
   curl -I https://<server-ip>/api/health -k
   ```
+
   Expected: 200 OK with JSON response
 
 - [ ] WebSocket connections working (if applicable)
 
 - [ ] HTTP/3 support verified (optional):
+
   ```bash
   # Requires curl with HTTP/3 support
   curl --http3 https://<server-ip> -k -I
@@ -232,11 +252,13 @@ Use this checklist to ensure a successful production deployment of Aria ERP.
 ### Database Verification
 
 - [ ] PostgreSQL accepting connections:
+
   ```bash
   docker exec aria-postgres pg_isready -U aria
   ```
 
 - [ ] Database schema initialized:
+
   ```bash
   docker exec aria-postgres psql -U aria -c "\dt"
   ```
@@ -246,6 +268,7 @@ Use this checklist to ensure a successful production deployment of Aria ERP.
 - [ ] Sample data verified (if loaded)
 
 - [ ] Database backup test performed:
+
   ```bash
   docker exec aria-postgres pg_dump -U aria aria > test-backup.sql
   ls -lh test-backup.sql
@@ -254,17 +277,21 @@ Use this checklist to ensure a successful production deployment of Aria ERP.
 ### Redis Verification
 
 - [ ] Redis responding to ping:
+
   ```bash
   docker exec aria-redis redis-cli ping
   ```
+
   Expected: PONG
 
 - [ ] Redis authentication working:
+
   ```bash
   docker exec aria-redis redis-cli -a <REDIS_PASSWORD> ping
   ```
 
 - [ ] Redis persistence configured:
+
   ```bash
   docker exec aria-redis redis-cli -a <REDIS_PASSWORD> CONFIG GET save
   ```
@@ -274,15 +301,18 @@ Use this checklist to ensure a successful production deployment of Aria ERP.
 - [ ] Self-signed certificate warning acknowledged (if applicable)
 
 - [ ] HTTPS enforced (HTTP redirects to HTTPS):
+
   ```bash
   curl -I http://<server-ip>
   # Should see 301/308 redirect
   ```
 
 - [ ] Security headers present:
+
   ```bash
   curl -I https://<server-ip> -k | grep -i "strict-transport-security\|x-frame-options\|x-content-type-options"
   ```
+
   Expected headers:
   - Strict-Transport-Security
   - X-Frame-Options
@@ -292,12 +322,14 @@ Use this checklist to ensure a successful production deployment of Aria ERP.
 - [ ] Admin endpoints protected (if applicable)
 
 - [ ] Database not accessible from external network:
+
   ```bash
   # From external machine, should fail:
   psql -h <server-ip> -U aria -d aria
   ```
 
 - [ ] Redis not accessible from external network:
+
   ```bash
   # From external machine, should fail:
   redis-cli -h <server-ip> ping
@@ -310,24 +342,28 @@ Use this checklist to ensure a successful production deployment of Aria ERP.
   - Backend API: < 500ms
 
 - [ ] Resource usage within limits:
+
   ```bash
   docker stats --no-stream
   ```
+
   Check:
   - CPU usage < 70%
   - Memory usage < 80%
   - No swap usage
 
 - [ ] Disk I/O not saturated:
+
   ```bash
   # Linux
   iostat -x 1 5
-  
+
   # Windows
   Get-Counter '\PhysicalDisk(_Total)\Disk Reads/sec', '\PhysicalDisk(_Total)\Disk Writes/sec'
   ```
 
 - [ ] Network latency acceptable:
+
   ```bash
   ping <server-ip>
   ```
@@ -335,16 +371,19 @@ Use this checklist to ensure a successful production deployment of Aria ERP.
 ### Logging and Monitoring
 
 - [ ] Container logs accessible:
+
   ```bash
   docker logs aria-backend --tail=10
   ```
 
 - [ ] Log rotation configured:
+
   ```bash
   docker inspect aria-backend --format='{{.HostConfig.LogConfig}}'
   ```
 
 - [ ] No critical errors in logs:
+
   ```bash
   docker logs aria-backend 2>&1 | grep -i "error\|critical\|fatal"
   ```
@@ -360,23 +399,28 @@ Use this checklist to ensure a successful production deployment of Aria ERP.
 ### Linux (systemd)
 
 - [ ] Service enabled for auto-start:
+
   ```bash
   sudo systemctl is-enabled aria-erp
   ```
+
   Expected: enabled
 
 - [ ] Service starts on boot:
+
   ```bash
   sudo systemctl status aria-erp
   ```
 
 - [ ] Service restart works:
+
   ```bash
   sudo systemctl restart aria-erp
   sudo systemctl status aria-erp
   ```
 
 - [ ] Service logs accessible:
+
   ```bash
   sudo journalctl -u aria-erp -n 20 --no-pager
   ```
@@ -384,25 +428,30 @@ Use this checklist to ensure a successful production deployment of Aria ERP.
 ### Windows (WinSW)
 
 - [ ] Service installed:
+
   ```powershell
   Get-Service AriaERP
   ```
 
 - [ ] Service set to automatic start:
+
   ```powershell
   (Get-Service AriaERP).StartType
   ```
+
   Expected: Automatic
 
 - [ ] Service starts on boot
 
 - [ ] Service restart works:
+
   ```powershell
   Restart-Service AriaERP
   Get-Service AriaERP
   ```
 
 - [ ] Service logs accessible:
+
   ```powershell
   Get-Content C:\aria\logs\*.log -Tail 20
   ```
@@ -414,17 +463,20 @@ Use this checklist to ensure a successful production deployment of Aria ERP.
 ### Backup Test
 
 - [ ] Database backup created successfully:
+
   ```bash
   docker exec aria-postgres pg_dump -U aria aria > backup-test.sql
   ```
 
 - [ ] Backup file not empty:
+
   ```bash
   ls -lh backup-test.sql
   # Should be > 1KB
   ```
 
 - [ ] Backup contains expected data:
+
   ```bash
   head -n 20 backup-test.sql
   ```
@@ -438,6 +490,7 @@ Use this checklist to ensure a successful production deployment of Aria ERP.
 - [ ] Test environment prepared
 
 - [ ] Backup restored successfully:
+
   ```bash
   # In test environment
   docker exec -i aria-postgres psql -U aria aria < backup-test.sql
@@ -513,9 +566,9 @@ Use this checklist to ensure a successful production deployment of Aria ERP.
 
 ### Deployment Team
 
-- [ ] System Administrator: ______________________ Date: __________
-- [ ] DevOps Engineer: ______________________ Date: __________
-- [ ] Application Owner: ______________________ Date: __________
+- [ ] System Administrator: ****\*\*****\_\_****\*\***** Date: \***\*\_\_\*\***
+- [ ] DevOps Engineer: ****\*\*****\_\_****\*\***** Date: \***\*\_\_\*\***
+- [ ] Application Owner: ****\*\*****\_\_****\*\***** Date: \***\*\_\_\*\***
 
 ### Verification
 
@@ -531,6 +584,7 @@ Use this checklist to ensure a successful production deployment of Aria ERP.
 In case of critical issues:
 
 1. **Immediate Actions**:
+
    ```bash
    # Stop services
    docker compose -f docker-compose.production.yml down
@@ -562,7 +616,7 @@ In case of critical issues:
 
 ---
 
-**Deployment Date**: __________  
-**Deployed Version**: __________  
-**Deployed By**: __________  
+**Deployment Date**: \***\*\_\_\*\***  
+**Deployed Version**: \***\*\_\_\*\***  
+**Deployed By**: \***\*\_\_\*\***  
 **Deployment Status**: ⬜ Success ⬜ Partial ⬜ Rolled Back

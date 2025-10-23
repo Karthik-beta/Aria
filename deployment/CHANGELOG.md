@@ -266,28 +266,31 @@ None in this release.
 If migrating from a previous Traefik-based deployment:
 
 1. **Backup Everything**:
+
    ```bash
    # Backup database
    docker exec aria-postgres pg_dump -U aria aria > backup-before-migration.sql
-   
+
    # Backup volumes
    docker run --rm -v aria_postgres-data:/data -v $(pwd):/backup alpine tar czf /backup/volumes-backup.tar.gz -C /data .
-   
+
    # Backup configuration
    cp .env .env.backup
    cp docker-compose.*.yml docker-compose.*.yml.backup
    ```
 
 2. **Stop Old Services**:
+
    ```bash
    docker compose down
    ```
 
 3. **Update Configuration**:
+
    ```bash
    # Copy new environment template
    cp .env.production.template .env
-   
+
    # Migrate settings from old .env.backup to new .env
    # Pay special attention to:
    # - POSTGRES_PASSWORD
@@ -297,6 +300,7 @@ If migrating from a previous Traefik-based deployment:
    ```
 
 4. **Deploy New Infrastructure**:
+
    ```bash
    # Run installation script
    sudo ./deployment/scripts/install-linux.sh
@@ -305,12 +309,14 @@ If migrating from a previous Traefik-based deployment:
    ```
 
 5. **Restore Data** (if needed):
+
    ```bash
    # Restore database
    cat backup-before-migration.sql | docker exec -i aria-postgres psql -U aria aria
    ```
 
 6. **Verify Deployment**:
+
    ```bash
    ./deployment/tests/health-check.sh
    # or
@@ -329,7 +335,7 @@ If migrating from a previous Traefik-based deployment:
 
 For issues or questions about the deployment infrastructure:
 
-- **GitHub Issues**: https://github.com/Karthik-beta/Aria/issues
+- **GitHub Issues**: [Report an issue on GitHub](https://github.com/Karthik-beta/Aria/issues)
 - **Documentation**: `deployment/README.md`
 - **Troubleshooting**: `deployment/TROUBLESHOOTING.md`
 - **Quick Start**: `deployment/QUICKSTART.md`
@@ -337,6 +343,7 @@ For issues or questions about the deployment infrastructure:
 ---
 
 **Versioning Scheme**:
+
 - **Major (X.0.0)**: Breaking changes requiring migration
 - **Minor (1.X.0)**: New features, backward compatible
 - **Patch (1.0.X)**: Bug fixes, security patches

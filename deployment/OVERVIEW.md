@@ -112,41 +112,42 @@ notepad .env  # Set POSTGRES_PASSWORD, REDIS_PASSWORD, JWT_SECRET, DOMAIN
 
 ## Documentation Quick Links
 
-| Document                        | Purpose                                      |
-|---------------------------------|----------------------------------------------|
-| [README.md](README.md)          | Complete deployment guide with all details   |
-| [QUICKSTART.md](QUICKSTART.md)  | Fast installation for common scenarios       |
-| [TROUBLESHOOTING.md](TROUBLESHOOTING.md) | Solutions for common deployment issues |
-| [DEPLOYMENT_CHECKLIST.md](DEPLOYMENT_CHECKLIST.md) | Pre/post deployment verification |
+| Document                                           | Purpose                                    |
+| -------------------------------------------------- | ------------------------------------------ |
+| [README.md](README.md)                             | Complete deployment guide with all details |
+| [QUICKSTART.md](QUICKSTART.md)                     | Fast installation for common scenarios     |
+| [TROUBLESHOOTING.md](TROUBLESHOOTING.md)           | Solutions for common deployment issues     |
+| [DEPLOYMENT_CHECKLIST.md](DEPLOYMENT_CHECKLIST.md) | Pre/post deployment verification           |
 
 ## Configuration Files
 
 ### Docker Compose
 
-| File                              | Purpose                           | Environment |
-|-----------------------------------|-----------------------------------|-------------|
-| `docker-compose.development.yml`  | Development environment           | Development |
-| `docker-compose.production.yml`   | Production deployment             | Production  |
+| File                             | Purpose                 | Environment |
+| -------------------------------- | ----------------------- | ----------- |
+| `docker-compose.development.yml` | Development environment | Development |
+| `docker-compose.production.yml`  | Production deployment   | Production  |
 
 **Key Differences**:
 
-| Feature              | Development                    | Production                       |
-|----------------------|--------------------------------|----------------------------------|
-| SSL                  | Disabled (HTTP only)           | Enabled (HTTPS + HTTP/3)         |
-| Hot Reload           | Enabled with volume mounts     | Disabled (standalone builds)     |
-| Logging              | Debug level, console output    | Info level, JSON structured      |
-| Resource Limits      | None                           | CPU and memory limits enforced   |
-| Health Checks        | Relaxed intervals              | Strict intervals with retries    |
-| Container Restart    | `no`                           | `unless-stopped`                 |
+| Feature           | Development                 | Production                     |
+| ----------------- | --------------------------- | ------------------------------ |
+| SSL               | Disabled (HTTP only)        | Enabled (HTTPS + HTTP/3)       |
+| Hot Reload        | Enabled with volume mounts  | Disabled (standalone builds)   |
+| Logging           | Debug level, console output | Info level, JSON structured    |
+| Resource Limits   | None                        | CPU and memory limits enforced |
+| Health Checks     | Relaxed intervals           | Strict intervals with retries  |
+| Container Restart | `no`                        | `unless-stopped`               |
 
 ### Caddy Reverse Proxy
 
-| File                          | Purpose                        | Features                         |
-|-------------------------------|--------------------------------|----------------------------------|
-| `caddy/Caddyfile.development` | Development reverse proxy      | HTTP, debug logs, no SSL         |
-| `caddy/Caddyfile.production`  | Production reverse proxy       | HTTPS, HTTP/3, security headers  |
+| File                          | Purpose                   | Features                        |
+| ----------------------------- | ------------------------- | ------------------------------- |
+| `caddy/Caddyfile.development` | Development reverse proxy | HTTP, debug logs, no SSL        |
+| `caddy/Caddyfile.production`  | Production reverse proxy  | HTTPS, HTTP/3, security headers |
 
 **Production Security Features**:
+
 - Strict Transport Security (HSTS) with 1-year max-age
 - Content Security Policy (CSP)
 - X-Frame-Options: SAMEORIGIN
@@ -156,16 +157,16 @@ notepad .env  # Set POSTGRES_PASSWORD, REDIS_PASSWORD, JWT_SECRET, DOMAIN
 
 ### Environment Variables
 
-| Variable            | Required | Default     | Description                          |
-|---------------------|----------|-------------|--------------------------------------|
-| `POSTGRES_PASSWORD` | **Yes**  | (none)      | PostgreSQL database password         |
-| `REDIS_PASSWORD`    | **Yes**  | (none)      | Redis cache password                 |
-| `JWT_SECRET`        | **Yes**  | (none)      | JWT signing secret (64+ chars)       |
-| `DOMAIN`            | **Yes**  | localhost   | Server domain or IP address          |
-| `LOG_LEVEL`         | No       | info        | Logging level (debug/info/warn/error)|
-| `DEBUG`             | No       | false       | Enable debug mode                    |
-| `CORS_ORIGIN`       | No       | *           | Allowed CORS origins                 |
-| `JWT_EXPIRATION`    | No       | 12h         | JWT token lifetime                   |
+| Variable            | Required | Default   | Description                           |
+| ------------------- | -------- | --------- | ------------------------------------- |
+| `POSTGRES_PASSWORD` | **Yes**  | (none)    | PostgreSQL database password          |
+| `REDIS_PASSWORD`    | **Yes**  | (none)    | Redis cache password                  |
+| `JWT_SECRET`        | **Yes**  | (none)    | JWT signing secret (64+ chars)        |
+| `DOMAIN`            | **Yes**  | localhost | Server domain or IP address           |
+| `LOG_LEVEL`         | No       | info      | Logging level (debug/info/warn/error) |
+| `DEBUG`             | No       | false     | Enable debug mode                     |
+| `CORS_ORIGIN`       | No       | \*        | Allowed CORS origins                  |
+| `JWT_EXPIRATION`    | No       | 12h       | JWT token lifetime                    |
 
 ## Service Architecture
 
@@ -210,6 +211,7 @@ Internet/LAN
 5. **runner**: Minimal production image (non-root user, health check)
 
 **Optimizations**:
+
 - Separate dependency layers for better caching
 - Multi-architecture support (amd64, arm64)
 - Non-root user execution (`nestjs:nodejs`)
@@ -227,6 +229,7 @@ Internet/LAN
 5. **runner**: Minimal production image with standalone server
 
 **Optimizations**:
+
 - Next.js standalone output for minimal image size
 - Automatic static file optimization
 - Non-root user execution (`nextjs:nodejs`)
@@ -238,18 +241,21 @@ Internet/LAN
 ### Self-Signed Certificates (Private Networks)
 
 **Linux**:
+
 ```bash
 cd deployment/ssl
 ./generate-certs.sh
 ```
 
 **Windows**:
+
 ```powershell
 cd deployment\ssl
 .\generate-certs.ps1
 ```
 
 **Features**:
+
 - Automatic IP address detection
 - Multi-IP Subject Alternative Name (SAN) support
 - 365-day validity (configurable)
@@ -273,6 +279,7 @@ Place your certificate files in `deployment/caddy/certs/`:
 - `server.key` - Private key (PEM format)
 
 Restart Caddy to apply:
+
 ```bash
 docker restart aria-caddy
 ```
@@ -281,15 +288,16 @@ docker restart aria-caddy
 
 ### Linux (systemd)
 
-| Command                          | Purpose                    |
-|----------------------------------|----------------------------|
-| `sudo systemctl start aria-erp`  | Start service              |
-| `sudo systemctl stop aria-erp`   | Stop service               |
-| `sudo systemctl restart aria-erp`| Restart service            |
-| `sudo systemctl status aria-erp` | Check status               |
-| `sudo journalctl -u aria-erp -f` | View logs (live)           |
+| Command                           | Purpose          |
+| --------------------------------- | ---------------- |
+| `sudo systemctl start aria-erp`   | Start service    |
+| `sudo systemctl stop aria-erp`    | Stop service     |
+| `sudo systemctl restart aria-erp` | Restart service  |
+| `sudo systemctl status aria-erp`  | Check status     |
+| `sudo journalctl -u aria-erp -f`  | View logs (live) |
 
 **Service Features**:
+
 - Automatic start on boot
 - Restart on failure (max 5 times in 300s)
 - 300-second startup timeout
@@ -297,14 +305,15 @@ docker restart aria-caddy
 
 ### Windows (WinSW)
 
-| Command                      | Purpose                    |
-|------------------------------|----------------------------|
-| `Start-Service AriaERP`      | Start service              |
-| `Stop-Service AriaERP`       | Stop service               |
-| `Restart-Service AriaERP`    | Restart service            |
-| `Get-Service AriaERP`        | Check status               |
+| Command                   | Purpose         |
+| ------------------------- | --------------- |
+| `Start-Service AriaERP`   | Start service   |
+| `Stop-Service AriaERP`    | Stop service    |
+| `Restart-Service AriaERP` | Restart service |
+| `Get-Service AriaERP`     | Check status    |
 
 **Service Features**:
+
 - Automatic start on boot (delayed)
 - Restart on failure (3 times)
 - Log rotation (10MB per file, 8 files)
@@ -315,16 +324,19 @@ docker restart aria-caddy
 ### Health Check Scripts
 
 **Linux**:
+
 ```bash
 ./deployment/tests/health-check.sh
 ```
 
 **Windows**:
+
 ```powershell
 .\deployment\tests\health-check.ps1
 ```
 
 **Test Coverage**:
+
 - ✅ Container status (running, healthy)
 - ✅ HTTP/HTTPS endpoint availability
 - ✅ Backend API health endpoint
@@ -341,19 +353,21 @@ docker restart aria-caddy
 
 **GitHub Actions Workflow**:
 
-| Job                      | Purpose                                      |
-|--------------------------|----------------------------------------------|
-| `test-linux-deployment`  | Build and test Linux deployment              |
-| `test-windows-deployment`| Build and test Windows deployment            |
-| `security-scan`          | Trivy vulnerability scanning                 |
-| `performance-test`       | Artillery load testing                       |
+| Job                       | Purpose                           |
+| ------------------------- | --------------------------------- |
+| `test-linux-deployment`   | Build and test Linux deployment   |
+| `test-windows-deployment` | Build and test Windows deployment |
+| `security-scan`           | Trivy vulnerability scanning      |
+| `performance-test`        | Artillery load testing            |
 
 **Triggers**:
+
 - Push to `main`, `master`, or `refactor` branches
 - Pull requests to these branches
 - Manual workflow dispatch
 
 **Features**:
+
 - Docker layer caching for faster builds
 - Parallel job execution
 - Health check validation
@@ -366,6 +380,7 @@ docker restart aria-caddy
 ### Linux (`scripts/install-linux.sh`)
 
 **Features** (400+ lines):
+
 - ✅ System requirements check
 - ✅ Docker and Docker Compose installation
 - ✅ Environment validation
@@ -379,6 +394,7 @@ docker restart aria-caddy
 ### Windows (`scripts/install-windows.ps1`)
 
 **Features** (450+ lines):
+
 - ✅ Administrator privilege check
 - ✅ Docker Desktop validation
 - ✅ Environment validation
@@ -410,11 +426,13 @@ docker restart aria-caddy
 ### Network Security
 
 **Exposed Ports**:
+
 - 80/tcp (HTTP, redirects to HTTPS)
 - 443/tcp (HTTPS)
 - 443/udp (HTTP/3)
 
 **Internal Only**:
+
 - PostgreSQL (5432) - Docker network only
 - Redis (6379) - Docker network only
 - Backend (3001) - Docker network only
@@ -427,7 +445,7 @@ docker restart aria-caddy
 ### Resource Limits (Production)
 
 | Service    | CPU Limit | Memory Limit | Reservation |
-|------------|-----------|--------------|-------------|
+| ---------- | --------- | ------------ | ----------- |
 | Frontend   | 1.0       | 1GB          | 512MB       |
 | Backend    | 1.0       | 1GB          | 512MB       |
 | PostgreSQL | 2.0       | 2GB          | 1GB         |
@@ -437,6 +455,7 @@ docker restart aria-caddy
 ### Database Tuning
 
 **PostgreSQL Production Settings**:
+
 - `max_connections=200`
 - `shared_buffers=256MB`
 - `effective_cache_size=768MB`
@@ -446,6 +465,7 @@ docker restart aria-caddy
 ### Caching Strategy
 
 **Redis Configuration**:
+
 - RDB persistence enabled
 - AOF persistence optional
 - Password authentication required
@@ -455,20 +475,21 @@ docker restart aria-caddy
 
 ### Regular Tasks
 
-| Frequency | Task                              | Command                                                |
-|-----------|-----------------------------------|--------------------------------------------------------|
-| Daily     | Check service health              | `./deployment/tests/health-check.sh`                   |
-| Daily     | Database backup                   | `docker exec aria-postgres pg_dump -U aria aria > backup.sql` |
-| Weekly    | Review logs for errors            | `docker logs aria-backend 2>&1 \| grep -i error`      |
-| Monthly   | Update Docker images              | `docker compose pull && docker compose up -d`          |
-| Monthly   | Rotate logs manually (if needed)  | `truncate -s 0 /var/lib/docker/containers/*/log`       |
-| Quarterly | Review security settings          | Review `.env`, firewall rules, certificates            |
-| Quarterly | Test disaster recovery            | Restore from backup in test environment                |
-| Annually  | Rotate passwords and secrets      | Update `.env` and restart services                     |
+| Frequency | Task                             | Command                                                       |
+| --------- | -------------------------------- | ------------------------------------------------------------- |
+| Daily     | Check service health             | `./deployment/tests/health-check.sh`                          |
+| Daily     | Database backup                  | `docker exec aria-postgres pg_dump -U aria aria > backup.sql` |
+| Weekly    | Review logs for errors           | `docker logs aria-backend 2>&1 \| grep -i error`              |
+| Monthly   | Update Docker images             | `docker compose pull && docker compose up -d`                 |
+| Monthly   | Rotate logs manually (if needed) | `truncate -s 0 /var/lib/docker/containers/*/log`              |
+| Quarterly | Review security settings         | Review `.env`, firewall rules, certificates                   |
+| Quarterly | Test disaster recovery           | Restore from backup in test environment                       |
+| Annually  | Rotate passwords and secrets     | Update `.env` and restart services                            |
 
 ### Backup Procedures
 
 **Database Backup** (Daily recommended):
+
 ```bash
 # Create backup
 docker exec aria-postgres pg_dump -U aria aria > backup_$(date +%Y%m%d).sql
@@ -478,6 +499,7 @@ cat backup_20250123.sql | docker exec -i aria-postgres psql -U aria aria
 ```
 
 **Volume Backup** (Weekly recommended):
+
 ```bash
 # Backup volume
 docker run --rm -v aria_postgres-data:/data -v $(pwd):/backup alpine tar czf /backup/postgres-data-$(date +%Y%m%d).tar.gz -C /data .
@@ -514,13 +536,13 @@ For detailed troubleshooting guidance, see [TROUBLESHOOTING.md](TROUBLESHOOTING.
 
 **Common Issues Quick Reference**:
 
-| Issue                     | Quick Fix                                |
-|---------------------------|------------------------------------------|
-| Container won't start     | Check logs: `docker logs aria-<service>` |
-| HTTP 502 errors           | Restart Caddy: `docker restart aria-caddy` |
-| Database connection fails | Verify DATABASE_URL in `.env`            |
+| Issue                     | Quick Fix                                        |
+| ------------------------- | ------------------------------------------------ |
+| Container won't start     | Check logs: `docker logs aria-<service>`         |
+| HTTP 502 errors           | Restart Caddy: `docker restart aria-caddy`       |
+| Database connection fails | Verify DATABASE_URL in `.env`                    |
 | SSL certificate errors    | Regenerate: `./deployment/ssl/generate-certs.sh` |
-| Service won't auto-start  | Check systemd/service status             |
+| Service won't auto-start  | Check systemd/service status                     |
 
 ## Support and Resources
 
