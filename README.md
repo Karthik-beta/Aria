@@ -16,9 +16,9 @@ Aria ERP is a full-stack monorepo providing enterprise resource planning capabil
 | Component       | Location          | Technology                           |
 | --------------- | ----------------- | ------------------------------------ |
 | Backend API     | `apps/backend`    | NestJS 11, TypeScript                |
-| Frontends       | `apps/frontend/*` | Next.js 15, React, Tailwind CSS      |
+| Frontends       | `apps/frontend/*` | Next.js 16, React, Tailwind CSS      |
 | Shared Packages | `packages/*`      | TypeScript configs, types, utilities |
-| Deployment      | `deployment/`     | Docker Compose, Traefik              |
+| Deployment      | `deployment/`     | Docker Compose, Caddy v2 (HTTP/3)    |
 
 ## Prerequisites
 

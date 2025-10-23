@@ -1,0 +1,49 @@
+# Caddy Configuration for Development Environment
+# This file is for local development only - no SSL, simple routing
+
+{
+    # Disable automatic HTTPS for development
+    auto_https off
+    
+    # Enable admin API on localhost
+    admin localhost:2019
+    
+    # Enable debug logging
+    debug
+}
+
+# Development server on HTTP
+:80 {
+    # Enable all protocols (HTTP/1.1, HTTP/2)
+    protocols h1 h2
+    
+    # Routing configuration
+    route {
+        # API and tRPC routes to backend
+        reverse_proxy /api/* backend:3001
+        reverse_proxy /trpc/* backend:3001
+        
+        # WebSocket support for hot-reload
+        reverse_proxy /ws backend:3001 {
+            header_up Upgrade {>Upgrade}
+            header_up Connection {>Connection}
+        }
+        
+        # Frontend routes (Next.js dev server)
+        reverse_proxy frontend:3000 {
+            # Support Next.js HMR
+            header_up Upgrade {>Upgrade}
+            header_up Connection {>Connection}
+        }
+    }
+    
+    # Development logging (verbose)
+    log {
+        output stdout
+        format console
+        level DEBUG
+    }
+    
+    # Basic compression
+    encode gzip
+}

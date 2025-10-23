@@ -1,0 +1,363 @@
+name: Deployment Testing
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - refactor/deployment-rewrite
+    paths:
+      - 'apps/**'
+      - 'packages/**'
+      - 'deployment/**'
+      - 'docker-compose*.yml'
+      - '.github/workflows/deployment-test.yml'
+  pull_request:
+    branches:
+      - main
+      - master
+      - refactor/deployment-rewrite
+    paths:
+      - 'apps/**'
+      - 'packages/**'
+      - 'deployment/**'
+      - 'docker-compose*.yml'
+  workflow_dispatch:
+
+env:
+  DOCKER_BUILDKIT: 1
+  COMPOSE_DOCKER_CLI_BUILD: 1
+
+jobs:
+  # Test Linux deployment
+  test-linux-deployment:
+    name: Test Linux Deployment
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver-opts: |
+            network=host
+      
+      - name: Cache Docker layers
+        uses: actions/cache@v4
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-
+      
+      - name: Create environment file
+        run: |
+          cp .env.production.template .env
+          # Set test values
+          sed -i 's/CHANGE_THIS_TO_A_STRONG_PASSWORD/test_password_123/g' .env
+          sed -i 's/CHANGE_THIS_TO_A_STRONG_REDIS_PASSWORD/redis_test_123/g' .env
+          sed -i 's/CHANGE_THIS_TO_A_CRYPTOGRAPHICALLY_SECURE_RANDOM_STRING/test_jwt_secret_123456789/g' .env
+          sed -i 's/YOUR_DOMAIN.com/localhost/g' .env
+          echo "VERSION=${{ github.sha }}" >> .env
+      
+      - name: Build Docker images
+        run: |
+          docker compose -f docker-compose.production.yml build --no-cache
+        env:
+          DOCKER_BUILDKIT: 1
+      
+      - name: Start services
+        run: |
+          docker compose -f docker-compose.production.yml up -d
+      
+      - name: Wait for services to be healthy
+        run: |
+          echo "Waiting for services to start..."
+          sleep 30
+          
+          # Wait for PostgreSQL
+          timeout 120 bash -c 'until docker exec aria-postgres pg_isready -U aria; do sleep 2; done'
+          echo "✓ PostgreSQL is ready"
+          
+          # Wait for Redis
+          timeout 60 bash -c 'until docker exec aria-redis redis-cli ping | grep -q PONG; do sleep 2; done'
+          echo "✓ Redis is ready"
+          
+          # Wait for backend
+          timeout 120 bash -c 'until curl -f http://localhost/api/health; do sleep 5; done'
+          echo "✓ Backend is ready"
+          
+          # Wait for frontend
+          timeout 120 bash -c 'until curl -f http://localhost/; do sleep 5; done'
+          echo "✓ Frontend is ready"
+      
+      - name: Run health checks
+        run: |
+          chmod +x deployment/tests/health-check.sh
+          ./deployment/tests/health-check.sh
+      
+      - name: Test HTTP endpoints
+        run: |
+          echo "Testing HTTP endpoints..."
+          
+          # Test root
+          curl -f http://localhost/ || exit 1
+          echo "✓ Root endpoint OK"
+          
+          # Test health
+          curl -f http://localhost/health || exit 1
+          echo "✓ Health endpoint OK"
+          
+          # Test API health
+          curl -f http://localhost/api/health || exit 1
+          echo "✓ API health endpoint OK"
+      
+      - name: Check container logs
+        if: always()
+        run: |
+          echo "=== Frontend Logs ==="
+          docker logs aria-frontend --tail 50
+          
+          echo "=== Backend Logs ==="
+          docker logs aria-backend --tail 50
+          
+          echo "=== Caddy Logs ==="
+          docker logs aria-caddy --tail 50
+      
+      - name: Stop services
+        if: always()
+        run: |
+          docker compose -f docker-compose.production.yml down -v
+      
+      - name: Clean up Docker resources
+        if: always()
+        run: |
+          docker system prune -af --volumes
+
+  # Test Windows deployment
+  test-windows-deployment:
+    name: Test Windows Deployment
+    runs-on: windows-latest
+    timeout-minutes: 45
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Docker
+        run: |
+          docker version
+          docker compose version
+      
+      - name: Create environment file
+        shell: pwsh
+        run: |
+          Copy-Item .env.production.template .env
+          # Set test values
+          (Get-Content .env) -replace 'CHANGE_THIS_TO_A_STRONG_PASSWORD', 'test_password_123' | Set-Content .env
+          (Get-Content .env) -replace 'CHANGE_THIS_TO_A_STRONG_REDIS_PASSWORD', 'redis_test_123' | Set-Content .env
+          (Get-Content .env) -replace 'CHANGE_THIS_TO_A_CRYPTOGRAPHICALLY_SECURE_RANDOM_STRING', 'test_jwt_secret_123456789' | Set-Content .env
+          (Get-Content .env) -replace 'YOUR_DOMAIN.com', 'localhost' | Set-Content .env
+          Add-Content .env "VERSION=${{ github.sha }}"
+      
+      - name: Build Docker images
+        run: |
+          docker compose -f docker-compose.production.yml build --no-cache
+      
+      - name: Start services
+        run: |
+          docker compose -f docker-compose.production.yml up -d
+      
+      - name: Wait for services to be healthy
+        shell: pwsh
+        run: |
+          Write-Host "Waiting for services to start..."
+          Start-Sleep -Seconds 30
+          
+          # Wait for PostgreSQL
+          $timeout = 120
+          $elapsed = 0
+          while ($elapsed -lt $timeout) {
+            $result = docker exec aria-postgres pg_isready -U aria 2>&1
+            if ($LASTEXITCODE -eq 0) {
+              Write-Host "✓ PostgreSQL is ready"
+              break
+            }
+            Start-Sleep -Seconds 2
+            $elapsed += 2
+          }
+          
+          # Wait for Redis
+          $timeout = 60
+          $elapsed = 0
+          while ($elapsed -lt $timeout) {
+            $result = docker exec aria-redis redis-cli ping 2>&1
+            if ($result -match "PONG") {
+              Write-Host "✓ Redis is ready"
+              break
+            }
+            Start-Sleep -Seconds 2
+            $elapsed += 2
+          }
+          
+          # Wait for backend
+          $timeout = 120
+          $elapsed = 0
+          while ($elapsed -lt $timeout) {
+            try {
+              $response = Invoke-WebRequest -Uri "http://localhost/api/health" -UseBasicParsing -TimeoutSec 5
+              if ($response.StatusCode -eq 200) {
+                Write-Host "✓ Backend is ready"
+                break
+              }
+            } catch {}
+            Start-Sleep -Seconds 5
+            $elapsed += 5
+          }
+          
+          # Wait for frontend
+          $timeout = 120
+          $elapsed = 0
+          while ($elapsed -lt $timeout) {
+            try {
+              $response = Invoke-WebRequest -Uri "http://localhost/" -UseBasicParsing -TimeoutSec 5
+              if ($response.StatusCode -eq 200) {
+                Write-Host "✓ Frontend is ready"
+                break
+              }
+            } catch {}
+            Start-Sleep -Seconds 5
+            $elapsed += 5
+          }
+      
+      - name: Run health checks
+        shell: pwsh
+        run: |
+          .\deployment\tests\health-check.ps1
+      
+      - name: Test HTTP endpoints
+        shell: pwsh
+        run: |
+          Write-Host "Testing HTTP endpoints..."
+          
+          # Test root
+          $response = Invoke-WebRequest -Uri "http://localhost/" -UseBasicParsing
+          if ($response.StatusCode -ne 200) { exit 1 }
+          Write-Host "✓ Root endpoint OK"
+          
+          # Test health
+          $response = Invoke-WebRequest -Uri "http://localhost/health" -UseBasicParsing
+          if ($response.StatusCode -ne 200) { exit 1 }
+          Write-Host "✓ Health endpoint OK"
+          
+          # Test API health
+          $response = Invoke-WebRequest -Uri "http://localhost/api/health" -UseBasicParsing
+          if ($response.StatusCode -ne 200) { exit 1 }
+          Write-Host "✓ API health endpoint OK"
+      
+      - name: Check container logs
+        if: always()
+        shell: pwsh
+        run: |
+          Write-Host "=== Frontend Logs ==="
+          docker logs aria-frontend --tail 50
+          
+          Write-Host "=== Backend Logs ==="
+          docker logs aria-backend --tail 50
+          
+          Write-Host "=== Caddy Logs ==="
+          docker logs aria-caddy --tail 50
+      
+      - name: Stop services
+        if: always()
+        run: |
+          docker compose -f docker-compose.production.yml down -v
+      
+      - name: Clean up Docker resources
+        if: always()
+        run: |
+          docker system prune -af --volumes
+
+  # Security scanning
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Run Trivy vulnerability scanner (filesystem)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+      
+      - name: Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+      
+      - name: Run Trivy vulnerability scanner (Docker images)
+        run: |
+          # Build images first
+          docker compose -f docker-compose.production.yml build
+          
+          # Scan frontend image
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+            aquasec/trivy:latest image --severity HIGH,CRITICAL aria-frontend:latest || true
+          
+          # Scan backend image
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+            aquasec/trivy:latest image --severity HIGH,CRITICAL aria-backend:latest || true
+
+  # Performance testing (optional, only on main branch)
+  performance-test:
+    name: Performance Test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    timeout-minutes: 20
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up environment
+        run: |
+          cp .env.production.template .env
+          sed -i 's/CHANGE_THIS_TO_A_STRONG_PASSWORD/test_password_123/g' .env
+          sed -i 's/CHANGE_THIS_TO_A_STRONG_REDIS_PASSWORD/redis_test_123/g' .env
+          sed -i 's/CHANGE_THIS_TO_A_CRYPTOGRAPHICALLY_SECURE_RANDOM_STRING/test_jwt_secret_123456789/g' .env
+          sed -i 's/YOUR_DOMAIN.com/localhost/g' .env
+      
+      - name: Start services
+        run: |
+          docker compose -f docker-compose.production.yml up -d
+          sleep 45
+      
+      - name: Install Artillery
+        run: |
+          npm install -g artillery@latest
+      
+      - name: Run load test
+        run: |
+          # Simple load test - 100 requests over 30 seconds
+          artillery quick --count 100 --num 10 http://localhost/ || true
+      
+      - name: Check response times
+        run: |
+          # Check if services are still responsive after load test
+          curl -f http://localhost/ || exit 1
+          curl -f http://localhost/api/health || exit 1
+      
+      - name: Stop services
+        if: always()
+        run: |
+          docker compose -f docker-compose.production.yml down -v
