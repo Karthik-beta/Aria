@@ -25,9 +25,18 @@ COPY packages/config-typescript/package.json ./packages/config-typescript/
 COPY packages/types/package.json ./packages/types/
 COPY packages/utils/package.json ./packages/utils/
 COPY apps/frontend/package.json ./apps/frontend/
+COPY apps/backend/package.json ./apps/backend/
 
 # Install dependencies
 RUN pnpm install --frozen-lockfile
+
+# Copy source files for packages and backend
+# These are needed for the frontend build to compile dependencies
+COPY packages ./packages
+COPY apps/backend/src ./apps/backend/src
+COPY apps/backend/prisma ./apps/backend/prisma
+COPY apps/backend/tsconfig.json ./apps/backend/tsconfig.json
+COPY apps/backend/tsconfig.build.json ./apps/backend/tsconfig.build.json
 
 # Development stage - for local development with hot reload
 FROM base AS development
@@ -59,12 +68,11 @@ CMD ["pnpm", "--filter", "frontend", "dev"]
 FROM base AS builder
 WORKDIR /app
 
-# Copy everything from deps
+# Copy everything from deps (includes node_modules and source files)
 COPY --from=deps /app ./
 
-# Copy source files
+# Copy frontend source files
 COPY turbo.json ./
-COPY packages ./packages
 COPY apps/frontend ./apps/frontend
 
 # Set build environment
@@ -72,12 +80,12 @@ ARG NODE_ENV=production
 ENV NODE_ENV=${NODE_ENV}
 ENV NEXT_TELEMETRY_DISABLED=1
 
-# Build shared packages first
-RUN pnpm --filter "@aria/types" build || true
-RUN pnpm --filter "@aria/utils" build || true
+# Generate Prisma client before building (required for backend types)
+RUN cd apps/backend && pnpm exec prisma generate
 
-# Build the frontend application with standalone output
-RUN pnpm --filter frontend build
+# Build everything using Turbo (handles dependency order automatically)
+# Turbo will build @aria/types, @aria/utils, backend types, and frontend in correct order
+RUN pnpm turbo build --filter=frontend...
 
 # Production runner stage - minimal production image with standalone output
 FROM base AS runner

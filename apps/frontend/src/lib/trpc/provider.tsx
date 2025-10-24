@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { httpBatchLink, splitLink, wsLink, createWSClient, type TRPCLink } from '@trpc/client';
 import { useState } from 'react';
-import type { AppRouter } from '../../../../backend/src/trpc/trpc.service';
+import type { AppRouter } from 'backend';
 import { trpc } from './client';
 
 /**

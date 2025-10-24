@@ -1,6 +1,6 @@
 import { createTRPCClient, httpBatchLink } from '@trpc/client';
 import { createTRPCReact } from '@trpc/react-query';
-import type { AppRouter } from '../../../../backend/src/trpc/trpc.service';
+import type { AppRouter } from 'backend';
 
 /**
  * Get the tRPC API URL from environment or default to localhost

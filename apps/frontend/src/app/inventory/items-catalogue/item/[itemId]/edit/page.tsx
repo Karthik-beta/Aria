@@ -8,8 +8,7 @@
 import * as React from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { trpc } from '@/lib/trpc';
-import { type Inventory } from '@aria/types';
-import { Inventory as InventoryNamespace } from '@aria/types';
+import { Inventory } from '@aria/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -37,7 +36,7 @@ export default function EditItemPage() {
 
   // Form setup
   const form = useForm<Inventory.UpdateInput>({
-    resolver: zodResolver(InventoryNamespace.updateSchema),
+    resolver: zodResolver(Inventory.updateSchema),
   });
 
   // Set form values when item is loaded
