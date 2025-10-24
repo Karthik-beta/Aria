@@ -9,7 +9,8 @@
     }
     
     # Automatic HTTPS configuration
-    auto_https on
+    # Use disable_redirects to allow local self-signed certificates
+    auto_https disable_redirects
     
     # Use local certificates for private networks
     # Caddy will generate self-signed certs for IP addresses
@@ -22,9 +23,6 @@
 # Main application configuration
 # Use environment variable for domain or default to localhost
 {$DOMAIN:localhost} {
-    # Enable all protocols including HTTP/3
-    protocols h1 h2 h3
-    
     # Routing configuration with priority
     route {
         # Health check endpoint (direct access)
@@ -40,7 +38,7 @@
             lb_try_duration 30s
             
             # Active health checking
-            health_uri /api/health
+            health_uri /health
             health_interval 30s
             health_timeout 10s
             health_status 200
@@ -62,7 +60,7 @@
         
         # tRPC routes to backend
         reverse_proxy /trpc/* backend:3001 {
-            health_uri /api/health
+            health_uri /health
             health_interval 30s
             
             header_up X-Real-IP {remote_host}
@@ -70,8 +68,8 @@
             header_up X-Forwarded-Proto {scheme}
         }
         
-        # WebSocket support for real-time features
-        reverse_proxy /ws backend:3001 {
+        # tRPC WebSocket support for real-time subscriptions
+        reverse_proxy /trpc-ws backend:3001 {
             header_up Upgrade {>Upgrade}
             header_up Connection {>Connection}
             header_up Host {host}
@@ -81,11 +79,6 @@
         
         # Frontend routes (Next.js production)
         reverse_proxy frontend:3000 {
-            # Health checking
-            health_uri /api/health
-            health_interval 60s
-            health_timeout 10s
-            
             # Request buffering for better performance
             flush_interval 1s
             
@@ -129,24 +122,6 @@
         gzip 6
         zstd
         minimum_length 256
-    }
-    
-    # Rate limiting to prevent abuse
-    rate_limit {
-        zone dynamic {
-            key {remote_host}
-            events 1000
-            window 1m
-        }
-        
-        zone api {
-            key {remote_host}
-            events 100
-            window 1m
-            match {
-                path /api/* /trpc/*
-            }
-        }
     }
     
     # Production logging (JSON format for parsing)

@@ -43,8 +43,9 @@ COPY apps/backend ./apps/backend
 # Expose ports
 EXPOSE 3001 9229
 
-# Development command (will be overridden by docker-compose)
-CMD ["pnpm", "--filter", "backend", "dev"]
+# Development entrypoint: Run migrations then start dev server
+# Official Prisma recommendation: Use migrate dev for development environments
+CMD ["sh", "-c", "cd /app/apps/backend && npx prisma migrate dev && pnpm dev"]
 
 # Builder stage - build the application
 FROM base AS builder
@@ -98,11 +99,17 @@ COPY --from=builder --chown=nestjs:nodejs /app/apps/backend/generated ./generate
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
     CMD wget --no-verbose --tries=1 --spider http://localhost:3001/health || exit 1
 
+# Copy entrypoint script for production migration handling
+COPY --chown=nestjs:nestjs apps/backend/docker-entrypoint.sh /app/docker-entrypoint.sh
+RUN chmod +x /app/docker-entrypoint.sh
+
 # Switch to non-root user
 USER nestjs
 
 # Expose application port
 EXPOSE 3001
 
-# Start the application
-CMD ["node", "dist/main"]
+# Production entrypoint: Handle baseline migration resolution and apply pending migrations
+# Official Prisma recommendation: https://www.prisma.io/docs/orm/prisma-migrate/workflows/baselining
+# Reference: https://www.prisma.io/docs/orm/prisma-migrate/workflows/development-and-production
+ENTRYPOINT ["/app/docker-entrypoint.sh"]

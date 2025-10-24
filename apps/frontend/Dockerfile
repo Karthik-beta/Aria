@@ -99,20 +99,22 @@ ENV NEXT_TELEMETRY_DISABLED=1
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nextjs
 
-# Copy public assets
-COPY --from=builder /app/apps/frontend/public ./public
-
-# Create .next directory with proper permissions
-RUN mkdir .next && chown nextjs:nodejs .next
-
 # Copy standalone server and dependencies
 # Next.js standalone output includes all necessary files
 COPY --from=builder --chown=nextjs:nodejs /app/apps/frontend/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/apps/frontend/.next/static ./apps/frontend/.next/static
 
-# Health check
+# CRITICAL: Copy static assets to the correct location within standalone output
+# Standalone server runs from app/apps/frontend/, so static files must be at app/apps/frontend/.next/static
+# Per Next.js docs: https://nextjs.org/docs/app/api-reference/config/next-config-js/output
+COPY --from=builder --chown=nextjs:nodejs /app/apps/frontend/.next/static ./app/apps/frontend/.next/static
+
+# Copy public assets to the correct location within standalone output
+# Public files must be at app/apps/frontend/public for the standalone server
+COPY --from=builder --chown=nextjs:nodejs /app/apps/frontend/public ./app/apps/frontend/public
+
+# Health check - accept 2xx and 3xx status codes (redirects are OK)
 HEALTHCHECK --interval=60s --timeout=10s --start-period=40s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || exit 1
+    CMD node -e "require('http').get('http://localhost:3000/', (r) => process.exit((r.statusCode >= 200 && r.statusCode < 400) ? 0 : 1))"
 
 # Switch to non-root user
 USER nextjs
@@ -121,4 +123,5 @@ USER nextjs
 EXPOSE 3000
 
 # Start the Next.js standalone server
-CMD ["node", "apps/frontend/server.js"]
+# Standalone output includes nested app directory structure
+CMD ["node", "app/apps/frontend/server.js"]
