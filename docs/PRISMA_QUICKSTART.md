@@ -89,6 +89,7 @@ apps/backend/prisma/
 ## When to Create Migrations
 
 ✅ **DO create migrations for**:
+
 - Adding/removing tables
 - Adding/removing columns
 - Changing column types
@@ -96,6 +97,7 @@ apps/backend/prisma/
 - Adding/removing constraints
 
 ❌ **DON'T need migrations for**:
+
 - Changing TypeScript types only
 - Adding JSDoc comments
 - Renaming Prisma Client properties (use `@map()`)

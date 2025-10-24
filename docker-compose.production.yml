@@ -15,7 +15,7 @@ services:
       - ./deployment/caddy/Caddyfile.production:/etc/caddy/Caddyfile:ro
       - caddy-data:/data
       - caddy-config:/config
-      - ./deployment/caddy/logs:/var/log/caddy
+      - caddy-logs:/var/log/caddy
     environment:
       - DOMAIN=${DOMAIN:-localhost}
     networks:
@@ -111,8 +111,7 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test:
-        ['CMD', 'wget', '--no-verbose', '--tries=1', '--spider', 'http://localhost:3001/health']
+      test: ['CMD', 'wget', '--no-verbose', '--tries=1', '--spider', 'http://localhost:3001/health']
       interval: 30s
       timeout: 10s
       retries: 3
@@ -239,6 +238,8 @@ volumes:
   caddy-data:
     driver: local
   caddy-config:
+    driver: local
+  caddy-logs:
     driver: local
 
 networks:

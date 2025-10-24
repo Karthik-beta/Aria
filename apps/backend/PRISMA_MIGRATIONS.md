@@ -5,6 +5,7 @@
 This document explains the **production-ready** implementation of Prisma database migrations in Aria ERP Docker deployments, specifically handling the **existing database baselining scenario**.
 
 **Official References:**
+
 - [Baselining Existing Databases](https://www.prisma.io/docs/orm/prisma-migrate/workflows/baselining)
 - [Development & Production Workflows](https://www.prisma.io/docs/orm/prisma-migrate/workflows/development-and-production)
 - [Migrate Resolve CLI Reference](https://www.prisma.io/docs/orm/reference/prisma-cli-reference#migrate-resolve)
@@ -56,7 +57,8 @@ According to [Prisma's official documentation](https://www.prisma.io/docs/orm/pr
 
 ### Production Environment (Automatic Baselining)
 
-**Files**: 
+**Files**:
+
 - `apps/backend/Dockerfile` (entrypoint configuration)
 - `apps/backend/docker-entrypoint.sh` (smart migration handler)
 
@@ -73,7 +75,6 @@ ENTRYPOINT ["/app/docker-entrypoint.sh"]
 **How it works** (`docker-entrypoint.sh`):
 
 1. **First Migration Attempt**: Runs `npx prisma migrate deploy`
-   
 2. **If P3018 Error** (type/table already exists):
    - Automatically runs `npx prisma migrate resolve --applied 0_init`
    - Re-attempts `npx prisma migrate deploy`
@@ -89,6 +90,7 @@ ENTRYPOINT ["/app/docker-entrypoint.sh"]
 5. **Application Starts**: `exec node dist/main`
 
 **Benefits**:
+
 - ✅ **Zero manual intervention** for both existing and fresh databases
 - ✅ **Automatic baselining** following official Prisma workflow
 - ✅ **Production-safe** error handling with clear logging
@@ -118,6 +120,7 @@ npx prisma migrate dev --name your_migration_name
 ```
 
 **Why this approach?**
+
 - Prevents container restarts on schema changes during development
 - Allows developers to iterate on schema without rebuilding containers
 - Supports interactive migration naming
@@ -186,6 +189,7 @@ npx prisma migrate dev --name descriptive_name
 ```
 
 This will:
+
 - Compare current schema to database
 - Generate a migration SQL file
 - Apply the migration to the database
@@ -260,7 +264,8 @@ This ensures the Prisma Query Engine works correctly in Alpine-based Docker imag
 
 **Cause**: Migration SQL conflicts with existing database state
 
-**Solution**: 
+**Solution**:
+
 1. Check `docker logs aria-backend` for specific error
 2. Connect to database and inspect current schema
 3. Either fix manually and mark as applied, or roll back
@@ -276,6 +281,7 @@ This ensures the Prisma Query Engine works correctly in Alpine-based Docker imag
 **Cause**: Previous migration attempt was interrupted
 
 **Solution**:
+
 ```bash
 # Check migration status
 docker exec aria-postgres psql -U aria -d aria -c "SELECT * FROM _prisma_migrations;"

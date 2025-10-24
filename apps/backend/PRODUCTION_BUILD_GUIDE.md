@@ -7,6 +7,7 @@ This guide explains how to prepare the Aria ERP backend for production deploymen
 We follow the **official Prisma baselining workflow** for production deployments with existing databases:
 
 **References:**
+
 - [Baselining Documentation](https://www.prisma.io/docs/orm/prisma-migrate/workflows/baselining)
 - [Production Deployment Guide](https://www.prisma.io/docs/orm/prisma-migrate/workflows/development-and-production)
 - [Docker Best Practices](https://www.prisma.io/docs/guides/docker)
@@ -131,6 +132,7 @@ datasource db {
 ```
 
 **Why `linux-musl-openssl-3.0.x`?**
+
 - Production Dockerfile uses `node:24-alpine` (Alpine Linux)
 - Alpine uses `musl` libc instead of `glibc`
 - Without this target, Prisma Client won't work in production
@@ -148,6 +150,7 @@ docker compose -f docker-compose.production.yml build backend
 ```
 
 **What Gets Included in the Image:**
+
 - ✅ Compiled JavaScript (`dist/` directory)
 - ✅ Prisma schema (`prisma/schema.prisma`)
 - ✅ All migrations (`prisma/migrations/`)
@@ -172,6 +175,7 @@ NEST_DEBUG=false
 ```
 
 **Security Best Practices:**
+
 - ❌ **NEVER** commit production `.env` files
 - ✅ Use Docker secrets or environment variable injection
 - ✅ Rotate database passwords regularly
@@ -239,22 +243,25 @@ Server running on http://localhost:3001
 **Root Cause**: Database schema exists, but Prisma tries to apply baseline migration
 
 **Solution**: Our `docker-entrypoint.sh` now handles this automatically:
+
 - Detects P3018/P3009 errors
 - Runs `prisma migrate resolve --applied 0_init`
 - Retries migration deployment
 - ✅ No manual intervention needed
 
 **Previous Manual Workaround** (no longer necessary):
+
 ```sql
 -- This is what the entrypoint script does automatically now
-UPDATE _prisma_migrations 
-SET finished_at = NOW(), logs = NULL 
+UPDATE _prisma_migrations
+SET finished_at = NOW(), logs = NULL
 WHERE migration_name = '0_init';
 ```
 
 ### Migration Failed with P3018
 
 **Error Message**:
+
 ```
 Error: P3018
 Database error code: 42710
@@ -264,6 +271,7 @@ Database error: ERROR: type "RuleType" already exists
 **Meaning**: The database already has the schema objects that `0_init` tries to create.
 
 **Resolution**: The entrypoint script automatically:
+
 1. Catches this error
 2. Marks `0_init` as applied without executing SQL
 3. Continues with application startup
@@ -273,6 +281,7 @@ Database error: ERROR: type "RuleType" already exists
 ### Migration Failed with P3009
 
 **Error Message**:
+
 ```
 Error: P3009
 migrate found failed migrations in the target database, new migrations will not be applied.
@@ -282,11 +291,13 @@ The `0_init` migration started at 2025-10-24 08:34:44.971842 UTC failed
 **Meaning**: A previous migration attempt failed and is recorded in `_prisma_migrations` table.
 
 **Resolution**: The entrypoint script automatically:
+
 1. Detects P3009 error
 2. Runs `prisma migrate resolve --applied 0_init` to clear failed state
 3. Retries migration deployment
 
 **Manual Resolution** (if needed):
+
 ```bash
 # Connect to backend container
 docker compose -f docker-compose.production.yml exec backend sh
@@ -304,11 +315,13 @@ docker compose -f docker-compose.production.yml restart backend
 **Scenario**: Deploying to a completely empty database (no tables)
 
 **Expected Behavior**:
+
 1. `prisma migrate deploy` succeeds on first attempt
 2. `0_init` migration creates all tables, types, indexes
 3. Application starts normally
 
 **Log Output**:
+
 ```
 🔍 Checking if baseline migration needs resolution...
 Applying migration `0_init`
@@ -366,6 +379,7 @@ docker compose -f docker-compose.production.yml logs -f backend
 ```
 
 **Expected Log Output**:
+
 ```
 🔍 Checking if baseline migration needs resolution...
 Applying migration `YYYYMMDDHHMMSS_add_new_field`

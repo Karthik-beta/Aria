@@ -58,6 +58,7 @@ docker exec aria-backend npx prisma migrate diff \
 ```
 
 **Files Created**:
+
 - `apps/backend/prisma/migrations/0_init/migration.sql` - Contains complete schema DDL
 - `apps/backend/prisma/migrations/migration_lock.toml` - Locks provider to PostgreSQL
 
@@ -116,11 +117,13 @@ ENTRYPOINT ["/app/docker-entrypoint.sh"]
 **File**: `apps/backend/Dockerfile` (development stage, line ~47)
 
 **Before**:
+
 ```dockerfile
 CMD ["pnpm", "--filter", "backend", "dev"]
 ```
 
 **After**:
+
 ```dockerfile
 # Development entrypoint: Run migrations then start dev server
 # Official Prisma recommendation: Use migrate dev for development environments
@@ -128,6 +131,7 @@ CMD ["sh", "-c", "cd /app/apps/backend && npx prisma migrate dev && pnpm dev"]
 ```
 
 **Behavior**:
+
 - Automatically applies pending migrations
 - Can create new migrations if schema changes are detected
 - Starts NestJS dev server after migrations complete
@@ -137,6 +141,7 @@ CMD ["sh", "-c", "cd /app/apps/backend && npx prisma migrate dev && pnpm dev"]
 **File**: `apps/backend/PRISMA_MIGRATIONS.md`
 
 Includes:
+
 - Official Prisma workflow explanation
 - Step-by-step migration creation guide
 - Troubleshooting procedures
@@ -175,25 +180,30 @@ docker ps --filter "name=aria-backend"
 This implementation satisfies multiple agent requirements:
 
 ### Agent 7 - Official Docs Enforcer ✅
+
 - **Consulted Official Sources**: Used MCP tools to fetch Prisma's official Docker and migration documentation
 - **Implemented Recommended Approach**: Uses `prisma migrate deploy` for production (not `db push` or `migrate dev`)
 - **Referenced Documentation**: Added inline comments with official docs URLs
 
 ### Agent 1 - Simplicity Advocate ✅
+
 - **Leveraged Framework Conventions**: Uses Prisma's built-in migration commands
 - **Minimal Configuration**: No custom scripts, just standard Prisma CLI commands
 - **Centralized Migration Files**: Single source of truth in `prisma/migrations/`
 
 ### Agent 3 - Automation Steward ✅
+
 - **Zero Manual Intervention**: Migrations run automatically on container startup
 - **CI/CD Ready**: Migrations execute before application starts in production
 - **Reproducible**: Same migration process works in dev and prod
 
 ### Agent 6 - Code Cleaner ✅
+
 - **Clean Implementation**: Simple shell command, no complex orchestration
 - **Clear Intent**: Inline comments explain why migrations run on startup
 
 ### Agent 5 - Documentation Scribe ✅
+
 - **Comprehensive Guide**: Created `PRISMA_MIGRATIONS.md` with complete workflow documentation
 - **Inline Comments**: Added TSDoc-style comments in Dockerfile explaining the approach
 - **Troubleshooting Section**: Documented common issues and solutions
