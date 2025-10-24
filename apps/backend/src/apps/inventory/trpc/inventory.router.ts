@@ -21,8 +21,10 @@ export class InventoryRouter {
 
       createItem: publicProcedure
         .input(Inventory.createSchema)
-        .mutation(async ({ input }: { input: Inventory.CreateInput }) => {
-          const item = await this.inventoryService.create(input);
+        .mutation(async ({ input }) => {
+          const item = await this.inventoryService.create(
+            input as Inventory.CreateInput,
+          );
           // Emit event for subscriptions
           console.log('[Inventory] Emitting itemCreated event:', item.id);
           inventoryEvents.emit('itemCreated', item);

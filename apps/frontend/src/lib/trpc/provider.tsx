@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { httpBatchLink, splitLink, wsLink, createWSClient, type TRPCLink } from '@trpc/client';
 import { useState } from 'react';
-import type { AppRouter } from '../../../../backend/src/trpc/trpc.service';
+import type { AppRouter } from 'backend';
 import { trpc } from './client';
 
 /**
@@ -27,22 +27,16 @@ function getBaseUrl() {
  * so we connect directly to the backend WebSocket server
  */
 function getWsUrl(): string {
-  // In development, connect directly to backend WebSocket server
-  if (process.env.NODE_ENV === 'development') {
-    const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
-    return backendUrl.replace('http://', 'ws://').replace('https://', 'wss://') + '/trpc-ws';
+  // Use NEXT_PUBLIC_API_URL if explicitly set
+  if (process.env.NEXT_PUBLIC_API_URL) {
+    // Correctly determine protocol and strip http(s):// prefix
+    const protocol = process.env.NEXT_PUBLIC_API_URL.startsWith('https') ? 'wss://' : 'ws://';
+    const url = process.env.NEXT_PUBLIC_API_URL.replace(/^https?:\/\//, '');
+    return `${protocol}${url}/trpc-ws`;
   }
 
-  // In production, use the same host with wss protocol
+  // Default: use current host (works with Caddy proxy or direct access)
   const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const baseUrl = process.env.NEXT_PUBLIC_API_URL;
-
-  if (baseUrl) {
-    const url = baseUrl.replace('http://', 'ws://').replace('https://', 'wss://');
-    return `${url}/trpc-ws`;
-  }
-
-  // Fallback: use current host (assumes backend is on same domain)
   return `${wsProtocol}//${window.location.host}/trpc-ws`;
 }
 

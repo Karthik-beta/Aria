@@ -1,152 +1,178 @@
-# Aria ERP Development Environment
-# This docker-compose.yml is for LOCAL DEVELOPMENT ONLY
-# For production deployment, use the deployment package: pnpm package
+# Docker Compose Configuration for Development Environment
+# This configuration is optimized for local development with hot-reload and debugging
 
 services:
-  traefik:
-    image: traefik:v3.5
-    container_name: aria-dev-proxy
-    command:
-      - '--providers.docker=true'
-      - '--providers.file.directory=/etc/traefik/dynamic'
-      - '--providers.file.watch=true'
-      - '--entrypoints.web.address=:80'
-      - '--entrypoints.websecure.address=:443'
-      - '--entrypoints.web.http.redirections.entrypoint.to=websecure'
-      - '--entrypoints.web.http.redirections.entrypoint.scheme=https'
-      - '--api.dashboard=true'
-      - '--api.insecure=true'
-      - '--log.level=DEBUG'
+  # Caddy reverse proxy (development mode)
+  caddy:
+    image: caddy:2.8-alpine
+    container_name: aria-dev-caddy
+    restart: unless-stopped
     ports:
       - '80:80'
-      - '443:443'
-      - '8080:8080' # Traefik dashboard
+      - '2680:2019' # Admin API (mapped to 2680 to avoid Windows port exclusion ranges)
     volumes:
-      - '/var/run/docker.sock:/var/run/docker.sock:ro'
-      - './traefik/dynamic:/etc/traefik/dynamic:ro'
-      - './traefik/certs:/etc/ssl/traefik:ro'
-
-  postgres:
-    image: postgres:18
-    container_name: aria-dev-database
+      - ./deployment/caddy/Caddyfile.development:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    networks:
+      - aria-dev-network
+    depends_on:
+      - frontend
+      - backend
     environment:
-      POSTGRES_DB: aria
-      POSTGRES_USER: aria
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-aria_dev_password}
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-    ports:
-      - '5432:5432' # Expose for local development tools
+      - DOMAIN=${DOMAIN:-localhost}
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -d aria -U aria']
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      test: ['CMD', 'wget', '--no-verbose', '--tries=1', '--spider', 'http://localhost/']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
 
+  # Frontend (Next.js development server)
+  frontend:
+    build:
+      context: .
+      dockerfile: apps/frontend/Dockerfile
+      target: development
+    container_name: aria-dev-frontend
+    restart: unless-stopped
+    ports:
+      - '3000:3000' # Exposed for direct access during dev
+    volumes:
+      # Mount app source code
+      - ./apps/frontend:/app/apps/frontend
+
+      # Mount source code for each package
+      - ./packages/types:/app/packages/types
+      - ./packages/utils:/app/packages/utils
+
+      # Preserve node_modules in each package
+      - /app/packages/types/node_modules
+      - /app/packages/utils/node_modules
+      # - /app/packages/config-eslint/node_modules
+      # - /app/packages/config-typescript/node_modules
+
+      # Preserve app-level and root node_modules
+      - /app/apps/frontend/node_modules
+      - /app/apps/frontend/.next
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+      # Empty string forces browser to use relative URLs (same origin)
+      # For browser WebSocket: ws://localhost/trpc-ws (proxied by Caddy)
+      # See: https://trpc.io/docs/client/links/wsLink
+      - NEXT_PUBLIC_API_URL=
+      # Flag to disable Next.js rewrites in Docker (Caddy handles all proxying)
+      - DOCKER=true
+      - NEXT_TELEMETRY_DISABLED=1
+      - WATCHPACK_POLLING=true
+    networks:
+      - aria-dev-network
+    depends_on:
+      backend:
+        condition: service_healthy
+    command: pnpm dev
+
+  # Backend (NestJS development server)
   backend:
     build:
       context: .
       dockerfile: apps/backend/Dockerfile
+      target: development
     container_name: aria-dev-backend
+    restart: unless-stopped
+    ports:
+      - '3001:3001' # Exposed for direct access during dev
+      - '9229:9229' # Node.js debugger
+    volumes:
+      # Mount source files for hot reload
+      - ./apps/backend/src:/app/apps/backend/src:cached
+      - ./apps/backend/package.json:/app/apps/backend/package.json:ro
+      - ./apps/backend/tsconfig.json:/app/apps/backend/tsconfig.json:ro
+
+      # Mount source code for each package
+      - ./packages/types:/app/packages/types:cached
+      - ./packages/utils:/app/packages/utils:cached
+
+      # Preserve node_modules in each package
+      - /app/packages/types/node_modules
+      - /app/packages/utils/node_modules
+
+      # Preserve app-level and root node_modules
+      - backend-node-modules:/app/apps/backend/node_modules
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://aria_dev:${POSTGRES_PASSWORD:-dev_password}@postgres:5432/aria_dev
+      - PORT=3001
+      - JWT_SECRET=${JWT_SECRET:-dev_jwt_secret_change_in_production}
+    networks:
+      - aria-dev-network
     depends_on:
       postgres:
         condition: service_healthy
-    environment:
-      NODE_ENV: development
-      DATABASE_URL: postgresql://aria:${POSTGRES_PASSWORD:-aria_dev_password}@postgres:5432/aria
-    expose:
-      - '3000'
-    restart: unless-stopped
-    labels:
-      - 'traefik.enable=true'
-      - 'traefik.http.routers.backend-dev.rule=PathPrefix(`/api`)'
-      - 'traefik.http.routers.backend-dev.entrypoints=websecure'
-      - 'traefik.http.routers.backend-dev.tls=true'
-      - 'traefik.http.services.backend-dev.loadbalancer.server.port=3000'
+    healthcheck:
+      test: ['CMD', 'wget', '--no-verbose', '--tries=1', '--spider', 'http://localhost:3001/health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    command: pnpm dev
 
-  asset:
-    build:
-      context: .
-      dockerfile: apps/frontend/asset/Dockerfile
-    container_name: aria-dev-asset
-    profiles:
-      - asset
-      - full
-    environment:
-      NODE_ENV: development
-      DOCKER_ENV: 'true'
-    expose:
-      - '3000'
+  # PostgreSQL database
+  postgres:
+    image: postgres:18-alpine
+    container_name: aria-dev-postgres
     restart: unless-stopped
-    labels:
-      - 'traefik.enable=true'
-      - 'traefik.http.routers.asset-dev.rule=PathPrefix(`/asset`)'
-      - 'traefik.http.routers.asset-dev.entrypoints=websecure'
-      - 'traefik.http.routers.asset-dev.tls=true'
-      - 'traefik.http.services.asset-dev.loadbalancer.server.port=3000'
+    ports:
+      - '5432:5432' # Exposed for database tools
+    environment:
+      - POSTGRES_DB=aria_dev
+      - POSTGRES_USER=aria_dev
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-dev_password}
+      - POSTGRES_INITDB_ARGS=--encoding=UTF-8 --lc-collate=en_US.UTF-8 --lc-ctype=en_US.UTF-8
+    volumes:
+      - postgres-dev-data:/var/lib/postgresql/data
+    networks:
+      - aria-dev-network
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -d aria_dev -U aria_dev']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
-  hrms:
-    build:
-      context: .
-      dockerfile: apps/frontend/hrms/Dockerfile
-    container_name: aria-dev-hrms
-    profiles:
-      - hrms
-      - full
-    environment:
-      NODE_ENV: development
-      DOCKER_ENV: 'true'
-    expose:
-      - '3000'
+  # Redis (for caching and sessions)
+  redis:
+    image: redis:7-alpine
+    container_name: aria-dev-redis
     restart: unless-stopped
-    labels:
-      - 'traefik.enable=true'
-      - 'traefik.http.routers.hrms-dev.rule=PathPrefix(`/hrms`)'
-      - 'traefik.http.routers.hrms-dev.entrypoints=websecure'
-      - 'traefik.http.routers.hrms-dev.tls=true'
-      - 'traefik.http.services.hrms-dev.loadbalancer.server.port=3000'
-
-  inventory:
-    build:
-      context: .
-      dockerfile: apps/frontend/inventory/Dockerfile
-    container_name: aria-dev-inventory
-    profiles:
-      - inventory
-      - full
-    environment:
-      NODE_ENV: development
-      DOCKER_ENV: 'true'
-    expose:
-      - '3000'
-    restart: unless-stopped
-    labels:
-      - 'traefik.enable=true'
-      - 'traefik.http.routers.inventory-dev.rule=PathPrefix(`/inventory`)'
-      - 'traefik.http.routers.inventory-dev.entrypoints=websecure'
-      - 'traefik.http.routers.inventory-dev.tls=true'
-      - 'traefik.http.services.inventory-dev.loadbalancer.server.port=3000'
-
-  crm:
-    build:
-      context: .
-      dockerfile: apps/frontend/CRM/Dockerfile
-    container_name: aria-dev-crm
-    profiles:
-      - crm
-      - full
-    environment:
-      NODE_ENV: development
-      DOCKER_ENV: 'true'
-    expose:
-      - '3000'
-    restart: unless-stopped
-    labels:
-      - 'traefik.enable=true'
-      - 'traefik.http.routers.crm-dev.rule=PathPrefix(`/crm`)'
-      - 'traefik.http.routers.crm-dev.entrypoints=websecure'
-      - 'traefik.http.routers.crm-dev.tls=true'
-      - 'traefik.http.services.crm-dev.loadbalancer.server.port=3000'
+    ports:
+      - '6379:6379' # Exposed for Redis tools
+    volumes:
+      - redis-dev-data:/data
+    networks:
+      - aria-dev-network
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command: redis-server --appendonly yes
 
 volumes:
-  postgres-data:
+  postgres-dev-data:
+    driver: local
+  redis-dev-data:
+    driver: local
+  caddy-data:
+    driver: local
+  caddy-config:
+    driver: local
+  backend-node-modules:
+    driver: local
+
+networks:
+  aria-dev-network:
+    driver: bridge
+    name: aria-dev-network

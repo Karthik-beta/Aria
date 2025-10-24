@@ -62,10 +62,17 @@ export default function ItemFormPage() {
     }
   }, [item, isEditMode, form]);
 
+  // tRPC utils for cache management
+  const utils = trpc.useUtils();
+
   // Create mutation
   const createMutation = trpc.inventory.createItem.useMutation({
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       toast.success('Item created successfully!');
+      // Invalidate and refetch list cache so the new item appears immediately
+      await utils.inventory.listItems.invalidate();
+      // Small delay to ensure cache updates propagate
+      await new Promise((resolve) => setTimeout(resolve, 100));
       startTransition(() => {
         router.push(`/inventory/items-catalogue/item/${data.id}`);
       });
@@ -77,8 +84,12 @@ export default function ItemFormPage() {
 
   // Update mutation
   const updateMutation = trpc.inventory.updateItem.useMutation({
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       toast.success('Item updated successfully!');
+      // Invalidate and refetch list cache so updated item reflects immediately
+      await utils.inventory.listItems.invalidate();
+      // Small delay to ensure cache updates propagate
+      await new Promise((resolve) => setTimeout(resolve, 100));
       startTransition(() => {
         router.push(`/inventory/items-catalogue/item/${data.id}`);
       });

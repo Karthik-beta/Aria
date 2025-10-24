@@ -56,8 +56,11 @@ export default function InventoryItemDetailPage() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
 
   // Fetch all items to find the current one
+  // Enable staleTime but allow manual refetching
   const { data: items = [], isLoading } = trpc.inventory.listItems.useQuery(undefined, {
-    refetchOnWindowFocus: false,
+    refetchOnWindowFocus: true,
+    refetchOnMount: true,
+    staleTime: 1000, // Consider data stale after 1 second
   });
 
   const item = items.find((i) => i.id === itemId) as Inventory.Item | undefined;

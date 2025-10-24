@@ -1,6 +1,6 @@
-import { createTRPCClient, httpBatchLink } from '@trpc/client';
-import { createTRPCReact } from '@trpc/react-query';
-import type { AppRouter } from '../../../../backend/src/trpc/trpc.service';
+import { createTRPCClient, httpBatchLink, type TRPCClient } from '@trpc/client';
+import { createTRPCReact, type CreateTRPCReact } from '@trpc/react-query';
+import type { AppRouter } from 'backend';
 
 /**
  * Get the tRPC API URL from environment or default to localhost
@@ -18,12 +18,12 @@ function getBaseUrl() {
  * Create tRPC React Query hooks
  * This provides type-safe hooks for queries and mutations
  */
-export const trpc = createTRPCReact<AppRouter>();
+export const trpc: CreateTRPCReact<AppRouter, unknown> = createTRPCReact<AppRouter>();
 
 /**
  * Vanilla tRPC client for server-side usage or non-React contexts
  */
-export const trpcClient = createTRPCClient<AppRouter>({
+export const trpcClient: TRPCClient<AppRouter> = createTRPCClient<AppRouter>({
   links: [
     httpBatchLink({
       url: `${getBaseUrl()}/trpc`,

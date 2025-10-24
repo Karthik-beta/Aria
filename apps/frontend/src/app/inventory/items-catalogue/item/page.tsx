@@ -100,10 +100,7 @@ export default function InventoryItemsPage() {
 
   // Memoize callbacks to prevent subscription re-initialization
   const handleSubscriptionData = React.useCallback(
-    (event: {
-      type: 'created' | 'updated' | 'deleted';
-      data: Inventory.Item | { id: string };
-    }) => {
+    (event: { type: 'created' | 'updated' | 'deleted'; data: Inventory.Item | { id: string } }) => {
       if (process.env.NODE_ENV === 'development') {
         console.log('[Real-time] Received event:', event.type, event.data);
       }

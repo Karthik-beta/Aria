@@ -7,6 +7,8 @@
 generator client {
   provider = "prisma-client-js"
   output   = "../generated/prisma"
+  // Ensure Prisma generates the correct query engine for linux musl (used in Alpine-based images)
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
 }
 
 datasource db {
