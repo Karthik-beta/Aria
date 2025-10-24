@@ -25,8 +25,9 @@
         # See: https://trpc.io/docs/server/websockets
         reverse_proxy /trpc-ws backend:3001
         
-        # WebSocket support for Next.js hot-reload
-        reverse_proxy /ws backend:3001 {
+        # WebSocket support for Next.js hot-reload (HMR)
+        # Must route to frontend:3000 where Next.js dev server runs
+        reverse_proxy /ws frontend:3000 {
             header_up Upgrade {>Upgrade}
             header_up Connection {>Connection}
         }

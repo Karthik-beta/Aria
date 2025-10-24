@@ -2,10 +2,15 @@
 # Supports both development and production environments
 
 # Base stage with Node.js and pnpm
-FROM node:22-alpine AS base
+# Using Node.js 20.15.1 - last version before transformAlgorithm bug
+# Node.js 20.16+ introduced kState transformAlgorithm streaming bug
+# Next.js 16 requires Node.js >= 20.9.0, so v18 doesn't work
+# See: https://github.com/vercel/next.js/issues/68319
+# See: https://github.com/vercel/next.js/discussions/75995
+FROM node:20.15.1-slim AS base
 WORKDIR /app
-RUN corepack enable && corepack prepare pnpm@latest --activate
-RUN apk add --no-cache libc6-compat
+# Install pnpm directly via npm to avoid Node.js 20.15.1 corepack signature issues
+RUN npm install -g pnpm@10.17.1
 
 # Dependencies stage - install all dependencies
 FROM base AS deps

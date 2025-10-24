@@ -45,7 +45,7 @@ Quick reference for maintaining security across the Aria ERP monorepo.
 
 ### Dockerfile Best Practices
 
-- ✅ Use official base images (`node:22-alpine`)
+- ✅ Use official base images (`node:24-alpine`)
 - ✅ Multi-stage builds to minimize attack surface
 - ✅ Run as non-root user
 - ✅ Scan images for vulnerabilities (`docker scan`)
@@ -143,7 +143,7 @@ DATABASE_URL=postgresql://user:password@host/db
 docker scan aria/backend:latest
 
 # Update base images regularly
-docker pull node:22-alpine
+docker pull node:24-alpine
 docker-compose build
 ```
 
