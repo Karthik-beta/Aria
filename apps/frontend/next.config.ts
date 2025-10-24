@@ -5,6 +5,18 @@ import type { NextConfig } from 'next';
 const workspaceRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const isDev = process.env.NODE_ENV !== 'production';
 
+// Debug: Log all relevant environment variables
+console.log('[next.config] Environment variables at config load:');
+console.log('  NODE_ENV:', process.env.NODE_ENV);
+console.log('  BACKEND_URL:', process.env.BACKEND_URL);
+console.log('  NEXT_PUBLIC_API_URL:', process.env.NEXT_PUBLIC_API_URL);
+
+// Backend URL for server-side proxying (read at build/startup time)
+// In Docker: http://backend:3001
+// In local dev: http://localhost:3001
+const backendUrl = process.env.BACKEND_URL || 'http://localhost:3001';
+console.log('[next.config] Using backendUrl:', backendUrl);
+
 // Multi-zone doesn't need basePath - routes are native to zones
 const nextConfig: NextConfig = {
   // Turbopack configuration for monorepo
@@ -149,19 +161,9 @@ const nextConfig: NextConfig = {
     ];
   },
 
-  // Proxy /trpc requests to backend in development
-  async rewrites() {
-    if (!isDev) return [];
-
-    const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
-
-    return [
-      {
-        source: '/trpc/:path*',
-        destination: `${backendUrl}/trpc/:path*`,
-      },
-    ];
-  },
+  // No rewrites needed - Caddy reverse proxy handles all routing
+  // In local development without Docker, access backend at localhost:3001 directly
+  // or run Caddy locally for the full stack experience
 
   // Compression for faster loads
   compress: true,

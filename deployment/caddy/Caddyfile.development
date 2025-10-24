@@ -20,7 +20,12 @@
         reverse_proxy /api/* backend:3001
         reverse_proxy /trpc/* backend:3001
         
-        # WebSocket support for hot-reload
+        # tRPC WebSocket endpoint (critical for tRPC subscriptions)
+        # Caddy automatically handles WebSocket upgrade headers
+        # See: https://trpc.io/docs/server/websockets
+        reverse_proxy /trpc-ws backend:3001
+        
+        # WebSocket support for Next.js hot-reload
         reverse_proxy /ws backend:3001 {
             header_up Upgrade {>Upgrade}
             header_up Connection {>Connection}

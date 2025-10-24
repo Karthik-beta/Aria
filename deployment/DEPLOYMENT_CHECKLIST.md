@@ -566,9 +566,9 @@ Use this checklist to ensure a successful production deployment of Aria ERP.
 
 ### Deployment Team
 
-- [ ] System Administrator: ****\*\*****\_\_****\*\***** Date: \***\*\_\_\*\***
-- [ ] DevOps Engineer: ****\*\*****\_\_****\*\***** Date: \***\*\_\_\*\***
-- [ ] Application Owner: ****\*\*****\_\_****\*\***** Date: \***\*\_\_\*\***
+- [ ] System Administrator: \***\*\*\*\*\***\_\_\***\*\*\*\*\*** Date: \***\*\_\_\*\***
+- [ ] DevOps Engineer: \***\*\*\*\*\***\_\_\***\*\*\*\*\*** Date: \***\*\_\_\*\***
+- [ ] Application Owner: \***\*\*\*\*\***\_\_\***\*\*\*\*\*** Date: \***\*\_\_\*\***
 
 ### Verification
 

@@ -9,7 +9,7 @@ services:
     restart: unless-stopped
     ports:
       - '80:80'
-      - '2019:2019' # Admin API
+      - '2680:2019' # Admin API (mapped to 2680 to avoid Windows port exclusion ranges)
     volumes:
       - ./deployment/caddy/Caddyfile.development:/etc/caddy/Caddyfile:ro
       - caddy-data:/data
@@ -23,7 +23,7 @@ services:
       - DOMAIN=${DOMAIN:-localhost}
     healthcheck:
       test:
-        ['CMD', 'wget', '--no-verbose', '--tries=1', '--spider', 'http://localhost:2019/config/']
+        ['CMD', 'wget', '--no-verbose', '--tries=1', '--spider', 'http://localhost/']
       interval: 30s
       timeout: 10s
       retries: 3
@@ -59,7 +59,12 @@ services:
       - /app/node_modules
     environment:
       - NODE_ENV=development
-      - NEXT_PUBLIC_API_URL=http://localhost/api
+      # Empty string forces browser to use relative URLs (same origin)
+      # For browser WebSocket: ws://localhost/trpc-ws (proxied by Caddy)
+      # See: https://trpc.io/docs/client/links/wsLink
+      - NEXT_PUBLIC_API_URL=
+      # Flag to disable Next.js rewrites in Docker (Caddy handles all proxying)
+      - DOCKER=true
       - NEXT_TELEMETRY_DISABLED=1
       - WATCHPACK_POLLING=true
     networks:

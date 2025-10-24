@@ -27,22 +27,17 @@ function getBaseUrl() {
  * so we connect directly to the backend WebSocket server
  */
 function getWsUrl(): string {
-  // In development, connect directly to backend WebSocket server
-  if (process.env.NODE_ENV === 'development') {
-    const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
-    return backendUrl.replace('http://', 'ws://').replace('https://', 'wss://') + '/trpc-ws';
-  }
-
-  // In production, use the same host with wss protocol
-  const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const baseUrl = process.env.NEXT_PUBLIC_API_URL;
-
-  if (baseUrl) {
-    const url = baseUrl.replace('http://', 'ws://').replace('https://', 'wss://');
+  // Use NEXT_PUBLIC_API_URL if explicitly set
+  if (process.env.NEXT_PUBLIC_API_URL) {
+    const url = process.env.NEXT_PUBLIC_API_URL.replace('http://', 'ws://').replace(
+      'https://',
+      'wss://'
+    );
     return `${url}/trpc-ws`;
   }
 
-  // Fallback: use current host (assumes backend is on same domain)
+  // Default: use current host (works with Caddy proxy or direct access)
+  const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   return `${wsProtocol}//${window.location.host}/trpc-ws`;
 }
 
