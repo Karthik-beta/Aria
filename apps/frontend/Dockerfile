@@ -83,8 +83,12 @@ ENV NEXT_TELEMETRY_DISABLED=1
 # Generate Prisma client before building (required for backend types)
 RUN cd apps/backend && pnpm exec prisma generate
 
-# Build everything using Turbo (handles dependency order automatically)
-# Turbo will build @aria/types, @aria/utils, backend types, and frontend in correct order
+# Build dependencies in order: backend must be built first for frontend to access AppRouter types
+RUN pnpm --filter "@aria/types" build || true
+RUN pnpm --filter "@aria/utils" build || true
+RUN pnpm --filter backend build
+
+# Build frontend using Turbo
 RUN pnpm turbo build --filter=frontend...
 
 # Production runner stage - minimal production image with standalone output

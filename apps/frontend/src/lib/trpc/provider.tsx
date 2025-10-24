@@ -29,11 +29,10 @@ function getBaseUrl() {
 function getWsUrl(): string {
   // Use NEXT_PUBLIC_API_URL if explicitly set
   if (process.env.NEXT_PUBLIC_API_URL) {
-    const url = process.env.NEXT_PUBLIC_API_URL.replace('http://', 'ws://').replace(
-      'https://',
-      'wss://'
-    );
-    return `${url}/trpc-ws`;
+    // Correctly determine protocol and strip http(s):// prefix
+    const protocol = process.env.NEXT_PUBLIC_API_URL.startsWith('https') ? 'wss://' : 'ws://';
+    const url = process.env.NEXT_PUBLIC_API_URL.replace(/^https?:\/\//, '');
+    return `${protocol}${url}/trpc-ws`;
   }
 
   // Default: use current host (works with Caddy proxy or direct access)

@@ -59,7 +59,7 @@ COPY turbo.json ./
 COPY packages ./packages
 COPY apps/backend ./apps/backend
 
-# Build shared packages first
+# Build shared packages first (in dependency order)
 RUN pnpm --filter "@aria/types" build || true
 RUN pnpm --filter "@aria/utils" build || true
 
