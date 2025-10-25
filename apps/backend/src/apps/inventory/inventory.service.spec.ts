@@ -2,7 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { InventoryService } from './inventory.service';
 import { PrismaService } from '../../shared/prisma.service';
 import { ConflictException, NotFoundException } from '@nestjs/common';
-import { Prisma } from '../../../generated/prisma';
+import { Prisma } from 'db';
 
 describe('InventoryService', () => {
   let service: InventoryService;

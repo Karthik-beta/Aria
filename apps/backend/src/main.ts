@@ -7,7 +7,10 @@ import { TrpcService } from './trpc/trpc.service';
 import { TrpcContext } from './trpc/trpc.context';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  // Disable body parser for Better Auth to work correctly
+  const app = await NestFactory.create(AppModule, {
+    bodyParser: false, // Required for Better Auth
+  });
 
   // Enable CORS for frontend
   app.enableCors({

@@ -51,24 +51,25 @@ CMD ["sh", "-c", "cd /app/apps/backend && npx prisma migrate dev && pnpm dev"]
 FROM base AS builder
 WORKDIR /app
 
-# Copy everything from deps (maintains pnpm virtual store structure)
+# Copy everything from deps (includes node_modules and pnpm store)
 COPY --from=deps /app ./
 
-# Copy source files
+# Copy all source code (will overwrite package.json files with same content)
 COPY turbo.json ./
 COPY packages ./packages
 COPY apps/backend ./apps/backend
 
-# Build shared packages first (in dependency order)
-RUN pnpm --filter "@aria/types" build || true
-RUN pnpm --filter "@aria/utils" build || true
+# Generate Prisma client FIRST (required for backend build)
+# This ensures the Prisma Query Engine is present and types are available
+RUN cd /app/apps/backend && npx prisma generate
+
+# Build shared packages (in dependency order)
+# These create packages/*/dist directories
+RUN pnpm --filter "@aria/types" build
+RUN pnpm --filter "@aria/utils" build
 
 # Build the backend application
 RUN pnpm --filter backend build
-
-# Generate Prisma client for target platforms (include linux-musl for Alpine)
-# This ensures the Prisma Query Engine is present inside the image and avoids runtime errors
-RUN pnpm --filter backend exec prisma generate || pnpm --filter backend exec npx prisma generate || true
 
 # Prune development dependencies and create production deployment
 RUN pnpm --filter backend --prod deploy --legacy /app/deploy

@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import type { Inventory } from '@aria/types';
 import { PrismaService } from '../../shared/prisma.service';
-import { Prisma } from '../../../generated/prisma';
+import { Prisma } from 'db';
 
 /**
  * Simple inventory service with type-safe CRUD operations
