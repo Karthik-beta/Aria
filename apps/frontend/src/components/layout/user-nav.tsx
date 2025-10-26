@@ -11,7 +11,9 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { UserAvatarProfile } from '@/components/user-avatar-profile';
 import { useRouter } from 'next/navigation';
+import { signOut } from '@/lib/auth/client';
 import * as React from 'react';
+import { toast } from 'sonner';
 
 export function UserNav() {
   const user = {
@@ -57,7 +59,35 @@ export function UserNav() {
           <DropdownMenuItem>New Team</DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
-        <DropdownMenuItem disabled>Sign out disabled</DropdownMenuItem>
+        <DropdownMenuItem
+          onClick={async () => {
+            try {
+              await signOut();
+              // toast may be mocked in tests; guard calls to avoid runtime errors
+              try {
+                if (typeof toast?.success === 'function') {
+                  toast.success('Signed out successfully');
+                }
+              } catch (e) {
+                /* swallow toast errors in test/runtime */
+              }
+              router.push('/login');
+            } catch (err) {
+              console.error('Sign out failed:', err);
+              try {
+                if (typeof toast?.error === 'function') {
+                  toast.error('Failed to sign out. Please try again.');
+                }
+              } catch (e) {
+                /* swallow toast errors in test/runtime */
+              }
+              // Fallback to redirect to login even if signOut fails
+              router.push('/login');
+            }
+          }}
+        >
+          Sign out
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );

@@ -72,7 +72,7 @@ export default function LoginPage() {
   }, [session, isPending, error]);
 
   return (
-    <div className="container flex min-h-screen w-screen flex-col items-center justify-center">
+    <div className="min-h-screen flex w-full flex-col items-center justify-center">
       {/* Debug Info Banner */}
       {process.env.NODE_ENV === 'production' && (
         <div className="mb-4 w-full max-w-md rounded-lg border border-blue-500 bg-blue-50 p-4 text-sm">

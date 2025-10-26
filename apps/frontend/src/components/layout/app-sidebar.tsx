@@ -43,6 +43,8 @@ import {
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import * as React from 'react';
+import { signOut } from '@/lib/auth/client';
+import { toast } from 'sonner';
 import { Icons } from '../icons';
 import { AppSwitcher } from '../app-switcher';
 export const company = {
@@ -220,9 +222,21 @@ export default function AppSidebar() {
                   </DropdownMenuItem>
                 </DropdownMenuGroup>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem disabled>
+                <DropdownMenuItem
+                  onClick={async () => {
+                    try {
+                      await signOut();
+                      toast.success('Signed out successfully');
+                      router.push('/login');
+                    } catch (err) {
+                      console.error('Sign out failed:', err);
+                      toast.error('Failed to sign out. Please try again.');
+                      router.push('/login');
+                    }
+                  }}
+                >
                   <IconLogout className="mr-2 h-4 w-4" />
-                  Sign out disabled
+                  Sign out
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
