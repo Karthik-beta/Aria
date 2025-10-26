@@ -10,32 +10,76 @@ import { authClient } from '@/lib/auth/client';
  * @remarks
  * Redirects to login if user is not authenticated in production.
  * Bypasses check in development environment.
+ * 
+ * According to Better Auth docs, useSession returns { data, error, isPending }
+ * We must handle all three states properly to avoid white screens.
  */
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { data: session, isPending } = authClient.useSession();
+  const { data: session, isPending, error } = authClient.useSession();
 
   useEffect(() => {
-    // Only enforce auth in production
-    if (process.env.NODE_ENV !== 'production') {
+    // Log session state for debugging
+    console.log('[AuthGuard] Session state:', {
+      isPending,
+      hasSession: !!session,
+      hasError: !!error,
+      pathname,
+      nodeEnv: process.env.NODE_ENV,
+    });
+
+    // If there's an error fetching session, log it
+    if (error) {
+      console.error('[AuthGuard] Session fetch error:', error);
+    }
+
+    // Normalize pathname (remove trailing slash)
+    const normalizedPath = pathname.endsWith('/') && pathname !== '/' 
+      ? pathname.slice(0, -1) 
+      : pathname;
+
+    // Allow access to login page and debug page
+    if (normalizedPath === '/login' || normalizedPath === '/debug') {
       return;
     }
 
-    // Allow access to login page
-    if (pathname === '/login') {
-      return;
-    }
-
-    // Redirect to login if not authenticated
+    // If session fetch failed (error) or no session after loading completes
+    // redirect to login
     if (!isPending && !session) {
+      console.log('[AuthGuard] Redirecting to login - no session');
       router.push('/login');
     }
-  }, [session, isPending, router, pathname]);
+  }, [session, isPending, error, router, pathname]);
 
-  // In development or on login page, show children immediately
-  if (process.env.NODE_ENV !== 'production' || pathname === '/login') {
+  // Normalize pathname (remove trailing slash)
+  const normalizedPath = pathname.endsWith('/') && pathname !== '/' 
+    ? pathname.slice(0, -1) 
+    : pathname;
+
+  // On login/debug page, show children immediately
+  if (normalizedPath === '/login' || normalizedPath === '/debug') {
     return <>{children}</>;
+  }
+
+  // Show error state if session fetch failed
+  if (error) {
+    return (
+      <div className="flex h-screen flex-col items-center justify-center gap-4">
+        <div className="text-destructive">
+          <p className="text-lg font-semibold">Authentication Error</p>
+          <p className="text-sm text-muted-foreground">
+            {error.message || 'Failed to verify authentication'}
+          </p>
+        </div>
+        <button
+          onClick={() => router.push('/login')}
+          className="rounded-md bg-primary px-4 py-2 text-primary-foreground hover:bg-primary/90"
+        >
+          Go to Login
+        </button>
+      </div>
+    );
   }
 
   // Show loading state while checking session
@@ -55,3 +99,4 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   // Show nothing while redirecting
   return null;
 }
+

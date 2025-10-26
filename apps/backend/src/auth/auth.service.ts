@@ -1,12 +1,12 @@
 import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
 import { PrismaClient } from 'db';
-import * as bcrypt from 'bcrypt';
+import { auth } from './auth.config';
 
 /**
  * Authentication service for managing users and default account creation
  *
  * @remarks
- * - Creates default admin user on startup in production
+ * - Creates default admin user on startup using better-auth API
  * - Credentials sourced from environment variables
  */
 @Injectable()
@@ -15,16 +15,15 @@ export class AuthService implements OnModuleInit {
   private readonly prisma = new PrismaClient();
 
   async onModuleInit() {
-    // Only create default user in production
-    if (process.env.NODE_ENV === 'production') {
-      await this.createDefaultUser();
-    }
+    // Create default user in both development and production for testing
+    await this.createDefaultUser();
   }
 
   /**
    * Create default admin user from environment variables
    *
    * @remarks
+   * Uses better-auth's sign-up endpoint via internal fetch to ensure proper password hashing.
    * Reads DEFAULT_ADMIN_USERNAME, DEFAULT_ADMIN_PASSWORD, and DEFAULT_ADMIN_EMAIL
    * from environment. Skips if user already exists.
    */
@@ -55,32 +54,40 @@ export class AuthService implements OnModuleInit {
         return;
       }
 
-      // Hash password
-      const hashedPassword = await bcrypt.hash(password, 10);
-
-      // Create user
-      const user = await this.prisma.user.create({
-        data: {
-          username,
-          email,
-          name,
-          emailVerified: true,
+      // Create user via better-auth's Request API
+      // Username plugin uses /sign-up/email endpoint with username field
+      const request = new Request(
+        `${process.env.BETTER_AUTH_URL || 'http://localhost:3001'}/api/auth/sign-up/email`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            username,
+            password,
+            email,
+            name,
+          }),
         },
-      });
+      );
 
-      // Create credential account
-      await this.prisma.account.create({
-        data: {
-          userId: user.id,
-          accountId: user.id,
-          providerId: 'credential',
-          password: hashedPassword,
-        },
-      });
+      const response = await auth.handler(request);
+      
+      this.logger.log(`Response status: ${response.status}`);
+      const responseText = await response.text();
+      this.logger.log(`Response body: ${responseText}`);
 
-      this.logger.log(`Default admin user created successfully: ${username}`);
+      if (response.ok) {
+        this.logger.log(`Default admin user created successfully: ${username}`);
+      } else {
+        this.logger.error(
+          `Failed to create admin user via better-auth: ${response.status}`,
+          responseText,
+        );
+      }
     } catch (error) {
-      this.logger.error('Failed to create default admin user', error);
+      this.logger.error('Failed to create default admin user:', error);
     }
   }
 

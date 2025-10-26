@@ -114,9 +114,17 @@ COPY --from=builder --chown=nestjs:nodejs /app/apps/backend/dist ./dist
 COPY --from=builder --chown=nestjs:nodejs /app/apps/backend/prisma ./prisma/
 COPY --from=builder --chown=nestjs:nodejs /app/apps/backend/generated ./generated/
 
+# Ensure the generated Prisma client is available under the runtime package name 'db'
+# so runtime imports like `import { PrismaClient } from 'db'` resolve correctly.
+# Copy the generated client into node_modules/db at build time so node's resolver
+# can load it via require('db') in the production container.
+COPY --from=builder --chown=nestjs:nodejs /app/apps/backend/generated/prisma ./node_modules/db
+
 # Lightweight healthcheck for container orchestration to probe the app
+# Use curl (installed in runner) which is available on Alpine; wget may not
+# be present in minimal images and can cause false unhealthy signals.
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:3001/health || exit 1
+    CMD curl -fsS http://localhost:3001/health || exit 1
 
 # Copy entrypoint that handles migration baseline resolution and startup
 COPY --chown=nestjs:nestjs apps/backend/docker-entrypoint.sh /app/docker-entrypoint.sh
@@ -130,3 +138,11 @@ EXPOSE 3001
 
 # Entrypoint handles production-friendly migration and then starts the process
 ENTRYPOINT ["/app/docker-entrypoint.sh"]
+ 
+# Install runtime tooling required by the entrypoint and healthcheck.
+# We install Prisma CLI globally so `prisma` and `npx prisma` work inside the
+# production container (necessary for `prisma migrate deploy` in the entrypoint).
+# Also install curl to make the HEALTHCHECK reliable on Alpine base images.
+USER root
+RUN apk add --no-cache curl && npm install -g prisma@6.17.1 --location=global && chown -R nestjs:nodejs /app
+USER nestjs

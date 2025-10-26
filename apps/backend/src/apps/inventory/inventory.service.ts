@@ -18,9 +18,11 @@ export class InventoryService {
    * Get all inventory items
    */
   async findAll(): Promise<Inventory.Item[]> {
-    return this.prisma.inventoryItem.findMany({
+    const items = await this.prisma.inventoryItem.findMany({
       orderBy: { createdAt: 'desc' },
     });
+
+    return items as Inventory.Item[];
   }
 
   /**
@@ -39,9 +41,11 @@ export class InventoryService {
     }
 
     // Create the item
-    return this.prisma.inventoryItem.create({
+    const created = await this.prisma.inventoryItem.create({
       data: { name, sku, quantity },
     });
+
+    return created as Inventory.Item;
   }
 
   /**
@@ -60,7 +64,7 @@ export class InventoryService {
     }
 
     // Update the item
-    return this.prisma.inventoryItem.update({
+    const updated = await this.prisma.inventoryItem.update({
       where: { id },
       data: {
         ...(name !== undefined && { name }),
@@ -68,6 +72,8 @@ export class InventoryService {
         ...(quantity !== undefined && { quantity }),
       },
     });
+
+    return updated as Inventory.Item;
   }
 
   /**
@@ -75,9 +81,11 @@ export class InventoryService {
    */
   async delete(id: string): Promise<Inventory.Item> {
     try {
-      return await this.prisma.inventoryItem.delete({
+      const deleted = await this.prisma.inventoryItem.delete({
         where: { id },
       });
+
+      return deleted as Inventory.Item;
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&

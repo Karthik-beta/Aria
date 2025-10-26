@@ -1,4 +1,5 @@
 import { Controller, Get } from '@nestjs/common';
+import { AllowAnonymous } from '@thallesp/nestjs-better-auth';
 import { AppService } from './app.service';
 
 @Controller()
@@ -11,6 +12,7 @@ export class AppController {
   }
 
   @Get('health')
+  @AllowAnonymous()
   getHealth() {
     return {
       status: 'ok',
@@ -22,6 +24,7 @@ export class AppController {
   }
 
   @Get('health/detailed')
+  @AllowAnonymous()
   getDetailedHealth() {
     return {
       status: 'ok',

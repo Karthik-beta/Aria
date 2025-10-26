@@ -20,7 +20,9 @@ const prisma = new PrismaClient();
  * See: https://github.com/better-auth/better-auth/issues/2123
  */
 export const auth: any = betterAuth({
-  database: prismaAdapter(prisma, {
+  // prismaAdapter expects a PrismaClient instance; cast through unknown to satisfy linting differences
+
+  database: prismaAdapter(prisma as unknown as PrismaClient, {
     provider: 'postgresql',
     usePlural: false,
   }),
@@ -48,13 +50,21 @@ export const auth: any = betterAuth({
   },
 
   // Base URL for the authentication server
+  // In production behind Caddy: this should be the domain where auth is accessible
+  // Caddy proxies /api/auth/* to backend:3001, so baseURL should be the public domain
   baseURL: process.env.BETTER_AUTH_URL || 'http://localhost:3001',
 
   // Secret for signing tokens (must be set in production)
   secret: process.env.BETTER_AUTH_SECRET || 'change-this-secret-in-production',
 
   // Trust proxy headers (required when behind reverse proxy)
-  trustedOrigins: [process.env.FRONTEND_URL || 'http://localhost:3000'],
+  // Trust both the frontend domain and any localhost/IP access
+  trustedOrigins: [
+    process.env.FRONTEND_URL || 'http://localhost:3000',
+    process.env.BETTER_AUTH_URL || 'http://localhost:3001',
+    'https://localhost',
+    'http://localhost',
+  ],
 });
 
 export type Auth = typeof auth;

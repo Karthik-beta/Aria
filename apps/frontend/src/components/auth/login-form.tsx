@@ -26,12 +26,6 @@ export function LoginForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Check if in production
-    if (process.env.NODE_ENV !== 'production') {
-      toast.error('Authentication is only available in production environment');
-      return;
-    }
-
     if (!username || !password) {
       toast.error('Please enter both username and password');
       return;

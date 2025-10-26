@@ -20,6 +20,10 @@ async function bootstrap() {
     allowedHeaders: ['Content-Type', 'Authorization'],
   });
 
+  // Initialize the application so lifecycle hooks (onModuleInit) run
+  // before we request providers that rely on those hooks.
+  await app.init();
+
   // Get tRPC services from DI container
   const trpcService = app.get(TrpcService);
   const trpcContext = app.get(TrpcContext);
