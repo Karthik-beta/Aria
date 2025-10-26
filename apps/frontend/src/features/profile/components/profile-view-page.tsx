@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import * as React from 'react';
 import { useSession } from '@/lib/auth/client';
@@ -44,29 +44,27 @@ export default function ProfileViewPage() {
       <div className="grid gap-4 rounded-xl border border-muted bg-card p-6 shadow-sm">
         <div>
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Name</p>
-          <p
-            className="text-base truncate"
-            title={profile.name}
-          >
+          <p className="text-base truncate" title={profile.name}>
             {profile.name}
           </p>
         </div>
         <div>
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Email</p>
-          <p
-            className="text-base truncate"
-            title={profile.email}
-          >
+          <p className="text-base truncate" title={profile.email}>
             {profile.email}
           </p>
         </div>
         <div>
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Role</p>
-          <p className="text-base truncate" title={profile.role}>{profile.role}</p>
+          <p className="text-base truncate" title={profile.role}>
+            {profile.role}
+          </p>
         </div>
         <div>
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Phone</p>
-          <p className="text-base truncate" title={profile.phone}>{profile.phone}</p>
+          <p className="text-base truncate" title={profile.phone}>
+            {profile.phone}
+          </p>
         </div>
       </div>
     </div>

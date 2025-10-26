@@ -73,7 +73,7 @@ export class AuthService implements OnModuleInit {
       );
 
       const response = await auth.handler(request);
-      
+
       this.logger.log(`Response status: ${response.status}`);
       const responseText = await response.text();
       this.logger.log(`Response body: ${responseText}`);

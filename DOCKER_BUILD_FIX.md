@@ -9,6 +9,7 @@ error TS2307: Cannot find module '@aria/types' or its corresponding type declara
 ```
 
 This occurred during the `nest build` step in the backend Docker build, even though:
+
 - Local builds worked fine
 - The workspace packages (`@aria/types`, `@aria/utils`) were being built successfully (claimed "Done")
 - pnpm workspace links were created correctly
@@ -26,13 +27,14 @@ next-env.d.ts
 ```
 
 But NOT:
+
 ```
 **/*.tsbuildinfo  # Needed to exclude in all subdirectories
 ```
 
 ### What Happened
 
-1. Local development builds created `packages/types/tsconfig.tsbuildinfo` 
+1. Local development builds created `packages/types/tsconfig.tsbuildinfo`
 2. `.dockerignore` didn't exclude subdirectory `.tsbuildinfo` files
 3. These files were copied into the Docker build context
 4. During Docker build, when running `cd /app/packages/types && npx tsc --build tsconfig.json`:
@@ -46,6 +48,7 @@ But NOT:
 ### Proof from Build Logs
 
 For `@aria/types`:
+
 ```
 Projects in this build:
     * tsconfig.json
@@ -55,6 +58,7 @@ Projects in this build:
 ```
 
 For `@aria/utils`:
+
 ```
 Projects in this build:
     * tsconfig.json
@@ -84,6 +88,7 @@ This ensures that `.tsbuildinfo` files from ALL subdirectories are excluded from
 While not strictly necessary for this specific error, adding proper `exports` fields improves modern Node.js module resolution:
 
 **File**: `packages/types/package.json`
+
 ```json
 {
   "name": "@aria/types",
@@ -101,6 +106,7 @@ While not strictly necessary for this specific error, adding proper `exports` fi
 ```
 
 **File**: `packages/utils/package.json`
+
 ```json
 {
   "name": "@aria/utils",
@@ -216,7 +222,6 @@ docker compose -f docker-compose.production.yml build backend
    - `dist/`, `build/`, `.next/`
    - `.tsbuildinfo`, `tsconfig.tsbuildinfo`
    - `node_modules` (already excluded)
-   
 2. **Use glob patterns in `.dockerignore`**:
    - `dist` excludes only root-level `dist`
    - `**/dist` excludes `dist` in all subdirectories

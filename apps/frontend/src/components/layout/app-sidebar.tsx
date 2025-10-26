@@ -1,4 +1,4 @@
-"use client";
+'use client';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import {
   DropdownMenu,
@@ -149,7 +149,12 @@ export default function AppSidebar() {
     return {
       fullName: su.name || su.fullName || su.username || fallbackUser.fullName,
       emailAddresses: [
-        { emailAddress: su.email || (su.emails && su.emails[0]?.value) || fallbackUser.emailAddresses[0].emailAddress },
+        {
+          emailAddress:
+            su.email ||
+            (su.emails && su.emails[0]?.value) ||
+            fallbackUser.emailAddresses[0].emailAddress,
+        },
       ],
       imageUrl: su.avatar || su.imageUrl || su.image || '',
     };
@@ -210,7 +215,10 @@ export default function AppSidebar() {
                 </SidebarMenuButton>
               </DropdownMenuTrigger>
               {/* Reuse shared dropdown content so sidebar and top nav stay consistent */}
-              <UserDropdownContent appRoute={activeApp.route} className="w-(--radix-dropdown-menu-trigger-width) min-w-56 rounded-lg" />
+              <UserDropdownContent
+                appRoute={activeApp.route}
+                className="w-(--radix-dropdown-menu-trigger-width) min-w-56 rounded-lg"
+              />
             </DropdownMenu>
           </SidebarMenuItem>
         </SidebarMenu>

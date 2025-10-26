@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import { LoginForm } from '@/components/auth/login-form';
 import { authClient } from '@/lib/auth/client';
@@ -74,9 +74,7 @@ export default function LoginPageClient() {
             <p>• Session Pending: {String(isPending)}</p>
             <p>• Has Session: {String(!!session)}</p>
             <p>• Has Error: {String(!!error)}</p>
-            {error && (
-              <p className="text-red-600">• Error: {JSON.stringify(error)}</p>
-            )}
+            {error && <p className="text-red-600">• Error: {JSON.stringify(error)}</p>}
             {debugInfo && (
               <details className="mt-2">
                 <summary className="cursor-pointer font-medium">Auth Endpoint Test</summary>

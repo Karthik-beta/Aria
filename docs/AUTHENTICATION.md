@@ -101,12 +101,12 @@ On first production deployment, a default admin user is automatically created:
 
 ### Development vs Production
 
-| Feature          | Development | Production          |
-| ---------------- | ----------- | ------------------- |
-| Auth Required    | ❌ No       | ✅ Yes              |
+| Feature          | Development | Production                 |
+| ---------------- | ----------- | -------------------------- |
+| Auth Required    | ❌ No       | ✅ Yes                     |
 | Login Page       | Hidden      | Visible at `/auth/sign-in` |
-| Route Protection | Disabled    | Enabled             |
-| Default User     | Not created | Auto-created        |
+| Route Protection | Disabled    | Enabled                    |
+| Default User     | Not created | Auto-created               |
 
 ### Logout
 

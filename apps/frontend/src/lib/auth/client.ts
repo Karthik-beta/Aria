@@ -6,10 +6,10 @@ import { usernameClient } from 'better-auth/client/plugins';
  *
  * @remarks
  * Configured with username plugin for username-based authentication.
- * 
+ *
  * In development: Points directly to backend (localhost:3001)
  * In production: Uses same origin (Caddy proxies /api/auth/* to backend)
- * 
+ *
  * CRITICAL: Added extensive error logging to debug fetch issues.
  * According to Better Auth docs, fetchOptions can include onError and onSuccess handlers.
  */
@@ -17,11 +17,12 @@ import { usernameClient } from 'better-auth/client/plugins';
 // Compute baseURL based on environment
 // Development: Direct backend connection (localhost:3001)
 // Production: Same origin (Caddy/Traefik proxy handles routing)
-const baseURL = typeof window !== 'undefined' 
-  ? (process.env.NODE_ENV === 'production' 
-      ? window.location.origin 
-      : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'))
-  : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001');
+const baseURL =
+  typeof window !== 'undefined'
+    ? process.env.NODE_ENV === 'production'
+      ? window.location.origin
+      : process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
+    : process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
 // Log the configuration on client-side only
 if (typeof window !== 'undefined') {
@@ -36,7 +37,7 @@ if (typeof window !== 'undefined') {
 export const authClient = createAuthClient({
   baseURL,
   plugins: [usernameClient()],
-  
+
   // Add global fetch options for debugging
   fetchOptions: {
     onError(context) {

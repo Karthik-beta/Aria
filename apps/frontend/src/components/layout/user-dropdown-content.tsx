@@ -1,4 +1,4 @@
-"use client";
+'use client';
 import * as React from 'react';
 import {
   DropdownMenuContent,
@@ -49,12 +49,7 @@ export default function UserDropdownContent({ appRoute, className }: Props) {
   }, [appRoute, pathname]);
 
   return (
-    <DropdownMenuContent
-      className={className}
-      side="bottom"
-      align="end"
-      sideOffset={4}
-    >
+    <DropdownMenuContent className={className} side="bottom" align="end" sideOffset={4}>
       <DropdownMenuLabel className="p-0 font-normal">
         <div className="px-1 py-1.5">
           <UserAvatarProfile className="h-8 w-8 rounded-lg" showInfo user={user} />
@@ -66,7 +61,7 @@ export default function UserDropdownContent({ appRoute, className }: Props) {
         <DropdownMenuItem onClick={() => router.push(`${prefix}/dashboard/profile`)}>
           <IconUserCircle className="mr-2 h-4 w-4" />
           Profile
-        </DropdownMenuItem>        
+        </DropdownMenuItem>
         <DropdownMenuItem>
           <IconBell className="mr-2 h-4 w-4" />
           Notifications
@@ -87,7 +82,8 @@ export default function UserDropdownContent({ appRoute, className }: Props) {
           } catch (err) {
             console.error('Sign out failed:', err);
             try {
-              if (typeof toast?.error === 'function') toast.error('Failed to sign out. Please try again.');
+              if (typeof toast?.error === 'function')
+                toast.error('Failed to sign out. Please try again.');
             } catch (e) {
               /* swallow */
             }

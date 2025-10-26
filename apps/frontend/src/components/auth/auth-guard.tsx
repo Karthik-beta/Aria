@@ -10,7 +10,7 @@ import { authClient } from '@/lib/auth/client';
  * @remarks
  * Redirects to login if user is not authenticated in production.
  * Bypasses check in development environment.
- * 
+ *
  * According to Better Auth docs, useSession returns { data, error, isPending }
  * We must handle all three states properly to avoid white screens.
  */
@@ -35,9 +35,8 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     }
 
     // Normalize pathname (remove trailing slash)
-    const normalizedPath = pathname.endsWith('/') && pathname !== '/' 
-      ? pathname.slice(0, -1) 
-      : pathname;
+    const normalizedPath =
+      pathname.endsWith('/') && pathname !== '/' ? pathname.slice(0, -1) : pathname;
 
     // Allow access to sign-in and debug pages
     if (normalizedPath === '/auth/sign-in' || normalizedPath === '/debug') {
@@ -53,9 +52,8 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   }, [session, isPending, error, router, pathname]);
 
   // Normalize pathname (remove trailing slash)
-  const normalizedPath = pathname.endsWith('/') && pathname !== '/' 
-    ? pathname.slice(0, -1) 
-    : pathname;
+  const normalizedPath =
+    pathname.endsWith('/') && pathname !== '/' ? pathname.slice(0, -1) : pathname;
 
   // On login/sign-in/debug page, show children immediately
   if (normalizedPath === '/auth/sign-in' || normalizedPath === '/debug') {
@@ -99,4 +97,3 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   // Show nothing while redirecting
   return null;
 }
-

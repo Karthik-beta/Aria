@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 
 /**
  * Debug page for diagnosing authentication issues
- * 
+ *
  * Access at /debug to see:
  * - Current session state
  * - Error details
@@ -28,7 +28,7 @@ export default function DebugPage() {
             'Content-Type': 'application/json',
           },
         });
-        
+
         console.log('[Debug] Raw session response:', {
           status: response.status,
           statusText: response.statusText,
@@ -63,7 +63,8 @@ export default function DebugPage() {
               NODE_ENV: process.env.NODE_ENV,
               NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
               windowOrigin: typeof window !== 'undefined' ? window.location.origin : 'N/A',
-              authClientBaseURL: typeof window !== 'undefined' ? window.location.origin : 'server-side',
+              authClientBaseURL:
+                typeof window !== 'undefined' ? window.location.origin : 'server-side',
             },
             null,
             2
@@ -89,18 +90,14 @@ export default function DebugPage() {
         {error && (
           <div className="mt-4 p-4 bg-red-100 border border-red-400 rounded">
             <h3 className="font-semibold text-red-800">Error Details:</h3>
-            <pre className="mt-2 text-sm overflow-auto">
-              {JSON.stringify(error, null, 2)}
-            </pre>
+            <pre className="mt-2 text-sm overflow-auto">{JSON.stringify(error, null, 2)}</pre>
           </div>
         )}
 
         {session && (
           <div className="mt-4 p-4 bg-green-100 border border-green-400 rounded">
             <h3 className="font-semibold text-green-800">Session Data:</h3>
-            <pre className="mt-2 text-sm overflow-auto">
-              {JSON.stringify(session, null, 2)}
-            </pre>
+            <pre className="mt-2 text-sm overflow-auto">{JSON.stringify(session, null, 2)}</pre>
           </div>
         )}
       </section>
@@ -108,7 +105,7 @@ export default function DebugPage() {
       {/* Manual Fetch Results */}
       <section className="mb-8 p-4 border rounded-lg">
         <h2 className="text-xl font-semibold mb-4">Manual /api/auth/get-session Fetch</h2>
-        
+
         {fetchError && (
           <div className="p-4 bg-red-100 border border-red-400 rounded">
             <h3 className="font-semibold text-red-800">Fetch Error:</h3>
@@ -125,9 +122,7 @@ export default function DebugPage() {
           </div>
         )}
 
-        {!fetchError && !manualSessionCheck && (
-          <div>Loading...</div>
-        )}
+        {!fetchError && !manualSessionCheck && <div>Loading...</div>}
       </section>
 
       {/* Actions */}
@@ -146,10 +141,7 @@ export default function DebugPage() {
           >
             Go to Sign in
           </a>
-          <a
-            href="/"
-            className="px-4 py-2 bg-purple-500 text-white rounded hover:bg-purple-600"
-          >
+          <a href="/" className="px-4 py-2 bg-purple-500 text-white rounded hover:bg-purple-600">
             Go to Home
           </a>
         </div>
@@ -158,7 +150,9 @@ export default function DebugPage() {
       {/* Browser Console Reminder */}
       <section className="p-4 border rounded-lg bg-yellow-50">
         <h2 className="text-xl font-semibold mb-2">Remember:</h2>
-        <p>Check your browser's Developer Console (F12) for additional logging output from AuthGuard.</p>
+        <p>
+          Check your browser's Developer Console (F12) for additional logging output from AuthGuard.
+        </p>
       </section>
     </div>
   );

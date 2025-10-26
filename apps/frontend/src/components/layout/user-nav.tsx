@@ -22,9 +22,7 @@ export function UserNav() {
 
     return {
       fullName: su.name || su.fullName || su.username || 'User',
-      emailAddresses: [
-        { emailAddress: su.email || (su.emails && su.emails[0]?.value) || '' },
-      ],
+      emailAddresses: [{ emailAddress: su.email || (su.emails && su.emails[0]?.value) || '' }],
       imageUrl: su.avatar || su.imageUrl || su.image || '',
     };
   }, [session]);
