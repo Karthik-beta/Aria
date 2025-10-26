@@ -21,14 +21,19 @@ COPY packages/types/package.json ./packages/types/
 COPY packages/utils/package.json ./packages/utils/
 COPY apps/backend/package.json ./apps/backend/
 
+# Copy source code for workspace packages (required for proper pnpm workspace linking)
+# Official pnpm recommendation: Source must be present for workspace protocol to work correctly
+COPY packages ./packages
+
 # Install dependencies (including dev dependencies for build)
-RUN pnpm install --frozen-lockfile
+# Use BuildKit cache mount for pnpm store to speed up builds
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
 
 # Development stage - for local development with hot reload
 FROM base AS development
 WORKDIR /app
 
-# Copy node_modules from deps stage
+# Copy installed dependencies from deps stage
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/packages ./packages
 COPY --from=deps /app/apps/backend/node_modules ./apps/backend/node_modules
@@ -36,8 +41,7 @@ COPY --from=deps /app/apps/backend/node_modules ./apps/backend/node_modules
 # Copy workspace files
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json turbo.json ./
 
-# Copy source code
-COPY packages ./packages
+# Copy backend source code
 COPY apps/backend ./apps/backend
 
 # Expose ports
@@ -51,27 +55,39 @@ CMD ["sh", "-c", "cd /app/apps/backend && npx prisma migrate dev && pnpm dev"]
 FROM base AS builder
 WORKDIR /app
 
-# Copy everything from deps (includes node_modules and pnpm store)
-COPY --from=deps /app ./
+# Copy workspace configuration files
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json turbo.json ./
 
-# Copy all source code (will overwrite package.json files with same content)
-COPY turbo.json ./
+# Copy all package.json files first (maintains workspace structure)
+COPY packages/config-eslint/package.json ./packages/config-eslint/
+COPY packages/config-typescript/package.json ./packages/config-typescript/
+COPY packages/types/package.json ./packages/types/
+COPY packages/utils/package.json ./packages/utils/
+COPY apps/backend/package.json ./apps/backend/
+
+# Copy all source code BEFORE install so workspace links are created correctly
+# This is critical for monorepo builds - pnpm needs to see the full workspace structure
 COPY packages ./packages
 COPY apps/backend ./apps/backend
 
-# Generate Prisma client FIRST (required for backend build)
+# Install all dependencies (including dev dependencies needed for build)
+# Official pnpm recommendation: Install with full workspace context
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
+
+# Generate Prisma client (required before any backend builds)
 # This ensures the Prisma Query Engine is present and types are available
 RUN cd /app/apps/backend && npx prisma generate
 
-# Build shared packages (in dependency order)
-# These create packages/*/dist directories
-RUN pnpm --filter "@aria/types" build
-RUN pnpm --filter "@aria/utils" build
+# Build workspace packages individually in dependency order
+# This ensures each package's dist/ is created before dependent packages build
+RUN cd /app/packages/types && npx tsc --build tsconfig.json
+RUN cd /app/packages/utils && npx tsc --build tsconfig.json
 
 # Build the backend application
 RUN pnpm --filter backend build
 
 # Prune development dependencies and create production deployment
+# Note: pnpm v10+ requires --legacy flag or inject-workspace-packages=true
 RUN pnpm --filter backend --prod deploy --legacy /app/deploy
 
 # Production runner stage - minimal production image
