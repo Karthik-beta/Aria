@@ -44,7 +44,7 @@ Content-Security-Policy "... connect-src 'self' https://localhost http://localho
 ## Next Steps - USER ACTION REQUIRED
 
 ### Step 1: Open Browser DevTools
-1. Navigate to https://localhost/login/
+1. Navigate to https://localhost/auth/sign-in/
 2. **Press F12** to open Developer Tools
 3. Go to the **Console** tab
 
@@ -155,7 +155,7 @@ docker logs aria-backend --tail 50
 - CSP: `connect-src 'self' https://localhost http://localhost`
 
 ## Expected Behavior After Fix
-1. Page loads at https://localhost/login/
+1. Page loads at https://localhost/auth/sign-in/
 2. Browser console shows:
    ```
    [BetterAuth Client] Configuration: { baseURL: "https://localhost", ... }

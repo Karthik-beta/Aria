@@ -1,5 +1,5 @@
 import { Metadata } from 'next';
-import SignInViewPage from '@/features/auth/components/sign-in-view';
+import LoginPageClient from '@/components/auth/login-page-client';
 
 export const metadata: Metadata = {
   title: 'Aria ERP | Sign In',
@@ -7,5 +7,5 @@ export const metadata: Metadata = {
 };
 
 export default function Page() {
-  return <SignInViewPage />;
+  return <LoginPageClient />;
 }

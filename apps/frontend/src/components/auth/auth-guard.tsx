@@ -39,16 +39,16 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
       ? pathname.slice(0, -1) 
       : pathname;
 
-    // Allow access to login page and debug page
-    if (normalizedPath === '/login' || normalizedPath === '/debug') {
+    // Allow access to sign-in and debug pages
+    if (normalizedPath === '/auth/sign-in' || normalizedPath === '/debug') {
       return;
     }
 
     // If session fetch failed (error) or no session after loading completes
     // redirect to login
     if (!isPending && !session) {
-      console.log('[AuthGuard] Redirecting to login - no session');
-      router.push('/login');
+      console.log('[AuthGuard] Redirecting to sign-in - no session');
+      router.push('/auth/sign-in');
     }
   }, [session, isPending, error, router, pathname]);
 
@@ -57,8 +57,8 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     ? pathname.slice(0, -1) 
     : pathname;
 
-  // On login/debug page, show children immediately
-  if (normalizedPath === '/login' || normalizedPath === '/debug') {
+  // On login/sign-in/debug page, show children immediately
+  if (normalizedPath === '/auth/sign-in' || normalizedPath === '/debug') {
     return <>{children}</>;
   }
 
@@ -73,7 +73,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
           </p>
         </div>
         <button
-          onClick={() => router.push('/login')}
+          onClick={() => router.push('/auth/sign-in')}
           className="rounded-md bg-primary px-4 py-2 text-primary-foreground hover:bg-primary/90"
         >
           Go to Login

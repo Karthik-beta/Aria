@@ -16,7 +16,7 @@ Aria ERP uses [better-auth](https://better-auth.com) for authentication with use
 ### Frontend (Next.js)
 
 - **better-auth/react** client
-- Login page at `/login`
+- Login page at `/auth/sign-in`
 - Auth guard protecting all routes in production
 - Session management with cookies
 
@@ -93,7 +93,7 @@ On first production deployment, a default admin user is automatically created:
 
 1. User navigates to application
 2. `AuthGuard` checks if in production
-3. If production and not authenticated, redirects to `/login`
+3. If production and not authenticated, redirects to `/auth/sign-in`
 4. User enters username and password
 5. Better-auth validates credentials
 6. On success, session cookie is set
@@ -104,7 +104,7 @@ On first production deployment, a default admin user is automatically created:
 | Feature          | Development | Production          |
 | ---------------- | ----------- | ------------------- |
 | Auth Required    | ❌ No       | ✅ Yes              |
-| Login Page       | Hidden      | Visible at `/login` |
+| Login Page       | Hidden      | Visible at `/auth/sign-in` |
 | Route Protection | Disabled    | Enabled             |
 | Default User     | Not created | Auto-created        |
 
@@ -142,7 +142,7 @@ Should see: `Default admin user created successfully: admin`
 
 ### 3. Access Login
 
-Navigate to `https://your-domain.com/login`
+Navigate to `https://your-domain.com/auth/sign-in`
 
 ### 4. Test Login
 
@@ -205,8 +205,9 @@ apps/
         │       ├── login-form.tsx   # Login UI
         │       └── auth-guard.tsx   # Route protection
         └── app/
-            └── login/
-                └── page.tsx         # Login page
+            └── auth/
+                └── sign-in/[[...sign-in]]/
+                    └── page.tsx         # Sign-in page
 ```
 
 ## Official Documentation

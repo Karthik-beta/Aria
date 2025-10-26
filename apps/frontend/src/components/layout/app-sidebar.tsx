@@ -1,4 +1,4 @@
-'use client';
+"use client";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import {
   DropdownMenu,
@@ -43,10 +43,11 @@ import {
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import * as React from 'react';
-import { signOut } from '@/lib/auth/client';
+import { signOut, useSession } from '@/lib/auth/client';
 import { toast } from 'sonner';
 import { Icons } from '../icons';
 import { AppSwitcher } from '../app-switcher';
+import UserDropdownContent from './user-dropdown-content';
 export const company = {
   name: 'by Pivotr',
   logo: IconPhotoUp,
@@ -138,7 +139,21 @@ NavItemComponent.displayName = 'NavItemComponent';
 export default function AppSidebar() {
   const pathname = usePathname();
   const { isOpen } = useMediaQuery();
-  const user = fallbackUser;
+  const { data: session } = useSession();
+
+  // Map auth session user shape to the local user shape expected by UserAvatarProfile
+  const user = React.useMemo(() => {
+    const su = session?.user as any | undefined;
+    if (!su) return fallbackUser;
+
+    return {
+      fullName: su.name || su.fullName || su.username || fallbackUser.fullName,
+      emailAddresses: [
+        { emailAddress: su.email || (su.emails && su.emails[0]?.value) || fallbackUser.emailAddresses[0].emailAddress },
+      ],
+      imageUrl: su.avatar || su.imageUrl || su.image || '',
+    };
+  }, [session]);
   const router = useRouter();
   const [isMounted, setIsMounted] = React.useState(false);
 
@@ -194,51 +209,8 @@ export default function AppSidebar() {
                   <IconChevronsDown className="ml-auto size-4" />
                 </SidebarMenuButton>
               </DropdownMenuTrigger>
-              <DropdownMenuContent
-                className="w-(--radix-dropdown-menu-trigger-width) min-w-56 rounded-lg"
-                side="bottom"
-                align="end"
-                sideOffset={4}
-              >
-                <DropdownMenuLabel className="p-0 font-normal">
-                  <div className="px-1 py-1.5">
-                    <UserAvatarProfile className="h-8 w-8 rounded-lg" showInfo user={user} />
-                  </div>
-                </DropdownMenuLabel>
-                <DropdownMenuSeparator />
-
-                <DropdownMenuGroup>
-                  <DropdownMenuItem onClick={() => router.push('/dashboard/profile')}>
-                    <IconUserCircle className="mr-2 h-4 w-4" />
-                    Profile
-                  </DropdownMenuItem>
-                  <DropdownMenuItem>
-                    <IconCreditCard className="mr-2 h-4 w-4" />
-                    Billing
-                  </DropdownMenuItem>
-                  <DropdownMenuItem>
-                    <IconBell className="mr-2 h-4 w-4" />
-                    Notifications
-                  </DropdownMenuItem>
-                </DropdownMenuGroup>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={async () => {
-                    try {
-                      await signOut();
-                      toast.success('Signed out successfully');
-                      router.push('/login');
-                    } catch (err) {
-                      console.error('Sign out failed:', err);
-                      toast.error('Failed to sign out. Please try again.');
-                      router.push('/login');
-                    }
-                  }}
-                >
-                  <IconLogout className="mr-2 h-4 w-4" />
-                  Sign out
-                </DropdownMenuItem>
-              </DropdownMenuContent>
+              {/* Reuse shared dropdown content so sidebar and top nav stay consistent */}
+              <UserDropdownContent appRoute={activeApp.route} className="w-(--radix-dropdown-menu-trigger-width) min-w-56 rounded-lg" />
             </DropdownMenu>
           </SidebarMenuItem>
         </SidebarMenu>

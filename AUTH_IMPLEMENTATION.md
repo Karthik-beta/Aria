@@ -40,9 +40,9 @@ Successfully implemented username/password authentication for Aria ERP using **b
 **Files Created:**
 
 - `apps/frontend/src/lib/auth/client.ts` - Auth client configuration
-- `apps/frontend/src/components/auth/login-form.tsx` - Login UI component
-- `apps/frontend/src/components/auth/auth-guard.tsx` - Route protection HOC
-- `apps/frontend/src/app/login/page.tsx` - Login page
+   - `apps/frontend/src/components/auth/login-form.tsx` - Login UI component
+   - `apps/frontend/src/components/auth/auth-guard.tsx` - Route protection HOC
+   - `apps/frontend/src/app/auth/sign-in/[[...sign-in]]/page.tsx` - Sign-in page (canonical)
 
 **Key Features:**
 

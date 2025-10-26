@@ -1,17 +1,10 @@
-'use client';
+"use client";
 
 import { LoginForm } from '@/components/auth/login-form';
 import { authClient } from '@/lib/auth/client';
 import { useEffect, useState } from 'react';
 
-/**
- * Login page with comprehensive debugging
- *
- * @remarks
- * Provides username and password authentication.
- * Only available in production environment.
- */
-export default function LoginPage() {
+export default function LoginPageClient() {
   const [debugInfo, setDebugInfo] = useState<any>(null);
   const { data: session, isPending, error } = authClient.useSession();
 
@@ -19,10 +12,10 @@ export default function LoginPage() {
     // Test auth endpoint directly
     async function testAuthEndpoint() {
       console.log('[LoginPage] Testing auth endpoint...');
-      
+
       // Use the backend URL directly in development
       const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
-      
+
       try {
         const response = await fetch(`${backendUrl}/api/auth/get-session`, {
           method: 'GET',
@@ -103,4 +96,3 @@ export default function LoginPage() {
     </div>
   );
 }
-

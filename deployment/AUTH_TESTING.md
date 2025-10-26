@@ -139,13 +139,13 @@ You should see:
 
 1. HTTPS certificate warning (expected for local testing)
 2. Accept certificate and proceed
-3. **Immediate redirect to /login page**
+3. **Immediate redirect to /auth/sign-in page**
 
 ## Step 8: Test Login
 
 ### Login Form
 
-On `/login` page, you should see:
+On `/auth/sign-in` page, you should see:
 
 - "Sign In" heading
 - Username input field
@@ -211,7 +211,7 @@ await authClient.signOut();
 Expected:
 
 - Success confirmation
-- Redirect to `/login`
+- Redirect to `/auth/sign-in`
 - Cookie cleared
 
 ## Step 10: Test Session Persistence

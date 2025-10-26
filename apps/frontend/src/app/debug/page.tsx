@@ -141,10 +141,10 @@ export default function DebugPage() {
             Reload Page
           </button>
           <a
-            href="/login"
+            href="/auth/sign-in"
             className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
           >
-            Go to Login
+            Go to Sign in
           </a>
           <a
             href="/"
