@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Inventory } from '@aria/types';
-import { publicProcedure, router } from '../../../trpc/trpc';
+import { authedProcedure, router } from '../../../trpc/trpc';
 import { InventoryService } from '../inventory.service';
 import { z } from 'zod';
 import { EventEmitter } from 'events';
@@ -15,11 +15,11 @@ export class InventoryRouter {
 
   getRouter() {
     return router({
-      listItems: publicProcedure.query(async () => {
+      listItems: authedProcedure.query(async () => {
         return this.inventoryService.findAll();
       }),
 
-      createItem: publicProcedure
+      createItem: authedProcedure
         .input(Inventory.createSchema)
         .mutation(async ({ input }) => {
           const item = await this.inventoryService.create(
@@ -31,7 +31,7 @@ export class InventoryRouter {
           return item;
         }),
 
-      updateItem: publicProcedure
+      updateItem: authedProcedure
         .input(Inventory.updateSchema)
         .mutation(async ({ input }) => {
           const item = await this.inventoryService.update(
@@ -43,7 +43,7 @@ export class InventoryRouter {
           return item;
         }),
 
-      deleteItem: publicProcedure
+      deleteItem: authedProcedure
         .input(z.object({ id: z.string().min(1) }))
         .mutation(async ({ input }) => {
           await this.inventoryService.delete(input.id);
@@ -54,7 +54,7 @@ export class InventoryRouter {
         }),
 
       // Subscription: Listen for item creation
-      onItemCreated: publicProcedure.subscription(() => {
+      onItemCreated: authedProcedure.subscription(() => {
         return observable<Inventory.Item>((emit) => {
           const onCreated = (data: Inventory.Item) => {
             emit.next(data);
@@ -70,7 +70,7 @@ export class InventoryRouter {
       }),
 
       // Subscription: Listen for item updates
-      onItemUpdated: publicProcedure.subscription(() => {
+      onItemUpdated: authedProcedure.subscription(() => {
         return observable<Inventory.Item>((emit) => {
           const onUpdated = (data: Inventory.Item) => {
             emit.next(data);
@@ -85,7 +85,7 @@ export class InventoryRouter {
       }),
 
       // Subscription: Listen for item deletion
-      onItemDeleted: publicProcedure.subscription(() => {
+      onItemDeleted: authedProcedure.subscription(() => {
         return observable<{ id: string }>((emit) => {
           const onDeleted = (data: { id: string }) => {
             emit.next(data);
@@ -100,7 +100,7 @@ export class InventoryRouter {
       }),
 
       // Combined subscription for all CRUD events
-      onItemsChanged: publicProcedure.subscription(() => {
+      onItemsChanged: authedProcedure.subscription(() => {
         console.log('[Inventory] New subscription to onItemsChanged');
         return observable<{
           type: 'created' | 'updated' | 'deleted';
