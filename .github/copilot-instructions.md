@@ -74,8 +74,8 @@ export interface ApiResponse<T> {
 **When adding types**:
 
 1. Update `packages/types/src/index.ts`
-2. Run `pnpm --filter @aria/types build`
-3. Import via `@aria/types` in consuming apps
+2. Import via `@aria/types` in consuming apps
+3. **No build step required** — uses Just-in-Time (JIT) pattern
 
 ### @aria/utils — Pure Functions Only
 
@@ -92,6 +92,17 @@ export const paginate = (items: unknown[], { page, pageSize }: Pagination) => {
 ```
 
 **Anti-pattern**: Do NOT put I/O, network calls, or stateful logic in utils.
+
+### Just-in-Time (JIT) Internal Packages
+
+Shared packages follow Turborepo's recommended JIT pattern:
+
+- **No manual build required** — packages export source TypeScript files directly
+- **Instant hot reload** — changes to shared packages reflect immediately in consuming apps
+- **Consuming apps handle transpilation** — Next.js uses `transpilePackages`, NestJS uses tsc
+- **Type checking only** — run `pnpm --filter @aria/types check-types` for validation
+
+See `SHARED_PACKAGES_REFACTOR.md` for detailed implementation.
 
 ### TypeScript Configuration
 

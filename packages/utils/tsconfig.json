@@ -1,13 +1,8 @@
 {
   "extends": "@aria/tsconfig/base.json",
   "compilerOptions": {
-    "baseUrl": ".",
-    "declaration": true,
-    "declarationMap": true,
-    "outDir": "dist",
-    "paths": {
-      "@aria/types": ["../types/src/index.ts"]
-    }
+    "noEmit": true
   },
-  "include": ["src"]
+  "include": ["src"],
+  "exclude": ["node_modules"]
 }

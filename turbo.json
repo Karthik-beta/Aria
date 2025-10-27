@@ -10,6 +10,11 @@
       "outputs": ["dist/**", "build/**", ".next/**", "!.next/cache/**"],
       "cache": true
     },
+    "check-types": {
+      "dependsOn": ["^check-types"],
+      "outputs": [],
+      "cache": true
+    },
     "dev": {
       "persistent": true,
       "cache": false

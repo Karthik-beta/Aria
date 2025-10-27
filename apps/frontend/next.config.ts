@@ -19,6 +19,9 @@ console.log('[next.config] Using backendUrl:', backendUrl);
 
 // Multi-zone doesn't need basePath - routes are native to zones
 const nextConfig: NextConfig = {
+  // Transpile internal workspace packages (JIT pattern)
+  transpilePackages: ['@aria/types', '@aria/utils'],
+
   // Turbopack configuration for monorepo
   turbopack: {
     root: workspaceRoot,
