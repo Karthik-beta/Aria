@@ -64,6 +64,18 @@ export default function InventoryItemsPage() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
   const [itemToDelete, setItemToDelete] = React.useState<string | null>(null);
 
+  // Stable delete handler using ref pattern - prevents columns re-memoization
+  const handleDeleteRef = React.useRef<(id: string) => void>(() => {});
+  handleDeleteRef.current = (id: string) => {
+    setItemToDelete(id);
+    setIsDeleteDialogOpen(true);
+  };
+
+  // Wrapped in useCallback for external use
+  const handleDelete = React.useCallback((id: string) => {
+    handleDeleteRef.current?.(id);
+  }, []);
+
   // Fetch all inventory items with optimized settings
   const {
     data: rawItems = [],
@@ -101,10 +113,6 @@ export default function InventoryItemsPage() {
   // Memoize callbacks to prevent subscription re-initialization
   const handleSubscriptionData = React.useCallback(
     (event: { type: 'created' | 'updated' | 'deleted'; data: Inventory.Item | { id: string } }) => {
-      if (process.env.NODE_ENV === 'development') {
-        console.log('[Real-time] Received event:', event.type, event.data);
-      }
-
       // Invalidate and refetch the list when any CRUD operation occurs
       void utils.inventory.listItems.invalidate();
 
@@ -128,31 +136,14 @@ export default function InventoryItemsPage() {
 
     const errorMessage = error instanceof Error ? error.message : 'Connection interrupted';
 
-    // Transient errors during initial connection are normal
-    // Only treat as error if it persists beyond 3 attempts
-    if (errorCountRef.current < 3) {
-      if (process.env.NODE_ENV === 'development') {
-        console.warn(
-          `[Real-time] Connection attempt ${errorCountRef.current} failed, retrying...`,
-          errorMessage
-        );
-      }
-    } else {
-      // Only show toast for persistent errors (not rapid reconnections)
-      if (timeSinceLastError > 5000) {
-        if (process.env.NODE_ENV === 'development') {
-          console.error('[Real-time] Subscription error:', errorMessage);
-          toast.error(`Real-time updates disconnected: ${errorMessage}`);
-        }
-      }
+    // Only show error toast for persistent connection issues (3+ consecutive failures within 5 seconds)
+    if (errorCountRef.current >= 3 && timeSinceLastError < 5000) {
+      toast.error('Real-time updates temporarily unavailable');
     }
   }, []);
 
   const handleSubscriptionStarted = React.useCallback(() => {
     errorCountRef.current = 0; // Reset error count on successful connection
-    if (process.env.NODE_ENV === 'development') {
-      console.log('[Real-time] Subscription connected to inventory updates');
-    }
   }, []);
 
   trpc.inventory.onItemsChanged.useSubscription(undefined, {
@@ -233,22 +224,18 @@ export default function InventoryItemsPage() {
     },
   });
 
-  // Handlers - Memoized to prevent recreating on every render
-  const handleDelete = React.useCallback((id: string) => {
-    setItemToDelete(id);
-    setIsDeleteDialogOpen(true);
-  }, []);
-
+  // Confirm delete callback
   const confirmDelete = React.useCallback(() => {
     if (itemToDelete) {
       deleteMutation.mutate({ id: itemToDelete });
     }
   }, [itemToDelete, deleteMutation]);
 
-  // Column definitions - Properly memoized with stable functions
+  // Column definitions - Completely stable, no external dependencies
+  // According to TanStack Table docs: columns should be wrapped in useMemo with empty deps
   const columns = React.useMemo<ColumnDef<Inventory.Item>[]>(
     () => [
-      // Selection column
+      // Selection column - uses table instance passed via context by TanStack Table
       {
         id: 'select',
         header: ({ table }) => (
@@ -476,8 +463,8 @@ export default function InventoryItemsPage() {
         enableGlobalFilter: false,
       },
     ],
-    [handleDelete]
-  ); // Include handleDelete since it's used in the actions column
+    [] // Empty deps array - official TanStack Table pattern for stable columns
+  );
 
   // Bulk delete handler - Memoized separately to prevent recreating bulk actions
   const handleBulkDelete = React.useCallback(

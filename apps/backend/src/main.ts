@@ -7,7 +7,13 @@ import { TrpcService } from './trpc/trpc.service';
 import { TrpcContext } from './trpc/trpc.context';
 
 async function bootstrap() {
-  // Disable body parser for Better Auth to work correctly
+  /**
+   * CRITICAL: Disable body parser for Better Auth compatibility
+   *
+   * Per @thallesp/nestjs-better-auth official docs, we must disable NestJS's
+   * built-in body parser to allow Better Auth to handle request bodies correctly.
+   * The Better Auth module will automatically re-add the necessary body parsers.
+   */
   const app = await NestFactory.create(AppModule, {
     bodyParser: false, // Required for Better Auth
   });
@@ -20,18 +26,31 @@ async function bootstrap() {
     allowedHeaders: ['Content-Type', 'Authorization'],
   });
 
-  // Initialize the application so lifecycle hooks (onModuleInit) run
-  // before we request providers that rely on those hooks.
-  await app.init();
-
   // Get tRPC services from DI container
   const trpcService = app.get(TrpcService);
   const trpcContext = app.get(TrpcContext);
 
-  // Create tRPC router
+  /**
+   * Manually trigger onModuleInit if not already called
+   *
+   * TrpcService.onModuleInit() creates the router. We need to ensure it's called
+   * before we try to get the router, but we also need to mount middleware BEFORE
+   * the application is fully initialized to avoid routing issues.
+   */
+  if (!trpcService.appRouter) {
+    trpcService.onModuleInit();
+  }
+
+  // Create tRPC router (now safe to call)
   const appRouter = trpcService.getAppRouter();
 
-  // Mount tRPC adapter at /trpc
+  /**
+   * Mount tRPC adapter at /trpc
+   *
+   * Using app.use() directly before app.listen().
+   * This ensures the middleware is registered with Express before
+   * the server starts accepting connections.
+   */
   app.use(
     '/trpc',
     trpcExpress.createExpressMiddleware({

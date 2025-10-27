@@ -8,20 +8,26 @@ import { AuthService } from './auth.service';
  *
  * @remarks
  * Provides authentication services throughout the application.
- * Only active in production environment.
  *
- * CRITICAL: The NestJS Better Auth module registers an AuthGuard globally by default.
- * According to the official docs, we should disable this since we handle auth
- * protection in the frontend via AuthGuard component. Backend routes should be
- * accessible for auth endpoints to work.
+ * CRITICAL: By default, Better Auth NestJS module does NOT apply a global guard.
+ * Routes are public by default. Use @UseGuards(AuthGuard) to protect specific routes.
+ *
+ * Configuration options (per current TypeScript definitions):
+ * - disableTrustedOriginsCors: false - Let Better Auth add CORS for trusted origins
+ * - disableBodyParser: false - Better Auth will re-add necessary body parsers
+ * - disableGlobalAuthGuard: true - Don't register AuthGuard globally via APP_GUARD
+ *
+ * Using object-based signature per deprecation warning.
  */
 @Global()
 @Module({
   imports: [
-    // Configure Better Auth for NestJS
-    // Disable global guard to allow auth endpoints to work
+    // Configure Better Auth for NestJS using object-based signature
+    // AuthModule.forRoot({ auth, ...options })
     BetterAuthModule.forRoot({
       auth,
+      disableTrustedOriginsCors: false,
+      disableBodyParser: false,
       disableGlobalAuthGuard: true,
     }),
   ],

@@ -9,11 +9,8 @@ export default function LoginPageClient() {
   const { data: session, isPending, error } = authClient.useSession();
 
   useEffect(() => {
-    // Test auth endpoint directly
+    // Test auth endpoint connectivity
     async function testAuthEndpoint() {
-      console.log('[LoginPage] Testing auth endpoint...');
-
-      // Use the backend URL directly in development
       const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
       try {
@@ -25,15 +22,7 @@ export default function LoginPageClient() {
           },
         });
 
-        console.log('[LoginPage] Auth endpoint response:', {
-          status: response.status,
-          statusText: response.statusText,
-          ok: response.ok,
-          headers: Object.fromEntries(response.headers.entries()),
-        });
-
         const data = await response.json();
-        console.log('[LoginPage] Auth endpoint data:', data);
 
         setDebugInfo({
           status: response.status,
@@ -43,7 +32,6 @@ export default function LoginPageClient() {
           timestamp: new Date().toISOString(),
         });
       } catch (err) {
-        console.error('[LoginPage] Auth endpoint error:', err);
         setDebugInfo({
           error: err instanceof Error ? err.message : String(err),
           timestamp: new Date().toISOString(),
@@ -54,15 +42,8 @@ export default function LoginPageClient() {
     testAuthEndpoint();
   }, []);
 
-  useEffect(() => {
-    console.log('[LoginPage] Session state:', {
-      isPending,
-      hasSession: !!session,
-      hasError: !!error,
-      session,
-      error,
-    });
-  }, [session, isPending, error]);
+  // Session state is monitored via useSession hook
+  // Debug info available in component state if needed
 
   return (
     <div className="min-h-screen flex w-full flex-col items-center justify-center">

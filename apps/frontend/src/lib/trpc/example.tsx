@@ -21,10 +21,14 @@ export function ExampleTRPCUsage() {
   // Type-safe query hook - autocomplete works!
   const { data, isLoading, error } = trpc.inventory.listItems.useQuery();
 
+  // Get tRPC utils for cache invalidation (official pattern)
+  const utils = trpc.useUtils();
+
   // Type-safe mutation hook
-  const createItem = trpc.inventory.createItem.useMutation({
+  const createMutation = trpc.inventory.createItem.useMutation({
     onSuccess: () => {
-      console.log('Item created successfully!');
+      // Invalidate and refetch the list
+      utils.inventory.listItems.invalidate();
     },
   });
 
@@ -49,7 +53,7 @@ export function ExampleTRPCUsage() {
 
       <button
         onClick={() =>
-          createItem.mutate({
+          createMutation.mutate({
             name: 'New Item',
             quantity: 10,
             sku: `SKU-${Date.now()}`,

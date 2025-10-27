@@ -60,24 +60,28 @@ function createWsClient() {
     url: wsUrl,
     WebSocket: WebSocket as any,
 
-    // Optional callbacks for logging
+    // Optional callbacks for connection management
     onOpen: () => {
-      console.log('[WebSocket] ✅ Connected to', wsUrl);
+      // WebSocket connected successfully
     },
 
     onClose: (cause) => {
+      // Log non-normal disconnections in development only
       const code = cause?.code;
-      console.warn('[WebSocket] ❌ Disconnected - Code:', code);
+      if (code && code !== 1000 && code !== 1001 && process.env.NODE_ENV === 'development') {
+        // eslint-disable-next-line no-console
+        console.warn('[WebSocket] Disconnected - Code:', code);
+      }
     },
 
     onError: (error) => {
-      console.error('[WebSocket] 🔴 Error:', error);
+      // Log errors in development only
+      if (process.env.NODE_ENV === 'development') {
+        // eslint-disable-next-line no-console
+        console.error('[WebSocket] Error:', error);
+      }
     },
   });
-
-  if (process.env.NODE_ENV === 'development') {
-    console.log('[WebSocket] Client created for', wsUrl);
-  }
 
   return wsClient;
 }

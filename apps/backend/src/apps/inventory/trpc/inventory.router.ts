@@ -25,8 +25,7 @@ export class InventoryRouter {
           const item = await this.inventoryService.create(
             input as Inventory.CreateInput,
           );
-          // Emit event for subscriptions
-          console.log('[Inventory] Emitting itemCreated event:', item.id);
+          // Emit event for real-time subscriptions
           inventoryEvents.emit('itemCreated', item);
           return item;
         }),
@@ -37,8 +36,7 @@ export class InventoryRouter {
           const item = await this.inventoryService.update(
             input as Inventory.UpdateInput,
           );
-          // Emit event for subscriptions
-          console.log('[Inventory] Emitting itemUpdated event:', item.id);
+          // Emit event for real-time subscriptions
           inventoryEvents.emit('itemUpdated', item);
           return item;
         }),
@@ -47,8 +45,7 @@ export class InventoryRouter {
         .input(z.object({ id: z.string().min(1) }))
         .mutation(async ({ input }) => {
           await this.inventoryService.delete(input.id);
-          // Emit event for subscriptions
-          console.log('[Inventory] Emitting itemDeleted event:', input.id);
+          // Emit event for real-time subscriptions
           inventoryEvents.emit('itemDeleted', { id: input.id });
           return { success: true, id: input.id };
         }),
@@ -101,23 +98,19 @@ export class InventoryRouter {
 
       // Combined subscription for all CRUD events
       onItemsChanged: publicProcedure.subscription(() => {
-        console.log('[Inventory] New subscription to onItemsChanged');
         return observable<{
           type: 'created' | 'updated' | 'deleted';
           data: Inventory.Item | { id: string };
         }>((emit) => {
           const onCreated = (data: Inventory.Item) => {
-            console.log('[Inventory] Broadcasting created event:', data.id);
             emit.next({ type: 'created', data });
           };
 
           const onUpdated = (data: Inventory.Item) => {
-            console.log('[Inventory] Broadcasting updated event:', data.id);
             emit.next({ type: 'updated', data });
           };
 
           const onDeleted = (data: { id: string }) => {
-            console.log('[Inventory] Broadcasting deleted event:', data.id);
             emit.next({ type: 'deleted', data });
           };
 
@@ -126,7 +119,6 @@ export class InventoryRouter {
           inventoryEvents.on('itemDeleted', onDeleted);
 
           return () => {
-            console.log('[Inventory] Subscription to onItemsChanged closed');
             inventoryEvents.off('itemCreated', onCreated);
             inventoryEvents.off('itemUpdated', onUpdated);
             inventoryEvents.off('itemDeleted', onDeleted);

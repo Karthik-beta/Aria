@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { authClient } from '@/lib/auth/client';
 
@@ -19,81 +19,41 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { data: session, isPending, error } = authClient.useSession();
 
-  useEffect(() => {
-    // Log session state for debugging
-    console.log('[AuthGuard] Session state:', {
-      isPending,
-      hasSession: !!session,
-      hasError: !!error,
-      pathname,
-      nodeEnv: process.env.NODE_ENV,
-    });
-
-    // If there's an error fetching session, log it
-    if (error) {
-      console.error('[AuthGuard] Session fetch error:', error);
-    }
-
-    // Normalize pathname (remove trailing slash)
-    const normalizedPath =
-      pathname.endsWith('/') && pathname !== '/' ? pathname.slice(0, -1) : pathname;
-
-    // Allow access to sign-in and debug pages
-    if (normalizedPath === '/auth/sign-in' || normalizedPath === '/debug') {
+  React.useEffect(() => {
+    // Wait for session to be fetched
+    if (isPending) {
       return;
     }
 
-    // If session fetch failed (error) or no session after loading completes
-    // redirect to login
-    if (!isPending && !session) {
-      console.log('[AuthGuard] Redirecting to sign-in - no session');
+    // Handle authentication errors
+    if (error) {
+      router.push('/auth/sign-in');
+      return;
+    }
+
+    // Redirect unauthenticated users to sign-in
+    if (!session) {
       router.push('/auth/sign-in');
     }
   }, [session, isPending, error, router, pathname]);
 
-  // Normalize pathname (remove trailing slash)
-  const normalizedPath =
-    pathname.endsWith('/') && pathname !== '/' ? pathname.slice(0, -1) : pathname;
-
-  // On login/sign-in/debug page, show children immediately
-  if (normalizedPath === '/auth/sign-in' || normalizedPath === '/debug') {
-    return <>{children}</>;
-  }
-
-  // Show error state if session fetch failed
-  if (error) {
-    return (
-      <div className="flex h-screen flex-col items-center justify-center gap-4">
-        <div className="text-destructive">
-          <p className="text-lg font-semibold">Authentication Error</p>
-          <p className="text-sm text-muted-foreground">
-            {error.message || 'Failed to verify authentication'}
-          </p>
-        </div>
-        <button
-          onClick={() => router.push('/auth/sign-in')}
-          className="rounded-md bg-primary px-4 py-2 text-primary-foreground hover:bg-primary/90"
-        >
-          Go to Login
-        </button>
-      </div>
-    );
-  }
-
-  // Show loading state while checking session
+  // Show loading state while checking authentication
   if (isPending) {
     return (
       <div className="flex h-screen items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto" />
+          <p className="mt-4 text-muted-foreground">Loading...</p>
+        </div>
       </div>
     );
   }
 
-  // Show children if authenticated
-  if (session) {
-    return <>{children}</>;
+  // Show nothing while redirecting
+  if (!session) {
+    return null;
   }
 
-  // Show nothing while redirecting
-  return null;
+  // Render protected content
+  return <>{children}</>;
 }

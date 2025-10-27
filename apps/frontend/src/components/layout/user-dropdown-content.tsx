@@ -80,7 +80,6 @@ export default function UserDropdownContent({ appRoute, className }: Props) {
             }
             router.push('/auth/sign-in');
           } catch (err) {
-            console.error('Sign out failed:', err);
             try {
               if (typeof toast?.error === 'function')
                 toast.error('Failed to sign out. Please try again.');

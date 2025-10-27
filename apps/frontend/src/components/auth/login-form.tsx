@@ -40,7 +40,6 @@ export function LoginForm() {
       });
 
       if (error) {
-        console.error('Login failed:', error);
         toast.error(error.message || 'Failed to sign in. Please try again.');
         return;
       }
@@ -52,7 +51,6 @@ export function LoginForm() {
         router.refresh();
       }
     } catch (error) {
-      console.error('Unexpected error during login:', error);
       toast.error('An unexpected error occurred. Please try again.');
     } finally {
       setIsLoading(false);
