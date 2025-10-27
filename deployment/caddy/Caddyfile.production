@@ -69,17 +69,25 @@
 		}
 
 		# Frontend routes (Next.js production)
+		# Critical: flush_interval -1 disables buffering for Next.js SSR streaming
+		# Without this, Next.js streaming responses get buffered causing white pages
+		# See: https://github.com/caddyserver/caddy/issues/4247
 		reverse_proxy frontend:3000 {
-			# Request buffering for better performance
-			flush_interval 1s
+			# Disable response buffering for Next.js streaming/SSR
+			flush_interval -1
+			
+			# Transport timeouts for long-running requests
+			transport http {
+				# Increase timeouts for SSR rendering
+				response_header_timeout 30s
+				read_timeout 30s
+			}
 		}
 	}
     
     # Security headers (comprehensive protection)
+    # Note: HSTS is conditionally applied based on domain
     header {
-        # HSTS - Force HTTPS for 1 year
-        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
-        
         # Prevent MIME type sniffing
         X-Content-Type-Options "nosniff"
         
@@ -92,12 +100,21 @@
         # Referrer policy
         Referrer-Policy "strict-origin-when-cross-origin"
         
-        # Content Security Policy (relaxed for debugging)
-        # TODO: Tighten this after auth issues are resolved
-        Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://localhost http://localhost; frame-ancestors 'none';"
+        # Content Security Policy (configured for development with localhost)
+        # Official MDN pattern: connect-src must include wss:// for secure WebSockets
+        # font-src allows external CDN fonts (e.g., r2cdn.perplexity.ai)
+        Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data: https:; connect-src 'self' https://localhost https://localhost:* http://localhost http://localhost:* wss://localhost wss://localhost:* ws://localhost ws://localhost:*; frame-ancestors 'none';"
         
         # Permissions policy (restrict browser features)
         Permissions-Policy "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()"
+        
+        # HSTS - Only enable for production domains (NOT localhost or IPs)
+        # For localhost/self-signed certs, HSTS prevents certificate exceptions
+        @notlocalhost {
+            not remote_ip 127.0.0.1 ::1
+            not host localhost
+        }
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" @notlocalhost
         
         # Remove server identification
         -Server

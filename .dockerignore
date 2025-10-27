@@ -30,11 +30,23 @@ yarn-debug.log*
 yarn-error.log*
 *.log
 
-# Local env files
+# Local env files - CRITICAL: Exclude all .env files except examples
+# These override Docker build args and break production builds
 .env*
 !.env.example
+!.env.production.template
 *.env
 .env
+.env.local
+.env.development
+.env.test
+*/.env.local
+*/.env.development
+*/.env.test
+apps/frontend/.env.local
+apps/frontend/.env.development
+apps/backend/.env.local
+apps/backend/.env.development
 
 # Vercel
 .vercel

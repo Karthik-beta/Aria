@@ -80,6 +80,12 @@ ARG NODE_ENV=production
 ENV NODE_ENV=${NODE_ENV}
 ENV NEXT_TELEMETRY_DISABLED=1
 
+# CRITICAL: Accept NEXT_PUBLIC_* variables as build args
+# Next.js embeds NEXT_PUBLIC_* env vars into the client bundle at BUILD time
+# These must be passed as build args, not just runtime environment variables
+ARG NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+
 # Generate Prisma client before building (required for backend types)
 RUN cd apps/backend && pnpm exec prisma generate
 

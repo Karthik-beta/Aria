@@ -45,6 +45,9 @@ services:
       target: runner
       args:
         - NODE_ENV=production
+        # CRITICAL: Pass NEXT_PUBLIC_API_URL at build time
+        # Next.js embeds NEXT_PUBLIC_* vars into client bundle during build
+        - NEXT_PUBLIC_API_URL=https://${DOMAIN:-localhost}
     image: aria-frontend:${VERSION:-latest}
     container_name: aria-frontend
     restart: unless-stopped

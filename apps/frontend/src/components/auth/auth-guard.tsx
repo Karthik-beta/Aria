@@ -5,21 +5,42 @@ import { useRouter, usePathname } from 'next/navigation';
 import { authClient } from '@/lib/auth/client';
 
 /**
- * Authentication guard component
+ * AuthGuard - Authentication protection for application routes
  *
  * @remarks
- * Redirects to login if user is not authenticated in production.
- * Bypasses check in development environment.
+ * This component wraps the entire application and enforces authentication
+ * on protected routes while allowing access to public auth pages.
  *
- * According to Better Auth docs, useSession returns { data, error, isPending }
- * We must handle all three states properly to avoid white screens.
+ * **Critical**: Public routes (sign-in, sign-up) must be explicitly excluded
+ * to prevent infinite redirect loops where AuthGuard tries to redirect to
+ * the same auth page the user is already on.
+ *
+ * **Better Auth Integration**: Uses `authClient.useSession()` which returns
+ * `{ data, error, isPending }`. All three states must be handled:
+ * - `isPending`: Show loading spinner (only for protected routes)
+ * - `error`: Redirect to sign-in
+ * - `!session`: Redirect to sign-in (only for protected routes)
+ *
+ * @see https://www.better-auth.com/docs/concepts/session
+ * @see AUTH_GUARD_INFINITE_LOOP_FIX.md for detailed explanation
+ *
+ * @param children - Child components to render after authentication check
  */
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const { data: session, isPending, error } = authClient.useSession();
 
+  // Public routes that don't require authentication
+  const publicRoutes = ['/auth/sign-in', '/auth/sign-up'];
+  const isPublicRoute = publicRoutes.some((route) => pathname.startsWith(route));
+
   React.useEffect(() => {
+    // Skip authentication for public routes (sign-in, sign-up pages)
+    if (isPublicRoute) {
+      return;
+    }
+
     // Wait for session to be fetched
     if (isPending) {
       return;
@@ -35,10 +56,10 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     if (!session) {
       router.push('/auth/sign-in');
     }
-  }, [session, isPending, error, router, pathname]);
+  }, [session, isPending, error, router, pathname, isPublicRoute]);
 
-  // Show loading state while checking authentication
-  if (isPending) {
+  // Show loading state while checking authentication (only for protected routes)
+  if (!isPublicRoute && isPending) {
     return (
       <div className="flex h-screen items-center justify-center">
         <div className="text-center">
@@ -49,8 +70,8 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // Show nothing while redirecting
-  if (!session) {
+  // Show nothing while redirecting (only for protected routes)
+  if (!isPublicRoute && !session) {
     return null;
   }
 
