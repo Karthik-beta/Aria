@@ -4,7 +4,7 @@
 services:
   # Caddy reverse proxy (production mode with HTTPS)
   caddy:
-    image: caddy:2.8-alpine
+    image: caddy:2.10.2-alpine
     container_name: aria-caddy
     restart: unless-stopped
     ports:
@@ -45,13 +45,20 @@ services:
       target: runner
       args:
         - NODE_ENV=production
+        # CRITICAL: Pass NEXT_PUBLIC_API_URL at build time
+        # Next.js embeds NEXT_PUBLIC_* vars into client bundle during build
+        - NEXT_PUBLIC_API_URL=https://${DOMAIN:-localhost}
     image: aria-frontend:${VERSION:-latest}
     container_name: aria-frontend
     restart: unless-stopped
     environment:
       - NODE_ENV=production
       - HOSTNAME=0.0.0.0
-      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost/api}
+      # Frontend needs to know where to send API requests during SSR
+      # In Docker, frontend container can reach backend via service name
+      - BACKEND_URL=http://backend:3001
+      # Public API URL for browser (via Caddy reverse proxy)
+      - NEXT_PUBLIC_API_URL=https://${DOMAIN:-localhost}
       - NEXT_TELEMETRY_DISABLED=1
     networks:
       - aria-network
@@ -103,6 +110,15 @@ services:
       - JWT_SECRET=${JWT_SECRET}
       - JWT_EXPIRATION=${JWT_EXPIRATION:-24h}
       - CORS_ORIGIN=${CORS_ORIGIN:-*}
+      # Better Auth Configuration
+      - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
+      - BETTER_AUTH_URL=${BETTER_AUTH_URL:-https://${DOMAIN:-localhost}}
+      - FRONTEND_URL=${FRONTEND_URL:-https://${DOMAIN:-localhost}}
+      # Default Admin Account
+      - DEFAULT_ADMIN_USERNAME=${DEFAULT_ADMIN_USERNAME:-admin}
+      - DEFAULT_ADMIN_PASSWORD=${DEFAULT_ADMIN_PASSWORD}
+      - DEFAULT_ADMIN_EMAIL=${DEFAULT_ADMIN_EMAIL:-admin@localhost}
+      - DEFAULT_ADMIN_NAME=${DEFAULT_ADMIN_NAME:-Administrator}
     networks:
       - aria-network
     depends_on:

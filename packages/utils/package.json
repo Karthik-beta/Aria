@@ -3,9 +3,16 @@
   "version": "0.1.0",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.js"
+    }
+  },
   "scripts": {
     "build": "tsc --build tsconfig.json",
-    "clean": "rimraf dist .turbo"
+    "clean": "rimraf dist .turbo tsconfig.tsbuildinfo"
   },
   "dependencies": {
     "@aria/types": "workspace:*"

@@ -9,7 +9,7 @@ export default function SignInViewPage() {
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get('callbackUrl');
   return (
-    <div className="relative h-screen flex-col items-center justify-center md:grid lg:max-w-none lg:grid-cols-2 lg:px-0">
+    <div className="relative min-h-screen grid place-items-center lg:max-w-none lg:px-0">
       <Link
         href="/examples/authentication"
         className={cn(

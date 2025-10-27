@@ -1,6 +1,7 @@
 import { fontVariables } from '@/lib/font';
 import { TRPCProvider } from '@/lib/trpc';
 import { cn } from '@/lib/utils';
+import { AuthGuard } from '@/components/auth/auth-guard';
 import type { Metadata, Viewport } from 'next';
 import { cookies } from 'next/headers';
 import NextTopLoader from 'nextjs-toploader';
@@ -52,7 +53,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       >
         <TRPCProvider>
           <NextTopLoader color="var(--primary)" showSpinner={false} />
-          <NuqsAdapter>{children}</NuqsAdapter>
+          <NuqsAdapter>
+            <AuthGuard>{children}</AuthGuard>
+          </NuqsAdapter>
         </TRPCProvider>
       </body>
     </html>
