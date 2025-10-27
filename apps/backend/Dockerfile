@@ -1,3 +1,4 @@
+# syntax=docker.io/docker/dockerfile:1
 # Backend Dockerfile - multi-stage build for NestJS
 # Purpose: produce a minimal, production-ready container for the NestJS backend
 # This file intentionally separates concerns into stages: base, deps (install),
@@ -80,8 +81,11 @@ RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
 # Generate Prisma client early so generated client types are available
 RUN cd /app/apps/backend && npx prisma generate
 
-# Build internal shared packages first (ensure dist/ outputs exist)
-# We invoke tsc directly for predictable incremental behavior inside the image
+# CRITICAL: Production requires compiled packages
+# Node.js v24's native TypeScript support explicitly disallows type-stripping for files in node_modules
+# Error: ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING
+# The JIT pattern works in development (Next.js transpiles) but fails in production NestJS runtime
+# Solution: Pre-compile shared packages to JavaScript before backend build
 RUN cd /app/packages/types && npx tsc --build tsconfig.json
 RUN cd /app/packages/utils && npx tsc --build tsconfig.json
 
@@ -120,25 +124,6 @@ COPY --from=builder --chown=nestjs:nodejs /app/apps/backend/generated ./generate
 # can load it via require('db') in the production container.
 COPY --from=builder --chown=nestjs:nodejs /app/apps/backend/generated/prisma ./node_modules/db
 
-# Lightweight healthcheck for container orchestration to probe the app
-# Use curl (installed in runner) which is available on Alpine; wget may not
-# be present in minimal images and can cause false unhealthy signals.
-HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-    CMD curl -fsS http://localhost:3001/health || exit 1
-
-# Copy entrypoint that handles migration baseline resolution and startup
-COPY --chown=nestjs:nestjs apps/backend/docker-entrypoint.sh /app/docker-entrypoint.sh
-RUN chmod +x /app/docker-entrypoint.sh
-
-# Use the non-root user for runtime
-USER nestjs
-
-# Expose application port
-EXPOSE 3001
-
-# Entrypoint handles production-friendly migration and then starts the process
-ENTRYPOINT ["/app/docker-entrypoint.sh"]
- 
 # Install runtime tooling required by the entrypoint and healthcheck.
 # We install Prisma CLI globally so `prisma` and `npx prisma` work inside the
 # production container (necessary for `prisma migrate deploy` in the entrypoint).
@@ -146,3 +131,17 @@ ENTRYPOINT ["/app/docker-entrypoint.sh"]
 USER root
 RUN apk add --no-cache curl && npm install -g prisma@6.17.1 --location=global && chown -R nestjs:nodejs /app
 USER nestjs
+
+# Copy entrypoint that handles migration baseline resolution and startup
+COPY --chown=nestjs:nodejs apps/backend/docker-entrypoint.sh /app/docker-entrypoint.sh
+RUN chmod +x /app/docker-entrypoint.sh
+
+# Lightweight healthcheck for container orchestration to probe the app
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD curl -fsS http://localhost:3001/health || exit 1
+
+# Expose application port
+EXPOSE 3001
+
+# Entrypoint handles production-friendly migration and then starts the process
+ENTRYPOINT ["/app/docker-entrypoint.sh"]

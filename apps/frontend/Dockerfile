@@ -1,10 +1,12 @@
-# Frontend Dockerfile - Multi-stage build for Next.js 16
-# Supports both development and production environments
+# syntax=docker.io/docker/dockerfile:1
+# Frontend Dockerfile - Multi-stage build for Next.js 15
+# Based on official Next.js with-docker example
+# Reference: https://github.com/vercel/next.js/tree/canary/examples/with-docker
 
 # Base stage with Node.js and pnpm
 # Using Node.js 20.15.1 - last version before transformAlgorithm bug
 # Node.js 20.16+ introduced kState transformAlgorithm streaming bug
-# Next.js 16 requires Node.js >= 20.9.0, so v18 doesn't work
+# Next.js 15 requires Node.js >= 20.9.0, so v18 doesn't work
 # See: https://github.com/vercel/next.js/issues/68319
 # See: https://github.com/vercel/next.js/discussions/75995
 FROM node:20.15.1-slim AS base
@@ -27,12 +29,13 @@ COPY packages/utils/package.json ./packages/utils/
 COPY apps/frontend/package.json ./apps/frontend/
 COPY apps/backend/package.json ./apps/backend/
 
-# Install dependencies
-RUN pnpm install --frozen-lockfile
+# Install dependencies with BuildKit cache mount for faster rebuilds
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
 
-# Copy source files for packages and backend
-# These are needed for the frontend build to compile dependencies
+# Copy shared packages source (JIT pattern - no build needed, consumed as TypeScript)
 COPY packages ./packages
+
+# Copy backend source for Prisma types
 COPY apps/backend/src ./apps/backend/src
 COPY apps/backend/prisma ./apps/backend/prisma
 COPY apps/backend/tsconfig.json ./apps/backend/tsconfig.json
@@ -89,12 +92,16 @@ ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 # Generate Prisma client before building (required for backend types)
 RUN cd apps/backend && pnpm exec prisma generate
 
-# Build dependencies in order: backend must be built first for frontend to access AppRouter types
-RUN pnpm --filter "@aria/types" build || true
-RUN pnpm --filter "@aria/utils" build || true
+# CRITICAL: Compile shared packages before backend/frontend builds
+# Production requires compiled packages - JIT pattern only works in Next.js dev mode
+RUN cd packages/types && npx tsc --build tsconfig.json
+RUN cd packages/utils && npx tsc --build tsconfig.json
+
+# Build backend (required for tRPC types that frontend imports)
 RUN pnpm --filter backend build
 
 # Build frontend using Turbo
+RUN pnpm turbo build --filter=frontend...
 RUN pnpm turbo build --filter=frontend...
 
 # Production runner stage - minimal production image with standalone output
@@ -105,21 +112,15 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
-# Create non-root user for security
+# Create non-root user for security (following official Next.js Docker pattern)
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nextjs
 
-# Copy standalone server and dependencies
-# Next.js standalone output includes all necessary files
+# Automatically leverage output traces to reduce image size
+# https://nextjs.org/docs/advanced-features/output-file-tracing
+# Official pattern: Copy standalone output to root, then copy static assets
 COPY --from=builder --chown=nextjs:nodejs /app/apps/frontend/.next/standalone ./
-
-# CRITICAL: Copy static assets to the correct location within standalone output
-# Standalone server runs from app/apps/frontend/, so static files must be at app/apps/frontend/.next/static
-# Per Next.js docs: https://nextjs.org/docs/app/api-reference/config/next-config-js/output
 COPY --from=builder --chown=nextjs:nodejs /app/apps/frontend/.next/static ./app/apps/frontend/.next/static
-
-# Copy public assets to the correct location within standalone output
-# Public files must be at app/apps/frontend/public for the standalone server
 COPY --from=builder --chown=nextjs:nodejs /app/apps/frontend/public ./app/apps/frontend/public
 
 # Health check - accept 2xx and 3xx status codes (redirects are OK)
@@ -132,6 +133,11 @@ USER nextjs
 # Expose application port
 EXPOSE 3000
 
+# Environment variables must be redefined at run time (will be set by docker-compose)
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
+
 # Start the Next.js standalone server
-# Standalone output includes nested app directory structure
+# Standalone output creates: /app/.next/standalone structure
+# The server.js file is generated at the root of standalone output
 CMD ["node", "app/apps/frontend/server.js"]
