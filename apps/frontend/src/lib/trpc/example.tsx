@@ -15,7 +15,7 @@
 
 'use client';
 
-import { trpc } from './client';
+import { trpc } from '.';
 
 export function ExampleTRPCUsage() {
   // Type-safe query hook - autocomplete works!

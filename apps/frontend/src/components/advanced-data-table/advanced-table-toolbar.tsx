@@ -97,12 +97,17 @@ export function AdvancedTableToolbar<TData extends RowData>({
   const [isReloading, setIsReloading] = React.useState(false);
   const [pendingAction, setPendingAction] = React.useState<BulkAction<TData> | null>(null);
 
+  // Track mounted state to avoid setState calls after unmount
+  const isMountedRef = React.useRef(false);
+
   // Abort controller for canceling in-flight operations
   const abortControllerRef = React.useRef<AbortController | null>(null);
 
   // Cleanup abort controller on unmount
   React.useEffect(() => {
+    isMountedRef.current = true;
     return () => {
+      isMountedRef.current = false;
       abortControllerRef.current?.abort();
     };
   }, []);
@@ -150,19 +155,19 @@ export function AdvancedTableToolbar<TData extends RowData>({
         await action.action(selectedRows);
 
         // Only show success if not aborted
-        if (!abortControllerRef.current?.signal.aborted) {
+        if (!abortControllerRef.current?.signal.aborted && isMountedRef.current) {
           toast.success(`Successfully performed "${action.label}" on ${selectedCount} row(s)`);
           table.resetRowSelection();
         }
       } catch (error) {
-        if (!abortControllerRef.current?.signal.aborted) {
+        if (!abortControllerRef.current?.signal.aborted && isMountedRef.current) {
           console.error('[BulkAction]', error);
           toast.error(
             `Failed to perform action: ${error instanceof Error ? error.message : 'Unknown error'}`
           );
         }
       } finally {
-        if (!abortControllerRef.current?.signal.aborted) {
+        if (!abortControllerRef.current?.signal.aborted && isMountedRef.current) {
           setIsExecuting(false);
           setPendingAction(null);
         }
@@ -201,9 +206,15 @@ export function AdvancedTableToolbar<TData extends RowData>({
       }
     } catch (error) {
       console.error('[Reload]', error);
-      toast.error(`Failed to reload: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      if (isMountedRef.current) {
+        toast.error(
+          `Failed to reload: ${error instanceof Error ? error.message : 'Unknown error'}`
+        );
+      }
     } finally {
-      setIsReloading(false);
+      if (isMountedRef.current) {
+        setIsReloading(false);
+      }
     }
   }, [isReloading, isExecuting, onReload, table.options.meta]);
 

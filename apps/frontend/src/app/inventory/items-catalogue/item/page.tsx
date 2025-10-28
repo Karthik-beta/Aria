@@ -108,9 +108,11 @@ export default function InventoryItemsPage() {
   const [subscriptionEnabled, setSubscriptionEnabled] = React.useState(false);
 
   // Mounted ref to track component lifecycle - official React pattern for cleanup
+  // Initialize as false during render, set to true after mount to prevent premature callbacks
   const isMountedRef = React.useRef(false);
 
   React.useEffect(() => {
+    // Mark component as mounted and enable subscription
     isMountedRef.current = true;
     setSubscriptionEnabled(true);
 

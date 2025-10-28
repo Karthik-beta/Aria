@@ -1,10 +1,14 @@
 'use client';
 
+import * as React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
-import { httpBatchLink, splitLink, wsLink, createWSClient, type TRPCLink } from '@trpc/client';
-import { useState } from 'react';
+import { httpBatchLink, httpSubscriptionLink, splitLink, wsLink, createWSClient } from '@trpc/client';
 import type { AppRouter } from 'backend';
+
+// Import trpc from client.ts to avoid circular dependency
+// This creates a clean one-way dependency graph:
+// client.ts -> provider.tsx -> index.ts
 import { trpc } from './client';
 
 /**
@@ -20,11 +24,9 @@ function getBaseUrl() {
 }
 
 /**
- * Get the WebSocket URL for tRPC subscriptions
- * Only call this in browser environment
- *
+ * Get the WebSocket URL for tRPC subscriptions.
  * Note: WebSocket connections cannot be proxied by Next.js rewrites,
- * so we connect directly to the backend WebSocket server
+ * so we connect directly to the backend WebSocket server.
  */
 function getWsUrl(): string {
   // Use NEXT_PUBLIC_API_URL if explicitly set
@@ -41,121 +43,20 @@ function getWsUrl(): string {
 }
 
 /**
- * Create WebSocket client following official tRPC documentation
- * https://trpc.io/docs/client/links/wsLink
- *
- * This function creates a new WebSocket client instance.
- * It should be called ONCE per tRPC client lifecycle (not during render).
- */
-function createWsClient() {
-  if (typeof window === 'undefined') {
-    throw new Error('WebSocket client can only be created in browser');
-  }
-
-  const wsUrl = getWsUrl();
-
-  // Create WebSocket client following official minimal pattern
-  // https://trpc.io/docs/client/links/wsLink
-  const wsClient = createWSClient({
-    url: wsUrl,
-    WebSocket: WebSocket as any,
-
-    // Optional callbacks for connection management
-    onOpen: () => {
-      // WebSocket connected successfully
-    },
-
-    onClose: (cause) => {
-      // Log non-normal disconnections in development only
-      const code = cause?.code;
-      if (code && code !== 1000 && code !== 1001 && process.env.NODE_ENV === 'development') {
-        // eslint-disable-next-line no-console
-        console.warn('[WebSocket] Disconnected - Code:', code);
-      }
-    },
-
-    onError: (error) => {
-      // Log errors in development only
-      if (process.env.NODE_ENV === 'development') {
-        // eslint-disable-next-line no-console
-        console.error('[WebSocket] Error:', error);
-      }
-    },
-  });
-
-  return wsClient;
-}
-
-/**
- * Create tRPC links following official documentation
- * https://trpc.io/docs/client/links/splitLink
- *
- * Uses splitLink to route:
- * - subscriptions → WebSocket (wsLink)
- * - queries & mutations → HTTP (httpBatchLink)
- *
- * SSR-safe: During SSR, only HTTP link is used (WebSocket client cannot be created)
- *
- * IMPORTANT: This function is called ONCE during tRPC client initialization,
- * NOT during every render. The wsClient is created here and reused for the
- * lifetime of the tRPC client.
- *
- * Pattern verified against official example:
- * https://github.com/trpc/examples-next-prisma-websockets-starter/blob/main/src/utils/trpc.ts#L22-L53
- */
-function createLinks(): TRPCLink<AppRouter>[] {
-  const httpLink = httpBatchLink({
-    url: `${getBaseUrl()}/trpc`,
-  });
-
-  // During SSR, only use HTTP
-  if (typeof window === 'undefined') {
-    return [httpLink];
-  }
-
-  // In browser, create WebSocket client and use splitLink for routing
-  // Following official pattern: https://trpc.io/docs/client/links/splitLink
-  // The wsClient is created once here, not on every render
-  const wsClient = createWsClient();
-
-  return [
-    splitLink({
-      // Route based on operation type
-      condition: (op) => op.type === 'subscription',
-
-      // Subscriptions use WebSocket
-      true: wsLink<AppRouter>({
-        client: wsClient,
-      }),
-
-      // Queries and mutations use HTTP with batching
-      false: httpLink,
-    }),
-  ];
-}
-
-/**
  * TRPCProvider wraps the app with tRPC and TanStack Query providers
  * This enables type-safe API calls throughout the application with real-time WebSocket subscriptions
  *
- * Pattern verified against official tRPC Next.js WebSocket example:
- * https://github.com/trpc/examples-next-prisma-websockets-starter
- *
- * Key differences from Pages Router:
- * - App Router uses 'use client' provider with useState for client initialization
- * - QueryClient and tRPC client are created ONCE using useState initializer
- * - No SSR/hydration recreation needed - client is stable across renders
+ * Pattern (Official tRPC documentation): create the client with `useState`
+ * so each request gets its own instance (https://trpc.io/docs/client/react/setup)
+ * and compose WebSocket subscriptions with `splitLink` + `wsLink`
+ * (https://trpc.io/docs/client/links/wsLink).
  */
 export function TRPCProvider({ children }: { children: React.ReactNode }) {
-  // Create QueryClient once using useState initializer
-  // This ensures it's created only once, not on every render
-  const [queryClient] = useState(
+  const [queryClient] = React.useState(
     () =>
       new QueryClient({
         defaultOptions: {
           queries: {
-            // With SSR, we usually want to set some default staleTime
-            // above 0 to avoid refetching immediately on the client
             staleTime: 60 * 1000, // 1 minute
             refetchOnWindowFocus: false,
           },
@@ -163,20 +64,97 @@ export function TRPCProvider({ children }: { children: React.ReactNode }) {
       })
   );
 
-  // Create tRPC client once using useState initializer
-  // createLinks() is called ONCE here during initialization, not during render
-  // This follows the official pattern for App Router providers
-  const [trpcClient] = useState(() =>
-    trpc.createClient({
-      links: createLinks(),
-    })
-  );
+  const httpUrl = React.useMemo(() => `${getBaseUrl()}/trpc`, []);
+
+  const initialClient = React.useMemo(() => {
+    const httpLink = httpBatchLink({ url: httpUrl });
+
+    if (typeof window === 'undefined') {
+      return trpc.createClient({
+        links: [httpLink],
+      });
+    }
+
+    const subscriptionLink = httpSubscriptionLink({ url: httpUrl });
+
+    return trpc.createClient({
+      links: [
+        splitLink({
+          condition: (op) => op.type === 'subscription',
+          true: subscriptionLink,
+          false: httpLink,
+        }),
+      ],
+    });
+  }, [httpUrl]);
+
+  const [wsClientValue, setWsClientValue] = React.useState<ReturnType<typeof trpc.createClient> | null>(null);
+  const wsTransportRef = React.useRef<ReturnType<typeof createWSClient> | null>(null);
+
+  const activeClient = wsClientValue ?? initialClient;
+
+  React.useLayoutEffect(() => {
+    if (typeof window === 'undefined') {
+      return undefined;
+    }
+
+    const wsClient = createWSClient({
+      url: getWsUrl(),
+      WebSocket: WebSocket as any,
+      lazy: { enabled: true, closeMs: 10_000 },
+
+      onClose: (cause) => {
+        const code = cause?.code;
+        if (code && code !== 1000 && code !== 1001 && process.env.NODE_ENV === 'development') {
+          // eslint-disable-next-line no-console
+          console.warn('[WebSocket] Disconnected - Code:', code);
+        }
+      },
+
+      onError: (error) => {
+        if (process.env.NODE_ENV === 'development') {
+          const hasErrorInfo =
+            error &&
+            (error instanceof Error ||
+              (typeof error === 'object' &&
+                (Object.keys(error).length > 0 || error.constructor !== Object)));
+
+          if (hasErrorInfo) {
+            // eslint-disable-next-line no-console
+            console.error('[WebSocket] Error:', error);
+          }
+        }
+      },
+    });
+
+    wsTransportRef.current = wsClient;
+
+    const wsEnabledClient = trpc.createClient({
+      links: [
+        splitLink({
+          condition: (op) => op.type === 'subscription',
+          true: wsLink<AppRouter>({ client: wsClient }),
+          false: httpBatchLink({ url: httpUrl }),
+        }),
+      ],
+    });
+
+    setWsClientValue(wsEnabledClient);
+
+    return () => {
+      try {
+        wsTransportRef.current?.close();
+        wsTransportRef.current = null;
+      } catch {
+        // Ignore errors during cleanup
+      }
+    };
+  }, [httpUrl]);
 
   return (
-    <trpc.Provider client={trpcClient} queryClient={queryClient}>
+    <trpc.Provider client={activeClient} queryClient={queryClient}>
       <QueryClientProvider client={queryClient}>
         {children}
-        {/* Show React Query devtools in development */}
         {process.env.NODE_ENV === 'development' && <ReactQueryDevtools initialIsOpen={false} />}
       </QueryClientProvider>
     </trpc.Provider>
