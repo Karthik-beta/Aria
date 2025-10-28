@@ -100,19 +100,31 @@ export default function InventoryItemsPage() {
     [rawItems]
   );
 
-  // Real-time subscription for CRUD events - Properly managed with useEffect
+  // Real-time subscription for CRUD events
+  // Following official React pattern: use cleanup flag to prevent state updates after unmount
+  // https://react.dev/learn/synchronizing-with-effects#fetching-data
   const errorCountRef = React.useRef(0);
   const lastErrorTimeRef = React.useRef(0);
   const [subscriptionEnabled, setSubscriptionEnabled] = React.useState(false);
 
-  // Enable subscription only after component mounts to prevent React state update errors
+  // Mounted ref to track component lifecycle - official React pattern for cleanup
+  const isMountedRef = React.useRef(false);
+
   React.useEffect(() => {
+    isMountedRef.current = true;
     setSubscriptionEnabled(true);
+
+    return () => {
+      isMountedRef.current = false;
+    };
   }, []);
 
-  // Memoize callbacks to prevent subscription re-initialization
+  // Memoize callbacks with mounted check to prevent state updates after unmount
   const handleSubscriptionData = React.useCallback(
     (event: { type: 'created' | 'updated' | 'deleted'; data: Inventory.Item | { id: string } }) => {
+      // Guard: only update state if component is still mounted
+      if (!isMountedRef.current) return;
+
       // Invalidate and refetch the list when any CRUD operation occurs
       void utils.inventory.listItems.invalidate();
 
@@ -129,6 +141,9 @@ export default function InventoryItemsPage() {
   );
 
   const handleSubscriptionError = React.useCallback((error: unknown) => {
+    // Guard: only update state if component is still mounted
+    if (!isMountedRef.current) return;
+
     errorCountRef.current += 1;
     const now = Date.now();
     const timeSinceLastError = now - lastErrorTimeRef.current;
@@ -143,6 +158,9 @@ export default function InventoryItemsPage() {
   }, []);
 
   const handleSubscriptionStarted = React.useCallback(() => {
+    // Guard: only update state if component is still mounted
+    if (!isMountedRef.current) return;
+
     errorCountRef.current = 0; // Reset error count on successful connection
   }, []);
 
@@ -154,13 +172,17 @@ export default function InventoryItemsPage() {
   });
 
   // Show error state if query fails
+  // Guard against state updates after unmount
   React.useEffect(() => {
-    if (queryError) {
+    if (queryError && isMountedRef.current) {
       toast.error(`Failed to load inventory items: ${queryError.message}`);
     }
   }, [queryError]);
 
   // Delete mutation with optimistic updates
+  // Following official TanStack Query pattern: callbacks in useMutation always run
+  // Use isMountedRef guard to prevent state updates after unmount
+  // https://tanstack.com/query/v5/docs/framework/react/guides/mutations
   const deleteMutation = trpc.inventory.deleteItem.useMutation({
     onMutate: async (variables) => {
       // Cancel outgoing refetches to avoid overwriting optimistic update
@@ -179,11 +201,17 @@ export default function InventoryItemsPage() {
       return { previousItems };
     },
     onSuccess: () => {
+      // Guard: only update state if component is still mounted
+      if (!isMountedRef.current) return;
+
       toast.success('Item deleted successfully');
       setIsDeleteDialogOpen(false);
       setItemToDelete(null);
     },
     onError: (error, variables, context) => {
+      // Guard: only update state if component is still mounted
+      if (!isMountedRef.current) return;
+
       // Rollback on error
       if (context?.previousItems) {
         utils.inventory.listItems.setData(undefined, context.previousItems);
@@ -192,11 +220,13 @@ export default function InventoryItemsPage() {
     },
     onSettled: () => {
       // Always refetch after mutation to ensure data consistency
+      // Note: invalidate is safe to call even if unmounted (doesn't trigger UI updates)
       utils.inventory.listItems.invalidate();
     },
   });
 
   // Bulk delete mutation with optimistic updates
+  // Following official TanStack Query pattern with mounted guard
   const bulkDeleteMutation = trpc.inventory.deleteItem.useMutation({
     onMutate: async (variables) => {
       // Cancel outgoing refetches
@@ -214,12 +244,16 @@ export default function InventoryItemsPage() {
       return { previousItems };
     },
     onError: (error, variables, context) => {
+      // Guard: only update state if component is still mounted
+      if (!isMountedRef.current) return;
+
       // Rollback on error
       if (context?.previousItems) {
         utils.inventory.listItems.setData(undefined, context.previousItems);
       }
     },
     onSettled: () => {
+      // Always refetch after mutation to ensure data consistency
       utils.inventory.listItems.invalidate();
     },
   });
@@ -476,11 +510,19 @@ export default function InventoryItemsPage() {
         for (const id of ids) {
           await bulkDeleteMutation.mutateAsync({ id });
         }
-        toast.success(`Successfully deleted ${ids.length} item(s)`);
+
+        // Guard: only show toast if component is still mounted
+        if (isMountedRef.current) {
+          toast.success(`Successfully deleted ${ids.length} item(s)`);
+        }
+
         // Invalidate to refresh the list
         await utils.inventory.listItems.invalidate();
       } catch (_error) {
-        toast.error('Failed to delete some items');
+        // Guard: only show toast if component is still mounted
+        if (isMountedRef.current) {
+          toast.error('Failed to delete some items');
+        }
       }
     },
     [bulkDeleteMutation, utils]
