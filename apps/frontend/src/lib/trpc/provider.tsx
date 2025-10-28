@@ -3,7 +3,13 @@
 import * as React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
-import { httpBatchLink, httpSubscriptionLink, splitLink, wsLink, createWSClient } from '@trpc/client';
+import {
+  httpBatchLink,
+  httpSubscriptionLink,
+  splitLink,
+  wsLink,
+  createWSClient,
+} from '@trpc/client';
 import type { AppRouter } from 'backend';
 
 // Import trpc from client.ts to avoid circular dependency
@@ -88,7 +94,9 @@ export function TRPCProvider({ children }: { children: React.ReactNode }) {
     });
   }, [httpUrl]);
 
-  const [wsClientValue, setWsClientValue] = React.useState<ReturnType<typeof trpc.createClient> | null>(null);
+  const [wsClientValue, setWsClientValue] = React.useState<ReturnType<
+    typeof trpc.createClient
+  > | null>(null);
   const wsTransportRef = React.useRef<ReturnType<typeof createWSClient> | null>(null);
 
   const activeClient = wsClientValue ?? initialClient;

@@ -4,14 +4,11 @@
 # Reference: https://github.com/vercel/next.js/tree/canary/examples/with-docker
 
 # Base stage with Node.js and pnpm
-# Using Node.js 20.15.1 - last version before transformAlgorithm bug
-# Node.js 20.16+ introduced kState transformAlgorithm streaming bug
-# Next.js 15 requires Node.js >= 20.9.0, so v18 doesn't work
-# See: https://github.com/vercel/next.js/issues/68319
-# See: https://github.com/vercel/next.js/discussions/75995
-FROM node:20.15.1-slim AS base
+# Using Node.js 22-slim (LTS) to satisfy Next.js 16's runtime requirement (Node 20.9+)
+# and incorporate the latest security patches published for the official Node image.
+FROM node:22-slim AS base
 WORKDIR /app
-# Install pnpm directly via npm to avoid Node.js 20.15.1 corepack signature issues
+# Install pnpm directly via npm to avoid potential corepack signature drift on pinned Node images
 RUN npm install -g pnpm@10.17.1
 
 # Dependencies stage - install all dependencies
