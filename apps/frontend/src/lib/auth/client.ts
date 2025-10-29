@@ -12,12 +12,13 @@ import { usernameClient } from 'better-auth/client/plugins';
  */
 
 // Compute baseURL based on environment
-const baseURL =
-  typeof window !== 'undefined'
-    ? process.env.NODE_ENV === 'production'
-      ? window.location.origin
-      : process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
-    : process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+/**
+ * Use the public API URL provided by environment variables.
+ * - In Vercel (production), NEXT_PUBLIC_API_URL is set to the Lightsail backend URL.
+ * - In local dev, NEXT_PUBLIC_API_URL is undefined, so it falls back to the local backend.
+ * - In a Docker deployment, you would set the NEXT_PUBLIC_API_URL env var to your public-facing backend URL.
+ */
+const baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
 export const authClient = createAuthClient({
   baseURL,
