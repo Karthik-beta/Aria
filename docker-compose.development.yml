@@ -1,8 +1,8 @@
-# Docker Compose Configuration for Development Environment
-# This configuration is optimized for local development with hot-reload and debugging
+# Docker Compose Configuration for Development Environment 🛠️
+# This configuration is optimized for local development with hot-reload and debugging 🔁
 
 services:
-  # Caddy reverse proxy (development mode)
+  # Caddy reverse proxy (development mode) 🔧
   caddy:
     image: caddy:2.8-alpine
     container_name: aria-dev-caddy
@@ -22,13 +22,13 @@ services:
     environment:
       - DOMAIN=${DOMAIN:-localhost}
     healthcheck:
-      test: ['CMD', 'wget', '--no-verbose', '--tries=1', '--spider', 'http://localhost/']
+      test: ['CMD', 'curl', '-fsS', 'http://localhost/']
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 5s
 
-  # Frontend (Next.js development server)
+  # Frontend (Next.js development server) ✨
   frontend:
     build:
       context: .
@@ -71,9 +71,15 @@ services:
     depends_on:
       backend:
         condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'curl', '-fsS', 'http://localhost:3000/']
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     command: pnpm dev
 
-  # Backend (NestJS development server)
+  # Backend (NestJS development server) 🚀
   backend:
     build:
       context: .
@@ -112,14 +118,14 @@ services:
       postgres:
         condition: service_healthy
     healthcheck:
-      test: ['CMD', 'wget', '--no-verbose', '--tries=1', '--spider', 'http://localhost:3001/health']
+      test: ['CMD', 'curl', '-fsS', 'http://localhost:3001/health']
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 30s
+      start_period: 60s
     command: pnpm dev
 
-  # PostgreSQL database
+  # PostgreSQL database 🐘
   postgres:
     image: postgres:18-alpine
     container_name: aria-dev-postgres
@@ -142,7 +148,7 @@ services:
       retries: 5
       start_period: 10s
 
-  # Redis (for caching and sessions)
+  # Redis (for caching and sessions) ⚡
   redis:
     image: redis:7-alpine
     container_name: aria-dev-redis

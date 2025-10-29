@@ -1,23 +1,23 @@
-# SSL Certificate Generator - Dockerfile
-# Alpine-based container for generating SSL certificates
+# SSL Certificate Generator - Dockerfile 🔐
+# Alpine-based container for generating SSL certificates 🧾
 
 FROM alpine:3.19
 
-# Install OpenSSL
+# Install OpenSSL 🔧
 RUN apk add --no-cache \
     openssl \
     bash
 
-# Copy certificate generation script
+# Copy certificate generation script 📜
 COPY generate-certs.sh /usr/local/bin/generate-certs.sh
 
-# Make script executable
+# Make script executable ⚙️
 RUN chmod +x /usr/local/bin/generate-certs.sh
 
-# Set working directory
+# Set working directory 📁
 WORKDIR /certs
 
-# Default environment variables
+# Default environment variables 🔒
 ENV CERT_DIR=/certs \
     DAYS=365 \
     KEY_SIZE=2048 \
@@ -28,8 +28,8 @@ ENV CERT_DIR=/certs \
     ORGANIZATION="Aria ERP" \
     ORG_UNIT="IT Department"
 
-# Volume for certificates
+# Volume for certificates 📦
 VOLUME ["/certs"]
 
-# Run certificate generation script
+# Run certificate generation script ▶️
 ENTRYPOINT ["/usr/local/bin/generate-certs.sh"]

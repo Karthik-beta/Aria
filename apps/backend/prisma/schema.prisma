@@ -7,8 +7,8 @@
 generator client {
   provider = "prisma-client-js"
   output   = "../generated/prisma"
-  // Ensure Prisma generates the correct query engine for linux musl (used in Alpine-based images)
-  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+  // Ensure Prisma generates the correct query engine for debian openssl (used in debian-based images)
+  binaryTargets = ["native", "debian-openssl-3.0.x", "debian-openssl-1.1.x"]
 }
 
 datasource db {
@@ -46,7 +46,7 @@ model ItemGroup {
   // 2. The "many" side (Children)
   // This lists all children that point to this group
   children      ItemGroup[] @relation("ItemGroupHierarchy")
-  
+
   // Items in this group
   items         Item[]
 }
@@ -58,7 +58,7 @@ model Item {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
-  itemGroupId String? 
+  itemGroupId String?
   itemGroup   ItemGroup? @relation(fields: [itemGroupId], references: [id])
 
   disabled  Boolean   @default(false)
@@ -75,7 +75,7 @@ model Item {
   description  String?   @db.Text
   brandId     String?
   brand       Brand?    @relation(fields: [brandId], references: [id])
-  
+
   // Relations
   productBundles        ProductBundle[]
   productBundleItems    ProductBundleItem[]
@@ -89,7 +89,7 @@ model UnitOfMeasurement {
   isWholeNumber     Boolean   @default(true)
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
-  
+
   // Relations
   items             Item[]
   productBundleItems ProductBundleItem[]
@@ -101,7 +101,7 @@ model Brand {
   description String?   @db.Text
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
-  
+
   // Relations
   items     Item[]
 }
@@ -114,7 +114,7 @@ model ProductBundle {
   disabled  Boolean   @default(false)
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
-  
+
   // Relations
   bundleItems ProductBundleItem[]
 }
@@ -140,7 +140,7 @@ model ShippingRule {
   shippingRuleLabel String  @db.VarChar(255)
   shippingRuleType  RuleType
   disabled  Boolean   @default(false)
-  createdAt DateTime  @default(now()) 
+  createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
   calculateBasedOn  CalculationType
@@ -181,10 +181,10 @@ model User {
   image           String?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
-  
+
   sessions        Session[]
   accounts        Account[]
-  
+
   @@map("users")
 }
 
@@ -198,7 +198,7 @@ model Session {
   userAgent String?
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+
   @@map("sessions")
 }
 
@@ -217,7 +217,7 @@ model Account {
   password          String?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
-  
+
   @@unique([providerId, accountId])
   @@map("accounts")
 }
@@ -229,7 +229,7 @@ model Verification {
   expiresAt  DateTime
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
-  
+
   @@unique([identifier, value])
   @@map("verifications")
 }

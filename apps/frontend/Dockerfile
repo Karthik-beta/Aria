@@ -1,17 +1,17 @@
 # syntax=docker.io/docker/dockerfile:1
-# Frontend Dockerfile - Multi-stage build for Next.js 15
-# Based on official Next.js with-docker example
+# Frontend Dockerfile - Multi-stage build for Next.js 15 🚀
+# Based on official Next.js with-docker example (best practices) 📚
 # Reference: https://github.com/vercel/next.js/tree/canary/examples/with-docker
 
-# Base stage with Node.js and pnpm
+# Base stage with Node.js and pnpm 🧱
 # Using Node.js 22-slim (LTS) to satisfy Next.js 16's runtime requirement (Node 20.9+)
 # and incorporate the latest security patches published for the official Node image.
 FROM node:22-slim AS base
 WORKDIR /app
-# Install pnpm directly via npm to avoid potential corepack signature drift on pinned Node images
-RUN npm install -g pnpm@10.17.1
+# Enable corepack and prepare the pnpm client used for installs/builds.
+RUN corepack enable && corepack prepare pnpm@latest --activate
 
-# Dependencies stage - install all dependencies
+# Dependencies stage - install all dependencies 📦
 FROM base AS deps
 WORKDIR /app
 
@@ -38,7 +38,7 @@ COPY apps/backend/prisma ./apps/backend/prisma
 COPY apps/backend/tsconfig.json ./apps/backend/tsconfig.json
 COPY apps/backend/tsconfig.build.json ./apps/backend/tsconfig.build.json
 
-# Development stage - for local development with hot reload
+# Development stage - for local development with hot reload 🛠️
 FROM base AS development
 WORKDIR /app
 
@@ -64,7 +64,7 @@ EXPOSE 3000
 # Development command (will be overridden by docker-compose)
 CMD ["pnpm", "--filter", "frontend", "dev"]
 
-# Builder stage - build the Next.js application
+# Builder stage - build the Next.js application 🏗️
 FROM base AS builder
 WORKDIR /app
 
@@ -86,22 +86,34 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ARG NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 
+# Expose Turborepo remote cache args so they can be provided at docker build time
+# These should be passed via build args (docker-compose/CI) and are turned into ENV
+ARG TURBO_TOKEN
+ARG TURBO_TEAM
+ARG TURBO_API
+
+# Make TURBO_* available as environment variables during the build
+# so `turbo` can authenticate with the remote cache.
+ENV TURBO_TOKEN=${TURBO_TOKEN}
+ENV TURBO_TEAM=${TURBO_TEAM}
+ENV TURBO_API=${TURBO_API}
+
 # Generate Prisma client before building (required for backend types)
 RUN cd apps/backend && pnpm exec prisma generate
 
 # CRITICAL: Compile shared packages before backend/frontend builds
 # Production requires compiled packages - JIT pattern only works in Next.js dev mode
-RUN cd packages/types && npx tsc --build tsconfig.json
-RUN cd packages/utils && npx tsc --build tsconfig.json
+RUN cd packages/types && pnpm tsc --build tsconfig.json
+RUN cd packages/utils && pnpm tsc --build tsconfig.json
 
 # Build backend (required for tRPC types that frontend imports)
-RUN pnpm --filter backend build
+RUN --mount=type=cache,id=turbo-build-cache,target=/app/.turbo/cache pnpm --filter backend build
 
-# Build frontend using Turbo
-RUN pnpm turbo build --filter=frontend...
-RUN pnpm turbo build --filter=frontend...
+# Build frontend using Turbo (now able to access remote cache via TURBO_* env)
+RUN --mount=type=cache,id=turbo-build-cache,target=/app/.turbo/cache pnpm turbo build --filter=frontend...
+RUN --mount=type=cache,id=turbo-build-cache,target=/app/.turbo/cache pnpm turbo build --filter=frontend...
 
-# Production runner stage - minimal production image with standalone output
+# Production runner stage - minimal production image with standalone output 🏁
 FROM base AS runner
 WORKDIR /app
 
@@ -120,21 +132,21 @@ COPY --from=builder --chown=nextjs:nodejs /app/apps/frontend/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/apps/frontend/.next/static ./app/apps/frontend/.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/apps/frontend/public ./app/apps/frontend/public
 
-# Health check - accept 2xx and 3xx status codes (redirects are OK)
+# Health check - accept 2xx and 3xx status codes (redirects are OK) 🩺
 HEALTHCHECK --interval=60s --timeout=10s --start-period=40s --retries=3 \
     CMD node -e "require('http').get('http://localhost:3000/', (r) => process.exit((r.statusCode >= 200 && r.statusCode < 400) ? 0 : 1))"
 
 # Switch to non-root user
 USER nextjs
 
-# Expose application port
+# Expose application port 📡
 EXPOSE 3000
 
 # Environment variables must be redefined at run time (will be set by docker-compose)
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
-# Start the Next.js standalone server
+# Start the Next.js standalone server ▶️
 # Standalone output creates: /app/.next/standalone structure
 # The server.js file is generated at the root of standalone output
 CMD ["node", "app/apps/frontend/server.js"]
