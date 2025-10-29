@@ -1,6 +1,7 @@
 {
   "$schema": "https://turborepo.com/schema.json",
   "globalDependencies": [],
+  "globalEnv": ["BACKEND_URL", "NEXT_PUBLIC_API_URL", "NODE_ENV"],
   "tasks": {
     "clean": {
       "cache": false
@@ -8,8 +9,7 @@
     "build": {
       "dependsOn": ["^build"],
       "outputs": ["dist/**", "build/**", ".next/**", "!.next/cache/**"],
-      "cache": true,
-      "env": ["NODE_ENV", "NEXT_PUBLIC_API_URL"]
+      "cache": true
     },
     "check-types": {
       "dependsOn": ["^check-types"],
