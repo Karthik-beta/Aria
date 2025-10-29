@@ -18,9 +18,15 @@ async function bootstrap() {
     bodyParser: false, // Required for Better Auth
   });
 
+  // 1. Get the comma-separated string from the .env file
+  const allowedOriginsRaw = process.env.FRONTEND_URL || 'http://localhost:3000';
+
+  // 2. Split the string into an array
+  const allowedOrigins = allowedOriginsRaw.split(',');
+
   // Enable CORS for frontend
   app.enableCors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    origin: allowedOrigins, // This accepts multiple values
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],

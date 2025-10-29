@@ -43,7 +43,7 @@ export const auth: any = betterAuth({
     }),
   ],
 
-  // Session configuration
+  // Session configuration with cross-site cookie support
   session: {
     expiresIn: 60 * 60 * 24 * 7, // 7 days
     updateAge: 60 * 60 * 24, // Update session every 24 hours
@@ -65,6 +65,36 @@ export const auth: any = betterAuth({
     'https://localhost',
     'http://localhost',
   ],
+
+  // Advanced configuration for cross-site cookie support
+  // Following official Better Auth patterns for cross-domain scenarios
+  // See: https://github.com/better-auth/better-auth/blob/canary/docs/content/docs/integrations/hono.mdx
+  advanced: {
+    // Force secure cookies in production (HTTPS required)
+    useSecureCookies: process.env.NODE_ENV === 'production',
+
+    // Global cookie attributes for cross-site cookies
+    // Required when frontend and backend are on different domains
+    defaultCookieAttributes: {
+      sameSite: 'none', // Allow cross-site cookies
+      secure: true, // Required when sameSite is 'none' - only sent over HTTPS
+      httpOnly: true, // Prevent JavaScript access to the cookie (XSS protection)
+      path: '/', // Cookie available to all routes
+    },
+
+    // Customize individual cookie attributes if needed
+    cookies: {
+      sessionToken: {
+        name: 'better-auth.session_token',
+        attributes: {
+          sameSite: 'none', // Required for cross-site cookies
+          secure: true, // Required when sameSite is 'none'
+          httpOnly: true, // XSS protection
+          partitioned: true, // New browser standards for foreign cookies (CHIPS)
+        },
+      },
+    },
+  },
 });
 
 export type Auth = typeof auth;

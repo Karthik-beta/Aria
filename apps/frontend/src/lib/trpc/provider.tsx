@@ -73,7 +73,15 @@ export function TRPCProvider({ children }: { children: React.ReactNode }) {
   const httpUrl = React.useMemo(() => `${getBaseUrl()}/trpc`, []);
 
   const initialClient = React.useMemo(() => {
-    const httpLink = httpBatchLink({ url: httpUrl });
+    const httpLink = httpBatchLink({
+      url: httpUrl,
+      fetch: (url, options) => {
+        return fetch(url, {
+          ...options,
+          credentials: 'include', // Include cookies for cross-site requests
+        });
+      },
+    });
 
     if (typeof window === 'undefined') {
       return trpc.createClient({
@@ -142,7 +150,15 @@ export function TRPCProvider({ children }: { children: React.ReactNode }) {
         splitLink({
           condition: (op) => op.type === 'subscription',
           true: wsLink<AppRouter>({ client: wsClient }),
-          false: httpBatchLink({ url: httpUrl }),
+          false: httpBatchLink({
+            url: httpUrl,
+            fetch: (url, options) => {
+              return fetch(url, {
+                ...options,
+                credentials: 'include', // Include cookies for cross-site requests
+              });
+            },
+          }),
         }),
       ],
     });

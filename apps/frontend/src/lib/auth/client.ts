@@ -24,6 +24,7 @@ export const authClient = createAuthClient({
   baseURL,
   plugins: [usernameClient()],
   fetchOptions: {
+    credentials: 'include', // Include cookies for cross-site requests
     onError(context) {
       // Silent error handling - AuthGuard will manage redirects
       // Only log server errors in development
