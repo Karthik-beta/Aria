@@ -104,9 +104,6 @@ async function bootstrap() {
     router: appRouter,
     createContext: () => ({
       prisma: trpcContext.prisma,
-      // WebSocket connections don't have Express req/res
-      req: null as any,
-      res: null as any,
     }),
     keepAlive: {
       enabled: true,

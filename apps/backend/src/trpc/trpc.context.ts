@@ -15,8 +15,8 @@ import type { Request, Response } from 'express';
  * See: https://trpc.io/docs/server/adapters/express
  */
 export interface TrpcContextType {
-  req: Request;
-  res: Response;
+  req?: Request;
+  res?: Response;
   prisma: PrismaService;
 }
 
