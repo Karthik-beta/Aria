@@ -1,0 +1,28 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(docker compose --env-file .env.production docker-compose.production.yml up -d --force-recreate)",
+      "Bash(docker compose -f docker-compose.production.yml --env-file .env.production up -d --force-recreate)",
+      "Bash(rm bun.lock)",
+      "Bash(bun install)",
+      "Bash(docker compose -f docker-compose.production.yml ps)",
+      "Bash(docker exec aria-backend curl -fsS http://localhost:3001/health)",
+      "Bash(docker exec aria-backend curl -fsS http://localhost:3001/)",
+      "Bash(docker exec aria-frontend curl -fsS http://localhost:3000/)",
+      "Bash(curl -fsS -k https://localhost/)",
+      "Bash(curl -fsS http://localhost/)",
+      "Bash(docker exec aria-postgres pg_isready -U aria -d aria)",
+      "Bash(docker exec aria-redis redis-cli ping)",
+      "Bash(curl -fsS http://localhost/api/health -H \"Accept: application/json\")",
+      "Bash(curl -fsS http://localhost:3001/health)",
+      "Bash(curl -fsS http://localhost/trpc/health)",
+      "Bash(docker compose -f docker-compose.production.yml logs --tail=20 caddy)",
+      "Bash(docker compose -f docker-compose.production.yml ps --format \"table {{.Name}}\\t{{.Status}}\\t{{.Ports}}\")",
+      "Bash(docker compose -f docker-compose.production.yml logs --tail=5 backend)",
+      "Bash(docker compose -f docker-compose.production.yml exec -T backend cat /proc/1/cmdline)",
+      "Bash(docker compose -f docker-compose.production.yml exec -T frontend cat /proc/1/cmdline)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
