@@ -8,6 +8,39 @@ import type { AppRouter } from 'backend';
 import { trpc } from './client';
 
 /**
+ * Create a new QueryClient instance
+ *
+ * Per official tRPC + React Query SSR pattern:
+ * - Server: Always create new instance per request
+ * - Browser: Reuse single instance to avoid re-creating on suspense
+ */
+function makeQueryClient() {
+  return new QueryClient({
+    defaultOptions: {
+      queries: {
+        staleTime: 60 * 1000, // 1 minute
+        refetchOnWindowFocus: false,
+      },
+    },
+  });
+}
+
+let browserQueryClient: QueryClient | undefined = undefined;
+
+function getQueryClient() {
+  if (typeof window === 'undefined') {
+    // Server: always make a new query client
+    return makeQueryClient();
+  } else {
+    // Browser: make a new query client if we don't already have one
+    // This is very important, so we don't re-make a new client if React
+    // suspends during the initial render
+    if (!browserQueryClient) browserQueryClient = makeQueryClient();
+    return browserQueryClient;
+  }
+}
+
+/**
  * Get the tRPC API URL from environment or default to localhost
  *
  * For separate domain deployments:
@@ -78,190 +111,87 @@ function getWsUrl(): string {
 /**
  * TRPCProvider wraps the app with tRPC and TanStack Query providers
  *
+ * Following official tRPC + React Query SSR pattern:
+ * - QueryClient: Singleton in browser, new instance per request on server
+ * - tRPC client: Created once in useState, stable for component lifetime
+ * - WebSocket: Added client-side only via useEffect after hydration
+ *
  * Configuration:
  * - Uses real WebSocket (wsLink) for subscriptions for better performance
  * - Falls back to HTTP batch link for queries and mutations
- * - Graceful fallback to HTTP-only client if WebSocket setup fails
  * - Works with both same-domain and separate-domain deployments
  *
  * Environment Setup (for separate domain deployments):
  * Set NEXT_PUBLIC_API_URL to your backend domain:
  *   Development: http://localhost:3001
  *   Production: https://api.example.com
+ *
+ * References:
+ * - https://trpc.io/docs/client/tanstack-react-query/setup
+ * - https://tanstack.com/query/latest/docs/framework/react/guides/ssr
  */
 export function TRPCProvider({ children }: { children: React.ReactNode }) {
-  const [queryClient] = React.useState(
-    () =>
-      new QueryClient({
-        defaultOptions: {
-          queries: {
-            staleTime: 60 * 1000, // 1 minute
-            refetchOnWindowFocus: false,
-          },
-        },
-      })
-  );
+  // Use official SSR-safe QueryClient pattern
+  const queryClient = getQueryClient();
 
-  // Initialize with HTTP-only client (safe for SSR)
-  const [trpcClient, setTrpcClient] = React.useState(() => {
-    // Compute URL directly in initializer to avoid timing issues
+  /**
+   * Initialize tRPC client once with stable configuration
+   *
+   * Per official tRPC SSR pattern:
+   * - Create client in useState for stability across renders
+   * - Use splitLink to route subscriptions vs queries/mutations
+   * - WebSocket client is lazy (only connects when needed)
+   * - SSR-safe: WebSocket only works in browser
+   */
+  const [trpcClient] = React.useState(() => {
     const baseUrl = getBaseUrl();
     const httpUrl = `${baseUrl}/trpc`;
-    
-    const httpLink = httpBatchLink({
-      url: httpUrl,
-      fetch: (url, options) => {
-        return fetch(url, {
-          ...options,
-          credentials: 'include', // Include cookies for cross-site requests
-        });
-      },
-    });
+    const wsUrl = getWsUrl();
 
-    // SSR context: only use HTTP link
-    if (typeof window === 'undefined') {
-      return trpc.createClient({
-        links: [httpLink],
-      });
-    }
+    // Create WebSocket client (lazy, won't connect until first subscription)
+    // SSR-safe: typeof window check happens inside wsLink
+    const wsClient =
+      typeof window !== 'undefined'
+        ? createWSClient({
+            url: wsUrl,
+            lazy: {
+              enabled: true,
+              closeMs: 10_000,
+            },
+          })
+        : null;
 
-    // Browser context: initial client with HTTP only (will be replaced with WebSocket-enabled client)
     return trpc.createClient({
-      links: [httpLink],
-    });
-  });
-
-  // Browser-only: Set up WebSocket support after hydration
-  React.useEffect(() => {
-    if (typeof window === 'undefined') {
-      return undefined;
-    }
-
-    let wsClient: ReturnType<typeof createWSClient> | null = null;
-    let isMounted = true;
-
-    const setupWebSocket = async () => {
-      try {
-        // Compute URLs directly to avoid closure/timing issues
-        const baseUrl = getBaseUrl();
-        const httpUrl = `${baseUrl}/trpc`;
-        const wsUrl = getWsUrl();
-
-        // Create WebSocket client
-        wsClient = createWSClient({
-          url: wsUrl,
-          WebSocket: WebSocket as any,
-
-          // Lazy loading: only connect when first subscription is made
-          lazy: {
-            enabled: true,
-            closeMs: 10_000, // Close connection after 10 seconds of inactivity
-          },
-
-          /**
-           * On successful connection
-           */
-          onOpen: () => {
-            if (process.env.NODE_ENV === 'development') {
-              // eslint-disable-next-line no-console
-              console.log('[tRPC WebSocket] Connected to:', wsUrl);
-            }
-          },
-
-          /**
-           * On connection close
-           *
-           * Codes:
-           * - 1000: Normal closure
-           * - 1001: Going away
-           * - Other: Error conditions
-           */
-          onClose: (cause) => {
-            if (isMounted && process.env.NODE_ENV === 'development') {
-              const code = cause?.code;
-
-              // Don't log normal closures (1000, 1001)
-              if (code && ![1000, 1001].includes(code)) {
-                // eslint-disable-next-line no-console
-                console.warn(`[tRPC WebSocket] Closed - Code: ${code}`);
-              }
-            }
-          },
-
-          /**
-           * On WebSocket error
-           *
-           * Common errors:
-           * - Connection refused: Backend not running or incorrect URL
-           * - DNS resolution failed: Incorrect domain
-           * - CORS/HTTPS mismatch: Protocol or domain issues
-           */
-          onError: (error) => {
-            if (isMounted && process.env.NODE_ENV === 'development') {
-              // eslint-disable-next-line no-console
-              console.error('[tRPC WebSocket] Error:', error);
-            }
-          },
-        });
-
-        // Create new tRPC client with WebSocket support
-        const wsEnabledClient = trpc.createClient({
-          links: [
-            splitLink({
-              // Route subscriptions through WebSocket
-              condition: (op) => op.type === 'subscription',
-
-              // Subscriptions use WebSocket
-              true: wsLink<AppRouter>({
-                client: wsClient,
-              }),
-
-              // Queries and mutations use HTTP batch link
-              false: httpBatchLink({
+      links: [
+        splitLink({
+          // Route subscriptions through WebSocket (if available)
+          condition: (op) => op.type === 'subscription',
+          // Subscriptions: use WebSocket if available, otherwise fall back to HTTP
+          true: wsClient
+            ? wsLink<AppRouter>({ client: wsClient })
+            : httpBatchLink({
                 url: httpUrl,
                 fetch: (url, options) => {
                   return fetch(url, {
                     ...options,
-                    credentials: 'include', // Include cookies for cross-site requests
+                    credentials: 'include',
                   });
                 },
               }),
-            }),
-          ],
-        });
-
-        // Only update state if component is still mounted
-        if (isMounted) {
-          setTrpcClient(wsEnabledClient);
-        }
-      } catch (error) {
-        // Log but don't throw - HTTP fallback will still work
-        if (process.env.NODE_ENV === 'development') {
-          // eslint-disable-next-line no-console
-          console.error('[tRPC WebSocket] Setup failed, falling back to HTTP:', error);
-        }
-
-        // Client already set with HTTP-only links above, so no action needed
-      }
-    };
-
-    // Setup WebSocket asynchronously
-    setupWebSocket();
-
-    // Cleanup on unmount
-    return () => {
-      isMounted = false;
-
-      // Close WebSocket connection gracefully
-      try {
-        if (wsClient) {
-          wsClient.close();
-        }
-      } catch {
-        // Ignore cleanup errors
-      }
-    };
-  }, []); // Empty deps - URLs are computed inside effect
+          // Queries and mutations: always use HTTP batch link
+          false: httpBatchLink({
+            url: httpUrl,
+            fetch: (url, options) => {
+              return fetch(url, {
+                ...options,
+                credentials: 'include',
+              });
+            },
+          }),
+        }),
+      ],
+    });
+  });
 
   return (
     <trpc.Provider client={trpcClient} queryClient={queryClient}>
