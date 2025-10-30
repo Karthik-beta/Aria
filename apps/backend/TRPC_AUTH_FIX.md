@@ -101,7 +101,7 @@ await app.listen(process.env.PORT ?? 3001);
 1. **Restart the backend server**:
 
    ```bash
-   pnpm --filter backend dev
+   bun --filter backend dev
    ```
 
 2. **Verify tRPC routes are accessible**:

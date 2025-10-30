@@ -21,9 +21,7 @@ import { usernameClient } from 'better-auth/client/plugins';
  *
  * CRITICAL: Removes trailing slashes to prevent double-slash issues in auth URLs
  */
-const baseURL = (
-  process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
-).replace(/\/$/, '');
+const baseURL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001').replace(/\/$/, '');
 
 export const authClient = createAuthClient({
   baseURL,

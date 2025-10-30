@@ -73,16 +73,16 @@ Each zone operates independently with its own routes, layouts, and components, w
 
 ```bash
 # Install dependencies (from workspace root)
-pnpm install
+bun install
 
 # Start dev server
-pnpm --filter combined dev
+bun --filter frontend dev
 
 # Build for production
-pnpm --filter combined build
+bun --filter frontend build
 
 # Start production server
-pnpm --filter combined start
+bun --filter frontend start
 ```
 
 The app will be available at `http://localhost:3000` with routes:
@@ -133,16 +133,16 @@ The frontend has comprehensive testing infrastructure:
 
 ```bash
 # Run unit tests
-pnpm test
+bun test
 
 # Run tests in UI mode
-pnpm test:ui
+bun test:ui
 
 # Run tests with coverage
-pnpm test:coverage
+bun test:coverage
 
 # Watch mode
-pnpm test:watch
+bun test:watch
 ```
 
 **Documentation:** [`TESTING.md`](./TESTING.md)
@@ -157,22 +157,22 @@ pnpm test:watch
 
 ```bash
 # Run E2E tests
-pnpm test:e2e
+bun test:e2e
 
 # Run in UI mode (interactive)
-pnpm test:e2e:ui
+bun test:e2e:ui
 
 # Run with browser visible
-pnpm test:e2e:headed
+bun test:e2e:headed
 
 # Debug tests
-pnpm test:e2e:debug
+bun test:e2e:debug
 
 # Generate tests with Codegen
-pnpm test:e2e:codegen
+bun test:e2e:codegen
 
 # View HTML report
-pnpm test:e2e:report
+bun test:e2e:report
 ```
 
 **Documentation:**

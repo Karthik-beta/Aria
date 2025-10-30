@@ -80,22 +80,22 @@ This includes:
 
 ```bash
 # Check for issues in your app
-pnpm --filter <app-name> lint
+bun --filter <app-name> lint
 
 # Examples:
-pnpm --filter backend lint      # Check backend code
-pnpm --filter asset lint        # Check asset frontend
-pnpm --filter crm lint          # Check CRM frontend
+bun --filter backend lint      # Check backend code
+bun --filter asset lint        # Check asset frontend
+bun --filter crm lint          # Check CRM frontend
 ```
 
 ### Auto-Fixing Issues
 
 ```bash
 # Fix issues automatically
-pnpm --filter <app-name> lint --fix
+bun --filter <app-name> lint --fix
 
 # Or run format (which includes linting)
-pnpm format
+bun format
 ```
 
 ## 💡 Common Issues ESLint Catches
@@ -273,8 +273,8 @@ Ensures accessible code:
 ```bash
 # Usually means TypeScript config issue
 # Fix by rebuilding:
-pnpm install
-pnpm --filter @aria/eslint-config build
+bun install
+bun --filter @aria/eslint-config build
 ```
 
 ### ESLint is Slow
@@ -284,7 +284,7 @@ pnpm --filter @aria/eslint-config build
 rm -rf .eslintcache
 
 # Or disable caching temporarily
-pnpm lint --no-cache
+bun lint --no-cache
 ```
 
 ### Rules Conflicting with Prettier

@@ -4,7 +4,7 @@ Complete guide for deploying Aria ERP in production environments.
 
 ## Overview
 
-Aria ERP provides a cross-platform deployment package supporting both Linux and Windows servers. The system uses Docker Compose with Traefik for reverse proxy and path-based routing, optimized for static IP deployments.
+Aria ERP provides a cross-platform deployment package supporting both Linux and Windows servers. The system uses Docker Compose with Caddy for reverse proxy and path-based routing, optimized for static IP deployments.
 
 ## Prerequisites
 
@@ -155,7 +155,7 @@ openssl rand -base64 24
 
 **Development:**
 
-- Self-signed certificates in `traefik/certs/`
+- Self-signed certificates in `caddy/certs/`
 - Only for local testing
 
 **Production:**
@@ -164,7 +164,7 @@ openssl rand -base64 24
 - Custom CA certificates
 - Commercial certificates
 
-Configure SSL in `docker-compose.yml` and Traefik configuration.
+Configure SSL in `docker-compose.yml` and Caddy configuration.
 
 See [deployment/docs/CONFIGURATION.md](../deployment/docs/CONFIGURATION.md) for details.
 
@@ -348,7 +348,7 @@ New-NetFirewallRule -DisplayName "Aria ERP HTTP" -Direction Inbound -LocalPort 8
 - PostgreSQL: 2 CPU, 2GB RAM
 - Backend: 1 CPU, 1GB RAM
 - Each Frontend: 0.5 CPU, 512MB RAM
-- Traefik: 0.5 CPU, 512MB RAM
+- Caddy: 0.5 CPU, 512MB RAM
 
 ### Horizontal Scaling (Future)
 
@@ -432,10 +432,10 @@ cat .env | grep POSTGRES
 
 ```bash
 # Check certificate validity
-openssl x509 -in traefik/certs/server.crt -text -noout
+openssl x509 -in caddy/certs/server.crt -text -noout
 
-# Verify Traefik configuration
-docker-compose logs traefik
+# Verify Caddy configuration
+docker-compose logs caddy
 ```
 
 ### Performance Issues

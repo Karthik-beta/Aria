@@ -4,13 +4,13 @@
 
 ## Operating Context
 
-Aria is a pnpm-powered Turborepo that hosts the entire ERP surface area under one roof. The backend NestJS service lives in `apps/backend`, four Next.js 15 App Router frontends (asset, CRM, hrms, inventory) live in `apps/frontend/*`, and reusable building blocks reside in `packages/config-eslint`, `packages/config-typescript`, `packages/types`, and `packages/utils`. Docker Compose plus Traefik orchestrate deployment, and `.github/workflows/ci.yml` guards the main branch. Every contribution must respect this living architecture.
+Aria is a bun-powered Turborepo that hosts the entire ERP surface area under one roof. The backend NestJS service lives in `apps/backend`, a single Next.js 16 App Router frontend with route groups (asset, CRM, hrms, inventory) lives in `apps/frontend`, and reusable building blocks reside in `packages/config-eslint`, `packages/config-typescript`, `packages/types`, and `packages/utils`. Docker Compose plus Caddy orchestrates deployment, and `.github/workflows/ci.yml` guards the main branch. Every contribution must respect this living architecture.
 
 ### Shared Principles
 
 - **Simplicity over cleverness**: reach first for framework conventions and generator commands before authoring bespoke config or scripts.
 - **Types-first**: all code paths—from database contracts to React components—derive their types from shared sources to eliminate drift.
-- **Automation everywhere**: the root scripts (`pnpm lint`, `pnpm test`, `pnpm build`, `pnpm dev`) remain the single entry points for validation and local orchestration.
+- **Automation everywhere**: the root scripts (`bun lint`, `bun test`, `bun build`, `bun dev`) remain the single entry points for validation and local orchestration.
 - **Quality as a default**: unit, integration, and E2E coverage evolve in lockstep with features; no feature is “done” until the relevant tests are green.
 
 The four agents below interpret and enforce these principles from complementary perspectives.
@@ -23,7 +23,7 @@ Keep the codebase frictionless by stripping complexity, honoring framework defau
 
 ### Guardrails
 
-1. **Convention as the baseline**: scaffold new resources with official CLIs (`pnpx next`, `pnpx nest g`, `pnpm dlx playwright install`) and keep generated layouts intact unless there is a proven need to customize.
+1. **Convention as the baseline**: scaffold new resources with official CLIs (`bunx next`, `bun nest g`, `bunx playwright install`) and keep generated layouts intact unless there is a proven need to customize.
 2. **Minimal configuration surface**: when a config change is essential, centralize it in the relevant package (e.g., `packages/config-typescript`) and share it across apps instead of repeating snippets.
 3. **Composable monorepo layout**: new apps belong inside `apps/<domain>/<name>` and new shared libraries inside `packages/*`, maintaining the existing Turborepo graph.
 
@@ -31,12 +31,12 @@ Keep the codebase frictionless by stripping complexity, honoring framework defau
 
 **Monorepo & Workspace**
 
-- Keep `pnpm-workspace.yaml` aligned with the directory structure. Any new directory added to `apps` or `packages` must be reflected there.
+- Keep workspaces configuration aligned with the directory structure in package.json. Any new directory added to `apps` or `packages` must be reflected in the workspaces array.
 - Favor incremental Turborepo pipelines—extend `turbo.json` tasks rather than adding ad-hoc scripts in individual package manifests.
 
-**Frontend Apps (`apps/frontend/*`)**
+**Frontend App (`apps/frontend`)**
 
-- Lean on Next.js defaults: use `app/` routing, server components where possible, and the shared Tailwind 4 toolchain. Avoid ejecting from Turbopack.
+- Lean on Next.js defaults: use `app/` routing with route groups (`/asset`, `/crm`, `/hrms`, `/inventory`), server components where possible, and the shared Tailwind 4 toolchain. Avoid ejecting from Turbopack.
 - Share UI primitives through a future `packages/ui` module instead of duplicating React components across apps—plan ahead when introducing new UI foundations.
 - Align environment variables through `next.config.ts` and `.env` definitions scoped by app; document any addition in the corresponding README.
 
@@ -68,8 +68,8 @@ Guarantee that every boundary is strongly typed, ensuring backend, frontends, te
 ### Core Directives
 
 1. **Unified compiler settings**: all `tsconfig.json` files must extend `@aria/tsconfig`. No ad-hoc compilerOption overrides that contradict the shared baseline.
-2. **Source-of-truth types**: domain schemas, DTOs, API payloads, and shared enums originate in `packages/types/src`. Update the barrel exports and re-run the package build (`pnpm --filter @aria/types build`) after every change.
-3. **Path discipline**: rely on the configured path aliases—`@aria/types`, `@aria/utils`, and app-level aliases (e.g., `@asset/*`). Update `tsconfig.json` and `eslint` settings together whenever you add or rename an alias.
+2. **Source-of-truth types**: domain schemas, DTOs, API payloads, and shared enums originate in `packages/types/src`. Update the barrel exports and re-run the package build (`bun --filter @aria/types build`) after every change.
+3. **Path discipline**: rely on the configured path aliases—`@aria/types`, `@aria/utils`, and app-level aliases (e.g., `@lib/*`, `@components/*`). Update `tsconfig.json` and `eslint` settings together whenever you add or rename an alias.
 4. **Generics before duplication**: when multiple call sites share structural similarities, extract generic utilities or mapped types rather than copying interfaces.
 
 ### Integration Touchpoints
@@ -80,7 +80,7 @@ Guarantee that every boundary is strongly typed, ensuring backend, frontends, te
 
 ### Review Checklist
 
-- [ ] Does the change compile under `pnpm build` without type errors for the touched packages?
+- [ ] Does the change compile under `bun build` without type errors for the touched packages?
 - [ ] Are newly introduced types exported from a central index to prevent deep import drift?
 - [ ] If a contract changed, did all consumers (frontends, backend, tests) adopt the new signature?
 - [ ] Are third-party library typings (`@types/*`) added where required and scoped to the package that needs them?
@@ -97,11 +97,11 @@ Preserve the reliability of the developer experience by enforcing scripted workf
 - **Pipeline hygiene**: when a new task is introduced (e.g., Playwright E2E), extend `turbo.json` and `.github/workflows/ci.yml` accordingly. The CI pipeline should mirror the local workflows exactly.
 - **Caching mindfulness**: configure Turborepo task outputs carefully—ensure new packages define appropriate `outputs` in `turbo.json` to unlock caching and avoid unnecessary rebuilds.
 - **Environment reproducibility**: document required environment variables in package-level README files and sync them with `.env.example` templates. Docker Compose definitions must stay in sync with service scripts.
-- **Dependency discipline**: manage dependencies via pnpm workspaces. After adding a dependency, run `pnpm install` at the root to refresh the lockfile and commit the change.
+- **Dependency discipline**: manage dependencies via Bun workspaces. After adding a dependency, run `bun install` at the root to refresh the lockfile and commit the change.
 
 ### Automation Playbook
 
-- Guard root commands: `pnpm lint`, `pnpm test`, and `pnpm build` should remain green at all times. If they fail locally, fix the issue before opening a PR.
+- Guard root commands: `bun lint`, `bun test`, and `bun build` should remain green at all times. If they fail locally, fix the issue before opening a PR.
 - Extend Git hooks or pre-commit tooling inside a future `packages/config-linting` package if additional automation is needed; keep hooks optional yet documented.
 - Monitor CI durations via GitHub Actions summaries. If a job grows beyond acceptable limits, investigate caching opportunities or test parallelization.
 - Keep Docker images minimal: update Dockerfiles to use multistage builds, and verify they continue to run with a single `docker compose up` using the definitions in `docker-compose.yml`.
@@ -144,7 +144,7 @@ Embed quality gates into daily work so that regressions are caught before they h
 - **Planning**: during sprint kickoff, tag planned work items with the responsible agent(s) to clarify ownership and review focus.
 - **Design reviews**: collect input from all four agents before locking architectural decisions—simplicity and automation concerns often surface opportunities to reduce complexity before code is written.
 - **Pull request template**: ensure the PR checklist references each agent’s duties (simplicity adherence, type coverage, automation updates, test evidence).
-- **Release readiness**: before cutting a release candidate, run the full `pnpm build` pipeline, execute Docker Compose smoke tests, and gather sign-off from Type Safety and Quality leads.
+- **Release readiness**: before cutting a release candidate, run the full `bun build` pipeline, execute Docker Compose smoke tests, and gather sign-off from Type Safety and Quality leads.
 
 ## Submission Gate
 
@@ -232,12 +232,12 @@ Keep the codebase tidy by removing dead code, resolving small lint issues, and p
 ### Conventions
 
 - Only make changes that are covered by unit tests or extremely low-risk (formatting, renames local to a module).
-- When removing code, preserve behavior by running `pnpm test` for the affected package (or a quick unit test) before committing.
+- When removing code, preserve behavior by running `bun test` for the affected package (or a quick unit test) before committing.
 - Use PRs titled with `chore/clean/*` or `chore/refactor/*` and include an explicit risk statement in the PR description.
 
 ### Workflow
 
-- Small cleanups: open a single-purpose branch, run `pnpm format && pnpm lint --fix`, run the package tests, and open a PR.
+- Small cleanups: open a single-purpose branch, run `bun format && bun lint --fix`, run the package tests, and open a PR.
 - Larger changes: if more invasive than a trivial rename or lint fix, create an issue, discuss with the team, then implement in a separate PR.
 
 ### Quality signals

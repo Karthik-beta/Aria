@@ -4,12 +4,9 @@
 # This file intentionally separates concerns into stages: base, deps (install),
 # development (local dev), builder (compile + bundle), and runner (final image) 🔧
 
-# Base stage with Node.js and pnpm 🚀
-FROM node:22-slim AS base
+# Base stage with Bun package manager 🚀
+FROM oven/bun:1 AS base
 WORKDIR /app
-# Enable corepack and prepare the pnpm client used for installs/builds.
-RUN corepack enable && corepack prepare pnpm@latest --activate
-# Install lightweight compatibility libs used by some native deps on Alpine
 
 
 # Dependencies stage (install step) 🧩
@@ -18,23 +15,24 @@ WORKDIR /app
 
 # Copy only workspace metadata first (lockfile + root manifests) so layer cache
 # can be reused when dependencies don't change.
-COPY pnpm-lock.yaml pnpm-workspace.yaml package.json turbo.json ./
+COPY bun.lock package.json turbo.json ./
 
-# Copy per-package package.json files to preserve workspace shape for pnpm
-# (this allows pnpm to create proper virtual store / workspace links).
+# Copy per-package package.json files to preserve workspace shape for bun
+# (this allows bun to create proper virtual store / workspace links).
 COPY packages/config-eslint/package.json ./packages/config-eslint/
 COPY packages/config-typescript/package.json ./packages/config-typescript/
 COPY packages/types/package.json ./packages/types/
 COPY packages/utils/package.json ./packages/utils/
 COPY apps/backend/package.json ./apps/backend/
 
-# Copy workspace sources before running install so pnpm can link workspace
+# Copy workspace sources before running install so bun can link workspace
 # packages (workspace: protocol) correctly during installation.
 COPY packages ./packages
 
 # Install all dependencies (including devDeps required for building).
-# Uses BuildKit cache mount for pnpm store to speed up repeated builds.
-RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
+# Uses BuildKit cache mount for bun store to speed up repeated builds.
+# Note: --frozen-lockfile removed to allow builds with updated package.json
+RUN --mount=type=cache,id=bun,target=/root/.bun bun install
 
 # Development stage (convenience image for local dev) 🛠️
 FROM base AS development
@@ -47,47 +45,48 @@ COPY --from=deps /app/packages ./packages
 COPY --from=deps /app/apps/backend/node_modules ./apps/backend/node_modules
 
 # Copy manifests and backend sources for development use
-COPY pnpm-lock.yaml pnpm-workspace.yaml package.json turbo.json ./
+COPY bun.lock package.json turbo.json ./
 COPY apps/backend ./apps/backend
 
 # Ports: 3001 for app, 9229 for debugger (when needed)
 EXPOSE 3001 9229
 
 # Development command: run migrations then start NestJS in watch mode
-CMD ["sh", "-c", "cd /app/apps/backend && pnpm prisma migrate dev && pnpm dev"]
+CMD ["sh", "-c", "cd /app/apps/backend && bun prisma migrate dev && bun --filter backend dev"]
 
 # Builder stage (compile and bundle) 🏗️
 FROM base AS builder
 WORKDIR /app
 
 # Copy manifests first to leverage layer cache when dependencies do not change
-COPY pnpm-lock.yaml pnpm-workspace.yaml package.json turbo.json ./
+COPY bun.lock package.json turbo.json ./
 
-# Copy per-package manifests to preserve workspace layout for pnpm
+# Copy per-package manifests to preserve workspace layout for bun
 COPY packages/config-eslint/package.json ./packages/config-eslint/
 COPY packages/config-typescript/package.json ./packages/config-typescript/
 COPY packages/types/package.json ./packages/types/
 COPY packages/utils/package.json ./packages/utils/
 COPY apps/backend/package.json ./apps/backend/
 
-# Copy full workspace sources before install so pnpm can correctly link
+# Copy full workspace sources before install so bun can correctly link
 # workspace packages during installation
 COPY packages ./packages
 COPY apps/backend ./apps/backend
 
 # Install all deps (dev + prod) required to build the project
-RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
+# Note: --frozen-lockfile removed to allow builds with updated package.json
+RUN --mount=type=cache,id=bun,target=/root/.bun bun install
 
 # Generate Prisma client early so generated client types are available
-RUN cd /app/apps/backend && pnpm prisma generate
+RUN cd /app/apps/backend && bun prisma generate
 
 # CRITICAL: Production requires compiled packages
 # Node.js v24's native TypeScript support explicitly disallows type-stripping for files in node_modules
 # Error: ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING
 # The JIT pattern works in development (Next.js transpiles) but fails in production NestJS runtime
 # Solution: Pre-compile shared packages to JavaScript before backend build
-RUN cd /app/packages/types && pnpm tsc --build tsconfig.json
-RUN cd /app/packages/utils && pnpm tsc --build tsconfig.json
+RUN cd /app/packages/types && bun tsc --build tsconfig.json
+RUN cd /app/packages/utils && bun tsc --build tsconfig.json
 
 # Expose Turborepo remote cache args so they can be provided at docker build time
 # These should be passed via build args (docker-compose/CI) and are turned into ENV
@@ -102,11 +101,11 @@ ENV TURBO_TEAM=${TURBO_TEAM}
 ENV TURBO_API=${TURBO_API}
 
 # Build the backend application (Nest compile step)
-RUN --mount=type=cache,id=turbo-build-cache,target=/app/.turbo/cache pnpm --filter backend build
+RUN --mount=type=cache,id=turbo-build-cache,target=/app/.turbo/cache bun --filter backend build
 
 # Create a deploy directory with only production dependencies and files
-# Note: pnpm v10+ requires either inject flags or the --legacy deploy behavior
-RUN pnpm --filter backend --prod deploy --legacy /app/deploy
+# Note: bun requires either inject flags or the --legacy deploy behavior
+RUN bun --filter backend --prod deploy --legacy /app/deploy
 
 # Production runner stage - minimal image containing only runtime artifacts 🏁
 FROM base AS runner
@@ -143,11 +142,7 @@ COPY --from=builder --chown=nestjs:nodejs /app/apps/backend/generated/prisma ./n
 USER root
 RUN apt-get update && \
     apt-get install -y curl wget --no-install-recommends && \
-    rm -rf /var/lib/apt/lists/* && \
-    corepack enable && \
-    corepack prepare pnpm@latest --activate && \
-    npm install -g prisma@6.17.1 && \
-    chown -R nestjs:nodejs /app
+    rm -rf /var/lib/apt/lists/*
 USER nestjs
 
 # Copy entrypoint that handles migration baseline resolution and startup

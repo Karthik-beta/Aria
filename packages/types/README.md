@@ -101,10 +101,10 @@ export class ContactsController {
 
 ```bash
 # Build the types package (run after making changes)
-pnpm --filter @aria/types build
+bun --filter @aria/types build
 
 # Check for type errors
-pnpm --filter @aria/types exec tsc --noEmit
+bun --filter @aria/types exec tsc --noEmit
 ```
 
 ## ➕ Adding New Types
@@ -144,7 +144,7 @@ export * from './inventory';
 ### Step 3: Build
 
 ```bash
-pnpm --filter @aria/types build
+bun --filter @aria/types build
 ```
 
 ### Step 4: Use Everywhere!
@@ -219,10 +219,10 @@ export interface PayrollCalculation {
 
 ```bash
 # Make sure dependencies are installed
-pnpm install
+bun install
 
 # Build the types package
-pnpm --filter @aria/types build
+bun --filter @aria/types build
 ```
 
 ### "Type 'X' is not assignable to type 'Y'"
@@ -246,10 +246,10 @@ const contact: CRM.Contact = {
 
 ```bash
 # Rebuild the types package
-pnpm --filter @aria/types build
+bun --filter @aria/types build
 
 # Restart your dev server
-pnpm --filter <app-name> dev
+bun --filter <app-name> dev
 ```
 
 ## 📚 Project Structure

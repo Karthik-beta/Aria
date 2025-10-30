@@ -91,8 +91,8 @@ const newItem = await client.inventory.createItem.mutate({
 ## Next Steps
 
 1. ✅ Backend tRPC configured
-2. ⏳ Run migration: `pnpm --filter backend exec -- prisma migrate dev --name init`
-3. ⏳ Start server: `pnpm --filter backend start:dev`
+2. ⏳ Run migration: `bun --filter backend exec -- prisma migrate dev --name init`
+3. ⏳ Start server: `bun --filter backend start:dev`
 4. ⏳ Setup frontend tRPC client in Next.js apps
 5. ⏳ Export `AppRouter` type to `@aria/types`
 
@@ -100,13 +100,13 @@ const newItem = await client.inventory.createItem.mutate({
 
 ```bash
 # Lint
-pnpm --filter backend lint
+bun --filter backend lint
 
 # Test
-pnpm --filter backend test
+bun --filter backend test
 
 # Start dev server
-pnpm --filter backend start:dev
+bun --filter backend start:dev
 ```
 
 Server will run at: `http://localhost:3000`  

@@ -19,24 +19,24 @@ Think of it as a restaurant kitchen—the frontends take orders, but the backend
 
 ```bash
 # 1. Install all dependencies (run from project root)
-pnpm install
+bun install
 
 # 2. Start the development server
-pnpm --filter backend start:dev
+bun --filter backend start:dev
 ```
 
 The server will start at `http://localhost:3000` with hot-reload enabled (changes apply automatically).
 
 ### Common Commands
 
-| What You Want To Do  | Command                           | What Happens                              |
-| -------------------- | --------------------------------- | ----------------------------------------- |
-| Start the server     | `pnpm --filter backend start:dev` | Runs in development mode with auto-reload |
-| Build for production | `pnpm --filter backend build`     | Creates optimized production files        |
-| Run tests            | `pnpm --filter backend test`      | Runs all unit tests                       |
-| Run end-to-end tests | `pnpm --filter backend test:e2e`  | Tests complete workflows                  |
-| Check code style     | `pnpm --filter backend lint`      | Finds and fixes code formatting issues    |
-| See test coverage    | `pnpm --filter backend test:cov`  | Shows how much code is tested             |
+| What You Want To Do  | Command                          | What Happens                              |
+| -------------------- | -------------------------------- | ----------------------------------------- |
+| Start the server     | `bun --filter backend start:dev` | Runs in development mode with auto-reload |
+| Build for production | `bun --filter backend build`     | Creates optimized production files        |
+| Run tests            | `bun --filter backend test`      | Runs all unit tests                       |
+| Run end-to-end tests | `bun --filter backend test:e2e`  | Tests complete workflows                  |
+| Check code style     | `bun --filter backend lint`      | Finds and fixes code formatting issues    |
+| See test coverage    | `bun --filter backend test:cov`  | Shows how much code is tested             |
 
 ## 📁 Project Structure
 
@@ -75,13 +75,13 @@ NestJS provides CLI commands to generate code automatically:
 cd apps/backend
 
 # Generate a new module (e.g., "reports")
-pnpm nest g module reports
+bun nest g module reports
 
 # Generate a controller (handles HTTP requests)
-pnpm nest g controller reports
+bun nest g controller reports
 
 # Generate a service (handles business logic)
-pnpm nest g service reports
+bun nest g service reports
 ```
 
 This creates all necessary files with proper structure!
@@ -101,13 +101,13 @@ Unit tests check individual functions in isolation:
 
 ```bash
 # Run all tests
-pnpm --filter backend test
+bun --filter backend test
 
 # Run tests in watch mode (re-runs on changes)
-pnpm --filter backend test:watch
+bun --filter backend test:watch
 
 # Run tests with coverage report
-pnpm --filter backend test:cov
+bun --filter backend test:cov
 ```
 
 ### End-to-End (E2E) Tests
@@ -115,7 +115,7 @@ pnpm --filter backend test:cov
 E2E tests check complete workflows (like logging in and creating a record):
 
 ```bash
-pnpm --filter backend test:e2e
+bun --filter backend test:e2e
 ```
 
 **Test files**: Place unit tests next to the code as `*.spec.ts`, and E2E tests in the `test/` folder.
@@ -162,12 +162,12 @@ This ensures consistency across the entire application!
 2. **Make sure dependencies are installed**:
 
    ```bash
-   pnpm install
+   bun install
    ```
 
 3. **Check for TypeScript errors**:
    ```bash
-   pnpm --filter backend exec tsc --noEmit
+   bun --filter backend exec tsc --noEmit
    ```
 
 ### Tests Failing?
@@ -198,12 +198,12 @@ This ensures consistency across the entire application!
 4. **Add tests** for your new functionality
 5. **Run lint and tests** before committing:
    ```bash
-   pnpm --filter backend lint
-   pnpm --filter backend test
+   bun --filter backend lint
+   bun --filter backend test
    ```
 6. **Build to verify everything works**:
    ```bash
-   pnpm --filter backend build
+   bun --filter backend build
    ```
 
 ## 💡 Pro Tips

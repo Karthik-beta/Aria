@@ -29,11 +29,10 @@ export default function DebugPage() {
           },
         });
 
-        console.log('[Debug] Raw session response:', {
-          status: response.status,
-          statusText: response.statusText,
-          headers: Object.fromEntries(response.headers.entries()),
-        });
+        // [Debug] Raw session response:
+        //   status: response.status,
+        //   statusText: response.statusText,
+        //   headers: Object.fromEntries(response.headers.entries()),
 
         if (!response.ok) {
           const text = await response.text();

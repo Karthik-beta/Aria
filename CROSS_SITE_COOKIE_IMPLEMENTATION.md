@@ -11,6 +11,7 @@ Fixed the browser cookie rejection error when the backend and frontend are on di
 ## 📋 Changes Made
 
 ### 1. Backend Configuration
+
 **File**: `apps/backend/src/auth/auth.config.ts`
 
 Added explicit cross-site cookie configuration to better-auth:
@@ -28,12 +29,14 @@ sessionCookie: {
 ```
 
 **Why**:
+
 - `sameSite: 'none'` — Explicitly allows cookies in cross-site contexts
 - `secure: true` — Required by spec when using `SameSite=None`; enforces HTTPS-only transmission
 - `httpOnly: true` — Prevents JavaScript from accessing the cookie (XSS protection)
 - `path: '/'` — Makes the cookie available to all application routes
 
 ### 2. Frontend tRPC Configuration
+
 **File**: `apps/frontend/src/lib/trpc/provider.tsx`
 
 Updated both HTTP link instances to include credentials:
@@ -49,12 +52,13 @@ const httpLink = httpBatchLink({
 httpBatchLink({
   url: httpUrl,
   credentials: 'include', // Include cookies for cross-site requests
-})
+});
 ```
 
 **Why**: The `credentials: 'include'` flag tells the browser to include cookies even in cross-site requests.
 
 ### 3. Frontend Better-Auth Configuration
+
 **File**: `apps/frontend/src/lib/auth/client.ts`
 
 Updated the better-auth client initialization:
@@ -99,13 +103,13 @@ export const authClient = createAuthClient({
 
 ### Security Properties
 
-| Property | Value | Benefit |
-|----------|-------|---------|
-| `SameSite=None` | Explicit cross-site allowance | Enables cookies across domains |
-| `Secure=true` | HTTPS-only | Prevents cookie transmission over unencrypted HTTP |
-| `HttpOnly=true` | No JavaScript access | Protects against XSS attacks stealing cookies |
-| `Path=/` | All routes | Cookie available throughout the app |
-| `credentials: 'include'` | Force cookie inclusion | Ensures browser sends cookies in cross-site requests |
+| Property                 | Value                         | Benefit                                              |
+| ------------------------ | ----------------------------- | ---------------------------------------------------- |
+| `SameSite=None`          | Explicit cross-site allowance | Enables cookies across domains                       |
+| `Secure=true`            | HTTPS-only                    | Prevents cookie transmission over unencrypted HTTP   |
+| `HttpOnly=true`          | No JavaScript access          | Protects against XSS attacks stealing cookies        |
+| `Path=/`                 | All routes                    | Cookie available throughout the app                  |
+| `credentials: 'include'` | Force cookie inclusion        | Ensures browser sends cookies in cross-site requests |
 
 ---
 
@@ -138,18 +142,20 @@ openssl rand -hex 32
 ### ✅ Deployment Verification
 
 1. **Verify HTTPS is enabled**:
+
    ```bash
    curl -I https://aria-backend.example.com/health
    # Should return HTTP/2 200, not HTTP/1.1
    ```
 
 2. **Test from browser console**:
+
    ```javascript
    fetch('https://aria-backend.example.com/auth/get-session', {
-     credentials: 'include'
+     credentials: 'include',
    })
-   .then(r => r.json())
-   .then(console.log)
+     .then((r) => r.json())
+     .then(console.log);
    ```
 
 3. **Check DevTools Network tab**:
@@ -166,24 +172,31 @@ openssl rand -hex 32
 ## 📊 Impact Analysis
 
 ### What Changed
+
 - **Backend**: Added 5-line `sessionCookie` configuration object
 - **Frontend tRPC**: Added `credentials: 'include'` to 2 HTTP link instances
 - **Frontend Auth**: Added `credentials: 'include'` to 1 fetch options object
 
 ### Backward Compatibility
+
 ✅ **Fully backward compatible**
+
 - Works with localhost development (modern browsers allow Secure cookies on localhost)
 - Existing production deployments need only HTTPS enabled
 - No API contract changes
 - No database schema changes
 
 ### Performance Impact
+
 ✅ **None**
+
 - Same request/response payload sizes
 - Cookies already sent in production (just now enabled for cross-site)
 
 ### Security Impact
+
 ✅ **Enhanced**
+
 - `SameSite=None` is safer than default `SameSite=Lax` for explicit cross-site scenarios
 - `HttpOnly` prevents XSS attacks
 - `Secure` enforces HTTPS
@@ -193,7 +206,9 @@ openssl rand -hex 32
 ## 🧪 Testing Strategy
 
 ### Local Development (localhost)
+
 No changes needed. Works as-is:
+
 ```bash
 pnpm --filter backend dev
 pnpm --filter frontend dev
@@ -204,6 +219,7 @@ pnpm --filter frontend dev
 Modern browsers allow Secure cookies on localhost even over HTTP.
 
 ### Staging/Production (Different Domains)
+
 1. Deploy with HTTPS enabled
 2. Set environment variables
 3. Rebuild and restart containers
@@ -215,6 +231,7 @@ Modern browsers allow Secure cookies on localhost even over HTTP.
 ## 🔧 Configuration Details
 
 ### better-auth Session Options
+
 Located in `apps/backend/src/auth/auth.config.ts`:
 
 ```typescript
@@ -225,6 +242,7 @@ session: {
 ```
 
 ### better-auth Cookie Options
+
 Located in `apps/backend/src/auth/auth.config.ts`:
 
 ```typescript
@@ -238,21 +256,23 @@ sessionCookie: {
 ```
 
 ### tRPC Fetch Options
+
 Located in `apps/frontend/src/lib/trpc/provider.tsx`:
 
 ```typescript
 httpBatchLink({
   url: httpUrl,
-  credentials: 'include'  // Include cookies in requests
-})
+  credentials: 'include', // Include cookies in requests
+});
 ```
 
 ### Better-Auth Fetch Options
+
 Located in `apps/frontend/src/lib/auth/client.ts`:
 
 ```typescript
 fetchOptions: {
-  credentials: 'include'  // Include cookies in requests
+  credentials: 'include'; // Include cookies in requests
 }
 ```
 
@@ -261,42 +281,54 @@ fetchOptions: {
 ## ❌ Troubleshooting
 
 ### Issue: Cookie Still Rejected After Deployment
+
 **Diagnosis**:
+
 - Check DevTools Console for the error
 - Look at response headers in Network tab
 
 **Solutions**:
+
 1. Verify `BETTER_AUTH_URL` uses `https://` (not `http://`)
 2. Confirm backend is actually served over HTTPS
 3. Check `FRONTEND_URL` matches the domain where frontend is hosted
 4. Verify `trustedOrigins` in `auth.config.ts` includes your frontend domain
 
 ### Issue: Cookie Set But Not Sent with Requests
+
 **Diagnosis**:
+
 - `Set-Cookie` header appears in responses
 - `Cookie` header missing from subsequent requests
 
 **Solutions**:
+
 1. Verify `credentials: 'include'` is set in tRPC provider
 2. Verify `credentials: 'include'` is set in better-auth client
 3. Check browser console for CORS errors
 4. Ensure same protocol (https://) on both frontend and backend
 
 ### Issue: CORS Error When Setting Secure Cookie
+
 **Diagnosis**:
+
 - CORS preflight fails
 - Error mentions cookie headers
 
 **Solutions**:
+
 1. Backend should automatically include `Access-Control-Allow-Credentials: true`
 2. Verify `trustedOrigins` includes the frontend domain
 3. Check NestJS CORS configuration in `apps/backend/src/main.ts`
 
 ### Issue: Works in Chrome But Not in Safari/Firefox
+
 **Diagnosis**:
+
 - Different browsers have different cookie policies
 
 **Solutions**:
+
 1. Verify `SameSite=None` is paired with `Secure=true`
 2. Check browser privacy settings
 3. Test in incognito/private mode
@@ -307,6 +339,7 @@ fetchOptions: {
 ## 📚 References
 
 ### Official Documentation
+
 - [better-auth Session Configuration](https://www.better-auth.com/docs/config)
 - [better-auth Cookie Options](https://www.better-auth.com/docs/api-reference/auth-config#sessioncookie)
 - [MDN: SameSite Cookie Attribute](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie/SameSite)
@@ -315,6 +348,7 @@ fetchOptions: {
 - [Caddy HTTPS Configuration](https://caddyserver.com/docs/caddyfile/directives/tls)
 
 ### Related Documentation in This Project
+
 - `docker-compose.production.yml` — Production Caddy and service configuration
 - `apps/backend/README.md` — Backend setup guide
 - `apps/frontend/README.md` — Frontend setup guide
@@ -325,12 +359,14 @@ fetchOptions: {
 ## 📝 Implementation Timeline
 
 ### Phase 1: Code Changes (COMPLETED)
+
 - ✅ Updated `apps/backend/src/auth/auth.config.ts` with `sessionCookie` config
 - ✅ Updated `apps/frontend/src/lib/trpc/provider.tsx` with `credentials: 'include'`
 - ✅ Updated `apps/frontend/src/lib/auth/client.ts` with `credentials: 'include'`
 - ✅ Created comprehensive documentation
 
 ### Phase 2: Testing (MANUAL)
+
 - [ ] Test on localhost (both same and different ports)
 - [ ] Test on staging environment with HTTPS
 - [ ] Test cross-browser compatibility (Chrome, Firefox, Safari, Edge)
@@ -338,6 +374,7 @@ fetchOptions: {
 - [ ] Test logout and session invalidation
 
 ### Phase 3: Deployment (OPERATIONAL)
+
 - [ ] Set environment variables in production
 - [ ] Rebuild Docker images
 - [ ] Deploy backend and frontend
@@ -351,17 +388,20 @@ fetchOptions: {
 ### Cookie SameSite Policies Explained
 
 **SameSite=Strict** (Most Restrictive)
+
 - Cookie only sent in same-site contexts
 - Cookies never sent in cross-site requests
 - Use case: Highly sensitive operations
 
 **SameSite=Lax** (Default for most modern browsers)
+
 - Cookie sent in top-level navigation (user clicks link, changes URL bar)
 - Cookie NOT sent in background requests (fetch, XMLHttpRequest, image tags)
 - Use case: General authentication (provides CSRF protection)
 - Problem: Breaks cross-site session authentication
 
 **SameSite=None** (Least Restrictive)
+
 - Cookie sent in all contexts, including cross-site background requests
 - REQUIRES `Secure=true` (HTTPS only)
 - Use case: Intentional cross-site scenarios (federation, widgets)
@@ -370,10 +410,12 @@ fetchOptions: {
 ### Why This Matters for Your Architecture
 
 Your deployment topology:
+
 - Frontend: `aria.pivotr.in`
 - Backend: `aria-backend.example.com` or `example.com/api`
 
 These are **different domains**, so:
+
 1. Any cookie sent by the backend is considered "cross-site" from the frontend's perspective
 2. Default `SameSite=Lax` rejects cookies in background requests
 3. Explicit `SameSite=None + Secure=true` allows cookies in background requests

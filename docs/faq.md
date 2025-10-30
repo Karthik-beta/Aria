@@ -41,9 +41,9 @@ TypeScript adds type safety to JavaScript:
 ### What technologies does Aria use?
 
 - **Backend**: NestJS (Node.js framework)
-- **Frontend**: Next.js 15 with React
+- **Frontend**: Next.js 16 with React
 - **Language**: TypeScript
-- **Package Manager**: pnpm
+- **Package Manager**: bun
 - **Build Tool**: Turborepo
 - **Styling**: Tailwind CSS
 - **Database**: PostgreSQL (planned)
@@ -81,7 +81,7 @@ pnpm --version
 
 ### Do I need to install dependencies in each app?
 
-**No!** Run `pnpm install` once from the root directory. pnpm handles all workspaces automatically.
+**No!** Run `bun install` once from the root directory. Bun handles all workspaces automatically.
 
 ### How long does installation take?
 
@@ -96,13 +96,10 @@ Open multiple terminals:
 
 ```bash
 # Terminal 1: Backend
-pnpm --filter backend start:dev
+bun --filter backend start:dev
 
-# Terminal 2: Asset frontend
-pnpm --filter asset dev
-
-# Terminal 3: CRM frontend
-pnpm --filter crm dev
+# Terminal 2: Frontend (all modules)
+bun --filter frontend dev
 ```
 
 Or use VS Code's split terminals or a terminal multiplexer like `tmux`.
@@ -140,10 +137,10 @@ Both start the app in development mode with hot reload.
 
 ```bash
 # Rebuild the package
-pnpm --filter @aria/types build
+bun --filter @aria/types build
 
 # Restart your app
-pnpm --filter <app-name> dev
+bun --filter <app-name> dev
 ```
 
 ### How do I generate new code?
@@ -153,12 +150,12 @@ Always use framework CLIs:
 ```bash
 # NestJS (backend)
 cd apps/backend
-pnpm nest g module users
-pnpm nest g controller users
-pnpm nest g service users
+bun nest g module users
+bun nest g controller users
+bun nest g service users
 
 # Next.js follows file-based routing
-# Create files directly in apps/frontend/<app>/src/app/
+# Create files directly in apps/frontend/src/app/
 ```
 
 ## TypeScript
@@ -168,7 +165,7 @@ pnpm nest g service users
 The types package hasn't been built:
 
 ```bash
-pnpm --filter @aria/types build
+bun --filter @aria/types build
 ```
 
 ### Where should I define new types?
@@ -245,10 +242,10 @@ const user2: User = { name: 'Jane', email: 'jane@example.com' };
 
 ```bash
 # Backend (Jest)
-pnpm --filter backend test -- UserService.spec.ts
+bun --filter backend test -- UserService.spec.ts
 
-# Frontend (Vitest, when configured)
-pnpm --filter asset test -- UserCard.test.tsx
+# Frontend (Vitest)
+bun --filter frontend test -- UserCard.test.tsx
 ```
 
 ### Unit tests vs E2E tests?
@@ -297,11 +294,11 @@ The system is designed as a complete suite, but individual modules can be deploy
 
 ```bash
 # Build everything
-pnpm build
+bun build
 
 # Build specific app
-pnpm --filter backend build
-pnpm --filter asset build
+bun --filter backend build
+bun --filter frontend build
 ```
 
 ### How do I manage logs in production?
@@ -373,11 +370,11 @@ Reinstall dependencies:
 ```bash
 # Clean install
 rm -rf node_modules
-pnpm install
+bun install
 
 # Rebuild shared packages
-pnpm --filter @aria/types build
-pnpm --filter @aria/utils build
+bun --filter @aria/types build
+bun --filter @aria/utils build
 ```
 
 ### ESLint errors not showing in VS Code
@@ -423,15 +420,15 @@ git config --global core.autocrlf input
 
 ```bash
 # Ensure you're using start:dev, not start
-pnpm --filter backend start:dev
+bun --filter backend start:dev
 ```
 
 **Frontend (Next.js):**
 
 ```bash
 # Clear .next folder
-rm -rf apps/frontend/<app>/.next
-pnpm --filter <app> dev
+rm -rf apps/frontend/.next
+bun --filter frontend dev
 ```
 
 ### Tests fail on CI but pass locally
