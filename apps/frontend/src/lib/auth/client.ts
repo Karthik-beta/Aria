@@ -11,14 +11,19 @@ import { usernameClient } from 'better-auth/client/plugins';
  * - Production: Same origin (reverse proxy handles /api/auth/* routing)
  */
 
-// Compute baseURL based on environment
 /**
- * Use the public API URL provided by environment variables.
- * - In Vercel (production), NEXT_PUBLIC_API_URL is set to the Lightsail backend URL.
- * - In local dev, NEXT_PUBLIC_API_URL is undefined, so it falls back to the local backend.
- * - In a Docker deployment, you would set the NEXT_PUBLIC_API_URL env var to your public-facing backend URL.
+ * Better Auth client base URL configuration
+ *
+ * Environment-aware base URL:
+ * - Production (separate domain): NEXT_PUBLIC_API_URL points to backend domain
+ * - Production (Docker Compose): NEXT_PUBLIC_API_URL is same domain (Caddy routes /api/auth/*)
+ * - Development: Falls back to http://localhost:3001
+ *
+ * CRITICAL: Removes trailing slashes to prevent double-slash issues in auth URLs
  */
-const baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+const baseURL = (
+  process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
+).replace(/\/$/, '');
 
 export const authClient = createAuthClient({
   baseURL,

@@ -18,18 +18,31 @@ async function bootstrap() {
     bodyParser: false, // Required for Better Auth
   });
 
-  // 1. Get the comma-separated string from the .env file
+  /**
+   * CORS Configuration for Cross-Origin Requests
+   *
+   * Supports both separate domain deployment and Docker Compose scenarios:
+   * - Separate domains: FRONTEND_URL = "https://frontend.com,https://other.com"
+   * - Docker Compose: FRONTEND_URL = "https://yourdomain.com" (Caddy handles routing)
+   *
+   * Environment variable FRONTEND_URL can contain comma-separated origins.
+   * Trailing slashes are removed to ensure consistent origin matching.
+   */
   const allowedOriginsRaw = process.env.FRONTEND_URL || 'http://localhost:3000';
 
-  // 2. Split the string into an array
-  const allowedOrigins = allowedOriginsRaw.split(',');
+  // Split, trim whitespace, and remove trailing slashes from each origin
+  const allowedOrigins = allowedOriginsRaw
+    .split(',')
+    .map((origin) => origin.trim().replace(/\/$/, ''))
+    .filter((origin) => origin.length > 0);
 
-  // Enable CORS for frontend
+  // Enable CORS for frontend with credentials support
   app.enableCors({
-    origin: allowedOrigins, // This accepts multiple values
-    credentials: true,
+    origin: allowedOrigins,
+    credentials: true, // Required for cookies in cross-origin requests
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
+    exposedHeaders: ['Set-Cookie'], // Allow browsers to access Set-Cookie header
   });
 
   // Get tRPC services from DI container
@@ -53,15 +66,18 @@ async function bootstrap() {
   /**
    * Mount tRPC adapter at /trpc
    *
-   * Using app.use() directly before app.listen().
-   * This ensures the middleware is registered with Express before
-   * the server starts accepting connections.
+   * Following official tRPC Express adapter pattern:
+   * - createContext receives req/res from CreateExpressContextOptions
+   * - Context is created per-request with Express req/res objects
+   * - This enables cookie handling, authentication, and request-specific state
+   *
+   * See: https://trpc.io/docs/server/adapters/express
    */
   app.use(
     '/trpc',
     trpcExpress.createExpressMiddleware({
       router: appRouter,
-      createContext: () => trpcContext,
+      createContext: (opts) => trpcContext.create(opts),
     }),
   );
 
@@ -77,11 +93,21 @@ async function bootstrap() {
     path: '/trpc-ws',
   });
 
-  // Apply tRPC WebSocket handler
+  /**
+   * Apply tRPC WebSocket handler
+   *
+   * Note: WebSocket adapter doesn't use Express req/res, so we pass a minimal context
+   * For WebSocket subscriptions, authentication should be handled via connection params
+   */
   const wssHandler = applyWSSHandler({
     wss,
     router: appRouter,
-    createContext: () => trpcContext,
+    createContext: () => ({
+      prisma: trpcContext.prisma,
+      // WebSocket connections don't have Express req/res
+      req: null as any,
+      res: null as any,
+    }),
     keepAlive: {
       enabled: true,
       pingMs: 30000, // Send ping every 30 seconds
