@@ -102,10 +102,12 @@ export function TRPCProvider({ children }: { children: React.ReactNode }) {
       })
   );
 
-  const httpUrl = React.useMemo(() => `${getBaseUrl()}/trpc`, []);
-
   // Initialize with HTTP-only client (safe for SSR)
   const [trpcClient, setTrpcClient] = React.useState(() => {
+    // Compute URL directly in initializer to avoid timing issues
+    const baseUrl = getBaseUrl();
+    const httpUrl = `${baseUrl}/trpc`;
+    
     const httpLink = httpBatchLink({
       url: httpUrl,
       fetch: (url, options) => {
@@ -140,6 +142,9 @@ export function TRPCProvider({ children }: { children: React.ReactNode }) {
 
     const setupWebSocket = async () => {
       try {
+        // Compute URLs directly to avoid closure/timing issues
+        const baseUrl = getBaseUrl();
+        const httpUrl = `${baseUrl}/trpc`;
         const wsUrl = getWsUrl();
 
         // Create WebSocket client
@@ -256,7 +261,7 @@ export function TRPCProvider({ children }: { children: React.ReactNode }) {
         // Ignore cleanup errors
       }
     };
-  }, [httpUrl]);
+  }, []); // Empty deps - URLs are computed inside effect
 
   return (
     <trpc.Provider client={trpcClient} queryClient={queryClient}>
