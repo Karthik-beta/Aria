@@ -7,9 +7,9 @@
 'use client';
 
 import * as React from 'react';
-import { type Table as TanstackTable, type RowData, flexRender } from '@tanstack/react-table';
+import { type Table as _TanstackTable, type RowData, flexRender } from '@tanstack/react-table';
 import { Table, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
+import { ScrollArea as _ScrollArea, ScrollBar as _ScrollBar } from '@/components/ui/scroll-area';
 import { DataTablePagination } from '@/components/ui/table/data-table-pagination';
 import { AdvancedTableToolbar } from './advanced-table-toolbar';
 import { VirtualizedTableBody } from './virtualized-table-body';
@@ -37,26 +37,26 @@ function createError(
  */
 export function AdvancedDataTable<TData extends RowData, TValue = unknown>({
   table,
-  data,
-  totalItems,
+  data: _data,
+  totalItems: _totalItems,
   enableGlobalSearch = true,
-  enableColumnSearch = true,
+  enableColumnSearch: _enableColumnSearch = true,
   enableExport = true,
   enableImport = true,
   enableBulkActions = true,
   enableVirtualization = true,
   enableRealtime = false,
-  enableInlineEdit = false,
+  enableInlineEdit: _enableInlineEdit = false,
   enableColumnResizing = true,
   enableColumnReordering = true,
-  enableColumnFreezing = true,
+  enableColumnFreezing: _enableColumnFreezing = true,
   exportFormats = ['csv', 'excel', 'json'],
   onExport,
   onImport,
   bulkActions,
-  onRowCreate,
-  onRowUpdate,
-  onRowDelete,
+  onRowCreate: _onRowCreate,
+  onRowUpdate: _onRowUpdate,
+  onRowDelete: _onRowDelete,
   subscriptionKey,
   onSubscriptionUpdate,
   virtualScrollEstimateSize = 50,
@@ -64,18 +64,18 @@ export function AdvancedDataTable<TData extends RowData, TValue = unknown>({
   toolbar,
   primaryAction,
   actionBar,
-  emptyState,
-  loadingState,
+  emptyState: _emptyState,
+  loadingState: _loadingState,
   ariaLabel = 'Advanced data table',
   ariaDescription,
   onStateChange,
   onError,
-  enableAdvancedFilter = true,
+  enableAdvancedFilter: _enableAdvancedFilter = true,
   className,
   containerClassName,
 }: AdvancedDataTableProps<TData, TValue>) {
-  const [isLoading, setIsLoading] = React.useState(false);
-  const [error, setError] = React.useState<AdvancedDataTableError | null>(null);
+  const [isLoading, _setIsLoading] = React.useState(false);
+  const [_error, setError] = React.useState<AdvancedDataTableError | null>(null);
 
   // Store callback refs to prevent stale closures
   const onErrorRef = React.useRef(onError);
@@ -134,18 +134,27 @@ export function AdvancedDataTable<TData extends RowData, TValue = unknown>({
     };
   }, [enableRealtime, subscriptionKey, handleError]);
 
+  // Extract table state values to avoid complex expressions in dependency array
+  // Per React docs: https://react.dev/reference/eslint-plugin-react-hooks/lints/exhaustive-deps
+  const tableState = table.getState();
+  const sorting = tableState.sorting;
+  const columnFilters = tableState.columnFilters;
+  const columnVisibility = tableState.columnVisibility;
+  const rowSelection = tableState.rowSelection;
+  const pagination = tableState.pagination;
+  const globalFilter = tableState.globalFilter;
+
   // Monitor table state changes (debounced to avoid excessive callbacks)
   React.useEffect(() => {
     if (!onStateChangeRef.current) return;
 
-    const tableState = table.getState();
     const state = {
-      sorting: tableState.sorting,
-      columnFilters: tableState.columnFilters,
-      columnVisibility: tableState.columnVisibility,
-      rowSelection: tableState.rowSelection,
-      pagination: tableState.pagination,
-      globalFilter: tableState.globalFilter as string | undefined,
+      sorting,
+      columnFilters,
+      columnVisibility,
+      rowSelection,
+      pagination,
+      globalFilter: globalFilter as string | undefined,
     };
 
     try {
@@ -154,12 +163,12 @@ export function AdvancedDataTable<TData extends RowData, TValue = unknown>({
       handleError(createError('unknown', 'Error in state change callback', err));
     }
   }, [
-    table.getState().sorting,
-    table.getState().columnFilters,
-    table.getState().columnVisibility,
-    table.getState().rowSelection,
-    table.getState().pagination,
-    table.getState().globalFilter,
+    sorting,
+    columnFilters,
+    columnVisibility,
+    rowSelection,
+    pagination,
+    globalFilter,
     handleError,
   ]);
 
@@ -220,7 +229,9 @@ export function AdvancedDataTable<TData extends RowData, TValue = unknown>({
           enableImport={enableImport}
           exportFormats={exportFormats}
           onExport={onExport}
-          onImport={onImport ? (data) => onImport(data as any) : undefined}
+          onImport={
+            onImport ? (data) => onImport(data as readonly Record<string, unknown>[]) : undefined
+          }
           enableColumnReordering={enableColumnReordering}
           bulkActions={enableBulkActions ? bulkActions : []}
           primaryAction={primaryAction}
@@ -238,7 +249,7 @@ export function AdvancedDataTable<TData extends RowData, TValue = unknown>({
               }}
             >
               {/* Table Header with Sticky Headers */}
-              <TableHeader className="bg-muted/95 backdrop-blur supports-[backdrop-filter]:bg-muted/60">
+              <TableHeader className="bg-muted/95 backdrop-blur supports-backdrop-filter:bg-muted/60">
                 {table.getHeaderGroups().map((headerGroup) => (
                   <TableRow key={headerGroup.id}>
                     {headerGroup.headers.map((header) => (

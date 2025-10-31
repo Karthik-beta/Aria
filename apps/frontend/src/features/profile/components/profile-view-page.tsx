@@ -3,32 +3,65 @@
 import * as React from 'react';
 import { useSession } from '@/lib/auth/client';
 
-// Utility to safely return a truncated string for places where CSS truncation isn't available.
-function truncateText(value: string | undefined | null, max = 48) {
-  if (!value) return '';
-  if (value.length <= max) return value;
-  return value.slice(0, max - 1) + '…';
+/**
+ * Type guard to check if value has a specific property
+ */
+function hasProperty<T extends string>(
+  obj: unknown,
+  prop: T
+): obj is Record<T, unknown> & Record<string, unknown> {
+  return typeof obj === 'object' && obj !== null && prop in obj;
 }
 
 export default function ProfileViewPage() {
-  const { data: session, isPending } = useSession();
+  const { data: session } = useSession();
 
   const profile = React.useMemo(() => {
-    const u = session?.user as any | undefined;
-    if (!u) {
-      return {
-        name: 'Admin',
-        email: 'admin@example.com',
-        role: 'Operations Manager',
-        phone: '+91 91104 49630',
-      };
-    }
+    const u = session?.user;
+
+    const fallback = {
+      name: 'Admin',
+      email: 'admin@example.com',
+      role: 'Operations Manager',
+      phone: '+91 91104 49630',
+    };
+
+    if (!hasProperty(u, 'name') && !hasProperty(u, 'email')) return fallback;
+
+    const getName = () => {
+      if (hasProperty(u, 'name') && typeof u.name === 'string') return u.name;
+      if (hasProperty(u, 'fullName') && typeof u.fullName === 'string') return u.fullName;
+      if (hasProperty(u, 'username') && typeof u.username === 'string') return u.username;
+      return 'User';
+    };
+
+    const getEmail = () => {
+      if (hasProperty(u, 'email') && typeof u.email === 'string') return u.email;
+      if (hasProperty(u, 'emails') && Array.isArray(u.emails) && u.emails[0]) {
+        const firstEmail = u.emails[0] as Record<string, unknown>;
+        if ('value' in firstEmail && typeof firstEmail.value === 'string') {
+          return firstEmail.value;
+        }
+      }
+      return '';
+    };
+
+    const getRole = () => {
+      if (hasProperty(u, 'role') && typeof u.role === 'string') return u.role;
+      return 'Member';
+    };
+
+    const getPhone = () => {
+      if (hasProperty(u, 'phone') && typeof u.phone === 'string') return u.phone;
+      if (hasProperty(u, 'mobile') && typeof u.mobile === 'string') return u.mobile;
+      return '+91 91XXXX X1831';
+    };
 
     return {
-      name: u.name || u.fullName || u.username || 'User',
-      email: u.email || (u.emails && u.emails[0]?.value) || '',
-      role: u.role || 'Member',
-      phone: u.phone || u.mobile || '+91 91XXXX X1831',
+      name: getName(),
+      email: getEmail(),
+      role: getRole(),
+      phone: getPhone(),
     };
   }, [session]);
 

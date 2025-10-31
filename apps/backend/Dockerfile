@@ -125,15 +125,11 @@ COPY --from=builder --chown=nestjs:nodejs /app/deploy/package.json ./package.jso
 # Copy compiled application code
 COPY --from=builder --chown=nestjs:nodejs /app/apps/backend/dist ./dist
 
-# Copy Prisma artifacts if generated (schema + client)
+# Copy Prisma schema for migrations
 COPY --from=builder --chown=nestjs:nodejs /app/apps/backend/prisma ./prisma/
-COPY --from=builder --chown=nestjs:nodejs /app/apps/backend/generated ./generated/
 
-# Ensure the generated Prisma client is available under the runtime package name 'db' 📦
-# so runtime imports like `import { PrismaClient } from 'db'` resolve correctly.
-# Copy the generated client into node_modules/db at build time so node's resolver
-# can load it via require('db') in the production container.
-COPY --from=builder --chown=nestjs:nodejs /app/apps/backend/generated/prisma ./node_modules/db
+# The @prisma/client package is already installed in node_modules from the deploy step
+# No need to copy custom generated client - use the standard @prisma/client import
 
 # Install runtime tooling required by the entrypoint and healthcheck. 🧰
 # We install Prisma CLI globally so `prisma` command works inside the

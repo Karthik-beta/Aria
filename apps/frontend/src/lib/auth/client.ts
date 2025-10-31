@@ -32,7 +32,6 @@ export const authClient = createAuthClient({
       // Silent error handling - AuthGuard will manage redirects
       // Only log server errors in development
       if (process.env.NODE_ENV === 'development' && context.response?.status >= 500) {
-        // eslint-disable-next-line no-console
         console.error('[Auth] Server error:', context.response?.status);
       }
     },

@@ -2,7 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { InventoryService } from './inventory.service';
 import { PrismaService } from '../../shared/prisma.service';
 import { ConflictException, NotFoundException } from '@nestjs/common';
-import { Prisma } from '../../../generated/prisma';
+import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 
 describe('InventoryService', () => {
   let service: InventoryService;
@@ -106,10 +106,10 @@ describe('InventoryService', () => {
     });
 
     it('should throw NotFoundException if item does not exist', async () => {
-      const error = new Prisma.PrismaClientKnownRequestError(
-        'Record not found',
-        { code: 'P2025', clientVersion: '1.0.0' },
-      );
+      const error = new PrismaClientKnownRequestError('Record not found', {
+        code: 'P2025',
+        clientVersion: '5.0.0',
+      });
       mockPrisma.inventoryItem.delete.mockRejectedValue(error);
 
       await expect(service.delete(mockItem.id)).rejects.toThrow(

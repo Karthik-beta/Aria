@@ -21,7 +21,7 @@ function createExportError(
 /**
  * Create import error
  */
-function createImportError(
+function _createImportError(
   fileName: string,
   message: string,
   cause?: unknown
@@ -140,7 +140,7 @@ function downloadBlob(blob: Blob, filename: string): void {
 /**
  * Parse CSV file to array of objects
  */
-export async function parseCSV(file: File): Promise<Record<string, any>[]> {
+export async function parseCSV(file: File): Promise<Record<string, unknown>[]> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
 
@@ -152,7 +152,7 @@ export async function parseCSV(file: File): Promise<Record<string, any>[]> {
 
         const data = lines.slice(1).map((line) => {
           const values = line.split(',').map((v) => v.trim());
-          const obj: Record<string, any> = {};
+          const obj: Record<string, unknown> = {};
           headers.forEach((header, index) => {
             obj[header] = values[index];
           });
@@ -174,7 +174,7 @@ export async function parseCSV(file: File): Promise<Record<string, any>[]> {
  * Parse Excel file to array of objects
  * Note: This requires a library like xlsx
  */
-export async function parseExcel(file: File): Promise<Record<string, any>[]> {
+export async function parseExcel(file: File): Promise<Record<string, unknown>[]> {
   // Placeholder - implement with xlsx library
   console.warn('Excel import not yet implemented. Use CSV instead.');
   return parseCSV(file);
@@ -183,7 +183,7 @@ export async function parseExcel(file: File): Promise<Record<string, any>[]> {
 /**
  * Parse JSON file to array of objects
  */
-export async function parseJSON(file: File): Promise<Record<string, any>[]> {
+export async function parseJSON(file: File): Promise<Record<string, unknown>[]> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
 
@@ -235,7 +235,7 @@ export async function exportData<TData extends RowData>(
 /**
  * Main import function that handles all formats
  */
-export async function importData(file: File): Promise<Record<string, any>[]> {
+export async function importData(file: File): Promise<Record<string, unknown>[]> {
   const extension = file.name.split('.').pop()?.toLowerCase();
 
   switch (extension) {
