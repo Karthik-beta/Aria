@@ -1,157 +1,220 @@
 # syntax=docker.io/docker/dockerfile:1
-# Backend Dockerfile - multi-stage build for NestJS 🚀
-# Purpose: produce a minimal, production-ready container for the NestJS 🎯
-# This file intentionally separates concerns into stages: base, deps (install),
-# development (local dev), builder (compile + bundle), and runner (final image) 🔧
+# Backend Dockerfile - Production-ready NestJS with Bun package manager 🚀
+# Purpose: Multi-stage Docker build for minimal, production-ready NestJS container
+# Architecture: Separates concerns into base, deps, development, builder, and runner stages
+# Key Feature: Handles Bun's virtual store to avoid broken symlinks in production
+#
+# IMPORTANT - Bun Virtual Store Issue:
+# Bun uses node_modules/.bun for efficient disk usage via symlinks and hard links
+# These work fine during development but break when copied between Docker layers
+# because symlinks use relative paths that don't resolve correctly
+# Solution: Use rsync --copy-links to materialize dependencies (see builder stage below)
 
 # Base stage with Bun package manager 🚀
 FROM oven/bun:1 AS base
 WORKDIR /app
 
 
-# Dependencies stage (install step) 🧩
+# Dependencies Stage - Workspace-aware dependency installation 🧩
+# Purpose: Install all workspace dependencies with Bun's virtual store
+# Strategy: Copy manifests → sources → install (maximizes layer caching)
 FROM base AS deps
 WORKDIR /app
 
-# Copy only workspace metadata first (lockfile + root manifests) so layer cache
-# can be reused when dependencies don't change.
+# Step 1: Copy workspace metadata first (enables layer caching)
+# When dependencies don't change, Docker reuses this layer (faster rebuilds)
 COPY bun.lock package.json turbo.json ./
 
-# Copy per-package package.json files to preserve workspace shape for bun
-# (this allows bun to create proper virtual store / workspace links).
+# Step 2: Copy per-package manifests to preserve workspace structure
+# Bun's workspace: protocol requires knowing about all packages before install
 COPY packages/config-eslint/package.json ./packages/config-eslint/
 COPY packages/config-typescript/package.json ./packages/config-typescript/
 COPY packages/types/package.json ./packages/types/
 COPY packages/utils/package.json ./packages/utils/
 COPY apps/backend/package.json ./apps/backend/
 
-# Copy workspace sources before running install so bun can link workspace
-# packages (workspace: protocol) correctly during installation.
+# Step 3: Copy workspace sources (needed for workspace: protocol resolution)
+# This allows Bun to create proper virtual store links between workspace packages
 COPY packages ./packages
 
-# Install all dependencies (including devDeps required for building).
-# Uses BuildKit cache mount for bun store to speed up repeated builds.
+# Step 4: Install all dependencies (including dev dependencies)
+# Uses BuildKit cache mount to speed up repeated builds (bypasses Docker layer cache)
 # Note: --frozen-lockfile removed to allow builds with updated package.json
 RUN --mount=type=cache,id=bun,target=/root/.bun bun install
 
-# Development stage (convenience image for local dev) 🛠️
+# Development Stage - Local development convenience image 🛠️
+# Purpose: Fast-start image for developers (avoids full rebuild on changes)
+# Optimization: Reuses installed node_modules from deps stage
 FROM base AS development
 WORKDIR /app
 
-# Reuse installed modules and workspace layout from deps stage so local dev
-# can start quickly without re-running a full install.
+# Reuse installed dependencies from deps stage (skip full reinstall)
+# This dramatically speeds up local development (install happens once, reused)
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/packages ./packages
 COPY --from=deps /app/apps/backend/node_modules ./apps/backend/node_modules
 
-# Copy manifests and backend sources for development use
+# Copy manifests and application source for development
 COPY bun.lock package.json turbo.json ./
 COPY apps/backend ./apps/backend
 
-# Ports: 3001 for app, 9229 for debugger (when needed)
+# Development ports:
+#  - 3001: Backend API server
+#  - 9229: Debugger (Node.js inspector protocol)
 EXPOSE 3001 9229
 
-# Development command: run migrations then start NestJS in watch mode
+# Development workflow:
+#  1. Run database migrations (ensures schema is up-to-date)
+#  2. Start NestJS in watch mode (auto-restart on file changes)
 CMD ["sh", "-c", "cd /app/apps/backend && bun prisma migrate dev && bun --filter backend dev"]
 
-# Builder stage (compile and bundle) 🏗️
+# Builder Stage - Production build with dependency materialization 🏗️
+# Purpose: Compile TypeScript and materialize dependencies for production
+# Key Challenge: Bun's virtual store symlinks break when copied between layers
 FROM base AS builder
 WORKDIR /app
 
-# Copy manifests first to leverage layer cache when dependencies do not change
+# Step 1: Copy workspace metadata (enables Docker layer caching)
 COPY bun.lock package.json turbo.json ./
 
-# Copy per-package manifests to preserve workspace layout for bun
+# Step 2: Copy per-package manifests (preserves workspace structure for Bun)
 COPY packages/config-eslint/package.json ./packages/config-eslint/
 COPY packages/config-typescript/package.json ./packages/config-typescript/
 COPY packages/types/package.json ./packages/types/
 COPY packages/utils/package.json ./packages/utils/
 COPY apps/backend/package.json ./apps/backend/
 
-# Copy full workspace sources before install so bun can correctly link
-# workspace packages during installation
+# Step 3: Copy all workspace sources (required for workspace: protocol resolution)
 COPY packages ./packages
 COPY apps/backend ./apps/backend
 
-# Install all deps (dev + prod) required to build the project
+# Step 4: Install dependencies (both dev + production)
 # Note: --frozen-lockfile removed to allow builds with updated package.json
 RUN --mount=type=cache,id=bun,target=/root/.bun bun install
 
-# Generate Prisma client early so generated client types are available
+# Step 5: Generate Prisma Client
+# Must run before build so generated types are available for compilation
 RUN cd /app/apps/backend && bun prisma generate
 
-# CRITICAL: Production requires compiled packages
-# Node.js v24's native TypeScript support explicitly disallows type-stripping for files in node_modules
+# Step 6: Pre-compile shared packages to JavaScript
+# CRITICAL: Node.js v24+ disallows type-stripping in node_modules
 # Error: ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING
-# The JIT pattern works in development (Next.js transpiles) but fails in production NestJS runtime
-# Solution: Pre-compile shared packages to JavaScript before backend build
+# NestJS runtime needs compiled JS, not TS, for production
 RUN cd /app/packages/types && bun tsc --build tsconfig.json
 RUN cd /app/packages/utils && bun tsc --build tsconfig.json
 
-# Expose Turborepo remote cache args so they can be provided at docker build time
-# These should be passed via build args (docker-compose/CI) and are turned into ENV
+# Step 7: Configure Turborepo remote cache (optional, for faster CI/CD)
+# Pass via build args: --build-arg TURBO_TOKEN=xxx --build-arg TURBO_TEAM=xxx
 ARG TURBO_TOKEN
 ARG TURBO_TEAM
 ARG TURBO_API
 
-# Make TURBO_* available as environment variables during the build
-# so `turbo` can authenticate with the remote cache when invoked by any build step.
+# Make Turborepo credentials available during build
 ENV TURBO_TOKEN=${TURBO_TOKEN}
 ENV TURBO_TEAM=${TURBO_TEAM}
 ENV TURBO_API=${TURBO_API}
 
-# Build the backend application (Nest compile step)
+# Step 8: Build the backend application
+# Turborepo handles parallel builds and caching
 RUN --mount=type=cache,id=turbo-build-cache,target=/app/.turbo/cache bun --filter backend build
 
-# Create a deploy directory with only production dependencies and files
-# Note: bun requires either inject flags or the --legacy deploy behavior
-RUN bun --filter backend --prod deploy --legacy /app/deploy
+# Deploy Directory Creation - CRITICAL: Materialize dependencies for production 🚨
+# Purpose: Create minimal production bundle with resolved dependencies
+#
+# WHY THIS IS CRITICAL:
+# Bun creates symlinks in node_modules/ pointing to node_modules/.bun/virtual-store/
+# These work during development but BREAK when copied with cp -r (relative paths)
+# Result: Runtime errors like "ENOENT reading @nestjs/core" in production
+#
+# THE SOLUTION: rsync -aL (dereference ALL symlinks)
+# - -a: Archive mode (preserves permissions, timestamps, etc.)
+# - -L: Dereference symlinks (follow them to the actual files)
+# This ensures ALL symlinks are resolved to real files
+# Creates a production-ready node_modules that works standalone
+#
+# Why -L instead of --copy-links?
+# --copy-links only resolves symlinks pointing OUTSIDE the source
+# -L resolves ALL symlinks, including nested ones in .bun store
+# This is necessary for packages like @prisma/engines that have complex symlink chains
+RUN apt-get update && apt-get install -y rsync && rm -rf /var/lib/apt/lists/* && \
+    mkdir -p /app/deploy && \
+    \
+    # Copy package manifests
+    cp /app/package.json /app/deploy/ && \
+    cp /app/apps/backend/package.json /app/deploy/backend_package.json && \
+    \
+    # Copy compiled application artifacts
+    cp -r /app/apps/backend/dist /app/deploy/apps_backend_dist && \
+    cp -r /app/apps/backend/prisma /app/deploy/prisma && \
+    \
+    # Copy workspace node_modules with COMPLETE symlink dereferencing
+    # Step 1: Copy workspace root dependencies (hoisted packages)
+    # Use -aL to dereference ALL symlinks, not just external ones
+    rsync -aL /app/node_modules/ /app/deploy/node_modules/ && \
+    \
+    # Step 2: Copy backend-specific dependencies (non-hoisted packages)
+    # In monorepos, some deps stay in app/node_modules instead of root
+    if [ -d "/app/apps/backend/node_modules" ]; then \
+    rsync -aL /app/apps/backend/node_modules/ /app/deploy/node_modules/ 2>/dev/null || true; \
+    fi
 
-# Production runner stage - minimal image containing only runtime artifacts 🏁
+# Production Runner Stage - Minimal runtime image 🏁
+# Purpose: Only runtime artifacts, no build tools, minimal attack surface
 FROM base AS runner
 WORKDIR /app
 
-# Runtime mode
+# Set production environment
 ENV NODE_ENV=production
 
-# Create a non-root user to run the app (security best practice)
+# Security: Create non-root user for running the application
+# Prevents privilege escalation in case of container compromise
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nestjs
 
-# Copy only production node_modules and package.json from the builder's deploy
+# Copy production dependencies from builder stage
+# These are fully materialized (symlinks resolved) from rsync step above
 COPY --from=builder --chown=nestjs:nodejs /app/deploy/node_modules ./node_modules
 COPY --from=builder --chown=nestjs:nodejs /app/deploy/package.json ./package.json
 
+# Add node_modules/.bin to PATH for CLI tools
+# Required for: prisma (migration), prettier (formatting), etc.
+ENV PATH="/app/node_modules/.bin:${PATH}"
+
 # Copy compiled application code
-COPY --from=builder --chown=nestjs:nodejs /app/apps/backend/dist ./dist
+# Built in builder stage with tsc compilation
+COPY --from=builder --chown=nestjs:nodejs /app/deploy/apps_backend_dist ./dist
 
-# Copy Prisma schema for migrations
-COPY --from=builder --chown=nestjs:nodejs /app/apps/backend/prisma ./prisma/
+# Copy Prisma schema directory
+# Needed for migration commands and database introspection
+COPY --from=builder --chown=nestjs:nodejs /app/deploy/prisma ./prisma/
 
-# The @prisma/client package is already installed in node_modules from the deploy step
-# No need to copy custom generated client - use the standard @prisma/client import
-
-# Install runtime tooling required by the entrypoint and healthcheck. 🧰
-# We install Prisma CLI globally so `prisma` command works inside the
-# production container (necessary for `prisma migrate deploy` in the entrypoint).
-# Also install curl and wget to make the HEALTHCHECK reliable.
+# Runtime tooling installation 🧰
+# Installed in runner (not builder) to keep builder image smaller
 USER root
 RUN apt-get update && \
+    # curl + wget: Healthcheck and debugging
     apt-get install -y curl wget --no-install-recommends && \
+    # Clean up apt cache (reduces image size)
     rm -rf /var/lib/apt/lists/*
 USER nestjs
 
-# Copy entrypoint that handles migration baseline resolution and startup
+# Copy and install entrypoint script
+# Handles database migrations before starting the application
 COPY --chown=nestjs:nodejs apps/backend/docker-entrypoint.sh /app/docker-entrypoint.sh
 RUN chmod +x /app/docker-entrypoint.sh
 
-# Lightweight healthcheck for container orchestration to probe the app 🩺
-# Increased start_period to 60s to account for slower migrations and initialization
+# Health check configuration 🩺
+# How container orchestration knows the app is healthy
+# start_period: 60s (accommodates slow migrations on first start)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD curl -fsS http://localhost:3001/health || exit 1
 
-# Expose application port 📡
+# Application port
+# Backend API listens on port 3001
 EXPOSE 3001
 
-# Entrypoint handles production-friendly migration and then starts the process 🚦
+# Entrypoint: Production startup sequence 🚦
+# 1. Deploy database migrations (with baselining for existing databases)
+# 2. Start NestJS application
+# 3. Handle graceful shutdown on SIGTERM
 ENTRYPOINT ["/app/docker-entrypoint.sh"]

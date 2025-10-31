@@ -50,7 +50,7 @@ export default function InventoryItemDetailPage() {
   const router = useRouter();
   const itemId = params.itemId as string;
   const utils = trpc.useUtils();
-  const [isPending, startTransition] = React.useTransition();
+  const [_isPending, startTransition] = React.useTransition();
 
   // State - only for delete confirmation
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
