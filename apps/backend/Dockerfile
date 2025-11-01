@@ -36,7 +36,8 @@ COPY apps/backend/package.json ./apps/backend/
 COPY packages ./packages
 
 # Full install (dev + prod) for development/builder caching
-RUN --mount=type=cache,id=bun,target=/root/.bun bun install
+# Using --frozen-lockfile ensures reproducible builds and dependency version locking
+RUN --mount=type=cache,id=bun,target=/root/.bun bun install --frozen-lockfile
 
 ##############################################
 # Development: quick-start image for local dev
@@ -79,7 +80,8 @@ COPY packages ./packages
 COPY apps/backend ./apps/backend
 
 # Install all deps (dev + prod) to enable build toolchain and generators
-RUN --mount=type=cache,id=bun,target=/root/.bun bun install
+# Using --frozen-lockfile ensures reproducible builds and dependency version locking
+RUN --mount=type=cache,id=bun,target=/root/.bun bun install --frozen-lockfile
 
 # Generate Prisma Client for type-safe compilation (dev deps available here)
 RUN cd /app/apps/backend && bun prisma generate
@@ -131,7 +133,8 @@ COPY apps/backend/package.json ./apps/backend/package.json
 # Use BuildKit cache for Bun downloads; install prod-only to reduce size
 # Single workspace install ensures all dependencies are resolved together
 # This prevents version conflicts between workspace packages
-RUN --mount=type=cache,id=bun,target=/root/.bun bun install --ci --production
+# Using --frozen-lockfile ensures reproducible production builds
+RUN --mount=type=cache,id=bun,target=/root/.bun bun install --frozen-lockfile --production
 
 # 3) Bring in the compiled application and only the runtime artifacts
 # Backend compiled code + prisma schema/migrations
