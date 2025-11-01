@@ -24,6 +24,7 @@ WORKDIR /app
 
 # Workspace manifests (root + package manifests only)
 # NOTE: If your project uses bun.lockb (newer), copy that instead of bun.lock
+# Using --frozen-lockfile in production builds ensures dependency versions are locked
 COPY bun.lock package.json turbo.json ./
 COPY packages/config-eslint/package.json ./packages/config-eslint/
 COPY packages/config-typescript/package.json ./packages/config-typescript/
@@ -65,6 +66,7 @@ FROM base AS builder
 WORKDIR /app
 
 # Copy manifests first for better caching
+# Using --frozen-lockfile in production builds ensures dependency versions are locked
 COPY bun.lock package.json turbo.json ./
 COPY packages/config-eslint/package.json ./packages/config-eslint/
 COPY packages/config-typescript/package.json ./packages/config-typescript/
@@ -116,6 +118,7 @@ RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 nestjs
 
 # 1) Copy only the minimal manifests required for a workspace-aware prod install
 # Root + per-package manifests (no sources yet)
+# Using --frozen-lockfile in production builds ensures dependency versions are locked
 COPY package.json bun.lock ./
 COPY packages/config-eslint/package.json ./packages/config-eslint/package.json
 COPY packages/config-typescript/package.json ./packages/config-typescript/package.json
@@ -126,13 +129,9 @@ COPY apps/backend/package.json ./apps/backend/package.json
 
 # 2) Production install happens in the final image to keep symlinks valid
 # Use BuildKit cache for Bun downloads; install prod-only to reduce size
+# Single workspace install ensures all dependencies are resolved together
+# This prevents version conflicts between workspace packages
 RUN --mount=type=cache,id=bun,target=/root/.bun bun install --ci --production
-
-# Install backend-specific dependencies explicitly to ensure Prisma is available
-# In Bun workspaces, we need to install dependencies in the workspace directory
-WORKDIR /app/apps/backend
-RUN --mount=type=cache,id=bun,target=/root/.bun bun install --ci --production
-WORKDIR /app
 
 # 3) Bring in the compiled application and only the runtime artifacts
 # Backend compiled code + prisma schema/migrations

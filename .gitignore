@@ -89,5 +89,8 @@ temp/
 *.tgz
 *.tar.gz
 
+# Temporary files
+*.txt
+
 # Claude folder
 .claude
