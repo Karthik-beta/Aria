@@ -37,6 +37,7 @@ COPY packages ./packages
 
 # Full install (dev + prod) for development/builder caching
 # Using --frozen-lockfile ensures reproducible builds and dependency version locking
+# NOTE: --frozen-lockfile is ACTIVE in this stage to maintain dependency integrity
 RUN --mount=type=cache,id=bun,target=/root/.bun bun install --frozen-lockfile
 
 ##############################################

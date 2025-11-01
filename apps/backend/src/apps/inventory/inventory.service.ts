@@ -3,6 +3,7 @@ import {
   NotFoundException,
   ConflictException,
 } from '@nestjs/common';
+import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import type { Inventory } from '@aria/types';
 import { PrismaService } from '../../shared/prisma.service';
 
@@ -86,13 +87,8 @@ export class InventoryService {
 
       return deleted as Inventory.Item;
     } catch (error) {
-      // Check if it's a Prisma error with code P2025 (record not found)
-      if (
-        typeof error === 'object' &&
-        error !== null &&
-        'code' in error &&
-        error.code === 'P2025'
-      ) {
+      // Use Prisma's typed error class for better type safety
+      if (error instanceof PrismaClientKnownRequestError && error.code === 'P2025') {
         throw new NotFoundException(`Item with ID ${id} not found`);
       }
       throw error;

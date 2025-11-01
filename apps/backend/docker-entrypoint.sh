@@ -21,6 +21,11 @@ echo "📦 Working directory: $(pwd)"
 echo "📂 Migrations location: ./prisma/migrations"
 echo "📝 Note: This entrypoint will attempt to deploy migrations and resolve baselines if needed."
 
+# Document directory structure assumption:
+# The Dockerfile copies build artifacts to /app/apps/backend/dist
+# NestJS by default outputs to dist/main.js, so we run: node dist/main
+# (This path is relative to the current /app/apps/backend directory)
+
 # For existing databases transitioning to Prisma Migrate:
 # 1. The 0_init migration contains the complete schema DDL
 # 2. If tables already exist, Prisma will fail with P3018 (type/table already exists)
