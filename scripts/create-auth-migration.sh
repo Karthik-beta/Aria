@@ -10,11 +10,11 @@ cd apps/backend
 
 # Generate Prisma client
 echo "Generating Prisma client..."
-pnpm prisma generate
+bun prisma generate
 
 # Create migration (will be applied automatically in docker-compose)
 echo "Creating migration SQL..."
-pnpm prisma migrate dev --name add_better_auth_tables --create-only
+bun prisma migrate dev --name add_better_auth_tables --create-only
 
 echo "✅ Migration created successfully!"
 echo ""

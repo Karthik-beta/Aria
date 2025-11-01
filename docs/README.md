@@ -58,10 +58,7 @@ Welcome to the Aria ERP documentation hub. This guide will help you find the rig
 **Individual applications:**
 
 - **[Backend (NestJS)](../apps/backend/README.md)** - API server documentation
-- **[Asset Management](../apps/frontend/asset/README.md)** - Asset module
-- **[CRM](../apps/frontend/CRM/README.md)** - Customer relations module
-- **[HRMS](../apps/frontend/hrms/README.md)** - Human resources module
-- **[Inventory](../apps/frontend/inventory/README.md)** - Inventory module
+- **[Frontend (Next.js)](../apps/frontend/README.md)** - Multi-zone application with route groups for Asset, CRM, HRMS, and Inventory modules
 
 ## 🎯 Quick Navigation
 
@@ -79,7 +76,7 @@ Welcome to the Aria ERP documentation hub. This guide will help you find the rig
 - **NestJS Documentation** - https://docs.nestjs.com/
 - **Next.js Documentation** - https://nextjs.org/docs
 - **TypeScript Handbook** - https://www.typescriptlang.org/docs/handbook/
-- **pnpm Documentation** - https://pnpm.io/
+- **Bun Documentation** - https://bun.sh/docs
 
 ## 🆘 Getting Help
 

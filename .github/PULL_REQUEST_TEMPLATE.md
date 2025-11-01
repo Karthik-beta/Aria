@@ -34,12 +34,13 @@ Closes #
 <!-- Describe the tests you ran and how to reproduce them -->
 
 - [ ] Tested locally
-- [ ] All existing tests pass (`pnpm test`)
+- [ ] All existing tests pass (`bun test`)
 - [ ] Added new tests for new features
 - [ ] Manual testing performed
 
 **Test Configuration:**
 
+- Bun version:
 - Node.js version:
 - OS:
 - Browser (if applicable):
@@ -49,7 +50,7 @@ Closes #
 <!-- Ensure all items are completed before submitting -->
 
 - [ ] My code follows the project's code style
-- [ ] I have run `pnpm format` and `pnpm lint`
+- [ ] I have run `bun format` and `bun lint`
 - [ ] I have performed a self-review of my code
 - [ ] I have commented my code, particularly in hard-to-understand areas
 - [ ] I have made corresponding changes to the documentation

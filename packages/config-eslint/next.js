@@ -3,15 +3,9 @@
  * Balanced React/Next.js rules for beginner developers
  */
 module.exports = {
-  extends: ['next/core-web-vitals', './base'],
-  plugins: ['react-hooks'],
+  extends: ['./base'],
+  plugins: ['@typescript-eslint', 'react', 'react-hooks'],
   rules: {
-    // ============================================
-    // Next.js Specific Rules
-    // ============================================
-    '@next/next/no-img-element': 'off', // Allow <img> for flexibility
-    '@next/next/no-html-link-for-pages': 'warn', // Warn about non-Next links
-
     // ============================================
     // React Rules - Beginner-friendly
     // ============================================

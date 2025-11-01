@@ -240,6 +240,8 @@ To customize the backend URL, create a `.env.local` file:
 NEXT_PUBLIC_API_URL=http://localhost:3000
 ```
 
+The frontend connects to the backend at `http://localhost:3000` by default. All modules (Asset, CRM, HRMS, Inventory) use the same backend connection through their respective route groups.
+
 Then update `src/lib/trpc/client.ts` and `src/lib/trpc/provider.tsx`:
 
 ```tsx
@@ -290,8 +292,9 @@ test('fetches inventory items', async () => {
 1. **Add Error Boundaries**: Wrap components with error boundaries to catch tRPC errors
 2. **Add Loading States**: Create reusable loading components
 3. **Implement Authentication**: Add auth headers to tRPC requests
-4. **Add More Routers**: Extend backend with more tRPC routers for different modules
+4. **Add More Routers**: Extend backend with more tRPC routers for different modules (asset, CRM, HRMS, inventory)
 5. **Setup React Query Persistence**: Persist cache to localStorage for offline support
+6. **Access All Modules**: The single frontend app supports all modules via route groups at `/asset`, `/crm`, `/hrms`, and `/inventory`
 
 ## Resources
 
@@ -306,7 +309,7 @@ test('fetches inventory items', async () => {
 
 If you see type errors about `AppRouter`, ensure:
 
-1. Backend is built: `cd apps/backend && pnpm build`
+1. Backend is built: `cd apps/backend && bun build`
 2. Backend types are up to date
 3. Restart TypeScript server in VS Code
 
@@ -314,7 +317,7 @@ If you see type errors about `AppRouter`, ensure:
 
 If you see network errors:
 
-1. Ensure backend is running: `cd apps/backend && pnpm dev`
+1. Ensure backend is running: `cd apps/backend && bun dev`
 2. Check backend is on port 3000
 3. Verify `/trpc` endpoint is accessible
 

@@ -11,7 +11,23 @@ import { UserAvatarProfile } from '@/components/user-avatar-profile';
 import { usePathname, useRouter } from 'next/navigation';
 import { signOut, useSession } from '@/lib/auth/client';
 import { toast } from 'sonner';
-import { IconCreditCard, IconBell, IconLogout, IconUserCircle } from '@tabler/icons-react';
+import {
+  IconCreditCard as _IconCreditCard,
+  IconLogout,
+  IconBell,
+  IconSettings as _IconSettings,
+  IconUserCircle,
+} from '@tabler/icons-react';
+
+/**
+ * Type guard to check if value has a specific property
+ */
+function hasProperty<T extends string>(
+  obj: unknown,
+  prop: T
+): obj is Record<T, unknown> & Record<string, unknown> {
+  return typeof obj === 'object' && obj !== null && prop in obj;
+}
 
 type Props = {
   /** Optional explicit app route prefix (e.g. '/inventory'). If not provided the component will infer from pathname. */
@@ -25,19 +41,45 @@ export default function UserDropdownContent({ appRoute, className }: Props) {
   const pathname = usePathname();
 
   const user = React.useMemo(() => {
-    const su = session?.user as any | undefined;
-    if (!su) {
-      return {
-        fullName: 'User',
-        emailAddresses: [{ emailAddress: '' }],
-        imageUrl: '',
-      };
-    }
+    const su = session?.user;
+
+    const fallback = {
+      fullName: 'User',
+      emailAddresses: [{ emailAddress: '' }],
+      imageUrl: '',
+    };
+
+    if (!hasProperty(su, 'name') && !hasProperty(su, 'email')) return fallback;
+
+    const getName = () => {
+      if (hasProperty(su, 'name') && typeof su.name === 'string') return su.name;
+      if (hasProperty(su, 'fullName') && typeof su.fullName === 'string') return su.fullName;
+      if (hasProperty(su, 'username') && typeof su.username === 'string') return su.username;
+      return 'User';
+    };
+
+    const getEmail = () => {
+      if (hasProperty(su, 'email') && typeof su.email === 'string') return su.email;
+      if (hasProperty(su, 'emails') && Array.isArray(su.emails) && su.emails[0]) {
+        const firstEmail = su.emails[0] as Record<string, unknown>;
+        if ('value' in firstEmail && typeof firstEmail.value === 'string') {
+          return firstEmail.value;
+        }
+      }
+      return '';
+    };
+
+    const getImageUrl = () => {
+      if (hasProperty(su, 'avatar') && typeof su.avatar === 'string') return su.avatar;
+      if (hasProperty(su, 'imageUrl') && typeof su.imageUrl === 'string') return su.imageUrl;
+      if (hasProperty(su, 'image') && typeof su.image === 'string') return su.image;
+      return '';
+    };
 
     return {
-      fullName: su.name || su.fullName || su.username || 'User',
-      emailAddresses: [{ emailAddress: su.email || (su.emails && su.emails[0]?.value) || '' }],
-      imageUrl: su.avatar || su.imageUrl || su.image || '',
+      fullName: getName(),
+      emailAddresses: [{ emailAddress: getEmail() }],
+      imageUrl: getImageUrl(),
     };
   }, [session]);
 
@@ -75,15 +117,16 @@ export default function UserDropdownContent({ appRoute, className }: Props) {
             await signOut();
             try {
               if (typeof toast?.success === 'function') toast.success('Signed out successfully');
-            } catch (e) {
+            } catch (_e) {
               /* swallow */
             }
             router.push('/auth/sign-in');
-          } catch (err) {
+          } catch (_err) {
             try {
-              if (typeof toast?.error === 'function')
+              if (typeof toast?.error === 'function') {
                 toast.error('Failed to sign out. Please try again.');
-            } catch (e) {
+              }
+            } catch (_e) {
               /* swallow */
             }
             router.push('/auth/sign-in');

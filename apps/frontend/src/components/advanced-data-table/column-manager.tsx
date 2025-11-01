@@ -24,6 +24,7 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
+  type DragEndEvent,
 } from '@dnd-kit/core';
 import {
   arrayMove,
@@ -85,24 +86,28 @@ export function ColumnManager<TData>({
     })
   );
 
-  const handleDragEnd = (event: any) => {
+  const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
 
-    if (active.id !== over.id) {
-      setColumnOrder((items) => {
-        const oldIndex = items.indexOf(active.id);
-        const newIndex = items.indexOf(over.id);
-        const newOrder = arrayMove(items, oldIndex, newIndex);
-
-        // Prepend 'select' and append 'actions' to maintain fixed positions
-        const fullOrder = ['select', ...newOrder, 'actions'];
-
-        // Update table column order
-        table.setColumnOrder(fullOrder);
-
-        return newOrder;
-      });
+    if (!over || active.id === over.id) {
+      return;
     }
+
+    setColumnOrder((items) => {
+      const activeId = String(active.id);
+      const overId = String(over.id);
+      const oldIndex = items.indexOf(activeId);
+      const newIndex = items.indexOf(overId);
+      const newOrder = arrayMove(items, oldIndex, newIndex);
+
+      // Prepend 'select' and append 'actions' to maintain fixed positions
+      const fullOrder = ['select', ...newOrder, 'actions'];
+
+      // Update table column order
+      table.setColumnOrder(fullOrder);
+
+      return newOrder;
+    });
   };
 
   const handleResetOrder = () => {

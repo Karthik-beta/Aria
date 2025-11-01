@@ -28,7 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Initial monorepo structure with pnpm workspaces and Turborepo
 - NestJS 11 backend API service
-- Four Next.js 15 frontend applications:
+- Single Next.js 16 frontend application with route groups:
   - Asset Management
   - CRM (Customer Relations)
   - HRMS (Human Resources)
@@ -39,7 +39,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `@aria/eslint-config` - ESLint configuration
   - `@aria/tsconfig` - TypeScript configuration
 - Cross-platform deployment toolkit with Docker Compose
-- Traefik reverse proxy with path-based routing
+- Caddy reverse proxy with path-based routing
 - Automated backup and restore scripts
 - Health monitoring and log rotation
 - Development and deployment documentation

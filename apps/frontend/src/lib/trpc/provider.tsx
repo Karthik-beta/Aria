@@ -51,7 +51,7 @@ function getQueryClient() {
  */
 function getBaseUrl(): string {
   let baseUrl: string;
-  
+
   if (typeof window !== 'undefined') {
     // Browser: use environment variable or empty string for same-origin requests
     baseUrl = process.env.NEXT_PUBLIC_API_URL || '';
@@ -59,7 +59,7 @@ function getBaseUrl(): string {
     // SSR/Server: use environment variable or default to localhost
     baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
   }
-  
+
   // Remove trailing slash to prevent double-slash in URLs like //trpc/
   return baseUrl.replace(/\/$/, '');
 }
@@ -94,9 +94,7 @@ function getWsUrl(): string {
     const protocol = isSecure ? 'wss:' : 'ws:';
 
     // Remove protocol and trailing slash from URL
-    const urlWithoutProtocol = baseUrl
-      .replace(/^https?:\/\//, '')
-      .replace(/\/$/, '');
+    const urlWithoutProtocol = baseUrl.replace(/^https?:\/\//, '').replace(/\/$/, '');
 
     return `${protocol}//${urlWithoutProtocol}/trpc-ws`;
   }

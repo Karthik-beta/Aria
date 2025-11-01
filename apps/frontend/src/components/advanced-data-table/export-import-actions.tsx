@@ -25,7 +25,7 @@ interface ExportImportActionsProps<TData> {
   table: Table<TData>;
   exportFormats?: ExportFormat[];
   onExport?: (format: ExportFormat, rows: Row<TData>[]) => void | Promise<void>;
-  onImport?: (data: Record<string, any>[]) => void | Promise<void>;
+  onImport?: (data: readonly Record<string, unknown>[]) => void | Promise<void>;
   enableImport?: boolean;
 }
 

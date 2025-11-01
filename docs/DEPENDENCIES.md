@@ -128,13 +128,13 @@ function handleData(props: DataHandlerProps) {
 1. **Check for updates:**
 
    ```bash
-   pnpm outdated -r
+   bun outdated -r
    ```
 
 2. **Update to latest:**
 
    ```bash
-   pnpm update -r --latest
+   bun update -r --latest
    ```
 
 3. **Review changes:**
@@ -144,14 +144,14 @@ function handleData(props: DataHandlerProps) {
 
 4. **Fix breaking changes:**
    - Update code to match new APIs
-   - Run `pnpm build` to catch type errors
-   - Run `pnpm lint` to catch code issues
+   - Run `bun build` to catch type errors
+   - Run `bun lint` to catch code issues
 
 5. **Test thoroughly:**
    ```bash
-   pnpm build
-   pnpm test
-   pnpm lint
+   bun build
+   bun test
+   bun lint
    ```
 
 ### Breaking Change Checklist
@@ -173,7 +173,7 @@ When a major version update occurs:
 **Solution:**
 
 1. Check if types package needs updating
-2. Rebuild types: `pnpm --filter @aria/types build`
+2. Rebuild types: `bun --filter @aria/types build`
 3. Clear cache: `rm -rf node_modules/.cache`
 
 ### Issue: Peer dependency warnings
@@ -181,7 +181,7 @@ When a major version update occurs:
 **Solution:**
 
 1. Check if warning is safe (usually is)
-2. If needed, add to `pnpm.overrides` in root package.json
+2. If needed, add to `bun.overrides` in root package.json
 3. Document why in this file
 
 ### Issue: Build fails after update
@@ -197,7 +197,7 @@ When a major version update occurs:
 
 ### Weekly
 
-- Check `pnpm outdated -r` for security updates
+- Check `bun outdated -r` for security updates
 - Review dependabot alerts
 
 ### Monthly
@@ -214,9 +214,9 @@ When a major version update occurs:
 
 ## Resources
 
-- [pnpm Workspace Guide](https://pnpm.io/workspaces)
+- [bun Workspace Guide](https://bun.io/workspaces)
 - [React 19 Breaking Changes](https://react.dev/blog/2024/04/25/react-19)
-- [Next.js 15 Upgrade Guide](https://nextjs.org/docs/app/building-your-application/upgrading/version-15)
+- [Next.js 16 Upgrade Guide](https://nextjs.org/docs/app/building-your-application/upgrading/version-16)
 - [TypeScript Release Notes](https://www.typescriptlang.org/docs/handbook/release-notes/overview.html)
 
 ---

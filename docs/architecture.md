@@ -4,10 +4,10 @@ Technical overview of the Aria ERP system design, architecture, and development 
 
 ## System Overview
 
-Aria ERP is a modular, type-safe B2B ERP suite built as a pnpm + Turborepo monorepo. The system comprises:
+Aria ERP is a modular, type-safe B2B ERP suite built as a bun + Turborepo monorepo. The system comprises:
 
 - **1 Backend API** - NestJS 11 service
-- **4 Frontend Applications** - Next.js 15 App Router apps
+- **1 Frontend Application** - Next.js 16 App Router with route groups
 - **Shared Packages** - Common types, utilities, and configurations
 - **Deployment Toolkit** - Cross-platform Docker-based installer
 
@@ -20,21 +20,29 @@ Aria ERP is a modular, type-safe B2B ERP suite built as a pnpm + Turborepo monor
              │ HTTPS
              ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                    Traefik (Reverse Proxy)                   │
+│                    Caddy (Reverse Proxy)                     │
 │                    Path-Based Routing                        │
-└─┬─────────┬──────────┬──────────┬──────────┬────────────────┘
-  │         │          │          │          │
-  │/asset   │/crm      │/hrms     │/inventory│/api
-  ▼         ▼          ▼          ▼          ▼
-┌───────┐ ┌───────┐ ┌───────┐ ┌───────┐ ┌─────────┐
-│ Asset │ │  CRM  │ │ HRMS  │ │Invent │ │ Backend │
-│Next.js│ │Next.js│ │Next.js│ │Next.js│ │ NestJS  │
-└───────┘ └───────┘ └───────┘ └───────┘ └────┬────┘
-                                              │
-                                              ▼
-                                        ┌──────────┐
-                                        │PostgreSQL│
-                                        └──────────┘
+└─┬────────────┬────────────┬──────────┬────────────────┬──────┘
+  │            │            │          │                │
+  │/asset      │/crm        │/hrms     │/inventory      │/api
+  │            │            │          │                │
+  └────────────┴────────────┴──────────┴────────────────┘
+                       │
+                       ▼
+            ┌────────────────────┐
+            │ Frontend (Next.js) │
+            │  Route Groups      │
+            └──────────┬─────────┘
+                       │
+                       ▼
+            ┌────────────────────┐
+            │ Backend (NestJS)   │
+            └──────────┬─────────┘
+                       │
+                       ▼
+            ┌────────────────────┐
+            │   PostgreSQL       │
+            └────────────────────┘
 ```
 
 ## Technology Stack
@@ -49,7 +57,7 @@ Aria ERP is a modular, type-safe B2B ERP suite built as a pnpm + Turborepo monor
 
 ### Frontend
 
-- **Framework**: Next.js 15 (App Router)
+- **Framework**: Next.js 16 (App Router)
 - **UI Library**: React 18+
 - **Styling**: Tailwind CSS 4 with PostCSS
 - **Build Tool**: Turbopack (default Next.js)
@@ -57,11 +65,11 @@ Aria ERP is a modular, type-safe B2B ERP suite built as a pnpm + Turborepo monor
 
 ### Shared Infrastructure
 
-- **Package Manager**: pnpm 10.x
+- **Package Manager**: bun 1.3.x
 - **Build Orchestration**: Turborepo
 - **Code Quality**: ESLint (flat config) + Prettier
 - **Type System**: TypeScript 5.x
-- **Reverse Proxy**: Traefik v3.5
+- **Reverse Proxy**: Caddy v3.5
 - **Containerization**: Docker + Docker Compose
 
 ## Monorepo Structure
@@ -93,11 +101,11 @@ apps/backend/
 
 #### Frontends (`apps/frontend/`)
 
-Four Next.js 15 applications using App Router:
+Single Next.js 16 application using App Router with route groups:
 
-- **Asset** - Asset management and tracking
-- **CRM** - Customer relationship management
-- **HRMS** - Human resources and payroll
+- **Asset** - `/asset` route group - Asset management and tracking
+- **CRM** - `/crm` route group - Customer relationship management
+- **HRMS** - `/hrms` route group - Human resources and payroll
 - **Inventory** - Inventory control and warehousing
 
 **Structure (example: asset):**
@@ -403,7 +411,7 @@ await fetch('/api/users', {
 ├──────────────────────────────────────────────┤
 │                                              │
 │  ┌────────────────────────────────────────┐ │
-│  │  Traefik (Reverse Proxy)               │ │
+│  │  Caddy (Reverse Proxy)               │ │
 │  │  - SSL termination (Let's Encrypt)     │ │
 │  │  - Path-based routing                  │ │
 │  │  - Security headers                    │ │
@@ -445,7 +453,7 @@ await fetch('/api/users', {
 
 **Default Limits:**
 
-- **Traefik**: 0.5 CPU, 512MB RAM
+- **Caddy**: 0.5 CPU, 512MB RAM
 - **Backend**: 1 CPU, 1GB RAM
 - **Each Frontend**: 0.5 CPU, 512MB RAM
 - **PostgreSQL**: 2 CPU, 2GB RAM
@@ -458,8 +466,8 @@ await fetch('/api/users', {
 
 ### SSL/TLS
 
-- **Development**: Self-signed certificates in `traefik/certs/`
-- **Production**: Let's Encrypt via Traefik or custom CA certificates
+- **Development**: Self-signed certificates in `caddy/certs/`
+- **Production**: Let's Encrypt via Caddy or custom CA certificates
 
 ### Secrets Management
 
@@ -471,7 +479,7 @@ await fetch('/api/users', {
 ### Network Security
 
 - Internal services communicate via Docker network
-- Only Traefik exposed to internet (ports 80, 443)
+- Only Caddy exposed to internet (ports 80, 443)
 - Application ports not exposed to host
 
 See [SECURITY.md](../SECURITY.md) for complete security guidelines.
@@ -503,11 +511,11 @@ See [SECURITY.md](../SECURITY.md) for complete security guidelines.
 on: [push, pull_request]
 jobs:
   quality:
-    - pnpm install
-    - pnpm format --check
-    - pnpm lint
-    - pnpm test
-    - pnpm build
+    - bun install
+    - bun format --check
+    - bun lint
+    - bun test
+    - bun build
 ```
 
 ## Performance Considerations

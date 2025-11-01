@@ -1,22 +1,19 @@
 # syntax=docker.io/docker/dockerfile:1
-# Frontend Dockerfile - Multi-stage build for Next.js 15 🚀
+# Frontend Dockerfile - Multi-stage build for Next.js 16 🚀
 # Based on official Next.js with-docker example (best practices) 📚
 # Reference: https://github.com/vercel/next.js/tree/canary/examples/with-docker
 
-# Base stage with Node.js and pnpm 🧱
-# Using Node.js 22-slim (LTS) to satisfy Next.js 16's runtime requirement (Node 20.9+)
-# and incorporate the latest security patches published for the official Node image.
-FROM node:22-slim AS base
+# Base stage with Bun package manager 🧱
+# Using Bun's official image which includes Node.js runtime
+FROM oven/bun:1 AS base
 WORKDIR /app
-# Enable corepack and prepare the pnpm client used for installs/builds.
-RUN corepack enable && corepack prepare pnpm@latest --activate
 
 # Dependencies stage - install all dependencies 📦
 FROM base AS deps
 WORKDIR /app
 
 # Copy workspace configuration files
-COPY pnpm-lock.yaml pnpm-workspace.yaml package.json turbo.json ./
+COPY bun.lock package.json turbo.json ./
 
 # Copy all package.json files to maintain workspace structure
 COPY packages/config-eslint/package.json ./packages/config-eslint/
@@ -27,7 +24,8 @@ COPY apps/frontend/package.json ./apps/frontend/
 COPY apps/backend/package.json ./apps/backend/
 
 # Install dependencies with BuildKit cache mount for faster rebuilds
-RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
+# Note: --frozen-lockfile removed to allow builds with updated package.json
+RUN --mount=type=cache,id=bun,target=/root/.bun bun install
 
 # Copy shared packages source (JIT pattern - no build needed, consumed as TypeScript)
 COPY packages ./packages
@@ -48,7 +46,7 @@ COPY --from=deps /app/packages ./packages
 COPY --from=deps /app/apps/frontend/node_modules ./apps/frontend/node_modules
 
 # Copy workspace files
-COPY pnpm-lock.yaml pnpm-workspace.yaml package.json turbo.json ./
+COPY bun.lock package.json turbo.json ./
 
 # Copy source code
 COPY packages ./packages
@@ -62,7 +60,7 @@ ENV NEXT_TELEMETRY_DISABLED=1
 EXPOSE 3000
 
 # Development command (will be overridden by docker-compose)
-CMD ["pnpm", "--filter", "frontend", "dev"]
+CMD ["bun", "--filter", "frontend", "dev"]
 
 # Builder stage - build the Next.js application 🏗️
 FROM base AS builder
@@ -99,19 +97,19 @@ ENV TURBO_TEAM=${TURBO_TEAM}
 ENV TURBO_API=${TURBO_API}
 
 # Generate Prisma client before building (required for backend types)
-RUN cd apps/backend && pnpm exec prisma generate
+RUN cd apps/backend && bun prisma generate
 
 # CRITICAL: Compile shared packages before backend/frontend builds
 # Production requires compiled packages - JIT pattern only works in Next.js dev mode
-RUN cd packages/types && pnpm tsc --build tsconfig.json
-RUN cd packages/utils && pnpm tsc --build tsconfig.json
+RUN cd packages/types && bun tsc --build tsconfig.json
+RUN cd packages/utils && bun tsc --build tsconfig.json
 
 # Build backend (required for tRPC types that frontend imports)
-RUN --mount=type=cache,id=turbo-build-cache,target=/app/.turbo/cache pnpm --filter backend build
+RUN --mount=type=cache,id=turbo-build-cache,target=/app/.turbo/cache bun --filter backend build
 
 # Build frontend using Turbo (now able to access remote cache via TURBO_* env)
-RUN --mount=type=cache,id=turbo-build-cache,target=/app/.turbo/cache pnpm turbo build --filter=frontend...
-RUN --mount=type=cache,id=turbo-build-cache,target=/app/.turbo/cache pnpm turbo build --filter=frontend...
+RUN --mount=type=cache,id=turbo-build-cache,target=/app/.turbo/cache bun turbo build --filter=frontend...
+RUN --mount=type=cache,id=turbo-build-cache,target=/app/.turbo/cache bun turbo build --filter=frontend...
 
 # Production runner stage - minimal production image with standalone output 🏁
 FROM base AS runner

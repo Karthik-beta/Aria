@@ -7,7 +7,7 @@ Welcome to Aria ERP! This guide will help you set up your development environmen
 Before you begin, ensure you have the following installed:
 
 - **Node.js** 20 or 22 (LTS recommended) - [Download](https://nodejs.org/)
-- **pnpm** 10.x package manager
+- **Bun** 1.3.x or later - [Download](https://bun.sh/)
 - **Git** - [Download](https://git-scm.com/)
 - **Code Editor** - We recommend [VS Code](https://code.visualstudio.com/)
 - **Docker** 20.10+ (optional, only for deployment testing)
@@ -21,36 +21,23 @@ git clone https://github.com/Karthik-beta/Aria.git
 cd Aria
 ```
 
-### 2. Install pnpm
-
-```bash
-# Enable pnpm (comes with Node.js 16.13+)
-corepack enable pnpm
-
-# Verify installation
-pnpm --version
-```
-
-### 3. Install Dependencies
+### 2. Install Dependencies
 
 ```bash
 # Install all workspace dependencies (takes 2-5 minutes first time)
-pnpm install
+bun install
 ```
 
-### 4. Start Development Servers
+### 3. Start Development Servers
 
 Choose what you want to work on:
 
 ```bash
 # Start the backend API (NestJS)
-pnpm --filter backend start:dev
+bun --filter backend start:dev
 
 # Start a frontend application (Next.js)
-pnpm --filter asset dev      # Asset Management
-pnpm --filter crm dev        # Customer Relations
-pnpm --filter hrms dev       # Human Resources
-pnpm --filter inventory dev  # Inventory Management
+bun --filter frontend dev    # All modules (Asset, CRM, HRMS, Inventory)
 ```
 
 **Default Ports:**
@@ -88,7 +75,7 @@ Aria/
 - **Backend** (`apps/backend/`) - NestJS API server handling business logic and database operations
 - **Frontends** (`apps/frontend/*`) - Next.js applications providing user interfaces
 - **Shared Packages** (`packages/*`) - Reusable code shared across applications
-- **Monorepo Management** - pnpm workspaces + Turborepo for efficient builds and caching
+- **Monorepo Management** - bun workspaces + Turborepo for efficient builds and caching
 
 ## Common Development Tasks
 
@@ -96,16 +83,16 @@ Aria/
 
 ```bash
 # Format all code (Prettier)
-pnpm format
+bun format
 
 # Lint all code (ESLint)
-pnpm lint
+bun lint
 
 # Run all tests
-pnpm test
+bun test
 
 # Build all applications
-pnpm build
+bun build
 ```
 
 ### Working with Shared Packages
@@ -114,10 +101,10 @@ When you modify shared packages, rebuild them:
 
 ```bash
 # Rebuild types package
-pnpm --filter @aria/types build
+bun --filter @aria/types build
 
 # Rebuild utils package
-pnpm --filter @aria/utils build
+bun --filter @aria/utils build
 ```
 
 ### Creating New Code
@@ -127,12 +114,12 @@ Always use framework CLI generators:
 ```bash
 # Generate NestJS resources
 cd apps/backend
-pnpm nest g module users
-pnpm nest g controller users
-pnpm nest g service users
+bun nest g module users
+bun nest g controller users
+bun nest g service users
 
 # Next.js follows file-based routing
-# Create files directly in apps/frontend/<app>/src/app/
+# Create files directly in apps/frontend/src/app/
 ```
 
 ## Development Workflow
@@ -158,10 +145,10 @@ Follow our [Architecture Guide](./architecture.md) and [Contributing Guide](../C
 
 ```bash
 # Run quality gates (all must pass)
-pnpm format
-pnpm lint
-pnpm test
-pnpm build
+bun format
+bun lint
+bun test
+bun build
 ```
 
 ### 4. Commit and Push
@@ -227,8 +214,8 @@ function greet(name: string): string {
 Build the shared packages:
 
 ```bash
-pnpm --filter @aria/types build
-pnpm --filter @aria/utils build
+bun --filter @aria/types build
+bun --filter @aria/utils build
 ```
 
 ### Port already in use
@@ -251,29 +238,28 @@ lsof -ti:3000 | xargs kill
 ```bash
 # Clear cache and rebuild
 rm -rf node_modules .next dist
-pnpm install
-pnpm --filter <app-name> dev
+bun install
+bun --filter <app-name> dev
 ```
 
 ### TypeScript errors everywhere
 
 ```bash
 # Rebuild workspace
-pnpm build
+bun build
 
 # Check for type errors
-pnpm --filter <app-name> exec tsc --noEmit
+bun --filter <app-name> exec tsc --noEmit
 ```
 
 ### Dependency installation fails
 
 ```bash
-# Clear pnpm cache
-pnpm store prune
+# Clear Bun cache (if needed)
+rm -rf node_modules
 
 # Clean install
-rm -rf node_modules
-pnpm install
+bun install
 ```
 
 ## Next Steps
@@ -299,7 +285,7 @@ Now that you're set up:
 - [TypeScript Handbook](https://www.typescriptlang.org/docs/handbook/) - Learn TypeScript
 - [NestJS Documentation](https://docs.nestjs.com/) - Backend framework
 - [Next.js Documentation](https://nextjs.org/docs) - Frontend framework
-- [pnpm Workspaces](https://pnpm.io/workspaces) - Monorepo management
+- [Bun Documentation](https://bun.sh/docs) - Package manager documentation
 
 ## Getting Help
 

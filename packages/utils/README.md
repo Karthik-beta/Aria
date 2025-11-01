@@ -144,7 +144,7 @@ export * from './calculations';
 ### Step 3: Build
 
 ```bash
-pnpm --filter @aria/utils build
+bun --filter @aria/utils build
 ```
 
 ### Step 4: Use It!
@@ -258,13 +258,13 @@ export function formatName(firstName?: string, lastName?: string): string {
 
 ```bash
 # Build the package
-pnpm --filter @aria/utils build
+bun --filter @aria/utils build
 
 # Check for type errors
-pnpm --filter @aria/utils exec tsc --noEmit
+bun --filter @aria/utils exec tsc --noEmit
 
 # Run tests (coming soon)
-pnpm --filter @aria/utils test
+bun --filter @aria/utils test
 ```
 
 ## 📚 Project Structure

@@ -23,7 +23,7 @@ Aria ERP is a full-stack monorepo providing enterprise resource planning capabil
 ## Prerequisites
 
 - **Node.js** 20 or 22 (LTS)
-- **pnpm** 10.x
+- **Bun** 1.3.x or later
 - **Git**
 - **Docker** 20.10+ (for deployment only)
 
@@ -35,24 +35,24 @@ git clone https://github.com/Karthik-beta/Aria.git
 cd Aria
 
 # Install dependencies
-pnpm install
+bun install
 
 # Start development
-pnpm --filter backend start:dev  # Backend (port 3000)
-pnpm --filter asset dev          # Asset module (port 3001)
+bun --filter backend start:dev  # Backend (port 3000)
+bun --filter frontend dev       # Frontend (port 3001)
 ```
 
 See [Getting Started Guide](./docs/getting-started.md) for detailed instructions.
 
 ## Development Commands
 
-| Command        | Description               |
-| -------------- | ------------------------- |
-| `pnpm format`  | Format code with Prettier |
-| `pnpm lint`    | Lint code with ESLint     |
-| `pnpm test`    | Run all tests             |
-| `pnpm build`   | Build all applications    |
-| `pnpm package` | Build deployment package  |
+| Command       | Description               |
+| ------------- | ------------------------- |
+| `bun format`  | Format code with Prettier |
+| `bun lint`    | Lint code with ESLint     |
+| `bun test`    | Run all tests             |
+| `bun build`   | Build all applications    |
+| `bun package` | Build deployment package  |
 
 ## Documentation
 
@@ -97,10 +97,10 @@ We welcome contributions! Please read our [Contributing Guide](./CONTRIBUTING.md
 
 **Quick checklist before PR:**
 
-- [ ] `pnpm format` passes
-- [ ] `pnpm lint` passes
-- [ ] `pnpm test` passes
-- [ ] `pnpm build` succeeds
+- [ ] `bun format` passes
+- [ ] `bun lint` passes
+- [ ] `bun test` passes
+- [ ] `bun build` succeeds
 - [ ] Documentation updated
 
 ## Security

@@ -236,7 +236,7 @@ Before deploying to production:
 - [deployment/README.md](./deployment/README.md) - On-premise deployment overview
 - [deployment/docs/INSTALLATION.md](./deployment/docs/INSTALLATION.md) - Installation guide
 - [deployment/docs/CONFIGURATION.md](./deployment/docs/CONFIGURATION.md) - Configuration reference including SSL/TLS
-- [traefik/certs/README.md](./traefik/certs/README.md) - Certificate management for development
+- [caddy/certs/README.md](./caddy/certs/README.md) - Certificate management for development
 
 ## 🤝 Security Contact
 

@@ -2,11 +2,11 @@
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import {
   DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
+  DropdownMenuContent as _DropdownMenuContent,
+  DropdownMenuGroup as _DropdownMenuGroup,
+  DropdownMenuItem as _DropdownMenuItem,
+  DropdownMenuLabel as _DropdownMenuLabel,
+  DropdownMenuSeparator as _DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
@@ -28,13 +28,13 @@ import type { NavItem } from '../../types';
 import { getAppNavItems } from '../../constants/app-nav-data';
 import { useMediaQuery } from '../../hooks/use-media-query';
 import {
-  IconBell,
+  IconBell as _IconBell,
   IconChevronRight,
   IconChevronsDown,
-  IconCreditCard,
-  IconLogout,
+  IconCreditCard as _IconCreditCard,
+  IconLogout as _IconLogout,
   IconPhotoUp,
-  IconUserCircle,
+  IconUserCircle as _IconUserCircle,
   IconBox,
   IconBlocks,
   IconBrandAsana,
@@ -43,8 +43,8 @@ import {
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import * as React from 'react';
-import { signOut, useSession } from '@/lib/auth/client';
-import { toast } from 'sonner';
+import { signOut as _signOut, useSession } from '@/lib/auth/client';
+import { toast as _toast } from 'sonner';
 import { Icons } from '../icons';
 import { AppSwitcher } from '../app-switcher';
 import UserDropdownContent from './user-dropdown-content';
@@ -68,6 +68,16 @@ const fallbackUser = {
   emailAddresses: [{ emailAddress: 'admin@example.com' }],
   imageUrl: '',
 };
+
+/**
+ * Type guard to check if value has a specific property
+ */
+function hasProperty<T extends string>(
+  obj: unknown,
+  prop: T
+): obj is Record<T, unknown> & Record<string, unknown> {
+  return typeof obj === 'object' && obj !== null && prop in obj;
+}
 
 /**
  * Memoized navigation sub-item component for better performance
@@ -143,23 +153,41 @@ export default function AppSidebar() {
 
   // Map auth session user shape to the local user shape expected by UserAvatarProfile
   const user = React.useMemo(() => {
-    const su = session?.user as any | undefined;
-    if (!su) return fallbackUser;
+    const su = session?.user;
+    if (!hasProperty(su, 'name') && !hasProperty(su, 'email')) return fallbackUser;
+
+    const getName = () => {
+      if (hasProperty(su, 'name') && typeof su.name === 'string') return su.name;
+      if (hasProperty(su, 'fullName') && typeof su.fullName === 'string') return su.fullName;
+      if (hasProperty(su, 'username') && typeof su.username === 'string') return su.username;
+      return fallbackUser.fullName;
+    };
+
+    const getEmail = () => {
+      if (hasProperty(su, 'email') && typeof su.email === 'string') return su.email;
+      if (hasProperty(su, 'emails') && Array.isArray(su.emails) && su.emails[0]) {
+        const firstEmail = su.emails[0] as Record<string, unknown>;
+        if ('value' in firstEmail && typeof firstEmail.value === 'string') {
+          return firstEmail.value;
+        }
+      }
+      return fallbackUser.emailAddresses[0].emailAddress;
+    };
+
+    const getImageUrl = () => {
+      if (hasProperty(su, 'avatar') && typeof su.avatar === 'string') return su.avatar;
+      if (hasProperty(su, 'imageUrl') && typeof su.imageUrl === 'string') return su.imageUrl;
+      if (hasProperty(su, 'image') && typeof su.image === 'string') return su.image;
+      return '';
+    };
 
     return {
-      fullName: su.name || su.fullName || su.username || fallbackUser.fullName,
-      emailAddresses: [
-        {
-          emailAddress:
-            su.email ||
-            (su.emails && su.emails[0]?.value) ||
-            fallbackUser.emailAddresses[0].emailAddress,
-        },
-      ],
-      imageUrl: su.avatar || su.imageUrl || su.image || '',
+      fullName: getName(),
+      emailAddresses: [{ emailAddress: getEmail() }],
+      imageUrl: getImageUrl(),
     };
   }, [session]);
-  const router = useRouter();
+  const _router = useRouter();
   const [isMounted, setIsMounted] = React.useState(false);
 
   // Memoize active app calculation to avoid recalculation on every render

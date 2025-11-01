@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- Backend is running: `cd apps/backend && pnpm dev` (port 3000)
+- Backend is running: `cd apps/backend && bun dev` (port 3000)
 - Frontend packages are installed
 
 ## Basic Usage
@@ -100,14 +100,14 @@ Currently configured backend endpoints:
 
    ```bash
    cd apps/backend
-   pnpm dev
+   bun dev
    ```
 
 2. **Start the frontend:**
 
    ```bash
    cd apps/frontend
-   pnpm dev
+   bun dev
    ```
 
 3. **Use the example component:**

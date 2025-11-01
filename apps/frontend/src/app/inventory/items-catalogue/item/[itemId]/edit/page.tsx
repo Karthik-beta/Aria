@@ -95,7 +95,7 @@ export default function EditItemPage() {
           <CardHeader>
             <CardTitle>Item Not Found</CardTitle>
             <CardDescription>
-              The inventory item you're trying to edit doesn't exist or has been deleted.
+              The inventory item you&apos;re trying to edit doesn&apos;t exist or has been deleted.
             </CardDescription>
           </CardHeader>
           <CardContent>

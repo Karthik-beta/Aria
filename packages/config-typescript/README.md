@@ -122,8 +122,8 @@ All configs compile to **ES2022**, which means:
 **Fix**:
 
 ```bash
-pnpm install
-pnpm --filter @aria/types build
+bun install
+bun --filter @aria/types build
 ```
 
 ### Error: "Type 'string' is not assignable to type 'number'"
@@ -243,18 +243,18 @@ VSCode has built-in TypeScript support! It will:
 
 ```bash
 # Check for type errors
-pnpm --filter <app-name> exec tsc --noEmit
+bun --filter <app-name> exec tsc --noEmit
 
 # Examples:
-pnpm --filter backend exec tsc --noEmit
-pnpm --filter asset exec tsc --noEmit
+bun --filter backend exec tsc --noEmit
+bun --filter asset exec tsc --noEmit
 ```
 
 ### Watch Mode (Auto-Check)
 
 ```bash
 # Watch for changes and check automatically
-pnpm --filter <app-name> exec tsc --noEmit --watch
+bun --filter <app-name> exec tsc --noEmit --watch
 ```
 
 ## 💡 Pro Tips

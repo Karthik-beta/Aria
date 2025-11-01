@@ -3,10 +3,15 @@
  * Tests for table state management and configuration
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { useAdvancedDataTable } from './use-advanced-data-table';
-import type { ColumnDef } from '@tanstack/react-table';
+import type {
+  ColumnDef,
+  SortingState,
+  ColumnFiltersState,
+  RowSelectionState,
+} from '@tanstack/react-table';
 
 // Test data type
 type TestData = {
@@ -210,7 +215,7 @@ describe('useAdvancedDataTable', () => {
     });
 
     it('should call onSortingChange callback', async () => {
-      let sortingState: any = [];
+      let sortingState: SortingState = [];
 
       const { result } = renderHook(() =>
         useAdvancedDataTable({
@@ -265,7 +270,7 @@ describe('useAdvancedDataTable', () => {
 
       // Column filtering might not be enabled by default in TanStack Table
       // Check if filter is applied - if all rows returned, filtering is not enabled
-      const filteredRows = result.current.table.getFilteredRowModel().rows;
+      const _filteredRows = result.current.table.getFilteredRowModel().rows;
 
       // Either filtering works (3 active items) or it's disabled (5 items)
       // For now, just verify the filter state was set
@@ -287,13 +292,13 @@ describe('useAdvancedDataTable', () => {
 
       expect(result.current.state.globalFilter).toBe('Alice');
 
-      const filteredRows = result.current.table.getFilteredRowModel().rows;
-      expect(filteredRows).toHaveLength(1);
-      expect(filteredRows[0]?.original.name).toBe('Alice');
+      const _filteredRows = result.current.table.getFilteredRowModel().rows;
+      expect(_filteredRows).toHaveLength(1);
+      expect(_filteredRows[0]?.original.name).toBe('Alice');
     });
 
     it('should call onColumnFiltersChange callback', async () => {
-      let filtersState: any = [];
+      let filtersState: ColumnFiltersState = [];
 
       const { result } = renderHook(() =>
         useAdvancedDataTable({
@@ -374,7 +379,7 @@ describe('useAdvancedDataTable', () => {
     });
 
     it('should call onRowSelectionChange callback', async () => {
-      let selectionState: any = {};
+      let selectionState: RowSelectionState = {};
 
       const { result } = renderHook(() =>
         useAdvancedDataTable({
@@ -435,7 +440,8 @@ describe('useAdvancedDataTable', () => {
   describe('Table Meta', () => {
     it('should expose onReload in table meta', () => {
       const onReload = async () => {
-        console.log('Reloading...');
+        // Reload data - test implementation
+        return Promise.resolve();
       };
 
       const { result } = renderHook(() =>

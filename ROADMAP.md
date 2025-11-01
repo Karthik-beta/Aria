@@ -10,12 +10,12 @@ Build a modern, modular, and enterprise-grade B2B ERP system that prioritizes si
 
 ✅ **Foundation Release** - Core infrastructure and deployment
 
-- [x] Monorepo structure with pnpm + Turborepo
+- [x] Monorepo structure with bun + Turborepo
 - [x] NestJS 11 backend API
-- [x] Four Next.js 15 frontend modules (Asset, CRM, HRMS, Inventory)
+- [x] Single Next.js 16 frontend with route groups (Asset, CRM, HRMS, Inventory)
 - [x] Shared packages (types, utils, configs)
 - [x] Cross-platform deployment toolkit
-- [x] Docker Compose with Traefik
+- [x] Docker Compose with Caddy
 - [x] Comprehensive documentation
 - [x] CI/CD pipeline
 

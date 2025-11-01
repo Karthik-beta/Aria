@@ -104,7 +104,7 @@ notepad .env  # Edit and set all required values
 ### Prerequisites
 
 1. Install Docker and Docker Compose
-2. Install Node.js 22+ and pnpm (for local development without Docker)
+2. Install Node.js 22+ and bun (for local development without Docker)
 3. Install Git
 
 ### Setup Steps

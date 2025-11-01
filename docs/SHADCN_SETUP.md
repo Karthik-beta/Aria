@@ -201,31 +201,34 @@ pnpx shadcn@latest add separator sheet sidebar
 ### Starting Development
 
 ```bash
-# Start a specific frontend app
-pnpm --filter asset dev
-pnpm --filter crm dev
-pnpm --filter hrms dev
-pnpm --filter inventory dev
+# Start the frontend app (all modules available via route groups)
+bun --filter frontend dev
+
+# Visit http://localhost:3000 and navigate to:
+# - /asset for Asset Management
+# - /crm for CRM
+# - /hrms for HRMS
+# - /inventory for Inventory
 ```
 
 ### Building
 
 ```bash
 # Build all apps
-pnpm build
+bun build
 
 # Build specific app
-pnpm --filter asset build
+bun --filter frontend build
 ```
 
 ### Linting
 
 ```bash
 # Lint entire workspace
-pnpm lint
+bun lint
 
 # Format code
-pnpm format
+bun format
 ```
 
 ## Customization Guide
@@ -278,11 +281,12 @@ A demo page has been created in `apps/frontend/asset/src/app/page.tsx` showcasin
 ### Verify Installation
 
 ```bash
-# Start the asset app
-pnpm --filter asset dev
+# Start the frontend app
+bun --filter frontend dev
 
 # Visit http://localhost:3000
 # You should see the demo page with working Shadcn components
+# Navigate to /asset, /crm, /hrms, or /inventory to see different modules
 ```
 
 ## Troubleshooting
@@ -298,7 +302,7 @@ The UI package may show TypeScript errors before building. This is normal for wo
 ### Component Imports Not Working
 
 1. Verify `@aria/ui` is in app's package.json dependencies
-2. Run `pnpm install` at root
+2. Run `bun install` at root
 3. Check component is exported in `packages/ui/src/index.ts`
 
 ## Best Practices
@@ -324,7 +328,7 @@ The UI package may show TypeScript errors before building. This is normal for wo
 - [Shadcn UI Documentation](https://ui.shadcn.com/)
 - [Tailwind CSS v4 Docs](https://tailwindcss.com/docs)
 - [Radix UI Primitives](https://www.radix-ui.com/)
-- [Next.js 15 Documentation](https://nextjs.org/docs)
+- [Next.js 16 Documentation](https://nextjs.org/docs)
 
 ## Next Steps
 

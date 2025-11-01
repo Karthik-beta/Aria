@@ -15,7 +15,9 @@ import { useState, useEffect } from 'react';
 export default function DebugPage() {
   const { data: session, isPending, error } = authClient.useSession();
   const [fetchError, setFetchError] = useState<string | null>(null);
-  const [manualSessionCheck, setManualSessionCheck] = useState<any>(null);
+  const [manualSessionCheck, setManualSessionCheck] = useState<Record<string, unknown> | null>(
+    null
+  );
 
   // Manual session fetch to see raw response
   useEffect(() => {
@@ -29,11 +31,10 @@ export default function DebugPage() {
           },
         });
 
-        console.log('[Debug] Raw session response:', {
-          status: response.status,
-          statusText: response.statusText,
-          headers: Object.fromEntries(response.headers.entries()),
-        });
+        // [Debug] Raw session response:
+        //   status: response.status,
+        //   statusText: response.statusText,
+        //   headers: Object.fromEntries(response.headers.entries()),
 
         if (!response.ok) {
           const text = await response.text();
@@ -151,7 +152,8 @@ export default function DebugPage() {
       <section className="p-4 border rounded-lg bg-yellow-50">
         <h2 className="text-xl font-semibold mb-2">Remember:</h2>
         <p>
-          Check your browser's Developer Console (F12) for additional logging output from AuthGuard.
+          Check your browser&apos;s Developer Console (F12) for additional logging output from
+          AuthGuard.
         </p>
       </section>
     </div>

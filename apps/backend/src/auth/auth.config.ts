@@ -1,7 +1,7 @@
 import { betterAuth } from 'better-auth';
 import { prismaAdapter } from 'better-auth/adapters/prisma';
 import { username } from 'better-auth/plugins';
-import { PrismaClient } from 'db';
+import { PrismaClient } from '@prisma/client';
 
 // Create Prisma client instance
 const prisma = new PrismaClient();
@@ -28,14 +28,11 @@ const backendUrl = (
  * - Username plugin enables username-based authentication
  * - Session configuration for secure cookie handling
  *
- * Note: TS2742 error workaround - using explicit type annotation to bypass
- * TypeScript's limitation with better-auth's complex adapter types in declaration files.
- * See: https://github.com/better-auth/better-auth/issues/2123
+ * Note: The prismaAdapter requires proper typing. We pass the PrismaClient instance
+ * which better-auth will use for database operations.
  */
-export const auth: any = betterAuth({
-  // prismaAdapter expects a PrismaClient instance; cast through unknown to satisfy linting differences
-
-  database: prismaAdapter(prisma as unknown as PrismaClient, {
+export const auth = betterAuth({
+  database: prismaAdapter(prisma, {
     provider: 'postgresql',
     usePlural: false,
   }),

@@ -69,16 +69,16 @@ Follow our [Code Standards](#code-standards) while making changes.
 
 ```bash
 # Format your code
-pnpm format
+bun format
 
 # Check for style issues
-pnpm lint
+bun lint
 
 # Run tests
-pnpm test
+bun test
 
 # Build to ensure everything compiles
-pnpm build
+bun build
 ```
 
 All of these must pass before submitting!
@@ -192,8 +192,8 @@ export function InteractiveButton() {
 
 ```typescript
 // ✅ Good
-import { UserCard } from '@asset/components/UserCard';
-import { formatDate } from '@asset/lib/utils';
+import { UserCard } from '@/components/UserCard';
+import { formatDate } from '@/lib/utils';
 
 // ❌ Bad
 import { UserCard } from '../../components/UserCard';
@@ -207,9 +207,9 @@ import { formatDate } from '../../../lib/utils';
 ```bash
 # ✅ Good - Use the CLI
 cd apps/backend
-pnpm nest g module users
-pnpm nest g controller users
-pnpm nest g service users
+bun nest g module users
+bun nest g controller users
+bun nest g service users
 
 # ❌ Bad - Manually creating files
 ```
@@ -282,17 +282,17 @@ describe('calculateDiscount', () => {
 
 ```bash
 # Run all tests
-pnpm test
+bun test
 
 # Run tests for specific app
-pnpm --filter backend test
-pnpm --filter asset test
+bun --filter backend test
+bun --filter frontend test
 
 # Run tests in watch mode
-pnpm --filter backend test:watch
+bun --filter backend test:watch
 
 # Run tests with coverage
-pnpm --filter backend test:cov
+bun --filter backend test:cov
 ```
 
 ## 📤 Submitting Changes
@@ -302,10 +302,10 @@ pnpm --filter backend test:cov
 Before submitting, ensure:
 
 - [ ] Code follows style guidelines
-- [ ] `pnpm format` passes
-- [ ] `pnpm lint` passes
-- [ ] `pnpm test` passes
-- [ ] `pnpm build` succeeds
+- [ ] `bun format` passes
+- [ ] `bun lint` passes
+- [ ] `bun test` passes
+- [ ] `bun build` succeeds
 - [ ] Tests added for new features
 - [ ] Documentation updated (if needed)
 - [ ] Commit messages follow convention
@@ -393,7 +393,7 @@ Closes #123
 
 #### Frontend (Next.js)
 
-1. Create pages in `apps/frontend/<app>/src/app/<feature>`
+1. Create pages in `apps/frontend/src/app/<feature>` (use route groups like `/asset`, `/crm`, `/hrms`, `/inventory`)
 2. Create components in `src/components/<feature>`
 3. Import types from `@aria/types`
 4. Write tests

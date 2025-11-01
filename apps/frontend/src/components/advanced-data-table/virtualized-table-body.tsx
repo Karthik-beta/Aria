@@ -12,7 +12,7 @@ import { flexRender, type Table as TanstackTable, type RowData } from '@tanstack
 import { TableBody, TableCell, TableRow } from '@/components/ui/table';
 import { getCommonPinningStyles } from '@/lib/data-table';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Package, Search } from 'lucide-react';
+import { Package } from 'lucide-react';
 
 interface VirtualizedTableBodyProps<TData extends RowData> {
   /** Table instance */
