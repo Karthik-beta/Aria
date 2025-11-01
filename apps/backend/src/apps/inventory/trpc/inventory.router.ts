@@ -26,7 +26,7 @@ export class InventoryRouter {
             input as Inventory.CreateInput,
           );
           // Emit event for real-time subscriptions
-          inventoryEvents.emit('itemCreated', item);
+          void inventoryEvents.emit('itemCreated', item);
           return item;
         }),
 
@@ -37,7 +37,7 @@ export class InventoryRouter {
             input as Inventory.UpdateInput,
           );
           // Emit event for real-time subscriptions
-          inventoryEvents.emit('itemUpdated', item);
+          void inventoryEvents.emit('itemUpdated', item);
           return item;
         }),
 

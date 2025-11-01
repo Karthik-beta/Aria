@@ -4,7 +4,7 @@ import { username } from 'better-auth/plugins';
 import { PrismaClient } from '@prisma/client';
 
 // Create Prisma client instance
-const prisma = new PrismaClient();
+const prisma: PrismaClient = new PrismaClient();
 
 // 1. Get the comma-separated string from the .env file
 const frontendUrlsRaw = process.env.FRONTEND_URL || 'http://localhost:3000';
@@ -99,10 +99,9 @@ export const auth = betterAuth({
     // Use __Secure- prefix only in production (requires HTTPS)
     cookies: {
       sessionToken: {
-        name:
-          process.env.NODE_ENV === 'production'
-            ? '__Secure-better-auth.session_token'
-            : 'better-auth.session_token',
+        name: process.env.NODE_ENV === 'production'
+          ? '__Secure-better-auth.session_token'
+          : 'better-auth.session_token',
         attributes: {
           sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
           secure: process.env.NODE_ENV === 'production',
@@ -111,10 +110,9 @@ export const auth = betterAuth({
         },
       },
       sessionData: {
-        name:
-          process.env.NODE_ENV === 'production'
-            ? '__Secure-better-auth.session_data'
-            : 'better-auth.session_data',
+        name: process.env.NODE_ENV === 'production'
+          ? '__Secure-better-auth.session_data'
+          : 'better-auth.session_data',
         attributes: {
           sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
           secure: process.env.NODE_ENV === 'production',
@@ -123,10 +121,9 @@ export const auth = betterAuth({
         },
       },
       dontRememberMe: {
-        name:
-          process.env.NODE_ENV === 'production'
-            ? '__Secure-better-auth.dont_remember'
-            : 'better-auth.dont_remember',
+        name: process.env.NODE_ENV === 'production'
+          ? '__Secure-better-auth.dont_remember'
+          : 'better-auth.dont_remember',
         attributes: {
           sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
           secure: process.env.NODE_ENV === 'production',
