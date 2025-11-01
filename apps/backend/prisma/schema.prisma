@@ -181,9 +181,26 @@ model User {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
+  // Authorization fields
+  isActive        Boolean   @default(true) // Account active status
+  displayName     String?   @db.VarChar(150) // Full display name
+  department      String?   @db.VarChar(100) // Department/team
+  managerId       String?   // Manager reference (hierarchical)
+
+  // Relations
   sessions        Session[]
   accounts        Account[]
+  
+  // Authorization relations
+  userRoles       UserRole[]
+  supervisedApps  AppSupervisor[] @relation("AppSupervisor")
+  managedTeams    Team[] @relation("TeamManager")
+  teamMemberships TeamMember[] @relation("TeamMembership")
+  manager         User? @relation("ManagerSubordinate", fields: [managerId], references: [id], onDelete: SetNull)
+  subordinates    User[] @relation("ManagerSubordinate")
 
+  @@index([isActive])
+  @@index([managerId])
   @@map("users")
 }
 
@@ -231,4 +248,165 @@ model Verification {
 
   @@unique([identifier, value])
   @@map("verifications")
+}
+
+// ========================================
+// Authorization Models (RBAC + ABAC)
+// ========================================
+
+/// Role definition with system-level and app-level support
+model Role {
+  id          String   @id @default(cuid())
+  key         String   @unique @db.VarChar(50) // e.g., super_admin, admin, manager, user, viewer
+  name        String   @db.VarChar(100) // Display name
+  description String?  @db.Text
+  level       Int      @default(0) // Hierarchy level (higher = more privileges)
+  isSystem    Boolean  @default(false) // System roles cannot be deleted
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  rolePermissions RolePermission[]
+  userRoles       UserRole[]
+
+  @@index([key])
+  @@index([level])
+  @@map("roles")
+}
+
+/// Permission definition for fine-grained access control
+model Permission {
+  id          String   @id @default(cuid())
+  key         String   @unique @db.VarChar(100) // e.g., system:user.manage, app:crm:config.update
+  name        String   @db.VarChar(150) // Display name
+  description String?  @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  rolePermissions RolePermission[]
+
+  @@index([key])
+  @@map("permissions")
+}
+
+/// Many-to-many relationship between roles and permissions
+model RolePermission {
+  roleId       String
+  permissionId String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@index([roleId])
+  @@index([permissionId])
+  @@map("role_permissions")
+}
+
+/// User-role assignment with optional app scoping
+model UserRole {
+  id         String   @id @default(cuid())
+  userId     String
+  roleId     String
+  appKey     String?  @db.VarChar(50) // NULL = system-global, specific value = app-scoped
+  assignedBy String?  // User ID who assigned this role
+  createdAt  DateTime @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Restrict)
+
+  @@unique([userId, roleId, appKey])
+  @@index([userId])
+  @@index([roleId])
+  @@index([appKey])
+  @@map("user_roles")
+}
+
+/// Application definition for multi-app authorization
+model App {
+  appKey      String   @id @db.VarChar(50) // e.g., crm, hrms, inventory, asset
+  name        String   @db.VarChar(100)
+  description String?  @db.Text
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  appSupervisors AppSupervisor[]
+  teams          Team[]
+
+  @@map("apps")
+}
+
+/// App-level supervisors (managers with special privileges for specific apps)
+model AppSupervisor {
+  id               String   @id @default(cuid())
+  appKey           String
+  supervisorUserId String
+  createdBy        String?  // User ID who created this assignment
+  createdAt        DateTime @default(now())
+
+  // Relations
+  app            App  @relation(fields: [appKey], references: [appKey], onDelete: Cascade)
+  supervisorUser User @relation("AppSupervisor", fields: [supervisorUserId], references: [id], onDelete: Cascade)
+
+  @@unique([appKey, supervisorUserId])
+  @@index([appKey])
+  @@index([supervisorUserId])
+  @@map("app_supervisors")
+}
+
+/// Team definition for hierarchical access control
+model Team {
+  id            String   @id @default(cuid())
+  appKey        String
+  name          String   @db.VarChar(100)
+  managerUserId String?  // Team manager
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  app          App          @relation(fields: [appKey], references: [appKey], onDelete: Cascade)
+  managerUser  User?        @relation("TeamManager", fields: [managerUserId], references: [id], onDelete: SetNull)
+  teamMembers  TeamMember[]
+
+  @@index([appKey])
+  @@index([managerUserId])
+  @@map("teams")
+}
+
+/// Team membership for users
+model TeamMember {
+  id        String   @id @default(cuid())
+  teamId    String
+  userId    String
+  createdAt DateTime @default(now())
+
+  // Relations
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user User @relation("TeamMembership", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, userId])
+  @@index([teamId])
+  @@index([userId])
+  @@map("team_members")
+}
+
+/// Audit log for authorization changes
+model AuditLog {
+  id          String   @id @default(cuid())
+  actorUserId String?  // User who performed the action
+  action      String   @db.VarChar(100) // e.g., user.created, role.assigned
+  subjectType String   @db.VarChar(50) // e.g., user, role, permission
+  subjectId   String?  @db.VarChar(100) // ID of the affected entity
+  appKey      String?  @db.VarChar(50) // Related app context
+  metadata    Json?    // Additional context (old values, new values, etc.)
+  createdAt   DateTime @default(now())
+
+  @@index([actorUserId])
+  @@index([action])
+  @@index([subjectType])
+  @@index([createdAt])
+  @@map("audit_logs")
 }
