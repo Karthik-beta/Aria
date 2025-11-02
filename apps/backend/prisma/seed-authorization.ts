@@ -1,15 +1,15 @@
 /**
  * Authorization System Seed Script
- * 
+ *
  * Seeds the database with:
  * - Default roles (super_admin, admin, manager, user, viewer)
  * - Permissions (system, app, entity-level)
  * - Role-permission mappings
  * - Default applications (asset, crm, hrms, inventory)
  * - Super admin user assignment
- * 
+ *
  * This script is idempotent - safe to run multiple times.
- * 
+ *
  * @see AUTHORIZATION_SPEC.md for complete documentation
  */
 
@@ -69,7 +69,8 @@ const PERMISSIONS = [
   {
     key: 'system:*',
     name: 'System: All Permissions',
-    description: 'Full system-level access including infrastructure and security',
+    description:
+      'Full system-level access including infrastructure and security',
   },
   {
     key: 'system:user.manage',
@@ -331,7 +332,7 @@ const APPS = [
 
 async function seedRoles() {
   console.log('🔄 Seeding roles...');
-  
+
   for (const roleData of ROLES) {
     await prisma.role.upsert({
       where: { key: roleData.key },
@@ -344,13 +345,13 @@ async function seedRoles() {
       create: roleData,
     });
   }
-  
+
   console.log('✅ Roles seeded successfully');
 }
 
 async function seedPermissions() {
   console.log('🔄 Seeding permissions...');
-  
+
   for (const permData of PERMISSIONS) {
     await prisma.permission.upsert({
       where: { key: permData.key },
@@ -361,39 +362,39 @@ async function seedPermissions() {
       create: permData,
     });
   }
-  
+
   console.log('✅ Permissions seeded successfully');
 }
 
 async function seedRolePermissions() {
   console.log('🔄 Seeding role-permission mappings...');
-  
+
   for (const [roleKey, permissionKeys] of Object.entries(ROLE_PERMISSIONS)) {
     const role = await prisma.role.findUnique({
       where: { key: roleKey },
     });
-    
+
     if (!role) {
       console.warn(`⚠️  Role not found: ${roleKey}`);
       continue;
     }
-    
+
     // Delete existing mappings for this role
     await prisma.rolePermission.deleteMany({
       where: { roleId: role.id },
     });
-    
+
     // Create new mappings
     for (const permKey of permissionKeys) {
       const permission = await prisma.permission.findUnique({
         where: { key: permKey },
       });
-      
+
       if (!permission) {
         console.warn(`⚠️  Permission not found: ${permKey}`);
         continue;
       }
-      
+
       await prisma.rolePermission.create({
         data: {
           roleId: role.id,
@@ -402,13 +403,13 @@ async function seedRolePermissions() {
       });
     }
   }
-  
+
   console.log('✅ Role-permission mappings seeded successfully');
 }
 
 async function seedApps() {
   console.log('🔄 Seeding applications...');
-  
+
   for (const appData of APPS) {
     await prisma.app.upsert({
       where: { appKey: appData.appKey },
@@ -420,34 +421,38 @@ async function seedApps() {
       create: appData,
     });
   }
-  
+
   console.log('✅ Applications seeded successfully');
 }
 
 async function assignSuperAdminRole() {
   console.log('🔄 Assigning super_admin role to default admin...');
-  
+
   // Find the default admin user (created by auth.service.ts on startup)
   const adminEmail = process.env.DEFAULT_ADMIN_EMAIL || 'admin@aria.local';
   const adminUser = await prisma.user.findUnique({
     where: { email: adminEmail },
   });
-  
+
   if (!adminUser) {
-    console.warn(`⚠️  Default admin user not found (${adminEmail}). Skipping super_admin assignment.`);
-    console.log('   Run the backend server first to create the default admin user.');
+    console.warn(
+      `⚠️  Default admin user not found (${adminEmail}). Skipping super_admin assignment.`,
+    );
+    console.log(
+      '   Run the backend server first to create the default admin user.',
+    );
     return;
   }
-  
+
   const superAdminRole = await prisma.role.findUnique({
     where: { key: 'super_admin' },
   });
-  
+
   if (!superAdminRole) {
     console.warn('⚠️  super_admin role not found');
     return;
   }
-  
+
   // Check if assignment already exists
   const existingAssignment = await prisma.userRole.findFirst({
     where: {
@@ -456,7 +461,7 @@ async function assignSuperAdminRole() {
       appKey: null, // System-global role
     },
   });
-  
+
   if (!existingAssignment) {
     await prisma.userRole.create({
       data: {
@@ -474,14 +479,14 @@ async function assignSuperAdminRole() {
 
 async function main() {
   console.log('🚀 Starting authorization system seed...\n');
-  
+
   try {
     await seedRoles();
     await seedPermissions();
     await seedRolePermissions();
     await seedApps();
     await assignSuperAdminRole();
-    
+
     console.log('\n🎉 Authorization system seeded successfully!');
   } catch (error) {
     console.error('❌ Error seeding authorization system:', error);

@@ -13,11 +13,13 @@
 ## ✅ Completed Tasks
 
 ### 1. Documentation Research (Using MCP Tools)
+
 - ✅ Fetched latest better-auth documentation for session enrichment and NestJS integration
 - ✅ Fetched NestJS documentation for custom guards, decorators, and authorization patterns
 - ✅ Fetched Prisma documentation for relational schemas, migrations, and seeding
 
 ### 2. Database Schema (Prisma)
+
 - ✅ Created authorization tables:
   - `roles` - Role definitions with hierarchy levels
   - `permissions` - Fine-grained permission definitions
@@ -35,10 +37,12 @@
   - `managerId` - Hierarchical manager reference
 
 ### 3. Database Migrations
+
 - ✅ Generated migration `20251101162702_add_authorization_system`
 - ✅ Applied migration to database successfully
 
 ### 4. Seed Script
+
 - ✅ Created idempotent seed script at `apps/backend/prisma/seed-authorization.ts`
 - ✅ Seeded 5 default roles: super_admin, admin, manager, user, viewer
 - ✅ Seeded 37 permissions across system, app, and entity levels
@@ -47,6 +51,7 @@
 - ✅ Assigned super_admin role to default admin user
 
 ### 5. Backend Services
+
 - ✅ **AuditService** - Tamper-evident logging for all authorization changes
 - ✅ **ScopeService** - Ownership, team membership, and supervisor checks
 - ✅ **RoleService** - CRUD operations for roles
@@ -54,6 +59,7 @@
 - ✅ **PolicyService** - Core RBAC+ABAC evaluation engine with caching
 
 ### 6. NestJS Guards
+
 - ✅ **PublicRouteGuard** - Allow public routes to bypass authorization
 - ✅ **ActiveUserGuard** - Ensure user account is active
 - ✅ **AppScopeGuard** - Validate app context access
@@ -61,45 +67,53 @@
 - ✅ **OwnershipGuard** - Validate resource ownership
 
 ### 7. NestJS Decorators
+
 - ✅ **@RequirePermissions()** - Require specific permissions
 - ✅ **@RequireRoles()** - Require specific roles
 - ✅ **AppScope()** - Specify app context
 - ✅ **@PublicRoute()** - Mark route as public
 
 ### 8. Module Integration
+
 - ✅ Created AuthorizationModule as @Global module
 - ✅ Integrated into AppModule
 
 ## 📋 Remaining Tasks
 
 ### 9. Session Enrichment with better-auth
+
 - ⏭️ Add custom session plugin to enrich sessions with roles, apps, permissions
 - ⏭️ Update auth.config.ts with customSession plugin
 - ⏭️ Type the enriched session for TypeScript safety
 
 ### 10. Admin TRPC Endpoints
+
 - ⏭️ Create user management endpoints (create, update, disable, delete)
 - ⏭️ Create role/permission management endpoints
 - ⏭️ Create supervisor assignment endpoints
 - ⏭️ Apply authorization guards to endpoints
 
 ### 11. Frontend Admin Dashboard
+
 - ⏭️ Create Users Management page (shadcn/ui)
 - ⏭️ Create Roles & Permissions page (shadcn/ui)
 - ⏭️ Create Supervisors page (shadcn/ui)
 - ⏭️ Add role-based UI visibility controls
 
 ### 12. Client-side Authorization
+
 - ⏭️ Create useAuth hook with role/permission checks
 - ⏭️ Create ProtectedRoute component
 - ⏭️ Create conditional rendering utilities
 
 ### 13. Testing
+
 - ⏭️ Unit tests for PolicyService permission evaluation
 - ⏭️ Integration tests for user creation workflows
 - ⏭️ Playwright E2E tests for admin dashboard
 
 ### 14. Documentation
+
 - ⏭️ Complete AUTHORIZATION.md with API reference
 - ⏭️ Add usage examples for guards and decorators
 - ⏭️ Document permission key taxonomy
@@ -109,10 +123,11 @@
 ### Immediate Actions (Priority 1)
 
 1. **Session Enrichment**
+
    ```typescript
    // In apps/backend/src/auth/auth.config.ts
    import { customSession } from 'better-auth/plugins';
-   
+
    plugins: [
      customSession(async ({ user, session }, ctx) => {
        // Fetch user roles and permissions
@@ -120,11 +135,11 @@
          where: { userId: user.id },
          include: {
            role: {
-             include: { rolePermissions: { include: { permission: true } } }
-           }
-         }
+             include: { rolePermissions: { include: { permission: true } } },
+           },
+         },
        });
-       
+
        // Build apps map
        const apps = {};
        for (const ur of userRoles) {
@@ -133,7 +148,7 @@
            apps[ur.appKey].roles.push(ur.role.key);
          }
        }
-       
+
        // Collect permissions
        const permissions = new Set();
        for (const ur of userRoles) {
@@ -141,7 +156,7 @@
            permissions.add(rp.permission.key);
          }
        }
-       
+
        return {
          user: {
            ...user,
@@ -149,32 +164,34 @@
            displayName: user.displayName,
          },
          session,
-         roles: userRoles.map(ur => ur.role.key),
+         roles: userRoles.map((ur) => ur.role.key),
          apps,
          permissions: Array.from(permissions),
        };
      }),
-   ]
+   ];
    ```
 
 2. **Test the Authorization System**
+
    ```bash
    # Start the backend
    cd apps/backend
    npm run dev
-   
+
    # Test role assignment
    # Use Prisma Studio to verify data
    npx prisma studio
    ```
 
 3. **Create Admin User Management Endpoints**
+
    ```typescript
    // In apps/backend/src/trpc/routers/admin.router.ts
    import { z } from 'zod';
    import { publicProcedure, protectedProcedure, router } from '../trpc';
    import { RequirePermissions } from '../../authorization';
-   
+
    export const adminRouter = router({
      createUser: protectedProcedure
        .input(z.object({ email: z.string(), name: z.string(), roleKey: z.string() }))
@@ -182,11 +199,10 @@
          // Use RequirePermissions guard
          // Create user logic here
        }),
-     
-     listUsers: protectedProcedure
-       .query(async ({ ctx }) => {
-         // List users with pagination
-       }),
+
+     listUsers: protectedProcedure.query(async ({ ctx }) => {
+       // List users with pagination
+     }),
    });
    ```
 
@@ -221,6 +237,7 @@ entity:<appKey>:<entity>.<action>   # Entity-level permissions
 ```
 
 **Examples:**
+
 - `system:user.manage` - Manage users globally
 - `app:crm:config.update` - Update CRM configuration
 - `entity:crm:lead.read` - Read CRM leads
@@ -240,30 +257,24 @@ entity:<appKey>:<entity>.<action>   # Entity-level permissions
 
 ```typescript
 import { Controller, Get, Post, UseGuards } from '@nestjs/common';
-import { 
-  AppScope, 
-  RequirePermissions, 
-  RequireRoles,
-  RolePermissionGuard 
-} from '@/authorization';
+import { AppScope, RequirePermissions, RequireRoles, RolePermissionGuard } from '@/authorization';
 
 @Controller('crm/leads')
-@AppScope('crm')  // All routes in this controller are scoped to CRM
+@AppScope('crm') // All routes in this controller are scoped to CRM
 @UseGuards(RolePermissionGuard)
 export class LeadsController {
-  
   @Get()
   @RequirePermissions('entity:crm:lead.read')
   async getLeads() {
     // Only users with entity:crm:lead.read permission can access
   }
-  
+
   @Post()
   @RequirePermissions('entity:crm:lead.create')
   async createLead() {
     // Only users with entity:crm:lead.create permission can access
   }
-  
+
   @Post('bulk-delete')
   @RequireRoles('admin', 'manager')
   async bulkDelete() {
@@ -282,23 +293,20 @@ import { PolicyService, AuditService } from '@/authorization';
 export class UserService {
   constructor(
     private policyService: PolicyService,
-    private auditService: AuditService,
+    private auditService: AuditService
   ) {}
-  
+
   async deleteUser(actorId: string, targetUserId: string) {
     // Check permission programmatically
-    const result = await this.policyService.can(
-      actorId,
-      'system:user.manage',
-    );
-    
+    const result = await this.policyService.can(actorId, 'system:user.manage');
+
     if (!result.allowed) {
       throw new ForbiddenException(result.reason);
     }
-    
+
     // Perform deletion
     await this.prisma.user.delete({ where: { id: targetUserId } });
-    
+
     // Log the action
     await this.auditService.logUserDeleted(actorId, targetUserId);
   }
@@ -332,24 +340,29 @@ export class UserService {
 Complete REST-style API for authorization management through TRPC:
 
 **User Management**:
+
 - `listUsers` - Paginated listing with search/filters
 - `getUser` - Full user details with roles/permissions
 - `createUser` - Create user with role assignment
 - `updateUser`, `disableUser`, `enableUser`, `deleteUser`
 
 **Role Management**:
+
 - `listRoles`, `getRole`, `createRole`, `updateRole`, `deleteRole`
 - `assignRole`, `revokeRole` - User role assignment
 - `assignPermissionToRole`, `removePermissionFromRole`
 
 **Supervisor Management**:
+
 - `assignSupervisor`, `revokeSupervisor` - App-scoped supervision
 
 **Permission Management**:
+
 - `listPermissions`, `getPermission`
 - `createPermission`, `updatePermission`, `deletePermission`
 
 **Audit Logging**:
+
 - `getAuditLogs` - Query with filters (date, action, user)
 
 **Authorization**: All endpoints use `protectedProcedure` with `requirePermission()` helper.
@@ -359,16 +372,20 @@ Complete REST-style API for authorization management through TRPC:
 **File**: `apps/frontend/src/hooks/use-auth.ts` (240+ lines)
 
 ```typescript
-const { 
-  hasPermission,      // Check permission with wildcard support
-  hasRole,            // Check role
-  canAccessApp,       // Check app access
-  isSupervisorOf,     // Check supervision
-  permissions, roles, apps, supervisedApps 
+const {
+  hasPermission, // Check permission with wildcard support
+  hasRole, // Check role
+  canAccessApp, // Check app access
+  isSupervisorOf, // Check supervision
+  permissions,
+  roles,
+  apps,
+  supervisedApps,
 } = useAuth();
 ```
 
 **Wildcard Support**:
+
 - `system:*` - All system permissions
 - `app:crm:*` - All CRM permissions
 - `entity:crm:lead.*` - All lead operations
@@ -407,6 +424,7 @@ All pages use Material Design with shadcn/ui components.
 **Build Status**: ✅ **0 errors** (was 40 errors)
 
 Issues resolved:
+
 1. Session enrichment plugin API incompatibility → Removed
 2. Type export syntax → Fixed with `export type`
 3. Prisma model field name mismatches → Fixed all references
@@ -414,6 +432,7 @@ Issues resolved:
 5. Protected procedure type portability → Simplified middleware
 
 **Commands**:
+
 ```bash
 cd apps/backend
 bun run build  # ✅ 0 errors
@@ -425,6 +444,7 @@ bun run dev    # ✅ Compiles successfully
 **File**: `docs/AUTHORIZATION.md` (600+ lines)
 
 Complete system documentation:
+
 - Architecture overview
 - Database schema details
 - Permission taxonomy and patterns
@@ -436,11 +456,13 @@ Complete system documentation:
 ### Known Limitations
 
 **Session Enrichment Not Implemented**:
+
 - Original approach (custom better-auth plugin) failed due to API changes
 - Frontend hook expects roles/permissions in session but won't find them yet
 - **Recommended Fix**: Create separate TRPC endpoint `/admin/me` to fetch authorization data
 
 **No Tests Yet**:
+
 - Unit tests for services (PolicyService, etc.)
 - Integration tests for TRPC endpoints
 - E2E tests for admin dashboard
@@ -456,10 +478,12 @@ Complete system documentation:
 ### Files Created/Modified This Session
 
 **Backend Created**:
+
 - `src/trpc/routers/admin.router.ts` - Admin API (744 lines)
 - `src/trpc/routers/admin-router.service.ts` - Injectable wrapper
 
 **Backend Modified**:
+
 - `src/auth/auth.config.ts` - Cleaned up session enrichment attempt
 - `src/authorization/index.ts` - Fixed type exports
 - `src/trpc/trpc.ts` - Added authentication middleware
@@ -467,6 +491,7 @@ Complete system documentation:
 - `src/trpc/trpc.service.ts` - Registered admin router
 
 **Frontend Created**:
+
 - `src/hooks/use-auth.ts` - Authorization hook (240 lines)
 - `src/components/auth/protected-content.tsx` - Protected UI components
 - `src/app/admin/layout.tsx` - Protected admin layout
@@ -476,6 +501,7 @@ Complete system documentation:
 - `src/app/admin/audit/page.tsx` - Audit log viewer
 
 **Documentation**:
+
 - `docs/AUTHORIZATION.md` - Complete documentation (600+ lines)
 - Updated this file with latest status
 

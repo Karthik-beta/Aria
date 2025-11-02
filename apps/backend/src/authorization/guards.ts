@@ -74,7 +74,7 @@ export class ActiveUserGuard implements CanActivate {
     }
 
     // Check if user account is active
-    const policy = await this.policyService.resolveUserPolicy(user.id);
+    const policy = await this.policyService.resolveUserPolicy(String(user.id));
 
     if (!policy.isActive) {
       throw new ForbiddenException('User account is inactive');
@@ -119,7 +119,10 @@ export class AppScopeGuard implements CanActivate {
       throw new UnauthorizedException('No authenticated user found');
     }
 
-    const policy = await this.policyService.resolveUserPolicy(user.id, appKey);
+    const policy = await this.policyService.resolveUserPolicy(
+      String(user.id),
+      appKey,
+    );
 
     // Super admins have access to all apps
     if (policy.roles.some((r) => r.roleKey === 'super_admin')) {
@@ -184,7 +187,7 @@ export class RolePermissionGuard implements CanActivate {
     // Check required roles
     if (requiredRoles && requiredRoles.length > 0) {
       const hasRole = await this.policyService.hasAnyRole(
-        user.id,
+        String(user.id),
         requiredRoles,
         appKey,
       );
@@ -199,10 +202,14 @@ export class RolePermissionGuard implements CanActivate {
     // Check required permissions
     if (requiredPermissions && requiredPermissions.length > 0) {
       for (const permission of requiredPermissions) {
-        const result = await this.policyService.can(user.id, permission, {
-          userId: user.id,
-          appKey,
-        });
+        const result = await this.policyService.can(
+          String(user.id),
+          permission,
+          {
+            userId: String(user.id),
+            appKey,
+          },
+        );
 
         if (!result.allowed) {
           throw new ForbiddenException(
@@ -248,7 +255,7 @@ export class OwnershipGuard implements CanActivate {
       return true;
     }
 
-    const policy = await this.policyService.resolveUserPolicy(user.id);
+    const policy = await this.policyService.resolveUserPolicy(String(user.id));
 
     // Super admins bypass ownership
     if (policy.roles.some((r) => r.roleKey === 'super_admin')) {

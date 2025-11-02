@@ -53,11 +53,19 @@ export function useAuth() {
       };
     }
 
-    const roles = (session.session as any)?.roles || [];
-    const permissions = (session.session as any)?.permissions || [];
-    const apps = (session.session as any)?.apps || {};
-    const supervisedApps = (session.session as any)?.supervisedApps || [];
-    const isActive = (session.session as any)?.isActive !== false;
+    const sessionData = session.session as unknown as {
+      roles?: string[];
+      permissions?: string[];
+      apps?: Record<string, { roles: string[] }>;
+      supervisedApps?: string[];
+      isActive?: boolean;
+    };
+
+    const roles = sessionData.roles || [];
+    const permissions = sessionData.permissions || [];
+    const apps = sessionData.apps || {};
+    const supervisedApps = sessionData.supervisedApps || [];
+    const isActive = sessionData.isActive !== false;
 
     /**
      * Check if user has a specific permission

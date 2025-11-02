@@ -37,7 +37,7 @@ The Aria authorization system implements a hybrid Role-Based Access Control (RBA
 ✅ 60-second policy cache with auto-expiry  
 ✅ Better-auth session enrichment  
 ✅ Type-safe TRPC endpoints  
-✅ React hooks for client-side authorization  
+✅ React hooks for client-side authorization
 
 ## Architecture
 
@@ -128,128 +128,137 @@ AuditService
 ### Core Tables
 
 #### roles
+
 Defines system and custom roles with hierarchy levels.
 
-| Column      | Type    | Description                    |
-|-------------|---------|--------------------------------|
-| id          | String  | UUID primary key               |
-| key         | String  | Unique identifier (e.g., "admin") |
-| name        | String  | Display name                   |
-| description | String? | Role description               |
-| level       | Int     | Hierarchy level (0-100)        |
-| isSystem    | Boolean | Protected system role          |
-| createdAt   | DateTime| Creation timestamp             |
-| updatedAt   | DateTime| Last update timestamp          |
+| Column      | Type     | Description                       |
+| ----------- | -------- | --------------------------------- |
+| id          | String   | UUID primary key                  |
+| key         | String   | Unique identifier (e.g., "admin") |
+| name        | String   | Display name                      |
+| description | String?  | Role description                  |
+| level       | Int      | Hierarchy level (0-100)           |
+| isSystem    | Boolean  | Protected system role             |
+| createdAt   | DateTime | Creation timestamp                |
+| updatedAt   | DateTime | Last update timestamp             |
 
 #### permissions
+
 Defines fine-grained permissions.
 
-| Column      | Type    | Description                          |
-|-------------|---------|--------------------------------------|
-| id          | String  | UUID primary key                     |
-| key         | String  | Unique identifier (e.g., "system:user.manage") |
-| name        | String  | Display name                         |
-| description | String? | Permission description               |
-| scope       | Enum    | system / app / entity                |
-| createdAt   | DateTime| Creation timestamp                   |
-| updatedAt   | DateTime| Last update timestamp                |
+| Column      | Type     | Description                                    |
+| ----------- | -------- | ---------------------------------------------- |
+| id          | String   | UUID primary key                               |
+| key         | String   | Unique identifier (e.g., "system:user.manage") |
+| name        | String   | Display name                                   |
+| description | String?  | Permission description                         |
+| scope       | Enum     | system / app / entity                          |
+| createdAt   | DateTime | Creation timestamp                             |
+| updatedAt   | DateTime | Last update timestamp                          |
 
 #### user_roles
+
 Maps users to roles (with optional app scoping).
 
-| Column    | Type     | Description                     |
-|-----------|----------|---------------------------------|
-| id        | String   | UUID primary key                |
-| userId    | String   | FK to users.id                  |
-| roleId    | String   | FK to roles.id                  |
-| appKey    | String?  | Optional app scope              |
-| assignedAt| DateTime | Assignment timestamp            |
+| Column     | Type     | Description          |
+| ---------- | -------- | -------------------- |
+| id         | String   | UUID primary key     |
+| userId     | String   | FK to users.id       |
+| roleId     | String   | FK to roles.id       |
+| appKey     | String?  | Optional app scope   |
+| assignedAt | DateTime | Assignment timestamp |
 
 **Unique constraint**: (userId, roleId, appKey)
 
 #### role_permissions
+
 Maps roles to permissions.
 
-| Column       | Type     | Description              |
-|--------------|----------|--------------------------|
-| id           | String   | UUID primary key         |
-| roleId       | String   | FK to roles.id           |
-| permissionId | String   | FK to permissions.id     |
-| assignedAt   | DateTime | Assignment timestamp     |
+| Column       | Type     | Description          |
+| ------------ | -------- | -------------------- |
+| id           | String   | UUID primary key     |
+| roleId       | String   | FK to roles.id       |
+| permissionId | String   | FK to permissions.id |
+| assignedAt   | DateTime | Assignment timestamp |
 
 **Unique constraint**: (roleId, permissionId)
 
 #### apps
+
 Defines applications in the ERP suite.
 
-| Column      | Type    | Description                    |
-|-------------|---------|--------------------------------|
-| id          | String  | UUID primary key               |
-| key         | String  | Unique identifier (e.g., "crm")|
-| name        | String  | Display name                   |
-| description | String? | App description                |
-| createdAt   | DateTime| Creation timestamp             |
-| updatedAt   | DateTime| Last update timestamp          |
+| Column      | Type     | Description                     |
+| ----------- | -------- | ------------------------------- |
+| id          | String   | UUID primary key                |
+| key         | String   | Unique identifier (e.g., "crm") |
+| name        | String   | Display name                    |
+| description | String?  | App description                 |
+| createdAt   | DateTime | Creation timestamp              |
+| updatedAt   | DateTime | Last update timestamp           |
 
 #### app_supervisors
+
 Defines supervisors who can create users for an app.
 
-| Column     | Type     | Description              |
-|------------|----------|--------------------------|
-| id         | String   | UUID primary key         |
-| userId     | String   | FK to users.id           |
-| appId      | String   | FK to apps.id            |
-| assignedAt | DateTime | Assignment timestamp     |
+| Column     | Type     | Description          |
+| ---------- | -------- | -------------------- |
+| id         | String   | UUID primary key     |
+| userId     | String   | FK to users.id       |
+| appId      | String   | FK to apps.id        |
+| assignedAt | DateTime | Assignment timestamp |
 
 **Unique constraint**: (userId, appId)
 
 #### teams
+
 Defines teams with optional managers.
 
-| Column     | Type    | Description              |
-|------------|---------|--------------------------|
-| id         | String  | UUID primary key         |
-| name       | String  | Team name                |
-| description| String? | Team description         |
-| appKey     | String? | Optional app association |
-| createdAt  | DateTime| Creation timestamp       |
-| updatedAt  | DateTime| Last update timestamp    |
+| Column      | Type     | Description              |
+| ----------- | -------- | ------------------------ |
+| id          | String   | UUID primary key         |
+| name        | String   | Team name                |
+| description | String?  | Team description         |
+| appKey      | String?  | Optional app association |
+| createdAt   | DateTime | Creation timestamp       |
+| updatedAt   | DateTime | Last update timestamp    |
 
 #### team_members
+
 Maps users to teams.
 
-| Column   | Type     | Description              |
-|----------|----------|--------------------------|
-| id       | String   | UUID primary key         |
-| userId   | String   | FK to users.id           |
-| teamId   | String   | FK to teams.id           |
-| isManager| Boolean  | Team manager flag        |
-| joinedAt | DateTime | Join timestamp           |
+| Column    | Type     | Description       |
+| --------- | -------- | ----------------- |
+| id        | String   | UUID primary key  |
+| userId    | String   | FK to users.id    |
+| teamId    | String   | FK to teams.id    |
+| isManager | Boolean  | Team manager flag |
+| joinedAt  | DateTime | Join timestamp    |
 
 **Unique constraint**: (userId, teamId)
 
 #### audit_logs
+
 Append-only audit trail for authorization changes.
 
-| Column    | Type     | Description                     |
-|-----------|----------|---------------------------------|
-| id        | String   | UUID primary key                |
-| timestamp | DateTime | Event timestamp                 |
-| action    | String   | Action type                     |
-| actorId   | String   | User who performed action       |
-| userId    | String?  | Affected user (if applicable)   |
-| metadata  | Json     | Additional event data           |
+| Column    | Type     | Description                   |
+| --------- | -------- | ----------------------------- |
+| id        | String   | UUID primary key              |
+| timestamp | DateTime | Event timestamp               |
+| action    | String   | Action type                   |
+| actorId   | String   | User who performed action     |
+| userId    | String?  | Affected user (if applicable) |
+| metadata  | Json     | Additional event data         |
 
 ### Extended Users Table
 
 The existing `users` table is extended with:
 
-| Column      | Type    | Description                    |
-|-------------|---------|--------------------------------|
+| Column      | Type    | Description                        |
+| ----------- | ------- | ---------------------------------- |
 | isActive    | Boolean | Account active flag (default true) |
-| displayName | String? | Full display name              |
-| department  | String? | Department/team                |
-| managerId   | String? | FK to users.id (manager)       |
+| displayName | String? | Full display name                  |
+| department  | String? | Department/team                    |
+| managerId   | String? | FK to users.id (manager)           |
 
 ## Backend Implementation
 
@@ -284,7 +293,7 @@ plugins: [
           session: {
             async created({ session, user }) {
               const policy = await policyService.resolveUserPolicy(user.id);
-              
+
               return {
                 session: {
                   ...session,
@@ -306,7 +315,7 @@ plugins: [
       };
     },
   },
-]
+];
 ```
 
 ### TRPC Endpoints
@@ -314,6 +323,7 @@ plugins: [
 Located in `src/trpc/routers/admin.router.ts`:
 
 #### User Management
+
 - `admin.listUsers` - Paginated user list with search
 - `admin.getUser` - Get single user with full details
 - `admin.createUser` - Create new user
@@ -323,14 +333,17 @@ Located in `src/trpc/routers/admin.router.ts`:
 - `admin.deleteUser` - Soft delete (disable) user
 
 #### Role Assignment
+
 - `admin.assignRole` - Assign role to user (app-scoped or global)
 - `admin.revokeRole` - Revoke role from user
 
 #### Supervisor Management
+
 - `admin.assignSupervisor` - Assign supervisor to app
 - `admin.revokeSupervisor` - Revoke supervisor from app
 
 #### Role Management
+
 - `admin.listRoles` - List all roles
 - `admin.getRole` - Get role with permissions
 - `admin.createRole` - Create new role
@@ -340,6 +353,7 @@ Located in `src/trpc/routers/admin.router.ts`:
 - `admin.removePermissionFromRole` - Remove permission from role
 
 #### Permission Management
+
 - `admin.listPermissions` - List all permissions (optionally filtered by scope)
 - `admin.getPermission` - Get permission details
 - `admin.createPermission` - Create new permission
@@ -347,6 +361,7 @@ Located in `src/trpc/routers/admin.router.ts`:
 - `admin.deletePermission` - Delete permission
 
 #### Audit Logs
+
 - `admin.getAuditLogs` - Query audit logs with filters
 
 ## Frontend Integration
@@ -356,28 +371,30 @@ Located in `src/trpc/routers/admin.router.ts`:
 Located in `src/hooks/use-auth.ts`:
 
 #### useAuth()
+
 Main authorization hook providing:
 
 ```typescript
 const {
-  isAuthenticated,       // Boolean
-  isActive,              // Boolean
-  user,                  // User object
-  roles,                 // string[]
-  permissions,           // string[]
-  apps,                  // Record<string, { roles: string[] }>
-  supervisedApps,        // string[]
-  hasPermission,         // (key: string) => boolean
-  hasAnyPermission,      // (...keys: string[]) => boolean
-  hasRole,               // (key: string) => boolean
-  hasAnyRole,            // (...keys: string[]) => boolean
-  canAccessApp,          // (appKey: string) => boolean
-  isSupervisorOf,        // (appKey: string) => boolean
-  isLoading,             // boolean
+  isAuthenticated, // Boolean
+  isActive, // Boolean
+  user, // User object
+  roles, // string[]
+  permissions, // string[]
+  apps, // Record<string, { roles: string[] }>
+  supervisedApps, // string[]
+  hasPermission, // (key: string) => boolean
+  hasAnyPermission, // (...keys: string[]) => boolean
+  hasRole, // (key: string) => boolean
+  hasAnyRole, // (...keys: string[]) => boolean
+  canAccessApp, // (appKey: string) => boolean
+  isSupervisorOf, // (appKey: string) => boolean
+  isLoading, // boolean
 } = useAuth();
 ```
 
 #### usePermission(permission)
+
 Check single permission or array of permissions (any match).
 
 ```typescript
@@ -386,6 +403,7 @@ const canEditCRM = usePermission(['entity:crm:lead.update', 'app:crm:*']);
 ```
 
 #### useRole(role)
+
 Check single role or array of roles (any match).
 
 ```typescript
@@ -394,6 +412,7 @@ const isManagerOrAdmin = useRole(['manager', 'admin']);
 ```
 
 #### useAppAccess(appKey)
+
 Check if user can access a specific app.
 
 ```typescript
@@ -405,13 +424,14 @@ const canAccessCRM = useAppAccess('crm');
 Located in `src/components/auth/protected-content.tsx`:
 
 #### PermissionGate
+
 ```tsx
 <PermissionGate permission="system:user.manage" fallback={<AccessDenied />}>
   <UserManagementPanel />
 </PermissionGate>
 
-<PermissionGate 
-  permission={['entity:crm:lead.create', 'entity:crm:lead.update']} 
+<PermissionGate
+  permission={['entity:crm:lead.create', 'entity:crm:lead.update']}
   requireAll={false}
 >
   <CreateLeadButton />
@@ -419,6 +439,7 @@ Located in `src/components/auth/protected-content.tsx`:
 ```
 
 #### RoleGate
+
 ```tsx
 <RoleGate role="admin" fallback={<Unauthorized />}>
   <AdminPanel />
@@ -430,6 +451,7 @@ Located in `src/components/auth/protected-content.tsx`:
 ```
 
 #### AppGate
+
 ```tsx
 <AppGate appKey="crm" fallback={<AppNotAvailable />}>
   <CRMDashboard />
@@ -437,6 +459,7 @@ Located in `src/components/auth/protected-content.tsx`:
 ```
 
 #### AuthGate
+
 ```tsx
 <AuthGate fallback={<LoginPrompt />}>
   <ProtectedContent />
@@ -444,6 +467,7 @@ Located in `src/components/auth/protected-content.tsx`:
 ```
 
 #### ProtectedContent (Combined)
+
 ```tsx
 <ProtectedContent
   permission="entity:crm:lead.update"
@@ -475,6 +499,7 @@ entity:<appKey>:<entity>.<action>
 ```
 
 **Examples:**
+
 ```
 system:*                      # Full system access
 system:user.read              # Read all users
@@ -509,32 +534,26 @@ The permission system supports wildcard matching:
 
 ```typescript
 import { Controller, Get, Post, UseGuards } from '@nestjs/common';
-import { 
-  AppScope, 
-  RequirePermissions, 
-  RequireRoles,
-  RolePermissionGuard 
-} from '@/authorization';
+import { AppScope, RequirePermissions, RequireRoles, RolePermissionGuard } from '@/authorization';
 
 @Controller('crm/leads')
 @AppScope('crm')
 @UseGuards(RolePermissionGuard)
 export class LeadsController {
-  
   @Get()
   @RequirePermissions('entity:crm:lead.read')
   async getLeads() {
     // Only users with entity:crm:lead.read can access
     return this.leadsService.findAll();
   }
-  
+
   @Post()
   @RequirePermissions('entity:crm:lead.create')
   async createLead(@Body() dto: CreateLeadDto) {
     // Only users with entity:crm:lead.create can access
     return this.leadsService.create(dto);
   }
-  
+
   @Post('bulk-delete')
   @RequireRoles('admin', 'manager')
   async bulkDelete(@Body() dto: BulkDeleteDto) {
@@ -555,33 +574,30 @@ export class UserService {
   constructor(
     private policyService: PolicyService,
     private auditService: AuditService,
-    private prisma: PrismaClient,
+    private prisma: PrismaClient
   ) {}
-  
+
   async deleteUser(actorId: string, targetUserId: string) {
     // Check permission programmatically
-    const result = await this.policyService.can(
-      actorId,
-      'system:user.manage',
-    );
-    
+    const result = await this.policyService.can(actorId, 'system:user.manage');
+
     if (!result.allowed) {
       throw new ForbiddenException(result.reason);
     }
-    
+
     // Prevent self-deletion
     if (actorId === targetUserId) {
       throw new ForbiddenException('Cannot delete your own account');
     }
-    
+
     // Perform deletion
-    await this.prisma.user.delete({ 
-      where: { id: targetUserId } 
+    await this.prisma.user.delete({
+      where: { id: targetUserId },
     });
-    
+
     // Log the action
     await this.auditService.logUserDeleted(actorId, targetUserId);
-    
+
     // Invalidate cache
     this.policyService.invalidateUserCache(targetUserId);
   }
@@ -597,26 +613,24 @@ import { PermissionGate, RoleGate } from '@/components/auth/protected-content';
 export function Dashboard() {
   const { user, roles, hasPermission } = useAuth();
   const canManageUsers = usePermission('system:user.manage');
-  
+
   return (
     <div>
       <h1>Welcome, {user.displayName}</h1>
-      
+
       {/* Show admin panel only to admins */}
       <RoleGate role="admin">
         <AdminPanel />
       </RoleGate>
-      
+
       {/* Show user management to those with permission */}
       <PermissionGate permission="system:user.manage">
         <UserManagementSection />
       </PermissionGate>
-      
+
       {/* Inline check */}
-      {canManageUsers && (
-        <Button onClick={handleCreateUser}>Create User</Button>
-      )}
-      
+      {canManageUsers && <Button onClick={handleCreateUser}>Create User</Button>}
+
       {/* Show different content based on role */}
       {hasPermission('system:*') && <SuperAdminTools />}
       {hasPermission('app:crm:*') && <CRMFullAccess />}
@@ -635,13 +649,13 @@ import { trpc } from '@/lib/trpc/client';
 
 export function UserManagement() {
   const utils = trpc.useUtils();
-  
+
   const assignRole = trpc.admin.assignRole.useMutation({
     onSuccess: () => {
       utils.admin.listUsers.invalidate();
     },
   });
-  
+
   const handleAssignRole = async (userId: string) => {
     await assignRole.mutateAsync({
       userId,
@@ -649,26 +663,25 @@ export function UserManagement() {
       appKey: 'crm',
     });
   };
-  
-  return (
-    <Button onClick={() => handleAssignRole('user-123')}>
-      Assign Manager Role
-    </Button>
-  );
+
+  return <Button onClick={() => handleAssignRole('user-123')}>Assign Manager Role</Button>;
 }
 ```
 
 ## Security Considerations
 
 ### 1. Default Deny
+
 All routes require authentication unless explicitly marked with `@PublicRoute` decorator.
 
 ### 2. Principle of Least Privilege
+
 - Users start with no permissions
 - Roles must be explicitly assigned
 - App access must be granted explicitly
 
 ### 3. Separation of Duties
+
 - **Super Admin**: Full system access across all apps
 - **Admin**: App-level administration
 - **Manager**: Team and entity management
@@ -676,29 +689,36 @@ All routes require authentication unless explicitly marked with `@PublicRoute` d
 - **Viewer**: Read-only access
 
 ### 4. Audit Trail
+
 All authorization changes are logged immutably in `audit_logs`:
+
 - User creation, updates, deletions
 - Role assignments and revocations
 - Supervisor assignments and revocations
 - Account status changes
 
 ### 5. Cache Security
+
 - Policy cache expires after 60 seconds
 - Cache is invalidated on authorization changes
 - Inactive users are rejected even if cached
 
 ### 6. Session Security
+
 - Session enrichment happens server-side
 - Better-auth handles cookie security (HttpOnly, Secure, SameSite)
 - Sessions expire after 7 days with 24-hour refresh
 
 ### 7. Input Validation
+
 - Permission keys validated with regex patterns
 - Role levels constrained to 0-100 range
 - System roles protected from deletion
 
 ### 8. Rate Limiting
+
 Consider implementing rate limiting on:
+
 - Admin endpoints (user creation, role assignment)
 - Authentication endpoints
 - Audit log queries

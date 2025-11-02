@@ -48,7 +48,8 @@ export default function UsersPage() {
   });
 
   const handleDisableUser = async (userId: string) => {
-    if (confirm('Are you sure you want to disable this user?')) {
+    // TODO: Replace with proper confirmation dialog
+    if (window.confirm('Are you sure you want to disable this user?')) {
       await disableUserMutation.mutateAsync({ userId });
     }
   };

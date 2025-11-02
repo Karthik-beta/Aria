@@ -67,6 +67,7 @@ bun playwright test --debug        # Debug mode
 ### Backend Unit Tests (Complete ✅)
 
 #### PolicyService Tests
+
 - ✅ Permission matching (exact, wildcard, nested)
 - ✅ System-level wildcard (`system:*`)
 - ✅ App-level wildcard (`app:crm:*`)
@@ -80,6 +81,7 @@ bun playwright test --debug        # Debug mode
 - ✅ Cache invalidation
 
 #### RoleService Tests
+
 - ✅ List roles with pagination
 - ✅ Filter by minimum level
 - ✅ Find role by key
@@ -91,6 +93,7 @@ bun playwright test --debug        # Debug mode
 - ✅ Remove permission from role
 
 #### PermissionService Tests
+
 - ✅ List permissions with pagination
 - ✅ Filter by scope
 - ✅ Find permission by key
@@ -101,6 +104,7 @@ bun playwright test --debug        # Debug mode
 - ✅ Delete permission (with role assignment check)
 
 #### ScopeService Tests
+
 - ✅ Ownership checks
 - ✅ Team membership validation
 - ✅ Supervisor checks
@@ -108,6 +112,7 @@ bun playwright test --debug        # Debug mode
 - ✅ App creation permission checks
 
 #### AuditService Tests
+
 - ✅ Log user created
 - ✅ Log user updated
 - ✅ Log role assigned
@@ -122,6 +127,7 @@ bun playwright test --debug        # Debug mode
 ### Backend Integration Tests (Complete ✅)
 
 #### Admin Router Tests
+
 - ✅ User management endpoints (7 endpoints)
   - listUsers, getUser, createUser, updateUser
   - disableUser, enableUser, deleteUser
@@ -145,6 +151,7 @@ bun playwright test --debug        # Debug mode
 ### Frontend Unit Tests (Complete ✅)
 
 #### useAuth Hook Tests
+
 - ✅ `hasPermission()` exact match
 - ✅ `hasPermission()` with wildcards
   - `system:*`
@@ -160,6 +167,7 @@ bun playwright test --debug        # Debug mode
 - ✅ Unauthenticated states
 
 #### Protected Content Tests
+
 - ✅ PermissionGate rendering
 - ✅ RoleGate rendering
 - ✅ AppGate rendering
@@ -171,11 +179,13 @@ bun playwright test --debug        # Debug mode
 ### E2E Tests (Complete ✅)
 
 #### Admin Dashboard Access
+
 - ✅ Access with proper permissions
 - ✅ Display 4 main sections
 - ✅ Navigate to users page
 
 #### User Management
+
 - ✅ Display user list
 - ✅ Search users by email
 - ✅ Open create user dialog
@@ -185,25 +195,30 @@ bun playwright test --debug        # Debug mode
 - ✅ Paginate users
 
 #### Roles Management
+
 - ✅ Display roles list
 - ✅ Show role levels
 - ✅ Switch to permissions tab
 - ✅ Display permissions by scope
 
 #### Audit Logs
+
 - ✅ Display audit logs
 - ✅ Show required columns
 - ✅ Sort by timestamp
 - ✅ Show action types
 
 #### Authorization Enforcement
+
 - ✅ Redirect unauthorized users
 - ✅ Show appropriate UI elements
 
 #### Error Handling
+
 - ✅ Handle network errors gracefully
 
 #### Responsive Design
+
 - ✅ Mobile viewport (375x667)
 - ✅ Tablet viewport (768x1024)
 
@@ -238,12 +253,12 @@ For E2E tests to run successfully, the following must be seeded:
 
 ## Current Status
 
-| Test Type | Status | Coverage |
-|-----------|--------|----------|
-| Backend Unit Tests | ✅ Complete | ~85% |
+| Test Type                 | Status      | Coverage      |
+| ------------------------- | ----------- | ------------- |
+| Backend Unit Tests        | ✅ Complete | ~85%          |
 | Backend Integration Tests | ✅ Complete | All endpoints |
-| Frontend Unit Tests | ✅ Complete | ~80% |
-| E2E Tests | ✅ Complete | All flows |
+| Frontend Unit Tests       | ✅ Complete | ~80%          |
+| E2E Tests                 | ✅ Complete | All flows     |
 
 ## Running Full Test Suite
 
@@ -281,7 +296,7 @@ Tests should be run in CI pipeline:
 1. **Line Endings**: Test files created with CRLF need LF conversion
    - Run: `bun run lint --fix` to auto-fix
 
-2. **E2E Test Dependencies**: 
+2. **E2E Test Dependencies**:
    - Requires seeded database
    - Requires running backend on localhost:3001
    - Requires running frontend on localhost:3000

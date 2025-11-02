@@ -6,11 +6,13 @@ Owner: Platform Team
 Target Release: Q4 FY25
 
 Overview
+
 - Goal: Add robust, standards-aligned authorization (RBAC + ABAC) on top of existing better-auth authentication.
 - Scope: Backend (NestJS + Prisma), Frontend (Next.js + shadcn/ui), DevOps (env, migration, seeding), and Governance (process, audit, and testing).
 - Out of scope: SSO/OIDC providers, fine-grained document-level encryption, and external policy engines (OPA/Cedar) for this phase.
 
 Guiding Principles
+
 - Use only official better-auth capabilities and documented integration points.
 - Principle of least privilege by default; explicit elevation only via roles/permissions.
 - Separation of duties between System Administrator and business Admin roles.
@@ -18,6 +20,7 @@ Guiding Principles
 - Auditable actions with tamper-evident logs for user/role/permission changes.
 
 Role Model (Required)
+
 - System Administrator (Super Admin)
   - Access: Full system administration without business data constraints.
   - Responsibilities: System configuration, integrations, security posture, user lifecycle (global), and all data/settings.
@@ -35,11 +38,12 @@ Role Model (Required)
   - Responsibilities: Executive/finance-style read access across permitted scopes.
 
 Authorization Model
+
 - RBAC baseline with app-scoped roles; optional ABAC filters for team/ownership constraints.
 - Multi-tenant aware (future-proofing), but single-tenant by default in this phase.
 - Permission taxonomy
-  - System: system:*
-  - App: app:{appKey}:*
+  - System: system:\*
+  - App: app:{appKey}:\*
   - Entity: entity:{appKey}:{entity}:{action}
   - Examples: system:user.manage, app:crm:config.update, entity:crm:lead.read, entity:hr:leave.approve
 - Scope hierarchy
@@ -49,6 +53,7 @@ Authorization Model
   - Team linkage via team_id/manager_id mappings
 
 Data Model (Prisma)
+
 - Tables (new)
   - roles (id, key, name, description, level, is_system, created_at, updated_at)
   - permissions (id, key, name, description, created_at, updated_at)
@@ -66,32 +71,35 @@ Data Model (Prisma)
   - FOREIGN KEYS across all relations with ON DELETE RESTRICT for security
 
 Role Definitions (initial seed)
+
 - super_admin
-  - Grants: system:* (full), app:*:*, entity:*:*:*
+  - Grants: system:_ (full), app:_:_, entity:_:_:_
 - admin
-  - Grants: app:{appKey}:*, entity:{appKey}:*:* within assigned app(s)
+  - Grants: app:{appKey}:_, entity:{appKey}:_:\* within assigned app(s)
 - manager
-  - Grants: entity:{appKey}:*:* within team scope
+  - Grants: entity:{appKey}:_:_ within team scope
   - Special: can create users limited to appKey they supervise
 - user
-  - Grants: entity:{appKey}:*:read, entity:{appKey}:*:create/update limited to ownership
+  - Grants: entity:{appKey}:_:read, entity:{appKey}:_:create/update limited to ownership
 - viewer
-  - Grants: entity:{appKey}:*:read only
+  - Grants: entity:{appKey}:\*:read only
 
 Policy Evaluation
+
 - Source of truth
   - better-auth session.user contains user id and attached role keys and app scopes (via session enrichment).
   - DB-driven policy resolution on each request; cache with short TTL (e.g., 60s) keyed by session id + version.
 - Check order
-  1) Account active (users.is_active)
-  2) System-wide denies (future use)
-  3) Role -> permissions resolution (RBAC)
-  4) Scope guards (app_key match, team ownership, record ownership)
-  5) Field-level filters (optional; out of scope for v1)
+  1. Account active (users.is_active)
+  2. System-wide denies (future use)
+  3. Role -> permissions resolution (RBAC)
+  4. Scope guards (app_key match, team ownership, record ownership)
+  5. Field-level filters (optional; out of scope for v1)
 - App-scoped Supervisor Creation Rule
   - Only users with manager role and matching app_supervisors entry for the target app can create users.
 
 Backend Architecture (NestJS)
+
 - Modules
   - AuthorizationModule: services (PolicyService, RoleService, PermissionService, ScopeService), guards, and decorators
   - UserAdminModule: admin endpoints for user lifecycle
@@ -118,6 +126,7 @@ Backend Architecture (NestJS)
   - POST /apps/:appKey/supervisors — manage supervisor assignments (super_admin, admin(app))
 
 Session Enrichment (better-auth)
+
 - On sign-in, enrich session with:
   - user: { id, username, email, displayName, isActive }
   - roles: [roleKey]
@@ -125,6 +134,7 @@ Session Enrichment (better-auth)
 - Use official better-auth session extensions pattern (documented hooks) to attach custom claims to session data and keep cookies httpOnly.
 
 Frontend Requirements (Next.js + shadcn)
+
 - Admin Dashboard (new)
   - Users Management
     - List, search, filter by app, team, role, status
@@ -144,6 +154,7 @@ Frontend Requirements (Next.js + shadcn)
   - Optimistic UI with server reconciliation; do not trust client for enforcement
 
 Audit & Logging
+
 - Audit events
   - user.created, user.updated, user.disabled, user.deleted
   - role.assigned, role.revoked, supervisor.assigned, supervisor.revoked
@@ -154,6 +165,7 @@ Audit & Logging
   - Correlate request id and session id
 
 Security & Compliance
+
 - Cookie & session: continue better-auth secure cookie guidance (SameSite=None, Secure in production)
 - Authorization decisions server-side only
 - Default deny for unrecognized permissions
@@ -161,11 +173,13 @@ Security & Compliance
 - Secrets managed via env and never logged; rotate on compromise
 
 Migrations & Seeding
+
 - Add Prisma schema for new tables and fields
 - Seed script to create roles, permissions, default supervisors (optional), and map super_admin to DEFAULT_ADMIN user
 - Idempotent seeding; safe re-run in CI/CD
 
 DevOps & Configuration
+
 - Env additions
   - AUTH_CACHE_TTL=60
   - AUTH_DEFAULT_ROLES=super_admin,admin,manager,user,viewer
@@ -174,6 +188,7 @@ DevOps & Configuration
   - Health checks for authz readiness
 
 Testing Strategy
+
 - Unit tests
   - PolicyService.can() permutation matrix across roles, apps, teams, ownership
 - Integration tests
@@ -183,16 +198,19 @@ Testing Strategy
   - Role-gated control visibility; disable state for unauthorized actions
 
 Risks & Mitigations
+
 - Policy drift: centralize keys; generate types from permission registry
 - Performance: cache policy resolution with TTL; index foreign keys
 - Over-privilege: default deny; continuous review of grants
 
 Deliverables
+
 - Backend AuthorizationModule with guards, services, prisma migrations, seeds
 - Frontend Admin Dashboard with user/role/supervisor management using shadcn components
 - Documentation: AUTHORIZATION.md (this spec), API reference for admin endpoints, runbooks
 
 References (official)
+
 - better-auth — adapters/prisma, plugins/username, session, and official NestJS integration docs
 - NestJS — Guards, Custom Decorators, Modules best practices
 - Prisma — Relational schema, migrations, seed workflows

@@ -1,6 +1,5 @@
 import { ReactNode } from 'react';
 import { ProtectedContent } from '@/components/auth/protected-content';
-import { redirect } from 'next/navigation';
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
   return (
@@ -23,7 +22,7 @@ function AdminAccessDenied() {
       <div className="text-center">
         <h1 className="text-4xl font-bold mb-4">Access Denied</h1>
         <p className="text-muted-foreground mb-8">
-          You don't have permission to access the admin dashboard.
+          You don&apos;t have permission to access the admin dashboard.
         </p>
         <a
           href="/"

@@ -11,6 +11,7 @@
 **File**: `apps/backend/src/authorization/__tests__/policy.service.spec.ts`
 
 **Coverage**:
+
 - ✅ User policy resolution with roles and permissions
 - ✅ Policy caching mechanism (60-second TTL)
 - ✅ Cache invalidation
@@ -24,6 +25,7 @@
 - ✅ Role level hierarchy (`getUserMaxRoleLevel()`)
 
 **Key Tests**:
+
 1. `resolveUserPolicy` - Resolves complete user policy from database
 2. Caching - Verifies policies are cached and reused
 3. `can()` with ownership - Validates resource ownership checks
@@ -35,6 +37,7 @@
 **File**: `apps/backend/src/authorization/__tests__/role-permission.service.spec.ts`
 
 **Coverage**:
+
 - ✅ Role retrieval (`getRoleByKey`, `getRoleById`)
 - ✅ Role listing with filtering (isSystem, search)
 - ✅ Role creation
@@ -46,6 +49,7 @@
   - Permission removal
 
 **Key Tests**:
+
 1. `listRoles` - Returns roles ordered by level
 2. `createRole` - Creates new custom role
 3. `deleteRole` - Prevents deletion of system roles
@@ -57,6 +61,7 @@
 **File**: `apps/backend/src/authorization/__tests__/role-permission.service.spec.ts`
 
 **Coverage**:
+
 - ✅ Permission retrieval (`getPermissionByKey`)
 - ✅ Permission listing with scope filtering
 - ✅ Wildcard pattern matching
@@ -67,6 +72,7 @@
   - Pattern mismatches
 
 **Key Tests**:
+
 1. `matchesPattern` - Core wildcard matching logic
 2. `listPermissions` - Filter by system/app/entity scope
 3. Wildcard tests - Comprehensive pattern matching validation
@@ -94,6 +100,7 @@ bun test --coverage
 All tests use Jest mocks for dependencies:
 
 ### PolicyService Mocks
+
 ```typescript
 mockPrisma = {
   user: { findUnique },
@@ -101,15 +108,16 @@ mockPrisma = {
 };
 
 mockPermissionService = { matchesPattern };
-mockScopeService = { 
+mockScopeService = {
   getSupervisedApps,
   isTeamMember,
   isTeamManager,
-  isInManagementHierarchy
+  isInManagementHierarchy,
 };
 ```
 
 ### RoleService Mocks
+
 ```typescript
 mockPrisma = {
   role: { findUnique, findMany, create, update, delete },
@@ -118,6 +126,7 @@ mockPrisma = {
 ```
 
 ### PermissionService Mocks
+
 ```typescript
 mockPrisma = {
   permission: { findUnique, findMany, create, update, delete },
@@ -127,27 +136,28 @@ mockPrisma = {
 ## Key Testing Patterns
 
 ### 1. Dependency Injection
+
 Tests use NestJS Testing module with mocked providers:
 
 ```typescript
 const module: TestingModule = await Test.createTestingModule({
-  providers: [
-    ServiceUnderTest,
-    { provide: PrismaClient, useValue: mockPrisma },
-  ],
+  providers: [ServiceUnderTest, { provide: PrismaClient, useValue: mockPrisma }],
 }).compile();
 ```
 
 **Important**: Services use `PrismaClient` from `@prisma/client`, not `PrismaService`.
 
 ### 2. Mock Setup
+
 Each test file has `beforeEach` to reset mocks:
 
 ```typescript
 beforeEach(async () => {
   // Create fresh mocks
-  mockPrisma = { /* ... */ };
-  
+  mockPrisma = {
+    /* ... */
+  };
+
   // Compile module
   service = module.get<Service>(Service);
 });
@@ -158,6 +168,7 @@ afterEach(() => {
 ```
 
 ### 3. Assertion Patterns
+
 Tests verify both behavior and interactions:
 
 ```typescript
@@ -176,17 +187,20 @@ expect(mockPrisma.user.findUnique).toHaveBeenCalledTimes(1);
 ## What's NOT Tested (Future Work)
 
 ### Integration Tests
+
 - ❌ TRPC admin router endpoints
 - ❌ NestJS guards (RequiresPermission, RequiresRole, RequiresApp)
 - ❌ End-to-end authorization flows
 
 ### Additional Unit Tests
+
 - ❌ ScopeService (team membership, supervisor checks)
 - ❌ AuditService (audit log creation, querying)
 - ❌ Error handling edge cases
 - ❌ Performance tests (caching efficiency)
 
 ### Frontend Tests
+
 - ❌ useAuth hook tests
 - ❌ Protected content component tests
 - ❌ Admin dashboard E2E tests
@@ -194,16 +208,19 @@ expect(mockPrisma.user.findUnique).toHaveBeenCalledTimes(1);
 ## Next Steps
 
 ### Immediate (Optional)
+
 1. ✅ Fix any remaining lint warnings in guards.ts
 2. ⏸️ Add ScopeService unit tests (team membership logic)
 3. ⏸️ Add AuditService unit tests (logging functionality)
 
 ### Integration Testing
+
 1. Create TRPC router integration tests (mock PolicyService)
 2. Test NestJS guards with execution context
 3. Add end-to-end authorization flow tests
 
 ### Frontend Testing
+
 1. Set up Vitest for React component tests
 2. Test useAuth hook with mocked session
 3. Test protected content gates
@@ -212,6 +229,7 @@ expect(mockPrisma.user.findUnique).toHaveBeenCalledTimes(1);
 ## Configuration
 
 ### Jest Setup
+
 Tests run with Bun's built-in Jest compatibility:
 
 ```json
@@ -225,6 +243,7 @@ Tests run with Bun's built-in Jest compatibility:
 ```
 
 ### File Structure
+
 ```
 apps/backend/src/authorization/
 ├── __tests__/
@@ -241,6 +260,7 @@ apps/backend/src/authorization/
 ## Test Maintenance
 
 ### Adding New Tests
+
 1. Create `*.spec.ts` file in `__tests__` directory
 2. Import service and dependencies
 3. Mock `PrismaClient` (not `PrismaService`)
@@ -249,6 +269,7 @@ apps/backend/src/authorization/
 6. Verify both return values and mock interactions
 
 ### Running Tests in CI
+
 ```bash
 #!/bin/bash
 cd apps/backend
@@ -257,6 +278,7 @@ bun test --ci
 ```
 
 ### Debugging Failed Tests
+
 ```bash
 # Run single test
 bun test --testNamePattern="should cache resolved policies"
@@ -282,6 +304,7 @@ Caching tests verify that cache reduces database calls from 2 to 1.
 ✅ **Core authorization services are fully tested and working correctly.**
 
 The test suite provides confidence that:
+
 - Policy resolution works correctly with caching
 - Permission checking handles wildcards and ownership
 - Role CRUD operations work with system role protection

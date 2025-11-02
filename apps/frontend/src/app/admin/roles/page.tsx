@@ -1,23 +1,13 @@
 'use client';
 
-import { useState } from 'react';
 import { trpc } from '@/lib/trpc/client';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Shield, Plus, Trash } from 'lucide-react';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
+import { Shield } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 export default function RolesPage() {
-  const { data: roles, isLoading, refetch } = trpc.admin.listRoles.useQuery();
+  const { data: roles, isLoading } = trpc.admin.listRoles.useQuery();
   const { data: permissions } = trpc.admin.listPermissions.useQuery();
 
   if (isLoading) {
@@ -98,7 +88,19 @@ export default function RolesPage() {
   );
 }
 
-function PermissionSection({ title, permissions }: { title: string; permissions: any[] }) {
+function PermissionSection({
+  title,
+  permissions,
+}: {
+  title: string;
+  permissions: Array<{
+    id: string;
+    key: string;
+    name: string;
+    description: string | null;
+    scope: string;
+  }>;
+}) {
   return (
     <Card>
       <CardHeader>

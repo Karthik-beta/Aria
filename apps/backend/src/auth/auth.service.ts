@@ -2,6 +2,19 @@ import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { auth } from './auth.config';
 
+// Import the singleton Prisma client
+const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
+
+const prisma =
+  globalForPrisma.prisma ??
+  new PrismaClient({
+    log: ['error'],
+  });
+
+if (process.env.NODE_ENV !== 'production') {
+  globalForPrisma.prisma = prisma;
+}
+
 /**
  * Authentication service for managing users and default account creation
  *
@@ -12,7 +25,7 @@ import { auth } from './auth.config';
 @Injectable()
 export class AuthService implements OnModuleInit {
   private readonly logger = new Logger(AuthService.name);
-  private readonly prisma = new PrismaClient();
+  private readonly prisma = prisma;
 
   async onModuleInit() {
     // Create default user in both development and production for testing
@@ -42,6 +55,9 @@ export class AuthService implements OnModuleInit {
     }
 
     try {
+      // Wait for database to be ready
+      await this.prisma.$connect();
+
       // Check if user already exists
       const existingUser = await this.prisma.user.findFirst({
         where: {
@@ -74,24 +90,29 @@ export class AuthService implements OnModuleInit {
 
       const response = await auth.handler(request);
 
-      this.logger.log(`Response status: ${response.status}`);
-      const responseText = await response.text();
-      this.logger.log(`Response body: ${responseText}`);
-
       if (response.ok) {
         this.logger.log(`Default admin user created successfully: ${username}`);
       } else {
+        const responseText = await response.text();
         this.logger.error(
           `Failed to create admin user via better-auth: ${response.status}`,
           responseText,
         );
       }
-    } catch (error) {
-      this.logger.error('Failed to create default admin user:', error);
+    } catch (error: any) {
+      // Log error but don't crash the application
+      this.logger.error(
+        'Failed to create default admin user (non-critical):',
+        error?.message || error,
+      );
     }
   }
 
   async onModuleDestroy() {
-    await this.prisma.$disconnect();
+    try {
+      await this.prisma.$disconnect();
+    } catch (error) {
+      this.logger.error('Error disconnecting from database:', error);
+    }
   }
 }

@@ -12,13 +12,13 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { FileText, Filter } from 'lucide-react';
+import { Filter } from 'lucide-react';
 import { format } from 'date-fns';
 
 export default function AuditPage() {
   const [limit, setLimit] = useState(50);
 
-  const { data: logs, isLoading } = trpc.admin.getAuditLogs.useQuery({
+  const { data: auditData, isLoading } = trpc.admin.getAuditLogs.useQuery({
     limit,
   });
 
@@ -50,16 +50,16 @@ export default function AuditPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {logs?.map((log) => (
+              {auditData?.logs.map((log) => (
                 <TableRow key={log.id}>
                   <TableCell className="font-mono text-xs">
-                    {format(new Date(log.timestamp), 'MMM dd, yyyy HH:mm:ss')}
+                    {format(new Date(log.createdAt), 'MMM dd, yyyy HH:mm:ss')}
                   </TableCell>
                   <TableCell>
                     <Badge variant="outline">{log.action}</Badge>
                   </TableCell>
-                  <TableCell className="text-sm">{log.actorId}</TableCell>
-                  <TableCell className="text-sm">{log.userId || '-'}</TableCell>
+                  <TableCell className="text-sm">{log.actorUserId}</TableCell>
+                  <TableCell className="text-sm">{log.subjectId || '-'}</TableCell>
                   <TableCell>
                     <pre className="text-xs text-muted-foreground max-w-md overflow-hidden">
                       {JSON.stringify(log.metadata, null, 2)}

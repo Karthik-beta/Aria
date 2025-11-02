@@ -1,7 +1,7 @@
 'use client';
 
 import { ReactNode } from 'react';
-import { useAuth, usePermission, useRole, useAppAccess } from '@/hooks/use-auth';
+import { useAuth, useAppAccess } from '@/hooks/use-auth';
 
 interface ProtectedProps {
   children: ReactNode;
@@ -114,14 +114,8 @@ export function ProtectedContent({
   role?: string | string[];
   appKey?: string;
 }) {
-  const {
-    isAuthenticated,
-    isActive,
-    isLoading,
-    hasAnyPermission,
-    hasAnyRole,
-    canAccessApp,
-  } = useAuth();
+  const { isAuthenticated, isActive, isLoading, hasAnyPermission, hasAnyRole, canAccessApp } =
+    useAuth();
 
   if (isLoading) return null;
 

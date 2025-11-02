@@ -545,11 +545,20 @@ export const adminRouter = router({
   // ==================== ROLE MANAGEMENT ====================
 
   /**
-   * List all roles
+   * List all roles with permissions
    */
   listRoles: protectedProcedure.query(async ({ ctx }) => {
     await requirePermission(ctx.user.id, 'system:role.read');
-    return roleService.listRoles();
+    return prisma.role.findMany({
+      include: {
+        rolePermissions: {
+          include: {
+            permission: true,
+          },
+        },
+      },
+      orderBy: [{ level: 'desc' }, { name: 'asc' }],
+    });
   }),
 
   /**
@@ -648,7 +657,7 @@ export const adminRouter = router({
   // ==================== PERMISSION MANAGEMENT ====================
 
   /**
-   * List all permissions
+   * List all permissions with scope information
    */
   listPermissions: protectedProcedure
     .input(
@@ -660,9 +669,18 @@ export const adminRouter = router({
     )
     .query(async ({ ctx, input }) => {
       await requirePermission(ctx.user.id, 'system:permission.read');
-      return permissionService.listPermissions(
+      const permissions = await permissionService.listPermissions(
         input ? { scope: input.scope } : undefined,
       );
+
+      // Add scope information to each permission
+      return permissions.map((permission) => {
+        const parsed = permissionService.parsePermissionKey(permission.key);
+        return {
+          ...permission,
+          scope: parsed.scope,
+        };
+      });
     }),
 
   /**

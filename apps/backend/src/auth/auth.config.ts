@@ -3,8 +3,18 @@ import { prismaAdapter } from 'better-auth/adapters/prisma';
 import { username } from 'better-auth/plugins';
 import { PrismaClient } from '@prisma/client';
 
-// Create Prisma client instance
-const prisma: PrismaClient = new PrismaClient();
+// Import the singleton Prisma client from shared location
+const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
+
+const prisma =
+  globalForPrisma.prisma ??
+  new PrismaClient({
+    log: ['error'],
+  });
+
+if (process.env.NODE_ENV !== 'production') {
+  globalForPrisma.prisma = prisma;
+}
 
 // 1. Get the comma-separated string from the .env file
 const frontendUrlsRaw = process.env.FRONTEND_URL || 'http://localhost:3000';
