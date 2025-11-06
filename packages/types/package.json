@@ -12,6 +12,7 @@
   },
   "scripts": {
     "build": "tsc --build",
+    "watch": "tsc --build --watch",
     "check-types": "tsc --noEmit",
     "clean": "rimraf .turbo dist *.tsbuildinfo"
   },
