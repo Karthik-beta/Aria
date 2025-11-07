@@ -16,7 +16,9 @@
       "mcp__ddg-search__search",
       "mcp__context7__resolve-library-id",
       "mcp__ddg-search__fetch_content",
-      "mcp__context7__get-library-docs"
+      "mcp__context7__get-library-docs",
+      "WebFetch(domain:trpc.io)",
+      "WebFetch(domain:michaelguay.dev)"
     ],
     "deny": [],
     "ask": []

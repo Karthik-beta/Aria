@@ -9,7 +9,9 @@
       }
     ],
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "backend": ["../backend/dist/src"],
+      "backend/*": ["../backend/dist/src/*"]
     },
     "resolveJsonModule": true,
     "isolatedModules": true

@@ -50,7 +50,7 @@ export default function AuditPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {auditData?.logs.map((log) => (
+              {auditData?.logs.map((log: any) => (
                 <TableRow key={log.id}>
                   <TableCell className="font-mono text-xs">
                     {format(new Date(log.createdAt), 'MMM dd, yyyy HH:mm:ss')}
