@@ -33,9 +33,8 @@ function createError(
  * Advanced Data Table Component
  * Provides enterprise-grade table functionality with virtualization, filtering, and more
  * @template TData - The row data type
- * @template TValue - The cell value type (optional)
  */
-export function AdvancedDataTable<TData extends RowData, TValue = unknown>({
+export function AdvancedDataTable<TData extends RowData>({
   table,
   data: _data,
   totalItems: _totalItems,
@@ -73,9 +72,23 @@ export function AdvancedDataTable<TData extends RowData, TValue = unknown>({
   enableAdvancedFilter: _enableAdvancedFilter = true,
   className,
   containerClassName,
-}: AdvancedDataTableProps<TData, TValue>) {
+}: AdvancedDataTableProps<TData>) {
   const [isLoading, _setIsLoading] = React.useState(false);
   const [_error, setError] = React.useState<AdvancedDataTableError | null>(null);
+
+  // Track component mount status to prevent state updates during mount
+  // Following official React 18+ pattern: prevent callbacks during mount phase
+  const isMountedRef = React.useRef(false);
+
+  React.useEffect(() => {
+    // Mark component as mounted
+    isMountedRef.current = true;
+
+    return () => {
+      // Cleanup on unmount
+      isMountedRef.current = false;
+    };
+  }, []);
 
   // Store callback refs to prevent stale closures
   const onErrorRef = React.useRef(onError);
@@ -145,8 +158,9 @@ export function AdvancedDataTable<TData extends RowData, TValue = unknown>({
   const globalFilter = tableState.globalFilter;
 
   // Monitor table state changes (debounced to avoid excessive callbacks)
+  // Following official pattern: only call after component is mounted
   React.useEffect(() => {
-    if (!onStateChangeRef.current) return;
+    if (!isMountedRef.current || !onStateChangeRef.current) return;
 
     const state = {
       sorting,

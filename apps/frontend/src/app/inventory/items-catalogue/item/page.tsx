@@ -16,7 +16,6 @@ import {
   type BulkAction,
 } from '@/components/advanced-data-table';
 import { type ColumnDef, type Row } from '@tanstack/react-table';
-import type { Table as TanstackTable } from '@tanstack/react-table';
 import { type Inventory } from '@aria/types';
 import { trpc } from '@/lib/trpc';
 import { Badge } from '@/components/ui/badge';
@@ -65,7 +64,9 @@ export default function InventoryItemsPage() {
   const [itemToDelete, setItemToDelete] = React.useState<string | null>(null);
 
   // Stable delete handler using ref pattern - prevents columns re-memoization
-  const handleDeleteRef = React.useRef<(id: string) => void>(() => {});
+  const handleDeleteRef = React.useRef<(id: string) => void>(() => {
+    // Initial no-op function
+  });
   handleDeleteRef.current = (id: string) => {
     setItemToDelete(id);
     setIsDeleteDialogOpen(true);
@@ -77,15 +78,17 @@ export default function InventoryItemsPage() {
   }, []);
 
   // Fetch all inventory items with optimized settings
+  // Following official TanStack Query v5 patterns to prevent state updates during mount
   const {
     data: rawItems = [],
     isLoading,
     error: queryError,
   } = trpc.inventory.listItems.useQuery(undefined, {
     refetchOnWindowFocus: false,
+    refetchOnMount: false, // Official TanStack Query v5 pattern: prevent refetch on mount
     retry: 2,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
-    staleTime: Infinity, // Official TanStack Query pattern: never stale since WebSocket updates cache
+    staleTime: Infinity, // Official pattern: never stale since WebSocket updates cache
     gcTime: 5 * 60 * 1000, // Keep in cache for 5 minutes (formerly cacheTime)
   });
 
@@ -101,33 +104,16 @@ export default function InventoryItemsPage() {
   );
 
   // Real-time subscription for CRUD events
-  // Following official React pattern: use cleanup flag to prevent state updates after unmount
-  // https://react.dev/learn/synchronizing-with-effects#fetching-data
+  // Following official tRPC patterns: use subscription callbacks directly
+  // https://trpc.io/docs/client/react/useSubscription
   const errorCountRef = React.useRef(0);
   const lastErrorTimeRef = React.useRef(0);
-  const [subscriptionEnabled, setSubscriptionEnabled] = React.useState(false);
 
-  // Mounted ref to track component lifecycle - official React pattern for cleanup
-  // Initialize as false during render, set to true after mount to prevent premature callbacks
-  const isMountedRef = React.useRef(false);
-
-  React.useEffect(() => {
-    // Mark component as mounted and enable subscription
-    isMountedRef.current = true;
-    setSubscriptionEnabled(true);
-
-    return () => {
-      isMountedRef.current = false;
-    };
-  }, []);
-
-  // Memoize callbacks with mounted check to prevent state updates after unmount
+  // Callback to handle subscription data
+  // Following official tRPC pattern: no manual mount checks needed with React 18+
   const handleSubscriptionData = React.useCallback(
     (event: { type: 'created' | 'updated' | 'deleted'; data: Inventory.Item | { id: string } }) => {
-      // Guard: only update state if component is still mounted
-      if (!isMountedRef.current) return;
-
-      // Invalidate and refetch the list when any CRUD operation occurs
+      // Official pattern: Invalidate cache to trigger re-render
       void utils.inventory.listItems.invalidate();
 
       // Show appropriate toast notification
@@ -142,16 +128,11 @@ export default function InventoryItemsPage() {
     [utils]
   );
 
-  const handleSubscriptionError = React.useCallback((error: unknown) => {
-    // Guard: only update state if component is still mounted
-    if (!isMountedRef.current) return;
-
+  const handleSubscriptionError = React.useCallback((_error: unknown) => {
     errorCountRef.current += 1;
     const now = Date.now();
     const timeSinceLastError = now - lastErrorTimeRef.current;
     lastErrorTimeRef.current = now;
-
-    const errorMessage = error instanceof Error ? error.message : 'Connection interrupted';
 
     // Only show error toast for persistent connection issues (3+ consecutive failures within 5 seconds)
     if (errorCountRef.current >= 3 && timeSinceLastError < 5000) {
@@ -160,30 +141,27 @@ export default function InventoryItemsPage() {
   }, []);
 
   const handleSubscriptionStarted = React.useCallback(() => {
-    // Guard: only update state if component is still mounted
-    if (!isMountedRef.current) return;
-
     errorCountRef.current = 0; // Reset error count on successful connection
   }, []);
 
+  // Official tRPC pattern: subscription runs independently
+  // No need to manually enable/disable based on mount state
   trpc.inventory.onItemsChanged.useSubscription(undefined, {
-    enabled: subscriptionEnabled, // Only enable after mount
     onStarted: handleSubscriptionStarted,
     onData: handleSubscriptionData,
     onError: handleSubscriptionError,
   });
 
   // Show error state if query fails
-  // Guard against state updates after unmount
+  // Following official TanStack Query pattern: no manual mount checks needed
   React.useEffect(() => {
-    if (queryError && isMountedRef.current) {
+    if (queryError) {
       toast.error(`Failed to load inventory items: ${queryError.message}`);
     }
   }, [queryError]);
 
   // Delete mutation with optimistic updates
-  // Following official TanStack Query pattern: callbacks in useMutation always run
-  // Use isMountedRef guard to prevent state updates after unmount
+  // Following official TanStack Query v5 pattern
   // https://tanstack.com/query/v5/docs/framework/react/guides/mutations
   const deleteMutation = trpc.inventory.deleteItem.useMutation({
     onMutate: async (variables) => {
@@ -203,17 +181,11 @@ export default function InventoryItemsPage() {
       return { previousItems };
     },
     onSuccess: () => {
-      // Guard: only update state if component is still mounted
-      if (!isMountedRef.current) return;
-
       toast.success('Item deleted successfully');
       setIsDeleteDialogOpen(false);
       setItemToDelete(null);
     },
     onError: (error, variables, context) => {
-      // Guard: only update state if component is still mounted
-      if (!isMountedRef.current) return;
-
       // Rollback on error
       if (context?.previousItems) {
         utils.inventory.listItems.setData(undefined, context.previousItems);
@@ -228,7 +200,7 @@ export default function InventoryItemsPage() {
   });
 
   // Bulk delete mutation with optimistic updates
-  // Following official TanStack Query pattern with mounted guard
+  // Following official TanStack Query v5 pattern
   const bulkDeleteMutation = trpc.inventory.deleteItem.useMutation({
     onMutate: async (variables) => {
       // Cancel outgoing refetches
@@ -246,9 +218,6 @@ export default function InventoryItemsPage() {
       return { previousItems };
     },
     onError: (error, variables, context) => {
-      // Guard: only update state if component is still mounted
-      if (!isMountedRef.current) return;
-
       // Rollback on error
       if (context?.previousItems) {
         utils.inventory.listItems.setData(undefined, context.previousItems);
@@ -499,7 +468,7 @@ export default function InventoryItemsPage() {
         enableGlobalFilter: false,
       },
     ],
-    [] // Empty deps array - official TanStack Table pattern for stable columns
+    [handleDelete] // Include handleDelete to satisfy react-hooks/exhaustive-deps
   );
 
   // Bulk delete handler - Memoized separately to prevent recreating bulk actions
@@ -513,18 +482,12 @@ export default function InventoryItemsPage() {
           await bulkDeleteMutation.mutateAsync({ id });
         }
 
-        // Guard: only show toast if component is still mounted
-        if (isMountedRef.current) {
-          toast.success(`Successfully deleted ${ids.length} item(s)`);
-        }
+        toast.success(`Successfully deleted ${ids.length} item(s)`);
 
         // Invalidate to refresh the list
         await utils.inventory.listItems.invalidate();
-      } catch (_error) {
-        // Guard: only show toast if component is still mounted
-        if (isMountedRef.current) {
-          toast.error('Failed to delete some items');
-        }
+      } catch {
+        toast.error('Failed to delete some items');
       }
     },
     [bulkDeleteMutation, utils]

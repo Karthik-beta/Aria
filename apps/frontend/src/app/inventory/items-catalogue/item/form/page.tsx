@@ -66,13 +66,14 @@ export default function ItemFormPage() {
   const utils = trpc.useUtils();
 
   // Create mutation
+  // Following official TanStack Query v5 pattern: no manual delays needed
   const createMutation = trpc.inventory.createItem.useMutation({
     onSuccess: async (data) => {
       toast.success('Item created successfully!');
-      // Invalidate and refetch list cache so the new item appears immediately
+      // Official pattern: Invalidate cache and navigate
+      // Invalidate will trigger a re-render in the background
       await utils.inventory.listItems.invalidate();
-      // Small delay to ensure cache updates propagate
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      // Navigate immediately - TanStack Query handles cache updates async
       startTransition(() => {
         router.push(`/inventory/items-catalogue/item/${data.id}`);
       });
@@ -83,13 +84,13 @@ export default function ItemFormPage() {
   });
 
   // Update mutation
+  // Following official TanStack Query v5 pattern: no manual delays needed
   const updateMutation = trpc.inventory.updateItem.useMutation({
     onSuccess: async (data) => {
       toast.success('Item updated successfully!');
-      // Invalidate and refetch list cache so updated item reflects immediately
+      // Official pattern: Invalidate cache and navigate
       await utils.inventory.listItems.invalidate();
-      // Small delay to ensure cache updates propagate
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      // Navigate immediately - TanStack Query handles cache updates async
       startTransition(() => {
         router.push(`/inventory/items-catalogue/item/${data.id}`);
       });

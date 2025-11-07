@@ -144,9 +144,6 @@ test.describe('Advanced Data Table - E2E', () => {
       const nameHeader = page.getByRole('columnheader', { name: /name/i });
 
       if (await nameHeader.isVisible()) {
-        // Get first row value before sort
-        const firstRowBefore = await page.locator('[data-slot="table-row"]').first().textContent();
-
         // Click header to sort
         await nameHeader.click();
         await page.waitForTimeout(300);

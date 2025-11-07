@@ -3,6 +3,7 @@ import type { FilterItemSchema } from '@/lib/parsers';
 import type { ColumnSort, Row, RowData } from '@tanstack/react-table';
 
 declare module '@tanstack/react-table' {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   interface ColumnMeta<TData extends RowData, TValue> {
     label?: string;
     placeholder?: string;
@@ -11,6 +12,16 @@ declare module '@tanstack/react-table' {
     range?: [number, number];
     unit?: string;
     icon?: React.FC<React.SVGProps<SVGSVGElement>>;
+    exportable?: boolean;
+    searchable?: boolean;
+    resizable?: boolean;
+    freezable?: boolean;
+  }
+
+  // Extend TableMeta to support reload callback
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  interface TableMeta<TData extends RowData> {
+    onReload?: () => void | Promise<void>;
   }
 }
 

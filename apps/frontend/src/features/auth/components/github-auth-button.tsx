@@ -8,7 +8,7 @@ export default function GithubSignInButton() {
   // const callbackUrl = searchParams.get('callbackUrl');
 
   return (
-    <Button className="w-full" variant="outline" type="button" onClick={() => {}}>
+    <Button className="w-full" variant="outline" type="button" onClick={() => undefined}>
       <Icons.github className="mr-2 h-4 w-4" />
       Continue with GitHub
     </Button>

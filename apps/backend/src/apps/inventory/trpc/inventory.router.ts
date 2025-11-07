@@ -22,9 +22,7 @@ export class InventoryRouter {
       createItem: publicProcedure
         .input(Inventory.createSchema)
         .mutation(async ({ input }) => {
-          const item = await this.inventoryService.create(
-            input as Inventory.CreateInput,
-          );
+          const item = await this.inventoryService.create(input);
           // Emit event for real-time subscriptions
           void inventoryEvents.emit('itemCreated', item);
           return item;
@@ -33,9 +31,7 @@ export class InventoryRouter {
       updateItem: publicProcedure
         .input(Inventory.updateSchema)
         .mutation(async ({ input }) => {
-          const item = await this.inventoryService.update(
-            input as Inventory.UpdateInput,
-          );
+          const item = await this.inventoryService.update(input);
           // Emit event for real-time subscriptions
           void inventoryEvents.emit('itemUpdated', item);
           return item;

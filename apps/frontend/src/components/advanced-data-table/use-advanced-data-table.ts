@@ -122,6 +122,20 @@ export function useAdvancedDataTable<TData extends RowData>({
     return Math.ceil(data.length / pagination.pageSize);
   }, [data.length, pagination.pageSize, pageCount]);
 
+  // Track component mount status to prevent state updates during mount
+  // Following official React 18+ pattern: prevent callbacks during mount phase
+  const isMountedRef = React.useRef(false);
+
+  React.useEffect(() => {
+    // Mark component as mounted
+    isMountedRef.current = true;
+
+    return () => {
+      // Cleanup on unmount
+      isMountedRef.current = false;
+    };
+  }, []);
+
   // Store callback refs to prevent stale closures and unnecessary re-runs
   const onPaginationChangeRef = React.useRef(onPaginationChange);
   const onSortingChangeRef = React.useRef(onSortingChange);
@@ -151,23 +165,29 @@ export function useAdvancedDataTable<TData extends RowData>({
   }, [onGlobalFilterChange]);
 
   // Handle state changes with callbacks using refs to prevent stale closures
+  // Following official pattern: only call after component is mounted
   React.useEffect(() => {
+    if (!isMountedRef.current) return;
     onPaginationChangeRef.current?.(pagination);
   }, [pagination]);
 
   React.useEffect(() => {
+    if (!isMountedRef.current) return;
     onSortingChangeRef.current?.(sorting);
   }, [sorting]);
 
   React.useEffect(() => {
+    if (!isMountedRef.current) return;
     onColumnFiltersChangeRef.current?.(columnFilters);
   }, [columnFilters]);
 
   React.useEffect(() => {
+    if (!isMountedRef.current) return;
     onRowSelectionChangeRef.current?.(rowSelection);
   }, [rowSelection]);
 
   React.useEffect(() => {
+    if (!isMountedRef.current) return;
     onGlobalFilterChangeRef.current?.(globalFilter);
   }, [globalFilter]);
 

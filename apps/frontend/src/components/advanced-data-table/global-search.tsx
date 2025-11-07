@@ -46,6 +46,7 @@ export function GlobalSearch<TData>({
     if (newValue !== inputValue) {
       setInputValue(newValue);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tableGlobalFilter]); // Intentionally omit inputValue to prevent infinite loop
 
   // Cleanup debounce timer on unmount

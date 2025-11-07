@@ -51,7 +51,7 @@ export default function proxy(req: NextRequest) {
  * Check if the user is authenticated
  * TODO: Implement actual authentication check based on your auth provider
  */
-function checkAuthentication(req: NextRequest): boolean {
+function checkAuthentication(_req: NextRequest): boolean {
   // TEMPORARILY DISABLED FOR TESTING
   // Authentication is disabled to allow testing of tRPC and WebSocket connections
   return true;
