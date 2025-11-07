@@ -88,7 +88,10 @@ export class InventoryService {
       return deleted as Inventory.Item;
     } catch (error) {
       // Use Prisma's typed error class for better type safety
-      if (error instanceof PrismaClientKnownRequestError && error.code === 'P2025') {
+      if (
+        error instanceof PrismaClientKnownRequestError &&
+        error.code === 'P2025'
+      ) {
         throw new NotFoundException(`Item with ID ${id} not found`);
       }
       throw error;
