@@ -25,7 +25,6 @@ export default function EditItemPage() {
   const router = useRouter();
   const utils = trpc.useUtils();
   const itemId = params.itemId as string;
-  const [, startTransition] = React.useTransition();
 
   // Fetch all items to find the current one
   const { data: rawItems = [], isLoading } = trpc.inventory.listItems.useQuery(undefined, {
@@ -57,7 +56,7 @@ export default function EditItemPage() {
       utils.inventory.listItems.invalidate();
       toast.success('Item updated successfully');
       // Wrap router.push in startTransition to prevent React state update errors
-      startTransition(() => {
+      React.startTransition(() => {
         router.push(`/inventory/items-catalogue/item/${itemId}`);
       });
     },

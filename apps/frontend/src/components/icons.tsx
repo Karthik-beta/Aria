@@ -38,6 +38,9 @@ import {
   IconTools,
   IconChartCovariate,
   IconFileDescription,
+  IconEye,
+  IconEyeOff,
+  IconLock,
 } from '@tabler/icons-react';
 
 export type Icon = React.ComponentType<IconProps>;
@@ -71,10 +74,18 @@ export const Icons = {
   sun: IconSun,
   moon: IconMoon,
   laptop: IconDeviceLaptop,
+
   github: IconBrandGithub,
+
   twitter: IconBrandTwitter,
+
   check: IconCheck,
+
+  eye: IconEye,
+  eyeOff: IconEyeOff,
+  lock: IconLock,
   catalogue: IconLibrary,
+
   transaction: IconMobiledata,
   report: IconReport,
   serial: IconBarcode,
