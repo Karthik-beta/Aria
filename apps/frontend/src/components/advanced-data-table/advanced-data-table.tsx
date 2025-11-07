@@ -33,9 +33,8 @@ function createError(
  * Advanced Data Table Component
  * Provides enterprise-grade table functionality with virtualization, filtering, and more
  * @template TData - The row data type
- * @template TValue - The cell value type (optional)
  */
-export function AdvancedDataTable<TData extends RowData, TValue = unknown>({
+export function AdvancedDataTable<TData extends RowData>({
   table,
   data: _data,
   totalItems: _totalItems,
@@ -73,7 +72,7 @@ export function AdvancedDataTable<TData extends RowData, TValue = unknown>({
   enableAdvancedFilter: _enableAdvancedFilter = true,
   className,
   containerClassName,
-}: AdvancedDataTableProps<TData, TValue>) {
+}: AdvancedDataTableProps<TData>) {
   const [isLoading, _setIsLoading] = React.useState(false);
   const [_error, setError] = React.useState<AdvancedDataTableError | null>(null);
 

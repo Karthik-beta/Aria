@@ -65,9 +65,12 @@ export default function InventoryItemsPage() {
 
   // Stable delete handler using ref pattern - prevents columns re-memoization
   const handleDeleteRef = React.useRef<(id: string) => void>(() => {
+    // Initial no-op function
+  });
+  handleDeleteRef.current = (id: string) => {
     setItemToDelete(id);
     setIsDeleteDialogOpen(true);
-  });
+  };
 
   // Wrapped in useCallback for external use
   const handleDelete = React.useCallback((id: string) => {
