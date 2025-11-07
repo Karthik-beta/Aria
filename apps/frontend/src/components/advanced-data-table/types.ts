@@ -100,9 +100,8 @@ export type BulkAction<TData extends RowData = RowData> = {
 /**
  * Props for the AdvancedDataTable component
  * @template TData - The row data type extending RowData
- * @template TValue - The cell value type (optional, defaults to unknown)
  */
-export interface AdvancedDataTableProps<TData extends RowData, TValue = unknown> {
+export interface AdvancedDataTableProps<TData extends RowData> {
   // Core table configuration
   /** TanStack Table instance (required) */
   table: Table<TData>;

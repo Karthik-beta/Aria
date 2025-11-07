@@ -25,7 +25,7 @@ export default function EditItemPage() {
   const router = useRouter();
   const utils = trpc.useUtils();
   const itemId = params.itemId as string;
-  const [isPending, startTransition] = React.useTransition();
+  const [, startTransition] = React.useTransition();
 
   // Fetch all items to find the current one
   const { data: rawItems = [], isLoading } = trpc.inventory.listItems.useQuery(undefined, {

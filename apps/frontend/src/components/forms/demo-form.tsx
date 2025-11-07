@@ -108,9 +108,9 @@ export default function DemoForm() {
     },
   });
 
-  const onSubmit = (data: DemoFormData) => {
+  const onSubmit = (_data: DemoFormData) => {
     // Demo form - data would be submitted to API in production
-    alert('Form submitted successfully!');
+    console.info('Form submitted successfully!');
   };
 
   return (

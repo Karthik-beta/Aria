@@ -16,7 +16,6 @@ import {
   type BulkAction,
 } from '@/components/advanced-data-table';
 import { type ColumnDef, type Row } from '@tanstack/react-table';
-import type { Table as TanstackTable } from '@tanstack/react-table';
 import { type Inventory } from '@aria/types';
 import { trpc } from '@/lib/trpc';
 import { Badge } from '@/components/ui/badge';
@@ -65,11 +64,10 @@ export default function InventoryItemsPage() {
   const [itemToDelete, setItemToDelete] = React.useState<string | null>(null);
 
   // Stable delete handler using ref pattern - prevents columns re-memoization
-  const handleDeleteRef = React.useRef<(id: string) => void>(() => {});
-  handleDeleteRef.current = (id: string) => {
+  const handleDeleteRef = React.useRef<(id: string) => void>(() => {
     setItemToDelete(id);
     setIsDeleteDialogOpen(true);
-  };
+  });
 
   // Wrapped in useCallback for external use
   const handleDelete = React.useCallback((id: string) => {
@@ -142,7 +140,7 @@ export default function InventoryItemsPage() {
     [utils]
   );
 
-  const handleSubscriptionError = React.useCallback((error: unknown) => {
+  const handleSubscriptionError = React.useCallback((_error: unknown) => {
     // Guard: only update state if component is still mounted
     if (!isMountedRef.current) return;
 
@@ -150,8 +148,6 @@ export default function InventoryItemsPage() {
     const now = Date.now();
     const timeSinceLastError = now - lastErrorTimeRef.current;
     lastErrorTimeRef.current = now;
-
-    const errorMessage = error instanceof Error ? error.message : 'Connection interrupted';
 
     // Only show error toast for persistent connection issues (3+ consecutive failures within 5 seconds)
     if (errorCountRef.current >= 3 && timeSinceLastError < 5000) {
@@ -499,7 +495,7 @@ export default function InventoryItemsPage() {
         enableGlobalFilter: false,
       },
     ],
-    [] // Empty deps array - official TanStack Table pattern for stable columns
+    [handleDelete] // Include handleDelete to satisfy react-hooks/exhaustive-deps
   );
 
   // Bulk delete handler - Memoized separately to prevent recreating bulk actions
@@ -520,7 +516,7 @@ export default function InventoryItemsPage() {
 
         // Invalidate to refresh the list
         await utils.inventory.listItems.invalidate();
-      } catch (_error) {
+      } catch {
         // Guard: only show toast if component is still mounted
         if (isMountedRef.current) {
           toast.error('Failed to delete some items');

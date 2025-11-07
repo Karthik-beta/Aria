@@ -25,7 +25,7 @@ export default function UserAuthForm() {
     defaultValues,
   });
 
-  const onSubmit = async (data: UserFormValue) => {
+  const onSubmit = async (_data: UserFormValue) => {
     startTransition(() => {
       toast.success('Signed In Successfully!');
     });
