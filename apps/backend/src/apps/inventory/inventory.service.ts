@@ -6,6 +6,7 @@ import {
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import type { Inventory } from '@aria/types';
 import { PrismaService } from '../../shared/prisma.service';
+import { toInventoryItem } from './inventory.types';
 
 /**
  * Simple inventory service with type-safe CRUD operations
@@ -22,7 +23,7 @@ export class InventoryService {
       orderBy: { createdAt: 'desc' },
     });
 
-    return items as Inventory.Item[];
+    return items.map(toInventoryItem);
   }
 
   /**
@@ -45,7 +46,7 @@ export class InventoryService {
       data: { name, sku, quantity },
     });
 
-    return created as Inventory.Item;
+    return toInventoryItem(created);
   }
 
   /**
@@ -73,7 +74,7 @@ export class InventoryService {
       },
     });
 
-    return updated as Inventory.Item;
+    return toInventoryItem(updated);
   }
 
   /**
@@ -85,7 +86,7 @@ export class InventoryService {
         where: { id },
       });
 
-      return deleted as Inventory.Item;
+      return toInventoryItem(deleted);
     } catch (error) {
       // Use Prisma's typed error class for better type safety
       if (
