@@ -95,12 +95,12 @@ export const auth = betterAuth({
     useSecureCookies: process.env.NODE_ENV === 'production',
 
     // Global cookie attributes for cross-site cookies
-    // Required when frontend and backend are on different domains
+    // Required when frontend and backend are on different domains or different ports
     // In production: SameSite=None with Secure for separate domains
-    // In development: Can use Lax if on same domain (e.g., localhost)
+    // In development: Use 'none' with secure=false to allow cross-port requests (localhost:3000 to localhost:3001)
     defaultCookieAttributes: {
-      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'none', // Allow cross-site/cross-port requests
+      secure: false, // Allow non-HTTPS in development
       httpOnly: true, // Prevent JavaScript access to the cookie (XSS protection)
       path: '/', // Cookie available to all routes
     },
@@ -114,8 +114,8 @@ export const auth = betterAuth({
             ? '__Secure-better-auth.session_token'
             : 'better-auth.session_token',
         attributes: {
-          sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'none', // Allow cross-port requests in development
+          secure: false, // Allow non-HTTPS in development
           httpOnly: true, // XSS protection
           partitioned: process.env.NODE_ENV === 'production', // CHIPS only in production
         },
@@ -126,8 +126,8 @@ export const auth = betterAuth({
             ? '__Secure-better-auth.session_data'
             : 'better-auth.session_data',
         attributes: {
-          sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'none', // Allow cross-port requests in development
+          secure: false, // Allow non-HTTPS in development
           httpOnly: true, // XSS protection
           partitioned: process.env.NODE_ENV === 'production', // CHIPS
         },
@@ -138,8 +138,8 @@ export const auth = betterAuth({
             ? '__Secure-better-auth.dont_remember'
             : 'better-auth.dont_remember',
         attributes: {
-          sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'none', // Allow cross-port requests in development
+          secure: false, // Allow non-HTTPS in development
           httpOnly: true, // XSS protection
           partitioned: process.env.NODE_ENV === 'production', // CHIPS
         },

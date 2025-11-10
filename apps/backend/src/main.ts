@@ -1,3 +1,6 @@
+import { config } from 'dotenv';
+import { resolve } from 'path';
+import { readFileSync } from 'fs';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import * as trpcExpress from '@trpc/server/adapters/express';
@@ -5,6 +8,99 @@ import { applyWSSHandler } from '@trpc/server/adapters/ws';
 import { WebSocketServer } from 'ws';
 import { TrpcService } from './trpc/trpc.service';
 import { TrpcContext } from './trpc/trpc.context';
+
+/**
+ * Load environment variables from .env file
+ *
+ * @remarks
+ * In local development, dotenv loads environment variables from .env file.
+ * In Docker/production, environment variables are passed directly to the container.
+ * This ensures DEFAULT_ADMIN_USERNAME, DEFAULT_ADMIN_PASSWORD, etc. are available
+ * during application startup for default user creation.
+ *
+ * Path resolution:
+ * - Development (watch mode): src/main.ts → look in src/../.env (apps/backend/.env)
+ * - Production (compiled): dist/main.js → look up 3 levels to project root
+ * We use process.cwd() as fallback to work in both scenarios
+ *
+ * Note: dotenv.config() returns parsed values but we must check if file exists first.
+ * This approach ensures variables are available even if the file doesn't exist
+ * (important for Docker/production environments).
+ */
+// When running from monorepo root, path is apps/backend/.env
+// When running from apps/backend directory, path is just .env
+// We check both possibilities
+const envPathOptions = [
+  resolve(process.cwd(), 'apps/backend/.env'), // From monorepo root
+  resolve(process.cwd(), '.env'), // From apps/backend directory
+];
+
+let envPath = envPathOptions[0]; // Default to first option
+try {
+  // Find which path actually exists
+  let fileContent: string | undefined;
+  for (const path of envPathOptions) {
+    try {
+      fileContent = readFileSync(path, 'utf-8');
+      envPath = path;
+      break;
+    } catch {
+      // Try next path
+    }
+  }
+
+  if (!fileContent) {
+    throw new Error('No .env file found');
+  }
+
+  const lineCount = fileContent.split('\n').length;
+  console.log(
+    `[ENV] File exists: ${envPath} (${lineCount} lines, ${fileContent.length} bytes)`,
+  );
+
+  // Load .env and explicitly merge with process.env
+  const result = config({ path: envPath, override: true });
+
+  if (result.error) {
+    console.error('[ENV] Error parsing .env file:', result.error.message);
+  } else if (result.parsed) {
+    const parsedCount = Object.keys(result.parsed).length;
+    console.log(`[ENV] Successfully loaded ${parsedCount} variables from .env`);
+    console.log('[ENV] Parsed object from dotenv:', {
+      DEFAULT_ADMIN_USERNAME: result.parsed.DEFAULT_ADMIN_USERNAME,
+      DEFAULT_ADMIN_PASSWORD: result.parsed.DEFAULT_ADMIN_PASSWORD,
+      DEFAULT_ADMIN_EMAIL: result.parsed.DEFAULT_ADMIN_EMAIL,
+    });
+    console.log('[ENV] Process.env after config:', {
+      NODE_ENV: process.env.NODE_ENV,
+      DEFAULT_ADMIN_USERNAME: process.env.DEFAULT_ADMIN_USERNAME,
+      DEFAULT_ADMIN_EMAIL: process.env.DEFAULT_ADMIN_EMAIL,
+    });
+
+    // Manually ensure variables are in process.env if dotenv didn't do it
+    if (
+      !process.env.DEFAULT_ADMIN_USERNAME &&
+      result.parsed.DEFAULT_ADMIN_USERNAME
+    ) {
+      console.log(
+        '[ENV] Manually merging variables from dotenv.parsed into process.env',
+      );
+      Object.assign(process.env, result.parsed);
+      console.log('[ENV] After manual merge:', {
+        DEFAULT_ADMIN_USERNAME: process.env.DEFAULT_ADMIN_USERNAME,
+        DEFAULT_ADMIN_EMAIL: process.env.DEFAULT_ADMIN_EMAIL,
+      });
+    }
+  }
+} catch (error) {
+  if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+    console.log(
+      `[ENV] .env file not found at ${envPath} (expected in Docker/production)`,
+    );
+  } else {
+    console.error('[ENV] Failed to load .env file:', error);
+  }
+}
 
 async function bootstrap() {
   /**

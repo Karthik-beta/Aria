@@ -1,7 +1,7 @@
 'use client';
 
 import { useSession } from '@/lib/auth-client';
-import { useMemo } from 'react';
+import { useMemo, useEffect, useState } from 'react';
 
 /**
  * Extended session type with authorization data
@@ -32,6 +32,38 @@ export interface AuthorizedSession {
  */
 export function useAuth() {
   const { data: session, isPending } = useSession();
+  const [authorizationData, setAuthorizationData] = useState<{
+    roles: string[];
+    permissions: string[];
+    apps: Record<string, { roles: string[] }>;
+    supervisedApps: string[];
+    isActive: boolean;
+  } | null>(null);
+
+  /**
+   * Fetch user's authorization data from backend when session changes
+   *
+   * This calls a Next.js API route which acts as a secure server-side proxy.
+   * The API route can access httpOnly cookies and forwards them to the backend tRPC endpoint.
+   */
+  useEffect(() => {
+    if (session?.user?.id) {
+      fetch('/api/auth/authorization')
+        .then(async (response) => {
+          if (!response.ok) {
+            throw new Error(`Authorization fetch failed: ${response.status}`);
+          }
+          return response.json();
+        })
+        .then((data) => {
+          setAuthorizationData(data);
+        })
+        .catch((error) => {
+          console.error('Failed to fetch authorization data:', error);
+          // Keep default empty authorization on error
+        });
+    }
+  }, [session?.user?.id]);
 
   const authContext = useMemo(() => {
     if (!session) {
@@ -53,19 +85,12 @@ export function useAuth() {
       };
     }
 
-    const sessionData = session.session as unknown as {
-      roles?: string[];
-      permissions?: string[];
-      apps?: Record<string, { roles: string[] }>;
-      supervisedApps?: string[];
-      isActive?: boolean;
-    };
-
-    const roles = sessionData.roles || [];
-    const permissions = sessionData.permissions || [];
-    const apps = sessionData.apps || {};
-    const supervisedApps = sessionData.supervisedApps || [];
-    const isActive = sessionData.isActive !== false;
+    // Use authorization data from backend, fallback to session data
+    const roles = authorizationData?.roles ?? [];
+    const permissions = authorizationData?.permissions ?? [];
+    const apps = authorizationData?.apps ?? {};
+    const supervisedApps = authorizationData?.supervisedApps ?? [];
+    const isActive = authorizationData?.isActive ?? true;
 
     /**
      * Check if user has a specific permission
@@ -160,7 +185,7 @@ export function useAuth() {
       isSupervisorOf,
       isLoading: false,
     };
-  }, [session, isPending]);
+  }, [session, isPending, authorizationData]);
 
   return authContext;
 }
