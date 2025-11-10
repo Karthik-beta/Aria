@@ -178,11 +178,12 @@ export class RolePermissionGuard implements CanActivate {
     const request = context.switchToHttp().getRequest();
     const user = request.user;
 
+    const rawAppKey: unknown = request.appContext?.appKey;
+    const appKey = typeof rawAppKey === 'string' ? rawAppKey : undefined;
+
     if (!user || !user.id) {
       throw new UnauthorizedException('No authenticated user found');
     }
-
-    const appKey = request.appContext?.appKey;
 
     // Check required roles
     if (requiredRoles && requiredRoles.length > 0) {

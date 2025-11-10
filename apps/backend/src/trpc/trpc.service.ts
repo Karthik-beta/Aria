@@ -3,6 +3,7 @@ import { router } from './trpc';
 import { InventoryRouter } from '../apps/inventory/trpc/inventory.router';
 import { AdminRouter } from './routers/admin-router.service';
 import { authorizationRouter } from './routers/authorization.router';
+import { accountRouter } from './routers/account.router';
 
 /**
  * TrpcService is responsible for creating and managing the main tRPC router.
@@ -33,6 +34,7 @@ export class TrpcService implements OnModuleInit {
       inventory: this.inventoryRouter.getRouter(),
       admin: this.adminRouter.getRouter(),
       authorization: authorizationRouter,
+      account: accountRouter,
     });
   }
 

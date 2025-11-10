@@ -141,6 +141,8 @@ model User {
   displayName     String?         @db.VarChar(150)
   isActive        Boolean         @default(true)
   managerId       String?
+  mustChangePassword Boolean      @default(false)
+  passwordChangedAt  DateTime?
   accounts        Account[]
   supervisedApps  AppSupervisor[] @relation("AppSupervisor")
   sessions        Session[]

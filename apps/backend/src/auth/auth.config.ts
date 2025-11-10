@@ -1,6 +1,6 @@
 import { betterAuth } from 'better-auth';
 import { prismaAdapter } from 'better-auth/adapters/prisma';
-import { username } from 'better-auth/plugins';
+import { customSession, username } from 'better-auth/plugins';
 import { PrismaClient } from '@prisma/client';
 
 // Import the singleton Prisma client from shared location
@@ -47,6 +47,25 @@ export const auth = betterAuth({
     requireEmailVerification: false, // Disabled for production simplicity
     minPasswordLength: 8,
     maxPasswordLength: 128,
+    sendResetPassword: async ({ user, url }) => {
+      await sendPasswordResetEmail(user.email, url);
+    },
+    onPasswordReset: async ({ user }) => {
+      try {
+        await prisma.user.update({
+          where: { id: user.id },
+          data: {
+            mustChangePassword: false,
+            passwordChangedAt: new Date(),
+          },
+        });
+      } catch (error) {
+        console.error(
+          '[Auth] Failed to update password reset metadata:',
+          error,
+        );
+      }
+    },
   },
 
   // Username plugin for username-based sign-in
@@ -54,6 +73,21 @@ export const auth = betterAuth({
     username({
       minUsernameLength: 3,
       maxUsernameLength: 20,
+    }),
+    customSession(({ user, session }) => {
+      const extendedUser = user as typeof user & {
+        mustChangePassword?: boolean;
+        passwordChangedAt?: Date | null;
+      };
+
+      return Promise.resolve({
+        user: {
+          ...user,
+          mustChangePassword: extendedUser.mustChangePassword ?? false,
+          passwordChangedAt: extendedUser.passwordChangedAt ?? null,
+        },
+        session,
+      });
     }),
   ],
 
@@ -137,3 +171,76 @@ export const auth = betterAuth({
 });
 
 export type Auth = typeof auth;
+
+async function sendPasswordResetEmail(email: string, resetUrl: string) {
+  const apiKey = process.env.RESEND_API_KEY;
+  const fromAddress = process.env.AUTH_EMAIL_FROM || 'no-reply@aria.local';
+
+  // Always log for audit trail, even if we cannot send the email
+  console.info('[Auth] Issuing password reset email', {
+    email,
+    resetUrl,
+    provider: apiKey ? 'resend' : 'stdout',
+  });
+
+  if (!apiKey) {
+    console.warn(
+      '[Auth] RESEND_API_KEY not configured. Password reset email will not be delivered.',
+    );
+    return;
+  }
+
+  try {
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        from: fromAddress,
+        to: [email],
+        subject: 'Reset your Aria ERP password',
+        html: buildPasswordResetEmail(resetUrl),
+      }),
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      console.error(
+        '[Auth] Failed to send password reset email via Resend',
+        text,
+      );
+    }
+  } catch (error) {
+    console.error('[Auth] Error sending password reset email:', error);
+  }
+}
+
+function buildPasswordResetEmail(resetUrl: string) {
+  return `
+    <div style="font-family: Arial, sans-serif; line-height: 1.5; color: #111827;">
+      <h1 style="font-size: 20px;">Reset your Aria ERP password</h1>
+      <p>
+        We received a request to reset the password for your Aria ERP account.
+        Click the button below to choose a new password. This link expires in 30 minutes.
+      </p>
+      <p style="margin: 24px 0;">
+        <a
+          href="${resetUrl}"
+          style="display: inline-block; background-color: #0f172a; color: #ffffff; padding: 12px 20px; border-radius: 6px; text-decoration: none; font-weight: 600;"
+        >
+          Reset password
+        </a>
+      </p>
+      <p>
+        If you did not request this change, you can safely ignore this email.
+        Your password will remain the same.
+      </p>
+      <p style="font-size: 12px; color: #6b7280; margin-top: 32px;">
+        If the button doesn’t work, copy and paste this URL into your browser:<br />
+        <span style="word-break: break-all;">${resetUrl}</span>
+      </p>
+    </div>
+  `;
+}

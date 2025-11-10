@@ -11,12 +11,14 @@ import { UserAvatarProfile } from '@/components/user-avatar-profile';
 import { usePathname, useRouter } from 'next/navigation';
 import { signOut, useSession } from '@/lib/auth/client';
 import { toast } from 'sonner';
+import { trpc } from '@/lib/trpc/client';
 import {
   IconCreditCard as _IconCreditCard,
   IconLogout,
   IconBell,
   IconSettings as _IconSettings,
   IconUserCircle,
+  IconShield,
 } from '@tabler/icons-react';
 
 /**
@@ -39,6 +41,11 @@ export default function UserDropdownContent({ appRoute, className }: Props) {
   const { data: session } = useSession();
   const router = useRouter();
   const pathname = usePathname();
+
+  // Fetch user authorization to check for admin roles
+  const { data: userAuth } = trpc.authorization.getUserAuthorization.useQuery(undefined, {
+    enabled: !!session?.user,
+  });
 
   const user = React.useMemo(() => {
     const su = session?.user;
@@ -90,6 +97,16 @@ export default function UserDropdownContent({ appRoute, className }: Props) {
     return parts.length > 0 ? `/${parts[0]}` : '';
   }, [appRoute, pathname]);
 
+  // Check if user has admin access based on roles from user authorization
+  const hasAdminAccess = React.useMemo(() => {
+    if (!userAuth?.roles || userAuth.roles.length === 0) return false;
+
+    // Check if any role key contains 'admin' or 'super_admin'
+    return userAuth.roles.some((roleKey: string) =>
+      ['admin', 'super_admin'].includes(roleKey.toLowerCase())
+    );
+  }, [userAuth]);
+
   return (
     <DropdownMenuContent className={className} side="bottom" align="end" sideOffset={4}>
       <DropdownMenuLabel className="p-0 font-normal">
@@ -108,6 +125,15 @@ export default function UserDropdownContent({ appRoute, className }: Props) {
           <IconBell className="mr-2 h-4 w-4" />
           Notifications
         </DropdownMenuItem>
+        {hasAdminAccess && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => router.push('/admin')}>
+              <IconShield className="mr-2 h-4 w-4" />
+              Admin Console
+            </DropdownMenuItem>
+          </>
+        )}
       </DropdownMenuGroup>
       <DropdownMenuSeparator />
 

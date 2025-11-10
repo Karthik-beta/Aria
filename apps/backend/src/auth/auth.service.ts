@@ -103,6 +103,23 @@ export class AuthService implements OnModuleInit {
         }
       }
 
+      if (userCreated) {
+        try {
+          await this.prisma.user.update({
+            where: { email },
+            data: {
+              mustChangePassword: false,
+              passwordChangedAt: new Date(),
+            },
+          });
+        } catch (updateError: any) {
+          this.logger.error(
+            'Failed to update default admin password metadata (non-critical):',
+            updateError?.message || updateError,
+          );
+        }
+      }
+
       // Always seed authorization system and assign super_admin role if user exists or was created
       if (userCreated) {
         try {

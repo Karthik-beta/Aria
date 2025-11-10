@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 import { router, protectedProcedure } from '../trpc';
 import { PrismaClient } from '@prisma/client';
+import { auth } from '../../auth/auth.config';
 import {
   RoleService,
   PermissionService,
@@ -9,6 +10,7 @@ import {
 import { PolicyService } from '../../authorization/policy.service';
 import { ScopeService } from '../../authorization/scope.service';
 import { AuditService } from '../../authorization/audit.service';
+import { generateTemporaryPassword } from '../../auth/password.util';
 
 // Initialize services
 const prisma = new PrismaClient();
@@ -35,6 +37,17 @@ async function requirePermission(userId: string, permission: string) {
   }
 }
 
+function getActorUserId(ctx: { user?: { id?: unknown } }) {
+  if (!ctx.user || typeof ctx.user.id !== 'string') {
+    throw new TRPCError({
+      code: 'UNAUTHORIZED',
+      message: 'Authenticated session is missing a valid user id',
+    });
+  }
+
+  return ctx.user.id;
+}
+
 /**
  * Admin router for user, role, and permission management
  *
@@ -57,7 +70,8 @@ export const adminRouter = router({
       }),
     )
     .query(async ({ ctx, input }) => {
-      await requirePermission(ctx.user.id, 'system:user.read');
+      const actorUserId = getActorUserId(ctx);
+      await requirePermission(actorUserId, 'system:user.read');
 
       const skip = (input.page - 1) * input.limit;
       const where: any = {};
@@ -84,8 +98,11 @@ export const adminRouter = router({
             email: true,
             name: true,
             displayName: true,
+            username: true,
             isActive: true,
             department: true,
+            mustChangePassword: true,
+            passwordChangedAt: true,
             createdAt: true,
             userRoles: {
               include: {
@@ -120,7 +137,8 @@ export const adminRouter = router({
   getUser: protectedProcedure
     .input(z.object({ userId: z.string() }))
     .query(async ({ ctx, input }) => {
-      await requirePermission(ctx.user.id, 'system:user.read');
+      const actorUserId = getActorUserId(ctx);
+      await requirePermission(actorUserId, 'system:user.read');
 
       const user = await ctx.prisma.user.findUnique({
         where: { id: input.userId },
@@ -183,30 +201,122 @@ export const adminRouter = router({
     .input(
       z.object({
         email: z.string().email(),
+        username: z
+          .string()
+          .min(3)
+          .max(32)
+          .regex(
+            /^[a-zA-Z0-9._-]+$/,
+            'Username can include letters, numbers, ., _, and -',
+          ),
         name: z.string().min(1),
         displayName: z.string().optional(),
         department: z.string().optional(),
         managerId: z.string().optional(),
         roleKeys: z.array(z.string()).optional(),
         appKey: z.string().optional(),
+        passwordStrategy: z.enum(['auto', 'manual']).default('auto'),
+        password: z.string().min(8).max(128).optional(),
+        mustChangePassword: z.boolean().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      const actorUserId = getActorUserId(ctx);
+
       // Check if user can create users (either globally or for specific app)
       if (input.appKey) {
-        await requirePermission(ctx.user.id, `app:${input.appKey}:user.create`);
+        await requirePermission(actorUserId, `app:${input.appKey}:user.create`);
       } else {
-        await requirePermission(ctx.user.id, 'system:user.manage');
+        await requirePermission(actorUserId, 'system:user.manage');
       }
 
-      // Create user
-      const user = await ctx.prisma.user.create({
+      const prismaTx = ctx.prisma;
+
+      // Ensure email/username uniqueness prior to provisioning
+      const existingUser = await prismaTx.user.findFirst({
+        where: {
+          OR: [{ email: input.email }, { username: input.username }],
+        },
+      });
+
+      if (existingUser) {
+        throw new TRPCError({
+          code: 'CONFLICT',
+          message: 'A user with the same email or username already exists.',
+        });
+      }
+
+      const passwordStrategy = input.passwordStrategy ?? 'auto';
+      if (passwordStrategy === 'manual' && !input.password) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'Password is required when using manual password strategy.',
+        });
+      }
+
+      const tempPassword =
+        passwordStrategy === 'auto'
+          ? generateTemporaryPassword(14)
+          : (input.password as string);
+
+      const signUpRequest = new Request(
+        `${process.env.BETTER_AUTH_URL || 'http://localhost:3001'}/api/auth/sign-up/email`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            email: input.email,
+            password: tempPassword,
+            name: input.name,
+            username: input.username,
+          }),
+        },
+      );
+
+      const signUpResponse = await auth.handler(signUpRequest);
+
+      if (!signUpResponse.ok) {
+        let errorMessage = 'Failed to create user account.';
+        try {
+          const errorData = await signUpResponse.json();
+          if (errorData?.error?.message) {
+            errorMessage = errorData.error.message;
+          }
+        } catch {
+          const fallbackText = await signUpResponse.text();
+          if (fallbackText) {
+            errorMessage = fallbackText;
+          }
+        }
+
+        throw new TRPCError({ code: 'BAD_REQUEST', message: errorMessage });
+      }
+
+      const createdUserPayload = await signUpResponse.json();
+      const createdUserId = createdUserPayload?.user?.id;
+
+      if (!createdUserId) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'User provisioning succeeded but user id was not returned.',
+        });
+      }
+
+      const mustChangePassword =
+        input.mustChangePassword ??
+        (passwordStrategy === 'auto' ? true : false);
+
+      await prismaTx.user.update({
+        where: { id: createdUserId },
         data: {
-          email: input.email,
-          name: input.name,
           displayName: input.displayName || input.name,
           department: input.department,
           managerId: input.managerId,
+          username: input.username,
+          mustChangePassword,
+          passwordChangedAt: mustChangePassword ? null : new Date(),
           isActive: true,
         },
       });
@@ -219,7 +329,7 @@ export const adminRouter = router({
 
           await ctx.prisma.userRole.create({
             data: {
-              userId: user.id,
+              userId: createdUserId,
               roleId: role.id,
               appKey: input.appKey,
             },
@@ -227,14 +337,40 @@ export const adminRouter = router({
         }
       }
 
-      // Audit log
-      await auditService.logUserCreated(ctx.user.id, user.id, {
-        email: user.email,
-        roles: input.roleKeys,
-        appKey: input.appKey,
+      const user = await prismaTx.user.findUnique({
+        where: { id: createdUserId },
+        include: {
+          userRoles: {
+            include: {
+              role: true,
+            },
+          },
+        },
       });
 
-      return user;
+      if (!user) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Failed to load user after creation.',
+        });
+      }
+
+      // Audit log
+      await auditService.logUserCreated(actorUserId, user.id, {
+        email: user.email,
+        username: user.username,
+        roles: input.roleKeys,
+        appKey: input.appKey,
+        passwordStrategy,
+        mustChangePassword,
+      });
+
+      return {
+        user,
+        generatedPassword:
+          passwordStrategy === 'auto' ? tempPassword : undefined,
+        mustChangePassword,
+      };
     }),
 
   /**
@@ -251,7 +387,8 @@ export const adminRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      await requirePermission(ctx.user.id, 'system:user.manage');
+      const actorUserId = getActorUserId(ctx);
+      await requirePermission(actorUserId, 'system:user.manage');
 
       const { userId, ...updateData } = input;
 
@@ -260,7 +397,7 @@ export const adminRouter = router({
         data: updateData,
       });
 
-      await auditService.logUserUpdated(ctx.user.id, userId, updateData);
+      await auditService.logUserUpdated(actorUserId, userId, updateData);
 
       return user;
     }),
@@ -271,14 +408,15 @@ export const adminRouter = router({
   disableUser: protectedProcedure
     .input(z.object({ userId: z.string() }))
     .mutation(async ({ ctx, input }) => {
-      await requirePermission(ctx.user.id, 'system:user.manage');
+      const actorUserId = getActorUserId(ctx);
+      await requirePermission(actorUserId, 'system:user.manage');
 
       const user = await ctx.prisma.user.update({
         where: { id: input.userId },
         data: { isActive: false },
       });
 
-      await auditService.logUserStatusChanged(ctx.user.id, input.userId, false);
+      await auditService.logUserStatusChanged(actorUserId, input.userId, false);
 
       // Invalidate user's policy cache
       policyService.invalidateUserCache(input.userId);
@@ -292,14 +430,15 @@ export const adminRouter = router({
   enableUser: protectedProcedure
     .input(z.object({ userId: z.string() }))
     .mutation(async ({ ctx, input }) => {
-      await requirePermission(ctx.user.id, 'system:user.manage');
+      const actorUserId = getActorUserId(ctx);
+      await requirePermission(actorUserId, 'system:user.manage');
 
       const user = await ctx.prisma.user.update({
         where: { id: input.userId },
         data: { isActive: true },
       });
 
-      await auditService.logUserStatusChanged(ctx.user.id, input.userId, true);
+      await auditService.logUserStatusChanged(actorUserId, input.userId, true);
 
       policyService.invalidateUserCache(input.userId);
 
@@ -312,10 +451,11 @@ export const adminRouter = router({
   deleteUser: protectedProcedure
     .input(z.object({ userId: z.string() }))
     .mutation(async ({ ctx, input }) => {
-      await requirePermission(ctx.user.id, 'system:user.manage');
+      const actorUserId = getActorUserId(ctx);
+      await requirePermission(actorUserId, 'system:user.manage');
 
       // Prevent self-deletion
-      if (input.userId === ctx.user.id) {
+      if (input.userId === actorUserId) {
         throw new TRPCError({
           code: 'BAD_REQUEST',
           message: 'Cannot delete your own account',
@@ -328,7 +468,7 @@ export const adminRouter = router({
         data: { isActive: false },
       });
 
-      await auditService.logUserDeleted(ctx.user.id, input.userId);
+      await auditService.logUserDeleted(actorUserId, input.userId);
 
       policyService.invalidateUserCache(input.userId);
 
@@ -349,12 +489,10 @@ export const adminRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      // Check permission
-      if (input.appKey) {
-        await requirePermission(ctx.user.id, `app:${input.appKey}:role.assign`);
-      } else {
-        await requirePermission(ctx.user.id, 'system:role.assign');
-      }
+      const actorUserId = getActorUserId(ctx);
+      // Check permission - use system:role.manage which exists in seed data
+      // Users with system:* (super_admin) will match this via wildcard
+      await requirePermission(actorUserId, 'system:role.manage');
 
       const role = await roleService.getRoleByKey(input.roleKey);
       if (!role) {
@@ -386,7 +524,7 @@ export const adminRouter = router({
       });
 
       await auditService.logRoleAssigned(
-        ctx.user.id,
+        actorUserId,
         input.userId,
         input.roleKey,
         input.appKey,
@@ -409,12 +547,10 @@ export const adminRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      // Check permission
-      if (input.appKey) {
-        await requirePermission(ctx.user.id, `app:${input.appKey}:role.assign`);
-      } else {
-        await requirePermission(ctx.user.id, 'system:role.assign');
-      }
+      const actorUserId = getActorUserId(ctx);
+      // Check permission - use system:role.manage which exists in seed data
+      // Users with system:* (super_admin) will match this via wildcard
+      await requirePermission(actorUserId, 'system:role.manage');
 
       const role = await roleService.getRoleByKey(input.roleKey);
       if (!role) {
@@ -430,7 +566,7 @@ export const adminRouter = router({
       });
 
       await auditService.logRoleRevoked(
-        ctx.user.id,
+        actorUserId,
         input.userId,
         input.roleKey,
         input.appKey,
@@ -454,8 +590,9 @@ export const adminRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      const actorUserId = getActorUserId(ctx);
       await requirePermission(
-        ctx.user.id,
+        actorUserId,
         `app:${input.appKey}:supervisor.assign`,
       );
 
@@ -490,7 +627,7 @@ export const adminRouter = router({
       });
 
       await auditService.logSupervisorAssigned(
-        ctx.user.id,
+        actorUserId,
         input.userId,
         input.appKey,
       );
@@ -511,8 +648,9 @@ export const adminRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      const actorUserId = getActorUserId(ctx);
       await requirePermission(
-        ctx.user.id,
+        actorUserId,
         `app:${input.appKey}:supervisor.assign`,
       );
 
@@ -532,7 +670,7 @@ export const adminRouter = router({
       });
 
       await auditService.logSupervisorRevoked(
-        ctx.user.id,
+        actorUserId,
         input.userId,
         input.appKey,
       );
@@ -548,7 +686,8 @@ export const adminRouter = router({
    * List all roles with permissions
    */
   listRoles: protectedProcedure.query(async ({ ctx }) => {
-    await requirePermission(ctx.user.id, 'system:role.read');
+    const actorUserId = getActorUserId(ctx);
+    await requirePermission(actorUserId, 'system:role.read');
     return prisma.role.findMany({
       include: {
         rolePermissions: {
@@ -567,7 +706,8 @@ export const adminRouter = router({
   getRole: protectedProcedure
     .input(z.object({ roleKey: z.string() }))
     .query(async ({ ctx, input }) => {
-      await requirePermission(ctx.user.id, 'system:role.read');
+      const actorUserId = getActorUserId(ctx);
+      await requirePermission(actorUserId, 'system:role.read');
       const role = await roleService.getRoleWithPermissions(input.roleKey);
       if (!role) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Role not found' });
@@ -589,7 +729,8 @@ export const adminRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      await requirePermission(ctx.user.id, 'system:role.manage');
+      const actorUserId = getActorUserId(ctx);
+      await requirePermission(actorUserId, 'system:role.manage');
       return roleService.createRole(input);
     }),
 
@@ -606,7 +747,8 @@ export const adminRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      await requirePermission(ctx.user.id, 'system:role.manage');
+      const actorUserId = getActorUserId(ctx);
+      await requirePermission(actorUserId, 'system:role.manage');
       const { roleKey, ...updates } = input;
       return roleService.updateRole(roleKey, updates);
     }),
@@ -617,7 +759,8 @@ export const adminRouter = router({
   deleteRole: protectedProcedure
     .input(z.object({ roleKey: z.string() }))
     .mutation(async ({ ctx, input }) => {
-      await requirePermission(ctx.user.id, 'system:role.manage');
+      const actorUserId = getActorUserId(ctx);
+      await requirePermission(actorUserId, 'system:role.manage');
       await roleService.deleteRole(input.roleKey);
       return { success: true };
     }),
@@ -633,7 +776,8 @@ export const adminRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      await requirePermission(ctx.user.id, 'system:role.manage');
+      const actorUserId = getActorUserId(ctx);
+      await requirePermission(actorUserId, 'system:role.manage');
       await roleService.addPermission(input.roleKey, input.permissionKey);
       return { success: true };
     }),
@@ -649,7 +793,8 @@ export const adminRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      await requirePermission(ctx.user.id, 'system:role.manage');
+      const actorUserId = getActorUserId(ctx);
+      await requirePermission(actorUserId, 'system:role.manage');
       await roleService.removePermission(input.roleKey, input.permissionKey);
       return { success: true };
     }),
@@ -668,7 +813,8 @@ export const adminRouter = router({
         .optional(),
     )
     .query(async ({ ctx, input }) => {
-      await requirePermission(ctx.user.id, 'system:permission.read');
+      const actorUserId = getActorUserId(ctx);
+      await requirePermission(actorUserId, 'system:permission.read');
       const permissions = await permissionService.listPermissions(
         input ? { scope: input.scope } : undefined,
       );
@@ -689,7 +835,8 @@ export const adminRouter = router({
   getPermission: protectedProcedure
     .input(z.object({ permissionKey: z.string() }))
     .query(async ({ ctx, input }) => {
-      await requirePermission(ctx.user.id, 'system:permission.read');
+      const actorUserId = getActorUserId(ctx);
+      await requirePermission(actorUserId, 'system:permission.read');
       const permission = await permissionService.getPermissionByKey(
         input.permissionKey,
       );
@@ -715,7 +862,8 @@ export const adminRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      await requirePermission(ctx.user.id, 'system:permission.manage');
+      const actorUserId = getActorUserId(ctx);
+      await requirePermission(actorUserId, 'system:permission.manage');
       return permissionService.createPermission(input);
     }),
 
@@ -731,7 +879,8 @@ export const adminRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      await requirePermission(ctx.user.id, 'system:permission.manage');
+      const actorUserId = getActorUserId(ctx);
+      await requirePermission(actorUserId, 'system:permission.manage');
       const { permissionKey, ...updates } = input;
       return permissionService.updatePermission(permissionKey, updates);
     }),
@@ -742,7 +891,8 @@ export const adminRouter = router({
   deletePermission: protectedProcedure
     .input(z.object({ permissionKey: z.string() }))
     .mutation(async ({ ctx, input }) => {
-      await requirePermission(ctx.user.id, 'system:permission.manage');
+      const actorUserId = getActorUserId(ctx);
+      await requirePermission(actorUserId, 'system:permission.manage');
       await permissionService.deletePermission(input.permissionKey);
       return { success: true };
     }),
@@ -764,7 +914,8 @@ export const adminRouter = router({
       }),
     )
     .query(async ({ ctx, input }) => {
-      await requirePermission(ctx.user.id, 'system:audit.read');
+      const actorUserId = getActorUserId(ctx);
+      await requirePermission(actorUserId, 'system:audit.read');
       return auditService.queryLogs({
         fromDate: input.startDate,
         toDate: input.endDate,

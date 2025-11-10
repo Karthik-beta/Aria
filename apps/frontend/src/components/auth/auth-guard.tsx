@@ -28,8 +28,21 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   const { data: session, isPending, error } = authClient.useSession();
 
   // Public routes that don't require authentication
-  const publicRoutes = ['/auth/sign-in', '/auth/sign-up'];
+  const publicRoutes = [
+    '/auth/sign-in',
+    '/auth/sign-up',
+    '/auth/forgot-password',
+    '/auth/reset-password',
+  ];
   const isPublicRoute = publicRoutes.some((route) => pathname.startsWith(route));
+  const isChangePasswordRoute = pathname.startsWith('/auth/change-password');
+
+  const mustChangePassword = Boolean(
+    session?.user &&
+      typeof session.user === 'object' &&
+      'mustChangePassword' in session.user &&
+      (session.user as Record<string, unknown>).mustChangePassword
+  );
 
   React.useEffect(() => {
     // Skip authentication for public routes (sign-in, sign-up pages)
@@ -51,8 +64,22 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     // Redirect unauthenticated users to sign-in
     if (!session) {
       router.push('/auth/sign-in');
+      return;
     }
-  }, [session, isPending, error, router, pathname, isPublicRoute]);
+
+    if (mustChangePassword && !isChangePasswordRoute) {
+      router.push('/auth/change-password');
+    }
+  }, [
+    session,
+    isPending,
+    error,
+    router,
+    pathname,
+    isPublicRoute,
+    mustChangePassword,
+    isChangePasswordRoute,
+  ]);
 
   // Show loading state while checking authentication (only for protected routes)
   if (!isPublicRoute && isPending) {
@@ -68,6 +95,10 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 
   // Show nothing while redirecting (only for protected routes)
   if (!isPublicRoute && !session) {
+    return null;
+  }
+
+  if (mustChangePassword && !isPublicRoute && !isChangePasswordRoute) {
     return null;
   }
 

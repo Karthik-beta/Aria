@@ -45,8 +45,6 @@ try {
     throw new Error('No .env file found');
   }
 
-  const lineCount = fileContent.split('\n').length;
-
   // Load .env and explicitly merge with process.env
   const result = config({ path: envPath, override: true });
 

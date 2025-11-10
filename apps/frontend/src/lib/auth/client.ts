@@ -1,5 +1,5 @@
 import { createAuthClient } from 'better-auth/react';
-import { usernameClient } from 'better-auth/client/plugins';
+import { customSessionClient, usernameClient } from 'better-auth/client/plugins';
 
 /**
  * Better Auth client for React
@@ -11,7 +11,7 @@ const baseURL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001').rep
 
 export const authClient = createAuthClient({
   baseURL,
-  plugins: [usernameClient()],
+  plugins: [usernameClient(), customSessionClient()],
   fetchOptions: {
     credentials: 'include', // Include cookies for cross-site requests
     onError(context) {

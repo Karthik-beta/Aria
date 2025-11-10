@@ -67,6 +67,7 @@ docker run -d --name postgres \
 **Option B: Local PostgreSQL**
 
 Ensure it's running and accessible:
+
 ```bash
 psql -U postgres -d postgres -c "SELECT 1"
 ```
@@ -168,6 +169,8 @@ bun nest g service users
 
 # Next.js follows file-based routing
 # Create files directly in apps/frontend/src/app/
+```
+
 ```
 
 ```

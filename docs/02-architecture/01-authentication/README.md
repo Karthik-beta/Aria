@@ -56,6 +56,7 @@ NODE_ENV=production
 To support cross-site authentication, the backend is configured to allow cross-site cookies.
 
 **`apps/backend/src/auth/auth.config.ts`**
+
 ```typescript
 sessionCookie: {
   name: 'better-auth.session_token',
@@ -69,6 +70,7 @@ sessionCookie: {
 The frontend tRPC client is configured to include credentials in cross-site requests.
 
 **`apps/frontend/src/lib/trpc/provider.tsx`**
+
 ```typescript
 const httpLink = httpBatchLink({
   url: httpUrl,
