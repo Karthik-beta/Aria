@@ -32,14 +32,8 @@ const backendUrl = (
 /**
  * Better Auth configuration with username/password authentication
  *
- * @remarks
- * - Only enabled in production environment
- * - Uses Prisma adapter with PostgreSQL
- * - Username plugin enables username-based authentication
- * - Session configuration for secure cookie handling
- *
- * Note: The prismaAdapter requires proper typing. We pass the PrismaClient instance
- * which better-auth will use for database operations.
+ * Uses Prisma adapter with PostgreSQL and the username plugin for authentication.
+ * Sessions are configured with secure cookie handling and cross-site support.
  */
 export const auth = betterAuth({
   database: prismaAdapter(prisma, {
@@ -87,25 +81,19 @@ export const auth = betterAuth({
   ],
 
   // Advanced configuration for cross-site cookie support
-  // Following official Better Auth patterns for cross-domain scenarios
-  // See: https://github.com/better-auth/better-auth/blob/canary/docs/content/docs/integrations/hono.mdx
   advanced: {
     // Force secure cookies in production (HTTPS required)
-    // In development, allow non-secure cookies for localhost testing
     useSecureCookies: process.env.NODE_ENV === 'production',
 
     // Global cookie attributes for cross-site cookies
-    // Required when frontend and backend are on different domains or different ports
-    // In production: SameSite=None with Secure for separate domains
-    // In development: Use 'none' with secure=false to allow cross-port requests (localhost:3000 to localhost:3001)
     defaultCookieAttributes: {
       sameSite: 'none', // Allow cross-site/cross-port requests
       secure: false, // Allow non-HTTPS in development
-      httpOnly: true, // Prevent JavaScript access to the cookie (XSS protection)
+      httpOnly: true, // XSS protection
       path: '/', // Cookie available to all routes
     },
 
-    // Customize individual cookie attributes if needed
+    // Customize individual cookie attributes
     // Use __Secure- prefix only in production (requires HTTPS)
     cookies: {
       sessionToken: {

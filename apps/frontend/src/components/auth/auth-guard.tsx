@@ -7,22 +7,18 @@ import { authClient } from '@/lib/auth/client';
 /**
  * AuthGuard - Authentication protection for application routes
  *
- * @remarks
  * This component wraps the entire application and enforces authentication
  * on protected routes while allowing access to public auth pages.
  *
- * **Critical**: Public routes (sign-in, sign-up) must be explicitly excluded
- * to prevent infinite redirect loops where AuthGuard tries to redirect to
- * the same auth page the user is already on.
+ * Public routes (sign-in, sign-up) must be explicitly excluded to prevent
+ * infinite redirect loops where AuthGuard tries to redirect to the same auth
+ * page the user is already on.
  *
- * **Better Auth Integration**: Uses `authClient.useSession()` which returns
- * `{ data, error, isPending }`. All three states must be handled:
+ * Uses `authClient.useSession()` which returns `{ data, error, isPending }`.
+ * All three states are handled:
  * - `isPending`: Show loading spinner (only for protected routes)
  * - `error`: Redirect to sign-in
  * - `!session`: Redirect to sign-in (only for protected routes)
- *
- * @see https://www.better-auth.com/docs/concepts/session
- * @see AUTH_GUARD_INFINITE_LOOP_FIX.md for detailed explanation
  *
  * @param children - Child components to render after authentication check
  */

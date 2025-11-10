@@ -14,9 +14,7 @@ import { toast } from 'sonner';
 /**
  * Login form component with username and password authentication
  *
- * @remarks
  * Uses better-auth with username plugin for authentication.
- * Only functional in production environment.
  */
 export function LoginForm() {
   const [username, setUsername] = useState('');

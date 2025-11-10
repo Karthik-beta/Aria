@@ -28,7 +28,7 @@ export interface AuthorizedSession {
 /**
  * Hook to access the current user's authorization context
  *
- * @returns Authorization context with permission/role checking utilities
+ * Provides permission/role checking utilities and authorization data.
  */
 export function useAuth() {
   const { data: session, isPending } = useSession();
@@ -43,8 +43,8 @@ export function useAuth() {
   /**
    * Fetch user's authorization data from backend when session changes
    *
-   * This calls a Next.js API route which acts as a secure server-side proxy.
-   * The API route can access httpOnly cookies and forwards them to the backend tRPC endpoint.
+   * Calls a Next.js API route that acts as a secure server-side proxy,
+   * accessing httpOnly cookies and forwarding them to the backend tRPC endpoint.
    */
   useEffect(() => {
     if (session?.user?.id) {

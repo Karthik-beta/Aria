@@ -18,9 +18,8 @@ if (process.env.NODE_ENV !== 'production') {
 /**
  * Authentication service for managing users and default account creation
  *
- * @remarks
- * - Creates default admin user on startup using better-auth API
- * - Credentials sourced from environment variables
+ * Creates default admin user on startup using better-auth API.
+ * Credentials are sourced from environment variables.
  */
 @Injectable()
 export class AuthService implements OnModuleInit {
@@ -35,21 +34,11 @@ export class AuthService implements OnModuleInit {
   /**
    * Create default admin user from environment variables
    *
-   * @remarks
-   * Uses better-auth's sign-up endpoint via internal fetch to ensure proper password hashing.
+   * Uses better-auth's sign-up endpoint to ensure proper password hashing.
    * Reads DEFAULT_ADMIN_USERNAME, DEFAULT_ADMIN_PASSWORD, and DEFAULT_ADMIN_EMAIL
    * from environment. Skips if user already exists.
    */
   async createDefaultUser() {
-    // DEBUG: Check what's in env
-    console.log('🔍 DEBUG - ALL ENV VARS:', {
-      username: process.env.DEFAULT_ADMIN_USERNAME,
-      password: process.env.DEFAULT_ADMIN_PASSWORD ? '***' : undefined,
-      email: process.env.DEFAULT_ADMIN_EMAIL,
-      nodeEnv: process.env.NODE_ENV,
-      pwd: process.cwd(),
-    });
-
     const username = process.env.DEFAULT_ADMIN_USERNAME;
     const password = process.env.DEFAULT_ADMIN_PASSWORD;
     const email = process.env.DEFAULT_ADMIN_EMAIL;

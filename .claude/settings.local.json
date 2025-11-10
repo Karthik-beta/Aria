@@ -18,7 +18,8 @@
       "mcp__ddg-search__fetch_content",
       "mcp__context7__get-library-docs",
       "WebFetch(domain:trpc.io)",
-      "WebFetch(domain:michaelguay.dev)"
+      "WebFetch(domain:michaelguay.dev)",
+      "WebFetch(domain:www.better-auth.com)"
     ],
     "deny": [],
     "ask": []
