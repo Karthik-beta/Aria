@@ -19,6 +19,7 @@ import {
   IconSettings as _IconSettings,
   IconUserCircle,
   IconShield,
+  IconKey,
 } from '@tabler/icons-react';
 
 /**
@@ -120,6 +121,10 @@ export default function UserDropdownContent({ appRoute, className }: Props) {
         <DropdownMenuItem onClick={() => router.push(`${prefix}/dashboard/profile`)}>
           <IconUserCircle className="mr-2 h-4 w-4" />
           Profile
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => router.push('/auth/change-password')}>
+          <IconKey className="mr-2 h-4 w-4" />
+          Change password
         </DropdownMenuItem>
         <DropdownMenuItem>
           <IconBell className="mr-2 h-4 w-4" />

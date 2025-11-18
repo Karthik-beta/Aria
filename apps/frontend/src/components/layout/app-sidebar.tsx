@@ -27,6 +27,7 @@ import { UserAvatarProfile } from '@/components/user-avatar-profile';
 import type { NavItem } from '../../types';
 import { getAppNavItems } from '../../constants/app-nav-data';
 import { useMediaQuery } from '../../hooks/use-media-query';
+import { useAuth } from '@/hooks/use-auth';
 import {
   IconBell as _IconBell,
   IconChevronRight,
@@ -56,11 +57,19 @@ export const company = {
 
 const LONG_NAV_LABEL_THRESHOLD = 28;
 
-const apps = [
-  { id: '1', name: 'Inventory', logo: IconBox, route: '/inventory' },
-  { id: '2', name: 'Asset', logo: IconBlocks, route: '/asset' },
-  { id: '3', name: 'CRM', logo: IconBrandAsana, route: '/crm' },
-  { id: '4', name: 'HRMS', logo: IconUsers, route: '/hrms' },
+type WorkspaceApp = {
+  id: string;
+  key: 'inventory' | 'asset' | 'crm' | 'hrms';
+  name: string;
+  logo: React.ComponentType<{ className?: string }>;
+  route: string;
+};
+
+const WORKSPACE_APPS: WorkspaceApp[] = [
+  { id: 'inventory', key: 'inventory', name: 'Inventory', logo: IconBox, route: '/inventory' },
+  { id: 'asset', key: 'asset', name: 'Asset', logo: IconBlocks, route: '/asset' },
+  { id: 'crm', key: 'crm', name: 'CRM', logo: IconBrandAsana, route: '/crm' },
+  { id: 'hrms', key: 'hrms', name: 'HRMS', logo: IconUsers, route: '/hrms' },
 ];
 
 const fallbackUser = {
@@ -150,6 +159,16 @@ export default function AppSidebar() {
   const pathname = usePathname();
   const { isOpen } = useMediaQuery();
   const { data: session } = useSession();
+  const { canAccessApp, isLoading: authLoading } = useAuth();
+
+  const accessibleApps = React.useMemo(() => {
+    if (authLoading) {
+      return WORKSPACE_APPS;
+    }
+
+    const allowed = WORKSPACE_APPS.filter((app) => canAccessApp(app.key));
+    return allowed.length > 0 ? allowed : WORKSPACE_APPS;
+  }, [authLoading, canAccessApp]);
 
   // Map auth session user shape to the local user shape expected by UserAvatarProfile
   const user = React.useMemo(() => {
@@ -192,11 +211,11 @@ export default function AppSidebar() {
 
   // Memoize active app calculation to avoid recalculation on every render
   const activeApp = React.useMemo(
-    () => apps.find((app) => pathname.startsWith(app.route)) || apps[0],
-    [pathname]
+    () => accessibleApps.find((app) => pathname.startsWith(app.route)) || accessibleApps[0],
+    [accessibleApps, pathname]
   );
 
-  const activeAppId = React.useMemo(() => activeApp.name.toLowerCase(), [activeApp.name]);
+  const activeAppId = React.useMemo(() => activeApp.key, [activeApp.key]);
 
   // Memoize navigation items to prevent unnecessary recalculations
   const appNavItems = React.useMemo(() => getAppNavItems(activeAppId), [activeAppId]);
@@ -217,7 +236,7 @@ export default function AppSidebar() {
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader>
-        <AppSwitcher apps={apps} defaultApp={activeApp} />
+        <AppSwitcher apps={accessibleApps} defaultApp={activeApp} />
       </SidebarHeader>
       <SidebarContent className="overflow-x-hidden">
         <SidebarGroup>

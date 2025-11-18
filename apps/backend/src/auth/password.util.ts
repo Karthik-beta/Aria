@@ -1,4 +1,4 @@
-import { randomBytes } from 'crypto';
+import { randomBytes, randomInt } from 'crypto';
 
 const UPPER = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
 const LOWER = 'abcdefghijkmnopqrstuvwxyz';
@@ -16,10 +16,10 @@ export function generateTemporaryPassword(length = 16): string {
   }
 
   const required = [
-    UPPER[Math.floor(Math.random() * UPPER.length)],
-    LOWER[Math.floor(Math.random() * LOWER.length)],
-    DIGITS[Math.floor(Math.random() * DIGITS.length)],
-    SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)],
+    UPPER[randomInt(0, UPPER.length)],
+    LOWER[randomInt(0, LOWER.length)],
+    DIGITS[randomInt(0, DIGITS.length)],
+    SYMBOLS[randomInt(0, SYMBOLS.length)],
   ];
 
   const remainingLength = length - required.length;
@@ -38,7 +38,7 @@ export function generateTemporaryPassword(length = 16): string {
 
   // Shuffle characters for unpredictability
   for (let i = chars.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const j = randomInt(0, i + 1);
     [chars[i], chars[j]] = [chars[j], chars[i]];
   }
 

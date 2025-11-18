@@ -1,7 +1,4 @@
 import { router, protectedProcedure } from '../trpc';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
 
 /**
  * Authorization router for fetching user roles and permissions
@@ -23,8 +20,14 @@ export const authorizationRouter = router({
    */
   getUserAuthorization: protectedProcedure.query(async ({ ctx }) => {
     try {
+      const { prisma, user } = ctx;
+
+      if (!prisma) {
+        throw new Error('Prisma client not available in tRPC context');
+      }
+
       // Get user ID from authenticated context
-      const userId = (ctx as any).user?.id;
+      const userId = user?.id;
 
       if (!userId) {
         return {
@@ -57,13 +60,16 @@ export const authorizationRouter = router({
       // Get roles as keys
       const roleKeys = userRoles.map((ur) => ur.role.key);
 
-      // Fetch user's app access
+      // Fetch user's app access through teams and direct role assignments
       const userTeams = await prisma.teamMember.findMany({
         where: { userId },
         include: { team: { select: { appKey: true } } },
       });
 
-      const appKeys = [...new Set(userTeams.map((ut) => ut.team.appKey))];
+      const appKeysFromTeams = userTeams.map((ut) => ut.team.appKey);
+      const appKeysFromRoles = userRoles
+        .map((ur) => ur.appKey)
+        .filter((appKey): appKey is string => Boolean(appKey));
 
       // Fetch supervised apps
       const supervisedApps = await prisma.appSupervisor.findMany({
@@ -74,14 +80,22 @@ export const authorizationRouter = router({
       const supervisedAppKeys = supervisedApps.map((sa) => sa.app.appKey);
 
       // Build apps object with roles per app
+      const scopedAppKeys = new Set<string>([
+        ...appKeysFromTeams,
+        ...appKeysFromRoles,
+      ]);
+
       const apps: Record<string, { roles: string[] }> = {};
-      for (const appKey of appKeys) {
-        const appUserRoles = userRoles.filter(
+      for (const appKey of scopedAppKeys) {
+        const scopedRoles = userRoles.filter(
           (ur) => ur.appKey === appKey || ur.appKey === null,
         );
-        apps[appKey] = {
-          roles: appUserRoles.map((ur) => ur.role.key),
-        };
+
+        if (scopedRoles.length > 0) {
+          apps[appKey] = {
+            roles: scopedRoles.map((ur) => ur.role.key),
+          };
+        }
       }
 
       return {

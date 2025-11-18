@@ -1,10 +1,16 @@
 'use client';
 
-import { ReactNode, useState } from 'react';
+import { ReactNode, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { ProtectedContent } from '@/components/auth/protected-content';
 import ThemeProvider from '@/components/layout/ThemeToggle/theme-provider';
+import {
+  DisplayModeProvider,
+  useDisplayMode,
+  type DisplayMode,
+  type DisplayModeOption,
+} from './display-mode-context';
 import {
   SidebarProvider,
   Sidebar,
@@ -28,6 +34,8 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
@@ -43,7 +51,6 @@ import {
   Sun,
   Monitor,
   Palette,
-  Command,
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
 
@@ -73,17 +80,19 @@ const navItems = [
 export default function AdminLayout({ children }: { children: ReactNode }) {
   return (
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-      <ProtectedContent permission="system:user.read" fallback={<AdminAccessDenied />}>
-        <SidebarProvider>
-          <div className="flex min-h-screen w-full">
-            <AdminSidebar />
-            <SidebarInset className="flex-1">
-              <AdminHeader />
-              <main className="flex-1 p-6">{children}</main>
-            </SidebarInset>
-          </div>
-        </SidebarProvider>
-      </ProtectedContent>
+      <DisplayModeProvider>
+        <ProtectedContent permission="system:user.read" fallback={<AdminAccessDenied />}>
+          <SidebarProvider>
+            <div className="flex min-h-screen w-full">
+              <AdminSidebar />
+              <SidebarInset className="flex-1">
+                <AdminHeader />
+                <main className="flex-1 p-6">{children}</main>
+              </SidebarInset>
+            </div>
+          </SidebarProvider>
+        </ProtectedContent>
+      </DisplayModeProvider>
     </ThemeProvider>
   );
 }
@@ -92,6 +101,18 @@ function AdminHeader() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const { theme, setTheme } = useTheme();
+  const { mode, setMode, options } = useDisplayMode();
+  const displayModeEntries = useMemo(
+    () => Object.entries(options) as Array<[DisplayMode, DisplayModeOption]>,
+    [options]
+  );
+  const activeDisplayMode = options[mode];
+
+  const handleDisplayModeChange = (value: string) => {
+    if (value in options) {
+      setMode(value as DisplayMode);
+    }
+  };
 
   // Handle search submission
   const handleSearch = (e: React.FormEvent) => {
@@ -186,26 +207,28 @@ function AdminHeader() {
         {/* View Mode Selector */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="sm" className="gap-2">
               <Palette className="mr-2 h-4 w-4" />
-              View
+              <span className="hidden sm:inline">
+                View{activeDisplayMode ? `: ${activeDisplayMode.label}` : ''}
+              </span>
+              <span className="sm:hidden">View</span>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuLabel>Display Mode</DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>
-              <LayoutDashboard className="mr-2 h-4 w-4" />
-              Compact
-            </DropdownMenuItem>
-            <DropdownMenuItem>
-              <Monitor className="mr-2 h-4 w-4" />
-              Comfortable
-            </DropdownMenuItem>
-            <DropdownMenuItem>
-              <Command className="mr-2 h-4 w-4" />
-              Detailed
-            </DropdownMenuItem>
+            <DropdownMenuRadioGroup value={mode} onValueChange={handleDisplayModeChange}>
+              {displayModeEntries.map(([key, option]) => (
+                <DropdownMenuRadioItem key={key} value={key} className="items-start gap-3 py-2">
+                  <option.icon className="mt-0.5 h-4 w-4" />
+                  <div className="flex flex-col gap-0.5">
+                    <span className="font-medium leading-none">{option.label}</span>
+                    <span className="text-xs text-muted-foreground">{option.description}</span>
+                  </div>
+                </DropdownMenuRadioItem>
+              ))}
+            </DropdownMenuRadioGroup>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>

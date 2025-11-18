@@ -9,6 +9,10 @@ describe('PolicyService', () => {
   let mockPrisma: any;
   let mockPermissionService: any;
   let mockScopeService: any;
+  let intervalHandle: NodeJS.Timeout;
+  let setIntervalSpy: jest.SpyInstance;
+  let clearIntervalSpy: jest.SpyInstance;
+  let unrefMock: jest.Mock;
 
   beforeEach(async () => {
     mockPrisma = {
@@ -31,6 +35,15 @@ describe('PolicyService', () => {
       isInManagementHierarchy: jest.fn(),
     };
 
+    unrefMock = jest.fn();
+    intervalHandle = { unref: unrefMock } as unknown as NodeJS.Timeout;
+    setIntervalSpy = jest
+      .spyOn(global, 'setInterval')
+      .mockReturnValue(intervalHandle);
+    clearIntervalSpy = jest
+      .spyOn(global, 'clearInterval')
+      .mockImplementation(jest.fn());
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         PolicyService,
@@ -45,6 +58,8 @@ describe('PolicyService', () => {
 
   afterEach(() => {
     jest.clearAllMocks();
+    setIntervalSpy.mockRestore();
+    clearIntervalSpy.mockRestore();
   });
 
   describe('resolveUserPolicy', () => {
@@ -273,6 +288,15 @@ describe('PolicyService', () => {
       const level = await service.getUserMaxRoleLevel('user1');
 
       expect(level).toBe(0);
+    });
+  });
+
+  describe('lifecycle', () => {
+    it('clears cache cleanup interval on destroy', () => {
+      service.onModuleDestroy();
+
+      expect(unrefMock).toHaveBeenCalled();
+      expect(clearIntervalSpy).toHaveBeenCalledWith(intervalHandle);
     });
   });
 });

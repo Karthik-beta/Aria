@@ -1,7 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../shared/prisma.service';
 import type { CreateExpressContextOptions } from '@trpc/server/adapters/express';
-import type { Request, Response } from 'express';
+
+export type TrpcRequestLike = {
+  headers: Record<string, string | string[] | undefined>;
+  [key: string]: unknown;
+};
+
+export type TrpcResponseLike = Record<string, unknown>;
 
 /**
  * tRPC Context for Express adapter
@@ -15,8 +21,8 @@ import type { Request, Response } from 'express';
  * See: https://trpc.io/docs/server/adapters/express
  */
 export interface TrpcContextType {
-  req?: Request;
-  res?: Response;
+  req?: TrpcRequestLike;
+  res?: TrpcResponseLike;
   prisma: PrismaService;
 }
 
@@ -32,8 +38,8 @@ export class TrpcContext {
    */
   create(opts: CreateExpressContextOptions): TrpcContextType {
     return {
-      req: opts.req,
-      res: opts.res,
+      req: opts.req as unknown as TrpcRequestLike,
+      res: opts.res as unknown as TrpcResponseLike,
       prisma: this.prisma,
     };
   }

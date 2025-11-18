@@ -403,6 +403,11 @@ export class PermissionService {
    * e.g., system:* matches system:user.manage
    */
   matchesPattern(permissionKey: string, pattern: string): boolean {
+    if (pattern === 'system:*') {
+      // Allow super admins to satisfy any permission check with system wildcard
+      return true;
+    }
+
     if (pattern === permissionKey) {
       return true;
     }

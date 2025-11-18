@@ -29,6 +29,11 @@ const backendUrl = (
   process.env.BETTER_AUTH_URL || 'http://localhost:3001'
 ).replace(/\/$/, '');
 
+// Determine whether to use secure cookies. In production we require secure cookies.
+// Also allow secure when backendUrl uses https (useful for local HTTPS setups).
+const useSecureCookies =
+  process.env.NODE_ENV === 'production' || backendUrl.startsWith('https');
+
 /**
  * Better Auth configuration with username/password authentication
  *
@@ -74,20 +79,38 @@ export const auth = betterAuth({
       minUsernameLength: 3,
       maxUsernameLength: 20,
     }),
-    customSession(({ user, session }) => {
-      const extendedUser = user as typeof user & {
-        mustChangePassword?: boolean;
-        passwordChangedAt?: Date | null;
-      };
+    customSession(async ({ user, session }) => {
+      try {
+        const passwordState = await prisma.user.findUnique({
+          where: { id: user.id },
+          select: {
+            mustChangePassword: true,
+            passwordChangedAt: true,
+          },
+        });
 
-      return Promise.resolve({
-        user: {
-          ...user,
-          mustChangePassword: extendedUser.mustChangePassword ?? false,
-          passwordChangedAt: extendedUser.passwordChangedAt ?? null,
-        },
-        session,
-      });
+        return {
+          user: {
+            ...user,
+            mustChangePassword: passwordState?.mustChangePassword ?? false,
+            passwordChangedAt: passwordState?.passwordChangedAt ?? null,
+          },
+          session,
+        };
+      } catch (error) {
+        console.error(
+          '[Auth] Failed to load password metadata for session user:',
+          error,
+        );
+        return {
+          user: {
+            ...user,
+            mustChangePassword: false,
+            passwordChangedAt: null,
+          },
+          session,
+        };
+      }
     }),
   ],
 
@@ -116,13 +139,14 @@ export const auth = betterAuth({
 
   // Advanced configuration for cross-site cookie support
   advanced: {
-    // Force secure cookies in production (HTTPS required)
-    useSecureCookies: process.env.NODE_ENV === 'production',
+    // Control secure cookie behavior — enabled in production or when backend URL is HTTPS
+    useSecureCookies,
 
     // Global cookie attributes for cross-site cookies
     defaultCookieAttributes: {
-      sameSite: 'none', // Allow cross-site/cross-port requests
-      secure: false, // Allow non-HTTPS in development
+      // Browsers require 'Secure' when SameSite=None; fallback to 'lax' for non-secure dev
+      sameSite: useSecureCookies ? 'none' : 'lax',
+      secure: useSecureCookies,
       httpOnly: true, // XSS protection
       path: '/', // Cookie available to all routes
     },
@@ -136,8 +160,8 @@ export const auth = betterAuth({
             ? '__Secure-better-auth.session_token'
             : 'better-auth.session_token',
         attributes: {
-          sameSite: 'none', // Allow cross-port requests in development
-          secure: false, // Allow non-HTTPS in development
+          sameSite: useSecureCookies ? 'none' : 'lax',
+          secure: useSecureCookies,
           httpOnly: true, // XSS protection
           partitioned: process.env.NODE_ENV === 'production', // CHIPS only in production
         },
@@ -148,8 +172,8 @@ export const auth = betterAuth({
             ? '__Secure-better-auth.session_data'
             : 'better-auth.session_data',
         attributes: {
-          sameSite: 'none', // Allow cross-port requests in development
-          secure: false, // Allow non-HTTPS in development
+          sameSite: useSecureCookies ? 'none' : 'lax',
+          secure: useSecureCookies,
           httpOnly: true, // XSS protection
           partitioned: process.env.NODE_ENV === 'production', // CHIPS
         },
@@ -160,8 +184,8 @@ export const auth = betterAuth({
             ? '__Secure-better-auth.dont_remember'
             : 'better-auth.dont_remember',
         attributes: {
-          sameSite: 'none', // Allow cross-port requests in development
-          secure: false, // Allow non-HTTPS in development
+          sameSite: useSecureCookies ? 'none' : 'lax',
+          secure: useSecureCookies,
           httpOnly: true, // XSS protection
           partitioned: process.env.NODE_ENV === 'production', // CHIPS
         },

@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { PermissionService } from './role-permission.service';
 import { ScopeService } from './scope.service';
@@ -60,12 +60,13 @@ export interface AuthResult {
  * @see AUTHORIZATION_SPEC.md - Policy Evaluation section
  */
 @Injectable()
-export class PolicyService {
+export class PolicyService implements OnModuleDestroy {
   private readonly logger = new Logger(PolicyService.name);
 
   // Simple in-memory cache with TTL
   private cache = new Map<string, { policy: UserPolicy; expires: number }>();
   private readonly CACHE_TTL_MS = 60 * 1000; // 60 seconds
+  private readonly cacheCleanupInterval: NodeJS.Timeout;
 
   constructor(
     private readonly prisma: PrismaClient,
@@ -73,7 +74,15 @@ export class PolicyService {
     private readonly scopeService: ScopeService,
   ) {
     // Clear expired cache entries every minute
-    setInterval(() => this.clearExpiredCache(), 60 * 1000);
+    this.cacheCleanupInterval = setInterval(
+      () => this.clearExpiredCache(),
+      60 * 1000,
+    );
+    this.cacheCleanupInterval.unref?.();
+  }
+
+  onModuleDestroy(): void {
+    clearInterval(this.cacheCleanupInterval);
   }
 
   /**

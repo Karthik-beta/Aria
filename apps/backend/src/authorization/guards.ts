@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { PolicyService } from './policy.service';
+import { ScopeService } from './scope.service';
 import {
   REQUIRE_PERMISSIONS_KEY,
   REQUIRE_ROLES_KEY,
@@ -185,6 +186,19 @@ export class RolePermissionGuard implements CanActivate {
       throw new UnauthorizedException('No authenticated user found');
     }
 
+    const teamId = this.extractFirstString(request, ['teamId', 'team_id']);
+    const resourceOwnerId = this.extractFirstString(request, [
+      'ownerId',
+      'owner_id',
+      'userId',
+      'user_id',
+    ]);
+    const resourceTeamId =
+      this.extractFirstString(request, [
+        'resourceTeamId',
+        'resource_team_id',
+      ]) || teamId;
+
     // Check required roles
     if (requiredRoles && requiredRoles.length > 0) {
       const hasRole = await this.policyService.hasAnyRole(
@@ -209,6 +223,9 @@ export class RolePermissionGuard implements CanActivate {
           {
             userId: String(user.id),
             appKey,
+            ...(teamId && { teamId }),
+            ...(resourceOwnerId && { resourceOwnerId }),
+            ...(resourceTeamId && { resourceTeamId }),
           },
         );
 
@@ -222,6 +239,24 @@ export class RolePermissionGuard implements CanActivate {
 
     return true;
   }
+
+  private extractFirstString(request: any, keys: string[]): string | undefined {
+    const sources = [request.params, request.body, request.query];
+    for (const source of sources) {
+      if (!source) {
+        continue;
+      }
+
+      for (const key of keys) {
+        const value = source[key];
+        if (typeof value === 'string' && value.trim().length > 0) {
+          return value;
+        }
+      }
+    }
+
+    return undefined;
+  }
 }
 
 /**
@@ -234,7 +269,10 @@ export class RolePermissionGuard implements CanActivate {
 export class OwnershipGuard implements CanActivate {
   private readonly logger = new Logger(OwnershipGuard.name);
 
-  constructor(private policyService: PolicyService) {}
+  constructor(
+    private policyService: PolicyService,
+    private scopeService: ScopeService,
+  ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
@@ -264,12 +302,20 @@ export class OwnershipGuard implements CanActivate {
     }
 
     // Check if user is the owner or in management hierarchy
-    const isOwner = user.id === resourceOwnerId;
+    const isOwner = String(user.id) === String(resourceOwnerId);
     if (isOwner) {
       return true;
     }
 
-    // Could expand this with scopeService.isInManagementHierarchy check
+    const isManager = await this.scopeService.isInManagementHierarchy(
+      String(user.id),
+      String(resourceOwnerId),
+    );
+
+    if (isManager) {
+      return true;
+    }
+
     throw new ForbiddenException('You do not own this resource');
   }
 }

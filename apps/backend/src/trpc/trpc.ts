@@ -58,6 +58,7 @@ const isAuthenticated = t.middleware(async ({ ctx, next }) => {
   // Add user and session to context at top level
   return next({
     ctx: {
+      ...ctx,
       user: session.user,
       session: session.session,
     },

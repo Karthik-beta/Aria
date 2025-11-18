@@ -16,12 +16,22 @@ import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui
 
 interface App {
   id: string;
+  key?: string;
   name: string;
   logo: React.ComponentType<{ className?: string }>;
   route: string; // Add route property
 }
 
 export function AppSwitcher({ apps, defaultApp }: { apps: App[]; defaultApp: App }) {
+  const safeApps = React.useMemo(() => {
+    if (apps.length > 0) {
+      return apps;
+    }
+    if (defaultApp) {
+      return [defaultApp];
+    }
+    return [];
+  }, [apps, defaultApp]);
   const router = useRouter();
   const pathname = usePathname();
   const [isMounted, setIsMounted] = React.useState(false);
@@ -29,9 +39,9 @@ export function AppSwitcher({ apps, defaultApp }: { apps: App[]; defaultApp: App
 
   // Determine active app based on current route - memoized for performance
   const activeApp = React.useMemo(() => {
-    const currentApp = apps.find((app) => pathname.startsWith(app.route));
-    return currentApp || defaultApp || apps[0];
-  }, [apps, pathname, defaultApp]);
+    const currentApp = safeApps.find((app) => pathname.startsWith(app.route));
+    return currentApp || defaultApp || safeApps[0];
+  }, [safeApps, pathname, defaultApp]);
 
   const [selectedApp, setSelectedApp] = React.useState<App>(activeApp);
 
@@ -131,7 +141,7 @@ export function AppSwitcher({ apps, defaultApp }: { apps: App[]; defaultApp: App
             sideOffset={4}
           >
             <DropdownMenuLabel className="text-muted-foreground text-xs">Apps</DropdownMenuLabel>
-            {apps.map((app, index) => {
+            {safeApps.map((app, index) => {
               const isActive = app.id === selectedApp.id;
               const isCurrentlyNavigating = isNavigating && app.id === selectedApp.id;
 
@@ -157,7 +167,7 @@ export function AppSwitcher({ apps, defaultApp }: { apps: App[]; defaultApp: App
             })}
           </DropdownMenuContent>
           {/* <DropdownMenuContent className="w-[--radix-dropdown-menu-trigger-width]" align="start">
-            {apps.map((app) => (
+            {safeApps.map((app) => (
               <DropdownMenuItem key={app.id} onSelect={() => handleAppSwitch(app)}>
                 {app.name} {app.id === selectedApp.id && <Check className="ml-auto" />}
               </DropdownMenuItem>

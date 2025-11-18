@@ -120,6 +120,89 @@
   }
 }
 
+/* Admin display mode density tokens */
+body[data-admin-surface='true'] {
+  --admin-density-font-scale: 1;
+  --admin-density-card-padding-x: 1.5rem;
+  --admin-density-card-padding-y: 1.5rem;
+  --admin-density-card-gap: 1.5rem;
+  --admin-density-table-row-padding-y: 0.85rem;
+  --admin-density-table-row-padding-x: 1rem;
+  --admin-density-label-size: 0.95rem;
+  --admin-density-input-height: 2.375rem;
+  --admin-density-input-padding-x: 1rem;
+  --admin-density-input-font-size: 0.95rem;
+}
+
+body[data-admin-surface='true'][data-display-mode='compact'] {
+  --admin-density-font-scale: 0.95;
+  --admin-density-card-padding-x: 1.15rem;
+  --admin-density-card-padding-y: 1.1rem;
+  --admin-density-card-gap: 1.1rem;
+  --admin-density-table-row-padding-y: 0.55rem;
+  --admin-density-table-row-padding-x: 0.85rem;
+  --admin-density-label-size: 0.9rem;
+  --admin-density-input-height: 2.1rem;
+  --admin-density-input-padding-x: 0.85rem;
+  --admin-density-input-font-size: 0.9rem;
+}
+
+body[data-admin-surface='true'][data-display-mode='detailed'] {
+  --admin-density-font-scale: 1.06;
+  --admin-density-card-padding-x: 1.85rem;
+  --admin-density-card-padding-y: 1.85rem;
+  --admin-density-card-gap: 1.9rem;
+  --admin-density-table-row-padding-y: 1.1rem;
+  --admin-density-table-row-padding-x: 1.3rem;
+  --admin-density-label-size: 1rem;
+  --admin-density-input-height: 2.7rem;
+  --admin-density-input-padding-x: 1.25rem;
+  --admin-density-input-font-size: 1rem;
+}
+
+body[data-admin-surface='true'] [data-slot='card'] {
+  gap: var(--admin-density-card-gap);
+  padding-top: var(--admin-density-card-padding-y);
+  padding-bottom: var(--admin-density-card-padding-y);
+}
+
+body[data-admin-surface='true'] [data-slot='card-header'],
+body[data-admin-surface='true'] [data-slot='card-content'],
+body[data-admin-surface='true'] [data-slot='card-footer'] {
+  padding-left: var(--admin-density-card-padding-x);
+  padding-right: var(--admin-density-card-padding-x);
+}
+
+body[data-admin-surface='true'] [data-slot='card-description'] {
+  font-size: calc(var(--admin-density-font-scale) * 0.925rem);
+}
+
+body[data-admin-surface='true'] [data-slot='table-head'],
+body[data-admin-surface='true'] [data-slot='table-cell'] {
+  padding-top: var(--admin-density-table-row-padding-y);
+  padding-bottom: var(--admin-density-table-row-padding-y);
+  padding-left: var(--admin-density-table-row-padding-x);
+  padding-right: var(--admin-density-table-row-padding-x);
+  font-size: calc(var(--admin-density-font-scale) * 0.95rem);
+}
+
+body[data-admin-surface='true'] [data-slot='table-caption'] {
+  font-size: calc(var(--admin-density-font-scale) * 0.85rem);
+}
+
+body[data-admin-surface='true'] [data-slot='label'] {
+  font-size: var(--admin-density-label-size);
+}
+
+body[data-admin-surface='true'] [data-slot='input'],
+body[data-admin-surface='true'] textarea[data-slot],
+body[data-admin-surface='true'] select[data-slot] {
+  height: var(--admin-density-input-height);
+  font-size: var(--admin-density-input-font-size);
+  padding-left: var(--admin-density-input-padding-x);
+  padding-right: var(--admin-density-input-padding-x);
+}
+
 /* View Transition Wave Effect */
 ::view-transition-old(root),
 ::view-transition-new(root) {

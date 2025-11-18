@@ -48,6 +48,20 @@ function getActorUserId(ctx: { user?: { id?: unknown } }) {
   return ctx.user.id;
 }
 
+const GLOBAL_APP_KEY = 'global';
+
+function getDefaultResetRedirectUrl() {
+  const fallback = 'http://localhost:3000';
+  const envUrls = process.env.FRONTEND_URL;
+  const firstUrl = envUrls
+    ?.split(',')
+    .map((url) => url.trim())
+    .filter(Boolean)[0];
+
+  const base = (firstUrl || fallback).replace(/\/$/, '');
+  return `${base}/auth/reset-password`;
+}
+
 /**
  * Admin router for user, role, and permission management
  *
@@ -130,6 +144,50 @@ export const adminRouter = router({
         },
       };
     }),
+
+  getProvisioningContext: protectedProcedure.query(async ({ ctx }) => {
+    const actorUserId = getActorUserId(ctx);
+
+    const prismaClient = ctx.prisma;
+    if (!prismaClient) {
+      throw new TRPCError({
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Database client not available',
+      });
+    }
+
+    const [apps, systemPermission] = await Promise.all([
+      prismaClient.app.findMany({
+        where: { isActive: true },
+        select: { appKey: true, name: true, description: true },
+        orderBy: { name: 'asc' },
+      }),
+      policyService.can(actorUserId, 'system:user.manage'),
+    ]);
+
+    const scopedChecks = await Promise.all(
+      apps.map(async (app) => {
+        const result = await policyService.can(
+          actorUserId,
+          `app:${app.appKey}:user.create`,
+        );
+        return { appKey: app.appKey, allowed: result.allowed };
+      }),
+    );
+
+    const manageableAppKeys = scopedChecks
+      .filter((check) => check.allowed)
+      .map((check) => check.appKey);
+
+    return {
+      canManageSystem: systemPermission.allowed,
+      manageableAppKeys,
+      apps,
+      defaultAppKey: systemPermission.allowed
+        ? GLOBAL_APP_KEY
+        : (manageableAppKeys[0] ?? null),
+    };
+  }),
 
   /**
    * Get single user by ID with full details
@@ -217,6 +275,7 @@ export const adminRouter = router({
         appKey: z.string().optional(),
         passwordStrategy: z.enum(['auto', 'manual']).default('auto'),
         password: z.string().min(8).max(128).optional(),
+        providedPassword: z.string().min(8).max(128).optional(),
         mustChangePassword: z.boolean().optional(),
       }),
     )
@@ -254,9 +313,29 @@ export const adminRouter = router({
         });
       }
 
+      if (passwordStrategy === 'auto' && input.password) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message:
+            'Do not provide the password field when using auto password strategy. Use providedPassword instead.',
+        });
+      }
+
+      if (passwordStrategy === 'manual' && input.providedPassword) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message:
+            'providedPassword is only accepted when password strategy is set to auto.',
+        });
+      }
+
+      const providedPassword = input.providedPassword?.trim();
+
       const tempPassword =
         passwordStrategy === 'auto'
-          ? generateTemporaryPassword(14)
+          ? providedPassword && providedPassword.length > 0
+            ? providedPassword
+            : generateTemporaryPassword(14)
           : (input.password as string);
 
       const signUpRequest = new Request(
@@ -371,6 +450,181 @@ export const adminRouter = router({
           passwordStrategy === 'auto' ? tempPassword : undefined,
         mustChangePassword,
       };
+    }),
+
+  /**
+   * Check username availability before creating a user
+   */
+  checkUsernameAvailability: protectedProcedure
+    .input(
+      z.object({
+        username: z
+          .string()
+          .min(3)
+          .max(32)
+          .regex(
+            /^[a-zA-Z0-9._-]+$/,
+            'Username can include letters, numbers, ., _, and -',
+          ),
+        appKey: z.string().optional(),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      const actorUserId = getActorUserId(ctx);
+      if (input.appKey) {
+        await requirePermission(actorUserId, `app:${input.appKey}:user.create`);
+      } else {
+        await requirePermission(actorUserId, 'system:user.manage');
+      }
+
+      const existingUser = await ctx.prisma.user.findFirst({
+        where: {
+          username: {
+            equals: input.username,
+            mode: 'insensitive',
+          },
+        },
+        select: { id: true },
+      });
+
+      return { available: !existingUser };
+    }),
+
+  /**
+   * Generate a temporary password that matches complexity rules
+   */
+  generateSecurePassword: protectedProcedure
+    .input(
+      z
+        .object({
+          length: z.number().min(8).max(64).default(14),
+        })
+        .optional(),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const actorUserId = getActorUserId(ctx);
+      await requirePermission(actorUserId, 'system:user.manage');
+
+      const password = generateTemporaryPassword(input?.length ?? 14);
+      return { password };
+    }),
+
+  /**
+   * Trigger password reset email for a user
+   */
+  sendPasswordReset: protectedProcedure
+    .input(
+      z.object({
+        userId: z.string(),
+        appKey: z.string().optional(),
+        redirectTo: z.string().url().optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const actorUserId = getActorUserId(ctx);
+      const scopedAppKey =
+        input.appKey && input.appKey !== 'global' ? input.appKey : undefined;
+
+      if (scopedAppKey) {
+        await requirePermission(actorUserId, `app:${scopedAppKey}:user.create`);
+      } else {
+        await requirePermission(actorUserId, 'system:user.manage');
+      }
+
+      const targetUser = await ctx.prisma.user.findUnique({
+        where: { id: input.userId },
+        select: {
+          id: true,
+          email: true,
+          userRoles: {
+            select: {
+              appKey: true,
+            },
+          },
+        },
+      });
+
+      if (!targetUser) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'User not found',
+        });
+      }
+
+      if (scopedAppKey) {
+        const hasAppAssignment = targetUser.userRoles.some(
+          (ur) => ur.appKey === scopedAppKey,
+        );
+
+        if (!hasAppAssignment) {
+          throw new TRPCError({
+            code: 'FORBIDDEN',
+            message:
+              'Target user is not assigned to the specified application.',
+          });
+        }
+      }
+
+      const resetRedirect = input.redirectTo || getDefaultResetRedirectUrl();
+      const authBaseUrl =
+        process.env.BETTER_AUTH_URL || 'http://localhost:3001';
+
+      const resetRequest = new Request(
+        `${authBaseUrl.replace(/\/$/, '')}/api/auth/request-password-reset`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            email: targetUser.email,
+            redirectTo: resetRedirect,
+          }),
+        },
+      );
+
+      const resetResponse = await auth.handler(resetRequest);
+
+      if (!resetResponse.ok) {
+        let errorMessage = 'Failed to initiate password reset.';
+        try {
+          const payload = await resetResponse.json();
+          if (payload?.error?.message) {
+            errorMessage = payload.error.message;
+          }
+        } catch {
+          const fallbackText = await resetResponse.text();
+          if (fallbackText) {
+            errorMessage = fallbackText;
+          }
+        }
+
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: errorMessage,
+        });
+      }
+
+      await ctx.prisma.user.update({
+        where: { id: targetUser.id },
+        data: {
+          mustChangePassword: true,
+          passwordChangedAt: null,
+        },
+      });
+
+      await auditService.log({
+        actorUserId,
+        action: 'user.password_reset_requested',
+        subjectType: 'user',
+        subjectId: targetUser.id,
+        appKey: scopedAppKey,
+        metadata: {
+          redirectTo: resetRedirect,
+        },
+      });
+
+      return { success: true };
     }),
 
   /**

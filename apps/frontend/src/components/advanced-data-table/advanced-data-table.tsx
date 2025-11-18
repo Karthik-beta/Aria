@@ -110,6 +110,10 @@ export function AdvancedDataTable<TData extends RowData>({
 
   // Centralized error handler
   const handleError = React.useCallback((error: AdvancedDataTableError) => {
+    if (!isMountedRef.current) {
+      return;
+    }
+
     setError(error);
     onErrorRef.current?.(error);
     console.error('[AdvancedDataTable]', error);

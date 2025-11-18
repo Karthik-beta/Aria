@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { trpc } from '@/lib/trpc/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -43,12 +43,15 @@ import {
   ShieldCheck,
   Key,
   Check,
+  Loader2,
+  RefreshCcw,
 } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
+import { useDebounce } from '@/hooks/use-debounce';
 
 type User = {
   id: string;
@@ -79,6 +82,63 @@ type Role = {
   isSystem: boolean;
 };
 
+const GLOBAL_APP_KEY = 'global';
+
+type AppOption = {
+  value: string;
+  label: string;
+  description?: string;
+};
+
+type AppAccessEntry = {
+  scopeKey: string;
+  appKey: string | null;
+  label: string;
+  highestLevel: number;
+  roleCount: number;
+  roles: string[];
+};
+
+function formatAppLabel(key: string | null) {
+  if (!key || key === GLOBAL_APP_KEY) {
+    return 'Global workspace';
+  }
+
+  return key
+    .split(/[-_]/)
+    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+    .join(' ');
+}
+
+function summarizeAppAccess(
+  user: User,
+  getLabel: (key: string | null) => string
+): AppAccessEntry[] {
+  const summary = new Map<string, { highestLevel: number; roles: string[] }>();
+
+  user.userRoles.forEach((userRole) => {
+    const scopeKey = userRole.appKey ?? GLOBAL_APP_KEY;
+    const current = summary.get(scopeKey) ?? { highestLevel: 0, roles: [] };
+
+    summary.set(scopeKey, {
+      highestLevel: Math.max(current.highestLevel, userRole.role.level),
+      roles: [...current.roles, userRole.role.name],
+    });
+  });
+
+  return Array.from(summary.entries()).map(([scopeKey, details]) => {
+    const label = getLabel(scopeKey === GLOBAL_APP_KEY ? null : scopeKey);
+    return {
+      scopeKey,
+      appKey: scopeKey === GLOBAL_APP_KEY ? null : scopeKey,
+      label,
+      highestLevel: details.highestLevel,
+      roleCount: details.roles.length,
+      roles: details.roles,
+    };
+  });
+}
+
 export default function UsersPage() {
   const [search, setSearch] = useState('');
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
@@ -94,6 +154,68 @@ export default function UsersPage() {
 
   const { data: roles } = trpc.admin.listRoles.useQuery();
 
+  const { data: provisioningContext, isLoading: provisioningContextLoading } =
+    trpc.admin.getProvisioningContext.useQuery();
+
+  const appLabels = useMemo<Record<string, string>>(() => {
+    const labels: Record<string, string> = {
+      [GLOBAL_APP_KEY]: 'Global workspace',
+    };
+
+    provisioningContext?.apps?.forEach((app) => {
+      labels[app.appKey] = app.name || formatAppLabel(app.appKey);
+    });
+
+    return labels;
+  }, [provisioningContext?.apps]);
+
+  const getAppLabel = useCallback(
+    (key: string | null) => {
+      if (!key) {
+        return appLabels[GLOBAL_APP_KEY] ?? 'Global workspace';
+      }
+
+      return appLabels[key] ?? formatAppLabel(key);
+    },
+    [appLabels]
+  );
+
+  const manageableAppOptions = useMemo<AppOption[]>(() => {
+    if (!provisioningContext) return [];
+    const seen = new Set<string>();
+    const options: AppOption[] = [];
+
+    if (provisioningContext.canManageSystem) {
+      options.push({
+        value: GLOBAL_APP_KEY,
+        label: getAppLabel(null),
+        description: 'Applies to every application',
+      });
+      seen.add(GLOBAL_APP_KEY);
+    }
+
+    for (const appKey of provisioningContext.manageableAppKeys ?? []) {
+      if (seen.has(appKey)) continue;
+      options.push({
+        value: appKey,
+        label: getAppLabel(appKey),
+        description: 'Provision users scoped to this app',
+      });
+      seen.add(appKey);
+    }
+
+    return options;
+  }, [provisioningContext, getAppLabel]);
+
+  const defaultAppKey = provisioningContext?.defaultAppKey ?? manageableAppOptions[0]?.value;
+  const canProvisionUsers = manageableAppOptions.length > 0;
+  const createButtonDisabled = provisioningContextLoading || !canProvisionUsers;
+  const createUserDisabledReason = provisioningContextLoading
+    ? 'Loading your provisioning scopes...'
+    : !canProvisionUsers
+      ? 'You do not have permission to create users.'
+      : undefined;
+
   const disableUserMutation = trpc.admin.disableUser.useMutation({
     onSuccess: () => refetch(),
   });
@@ -103,6 +225,63 @@ export default function UsersPage() {
   });
 
   const selectedUser = data?.users.find((u) => u.id === selectedUserId) || null;
+
+  const passwordResetOptions = useMemo<AppOption[]>(() => {
+    if (!selectedUser || !provisioningContext) return [];
+
+    const options: AppOption[] = [];
+
+    if (provisioningContext.canManageSystem) {
+      options.push({
+        value: GLOBAL_APP_KEY,
+        label: getAppLabel(null),
+      });
+    }
+
+    const userAppKeys = new Set(
+      selectedUser.userRoles.map((role) => role.appKey).filter((key): key is string => Boolean(key))
+    );
+
+    const uniqueManageableKeys = Array.from(new Set(provisioningContext.manageableAppKeys ?? []));
+    uniqueManageableKeys.forEach((appKey) => {
+      if (userAppKeys.has(appKey)) {
+        options.push({
+          value: appKey,
+          label: getAppLabel(appKey),
+        });
+      }
+    });
+
+    return options;
+  }, [getAppLabel, provisioningContext, selectedUser]);
+
+  const canSendPasswordReset = passwordResetOptions.length > 0;
+
+  const sendPasswordResetMutation = trpc.admin.sendPasswordReset.useMutation({
+    onSuccess: () => {
+      toast.success('Password reset email sent.');
+    },
+    onError: (error) => {
+      toast.error(error.message || 'Failed to send password reset email.');
+    },
+  });
+
+  const defaultResetRedirect = useMemo(() => {
+    if (typeof window === 'undefined') return undefined;
+    return `${window.location.origin}/auth/reset-password`;
+  }, []);
+
+  const handlePasswordResetRequest = useCallback(
+    (appKey?: string) => {
+      if (!selectedUser) return;
+      sendPasswordResetMutation.mutate({
+        userId: selectedUser.id,
+        appKey,
+        redirectTo: defaultResetRedirect,
+      });
+    },
+    [defaultResetRedirect, selectedUser, sendPasswordResetMutation]
+  );
 
   const handleCreateNew = () => {
     setSelectedUserId(null);
@@ -139,147 +318,266 @@ export default function UsersPage() {
 
   const filteredUsers = data?.users || [];
 
+  const userStats = useMemo(() => {
+    const users = data?.users ?? [];
+    const total = users.length;
+    const active = users.filter((u) => u.isActive).length;
+    const pendingResets = users.filter((u) => u.mustChangePassword).length;
+    const disabled = Math.max(total - active, 0);
+    const supervisors = users.filter((u) =>
+      u.userRoles.some((role) => role.role.key === 'manager' || role.role.key === 'admin')
+    ).length;
+
+    return [
+      {
+        label: 'Total accounts',
+        value: total,
+        helper: `${active} active`,
+      },
+      {
+        label: 'Pending password resets',
+        value: pendingResets,
+        helper: 'Must change on next login',
+      },
+      {
+        label: 'Disabled users',
+        value: disabled,
+        helper: 'Awaiting reactivation',
+      },
+      {
+        label: 'Supervisors & admins',
+        value: supervisors,
+        helper: 'Have elevated access',
+      },
+    ];
+  }, [data?.users]);
+
   return (
-    <div className="flex h-[calc(100vh-8rem)] gap-6">
-      {/* Left Panel - User List */}
-      <div className="w-96 flex flex-col border rounded-lg bg-card">
-        <div className="p-4 border-b">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold">Users</h2>
-            <Button size="sm" onClick={handleCreateNew}>
-              <UserPlus className="mr-2 h-4 w-4" />
-              New User
+    <div className="space-y-6">
+      <section className="rounded-3xl border bg-linear-to-r from-primary/10 via-primary/5 to-transparent px-6 py-5">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-primary">
+              Admin · Users
+            </p>
+            <h1 className="mt-2 text-3xl font-bold tracking-tight">User directory & access</h1>
+            <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
+              Monitor account health, enforce password policies, and create new workspace accounts
+              without leaving this view.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isLoading}>
+              Refresh data
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleCreateNew}
+              disabled={createButtonDisabled}
+              title={createUserDisabledReason}
+            >
+              <UserPlus className="mr-2 h-4 w-4" /> Create user
             </Button>
           </div>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search users..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-10"
-            />
-          </div>
         </div>
+      </section>
 
-        <ScrollArea className="flex-1">
-          <div className="p-2">
-            {isLoading ? (
-              <div className="text-center py-8 text-muted-foreground">Loading users...</div>
-            ) : filteredUsers.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">No users found</div>
-            ) : (
-              <div className="space-y-1">
-                {filteredUsers.map((user) => (
-                  <button
-                    key={user.id}
-                    onClick={() => handleSelectUser(user)}
-                    className={`w-full text-left p-3 rounded-md transition-colors ${
-                      selectedUserId === user.id
-                        ? 'bg-primary text-primary-foreground'
-                        : 'hover:bg-muted'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex-1 min-w-0">
-                        <div className="font-medium truncate">{user.name}</div>
-                        <div className="text-sm opacity-80 truncate">{user.email}</div>
-                        {user.department && (
-                          <div className="text-xs opacity-70 mt-1">{user.department}</div>
-                        )}
-                      </div>
-                      <div className="flex flex-col items-end gap-1">
-                        {user.isActive ? (
-                          <Badge variant="outline" className="text-xs">
-                            Active
-                          </Badge>
-                        ) : (
-                          <Badge variant="destructive" className="text-xs">
-                            Disabled
-                          </Badge>
-                        )}
-                        {user.userRoles.length > 0 && (
-                          <Badge variant="secondary" className="text-xs">
-                            {user.userRoles.length} role{user.userRoles.length !== 1 ? 's' : ''}
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        </ScrollArea>
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {userStats.map((stat) => (
+          <Card key={stat.label} className="border-muted/60 bg-card/90 shadow-sm">
+            <CardHeader className="pb-2">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                {stat.label}
+              </p>
+            </CardHeader>
+            <CardContent className="pb-4">
+              <div className="text-3xl font-semibold tracking-tight">{stat.value}</div>
+              <p className="text-xs text-muted-foreground">{stat.helper}</p>
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
-      {/* Right Panel - User Details/Form */}
-      <div className="flex-1 border rounded-lg bg-card">
-        {mode === 'create' ? (
-          <CreateUserPanel
-            roles={roles || []}
-            onSuccess={handleSaveSuccess}
-            onCancel={() => {
-              setMode('view');
-              setSelectedUserId(null);
-            }}
-          />
-        ) : selectedUser && mode === 'edit' ? (
-          <EditUserPanel
-            user={selectedUser}
-            roles={roles || []}
-            onSuccess={handleSaveSuccess}
-            onCancel={handleCancelEdit}
-            onDelete={() => handleDeleteClick(selectedUser)}
-          />
-        ) : selectedUser ? (
-          <UserDetailsPanel
-            user={selectedUser}
-            onEdit={handleEdit}
-            onDelete={() => handleDeleteClick(selectedUser)}
-            onDisable={() => disableUserMutation.mutate({ userId: selectedUser.id })}
-            onEnable={() => enableUserMutation.mutate({ userId: selectedUser.id })}
-          />
-        ) : (
-          <div className="flex items-center justify-center h-full text-muted-foreground">
-            <div className="text-center">
-              <Users className="h-16 w-16 mx-auto mb-4 opacity-50" />
-              <p className="text-lg font-medium">No user selected</p>
-              <p className="text-sm mt-1">Select a user from the list or create a new one</p>
+      <div className="flex min-h-[calc(100vh-12rem)] gap-6">
+        {/* Left Panel - User List */}
+        <div className="w-96 flex flex-col border rounded-lg bg-card">
+          <div className="p-4 border-b">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold">Users</h2>
+              <Button
+                size="sm"
+                onClick={handleCreateNew}
+                disabled={createButtonDisabled}
+                title={createUserDisabledReason}
+              >
+                <UserPlus className="mr-2 h-4 w-4" />
+                New User
+              </Button>
+            </div>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search users..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-10"
+              />
             </div>
           </div>
-        )}
-      </div>
 
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete User</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete user &ldquo;{userToDelete?.name}&rdquo;? This action
-              cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={async () => {
-                if (userToDelete) {
-                  // TODO: Implement delete user mutation
-                  setDeleteDialogOpen(false);
-                  setUserToDelete(null);
-                  setSelectedUserId(null);
-                  setMode('view');
-                }
+          <ScrollArea className="flex-1">
+            <div className="p-2">
+              {isLoading ? (
+                <div className="text-center py-8 text-muted-foreground">Loading users...</div>
+              ) : filteredUsers.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">No users found</div>
+              ) : (
+                <div className="space-y-1">
+                  {filteredUsers.map((user) => {
+                    const accessSummary = summarizeAppAccess(user, getAppLabel);
+                    const summaryBadges = accessSummary.slice(0, 2);
+
+                    return (
+                      <button
+                        key={user.id}
+                        onClick={() => handleSelectUser(user)}
+                        className={`w-full text-left p-3 rounded-md transition-colors ${
+                          selectedUserId === user.id
+                            ? 'bg-primary text-primary-foreground'
+                            : 'hover:bg-muted'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium truncate">{user.name}</div>
+                            <div className="text-sm opacity-80 truncate">{user.email}</div>
+                            {user.department && (
+                              <div className="text-xs opacity-70 mt-1">{user.department}</div>
+                            )}
+                            {summaryBadges.length > 0 && (
+                              <div className="mt-2 flex flex-wrap gap-1">
+                                {summaryBadges.map((summary) => (
+                                  <Badge
+                                    key={`${user.id}-${summary.scopeKey}`}
+                                    variant="secondary"
+                                    className="text-[10px] font-semibold"
+                                  >
+                                    {summary.label}
+                                    <span className="ml-1 uppercase tracking-wide">
+                                      L{summary.highestLevel}
+                                    </span>
+                                  </Badge>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex flex-col items-end gap-1">
+                            {user.isActive ? (
+                              <Badge variant="outline" className="text-xs">
+                                Active
+                              </Badge>
+                            ) : (
+                              <Badge variant="destructive" className="text-xs">
+                                Disabled
+                              </Badge>
+                            )}
+                            {user.userRoles.length > 0 && (
+                              <Badge variant="secondary" className="text-xs">
+                                {user.userRoles.length} role{user.userRoles.length !== 1 ? 's' : ''}
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </ScrollArea>
+        </div>
+
+        {/* Right Panel - User Details/Form */}
+        <div className="flex-1 border rounded-lg bg-card">
+          {mode === 'create' ? (
+            <CreateUserPanel
+              roles={roles || []}
+              onSuccess={handleSaveSuccess}
+              onCancel={() => {
+                setMode('view');
+                setSelectedUserId(null);
               }}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+              appOptions={manageableAppOptions}
+              initialAppKey={defaultAppKey}
+              isProvisioningEnabled={canProvisionUsers}
+              isContextLoading={provisioningContextLoading}
+            />
+          ) : selectedUser && mode === 'edit' ? (
+            <EditUserPanel
+              user={selectedUser}
+              roles={roles || []}
+              onSuccess={handleSaveSuccess}
+              onCancel={handleCancelEdit}
+              onDelete={() => handleDeleteClick(selectedUser)}
+              appOptions={manageableAppOptions}
+              initialAppKey={defaultAppKey}
+              isContextLoading={provisioningContextLoading}
+            />
+          ) : selectedUser ? (
+            <UserDetailsPanel
+              user={selectedUser}
+              onEdit={handleEdit}
+              onDelete={() => handleDeleteClick(selectedUser)}
+              onDisable={() => disableUserMutation.mutate({ userId: selectedUser.id })}
+              onEnable={() => enableUserMutation.mutate({ userId: selectedUser.id })}
+              resolveAppLabel={getAppLabel}
+              passwordResetOptions={passwordResetOptions}
+              passwordResetReady={!provisioningContextLoading}
+              canSendPasswordReset={canSendPasswordReset}
+              onSendPasswordReset={handlePasswordResetRequest}
+              passwordResetPending={sendPasswordResetMutation.isPending}
+            />
+          ) : (
+            <div className="flex items-center justify-center h-full text-muted-foreground">
+              <div className="text-center">
+                <Users className="h-16 w-16 mx-auto mb-4 opacity-50" />
+                <p className="text-lg font-medium">No user selected</p>
+                <p className="text-sm mt-1">Select a user from the list or create a new one</p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Delete Confirmation Dialog */}
+        <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete User</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to delete user &ldquo;{userToDelete?.name}&rdquo;? This action
+                cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={async () => {
+                  if (userToDelete) {
+                    // TODO: Implement delete user mutation
+                    setDeleteDialogOpen(false);
+                    setUserToDelete(null);
+                    setSelectedUserId(null);
+                    setMode('view');
+                  }
+                }}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
     </div>
   );
 }
@@ -291,16 +589,49 @@ function UserDetailsPanel({
   onDelete,
   onDisable,
   onEnable,
+  resolveAppLabel,
+  passwordResetOptions,
+  passwordResetReady,
+  canSendPasswordReset,
+  onSendPasswordReset,
+  passwordResetPending,
 }: {
   user: User;
   onEdit: () => void;
   onDelete: () => void;
   onDisable: () => void;
   onEnable: () => void;
+  resolveAppLabel: (key: string | null) => string;
+  passwordResetOptions: AppOption[];
+  passwordResetReady: boolean;
+  canSendPasswordReset: boolean;
+  onSendPasswordReset: (appKey?: string) => void;
+  passwordResetPending: boolean;
 }) {
   const passwordChangedAtLabel = user.passwordChangedAt
     ? new Date(user.passwordChangedAt).toLocaleString()
     : 'Not recorded';
+  const appAccessEntries = useMemo(
+    () => summarizeAppAccess(user, resolveAppLabel),
+    [resolveAppLabel, user]
+  );
+  const [passwordResetScope, setPasswordResetScope] = useState<string | undefined>(
+    passwordResetOptions[0]?.value
+  );
+
+  useEffect(() => {
+    if (passwordResetOptions.length > 0) {
+      setPasswordResetScope(passwordResetOptions[0].value);
+    } else {
+      setPasswordResetScope(undefined);
+    }
+  }, [passwordResetOptions]);
+
+  const handlePasswordResetClick = () => {
+    if (!passwordResetScope) return;
+    const scopedValue = passwordResetScope === GLOBAL_APP_KEY ? undefined : passwordResetScope;
+    onSendPasswordReset(scopedValue);
+  };
 
   return (
     <div className="flex flex-col h-full">
@@ -402,6 +733,39 @@ function UserDetailsPanel({
 
           <Card>
             <CardHeader>
+              <CardTitle className="text-lg">App access</CardTitle>
+              <CardDescription>Applications and access levels granted to this user</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {appAccessEntries.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No application roles assigned.</p>
+              ) : (
+                <div className="space-y-3">
+                  {appAccessEntries.map((entry) => (
+                    <div
+                      key={entry.scopeKey}
+                      className="flex items-center justify-between rounded-md border p-3"
+                    >
+                      <div>
+                        <p className="font-medium">{entry.label}</p>
+                        <p className="text-xs text-muted-foreground">
+                          Level {entry.highestLevel} · {entry.roleCount} role
+                          {entry.roleCount !== 1 ? 's' : ''}
+                        </p>
+                      </div>
+                      <Badge variant="outline" className="text-xs">
+                        {entry.roles.slice(0, 2).join(', ')}
+                        {entry.roles.length > 2 && ` +${entry.roles.length - 2}`}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
               <CardTitle className="text-lg">Assigned Roles</CardTitle>
               <CardDescription>Roles and permissions granted to this user</CardDescription>
             </CardHeader>
@@ -429,6 +793,68 @@ function UserDetailsPanel({
               )}
             </CardContent>
           </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Security actions</CardTitle>
+              <CardDescription>Reset credentials or enforce password policies</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {!passwordResetReady ? (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Checking password reset permissions…
+                </div>
+              ) : canSendPasswordReset ? (
+                <>
+                  {passwordResetOptions.length > 1 && (
+                    <div className="space-y-2">
+                      <Label htmlFor="password-reset-scope">Reset scope</Label>
+                      <Select
+                        value={passwordResetScope}
+                        onValueChange={setPasswordResetScope}
+                        disabled={passwordResetPending}
+                      >
+                        <SelectTrigger id="password-reset-scope">
+                          <SelectValue placeholder="Choose application" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {passwordResetOptions.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handlePasswordResetClick}
+                    disabled={passwordResetPending || !passwordResetScope}
+                  >
+                    {passwordResetPending ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <RefreshCcw className="mr-2 h-4 w-4" />
+                    )}
+                    Send password reset email
+                  </Button>
+                  <p className="text-xs text-muted-foreground">
+                    An email with password reset instructions will be sent to {user.email}.
+                  </p>
+                </>
+              ) : (
+                <Alert variant="destructive">
+                  <AlertTitle>Action unavailable</AlertTitle>
+                  <AlertDescription>
+                    You do not have permission to reset passwords for this account.
+                  </AlertDescription>
+                </Alert>
+              )}
+            </CardContent>
+          </Card>
         </div>
       </ScrollArea>
     </div>
@@ -440,10 +866,18 @@ function CreateUserPanel({
   roles,
   onSuccess,
   onCancel,
+  appOptions,
+  initialAppKey,
+  isProvisioningEnabled,
+  isContextLoading,
 }: {
   roles: Role[];
   onSuccess: () => void;
   onCancel: () => void;
+  appOptions: AppOption[];
+  initialAppKey?: string | null;
+  isProvisioningEnabled: boolean;
+  isContextLoading?: boolean;
 }) {
   const [email, setEmail] = useState('');
   const [username, setUsername] = useState('');
@@ -451,7 +885,13 @@ function CreateUserPanel({
   const [displayName, setDisplayName] = useState('');
   const [department, setDepartment] = useState('');
   const [selectedRoleKeys, setSelectedRoleKeys] = useState<Set<string>>(new Set());
-  const [appKey, setAppKey] = useState<string>('global');
+  const [appKey, setAppKey] = useState<string>(() => {
+    if (initialAppKey && appOptions.some((option) => option.value === initialAppKey)) {
+      return initialAppKey;
+    }
+
+    return appOptions[0]?.value ?? GLOBAL_APP_KEY;
+  });
   const [passwordStrategy, setPasswordStrategy] = useState<'auto' | 'manual'>('auto');
   const [password, setPassword] = useState('');
   const [mustChangePassword, setMustChangePassword] = useState(true);
@@ -467,6 +907,44 @@ function CreateUserPanel({
   const [creationResult, setCreationResult] = useState<CreationResult | null>(null);
   const [copyState, setCopyState] = useState<'idle' | 'copied'>('idle');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [usernameTouched, setUsernameTouched] = useState(false);
+  const [autoPassword, setAutoPassword] = useState('');
+  const [autoCopyState, setAutoCopyState] = useState<'idle' | 'copied'>('idle');
+
+  const debouncedUsername = useDebounce(username.trim(), 400);
+
+  const usernameAvailabilityQuery = trpc.admin.checkUsernameAvailability.useQuery(
+    { username: debouncedUsername, appKey: appKey === GLOBAL_APP_KEY ? undefined : appKey },
+    {
+      enabled: debouncedUsername.length >= 3,
+      staleTime: 10_000,
+    }
+  );
+
+  const usernameCheckEnabled = debouncedUsername.length >= 3;
+  const usernameAvailability = usernameAvailabilityQuery.data?.available;
+
+  const generatePasswordMutation = trpc.admin.generateSecurePassword.useMutation({
+    onError: () => toast.error('Unable to generate a secure password. Please try again.'),
+  });
+
+  const ensureAutoPassword = useCallback(async () => {
+    if (passwordStrategy !== 'auto' || creationResult) return;
+    if (autoPassword) return;
+    const generated = await generatePasswordMutation.mutateAsync({});
+    setAutoPassword(generated.password);
+    setAutoCopyState('idle');
+  }, [autoPassword, creationResult, generatePasswordMutation, passwordStrategy]);
+
+  useEffect(() => {
+    if (passwordStrategy === 'auto' && !creationResult && !autoPassword) {
+      ensureAutoPassword().catch(() => undefined);
+    }
+
+    if (passwordStrategy === 'manual' && autoPassword) {
+      setAutoPassword('');
+    }
+  }, [autoPassword, creationResult, ensureAutoPassword, passwordStrategy]);
 
   const createUserMutation = trpc.admin.createUser.useMutation({
     onError: (error) => {
@@ -477,10 +955,34 @@ function CreateUserPanel({
 
   const assignRoleMutation = trpc.admin.assignRole.useMutation();
 
+  useEffect(() => {
+    if (
+      initialAppKey &&
+      initialAppKey !== appKey &&
+      appOptions.some((option) => option.value === initialAppKey)
+    ) {
+      setAppKey(initialAppKey);
+      return;
+    }
+
+    if (!appOptions.some((option) => option.value === appKey) && appOptions[0]) {
+      setAppKey(appOptions[0].value);
+    }
+  }, [appKey, appOptions, initialAppKey]);
+
+  const provisioningBlocked = !isProvisioningEnabled && !isContextLoading;
+  const selectedAppOption = appOptions.find((option) => option.value === appKey);
+  const resolvedAppScope = appKey === GLOBAL_APP_KEY ? undefined : appKey;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (creationResult) {
+      return;
+    }
+
+    if (provisioningBlocked) {
+      toast.error('You do not have permission to create users.');
       return;
     }
 
@@ -494,6 +996,17 @@ function CreateUserPanel({
       return;
     }
 
+    if (usernameCheckEnabled && usernameAvailability === false) {
+      setUsernameTouched(true);
+      toast.error('That username is already in use.');
+      return;
+    }
+
+    if (passwordStrategy === 'auto' && !autoPasswordReady) {
+      toast.error('Generate a secure password before creating the user.');
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -504,9 +1017,13 @@ function CreateUserPanel({
         displayName: displayName || undefined,
         department: department || undefined,
         roleKeys: Array.from(selectedRoleKeys),
-        appKey: appKey === 'global' ? undefined : appKey,
+        appKey: resolvedAppScope,
         passwordStrategy,
         password: passwordStrategy === 'manual' ? password : undefined,
+        providedPassword:
+          passwordStrategy === 'auto' && autoPasswordValue.length > 0
+            ? autoPasswordValue
+            : undefined,
         mustChangePassword,
       } as const;
 
@@ -519,7 +1036,7 @@ function CreateUserPanel({
           await assignRoleMutation.mutateAsync({
             userId: createdUser.id,
             roleKey,
-            appKey: appKey === 'global' ? undefined : appKey,
+            appKey: resolvedAppScope,
           });
         }
       }
@@ -567,9 +1084,34 @@ function CreateUserPanel({
     }
   };
 
+  const handleCopyAutoPassword = async () => {
+    if (!autoPasswordValue) return;
+    try {
+      await navigator.clipboard.writeText(autoPasswordValue);
+      setAutoCopyState('copied');
+      toast.success('Temporary password copied');
+      setTimeout(() => setAutoCopyState('idle'), 2000);
+    } catch (err) {
+      console.error('Clipboard copy failed', err);
+      toast.error('Unable to copy password.');
+    }
+  };
+
+  const handleRegenerateAutoPassword = async () => {
+    if (formLocked) return;
+    try {
+      const generated = await generatePasswordMutation.mutateAsync({});
+      setAutoPassword(generated.password);
+      setAutoCopyState('idle');
+    } catch (err) {
+      console.error('Failed to regenerate password', err);
+    }
+  };
+
   const resetFormState = () => {
     setEmail('');
     setUsername('');
+    setUsernameTouched(false);
     setName('');
     setDisplayName('');
     setDepartment('');
@@ -577,9 +1119,17 @@ function CreateUserPanel({
     setPasswordStrategy('auto');
     setMustChangePassword(true);
     setSelectedRoleKeys(new Set());
-    setAppKey('global');
+    if (initialAppKey && appOptions.some((option) => option.value === initialAppKey)) {
+      setAppKey(initialAppKey);
+    } else if (appOptions[0]) {
+      setAppKey(appOptions[0].value);
+    } else {
+      setAppKey(GLOBAL_APP_KEY);
+    }
     setCreationResult(null);
     setCopyState('idle');
+    setAutoPassword('');
+    setAutoCopyState('idle');
   };
 
   const handleFinish = () => {
@@ -589,7 +1139,22 @@ function CreateUserPanel({
 
   const formLocked = Boolean(creationResult);
   const disableInputs =
-    formLocked || isSubmitting || createUserMutation.isPending || assignRoleMutation.isPending;
+    provisioningBlocked ||
+    formLocked ||
+    isSubmitting ||
+    createUserMutation.isPending ||
+    assignRoleMutation.isPending;
+  const usernameChecking = usernameCheckEnabled && usernameAvailabilityQuery.isFetching;
+  const usernameHasError =
+    usernameCheckEnabled && usernameTouched && usernameAvailability === false;
+  const usernameIsAvailable = usernameCheckEnabled && usernameAvailability;
+  const autoPasswordValue = autoPassword.trim();
+  const autoPasswordReady = passwordStrategy === 'auto' ? autoPasswordValue.length >= 8 : true;
+  const submitDisabled =
+    disableInputs ||
+    usernameChecking ||
+    (usernameCheckEnabled && usernameAvailability === false) ||
+    !autoPasswordReady;
 
   const passwordStrategyLabel =
     passwordStrategy === 'auto' ? 'Auto-generated password' : 'Manual password';
@@ -623,9 +1188,9 @@ function CreateUserPanel({
                 Done
               </Button>
             ) : (
-              <Button type="submit" size="sm" disabled={disableInputs}>
+              <Button type="submit" size="sm" disabled={submitDisabled}>
                 <Save className="mr-2 h-4 w-4" />
-                {disableInputs ? 'Creating...' : 'Create User'}
+                {isSubmitting ? 'Creating...' : 'Create User'}
               </Button>
             )}
           </div>
@@ -633,6 +1198,22 @@ function CreateUserPanel({
       </div>
 
       <ScrollArea className="flex-1 p-6">
+        {isContextLoading && (
+          <Alert className="mb-4">
+            <AlertTitle>Loading provisioning scopes</AlertTitle>
+            <AlertDescription>
+              We are fetching the applications you are allowed to manage. This only takes a moment.
+            </AlertDescription>
+          </Alert>
+        )}
+        {provisioningBlocked && (
+          <Alert variant="destructive" className="mb-4">
+            <AlertTitle>Provisioning restricted</AlertTitle>
+            <AlertDescription>
+              You currently do not have permission to create users for any application scopes.
+            </AlertDescription>
+          </Alert>
+        )}
         <Tabs defaultValue="info" className="w-full">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="info">User Information</TabsTrigger>
@@ -667,7 +1248,37 @@ function CreateUserPanel({
                 disabled={disableInputs}
                 autoCapitalize="none"
                 autoCorrect="off"
+                minLength={3}
+                onBlur={() => setUsernameTouched(true)}
               />
+              <div className="flex items-center gap-2 text-xs" aria-live="polite">
+                {usernameCheckEnabled ? (
+                  usernameChecking ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+                      <span className="text-muted-foreground">Checking availability...</span>
+                    </>
+                  ) : usernameIsAvailable ? (
+                    <>
+                      <CheckCircle className="h-3.5 w-3.5 text-emerald-500" />
+                      <span className="text-emerald-600">
+                        Great choice — username is available.
+                      </span>
+                    </>
+                  ) : usernameHasError ? (
+                    <>
+                      <X className="h-3.5 w-3.5 text-destructive" />
+                      <span className="text-destructive">Username already exists.</span>
+                    </>
+                  ) : (
+                    <span className="text-muted-foreground">
+                      Start typing to check availability.
+                    </span>
+                  )
+                ) : (
+                  <span className="text-muted-foreground">Start typing to check availability.</span>
+                )}
+              </div>
               <p className="text-xs text-muted-foreground">
                 Letters, numbers, dashes, underscores, and periods are allowed.
               </p>
@@ -752,6 +1363,62 @@ function CreateUserPanel({
                 <span className="ml-1 font-medium">{passwordStrategyLabel}</span>
               </p>
             </div>
+            {passwordStrategy === 'auto' && (
+              <div className="space-y-3 rounded-lg border border-dashed bg-muted/30 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <Label className="text-sm font-semibold">Temporary password preview</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Share or adjust this value before provisioning. It will be enforced during
+                      account creation.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleRegenerateAutoPassword}
+                      disabled={disableInputs || generatePasswordMutation.isPending}
+                    >
+                      {generatePasswordMutation.isPending ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <RefreshCcw className="mr-2 h-4 w-4" />
+                      )}
+                      Refresh
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleCopyAutoPassword}
+                      disabled={!autoPasswordReady}
+                    >
+                      {autoCopyState === 'copied' ? (
+                        <Check className="mr-2 h-4 w-4" />
+                      ) : (
+                        <ClipboardCopy className="mr-2 h-4 w-4" />
+                      )}
+                      {autoCopyState === 'copied' ? 'Copied' : 'Copy'}
+                    </Button>
+                  </div>
+                </div>
+                <Input
+                  value={autoPassword}
+                  onChange={(e) => setAutoPassword(e.target.value)}
+                  disabled={disableInputs}
+                  className="font-mono"
+                  placeholder="Secure password will appear here"
+                  minLength={8}
+                />
+                {!autoPasswordReady && (
+                  <p className="text-xs text-destructive">
+                    Password must include at least 8 characters before you can create the user.
+                  </p>
+                )}
+              </div>
+            )}
             {passwordStrategy === 'manual' && (
               <div className="space-y-2">
                 <Label htmlFor="manual-password">
@@ -792,20 +1459,31 @@ function CreateUserPanel({
           <TabsContent value="roles" className="space-y-4 mt-4">
             <div className="space-y-2">
               <Label htmlFor="appKey">Application Context</Label>
-              <Select value={appKey} onValueChange={setAppKey} disabled={disableInputs}>
+              <Select
+                value={appKey}
+                onValueChange={setAppKey}
+                disabled={disableInputs || appOptions.length <= 1}
+              >
                 <SelectTrigger id="appKey">
                   <SelectValue placeholder="Select context" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="global">Global (all apps)</SelectItem>
-                  <SelectItem value="asset">Asset Management</SelectItem>
-                  <SelectItem value="crm">CRM</SelectItem>
-                  <SelectItem value="hrms">HRMS</SelectItem>
-                  <SelectItem value="inventory">Inventory</SelectItem>
+                  {appOptions.length === 0 ? (
+                    <SelectItem value={GLOBAL_APP_KEY} disabled>
+                      No application scopes available
+                    </SelectItem>
+                  ) : (
+                    appOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                Assign roles for a specific application or globally
+                {selectedAppOption?.description ||
+                  'Assign roles for a specific application or globally'}
               </p>
             </div>
 
@@ -900,12 +1578,18 @@ function EditUserPanel({
   roles,
   onSuccess,
   onCancel,
+  appOptions,
+  initialAppKey,
+  isContextLoading,
 }: {
   user: User;
   roles: Role[];
   onSuccess: () => void;
   onCancel: () => void;
   onDelete?: () => void;
+  appOptions: AppOption[];
+  initialAppKey?: string | null;
+  isContextLoading?: boolean;
 }) {
   const [name, setName] = useState(user.name);
   const [displayName, setDisplayName] = useState(user.displayName || '');
@@ -913,11 +1597,34 @@ function EditUserPanel({
   const [selectedRoleKeys, setSelectedRoleKeys] = useState<Set<string>>(
     new Set(user.userRoles.map((ur) => ur.role.key))
   );
-  const [appKey, setAppKey] = useState<string>('global');
+  const [appKey, setAppKey] = useState<string>(() => {
+    if (initialAppKey && appOptions.some((option) => option.value === initialAppKey)) {
+      return initialAppKey;
+    }
+
+    return appOptions[0]?.value ?? GLOBAL_APP_KEY;
+  });
 
   const updateUserMutation = trpc.admin.updateUser.useMutation();
   const assignRoleMutation = trpc.admin.assignRole.useMutation();
   const revokeRoleMutation = trpc.admin.revokeRole.useMutation();
+
+  useEffect(() => {
+    if (
+      initialAppKey &&
+      initialAppKey !== appKey &&
+      appOptions.some((option) => option.value === initialAppKey)
+    ) {
+      setAppKey(initialAppKey);
+      return;
+    }
+
+    if (!appOptions.some((option) => option.value === appKey) && appOptions[0]) {
+      setAppKey(appOptions[0].value);
+    }
+  }, [appKey, appOptions, initialAppKey]);
+
+  const resolvedAppScope = appKey === GLOBAL_APP_KEY ? undefined : appKey;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -940,7 +1647,7 @@ function EditUserPanel({
         await assignRoleMutation.mutateAsync({
           userId: user.id,
           roleKey,
-          appKey: appKey === 'global' ? undefined : appKey,
+          appKey: resolvedAppScope,
         });
       }
 
@@ -1037,20 +1744,30 @@ function EditUserPanel({
           <TabsContent value="roles" className="space-y-4 mt-4">
             <div className="space-y-2">
               <Label htmlFor="edit-appKey">Application Context</Label>
-              <Select value={appKey} onValueChange={setAppKey}>
+              <Select
+                value={appKey}
+                onValueChange={setAppKey}
+                disabled={isContextLoading || appOptions.length <= 1}
+              >
                 <SelectTrigger id="edit-appKey">
                   <SelectValue placeholder="Select context" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="global">Global (all apps)</SelectItem>
-                  <SelectItem value="asset">Asset Management</SelectItem>
-                  <SelectItem value="crm">CRM</SelectItem>
-                  <SelectItem value="hrms">HRMS</SelectItem>
-                  <SelectItem value="inventory">Inventory</SelectItem>
+                  {appOptions.length === 0 ? (
+                    <SelectItem value={GLOBAL_APP_KEY} disabled>
+                      No application scopes available
+                    </SelectItem>
+                  ) : (
+                    appOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                Assign roles for a specific application or globally
+                Assign or revoke roles for this application scope
               </p>
             </div>
 
