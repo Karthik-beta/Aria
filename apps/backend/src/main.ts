@@ -1,3 +1,6 @@
+import { config } from 'dotenv';
+import { resolve } from 'path';
+import { readFileSync } from 'fs';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import * as trpcExpress from '@trpc/server/adapters/express';
@@ -6,13 +9,75 @@ import { WebSocketServer } from 'ws';
 import { TrpcService } from './trpc/trpc.service';
 import { TrpcContext } from './trpc/trpc.context';
 
+/**
+ * Load environment variables from .env file
+ *
+ * In local development, dotenv loads environment variables from .env file.
+ * In Docker/production, environment variables are passed directly to the container.
+ * This ensures DEFAULT_ADMIN_USERNAME, DEFAULT_ADMIN_PASSWORD, etc. are available
+ * during application startup for default user creation.
+ *
+ * Path resolution works in both development and production scenarios.
+ */
+// When running from monorepo root, path is apps/backend/.env
+// When running from apps/backend directory, path is just .env
+// We check both possibilities
+const envPathOptions = [
+  resolve(process.cwd(), 'apps/backend/.env'), // From monorepo root
+  resolve(process.cwd(), '.env'), // From apps/backend directory
+];
+
+let envPath = envPathOptions[0]; // Default to first option
+try {
+  // Find which path actually exists
+  let fileContent: string | undefined;
+  for (const path of envPathOptions) {
+    try {
+      fileContent = readFileSync(path, 'utf-8');
+      envPath = path;
+      break;
+    } catch {
+      // Try next path
+    }
+  }
+
+  if (!fileContent) {
+    throw new Error('No .env file found');
+  }
+
+  // Load .env and explicitly merge with process.env
+  const result = config({ path: envPath, override: true });
+
+  if (result.error) {
+    console.error('[ENV] Error parsing .env file:', result.error.message);
+  } else if (result.parsed) {
+    const parsedCount = Object.keys(result.parsed).length;
+    console.log(`[ENV] Successfully loaded ${parsedCount} variables from .env`);
+
+    // Manually ensure variables are in process.env if dotenv didn't do it
+    if (
+      !process.env.DEFAULT_ADMIN_USERNAME &&
+      result.parsed.DEFAULT_ADMIN_USERNAME
+    ) {
+      Object.assign(process.env, result.parsed);
+    }
+  }
+} catch (error) {
+  if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+    console.log(
+      `[ENV] .env file not found at ${envPath} (expected in Docker/production)`,
+    );
+  } else {
+    console.error('[ENV] Failed to load .env file:', error);
+  }
+}
+
 async function bootstrap() {
   /**
-   * CRITICAL: Disable body parser for Better Auth compatibility
+   * Disable body parser for Better Auth compatibility
    *
    * Per @thallesp/nestjs-better-auth official docs, we must disable NestJS's
    * built-in body parser to allow Better Auth to handle request bodies correctly.
-   * The Better Auth module will automatically re-add the necessary body parsers.
    */
   const app = await NestFactory.create(AppModule, {
     bodyParser: false, // Required for Better Auth
@@ -21,10 +86,7 @@ async function bootstrap() {
   /**
    * CORS Configuration for Cross-Origin Requests
    *
-   * Supports both separate domain deployment and Docker Compose scenarios:
-   * - Separate domains: FRONTEND_URL = "https://frontend.com,https://other.com"
-   * - Docker Compose: FRONTEND_URL = "https://yourdomain.com" (Caddy handles routing)
-   *
+   * Supports both separate domain deployment and Docker Compose scenarios.
    * Environment variable FRONTEND_URL can contain comma-separated origins.
    * Trailing slashes are removed to ensure consistent origin matching.
    */
@@ -66,12 +128,8 @@ async function bootstrap() {
   /**
    * Mount tRPC adapter at /trpc
    *
-   * Following official tRPC Express adapter pattern:
-   * - createContext receives req/res from CreateExpressContextOptions
-   * - Context is created per-request with Express req/res objects
-   * - This enables cookie handling, authentication, and request-specific state
-   *
-   * See: https://trpc.io/docs/server/adapters/express
+   * Following official tRPC Express adapter pattern.
+   * Context is created per-request with Express req/res objects.
    */
   app.use(
     '/trpc',
@@ -96,8 +154,8 @@ async function bootstrap() {
   /**
    * Apply tRPC WebSocket handler
    *
-   * Note: WebSocket adapter doesn't use Express req/res, so we pass a minimal context
-   * For WebSocket subscriptions, authentication should be handled via connection params
+   * WebSocket adapter doesn't use Express req/res, so we pass a minimal context.
+   * For WebSocket subscriptions, authentication should be handled via connection params.
    */
   const wssHandler = applyWSSHandler({
     wss,

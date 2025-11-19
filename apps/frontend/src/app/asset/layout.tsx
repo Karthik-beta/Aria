@@ -1,6 +1,7 @@
 import Providers from '@/components/layout/providers';
 import { Toaster } from '@/components/ui/sonner';
 import ThemeProvider from '@/components/layout/ThemeToggle/theme-provider';
+import { AppAccessBoundary } from '@/components/auth/app-access-boundary';
 import type { Metadata } from 'next';
 import { cookies } from 'next/headers';
 
@@ -23,7 +24,7 @@ export default async function AssetLayout({ children }: { children: React.ReactN
     >
       <Providers activeThemeValue={activeThemeValue as string}>
         <Toaster />
-        {children}
+        <AppAccessBoundary appKey="asset">{children}</AppAccessBoundary>
       </Providers>
     </ThemeProvider>
   );

@@ -1,6 +1,7 @@
 import Providers from '@/components/layout/providers';
 import { Toaster } from '@/components/ui/sonner';
 import ThemeProvider from '@/components/layout/ThemeToggle/theme-provider';
+import { AppAccessBoundary } from '@/components/auth/app-access-boundary';
 import type { Metadata } from 'next';
 import { cookies } from 'next/headers';
 import KBar from '@/components/kbar';
@@ -30,17 +31,19 @@ export default async function InventoryLayout({ children }: { children: React.Re
     >
       <Providers activeThemeValue={activeThemeValue as string}>
         <Toaster />
-        <KBar>
-          <SidebarProvider defaultOpen={defaultOpen}>
-            <AppSidebar />
-            <SidebarInset>
-              <Header />
-              {/* page main content */}
-              {children}
-              {/* page main content ends */}
-            </SidebarInset>
-          </SidebarProvider>
-        </KBar>
+        <AppAccessBoundary appKey="inventory">
+          <KBar>
+            <SidebarProvider defaultOpen={defaultOpen}>
+              <AppSidebar />
+              <SidebarInset>
+                <Header />
+                {/* page main content */}
+                {children}
+                {/* page main content ends */}
+              </SidebarInset>
+            </SidebarProvider>
+          </KBar>
+        </AppAccessBoundary>
       </Providers>
     </ThemeProvider>
   );

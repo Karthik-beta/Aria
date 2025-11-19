@@ -1,10 +1,20 @@
 import { betterAuth } from 'better-auth';
 import { prismaAdapter } from 'better-auth/adapters/prisma';
-import { username } from 'better-auth/plugins';
+import { customSession, username } from 'better-auth/plugins';
 import { PrismaClient } from '@prisma/client';
 
-// Create Prisma client instance
-const prisma = new PrismaClient();
+// Import the singleton Prisma client from shared location
+const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
+
+const prisma =
+  globalForPrisma.prisma ??
+  new PrismaClient({
+    log: ['error'],
+  });
+
+if (process.env.NODE_ENV !== 'production') {
+  globalForPrisma.prisma = prisma;
+}
 
 // 1. Get the comma-separated string from the .env file
 const frontendUrlsRaw = process.env.FRONTEND_URL || 'http://localhost:3000';
@@ -19,17 +29,16 @@ const backendUrl = (
   process.env.BETTER_AUTH_URL || 'http://localhost:3001'
 ).replace(/\/$/, '');
 
+// Determine whether to use secure cookies. In production we require secure cookies.
+// Also allow secure when backendUrl uses https (useful for local HTTPS setups).
+const useSecureCookies =
+  process.env.NODE_ENV === 'production' || backendUrl.startsWith('https');
+
 /**
  * Better Auth configuration with username/password authentication
  *
- * @remarks
- * - Only enabled in production environment
- * - Uses Prisma adapter with PostgreSQL
- * - Username plugin enables username-based authentication
- * - Session configuration for secure cookie handling
- *
- * Note: The prismaAdapter requires proper typing. We pass the PrismaClient instance
- * which better-auth will use for database operations.
+ * Uses Prisma adapter with PostgreSQL and the username plugin for authentication.
+ * Sessions are configured with secure cookie handling and cross-site support.
  */
 export const auth = betterAuth({
   database: prismaAdapter(prisma, {
@@ -43,6 +52,25 @@ export const auth = betterAuth({
     requireEmailVerification: false, // Disabled for production simplicity
     minPasswordLength: 8,
     maxPasswordLength: 128,
+    sendResetPassword: async ({ user, url }) => {
+      await sendPasswordResetEmail(user.email, url);
+    },
+    onPasswordReset: async ({ user }) => {
+      try {
+        await prisma.user.update({
+          where: { id: user.id },
+          data: {
+            mustChangePassword: false,
+            passwordChangedAt: new Date(),
+          },
+        });
+      } catch (error) {
+        console.error(
+          '[Auth] Failed to update password reset metadata:',
+          error,
+        );
+      }
+    },
   },
 
   // Username plugin for username-based sign-in
@@ -50,6 +78,39 @@ export const auth = betterAuth({
     username({
       minUsernameLength: 3,
       maxUsernameLength: 20,
+    }),
+    customSession(async ({ user, session }) => {
+      try {
+        const passwordState = await prisma.user.findUnique({
+          where: { id: user.id },
+          select: {
+            mustChangePassword: true,
+            passwordChangedAt: true,
+          },
+        });
+
+        return {
+          user: {
+            ...user,
+            mustChangePassword: passwordState?.mustChangePassword ?? false,
+            passwordChangedAt: passwordState?.passwordChangedAt ?? null,
+          },
+          session,
+        };
+      } catch (error) {
+        console.error(
+          '[Auth] Failed to load password metadata for session user:',
+          error,
+        );
+        return {
+          user: {
+            ...user,
+            mustChangePassword: false,
+            passwordChangedAt: null,
+          },
+          session,
+        };
+      }
     }),
   ],
 
@@ -77,25 +138,20 @@ export const auth = betterAuth({
   ],
 
   // Advanced configuration for cross-site cookie support
-  // Following official Better Auth patterns for cross-domain scenarios
-  // See: https://github.com/better-auth/better-auth/blob/canary/docs/content/docs/integrations/hono.mdx
   advanced: {
-    // Force secure cookies in production (HTTPS required)
-    // In development, allow non-secure cookies for localhost testing
-    useSecureCookies: process.env.NODE_ENV === 'production',
+    // Control secure cookie behavior — enabled in production or when backend URL is HTTPS
+    useSecureCookies,
 
     // Global cookie attributes for cross-site cookies
-    // Required when frontend and backend are on different domains
-    // In production: SameSite=None with Secure for separate domains
-    // In development: Can use Lax if on same domain (e.g., localhost)
     defaultCookieAttributes: {
-      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-      secure: process.env.NODE_ENV === 'production',
-      httpOnly: true, // Prevent JavaScript access to the cookie (XSS protection)
+      // Browsers require 'Secure' when SameSite=None; fallback to 'lax' for non-secure dev
+      sameSite: useSecureCookies ? 'none' : 'lax',
+      secure: useSecureCookies,
+      httpOnly: true, // XSS protection
       path: '/', // Cookie available to all routes
     },
 
-    // Customize individual cookie attributes if needed
+    // Customize individual cookie attributes
     // Use __Secure- prefix only in production (requires HTTPS)
     cookies: {
       sessionToken: {
@@ -104,8 +160,8 @@ export const auth = betterAuth({
             ? '__Secure-better-auth.session_token'
             : 'better-auth.session_token',
         attributes: {
-          sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-          secure: process.env.NODE_ENV === 'production',
+          sameSite: useSecureCookies ? 'none' : 'lax',
+          secure: useSecureCookies,
           httpOnly: true, // XSS protection
           partitioned: process.env.NODE_ENV === 'production', // CHIPS only in production
         },
@@ -116,8 +172,8 @@ export const auth = betterAuth({
             ? '__Secure-better-auth.session_data'
             : 'better-auth.session_data',
         attributes: {
-          sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-          secure: process.env.NODE_ENV === 'production',
+          sameSite: useSecureCookies ? 'none' : 'lax',
+          secure: useSecureCookies,
           httpOnly: true, // XSS protection
           partitioned: process.env.NODE_ENV === 'production', // CHIPS
         },
@@ -128,8 +184,8 @@ export const auth = betterAuth({
             ? '__Secure-better-auth.dont_remember'
             : 'better-auth.dont_remember',
         attributes: {
-          sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-          secure: process.env.NODE_ENV === 'production',
+          sameSite: useSecureCookies ? 'none' : 'lax',
+          secure: useSecureCookies,
           httpOnly: true, // XSS protection
           partitioned: process.env.NODE_ENV === 'production', // CHIPS
         },
@@ -139,3 +195,76 @@ export const auth = betterAuth({
 });
 
 export type Auth = typeof auth;
+
+async function sendPasswordResetEmail(email: string, resetUrl: string) {
+  const apiKey = process.env.RESEND_API_KEY;
+  const fromAddress = process.env.AUTH_EMAIL_FROM || 'no-reply@aria.local';
+
+  // Always log for audit trail, even if we cannot send the email
+  console.info('[Auth] Issuing password reset email', {
+    email,
+    resetUrl,
+    provider: apiKey ? 'resend' : 'stdout',
+  });
+
+  if (!apiKey) {
+    console.warn(
+      '[Auth] RESEND_API_KEY not configured. Password reset email will not be delivered.',
+    );
+    return;
+  }
+
+  try {
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        from: fromAddress,
+        to: [email],
+        subject: 'Reset your Aria ERP password',
+        html: buildPasswordResetEmail(resetUrl),
+      }),
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      console.error(
+        '[Auth] Failed to send password reset email via Resend',
+        text,
+      );
+    }
+  } catch (error) {
+    console.error('[Auth] Error sending password reset email:', error);
+  }
+}
+
+function buildPasswordResetEmail(resetUrl: string) {
+  return `
+    <div style="font-family: Arial, sans-serif; line-height: 1.5; color: #111827;">
+      <h1 style="font-size: 20px;">Reset your Aria ERP password</h1>
+      <p>
+        We received a request to reset the password for your Aria ERP account.
+        Click the button below to choose a new password. This link expires in 30 minutes.
+      </p>
+      <p style="margin: 24px 0;">
+        <a
+          href="${resetUrl}"
+          style="display: inline-block; background-color: #0f172a; color: #ffffff; padding: 12px 20px; border-radius: 6px; text-decoration: none; font-weight: 600;"
+        >
+          Reset password
+        </a>
+      </p>
+      <p>
+        If you did not request this change, you can safely ignore this email.
+        Your password will remain the same.
+      </p>
+      <p style="font-size: 12px; color: #6b7280; margin-top: 32px;">
+        If the button doesn’t work, copy and paste this URL into your browser:<br />
+        <span style="word-break: break-all;">${resetUrl}</span>
+      </p>
+    </div>
+  `;
+}

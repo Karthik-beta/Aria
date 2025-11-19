@@ -196,7 +196,7 @@ export function GlobalSearch<TData>({
             <span className="sr-only">Clear search</span>
           </Button>
         )}
-        <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+        <PopoverContent className="w-(--radix-popover-trigger-width) p-0" align="start">
           <Command shouldFilter={false}>
             <CommandList>
               <CommandEmpty>No suggestions found.</CommandEmpty>

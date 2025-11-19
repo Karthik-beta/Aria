@@ -22,5 +22,5 @@
     "strictBindCallApply": false,
     "noFallthroughCasesInSwitch": false
   },
-  "include": ["src/**/*", "test/**/*", "test-*.js"]
+  "include": ["src/**/*", "test/**/*", "test-*.js", "prisma/**/*"]
 }

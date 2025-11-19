@@ -45,6 +45,29 @@ import { toast } from 'sonner';
 import { AlertModal } from '@/components/modal/alert-modal';
 import { cn } from '@/lib/utils';
 
+type InventorySubscriptionEvent = {
+  type: 'created' | 'updated' | 'deleted';
+  data: Inventory.Item | { id: string };
+};
+
+function InventoryRealtimeSubscription({
+  onStarted,
+  onData,
+  onError,
+}: {
+  onStarted?: () => void;
+  onData?: (event: InventorySubscriptionEvent) => void;
+  onError?: (err: unknown) => void;
+}) {
+  trpc.inventory.onItemsChanged.useSubscription(undefined, {
+    onStarted,
+    onData,
+    onError,
+  });
+
+  return null;
+}
+
 // Stock status helper
 const getStockStatus = (quantity: number) => {
   if (quantity === 0) {
@@ -62,6 +85,14 @@ export default function InventoryItemsPage() {
   // State for delete confirmation only
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
   const [itemToDelete, setItemToDelete] = React.useState<string | null>(null);
+  const [isRealtimeReady, setIsRealtimeReady] = React.useState(false);
+
+  React.useEffect(() => {
+    setIsRealtimeReady(true);
+    return () => {
+      setIsRealtimeReady(false);
+    };
+  }, []);
 
   // Stable delete handler using ref pattern - prevents columns re-memoization
   const handleDeleteRef = React.useRef<(id: string) => void>(() => {
@@ -112,7 +143,7 @@ export default function InventoryItemsPage() {
   // Callback to handle subscription data
   // Following official tRPC pattern: no manual mount checks needed with React 18+
   const handleSubscriptionData = React.useCallback(
-    (event: { type: 'created' | 'updated' | 'deleted'; data: Inventory.Item | { id: string } }) => {
+    (event: InventorySubscriptionEvent) => {
       // Official pattern: Invalidate cache to trigger re-render
       void utils.inventory.listItems.invalidate();
 
@@ -146,11 +177,7 @@ export default function InventoryItemsPage() {
 
   // Official tRPC pattern: subscription runs independently
   // No need to manually enable/disable based on mount state
-  trpc.inventory.onItemsChanged.useSubscription(undefined, {
-    onStarted: handleSubscriptionStarted,
-    onData: handleSubscriptionData,
-    onError: handleSubscriptionError,
-  });
+  const shouldSubscribe = isRealtimeReady;
 
   // Show error state if query fails
   // Following official TanStack Query pattern: no manual mount checks needed
@@ -528,81 +555,91 @@ export default function InventoryItemsPage() {
   });
 
   return (
-    <div className="container mx-auto py-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">Inventory Items</h1>
-            <p className="text-muted-foreground">
-              Manage your inventory items with advanced filtering, sorting, and bulk operations
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Loading State */}
-      {isLoading && (
-        <div className="flex items-center justify-center py-12">
-          <div className="flex flex-col items-center gap-4">
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-            <p className="text-sm text-muted-foreground">Loading inventory items...</p>
-          </div>
-        </div>
-      )}
-
-      {/* Error State */}
-      {queryError && !isLoading && (
-        <div className="flex items-center justify-center py-12">
-          <div className="flex flex-col items-center gap-4 text-center">
-            <AlertTriangle className="h-12 w-12 text-destructive" />
-            <div>
-              <h3 className="text-lg font-semibold">Failed to load inventory items</h3>
-              <p className="text-sm text-muted-foreground">{queryError.message}</p>
-            </div>
-            <Button onClick={() => utils.inventory.listItems.refetch()}>Try Again</Button>
-          </div>
-        </div>
-      )}
-
-      {/* Advanced Data Table - Only render when data is loaded */}
-      {!isLoading && !queryError && (
-        <AdvancedDataTable
-          table={table}
-          data={items}
-          enableGlobalSearch
-          enableExport
-          enableImport={false}
-          enableBulkActions
-          enableVirtualization
-          enableColumnResizing
-          enableColumnReordering
-          exportFormats={['csv', 'excel', 'json', 'pdf']}
-          bulkActions={bulkActions}
-          primaryAction={
-            <Link
-              href="/inventory/items-catalogue/item/form"
-              className={cn(buttonVariants({ variant: 'default', size: 'sm' }))}
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              Add Item
-            </Link>
-          }
-          ariaLabel="Inventory items table"
-          ariaDescription="A table of all inventory items with advanced filtering, sorting, and bulk actions"
+    <>
+      {shouldSubscribe && (
+        <InventoryRealtimeSubscription
+          onStarted={handleSubscriptionStarted}
+          onData={handleSubscriptionData}
+          onError={handleSubscriptionError}
         />
       )}
 
-      {/* Delete Confirmation */}
-      <AlertModal
-        isOpen={isDeleteDialogOpen}
-        onClose={() => {
-          setIsDeleteDialogOpen(false);
-          setItemToDelete(null);
-        }}
-        onConfirm={confirmDelete}
-        loading={deleteMutation.isPending}
-      />
-    </div>
+      <div className="container mx-auto py-6 space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight">Inventory Items</h1>
+              <p className="text-muted-foreground">
+                Manage your inventory items with advanced filtering, sorting, and bulk operations
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Loading State */}
+        {isLoading && (
+          <div className="flex items-center justify-center py-12">
+            <div className="flex flex-col items-center gap-4">
+              <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+              <p className="text-sm text-muted-foreground">Loading inventory items...</p>
+            </div>
+          </div>
+        )}
+
+        {/* Error State */}
+        {queryError && !isLoading && (
+          <div className="flex items-center justify-center py-12">
+            <div className="flex flex-col items-center gap-4 text-center">
+              <AlertTriangle className="h-12 w-12 text-destructive" />
+              <div>
+                <h3 className="text-lg font-semibold">Failed to load inventory items</h3>
+                <p className="text-sm text-muted-foreground">{queryError.message}</p>
+              </div>
+              <Button onClick={() => utils.inventory.listItems.refetch()}>Try Again</Button>
+            </div>
+          </div>
+        )}
+
+        {/* Advanced Data Table - Only render when data is loaded */}
+        {!isLoading && !queryError && (
+          <AdvancedDataTable
+            table={table}
+            data={items}
+            enableGlobalSearch
+            enableExport
+            enableImport={false}
+            enableBulkActions
+            enableVirtualization
+            enableColumnResizing
+            enableColumnReordering
+            exportFormats={['csv', 'excel', 'json', 'pdf']}
+            bulkActions={bulkActions}
+            primaryAction={
+              <Link
+                href="/inventory/items-catalogue/item/form"
+                className={cn(buttonVariants({ variant: 'default', size: 'sm' }))}
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Add Item
+              </Link>
+            }
+            ariaLabel="Inventory items table"
+            ariaDescription="A table of all inventory items with advanced filtering, sorting, and bulk actions"
+          />
+        )}
+
+        {/* Delete Confirmation */}
+        <AlertModal
+          isOpen={isDeleteDialogOpen}
+          onClose={() => {
+            setIsDeleteDialogOpen(false);
+            setItemToDelete(null);
+          }}
+          onConfirm={confirmDelete}
+          loading={deleteMutation.isPending}
+        />
+      </div>
+    </>
   );
 }

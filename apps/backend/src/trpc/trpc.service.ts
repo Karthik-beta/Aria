@@ -1,6 +1,9 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { router } from './trpc';
 import { InventoryRouter } from '../apps/inventory/trpc/inventory.router';
+import { AdminRouter } from './routers/admin-router.service';
+import { authorizationRouter } from './routers/authorization.router';
+import { accountRouter } from './routers/account.router';
 
 /**
  * TrpcService is responsible for creating and managing the main tRPC router.
@@ -12,7 +15,10 @@ import { InventoryRouter } from '../apps/inventory/trpc/inventory.router';
 export class TrpcService implements OnModuleInit {
   public appRouter: ReturnType<typeof this.createAppRouter> | null = null;
 
-  constructor(private readonly inventoryRouter: InventoryRouter) {}
+  constructor(
+    private readonly inventoryRouter: InventoryRouter,
+    private readonly adminRouter: AdminRouter,
+  ) {}
 
   onModuleInit() {
     // Create the router after all dependencies are resolved
@@ -26,6 +32,9 @@ export class TrpcService implements OnModuleInit {
   createAppRouter() {
     return router({
       inventory: this.inventoryRouter.getRouter(),
+      admin: this.adminRouter.getRouter(),
+      authorization: authorizationRouter,
+      account: accountRouter,
     });
   }
 

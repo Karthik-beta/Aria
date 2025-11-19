@@ -1,7 +1,8 @@
 'use client';
 
 import { createTRPCReact } from '@trpc/react-query';
-import type { AppRouter } from 'backend';
+// Import from source instead of dist for development
+import type { AppRouter } from '../../../../../apps/backend/src/trpc/trpc.service';
 
 /**
  * Create tRPC React hooks

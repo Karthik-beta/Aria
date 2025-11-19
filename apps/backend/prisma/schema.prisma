@@ -1,12 +1,5 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
-  provider = "prisma-client-js"
-  // Ensure Prisma generates the correct query engine for debian openssl (used in debian-based images)
+  provider      = "prisma-client-js"
   binaryTargets = ["native", "debian-openssl-3.0.x", "debian-openssl-1.1.x"]
 }
 
@@ -30,160 +23,137 @@ model InventoryItem {
 }
 
 model ItemGroup {
-  id        String    @id @default(cuid())
-  groupName String    @db.VarChar(255)
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-
-  // --- Self-referencing relationship ---
-
-  // 1. The "one" side (Parent)
-  // This group points to its parent
-  parentId      String?
-  parentItemGroup ItemGroup? @relation("ItemGroupHierarchy", fields: [parentId], references: [id])
-
-  // 2. The "many" side (Children)
-  // This lists all children that point to this group
-  children      ItemGroup[] @relation("ItemGroupHierarchy")
-
-  // Items in this group
-  items         Item[]
+  id              String      @id @default(cuid())
+  groupName       String      @db.VarChar(255)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  parentId        String?
+  items           Item[]
+  parentItemGroup ItemGroup?  @relation("ItemGroupHierarchy", fields: [parentId], references: [id])
+  children        ItemGroup[] @relation("ItemGroupHierarchy")
 }
 
 model Item {
-  id        String    @id @default(cuid())
-  name      String    @db.VarChar(255)
-  code      String    @unique @db.VarChar(100)
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-
-  itemGroupId String?
-  itemGroup   ItemGroup? @relation(fields: [itemGroupId], references: [id])
-
-  disabled  Boolean   @default(false)
-  allowAlternateItem  Boolean @default(false)
-  maintainStock  Boolean @default(false)
-
-  openingStock  Int     @default(0)
-  valuationRate  Float   @default(0.0)
-  standardSellingRate  Float @default(0.0)
-
+  id                     String              @id @default(cuid())
+  name                   String              @db.VarChar(255)
+  code                   String              @unique @db.VarChar(100)
+  createdAt              DateTime            @default(now())
+  updatedAt              DateTime            @updatedAt
+  itemGroupId            String?
+  disabled               Boolean             @default(false)
+  allowAlternateItem     Boolean             @default(false)
+  maintainStock          Boolean             @default(false)
+  openingStock           Int                 @default(0)
+  valuationRate          Float               @default(0.0)
+  standardSellingRate    Float               @default(0.0)
   defaultUnitOfMeasureId String?
-  defaultUnitOfMeasure   UnitOfMeasurement? @relation(fields: [defaultUnitOfMeasureId], references: [id])
-
-  description  String?   @db.Text
-  brandId     String?
-  brand       Brand?    @relation(fields: [brandId], references: [id])
-
-  // Relations
-  productBundles        ProductBundle[]
-  productBundleItems    ProductBundleItem[]
-  primaryItemAlternates ItemAlternate[] @relation("PrimaryItem")
-  alternateItems        ItemAlternate[] @relation("AlternateItem")
+  description            String?
+  brandId                String?
+  brand                  Brand?              @relation(fields: [brandId], references: [id])
+  defaultUnitOfMeasure   UnitOfMeasurement?  @relation(fields: [defaultUnitOfMeasureId], references: [id])
+  itemGroup              ItemGroup?          @relation(fields: [itemGroupId], references: [id])
+  alternateItems         ItemAlternate[]     @relation("AlternateItem")
+  primaryItemAlternates  ItemAlternate[]     @relation("PrimaryItem")
+  productBundles         ProductBundle[]
+  productBundleItems     ProductBundleItem[]
 }
 
 model UnitOfMeasurement {
-  id                String    @id @default(cuid())
-  name              String    @db.VarChar(255)
-  isWholeNumber     Boolean   @default(true)
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
-
-  // Relations
-  items             Item[]
+  id                 String              @id @default(cuid())
+  name               String              @db.VarChar(255)
+  isWholeNumber      Boolean             @default(true)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  items              Item[]
   productBundleItems ProductBundleItem[]
 }
 
 model Brand {
-  id        String    @id @default(cuid())
-  name      String    @db.VarChar(255)
-  description String?   @db.Text
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-
-  // Relations
-  items     Item[]
+  id          String   @id @default(cuid())
+  name        String   @db.VarChar(255)
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  items       Item[]
 }
 
 model ProductBundle {
-  id        String    @id @default(cuid())
+  id           String              @id @default(cuid())
   parentItemId String
-  parentItem   Item    @relation(fields: [parentItemId], references: [id])
-  description String?   @db.Text
-  disabled  Boolean   @default(false)
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-
-  // Relations
-  bundleItems ProductBundleItem[]
+  description  String?
+  disabled     Boolean             @default(false)
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+  parentItem   Item                @relation(fields: [parentItemId], references: [id])
+  bundleItems  ProductBundleItem[]
 }
 
 model ProductBundleItem {
-  id        String    @id @default(cuid())
-  bundleId  String
-  bundle    ProductBundle @relation(fields: [bundleId], references: [id])
-  itemId    String
-  item      Item      @relation(fields: [itemId], references: [id])
-  quantity  Int       @default(1)
-  description String?   @db.Text
+  id                  String             @id @default(cuid())
+  bundleId            String
+  itemId              String
+  quantity            Int                @default(1)
+  description         String?
   UnitOfMeasurementId String?
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
   unitOfMeasurement   UnitOfMeasurement? @relation(fields: [UnitOfMeasurementId], references: [id])
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  bundle              ProductBundle      @relation(fields: [bundleId], references: [id])
+  item                Item               @relation(fields: [itemId], references: [id])
 
   @@unique([bundleId, itemId])
 }
 
 model ShippingRule {
-  id        String    @id @default(cuid())
-  shippingRuleLabel String  @db.VarChar(255)
+  id                String          @id @default(cuid())
+  shippingRuleLabel String          @db.VarChar(255)
   shippingRuleType  RuleType
-  disabled  Boolean   @default(false)
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-
+  disabled          Boolean         @default(false)
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
   calculateBasedOn  CalculationType
-  shippingAmount  Float   @default(0.0)
-}
-
-enum RuleType {
-  SELLING
-  BUYING
-}
-
-enum CalculationType {
-  FIXED
-  NET_TOTAL
-  NET_WEIGHT
+  shippingAmount    Float           @default(0.0)
 }
 
 model ItemAlternate {
-  id        String    @id @default(cuid())
-  itemId    String
-  item      Item      @relation("PrimaryItem", fields: [itemId], references: [id])
+  id              String   @id @default(cuid())
+  itemId          String
   alternateItemId String
-  alternateItem   Item    @relation("AlternateItem", fields: [alternateItemId], references: [id])
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  alternateItem   Item     @relation("AlternateItem", fields: [alternateItemId], references: [id])
+  item            Item     @relation("PrimaryItem", fields: [itemId], references: [id])
 
   @@unique([itemId, alternateItemId])
 }
 
-// Better Auth Models
 model User {
-  id              String    @id @default(cuid())
+  id              String          @id @default(cuid())
   name            String
-  email           String    @unique
-  emailVerified   Boolean   @default(false)
-  username        String?   @unique
-  displayUsername String?
+  email           String          @unique
+  emailVerified   Boolean         @default(false)
+  username        String?         @unique
   image           String?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-
-  sessions        Session[]
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  displayUsername String?
+  department      String?         @db.VarChar(100)
+  displayName     String?         @db.VarChar(150)
+  isActive        Boolean         @default(true)
+  managerId       String?
+  mustChangePassword Boolean      @default(false)
+  passwordChangedAt  DateTime?
   accounts        Account[]
+  supervisedApps  AppSupervisor[] @relation("AppSupervisor")
+  sessions        Session[]
+  teamMemberships TeamMember[]    @relation("TeamMembership")
+  managedTeams    Team[]          @relation("TeamManager")
+  userRoles       UserRole[]
+  manager         User?           @relation("ManagerSubordinate", fields: [managerId], references: [id])
+  subordinates    User[]          @relation("ManagerSubordinate")
 
+  @@index([isActive])
+  @@index([managerId])
   @@map("users")
 }
 
@@ -202,20 +172,20 @@ model Session {
 }
 
 model Account {
-  id                String   @id @default(cuid())
-  accountId         String
-  providerId        String
-  userId            String
-  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  accessToken       String?
-  refreshToken      String?
-  idToken           String?
-  accessTokenExpiresAt DateTime?
+  id                    String    @id @default(cuid())
+  accountId             String
+  providerId            String
+  userId                String
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
   refreshTokenExpiresAt DateTime?
-  scope             String?
-  password          String?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([providerId, accountId])
   @@map("accounts")
@@ -231,4 +201,158 @@ model Verification {
 
   @@unique([identifier, value])
   @@map("verifications")
+}
+
+/// Role definition with system-level and app-level support
+model Role {
+  id              String           @id @default(cuid())
+  key             String           @unique @db.VarChar(50)
+  name            String           @db.VarChar(100)
+  description     String?
+  level           Int              @default(0)
+  isSystem        Boolean          @default(false)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  rolePermissions RolePermission[]
+  userRoles       UserRole[]
+
+  @@index([key])
+  @@index([level])
+  @@map("roles")
+}
+
+/// Permission definition for fine-grained access control
+model Permission {
+  id              String           @id @default(cuid())
+  key             String           @unique @db.VarChar(100)
+  name            String           @db.VarChar(150)
+  description     String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  rolePermissions RolePermission[]
+
+  @@index([key])
+  @@map("permissions")
+}
+
+/// Many-to-many relationship between roles and permissions
+model RolePermission {
+  roleId       String
+  permissionId String
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@index([roleId])
+  @@index([permissionId])
+  @@map("role_permissions")
+}
+
+/// User-role assignment with optional app scoping
+model UserRole {
+  id         String   @id @default(cuid())
+  userId     String
+  roleId     String
+  appKey     String?  @db.VarChar(50)
+  assignedBy String?
+  createdAt  DateTime @default(now())
+  role       Role     @relation(fields: [roleId], references: [id])
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleId, appKey])
+  @@index([userId])
+  @@index([roleId])
+  @@index([appKey])
+  @@map("user_roles")
+}
+
+/// Application definition for multi-app authorization
+model App {
+  appKey         String          @id @db.VarChar(50)
+  name           String          @db.VarChar(100)
+  description    String?
+  isActive       Boolean         @default(true)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  appSupervisors AppSupervisor[]
+  teams          Team[]
+
+  @@map("apps")
+}
+
+/// App-level supervisors (managers with special privileges for specific apps)
+model AppSupervisor {
+  id               String   @id @default(cuid())
+  appKey           String
+  supervisorUserId String
+  createdBy        String?
+  createdAt        DateTime @default(now())
+  app              App      @relation(fields: [appKey], references: [appKey], onDelete: Cascade)
+  supervisorUser   User     @relation("AppSupervisor", fields: [supervisorUserId], references: [id], onDelete: Cascade)
+
+  @@unique([appKey, supervisorUserId])
+  @@index([appKey])
+  @@index([supervisorUserId])
+  @@map("app_supervisors")
+}
+
+/// Team definition for hierarchical access control
+model Team {
+  id            String       @id @default(cuid())
+  appKey        String
+  name          String       @db.VarChar(100)
+  managerUserId String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  teamMembers   TeamMember[]
+  app           App          @relation(fields: [appKey], references: [appKey], onDelete: Cascade)
+  managerUser   User?        @relation("TeamManager", fields: [managerUserId], references: [id])
+
+  @@index([appKey])
+  @@index([managerUserId])
+  @@map("teams")
+}
+
+/// Team membership for users
+model TeamMember {
+  id        String   @id @default(cuid())
+  teamId    String
+  userId    String
+  createdAt DateTime @default(now())
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user      User     @relation("TeamMembership", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, userId])
+  @@index([teamId])
+  @@index([userId])
+  @@map("team_members")
+}
+
+/// Audit log for authorization changes
+model AuditLog {
+  id          String   @id @default(cuid())
+  actorUserId String?
+  action      String   @db.VarChar(100)
+  subjectType String   @db.VarChar(50)
+  subjectId   String?  @db.VarChar(100)
+  appKey      String?  @db.VarChar(50)
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  @@index([actorUserId])
+  @@index([action])
+  @@index([subjectType])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+enum RuleType {
+  SELLING
+  BUYING
+}
+
+enum CalculationType {
+  FIXED
+  NET_TOTAL
+  NET_WEIGHT
 }

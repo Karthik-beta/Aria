@@ -112,6 +112,13 @@ services:
       - DATABASE_URL=postgresql://aria_dev:${POSTGRES_PASSWORD:-dev_password}@postgres:5432/aria_dev
       - PORT=3001
       - JWT_SECRET=${JWT_SECRET:-dev_jwt_secret_change_in_production}
+      - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET:-dev_better_auth_secret_change_in_production}
+      - BETTER_AUTH_URL=${BETTER_AUTH_URL:-http://localhost:3001}
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3000}
+      - DEFAULT_ADMIN_USERNAME=admin
+      - DEFAULT_ADMIN_PASSWORD=admin123
+      - DEFAULT_ADMIN_EMAIL=admin@aria.local
+      - DEFAULT_ADMIN_NAME=Administrator
     networks:
       - aria-dev-network
     depends_on:

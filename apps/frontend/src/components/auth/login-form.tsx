@@ -14,12 +14,10 @@ import { toast } from 'sonner';
 /**
  * Login form component with username and password authentication
  *
- * @remarks
  * Uses better-auth with username plugin for authentication.
- * Only functional in production environment.
  */
 export function LoginForm() {
-  const [username, setUsername] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -37,18 +35,24 @@ export function LoginForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!username || !password) {
-      toast.error('Please enter both username and password');
+    if (!identifier || !password) {
+      toast.error('Please enter your email or username and password');
       return;
     }
 
     setIsLoading(true);
 
     try {
-      const { data, error } = await authClient.signIn.username({
-        username,
-        password,
-      });
+      const isEmail = identifier.includes('@');
+      const { data, error } = isEmail
+        ? await authClient.signIn.email({
+            email: identifier,
+            password,
+          })
+        : await authClient.signIn.username({
+            username: identifier,
+            password,
+          });
 
       if (error) {
         toast.error(error.message || 'Failed to sign in. Please try again.');
@@ -57,8 +61,15 @@ export function LoginForm() {
 
       if (data) {
         toast.success('Successfully signed in!');
-        // Redirect to dashboard or home page
-        router.push('/');
+        const user = (data as { user?: Record<string, unknown> }).user;
+        const mustChangePassword = Boolean(
+          user &&
+            typeof user === 'object' &&
+            'mustChangePassword' in user &&
+            (user as Record<string, unknown>).mustChangePassword
+        );
+
+        router.push(mustChangePassword ? '/auth/change-password' : '/');
         router.refresh();
       }
     } catch {
@@ -86,18 +97,18 @@ export function LoginForm() {
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="username">Username</Label>
+            <Label htmlFor="identifier">Email or Username</Label>
             <Input
-              id="username"
-              name="username"
-              placeholder="Enter your username"
+              id="identifier"
+              name="identifier"
+              placeholder="Enter your email address or username"
               type="text"
               autoCapitalize="none"
               autoComplete="username"
               autoCorrect="off"
               disabled={isLoading}
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
               required
             />
           </div>
@@ -141,7 +152,7 @@ export function LoginForm() {
             <button
               type="button"
               className="underline underline-offset-4 hover:text-primary"
-              onClick={() => toast.info('Password reset flow coming soon.')}
+              onClick={() => router.push('/auth/forgot-password')}
               disabled={isLoading}
             >
               Forgot password?
