@@ -220,9 +220,17 @@ export default function UsersPage() {
     onSuccess: () => refetch(),
   });
 
+  const deleteUserMutation = trpc.admin.deleteUser.useMutation({
+    onError: (error) => {
+      toast.error(error.message || 'Failed to delete user');
+    },
+  });
+
   const enableUserMutation = trpc.admin.enableUser.useMutation({
     onSuccess: () => refetch(),
   });
+
+
 
   const selectedUser = data?.users.find((u) => u.id === selectedUserId) || null;
 
@@ -441,11 +449,10 @@ export default function UsersPage() {
                       <button
                         key={user.id}
                         onClick={() => handleSelectUser(user)}
-                        className={`w-full text-left p-3 rounded-md transition-colors ${
-                          selectedUserId === user.id
-                            ? 'bg-primary text-primary-foreground'
-                            : 'hover:bg-muted'
-                        }`}
+                        className={`w-full text-left p-3 rounded-md transition-colors ${selectedUserId === user.id
+                          ? 'bg-primary text-primary-foreground'
+                          : 'hover:bg-muted'
+                          }`}
                       >
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex-1 min-w-0">
@@ -563,11 +570,17 @@ export default function UsersPage() {
               <AlertDialogAction
                 onClick={async () => {
                   if (userToDelete) {
-                    // TODO: Implement delete user mutation
-                    setDeleteDialogOpen(false);
-                    setUserToDelete(null);
-                    setSelectedUserId(null);
-                    setMode('view');
+                    try {
+                      await deleteUserMutation.mutateAsync({ userId: userToDelete.id });
+                      toast.success('User deleted successfully');
+                      setDeleteDialogOpen(false);
+                      setUserToDelete(null);
+                      setSelectedUserId(null);
+                      setMode('view');
+                      refetch();
+                    } catch (error) {
+                      // Error handled by mutation callback
+                    }
                   }
                 }}
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
@@ -880,6 +893,7 @@ function CreateUserPanel({
   isContextLoading?: boolean;
 }) {
   const [email, setEmail] = useState('');
+  const [activeTab, setActiveTab] = useState('info');
   const [username, setUsername] = useState('');
   const [name, setName] = useState('');
   const [displayName, setDisplayName] = useState('');
@@ -1214,10 +1228,11 @@ function CreateUserPanel({
             </AlertDescription>
           </Alert>
         )}
-        <Tabs defaultValue="info" className="w-full">
+
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="info">User Information</TabsTrigger>
-            <TabsTrigger value="roles">Roles & Permissions</TabsTrigger>
+            <TabsTrigger value="info" onClick={() => setActiveTab('info')}>User Information</TabsTrigger>
+            <TabsTrigger value="roles" onClick={() => setActiveTab('roles')}>Roles & Permissions</TabsTrigger>
           </TabsList>
 
           <TabsContent value="info" className="space-y-4 mt-4">
@@ -1592,6 +1607,7 @@ function EditUserPanel({
   isContextLoading?: boolean;
 }) {
   const [name, setName] = useState(user.name);
+  const [activeTab, setActiveTab] = useState('info');
   const [displayName, setDisplayName] = useState(user.displayName || '');
   const [department, setDepartment] = useState(user.department || '');
   const [selectedRoleKeys, setSelectedRoleKeys] = useState<Set<string>>(
@@ -1700,10 +1716,11 @@ function EditUserPanel({
       </div>
 
       <ScrollArea className="flex-1 p-6">
-        <Tabs defaultValue="info" className="w-full">
+
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="info">User Information</TabsTrigger>
-            <TabsTrigger value="roles">Roles & Permissions</TabsTrigger>
+            <TabsTrigger value="info" onClick={() => setActiveTab('info')}>User Information</TabsTrigger>
+            <TabsTrigger value="roles" onClick={() => setActiveTab('roles')}>Roles & Permissions</TabsTrigger>
           </TabsList>
 
           <TabsContent value="info" className="space-y-4 mt-4">

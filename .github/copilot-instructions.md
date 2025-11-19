@@ -1,6 +1,6 @@
 # Aria ERP Copilot Instructions
 
-> AI coding guidance for the Aria B2B ERP monorepo—a pnpm + Turborepo workspace hosting NestJS backend and four Next.js 15 frontends.
+> AI coding guidance for the Aria B2B ERP monorepo—a bun + Turborepo workspace hosting NestJS backend and four Next.js 15 frontends.
 
 ## Architecture Overview
 
@@ -23,20 +23,20 @@
 
 ```bash
 # Root installation (run once after clone)
-pnpm install
+bun install
 
 # Start individual apps
-pnpm --filter backend dev        # NestJS on port 3000
-pnpm --filter asset dev          # Next.js asset management
-pnpm --filter crm dev            # Next.js CRM
-pnpm --filter hrms dev           # Next.js HR
-pnpm --filter inventory dev      # Next.js inventory
+bun --filter backend dev        # NestJS on port 3000
+bun --filter asset dev          # Next.js asset management
+bun --filter crm dev            # Next.js CRM
+bun --filter hrms dev           # Next.js HR
+bun --filter inventory dev      # Next.js inventory
 
 # Quality gates (must pass before PR)
-pnpm format                      # Run Prettier across workspace
-pnpm lint                        # ESLint with Prettier integration
-pnpm test                        # All test suites
-pnpm build                       # Production builds for all apps
+bun format                      # Run Prettier across workspace
+bun lint                        # ESLint with Prettier integration
+bun test                        # All test suites
+bun build                       # Production builds for all apps
 ```
 
 ### Scaffolding New Code
@@ -46,13 +46,13 @@ pnpm build                       # Production builds for all apps
 ```bash
 # Backend (NestJS)
 cd apps/backend
-pnpm nest g module users         # Generate module
-pnpm nest g controller users     # Generate controller
-pnpm nest g service users        # Generate service
+bun nest g module users         # Generate module
+bun nest g controller users     # Generate controller
+bun nest g service users        # Generate service
 
 # Frontend (Next.js)
 cd apps/frontend/asset
-pnpx next                        # Follow Next.js conventions
+bunx next                        # Follow Next.js conventions
 ```
 
 **Never manually create** files that can be generated. Nest modules live in `apps/backend/src/modules/<domain>`.
@@ -100,7 +100,7 @@ Shared packages follow Turborepo's recommended JIT pattern:
 - **No manual build required** — packages export source TypeScript files directly
 - **Instant hot reload** — changes to shared packages reflect immediately in consuming apps
 - **Consuming apps handle transpilation** — Next.js uses `transpilePackages`, NestJS uses tsc
-- **Type checking only** — run `pnpm --filter @aria/types check-types` for validation
+- **Type checking only** — run `bun --filter @aria/types check-types` for validation
 
 See `SHARED_PACKAGES_REFACTOR.md` for detailed implementation.
 
@@ -139,21 +139,21 @@ All apps extend `@aria/tsconfig`:
 Prettier runs **through ESLint** (not separately). Formatting violations show as lint errors.
 
 - Shared config: `packages/config-eslint` with flat config format
-- Fix formatting: `pnpm format` or `pnpm lint --fix`
+- Fix formatting: `bun format` or `bun lint --fix`
 
 ## Workspace Management
 
 ### Adding New Apps
 
 1. Create directory under `apps/<domain>/<name>`
-2. Update `pnpm-workspace.yaml` to include path
+2. Update `bun-workspace.yaml` to include path
 3. Add Turborepo pipeline tasks in `turbo.json` if needed
 4. Document scripts and env vars in app's README
 
 ### Adding New Packages
 
 1. Create directory under `packages/<name>`
-2. Add to `pnpm-workspace.yaml`
+2. Add to `bun-workspace.yaml`
 3. Define `package.json` with `name: "@aria/<name>"`
 4. Export from `src/index.ts` for clean imports
 
@@ -166,7 +166,7 @@ Prettier runs **through ESLint** (not separately). Formatting violations show as
     "@aria/types": "workspace:*"
   }
   ```
-- Run `pnpm install` at root after changes to refresh lockfile
+- Run `bun install` at root after changes to refresh lockfile
 
 ## Testing Strategy
 
@@ -195,10 +195,10 @@ Prettier runs **through ESLint** (not separately). Formatting violations show as
 
 Runs on every push/PR to `main`/`master`:
 
-1. `pnpm install --frozen-lockfile`
-2. `pnpm lint`
-3. `pnpm test`
-4. `pnpm build`
+1. `bun install --frozen-lockfile`
+2. `bun lint`
+3. `bun test`
+4. `bun build`
 
 **Extend CI when**:
 
@@ -224,7 +224,7 @@ Production topology: Traefik reverse proxy + Postgres + backend + 4 frontends.
 - Custom webpack/rollup configs (trust framework defaults)
 - Manually creating files that CLIs generate
 - Using `any` type or disabling TypeScript strict checks
-- Committing without running `pnpm format && pnpm lint && pnpm build`
+- Committing without running `bun format && bun lint && bun build`
 
 ✅ **Do**:
 
@@ -238,10 +238,10 @@ Production topology: Traefik reverse proxy + Postgres + backend + 4 frontends.
 
 Before submitting:
 
-- [ ] `pnpm format` passes
-- [ ] `pnpm lint` passes
-- [ ] `pnpm test` passes
-- [ ] `pnpm build` completes successfully
+- [ ] `bun format` passes
+- [ ] `bun lint` passes
+- [ ] `bun test` passes
+- [ ] `bun build` completes successfully
 - [ ] Updated relevant README files
 - [ ] Added/updated tests for new features
 - [ ] PR description maps changes to agent responsibilities
@@ -250,14 +250,14 @@ Before submitting:
 
 | Task                      | Command                                               |
 | ------------------------- | ----------------------------------------------------- |
-| Install dependencies      | `pnpm install`                                        |
-| Format code               | `pnpm format`                                         |
-| Lint entire workspace     | `pnpm lint`                                           |
-| Run all tests             | `pnpm test`                                           |
-| Build all apps            | `pnpm build`                                          |
-| Start backend dev server  | `pnpm --filter backend dev`                           |
-| Start frontend dev server | `pnpm --filter <app> dev`                             |
-| Generate NestJS module    | `cd apps/backend && pnpm nest g module <name>`        |
+| Install dependencies      | `bun install`                                        |
+| Format code               | `bun format`                                         |
+| Lint entire workspace     | `bun lint`                                           |
+| Run all tests             | `bun test`                                           |
+| Build all apps            | `bun build`                                          |
+| Start backend dev server  | `bun --filter backend dev`                           |
+| Start frontend dev server | `bun --filter <app> dev`                             |
+| Generate NestJS module    | `cd apps/backend && bun nest g module <name>`        |
 | Add workspace dependency  | Edit package.json, use `"@aria/<pkg>": "workspace:*"` |
 
 ---
