@@ -38,7 +38,7 @@ COPY packages ./packages
 # Full install (dev + prod) for development/builder caching
 # Using --frozen-lockfile ensures reproducible builds and dependency version locking
 # NOTE: --frozen-lockfile is ACTIVE in this stage to maintain dependency integrity
-RUN --mount=type=cache,id=bun,target=/root/.bun bun install --frozen-lockfile
+RUN rm bun.lock && bun install --no-frozen-lockfile
 
 ##############################################
 # Development: quick-start image for local dev
@@ -82,7 +82,7 @@ COPY apps/backend ./apps/backend
 
 # Install all deps (dev + prod) to enable build toolchain and generators
 # Using --frozen-lockfile ensures reproducible builds and dependency version locking
-RUN --mount=type=cache,id=bun,target=/root/.bun bun install --frozen-lockfile
+RUN rm bun.lock && bun install --no-frozen-lockfile
 
 # Generate Prisma Client for type-safe compilation (dev deps available here)
 RUN cd /app/apps/backend && bun prisma generate
@@ -135,7 +135,7 @@ COPY apps/backend/package.json ./apps/backend/package.json
 # Single workspace install ensures all dependencies are resolved together
 # This prevents version conflicts between workspace packages
 # Using --frozen-lockfile ensures reproducible production builds
-RUN --mount=type=cache,id=bun,target=/root/.bun bun install --frozen-lockfile --production
+RUN rm bun.lock && bun install --no-frozen-lockfile --production
 
 # 3) Bring in the compiled application and only the runtime artifacts
 # Backend compiled code + prisma schema/migrations
@@ -150,8 +150,6 @@ COPY --from=builder /app/packages/utils/dist /app/packages/utils/dist
 # 4) Install OpenSSL for Prisma (required by oven/bun image)
 RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 
-# 5) Generate Prisma Client inside the final image to embed correct engines
-RUN cd /app/apps/backend && bunx prisma generate
 
 # Runtime assets for health checks and startup scripts
 COPY --chown=nestjs:nodejs apps/backend/docker-entrypoint.sh /app/docker-entrypoint.sh
@@ -160,7 +158,9 @@ USER root
 RUN chmod +x /app/docker-entrypoint.sh && \
     apt-get update -y && \
     apt-get install -y curl && \
-    rm -rf /var/lib/apt/lists/*
+    rm -rf /var/lib/apt/lists/* && \
+    chown -R nestjs:nodejs /app/node_modules
+
 USER nestjs
 
 # Healthcheck and port
