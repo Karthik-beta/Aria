@@ -27,6 +27,14 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { data: session, isPending, error } = authClient.useSession();
 
+  // Development mode bypass - skip authentication for testing
+  const isDevelopmentBypass = process.env.NEXT_PUBLIC_DEV_AUTH_BYPASS === 'true';
+
+  // If dev bypass is enabled, render children immediately
+  if (isDevelopmentBypass) {
+    return <>{children}</>;
+  }
+
   // Public routes that don't require authentication
   const publicRoutes = [
     '/auth/sign-in',
@@ -39,9 +47,9 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 
   const mustChangePassword = Boolean(
     session?.user &&
-      typeof session.user === 'object' &&
-      'mustChangePassword' in session.user &&
-      (session.user as Record<string, unknown>).mustChangePassword
+    typeof session.user === 'object' &&
+    'mustChangePassword' in session.user &&
+    (session.user as Record<string, unknown>).mustChangePassword
   );
 
   React.useEffect(() => {

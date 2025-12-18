@@ -33,6 +33,7 @@ import {
 import { toast } from 'sonner';
 import { AlertModal } from '@/components/modal/alert-modal';
 import { cn } from '@/lib/utils';
+import { getToastMessage } from '@/lib/errors';
 
 // Stock status helper
 const getStockStatus = (quantity: number) => {
@@ -76,7 +77,7 @@ export default function InventoryItemDetailPage() {
       });
     },
     onError: (error) => {
-      toast.error(`Failed to delete item: ${error.message}`);
+      toast.error(getToastMessage(error, 'delete'));
     },
   });
 
@@ -175,11 +176,16 @@ export default function InventoryItemDetailPage() {
             <div>
               <p className="text-sm text-muted-foreground flex items-center gap-2">
                 <Hash className="h-4 w-4" />
-                SKU
+                Code
               </p>
               <code className="mt-1 inline-block rounded bg-muted px-3 py-1 text-sm font-mono">
-                {item.sku}
+                {item.code}
               </code>
+            </div>
+            <Separator />
+            <div>
+              <p className="text-sm text-muted-foreground">Description</p>
+              <p className="mt-1 text-sm">{item.description || 'No description provided'}</p>
             </div>
             <Separator />
             <div>
@@ -205,15 +211,36 @@ export default function InventoryItemDetailPage() {
           </CardContent>
         </Card>
 
-        {/* Metadata */}
+        {/* Metadata & Settings */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Calendar className="h-5 w-5" />
-              Metadata
+              Metadata & Settings
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-sm text-muted-foreground">Status</p>
+                <Badge variant={item.disabled ? 'destructive' : 'default'} className="mt-1">
+                  {item.disabled ? 'Disabled' : 'Active'}
+                </Badge>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Maintain Stock</p>
+                <Badge variant="outline" className="mt-1">
+                  {item.maintainStock ? 'Yes' : 'No'}
+                </Badge>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Allow Alternate</p>
+                <Badge variant="outline" className="mt-1">
+                  {item.allowAlternateItem ? 'Yes' : 'No'}
+                </Badge>
+              </div>
+            </div>
+            <Separator />
             <div>
               <p className="text-sm text-muted-foreground">Item ID</p>
               <code className="mt-1 block rounded bg-muted px-3 py-2 text-xs font-mono">

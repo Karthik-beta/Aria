@@ -8,11 +8,16 @@ import { cookies } from 'next/headers';
 export const metadata: Metadata = {
   title: 'HRMS by Pivotr',
   description: 'HR management system from Pivotr',
+  icons: {
+    icon: '/icons/favicon-hrms.svg',
+    shortcut: '/icons/favicon-hrms.svg',
+    apple: '/icons/favicon-hrms.svg',
+  },
 };
 
 export default async function HRMSLayout({ children }: { children: React.ReactNode }) {
   const cookieStore = await cookies();
-  const activeThemeValue = cookieStore.get('active_theme')?.value;
+  const activeThemeValue = cookieStore.get('active_theme')?.value || 'default';
 
   return (
     <ThemeProvider

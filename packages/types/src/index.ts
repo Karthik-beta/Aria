@@ -45,10 +45,22 @@ export namespace Inventory {
     id: string;
     /** Item name/title */
     name: string;
-    /** Stock Keeping Unit - unique product code */
-    sku: string;
+    /** Unique product code (formerly SKU) */
+    code: string;
     /** Current quantity in stock */
     quantity: number;
+    /** Item description */
+    description?: string | null;
+    /** Whether the item is disabled */
+    disabled: boolean;
+    /** Whether to maintain stock levels for this item */
+    maintainStock: boolean;
+    /** Whether alternate items are allowed */
+    allowAlternateItem: boolean;
+    /** Reference to item group */
+    itemGroupId?: string | null;
+    /** Reference to default unit of measure */
+    defaultUnitOfMeasureId?: string | null;
     /** When this item was created */
     createdAt: Date;
     /** When this item was last updated */
@@ -57,30 +69,33 @@ export namespace Inventory {
 
   /**
    * Input for creating a new inventory item
-   * Only name and sku are required; quantity defaults to 0
    */
   export interface CreateInput {
-    /** Item name (required) */
     name: string;
-    /** Stock Keeping Unit (required) */
-    sku: string;
-    /** Initial quantity (optional, defaults to 0) */
+    code: string;
     quantity?: number;
+    description?: string;
+    disabled?: boolean;
+    maintainStock?: boolean;
+    allowAlternateItem?: boolean;
+    itemGroupId?: string;
+    defaultUnitOfMeasureId?: string;
   }
 
   /**
    * Input for updating an existing inventory item
-   * All fields except id are optional
    */
   export interface UpdateInput {
-    /** Item ID to update (required) */
     id: string;
-    /** New name (optional) */
     name?: string;
-    /** New SKU (optional) */
-    sku?: string;
-    /** New quantity (optional) */
+    code?: string;
     quantity?: number;
+    description?: string;
+    disabled?: boolean;
+    maintainStock?: boolean;
+    allowAlternateItem?: boolean;
+    itemGroupId?: string;
+    defaultUnitOfMeasureId?: string;
   }
 
   // ============================================================================
@@ -89,28 +104,33 @@ export namespace Inventory {
 
   /**
    * Validation schema for creating inventory items
-   * Use with form validation or API input validation
-   * @example
-   * const result = Inventory.createSchema.parse(userInput);
-   * if (result.success) { ... }
    */
   export const createSchema = z.object({
     name: z.string().min(1, 'Name is required').max(255).trim(),
-    sku: z.string().min(1, 'SKU is required').max(100).trim().toUpperCase(),
+    code: z.string().min(1, 'Code is required').max(100).trim().toUpperCase(),
     quantity: z.number().int().min(0).default(0),
+    description: z.string().max(1000).optional(),
+    disabled: z.boolean().default(false),
+    maintainStock: z.boolean().default(false),
+    allowAlternateItem: z.boolean().default(false),
+    itemGroupId: z.string().cuid().optional(),
+    defaultUnitOfMeasureId: z.string().cuid().optional(),
   });
 
   /**
    * Validation schema for updating inventory items
-   * All fields are optional except id
-   * @example
-   * const result = Inventory.updateSchema.parse(updateData);
    */
   export const updateSchema = z.object({
-    id: z.string().cuid(),
+    id: z.cuid(),
     name: z.string().min(1).max(255).trim().optional(),
-    sku: z.string().min(1).max(100).trim().toUpperCase().optional(),
+    code: z.string().min(1).max(100).trim().toUpperCase().optional(),
     quantity: z.number().int().min(0).optional(),
+    description: z.string().max(1000).optional(),
+    disabled: z.boolean().optional(),
+    maintainStock: z.boolean().optional(),
+    allowAlternateItem: z.boolean().optional(),
+    itemGroupId: z.string().cuid().optional(),
+    defaultUnitOfMeasureId: z.string().cuid().optional(),
   });
 }
 

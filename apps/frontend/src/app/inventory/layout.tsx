@@ -12,6 +12,11 @@ import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 export const metadata: Metadata = {
   title: 'Inventory by Pivotr',
   description: 'Inventory management system from Pivotr',
+  icons: {
+    icon: '/icons/favicon-inventory.svg',
+    shortcut: '/icons/favicon-inventory.svg',
+    apple: '/icons/favicon-inventory.svg',
+  },
 };
 
 export default async function InventoryLayout({ children }: { children: React.ReactNode }) {
@@ -19,7 +24,7 @@ export default async function InventoryLayout({ children }: { children: React.Re
   // Use Promise.all for better performance if we need to read multiple cookies
   const cookieStore = await cookies();
   const defaultOpen = cookieStore.get('sidebar_state')?.value === 'true';
-  const activeThemeValue = cookieStore.get('active_theme')?.value || 'system';
+  const activeThemeValue = cookieStore.get('active_theme')?.value || 'default';
 
   return (
     <ThemeProvider

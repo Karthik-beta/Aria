@@ -23,7 +23,7 @@ import { toast } from 'sonner';
 interface Product {
   id: string;
   name: string;
-  sku: string;
+  code: string;
   category: string;
   price: number;
   stock: number;
@@ -75,13 +75,13 @@ const columns: ColumnDef<Product>[] = [
     enableColumnFilter: true,
   },
 
-  // SKU column
+  // Code column
   {
-    accessorKey: 'sku',
-    header: ({ column }) => <DataTableColumnHeader column={column} title="SKU" />,
-    cell: ({ row }) => <code className="text-xs">{row.getValue('sku')}</code>,
+    accessorKey: 'code',
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Code" />,
+    cell: ({ row }) => <code className="text-xs">{row.getValue('code')}</code>,
     meta: {
-      label: 'SKU',
+      label: 'Code',
       variant: 'text',
       exportable: true,
     },
@@ -218,7 +218,7 @@ const columns: ColumnDef<Product>[] = [
 const mockData: Product[] = Array.from({ length: 100 }, (_, i) => ({
   id: `prod-${i + 1}`,
   name: `Product ${i + 1}`,
-  sku: `SKU-${String(i + 1).padStart(5, '0')}`,
+  code: `CODE-${String(i + 1).padStart(5, '0')}`,
   category: ['electronics', 'furniture', 'clothing', 'books'][i % 4],
   price: Math.random() * 1000,
   stock: Math.floor(Math.random() * 100),

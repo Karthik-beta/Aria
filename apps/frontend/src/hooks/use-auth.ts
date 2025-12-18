@@ -1,7 +1,7 @@
 'use client';
 
 import { useSession } from '@/lib/auth-client';
-import { useMemo, useEffect, useState } from 'react';
+import { useMemo, useEffect, useState, useRef } from 'react';
 
 /**
  * Extended session type with authorization data
@@ -40,6 +40,14 @@ export function useAuth() {
     isActive: boolean;
   } | null>(null);
 
+  // Track if we're currently fetching to prevent duplicate requests
+  const isFetchingRef = useRef(false);
+  // Track the last user ID we fetched for to prevent redundant fetches
+  const lastFetchedUserIdRef = useRef<string | null>(null);
+
+  // Development mode bypass - skip authentication for testing
+  const isDevelopmentBypass = process.env.NEXT_PUBLIC_DEV_AUTH_BYPASS === 'true';
+
   /**
    * Fetch user's authorization data from backend when session changes
    *
@@ -47,25 +55,82 @@ export function useAuth() {
    * accessing httpOnly cookies and forwarding them to the backend tRPC endpoint.
    */
   useEffect(() => {
-    if (session?.user?.id) {
-      fetch('/api/auth/authorization')
-        .then(async (response) => {
-          if (!response.ok) {
-            throw new Error(`Authorization fetch failed: ${response.status}`);
-          }
-          return response.json();
-        })
-        .then((data) => {
-          setAuthorizationData(data);
-        })
-        .catch((error) => {
-          console.error('Failed to fetch authorization data:', error);
-          // Keep default empty authorization on error
-        });
+    // In development bypass mode, use mock authorization data
+    if (isDevelopmentBypass) {
+      setAuthorizationData({
+        roles: ['super_admin'],
+        permissions: ['system:*'],
+        apps: {
+          inventory: { roles: ['admin'] },
+          asset: { roles: ['admin'] },
+          crm: { roles: ['admin'] },
+          hrms: { roles: ['admin'] },
+        },
+        supervisedApps: ['inventory', 'asset', 'crm', 'hrms'],
+        isActive: true,
+      });
+      return;
     }
-  }, [session?.user?.id]);
+
+    const userId = session?.user?.id;
+
+    // Skip if no user, already fetching, or already fetched for this user
+    if (!userId || isFetchingRef.current || lastFetchedUserIdRef.current === userId) {
+      return;
+    }
+
+    isFetchingRef.current = true;
+
+    fetch('/api/auth/authorization')
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error(`Authorization fetch failed: ${response.status}`);
+        }
+        return response.json();
+      })
+      .then((data) => {
+        lastFetchedUserIdRef.current = userId;
+        setAuthorizationData(data);
+      })
+      .catch((error) => {
+        console.error('Failed to fetch authorization data:', error);
+        // Keep default empty authorization on error
+      })
+      .finally(() => {
+        isFetchingRef.current = false;
+      });
+  }, [session?.user?.id, isDevelopmentBypass]);
 
   const authContext = useMemo(() => {
+    // Development bypass - return full access
+    if (isDevelopmentBypass) {
+      return {
+        isAuthenticated: true,
+        isActive: true,
+        user: {
+          id: 'dev-user',
+          email: 'dev@example.com',
+          name: 'Development User',
+        },
+        roles: ['super_admin'],
+        permissions: ['system:*'],
+        apps: {
+          inventory: { roles: ['admin'] },
+          asset: { roles: ['admin'] },
+          crm: { roles: ['admin'] },
+          hrms: { roles: ['admin'] },
+        },
+        supervisedApps: ['inventory', 'asset', 'crm', 'hrms'],
+        hasPermission: () => true,
+        hasAnyPermission: () => true,
+        hasRole: () => true,
+        hasAnyRole: () => true,
+        canAccessApp: () => true,
+        isSupervisorOf: () => true,
+        isLoading: false,
+      };
+    }
+
     if (!session) {
       return {
         isAuthenticated: false,

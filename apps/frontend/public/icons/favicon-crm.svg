@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="grad-crm" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#a78bfa;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#7c3aed;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="16" fill="url(#grad-crm)" />
+  <g stroke="white" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="32" cy="20" r="5" />
+    <circle cx="18" cy="44" r="5" />
+    <circle cx="46" cy="44" r="5" />
+    <path d="M32 25 L18 39" />
+    <path d="M32 25 L46 39" />
+    <path d="M23 44 L41 44" />
+  </g>
+</svg>

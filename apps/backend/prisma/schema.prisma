@@ -11,16 +11,29 @@ datasource db {
 model InventoryItem {
   id        String   @id @default(cuid())
   name      String   @db.VarChar(255)
-  sku       String   @unique @db.VarChar(100)
+  code      String   @unique @db.VarChar(100)
+
+  itemGroup ItemGroup? @relation(fields: [itemGroupId], references: [id])
+  itemGroupId String?
+
+  description String?
+  disabled    Boolean @default(false)
+  maintainStock Boolean @default(false)
+  allowAlternateItem Boolean @default(false)
+
+  defaultUnitOfMeasureId String?
+  defaultUnitOfMeasure UnitOfMeasurement? @relation(fields: [defaultUnitOfMeasureId], references: [id])
+
   quantity  Int      @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@index([sku])
+  @@index([code])
   @@index([name])
   @@index([createdAt])
   @@map("inventory_items")
 }
+
 
 model ItemGroup {
   id              String      @id @default(cuid())
@@ -29,6 +42,7 @@ model ItemGroup {
   updatedAt       DateTime    @updatedAt
   parentId        String?
   items           Item[]
+  inventoryItems  InventoryItem[]
   parentItemGroup ItemGroup?  @relation("ItemGroupHierarchy", fields: [parentId], references: [id])
   children        ItemGroup[] @relation("ItemGroupHierarchy")
 }
@@ -65,6 +79,7 @@ model UnitOfMeasurement {
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
   items              Item[]
+  inventoryItems     InventoryItem[]
   productBundleItems ProductBundleItem[]
 }
 

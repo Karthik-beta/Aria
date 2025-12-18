@@ -19,7 +19,7 @@ interface App {
   key?: string;
   name: string;
   logo: React.ComponentType<{ className?: string }>;
-  route: string; // Add route property
+  route: string;
 }
 
 export function AppSwitcher({ apps, defaultApp }: { apps: App[]; defaultApp: App }) {
@@ -32,45 +32,54 @@ export function AppSwitcher({ apps, defaultApp }: { apps: App[]; defaultApp: App
     }
     return [];
   }, [apps, defaultApp]);
+
   const router = useRouter();
   const pathname = usePathname();
   const [isMounted, setIsMounted] = React.useState(false);
   const [isNavigating, setIsNavigating] = React.useState(false);
 
+  // Track the target app ID during navigation to prevent loops
+  const navigationTargetRef = React.useRef<string | null>(null);
+
   // Determine active app based on current route - memoized for performance
+  // This is the source of truth for which app is currently active
   const activeApp = React.useMemo(() => {
     const currentApp = safeApps.find((app) => pathname.startsWith(app.route));
     return currentApp || defaultApp || safeApps[0];
   }, [safeApps, pathname, defaultApp]);
 
-  const [selectedApp, setSelectedApp] = React.useState<App>(activeApp);
-
   // Ensure component only renders after hydration to avoid ID mismatch
   React.useEffect(() => {
     setIsMounted(true);
-  }, []);
+  }, [])
 
-  // Update selected app when active app changes and reset navigation state
+  // Reset navigation state when we've arrived at the target app
   React.useEffect(() => {
-    setSelectedApp(activeApp);
-    setIsNavigating(false); // Reset loading state when navigation completes
-  }, [activeApp]);
+    // If we're navigating and we've reached the target app, reset the navigation state
+    if (isNavigating && navigationTargetRef.current) {
+      // Check if current pathname matches the navigation target
+      if (pathname.startsWith(navigationTargetRef.current)) {
+        setIsNavigating(false);
+        navigationTargetRef.current = null;
+      }
+    }
+  }, [pathname, isNavigating]);
 
   const handleAppSwitch = React.useCallback(
     (app: App) => {
-      // Don't navigate if already on the same app or currently navigating
-      if (app.id === selectedApp.id || isNavigating) return;
+      // Don't navigate if already on the same app or already navigating
+      if (pathname.startsWith(app.route) || isNavigating) {
+        return;
+      }
 
-      // Immediately show loading state for user feedback
+      // Set navigation state
       setIsNavigating(true);
-      setSelectedApp(app); // Optimistically update UI
+      navigationTargetRef.current = app.route;
 
-      // Navigate after a brief moment to show the selection
-      setTimeout(() => {
-        router.push(app.route);
-      }, 150);
+      // Navigate immediately without timeout
+      router.push(app.route);
     },
-    [router, selectedApp.id, isNavigating]
+    [router, pathname, isNavigating]
   );
 
   // Show a loading skeleton while hydrating to improve perceived performance
@@ -93,9 +102,16 @@ export function AppSwitcher({ apps, defaultApp }: { apps: App[]; defaultApp: App
     );
   }
 
-  if (!selectedApp) {
+  if (!activeApp) {
     return null;
   }
+
+  // Use activeApp directly instead of separate selectedApp state
+  // This avoids state synchronization issues that caused the infinite loop
+  const displayApp = isNavigating
+    ? safeApps.find(app => app.route === navigationTargetRef.current) || activeApp
+    : activeApp;
+
   return (
     <SidebarMenu>
       <SidebarMenuItem>
@@ -110,30 +126,17 @@ export function AppSwitcher({ apps, defaultApp }: { apps: App[]; defaultApp: App
                 {isNavigating ? (
                   <div className="size-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
                 ) : (
-                  <selectedApp.logo className="size-4" />
+                  <displayApp.logo className="size-4" />
                 )}
               </div>
               <div className="grid flex-1 text-left gap-0.5 leading-none">
                 <span className="font-semibold">
-                  {isNavigating ? 'Switching...' : selectedApp.name}
+                  {isNavigating ? 'Switching...' : displayApp.name}
                 </span>
                 <span className="text-xs">by Pivotr</span>
               </div>
               <ChevronsUpDown className="ml-auto" />
             </SidebarMenuButton>
-            {/* <SidebarMenuButton
-              size="lg"
-              className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
-            >
-              <div className="bg-primary text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg">
-                <GalleryVerticalEnd className="size-4" />
-              </div>
-              <div className="flex flex-col gap-0.5 leading-none">
-                <span className="font-semibold">Next Starter</span>
-                <span className="">{selectedApp.name}</span>
-              </div>
-              <ChevronsUpDown className="ml-auto" />
-            </SidebarMenuButton> */}
           </DropdownMenuTrigger>
           <DropdownMenuContent
             className="w-(--radix-dropdown-menu-trigger-width) min-w-56 rounded-lg"
@@ -142,18 +145,18 @@ export function AppSwitcher({ apps, defaultApp }: { apps: App[]; defaultApp: App
           >
             <DropdownMenuLabel className="text-muted-foreground text-xs">Apps</DropdownMenuLabel>
             {safeApps.map((app, index) => {
-              const isActive = app.id === selectedApp.id;
-              const isCurrentlyNavigating = isNavigating && app.id === selectedApp.id;
+              const isActive = pathname.startsWith(app.route);
+              const isTarget = isNavigating && navigationTargetRef.current === app.route;
 
               return (
                 <DropdownMenuItem
-                  key={app.name}
+                  key={app.id}
                   onClick={() => handleAppSwitch(app)}
                   className="gap-2 p-2"
                   disabled={isNavigating || isActive}
                 >
                   <div className="flex size-6 items-center justify-center rounded-md border">
-                    {isCurrentlyNavigating ? (
+                    {isTarget ? (
                       <div className="size-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
                     ) : (
                       <app.logo className="size-3.5 shrink-0" />
@@ -166,13 +169,6 @@ export function AppSwitcher({ apps, defaultApp }: { apps: App[]; defaultApp: App
               );
             })}
           </DropdownMenuContent>
-          {/* <DropdownMenuContent className="w-[--radix-dropdown-menu-trigger-width]" align="start">
-            {safeApps.map((app) => (
-              <DropdownMenuItem key={app.id} onSelect={() => handleAppSwitch(app)}>
-                {app.name} {app.id === selectedApp.id && <Check className="ml-auto" />}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent> */}
         </DropdownMenu>
       </SidebarMenuItem>
     </SidebarMenu>
