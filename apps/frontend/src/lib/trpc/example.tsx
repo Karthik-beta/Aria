@@ -56,7 +56,7 @@ export function ExampleTRPCUsage() {
           createMutation.mutate({
             name: 'New Item',
             quantity: 10,
-            sku: `SKU-${Date.now()}`,
+            code: `ITM-${Date.now()}`,
           })
         }
       >

@@ -14,7 +14,7 @@ import { PrismaClient } from '@prisma/client';
  */
 @Injectable()
 export class ScopeService {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(private readonly prisma: PrismaClient) { }
 
   /**
    * Check if user is an active supervisor for the specified app
@@ -133,7 +133,7 @@ export class ScopeService {
     const MAX_DEPTH = 10;
 
     while (currentUserId && depth < MAX_DEPTH) {
-      const user = await this.prisma.user.findUnique({
+      const user: { managerId: string | null } | null = await this.prisma.user.findUnique({
         where: { id: currentUserId },
         select: { managerId: true },
       });

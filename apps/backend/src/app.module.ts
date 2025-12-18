@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { PrometheusModule } from '@willsoto/nestjs-prometheus';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { InventoryModule } from './apps/inventory/inventory.module';
@@ -14,8 +15,9 @@ import { AuthorizationModule } from './authorization/authorization.module';
     InventoryModule,
     TrpcModule,
     AuthModule,
+    PrometheusModule.register(),
   ],
   controllers: [AppController],
   providers: [AppService],
 })
-export class AppModule {}
+export class AppModule { }

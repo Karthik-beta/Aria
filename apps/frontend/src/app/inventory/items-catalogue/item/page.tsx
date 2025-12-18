@@ -44,6 +44,8 @@ import {
 import { toast } from 'sonner';
 import { AlertModal } from '@/components/modal/alert-modal';
 import { cn } from '@/lib/utils';
+import { ErrorState } from '@/components/ui/error-display';
+import { getToastMessage } from '@/lib/errors';
 
 type InventorySubscriptionEvent = {
   type: 'created' | 'updated' | 'deleted';
@@ -179,11 +181,13 @@ export default function InventoryItemsPage() {
   // No need to manually enable/disable based on mount state
   const shouldSubscribe = isRealtimeReady;
 
-  // Show error state if query fails
+  // Show error toast if query fails (only once per error)
   // Following official TanStack Query pattern: no manual mount checks needed
+  const prevQueryErrorRef = React.useRef<unknown>(null);
   React.useEffect(() => {
-    if (queryError) {
-      toast.error(`Failed to load inventory items: ${queryError.message}`);
+    if (queryError && queryError !== prevQueryErrorRef.current) {
+      prevQueryErrorRef.current = queryError;
+      toast.error(getToastMessage(queryError, 'load'));
     }
   }, [queryError]);
 
@@ -217,7 +221,7 @@ export default function InventoryItemsPage() {
       if (context?.previousItems) {
         utils.inventory.listItems.setData(undefined, context.previousItems);
       }
-      toast.error(`Failed to delete item: ${error.message}`);
+      toast.error(getToastMessage(error, 'delete'));
     },
     onSettled: () => {
       // Always refetch after mutation to ensure data consistency
@@ -321,18 +325,18 @@ export default function InventoryItemsPage() {
         enableGlobalFilter: true,
       },
 
-      // SKU column
+      // Code column
       {
-        accessorKey: 'sku',
-        header: ({ column }) => <DataTableColumnHeader column={column} title="SKU" />,
+        accessorKey: 'code',
+        header: ({ column }) => <DataTableColumnHeader column={column} title="Code" />,
         cell: ({ row }) => (
           <code className="rounded bg-muted px-2 py-1 text-xs font-mono">
-            {row.getValue('sku')}
+            {row.getValue('code')}
           </code>
         ),
         meta: {
-          label: 'SKU',
-          placeholder: 'Search by SKU...',
+          label: 'Code',
+          placeholder: 'Search by code...',
           variant: 'text',
           searchable: true,
           exportable: true,
@@ -587,18 +591,14 @@ export default function InventoryItemsPage() {
           </div>
         )}
 
-        {/* Error State */}
+        {/* Error State - Shows user-friendly error message */}
         {queryError && !isLoading && (
-          <div className="flex items-center justify-center py-12">
-            <div className="flex flex-col items-center gap-4 text-center">
-              <AlertTriangle className="h-12 w-12 text-destructive" />
-              <div>
-                <h3 className="text-lg font-semibold">Failed to load inventory items</h3>
-                <p className="text-sm text-muted-foreground">{queryError.message}</p>
-              </div>
-              <Button onClick={() => utils.inventory.listItems.refetch()}>Try Again</Button>
-            </div>
-          </div>
+          <ErrorState
+            error={queryError}
+            operation="load"
+            title="Failed to load inventory items"
+            onRetry={() => utils.inventory.listItems.refetch()}
+          />
         )}
 
         {/* Advanced Data Table - Only render when data is loaded */}

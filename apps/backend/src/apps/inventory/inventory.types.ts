@@ -16,8 +16,14 @@ export function toInventoryItem(prismaItem: InventoryItem): Inventory.Item {
   return {
     id: prismaItem.id,
     name: prismaItem.name,
-    sku: prismaItem.sku,
+    code: prismaItem.code,
     quantity: prismaItem.quantity,
+    description: prismaItem.description,
+    disabled: prismaItem.disabled,
+    maintainStock: prismaItem.maintainStock,
+    allowAlternateItem: prismaItem.allowAlternateItem,
+    itemGroupId: prismaItem.itemGroupId,
+    defaultUnitOfMeasureId: prismaItem.defaultUnitOfMeasureId,
     createdAt: prismaItem.createdAt,
     updatedAt: prismaItem.updatedAt,
   };
@@ -32,7 +38,7 @@ export function isInventoryItem(value: unknown): value is InventoryItem {
     typeof value === 'object' &&
     'id' in value &&
     'name' in value &&
-    'sku' in value &&
+    'code' in value &&
     'quantity' in value &&
     'createdAt' in value &&
     'updatedAt' in value

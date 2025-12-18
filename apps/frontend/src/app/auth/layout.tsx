@@ -3,6 +3,11 @@ import { Metadata } from 'next';
 export const metadata: Metadata = {
   title: 'Aria ERP | Authentication',
   description: 'Secure authentication for all Aria ERP applications.',
+  icons: {
+    icon: '/icons/favicon-auth.svg',
+    shortcut: '/icons/favicon-auth.svg',
+    apple: '/icons/favicon-auth.svg',
+  },
 };
 
 /**

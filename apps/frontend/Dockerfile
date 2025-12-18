@@ -25,7 +25,7 @@ COPY apps/backend/package.json ./apps/backend/
 
 # Install dependencies with BuildKit cache mount for faster rebuilds
 # Note: --frozen-lockfile removed to allow builds with updated package.json
-RUN --mount=type=cache,id=bun,target=/root/.bun bun install
+RUN rm bun.lock && bun install --no-frozen-lockfile
 
 # Copy shared packages source (JIT pattern - no build needed, consumed as TypeScript)
 COPY packages ./packages

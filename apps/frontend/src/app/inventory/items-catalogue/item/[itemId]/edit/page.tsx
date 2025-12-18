@@ -36,6 +36,16 @@ export default function EditItemPage() {
   // Form setup
   const form = useForm<Inventory.UpdateInput>({
     resolver: zodResolver(Inventory.updateSchema),
+    defaultValues: {
+      id: itemId,
+      name: '',
+      code: '',
+      quantity: 0,
+      description: '',
+      disabled: false,
+      maintainStock: false,
+      allowAlternateItem: false,
+    },
   });
 
   // Set form values when item is loaded
@@ -44,8 +54,12 @@ export default function EditItemPage() {
       form.reset({
         id: item.id,
         name: item.name,
-        sku: item.sku,
+        code: item.code,
         quantity: item.quantity,
+        description: item.description || '',
+        disabled: item.disabled,
+        maintainStock: item.maintainStock,
+        allowAlternateItem: item.allowAlternateItem,
       });
     }
   }, [item, form]);
@@ -128,72 +142,131 @@ export default function EditItemPage() {
       {/* Form Card */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Package className="h-5 w-5" />
-            Item Details
-          </CardTitle>
-          <CardDescription>
-            Modify the item information. Fields left empty will remain unchanged.
-          </CardDescription>
+          <div className="flex items-center gap-3">
+            <Package className="h-5 w-5 text-primary" />
+            <div>
+              <CardTitle>Item Details</CardTitle>
+              <CardDescription>
+                Modify the item information. Fields left empty will remain unchanged.
+              </CardDescription>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           <form onSubmit={onSubmit} className="space-y-6">
             {/* Hidden ID field */}
             <input type="hidden" {...form.register('id')} />
 
-            {/* Item Name */}
-            <div className="space-y-2">
-              <Label htmlFor="name">Item Name</Label>
-              <Input
-                id="name"
-                {...form.register('name')}
-                placeholder="Enter item name"
-                disabled={updateMutation.isPending}
-              />
-              {form.formState.errors.name && (
-                <p className="text-sm text-destructive">{form.formState.errors.name.message}</p>
-              )}
-              <p className="text-xs text-muted-foreground">
-                Current: <strong>{item.name}</strong>
-              </p>
-            </div>
+            <div className="grid gap-6 md:grid-cols-2">
+              {/* Item Name */}
+              <div className="space-y-2 col-span-2">
+                <Label htmlFor="name">Item Name</Label>
+                <Input
+                  id="name"
+                  {...form.register('name')}
+                  placeholder="Enter item name"
+                  disabled={updateMutation.isPending}
+                />
+                {form.formState.errors.name && (
+                  <p className="text-sm text-destructive">{form.formState.errors.name.message}</p>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Current: <strong>{item.name}</strong>
+                </p>
+              </div>
 
-            {/* SKU */}
-            <div className="space-y-2">
-              <Label htmlFor="sku">SKU (Stock Keeping Unit)</Label>
-              <Input
-                id="sku"
-                {...form.register('sku')}
-                placeholder="Enter SKU"
-                disabled={updateMutation.isPending}
-                className="font-mono"
-              />
-              {form.formState.errors.sku && (
-                <p className="text-sm text-destructive">{form.formState.errors.sku.message}</p>
-              )}
-              <p className="text-xs text-muted-foreground">
-                Current: <code className="rounded bg-muted px-2 py-1">{item.sku}</code>
-              </p>
-            </div>
+              {/* Code */}
+              <div className="space-y-2">
+                <Label htmlFor="code">Code</Label>
+                <Input
+                  id="code"
+                  {...form.register('code')}
+                  placeholder="Enter code"
+                  disabled={updateMutation.isPending}
+                  className="font-mono"
+                />
+                {form.formState.errors.code && (
+                  <p className="text-sm text-destructive">{form.formState.errors.code.message}</p>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Current: <code className="rounded bg-muted px-2 py-1">{item.code}</code>
+                </p>
+              </div>
 
-            {/* Quantity */}
-            <div className="space-y-2">
-              <Label htmlFor="quantity">Quantity</Label>
-              <Input
-                id="quantity"
-                type="number"
-                {...form.register('quantity', { valueAsNumber: true })}
-                placeholder="Enter quantity"
-                disabled={updateMutation.isPending}
-                min={0}
-                step={1}
-              />
-              {form.formState.errors.quantity && (
-                <p className="text-sm text-destructive">{form.formState.errors.quantity.message}</p>
-              )}
-              <p className="text-xs text-muted-foreground">
-                Current: <strong>{item.quantity} units</strong>
-              </p>
+              {/* Quantity */}
+              <div className="space-y-2">
+                <Label htmlFor="quantity">Quantity</Label>
+                <Input
+                  id="quantity"
+                  type="number"
+                  {...form.register('quantity', { valueAsNumber: true })}
+                  placeholder="Enter quantity"
+                  disabled={updateMutation.isPending}
+                  min={0}
+                  step={1}
+                />
+                {form.formState.errors.quantity && (
+                  <p className="text-sm text-destructive">{form.formState.errors.quantity.message}</p>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Current: <strong>{item.quantity} units</strong>
+                </p>
+              </div>
+
+              {/* Description */}
+              <div className="space-y-2 col-span-2">
+                <Label htmlFor="description">Description</Label>
+                <textarea
+                  id="description"
+                  className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  {...form.register('description')}
+                  placeholder="Enter item description"
+                  disabled={updateMutation.isPending}
+                />
+              </div>
+
+              {/* Settings */}
+              <div className="space-y-4 col-span-2">
+                <Label>Settings</Label>
+                <div className="grid gap-4 md:grid-cols-3">
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      id="disabled"
+                      className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                      {...form.register('disabled')}
+                      disabled={updateMutation.isPending}
+                    />
+                    <Label htmlFor="disabled" className="font-normal cursor-pointer">
+                      Disabled
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      id="maintainStock"
+                      className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                      {...form.register('maintainStock')}
+                      disabled={updateMutation.isPending}
+                    />
+                    <Label htmlFor="maintainStock" className="font-normal cursor-pointer">
+                      Maintain Stock
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      id="allowAlternateItem"
+                      className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                      {...form.register('allowAlternateItem')}
+                      disabled={updateMutation.isPending}
+                    />
+                    <Label htmlFor="allowAlternateItem" className="font-normal cursor-pointer">
+                      Allow Alternate
+                    </Label>
+                  </div>
+                </div>
+              </div>
             </div>
 
             {/* Actions */}
@@ -231,12 +304,10 @@ export default function EditItemPage() {
             • <strong>Name:</strong> Update to change how this item appears in lists and reports
           </p>
           <p>
-            • <strong>SKU:</strong> Change with caution as it affects system integrations. Must
-            remain unique.
+            • <strong>Code:</strong> Unique identifier for this item.
           </p>
           <p>
-            • <strong>Quantity:</strong> Adjust current stock level. Consider using stock movements
-            for tracking.
+            • <strong>Quantity:</strong> Adjust current stock level.
           </p>
           <p>• All changes are saved immediately and logged for audit purposes.</p>
         </CardContent>

@@ -13,6 +13,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { ArrowLeft, Loader2, Package, Save } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
+import { getToastMessage } from '@/lib/errors';
 
 /**
  * Unified Form Page - Handles both Create and Edit
@@ -39,8 +40,12 @@ export default function ItemFormPage() {
     resolver: zodResolver(Inventory.createSchema),
     defaultValues: {
       name: '',
-      sku: '',
+      code: '',
       quantity: 0,
+      description: '',
+      disabled: false,
+      maintainStock: false,
+      allowAlternateItem: false,
     },
   });
 
@@ -56,8 +61,14 @@ export default function ItemFormPage() {
     if (isEditMode && item) {
       form.reset({
         name: item.name,
-        sku: item.sku,
+        code: item.code,
         quantity: item.quantity,
+        description: item.description || '',
+        disabled: item.disabled,
+        maintainStock: item.maintainStock,
+        allowAlternateItem: item.allowAlternateItem,
+        itemGroupId: item.itemGroupId || undefined,
+        defaultUnitOfMeasureId: item.defaultUnitOfMeasureId || undefined,
       });
     }
   }, [item, isEditMode, form]);
@@ -79,7 +90,7 @@ export default function ItemFormPage() {
       });
     },
     onError: (error) => {
-      toast.error(`Failed to create item: ${error.message}`);
+      toast.error(getToastMessage(error, 'create'));
     },
   });
 
@@ -96,7 +107,7 @@ export default function ItemFormPage() {
       });
     },
     onError: (error) => {
-      toast.error(`Failed to update item: ${error.message}`);
+      toast.error(getToastMessage(error, 'update'));
     },
   });
 
@@ -170,55 +181,114 @@ export default function ItemFormPage() {
         </CardHeader>
         <CardContent>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            {/* Item Name */}
-            <div className="space-y-2">
-              <Label htmlFor="name">
-                Item Name <span className="text-destructive">*</span>
-              </Label>
-              <Input
-                id="name"
-                placeholder="Enter item name"
-                {...form.register('name')}
-                disabled={isSubmitting}
-              />
-              {form.formState.errors.name && (
-                <p className="text-sm text-destructive">{form.formState.errors.name.message}</p>
-              )}
-            </div>
+            <div className="grid gap-6 md:grid-cols-2">
+              {/* Item Name */}
+              <div className="space-y-2 col-span-2">
+                <Label htmlFor="name">
+                  Item Name <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  id="name"
+                  placeholder="Enter item name"
+                  {...form.register('name')}
+                  disabled={isSubmitting}
+                />
+                {form.formState.errors.name && (
+                  <p className="text-sm text-destructive">{form.formState.errors.name.message}</p>
+                )}
+              </div>
 
-            {/* SKU */}
-            <div className="space-y-2">
-              <Label htmlFor="sku">
-                SKU <span className="text-destructive">*</span>
-              </Label>
-              <Input
-                id="sku"
-                placeholder="Enter SKU (e.g., ITM-001)"
-                {...form.register('sku')}
-                disabled={isSubmitting}
-              />
-              {form.formState.errors.sku && (
-                <p className="text-sm text-destructive">{form.formState.errors.sku.message}</p>
-              )}
-            </div>
+              {/* Code */}
+              <div className="space-y-2">
+                <Label htmlFor="code">
+                  Code <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  id="code"
+                  placeholder="Enter code (e.g., ITM-001)"
+                  {...form.register('code')}
+                  disabled={isSubmitting}
+                />
+                {form.formState.errors.code && (
+                  <p className="text-sm text-destructive">{form.formState.errors.code.message}</p>
+                )}
+              </div>
 
-            {/* Quantity */}
-            <div className="space-y-2">
-              <Label htmlFor="quantity">
-                Quantity <span className="text-destructive">*</span>
-              </Label>
-              <Input
-                id="quantity"
-                type="number"
-                min="0"
-                placeholder="0"
-                {...form.register('quantity', { valueAsNumber: true })}
-                disabled={isSubmitting}
-              />
-              {form.formState.errors.quantity && (
-                <p className="text-sm text-destructive">{form.formState.errors.quantity.message}</p>
-              )}
-              <p className="text-xs text-muted-foreground">Enter the current stock quantity</p>
+              {/* Quantity */}
+              <div className="space-y-2">
+                <Label htmlFor="quantity">
+                  Quantity <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  id="quantity"
+                  type="number"
+                  min="0"
+                  placeholder="0"
+                  {...form.register('quantity', { valueAsNumber: true })}
+                  disabled={isSubmitting}
+                />
+                {form.formState.errors.quantity && (
+                  <p className="text-sm text-destructive">{form.formState.errors.quantity.message}</p>
+                )}
+              </div>
+
+              {/* Description */}
+              <div className="space-y-2 col-span-2">
+                <Label htmlFor="description">Description</Label>
+                <textarea
+                  id="description"
+                  className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  placeholder="Enter item description"
+                  {...form.register('description')}
+                  disabled={isSubmitting}
+                />
+                {form.formState.errors.description && (
+                  <p className="text-sm text-destructive">{form.formState.errors.description.message}</p>
+                )}
+              </div>
+
+              {/* Settings */}
+              <div className="space-y-4 col-span-2">
+                <Label>Settings</Label>
+                <div className="grid gap-4 md:grid-cols-3">
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      id="disabled"
+                      className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                      {...form.register('disabled')}
+                      disabled={isSubmitting}
+                    />
+                    <Label htmlFor="disabled" className="font-normal cursor-pointer">
+                      Disabled
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      id="maintainStock"
+                      className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                      {...form.register('maintainStock')}
+                      disabled={isSubmitting}
+                    />
+                    <Label htmlFor="maintainStock" className="font-normal cursor-pointer">
+                      Maintain Stock
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      id="allowAlternateItem"
+                      className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                      {...form.register('allowAlternateItem')}
+                      disabled={isSubmitting}
+                    />
+                    <Label htmlFor="allowAlternateItem" className="font-normal cursor-pointer">
+                      Allow Alternate
+                    </Label>
+                  </div>
+                </div>
+              </div>
             </div>
 
             {/* Action Buttons */}

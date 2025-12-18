@@ -13,7 +13,7 @@ import { toInventoryItem } from './inventory.types';
  */
 @Injectable()
 export class InventoryService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   /**
    * Get all inventory items
@@ -30,20 +30,40 @@ export class InventoryService {
    * Create a new inventory item
    */
   async create(data: Inventory.CreateInput): Promise<Inventory.Item> {
-    const { name, sku, quantity = 0 } = data;
+    const {
+      name,
+      code,
+      quantity = 0,
+      description,
+      disabled,
+      maintainStock,
+      allowAlternateItem,
+      itemGroupId,
+      defaultUnitOfMeasureId,
+    } = data;
 
-    // Check if SKU already exists
+    // Check if Code already exists
     const existing = await this.prisma.inventoryItem.findUnique({
-      where: { sku },
+      where: { code },
     });
 
     if (existing) {
-      throw new ConflictException(`Item with SKU ${sku} already exists`);
+      throw new ConflictException(`Item with code ${code} already exists`);
     }
 
     // Create the item
     const created = await this.prisma.inventoryItem.create({
-      data: { name, sku, quantity },
+      data: {
+        name,
+        code,
+        quantity,
+        description,
+        disabled,
+        maintainStock,
+        allowAlternateItem,
+        itemGroupId,
+        defaultUnitOfMeasureId,
+      },
     });
 
     return toInventoryItem(created);
@@ -53,7 +73,18 @@ export class InventoryService {
    * Update an inventory item
    */
   async update(data: Inventory.UpdateInput): Promise<Inventory.Item> {
-    const { id, name, sku, quantity } = data;
+    const {
+      id,
+      name,
+      code,
+      quantity,
+      description,
+      disabled,
+      maintainStock,
+      allowAlternateItem,
+      itemGroupId,
+      defaultUnitOfMeasureId,
+    } = data;
 
     // Check if item exists
     const existing = await this.prisma.inventoryItem.findUnique({
@@ -69,8 +100,14 @@ export class InventoryService {
       where: { id },
       data: {
         ...(name !== undefined && { name }),
-        ...(sku !== undefined && { sku }),
+        ...(code !== undefined && { code }),
         ...(quantity !== undefined && { quantity }),
+        ...(description !== undefined && { description }),
+        ...(disabled !== undefined && { disabled }),
+        ...(maintainStock !== undefined && { maintainStock }),
+        ...(allowAlternateItem !== undefined && { allowAlternateItem }),
+        ...(itemGroupId !== undefined && { itemGroupId }),
+        ...(defaultUnitOfMeasureId !== undefined && { defaultUnitOfMeasureId }),
       },
     });
 

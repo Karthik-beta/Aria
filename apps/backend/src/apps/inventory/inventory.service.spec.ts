@@ -10,8 +10,14 @@ describe('InventoryService', () => {
   const mockItem = {
     id: 'clh1234567890',
     name: 'Test Product',
-    sku: 'TEST-SKU',
+    code: 'TEST-CODE',
     quantity: 10,
+    description: 'Test description',
+    disabled: false,
+    maintainStock: false,
+    allowAlternateItem: false,
+    itemGroupId: null,
+    defaultUnitOfMeasureId: null,
     createdAt: new Date(),
     updatedAt: new Date(),
   };
@@ -55,7 +61,7 @@ describe('InventoryService', () => {
 
   describe('create', () => {
     it('should create a new item', async () => {
-      const input = { name: 'New Item', sku: 'NEW-SKU', quantity: 5 };
+      const input = { name: 'New Item', code: 'NEW-CODE', quantity: 5 };
       mockPrisma.inventoryItem.findUnique.mockResolvedValue(null);
       mockPrisma.inventoryItem.create.mockResolvedValue(mockItem);
 
@@ -64,8 +70,8 @@ describe('InventoryService', () => {
       expect(mockPrisma.inventoryItem.create).toHaveBeenCalled();
     });
 
-    it('should throw ConflictException if SKU exists', async () => {
-      const input = { name: 'Test', sku: 'TEST-SKU', quantity: 1 };
+    it('should throw ConflictException if code exists', async () => {
+      const input = { name: 'Test', code: 'TEST-CODE', quantity: 1 };
       mockPrisma.inventoryItem.findUnique.mockResolvedValue(mockItem);
 
       await expect(service.create(input)).rejects.toThrow(ConflictException);
