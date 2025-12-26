@@ -11,13 +11,25 @@ const inventoryEvents = new EventEmitter();
 
 @Injectable()
 export class InventoryRouter {
-  constructor(private readonly inventoryService: InventoryService) {}
+  constructor(private readonly inventoryService: InventoryService) { }
 
   getRouter() {
     return router({
       listItems: publicProcedure.query(async () => {
         return this.inventoryService.findAll();
       }),
+
+      listItemGroups: publicProcedure
+        .input(z.object({ search: z.string().optional() }).optional())
+        .query(async ({ input }) => {
+          return this.inventoryService.findAllItemGroups(input?.search);
+        }),
+
+      listUnitsOfMeasure: publicProcedure
+        .input(z.object({ search: z.string().optional() }).optional())
+        .query(async ({ input }) => {
+          return this.inventoryService.findAllUnitsOfMeasure(input?.search);
+        }),
 
       createItem: publicProcedure
         .input(Inventory.createSchema)

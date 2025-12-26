@@ -18,8 +18,20 @@ model InventoryItem {
 
   description String?
   disabled    Boolean @default(false)
-  maintainStock Boolean @default(false)
+  maintainStock Boolean @default(true)
   allowAlternateItem Boolean @default(false)
+  hasVariants Boolean @default(false)
+  
+  // Stock and pricing
+  openingStock Int @default(0)
+  valuationRate Float?
+  standardSellingRate Float?
+  
+  // Tax settings
+  isZeroRated Boolean @default(false)
+  isExempt Boolean @default(false)
+  isFixedAsset Boolean @default(false)
+  taxCode String? @db.VarChar(50)
 
   defaultUnitOfMeasureId String?
   defaultUnitOfMeasure UnitOfMeasurement? @relation(fields: [defaultUnitOfMeasureId], references: [id])
@@ -33,6 +45,7 @@ model InventoryItem {
   @@index([createdAt])
   @@map("inventory_items")
 }
+
 
 
 model ItemGroup {

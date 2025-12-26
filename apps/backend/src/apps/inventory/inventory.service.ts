@@ -21,10 +21,64 @@ export class InventoryService {
   async findAll(): Promise<Inventory.Item[]> {
     const items = await this.prisma.inventoryItem.findMany({
       orderBy: { createdAt: 'desc' },
+      include: {
+        itemGroup: true,
+      },
     });
 
     return items.map(toInventoryItem);
   }
+
+  /**
+   * Get all item groups with optional search
+   */
+  async findAllItemGroups(search?: string): Promise<Inventory.ItemGroup[]> {
+    const groups = await this.prisma.itemGroup.findMany({
+      where: search
+        ? {
+          groupName: {
+            contains: search,
+            mode: 'insensitive',
+          },
+        }
+        : undefined,
+      orderBy: { groupName: 'asc' },
+    });
+
+    return groups.map((group) => ({
+      id: group.id,
+      groupName: group.groupName,
+      parentId: group.parentId,
+      createdAt: group.createdAt,
+      updatedAt: group.updatedAt,
+    }));
+  }
+
+  /**
+   * Get all units of measure with optional search
+   */
+  async findAllUnitsOfMeasure(search?: string): Promise<Inventory.UnitOfMeasure[]> {
+    const units = await this.prisma.unitOfMeasurement.findMany({
+      where: search
+        ? {
+          name: {
+            contains: search,
+            mode: 'insensitive',
+          },
+        }
+        : undefined,
+      orderBy: { name: 'asc' },
+    });
+
+    return units.map((unit) => ({
+      id: unit.id,
+      name: unit.name,
+      isWholeNumber: unit.isWholeNumber,
+      createdAt: unit.createdAt,
+      updatedAt: unit.updatedAt,
+    }));
+  }
+
 
   /**
    * Create a new inventory item
@@ -38,6 +92,14 @@ export class InventoryService {
       disabled,
       maintainStock,
       allowAlternateItem,
+      hasVariants,
+      openingStock,
+      valuationRate,
+      standardSellingRate,
+      isZeroRated,
+      isExempt,
+      isFixedAsset,
+      taxCode,
       itemGroupId,
       defaultUnitOfMeasureId,
     } = data;
@@ -61,8 +123,19 @@ export class InventoryService {
         disabled,
         maintainStock,
         allowAlternateItem,
+        hasVariants,
+        openingStock,
+        valuationRate,
+        standardSellingRate,
+        isZeroRated,
+        isExempt,
+        isFixedAsset,
+        taxCode,
         itemGroupId,
         defaultUnitOfMeasureId,
+      },
+      include: {
+        itemGroup: true,
       },
     });
 
@@ -82,6 +155,14 @@ export class InventoryService {
       disabled,
       maintainStock,
       allowAlternateItem,
+      hasVariants,
+      openingStock,
+      valuationRate,
+      standardSellingRate,
+      isZeroRated,
+      isExempt,
+      isFixedAsset,
+      taxCode,
       itemGroupId,
       defaultUnitOfMeasureId,
     } = data;
@@ -106,8 +187,19 @@ export class InventoryService {
         ...(disabled !== undefined && { disabled }),
         ...(maintainStock !== undefined && { maintainStock }),
         ...(allowAlternateItem !== undefined && { allowAlternateItem }),
+        ...(hasVariants !== undefined && { hasVariants }),
+        ...(openingStock !== undefined && { openingStock }),
+        ...(valuationRate !== undefined && { valuationRate }),
+        ...(standardSellingRate !== undefined && { standardSellingRate }),
+        ...(isZeroRated !== undefined && { isZeroRated }),
+        ...(isExempt !== undefined && { isExempt }),
+        ...(isFixedAsset !== undefined && { isFixedAsset }),
+        ...(taxCode !== undefined && { taxCode }),
         ...(itemGroupId !== undefined && { itemGroupId }),
         ...(defaultUnitOfMeasureId !== undefined && { defaultUnitOfMeasureId }),
+      },
+      include: {
+        itemGroup: true,
       },
     });
 
@@ -121,6 +213,9 @@ export class InventoryService {
     try {
       const deleted = await this.prisma.inventoryItem.delete({
         where: { id },
+        include: {
+          itemGroup: true,
+        },
       });
 
       return toInventoryItem(deleted);

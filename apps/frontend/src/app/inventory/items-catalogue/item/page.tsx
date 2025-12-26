@@ -18,7 +18,7 @@ import {
 import { type ColumnDef, type Row } from '@tanstack/react-table';
 import { type Inventory } from '@aria/types';
 import { trpc } from '@/lib/trpc';
-import { Badge } from '@/components/ui/badge';
+
 import { Button, buttonVariants } from '@/components/ui/button';
 import { DataTableColumnHeader } from '@/components/ui/table/data-table-column-header';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -36,7 +36,7 @@ import {
   Eye,
   Plus,
   Package,
-  AlertTriangle,
+
   CheckCircle2,
   XCircle,
   MoreHorizontal,
@@ -70,16 +70,7 @@ function InventoryRealtimeSubscription({
   return null;
 }
 
-// Stock status helper
-const getStockStatus = (quantity: number) => {
-  if (quantity === 0) {
-    return { label: 'Out of Stock', variant: 'destructive' as const, icon: XCircle };
-  }
-  if (quantity < 10) {
-    return { label: 'Low Stock', variant: 'secondary' as const, icon: AlertTriangle };
-  }
-  return { label: 'In Stock', variant: 'default' as const, icon: CheckCircle2 };
-};
+
 
 export default function InventoryItemsPage() {
   const utils = trpc.useUtils();
@@ -267,6 +258,25 @@ export default function InventoryItemsPage() {
     }
   }, [itemToDelete, deleteMutation]);
 
+  // Helper function to get relative time display (1y, 2y, etc.)
+  const getRelativeAge = (date: Date): string => {
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    const diffMonths = Math.floor(diffDays / 30);
+    const diffYears = Math.floor(diffDays / 365);
+
+    if (diffYears >= 1) {
+      return `${diffYears}y`;
+    } else if (diffMonths >= 1) {
+      return `${diffMonths}m`;
+    } else if (diffDays >= 1) {
+      return `${diffDays}d`;
+    } else {
+      return 'Today';
+    }
+  };
+
   // Column definitions - Completely stable, no external dependencies
   // According to TanStack Table docs: columns should be wrapped in useMemo with empty deps
   const columns = React.useMemo<ColumnDef<Inventory.Item>[]>(
@@ -307,10 +317,9 @@ export default function InventoryItemsPage() {
         cell: ({ row }) => (
           <Link
             href={`/inventory/items-catalogue/item/${row.original.id}`}
-            className="flex items-center gap-2 hover:underline"
+            className="font-medium text-primary hover:underline"
           >
-            <Package className="h-4 w-4 text-muted-foreground" />
-            <span className="font-medium">{row.getValue('name')}</span>
+            {row.getValue('name')}
           </Link>
         ),
         meta: {
@@ -325,17 +334,87 @@ export default function InventoryItemsPage() {
         enableGlobalFilter: true,
       },
 
-      // Code column
+      // Status column (Enabled/Template based on disabled field)
+      {
+        id: 'status',
+        accessorFn: (row) => (row.disabled ? 'Disabled' : row.hasVariants ? 'Template' : 'Enabled'),
+        header: ({ column }) => <DataTableColumnHeader column={column} title="Status" />,
+        cell: ({ row }) => {
+          const disabled = row.original.disabled;
+          const hasVariants = row.original.hasVariants;
+
+          if (disabled) {
+            return (
+              <span className="text-muted-foreground text-sm">Disabled</span>
+            );
+          }
+
+          if (hasVariants) {
+            return (
+              <span className="text-amber-600 text-sm font-medium">Template</span>
+            );
+          }
+
+          return (
+            <span className="text-primary text-sm font-medium">Enabled</span>
+          );
+        },
+        meta: {
+          label: 'Status',
+          variant: 'multiSelect',
+          options: [
+            { label: 'Enabled', value: 'Enabled', icon: CheckCircle2 },
+            { label: 'Template', value: 'Template', icon: Package },
+            { label: 'Disabled', value: 'Disabled', icon: XCircle },
+          ],
+          exportable: true,
+        },
+        enableColumnFilter: true,
+        filterFn: (row, id, value) => {
+          const status = row.original.disabled
+            ? 'Disabled'
+            : row.original.hasVariants
+              ? 'Template'
+              : 'Enabled';
+          return value.includes(status);
+        },
+      },
+
+      // Item Group column
+      {
+        accessorKey: 'itemGroupName',
+        header: ({ column }) => <DataTableColumnHeader column={column} title="Item Group" />,
+        cell: ({ row }) => {
+          const groupName = row.original.itemGroupName;
+          return (
+            <span className="text-sm text-muted-foreground">
+              {groupName || '-'}
+            </span>
+          );
+        },
+        meta: {
+          label: 'Item Group',
+          placeholder: 'Search by group...',
+          variant: 'text',
+          searchable: true,
+          exportable: true,
+        },
+        enableSorting: true,
+        enableColumnFilter: true,
+        enableGlobalFilter: true,
+      },
+
+      // Item Code column
       {
         accessorKey: 'code',
-        header: ({ column }) => <DataTableColumnHeader column={column} title="Code" />,
+        header: ({ column }) => <DataTableColumnHeader column={column} title="Item Code" />,
         cell: ({ row }) => (
-          <code className="rounded bg-muted px-2 py-1 text-xs font-mono">
+          <span className="text-sm text-muted-foreground">
             {row.getValue('code')}
-          </code>
+          </span>
         ),
         meta: {
-          label: 'Code',
+          label: 'Item Code',
           placeholder: 'Search by code...',
           variant: 'text',
           searchable: true,
@@ -346,114 +425,80 @@ export default function InventoryItemsPage() {
         enableGlobalFilter: true,
       },
 
-      // Quantity column
+      // ID column
       {
-        accessorKey: 'quantity',
-        header: ({ column }) => <DataTableColumnHeader column={column} title="Quantity" />,
-        cell: ({ row }) => {
-          const quantity = row.getValue('quantity') as number;
-
-          return (
-            <div className="flex items-center gap-2">
-              <span className="font-medium tabular-nums">{quantity}</span>
-              <span className="text-muted-foreground">units</span>
-            </div>
-          );
-        },
+        accessorKey: 'id',
+        header: ({ column }) => <DataTableColumnHeader column={column} title="ID" />,
+        cell: ({ row }) => (
+          <span className="text-sm text-muted-foreground">
+            {row.getValue('id')}
+          </span>
+        ),
         meta: {
-          label: 'Quantity',
-          variant: 'number',
+          label: 'ID',
+          placeholder: 'Search by ID...',
+          variant: 'text',
+          searchable: true,
           exportable: true,
         },
         enableSorting: true,
-      },
-
-      // Stock Status column (computed)
-      {
-        id: 'status',
-        accessorFn: (row) => getStockStatus(row.quantity).label,
-        header: ({ column }) => <DataTableColumnHeader column={column} title="Stock Status" />,
-        cell: ({ row }) => {
-          const quantity = row.original.quantity;
-          const status = getStockStatus(quantity);
-          const Icon = status.icon;
-
-          return (
-            <Badge variant={status.variant} className="capitalize">
-              <Icon className="mr-1 h-3 w-3" />
-              {status.label}
-            </Badge>
-          );
-        },
-        meta: {
-          label: 'Stock Status',
-          variant: 'multiSelect',
-          options: [
-            { label: 'In Stock', value: 'In Stock', icon: CheckCircle2 },
-            { label: 'Low Stock', value: 'Low Stock', icon: AlertTriangle },
-            { label: 'Out of Stock', value: 'Out of Stock', icon: XCircle },
-          ],
-          exportable: true,
-        },
         enableColumnFilter: true,
-        filterFn: (row, id, value) => {
-          const status = getStockStatus(row.original.quantity).label;
-          return value.includes(status);
-        },
+        enableGlobalFilter: true,
       },
 
-      // Created At column
+      // Age column (relative time since creation)
       {
-        accessorKey: 'createdAt',
-        header: ({ column }) => <DataTableColumnHeader column={column} title="Created" />,
+        id: 'age',
+        accessorFn: (row) => row.createdAt,
+        header: () => <span className="text-muted-foreground"></span>,
         cell: ({ row }) => {
-          const date = new Date(row.getValue('createdAt'));
+          const createdAt = new Date(row.original.createdAt);
           return (
-            <div className="text-sm text-muted-foreground">
-              {date.toLocaleDateString('en-US', {
-                year: 'numeric',
-                month: 'short',
-                day: 'numeric',
-              })}
-            </div>
+            <span className="text-sm text-muted-foreground">
+              {getRelativeAge(createdAt)}
+            </span>
           );
         },
         meta: {
-          label: 'Created Date',
+          label: 'Age',
           variant: 'date',
           exportable: true,
         },
         enableSorting: true,
+        size: 50,
       },
 
-      // Updated At column
+      // Count column (placeholder for comments/count)
       {
-        accessorKey: 'updatedAt',
-        header: ({ column }) => <DataTableColumnHeader column={column} title="Last Updated" />,
-        cell: ({ row }) => {
-          const date = new Date(row.getValue('updatedAt'));
-          return (
-            <div className="text-sm text-muted-foreground">
-              {date.toLocaleDateString('en-US', {
-                year: 'numeric',
-                month: 'short',
-                day: 'numeric',
-              })}
-            </div>
-          );
-        },
-        meta: {
-          label: 'Updated Date',
-          variant: 'date',
-          exportable: true,
-        },
-        enableSorting: true,
+        id: 'counts',
+        header: () => (
+          <div className="text-right text-muted-foreground text-sm">
+            {items.length} of {items.length}
+          </div>
+        ),
+        cell: () => (
+          <div className="flex items-center justify-end gap-2 text-muted-foreground text-sm">
+            <span className="flex items-center gap-1">
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z" />
+              </svg>
+              0
+            </span>
+            <span>·</span>
+          </div>
+        ),
+        enableSorting: false,
+        enableHiding: false,
+        enableResizing: false,
+        enableColumnFilter: false,
+        enableGlobalFilter: false,
+        size: 80,
       },
 
       // Actions column
       {
         id: 'actions',
-        header: 'Actions',
+        header: '',
         cell: ({ row }) => {
           const item = row.original;
 
@@ -499,7 +544,7 @@ export default function InventoryItemsPage() {
         enableGlobalFilter: false,
       },
     ],
-    [handleDelete] // Include handleDelete to satisfy react-hooks/exhaustive-deps
+    [handleDelete, items.length] // Include handleDelete to satisfy react-hooks/exhaustive-deps
   );
 
   // Bulk delete handler - Memoized separately to prevent recreating bulk actions

@@ -37,6 +37,38 @@ export interface ApiResponse<T> {
  */
 export namespace Inventory {
   /**
+   * Item Group entity - for categorizing items
+   */
+  export interface ItemGroup {
+    /** Unique identifier (CUID) */
+    id: string;
+    /** Group name */
+    groupName: string;
+    /** Parent item group ID for hierarchy */
+    parentId?: string | null;
+    /** When this group was created */
+    createdAt: Date;
+    /** When this group was last updated */
+    updatedAt: Date;
+  }
+
+  /**
+   * Unit of Measurement entity
+   */
+  export interface UnitOfMeasure {
+    /** Unique identifier (CUID) */
+    id: string;
+    /** Unit name (e.g., "Nos", "Kg", "Pcs") */
+    name: string;
+    /** Whether the unit represents whole numbers only */
+    isWholeNumber: boolean;
+    /** When this unit was created */
+    createdAt: Date;
+    /** When this unit was last updated */
+    updatedAt: Date;
+  }
+
+  /**
    * Inventory item entity - matches the database schema
    * All fields are required in the database
    */
@@ -57,8 +89,26 @@ export namespace Inventory {
     maintainStock: boolean;
     /** Whether alternate items are allowed */
     allowAlternateItem: boolean;
+    /** Whether this item has variants */
+    hasVariants: boolean;
+    /** Opening stock quantity */
+    openingStock: number;
+    /** Valuation rate for inventory costing */
+    valuationRate?: number | null;
+    /** Standard selling rate */
+    standardSellingRate?: number | null;
+    /** Whether item is zero-rated for tax */
+    isZeroRated: boolean;
+    /** Whether item is tax exempt */
+    isExempt: boolean;
+    /** Whether item is a fixed asset */
+    isFixedAsset: boolean;
+    /** Tax code reference */
+    taxCode?: string | null;
     /** Reference to item group */
     itemGroupId?: string | null;
+    /** Item group name (populated from relation) */
+    itemGroupName?: string | null;
     /** Reference to default unit of measure */
     defaultUnitOfMeasureId?: string | null;
     /** When this item was created */
@@ -78,6 +128,14 @@ export namespace Inventory {
     disabled?: boolean;
     maintainStock?: boolean;
     allowAlternateItem?: boolean;
+    hasVariants?: boolean;
+    openingStock?: number;
+    valuationRate?: number;
+    standardSellingRate?: number;
+    isZeroRated?: boolean;
+    isExempt?: boolean;
+    isFixedAsset?: boolean;
+    taxCode?: string;
     itemGroupId?: string;
     defaultUnitOfMeasureId?: string;
   }
@@ -94,6 +152,14 @@ export namespace Inventory {
     disabled?: boolean;
     maintainStock?: boolean;
     allowAlternateItem?: boolean;
+    hasVariants?: boolean;
+    openingStock?: number;
+    valuationRate?: number;
+    standardSellingRate?: number;
+    isZeroRated?: boolean;
+    isExempt?: boolean;
+    isFixedAsset?: boolean;
+    taxCode?: string;
     itemGroupId?: string;
     defaultUnitOfMeasureId?: string;
   }
@@ -111,8 +177,16 @@ export namespace Inventory {
     quantity: z.number().int().min(0).default(0),
     description: z.string().max(1000).optional(),
     disabled: z.boolean().default(false),
-    maintainStock: z.boolean().default(false),
+    maintainStock: z.boolean().default(true),
     allowAlternateItem: z.boolean().default(false),
+    hasVariants: z.boolean().default(false),
+    openingStock: z.number().int().min(0).default(0),
+    valuationRate: z.number().min(0).optional(),
+    standardSellingRate: z.number().min(0).optional(),
+    isZeroRated: z.boolean().default(false),
+    isExempt: z.boolean().default(false),
+    isFixedAsset: z.boolean().default(false),
+    taxCode: z.string().max(50).optional(),
     itemGroupId: z.string().cuid().optional(),
     defaultUnitOfMeasureId: z.string().cuid().optional(),
   });
@@ -129,6 +203,14 @@ export namespace Inventory {
     disabled: z.boolean().optional(),
     maintainStock: z.boolean().optional(),
     allowAlternateItem: z.boolean().optional(),
+    hasVariants: z.boolean().optional(),
+    openingStock: z.number().int().min(0).optional(),
+    valuationRate: z.number().min(0).optional(),
+    standardSellingRate: z.number().min(0).optional(),
+    isZeroRated: z.boolean().optional(),
+    isExempt: z.boolean().optional(),
+    isFixedAsset: z.boolean().optional(),
+    taxCode: z.string().max(50).optional(),
     itemGroupId: z.string().cuid().optional(),
     defaultUnitOfMeasureId: z.string().cuid().optional(),
   });
