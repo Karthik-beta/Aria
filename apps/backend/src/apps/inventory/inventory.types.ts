@@ -2,11 +2,13 @@ import { Prisma } from '@prisma/client';
 import { Inventory } from '@aria/types';
 
 /**
- * Prisma model type for InventoryItem
+ * Prisma model type for InventoryItem with optional relations
  */
-export type InventoryItem = Prisma.InventoryItemGetPayload<
-  Record<string, never>
->;
+export type InventoryItem = Prisma.InventoryItemGetPayload<{
+  include: {
+    itemGroup: true;
+  };
+}>;
 
 /**
  * Converts a Prisma InventoryItem to Inventory.Item
@@ -22,7 +24,16 @@ export function toInventoryItem(prismaItem: InventoryItem): Inventory.Item {
     disabled: prismaItem.disabled,
     maintainStock: prismaItem.maintainStock,
     allowAlternateItem: prismaItem.allowAlternateItem,
+    hasVariants: prismaItem.hasVariants,
+    openingStock: prismaItem.openingStock,
+    valuationRate: prismaItem.valuationRate,
+    standardSellingRate: prismaItem.standardSellingRate,
+    isZeroRated: prismaItem.isZeroRated,
+    isExempt: prismaItem.isExempt,
+    isFixedAsset: prismaItem.isFixedAsset,
+    taxCode: prismaItem.taxCode,
     itemGroupId: prismaItem.itemGroupId,
+    itemGroupName: prismaItem.itemGroup?.groupName ?? null,
     defaultUnitOfMeasureId: prismaItem.defaultUnitOfMeasureId,
     createdAt: prismaItem.createdAt,
     updatedAt: prismaItem.updatedAt,
