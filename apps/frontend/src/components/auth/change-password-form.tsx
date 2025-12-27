@@ -30,9 +30,9 @@ export function ChangePasswordForm() {
   const mustChangePassword = useMemo(() => {
     return Boolean(
       session?.user &&
-        typeof session.user === 'object' &&
-        'mustChangePassword' in session.user &&
-        (session.user as Record<string, unknown>).mustChangePassword
+      typeof session.user === 'object' &&
+      'mustChangePassword' in session.user &&
+      (session.user as Record<string, unknown>).mustChangePassword
     );
   }, [session]);
 

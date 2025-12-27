@@ -13,8 +13,9 @@ import {
 import { cn } from '@/lib/utils';
 import { ChevronDownIcon, ChevronUpIcon, CaretSortIcon, Cross2Icon } from '@radix-ui/react-icons';
 
-interface DataTableColumnHeaderProps<TData, TValue>
-  extends React.ComponentProps<typeof DropdownMenuTrigger> {
+interface DataTableColumnHeaderProps<TData, TValue> extends React.ComponentProps<
+  typeof DropdownMenuTrigger
+> {
   column: Column<TData, TValue>;
   title: string;
 }

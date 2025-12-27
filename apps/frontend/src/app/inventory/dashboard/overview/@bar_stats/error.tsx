@@ -30,11 +30,7 @@ export default function StatsError({ error, reset }: StatsErrorProps) {
     <Card className="border-destructive/50">
       <CardHeader className="flex flex-col items-stretch space-y-0 p-0">
         <div className="px-6 pt-6">
-          <ErrorCard
-            error={error}
-            operation="load"
-            onRetry={isPending ? undefined : reload}
-          />
+          <ErrorCard error={error} operation="load" onRetry={isPending ? undefined : reload} />
         </div>
       </CardHeader>
       <CardContent className="flex h-[250px] items-center justify-center p-6">

@@ -1,6 +1,14 @@
 'use client';
 
-import { ReactNode, createContext, useContext, useLayoutEffect, useRef, useState, useCallback } from 'react';
+import {
+  ReactNode,
+  createContext,
+  useContext,
+  useLayoutEffect,
+  useRef,
+  useState,
+  useCallback,
+} from 'react';
 
 const COOKIE_NAME = 'active_theme';
 const DEFAULT_THEME = 'default';

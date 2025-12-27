@@ -51,7 +51,7 @@ export function AppSwitcher({ apps, defaultApp }: { apps: App[]; defaultApp: App
   // Ensure component only renders after hydration to avoid ID mismatch
   React.useEffect(() => {
     setIsMounted(true);
-  }, [])
+  }, []);
 
   // Reset navigation state when we've arrived at the target app
   React.useEffect(() => {
@@ -109,7 +109,7 @@ export function AppSwitcher({ apps, defaultApp }: { apps: App[]; defaultApp: App
   // Use activeApp directly instead of separate selectedApp state
   // This avoids state synchronization issues that caused the infinite loop
   const displayApp = isNavigating
-    ? safeApps.find(app => app.route === navigationTargetRef.current) || activeApp
+    ? safeApps.find((app) => app.route === navigationTargetRef.current) || activeApp
     : activeApp;
 
   return (

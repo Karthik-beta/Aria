@@ -5,6 +5,7 @@ This document describes the standardized error handling system used throughout t
 ## Overview
 
 The error handling system ensures that:
+
 1. **End users never see technical error details** (database queries, stack traces, file paths)
 2. **Consistent error messaging** across all features and components
 3. **Actionable guidance** for users when errors occur
@@ -51,21 +52,19 @@ if (queryError && !isLoading) {
 import { ErrorAlert } from '@/components/ui/error-display';
 
 // Show an inline error in a form or section:
-{error && (
-  <ErrorAlert
-    error={error}
-    operation="update"
-    onRetry={handleRetry}
-  />
-)}
+{
+  error && <ErrorAlert error={error} operation="update" onRetry={handleRetry} />;
+}
 ```
 
 ## Available Components
 
 ### ErrorState
+
 Full-page or full-section error display with icon, title, message, and retry button.
 
 **Props:**
+
 - `error` - The raw error or UserFriendlyError object
 - `operation` - Optional: 'load' | 'create' | 'update' | 'delete'
 - `onRetry` - Optional: Callback for retry button
@@ -74,9 +73,11 @@ Full-page or full-section error display with icon, title, message, and retry but
 - `className` - Optional: Additional CSS classes
 
 ### ErrorAlert
+
 Inline alert for form validation errors or section errors.
 
 **Props:**
+
 - `error` - The raw error or UserFriendlyError object
 - `operation` - Optional: 'load' | 'create' | 'update' | 'delete'
 - `onRetry` - Optional: Callback for retry button
@@ -84,9 +85,11 @@ Inline alert for form validation errors or section errors.
 - `className` - Optional: Additional CSS classes
 
 ### ErrorCard
+
 Card-style error display for dashboard widgets.
 
 **Props:**
+
 - `error` - The raw error or UserFriendlyError object
 - `operation` - Optional: 'load' | 'create' | 'update' | 'delete'
 - `onRetry` - Optional: Callback for retry button
@@ -94,15 +97,18 @@ Card-style error display for dashboard widgets.
 - `className` - Optional: Additional CSS classes
 
 ### ErrorBoundaryFallback
+
 Default fallback UI for React Error Boundaries.
 
 **Props:**
+
 - `error` - The Error object
 - `resetErrorBoundary` - Optional: Callback to reset the error boundary
 
 ## Available Utility Functions
 
 ### parseError(error, operation?)
+
 Converts any error into a structured `UserFriendlyError` object.
 
 ```tsx
@@ -113,6 +119,7 @@ const errorInfo = parseError(error, 'create');
 ```
 
 ### getToastMessage(error, operation?)
+
 Returns a short, user-friendly message suitable for toast notifications.
 
 ```tsx
@@ -123,6 +130,7 @@ toast.error(getToastMessage(error, 'delete'));
 ```
 
 ### isTechnicalError(message)
+
 Checks if an error message contains technical details that should be hidden.
 
 ```tsx
@@ -136,6 +144,7 @@ if (isTechnicalError(error.message)) {
 ## Available Hooks
 
 ### useErrorHandler
+
 Main hook for managing error state and handling.
 
 ```tsx
@@ -162,6 +171,7 @@ if (error) {
 ```
 
 ### useQueryError
+
 Automatically handles errors from React Query/tRPC queries.
 
 ```tsx
@@ -179,6 +189,7 @@ if (error) {
 ```
 
 ### useMutationError
+
 Provides a standardized `onError` callback for mutations.
 
 ```tsx
@@ -194,17 +205,17 @@ const mutation = trpc.items.create.useMutation({
 
 ## Error Categories
 
-| Category | Description | Example Message |
-|----------|-------------|-----------------|
-| `network` | Connection issues | "We're having trouble connecting to the server." |
-| `server` | Internal server errors | "We encountered an unexpected issue on our end." |
-| `validation` | Invalid input | "Some of the information provided is not valid." |
-| `authentication` | Session/login issues | "Your session has expired. Please sign in again." |
-| `authorization` | Permission denied | "You don't have permission to perform this action." |
-| `not_found` | Resource not found | "The requested resource could not be found." |
-| `conflict` | Duplicate/constraint | "This action conflicts with an existing record." |
-| `rate_limit` | Too many requests | "You've made too many requests. Please wait." |
-| `unknown` | Unhandled errors | "Something unexpected happened. Please try again." |
+| Category         | Description            | Example Message                                     |
+| ---------------- | ---------------------- | --------------------------------------------------- |
+| `network`        | Connection issues      | "We're having trouble connecting to the server."    |
+| `server`         | Internal server errors | "We encountered an unexpected issue on our end."    |
+| `validation`     | Invalid input          | "Some of the information provided is not valid."    |
+| `authentication` | Session/login issues   | "Your session has expired. Please sign in again."   |
+| `authorization`  | Permission denied      | "You don't have permission to perform this action." |
+| `not_found`      | Resource not found     | "The requested resource could not be found."        |
+| `conflict`       | Duplicate/constraint   | "This action conflicts with an existing record."    |
+| `rate_limit`     | Too many requests      | "You've made too many requests. Please wait."       |
+| `unknown`        | Unhandled errors       | "Something unexpected happened. Please try again."  |
 
 ## Operation-Specific Messages
 
@@ -227,7 +238,7 @@ In development mode, the technical error details are preserved in the `technical
 // ❌ BAD: Exposes technical details to users
 onError: (error) => {
   toast.error(`Failed to create item: ${error.message}`);
-}
+};
 ```
 
 ### After (User-Friendly Errors)
@@ -238,19 +249,21 @@ import { getToastMessage } from '@/lib/errors';
 
 onError: (error) => {
   toast.error(getToastMessage(error, 'create'));
-}
+};
 ```
 
 ### Before (Manual Error Display)
 
 ```tsx
 // ❌ BAD: Manual error display with technical details
-{queryError && (
-  <div className="error">
-    <h3>Failed to load</h3>
-    <p>{queryError.message}</p>
-  </div>
-)}
+{
+  queryError && (
+    <div className="error">
+      <h3>Failed to load</h3>
+      <p>{queryError.message}</p>
+    </div>
+  );
+}
 ```
 
 ### After (Standardized Component)
@@ -259,13 +272,9 @@ onError: (error) => {
 // ✅ GOOD: Standardized error display
 import { ErrorState } from '@/components/ui/error-display';
 
-{queryError && (
-  <ErrorState
-    error={queryError}
-    operation="load"
-    onRetry={() => refetch()}
-  />
-)}
+{
+  queryError && <ErrorState error={queryError} operation="load" onRetry={() => refetch()} />;
+}
 ```
 
 ## Best Practices

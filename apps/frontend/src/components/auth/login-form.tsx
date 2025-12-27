@@ -64,9 +64,9 @@ export function LoginForm() {
         const user = (data as { user?: Record<string, unknown> }).user;
         const mustChangePassword = Boolean(
           user &&
-            typeof user === 'object' &&
-            'mustChangePassword' in user &&
-            (user as Record<string, unknown>).mustChangePassword
+          typeof user === 'object' &&
+          'mustChangePassword' in user &&
+          (user as Record<string, unknown>).mustChangePassword
         );
 
         router.push(mustChangePassword ? '/auth/change-password' : '/');

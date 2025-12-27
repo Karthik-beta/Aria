@@ -37,7 +37,7 @@ import {
 export class PublicRouteGuard implements CanActivate {
   private readonly logger = new Logger(PublicRouteGuard.name);
 
-  constructor(private reflector: Reflector) { }
+  constructor(private reflector: Reflector) {}
 
   canActivate(context: ExecutionContext): boolean {
     const isPublic = this.reflector.getAllAndOverride<boolean>(
@@ -45,8 +45,14 @@ export class PublicRouteGuard implements CanActivate {
       [context.getHandler(), context.getClass()],
     );
 
-    if (isPublic || (process.env.NODE_ENV === 'development' && process.env.DISABLE_AUTH === 'true')) {
-      this.logger.debug('Skipping authorization check (Public route or Dev bypass)');
+    if (
+      isPublic ||
+      (process.env.NODE_ENV === 'development' &&
+        process.env.DISABLE_AUTH === 'true')
+    ) {
+      this.logger.debug(
+        'Skipping authorization check (Public route or Dev bypass)',
+      );
       return true;
     }
 
@@ -64,13 +70,16 @@ export class PublicRouteGuard implements CanActivate {
 export class ActiveUserGuard implements CanActivate {
   private readonly logger = new Logger(ActiveUserGuard.name);
 
-  constructor(private policyService: PolicyService) { }
+  constructor(private policyService: PolicyService) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
 
     // Development bypass
-    if (process.env.NODE_ENV === 'development' && process.env.DISABLE_AUTH === 'true') {
+    if (
+      process.env.NODE_ENV === 'development' &&
+      process.env.DISABLE_AUTH === 'true'
+    ) {
       return true;
     }
 
@@ -106,7 +115,7 @@ export class AppScopeGuard implements CanActivate {
   constructor(
     private reflector: Reflector,
     private policyService: PolicyService,
-  ) { }
+  ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const appKey = this.reflector.getAllAndOverride<string>(APP_SCOPE_KEY, [
@@ -122,7 +131,10 @@ export class AppScopeGuard implements CanActivate {
     const request = context.switchToHttp().getRequest();
 
     // Development bypass
-    if (process.env.NODE_ENV === 'development' && process.env.DISABLE_AUTH === 'true') {
+    if (
+      process.env.NODE_ENV === 'development' &&
+      process.env.DISABLE_AUTH === 'true'
+    ) {
       return true;
     }
 
@@ -170,7 +182,7 @@ export class RolePermissionGuard implements CanActivate {
   constructor(
     private reflector: Reflector,
     private policyService: PolicyService,
-  ) { }
+  ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const requiredRoles = this.reflector.getAllAndOverride<string[]>(
@@ -191,7 +203,10 @@ export class RolePermissionGuard implements CanActivate {
     const request = context.switchToHttp().getRequest();
 
     // Development bypass
-    if (process.env.NODE_ENV === 'development' && process.env.DISABLE_AUTH === 'true') {
+    if (
+      process.env.NODE_ENV === 'development' &&
+      process.env.DISABLE_AUTH === 'true'
+    ) {
       return true;
     }
 
@@ -290,13 +305,16 @@ export class OwnershipGuard implements CanActivate {
   constructor(
     private policyService: PolicyService,
     private scopeService: ScopeService,
-  ) { }
+  ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
 
     // Development bypass
-    if (process.env.NODE_ENV === 'development' && process.env.DISABLE_AUTH === 'true') {
+    if (
+      process.env.NODE_ENV === 'development' &&
+      process.env.DISABLE_AUTH === 'true'
+    ) {
       return true;
     }
 

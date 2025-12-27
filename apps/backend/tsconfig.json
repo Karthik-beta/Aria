@@ -22,21 +22,10 @@
     "strictBindCallApply": false,
     "noFallthroughCasesInSwitch": false,
     "paths": {
-      "@prisma/client": [
-        "./src/generated/client"
-      ],
-      "@prisma/client/*": [
-        "./src/generated/client/*"
-      ],
-      "@aria/types": [
-        "../../packages/types/src/index.ts"
-      ]
+      "@prisma/client": ["./src/generated/client"],
+      "@prisma/client/*": ["./src/generated/client/*"],
+      "@aria/types": ["../../packages/types/src/index.ts"]
     }
   },
-  "include": [
-    "src/**/*",
-    "test/**/*",
-    "test-*.js",
-    "prisma/**/*"
-  ]
+  "include": ["src/**/*", "test/**/*", "test-*.js", "prisma/**/*"]
 }

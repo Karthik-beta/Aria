@@ -30,11 +30,6 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   // Development mode bypass - skip authentication for testing
   const isDevelopmentBypass = process.env.NEXT_PUBLIC_DEV_AUTH_BYPASS === 'true';
 
-  // If dev bypass is enabled, render children immediately
-  if (isDevelopmentBypass) {
-    return <>{children}</>;
-  }
-
   // Public routes that don't require authentication
   const publicRoutes = [
     '/auth/sign-in',
@@ -52,7 +47,14 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     (session.user as Record<string, unknown>).mustChangePassword
   );
 
+  // useEffect MUST be called unconditionally (before any early returns)
+  // to satisfy React's Rules of Hooks - hooks cannot be called after conditional returns
   React.useEffect(() => {
+    // Skip all authentication logic if development bypass is enabled
+    if (isDevelopmentBypass) {
+      return;
+    }
+
     // Skip authentication for public routes (sign-in, sign-up pages)
     if (isPublicRoute) {
       return;
@@ -87,7 +89,13 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     isPublicRoute,
     mustChangePassword,
     isChangePasswordRoute,
+    isDevelopmentBypass,
   ]);
+
+  // If dev bypass is enabled, render children immediately
+  if (isDevelopmentBypass) {
+    return <>{children}</>;
+  }
 
   // Show loading state while checking authentication (only for protected routes)
   if (!isPublicRoute && isPending) {

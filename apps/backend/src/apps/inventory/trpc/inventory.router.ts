@@ -11,7 +11,7 @@ const inventoryEvents = new EventEmitter();
 
 @Injectable()
 export class InventoryRouter {
-  constructor(private readonly inventoryService: InventoryService) { }
+  constructor(private readonly inventoryService: InventoryService) {}
 
   getRouter() {
     return router({

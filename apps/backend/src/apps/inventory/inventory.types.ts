@@ -26,7 +26,7 @@ export type InventoryItemGroup = Prisma.ItemGroupGetPayload<{
  * Converts a Prisma ItemGroup to Inventory.ItemGroup
  */
 export function toInventoryItemGroup(
-  prismaGroup: InventoryItemGroup
+  prismaGroup: InventoryItemGroup,
 ): Inventory.ItemGroup {
   return {
     id: prismaGroup.id,

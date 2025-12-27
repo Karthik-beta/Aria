@@ -40,7 +40,10 @@ export type ProtectedContext = TrpcContextType & {
  */
 const isAuthenticated = t.middleware(async ({ ctx, next }) => {
   // Development bypass - Allow access without session if DISABLE_AUTH is set
-  if (process.env.NODE_ENV === 'development' && process.env.DISABLE_AUTH === 'true') {
+  if (
+    process.env.NODE_ENV === 'development' &&
+    process.env.DISABLE_AUTH === 'true'
+  ) {
     // Attempt to find the default admin user for a more realistic development experience
     // otherwise fallback to a generic mock user
     return next({

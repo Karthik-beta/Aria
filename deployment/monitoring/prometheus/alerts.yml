@@ -9,9 +9,9 @@ groups:
         labels:
           severity: critical
         annotations:
-          summary: "Container {{ $labels.job }} is down"
-          description: "Container {{ $labels.job }} on {{ $labels.instance }} has been down for more than 2 minutes."
-      
+          summary: 'Container {{ $labels.job }} is down'
+          description: 'Container {{ $labels.job }} on {{ $labels.instance }} has been down for more than 2 minutes.'
+
       # High CPU usage
       - alert: HighCPUUsage
         expr: rate(process_cpu_seconds_total[5m]) > 0.8
@@ -19,9 +19,9 @@ groups:
         labels:
           severity: warning
         annotations:
-          summary: "High CPU usage on {{ $labels.job }}"
-          description: "{{ $labels.job }} is using more than 80% CPU for 5 minutes."
-      
+          summary: 'High CPU usage on {{ $labels.job }}'
+          description: '{{ $labels.job }} is using more than 80% CPU for 5 minutes.'
+
       # High memory usage
       - alert: HighMemoryUsage
         expr: process_resident_memory_bytes / (1024 * 1024 * 1024) > 1.5
@@ -29,9 +29,9 @@ groups:
         labels:
           severity: warning
         annotations:
-          summary: "High memory usage on {{ $labels.job }}"
-          description: "{{ $labels.job }} is using more than 1.5GB of memory."
-      
+          summary: 'High memory usage on {{ $labels.job }}'
+          description: '{{ $labels.job }} is using more than 1.5GB of memory.'
+
       # Container restarts
       - alert: ContainerRestarting
         expr: rate(container_last_seen[5m]) > 0
@@ -39,9 +39,9 @@ groups:
         labels:
           severity: warning
         annotations:
-          summary: "Container is restarting frequently"
-          description: "Container {{ $labels.name }} has restarted recently."
-      
+          summary: 'Container is restarting frequently'
+          description: 'Container {{ $labels.name }} has restarted recently.'
+
       # Disk space alerts
       - alert: HighDiskUsage
         expr: (1 - (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"})) > 0.85
@@ -49,5 +49,5 @@ groups:
         labels:
           severity: critical
         annotations:
-          summary: "Disk space is running low"
-          description: "Disk usage is above 85% on {{ $labels.instance }}."
+          summary: 'Disk space is running low'
+          description: 'Disk usage is above 85% on {{ $labels.instance }}.'

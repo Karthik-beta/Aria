@@ -20,4 +20,4 @@ import { AuthorizationModule } from './authorization/authorization.module';
   controllers: [AppController],
   providers: [AppService],
 })
-export class AppModule { }
+export class AppModule {}

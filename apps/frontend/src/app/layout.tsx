@@ -53,7 +53,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     `theme-${activeThemeValue}`,
     isScaled ? 'theme-scaled' : '',
     fontVariables,
-  ].filter(Boolean).join(' ');
+  ]
+    .filter(Boolean)
+    .join(' ');
 
   return (
     // suppressHydrationWarning on <html> only: this is the industry standard

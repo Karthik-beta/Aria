@@ -9,15 +9,18 @@ Both backend and frontend metrics endpoints are **fully implemented and working 
 ## 🎯 Backend Metrics - ✅ WORKING
 
 ### Endpoint
+
 - **URL**: `http://backend:3001/metrics`
 - **Status**: ✅ **UP and being scraped by Prometheus**
 
 ### Implementation Details
+
 - **Library**: `@willsoto/nestjs-prometheus` + `prom-client`
 - **Module**: `PrometheusModule` registered in `app.module.ts`
 - **Route**: `/metrics` endpoint automatically created by PrometheusModule
 
 ### Metrics Being Collected
+
 ```
 # Backend Process Metrics (Sample)
 process_cpu_user_seconds_total
@@ -34,11 +37,13 @@ nodejs_eventloop_lag_seconds
 ```
 
 ### Verification Command
+
 ```bash
 docker exec aria-backend curl -s http://localhost:3001/metrics
 ```
 
 ### Prometheus Query Result
+
 - Query: `up{job="backend"}`
 - Result: **1** (UP)
 - Last Scrape: Successful
@@ -49,15 +54,18 @@ docker exec aria-backend curl -s http://localhost:3001/metrics
 ## 🎯 Frontend Metrics - ✅ WORKING
 
 ### Endpoint
+
 - **URL**: `http://frontend:3000/api/metrics`
 - **Status**: ✅ **UP and being scraped by Prometheus**
 
 ### Implementation Details
+
 - **Library**: `prom-client`
 - **Route File**: `apps/frontend/src/app/api/metrics/route.ts`
 - **Metrics Prefix**: `frontend_`
 
 ### Metrics Being Collected
+
 ```
 # Frontend Process Metrics (Sample)
 frontend_process_cpu_user_seconds_total
@@ -74,12 +82,14 @@ frontend_nodejs_eventloop_lag_max_seconds
 ```
 
 ### Verification Command
+
 ```bash
 # From Prometheus container (curl not available in frontend container)
 docker exec aria-prometheus wget -qO- http://frontend:3000/api/metrics
 ```
 
 ### Prometheus Query Result
+
 - Query: `up{job="frontend"}`
 - Result: **1** (UP)
 - Last Scrape: Successful
@@ -89,13 +99,13 @@ docker exec aria-prometheus wget -qO- http://frontend:3000/api/metrics
 
 ## 📊 Complete Metrics Collection Status
 
-| Service | Endpoint | Status | Metrics Prefix | Scrape Status |
-|---------|----------|--------|----------------|---------------|
-| **Backend** | `backend:3001/metrics` | ✅ UP | (default) | ✅ Scraping |
-| **Frontend** | `frontend:3000/api/metrics` | ✅ UP | `frontend_` | ✅ Scraping |
-| **cAdvisor** | `cadvisor:8080/metrics` | ✅ UP | `container_` | ✅ Scraping |
-| **Node Exporter** | `node-exporter:9100/metrics` | ✅ UP | `node_` | ✅ Scraping |
-| **Prometheus** | `localhost:9090/metrics` | ✅ UP | `prometheus_` | ✅ Scraping |
+| Service           | Endpoint                     | Status | Metrics Prefix | Scrape Status |
+| ----------------- | ---------------------------- | ------ | -------------- | ------------- |
+| **Backend**       | `backend:3001/metrics`       | ✅ UP  | (default)      | ✅ Scraping   |
+| **Frontend**      | `frontend:3000/api/metrics`  | ✅ UP  | `frontend_`    | ✅ Scraping   |
+| **cAdvisor**      | `cadvisor:8080/metrics`      | ✅ UP  | `container_`   | ✅ Scraping   |
+| **Node Exporter** | `node-exporter:9100/metrics` | ✅ UP  | `node_`        | ✅ Scraping   |
+| **Prometheus**    | `localhost:9090/metrics`     | ✅ UP  | `prometheus_`  | ✅ Scraping   |
 
 ---
 
@@ -104,6 +114,7 @@ docker exec aria-prometheus wget -qO- http://frontend:3000/api/metrics
 ### Backend Implementation
 
 **File**: `apps/backend/src/app.module.ts`
+
 ```typescript
 import { PrometheusModule } from '@willsoto/nestjs-prometheus';
 
@@ -118,6 +129,7 @@ export class AppModule {}
 ```
 
 **Dependencies** (`apps/backend/package.json`):
+
 ```json
 {
   "dependencies": {
@@ -130,34 +142,36 @@ export class AppModule {}
 ### Frontend Implementation
 
 **File**: `apps/frontend/src/app/api/metrics/route.ts`
+
 ```typescript
 import { register, collectDefaultMetrics } from 'prom-client';
 import { NextResponse } from 'next/server';
 
 // Initialize default metrics collection
 if (process.env.NODE_ENV !== 'test') {
-    try {
-        collectDefaultMetrics({ prefix: 'frontend_' });
-    } catch (e) {
-        // Ignore error if metrics are already registered
-    }
+  try {
+    collectDefaultMetrics({ prefix: 'frontend_' });
+  } catch (e) {
+    // Ignore error if metrics are already registered
+  }
 }
 
 export async function GET() {
-    try {
-        const metrics = await register.metrics();
-        return new NextResponse(metrics, {
-            headers: {
-                'Content-Type': register.contentType,
-            },
-        });
-    } catch (err) {
-        return new NextResponse('Internal Server Error', { status: 500 });
-    }
+  try {
+    const metrics = await register.metrics();
+    return new NextResponse(metrics, {
+      headers: {
+        'Content-Type': register.contentType,
+      },
+    });
+  } catch (err) {
+    return new NextResponse('Internal Server Error', { status: 500 });
+  }
 }
 ```
 
 **Dependencies** (`apps/frontend/package.json`):
+
 ```json
 {
   "dependencies": {
@@ -171,6 +185,7 @@ export async function GET() {
 ## 🎨 Prometheus Configuration
 
 **File**: `deployment/monitoring/prometheus/prometheus.yml`
+
 ```yaml
 scrape_configs:
   - job_name: 'backend'
@@ -189,6 +204,7 @@ scrape_configs:
 ## 📈 Sample Metrics Queries
 
 ### Backend Metrics
+
 ```promql
 # CPU usage
 rate(process_cpu_seconds_total{job="backend"}[5m])
@@ -201,6 +217,7 @@ nodejs_eventloop_lag_seconds{job="backend"}
 ```
 
 ### Frontend Metrics
+
 ```promql
 # CPU usage
 rate(frontend_process_cpu_seconds_total{job="frontend"}[5m])
@@ -217,12 +234,14 @@ frontend_nodejs_eventloop_lag_seconds{job="frontend"}
 ## ✅ Verification Evidence
 
 ### Screenshots Captured
+
 1. **Prometheus Targets Page**: All targets showing UP status
 2. **Backend Metrics Query**: `up{job="backend"}` = 1
 3. **Frontend Metrics Query**: `up{job="frontend"}` = 1
 4. **Grafana Dashboard**: CPU and Memory metrics displaying
 
 ### Command Line Verification
+
 ```bash
 # Backend metrics (10+ metric types)
 ✅ process_cpu_user_seconds_total
@@ -251,6 +270,6 @@ frontend_nodejs_eventloop_lag_seconds{job="frontend"}
 - ✅ Data is available in Prometheus for querying
 - ✅ Grafana can visualize the metrics
 - ✅ All default Node.js/process metrics are being collected
-- ✅ Custom metric prefixes are working (frontend_)
+- ✅ Custom metric prefixes are working (frontend\_)
 
 The monitoring system is **production-ready** and collecting comprehensive metrics from both application services!

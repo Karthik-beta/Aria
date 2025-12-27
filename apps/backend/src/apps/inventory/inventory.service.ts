@@ -14,7 +14,7 @@ import { toInventoryItem, toInventoryItemGroup } from './inventory.types';
  */
 @Injectable()
 export class InventoryService {
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(private readonly prisma: PrismaService) {}
 
   /**
    * Get all inventory items
@@ -37,11 +37,11 @@ export class InventoryService {
     const groups = await this.prisma.itemGroup.findMany({
       where: search
         ? {
-          groupName: {
-            contains: search,
-            mode: 'insensitive',
-          },
-        }
+            groupName: {
+              contains: search,
+              mode: 'insensitive',
+            },
+          }
         : undefined,
       include: {
         parentItemGroup: {
@@ -58,15 +58,17 @@ export class InventoryService {
   /**
    * Get all units of measure
    */
-  async findAllUnitsOfMeasure(search?: string): Promise<Inventory.UnitOfMeasure[]> {
+  async findAllUnitsOfMeasure(
+    search?: string,
+  ): Promise<Inventory.UnitOfMeasure[]> {
     return this.prisma.unitOfMeasurement.findMany({
       where: search
         ? {
-          name: {
-            contains: search,
-            mode: 'insensitive',
-          },
-        }
+            name: {
+              contains: search,
+              mode: 'insensitive',
+            },
+          }
         : undefined,
       orderBy: { name: 'asc' },
     });
@@ -81,13 +83,15 @@ export class InventoryService {
         groupName: data.groupName,
         parentId: data.parentId,
         isGroup: data.isGroup,
-        defaults: data.defaults ? {
-          create: data.defaults.map((d: any) => ({
-            company: d.company,
-            defaultWarehouse: d.defaultWarehouse,
-            defaultPriceList: d.defaultPriceList,
-          }))
-        } : undefined,
+        defaults: data.defaults
+          ? {
+              create: data.defaults.map((d: any) => ({
+                company: d.company,
+                defaultWarehouse: d.defaultWarehouse,
+                defaultPriceList: d.defaultPriceList,
+              })),
+            }
+          : undefined,
       },
       include: {
         parentItemGroup: {
@@ -119,8 +123,8 @@ export class InventoryService {
               company: d.company,
               defaultWarehouse: d.defaultWarehouse,
               defaultPriceList: d.defaultPriceList,
-            }))
-          }
+            })),
+          },
         }),
       },
       include: {
@@ -147,7 +151,9 @@ export class InventoryService {
   /**
    * Create a new inventory item
    */
-  async create(data: z.infer<typeof Inventory.createSchema>): Promise<Inventory.Item> {
+  async create(
+    data: z.infer<typeof Inventory.createSchema>,
+  ): Promise<Inventory.Item> {
     try {
       const created = await this.prisma.inventoryItem.create({
         data,
@@ -162,7 +168,9 @@ export class InventoryService {
         error instanceof PrismaClientKnownRequestError &&
         error.code === 'P2002'
       ) {
-        throw new ConflictException(`Item with code ${data.code} already exists`);
+        throw new ConflictException(
+          `Item with code ${data.code} already exists`,
+        );
       }
       throw error;
     }
@@ -171,7 +179,9 @@ export class InventoryService {
   /**
    * Update an existing inventory item
    */
-  async update(data: z.infer<typeof Inventory.updateSchema>): Promise<Inventory.Item> {
+  async update(
+    data: z.infer<typeof Inventory.updateSchema>,
+  ): Promise<Inventory.Item> {
     const {
       id,
       name,

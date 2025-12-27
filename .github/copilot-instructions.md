@@ -250,14 +250,14 @@ Before submitting:
 
 | Task                      | Command                                               |
 | ------------------------- | ----------------------------------------------------- |
-| Install dependencies      | `bun install`                                        |
-| Format code               | `bun format`                                         |
-| Lint entire workspace     | `bun lint`                                           |
-| Run all tests             | `bun test`                                           |
-| Build all apps            | `bun build`                                          |
-| Start backend dev server  | `bun --filter backend dev`                           |
-| Start frontend dev server | `bun --filter <app> dev`                             |
-| Generate NestJS module    | `cd apps/backend && bun nest g module <name>`        |
+| Install dependencies      | `bun install`                                         |
+| Format code               | `bun format`                                          |
+| Lint entire workspace     | `bun lint`                                            |
+| Run all tests             | `bun test`                                            |
+| Build all apps            | `bun build`                                           |
+| Start backend dev server  | `bun --filter backend dev`                            |
+| Start frontend dev server | `bun --filter <app> dev`                              |
+| Generate NestJS module    | `cd apps/backend && bun nest g module <name>`         |
 | Add workspace dependency  | Edit package.json, use `"@aria/<pkg>": "workspace:*"` |
 
 ---

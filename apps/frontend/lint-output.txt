@@ -1,159 +1,69 @@
-$ eslint
 
-C:\Users\Admin\Desktop\Aria\apps\frontend\src\app\auth\sign-up\[[...sign-up]]\page.tsx
-  25:12  warning  'error' is defined but never used. Allowed unused caught errors must match /^_/u  @typescript-eslint/no-unused-vars
+C:\Users\Admin\Desktop\Aria\apps\frontend\src\app\admin\users\page.tsx
+  580:30  warning  'error' is defined but never used. Allowed unused caught errors must match /^_/u  @typescript-eslint/no-unused-vars
 
-C:\Users\Admin\Desktop\Aria\apps\frontend\src\app\debug\page.tsx
-  18:64  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+C:\Users\Admin\Desktop\Aria\apps\frontend\src\app\api\metrics\route.ts
+   9:12  warning  'e' is defined but never used. Allowed unused caught errors must match /^_/u    @typescript-eslint/no-unused-vars
+  22:12  warning  'err' is defined but never used. Allowed unused caught errors must match /^_/u  @typescript-eslint/no-unused-vars
 
-C:\Users\Admin\Desktop\Aria\apps\frontend\src\app\inventory\dashboard\layout.tsx
-   1:8   warning  'KBar' is defined but never used. Allowed unused vars must match /^_/u                  @typescript-eslint/no-unused-vars
-   2:8   warning  'AppSidebar' is defined but never used. Allowed unused vars must match /^_/u            @typescript-eslint/no-unused-vars
-   3:8   warning  'Header' is defined but never used. Allowed unused vars must match /^_/u                @typescript-eslint/no-unused-vars
-   4:10  warning  'SidebarInset' is defined but never used. Allowed unused vars must match /^_/u          @typescript-eslint/no-unused-vars
-   4:24  warning  'SidebarProvider' is defined but never used. Allowed unused vars must match /^_/u       @typescript-eslint/no-unused-vars
-  17:9   warning  'defaultOpen' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+C:\Users\Admin\Desktop\Aria\apps\frontend\src\app\inventory\items-catalogue\item-group\form\page.tsx
+    7:10  warning  'Inventory' is defined but never used. Allowed unused vars must match /^_/u                                                 @typescript-eslint/no-unused-vars
+   26:3   warning  'FolderTree' is defined but never used. Allowed unused vars must match /^_/u                                                @typescript-eslint/no-unused-vars
+   29:3   warning  'Plus' is defined but never used. Allowed unused vars must match /^_/u                                                      @typescript-eslint/no-unused-vars
+   80:29  warning  'setParentGroupSearch' is assigned a value but never used. Allowed unused elements of array destructuring must match /^_/u  @typescript-eslint/no-unused-vars
+  162:23  warning  'data' is defined but never used. Allowed unused args must match /^_/u                                                      @typescript-eslint/no-unused-vars
+  172:13  warning  'taxes' is assigned a value but never used. Allowed unused vars must match /^_/u                                            @typescript-eslint/no-unused-vars
 
-C:\Users\Admin\Desktop\Aria\apps\frontend\src\app\inventory\items-catalogue\item\[itemId]\edit\page.tsx
-  28:10  warning  'isPending' is assigned a value but never used. Allowed unused elements of array destructuring must match /^_/u  @typescript-eslint/no-unused-vars
+C:\Users\Admin\Desktop\Aria\apps\frontend\src\app\inventory\items-catalogue\item-group\page.tsx
+  13:8   warning  'BulkAction' is defined but never used. Allowed unused vars must match /^_/u    @typescript-eslint/no-unused-vars
+  15:31  warning  'Row' is defined but never used. Allowed unused vars must match /^_/u           @typescript-eslint/no-unused-vars
+  35:3   warning  'Package' is defined but never used. Allowed unused vars must match /^_/u       @typescript-eslint/no-unused-vars
+  36:3   warning  'CheckCircle2' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  37:3   warning  'XCircle' is defined but never used. Allowed unused vars must match /^_/u       @typescript-eslint/no-unused-vars
 
-C:\Users\Admin\Desktop\Aria\apps\frontend\src\app\inventory\items-catalogue\item\[itemId]\page.tsx
-  53:10  warning  'isPending' is assigned a value but never used. Allowed unused elements of array destructuring must match /^_/u  @typescript-eslint/no-unused-vars
+C:\Users\Admin\Desktop\Aria\apps\frontend\src\app\inventory\items-catalogue\item-group\tree\page.tsx
+    4:10  warning  'useRouter' is defined but never used. Allowed unused vars must match /^_/u     @typescript-eslint/no-unused-vars
+    6:10  warning  'Inventory' is defined but never used. Allowed unused vars must match /^_/u     @typescript-eslint/no-unused-vars
+    8:3   warning  'ChevronDown' is defined but never used. Allowed unused vars must match /^_/u   @typescript-eslint/no-unused-vars
+    9:3   warning  'ChevronRight' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+   31:9   warning  Unexpected any. Specify a different type                                        @typescript-eslint/no-explicit-any
+  122:25  warning  Unexpected confirm                                                              no-alert
+  137:38  warning  Unexpected any. Specify a different type                                        @typescript-eslint/no-explicit-any
+  170:37  warning  Unexpected any. Specify a different type                                        @typescript-eslint/no-explicit-any
+  171:18  warning  Unexpected any. Specify a different type                                        @typescript-eslint/no-explicit-any
+  210:30  warning  Unexpected any. Specify a different type                                        @typescript-eslint/no-explicit-any
 
-C:\Users\Admin\Desktop\Aria\apps\frontend\src\app\inventory\items-catalogue\item\page.tsx
-   19:24  warning  'TanstackTable' is defined but never used. Allowed unused vars must match /^_/u                                      @typescript-eslint/no-unused-vars
-   68:68  warning  Unexpected empty arrow function                                                                                      @typescript-eslint/no-empty-function
-  154:11  warning  'errorMessage' is assigned a value but never used. Allowed unused vars must match /^_/u                              @typescript-eslint/no-unused-vars
-  502:5   warning  React Hook React.useMemo has a missing dependency: 'handleDelete'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+C:\Users\Admin\Desktop\Aria\apps\frontend\src\app\inventory\items-catalogue\item\form\page.tsx
+  25:3   warning  'ArrowLeft' is defined but never used. Allowed unused vars must match /^_/u                                                   @typescript-eslint/no-unused-vars
+  26:3   warning  'Check' is defined but never used. Allowed unused vars must match /^_/u                                                       @typescript-eslint/no-unused-vars
+  28:3   warning  'ChevronsUpDown' is defined but never used. Allowed unused vars must match /^_/u                                              @typescript-eslint/no-unused-vars
+  29:3   warning  'Copy' is defined but never used. Allowed unused vars must match /^_/u                                                        @typescript-eslint/no-unused-vars
+  33:3   warning  'Save' is defined but never used. Allowed unused vars must match /^_/u                                                        @typescript-eslint/no-unused-vars
+  34:3   warning  'Search' is defined but never used. Allowed unused vars must match /^_/u                                                      @typescript-eslint/no-unused-vars
+  35:3   warning  'Bell' is defined but never used. Allowed unused vars must match /^_/u                                                        @typescript-eslint/no-unused-vars
+  36:3   warning  'HelpCircle' is defined but never used. Allowed unused vars must match /^_/u                                                  @typescript-eslint/no-unused-vars
+  37:3   warning  'User' is defined but never used. Allowed unused vars must match /^_/u                                                        @typescript-eslint/no-unused-vars
+  38:3   warning  'ChevronRight' is defined but never used. Allowed unused vars must match /^_/u                                                @typescript-eslint/no-unused-vars
+  52:3   warning  'Trash2' is defined but never used. Allowed unused vars must match /^_/u                                                      @typescript-eslint/no-unused-vars
+  55:8   warning  'Link' is defined but never used. Allowed unused vars must match /^_/u                                                        @typescript-eslint/no-unused-vars
+  60:3   warning  'DropdownMenu' is defined but never used. Allowed unused vars must match /^_/u                                                @typescript-eslint/no-unused-vars
+  61:3   warning  'DropdownMenuContent' is defined but never used. Allowed unused vars must match /^_/u                                         @typescript-eslint/no-unused-vars
+  62:3   warning  'DropdownMenuItem' is defined but never used. Allowed unused vars must match /^_/u                                            @typescript-eslint/no-unused-vars
+  63:3   warning  'DropdownMenuTrigger' is defined but never used. Allowed unused vars must match /^_/u                                         @typescript-eslint/no-unused-vars
+  81:27  warning  'setItemGroupSearch' is assigned a value but never used. Allowed unused elements of array destructuring must match /^_/u      @typescript-eslint/no-unused-vars
+  82:31  warning  'setUnitOfMeasureSearch' is assigned a value but never used. Allowed unused elements of array destructuring must match /^_/u  @typescript-eslint/no-unused-vars
 
-C:\Users\Admin\Desktop\Aria\apps\frontend\src\components\advanced-data-table\advanced-data-table.tsx
-   10:24  warning  'TanstackTable' is defined but never used. Allowed unused vars must match /^_/u                                                                 @typescript-eslint/no-unused-vars
-   12:10  warning  'ScrollArea' is defined but never used. Allowed unused vars must match /^_/u                                                                    @typescript-eslint/no-unused-vars
-   12:22  warning  'ScrollBar' is defined but never used. Allowed unused vars must match /^_/u                                                                     @typescript-eslint/no-unused-vars
-   40:3   warning  'data' is defined but never used. Allowed unused args must match /^_/u                                                                          @typescript-eslint/no-unused-vars
-   41:3   warning  'totalItems' is defined but never used. Allowed unused args must match /^_/u                                                                    @typescript-eslint/no-unused-vars
-   43:3   warning  'enableColumnSearch' is assigned a value but never used. Allowed unused args must match /^_/u                                                   @typescript-eslint/no-unused-vars
-   49:3   warning  'enableInlineEdit' is assigned a value but never used. Allowed unused args must match /^_/u                                                     @typescript-eslint/no-unused-vars
-   52:3   warning  'enableColumnFreezing' is assigned a value but never used. Allowed unused args must match /^_/u                                                 @typescript-eslint/no-unused-vars
-   57:3   warning  'onRowCreate' is defined but never used. Allowed unused args must match /^_/u                                                                   @typescript-eslint/no-unused-vars
-   58:3   warning  'onRowUpdate' is defined but never used. Allowed unused args must match /^_/u                                                                   @typescript-eslint/no-unused-vars
-   59:3   warning  'onRowDelete' is defined but never used. Allowed unused args must match /^_/u                                                                   @typescript-eslint/no-unused-vars
-   67:3   warning  'emptyState' is defined but never used. Allowed unused args must match /^_/u                                                                    @typescript-eslint/no-unused-vars
-   68:3   warning  'loadingState' is defined but never used. Allowed unused args must match /^_/u                                                                  @typescript-eslint/no-unused-vars
-   73:3   warning  'enableAdvancedFilter' is assigned a value but never used. Allowed unused args must match /^_/u                                                 @typescript-eslint/no-unused-vars
-   77:21  warning  'setIsLoading' is assigned a value but never used. Allowed unused elements of array destructuring must match /^_/u                              @typescript-eslint/no-unused-vars
-   78:10  warning  'error' is assigned a value but never used. Allowed unused elements of array destructuring must match /^_/u                                     @typescript-eslint/no-unused-vars
-  156:6   warning  React Hook React.useEffect has a missing dependency: 'table'. Either include it or remove the dependency array                                  react-hooks/exhaustive-deps
-  157:5   warning  React Hook React.useEffect has a complex expression in the dependency array. Extract it to a separate variable so it can be statically checked  react-hooks/exhaustive-deps
-  158:5   warning  React Hook React.useEffect has a complex expression in the dependency array. Extract it to a separate variable so it can be statically checked  react-hooks/exhaustive-deps
-  159:5   warning  React Hook React.useEffect has a complex expression in the dependency array. Extract it to a separate variable so it can be statically checked  react-hooks/exhaustive-deps
-  160:5   warning  React Hook React.useEffect has a complex expression in the dependency array. Extract it to a separate variable so it can be statically checked  react-hooks/exhaustive-deps
-  161:5   warning  React Hook React.useEffect has a complex expression in the dependency array. Extract it to a separate variable so it can be statically checked  react-hooks/exhaustive-deps
-  162:5   warning  React Hook React.useEffect has a complex expression in the dependency array. Extract it to a separate variable so it can be statically checked  react-hooks/exhaustive-deps
-  223:59  warning  Unexpected any. Specify a different type                                                                                                        @typescript-eslint/no-explicit-any
-
-C:\Users\Admin\Desktop\Aria\apps\frontend\src\components\advanced-data-table\column-manager.tsx
-  88:33  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
-
-C:\Users\Admin\Desktop\Aria\apps\frontend\src\components\advanced-data-table\export-import-actions.tsx
-  28:36  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
-
-C:\Users\Admin\Desktop\Aria\apps\frontend\src\components\advanced-data-table\global-search.tsx
-  49:6  warning  React Hook React.useEffect has a missing dependency: 'inputValue'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
-
-C:\Users\Admin\Desktop\Aria\apps\frontend\src\components\advanced-data-table\types.ts
-  105:64  warning  'TValue' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
-
-C:\Users\Admin\Desktop\Aria\apps\frontend\src\components\advanced-data-table\use-advanced-data-table.test.ts
-    6:32  warning  'beforeEach' is defined but never used. Allowed unused vars must match /^_/u             @typescript-eslint/no-unused-vars
-  213:25  warning  Unexpected any. Specify a different type                                                 @typescript-eslint/no-explicit-any
-  268:13  warning  'filteredRows' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
-  296:25  warning  Unexpected any. Specify a different type                                                 @typescript-eslint/no-explicit-any
-  377:27  warning  Unexpected any. Specify a different type                                                 @typescript-eslint/no-explicit-any
-  438:9   warning  Unexpected console statement. Only these console methods are allowed: warn, error, info  no-console
-
-C:\Users\Admin\Desktop\Aria\apps\frontend\src\components\advanced-data-table\utils.ts
-   24:10  warning  'createImportError' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
-  143:68  warning  Unexpected any. Specify a different type                                             @typescript-eslint/no-explicit-any
-  155:37  warning  Unexpected any. Specify a different type                                             @typescript-eslint/no-explicit-any
-  177:70  warning  Unexpected any. Specify a different type                                             @typescript-eslint/no-explicit-any
-  186:69  warning  Unexpected any. Specify a different type                                             @typescript-eslint/no-explicit-any
-  238:70  warning  Unexpected any. Specify a different type                                             @typescript-eslint/no-explicit-any
-
-C:\Users\Admin\Desktop\Aria\apps\frontend\src\components\advanced-data-table\virtualized-table-body.tsx
-  15:19  warning  'Search' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+C:\Users\Admin\Desktop\Aria\apps\frontend\src\components\active-theme.tsx
+  25:10  warning  'getCurrentThemeFromDOM' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
 
 C:\Users\Admin\Desktop\Aria\apps\frontend\src\components\auth\auth-guard.tsx
-  3:17  warning  'useEffect' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  55:3  error  React Hook "React.useEffect" is called conditionally. React Hooks must be called in the exact same order in every component render. Did you accidentally call a React Hook after an early return?  react-hooks/rules-of-hooks
 
-C:\Users\Admin\Desktop\Aria\apps\frontend\src\components\auth\login-form.tsx
-  53:14  warning  'error' is defined but never used. Allowed unused caught errors must match /^_/u  @typescript-eslint/no-unused-vars
-
-C:\Users\Admin\Desktop\Aria\apps\frontend\src\components\file-uploader.tsx
-  174:6  warning  React Hook React.useEffect has a missing dependency: 'files'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
-
-C:\Users\Admin\Desktop\Aria\apps\frontend\src\components\forms\demo-form.tsx
-  111:21  warning  'data' is defined but never used. Allowed unused args must match /^_/u  @typescript-eslint/no-unused-vars
-  113:5   warning  Unexpected alert                                                        no-alert
-
-C:\Users\Admin\Desktop\Aria\apps\frontend\src\components\layout\app-sidebar.tsx
-    5:3   warning  'DropdownMenuContent' is defined but never used. Allowed unused vars must match /^_/u    @typescript-eslint/no-unused-vars
-    6:3   warning  'DropdownMenuGroup' is defined but never used. Allowed unused vars must match /^_/u      @typescript-eslint/no-unused-vars
-    7:3   warning  'DropdownMenuItem' is defined but never used. Allowed unused vars must match /^_/u       @typescript-eslint/no-unused-vars
-    8:3   warning  'DropdownMenuLabel' is defined but never used. Allowed unused vars must match /^_/u      @typescript-eslint/no-unused-vars
-    9:3   warning  'DropdownMenuSeparator' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
-   31:3   warning  'IconBell' is defined but never used. Allowed unused vars must match /^_/u               @typescript-eslint/no-unused-vars
-   34:3   warning  'IconCreditCard' is defined but never used. Allowed unused vars must match /^_/u         @typescript-eslint/no-unused-vars
-   35:3   warning  'IconLogout' is defined but never used. Allowed unused vars must match /^_/u             @typescript-eslint/no-unused-vars
-   37:3   warning  'IconUserCircle' is defined but never used. Allowed unused vars must match /^_/u         @typescript-eslint/no-unused-vars
-   46:10  warning  'signOut' is defined but never used. Allowed unused vars must match /^_/u                @typescript-eslint/no-unused-vars
-   47:10  warning  'toast' is defined but never used. Allowed unused vars must match /^_/u                  @typescript-eslint/no-unused-vars
-  146:33  warning  Unexpected any. Specify a different type                                                 @typescript-eslint/no-explicit-any
-  162:9   warning  'router' is assigned a value but never used. Allowed unused vars must match /^_/u        @typescript-eslint/no-unused-vars
-
-C:\Users\Admin\Desktop\Aria\apps\frontend\src\components\layout\user-dropdown-content.tsx
-  14:10  warning  'IconCreditCard' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
-  28:33  warning  Unexpected any. Specify a different type                                          @typescript-eslint/no-explicit-any
-  78:22  warning  'e' is defined but never used. Allowed unused caught errors must match /^_/u      @typescript-eslint/no-unused-vars
-  82:20  warning  'err' is defined but never used. Allowed unused caught errors must match /^_/u    @typescript-eslint/no-unused-vars
-  85:17  warning  Expected { after 'if' condition                                                   curly
-  86:22  warning  'e' is defined but never used. Allowed unused caught errors must match /^_/u      @typescript-eslint/no-unused-vars
-
-C:\Users\Admin\Desktop\Aria\apps\frontend\src\components\layout\user-nav.tsx
-  14:33  warning  Unexpected any. Specify a different type                                           @typescript-eslint/no-explicit-any
-  29:9   warning  'router' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
-  31:9   warning  'prefix' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
-
-C:\Users\Admin\Desktop\Aria\apps\frontend\src\features\auth\components\github-auth-button.tsx
-  11:79  warning  Unexpected empty arrow function  @typescript-eslint/no-empty-function
-
-C:\Users\Admin\Desktop\Aria\apps\frontend\src\features\auth\components\user-auth-form.tsx
-  28:27  warning  'data' is defined but never used. Allowed unused args must match /^_/u  @typescript-eslint/no-unused-vars
-
-C:\Users\Admin\Desktop\Aria\apps\frontend\src\features\products\components\product-form.tsx
-  59:21  warning  'values' is defined but never used. Allowed unused args must match /^_/u  @typescript-eslint/no-unused-vars
-
-C:\Users\Admin\Desktop\Aria\apps\frontend\src\features\profile\components\profile-view-page.tsx
-   7:10  warning  'truncateText' is defined but never used. Allowed unused vars must match /^_/u        @typescript-eslint/no-unused-vars
-  14:26  warning  'isPending' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
-  17:32  warning  Unexpected any. Specify a different type                                              @typescript-eslint/no-explicit-any
-
-C:\Users\Admin\Desktop\Aria\apps\frontend\src\hooks\use-controllable-state.tsx
-  20:20  warning  Unexpected empty arrow function  @typescript-eslint/no-empty-function
+C:\Users\Admin\Desktop\Aria\apps\frontend\src\hooks\use-auth.ts
+  253:6  warning  React Hook useMemo has a missing dependency: 'isDevelopmentBypass'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
 
 C:\Users\Admin\Desktop\Aria\apps\frontend\src\lib\auth\client.ts
-  35:9  warning  Unused eslint-disable directive (no problems were reported from 'no-console')
+  64:12  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
 
-C:\Users\Admin\Desktop\Aria\apps\frontend\src\proxy.ts
-  54:30  warning  'req' is defined but never used. Allowed unused args must match /^_/u  @typescript-eslint/no-unused-vars
-
-C:\Users\Admin\Desktop\Aria\apps\frontend\src\types\data-table.ts
-  6:24  warning  'TData' is defined but never used. Allowed unused vars must match /^_/u   @typescript-eslint/no-unused-vars
-  6:47  warning  'TValue' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
-
-C:\Users\Admin\Desktop\Aria\apps\frontend\tests\advanced-data-table.spec.ts
-  148:15  warning  'firstRowBefore' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
-
-Γ£û 94 problems (0 errors, 94 warnings)
-  0 errors and 2 warnings potentially fixable with the `--fix` option.
+Γ£û 46 problems (1 error, 45 warnings)
 

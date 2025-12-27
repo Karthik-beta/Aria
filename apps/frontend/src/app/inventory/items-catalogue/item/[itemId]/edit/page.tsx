@@ -206,7 +206,9 @@ export default function EditItemPage() {
                   step={1}
                 />
                 {form.formState.errors.quantity && (
-                  <p className="text-sm text-destructive">{form.formState.errors.quantity.message}</p>
+                  <p className="text-sm text-destructive">
+                    {form.formState.errors.quantity.message}
+                  </p>
                 )}
                 <p className="text-xs text-muted-foreground">
                   Current: <strong>{item.quantity} units</strong>

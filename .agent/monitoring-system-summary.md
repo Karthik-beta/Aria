@@ -7,6 +7,7 @@ All monitoring services are now running and collecting metrics from the Aria ERP
 ## 📊 Monitoring Stack Components
 
 ### Core Services
+
 1. **Prometheus** (Port 9090)
    - Metrics collection and time-series database
    - Scraping all configured targets every 15 seconds
@@ -46,13 +47,13 @@ All monitoring services are now running and collecting metrics from the Aria ERP
 
 Prometheus is actively scraping the following targets:
 
-| Target | Endpoint | Status |
-|--------|----------|--------|
-| Prometheus | localhost:9090 | ✅ UP |
-| cAdvisor | cadvisor:8080 | ✅ UP |
-| Node Exporter | node-exporter:9100 | ✅ UP |
-| Backend | backend:3001/metrics | ✅ UP |
-| Frontend | frontend:3000/api/metrics | ✅ UP |
+| Target        | Endpoint                  | Status |
+| ------------- | ------------------------- | ------ |
+| Prometheus    | localhost:9090            | ✅ UP  |
+| cAdvisor      | cadvisor:8080             | ✅ UP  |
+| Node Exporter | node-exporter:9100        | ✅ UP  |
+| Backend       | backend:3001/metrics      | ✅ UP  |
+| Frontend      | frontend:3000/api/metrics | ✅ UP  |
 
 ## 🚨 Alert Rules Configured
 
@@ -76,6 +77,7 @@ The following alert rules are active in Prometheus:
 ## 📝 Auto Log Rotation
 
 All monitoring services are configured with automatic log rotation:
+
 - **Driver**: json-file
 - **Max Size**: 10MB per log file
 - **Max Files**: 3 files retained
@@ -84,22 +86,26 @@ All monitoring services are configured with automatic log rotation:
 ## 🔧 Configuration Files
 
 ### Prometheus
+
 - **Config**: `deployment/monitoring/prometheus/prometheus.yml`
 - **Alerts**: `deployment/monitoring/prometheus/alerts.yml`
 - **Data Volume**: `prometheus-data`
 
 ### Grafana
+
 - **Datasource**: `deployment/monitoring/grafana/provisioning/datasources/datasource.yml`
 - **Dashboards**: `deployment/monitoring/grafana/provisioning/dashboards/`
 - **Data Volume**: `grafana-data`
 
 ### Docker Compose
+
 - **Production Config**: `docker-compose.production.yml`
 - All services on `aria-network` bridge network
 
 ## 🎨 Grafana Dashboard
 
 A pre-configured dashboard "Aria System Monitoring" includes:
+
 - CPU usage across all containers
 - Memory usage trends
 - Container health status
@@ -109,13 +115,16 @@ A pre-configured dashboard "Aria System Monitoring" includes:
 ## 🔍 Verification Steps
 
 ### 1. Check Prometheus Targets
+
 ```bash
 # Open in browser
 http://localhost:9090/targets
 ```
+
 All targets should show "UP" status.
 
 ### 2. View Grafana Dashboard
+
 ```bash
 # Open in browser
 http://localhost:3000
@@ -124,6 +133,7 @@ http://localhost:3000
 ```
 
 ### 3. Query Metrics
+
 ```bash
 # Backend metrics
 docker exec aria-backend curl -s http://localhost:3001/metrics
@@ -139,6 +149,7 @@ curl http://localhost:9100/metrics
 ```
 
 ### 4. Check Container Health
+
 ```bash
 docker-compose -f docker-compose.production.yml ps
 ```
@@ -148,24 +159,29 @@ All containers should show "healthy" or "Up" status.
 ## 🐛 Issues Resolved
 
 ### 1. Prisma Client Generation
+
 **Problem**: Prisma v7 breaking changes with DATABASE_URL validation  
 **Solution**: Pinned Prisma CLI to v6.19.0 in entrypoint script to match project dependencies
 
 ### 2. Backend Build Path
+
 **Problem**: Compiled files in `dist/src/main.js` instead of `dist/main.js`  
 **Solution**: Updated entrypoint script to use correct path
 
 ### 3. Prometheus Alert Rules
+
 **Problem**: YAML indentation error in alerts.yml  
 **Solution**: Fixed indentation for `HighDiskUsage` alert rule
 
 ### 4. Docker Entrypoint
+
 **Problem**: `set -o pipefail` not supported in `/bin/sh`  
 **Solution**: Removed pipefail option (dash shell doesn't support it)
 
 ## 📦 Dependencies Added
 
 ### Backend (`apps/backend/package.json`)
+
 ```json
 {
   "@willsoto/nestjs-prometheus": "^6.0.2",
@@ -174,6 +190,7 @@ All containers should show "healthy" or "Up" status.
 ```
 
 ### Frontend (`apps/frontend/package.json`)
+
 ```json
 {
   "prom-client": "^15.1.3"
@@ -217,6 +234,7 @@ All containers should show "healthy" or "Up" status.
 ## ✨ Summary
 
 The enterprise-grade monitoring system is now fully operational and collecting metrics from:
+
 - ✅ 9 Docker containers
 - ✅ 2 application endpoints (backend, frontend)
 - ✅ Host system metrics

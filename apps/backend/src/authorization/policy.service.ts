@@ -201,7 +201,10 @@ export class PolicyService implements OnModuleDestroy {
     context?: AuthContext,
   ): Promise<AuthResult> {
     // Development bypass
-    if (process.env.NODE_ENV === 'development' && process.env.DISABLE_AUTH === 'true') {
+    if (
+      process.env.NODE_ENV === 'development' &&
+      process.env.DISABLE_AUTH === 'true'
+    ) {
       return { allowed: true };
     }
 
@@ -341,7 +344,10 @@ export class PolicyService implements OnModuleDestroy {
     appKey?: string,
   ): Promise<boolean> {
     // Development bypass
-    if (process.env.NODE_ENV === 'development' && process.env.DISABLE_AUTH === 'true') {
+    if (
+      process.env.NODE_ENV === 'development' &&
+      process.env.DISABLE_AUTH === 'true'
+    ) {
       return true;
     }
 
@@ -375,7 +381,10 @@ export class PolicyService implements OnModuleDestroy {
    */
   async getUserMaxRoleLevel(userId: string, appKey?: string): Promise<number> {
     // Development bypass
-    if (process.env.NODE_ENV === 'development' && process.env.DISABLE_AUTH === 'true') {
+    if (
+      process.env.NODE_ENV === 'development' &&
+      process.env.DISABLE_AUTH === 'true'
+    ) {
       return 100; // Super admin level
     }
 

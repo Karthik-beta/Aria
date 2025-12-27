@@ -230,8 +230,6 @@ export default function UsersPage() {
     onSuccess: () => refetch(),
   });
 
-
-
   const selectedUser = data?.users.find((u) => u.id === selectedUserId) || null;
 
   const passwordResetOptions = useMemo<AppOption[]>(() => {
@@ -449,10 +447,11 @@ export default function UsersPage() {
                       <button
                         key={user.id}
                         onClick={() => handleSelectUser(user)}
-                        className={`w-full text-left p-3 rounded-md transition-colors ${selectedUserId === user.id
-                          ? 'bg-primary text-primary-foreground'
-                          : 'hover:bg-muted'
-                          }`}
+                        className={`w-full text-left p-3 rounded-md transition-colors ${
+                          selectedUserId === user.id
+                            ? 'bg-primary text-primary-foreground'
+                            : 'hover:bg-muted'
+                        }`}
                       >
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex-1 min-w-0">
@@ -1231,8 +1230,12 @@ function CreateUserPanel({
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="info" onClick={() => setActiveTab('info')}>User Information</TabsTrigger>
-            <TabsTrigger value="roles" onClick={() => setActiveTab('roles')}>Roles & Permissions</TabsTrigger>
+            <TabsTrigger value="info" onClick={() => setActiveTab('info')}>
+              User Information
+            </TabsTrigger>
+            <TabsTrigger value="roles" onClick={() => setActiveTab('roles')}>
+              Roles & Permissions
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="info" className="space-y-4 mt-4">
@@ -1716,11 +1719,14 @@ function EditUserPanel({
       </div>
 
       <ScrollArea className="flex-1 p-6">
-
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="info" onClick={() => setActiveTab('info')}>User Information</TabsTrigger>
-            <TabsTrigger value="roles" onClick={() => setActiveTab('roles')}>Roles & Permissions</TabsTrigger>
+            <TabsTrigger value="info" onClick={() => setActiveTab('info')}>
+              User Information
+            </TabsTrigger>
+            <TabsTrigger value="roles" onClick={() => setActiveTab('roles')}>
+              Roles & Permissions
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="info" className="space-y-4 mt-4">

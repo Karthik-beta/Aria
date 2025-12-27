@@ -32,46 +32,46 @@ const nextConfig: NextConfig = {
   // Development optimizations
   ...(isDev
     ? {
-      // Faster refresh
-      reactStrictMode: false, // Disable in dev for faster HMR
+        // Faster refresh
+        reactStrictMode: false, // Disable in dev for faster HMR
 
-      // Webpack config for development (fallback when Turbopack not available)
-      webpack: (config, { dev, isServer }) => {
-        if (dev && !isServer) {
-          // Enable HMR optimizations
-          config.watchOptions = {
-            poll: 300, // Check for changes every 300ms
-            aggregateTimeout: 300, // Delay rebuild after change
-            ignored: [
-              '**/node_modules/**',
-              '**/.git/**',
-              '**/.next/**',
-              '**/dist/**',
-              '**/build/**',
-            ],
-          };
+        // Webpack config for development (fallback when Turbopack not available)
+        webpack: (config, { dev, isServer }) => {
+          if (dev && !isServer) {
+            // Enable HMR optimizations
+            config.watchOptions = {
+              poll: 300, // Check for changes every 300ms
+              aggregateTimeout: 300, // Delay rebuild after change
+              ignored: [
+                '**/node_modules/**',
+                '**/.git/**',
+                '**/.next/**',
+                '**/dist/**',
+                '**/build/**',
+              ],
+            };
 
-          // Optimize module resolution
-          config.snapshot = {
-            managedPaths: [resolve(workspaceRoot, 'node_modules')],
-          };
+            // Optimize module resolution
+            config.snapshot = {
+              managedPaths: [resolve(workspaceRoot, 'node_modules')],
+            };
 
-          // Faster builds with caching
-          config.cache = {
-            type: 'filesystem',
-            allowCollectingMemory: true,
-            buildDependencies: {
-              config: [__filename],
-            },
-          };
-        }
-        return config;
-      },
-    }
+            // Faster builds with caching
+            config.cache = {
+              type: 'filesystem',
+              allowCollectingMemory: true,
+              buildDependencies: {
+                config: [__filename],
+              },
+            };
+          }
+          return config;
+        },
+      }
     : {
-      // Production optimizations
-      reactStrictMode: true,
-    }),
+        // Production optimizations
+        reactStrictMode: true,
+      }),
 
   // Enable standalone output for Docker
   output: isDev ? undefined : 'standalone',

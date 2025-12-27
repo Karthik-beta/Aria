@@ -263,11 +263,15 @@ export namespace Inventory {
     groupName: z.string().min(1, 'Group name is required').max(255).trim(),
     parentId: z.string().cuid().optional().nullable(),
     isGroup: z.boolean().default(false),
-    defaults: z.array(z.object({
-      company: z.string().min(1, 'Company is required'),
-      defaultWarehouse: z.string().optional().nullable(),
-      defaultPriceList: z.string().optional().nullable(),
-    })).optional(),
+    defaults: z
+      .array(
+        z.object({
+          company: z.string().min(1, 'Company is required'),
+          defaultWarehouse: z.string().optional().nullable(),
+          defaultPriceList: z.string().optional().nullable(),
+        })
+      )
+      .optional(),
   });
 
   /**
@@ -278,12 +282,16 @@ export namespace Inventory {
     groupName: z.string().min(1).max(255).trim().optional(),
     parentId: z.string().cuid().optional().nullable(),
     isGroup: z.boolean().optional(),
-    defaults: z.array(z.object({
-      id: z.string().optional(),
-      company: z.string().min(1, 'Company is required'),
-      defaultWarehouse: z.string().optional().nullable(),
-      defaultPriceList: z.string().optional().nullable(),
-    })).optional(),
+    defaults: z
+      .array(
+        z.object({
+          id: z.string().optional(),
+          company: z.string().min(1, 'Company is required'),
+          defaultWarehouse: z.string().optional().nullable(),
+          defaultPriceList: z.string().optional().nullable(),
+        })
+      )
+      .optional(),
   });
 }
 
