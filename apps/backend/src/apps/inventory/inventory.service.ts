@@ -4,9 +4,10 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
-import type { Inventory } from '@aria/types';
+import { Inventory } from '@aria/types';
+import { z } from 'zod';
 import { PrismaService } from '../../shared/prisma.service';
-import { toInventoryItem } from './inventory.types';
+import { toInventoryItem, toInventoryItemGroup } from './inventory.types';
 
 /**
  * Simple inventory service with type-safe CRUD operations
@@ -42,23 +43,23 @@ export class InventoryService {
           },
         }
         : undefined,
+      include: {
+        parentItemGroup: {
+          select: { groupName: true },
+        },
+        defaults: true,
+      },
       orderBy: { groupName: 'asc' },
     });
 
-    return groups.map((group) => ({
-      id: group.id,
-      groupName: group.groupName,
-      parentId: group.parentId,
-      createdAt: group.createdAt,
-      updatedAt: group.updatedAt,
-    }));
+    return groups.map(toInventoryItemGroup);
   }
 
   /**
-   * Get all units of measure with optional search
+   * Get all units of measure
    */
   async findAllUnitsOfMeasure(search?: string): Promise<Inventory.UnitOfMeasure[]> {
-    const units = await this.prisma.unitOfMeasurement.findMany({
+    return this.prisma.unitOfMeasurement.findMany({
       where: search
         ? {
           name: {
@@ -69,83 +70,108 @@ export class InventoryService {
         : undefined,
       orderBy: { name: 'asc' },
     });
-
-    return units.map((unit) => ({
-      id: unit.id,
-      name: unit.name,
-      isWholeNumber: unit.isWholeNumber,
-      createdAt: unit.createdAt,
-      updatedAt: unit.updatedAt,
-    }));
   }
 
+  /**
+   * Create a new item group
+   */
+  async createGroup(data: any): Promise<Inventory.ItemGroup> {
+    const created = await this.prisma.itemGroup.create({
+      data: {
+        groupName: data.groupName,
+        parentId: data.parentId,
+        isGroup: data.isGroup,
+        defaults: data.defaults ? {
+          create: data.defaults.map((d: any) => ({
+            company: d.company,
+            defaultWarehouse: d.defaultWarehouse,
+            defaultPriceList: d.defaultPriceList,
+          }))
+        } : undefined,
+      },
+      include: {
+        parentItemGroup: {
+          select: { groupName: true },
+        },
+        defaults: true,
+      },
+    });
+
+    return toInventoryItemGroup(created as any);
+  }
+
+  /**
+   * Update an item group
+   */
+  async updateGroup(data: any): Promise<Inventory.ItemGroup> {
+    const { defaults, ...rest } = data;
+
+    const updated = await this.prisma.itemGroup.update({
+      where: { id: data.id },
+      data: {
+        ...(rest.groupName !== undefined && { groupName: rest.groupName }),
+        ...(rest.parentId !== undefined && { parentId: rest.parentId }),
+        ...(rest.isGroup !== undefined && { isGroup: rest.isGroup }),
+        ...(defaults !== undefined && {
+          defaults: {
+            deleteMany: {},
+            create: defaults.map((d: any) => ({
+              company: d.company,
+              defaultWarehouse: d.defaultWarehouse,
+              defaultPriceList: d.defaultPriceList,
+            }))
+          }
+        }),
+      },
+      include: {
+        parentItemGroup: {
+          select: { groupName: true },
+        },
+        defaults: true,
+      },
+    });
+
+    return toInventoryItemGroup(updated as any);
+  }
+
+  /**
+   * Delete an item group
+   */
+  async deleteGroup(id: string): Promise<{ success: boolean; id: string }> {
+    await this.prisma.itemGroup.delete({
+      where: { id },
+    });
+    return { success: true, id };
+  }
 
   /**
    * Create a new inventory item
    */
-  async create(data: Inventory.CreateInput): Promise<Inventory.Item> {
-    const {
-      name,
-      code,
-      quantity = 0,
-      description,
-      disabled,
-      maintainStock,
-      allowAlternateItem,
-      hasVariants,
-      openingStock,
-      valuationRate,
-      standardSellingRate,
-      isZeroRated,
-      isExempt,
-      isFixedAsset,
-      taxCode,
-      itemGroupId,
-      defaultUnitOfMeasureId,
-    } = data;
+  async create(data: z.infer<typeof Inventory.createSchema>): Promise<Inventory.Item> {
+    try {
+      const created = await this.prisma.inventoryItem.create({
+        data,
+        include: {
+          itemGroup: true,
+        },
+      });
 
-    // Check if Code already exists
-    const existing = await this.prisma.inventoryItem.findUnique({
-      where: { code },
-    });
-
-    if (existing) {
-      throw new ConflictException(`Item with code ${code} already exists`);
+      return toInventoryItem(created);
+    } catch (error) {
+      if (
+        error instanceof PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new ConflictException(`Item with code ${data.code} already exists`);
+      }
+      throw error;
     }
-
-    // Create the item
-    const created = await this.prisma.inventoryItem.create({
-      data: {
-        name,
-        code,
-        quantity,
-        description,
-        disabled,
-        maintainStock,
-        allowAlternateItem,
-        hasVariants,
-        openingStock,
-        valuationRate,
-        standardSellingRate,
-        isZeroRated,
-        isExempt,
-        isFixedAsset,
-        taxCode,
-        itemGroupId,
-        defaultUnitOfMeasureId,
-      },
-      include: {
-        itemGroup: true,
-      },
-    });
-
-    return toInventoryItem(created);
   }
 
   /**
-   * Update an inventory item
+   * Update an existing inventory item
    */
-  async update(data: Inventory.UpdateInput): Promise<Inventory.Item> {
+  async update(data: z.infer<typeof Inventory.updateSchema>): Promise<Inventory.Item> {
     const {
       id,
       name,
@@ -220,7 +246,6 @@ export class InventoryService {
 
       return toInventoryItem(deleted);
     } catch (error) {
-      // Use Prisma's typed error class for better type safety
       if (
         error instanceof PrismaClientKnownRequestError &&
         error.code === 'P2025'

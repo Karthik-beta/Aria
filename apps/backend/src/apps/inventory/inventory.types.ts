@@ -11,6 +11,41 @@ export type InventoryItem = Prisma.InventoryItemGetPayload<{
 }>;
 
 /**
+ * Prisma model type for ItemGroup with relations
+ */
+export type InventoryItemGroup = Prisma.ItemGroupGetPayload<{
+  include: {
+    parentItemGroup: {
+      select: { groupName: true };
+    };
+    defaults: true;
+  };
+}>;
+
+/**
+ * Converts a Prisma ItemGroup to Inventory.ItemGroup
+ */
+export function toInventoryItemGroup(
+  prismaGroup: InventoryItemGroup
+): Inventory.ItemGroup {
+  return {
+    id: prismaGroup.id,
+    groupName: prismaGroup.groupName,
+    parentId: prismaGroup.parentId,
+    parentGroupName: prismaGroup.parentItemGroup?.groupName ?? null,
+    isGroup: prismaGroup.isGroup,
+    defaults: prismaGroup.defaults.map((d: any) => ({
+      id: d.id,
+      company: d.company,
+      defaultWarehouse: d.defaultWarehouse,
+      defaultPriceList: d.defaultPriceList,
+    })),
+    createdAt: prismaGroup.createdAt,
+    updatedAt: prismaGroup.updatedAt,
+  };
+}
+
+/**
  * Converts a Prisma InventoryItem to Inventory.Item
  * This ensures type safety when mapping database models to API types
  */

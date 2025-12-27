@@ -1,5 +1,6 @@
 generator client {
-  provider      = "prisma-client-js"
+  provider = "prisma-client-js"
+  output   = "../src/generated/client"
   binaryTargets = ["native", "debian-openssl-3.0.x", "debian-openssl-1.1.x"]
 }
 
@@ -49,15 +50,28 @@ model InventoryItem {
 
 
 model ItemGroup {
-  id              String      @id @default(cuid())
-  groupName       String      @db.VarChar(255)
-  createdAt       DateTime    @default(now())
-  updatedAt       DateTime    @updatedAt
+  id              String             @id @default(cuid())
+  groupName       String             @db.VarChar(255)
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
   parentId        String?
+  isGroup         Boolean            @default(false)
   items           Item[]
   inventoryItems  InventoryItem[]
-  parentItemGroup ItemGroup?  @relation("ItemGroupHierarchy", fields: [parentId], references: [id])
-  children        ItemGroup[] @relation("ItemGroupHierarchy")
+  defaults        ItemGroupDefault[]
+  parentItemGroup ItemGroup?         @relation("ItemGroupHierarchy", fields: [parentId], references: [id])
+  children        ItemGroup[]        @relation("ItemGroupHierarchy")
+}
+
+model ItemGroupDefault {
+  id               String    @id @default(cuid())
+  itemGroupId      String
+  company          String    @db.VarChar(255)
+  defaultWarehouse String?   @db.VarChar(255)
+  defaultPriceList String?   @db.VarChar(255)
+  itemGroup        ItemGroup @relation(fields: [itemGroupId], references: [id], onDelete: Cascade)
+
+  @@map("item_group_defaults")
 }
 
 model Item {

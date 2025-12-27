@@ -46,10 +46,30 @@ export namespace Inventory {
     groupName: string;
     /** Parent item group ID for hierarchy */
     parentId?: string | null;
+    /** Parent item group name */
+    parentGroupName?: string | null;
+    /** Whether this is a group (can contain children) */
+    isGroup: boolean;
+    /** Default settings for this item group */
+    defaults?: ItemGroupDefault[];
     /** When this group was created */
     createdAt: Date;
     /** When this group was last updated */
     updatedAt: Date;
+  }
+
+  /**
+   * Default settings for an Item Group per company
+   */
+  export interface ItemGroupDefault {
+    /** Unique identifier (CUID) */
+    id?: string;
+    /** Company name/reference */
+    company: string;
+    /** Default warehouse for items in this group */
+    defaultWarehouse?: string | null;
+    /** Default price list for items in this group */
+    defaultPriceList?: string | null;
   }
 
   /**
@@ -164,6 +184,27 @@ export namespace Inventory {
     defaultUnitOfMeasureId?: string;
   }
 
+  /**
+   * Input for creating a new item group
+   */
+  export interface CreateGroupInput {
+    groupName: string;
+    parentId?: string | null;
+    isGroup: boolean;
+    defaults?: ItemGroupDefault[];
+  }
+
+  /**
+   * Input for updating an existing item group
+   */
+  export interface UpdateGroupInput {
+    id: string;
+    groupName?: string;
+    parentId?: string | null;
+    isGroup?: boolean;
+    defaults?: ItemGroupDefault[];
+  }
+
   // ============================================================================
   // Zod Schemas - Runtime Validation
   // ============================================================================
@@ -213,6 +254,36 @@ export namespace Inventory {
     taxCode: z.string().max(50).optional(),
     itemGroupId: z.string().cuid().optional(),
     defaultUnitOfMeasureId: z.string().cuid().optional(),
+  });
+
+  /**
+   * Validation schema for creating item groups
+   */
+  export const createGroupSchema = z.object({
+    groupName: z.string().min(1, 'Group name is required').max(255).trim(),
+    parentId: z.string().cuid().optional().nullable(),
+    isGroup: z.boolean().default(false),
+    defaults: z.array(z.object({
+      company: z.string().min(1, 'Company is required'),
+      defaultWarehouse: z.string().optional().nullable(),
+      defaultPriceList: z.string().optional().nullable(),
+    })).optional(),
+  });
+
+  /**
+   * Validation schema for updating item groups
+   */
+  export const updateGroupSchema = z.object({
+    id: z.string().cuid(),
+    groupName: z.string().min(1).max(255).trim().optional(),
+    parentId: z.string().cuid().optional().nullable(),
+    isGroup: z.boolean().optional(),
+    defaults: z.array(z.object({
+      id: z.string().optional(),
+      company: z.string().min(1, 'Company is required'),
+      defaultWarehouse: z.string().optional().nullable(),
+      defaultPriceList: z.string().optional().nullable(),
+    })).optional(),
   });
 }
 

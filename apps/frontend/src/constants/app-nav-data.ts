@@ -28,7 +28,7 @@ export const inventoryNavItems: NavItem[] = [
       },
       {
         title: 'Item Group',
-        url: '/inventory/item-groups',
+        url: '/inventory/items-catalogue/item-group',
       },
       {
         title: 'Product Bundle',

@@ -67,6 +67,7 @@ playwright/.cache/
 
 # Prisma
 apps/backend/prisma/migrations/
+apps/backend/src/generated/
 
 # SSL/TLS Private Keys - NEVER commit to version control
 *.key

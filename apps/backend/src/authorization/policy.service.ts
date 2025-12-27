@@ -200,6 +200,11 @@ export class PolicyService implements OnModuleDestroy {
     permissionKey: string,
     context?: AuthContext,
   ): Promise<AuthResult> {
+    // Development bypass
+    if (process.env.NODE_ENV === 'development' && process.env.DISABLE_AUTH === 'true') {
+      return { allowed: true };
+    }
+
     const policy = await this.resolveUserPolicy(userId, context?.appKey);
 
     // 1. Check if account is active
@@ -335,6 +340,11 @@ export class PolicyService implements OnModuleDestroy {
     roleKey: string,
     appKey?: string,
   ): Promise<boolean> {
+    // Development bypass
+    if (process.env.NODE_ENV === 'development' && process.env.DISABLE_AUTH === 'true') {
+      return true;
+    }
+
     const policy = await this.resolveUserPolicy(userId, appKey);
 
     return policy.roles.some(
@@ -364,6 +374,11 @@ export class PolicyService implements OnModuleDestroy {
    * Get highest role level for user (for hierarchical checks)
    */
   async getUserMaxRoleLevel(userId: string, appKey?: string): Promise<number> {
+    // Development bypass
+    if (process.env.NODE_ENV === 'development' && process.env.DISABLE_AUTH === 'true') {
+      return 100; // Super admin level
+    }
+
     const policy = await this.resolveUserPolicy(userId, appKey);
 
     if (policy.roles.length === 0) {
