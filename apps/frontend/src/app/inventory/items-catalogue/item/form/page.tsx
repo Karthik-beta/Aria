@@ -35,6 +35,26 @@ import {
     Menu,
     MoreHorizontal,
     Save,
+    Search,
+    Bell,
+    HelpCircle,
+    User,
+    ChevronRight,
+    Bold,
+    Italic,
+    Underline,
+    Strikethrough,
+    Type,
+    AlignCenter,
+    List,
+    ListOrdered,
+    Link2,
+    Image as ImageIcon,
+    Quote,
+    Code,
+    Table as TableIcon,
+    Trash2,
+    Settings,
 } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
@@ -48,27 +68,15 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 
-/**
- * Unified Form Page - Handles both Create and Edit
- *
- * Usage:
- * - Create new item: /inventory/items-catalogue/item/form
- * - Edit existing item: /inventory/items-catalogue/item/form?id=cxxx
- *
- * Benefits:
- * - Single source of truth for form logic
- * - No code duplication
- * - Consistent validation and UX
- * - Simpler routing structure
- */
 export default function ItemFormPage() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const itemId = searchParams.get('id');
     const isEditMode = Boolean(itemId);
     const [isPending, startTransition] = useTransition();
-    const [hasUnsavedChanges, setHasUnsavedChanges] = useState(true);
-    const [descriptionOpen, setDescriptionOpen] = useState(false);
+    const [hasUnsavedChanges, setHasUnsavedChanges] = useState(!isEditMode);
+    const [isInitialized, setIsInitialized] = useState(!isEditMode);
+    const [descriptionOpen, setDescriptionOpen] = useState(true);
     const [unitsOpen, setUnitsOpen] = useState(false);
 
     // Combobox states
@@ -101,13 +109,15 @@ export default function ItemFormPage() {
         },
     });
 
-    // Watch for form changes
+    // Watch for form changes - only AFTER initialization
     useEffect(() => {
+        if (!isInitialized) return;
+
         const subscription = form.watch(() => {
             setHasUnsavedChanges(true);
         });
         return () => subscription.unsubscribe();
-    }, [form]);
+    }, [form, isInitialized]);
 
     // Fetch item data for edit mode
     const { data: items, isLoading: isFetchingItem } = trpc.inventory.listItems.useQuery(undefined, {
@@ -128,7 +138,7 @@ export default function ItemFormPage() {
 
     const item = items?.find((i) => i.id === itemId);
 
-    // Pre-fill form when editing
+    // Initialization and Pre-fill for Edit Mode
     useEffect(() => {
         if (isEditMode && item) {
             form.reset({
@@ -151,6 +161,7 @@ export default function ItemFormPage() {
                 defaultUnitOfMeasureId: item.defaultUnitOfMeasureId || undefined,
             });
             setHasUnsavedChanges(false);
+            setIsInitialized(true);
         }
     }, [item, isEditMode, form]);
 
@@ -219,623 +230,372 @@ export default function ItemFormPage() {
         );
     }
 
-    // Show error if item not found in edit mode
-    if (isEditMode && !isFetchingItem && !item) {
-        return (
-            <div className="container mx-auto max-w-4xl py-8">
-                <div className="rounded-lg border border-destructive bg-destructive/10 p-6">
-                    <h2 className="text-lg font-semibold text-destructive">Item Not Found</h2>
-                    <p className="mt-2 text-sm text-muted-foreground">
-                        The item you&apos;re trying to edit doesn&apos;t exist or has been deleted.
-                    </p>
-                    <Link href="/inventory/items-catalogue/item" className="mt-4 inline-block">
-                        <Button variant="outline">
-                            <ArrowLeft className="mr-2 h-4 w-4" />
-                            Back to Inventory
-                        </Button>
-                    </Link>
-                </div>
-            </div>
-        );
-    }
-
     return (
-        <div className="flex min-h-screen flex-col bg-background">
-            {/* Header */}
-            <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-                <div className="flex h-14 items-center justify-between px-4">
+        <div className="flex min-h-screen flex-col bg-[#f8f9fa]">
+            {/* Main Content Area */}
+            <div className="flex-1 px-8 py-4">
+                {/* Header with Actions */}
+                <div className="mb-6 flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                            <Menu className="h-4 w-4" />
-                        </Button>
-                        <div className="flex items-center gap-2">
-                            <h1 className="text-lg font-semibold">{isEditMode ? 'Edit Item' : 'New Item'}</h1>
-                            {hasUnsavedChanges && (
-                                <Badge variant="secondary" className="bg-orange-500/20 text-orange-500">
-                                    Not Saved
-                                </Badge>
-                            )}
-                        </div>
+                        <Menu className="h-5 w-5 text-gray-400 cursor-pointer" />
+                        <h1 className="text-2xl font-bold tracking-tight">{isEditMode ? item?.name : 'New Item'}</h1>
+                        {hasUnsavedChanges && (
+                            <Badge className="bg-[#fff3e0] text-[#fb8c00] border-none font-medium shadow-none hover:bg-[#fff3e0]">
+                                Not Saved
+                            </Badge>
+                        )}
                     </div>
                     <div className="flex items-center gap-2">
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <Button variant="outline" size="sm">
-                                    View
-                                    <ChevronDown className="ml-1 h-3 w-3" />
-                                </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                                <DropdownMenuItem>Default View</DropdownMenuItem>
-                                <DropdownMenuItem>Compact View</DropdownMenuItem>
-                            </DropdownMenuContent>
-                        </DropdownMenu>
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <Button variant="outline" size="sm">
-                                    Actions
-                                    <ChevronDown className="ml-1 h-3 w-3" />
-                                </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                                <DropdownMenuItem>Print</DropdownMenuItem>
-                                <DropdownMenuItem>Export</DropdownMenuItem>
-                            </DropdownMenuContent>
-                        </DropdownMenu>
-                        <Button variant="outline" size="sm" disabled={!isEditMode}>
-                            <Copy className="mr-1 h-3 w-3" />
+                        <Button variant="outline" size="sm" className="h-8">
+                            View <ChevronDown className="ml-1.5 h-3 w-3" />
+                        </Button>
+                        <Button variant="outline" size="sm" className="h-8">
+                            Actions <ChevronDown className="ml-1.5 h-3 w-3" />
+                        </Button>
+                        <Button variant="outline" size="sm" className="h-8">
                             Duplicate
                         </Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                        <Button variant="outline" size="icon" className="h-8 w-8">
                             <MoreHorizontal className="h-4 w-4" />
                         </Button>
                         <Button
                             size="sm"
+                            className="h-8 px-6"
                             onClick={form.handleSubmit(onSubmit)}
-                            disabled={isSubmitting || !form.formState.isValid}
+                            disabled={isSubmitting}
                         >
-                            {isSubmitting ? (
-                                <>
-                                    <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-                                    Saving...
-                                </>
-                            ) : (
-                                'Save'
-                            )}
+                            {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Save'}
                         </Button>
                     </div>
                 </div>
-            </header>
 
-            {/* Tabs Navigation */}
-            <Tabs defaultValue="details" className="flex-1">
-                <div className="border-b bg-muted/30">
-                    <div className="px-4">
-                        <TabsList className="h-auto bg-transparent p-0">
-                            <TabsTrigger
-                                value="details"
-                                className="rounded-none border-b-2 border-transparent px-4 py-3 data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none"
-                            >
-                                Details
-                            </TabsTrigger>
-                            <TabsTrigger
-                                value="inventory"
-                                className="rounded-none border-b-2 border-transparent px-4 py-3 data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none"
-                            >
-                                Inventory
-                            </TabsTrigger>
-                        </TabsList>
-                    </div>
-                </div>
+                {/* Form Container */}
+                <div className="rounded-lg border bg-white shadow-sm overflow-hidden">
+                    <Tabs defaultValue="details" className="w-full">
+                        {/* Tab List */}
+                        <div className="border-b px-4 py-2">
+                            <TabsList>
+                                {['Details', 'Inventory', 'Accounting', 'Purchasing', 'Sales', 'Tax', 'Quality', 'Manufacturing'].map((tab) => (
+                                    <TabsTrigger
+                                        key={tab}
+                                        value={tab.toLowerCase()}
+                                    >
+                                        {tab}
+                                    </TabsTrigger>
+                                ))}
+                            </TabsList>
+                        </div>
 
-                <form onSubmit={form.handleSubmit(onSubmit)} className="flex-1">
-                    {/* Details Tab */}
-                    <TabsContent value="details" className="mt-0 p-6">
-                        <div className="grid gap-8 lg:grid-cols-[1fr,1fr]">
-                            {/* Left Column */}
-                            <div className="space-y-6">
-                                {/* Item Code */}
-                                <div className="space-y-2">
-                                    <Label htmlFor="code">
-                                        Item Code <span className="text-destructive">*</span>
-                                    </Label>
-                                    <Input
-                                        id="code"
-                                        placeholder="Enter item code"
-                                        {...form.register('code')}
-                                        disabled={isSubmitting}
-                                        className={cn(
-                                            'border-destructive/50 focus-visible:ring-destructive/30',
-                                            form.formState.errors.code && 'border-destructive'
-                                        )}
-                                    />
-                                    {form.formState.errors.code && (
-                                        <p className="text-sm text-destructive">{form.formState.errors.code.message}</p>
-                                    )}
-                                </div>
-
-                                {/* Item Name */}
-                                <div className="space-y-2">
-                                    <Label htmlFor="name">Item Name</Label>
-                                    <Input
-                                        id="name"
-                                        placeholder="Enter item name"
-                                        {...form.register('name')}
-                                        disabled={isSubmitting}
-                                    />
-                                    {form.formState.errors.name && (
-                                        <p className="text-sm text-destructive">{form.formState.errors.name.message}</p>
-                                    )}
-                                </div>
-
-                                {/* Item Group */}
-                                <div className="space-y-2">
-                                    <Label>
-                                        Item Group <span className="text-destructive">*</span>
-                                    </Label>
-                                    <Controller
-                                        name="itemGroupId"
-                                        control={form.control}
-                                        render={({ field }) => (
-                                            <Popover open={itemGroupOpen} onOpenChange={setItemGroupOpen}>
-                                                <PopoverTrigger asChild>
-                                                    <Button
-                                                        variant="outline"
-                                                        role="combobox"
-                                                        aria-expanded={itemGroupOpen}
-                                                        className={cn(
-                                                            'w-full justify-between font-normal',
-                                                            'border-destructive/50 focus-visible:ring-destructive/30'
-                                                        )}
-                                                        disabled={isSubmitting}
-                                                    >
-                                                        {selectedItemGroup?.groupName || 'Select item group...'}
-                                                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                                                    </Button>
-                                                </PopoverTrigger>
-                                                <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                                                    <Command>
-                                                        <CommandInput
-                                                            placeholder="Search item groups..."
-                                                            value={itemGroupSearch}
-                                                            onValueChange={setItemGroupSearch}
-                                                        />
-                                                        <CommandList>
-                                                            <CommandEmpty>No item group found.</CommandEmpty>
-                                                            <CommandGroup>
-                                                                {itemGroups.map((group) => (
-                                                                    <CommandItem
-                                                                        key={group.id}
-                                                                        value={group.groupName}
-                                                                        onSelect={() => {
-                                                                            field.onChange(
-                                                                                group.id === field.value ? undefined : group.id
-                                                                            );
-                                                                            setItemGroupOpen(false);
-                                                                        }}
-                                                                    >
-                                                                        <Check
-                                                                            className={cn(
-                                                                                'mr-2 h-4 w-4',
-                                                                                field.value === group.id ? 'opacity-100' : 'opacity-0'
-                                                                            )}
-                                                                        />
-                                                                        {group.groupName}
-                                                                    </CommandItem>
-                                                                ))}
-                                                            </CommandGroup>
-                                                        </CommandList>
-                                                    </Command>
-                                                </PopoverContent>
-                                            </Popover>
-                                        )}
-                                    />
-                                </div>
-
-                                {/* Tax Code */}
-                                <div className="space-y-2">
-                                    <Label htmlFor="taxCode">Tax Code</Label>
-                                    <Input
-                                        id="taxCode"
-                                        placeholder="Enter tax code"
-                                        {...form.register('taxCode')}
-                                        disabled={isSubmitting}
-                                    />
-                                </div>
-
-                                {/* Tax Checkboxes */}
-                                <div className="space-y-3">
-                                    <Controller
-                                        name="isZeroRated"
-                                        control={form.control}
-                                        render={({ field }) => (
-                                            <div className="flex items-center space-x-2">
-                                                <Checkbox
-                                                    id="isZeroRated"
-                                                    checked={field.value}
-                                                    onCheckedChange={field.onChange}
-                                                    disabled={isSubmitting}
-                                                />
-                                                <Label htmlFor="isZeroRated" className="cursor-pointer font-normal">
-                                                    Is Zero Rated
-                                                </Label>
-                                            </div>
-                                        )}
-                                    />
-                                    <Controller
-                                        name="isExempt"
-                                        control={form.control}
-                                        render={({ field }) => (
-                                            <div className="flex items-center space-x-2">
-                                                <Checkbox
-                                                    id="isExempt"
-                                                    checked={field.value}
-                                                    onCheckedChange={field.onChange}
-                                                    disabled={isSubmitting}
-                                                />
-                                                <Label htmlFor="isExempt" className="cursor-pointer font-normal">
-                                                    Is Exempt
-                                                </Label>
-                                            </div>
-                                        )}
-                                    />
-                                </div>
-
-                                {/* Default Unit of Measure */}
-                                <div className="space-y-2">
-                                    <Label>
-                                        Default Unit of Measure <span className="text-destructive">*</span>
-                                    </Label>
-                                    <Controller
-                                        name="defaultUnitOfMeasureId"
-                                        control={form.control}
-                                        render={({ field }) => (
-                                            <Popover open={unitOfMeasureOpen} onOpenChange={setUnitOfMeasureOpen}>
-                                                <PopoverTrigger asChild>
-                                                    <Button
-                                                        variant="outline"
-                                                        role="combobox"
-                                                        aria-expanded={unitOfMeasureOpen}
-                                                        className={cn(
-                                                            'w-full justify-between font-normal',
-                                                            'border-destructive/50 focus-visible:ring-destructive/30'
-                                                        )}
-                                                        disabled={isSubmitting}
-                                                    >
-                                                        {selectedUnitOfMeasure?.name || 'Nos'}
-                                                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                                                    </Button>
-                                                </PopoverTrigger>
-                                                <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                                                    <Command>
-                                                        <CommandInput
-                                                            placeholder="Search units..."
-                                                            value={unitOfMeasureSearch}
-                                                            onValueChange={setUnitOfMeasureSearch}
-                                                        />
-                                                        <CommandList>
-                                                            <CommandEmpty>No unit found.</CommandEmpty>
-                                                            <CommandGroup>
-                                                                {unitsOfMeasure.map((unit) => (
-                                                                    <CommandItem
-                                                                        key={unit.id}
-                                                                        value={unit.name}
-                                                                        onSelect={() => {
-                                                                            field.onChange(unit.id === field.value ? undefined : unit.id);
-                                                                            setUnitOfMeasureOpen(false);
-                                                                        }}
-                                                                    >
-                                                                        <Check
-                                                                            className={cn(
-                                                                                'mr-2 h-4 w-4',
-                                                                                field.value === unit.id ? 'opacity-100' : 'opacity-0'
-                                                                            )}
-                                                                        />
-                                                                        {unit.name}
-                                                                    </CommandItem>
-                                                                ))}
-                                                            </CommandGroup>
-                                                        </CommandList>
-                                                    </Command>
-                                                </PopoverContent>
-                                            </Popover>
-                                        )}
-                                    />
-                                </div>
-                            </div>
-
-                            {/* Right Column */}
-                            <div className="space-y-6">
-                                {/* Checkboxes */}
-                                <div className="space-y-4">
-                                    <Controller
-                                        name="disabled"
-                                        control={form.control}
-                                        render={({ field }) => (
-                                            <div className="flex items-center space-x-2">
-                                                <Checkbox
-                                                    id="disabled"
-                                                    checked={field.value}
-                                                    onCheckedChange={field.onChange}
-                                                    disabled={isSubmitting}
-                                                />
-                                                <Label htmlFor="disabled" className="cursor-pointer font-normal">
-                                                    Disabled
-                                                </Label>
-                                            </div>
-                                        )}
-                                    />
-                                    <Controller
-                                        name="allowAlternateItem"
-                                        control={form.control}
-                                        render={({ field }) => (
-                                            <div className="flex items-center space-x-2">
-                                                <Checkbox
-                                                    id="allowAlternateItem"
-                                                    checked={field.value}
-                                                    onCheckedChange={field.onChange}
-                                                    disabled={isSubmitting}
-                                                />
-                                                <Label htmlFor="allowAlternateItem" className="cursor-pointer font-normal">
-                                                    Allow Alternative Item
-                                                </Label>
-                                            </div>
-                                        )}
-                                    />
-                                    <Controller
-                                        name="maintainStock"
-                                        control={form.control}
-                                        render={({ field }) => (
-                                            <div className="flex items-center space-x-2">
-                                                <Checkbox
-                                                    id="maintainStock"
-                                                    checked={field.value}
-                                                    onCheckedChange={field.onChange}
-                                                    disabled={isSubmitting}
-                                                />
-                                                <Label htmlFor="maintainStock" className="cursor-pointer font-normal">
-                                                    Maintain Stock
-                                                </Label>
-                                            </div>
-                                        )}
-                                    />
-                                    <div className="space-y-1">
+                        {/* Tab Contents */}
+                        <TabsContent value="details" className="m-0 focus-visible:outline-none">
+                            <div className="grid grid-cols-2 gap-x-12 p-8">
+                                {/* Left Column */}
+                                <div className="space-y-6">
+                                    <div className="space-y-1.5">
+                                        <Label className="text-xs font-medium text-gray-500">
+                                            Item Code <span className="text-red-500">*</span>
+                                        </Label>
+                                        <Input
+                                            {...form.register('code')}
+                                            className="h-10"
+                                        />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <Label className="text-xs font-medium text-gray-500">Item Name</Label>
+                                        <Input
+                                            {...form.register('name')}
+                                            className="h-10"
+                                        />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <Label className="text-xs font-medium text-gray-500">
+                                            Item Group <span className="text-red-500">*</span>
+                                        </Label>
                                         <Controller
-                                            name="hasVariants"
+                                            name="itemGroupId"
                                             control={form.control}
                                             render={({ field }) => (
-                                                <div className="flex items-center space-x-2">
-                                                    <Checkbox
-                                                        id="hasVariants"
-                                                        checked={field.value}
-                                                        onCheckedChange={field.onChange}
-                                                        disabled={isSubmitting}
-                                                    />
-                                                    <Label htmlFor="hasVariants" className="cursor-pointer font-normal">
-                                                        Has Variants
-                                                    </Label>
-                                                </div>
+                                                <Popover open={itemGroupOpen} onOpenChange={setItemGroupOpen}>
+                                                    <PopoverTrigger asChild>
+                                                        <Button
+                                                            variant="outline"
+                                                            className="h-10 w-full justify-between font-normal"
+                                                        >
+                                                            {selectedItemGroup?.groupName || ''}
+                                                            <ChevronDown className="h-4 w-4 opacity-50" />
+                                                        </Button>
+                                                    </PopoverTrigger>
+                                                    <PopoverContent className="p-0 pointer-events-auto" style={{ width: 'var(--radix-popover-trigger-width)' }}>
+                                                        <Command>
+                                                            <CommandInput placeholder="Search item groups..." />
+                                                            <CommandList>
+                                                                <CommandEmpty>No results</CommandEmpty>
+                                                                <CommandGroup>
+                                                                    {itemGroups.map((g) => (
+                                                                        <CommandItem
+                                                                            key={g.id}
+                                                                            onSelect={() => {
+                                                                                field.onChange(g.id);
+                                                                                setItemGroupOpen(false);
+                                                                            }}
+                                                                        >
+                                                                            {g.groupName}
+                                                                        </CommandItem>
+                                                                    ))}
+                                                                </CommandGroup>
+                                                            </CommandList>
+                                                        </Command>
+                                                    </PopoverContent>
+                                                </Popover>
                                             )}
                                         />
-                                        <p className="ml-6 text-xs text-muted-foreground">
-                                            If this item has variants, then it cannot be selected in sales orders etc.
-                                        </p>
                                     </div>
-                                </div>
-
-                                {/* Stock and Pricing Fields */}
-                                <div className="space-y-4">
-                                    <div className="space-y-2">
-                                        <Label htmlFor="openingStock">Opening Stock</Label>
+                                    <div className="space-y-1.5">
+                                        <Label className="text-xs font-medium text-gray-500">Tax Code</Label>
                                         <Input
-                                            id="openingStock"
-                                            type="number"
-                                            min="0"
-                                            placeholder="0"
-                                            {...form.register('openingStock', { valueAsNumber: true })}
-                                            disabled={isSubmitting}
+                                            {...form.register('taxCode')}
+                                            className="h-10"
                                         />
                                     </div>
-                                    <div className="space-y-2">
-                                        <Label htmlFor="valuationRate">Valuation Rate</Label>
-                                        <Input
-                                            id="valuationRate"
-                                            type="number"
-                                            min="0"
-                                            step="0.01"
-                                            placeholder="0.00"
-                                            {...form.register('valuationRate', { valueAsNumber: true })}
-                                            disabled={isSubmitting}
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label htmlFor="standardSellingRate">Standard Selling Rate</Label>
-                                        <Input
-                                            id="standardSellingRate"
-                                            type="number"
-                                            min="0"
-                                            step="0.01"
-                                            placeholder="0.00"
-                                            {...form.register('standardSellingRate', { valueAsNumber: true })}
-                                            disabled={isSubmitting}
-                                        />
-                                    </div>
-                                    <Controller
-                                        name="isFixedAsset"
-                                        control={form.control}
-                                        render={({ field }) => (
-                                            <div className="flex items-center space-x-2">
-                                                <Checkbox
-                                                    id="isFixedAsset"
-                                                    checked={field.value}
-                                                    onCheckedChange={field.onChange}
-                                                    disabled={isSubmitting}
-                                                />
-                                                <Label htmlFor="isFixedAsset" className="cursor-pointer font-normal">
-                                                    Is Fixed Asset
-                                                </Label>
-                                            </div>
-                                        )}
-                                    />
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Collapsible Sections */}
-                        <div className="mt-8 space-y-4">
-                            {/* Description */}
-                            <Collapsible open={descriptionOpen} onOpenChange={setDescriptionOpen}>
-                                <CollapsibleTrigger asChild>
-                                    <Button
-                                        variant="ghost"
-                                        className="flex w-full items-center justify-between px-0 hover:bg-transparent"
-                                    >
-                                        <span className="text-sm font-medium">Description</span>
-                                        <ChevronDown
-                                            className={cn(
-                                                'h-4 w-4 transition-transform',
-                                                descriptionOpen && 'rotate-180'
-                                            )}
-                                        />
-                                    </Button>
-                                </CollapsibleTrigger>
-                                <CollapsibleContent className="pt-4">
-                                    <textarea
-                                        id="description"
-                                        className="flex min-h-[120px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                                        placeholder="Enter item description..."
-                                        {...form.register('description')}
-                                        disabled={isSubmitting}
-                                    />
-                                </CollapsibleContent>
-                            </Collapsible>
-
-                            {/* Units of Measure */}
-                            <Collapsible open={unitsOpen} onOpenChange={setUnitsOpen}>
-                                <CollapsibleTrigger asChild>
-                                    <Button
-                                        variant="ghost"
-                                        className="flex w-full items-center justify-between px-0 hover:bg-transparent"
-                                    >
-                                        <span className="text-sm font-medium">Units of Measure</span>
-                                        <ChevronDown
-                                            className={cn('h-4 w-4 transition-transform', unitsOpen && 'rotate-180')}
-                                        />
-                                    </Button>
-                                </CollapsibleTrigger>
-                                <CollapsibleContent className="pt-4">
-                                    <div className="rounded-md border p-4">
-                                        <p className="text-sm text-muted-foreground">
-                                            Configure additional units of measure for this item. You can set conversion
-                                            rates between different units.
-                                        </p>
-                                        {/* Placeholder for unit conversions table */}
-                                        <div className="mt-4">
-                                            <Button variant="outline" size="sm" type="button">
-                                                Add Unit Conversion
-                                            </Button>
+                                    <div className="pt-2 space-y-4">
+                                        <div className="flex items-center gap-2">
+                                            <Checkbox
+                                                id="isZeroRated"
+                                                onCheckedChange={(checked) => form.setValue('isZeroRated', !!checked)}
+                                                checked={form.watch('isZeroRated')}
+                                            />
+                                            <Label htmlFor="isZeroRated" className="text-sm font-normal cursor-pointer">Is Zero Rated</Label>
+                                        </div>
+                                        <div className="flex items-center gap-3">
+                                            <Checkbox
+                                                id="isExempt"
+                                                onCheckedChange={(checked) => form.setValue('isExempt', !!checked)}
+                                                checked={form.watch('isExempt')}
+                                            />
+                                            <Label htmlFor="isExempt" className="text-sm font-normal cursor-pointer">Is Exempt</Label>
                                         </div>
                                     </div>
-                                </CollapsibleContent>
-                            </Collapsible>
-                        </div>
-                    </TabsContent>
-
-                    {/* Inventory Tab */}
-                    <TabsContent value="inventory" className="mt-0 p-6">
-                        <div className="space-y-6">
-                            <div className="grid gap-6 md:grid-cols-2">
-                                {/* Quantity */}
-                                <div className="space-y-2">
-                                    <Label htmlFor="quantity">Current Quantity</Label>
-                                    <Input
-                                        id="quantity"
-                                        type="number"
-                                        min="0"
-                                        placeholder="0"
-                                        {...form.register('quantity', { valueAsNumber: true })}
-                                        disabled={isSubmitting}
-                                    />
-                                    {form.formState.errors.quantity && (
-                                        <p className="text-sm text-destructive">
-                                            {form.formState.errors.quantity.message}
-                                        </p>
-                                    )}
+                                    <div className="space-y-1.5">
+                                        <Label className="text-xs font-medium text-gray-500">
+                                            Default Unit of Measure <span className="text-red-500">*</span>
+                                        </Label>
+                                        <Controller
+                                            name="defaultUnitOfMeasureId"
+                                            control={form.control}
+                                            render={({ field }) => (
+                                                <Popover open={unitOfMeasureOpen} onOpenChange={setUnitOfMeasureOpen}>
+                                                    <PopoverTrigger asChild>
+                                                        <Button
+                                                            variant="outline"
+                                                            className="h-10 w-full justify-between font-normal"
+                                                        >
+                                                            {selectedUnitOfMeasure?.name || 'Nos'}
+                                                            <ChevronDown className="h-4 w-4 opacity-50" />
+                                                        </Button>
+                                                    </PopoverTrigger>
+                                                    <PopoverContent className="p-0 pointer-events-auto" style={{ width: 'var(--radix-popover-trigger-width)' }}>
+                                                        <Command>
+                                                            <CommandInput placeholder="Search units..." />
+                                                            <CommandList>
+                                                                <CommandEmpty>No results</CommandEmpty>
+                                                                <CommandGroup>
+                                                                    {unitsOfMeasure.map((u) => (
+                                                                        <CommandItem
+                                                                            key={u.id}
+                                                                            onSelect={() => {
+                                                                                field.onChange(u.id);
+                                                                                setUnitOfMeasureOpen(false);
+                                                                            }}
+                                                                        >
+                                                                            {u.name}
+                                                                        </CommandItem>
+                                                                    ))}
+                                                                </CommandGroup>
+                                                            </CommandList>
+                                                        </Command>
+                                                    </PopoverContent>
+                                                </Popover>
+                                            )}
+                                        />
+                                    </div>
                                 </div>
 
-                                {/* Opening Stock */}
-                                <div className="space-y-2">
-                                    <Label htmlFor="openingStockInventory">Opening Stock</Label>
+                                {/* Right Column */}
+                                <div className="space-y-6">
+                                    <div className="space-y-4">
+                                        <div className="flex items-center gap-3">
+                                            <Checkbox
+                                                id="disabled"
+                                                onCheckedChange={(checked) => form.setValue('disabled', !!checked)}
+                                                checked={form.watch('disabled')}
+                                            />
+                                            <Label htmlFor="disabled" className="text-sm font-normal cursor-pointer">Disabled</Label>
+                                        </div>
+                                        <div className="flex items-center gap-3">
+                                            <Checkbox
+                                                id="allowAlt"
+                                                onCheckedChange={(checked) => form.setValue('allowAlternateItem', !!checked)}
+                                                checked={form.watch('allowAlternateItem')}
+                                            />
+                                            <Label htmlFor="allowAlt" className="text-sm font-normal cursor-pointer">Allow Alternative Item</Label>
+                                        </div>
+                                        <div className="flex items-center gap-3">
+                                            <Checkbox
+                                                id="maintainStock"
+                                                onCheckedChange={(checked) => form.setValue('maintainStock', !!checked)}
+                                                checked={form.watch('maintainStock')}
+                                            />
+                                            <Label htmlFor="maintainStock" className="text-sm font-normal cursor-pointer">Maintain Stock</Label>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <div className="flex items-center gap-3">
+                                                <Checkbox
+                                                    id="hasVariants"
+                                                    onCheckedChange={(checked) => form.setValue('hasVariants', !!checked)}
+                                                    checked={form.watch('hasVariants')}
+                                                />
+                                                <Label htmlFor="hasVariants" className="text-sm font-normal cursor-pointer">Has Variants</Label>
+                                            </div>
+                                            <p className="pl-7.5 text-[11px] text-gray-500 leading-tight">
+                                                If this item has variants, then it cannot be selected in sales orders etc.
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-1.5 pt-2">
+                                        <Label className="text-xs font-medium text-gray-500">Opening Stock</Label>
+                                        <Input
+                                            type="number"
+                                            {...form.register('openingStock', { valueAsNumber: true })}
+                                            className="h-10"
+                                        />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <Label className="text-xs font-medium text-gray-500">Valuation Rate</Label>
+                                        <Input
+                                            type="number"
+                                            {...form.register('valuationRate', { valueAsNumber: true })}
+                                            className="h-10"
+                                        />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <Label className="text-xs font-medium text-gray-500">Standard Selling Rate</Label>
+                                        <Input
+                                            type="number"
+                                            {...form.register('standardSellingRate', { valueAsNumber: true })}
+                                            className="h-10"
+                                        />
+                                    </div>
+                                    <div className="flex items-center gap-3 pt-2">
+                                        <Checkbox
+                                            id="isFixedAsset"
+                                            onCheckedChange={(checked) => form.setValue('isFixedAsset', !!checked)}
+                                            checked={form.watch('isFixedAsset')}
+                                        />
+                                        <Label htmlFor="isFixedAsset" className="text-sm font-normal text-gray-700 cursor-pointer">Is Fixed Asset</Label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Collapsible Sections (ERPNext style) */}
+                            <div className="border-t">
+                                <Collapsible open={descriptionOpen} onOpenChange={setDescriptionOpen}>
+                                    <CollapsibleTrigger asChild>
+                                        <div className="flex h-12 cursor-pointer items-center justify-between px-8 hover:bg-gray-50">
+                                            <span className="text-sm font-medium text-gray-700 uppercase tracking-wider">Description</span>
+                                            <ChevronDown className={cn("h-4 w-4 text-gray-400 transition-transform", descriptionOpen && "rotate-180")} />
+                                        </div>
+                                    </CollapsibleTrigger>
+                                    <CollapsibleContent className="px-8 pb-8 pt-2">
+                                        {/* Rich Text Editor Mockup */}
+                                        <div className="rounded border bg-[#fcfcfc] overflow-hidden">
+                                            <div className="flex flex-wrap items-center gap-0.5 border-b bg-white p-1">
+                                                <Button variant="ghost" size="icon" className="h-7 w-7"><Type className="h-3.5 w-3.5" /></Button>
+                                                <div className="h-4 w-[1px] bg-gray-200 mx-1" />
+                                                <Button variant="ghost" size="icon" className="h-7 w-7"><Bold className="h-3.5 w-3.5" /></Button>
+                                                <Button variant="ghost" size="icon" className="h-7 w-7"><Italic className="h-3.5 w-3.5" /></Button>
+                                                <Button variant="ghost" size="icon" className="h-7 w-7"><Underline className="h-3.5 w-3.5" /></Button>
+                                                <Button variant="ghost" size="icon" className="h-7 w-7"><Strikethrough className="h-3.5 w-3.5" /></Button>
+                                                <div className="h-4 w-[1px] bg-gray-200 mx-1" />
+                                                <Button variant="ghost" size="icon" className="h-7 w-7"><AlignCenter className="h-3.5 w-3.5" /></Button>
+                                                <Button variant="ghost" size="icon" className="h-7 w-7"><List className="h-3.5 w-3.5" /></Button>
+                                                <Button variant="ghost" size="icon" className="h-7 w-7"><ListOrdered className="h-3.5 w-3.5" /></Button>
+                                                <div className="h-4 w-[1px] bg-gray-200 mx-1" />
+                                                <Button variant="ghost" size="icon" className="h-7 w-7"><Link2 className="h-3.5 w-3.5" /></Button>
+                                                <Button variant="ghost" size="icon" className="h-7 w-7"><ImageIcon className="h-3.5 w-3.5" /></Button>
+                                                <div className="h-4 w-[1px] bg-gray-200 mx-1" />
+                                                <Button variant="ghost" size="icon" className="h-7 w-7"><Quote className="h-3.5 w-3.5" /></Button>
+                                                <Button variant="ghost" size="icon" className="h-7 w-7"><Code className="h-3.5 w-3.5" /></Button>
+                                                <Button variant="ghost" size="icon" className="h-7 w-7"><TableIcon className="h-3.5 w-3.5" /></Button>
+                                            </div>
+                                            <textarea
+                                                className="w-full min-h-[160px] p-4 bg-transparent outline-none text-sm resize-none"
+                                                placeholder="Enter detailed description..."
+                                                value={form.watch('description')}
+                                                onChange={(e) => form.setValue('description', e.target.value)}
+                                            />
+                                        </div>
+                                    </CollapsibleContent>
+                                </Collapsible>
+                            </div>
+
+                            <div className="border-t">
+                                <div className="flex flex-col px-8 py-6 space-y-2">
+                                    <Label className="text-xs font-medium text-gray-500">Brand</Label>
                                     <Input
-                                        id="openingStockInventory"
-                                        type="number"
-                                        min="0"
-                                        placeholder="0"
-                                        {...form.register('openingStock', { valueAsNumber: true })}
-                                        disabled={isSubmitting}
+                                        className="h-10 max-w-sm"
+                                        placeholder=""
                                     />
                                 </div>
                             </div>
 
-                            <div className="rounded-md border p-4">
-                                <h3 className="mb-4 text-sm font-medium">Stock Settings</h3>
-                                <div className="space-y-4">
-                                    <Controller
-                                        name="maintainStock"
-                                        control={form.control}
-                                        render={({ field }) => (
-                                            <div className="flex items-center space-x-2">
-                                                <Checkbox
-                                                    id="maintainStockInventory"
-                                                    checked={field.value}
-                                                    onCheckedChange={field.onChange}
-                                                    disabled={isSubmitting}
-                                                />
-                                                <div>
-                                                    <Label
-                                                        htmlFor="maintainStockInventory"
-                                                        className="cursor-pointer font-normal"
-                                                    >
-                                                        Maintain Stock
-                                                    </Label>
-                                                    <p className="text-xs text-muted-foreground">
-                                                        Enable stock tracking for this item
-                                                    </p>
-                                                </div>
+                            <div className="border-t">
+                                <Collapsible open={unitsOpen} onOpenChange={setUnitsOpen}>
+                                    <CollapsibleTrigger asChild>
+                                        <div className="flex h-12 cursor-pointer items-center justify-between px-8 hover:bg-gray-50">
+                                            <span className="text-sm font-medium text-gray-700 uppercase tracking-wider">Units of Measure</span>
+                                            <ChevronDown className={cn("h-4 w-4 text-gray-400 transition-transform", unitsOpen && "rotate-180")} />
+                                        </div>
+                                    </CollapsibleTrigger>
+                                    <CollapsibleContent className="px-8 pb-8 pt-4">
+                                        <div className="space-y-4">
+                                            <div className="text-[13px] text-gray-600 mb-2">UOMs</div>
+                                            <div className="text-[11px] text-gray-500 mb-4">Will also apply for variants</div>
+
+                                            <div className="rounded border overflow-hidden">
+                                                <table className="w-full text-xs text-left">
+                                                    <thead className="bg-[#f8f9fa] border-b uppercase text-[10px] tracking-wider text-gray-500">
+                                                        <tr>
+                                                            <th className="px-4 py-2 w-10"><Checkbox className="h-3 w-3 rounded" /></th>
+                                                            <th className="px-4 py-2 w-16">No.</th>
+                                                            <th className="px-4 py-2">UOM</th>
+                                                            <th className="px-4 py-2">Conversion Factor</th>
+                                                            <th className="px-4 py-2 w-10"><Settings className="h-3 w-3" /></th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        <tr>
+                                                            <td colSpan={5} className="p-12 text-center bg-white">
+                                                                <div className="flex flex-col items-center gap-2 opacity-50">
+                                                                    <List className="h-6 w-6" />
+                                                                    <span className="text-[11px]">No Data</span>
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+                                                    </tbody>
+                                                </table>
                                             </div>
-                                        )}
-                                    />
-                                    <Controller
-                                        name="hasVariants"
-                                        control={form.control}
-                                        render={({ field }) => (
-                                            <div className="flex items-center space-x-2">
-                                                <Checkbox
-                                                    id="hasVariantsInventory"
-                                                    checked={field.value}
-                                                    onCheckedChange={field.onChange}
-                                                    disabled={isSubmitting}
-                                                />
-                                                <div>
-                                                    <Label
-                                                        htmlFor="hasVariantsInventory"
-                                                        className="cursor-pointer font-normal"
-                                                    >
-                                                        Has Variants
-                                                    </Label>
-                                                    <p className="text-xs text-muted-foreground">
-                                                        This item has multiple variants (e.g., size, color)
-                                                    </p>
-                                                </div>
-                                            </div>
-                                        )}
-                                    />
-                                </div>
+                                            <Button variant="outline" size="sm" className="h-8 px-4 text-xs font-medium border-gray-300 hover:bg-gray-50">
+                                                Add Row
+                                            </Button>
+                                        </div>
+                                    </CollapsibleContent>
+                                </Collapsible>
                             </div>
-                        </div>
-                    </TabsContent>
-                </form>
-            </Tabs>
+                        </TabsContent>
+                    </Tabs>
+                </div>
+            </div>
         </div>
     );
 }

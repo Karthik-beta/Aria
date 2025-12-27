@@ -9,13 +9,29 @@
       }
     ],
     "paths": {
-      "@/*": ["./src/*"],
-      "backend": ["../backend/dist/src"],
-      "backend/*": ["../backend/dist/src/*"]
+      "@/*": [
+        "./src/*"
+      ],
+      "backend": [
+        "../backend/src"
+      ],
+      "backend/*": [
+        "../backend/src/*"
+      ],
+      "@aria/types": [
+        "../../packages/types/src/index.ts"
+      ]
     },
     "resolveJsonModule": true,
     "isolatedModules": true
   },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  "exclude": ["node_modules"]
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
 }

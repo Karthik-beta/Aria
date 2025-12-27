@@ -27,4 +27,44 @@ export const authClient = createAuthClient({
 /**
  * Type-safe hooks and utilities from auth client
  */
-export const { useSession, signIn, signOut, signUp } = authClient;
+export const { signIn, signOut, signUp } = authClient;
+
+/**
+ * Enhanced useSession hook with development bypass
+ *
+ * If NEXT_PUBLIC_DEV_AUTH_BYPASS is set to 'true' in development,
+ * returns a mock admin session when no real session exists.
+ */
+export const useSession: typeof authClient.useSession = () => {
+  const session = authClient.useSession();
+
+  const isDevelopmentBypass =
+    process.env.NODE_ENV === 'development' &&
+    process.env.NEXT_PUBLIC_DEV_AUTH_BYPASS === 'true';
+
+  if (isDevelopmentBypass && !session.data && !session.isPending) {
+    return {
+      ...session,
+      data: {
+        user: {
+          id: 'dev-admin-id',
+          email: 'admin@aria.local',
+          emailVerified: true,
+          name: 'System Administrator',
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          username: 'admin',
+          displayUsername: 'admin',
+          mustChangePassword: false,
+        },
+        session: {
+          id: 'dev-session-id',
+          userId: 'dev-admin-id',
+          expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 7),
+        },
+      } as any,
+    };
+  }
+
+  return session;
+};

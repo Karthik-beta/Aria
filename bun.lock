@@ -22,14 +22,16 @@
         "@nestjs/common": "^11.1.6",
         "@nestjs/core": "^11.1.6",
         "@nestjs/platform-express": "^11.1.6",
-        "@prisma/client": "^6.17.1",
+        "@prisma/client": "^6.18.0",
         "@thallesp/nestjs-better-auth": "^2.1.0",
         "@trpc/server": "^11.6.0",
         "@types/ws": "^8.18.1",
+        "@willsoto/nestjs-prometheus": "^6.0.2",
         "bcrypt": "^6.0.0",
         "better-auth": "^1.3.31",
         "dotenv": "^17.2.3",
         "express": "^5.1.0",
+        "prom-client": "^15.1.3",
         "reflect-metadata": "^0.2.2",
         "rxjs": "^7.8.2",
         "tslib": "^2.8.1",
@@ -55,7 +57,7 @@
         "globals": "^16.4.0",
         "jest": "^30.2.0",
         "prettier": "^3.6.2",
-        "prisma": "^6.17.1",
+        "prisma": "^6.18.0",
         "rimraf": "^6.0.1",
         "source-map-support": "^0.5.21",
         "supertest": "^7.1.4",
@@ -1325,6 +1327,8 @@
     "@webassemblyjs/wast-printer": ["@webassemblyjs/wast-printer@1.14.1", "", { "dependencies": { "@webassemblyjs/ast": "1.14.1", "@xtuc/long": "4.2.2" } }, "sha512-kPSSXE6De1XOR820C90RIo2ogvZG+c3KiHzqUoO/F34Y2shGzesfqv7o57xrxovZJH/MetF5UjroJ/R/3isoiw=="],
 
     "@whatwg-node/promise-helpers": ["@whatwg-node/promise-helpers@1.3.2", "", { "dependencies": { "tslib": "^2.6.3" } }, "sha512-Nst5JdK47VIl9UcGwtv2Rcgyn5lWtZ0/mhRQ4G8NN2isxpq2TO30iqHzmwoJycjWuyUfg3GFXqP/gFHXeV57IA=="],
+
+    "@willsoto/nestjs-prometheus": ["@willsoto/nestjs-prometheus@6.0.2", "", { "peerDependencies": { "@nestjs/common": "^7.0.0 || ^8.0.0 || ^9.0.0 || ^10.0.0 || ^11.0.0", "prom-client": "^15.0.0" } }, "sha512-ePyLZYdIrOOdlOWovzzMisIgviXqhPVzFpSMKNNhn6xajhRHeBsjAzSdpxZTc6pnjR9hw1lNAHyKnKl7lAPaVg=="],
 
     "@xtuc/ieee754": ["@xtuc/ieee754@1.2.0", "", {}, "sha512-DX8nKgqcGwsc0eJSqYt5lwP4DH5FlHnmuWWBRy7X0NcaGR0ZtuyeESgMwTYVEtxmsNGY+qit4QYT/MIYTOTPeA=="],
 

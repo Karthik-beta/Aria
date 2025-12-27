@@ -17,8 +17,7 @@ if (process.env.NODE_ENV !== 'production') {
 @Injectable()
 export class PrismaService
   extends PrismaClient
-  implements OnModuleInit, OnModuleDestroy
-{
+  implements OnModuleInit, OnModuleDestroy {
   constructor() {
     // Call parent constructor with the singleton instance
     // Note: We don't actually use the passed instance since we have the singleton

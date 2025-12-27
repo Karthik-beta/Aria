@@ -58,6 +58,58 @@ export class InventoryRouter {
           return { success: true, id: input.id };
         }),
 
+      createItemGroup: publicProcedure
+        .input(Inventory.createGroupSchema)
+        .mutation(async ({ input }) => {
+          const group = await this.inventoryService.createGroup(input);
+          inventoryEvents.emit('itemGroupCreated', group);
+          return group;
+        }),
+
+      updateItemGroup: publicProcedure
+        .input(Inventory.updateGroupSchema)
+        .mutation(async ({ input }) => {
+          const group = await this.inventoryService.updateGroup(input);
+          inventoryEvents.emit('itemGroupUpdated', group);
+          return group;
+        }),
+
+      deleteItemGroup: publicProcedure
+        .input(z.object({ id: z.string().min(1) }))
+        .mutation(async ({ input }) => {
+          const result = await this.inventoryService.deleteGroup(input.id);
+          inventoryEvents.emit('itemGroupDeleted', { id: input.id });
+          return result;
+        }),
+
+      // Subscription: Listen for item group changes
+      onItemGroupsChanged: publicProcedure.subscription(() => {
+        return observable<{
+          type: 'created' | 'updated' | 'deleted';
+          data: Inventory.ItemGroup | { id: string };
+        }>((emit) => {
+          const onCreated = (data: Inventory.ItemGroup) => {
+            emit.next({ type: 'created', data });
+          };
+          const onUpdated = (data: Inventory.ItemGroup) => {
+            emit.next({ type: 'updated', data });
+          };
+          const onDeleted = (data: { id: string }) => {
+            emit.next({ type: 'deleted', data });
+          };
+
+          inventoryEvents.on('itemGroupCreated', onCreated);
+          inventoryEvents.on('itemGroupUpdated', onUpdated);
+          inventoryEvents.on('itemGroupDeleted', onDeleted);
+
+          return () => {
+            inventoryEvents.off('itemGroupCreated', onCreated);
+            inventoryEvents.off('itemGroupUpdated', onUpdated);
+            inventoryEvents.off('itemGroupDeleted', onDeleted);
+          };
+        });
+      }),
+
       // Subscription: Listen for item creation
       onItemCreated: publicProcedure.subscription(() => {
         return observable<Inventory.Item>((emit) => {
