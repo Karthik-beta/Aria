@@ -1,5 +1,5 @@
 import { Module, Global } from '@nestjs/common';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../generated/prisma/client.js';
 import { AuditService } from './audit.service';
 import { ScopeService } from './scope.service';
 import { RoleService, PermissionService } from './role-permission.service';
@@ -64,4 +64,4 @@ import {
     OwnershipGuard,
   ],
 })
-export class AuthorizationModule {}
+export class AuthorizationModule { }

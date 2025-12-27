@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../generated/prisma/client.js';
 
 /**
  * AuditService - Tamper-evident logging for authorization changes
@@ -14,7 +14,7 @@ import { PrismaClient } from '@prisma/client';
  */
 @Injectable()
 export class AuditService {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(private readonly prisma: PrismaClient) { }
 
   /**
    * Generic audit log creation method

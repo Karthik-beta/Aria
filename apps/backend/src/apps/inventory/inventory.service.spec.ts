@@ -2,7 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { InventoryService } from './inventory.service';
 import { PrismaService } from '../../shared/prisma.service';
 import { ConflictException, NotFoundException } from '@nestjs/common';
-import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
+import { Prisma } from '../../generated/prisma/client.js';
 
 describe('InventoryService', () => {
   let service: InventoryService;
@@ -65,7 +65,7 @@ describe('InventoryService', () => {
       mockPrisma.inventoryItem.findUnique.mockResolvedValue(null);
       mockPrisma.inventoryItem.create.mockResolvedValue(mockItem);
 
-      const result = await service.create(input);
+      const result = await service.create(input as any);
       expect(result).toEqual(mockItem);
       expect(mockPrisma.inventoryItem.create).toHaveBeenCalled();
     });
@@ -74,7 +74,7 @@ describe('InventoryService', () => {
       const input = { name: 'Test', code: 'TEST-CODE', quantity: 1 };
       mockPrisma.inventoryItem.findUnique.mockResolvedValue(mockItem);
 
-      await expect(service.create(input)).rejects.toThrow(ConflictException);
+      await expect(service.create(input as any)).rejects.toThrow(ConflictException);
     });
   });
 
@@ -112,7 +112,7 @@ describe('InventoryService', () => {
     });
 
     it('should throw NotFoundException if item does not exist', async () => {
-      const error = new PrismaClientKnownRequestError('Record not found', {
+      const error = new Prisma.PrismaClientKnownRequestError('Record not found', {
         code: 'P2025',
         clientVersion: '5.0.0',
       });

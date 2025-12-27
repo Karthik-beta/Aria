@@ -3,7 +3,7 @@ import {
   NotFoundException,
   ConflictException,
 } from '@nestjs/common';
-import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
+import { Prisma } from '../../generated/prisma/client.js';
 import { Inventory } from '@aria/types';
 import { z } from 'zod';
 import { PrismaService } from '../../shared/prisma.service';
@@ -14,7 +14,7 @@ import { toInventoryItem, toInventoryItemGroup } from './inventory.types';
  */
 @Injectable()
 export class InventoryService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   /**
    * Get all inventory items
@@ -37,11 +37,11 @@ export class InventoryService {
     const groups = await this.prisma.itemGroup.findMany({
       where: search
         ? {
-            groupName: {
-              contains: search,
-              mode: 'insensitive',
-            },
-          }
+          groupName: {
+            contains: search,
+            mode: 'insensitive',
+          },
+        }
         : undefined,
       include: {
         parentItemGroup: {
@@ -64,11 +64,11 @@ export class InventoryService {
     return this.prisma.unitOfMeasurement.findMany({
       where: search
         ? {
-            name: {
-              contains: search,
-              mode: 'insensitive',
-            },
-          }
+          name: {
+            contains: search,
+            mode: 'insensitive',
+          },
+        }
         : undefined,
       orderBy: { name: 'asc' },
     });
@@ -85,12 +85,12 @@ export class InventoryService {
         isGroup: data.isGroup,
         defaults: data.defaults
           ? {
-              create: data.defaults.map((d: any) => ({
-                company: d.company,
-                defaultWarehouse: d.defaultWarehouse,
-                defaultPriceList: d.defaultPriceList,
-              })),
-            }
+            create: data.defaults.map((d: any) => ({
+              company: d.company,
+              defaultWarehouse: d.defaultWarehouse,
+              defaultPriceList: d.defaultPriceList,
+            })),
+          }
           : undefined,
       },
       include: {
@@ -165,7 +165,7 @@ export class InventoryService {
       return toInventoryItem(created);
     } catch (error) {
       if (
-        error instanceof PrismaClientKnownRequestError &&
+        error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2002'
       ) {
         throw new ConflictException(
@@ -257,7 +257,7 @@ export class InventoryService {
       return toInventoryItem(deleted);
     } catch (error) {
       if (
-        error instanceof PrismaClientKnownRequestError &&
+        error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2025'
       ) {
         throw new NotFoundException(`Item with ID ${id} not found`);

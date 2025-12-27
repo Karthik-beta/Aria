@@ -1,6 +1,14 @@
 import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../generated/prisma/client.js';
+import { PrismaPg } from '@prisma/adapter-pg';
 import { auth } from './auth.config';
+
+// Create the PostgreSQL adapter as required by Prisma 7
+const connectionString = process.env.DATABASE_URL;
+if (!connectionString) {
+  throw new Error('DATABASE_URL environment variable is not set');
+}
+const adapter = new PrismaPg({ connectionString });
 
 // Import the singleton Prisma client
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
@@ -8,6 +16,7 @@ const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 const prisma =
   globalForPrisma.prisma ??
   new PrismaClient({
+    adapter,
     log: ['error'],
   });
 
@@ -47,7 +56,7 @@ export class AuthService implements OnModuleInit {
     if (!username || !password || !email) {
       this.logger.warn(
         'Default admin credentials not configured. Skipping user creation. ' +
-          'Set DEFAULT_ADMIN_USERNAME, DEFAULT_ADMIN_PASSWORD, and DEFAULT_ADMIN_EMAIL.',
+        'Set DEFAULT_ADMIN_USERNAME, DEFAULT_ADMIN_PASSWORD, and DEFAULT_ADMIN_EMAIL.',
       );
       return;
     }

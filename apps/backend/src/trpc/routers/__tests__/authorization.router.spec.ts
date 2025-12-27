@@ -9,7 +9,7 @@ const prismaMock = {
   appSupervisor: { findMany: jest.fn() },
 };
 
-jest.mock('@prisma/client', () => ({
+jest.mock('../../../generated/prisma/client.js', () => ({
   PrismaClient: jest.fn(() => prismaMock),
 }));
 
@@ -43,7 +43,7 @@ describe('authorizationRouter', () => {
     getSessionMock.mockResolvedValue({
       user: { id: 'user-1' },
       session: { id: 'session-1' },
-    });
+    } as any);
 
     prismaMock.userRole.findMany.mockResolvedValue([
       {
@@ -96,7 +96,7 @@ describe('authorizationRouter', () => {
     getSessionMock.mockResolvedValue({
       user: { id: 'user-1' },
       session: { id: 'session-1' },
-    });
+    } as any);
 
     prismaMock.userRole.findMany.mockRejectedValue(new Error('db unavailable'));
 
