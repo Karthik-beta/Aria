@@ -501,9 +501,9 @@ export default function ItemFormPage() {
                             <div className="border-t">
                                 <Collapsible open={descriptionOpen} onOpenChange={setDescriptionOpen}>
                                     <CollapsibleTrigger asChild>
-                                        <div className="flex h-12 cursor-pointer items-center justify-between px-8 hover:bg-gray-50">
-                                            <span className="text-sm font-medium text-gray-700 uppercase tracking-wider">Description</span>
-                                            <ChevronDown className={cn("h-4 w-4 text-gray-400 transition-transform", descriptionOpen && "rotate-180")} />
+                                        <div className="flex h-12 cursor-pointer items-center px-8 hover:bg-gray-50">
+                                            <span className="text-sm font-semibold text-gray-900">Description</span>
+                                            <ChevronDown className={cn("ml-1 h-4 w-4 text-gray-400 transition-transform", descriptionOpen && "rotate-180")} />
                                         </div>
                                     </CollapsibleTrigger>
                                     <CollapsibleContent className="px-8 pb-8 pt-2">
@@ -535,26 +535,26 @@ export default function ItemFormPage() {
                                                 onChange={(e) => form.setValue('description', e.target.value)}
                                             />
                                         </div>
+
+                                        <div className="flex flex-col py-6 space-y-2">
+                                            <Label className="text-xs font-medium text-gray-500">Brand</Label>
+                                            <Input
+                                                className="h-10 max-w-sm"
+                                                placeholder=""
+                                            />
+                                        </div>
                                     </CollapsibleContent>
                                 </Collapsible>
                             </div>
 
-                            <div className="border-t">
-                                <div className="flex flex-col px-8 py-6 space-y-2">
-                                    <Label className="text-xs font-medium text-gray-500">Brand</Label>
-                                    <Input
-                                        className="h-10 max-w-sm"
-                                        placeholder=""
-                                    />
-                                </div>
-                            </div>
+
 
                             <div className="border-t">
                                 <Collapsible open={unitsOpen} onOpenChange={setUnitsOpen}>
                                     <CollapsibleTrigger asChild>
-                                        <div className="flex h-12 cursor-pointer items-center justify-between px-8 hover:bg-gray-50">
-                                            <span className="text-sm font-medium text-gray-700 uppercase tracking-wider">Units of Measure</span>
-                                            <ChevronDown className={cn("h-4 w-4 text-gray-400 transition-transform", unitsOpen && "rotate-180")} />
+                                        <div className="flex h-12 cursor-pointer items-center px-8 hover:bg-gray-50">
+                                            <span className="text-sm font-semibold text-gray-900">Units of Measure</span>
+                                            <ChevronDown className={cn("ml-1 h-4 w-4 text-gray-400 transition-transform", unitsOpen && "rotate-180")} />
                                         </div>
                                     </CollapsibleTrigger>
                                     <CollapsibleContent className="px-8 pb-8 pt-4">
