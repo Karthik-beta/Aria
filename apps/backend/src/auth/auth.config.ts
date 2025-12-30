@@ -1,29 +1,10 @@
 import { betterAuth } from 'better-auth';
 import { prismaAdapter } from 'better-auth/adapters/prisma';
 import { customSession, username } from 'better-auth/plugins';
-import { PrismaClient } from '../generated/prisma/client.js';
-import { PrismaPg } from '@prisma/adapter-pg';
+import { prismaClient } from '../shared/prisma-client.js';
 
-// Create the PostgreSQL adapter as required by Prisma 7
-const connectionString = process.env.DATABASE_URL;
-if (!connectionString) {
-  throw new Error('DATABASE_URL environment variable is not set');
-}
-const adapter = new PrismaPg({ connectionString });
-
-// Global Prisma client instance (singleton pattern)
-const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
-
-const prisma =
-  globalForPrisma.prisma ??
-  new PrismaClient({
-    adapter,
-    log: ['error'],
-  });
-
-if (process.env.NODE_ENV !== 'production') {
-  globalForPrisma.prisma = prisma;
-}
+// Use the shared Prisma client singleton
+const prisma = prismaClient;
 
 // 1. Get the comma-separated string from the .env file
 const frontendUrlsRaw = process.env.FRONTEND_URL || 'http://localhost:3000';

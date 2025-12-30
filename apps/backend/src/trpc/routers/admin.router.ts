@@ -1,8 +1,7 @@
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 import { router, protectedProcedure } from '../trpc';
-import { PrismaClient } from '../../generated/prisma/client.js';
-import { PrismaPg } from '@prisma/adapter-pg';
+import { prismaClient } from '../../shared/prisma-client.js';
 import { auth } from '../../auth/auth.config';
 import {
   RoleService,
@@ -13,9 +12,8 @@ import { ScopeService } from '../../authorization/scope.service';
 import { AuditService } from '../../authorization/audit.service';
 import { generateTemporaryPassword } from '../../auth/password.util';
 
-// Initialize services with driver adapter as required by Prisma 7
-const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! });
-const prisma = new PrismaClient({ adapter });
+// Initialize services using the shared Prisma client
+const prisma = prismaClient;
 const roleService = new RoleService(prisma);
 const permissionService = new PermissionService(prisma);
 const scopeService = new ScopeService(prisma);

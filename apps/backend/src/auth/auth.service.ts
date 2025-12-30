@@ -1,28 +1,6 @@
 import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
-import { PrismaClient } from '../generated/prisma/client.js';
-import { PrismaPg } from '@prisma/adapter-pg';
+import { prismaClient } from '../shared/prisma-client.js';
 import { auth } from './auth.config';
-
-// Create the PostgreSQL adapter as required by Prisma 7
-const connectionString = process.env.DATABASE_URL;
-if (!connectionString) {
-  throw new Error('DATABASE_URL environment variable is not set');
-}
-const adapter = new PrismaPg({ connectionString });
-
-// Import the singleton Prisma client
-const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
-
-const prisma =
-  globalForPrisma.prisma ??
-  new PrismaClient({
-    adapter,
-    log: ['error'],
-  });
-
-if (process.env.NODE_ENV !== 'production') {
-  globalForPrisma.prisma = prisma;
-}
 
 /**
  * Authentication service for managing users and default account creation
@@ -33,7 +11,7 @@ if (process.env.NODE_ENV !== 'production') {
 @Injectable()
 export class AuthService implements OnModuleInit {
   private readonly logger = new Logger(AuthService.name);
-  private readonly prisma = prisma;
+  private readonly prisma = prismaClient;
 
   async onModuleInit() {
     // Create default user in both development and production for testing
@@ -429,13 +407,5 @@ export class AuthService implements OnModuleInit {
     this.logger.log(
       `[Seed] ✅ super_admin role assigned to ${email} (userRoleId: ${userRole.id})`,
     );
-  }
-
-  async onModuleDestroy() {
-    try {
-      await this.prisma.$disconnect();
-    } catch (error) {
-      this.logger.error('Error disconnecting from database:', error);
-    }
   }
 }
