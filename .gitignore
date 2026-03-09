@@ -14,6 +14,10 @@ node_modules/
 dist/
 build/
 .next/
+out/
+**/dist-types/
+**/.next/
+**/out/
 *.tsbuildinfo
 tsbuildinfo.json
 tsbuild/

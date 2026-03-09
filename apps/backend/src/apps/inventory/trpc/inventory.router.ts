@@ -1,190 +1,296 @@
-import { Injectable } from '@nestjs/common';
-import { Inventory } from '@aria/types';
-import { publicProcedure, router } from '../../../trpc/trpc';
-import { InventoryService } from '../inventory.service';
-import { z } from 'zod';
-import { EventEmitter } from 'events';
-import { observable } from '@trpc/server/observable';
+import { EventEmitter } from "node:events";
+import { Inventory } from "@aria/types";
+import { Injectable } from "@nestjs/common";
+import type {
+	TRPCBuiltRouter,
+	TRPCDecorateCreateRouterOptions,
+	TRPCSubscriptionProcedure,
+} from "@trpc/server";
+import { observable } from "@trpc/server/observable";
+import { z } from "zod";
+import type { accountRouter } from "../../../trpc/routers/account.router";
+import { publicProcedure, router } from "../../../trpc/trpc";
+import type { InventoryService } from "../inventory.service";
 
 // Global event emitter for real-time subscriptions
 const inventoryEvents = new EventEmitter();
 
+type ItemGroupsChangedEvent = {
+	type: "created" | "updated" | "deleted";
+	data: Inventory.ItemGroup | { id: string };
+};
+
+type ItemsChangedEvent = {
+	type: "created" | "updated" | "deleted";
+	data: Inventory.Item | { id: string };
+};
+
+type ItemGroupsChangedProcedure = TRPCSubscriptionProcedure<{
+	input: void;
+	output: ItemGroupsChangedEvent;
+	meta: unknown;
+}>;
+
+type ItemCreatedProcedure = TRPCSubscriptionProcedure<{
+	input: void;
+	output: Inventory.Item;
+	meta: unknown;
+}>;
+
+type ItemUpdatedProcedure = TRPCSubscriptionProcedure<{
+	input: void;
+	output: Inventory.Item;
+	meta: unknown;
+}>;
+
+type ItemDeletedProcedure = TRPCSubscriptionProcedure<{
+	input: void;
+	output: { id: string };
+	meta: unknown;
+}>;
+
+type ItemsChangedProcedure = TRPCSubscriptionProcedure<{
+	input: void;
+	output: ItemsChangedEvent;
+	meta: unknown;
+}>;
+
+function createListItemsProcedure(inventoryService: InventoryService) {
+	return publicProcedure.query(async () => {
+		return inventoryService.findAll();
+	});
+}
+
+function createListItemGroupsProcedure(inventoryService: InventoryService) {
+	return publicProcedure
+		.input(z.object({ search: z.string().optional() }).optional())
+		.query(async ({ input }) => {
+			return inventoryService.findAllItemGroups(input?.search);
+		});
+}
+
+function createListUnitsOfMeasureProcedure(inventoryService: InventoryService) {
+	return publicProcedure
+		.input(z.object({ search: z.string().optional() }).optional())
+		.query(async ({ input }) => {
+			return inventoryService.findAllUnitsOfMeasure(input?.search);
+		});
+}
+
+function createCreateItemProcedure(inventoryService: InventoryService) {
+	return publicProcedure
+		.input(Inventory.createSchema)
+		.mutation(async ({ input }) => {
+			const item = await inventoryService.create(input);
+			void inventoryEvents.emit("itemCreated", item);
+			return item;
+		});
+}
+
+function createUpdateItemProcedure(inventoryService: InventoryService) {
+	return publicProcedure
+		.input(Inventory.updateSchema)
+		.mutation(async ({ input }) => {
+			const item = await inventoryService.update(input);
+			void inventoryEvents.emit("itemUpdated", item);
+			return item;
+		});
+}
+
+function createDeleteItemProcedure(inventoryService: InventoryService) {
+	return publicProcedure
+		.input(z.object({ id: z.string().min(1) }))
+		.mutation(async ({ input }) => {
+			await inventoryService.delete(input.id);
+			inventoryEvents.emit("itemDeleted", { id: input.id });
+			return { success: true, id: input.id };
+		});
+}
+
+function createCreateItemGroupProcedure(inventoryService: InventoryService) {
+	return publicProcedure
+		.input(Inventory.createGroupSchema)
+		.mutation(async ({ input }) => {
+			const group = await inventoryService.createGroup(input);
+			inventoryEvents.emit("itemGroupCreated", group);
+			return group;
+		});
+}
+
+function createUpdateItemGroupProcedure(inventoryService: InventoryService) {
+	return publicProcedure
+		.input(Inventory.updateGroupSchema)
+		.mutation(async ({ input }) => {
+			const group = await inventoryService.updateGroup(input);
+			inventoryEvents.emit("itemGroupUpdated", group);
+			return group;
+		});
+}
+
+function createDeleteItemGroupProcedure(inventoryService: InventoryService) {
+	return publicProcedure
+		.input(z.object({ id: z.string().min(1) }))
+		.mutation(async ({ input }) => {
+			const result = await inventoryService.deleteGroup(input.id);
+			inventoryEvents.emit("itemGroupDeleted", { id: input.id });
+			return result;
+		});
+}
+
+const onItemGroupsChangedProcedure: ItemGroupsChangedProcedure =
+	publicProcedure.subscription(() => {
+		return observable<ItemGroupsChangedEvent>((emit) => {
+			const onCreated = (data: Inventory.ItemGroup) => {
+				emit.next({ type: "created", data });
+			};
+			const onUpdated = (data: Inventory.ItemGroup) => {
+				emit.next({ type: "updated", data });
+			};
+			const onDeleted = (data: { id: string }) => {
+				emit.next({ type: "deleted", data });
+			};
+
+			inventoryEvents.on("itemGroupCreated", onCreated);
+			inventoryEvents.on("itemGroupUpdated", onUpdated);
+			inventoryEvents.on("itemGroupDeleted", onDeleted);
+
+			return () => {
+				inventoryEvents.off("itemGroupCreated", onCreated);
+				inventoryEvents.off("itemGroupUpdated", onUpdated);
+				inventoryEvents.off("itemGroupDeleted", onDeleted);
+			};
+		});
+	});
+
+const onItemCreatedProcedure: ItemCreatedProcedure =
+	publicProcedure.subscription(() => {
+		return observable<Inventory.Item>((emit) => {
+			const onCreated = (data: Inventory.Item) => {
+				emit.next(data);
+			};
+
+			inventoryEvents.on("itemCreated", onCreated);
+
+			return () => {
+				inventoryEvents.off("itemCreated", onCreated);
+			};
+		});
+	});
+
+const onItemUpdatedProcedure: ItemUpdatedProcedure =
+	publicProcedure.subscription(() => {
+		return observable<Inventory.Item>((emit) => {
+			const onUpdated = (data: Inventory.Item) => {
+				emit.next(data);
+			};
+
+			inventoryEvents.on("itemUpdated", onUpdated);
+
+			return () => {
+				inventoryEvents.off("itemUpdated", onUpdated);
+			};
+		});
+	});
+
+const onItemDeletedProcedure: ItemDeletedProcedure =
+	publicProcedure.subscription(() => {
+		return observable<{ id: string }>((emit) => {
+			const onDeleted = (data: { id: string }) => {
+				emit.next(data);
+			};
+
+			inventoryEvents.on("itemDeleted", onDeleted);
+
+			return () => {
+				inventoryEvents.off("itemDeleted", onDeleted);
+			};
+		});
+	});
+
+const onItemsChangedProcedure: ItemsChangedProcedure =
+	publicProcedure.subscription(() => {
+		return observable<ItemsChangedEvent>((emit) => {
+			const onCreated = (data: Inventory.Item) => {
+				emit.next({ type: "created", data });
+			};
+
+			const onUpdated = (data: Inventory.Item) => {
+				emit.next({ type: "updated", data });
+			};
+
+			const onDeleted = (data: { id: string }) => {
+				emit.next({ type: "deleted", data });
+			};
+
+			inventoryEvents.on("itemCreated", onCreated);
+			inventoryEvents.on("itemUpdated", onUpdated);
+			inventoryEvents.on("itemDeleted", onDeleted);
+
+			return () => {
+				inventoryEvents.off("itemCreated", onCreated);
+				inventoryEvents.off("itemUpdated", onUpdated);
+				inventoryEvents.off("itemDeleted", onDeleted);
+			};
+		});
+	});
+
+type InventoryRouterInput = {
+	listItems: ReturnType<typeof createListItemsProcedure>;
+	listItemGroups: ReturnType<typeof createListItemGroupsProcedure>;
+	listUnitsOfMeasure: ReturnType<typeof createListUnitsOfMeasureProcedure>;
+	createItem: ReturnType<typeof createCreateItemProcedure>;
+	updateItem: ReturnType<typeof createUpdateItemProcedure>;
+	deleteItem: ReturnType<typeof createDeleteItemProcedure>;
+	createItemGroup: ReturnType<typeof createCreateItemGroupProcedure>;
+	updateItemGroup: ReturnType<typeof createUpdateItemGroupProcedure>;
+	deleteItemGroup: ReturnType<typeof createDeleteItemGroupProcedure>;
+	onItemGroupsChanged: typeof onItemGroupsChangedProcedure;
+	onItemCreated: typeof onItemCreatedProcedure;
+	onItemUpdated: typeof onItemUpdatedProcedure;
+	onItemDeleted: typeof onItemDeletedProcedure;
+	onItemsChanged: typeof onItemsChangedProcedure;
+};
+
+type InventoryRouterRoot = (typeof accountRouter)["_def"]["_config"]["$types"];
+type InventoryRouterRecord =
+	TRPCDecorateCreateRouterOptions<InventoryRouterInput>;
+type InventoryAppRouter = TRPCBuiltRouter<
+	InventoryRouterRoot,
+	InventoryRouterRecord
+>;
+
+function createInventoryRouterRecord(
+	inventoryService: InventoryService,
+): InventoryRouterInput {
+	return {
+		listItems: createListItemsProcedure(inventoryService),
+		listItemGroups: createListItemGroupsProcedure(inventoryService),
+		listUnitsOfMeasure: createListUnitsOfMeasureProcedure(inventoryService),
+		createItem: createCreateItemProcedure(inventoryService),
+		updateItem: createUpdateItemProcedure(inventoryService),
+		deleteItem: createDeleteItemProcedure(inventoryService),
+		createItemGroup: createCreateItemGroupProcedure(inventoryService),
+		updateItemGroup: createUpdateItemGroupProcedure(inventoryService),
+		deleteItemGroup: createDeleteItemGroupProcedure(inventoryService),
+		onItemGroupsChanged: onItemGroupsChangedProcedure,
+		onItemCreated: onItemCreatedProcedure,
+		onItemUpdated: onItemUpdatedProcedure,
+		onItemDeleted: onItemDeletedProcedure,
+		onItemsChanged: onItemsChangedProcedure,
+	};
+}
+
+function buildInventoryRouter(
+	inventoryService: InventoryService,
+): InventoryAppRouter {
+	return router(createInventoryRouterRecord(inventoryService));
+}
+
 @Injectable()
 export class InventoryRouter {
-  constructor(private readonly inventoryService: InventoryService) {}
+	constructor(private readonly inventoryService: InventoryService) {}
 
-  getRouter() {
-    return router({
-      listItems: publicProcedure.query(async () => {
-        return this.inventoryService.findAll();
-      }),
-
-      listItemGroups: publicProcedure
-        .input(z.object({ search: z.string().optional() }).optional())
-        .query(async ({ input }) => {
-          return this.inventoryService.findAllItemGroups(input?.search);
-        }),
-
-      listUnitsOfMeasure: publicProcedure
-        .input(z.object({ search: z.string().optional() }).optional())
-        .query(async ({ input }) => {
-          return this.inventoryService.findAllUnitsOfMeasure(input?.search);
-        }),
-
-      createItem: publicProcedure
-        .input(Inventory.createSchema)
-        .mutation(async ({ input }) => {
-          const item = await this.inventoryService.create(input);
-          // Emit event for real-time subscriptions
-          void inventoryEvents.emit('itemCreated', item);
-          return item;
-        }),
-
-      updateItem: publicProcedure
-        .input(Inventory.updateSchema)
-        .mutation(async ({ input }) => {
-          const item = await this.inventoryService.update(input);
-          // Emit event for real-time subscriptions
-          void inventoryEvents.emit('itemUpdated', item);
-          return item;
-        }),
-
-      deleteItem: publicProcedure
-        .input(z.object({ id: z.string().min(1) }))
-        .mutation(async ({ input }) => {
-          await this.inventoryService.delete(input.id);
-          // Emit event for real-time subscriptions
-          inventoryEvents.emit('itemDeleted', { id: input.id });
-          return { success: true, id: input.id };
-        }),
-
-      createItemGroup: publicProcedure
-        .input(Inventory.createGroupSchema)
-        .mutation(async ({ input }) => {
-          const group = await this.inventoryService.createGroup(input);
-          inventoryEvents.emit('itemGroupCreated', group);
-          return group;
-        }),
-
-      updateItemGroup: publicProcedure
-        .input(Inventory.updateGroupSchema)
-        .mutation(async ({ input }) => {
-          const group = await this.inventoryService.updateGroup(input);
-          inventoryEvents.emit('itemGroupUpdated', group);
-          return group;
-        }),
-
-      deleteItemGroup: publicProcedure
-        .input(z.object({ id: z.string().min(1) }))
-        .mutation(async ({ input }) => {
-          const result = await this.inventoryService.deleteGroup(input.id);
-          inventoryEvents.emit('itemGroupDeleted', { id: input.id });
-          return result;
-        }),
-
-      // Subscription: Listen for item group changes
-      onItemGroupsChanged: publicProcedure.subscription(() => {
-        return observable<{
-          type: 'created' | 'updated' | 'deleted';
-          data: Inventory.ItemGroup | { id: string };
-        }>((emit) => {
-          const onCreated = (data: Inventory.ItemGroup) => {
-            emit.next({ type: 'created', data });
-          };
-          const onUpdated = (data: Inventory.ItemGroup) => {
-            emit.next({ type: 'updated', data });
-          };
-          const onDeleted = (data: { id: string }) => {
-            emit.next({ type: 'deleted', data });
-          };
-
-          inventoryEvents.on('itemGroupCreated', onCreated);
-          inventoryEvents.on('itemGroupUpdated', onUpdated);
-          inventoryEvents.on('itemGroupDeleted', onDeleted);
-
-          return () => {
-            inventoryEvents.off('itemGroupCreated', onCreated);
-            inventoryEvents.off('itemGroupUpdated', onUpdated);
-            inventoryEvents.off('itemGroupDeleted', onDeleted);
-          };
-        });
-      }),
-
-      // Subscription: Listen for item creation
-      onItemCreated: publicProcedure.subscription(() => {
-        return observable<Inventory.Item>((emit) => {
-          const onCreated = (data: Inventory.Item) => {
-            emit.next(data);
-          };
-
-          inventoryEvents.on('itemCreated', onCreated);
-
-          // Cleanup on unsubscribe
-          return () => {
-            inventoryEvents.off('itemCreated', onCreated);
-          };
-        });
-      }),
-
-      // Subscription: Listen for item updates
-      onItemUpdated: publicProcedure.subscription(() => {
-        return observable<Inventory.Item>((emit) => {
-          const onUpdated = (data: Inventory.Item) => {
-            emit.next(data);
-          };
-
-          inventoryEvents.on('itemUpdated', onUpdated);
-
-          return () => {
-            inventoryEvents.off('itemUpdated', onUpdated);
-          };
-        });
-      }),
-
-      // Subscription: Listen for item deletion
-      onItemDeleted: publicProcedure.subscription(() => {
-        return observable<{ id: string }>((emit) => {
-          const onDeleted = (data: { id: string }) => {
-            emit.next(data);
-          };
-
-          inventoryEvents.on('itemDeleted', onDeleted);
-
-          return () => {
-            inventoryEvents.off('itemDeleted', onDeleted);
-          };
-        });
-      }),
-
-      // Combined subscription for all CRUD events
-      onItemsChanged: publicProcedure.subscription(() => {
-        return observable<{
-          type: 'created' | 'updated' | 'deleted';
-          data: Inventory.Item | { id: string };
-        }>((emit) => {
-          const onCreated = (data: Inventory.Item) => {
-            emit.next({ type: 'created', data });
-          };
-
-          const onUpdated = (data: Inventory.Item) => {
-            emit.next({ type: 'updated', data });
-          };
-
-          const onDeleted = (data: { id: string }) => {
-            emit.next({ type: 'deleted', data });
-          };
-
-          inventoryEvents.on('itemCreated', onCreated);
-          inventoryEvents.on('itemUpdated', onUpdated);
-          inventoryEvents.on('itemDeleted', onDeleted);
-
-          return () => {
-            inventoryEvents.off('itemCreated', onCreated);
-            inventoryEvents.off('itemUpdated', onUpdated);
-            inventoryEvents.off('itemDeleted', onDeleted);
-          };
-        });
-      }),
-    });
-  }
+	getRouter(): InventoryAppRouter {
+		return buildInventoryRouter(this.inventoryService);
+	}
 }

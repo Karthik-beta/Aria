@@ -1,29 +1,29 @@
 {
-  "name": "@aria/types",
-  "version": "0.1.0",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "default": "./dist/index.js"
-    },
-    "./src/*": "./src/*"
-  },
-  "scripts": {
-    "build": "tsc --build",
-    "watch": "tsc --build --watch",
-    "check-types": "tsc --noEmit",
-    "clean": "rimraf .turbo dist *.tsbuildinfo"
-  },
-  "dependencies": {
-    "zod": "^4.1.12"
-  },
-  "devDependencies": {
-    "@aria/eslint-config": "workspace:*",
-    "@aria/tsconfig": "workspace:*",
-    "eslint": "^9.18.2",
-    "rimraf": "^6.0.1",
-    "typescript": "^5.9.3"
-  }
+	"name": "@aria/types",
+	"version": "0.1.0",
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"default": "./dist/index.js"
+		}
+	},
+	"scripts": {
+		"build": "tsc --build",
+		"watch": "tsc --build --watch",
+		"typecheck": "tsc --noEmit --pretty false",
+		"lint": "biome check .",
+		"lint:fix": "biome check --write .",
+		"format": "biome format --write .",
+		"clean": "rimraf .turbo dist *.tsbuildinfo"
+	},
+	"dependencies": {
+		"zod": "^4.3.6"
+	},
+	"devDependencies": {
+		"@aria/tsconfig": "workspace:*",
+		"rimraf": "^6.0.1",
+		"typescript": "^5.9.3"
+	}
 }

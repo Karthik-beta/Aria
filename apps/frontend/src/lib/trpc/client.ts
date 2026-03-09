@@ -1,8 +1,7 @@
-'use client';
+"use client";
 
-import { createTRPCReact } from '@trpc/react-query';
-// Import from source instead of dist for development
-import type { AppRouter } from '../../../../../apps/backend/src/trpc/trpc.service';
+import type { AppRouter } from "@aria/api-contract";
+import { createTRPCReact } from "@trpc/react-query";
 
 /**
  * Create tRPC React hooks

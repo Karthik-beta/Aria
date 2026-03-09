@@ -18,19 +18,21 @@
  * ```
  */
 
-// Types
-export type { UserFriendlyError, ErrorSeverity, ErrorCategory } from './types';
-
-export { HTTP_ERROR_CATEGORIES, DEFAULT_ERROR_MESSAGES, OPERATION_ERROR_MESSAGES } from './types';
-
 // Parser utilities
 export {
-  parseError,
-  getToastMessage,
-  getDetailedError,
-  isTechnicalError,
-  detectErrorCategory,
-  extractErrorMessage,
-  getErrorSeverity,
-  isRetryableError,
-} from './parser';
+	detectErrorCategory,
+	extractErrorMessage,
+	getDetailedError,
+	getErrorSeverity,
+	getToastMessage,
+	isRetryableError,
+	isTechnicalError,
+	parseError,
+} from "./parser";
+// Types
+export type { ErrorCategory, ErrorSeverity, UserFriendlyError } from "./types";
+export {
+	DEFAULT_ERROR_MESSAGES,
+	HTTP_ERROR_CATEGORIES,
+	OPERATION_ERROR_MESSAGES,
+} from "./types";

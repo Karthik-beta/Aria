@@ -1,51 +1,55 @@
-import { KBarResults, useMatches } from 'kbar';
-import ResultItem from './result-item';
+import { KBarResults, useMatches } from "kbar";
+import ResultItem from "./result-item";
 
 export default function RenderResults() {
-  const { results, rootActionId } = useMatches();
+	const { results, rootActionId } = useMatches();
 
-  // Separate results into Quick Access (with shortcuts) and General (without shortcuts)
-  const quickAccessResults: typeof results = [];
-  const generalResults: typeof results = [];
+	// Separate results into Quick Access (with shortcuts) and General (without shortcuts)
+	const quickAccessResults: typeof results = [];
+	const generalResults: typeof results = [];
 
-  results.forEach((item) => {
-    if (typeof item === 'string') {
-      // Skip string items (section headers from original data)
-      return;
-    }
-    // Check if item has a shortcut property
-    if ('shortcut' in item && item.shortcut && item.shortcut.length > 0) {
-      quickAccessResults.push(item);
-    } else {
-      generalResults.push(item);
-    }
-  });
+	results.forEach((item) => {
+		if (typeof item === "string") {
+			// Skip string items (section headers from original data)
+			return;
+		}
+		// Check if item has a shortcut property
+		if ("shortcut" in item && item.shortcut && item.shortcut.length > 0) {
+			quickAccessResults.push(item);
+		} else {
+			generalResults.push(item);
+		}
+	});
 
-  // Combine with section headers
-  const organizedResults: typeof results = [];
+	// Combine with section headers
+	const organizedResults: typeof results = [];
 
-  if (quickAccessResults.length > 0) {
-    organizedResults.push('Quick Access');
-    organizedResults.push(...quickAccessResults);
-  }
+	if (quickAccessResults.length > 0) {
+		organizedResults.push("Quick Access");
+		organizedResults.push(...quickAccessResults);
+	}
 
-  if (generalResults.length > 0) {
-    organizedResults.push('General');
-    organizedResults.push(...generalResults);
-  }
+	if (generalResults.length > 0) {
+		organizedResults.push("General");
+		organizedResults.push(...generalResults);
+	}
 
-  return (
-    <KBarResults
-      items={organizedResults}
-      onRender={({ item, active }) =>
-        typeof item === 'string' ? (
-          <div className="text-secondary-foreground px-4 py-2 text-sm font-semibold uppercase">
-            {item}
-          </div>
-        ) : (
-          <ResultItem action={item} active={active} currentRootActionId={rootActionId ?? ''} />
-        )
-      }
-    />
-  );
+	return (
+		<KBarResults
+			items={organizedResults}
+			onRender={({ item, active }) =>
+				typeof item === "string" ? (
+					<div className="text-secondary-foreground px-4 py-2 text-sm font-semibold uppercase">
+						{item}
+					</div>
+				) : (
+					<ResultItem
+						action={item}
+						active={active}
+						currentRootActionId={rootActionId ?? ""}
+					/>
+				)
+			}
+		/>
+	);
 }

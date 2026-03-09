@@ -1,50 +1,105 @@
 {
-  "$schema": "https://turborepo.com/schema.json",
-  "globalDependencies": [],
-  "globalEnv": ["BACKEND_URL", "NEXT_PUBLIC_API_URL", "NODE_ENV"],
-  "tasks": {
-    "clean": {
-      "cache": false
-    },
-    "build": {
-      "dependsOn": ["^build"],
-      "outputs": ["dist/**", "build/**", ".next/**", "!.next/cache/**"],
-      "cache": true
-    },
-    "check-types": {
-      "dependsOn": ["^check-types"],
-      "outputs": [],
-      "cache": true
-    },
-    "dev": {
-      "persistent": true,
-      "cache": false
-    },
-    "db:start": {
-      "persistent": true,
-      "cache": false
-    },
-    "studio": {
-      "persistent": true,
-      "cache": false
-    },
-    "start": {
-      "dependsOn": ["^build"],
-      "persistent": true,
-      "cache": false
-    },
-    "lint": {
-      "dependsOn": ["^lint"],
-      "outputs": []
-    },
-    "test": {
-      "dependsOn": ["^test"],
-      "outputs": []
-    },
-    "package": {
-      "dependsOn": ["build"],
-      "outputs": ["dist/**"],
-      "cache": true
-    }
-  }
+	"$schema": "https://turborepo.com/schema.json",
+	"remoteCache": {
+		"enabled": false
+	},
+	"globalDependencies": [
+		"biome.json",
+		"bun.lock",
+		"package.json",
+		"tsconfig.base.json",
+		"apps/*/tsconfig*.json",
+		"packages/*/tsconfig*.json",
+		"packages/config-typescript/*.json"
+	],
+	"globalEnv": ["BACKEND_URL", "NEXT_PUBLIC_API_URL", "NODE_ENV"],
+	"tasks": {
+		"clean": {
+			"cache": false
+		},
+		"build": {
+			"dependsOn": ["^build"],
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"!README.md",
+				"!docs/**",
+				"!**/*.md",
+				"!**/*.mdx",
+				"!**/lint-output.txt",
+				"!**/temp-*.txt",
+				"!**/*.tsbuildinfo",
+				"!**/coverage/**",
+				"!**/playwright-report/**",
+				"!**/test-results/**",
+				"!**/tmp-typecheck/**"
+			],
+			"outputs": ["dist/**", "build/**", ".next/**", "!.next/cache/**"],
+			"cache": true
+		},
+		"typecheck": {
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"!README.md",
+				"!docs/**",
+				"!**/*.md",
+				"!**/*.mdx",
+				"!**/lint-output.txt",
+				"!**/temp-*.txt",
+				"!**/*.tsbuildinfo",
+				"!**/coverage/**",
+				"!**/playwright-report/**",
+				"!**/test-results/**",
+				"!**/tmp-typecheck/**"
+			],
+			"outputs": [],
+			"cache": true
+		},
+		"dev": {
+			"persistent": true,
+			"cache": false
+		},
+		"db:start": {
+			"persistent": true,
+			"cache": false
+		},
+		"studio": {
+			"persistent": true,
+			"cache": false
+		},
+		"start": {
+			"dependsOn": ["^build"],
+			"persistent": true,
+			"cache": false
+		},
+		"lint": {
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"!README.md",
+				"!docs/**",
+				"!**/*.md",
+				"!**/*.mdx",
+				"!**/lint-output.txt",
+				"!**/temp-*.txt",
+				"!**/*.tsbuildinfo",
+				"!**/coverage/**",
+				"!**/playwright-report/**",
+				"!**/test-results/**",
+				"!**/tmp-typecheck/**"
+			],
+			"outputs": []
+		},
+		"lint:fix": {
+			"dependsOn": ["^lint:fix"],
+			"outputs": []
+		},
+		"test": {
+			"dependsOn": ["^test"],
+			"outputs": []
+		},
+		"package": {
+			"dependsOn": ["build"],
+			"outputs": ["dist/**"],
+			"cache": true
+		}
+	}
 }

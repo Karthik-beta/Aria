@@ -48,11 +48,13 @@ See [Getting Started Guide](./docs/getting-started.md) for detailed instructions
 
 | Command       | Description               |
 | ------------- | ------------------------- |
-| `bun format`  | Format code with Prettier |
-| `bun lint`    | Lint code with ESLint     |
+| `bun format`  | Format code with Biome     |
+| `bun lint`    | Run Biome lint/format checks via Turbo |
 | `bun test`    | Run all tests             |
 | `bun build`   | Build all applications    |
 | `bun package` | Build deployment package  |
+
+> `bun format` and `bun lint` now delegate to Biome (`biome format` / `biome check`) through Turbo, replacing the earlier Prettier + ESLint toolchain.
 
 ## Documentation
 
@@ -78,7 +80,7 @@ See [Getting Started Guide](./docs/getting-started.md) for detailed instructions
 
 - **[@aria/types](./packages/types/README.md)** - Shared TypeScript types
 - **[@aria/utils](./packages/utils/README.md)** - Utility functions
-- **[@aria/eslint-config](./packages/config-eslint/README.md)** - ESLint configuration
+- **[@aria/eslint-config](./packages/config-eslint/README.md)** - Biome-based linting/formatting rules (replacing the legacy ESLint setup)
 - **[@aria/tsconfig](./packages/config-typescript/README.md)** - TypeScript configuration
 
 **Complete documentation**: [docs/README.md](./docs/README.md)

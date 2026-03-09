@@ -1,268 +1,343 @@
+import type { Inventory } from "@aria/types";
 import {
-  Injectable,
-  NotFoundException,
-  ConflictException,
-} from '@nestjs/common';
-import { Prisma } from '../../generated/prisma/client.js';
-import { Inventory } from '@aria/types';
-import { z } from 'zod';
-import { PrismaService } from '../../shared/prisma.service';
-import { toInventoryItem, toInventoryItemGroup } from './inventory.types';
+	ConflictException,
+	Injectable,
+	NotFoundException,
+} from "@nestjs/common";
+import type { z } from "zod";
+import { Prisma } from "../../generated/prisma/client.js";
+import type { PrismaService } from "../../shared/prisma.service";
+import { toInventoryItem, toInventoryItemGroup } from "./inventory.types";
+
+const formatItemGroupDefaults = (defaults?: Inventory.ItemGroupDefault[]) =>
+	defaults?.map(({ company, defaultWarehouse, defaultPriceList }) => ({
+		company,
+		defaultWarehouse,
+		defaultPriceList,
+	}));
+
+const formatBarcodes = (barcodes?: Inventory.ItemBarcode[] | null) =>
+	barcodes?.map(({ barcode, barcodeType, uom }) => ({
+		barcode,
+		barcodeType,
+		uom,
+	}));
+
+type InventoryItemReorderInput = {
+	id?: string | null;
+	warehouse: string;
+	reorderLevel?: number | null;
+	reorderQty?: number | null;
+	materialRequestType?: string | null;
+};
+
+const formatReorderSettings = (items?: InventoryItemReorderInput[] | null) =>
+	items?.map(({ warehouse, reorderLevel, reorderQty, materialRequestType }) => {
+		const entry: {
+			warehouse: string;
+			reorderLevel?: number;
+			reorderQty?: number;
+			materialRequestType?: string | null;
+		} = { warehouse };
+
+		if (typeof reorderLevel === "number") {
+			entry.reorderLevel = reorderLevel;
+		}
+
+		if (typeof reorderQty === "number") {
+			entry.reorderQty = reorderQty;
+		}
+
+		if (materialRequestType !== undefined) {
+			entry.materialRequestType = materialRequestType;
+		}
+
+		return entry;
+	});
+
+const removeUndefined = <T extends Record<string, unknown>>(obj: T) =>
+	Object.fromEntries(
+		Object.entries(obj).filter(([, value]) => value !== undefined),
+	) as Partial<T>;
 
 /**
  * Simple inventory service with type-safe CRUD operations
  */
 @Injectable()
 export class InventoryService {
-  constructor(private readonly prisma: PrismaService) { }
+	constructor(private readonly prisma: PrismaService) {}
 
-  /**
-   * Get all inventory items
-   */
-  async findAll(): Promise<Inventory.Item[]> {
-    const items = await this.prisma.inventoryItem.findMany({
-      orderBy: { createdAt: 'desc' },
-      include: {
-        itemGroup: true,
-      },
-    });
+	/**
+	 * Get all inventory items
+	 */
+	async findAll(): Promise<Inventory.Item[]> {
+		const items = await this.prisma.inventoryItem.findMany({
+			orderBy: { createdAt: "desc" },
+			include: {
+				itemGroup: true,
+				barcodes: true,
+				reorderSettings: true,
+			},
+		});
 
-    return items.map(toInventoryItem);
-  }
+		return items.map(toInventoryItem);
+	}
 
-  /**
-   * Get all item groups with optional search
-   */
-  async findAllItemGroups(search?: string): Promise<Inventory.ItemGroup[]> {
-    const groups = await this.prisma.itemGroup.findMany({
-      where: search
-        ? {
-          groupName: {
-            contains: search,
-            mode: 'insensitive',
-          },
-        }
-        : undefined,
-      include: {
-        parentItemGroup: {
-          select: { groupName: true },
-        },
-        defaults: true,
-      },
-      orderBy: { groupName: 'asc' },
-    });
+	/**
+	 * Get all item groups with optional search
+	 */
+	async findAllItemGroups(search?: string): Promise<Inventory.ItemGroup[]> {
+		const groups = await this.prisma.itemGroup.findMany({
+			where: search
+				? {
+						groupName: {
+							contains: search,
+							mode: "insensitive",
+						},
+					}
+				: undefined,
+			include: {
+				parentItemGroup: {
+					select: { groupName: true },
+				},
+				defaults: true,
+			},
+			orderBy: { groupName: "asc" },
+		});
 
-    return groups.map(toInventoryItemGroup);
-  }
+		return groups.map(toInventoryItemGroup);
+	}
 
-  /**
-   * Get all units of measure
-   */
-  async findAllUnitsOfMeasure(
-    search?: string,
-  ): Promise<Inventory.UnitOfMeasure[]> {
-    return this.prisma.unitOfMeasurement.findMany({
-      where: search
-        ? {
-          name: {
-            contains: search,
-            mode: 'insensitive',
-          },
-        }
-        : undefined,
-      orderBy: { name: 'asc' },
-    });
-  }
+	/**
+	 * Get all units of measure
+	 */
+	async findAllUnitsOfMeasure(
+		search?: string,
+	): Promise<Inventory.UnitOfMeasure[]> {
+		return this.prisma.unitOfMeasurement.findMany({
+			where: search
+				? {
+						name: {
+							contains: search,
+							mode: "insensitive",
+						},
+					}
+				: undefined,
+			orderBy: { name: "asc" },
+		});
+	}
 
-  /**
-   * Create a new item group
-   */
-  async createGroup(data: any): Promise<Inventory.ItemGroup> {
-    const created = await this.prisma.itemGroup.create({
-      data: {
-        groupName: data.groupName,
-        parentId: data.parentId,
-        isGroup: data.isGroup,
-        defaults: data.defaults
-          ? {
-            create: data.defaults.map((d: any) => ({
-              company: d.company,
-              defaultWarehouse: d.defaultWarehouse,
-              defaultPriceList: d.defaultPriceList,
-            })),
-          }
-          : undefined,
-      },
-      include: {
-        parentItemGroup: {
-          select: { groupName: true },
-        },
-        defaults: true,
-      },
-    });
+	/**
+	 * Create a new item group
+	 */
+	async createGroup(
+		data: Inventory.CreateGroupInput,
+	): Promise<Inventory.ItemGroup> {
+		const defaultsPayload = formatItemGroupDefaults(data.defaults);
 
-    return toInventoryItemGroup(created as any);
-  }
+		const created = await this.prisma.itemGroup.create({
+			data: {
+				groupName: data.groupName,
+				parentId: data.parentId,
+				isGroup: data.isGroup,
+				defaults: defaultsPayload ? { create: defaultsPayload } : undefined,
+			},
+			include: {
+				parentItemGroup: {
+					select: { groupName: true },
+				},
+				defaults: true,
+			},
+		});
 
-  /**
-   * Update an item group
-   */
-  async updateGroup(data: any): Promise<Inventory.ItemGroup> {
-    const { defaults, ...rest } = data;
+		return toInventoryItemGroup(created);
+	}
 
-    const updated = await this.prisma.itemGroup.update({
-      where: { id: data.id },
-      data: {
-        ...(rest.groupName !== undefined && { groupName: rest.groupName }),
-        ...(rest.parentId !== undefined && { parentId: rest.parentId }),
-        ...(rest.isGroup !== undefined && { isGroup: rest.isGroup }),
-        ...(defaults !== undefined && {
-          defaults: {
-            deleteMany: {},
-            create: defaults.map((d: any) => ({
-              company: d.company,
-              defaultWarehouse: d.defaultWarehouse,
-              defaultPriceList: d.defaultPriceList,
-            })),
-          },
-        }),
-      },
-      include: {
-        parentItemGroup: {
-          select: { groupName: true },
-        },
-        defaults: true,
-      },
-    });
+	/**
+	 * Update an item group
+	 */
+	async updateGroup(
+		data: Inventory.UpdateGroupInput,
+	): Promise<Inventory.ItemGroup> {
+		const { defaults, ...rest } = data;
+		const defaultsPayload = formatItemGroupDefaults(defaults);
 
-    return toInventoryItemGroup(updated as any);
-  }
+		const updated = await this.prisma.itemGroup.update({
+			where: { id: data.id },
+			data: {
+				...(rest.groupName !== undefined && { groupName: rest.groupName }),
+				...(rest.parentId !== undefined && { parentId: rest.parentId }),
+				...(rest.isGroup !== undefined && { isGroup: rest.isGroup }),
+				...(defaultsPayload !== undefined && {
+					defaults: {
+						deleteMany: {},
+						create: defaultsPayload,
+					},
+				}),
+			},
+			include: {
+				parentItemGroup: {
+					select: { groupName: true },
+				},
+				defaults: true,
+			},
+		});
 
-  /**
-   * Delete an item group
-   */
-  async deleteGroup(id: string): Promise<{ success: boolean; id: string }> {
-    await this.prisma.itemGroup.delete({
-      where: { id },
-    });
-    return { success: true, id };
-  }
+		return toInventoryItemGroup(updated);
+	}
 
-  /**
-   * Create a new inventory item
-   */
-  async create(
-    data: z.infer<typeof Inventory.createSchema>,
-  ): Promise<Inventory.Item> {
-    try {
-      const created = await this.prisma.inventoryItem.create({
-        data,
-        include: {
-          itemGroup: true,
-        },
-      });
+	/**
+	 * Delete an item group
+	 */
+	async deleteGroup(id: string): Promise<{ success: boolean; id: string }> {
+		await this.prisma.itemGroup.delete({
+			where: { id },
+		});
+		return { success: true, id };
+	}
 
-      return toInventoryItem(created);
-    } catch (error) {
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === 'P2002'
-      ) {
-        throw new ConflictException(
-          `Item with code ${data.code} already exists`,
-        );
-      }
-      throw error;
-    }
-  }
+	/**
+	 * Create a new inventory item
+	 */
+	async create(
+		data: z.infer<typeof Inventory.createSchema>,
+	): Promise<Inventory.Item> {
+		try {
+			const { barcodes, reorderSettings, ...rest } = data;
+			const sanitizedRest = removeUndefined(rest) as typeof rest;
+			const { itemGroupId, defaultUnitOfMeasureId, ...prismaFields } =
+				sanitizedRest;
+			const createRelationPayload = {
+				...(itemGroupId ? { itemGroup: { connect: { id: itemGroupId } } } : {}),
+				...(defaultUnitOfMeasureId
+					? {
+							defaultUnitOfMeasure: {
+								connect: { id: defaultUnitOfMeasureId },
+							},
+						}
+					: {}),
+			};
 
-  /**
-   * Update an existing inventory item
-   */
-  async update(
-    data: z.infer<typeof Inventory.updateSchema>,
-  ): Promise<Inventory.Item> {
-    const {
-      id,
-      name,
-      code,
-      quantity,
-      description,
-      disabled,
-      maintainStock,
-      allowAlternateItem,
-      hasVariants,
-      openingStock,
-      valuationRate,
-      standardSellingRate,
-      isZeroRated,
-      isExempt,
-      isFixedAsset,
-      taxCode,
-      itemGroupId,
-      defaultUnitOfMeasureId,
-    } = data;
+			const created = await this.prisma.inventoryItem.create({
+				data: {
+					...prismaFields,
+					...createRelationPayload,
+					barcodes: barcodes
+						? {
+								create: formatBarcodes(barcodes),
+							}
+						: undefined,
+					reorderSettings: reorderSettings
+						? {
+								create: formatReorderSettings(reorderSettings),
+							}
+						: undefined,
+				},
+				include: {
+					itemGroup: true,
+					barcodes: true,
+					reorderSettings: true,
+				},
+			});
 
-    // Check if item exists
-    const existing = await this.prisma.inventoryItem.findUnique({
-      where: { id },
-    });
+			return toInventoryItem(created);
+		} catch (error) {
+			if (
+				error instanceof Prisma.PrismaClientKnownRequestError &&
+				error.code === "P2002"
+			) {
+				throw new ConflictException(
+					`Item with code ${data.code} already exists`,
+				);
+			}
+			throw error;
+		}
+	}
 
-    if (!existing) {
-      throw new NotFoundException(`Item with ID ${id} not found`);
-    }
+	/**
+	 * Update an existing inventory item
+	 */
+	async update(
+		data: z.infer<typeof Inventory.updateSchema>,
+	): Promise<Inventory.Item> {
+		const { id, barcodes, reorderSettings, ...rest } = data;
+		const sanitizedRest = removeUndefined(rest) as typeof rest;
+		const { itemGroupId, defaultUnitOfMeasureId, ...prismaFields } =
+			sanitizedRest;
+		const updateRelationPayload = {
+			...(itemGroupId ? { itemGroup: { connect: { id: itemGroupId } } } : {}),
+			...(defaultUnitOfMeasureId
+				? {
+						defaultUnitOfMeasure: {
+							connect: { id: defaultUnitOfMeasureId },
+						},
+					}
+				: {}),
+		};
 
-    // Update the item
-    const updated = await this.prisma.inventoryItem.update({
-      where: { id },
-      data: {
-        ...(name !== undefined && { name }),
-        ...(code !== undefined && { code }),
-        ...(quantity !== undefined && { quantity }),
-        ...(description !== undefined && { description }),
-        ...(disabled !== undefined && { disabled }),
-        ...(maintainStock !== undefined && { maintainStock }),
-        ...(allowAlternateItem !== undefined && { allowAlternateItem }),
-        ...(hasVariants !== undefined && { hasVariants }),
-        ...(openingStock !== undefined && { openingStock }),
-        ...(valuationRate !== undefined && { valuationRate }),
-        ...(standardSellingRate !== undefined && { standardSellingRate }),
-        ...(isZeroRated !== undefined && { isZeroRated }),
-        ...(isExempt !== undefined && { isExempt }),
-        ...(isFixedAsset !== undefined && { isFixedAsset }),
-        ...(taxCode !== undefined && { taxCode }),
-        ...(itemGroupId !== undefined && { itemGroupId }),
-        ...(defaultUnitOfMeasureId !== undefined && { defaultUnitOfMeasureId }),
-      },
-      include: {
-        itemGroup: true,
-      },
-    });
+		// Check if item exists
+		const existing = await this.prisma.inventoryItem.findUnique({
+			where: { id },
+		});
 
-    return toInventoryItem(updated);
-  }
+		if (!existing) {
+			throw new NotFoundException(`Item with ID ${id} not found`);
+		}
 
-  /**
-   * Delete an inventory item
-   */
-  async delete(id: string): Promise<Inventory.Item> {
-    try {
-      const deleted = await this.prisma.inventoryItem.delete({
-        where: { id },
-        include: {
-          itemGroup: true,
-        },
-      });
+		// Update the item
+		const updated = await this.prisma.inventoryItem.update({
+			where: { id },
+			data: {
+				...prismaFields,
+				...updateRelationPayload,
+				barcodes:
+					barcodes !== undefined
+						? {
+								deleteMany: {},
+								create: formatBarcodes(barcodes),
+							}
+						: undefined,
+				reorderSettings:
+					reorderSettings !== undefined
+						? {
+								deleteMany: {},
+								create: formatReorderSettings(reorderSettings),
+							}
+						: undefined,
+			},
+			include: {
+				itemGroup: true,
+				barcodes: true,
+				reorderSettings: true,
+			},
+		});
 
-      return toInventoryItem(deleted);
-    } catch (error) {
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === 'P2025'
-      ) {
-        throw new NotFoundException(`Item with ID ${id} not found`);
-      }
-      throw error;
-    }
-  }
+		return toInventoryItem(updated);
+	}
+
+	/**
+	 * Delete an inventory item
+	 */
+	async delete(id: string): Promise<Inventory.Item> {
+		try {
+			const deleted = await this.prisma.inventoryItem.delete({
+				where: { id },
+				include: {
+					itemGroup: true,
+					barcodes: true,
+					reorderSettings: true,
+				},
+			});
+
+			return toInventoryItem(deleted);
+		} catch (error) {
+			if (
+				error instanceof Prisma.PrismaClientKnownRequestError &&
+				error.code === "P2025"
+			) {
+				throw new NotFoundException(`Item with ID ${id} not found`);
+			}
+			throw error;
+		}
+	}
 }

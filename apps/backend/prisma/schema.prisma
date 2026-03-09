@@ -1,40 +1,86 @@
+// ============================================================================
+// Prisma v7 Schema Configuration
+// ============================================================================
+//
+// This schema uses Prisma ORM v7, which introduces a Rust-free architecture
+// with significant changes from v6. Key differences:
+//
+// GENERATOR BLOCK:
+// - `provider = "prisma-client"` replaces the old "prisma-client-js"
+// - `output` is now REQUIRED (no longer generates to node_modules)
+// - `moduleFormat` can be "esm" or "cjs" (use "cjs" for NestJS compatibility)
+//
+// DATASOURCE BLOCK:
+// - `url` field is DEPRECATED - configure in prisma.config.ts instead
+// - Only `provider` is required here
+//
+// @see https://www.prisma.io/docs/orm/more/upgrade-guides/upgrading-versions/upgrading-to-prisma-7
+// ============================================================================
+
 generator client {
+  // Prisma v7 uses "prisma-client" instead of "prisma-client-js"
+  // This enables the new Rust-free TypeScript-native query engine
   provider     = "prisma-client"
+  
+  // REQUIRED in v7: Custom output path for generated client
+  // Import from: '../generated/prisma/client.js' (relative to src/)
   output       = "../src/generated/prisma"
+  
+  // Module format: "cjs" for CommonJS (NestJS), "esm" for ES Modules
   moduleFormat = "cjs"
 }
 
 datasource db {
+  // Database provider - the connection URL is configured in prisma.config.ts
+  // (The `url` field is deprecated in Prisma v7)
   provider = "postgresql"
 }
+
 
 model InventoryItem {
   id        String   @id @default(cuid())
   name      String   @db.VarChar(255)
   code      String   @unique @db.VarChar(100)
 
-  itemGroup ItemGroup? @relation(fields: [itemGroupId], references: [id])
+  itemGroup   ItemGroup? @relation(fields: [itemGroupId], references: [id])
   itemGroupId String?
 
-  description String?
-  disabled    Boolean @default(false)
-  maintainStock Boolean @default(true)
+  description        String?
+  disabled           Boolean @default(false)
+  maintainStock      Boolean @default(true)
   allowAlternateItem Boolean @default(false)
-  hasVariants Boolean @default(false)
-  
+  hasVariants        Boolean @default(false)
+
   // Stock and pricing
-  openingStock Int @default(0)
-  valuationRate Float?
+  openingStock        Int    @default(0)
+  valuationRate       Float?
   standardSellingRate Float?
-  
+
   // Tax settings
-  isZeroRated Boolean @default(false)
-  isExempt Boolean @default(false)
+  isZeroRated  Boolean @default(false)
+  isExempt     Boolean @default(false)
   isFixedAsset Boolean @default(false)
-  taxCode String? @db.VarChar(50)
+  taxCode      String? @db.VarChar(50)
+
+  // Inventory Settings
+  shelfLifeInDays            Int?
+  warrantyPeriodInDays       Int?
+  endOfLife                  DateTime?
+  weightPerUnit              Float?
+  weightUom                  String?   @db.VarChar(50)
+  allowNegativeStock         Boolean   @default(false)
+  valuationMethod            String?   @db.VarChar(50)
+  defaultMaterialRequestType String?   @db.VarChar(50)
+
+  // Serial Nos and Batches
+  hasBatchNo  Boolean @default(false)
+  hasSerialNo Boolean @default(false)
+
+  barcodes        ItemBarcode[]
+  reorderSettings ItemReorder[]
 
   defaultUnitOfMeasureId String?
-  defaultUnitOfMeasure UnitOfMeasurement? @relation(fields: [defaultUnitOfMeasureId], references: [id])
+  defaultUnitOfMeasure   UnitOfMeasurement? @relation(fields: [defaultUnitOfMeasureId], references: [id])
 
   quantity  Int      @default(0)
   createdAt DateTime @default(now())
@@ -44,6 +90,31 @@ model InventoryItem {
   @@index([name])
   @@index([createdAt])
   @@map("inventory_items")
+}
+
+model ItemBarcode {
+  id          String        @id @default(cuid())
+  itemId      String
+  barcode     String        @db.VarChar(255)
+  barcodeType String?       @db.VarChar(100)
+  uom         String?       @db.VarChar(50)
+  item        InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@index([itemId])
+  @@map("item_barcodes")
+}
+
+model ItemReorder {
+  id                  String        @id @default(cuid())
+  itemId              String
+  warehouse           String        @db.VarChar(255)
+  reorderLevel        Float         @default(0)
+  reorderQty          Float         @default(0)
+  materialRequestType String?       @db.VarChar(100)
+  item                InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@index([itemId])
+  @@map("item_reorder_settings")
 }
 
 

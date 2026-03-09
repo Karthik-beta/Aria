@@ -1,14 +1,11 @@
 {
-  "extends": "./base.json",
-  "compilerOptions": {
-    "module": "CommonJS",
-    "outDir": "./dist",
-    "rootDir": "./src",
-    "declaration": true,
-    "sourceMap": true,
-    "emitDecoratorMetadata": true,
-    "experimentalDecorators": true
-  },
-  "include": ["src"],
-  "exclude": ["node_modules", "dist", "test", "**/*spec.ts"]
+	"extends": "../../tsconfig.base.json",
+	"compilerOptions": {
+		"module": "NodeNext",
+		"moduleResolution": "NodeNext",
+		"declaration": true,
+		"sourceMap": true,
+		"emitDecoratorMetadata": true,
+		"experimentalDecorators": true
+	}
 }

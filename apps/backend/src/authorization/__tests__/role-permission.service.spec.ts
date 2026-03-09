@@ -1,369 +1,405 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { NotFoundException } from '@nestjs/common';
-import { PrismaClient } from '../../generated/prisma/client.js';
-import { RoleService, PermissionService } from '../role-permission.service';
+import { NotFoundException } from "@nestjs/common";
+import { Test, type TestingModule } from "@nestjs/testing";
+import { PrismaClient } from "../../generated/prisma/client.js";
+import { PermissionService, RoleService } from "../role-permission.service";
 
-describe('RoleService', () => {
-  let service: RoleService;
-  let mockPrisma: any;
+type RolePrismaMock = {
+	role: {
+		findUnique: jest.Mock;
+		findMany: jest.Mock;
+		create: jest.Mock;
+		update: jest.Mock;
+		delete: jest.Mock;
+	};
+	rolePermission: {
+		deleteMany: jest.Mock;
+		createMany: jest.Mock;
+		create: jest.Mock;
+		delete: jest.Mock;
+		findMany: jest.Mock;
+	};
+};
 
-  beforeEach(async () => {
-    mockPrisma = {
-      role: {
-        findUnique: jest.fn(),
-        findMany: jest.fn(),
-        create: jest.fn(),
-        update: jest.fn(),
-        delete: jest.fn(),
-      },
-      rolePermission: {
-        deleteMany: jest.fn(),
-        createMany: jest.fn(),
-        create: jest.fn(),
-        delete: jest.fn(),
-        findMany: jest.fn(),
-      },
-    };
+describe("RoleService", () => {
+	let service: RoleService;
+	let mockPrisma: RolePrismaMock;
 
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [RoleService, { provide: PrismaClient, useValue: mockPrisma }],
-    }).compile();
+	beforeEach(async () => {
+		mockPrisma = {
+			role: {
+				findUnique: jest.fn(),
+				findMany: jest.fn(),
+				create: jest.fn(),
+				update: jest.fn(),
+				delete: jest.fn(),
+			},
+			rolePermission: {
+				deleteMany: jest.fn(),
+				createMany: jest.fn(),
+				create: jest.fn(),
+				delete: jest.fn(),
+				findMany: jest.fn(),
+			},
+		};
 
-    service = module.get<RoleService>(RoleService);
-  });
+		const module: TestingModule = await Test.createTestingModule({
+			providers: [
+				RoleService,
+				{
+					provide: PrismaClient,
+					useValue: mockPrisma as unknown as PrismaClient,
+				},
+			],
+		}).compile();
 
-  afterEach(() => {
-    jest.clearAllMocks();
-  });
+		service = module.get<RoleService>(RoleService);
+	});
 
-  describe('getRoleByKey', () => {
-    it('should return role when found', async () => {
-      const mockRole = { id: '1', key: 'manager', name: 'Manager', level: 5 };
-      mockPrisma.role.findUnique.mockResolvedValue(mockRole);
+	afterEach(() => {
+		jest.clearAllMocks();
+	});
 
-      const result = await service.getRoleByKey('manager');
+	describe("getRoleByKey", () => {
+		it("should return role when found", async () => {
+			const mockRole = { id: "1", key: "manager", name: "Manager", level: 5 };
+			mockPrisma.role.findUnique.mockResolvedValue(mockRole);
 
-      expect(result).toEqual(mockRole);
-      expect(mockPrisma.role.findUnique).toHaveBeenCalledWith({
-        where: { key: 'manager' },
-      });
-    });
+			const result = await service.getRoleByKey("manager");
 
-    it('should return null when role not found', async () => {
-      mockPrisma.role.findUnique.mockResolvedValue(null);
+			expect(result).toEqual(mockRole);
+			expect(mockPrisma.role.findUnique).toHaveBeenCalledWith({
+				where: { key: "manager" },
+			});
+		});
 
-      const result = await service.getRoleByKey('nonexistent');
+		it("should return null when role not found", async () => {
+			mockPrisma.role.findUnique.mockResolvedValue(null);
 
-      expect(result).toBeNull();
-    });
-  });
+			const result = await service.getRoleByKey("nonexistent");
 
-  describe('listRoles', () => {
-    it('should return all roles ordered by level desc', async () => {
-      const mockRoles = [
-        { id: '1', key: 'admin', level: 10 },
-        { id: '2', key: 'manager', level: 5 },
-      ];
-      mockPrisma.role.findMany.mockResolvedValue(mockRoles);
+			expect(result).toBeNull();
+		});
+	});
 
-      const result = await service.listRoles();
+	describe("listRoles", () => {
+		it("should return all roles ordered by level desc", async () => {
+			const mockRoles = [
+				{ id: "1", key: "admin", level: 10 },
+				{ id: "2", key: "manager", level: 5 },
+			];
+			mockPrisma.role.findMany.mockResolvedValue(mockRoles);
 
-      expect(result).toEqual(mockRoles);
-      expect(mockPrisma.role.findMany).toHaveBeenCalledWith({
-        where: {},
-        orderBy: [{ level: 'desc' }, { name: 'asc' }],
-      });
-    });
+			const result = await service.listRoles();
 
-    it('should filter by isSystem flag', async () => {
-      mockPrisma.role.findMany.mockResolvedValue([]);
+			expect(result).toEqual(mockRoles);
+			expect(mockPrisma.role.findMany).toHaveBeenCalledWith({
+				where: {},
+				orderBy: [{ level: "desc" }, { name: "asc" }],
+			});
+		});
 
-      await service.listRoles({ isSystem: true });
+		it("should filter by isSystem flag", async () => {
+			mockPrisma.role.findMany.mockResolvedValue([]);
 
-      expect(mockPrisma.role.findMany).toHaveBeenCalledWith({
-        where: { isSystem: true },
-        orderBy: [{ level: 'desc' }, { name: 'asc' }],
-      });
-    });
+			await service.listRoles({ isSystem: true });
 
-    it('should filter by search term', async () => {
-      mockPrisma.role.findMany.mockResolvedValue([]);
+			expect(mockPrisma.role.findMany).toHaveBeenCalledWith({
+				where: { isSystem: true },
+				orderBy: [{ level: "desc" }, { name: "asc" }],
+			});
+		});
 
-      await service.listRoles({ search: 'admin' });
+		it("should filter by search term", async () => {
+			mockPrisma.role.findMany.mockResolvedValue([]);
 
-      expect(mockPrisma.role.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: expect.objectContaining({
-            OR: expect.arrayContaining([
-              { key: { contains: 'admin', mode: 'insensitive' } },
-              { name: { contains: 'admin', mode: 'insensitive' } },
-            ]),
-          }),
-        }),
-      );
-    });
-  });
+			await service.listRoles({ search: "admin" });
 
-  describe('createRole', () => {
-    it('should create a new role', async () => {
-      const roleData = {
-        key: 'custom_role',
-        name: 'Custom Role',
-        level: 3,
-        description: 'A custom role',
-      };
-      mockPrisma.role.create.mockResolvedValue({ id: '1', ...roleData });
+			expect(mockPrisma.role.findMany).toHaveBeenCalledWith(
+				expect.objectContaining({
+					where: expect.objectContaining({
+						OR: expect.arrayContaining([
+							{ key: { contains: "admin", mode: "insensitive" } },
+							{ name: { contains: "admin", mode: "insensitive" } },
+						]),
+					}),
+				}),
+			);
+		});
+	});
 
-      const result = await service.createRole(roleData);
+	describe("createRole", () => {
+		it("should create a new role", async () => {
+			const roleData = {
+				key: "custom_role",
+				name: "Custom Role",
+				level: 3,
+				description: "A custom role",
+			};
+			mockPrisma.role.create.mockResolvedValue({ id: "1", ...roleData });
 
-      expect(result).toHaveProperty('id');
-      expect(mockPrisma.role.create).toHaveBeenCalledWith({
-        data: roleData,
-      });
-    });
-  });
+			const result = await service.createRole(roleData);
 
-  describe('updateRole', () => {
-    it('should update an existing role', async () => {
-      const mockRole = { id: '1', key: 'manager', isSystem: false };
-      mockPrisma.role.findUnique.mockResolvedValue(mockRole);
-      mockPrisma.role.update.mockResolvedValue({
-        ...mockRole,
-        name: 'Updated Manager',
-      });
+			expect(result).toHaveProperty("id");
+			expect(mockPrisma.role.create).toHaveBeenCalledWith({
+				data: roleData,
+			});
+		});
+	});
 
-      const result = await service.updateRole('1', { name: 'Updated Manager' });
+	describe("updateRole", () => {
+		it("should update an existing role", async () => {
+			const mockRole = { id: "1", key: "manager", isSystem: false };
+			mockPrisma.role.findUnique.mockResolvedValue(mockRole);
+			mockPrisma.role.update.mockResolvedValue({
+				...mockRole,
+				name: "Updated Manager",
+			});
 
-      expect(result.name).toBe('Updated Manager');
-      expect(mockPrisma.role.update).toHaveBeenCalledWith({
-        where: { id: '1' },
-        data: { name: 'Updated Manager' },
-      });
-    });
+			const result = await service.updateRole("1", { name: "Updated Manager" });
 
-    it('should throw NotFoundException when role does not exist', async () => {
-      mockPrisma.role.findUnique.mockResolvedValue(null);
+			expect(result.name).toBe("Updated Manager");
+			expect(mockPrisma.role.update).toHaveBeenCalledWith({
+				where: { id: "1" },
+				data: { name: "Updated Manager" },
+			});
+		});
 
-      await expect(service.updateRole('999', { name: 'Test' })).rejects.toThrow(
-        NotFoundException,
-      );
-    });
-  });
+		it("should throw NotFoundException when role does not exist", async () => {
+			mockPrisma.role.findUnique.mockResolvedValue(null);
 
-  describe('deleteRole', () => {
-    it('should delete a non-system role', async () => {
-      const mockRole = { id: '1', key: 'custom_role', isSystem: false };
-      mockPrisma.role.findUnique.mockResolvedValue(mockRole);
-      mockPrisma.role.delete.mockResolvedValue(mockRole);
+			await expect(service.updateRole("999", { name: "Test" })).rejects.toThrow(
+				NotFoundException,
+			);
+		});
+	});
 
-      await service.deleteRole('1');
+	describe("deleteRole", () => {
+		it("should delete a non-system role", async () => {
+			const mockRole = { id: "1", key: "custom_role", isSystem: false };
+			mockPrisma.role.findUnique.mockResolvedValue(mockRole);
+			mockPrisma.role.delete.mockResolvedValue(mockRole);
 
-      expect(mockPrisma.role.delete).toHaveBeenCalledWith({
-        where: { id: '1' },
-      });
-    });
+			await service.deleteRole("1");
 
-    it('should throw error when trying to delete system role', async () => {
-      const mockRole = { id: '1', key: 'admin', isSystem: true };
-      mockPrisma.role.findUnique.mockResolvedValue(mockRole);
+			expect(mockPrisma.role.delete).toHaveBeenCalledWith({
+				where: { id: "1" },
+			});
+		});
 
-      await expect(service.deleteRole('1')).rejects.toThrow(
-        'Cannot delete system roles',
-      );
-    });
+		it("should throw error when trying to delete system role", async () => {
+			const mockRole = { id: "1", key: "admin", isSystem: true };
+			mockPrisma.role.findUnique.mockResolvedValue(mockRole);
 
-    it('should throw NotFoundException when role does not exist', async () => {
-      mockPrisma.role.findUnique.mockResolvedValue(null);
+			await expect(service.deleteRole("1")).rejects.toThrow(
+				"Cannot delete system roles",
+			);
+		});
 
-      await expect(service.deleteRole('999')).rejects.toThrow(
-        NotFoundException,
-      );
-    });
-  });
+		it("should throw NotFoundException when role does not exist", async () => {
+			mockPrisma.role.findUnique.mockResolvedValue(null);
 
-  describe('assignPermissions', () => {
-    it('should replace existing permissions', async () => {
-      mockPrisma.rolePermission.deleteMany.mockResolvedValue({});
-      mockPrisma.rolePermission.createMany.mockResolvedValue({});
+			await expect(service.deleteRole("999")).rejects.toThrow(
+				NotFoundException,
+			);
+		});
+	});
 
-      await service.assignPermissions('role1', ['perm1', 'perm2']);
+	describe("assignPermissions", () => {
+		it("should replace existing permissions", async () => {
+			mockPrisma.rolePermission.deleteMany.mockResolvedValue({});
+			mockPrisma.rolePermission.createMany.mockResolvedValue({});
 
-      expect(mockPrisma.rolePermission.deleteMany).toHaveBeenCalledWith({
-        where: { roleId: 'role1' },
-      });
-      expect(mockPrisma.rolePermission.createMany).toHaveBeenCalledWith({
-        data: [
-          { roleId: 'role1', permissionId: 'perm1' },
-          { roleId: 'role1', permissionId: 'perm2' },
-        ],
-      });
-    });
+			await service.assignPermissions("role1", ["perm1", "perm2"]);
 
-    it('should handle empty permission list', async () => {
-      mockPrisma.rolePermission.deleteMany.mockResolvedValue({});
+			expect(mockPrisma.rolePermission.deleteMany).toHaveBeenCalledWith({
+				where: { roleId: "role1" },
+			});
+			expect(mockPrisma.rolePermission.createMany).toHaveBeenCalledWith({
+				data: [
+					{ roleId: "role1", permissionId: "perm1" },
+					{ roleId: "role1", permissionId: "perm2" },
+				],
+			});
+		});
 
-      await service.assignPermissions('role1', []);
+		it("should handle empty permission list", async () => {
+			mockPrisma.rolePermission.deleteMany.mockResolvedValue({});
 
-      expect(mockPrisma.rolePermission.deleteMany).toHaveBeenCalled();
-      expect(mockPrisma.rolePermission.createMany).not.toHaveBeenCalled();
-    });
-  });
+			await service.assignPermissions("role1", []);
 
-  describe('addPermission', () => {
-    it('should add a single permission to role', async () => {
-      mockPrisma.rolePermission.create.mockResolvedValue({});
+			expect(mockPrisma.rolePermission.deleteMany).toHaveBeenCalled();
+			expect(mockPrisma.rolePermission.createMany).not.toHaveBeenCalled();
+		});
+	});
 
-      await service.addPermission('role1', 'perm1');
+	describe("addPermission", () => {
+		it("should add a single permission to role", async () => {
+			mockPrisma.rolePermission.create.mockResolvedValue({});
 
-      expect(mockPrisma.rolePermission.create).toHaveBeenCalledWith({
-        data: { roleId: 'role1', permissionId: 'perm1' },
-      });
-    });
-  });
+			await service.addPermission("role1", "perm1");
 
-  describe('removePermission', () => {
-    it('should remove a permission from role', async () => {
-      mockPrisma.rolePermission.delete.mockResolvedValue({});
+			expect(mockPrisma.rolePermission.create).toHaveBeenCalledWith({
+				data: { roleId: "role1", permissionId: "perm1" },
+			});
+		});
+	});
 
-      await service.removePermission('role1', 'perm1');
+	describe("removePermission", () => {
+		it("should remove a permission from role", async () => {
+			mockPrisma.rolePermission.delete.mockResolvedValue({});
 
-      expect(mockPrisma.rolePermission.delete).toHaveBeenCalledWith({
-        where: {
-          roleId_permissionId: {
-            roleId: 'role1',
-            permissionId: 'perm1',
-          },
-        },
-      });
-    });
-  });
+			await service.removePermission("role1", "perm1");
+
+			expect(mockPrisma.rolePermission.delete).toHaveBeenCalledWith({
+				where: {
+					roleId_permissionId: {
+						roleId: "role1",
+						permissionId: "perm1",
+					},
+				},
+			});
+		});
+	});
 });
 
-describe('PermissionService', () => {
-  let service: PermissionService;
-  let mockPrisma: any;
+type PermissionPrismaMock = {
+	permission: {
+		findUnique: jest.Mock;
+		findMany: jest.Mock;
+		create: jest.Mock;
+		update: jest.Mock;
+		delete: jest.Mock;
+	};
+};
 
-  beforeEach(async () => {
-    mockPrisma = {
-      permission: {
-        findUnique: jest.fn(),
-        findMany: jest.fn(),
-        create: jest.fn(),
-        update: jest.fn(),
-        delete: jest.fn(),
-      },
-    };
+describe("PermissionService", () => {
+	let service: PermissionService;
+	let mockPrisma: PermissionPrismaMock;
 
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        PermissionService,
-        { provide: PrismaClient, useValue: mockPrisma },
-      ],
-    }).compile();
+	beforeEach(async () => {
+		mockPrisma = {
+			permission: {
+				findUnique: jest.fn(),
+				findMany: jest.fn(),
+				create: jest.fn(),
+				update: jest.fn(),
+				delete: jest.fn(),
+			},
+		};
 
-    service = module.get<PermissionService>(PermissionService);
-  });
+		const module: TestingModule = await Test.createTestingModule({
+			providers: [
+				PermissionService,
+				{
+					provide: PrismaClient,
+					useValue: mockPrisma as unknown as PrismaClient,
+				},
+			],
+		}).compile();
 
-  afterEach(() => {
-    jest.clearAllMocks();
-  });
+		service = module.get<PermissionService>(PermissionService);
+	});
 
-  describe('getPermissionByKey', () => {
-    it('should return permission when found', async () => {
-      const mockPerm = { id: '1', key: 'system:user.read' };
-      mockPrisma.permission.findUnique.mockResolvedValue(mockPerm);
+	afterEach(() => {
+		jest.clearAllMocks();
+	});
 
-      const result = await service.getPermissionByKey('system:user.read');
+	describe("getPermissionByKey", () => {
+		it("should return permission when found", async () => {
+			const mockPerm = { id: "1", key: "system:user.read" };
+			mockPrisma.permission.findUnique.mockResolvedValue(mockPerm);
 
-      expect(result).toEqual(mockPerm);
-    });
-  });
+			const result = await service.getPermissionByKey("system:user.read");
 
-  describe('listPermissions', () => {
-    it('should return all permissions', async () => {
-      const mockPerms = [
-        { id: '1', key: 'system:user.read' },
-        { id: '2', key: 'app:crm:lead.read' },
-      ];
-      mockPrisma.permission.findMany.mockResolvedValue(mockPerms);
+			expect(result).toEqual(mockPerm);
+		});
+	});
 
-      const result = await service.listPermissions();
+	describe("listPermissions", () => {
+		it("should return all permissions", async () => {
+			const mockPerms = [
+				{ id: "1", key: "system:user.read" },
+				{ id: "2", key: "app:crm:lead.read" },
+			];
+			mockPrisma.permission.findMany.mockResolvedValue(mockPerms);
 
-      expect(result).toEqual(mockPerms);
-    });
+			const result = await service.listPermissions();
 
-    it('should filter by system scope', async () => {
-      mockPrisma.permission.findMany.mockResolvedValue([]);
+			expect(result).toEqual(mockPerms);
+		});
 
-      await service.listPermissions({ scope: 'system' });
+		it("should filter by system scope", async () => {
+			mockPrisma.permission.findMany.mockResolvedValue([]);
 
-      expect(mockPrisma.permission.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { key: { startsWith: 'system:' } },
-        }),
-      );
-    });
+			await service.listPermissions({ scope: "system" });
 
-    it('should filter by app scope', async () => {
-      mockPrisma.permission.findMany.mockResolvedValue([]);
+			expect(mockPrisma.permission.findMany).toHaveBeenCalledWith(
+				expect.objectContaining({
+					where: { key: { startsWith: "system:" } },
+				}),
+			);
+		});
 
-      await service.listPermissions({ scope: 'app' });
+		it("should filter by app scope", async () => {
+			mockPrisma.permission.findMany.mockResolvedValue([]);
 
-      expect(mockPrisma.permission.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { key: { startsWith: 'app:' } },
-        }),
-      );
-    });
-  });
+			await service.listPermissions({ scope: "app" });
 
-  describe('matchesPattern', () => {
-    it('should match exact permission', () => {
-      const result = service.matchesPattern(
-        'system:user.read',
-        'system:user.read',
-      );
+			expect(mockPrisma.permission.findMany).toHaveBeenCalledWith(
+				expect.objectContaining({
+					where: { key: { startsWith: "app:" } },
+				}),
+			);
+		});
+	});
 
-      expect(result).toBe(true);
-    });
+	describe("matchesPattern", () => {
+		it("should match exact permission", () => {
+			const result = service.matchesPattern(
+				"system:user.read",
+				"system:user.read",
+			);
 
-    it('should match system wildcard', () => {
-      const result = service.matchesPattern('system:user.delete', 'system:*');
+			expect(result).toBe(true);
+		});
 
-      expect(result).toBe(true);
-    });
+		it("should match system wildcard", () => {
+			const result = service.matchesPattern("system:user.delete", "system:*");
 
-    it('should match app wildcard', () => {
-      const result = service.matchesPattern('app:crm:lead.read', 'app:crm:*');
+			expect(result).toBe(true);
+		});
 
-      expect(result).toBe(true);
-    });
+		it("should match app wildcard", () => {
+			const result = service.matchesPattern("app:crm:lead.read", "app:crm:*");
 
-    it('should match entity wildcard', () => {
-      const result = service.matchesPattern(
-        'entity:crm:lead.update',
-        'entity:crm:lead.*',
-      );
+			expect(result).toBe(true);
+		});
 
-      expect(result).toBe(true);
-    });
+		it("should match entity wildcard", () => {
+			const result = service.matchesPattern(
+				"entity:crm:lead.update",
+				"entity:crm:lead.*",
+			);
 
-    it('should not match different permissions', () => {
-      const result = service.matchesPattern(
-        'system:user.read',
-        'system:role.read',
-      );
+			expect(result).toBe(true);
+		});
 
-      expect(result).toBe(false);
-    });
+		it("should not match different permissions", () => {
+			const result = service.matchesPattern(
+				"system:user.read",
+				"system:role.read",
+			);
 
-    it('should not match wrong app in wildcard', () => {
-      const result = service.matchesPattern(
-        'app:inventory:item.read',
-        'app:crm:*',
-      );
+			expect(result).toBe(false);
+		});
 
-      expect(result).toBe(false);
-    });
-  });
+		it("should not match wrong app in wildcard", () => {
+			const result = service.matchesPattern(
+				"app:inventory:item.read",
+				"app:crm:*",
+			);
+
+			expect(result).toBe(false);
+		});
+	});
 });

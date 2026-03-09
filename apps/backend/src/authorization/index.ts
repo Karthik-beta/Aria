@@ -5,29 +5,26 @@
  * services, guards, and decorators.
  */
 
-// Module
-export { AuthorizationModule } from './authorization.module';
-
 // Services
-export { AuditService } from './audit.service';
-export { ScopeService } from './scope.service';
-export { RoleService, PermissionService } from './role-permission.service';
-export { PolicyService } from './policy.service';
-export type { UserPolicy, AuthContext, AuthResult } from './policy.service';
-
-// Guards
-export {
-  PublicRouteGuard,
-  ActiveUserGuard,
-  AppScopeGuard,
-  RolePermissionGuard,
-  OwnershipGuard,
-} from './guards';
-
+export { AuditService } from "./audit.service";
+// Module
+export { AuthorizationModule } from "./authorization.module";
 // Decorators
 export {
-  RequirePermissions,
-  RequireRoles,
-  AppScope,
-  PublicRoute,
-} from './decorators';
+	AppScope,
+	PublicRoute,
+	RequirePermissions,
+	RequireRoles,
+} from "./decorators";
+// Guards
+export {
+	ActiveUserGuard,
+	AppScopeGuard,
+	OwnershipGuard,
+	PublicRouteGuard,
+	RolePermissionGuard,
+} from "./guards";
+export type { AuthContext, AuthResult, UserPolicy } from "./policy.service";
+export { PolicyService } from "./policy.service";
+export { PermissionService, RoleService } from "./role-permission.service";
+export { ScopeService } from "./scope.service";

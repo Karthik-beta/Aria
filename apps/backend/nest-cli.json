@@ -1,30 +1,30 @@
 {
-  "$schema": "https://json.schemastore.org/nest-cli",
-  "collection": "@nestjs/schematics",
-  "sourceRoot": "src",
-  "compilerOptions": {
-    "deleteOutDir": true,
-    "assets": [
-      {
-        "include": "generated/prisma/**/*.js",
-        "watchAssets": false
-      },
-      {
-        "include": "generated/prisma/**/*.node",
-        "watchAssets": false
-      },
-      {
-        "include": "generated/prisma/**/*.wasm",
-        "watchAssets": false
-      },
-      {
-        "include": "generated/prisma/**/*.mjs",
-        "watchAssets": false
-      },
-      {
-        "include": "generated/prisma/package.json",
-        "watchAssets": false
-      }
-    ]
-  }
+	"$schema": "https://json.schemastore.org/nest-cli",
+	"collection": "@nestjs/schematics",
+	"sourceRoot": "src",
+	"compilerOptions": {
+		"deleteOutDir": true,
+		"assets": [
+			{
+				"include": "generated/prisma/**/*.js",
+				"watchAssets": false
+			},
+			{
+				"include": "generated/prisma/**/*.node",
+				"watchAssets": false
+			},
+			{
+				"include": "generated/prisma/**/*.wasm",
+				"watchAssets": false
+			},
+			{
+				"include": "generated/prisma/**/*.mjs",
+				"watchAssets": false
+			},
+			{
+				"include": "generated/prisma/package.json",
+				"watchAssets": false
+			}
+		]
+	}
 }

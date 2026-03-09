@@ -1,7 +1,5 @@
-import { Module, Global } from '@nestjs/common';
-import { AuthModule as BetterAuthModule } from '@thallesp/nestjs-better-auth';
-import { auth } from './auth.config';
-import { AuthService } from './auth.service';
+import { Global, Module } from "@nestjs/common";
+import { AuthService } from "./auth.service";
 
 /**
  * Authentication module using Better Auth
@@ -21,17 +19,7 @@ import { AuthService } from './auth.service';
  */
 @Global()
 @Module({
-  imports: [
-    // Configure Better Auth for NestJS using object-based signature
-    // AuthModule.forRoot({ auth, ...options })
-    BetterAuthModule.forRoot({
-      auth,
-      disableTrustedOriginsCors: false,
-      disableBodyParser: false,
-      disableGlobalAuthGuard: true,
-    }),
-  ],
-  providers: [AuthService],
-  exports: [AuthService, BetterAuthModule],
+	providers: [AuthService],
+	exports: [AuthService],
 })
 export class AuthModule {}
