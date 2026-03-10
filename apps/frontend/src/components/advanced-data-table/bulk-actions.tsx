@@ -107,9 +107,9 @@ export function BulkActions<TData>({
 						<DropdownMenuContent align="end">
 							<DropdownMenuLabel>Bulk Operations</DropdownMenuLabel>
 							<DropdownMenuSeparator />
-							{actions.map((action, index) => (
+							{actions.map((action) => (
 								<DropdownMenuItem
-									key={index}
+									key={action.label}
 									onClick={() => handleActionClick(action)}
 									disabled={isExecuting}
 									className={cn(

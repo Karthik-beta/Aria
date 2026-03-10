@@ -1,6 +1,6 @@
 import path from "node:path";
 import react from "@vitejs/plugin-react";
-import { defineConfig } from "vitest/config";
+import { configDefaults, defineConfig } from "vitest/config";
 
 export default defineConfig({
 	plugins: [react()],
@@ -11,7 +11,7 @@ export default defineConfig({
 		setupFiles: ["./test/setup.ts"],
 		include: ["**/*.{test,spec}.{ts,tsx}"],
 		exclude: [
-			"node_modules",
+			...configDefaults.exclude,
 			".next",
 			"dist",
 			"tests/**",
@@ -25,8 +25,8 @@ export default defineConfig({
 			exclude: [
 				"src/**/*.{test,spec}.{ts,tsx}",
 				"src/**/*.d.ts",
-				"src/app/**", // Exclude Next.js app directory (integration tests separate)
-				"src/lib/trpc/**", // Exclude tRPC setup
+				"src/app/**",
+				"src/lib/trpc/**",
 			],
 			thresholds: {
 				lines: 80,

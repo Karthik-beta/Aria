@@ -73,7 +73,7 @@ export function KanbanBoard() {
 	useEffect(() => {
 		useTaskStore.persist.rehydrate();
 	}, []);
-	if (!isMounted) return;
+	if (!isMounted) return null;
 
 	function getDraggingTaskData(taskId: UniqueIdentifier, columnId: ColumnId) {
 		const tasksInColumn = tasks.filter((task) => task.status === columnId);
@@ -103,6 +103,7 @@ export function KanbanBoard() {
 					taskPosition + 1
 				} of ${tasksInColumn.length} in column ${column?.title}`;
 			}
+			return;
 		},
 		onDragOver({ active, over }) {
 			if (!hasDraggableData(active) || !hasDraggableData(over)) return;
@@ -130,6 +131,7 @@ export function KanbanBoard() {
 				}
 				return `Task was moved over position ${taskPosition + 1} of ${tasksInColumn.length} in column ${column?.title}`;
 			}
+			return;
 		},
 		onDragEnd({ active, over }) {
 			if (!hasDraggableData(active) || !hasDraggableData(over)) {
@@ -163,6 +165,7 @@ export function KanbanBoard() {
 				} in column ${column?.title}`;
 			}
 			pickedUpTaskColumn.current = "TODO";
+			return;
 		},
 		onDragCancel({ active }) {
 			pickedUpTaskColumn.current = "TODO";

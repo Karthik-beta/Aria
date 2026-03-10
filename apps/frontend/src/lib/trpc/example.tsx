@@ -52,6 +52,7 @@ export function ExampleTRPCUsage() {
 			</ul>
 
 			<button
+				type="button"
 				onClick={() =>
 					createMutation.mutate({
 						name: "New Item",

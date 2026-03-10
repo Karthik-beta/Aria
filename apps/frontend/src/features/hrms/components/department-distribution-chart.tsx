@@ -199,6 +199,7 @@ export function DepartmentDistributionChart() {
 											</text>
 										);
 									}
+									return null;
 								}}
 							/>
 						</Pie>

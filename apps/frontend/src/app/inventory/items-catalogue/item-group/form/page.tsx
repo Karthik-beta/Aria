@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState, useTransition } from "react";
+import { Suspense, useEffect, useState, useTransition } from "react";
 import { Controller, useFieldArray, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -68,6 +68,14 @@ const formSchema = z.object({
 type FormInput = z.infer<typeof formSchema>;
 
 export default function ItemGroupFormPage() {
+	return (
+		<Suspense fallback={<ItemGroupFormFallback />}>
+			<ItemGroupFormContent />
+		</Suspense>
+	);
+}
+
+function ItemGroupFormContent() {
 	const router = useRouter();
 	const searchParams = useSearchParams();
 	const groupId = searchParams.get("id");
@@ -569,6 +577,14 @@ export default function ItemGroupFormPage() {
 					</section>
 				</div>
 			</div>
+		</div>
+	);
+}
+
+function ItemGroupFormFallback() {
+	return (
+		<div className="flex min-h-screen items-center justify-center">
+			<Loader2 className="h-8 w-8 animate-spin text-primary" />
 		</div>
 	);
 }

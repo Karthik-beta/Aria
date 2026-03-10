@@ -13,4 +13,5 @@ import { createTRPCReact } from "@trpc/react-query";
  * circular dependency issues. It should be imported by provider.tsx
  * and any components that need to use tRPC hooks.
  */
-export const trpc = createTRPCReact<AppRouter>();
+export const trpc: ReturnType<typeof createTRPCReact<AppRouter>> =
+	createTRPCReact<AppRouter>();

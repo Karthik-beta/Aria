@@ -56,8 +56,8 @@ export function RecentAssetActivities() {
 			</CardHeader>
 			<CardContent>
 				<div className="space-y-8">
-					{assetActivities.map((activity, index) => (
-						<div key={index} className="flex items-center">
+					{assetActivities.map((activity) => (
+						<div key={activity.asset} className="flex items-center">
 							<Avatar className="h-9 w-9">
 								<AvatarFallback>{activity.fallback}</AvatarFallback>
 							</Avatar>

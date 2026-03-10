@@ -256,7 +256,7 @@ export default function InventoryItemsPage() {
 	}, [itemToDelete, deleteMutation]);
 
 	// Helper function to get relative time display (1y, 2y, etc.)
-	const getRelativeAge = (date: Date): string => {
+	const getRelativeAge = React.useCallback((date: Date): string => {
 		const now = new Date();
 		const diffMs = now.getTime() - date.getTime();
 		const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
@@ -265,14 +265,15 @@ export default function InventoryItemsPage() {
 
 		if (diffYears >= 1) {
 			return `${diffYears}y`;
-		} else if (diffMonths >= 1) {
-			return `${diffMonths}m`;
-		} else if (diffDays >= 1) {
-			return `${diffDays}d`;
-		} else {
-			return "Today";
 		}
-	};
+		if (diffMonths >= 1) {
+			return `${diffMonths}m`;
+		}
+		if (diffDays >= 1) {
+			return `${diffDays}d`;
+		}
+		return "Today";
+	}, []);
 
 	// Column definitions - Completely stable, no external dependencies
 	// According to TanStack Table docs: columns should be wrapped in useMemo with empty deps
@@ -498,6 +499,7 @@ export default function InventoryItemsPage() {
 								stroke="currentColor"
 								strokeWidth={1.5}
 							>
+								<title>Comments count</title>
 								<path
 									strokeLinecap="round"
 									strokeLinejoin="round"

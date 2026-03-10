@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { cookies } from "next/headers";
 import { AppAccessBoundary } from "@/components/auth/app-access-boundary";
 import KBar from "@/components/kbar";
 import AppSidebar from "@/components/layout/app-sidebar";
@@ -24,11 +23,8 @@ export default async function InventoryLayout({
 }: {
 	children: React.ReactNode;
 }) {
-	// Persisting the sidebar state in the cookie.
-	// Use Promise.all for better performance if we need to read multiple cookies
-	const cookieStore = await cookies();
-	const defaultOpen = cookieStore.get("sidebar_state")?.value === "true";
-	const activeThemeValue = cookieStore.get("active_theme")?.value || "default";
+	const defaultOpen = false;
+	const activeThemeValue = "default";
 
 	return (
 		<ThemeProvider
@@ -38,7 +34,7 @@ export default async function InventoryLayout({
 			disableTransitionOnChange
 			enableColorScheme
 		>
-			<Providers activeThemeValue={activeThemeValue as string}>
+			<Providers activeThemeValue={activeThemeValue}>
 				<Toaster />
 				<AppAccessBoundary appKey="inventory">
 					<KBar>

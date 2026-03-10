@@ -24,7 +24,7 @@ import {
 	Underline,
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState, useTransition } from "react";
+import { Suspense, useEffect, useState, useTransition } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import type { z } from "zod";
@@ -57,6 +57,14 @@ import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
 
 export default function ItemFormPage() {
+	return (
+		<Suspense fallback={<ItemFormFallback />}>
+			<ItemFormContent />
+		</Suspense>
+	);
+}
+
+function ItemFormContent() {
 	type CreateFormValues = z.input<typeof Inventory.createSchema>;
 	const router = useRouter();
 	const searchParams = useSearchParams();
@@ -924,7 +932,7 @@ export default function ItemFormPage() {
 													) : (
 														form.watch("barcodes")?.map((_barcode, index) => (
 															<tr
-																key={index}
+																key={`${_barcode.barcode}-${_barcode.barcodeType}-${_barcode.uom}`}
 																className="border-b last:border-0"
 															>
 																<td className="px-4 py-2">
@@ -1054,7 +1062,7 @@ export default function ItemFormPage() {
 																.watch("reorderSettings")
 																?.map((_setting, index) => (
 																	<tr
-																		key={index}
+																		key={`${_setting.warehouse}-${_setting.reorderLevel}-${_setting.reorderQty}-${_setting.materialRequestType}`}
 																		className="border-b last:border-0"
 																	>
 																		<td className="px-4 py-2">
@@ -1203,6 +1211,14 @@ export default function ItemFormPage() {
 					</Tabs>
 				</div>
 			</div>
+		</div>
+	);
+}
+
+function ItemFormFallback() {
+	return (
+		<div className="flex min-h-screen items-center justify-center">
+			<Loader2 className="h-8 w-8 animate-spin text-primary" />
 		</div>
 	);
 }

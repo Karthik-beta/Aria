@@ -1,7 +1,4 @@
 import type { Metadata, Viewport } from "next";
-import { cookies } from "next/headers";
-import NextTopLoader from "nextjs-toploader";
-import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { AuthGuard } from "@/components/auth/auth-guard";
 import { fontVariables } from "@/lib/font";
 import { TRPCProvider } from "@/lib/trpc";
@@ -33,9 +30,7 @@ export default async function RootLayout({
 }: {
 	children: React.ReactNode;
 }) {
-	// Read theme cookie on server to render the correct theme class
-	const cookieStore = await cookies();
-	const activeThemeValue = cookieStore.get("active_theme")?.value || "default";
+	const activeThemeValue = "default";
 	const isScaled = activeThemeValue.endsWith("-scaled");
 
 	// Script to update meta theme-color for dark mode (runs before React hydrates)
@@ -68,14 +63,11 @@ export default async function RootLayout({
 		// See: https://nextjs.org/docs/app/building-your-application/styling/css#suppressing-hydration-warnings
 		<html lang="en" suppressHydrationWarning>
 			<head>
-				<script dangerouslySetInnerHTML={{ __html: darkModeScript }} />
+				<script>{darkModeScript}</script>
 			</head>
 			<body className={bodyClasses}>
 				<TRPCProvider>
-					<NextTopLoader color="var(--primary)" showSpinner={false} />
-					<NuqsAdapter>
-						<AuthGuard>{children}</AuthGuard>
-					</NuqsAdapter>
+					<AuthGuard>{children}</AuthGuard>
 				</TRPCProvider>
 			</body>
 		</html>

@@ -475,6 +475,7 @@ export default function UsersPage() {
 
 										return (
 											<button
+												type="button"
 												key={user.id}
 												onClick={() => handleSelectUser(user)}
 												className={`w-full text-left p-3 rounded-md transition-colors ${
@@ -853,9 +854,9 @@ function UserDetailsPanel({
 								</p>
 							) : (
 								<div className="space-y-3">
-									{user.userRoles.map((ur, index) => (
+									{user.userRoles.map((ur) => (
 										<div
-											key={index}
+											key={`${ur.role.key}-${ur.appKey ?? GLOBAL_APP_KEY}`}
 											className="flex items-center justify-between p-3 border rounded-md"
 										>
 											<div>

@@ -117,33 +117,25 @@ export function DataTableSliderFilter<TData>({
 		[column],
 	);
 
-	const onReset = React.useCallback(
-		(event: React.MouseEvent) => {
-			if (event.target instanceof HTMLDivElement) {
-				event.stopPropagation();
-			}
-			column.setFilterValue(undefined);
-		},
-		[column],
-	);
+	const onReset = React.useCallback(() => {
+		column.setFilterValue(undefined);
+	}, [column]);
 
 	return (
 		<Popover>
 			<PopoverTrigger asChild>
-				<Button variant="outline" size="sm" className="border-dashed">
-					{columnFilterValue ? (
-						<div
-							role="button"
-							aria-label={`Clear ${title} filter`}
-							tabIndex={0}
-							className="focus-visible:ring-ring rounded-sm opacity-70 transition-opacity hover:opacity-100 focus-visible:ring-1 focus-visible:outline-none"
-							onClick={onReset}
-						>
-							<XCircle />
-						</div>
-					) : (
-						<PlusCircle />
-					)}
+				<Button
+					variant="outline"
+					size="sm"
+					className="border-dashed"
+					onClick={(event) => {
+						if (!columnFilterValue) return;
+						event.preventDefault();
+						event.stopPropagation();
+						onReset();
+					}}
+				>
+					{columnFilterValue ? <XCircle /> : <PlusCircle />}
 					<span>{title}</span>
 					{columnFilterValue ? (
 						<>

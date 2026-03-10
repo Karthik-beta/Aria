@@ -20,7 +20,6 @@ export default function DebugPage() {
 		unknown
 	> | null>(null);
 
-	// Manual session fetch to see raw response
 	useEffect(() => {
 		async function checkSession() {
 			try {
@@ -31,11 +30,6 @@ export default function DebugPage() {
 						"Content-Type": "application/json",
 					},
 				});
-
-				// [Debug] Raw session response:
-				//   status: response.status,
-				//   statusText: response.statusText,
-				//   headers: Object.fromEntries(response.headers.entries()),
 
 				if (!response.ok) {
 					const text = await response.text();
@@ -56,7 +50,6 @@ export default function DebugPage() {
 		<div className="container mx-auto p-8">
 			<h1 className="text-3xl font-bold mb-6">Authentication Debug Page</h1>
 
-			{/* Environment Info */}
 			<section className="mb-8 p-4 border rounded-lg">
 				<h2 className="text-xl font-semibold mb-4">Environment</h2>
 				<pre className="bg-gray-100 p-4 rounded overflow-auto">
@@ -77,7 +70,6 @@ export default function DebugPage() {
 				</pre>
 			</section>
 
-			{/* useSession Hook State */}
 			<section className="mb-8 p-4 border rounded-lg">
 				<h2 className="text-xl font-semibold mb-4">useSession Hook State</h2>
 				<div className="space-y-2">
@@ -111,7 +103,6 @@ export default function DebugPage() {
 				)}
 			</section>
 
-			{/* Manual Fetch Results */}
 			<section className="mb-8 p-4 border rounded-lg">
 				<h2 className="text-xl font-semibold mb-4">
 					Manual /api/auth/get-session Fetch
@@ -136,13 +127,13 @@ export default function DebugPage() {
 				{!fetchError && !manualSessionCheck && <div>Loading...</div>}
 			</section>
 
-			{/* Actions */}
 			<section className="mb-8 p-4 border rounded-lg">
 				<h2 className="text-xl font-semibold mb-4">Actions</h2>
 				<div className="flex gap-4">
 					<button
 						onClick={() => window.location.reload()}
 						className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+						type="button"
 					>
 						Reload Page
 					</button>
@@ -161,7 +152,6 @@ export default function DebugPage() {
 				</div>
 			</section>
 
-			{/* Browser Console Reminder */}
 			<section className="p-4 border rounded-lg bg-yellow-50">
 				<h2 className="text-xl font-semibold mb-2">Remember:</h2>
 				<p>

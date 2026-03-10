@@ -56,8 +56,11 @@ export function RecentStockMovements() {
 			</CardHeader>
 			<CardContent>
 				<div className="space-y-8">
-					{stockMovements.map((movement, index) => (
-						<div key={index} className="flex items-center">
+					{stockMovements.map((movement) => (
+						<div
+							key={`${movement.item}-${movement.warehouse}`}
+							className="flex items-center"
+						>
 							<Avatar className="h-9 w-9">
 								<AvatarFallback>{movement.fallback}</AvatarFallback>
 							</Avatar>

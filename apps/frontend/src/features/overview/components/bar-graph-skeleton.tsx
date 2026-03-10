@@ -1,6 +1,21 @@
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 
+const BAR_SKELETON_KEYS = [
+	"bar-1",
+	"bar-2",
+	"bar-3",
+	"bar-4",
+	"bar-5",
+	"bar-6",
+	"bar-7",
+	"bar-8",
+	"bar-9",
+	"bar-10",
+	"bar-11",
+	"bar-12",
+] as const;
+
 export function BarGraphSkeleton() {
 	return (
 		<Card>
@@ -24,9 +39,9 @@ export function BarGraphSkeleton() {
 			<CardContent className="px-2 sm:p-6">
 				{/* Bar-like shapes */}
 				<div className="flex aspect-auto h-[280px] w-full items-end justify-around gap-2 pt-8">
-					{Array.from({ length: 12 }).map((_, i) => (
+					{BAR_SKELETON_KEYS.map((barKey) => (
 						<Skeleton
-							key={i}
+							key={barKey}
 							className="w-full"
 							style={{
 								height: `${Math.max(20, Math.random() * 100)}%`,

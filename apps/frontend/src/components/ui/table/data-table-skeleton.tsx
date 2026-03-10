@@ -35,13 +35,29 @@ export function DataTableSkeleton({
 		(_, index) => cellWidths[index % cellWidths.length] ?? "auto",
 	);
 
+	const filterKeys = Array.from(
+		{ length: filterCount },
+		(_, index) => `filter-${index + 1}`,
+	);
+	const columnDefs = Array.from({ length: columnCount }, (_, index) => ({
+		key: `col-${index + 1}`,
+		width: cozyCellWidths[index],
+	}));
+	const rowKeys = Array.from(
+		{ length: rowCount },
+		(_, index) => `row-${index + 1}`,
+	);
+
 	return (
 		<div className={cn("flex flex-1 flex-col space-y-4", className)} {...props}>
 			<div className="flex w-full items-center justify-between gap-2 overflow-auto p-1">
 				<div className="flex flex-1 items-center gap-2">
 					{filterCount > 0
-						? Array.from({ length: filterCount }).map((_, i) => (
-								<Skeleton key={i} className="h-7 w-[4.5rem] border-dashed" />
+						? filterKeys.map((filterKey) => (
+								<Skeleton
+									key={filterKey}
+									className="h-7 w-[4.5rem] border-dashed"
+								/>
 							))
 						: null}
 				</div>
@@ -53,31 +69,32 @@ export function DataTableSkeleton({
 			<div className="flex-1 rounded-md border">
 				<Table>
 					<TableHeader>
-						{Array.from({ length: 1 }).map((_, i) => (
-							<TableRow key={i} className="hover:bg-transparent">
-								{Array.from({ length: columnCount }).map((_, j) => (
-									<TableHead
-										key={j}
-										style={{
-											width: cozyCellWidths[j],
-											minWidth: shrinkZero ? cozyCellWidths[j] : "auto",
-										}}
-									>
-										<Skeleton className="h-6 w-full" />
-									</TableHead>
-								))}
-							</TableRow>
-						))}
+						<TableRow
+							key="skeleton-header-row"
+							className="hover:bg-transparent"
+						>
+							{columnDefs.map((columnDef) => (
+								<TableHead
+									key={columnDef.key}
+									style={{
+										width: columnDef.width,
+										minWidth: shrinkZero ? columnDef.width : "auto",
+									}}
+								>
+									<Skeleton className="h-6 w-full" />
+								</TableHead>
+							))}
+						</TableRow>
 					</TableHeader>
 					<TableBody>
-						{Array.from({ length: rowCount }).map((_, i) => (
-							<TableRow key={i} className="hover:bg-transparent">
-								{Array.from({ length: columnCount }).map((_, j) => (
+						{rowKeys.map((rowKey) => (
+							<TableRow key={rowKey} className="hover:bg-transparent">
+								{columnDefs.map((columnDef) => (
 									<TableCell
-										key={j}
+										key={`${rowKey}-${columnDef.key}`}
 										style={{
-											width: cozyCellWidths[j],
-											minWidth: shrinkZero ? cozyCellWidths[j] : "auto",
+											width: columnDef.width,
+											minWidth: shrinkZero ? columnDef.width : "auto",
 										}}
 									>
 										<Skeleton className="h-6 w-full" />

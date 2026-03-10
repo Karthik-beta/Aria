@@ -2,10 +2,19 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { Suspense } from "react";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 export default function SignInViewPage() {
+	return (
+		<Suspense fallback={<SignInViewFallback />}>
+			<SignInViewContent />
+		</Suspense>
+	);
+}
+
+function SignInViewContent() {
 	const searchParams = useSearchParams();
 	const callbackUrl = searchParams.get("callbackUrl");
 	return (
@@ -32,6 +41,7 @@ export default function SignInViewPage() {
 						strokeLinejoin="round"
 						className="mr-2 h-6 w-6"
 					>
+						<title>Pivotr logo</title>
 						<path d="M15 6v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3V6a3 3 0 1 0-3 3h12a3 3 0 1 0-3-3" />
 					</svg>
 					Pivotr
@@ -88,4 +98,8 @@ export default function SignInViewPage() {
 			</div>
 		</div>
 	);
+}
+
+function SignInViewFallback() {
+	return <div className="min-h-screen bg-background" />;
 }

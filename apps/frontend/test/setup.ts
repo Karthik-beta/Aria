@@ -53,35 +53,49 @@ Object.defineProperty(window, "matchMedia", {
 });
 
 // Mock IntersectionObserver
-global.IntersectionObserver = class IntersectionObserver {
+class MockIntersectionObserver implements IntersectionObserver {
+	readonly root: Element | Document | null = null;
+	readonly rootMargin = "";
+	readonly thresholds: ReadonlyArray<number> = [];
+	readonly callback: IntersectionObserverCallback;
+	constructor(
+		callback: IntersectionObserverCallback,
+		_options?: IntersectionObserverInit,
+	) {
+		this.callback = callback;
+	}
 	disconnect() {
 		// Test mock - no implementation needed
 	}
-	observe() {
+	observe(_target: Element) {
 		// Test mock - no implementation needed
 	}
 	takeRecords() {
 		return [];
 	}
-	unobserve() {
+	unobserve(_target: Element) {
 		// Test mock - no implementation needed
 	}
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-} as any;
+}
+global.IntersectionObserver = MockIntersectionObserver;
 
 // Mock ResizeObserver
-global.ResizeObserver = class ResizeObserver {
+class MockResizeObserver implements ResizeObserver {
+	readonly callback: ResizeObserverCallback;
+	constructor(callback: ResizeObserverCallback) {
+		this.callback = callback;
+	}
 	disconnect() {
 		// Test mock - no implementation needed
 	}
-	observe() {
+	observe(_target: Element, _options?: ResizeObserverOptions) {
 		// Test mock - no implementation needed
 	}
-	unobserve() {
+	unobserve(_target: Element) {
 		// Test mock - no implementation needed
 	}
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-} as any;
+}
+global.ResizeObserver = MockResizeObserver;
 
 // Suppress console errors/warnings in tests (unless needed for debugging)
 global.console = {

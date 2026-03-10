@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { cookies } from "next/headers";
 import { AppAccessBoundary } from "@/components/auth/app-access-boundary";
 import Providers from "@/components/layout/providers";
 import ThemeProvider from "@/components/layout/ThemeToggle/theme-provider";
@@ -20,8 +19,7 @@ export default async function AssetLayout({
 }: {
 	children: React.ReactNode;
 }) {
-	const cookieStore = await cookies();
-	const activeThemeValue = cookieStore.get("active_theme")?.value || "default";
+	const activeThemeValue = "default";
 
 	return (
 		<ThemeProvider
@@ -31,7 +29,7 @@ export default async function AssetLayout({
 			disableTransitionOnChange
 			enableColorScheme
 		>
-			<Providers activeThemeValue={activeThemeValue as string}>
+			<Providers activeThemeValue={activeThemeValue}>
 				<Toaster />
 				<AppAccessBoundary appKey="asset">{children}</AppAccessBoundary>
 			</Providers>

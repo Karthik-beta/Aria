@@ -188,7 +188,7 @@ NavItemComponent.displayName = "NavItemComponent";
 
 export default function AppSidebar() {
 	const pathname = usePathname();
-	const { isOpen } = useMediaQuery();
+	useMediaQuery();
 	const { data: session } = useSession();
 	const { canAccessApp, isLoading: authLoading } = useAuth();
 

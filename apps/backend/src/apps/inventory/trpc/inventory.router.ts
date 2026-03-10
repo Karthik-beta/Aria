@@ -4,7 +4,6 @@ import { Injectable } from "@nestjs/common";
 import type {
 	TRPCBuiltRouter,
 	TRPCDecorateCreateRouterOptions,
-	TRPCSubscriptionProcedure,
 } from "@trpc/server";
 import { observable } from "@trpc/server/observable";
 import { z } from "zod";
@@ -24,36 +23,6 @@ type ItemsChangedEvent = {
 	type: "created" | "updated" | "deleted";
 	data: Inventory.Item | { id: string };
 };
-
-type ItemGroupsChangedProcedure = TRPCSubscriptionProcedure<{
-	input: void;
-	output: ItemGroupsChangedEvent;
-	meta: unknown;
-}>;
-
-type ItemCreatedProcedure = TRPCSubscriptionProcedure<{
-	input: void;
-	output: Inventory.Item;
-	meta: unknown;
-}>;
-
-type ItemUpdatedProcedure = TRPCSubscriptionProcedure<{
-	input: void;
-	output: Inventory.Item;
-	meta: unknown;
-}>;
-
-type ItemDeletedProcedure = TRPCSubscriptionProcedure<{
-	input: void;
-	output: { id: string };
-	meta: unknown;
-}>;
-
-type ItemsChangedProcedure = TRPCSubscriptionProcedure<{
-	input: void;
-	output: ItemsChangedEvent;
-	meta: unknown;
-}>;
 
 function createListItemsProcedure(inventoryService: InventoryService) {
 	return publicProcedure.query(async () => {
@@ -137,102 +106,97 @@ function createDeleteItemGroupProcedure(inventoryService: InventoryService) {
 		});
 }
 
-const onItemGroupsChangedProcedure: ItemGroupsChangedProcedure =
-	publicProcedure.subscription(() => {
-		return observable<ItemGroupsChangedEvent>((emit) => {
-			const onCreated = (data: Inventory.ItemGroup) => {
-				emit.next({ type: "created", data });
-			};
-			const onUpdated = (data: Inventory.ItemGroup) => {
-				emit.next({ type: "updated", data });
-			};
-			const onDeleted = (data: { id: string }) => {
-				emit.next({ type: "deleted", data });
-			};
+const onItemGroupsChangedProcedure = publicProcedure.subscription(() => {
+	return observable<ItemGroupsChangedEvent>((emit) => {
+		const onCreated = (data: Inventory.ItemGroup) => {
+			emit.next({ type: "created", data });
+		};
+		const onUpdated = (data: Inventory.ItemGroup) => {
+			emit.next({ type: "updated", data });
+		};
+		const onDeleted = (data: { id: string }) => {
+			emit.next({ type: "deleted", data });
+		};
 
-			inventoryEvents.on("itemGroupCreated", onCreated);
-			inventoryEvents.on("itemGroupUpdated", onUpdated);
-			inventoryEvents.on("itemGroupDeleted", onDeleted);
+		inventoryEvents.on("itemGroupCreated", onCreated);
+		inventoryEvents.on("itemGroupUpdated", onUpdated);
+		inventoryEvents.on("itemGroupDeleted", onDeleted);
 
-			return () => {
-				inventoryEvents.off("itemGroupCreated", onCreated);
-				inventoryEvents.off("itemGroupUpdated", onUpdated);
-				inventoryEvents.off("itemGroupDeleted", onDeleted);
-			};
-		});
+		return () => {
+			inventoryEvents.off("itemGroupCreated", onCreated);
+			inventoryEvents.off("itemGroupUpdated", onUpdated);
+			inventoryEvents.off("itemGroupDeleted", onDeleted);
+		};
 	});
+});
 
-const onItemCreatedProcedure: ItemCreatedProcedure =
-	publicProcedure.subscription(() => {
-		return observable<Inventory.Item>((emit) => {
-			const onCreated = (data: Inventory.Item) => {
-				emit.next(data);
-			};
+const onItemCreatedProcedure = publicProcedure.subscription(() => {
+	return observable<Inventory.Item>((emit) => {
+		const onCreated = (data: Inventory.Item) => {
+			emit.next(data);
+		};
 
-			inventoryEvents.on("itemCreated", onCreated);
+		inventoryEvents.on("itemCreated", onCreated);
 
-			return () => {
-				inventoryEvents.off("itemCreated", onCreated);
-			};
-		});
+		return () => {
+			inventoryEvents.off("itemCreated", onCreated);
+		};
 	});
+});
 
-const onItemUpdatedProcedure: ItemUpdatedProcedure =
-	publicProcedure.subscription(() => {
-		return observable<Inventory.Item>((emit) => {
-			const onUpdated = (data: Inventory.Item) => {
-				emit.next(data);
-			};
+const onItemUpdatedProcedure = publicProcedure.subscription(() => {
+	return observable<Inventory.Item>((emit) => {
+		const onUpdated = (data: Inventory.Item) => {
+			emit.next(data);
+		};
 
-			inventoryEvents.on("itemUpdated", onUpdated);
+		inventoryEvents.on("itemUpdated", onUpdated);
 
-			return () => {
-				inventoryEvents.off("itemUpdated", onUpdated);
-			};
-		});
+		return () => {
+			inventoryEvents.off("itemUpdated", onUpdated);
+		};
 	});
+});
 
-const onItemDeletedProcedure: ItemDeletedProcedure =
-	publicProcedure.subscription(() => {
-		return observable<{ id: string }>((emit) => {
-			const onDeleted = (data: { id: string }) => {
-				emit.next(data);
-			};
+const onItemDeletedProcedure = publicProcedure.subscription(() => {
+	return observable<{ id: string }>((emit) => {
+		const onDeleted = (data: { id: string }) => {
+			emit.next(data);
+		};
 
-			inventoryEvents.on("itemDeleted", onDeleted);
+		inventoryEvents.on("itemDeleted", onDeleted);
 
-			return () => {
-				inventoryEvents.off("itemDeleted", onDeleted);
-			};
-		});
+		return () => {
+			inventoryEvents.off("itemDeleted", onDeleted);
+		};
 	});
+});
 
-const onItemsChangedProcedure: ItemsChangedProcedure =
-	publicProcedure.subscription(() => {
-		return observable<ItemsChangedEvent>((emit) => {
-			const onCreated = (data: Inventory.Item) => {
-				emit.next({ type: "created", data });
-			};
+const onItemsChangedProcedure = publicProcedure.subscription(() => {
+	return observable<ItemsChangedEvent>((emit) => {
+		const onCreated = (data: Inventory.Item) => {
+			emit.next({ type: "created", data });
+		};
 
-			const onUpdated = (data: Inventory.Item) => {
-				emit.next({ type: "updated", data });
-			};
+		const onUpdated = (data: Inventory.Item) => {
+			emit.next({ type: "updated", data });
+		};
 
-			const onDeleted = (data: { id: string }) => {
-				emit.next({ type: "deleted", data });
-			};
+		const onDeleted = (data: { id: string }) => {
+			emit.next({ type: "deleted", data });
+		};
 
-			inventoryEvents.on("itemCreated", onCreated);
-			inventoryEvents.on("itemUpdated", onUpdated);
-			inventoryEvents.on("itemDeleted", onDeleted);
+		inventoryEvents.on("itemCreated", onCreated);
+		inventoryEvents.on("itemUpdated", onUpdated);
+		inventoryEvents.on("itemDeleted", onDeleted);
 
-			return () => {
-				inventoryEvents.off("itemCreated", onCreated);
-				inventoryEvents.off("itemUpdated", onUpdated);
-				inventoryEvents.off("itemDeleted", onDeleted);
-			};
-		});
+		return () => {
+			inventoryEvents.off("itemCreated", onCreated);
+			inventoryEvents.off("itemUpdated", onUpdated);
+			inventoryEvents.off("itemDeleted", onDeleted);
+		};
 	});
+});
 
 type InventoryRouterInput = {
 	listItems: ReturnType<typeof createListItemsProcedure>;

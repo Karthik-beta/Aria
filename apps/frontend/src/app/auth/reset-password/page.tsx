@@ -8,14 +8,15 @@ export const metadata: Metadata = {
 };
 
 type ResetPasswordPageProps = {
-	searchParams?: Record<string, string | string[] | undefined>;
+	searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
-export default function ResetPasswordPage({
+export default async function ResetPasswordPage({
 	searchParams,
 }: ResetPasswordPageProps) {
-	const tokenParam = searchParams?.token;
-	const errorParam = searchParams?.error;
+	const resolvedSearchParams = await searchParams;
+	const tokenParam = resolvedSearchParams?.token;
+	const errorParam = resolvedSearchParams?.error;
 
 	const normalize = (value: string | string[] | undefined) => {
 		if (typeof value === "string") {

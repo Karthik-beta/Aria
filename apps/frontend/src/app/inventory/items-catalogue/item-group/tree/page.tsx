@@ -23,8 +23,23 @@ import { Input } from "@/components/ui/input";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
 
+type RawItemGroup = {
+	id: string;
+	groupName: string;
+	isGroup: boolean;
+	parentId: string | null;
+};
+
+type TreeNode = {
+	id: string;
+	groupName: string;
+	isGroup: boolean;
+	children: TreeNode[];
+	parentId?: string | null;
+};
+
 interface TreeItemProps {
-	node: any;
+	node: TreeNode;
 	level: number;
 	expanded: Set<string>;
 	onToggle: (id: string) => void;
@@ -53,9 +68,12 @@ const TreeItem = ({
 						: "font-normal text-foreground/80",
 				)}
 				style={{ paddingLeft: `${level * 24 + 16}px` }}
-				onClick={() => isGroup && onToggle(node.id)}
 			>
-				<div className="flex items-center gap-3 flex-1">
+				<button
+					type="button"
+					className="flex items-center gap-3 flex-1 text-left"
+					onClick={() => isGroup && onToggle(node.id)}
+				>
 					{isGroup ? (
 						isExpanded ? (
 							<FolderOpen className="h-4.5 w-4.5 text-muted-foreground/60" />
@@ -75,77 +93,73 @@ const TreeItem = ({
 					>
 						{node.groupName}
 					</span>
+				</button>
 
-					{/* Inline Actions */}
-					<div className="flex items-center gap-1.5 ml-6 opacity-0 group-hover:opacity-100 transition-opacity">
-						{!isRoot && (
+				{/* Inline Actions */}
+				<div className="flex items-center gap-1.5 ml-6 opacity-0 group-hover:opacity-100 transition-opacity">
+					{!isRoot && (
+						<Button
+							variant="secondary"
+							size="sm"
+							className="h-6.5 px-3 text-[11px] bg-muted/60 hover:bg-muted border-none rounded-[4px] font-medium text-foreground/80 transition-all"
+							asChild
+							onClick={(e) => e.stopPropagation()}
+						>
+							<Link
+								href={`/inventory/items-catalogue/item-group/form?id=${node.id}`}
+							>
+								Edit
+							</Link>
+						</Button>
+					)}
+					{(isGroup || isRoot) && (
+						<Button
+							variant="secondary"
+							size="sm"
+							className="h-6.5 px-3 text-[11px] bg-muted/60 hover:bg-muted border-none rounded-[4px] font-medium text-foreground/80 transition-all"
+							asChild
+							onClick={(e) => e.stopPropagation()}
+						>
+							<Link
+								href={`/inventory/items-catalogue/item-group/form?parentId=${isRoot ? "" : node.id}`}
+							>
+								Add Child
+							</Link>
+						</Button>
+					)}
+					{!isRoot && (
+						<>
 							<Button
 								variant="secondary"
 								size="sm"
 								className="h-6.5 px-3 text-[11px] bg-muted/60 hover:bg-muted border-none rounded-[4px] font-medium text-foreground/80 transition-all"
-								asChild
 								onClick={(e) => e.stopPropagation()}
 							>
-								<Link
-									href={`/inventory/items-catalogue/item-group/form?id=${node.id}`}
-								>
-									Edit
-								</Link>
+								Rename
 							</Button>
-						)}
-						{(isGroup || isRoot) && (
 							<Button
 								variant="secondary"
 								size="sm"
-								className="h-6.5 px-3 text-[11px] bg-muted/60 hover:bg-muted border-none rounded-[4px] font-medium text-foreground/80 transition-all"
-								asChild
-								onClick={(e) => e.stopPropagation()}
+								className="h-6.5 px-3 text-[11px] bg-muted/60 hover:bg-muted border-none rounded-[4px] font-medium text-destructive hover:bg-destructive/10 transition-all"
+								onClick={(e) => {
+									e.stopPropagation();
+									if (
+										confirm("Are you sure you want to delete this item group?")
+									) {
+										onDelete?.(node.id);
+									}
+								}}
 							>
-								<Link
-									href={`/inventory/items-catalogue/item-group/form?parentId=${isRoot ? "" : node.id}`}
-								>
-									Add Child
-								</Link>
+								Delete
 							</Button>
-						)}
-						{!isRoot && (
-							<>
-								<Button
-									variant="secondary"
-									size="sm"
-									className="h-6.5 px-3 text-[11px] bg-muted/60 hover:bg-muted border-none rounded-[4px] font-medium text-foreground/80 transition-all"
-									onClick={(e) => {
-										e.stopPropagation();
-									}}
-								>
-									Rename
-								</Button>
-								<Button
-									variant="secondary"
-									size="sm"
-									className="h-6.5 px-3 text-[11px] bg-muted/60 hover:bg-muted border-none rounded-[4px] font-medium text-destructive hover:bg-destructive/10 transition-all"
-									onClick={(e) => {
-										e.stopPropagation();
-										if (
-											confirm(
-												"Are you sure you want to delete this item group?",
-											)
-										) {
-											onDelete?.(node.id);
-										}
-									}}
-								>
-									Delete
-								</Button>
-							</>
-						)}
-					</div>
+						</>
+					)}
 				</div>
 			</div>
 
 			{(isExpanded || isRoot) && hasChildren && (
 				<div className="w-full">
-					{node.children.map((child: any) => (
+					{node.children.map((child) => (
 						<TreeItem
 							key={child.id}
 							node={child}
@@ -181,30 +195,34 @@ export default function ItemGroupTreePage() {
 	});
 
 	const treeData = React.useMemo(() => {
-		const itemMap = new Map<string, any>();
-		const roots: any[] = [];
+		const itemMap = new Map<string, TreeNode>();
+		const roots: TreeNode[] = [];
 
-		rawGroups.forEach((item) => {
+		(rawGroups as RawItemGroup[]).forEach((item) => {
 			itemMap.set(item.id, { ...item, children: [] });
 		});
 
-		rawGroups.forEach((item) => {
+		(rawGroups as RawItemGroup[]).forEach((item) => {
 			const node = itemMap.get(item.id);
-			if (item.parentId && itemMap.has(item.parentId)) {
-				itemMap.get(item.parentId).children.push(node);
-			} else {
-				roots.push(node);
+			if (!node) return;
+			if (item.parentId) {
+				const parentNode = itemMap.get(item.parentId);
+				if (parentNode) {
+					parentNode.children.push(node);
+					return;
+				}
 			}
+			roots.push(node);
 		});
 
-		return [
-			{
-				id: "root",
-				groupName: "All Item Groups",
-				isGroup: true,
-				children: roots,
-			},
-		];
+		const rootNode: TreeNode = {
+			id: "root",
+			groupName: "All Item Groups",
+			isGroup: true,
+			children: roots,
+		};
+
+		return [rootNode];
 	}, [rawGroups]);
 
 	const handleToggle = (id: string) => {
@@ -221,7 +239,7 @@ export default function ItemGroupTreePage() {
 
 	const expandAll = () => {
 		const allIds = new Set<string>(["root"]);
-		const traverse = (nodes: any[]) => {
+		const traverse = (nodes: TreeNode[]) => {
 			nodes.forEach((node) => {
 				if (node.isGroup) {
 					allIds.add(node.id);

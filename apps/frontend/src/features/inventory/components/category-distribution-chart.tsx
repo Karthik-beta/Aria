@@ -146,6 +146,7 @@ export function CategoryDistributionChart() {
 											</text>
 										);
 									}
+									return null;
 								}}
 							/>
 						</Pie>

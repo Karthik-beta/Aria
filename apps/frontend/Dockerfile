@@ -16,16 +16,15 @@ WORKDIR /app
 COPY bun.lock package.json turbo.json ./
 
 # Copy all package.json files to maintain workspace structure
-COPY packages/config-eslint/package.json ./packages/config-eslint/
+COPY packages/api-contract/package.json ./packages/api-contract/
 COPY packages/config-typescript/package.json ./packages/config-typescript/
 COPY packages/types/package.json ./packages/types/
 COPY packages/utils/package.json ./packages/utils/
 COPY apps/frontend/package.json ./apps/frontend/
 COPY apps/backend/package.json ./apps/backend/
 
-# Install dependencies with BuildKit cache mount for faster rebuilds
-# Note: --frozen-lockfile removed to allow builds with updated package.json
-RUN rm bun.lock && bun install --no-frozen-lockfile
+# Install dependencies using the committed lockfile
+RUN bun install --frozen-lockfile
 
 # Copy shared packages source (JIT pattern - no build needed, consumed as TypeScript)
 COPY packages ./packages
@@ -35,6 +34,7 @@ COPY apps/backend/src ./apps/backend/src
 COPY apps/backend/prisma ./apps/backend/prisma
 COPY apps/backend/tsconfig.json ./apps/backend/tsconfig.json
 COPY apps/backend/tsconfig.build.json ./apps/backend/tsconfig.build.json
+COPY apps/backend/tsconfig.public-types.json ./apps/backend/tsconfig.public-types.json
 
 # Development stage - for local development with hot reload 🛠️
 FROM base AS development
@@ -70,7 +70,6 @@ WORKDIR /app
 COPY --from=deps /app ./
 
 # Copy frontend source files
-COPY turbo.json ./
 COPY apps/frontend ./apps/frontend
 
 # Set build environment
@@ -108,7 +107,6 @@ RUN cd packages/utils && bun tsc --build tsconfig.json
 RUN --mount=type=cache,id=turbo-build-cache,target=/app/.turbo/cache bun --filter backend build
 
 # Build frontend using Turbo (now able to access remote cache via TURBO_* env)
-RUN --mount=type=cache,id=turbo-build-cache,target=/app/.turbo/cache bun turbo build --filter=frontend...
 RUN --mount=type=cache,id=turbo-build-cache,target=/app/.turbo/cache bun turbo build --filter=frontend...
 
 # Production runner stage - minimal production image with standalone output 🏁

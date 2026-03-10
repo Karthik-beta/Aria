@@ -142,6 +142,7 @@ export function AssetCategoryChart() {
 											</text>
 										);
 									}
+									return null;
 								}}
 							/>
 						</Pie>

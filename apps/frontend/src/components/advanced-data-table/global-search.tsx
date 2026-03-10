@@ -211,9 +211,9 @@ export function GlobalSearch<TData>({
 						<CommandList>
 							<CommandEmpty>No suggestions found.</CommandEmpty>
 							<CommandGroup heading="Suggestions">
-								{suggestions.map((suggestion, index) => (
+								{suggestions.map((suggestion) => (
 									<CommandItem
-										key={`${suggestion}-${index}`}
+										key={suggestion}
 										value={suggestion}
 										onMouseDown={(e) => {
 											e.preventDefault();

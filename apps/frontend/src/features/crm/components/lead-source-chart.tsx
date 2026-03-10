@@ -142,6 +142,7 @@ export function LeadSourceChart() {
 											</text>
 										);
 									}
+									return null;
 								}}
 							/>
 						</Pie>

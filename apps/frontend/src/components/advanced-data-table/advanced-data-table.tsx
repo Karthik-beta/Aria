@@ -237,9 +237,8 @@ export function AdvancedDataTable<TData extends RowData>({
 	}, [table, handleError]);
 
 	return (
-		<div
+		<section
 			className={cn("flex flex-1 flex-col space-y-4", containerClassName)}
-			role="region"
 			aria-label={ariaLabel}
 			aria-description={ariaDescription}
 		>
@@ -302,7 +301,8 @@ export function AdvancedDataTable<TData extends RowData>({
 												{/* Column Resizer */}
 												{enableColumnResizing &&
 													header.column.getCanResize() && (
-														<div
+														<button
+															type="button"
 															onMouseDown={header.getResizeHandler()}
 															onTouchStart={header.getResizeHandler()}
 															className={cn(
@@ -339,6 +339,6 @@ export function AdvancedDataTable<TData extends RowData>({
 					table.getFilteredSelectedRowModel().rows.length > 0 &&
 					actionBar}
 			</div>
-		</div>
+		</section>
 	);
 }

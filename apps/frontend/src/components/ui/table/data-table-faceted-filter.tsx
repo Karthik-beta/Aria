@@ -77,20 +77,18 @@ export function DataTableFacetedFilter<TData, TValue>({
 	return (
 		<Popover open={open} onOpenChange={setOpen}>
 			<PopoverTrigger asChild>
-				<Button variant="outline" size="sm" className="border-dashed">
-					{selectedValues?.size > 0 ? (
-						<div
-							role="button"
-							aria-label={`Clear ${title} filter`}
-							tabIndex={0}
-							onClick={onReset}
-							className="focus-visible:ring-ring rounded-sm opacity-70 transition-opacity hover:opacity-100 focus-visible:ring-1 focus-visible:outline-none"
-						>
-							<XCircle />
-						</div>
-					) : (
-						<PlusCircle />
-					)}
+				<Button
+					variant="outline"
+					size="sm"
+					className="border-dashed"
+					onClick={(event) => {
+						if (selectedValues.size === 0) return;
+						event.preventDefault();
+						event.stopPropagation();
+						onReset();
+					}}
+				>
+					{selectedValues?.size > 0 ? <XCircle /> : <PlusCircle />}
 					{title}
 					{selectedValues?.size > 0 && (
 						<>

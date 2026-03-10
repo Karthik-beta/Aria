@@ -678,20 +678,18 @@ function ManagePermissionsForm({
 											handleTogglePermission(permission.key)
 										}
 									/>
-									<div
-										className="flex-1 cursor-pointer"
+									<button
+										type="button"
+										className="flex-1 cursor-pointer text-left"
 										onClick={() => handleTogglePermission(permission.key)}
 									>
-										<label
-											htmlFor={permission.id}
-											className="text-sm font-medium font-mono leading-none cursor-pointer"
-										>
+										<span className="text-sm font-medium font-mono leading-none cursor-pointer">
 											{permission.key}
-										</label>
+										</span>
 										<p className="text-xs text-muted-foreground mt-1">
 											{permission.description || permission.name}
 										</p>
-									</div>
+									</button>
 								</div>
 							))}
 							{perms.length === 0 && (

@@ -13,10 +13,33 @@ import {
 const COOKIE_NAME = "active_theme";
 const DEFAULT_THEME = "default";
 
+type CookieStoreCapableWindow = Window & {
+	cookieStore?: {
+		set: (options: {
+			name: string;
+			value: string;
+			path?: string;
+			expires?: number;
+			sameSite?: "strict" | "lax" | "none";
+			secure?: boolean;
+		}) => Promise<void>;
+	};
+};
+
 function setThemeCookie(theme: string) {
 	if (typeof window === "undefined") return;
 
-	document.cookie = `${COOKIE_NAME}=${theme}; path=/; max-age=31536000; SameSite=Lax; ${window.location.protocol === "https:" ? "Secure;" : ""}`;
+	const cookieStore = (window as CookieStoreCapableWindow).cookieStore;
+	if (!cookieStore) return;
+
+	void cookieStore.set({
+		name: COOKIE_NAME,
+		value: theme,
+		path: "/",
+		expires: Date.now() + 31_536_000_000,
+		sameSite: "lax",
+		secure: window.location.protocol === "https:",
+	});
 }
 
 /**

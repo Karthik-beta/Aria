@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { cookies } from "next/headers";
 import KBar from "@/components/kbar";
 import AppSidebar from "@/components/layout/app-sidebar";
 import Header from "@/components/layout/header";
@@ -15,10 +14,7 @@ export default async function DashboardLayout({
 }: {
 	children: React.ReactNode;
 }) {
-	// Persisting the sidebar state in the cookie.
-	// Use Promise.all for better performance if we need to read multiple cookies
-	const cookieStore = await cookies();
-	const defaultOpen = cookieStore.get("sidebar_state")?.value === "true";
+	const defaultOpen = false;
 
 	return (
 		<KBar>

@@ -56,8 +56,11 @@ export function RecentDeals() {
 			</CardHeader>
 			<CardContent>
 				<div className="space-y-8">
-					{dealsData.map((deal, index) => (
-						<div key={index} className="flex items-center">
+					{dealsData.map((deal) => (
+						<div
+							key={`${deal.customer}-${deal.company}`}
+							className="flex items-center"
+						>
 							<Avatar className="h-9 w-9">
 								<AvatarFallback>{deal.fallback}</AvatarFallback>
 							</Avatar>

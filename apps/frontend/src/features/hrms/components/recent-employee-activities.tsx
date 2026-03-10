@@ -56,8 +56,11 @@ export function RecentEmployeeActivities() {
 			</CardHeader>
 			<CardContent>
 				<div className="space-y-8">
-					{employeeActivities.map((activity, index) => (
-						<div key={index} className="flex items-center">
+					{employeeActivities.map((activity) => (
+						<div
+							key={`${activity.employee}-${activity.department}`}
+							className="flex items-center"
+						>
 							<Avatar className="h-9 w-9">
 								<AvatarFallback>{activity.fallback}</AvatarFallback>
 							</Avatar>

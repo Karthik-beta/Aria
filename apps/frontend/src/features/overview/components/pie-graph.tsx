@@ -142,6 +142,7 @@ export function PieGraph() {
 											</text>
 										);
 									}
+									return null;
 								}}
 							/>
 						</Pie>

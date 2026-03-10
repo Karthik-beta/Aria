@@ -35,6 +35,19 @@ interface VirtualizedTableBodyProps<TData extends RowData> {
 	isLoading?: boolean;
 }
 
+const LOADING_ROW_KEYS = [
+	"loading-row-1",
+	"loading-row-2",
+	"loading-row-3",
+	"loading-row-4",
+	"loading-row-5",
+	"loading-row-6",
+	"loading-row-7",
+	"loading-row-8",
+	"loading-row-9",
+	"loading-row-10",
+] as const;
+
 /**
  * Virtualized Table Body Component
  * Efficiently renders large datasets using virtual scrolling
@@ -76,8 +89,8 @@ export function VirtualizedTableBody<TData extends RowData>({
 	if (isLoading) {
 		return (
 			<TableBody>
-				{Array.from({ length: 10 }).map((_, index) => (
-					<TableRow key={index}>
+				{LOADING_ROW_KEYS.map((loadingRowKey) => (
+					<TableRow key={loadingRowKey}>
 						{table.getAllColumns().map((column) => (
 							<TableCell key={column.id}>
 								<Skeleton className="h-6 w-full" />

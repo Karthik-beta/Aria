@@ -146,7 +146,7 @@ export default function ItemGroupsPage() {
 	);
 
 	// Helper function for age display
-	const getRelativeAge = (date: Date): string => {
+	const getRelativeAge = React.useCallback((date: Date): string => {
 		const now = new Date();
 		const diffMs = now.getTime() - date.getTime();
 		const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
@@ -157,7 +157,7 @@ export default function ItemGroupsPage() {
 		if (diffMonths >= 1) return `${diffMonths}m`;
 		if (diffDays >= 1) return `${diffDays}d`;
 		return "Today";
-	};
+	}, []);
 
 	// Column definitions
 	const columns = React.useMemo<ColumnDef<Inventory.ItemGroup>[]>(
@@ -293,6 +293,7 @@ export default function ItemGroupsPage() {
 								stroke="currentColor"
 								strokeWidth={1.5}
 							>
+								<title>Comments count</title>
 								<path
 									strokeLinecap="round"
 									strokeLinejoin="round"

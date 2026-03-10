@@ -317,9 +317,9 @@ export function AdvancedTableToolbar<TData extends RowData>({
 									<DropdownMenuContent align="end">
 										<DropdownMenuLabel>Bulk Operations</DropdownMenuLabel>
 										<DropdownMenuSeparator />
-										{bulkActions.map((action, index) => (
+										{bulkActions.map((action) => (
 											<DropdownMenuItem
-												key={index}
+												key={action.label}
 												onClick={() =>
 													!isReloading && handleActionClick(action)
 												}

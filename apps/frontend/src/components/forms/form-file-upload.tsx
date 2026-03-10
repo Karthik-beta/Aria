@@ -61,8 +61,11 @@ function FormFileUpload<
 							onValueChange={field.onChange}
 							onUpload={onUpload}
 							progresses={progresses}
-							accept={acceptedTypes?.reduce(
-								(acc, type) => ({ ...acc, [type]: [] }),
+							accept={acceptedTypes?.reduce<Record<string, string[]>>(
+								(acc, type) => {
+									acc[type] = [];
+									return acc;
+								},
 								{},
 							)}
 							maxSize={maxSize}
