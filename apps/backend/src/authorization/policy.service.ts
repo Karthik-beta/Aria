@@ -169,7 +169,11 @@ export class PolicyService implements OnModuleDestroy {
 
 		// Get apps user has roles in
 		const apps = Array.from(
-			new Set(userRoles.flatMap((ur) => (ur.appKey ? [ur.appKey] : []))),
+			new Set(
+				userRoles
+					.map((ur) => ur.appKey)
+					.filter((appKey): appKey is string => typeof appKey === "string"),
+			),
 		);
 
 		// Get supervised apps

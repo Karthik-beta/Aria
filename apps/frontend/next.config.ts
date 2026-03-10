@@ -1,4 +1,5 @@
 import path from "node:path";
+import { withSentryConfig } from "@sentry/nextjs";
 import type { NextConfig } from "next";
 
 const isDev = process.env.NODE_ENV !== "production";
@@ -32,6 +33,50 @@ const nextConfig: NextConfig = {
 		"prisma",
 		"@prisma/client",
 	],
+	async redirects() {
+		return [
+			{
+				source: "/asset",
+				destination: "/asset/dashboard/overview",
+				permanent: false,
+			},
+			{
+				source: "/crm",
+				destination: "/crm/dashboard/overview",
+				permanent: false,
+			},
+			{
+				source: "/hrms",
+				destination: "/hrms/dashboard/overview",
+				permanent: false,
+			},
+			{
+				source: "/inventory",
+				destination: "/inventory/dashboard/overview",
+				permanent: false,
+			},
+			{
+				source: "/asset/dashboard",
+				destination: "/crm/dashboard/overview",
+				permanent: false,
+			},
+			{
+				source: "/crm/dashboard",
+				destination: "/crm/dashboard/overview",
+				permanent: false,
+			},
+			{
+				source: "/hrms/dashboard",
+				destination: "/crm/dashboard/overview",
+				permanent: false,
+			},
+			{
+				source: "/inventory/dashboard",
+				destination: "/inventory/dashboard/overview",
+				permanent: false,
+			},
+		];
+	},
 	async headers() {
 		if (isDev) {
 			return [];
@@ -61,4 +106,4 @@ const nextConfig: NextConfig = {
 	poweredByHeader: false,
 };
 
-export default nextConfig;
+export default withSentryConfig(nextConfig);

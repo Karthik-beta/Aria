@@ -8,7 +8,7 @@
 		"outDir": "./dist-types",
 		"rootDir": "./src"
 	},
-	"include": ["src/**/*.ts"],
+	"files": ["src/public-types.ts"],
 	"exclude": [
 		"node_modules",
 		"dist",

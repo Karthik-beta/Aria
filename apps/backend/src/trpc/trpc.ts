@@ -79,7 +79,9 @@ const isAuthenticated = t.middleware(async ({ ctx, next }) => {
 
 	// Normalize headers into fetch HeadersInit
 	const normalizedHeaders = new Headers();
-	for (const [key, value] of Object.entries(req.headers ?? {})) {
+	for (const [key, value] of Object.entries<
+		string | string[] | undefined
+	>(req.headers ?? {})) {
 		if (value === undefined) {
 			continue;
 		}
