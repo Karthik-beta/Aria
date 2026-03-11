@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { PrismaService } from "../shared/prisma.service";
+import type { PrismaService } from "../shared/prisma.service";
 
 /**
  * ScopeService - Ownership and team-based access control
