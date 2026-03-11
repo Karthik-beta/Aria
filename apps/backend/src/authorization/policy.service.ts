@@ -1,7 +1,7 @@
 import { Injectable, type OnModuleDestroy } from "@nestjs/common";
-import type { PrismaService } from "../shared/prisma.service";
-import type { PermissionService } from "./role-permission.service";
-import type { ScopeService } from "./scope.service";
+import { PrismaService } from "../shared/prisma.service";
+import { PermissionService } from "./role-permission.service";
+import { ScopeService } from "./scope.service";
 
 /**
  * User policy resolution result

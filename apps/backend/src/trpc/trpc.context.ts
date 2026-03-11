@@ -6,7 +6,7 @@ import type {
 } from "@aria/api-contract";
 import { Injectable } from "@nestjs/common";
 import type { CreateExpressContextOptions } from "@trpc/server/adapters/express";
-import type { PrismaService } from "../shared/prisma.service";
+import { PrismaService } from "../shared/prisma.service";
 
 export type { TrpcContextType, TrpcRequestLike, TrpcResponseLike };
 

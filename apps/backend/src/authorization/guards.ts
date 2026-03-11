@@ -6,15 +6,15 @@ import {
 	Logger,
 	UnauthorizedException,
 } from "@nestjs/common";
-import type { Reflector } from "@nestjs/core";
+import { Reflector } from "@nestjs/core";
 import {
 	APP_SCOPE_KEY,
 	PUBLIC_ROUTE_KEY,
 	REQUIRE_PERMISSIONS_KEY,
 	REQUIRE_ROLES_KEY,
 } from "./decorators";
-import type { PolicyService } from "./policy.service";
-import type { ScopeService } from "./scope.service";
+import { PolicyService } from "./policy.service";
+import { ScopeService } from "./scope.service";
 
 type GuardRequest = {
 	params?: Record<string, string | undefined>;

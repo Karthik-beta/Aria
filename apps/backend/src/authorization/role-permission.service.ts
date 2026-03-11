@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 import type { Permission, Prisma, Role } from "../generated/prisma/client.js";
-import type { PrismaService } from "../shared/prisma.service";
+import { PrismaService } from "../shared/prisma.service";
 
 /**
  * RoleService - CRUD operations for roles

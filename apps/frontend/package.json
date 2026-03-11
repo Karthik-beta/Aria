@@ -8,6 +8,8 @@
 		"start": "next start",
 		"lint": "biome check .",
 		"lint:fix": "biome check --write .",
+		"typegen": "next typegen",
+		"pretypecheck": "next typegen",
 		"typecheck": "tsc --noEmit --pretty false",
 		"test": "vitest",
 		"test:ui": "vitest --ui",
