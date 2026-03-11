@@ -1,6 +1,15 @@
-import { DepartmentDistributionChart } from "@/features/hrms/components/department-distribution-chart";
+"use client";
 
-export default async function Stats() {
-	await new Promise((resolve) => setTimeout(resolve, 1000));
+import dynamic from "next/dynamic";
+
+const DepartmentDistributionChart = dynamic(
+	() =>
+		import("@/features/hrms/components/department-distribution-chart").then(
+			(mod) => mod.DepartmentDistributionChart,
+		),
+	{ ssr: false },
+);
+
+export default function Stats() {
 	return <DepartmentDistributionChart />;
 }

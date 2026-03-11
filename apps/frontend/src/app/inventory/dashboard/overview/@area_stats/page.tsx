@@ -1,6 +1,15 @@
-import { StockTrendChart } from "@/features/inventory/components/stock-trend-chart";
+"use client";
 
-export default async function AreaStats() {
-	await new Promise((resolve) => setTimeout(resolve, 2000));
+import dynamic from "next/dynamic";
+
+const StockTrendChart = dynamic(
+	() =>
+		import("@/features/inventory/components/stock-trend-chart").then(
+			(mod) => mod.StockTrendChart,
+		),
+	{ ssr: false },
+);
+
+export default function AreaStats() {
 	return <StockTrendChart />;
 }

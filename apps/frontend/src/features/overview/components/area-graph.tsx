@@ -1,6 +1,7 @@
 "use client";
 
 import { IconTrendingUp } from "@tabler/icons-react";
+import * as React from "react";
 import { Area, AreaChart, CartesianGrid, XAxis } from "recharts";
 
 import {
@@ -42,6 +43,12 @@ const chartConfig = {
 } satisfies ChartConfig;
 
 export function AreaGraph() {
+	const [isClient, setIsClient] = React.useState(false);
+
+	React.useEffect(() => {
+		setIsClient(true);
+	}, []);
+
 	return (
 		<Card className="@container/card">
 			<CardHeader>
@@ -51,72 +58,76 @@ export function AreaGraph() {
 				</CardDescription>
 			</CardHeader>
 			<CardContent className="px-2 pt-4 sm:px-6 sm:pt-6">
-				<ChartContainer
-					config={chartConfig}
-					className="aspect-auto h-[250px] w-full"
-				>
-					<AreaChart
-						data={chartData}
-						margin={{
-							left: 12,
-							right: 12,
-						}}
+				{isClient ? (
+					<ChartContainer
+						config={chartConfig}
+						className="aspect-auto h-[250px] w-full min-w-0 min-h-[250px]"
 					>
-						<defs>
-							<linearGradient id="fillDesktop" x1="0" y1="0" x2="0" y2="1">
-								<stop
-									offset="5%"
-									stopColor="var(--color-desktop)"
-									stopOpacity={1.0}
-								/>
-								<stop
-									offset="95%"
-									stopColor="var(--color-desktop)"
-									stopOpacity={0.1}
-								/>
-							</linearGradient>
-							<linearGradient id="fillMobile" x1="0" y1="0" x2="0" y2="1">
-								<stop
-									offset="5%"
-									stopColor="var(--color-mobile)"
-									stopOpacity={0.8}
-								/>
-								<stop
-									offset="95%"
-									stopColor="var(--color-mobile)"
-									stopOpacity={0.1}
-								/>
-							</linearGradient>
-						</defs>
-						<CartesianGrid vertical={false} />
-						<XAxis
-							dataKey="month"
-							tickLine={false}
-							axisLine={false}
-							tickMargin={8}
-							minTickGap={32}
-							tickFormatter={(value) => value.slice(0, 3)}
-						/>
-						<ChartTooltip
-							cursor={false}
-							content={<ChartTooltipContent indicator="dot" />}
-						/>
-						<Area
-							dataKey="mobile"
-							type="natural"
-							fill="url(#fillMobile)"
-							stroke="var(--color-mobile)"
-							stackId="a"
-						/>
-						<Area
-							dataKey="desktop"
-							type="natural"
-							fill="url(#fillDesktop)"
-							stroke="var(--color-desktop)"
-							stackId="a"
-						/>
-					</AreaChart>
-				</ChartContainer>
+						<AreaChart
+							data={chartData}
+							margin={{
+								left: 12,
+								right: 12,
+							}}
+						>
+							<defs>
+								<linearGradient id="fillDesktop" x1="0" y1="0" x2="0" y2="1">
+									<stop
+										offset="5%"
+										stopColor="var(--color-desktop)"
+										stopOpacity={1.0}
+									/>
+									<stop
+										offset="95%"
+										stopColor="var(--color-desktop)"
+										stopOpacity={0.1}
+									/>
+								</linearGradient>
+								<linearGradient id="fillMobile" x1="0" y1="0" x2="0" y2="1">
+									<stop
+										offset="5%"
+										stopColor="var(--color-mobile)"
+										stopOpacity={0.8}
+									/>
+									<stop
+										offset="95%"
+										stopColor="var(--color-mobile)"
+										stopOpacity={0.1}
+									/>
+								</linearGradient>
+							</defs>
+							<CartesianGrid vertical={false} />
+							<XAxis
+								dataKey="month"
+								tickLine={false}
+								axisLine={false}
+								tickMargin={8}
+								minTickGap={32}
+								tickFormatter={(value) => value.slice(0, 3)}
+							/>
+							<ChartTooltip
+								cursor={false}
+								content={<ChartTooltipContent indicator="dot" />}
+							/>
+							<Area
+								dataKey="mobile"
+								type="natural"
+								fill="url(#fillMobile)"
+								stroke="var(--color-mobile)"
+								stackId="a"
+							/>
+							<Area
+								dataKey="desktop"
+								type="natural"
+								fill="url(#fillDesktop)"
+								stroke="var(--color-desktop)"
+								stackId="a"
+							/>
+						</AreaChart>
+					</ChartContainer>
+				) : (
+					<div className="h-[250px] w-full min-w-0 min-h-[250px]" />
+				)}
 			</CardContent>
 			<CardFooter>
 				<div className="flex w-full items-start gap-2 text-sm">

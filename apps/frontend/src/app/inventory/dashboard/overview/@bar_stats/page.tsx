@@ -1,6 +1,15 @@
-import { StockLevelChart } from "@/features/inventory/components/stock-level-chart";
+"use client";
 
-export default async function Page() {
-	await new Promise((resolve) => setTimeout(resolve, 3000));
+import dynamic from "next/dynamic";
+
+const StockLevelChart = dynamic(
+	() =>
+		import("@/features/inventory/components/stock-level-chart").then(
+			(mod) => mod.StockLevelChart,
+		),
+	{ ssr: false },
+);
+
+export default function Page() {
 	return <StockLevelChart />;
 }

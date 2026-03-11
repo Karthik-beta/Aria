@@ -54,6 +54,12 @@ const chartConfig = {
 } satisfies ChartConfig;
 
 export function PieGraph() {
+	const [isClient, setIsClient] = React.useState(false);
+
+	React.useEffect(() => {
+		setIsClient(true);
+	}, []);
+
 	const totalVisitors = React.useMemo(() => {
 		return chartData.reduce((acc, curr) => acc + curr.visitors, 0);
 	}, []);
@@ -70,84 +76,88 @@ export function PieGraph() {
 				</CardDescription>
 			</CardHeader>
 			<CardContent className="px-2 pt-4 sm:px-6 sm:pt-6">
-				<ChartContainer
-					config={chartConfig}
-					className="mx-auto aspect-square h-[250px]"
-				>
-					<PieChart>
-						<defs>
-							{["chrome", "safari", "firefox", "edge", "other"].map(
-								(browser, index) => (
-									<linearGradient
-										key={browser}
-										id={`fill${browser}`}
-										x1="0"
-										y1="0"
-										x2="0"
-										y2="1"
-									>
-										<stop
-											offset="0%"
-											stopColor="var(--primary)"
-											stopOpacity={1 - index * 0.15}
-										/>
-										<stop
-											offset="100%"
-											stopColor="var(--primary)"
-											stopOpacity={0.8 - index * 0.15}
-										/>
-									</linearGradient>
-								),
-							)}
-						</defs>
-						<ChartTooltip
-							cursor={false}
-							content={<ChartTooltipContent hideLabel />}
-						/>
-						<Pie
-							data={chartData.map((item) => ({
-								...item,
-								fill: `url(#fill${item.browser})`,
-							}))}
-							dataKey="visitors"
-							nameKey="browser"
-							innerRadius={60}
-							strokeWidth={2}
-							stroke="var(--background)"
-						>
-							<Label
-								content={({ viewBox }) => {
-									if (viewBox && "cx" in viewBox && "cy" in viewBox) {
-										return (
-											<text
-												x={viewBox.cx}
-												y={viewBox.cy}
-												textAnchor="middle"
-												dominantBaseline="middle"
-											>
-												<tspan
+				{isClient ? (
+					<ChartContainer
+						config={chartConfig}
+						className="mx-auto aspect-square h-[250px] w-full min-w-0 min-h-[250px]"
+					>
+						<PieChart>
+							<defs>
+								{["chrome", "safari", "firefox", "edge", "other"].map(
+									(browser, index) => (
+										<linearGradient
+											key={browser}
+											id={`fill${browser}`}
+											x1="0"
+											y1="0"
+											x2="0"
+											y2="1"
+										>
+											<stop
+												offset="0%"
+												stopColor="var(--primary)"
+												stopOpacity={1 - index * 0.15}
+											/>
+											<stop
+												offset="100%"
+												stopColor="var(--primary)"
+												stopOpacity={0.8 - index * 0.15}
+											/>
+										</linearGradient>
+									),
+								)}
+							</defs>
+							<ChartTooltip
+								cursor={false}
+								content={<ChartTooltipContent hideLabel />}
+							/>
+							<Pie
+								data={chartData.map((item) => ({
+									...item,
+									fill: `url(#fill${item.browser})`,
+								}))}
+								dataKey="visitors"
+								nameKey="browser"
+								innerRadius={60}
+								strokeWidth={2}
+								stroke="var(--background)"
+							>
+								<Label
+									content={({ viewBox }) => {
+										if (viewBox && "cx" in viewBox && "cy" in viewBox) {
+											return (
+												<text
 													x={viewBox.cx}
 													y={viewBox.cy}
-													className="fill-foreground text-3xl font-bold"
+													textAnchor="middle"
+													dominantBaseline="middle"
 												>
-													{totalVisitors.toLocaleString()}
-												</tspan>
-												<tspan
-													x={viewBox.cx}
-													y={(viewBox.cy || 0) + 24}
-													className="fill-muted-foreground text-sm"
-												>
-													Total Visitors
-												</tspan>
-											</text>
-										);
-									}
-									return null;
-								}}
-							/>
-						</Pie>
-					</PieChart>
-				</ChartContainer>
+													<tspan
+														x={viewBox.cx}
+														y={viewBox.cy}
+														className="fill-foreground text-3xl font-bold"
+													>
+														{totalVisitors.toLocaleString()}
+													</tspan>
+													<tspan
+														x={viewBox.cx}
+														y={(viewBox.cy || 0) + 24}
+														className="fill-muted-foreground text-sm"
+													>
+														Total Visitors
+													</tspan>
+												</text>
+											);
+										}
+										return null;
+									}}
+								/>
+							</Pie>
+						</PieChart>
+					</ChartContainer>
+				) : (
+					<div className="h-[250px] w-full min-w-0 min-h-[250px]" />
+				)}
 			</CardContent>
 			<CardFooter className="flex-col gap-2 text-sm">
 				<div className="flex items-center gap-2 leading-none font-medium">

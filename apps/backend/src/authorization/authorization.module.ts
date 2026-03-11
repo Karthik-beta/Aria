@@ -1,6 +1,4 @@
 import { Global, Module } from "@nestjs/common";
-import { PrismaClient } from "../generated/prisma/client.js";
-import { prismaClient } from "../shared/prisma-client.js";
 import { AuditService } from "./audit.service";
 import {
 	ActiveUserGuard,
@@ -32,12 +30,6 @@ import { ScopeService } from "./scope.service";
 @Global()
 @Module({
 	providers: [
-		// Prisma client - use factory provider to return the shared singleton
-		{
-			provide: PrismaClient,
-			useFactory: () => prismaClient,
-		},
-
 		// Core services
 		AuditService,
 		ScopeService,

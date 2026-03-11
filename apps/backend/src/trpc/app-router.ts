@@ -1,14 +1,15 @@
 import type { AppRouter as ContractAppRouter } from "@aria/api-contract";
 import type { InventoryRouter } from "../apps/inventory/trpc/inventory.router";
 import { accountRouter } from "./routers/account.router";
-import type { adminRouter } from "./routers/admin.router";
+import type { AdminRouter } from "./routers/admin-router.service";
 import { authorizationRouter } from "./routers/authorization.router";
 import { router } from "./trpc";
 
 type InventoryAppRouter = ReturnType<InventoryRouter["getRouter"]>;
+type AdminAppRouter = ReturnType<AdminRouter["getRouter"]>;
 type AppRouterInput = {
 	inventory: InventoryAppRouter;
-	admin: typeof adminRouter;
+	admin: AdminAppRouter;
 	authorization: typeof authorizationRouter;
 	account: typeof accountRouter;
 };
@@ -17,7 +18,7 @@ type ContractAppRouterRecord = ContractAppRouter["_def"]["record"];
 
 function createAppRouterRecord(
 	inventory: InventoryAppRouter,
-	admin: typeof adminRouter,
+	admin: AdminAppRouter,
 ): ContractAppRouterRecord {
 	const appRouterRecord: AppRouterInput = {
 		inventory,
@@ -63,7 +64,7 @@ const APP_ROUTER_CONTRACT_COMPATIBLE: AssertContractCompatibility = true;
 
 export function createAppRouter(
 	inventory: InventoryAppRouter,
-	admin: typeof adminRouter,
+	admin: AdminAppRouter,
 ): AppRouter {
 	void APP_ROUTER_CONTRACT_COMPATIBLE;
 	return router(createAppRouterRecord(inventory, admin));

@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import type { PrismaClient } from "../generated/prisma/client.js";
+import type { PrismaService } from "../shared/prisma.service";
 
 /**
  * ScopeService - Ownership and team-based access control
@@ -14,7 +14,7 @@ import type { PrismaClient } from "../generated/prisma/client.js";
  */
 @Injectable()
 export class ScopeService {
-	constructor(private readonly prisma: PrismaClient) {}
+	constructor(private readonly prisma: PrismaService) {}
 
 	/**
 	 * Check if user is an active supervisor for the specified app

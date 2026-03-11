@@ -14,6 +14,7 @@ declare module "@aria/api-contract" {
 	interface TrpcPrismaClient
 		extends Pick<
 			PrismaService,
+			| "role"
 			| "user"
 			| "userRole"
 			| "rolePermission"

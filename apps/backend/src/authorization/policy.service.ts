@@ -1,5 +1,5 @@
 import { Injectable, type OnModuleDestroy } from "@nestjs/common";
-import type { PrismaClient } from "../generated/prisma/client.js";
+import type { PrismaService } from "../shared/prisma.service";
 import type { PermissionService } from "./role-permission.service";
 import type { ScopeService } from "./scope.service";
 
@@ -67,7 +67,7 @@ export class PolicyService implements OnModuleDestroy {
 	private readonly cacheCleanupInterval: NodeJS.Timeout;
 
 	constructor(
-		private readonly prisma: PrismaClient,
+		private readonly prisma: PrismaService,
 		private readonly permissionService: PermissionService,
 		private readonly scopeService: ScopeService,
 	) {

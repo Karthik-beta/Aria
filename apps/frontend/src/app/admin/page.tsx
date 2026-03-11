@@ -10,6 +10,7 @@ import {
 	UserCheck,
 	Users,
 } from "lucide-react";
+import * as React from "react";
 import {
 	Area,
 	AreaChart,
@@ -107,6 +108,12 @@ const mockRecentActivity = [
 ];
 
 export default function AdminDashboard() {
+	const [isClient, setIsClient] = React.useState(false);
+
+	React.useEffect(() => {
+		setIsClient(true);
+	}, []);
+
 	// Fetch real data
 	const { data: usersData } = trpc.admin.listUsers.useQuery({
 		page: 1,
@@ -207,40 +214,49 @@ export default function AdminDashboard() {
 								</CardDescription>
 							</CardHeader>
 							<CardContent className="pl-2">
-								<ResponsiveContainer width="100%" height={300}>
-									<AreaChart data={mockUserGrowthData}>
-										<CartesianGrid
-											strokeDasharray="3 3"
-											className="stroke-muted"
-										/>
-										<XAxis dataKey="month" className="text-xs" />
-										<YAxis className="text-xs" />
-										<Tooltip
-											contentStyle={{
-												backgroundColor: "hsl(var(--background))",
-												border: "1px solid hsl(var(--border))",
-												borderRadius: "6px",
-											}}
-										/>
-										<Legend />
-										<Area
-											type="monotone"
-											dataKey="users"
-											stackId="1"
-											stroke="hsl(var(--primary))"
-											fill="hsl(var(--primary))"
-											fillOpacity={0.6}
-										/>
-										<Area
-											type="monotone"
-											dataKey="active"
-											stackId="2"
-											stroke="hsl(var(--chart-2))"
-											fill="hsl(var(--chart-2))"
-											fillOpacity={0.6}
-										/>
-									</AreaChart>
-								</ResponsiveContainer>
+								<div className="h-[300px] w-full min-w-0">
+									{isClient ? (
+										<ResponsiveContainer
+											width="100%"
+											height="100%"
+											minWidth={0}
+											minHeight={300}
+										>
+											<AreaChart data={mockUserGrowthData}>
+												<CartesianGrid
+													strokeDasharray="3 3"
+													className="stroke-muted"
+												/>
+												<XAxis dataKey="month" className="text-xs" />
+												<YAxis className="text-xs" />
+												<Tooltip
+													contentStyle={{
+														backgroundColor: "hsl(var(--background))",
+														border: "1px solid hsl(var(--border))",
+														borderRadius: "6px",
+													}}
+												/>
+												<Legend />
+												<Area
+													type="monotone"
+													dataKey="users"
+													stackId="1"
+													stroke="hsl(var(--primary))"
+													fill="hsl(var(--primary))"
+													fillOpacity={0.6}
+												/>
+												<Area
+													type="monotone"
+													dataKey="active"
+													stackId="2"
+													stroke="hsl(var(--chart-2))"
+													fill="hsl(var(--chart-2))"
+													fillOpacity={0.6}
+												/>
+											</AreaChart>
+										</ResponsiveContainer>
+									) : null}
+								</div>
 							</CardContent>
 						</Card>
 
@@ -250,33 +266,42 @@ export default function AdminDashboard() {
 								<CardDescription>Users by role assignment</CardDescription>
 							</CardHeader>
 							<CardContent>
-								<ResponsiveContainer width="100%" height={300}>
-									<PieChart>
-										<Pie
-											data={mockRoleDistribution}
-											cx="50%"
-											cy="50%"
-											labelLine={false}
-											label={({ name, percent }) =>
-												`${name}: ${((percent ?? 0) * 100).toFixed(0)}%`
-											}
-											outerRadius={80}
-											fill="#8884d8"
-											dataKey="value"
+								<div className="h-[300px] w-full min-w-0">
+									{isClient ? (
+										<ResponsiveContainer
+											width="100%"
+											height="100%"
+											minWidth={0}
+											minHeight={300}
 										>
-											{mockRoleDistribution.map((entry) => (
-												<Cell key={entry.name} fill={entry.color} />
-											))}
-										</Pie>
-										<Tooltip
-											contentStyle={{
-												backgroundColor: "hsl(var(--background))",
-												border: "1px solid hsl(var(--border))",
-												borderRadius: "6px",
-											}}
-										/>
-									</PieChart>
-								</ResponsiveContainer>
+											<PieChart>
+												<Pie
+													data={mockRoleDistribution}
+													cx="50%"
+													cy="50%"
+													labelLine={false}
+													label={({ name, percent }) =>
+														`${name}: ${((percent ?? 0) * 100).toFixed(0)}%`
+													}
+													outerRadius={80}
+													fill="#8884d8"
+													dataKey="value"
+												>
+													{mockRoleDistribution.map((entry) => (
+														<Cell key={entry.name} fill={entry.color} />
+													))}
+												</Pie>
+												<Tooltip
+													contentStyle={{
+														backgroundColor: "hsl(var(--background))",
+														border: "1px solid hsl(var(--border))",
+														borderRadius: "6px",
+													}}
+												/>
+											</PieChart>
+										</ResponsiveContainer>
+									) : null}
+								</div>
 							</CardContent>
 						</Card>
 					</div>
@@ -289,34 +314,43 @@ export default function AdminDashboard() {
 							<CardDescription>Login sessions and user actions</CardDescription>
 						</CardHeader>
 						<CardContent className="pl-2">
-							<ResponsiveContainer width="100%" height={350}>
-								<BarChart data={mockActivityData}>
-									<CartesianGrid
-										strokeDasharray="3 3"
-										className="stroke-muted"
-									/>
-									<XAxis dataKey="day" className="text-xs" />
-									<YAxis className="text-xs" />
-									<Tooltip
-										contentStyle={{
-											backgroundColor: "hsl(var(--background))",
-											border: "1px solid hsl(var(--border))",
-											borderRadius: "6px",
-										}}
-									/>
-									<Legend />
-									<Bar
-										dataKey="logins"
-										fill="hsl(var(--primary))"
-										radius={[4, 4, 0, 0]}
-									/>
-									<Bar
-										dataKey="actions"
-										fill="hsl(var(--chart-2))"
-										radius={[4, 4, 0, 0]}
-									/>
-								</BarChart>
-							</ResponsiveContainer>
+							<div className="h-[350px] w-full min-w-0">
+								{isClient ? (
+									<ResponsiveContainer
+										width="100%"
+										height="100%"
+										minWidth={0}
+										minHeight={350}
+									>
+										<BarChart data={mockActivityData}>
+											<CartesianGrid
+												strokeDasharray="3 3"
+												className="stroke-muted"
+											/>
+											<XAxis dataKey="day" className="text-xs" />
+											<YAxis className="text-xs" />
+											<Tooltip
+												contentStyle={{
+													backgroundColor: "hsl(var(--background))",
+													border: "1px solid hsl(var(--border))",
+													borderRadius: "6px",
+												}}
+											/>
+											<Legend />
+											<Bar
+												dataKey="logins"
+												fill="hsl(var(--primary))"
+												radius={[4, 4, 0, 0]}
+											/>
+											<Bar
+												dataKey="actions"
+												fill="hsl(var(--chart-2))"
+												radius={[4, 4, 0, 0]}
+											/>
+										</BarChart>
+									</ResponsiveContainer>
+								) : null}
+							</div>
 						</CardContent>
 					</Card>
 				</TabsContent>

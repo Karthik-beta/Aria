@@ -1,6 +1,15 @@
-import { CategoryDistributionChart } from "@/features/inventory/components/category-distribution-chart";
+"use client";
 
-export default async function Stats() {
-	await new Promise((resolve) => setTimeout(resolve, 1000));
+import dynamic from "next/dynamic";
+
+const CategoryDistributionChart = dynamic(
+	() =>
+		import("@/features/inventory/components/category-distribution-chart").then(
+			(mod) => mod.CategoryDistributionChart,
+		),
+	{ ssr: false },
+);
+
+export default function Stats() {
 	return <CategoryDistributionChart />;
 }
