@@ -3,20 +3,16 @@
 	"version": "0.1.0",
 	"private": true,
 	"scripts": {
-		"clean": "turbo run clean",
-		"format": "biome format --write .",
-		"format:check": "biome format .",
+		"predev": "bun x turbo run build --filter=@aria/types --filter=@aria/utils",
 		"build": "turbo run build",
-		"dev": "turbo run dev",
-		"dev:full": "turbo run dev db:start studio",
-		"start": "turbo run start",
+		"dev": "bun x turbo run dev",
+		"dev:full": "turbo run dev db:start studio --parallel",
+		"clean": "turbo run clean",
 		"lint": "turbo run lint",
 		"lint:fix": "turbo run lint:fix",
 		"lint:staged": "biome check --staged --write",
 		"typecheck": "turbo run typecheck",
 		"test": "turbo run test",
-		"package": "pwsh -File deployment/scripts/build/windows/build-package.ps1",
-		"package:test": "pwsh -File deployment/scripts/testing/windows/test-package.ps1",
 		"prepare": "husky"
 	},
 	"trustedDependencies": [
@@ -28,8 +24,8 @@
 		"@nodelib/fs.walk": "^3.0.1",
 		"husky": "^9.1.7",
 		"prisma": "^7.2.0",
-		"rimraf": "^6.1.2",
-		"turbo": "^2.7.2"
+		"rimraf": "^6.1.3",
+		"turbo": "^2.8.16"
 	},
 	"packageManager": "bun@1.3.1",
 	"workspaces": [

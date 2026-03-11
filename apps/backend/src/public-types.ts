@@ -1,1 +1,1 @@
-export type { AppRouter } from "./trpc/app-router";
+export type { AppRouter } from "@aria/api-contract";

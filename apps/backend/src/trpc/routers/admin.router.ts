@@ -157,24 +157,30 @@ export const adminRouter = router({
 			});
 		}
 
-		const [apps, systemPermission] = await Promise.all([
-			prismaClient.app.findMany({
-				where: { isActive: true },
-				select: { appKey: true, name: true, description: true },
-				orderBy: { name: "asc" },
-			}),
-			policyService.can(actorUserId, "system:user.manage"),
-		]);
-
-		const scopedChecks = await Promise.all(
-			apps.map(async (app) => {
-				const result = await policyService.can(
-					actorUserId,
-					`app:${app.appKey}:user.create`,
-				);
-				return { appKey: app.appKey, allowed: result.allowed };
-			}),
+		const apps: Array<{
+			appKey: string;
+			name: string;
+			description: string | null;
+		}> = await prismaClient.app.findMany({
+			where: { isActive: true },
+			select: { appKey: true, name: true, description: true },
+			orderBy: { name: "asc" },
+		});
+		const systemPermission = await policyService.can(
+			actorUserId,
+			"system:user.manage",
 		);
+
+		const scopedChecks: Array<{ appKey: string; allowed: boolean }> =
+			await Promise.all(
+				apps.map(async (app) => {
+					const result = await policyService.can(
+						actorUserId,
+						`app:${app.appKey}:user.create`,
+					);
+					return { appKey: app.appKey, allowed: result.allowed };
+				}),
+			);
 
 		const manageableAppKeys = scopedChecks
 			.filter((check) => check.allowed)
@@ -531,7 +537,13 @@ export const adminRouter = router({
 				await requirePermission(actorUserId, "system:user.manage");
 			}
 
-			const targetUser = await ctx.prisma.user.findUnique({
+			const targetUser: {
+				id: string;
+				email: string;
+				userRoles: Array<{
+					appKey: string | null;
+				}>;
+			} | null = await ctx.prisma.user.findUnique({
 				where: { id: input.userId },
 				select: {
 					id: true,

@@ -1,29 +1,26 @@
+import type {
+	TrpcContextType,
+	TrpcPrismaClient,
+	TrpcRequestLike,
+	TrpcResponseLike,
+} from "@aria/api-contract";
 import { Injectable } from "@nestjs/common";
 import type { CreateExpressContextOptions } from "@trpc/server/adapters/express";
 import type { PrismaService } from "../shared/prisma.service";
 
-export type TrpcRequestLike = {
-	headers: Record<string, string | string[] | undefined>;
-	[key: string]: unknown;
-};
+export type { TrpcContextType, TrpcRequestLike, TrpcResponseLike };
 
-export type TrpcResponseLike = Record<string, unknown>;
-
-/**
- * tRPC Context for Express adapter
- *
- * @remarks
- * Following official tRPC Express adapter pattern: context receives req and res
- * from CreateExpressContextOptions. This enables per-request context including
- * cookies, headers, and authentication state.
- *
- * Per official docs: createContext is called for each incoming request
- * See: https://trpc.io/docs/server/adapters/express
- */
-export interface TrpcContextType {
-	req?: TrpcRequestLike;
-	res?: TrpcResponseLike;
-	prisma: PrismaService;
+declare module "@aria/api-contract" {
+	interface TrpcPrismaClient
+		extends Pick<
+			PrismaService,
+			| "user"
+			| "userRole"
+			| "rolePermission"
+			| "teamMember"
+			| "appSupervisor"
+			| "app"
+		> {}
 }
 
 @Injectable()
@@ -40,7 +37,7 @@ export class TrpcContext {
 		return {
 			req: opts.req as unknown as TrpcRequestLike,
 			res: opts.res as unknown as TrpcResponseLike,
-			prisma: this.prisma,
+			prisma: this.prisma satisfies TrpcPrismaClient,
 		};
 	}
 }

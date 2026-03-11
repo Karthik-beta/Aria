@@ -41,14 +41,24 @@ export const authorizationRouter = router({
 			}
 
 			// Fetch user's roles
-			const userRoles = await prisma.userRole.findMany({
+			const userRoles: Array<{
+				appKey: string | null;
+				role: {
+					id: string;
+					key: string;
+				};
+			}> = await prisma.userRole.findMany({
 				where: { userId },
 				include: { role: true },
 			});
 
 			// Fetch all permissions for the user's roles
 			const roleIds = userRoles.map((ur) => ur.role.id);
-			const rolePermissions = await prisma.rolePermission.findMany({
+			const rolePermissions: Array<{
+				permission: {
+					key: string;
+				};
+			}> = await prisma.rolePermission.findMany({
 				where: { roleId: { in: roleIds } },
 				include: { permission: true },
 			});
@@ -62,7 +72,11 @@ export const authorizationRouter = router({
 			const roleKeys = userRoles.map((ur) => ur.role.key);
 
 			// Fetch user's app access through teams and direct role assignments
-			const userTeams = await prisma.teamMember.findMany({
+			const userTeams: Array<{
+				team: {
+					appKey: string;
+				};
+			}> = await prisma.teamMember.findMany({
 				where: { userId },
 				include: { team: { select: { appKey: true } } },
 			});
@@ -73,7 +87,11 @@ export const authorizationRouter = router({
 				.filter((appKey): appKey is string => Boolean(appKey));
 
 			// Fetch supervised apps
-			const supervisedApps = await prisma.appSupervisor.findMany({
+			const supervisedApps: Array<{
+				app: {
+					appKey: string;
+				};
+			}> = await prisma.appSupervisor.findMany({
 				where: { supervisorUserId: userId },
 				include: { app: true },
 			});

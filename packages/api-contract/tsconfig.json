@@ -2,16 +2,13 @@
 	"extends": "../../tsconfig.base.json",
 	"compilerOptions": {
 		"target": "ES2023",
-		"module": "NodeNext",
-		"moduleResolution": "NodeNext",
+		"module": "ESNext",
+		"moduleResolution": "Bundler",
 		"lib": ["ES2023", "DOM", "DOM.Iterable"],
-		"outDir": "./dist",
-		"rootDir": "./src",
-		"composite": true,
+		"noEmit": true,
 		"useUnknownInCatchVariables": false,
 		"types": ["node"]
 	},
-	"references": [{ "path": "../../apps/backend/tsconfig.public-types.json" }],
-	"include": ["src/**/*.ts"],
+	"include": ["src/**/*.ts", "src/**/*.d.ts"],
 	"exclude": ["node_modules", "dist"]
 }
