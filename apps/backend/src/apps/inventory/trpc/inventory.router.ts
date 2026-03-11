@@ -9,7 +9,7 @@ import { observable } from "@trpc/server/observable";
 import { z } from "zod";
 import type { accountRouter } from "../../../trpc/routers/account.router";
 import { publicProcedure, router } from "../../../trpc/trpc";
-import type { InventoryService } from "../inventory.service";
+import { InventoryService } from "../inventory.service";
 
 // Global event emitter for real-time subscriptions
 const inventoryEvents = new EventEmitter();

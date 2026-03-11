@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import type { Prisma } from "../generated/prisma/client.js";
-import type { PrismaService } from "../shared/prisma.service";
+import { PrismaService } from "../shared/prisma.service";
 
 /**
  * AuditService - Tamper-evident logging for authorization changes

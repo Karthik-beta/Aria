@@ -6,7 +6,7 @@ import {
 } from "@nestjs/common";
 import type { z } from "zod";
 import { Prisma } from "../../generated/prisma/client.js";
-import type { PrismaService } from "../../shared/prisma.service";
+import { PrismaService } from "../../shared/prisma.service";
 import { toInventoryItem, toInventoryItemGroup } from "./inventory.types";
 
 const formatItemGroupDefaults = (defaults?: Inventory.ItemGroupDefault[]) =>

@@ -1,11 +1,11 @@
 import { Injectable } from "@nestjs/common";
-import type { AuditService } from "../../authorization/audit.service";
-import type { PolicyService } from "../../authorization/policy.service";
-import type {
+import { AuditService } from "../../authorization/audit.service";
+import { PolicyService } from "../../authorization/policy.service";
+import {
 	PermissionService,
 	RoleService,
 } from "../../authorization/role-permission.service";
-import type { ScopeService } from "../../authorization/scope.service";
+import { ScopeService } from "../../authorization/scope.service";
 import { createAdminRouter } from "./admin.router";
 
 /**
