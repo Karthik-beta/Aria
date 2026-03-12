@@ -4,15 +4,15 @@
 	"private": true,
 	"scripts": {
 		"predev": "bun x turbo run build --filter=@aria/types --filter=@aria/utils",
-		"build": "turbo run build",
+		"build": "bun x turbo run build",
 		"dev": "bun x turbo run dev",
-		"dev:full": "turbo run dev db:start studio --parallel",
-		"clean": "turbo run clean",
-		"lint": "turbo run lint",
-		"lint:fix": "turbo run lint:fix",
+		"dev:full": "bun x turbo run dev db:start studio --parallel",
+		"clean": "bun x turbo run clean",
+		"lint": "bun x turbo run lint",
+		"lint:fix": "bun x turbo run lint:fix",
 		"lint:staged": "biome check --staged --write --files-ignore-unknown=true --no-errors-on-unmatched",
-		"typecheck": "turbo run typecheck",
-		"test": "turbo run test",
+		"typecheck": "bun x turbo run typecheck",
+		"test": "bun x turbo run test",
 		"prepare": "husky"
 	},
 	"trustedDependencies": [
