@@ -39,6 +39,7 @@
 			"cache": true
 		},
 		"typecheck": {
+			"dependsOn": ["^build"],
 			"inputs": [
 				"$TURBO_DEFAULT$",
 				"!README.md",
@@ -95,7 +96,7 @@
 			"outputs": []
 		},
 		"test": {
-			"dependsOn": ["^test"],
+			"dependsOn": ["^build", "^test"],
 			"outputs": []
 		},
 		"package": {
