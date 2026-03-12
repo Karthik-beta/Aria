@@ -34,7 +34,7 @@ Closes #
 <!-- Describe the tests you ran and how to reproduce them -->
 
 - [ ] Tested locally
-- [ ] All existing tests pass (`bun test`)
+- [ ] All existing tests pass (`bun run test`)
 - [ ] Added new tests for new features
 - [ ] Manual testing performed
 
@@ -50,7 +50,7 @@ Closes #
 <!-- Ensure all items are completed before submitting -->
 
 - [ ] My code follows the project's code style
-- [ ] I have run `bun format` and `bun lint`
+- [ ] I have run `bun format`, `bun run lint`, and `bun run typecheck`
 - [ ] I have performed a self-review of my code
 - [ ] I have commented my code, particularly in hard-to-understand areas
 - [ ] I have made corresponding changes to the documentation

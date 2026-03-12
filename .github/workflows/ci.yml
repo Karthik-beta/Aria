@@ -23,10 +23,13 @@ jobs:
         run: bun ci
 
       - name: Lint
-        run: bun lint
+        run: bun run lint
 
       - name: Test
-        run: bun test
+        run: bun run test
+
+      - name: Typecheck
+        run: bun run typecheck
 
       - name: Build
         run: bun run build

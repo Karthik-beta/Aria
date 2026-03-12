@@ -49,9 +49,10 @@ See [Getting Started Guide](./docs/getting-started.md) for detailed instructions
 | Command       | Description               |
 | ------------- | ------------------------- |
 | `bun format`  | Format code with Biome     |
-| `bun lint`    | Run Biome lint/format checks via Turbo |
-| `bun test`    | Run all tests             |
-| `bun build`   | Build all applications    |
+| `bun run lint` | Run Biome lint/format checks via Turbo |
+| `bun run test` | Run all tests             |
+| `bun run typecheck` | Run all TypeScript checks |
+| `bun run build` | Build all applications    |
 | `bun package` | Build deployment package  |
 
 > `bun format` and `bun lint` now delegate to Biome (`biome format` / `biome check`) through Turbo, replacing the earlier Prettier + ESLint toolchain.
@@ -100,9 +101,10 @@ We welcome contributions! Please read our [Contributing Guide](./CONTRIBUTING.md
 **Quick checklist before PR:**
 
 - [ ] `bun format` passes
-- [ ] `bun lint` passes
-- [ ] `bun test` passes
-- [ ] `bun build` succeeds
+- [ ] `bun run lint` passes
+- [ ] `bun run test` passes
+- [ ] `bun run typecheck` passes
+- [ ] `bun run build` succeeds
 - [ ] Documentation updated
 
 ## Security

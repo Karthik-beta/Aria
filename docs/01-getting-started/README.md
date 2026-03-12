@@ -135,13 +135,16 @@ Aria/
 bun format
 
 # Lint all code (ESLint)
-bun lint
+bun run lint
 
 # Run all tests
-bun test
+bun run test
+
+# Run all type checks
+bun run typecheck
 
 # Build all applications
-bun build
+bun run build
 ```
 
 ### Working with Shared Packages

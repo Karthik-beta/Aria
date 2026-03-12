@@ -10,7 +10,7 @@
 		"clean": "turbo run clean",
 		"lint": "turbo run lint",
 		"lint:fix": "turbo run lint:fix",
-		"lint:staged": "biome check --staged --write",
+		"lint:staged": "biome check --staged --write --files-ignore-unknown=true --no-errors-on-unmatched",
 		"typecheck": "turbo run typecheck",
 		"test": "turbo run test",
 		"prepare": "husky"
