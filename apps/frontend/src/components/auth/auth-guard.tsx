@@ -4,6 +4,23 @@ import { usePathname, useRouter } from "next/navigation";
 import React from "react";
 import { authClient } from "@/lib/auth/client";
 
+function hasMustChangePasswordFlag(
+	user: unknown,
+): user is { mustChangePassword?: boolean } {
+	if (typeof user !== "object" || user === null) {
+		return false;
+	}
+
+	if (!("mustChangePassword" in user)) {
+		return false;
+	}
+
+	const { mustChangePassword } = user as Record<string, unknown>;
+	return (
+		mustChangePassword === undefined || typeof mustChangePassword === "boolean"
+	);
+}
+
 /**
  * AuthGuard - Authentication protection for application routes
  *
@@ -27,10 +44,6 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 	const pathname = usePathname();
 	const { data: session, isPending, error } = authClient.useSession();
 
-	// Development mode bypass - skip authentication for testing
-	const isDevelopmentBypass =
-		process.env.NEXT_PUBLIC_DEV_AUTH_BYPASS === "true";
-
 	// Public routes that don't require authentication
 	const publicRoutes = [
 		"/auth/sign-in",
@@ -43,21 +56,13 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 	);
 	const isChangePasswordRoute = pathname.startsWith("/auth/change-password");
 
-	const mustChangePassword = Boolean(
-		session?.user &&
-			typeof session.user === "object" &&
-			"mustChangePassword" in session.user &&
-			(session.user as { mustChangePassword?: boolean }).mustChangePassword,
-	);
+	const mustChangePassword = hasMustChangePasswordFlag(session?.user)
+		? session.user.mustChangePassword === true
+		: false;
 
 	// useEffect MUST be called unconditionally (before any early returns)
 	// to satisfy React's Rules of Hooks - hooks cannot be called after conditional returns
 	React.useEffect(() => {
-		// Skip all authentication logic if development bypass is enabled
-		if (isDevelopmentBypass) {
-			return;
-		}
-
 		// Skip authentication for public routes (sign-in, sign-up pages)
 		if (isPublicRoute) {
 			return;
@@ -91,13 +96,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 		isPublicRoute,
 		mustChangePassword,
 		isChangePasswordRoute,
-		isDevelopmentBypass,
 	]);
-
-	// If dev bypass is enabled, render children immediately
-	if (isDevelopmentBypass) {
-		return <>{children}</>;
-	}
 
 	// Show loading state while checking authentication (only for protected routes)
 	if (!isPublicRoute && isPending) {

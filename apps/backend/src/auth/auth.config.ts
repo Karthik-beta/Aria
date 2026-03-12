@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { logger } from "@aria/utils";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { betterAuth } from "better-auth/minimal";
@@ -25,6 +26,25 @@ const backendUrl = (
 // Also allow secure when backendUrl uses https (useful for local HTTPS setups).
 const useSecureCookies =
 	process.env.NODE_ENV === "production" || backendUrl.startsWith("https");
+
+const resolveAuthSecret = (): string => {
+	const configuredSecret = process.env.BETTER_AUTH_SECRET?.trim();
+	if (configuredSecret) {
+		return configuredSecret;
+	}
+
+	if (process.env.NODE_ENV === "production") {
+		throw new Error(
+			"BETTER_AUTH_SECRET is required in production. Refusing to start with an insecure auth secret.",
+		);
+	}
+
+	const generatedSecret = randomBytes(32).toString("hex");
+	logger.warn(
+		"[Auth] BETTER_AUTH_SECRET is not set. Generated an ephemeral development secret for this process.",
+	);
+	return generatedSecret;
+};
 
 /**
  * Better Auth configuration with username/password authentication
@@ -115,7 +135,7 @@ export const auth = betterAuth({
 	baseURL: backendUrl,
 
 	// Secret for signing tokens (must be set in production)
-	secret: process.env.BETTER_AUTH_SECRET || "change-this-secret-in-production",
+	secret: resolveAuthSecret(),
 
 	// Trust proxy headers (required when behind reverse proxy)
 	// Trust both the frontend domain and any localhost/IP access

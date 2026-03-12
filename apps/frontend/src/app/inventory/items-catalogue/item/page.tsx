@@ -220,7 +220,7 @@ export default function InventoryItemsPage() {
 
 	// Bulk delete mutation with optimistic updates
 	// Following official TanStack Query v5 pattern
-	const bulkDeleteMutation = trpc.inventory.deleteItem.useMutation({
+	const bulkDeleteMutation = trpc.inventory.deleteItems.useMutation({
 		onMutate: async (variables) => {
 			// Cancel outgoing refetches
 			await utils.inventory.listItems.cancel();
@@ -228,19 +228,23 @@ export default function InventoryItemsPage() {
 			// Snapshot the previous value
 			const previousItems = utils.inventory.listItems.getData();
 
-			// Optimistically remove item
+			// Optimistically remove selected items
 			utils.inventory.listItems.setData(undefined, (old) => {
 				if (!old) return old;
-				return old.filter((item) => item.id !== variables.id);
+				return old.filter((item) => !variables.ids.includes(item.id));
 			});
 
 			return { previousItems };
 		},
-		onError: (_error, _variables, context) => {
+		onSuccess: (result) => {
+			toast.success(`Successfully deleted ${result.count} item(s)`);
+		},
+		onError: (error, _variables, context) => {
 			// Rollback on error
 			if (context?.previousItems) {
 				utils.inventory.listItems.setData(undefined, context.previousItems);
 			}
+			toast.error(getToastMessage(error, "delete"));
 		},
 		onSettled: () => {
 			// Always refetch after mutation to ensure data consistency
@@ -579,20 +583,12 @@ export default function InventoryItemsPage() {
 			const ids = rows.map((r) => r.original.id);
 
 			try {
-				// Delete items sequentially
-				for (const id of ids) {
-					await bulkDeleteMutation.mutateAsync({ id });
-				}
-
-				toast.success(`Successfully deleted ${ids.length} item(s)`);
-
-				// Invalidate to refresh the list
-				await utils.inventory.listItems.invalidate();
+				await bulkDeleteMutation.mutateAsync({ ids });
 			} catch {
-				toast.error("Failed to delete some items");
+				// Error toast is handled in the mutation lifecycle
 			}
 		},
-		[bulkDeleteMutation, utils],
+		[bulkDeleteMutation],
 	);
 
 	// Bulk actions - Memoized with stable handler reference
@@ -622,7 +618,7 @@ export default function InventoryItemsPage() {
 		data: items,
 		columns,
 		initialPageSize: 25,
-		initialSorting: [{ id: "createdAt", desc: true }], // Sort by newest first
+		initialSorting: [{ id: "age", desc: true }], // Sort by newest first
 		enableRowSelection: true,
 		enableMultiRowSelection: true,
 		enableGlobalFilter: true,

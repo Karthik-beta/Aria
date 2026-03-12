@@ -8,11 +8,12 @@ import type {
 import { observable } from "@trpc/server/observable";
 import { z } from "zod";
 import type { accountRouter } from "../../../trpc/routers/account.router";
-import { publicProcedure, router } from "../../../trpc/trpc";
+import { protectedProcedure, router } from "../../../trpc/trpc";
 import type { InventoryService } from "../inventory.service";
 
 // Global event emitter for real-time subscriptions
-const inventoryEvents = new EventEmitter();
+const inventoryEvents = new EventEmitter({ captureRejections: true });
+inventoryEvents.setMaxListeners(50);
 
 type ItemGroupsChangedEvent = {
 	type: "created" | "updated" | "deleted";
@@ -25,13 +26,13 @@ type ItemsChangedEvent = {
 };
 
 function createListItemsProcedure(inventoryService: InventoryService) {
-	return publicProcedure.query(async () => {
+	return protectedProcedure.query(async () => {
 		return inventoryService.findAll();
 	});
 }
 
 function createListItemGroupsProcedure(inventoryService: InventoryService) {
-	return publicProcedure
+	return protectedProcedure
 		.input(z.object({ search: z.string().optional() }).optional())
 		.query(async ({ input }) => {
 			return inventoryService.findAllItemGroups(input?.search);
@@ -39,7 +40,7 @@ function createListItemGroupsProcedure(inventoryService: InventoryService) {
 }
 
 function createListUnitsOfMeasureProcedure(inventoryService: InventoryService) {
-	return publicProcedure
+	return protectedProcedure
 		.input(z.object({ search: z.string().optional() }).optional())
 		.query(async ({ input }) => {
 			return inventoryService.findAllUnitsOfMeasure(input?.search);
@@ -47,7 +48,7 @@ function createListUnitsOfMeasureProcedure(inventoryService: InventoryService) {
 }
 
 function createCreateItemProcedure(inventoryService: InventoryService) {
-	return publicProcedure
+	return protectedProcedure
 		.input(Inventory.createSchema)
 		.mutation(async ({ input }) => {
 			const item = await inventoryService.create(input);
@@ -57,7 +58,7 @@ function createCreateItemProcedure(inventoryService: InventoryService) {
 }
 
 function createUpdateItemProcedure(inventoryService: InventoryService) {
-	return publicProcedure
+	return protectedProcedure
 		.input(Inventory.updateSchema)
 		.mutation(async ({ input }) => {
 			const item = await inventoryService.update(input);
@@ -67,7 +68,7 @@ function createUpdateItemProcedure(inventoryService: InventoryService) {
 }
 
 function createDeleteItemProcedure(inventoryService: InventoryService) {
-	return publicProcedure
+	return protectedProcedure
 		.input(z.object({ id: z.string().min(1) }))
 		.mutation(async ({ input }) => {
 			await inventoryService.delete(input.id);
@@ -76,8 +77,22 @@ function createDeleteItemProcedure(inventoryService: InventoryService) {
 		});
 }
 
+function createBulkDeleteItemsProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(Inventory.bulkDeleteSchema)
+		.mutation(async ({ input }) => {
+			const result = await inventoryService.deleteMany(input.ids);
+
+			for (const id of result.ids) {
+				inventoryEvents.emit("itemDeleted", { id });
+			}
+
+			return result;
+		});
+}
+
 function createCreateItemGroupProcedure(inventoryService: InventoryService) {
-	return publicProcedure
+	return protectedProcedure
 		.input(Inventory.createGroupSchema)
 		.mutation(async ({ input }) => {
 			const group = await inventoryService.createGroup(input);
@@ -87,7 +102,7 @@ function createCreateItemGroupProcedure(inventoryService: InventoryService) {
 }
 
 function createUpdateItemGroupProcedure(inventoryService: InventoryService) {
-	return publicProcedure
+	return protectedProcedure
 		.input(Inventory.updateGroupSchema)
 		.mutation(async ({ input }) => {
 			const group = await inventoryService.updateGroup(input);
@@ -97,7 +112,7 @@ function createUpdateItemGroupProcedure(inventoryService: InventoryService) {
 }
 
 function createDeleteItemGroupProcedure(inventoryService: InventoryService) {
-	return publicProcedure
+	return protectedProcedure
 		.input(z.object({ id: z.string().min(1) }))
 		.mutation(async ({ input }) => {
 			const result = await inventoryService.deleteGroup(input.id);
@@ -106,7 +121,7 @@ function createDeleteItemGroupProcedure(inventoryService: InventoryService) {
 		});
 }
 
-const onItemGroupsChangedProcedure = publicProcedure.subscription(() => {
+const onItemGroupsChangedProcedure = protectedProcedure.subscription(() => {
 	return observable<ItemGroupsChangedEvent>((emit) => {
 		const onCreated = (data: Inventory.ItemGroup) => {
 			emit.next({ type: "created", data });
@@ -130,7 +145,7 @@ const onItemGroupsChangedProcedure = publicProcedure.subscription(() => {
 	});
 });
 
-const onItemCreatedProcedure = publicProcedure.subscription(() => {
+const onItemCreatedProcedure = protectedProcedure.subscription(() => {
 	return observable<Inventory.Item>((emit) => {
 		const onCreated = (data: Inventory.Item) => {
 			emit.next(data);
@@ -144,7 +159,7 @@ const onItemCreatedProcedure = publicProcedure.subscription(() => {
 	});
 });
 
-const onItemUpdatedProcedure = publicProcedure.subscription(() => {
+const onItemUpdatedProcedure = protectedProcedure.subscription(() => {
 	return observable<Inventory.Item>((emit) => {
 		const onUpdated = (data: Inventory.Item) => {
 			emit.next(data);
@@ -158,7 +173,7 @@ const onItemUpdatedProcedure = publicProcedure.subscription(() => {
 	});
 });
 
-const onItemDeletedProcedure = publicProcedure.subscription(() => {
+const onItemDeletedProcedure = protectedProcedure.subscription(() => {
 	return observable<{ id: string }>((emit) => {
 		const onDeleted = (data: { id: string }) => {
 			emit.next(data);
@@ -172,7 +187,7 @@ const onItemDeletedProcedure = publicProcedure.subscription(() => {
 	});
 });
 
-const onItemsChangedProcedure = publicProcedure.subscription(() => {
+const onItemsChangedProcedure = protectedProcedure.subscription(() => {
 	return observable<ItemsChangedEvent>((emit) => {
 		const onCreated = (data: Inventory.Item) => {
 			emit.next({ type: "created", data });
@@ -205,6 +220,7 @@ type InventoryRouterInput = {
 	createItem: ReturnType<typeof createCreateItemProcedure>;
 	updateItem: ReturnType<typeof createUpdateItemProcedure>;
 	deleteItem: ReturnType<typeof createDeleteItemProcedure>;
+	deleteItems: ReturnType<typeof createBulkDeleteItemsProcedure>;
 	createItemGroup: ReturnType<typeof createCreateItemGroupProcedure>;
 	updateItemGroup: ReturnType<typeof createUpdateItemGroupProcedure>;
 	deleteItemGroup: ReturnType<typeof createDeleteItemGroupProcedure>;
@@ -233,6 +249,7 @@ function createInventoryRouterRecord(
 		createItem: createCreateItemProcedure(inventoryService),
 		updateItem: createUpdateItemProcedure(inventoryService),
 		deleteItem: createDeleteItemProcedure(inventoryService),
+		deleteItems: createBulkDeleteItemsProcedure(inventoryService),
 		createItemGroup: createCreateItemGroupProcedure(inventoryService),
 		updateItemGroup: createUpdateItemGroupProcedure(inventoryService),
 		deleteItemGroup: createDeleteItemGroupProcedure(inventoryService),

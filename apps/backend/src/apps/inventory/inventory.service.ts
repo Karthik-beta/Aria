@@ -40,11 +40,11 @@ const formatReorderSettings = (items?: InventoryItemReorderInput[] | null) =>
 			materialRequestType?: string | null;
 		} = { warehouse };
 
-		if (typeof reorderLevel === "number") {
+		if (reorderLevel != null && typeof reorderLevel === "number") {
 			entry.reorderLevel = reorderLevel;
 		}
 
-		if (typeof reorderQty === "number") {
+		if (reorderQty != null && typeof reorderQty === "number") {
 			entry.reorderQty = reorderQty;
 		}
 
@@ -339,5 +339,50 @@ export class InventoryService {
 			}
 			throw error;
 		}
+	}
+
+	/**
+	 * Delete multiple inventory items
+	 */
+	async deleteMany(ids: string[]): Promise<{
+		success: boolean;
+		count: number;
+		ids: string[];
+		missingIds: string[];
+	}> {
+		return this.prisma.$transaction(async (tx) => {
+			const uniqueIds = [...new Set(ids)];
+			const items = await tx.inventoryItem.findMany({
+				where: {
+					id: {
+						in: uniqueIds,
+					},
+				},
+				select: { id: true },
+			});
+
+			const deletedIds = items.map((item) => item.id);
+			const deletedSet = new Set(deletedIds);
+			const missingIds = uniqueIds.filter((id) => !deletedSet.has(id));
+
+			if (deletedIds.length === 0) {
+				return { success: true, count: 0, ids: [], missingIds };
+			}
+
+			await tx.inventoryItem.deleteMany({
+				where: {
+					id: {
+						in: deletedIds,
+					},
+				},
+			});
+
+			return {
+				success: true,
+				count: deletedIds.length,
+				ids: deletedIds,
+				missingIds,
+			};
+		});
 	}
 }

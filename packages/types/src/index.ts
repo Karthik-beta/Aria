@@ -268,6 +268,10 @@ export namespace Inventory {
 		defaults?: ItemGroupDefault[];
 	}
 
+	export interface BulkDeleteInput {
+		ids: string[];
+	}
+
 	// ============================================================================
 	// Zod Schemas - Runtime Validation
 	// ============================================================================
@@ -293,7 +297,7 @@ export namespace Inventory {
 		taxCode: z.string().max(50).optional(),
 		shelfLifeInDays: z.number().int().min(0).optional(),
 		warrantyPeriodInDays: z.number().int().min(0).optional(),
-		endOfLife: z.date().optional(),
+		endOfLife: z.coerce.date().optional(),
 		weightPerUnit: z.number().min(0).optional(),
 		weightUom: z.string().max(50).optional(),
 		allowNegativeStock: z.boolean().default(false),
@@ -346,7 +350,7 @@ export namespace Inventory {
 		taxCode: z.string().max(50).optional(),
 		shelfLifeInDays: z.number().int().min(0).optional(),
 		warrantyPeriodInDays: z.number().int().min(0).optional(),
-		endOfLife: z.date().optional(),
+		endOfLife: z.coerce.date().optional(),
 		weightPerUnit: z.number().min(0).optional(),
 		weightUom: z.string().max(50).optional(),
 		allowNegativeStock: z.boolean().optional(),
@@ -377,6 +381,13 @@ export namespace Inventory {
 			.optional(),
 		itemGroupId: z.string().cuid().optional(),
 		defaultUnitOfMeasureId: z.string().cuid().optional(),
+	});
+
+	/**
+	 * Validation schema for deleting multiple inventory items
+	 */
+	export const bulkDeleteSchema = z.object({
+		ids: z.array(z.string().cuid()).min(1),
 	});
 
 	/**

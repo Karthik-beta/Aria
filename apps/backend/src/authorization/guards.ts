@@ -17,10 +17,24 @@ import type { PolicyService } from "./policy.service";
 import type { ScopeService } from "./scope.service";
 
 type GuardRequest = {
-	params?: Record<string, string | undefined>;
-	body?: Record<string, string | undefined>;
-	query?: Record<string, string | undefined>;
+	params?: Record<string, unknown>;
+	body?: Record<string, unknown>;
+	query?: Record<string, unknown>;
 };
+
+function isAuthBypassEnabled(): boolean {
+	return (
+		process.env.DISABLE_AUTH === "true" &&
+		process.env.NODE_ENV === "development"
+	);
+}
+
+function hasOwnStringValue(
+	source: Record<string, unknown>,
+	key: string,
+): source is Record<string, string> {
+	return Object.hasOwn(source, key) && typeof source[key] === "string";
+}
 
 /**
  * Authorization Guards for NestJS
@@ -51,15 +65,23 @@ export class PublicRouteGuard implements CanActivate {
 			[context.getHandler(), context.getClass()],
 		);
 
-		if (
-			isPublic ||
-			(process.env.NODE_ENV === "development" &&
-				process.env.DISABLE_AUTH === "true")
-		) {
+		if (isPublic || isAuthBypassEnabled()) {
 			this.logger.debug(
 				"Skipping authorization check (Public route or Dev bypass)",
 			);
 			return true;
+		}
+
+		if (
+			process.env.NODE_ENV === "production" &&
+			process.env.DISABLE_AUTH === "true"
+		) {
+			this.logger.error(
+				"DISABLE_AUTH=true was ignored because authorization bypass is never allowed in production.",
+			);
+			throw new UnauthorizedException(
+				"Authentication bypass is not allowed in production",
+			);
 		}
 
 		// Not public, let other guards handle authorization
@@ -80,10 +102,7 @@ export class ActiveUserGuard implements CanActivate {
 		const request = context.switchToHttp().getRequest();
 
 		// Development bypass
-		if (
-			process.env.NODE_ENV === "development" &&
-			process.env.DISABLE_AUTH === "true"
-		) {
+		if (isAuthBypassEnabled()) {
 			return true;
 		}
 
@@ -133,10 +152,7 @@ export class AppScopeGuard implements CanActivate {
 		const request = context.switchToHttp().getRequest();
 
 		// Development bypass
-		if (
-			process.env.NODE_ENV === "development" &&
-			process.env.DISABLE_AUTH === "true"
-		) {
+		if (isAuthBypassEnabled()) {
 			return true;
 		}
 
@@ -203,10 +219,7 @@ export class RolePermissionGuard implements CanActivate {
 		const request = context.switchToHttp().getRequest();
 
 		// Development bypass
-		if (
-			process.env.NODE_ENV === "development" &&
-			process.env.DISABLE_AUTH === "true"
-		) {
+		if (isAuthBypassEnabled()) {
 			return true;
 		}
 
@@ -284,8 +297,12 @@ export class RolePermissionGuard implements CanActivate {
 			}
 
 			for (const key of keys) {
+				if (!hasOwnStringValue(source, key)) {
+					continue;
+				}
+
 				const value = source[key];
-				if (typeof value === "string" && value.trim().length > 0) {
+				if (value.trim().length > 0) {
 					return value;
 				}
 			}
@@ -314,10 +331,7 @@ export class OwnershipGuard implements CanActivate {
 		const request = context.switchToHttp().getRequest();
 
 		// Development bypass
-		if (
-			process.env.NODE_ENV === "development" &&
-			process.env.DISABLE_AUTH === "true"
-		) {
+		if (isAuthBypassEnabled()) {
 			return true;
 		}
 

@@ -816,12 +816,19 @@ function ItemFormContent() {
 													setValueAs: (v) => (v ? new Date(v) : undefined),
 												})}
 												className="h-10"
-												defaultValue={
-													form
-														.getValues("endOfLife")
-														?.toISOString()
-														.split("T")[0]
-												}
+												defaultValue={(() => {
+													const endOfLife = form.getValues("endOfLife");
+													if (endOfLife instanceof Date) {
+														return endOfLife.toISOString().split("T")[0];
+													}
+													if (
+														typeof endOfLife === "string" &&
+														endOfLife.length > 0
+													) {
+														return endOfLife;
+													}
+													return undefined;
+												})()}
 											/>
 										</div>
 										<div className="space-y-1.5">

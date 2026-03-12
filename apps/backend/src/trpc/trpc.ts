@@ -39,6 +39,16 @@ export type ProtectedContext = TrpcContextType & {
  * Middleware to verify user is authenticated
  */
 const isAuthenticated = t.middleware(async ({ ctx, next }) => {
+	if (
+		process.env.NODE_ENV === "production" &&
+		process.env.DISABLE_AUTH === "true"
+	) {
+		throw new TRPCError({
+			code: "INTERNAL_SERVER_ERROR",
+			message: "DISABLE_AUTH cannot be used in production",
+		});
+	}
+
 	// Development bypass - Allow access without session if DISABLE_AUTH is set
 	if (
 		process.env.NODE_ENV === "development" &&

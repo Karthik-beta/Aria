@@ -51,6 +51,7 @@ describe("InventoryService", () => {
 			create: jest.fn(),
 			update: jest.fn(),
 			delete: jest.fn(),
+			deleteMany: jest.fn(),
 		},
 	};
 
@@ -167,6 +168,52 @@ describe("InventoryService", () => {
 			await expect(service.delete(mockItem.id)).rejects.toThrow(
 				NotFoundException,
 			);
+		});
+	});
+
+	describe("deleteMany", () => {
+		it("should delete multiple items", async () => {
+			mockPrisma.inventoryItem.findMany.mockResolvedValue([
+				{ id: mockItem.id },
+				{ id: "clh1234567891" },
+			]);
+			mockPrisma.inventoryItem.deleteMany.mockResolvedValue({ count: 2 });
+
+			const result = await service.deleteMany([mockItem.id, "clh1234567891"]);
+
+			expect(result).toEqual({
+				success: true,
+				count: 2,
+				ids: [mockItem.id, "clh1234567891"],
+				missingIds: [],
+			});
+			expect(mockPrisma.inventoryItem.deleteMany).toHaveBeenCalledWith({
+				where: {
+					id: {
+						in: [mockItem.id, "clh1234567891"],
+					},
+				},
+			});
+		});
+
+		it("should report IDs that do not exist", async () => {
+			mockPrisma.inventoryItem.findMany.mockResolvedValue([
+				{ id: mockItem.id },
+			]);
+			mockPrisma.inventoryItem.deleteMany.mockResolvedValue({ count: 1 });
+
+			const result = await service.deleteMany([
+				mockItem.id,
+				"clh9999999999",
+				"clh8888888888",
+			]);
+
+			expect(result).toEqual({
+				success: true,
+				count: 1,
+				ids: [mockItem.id],
+				missingIds: ["clh9999999999", "clh8888888888"],
+			});
 		});
 	});
 });

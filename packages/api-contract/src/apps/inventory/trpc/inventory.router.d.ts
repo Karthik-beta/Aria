@@ -62,7 +62,7 @@ type InventoryRouterInput = {
 			taxCode?: string | undefined;
 			shelfLifeInDays?: number | undefined;
 			warrantyPeriodInDays?: number | undefined;
-			endOfLife?: Date | undefined;
+			endOfLife?: unknown;
 			weightPerUnit?: number | undefined;
 			weightUom?: string | undefined;
 			allowNegativeStock?: boolean | undefined;
@@ -111,7 +111,7 @@ type InventoryRouterInput = {
 			taxCode?: string | undefined;
 			shelfLifeInDays?: number | undefined;
 			warrantyPeriodInDays?: number | undefined;
-			endOfLife?: Date | undefined;
+			endOfLife?: unknown;
 			weightPerUnit?: number | undefined;
 			weightUom?: string | undefined;
 			allowNegativeStock?: boolean | undefined;
@@ -149,6 +149,18 @@ type InventoryRouterInput = {
 		output: {
 			success: boolean;
 			id: string;
+		};
+		meta: object;
+	}>;
+	deleteItems: TRPCMutationProcedure<{
+		input: {
+			ids: string[];
+		};
+		output: {
+			success: boolean;
+			count: number;
+			ids: string[];
+			missingIds: string[];
 		};
 		meta: object;
 	}>;

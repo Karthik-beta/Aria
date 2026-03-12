@@ -13,6 +13,48 @@ export class AuthService implements OnModuleInit {
 	private readonly logger = new Logger(AuthService.name);
 	private readonly prisma = prismaClient;
 
+	private getSafeErrorMessage(error: unknown): string {
+		if (error instanceof Error && error.message.trim().length > 0) {
+			return error.message;
+		}
+
+		if (typeof error === "string" && error.trim().length > 0) {
+			return error;
+		}
+
+		return "Unexpected error";
+	}
+
+	private getErrorDetails(error: unknown): string | undefined {
+		if (error instanceof Error) {
+			return error.stack;
+		}
+
+		if (typeof error === "string" && error.trim().length > 0) {
+			return error;
+		}
+
+		if (error && typeof error === "object") {
+			try {
+				const serialized = JSON.stringify(error);
+				if (serialized && serialized !== "{}") {
+					return serialized;
+				}
+			} catch {
+				return undefined;
+			}
+		}
+
+		return undefined;
+	}
+
+	private logSafeError(message: string, error: unknown): void {
+		this.logger.error(
+			`${message} ${this.getSafeErrorMessage(error)}`,
+			this.getErrorDetails(error),
+		);
+	}
+
 	async onModuleInit() {
 		// Create default user in both development and production for testing
 		await this.createDefaultUser();
@@ -100,9 +142,9 @@ export class AuthService implements OnModuleInit {
 						},
 					});
 				} catch (updateError) {
-					this.logger.error(
+					this.logSafeError(
 						"Failed to update default admin password metadata (non-critical):",
-						updateError?.message || updateError,
+						updateError,
 					);
 				}
 			}
@@ -115,17 +157,17 @@ export class AuthService implements OnModuleInit {
 						`Authorization system seeded and super_admin role assigned to ${username}`,
 					);
 				} catch (seedError) {
-					this.logger.error(
+					this.logSafeError(
 						"Failed to seed authorization or assign roles (non-critical):",
-						seedError?.message || seedError,
+						seedError,
 					);
 				}
 			}
 		} catch (error) {
 			// Log error but don't crash the application
-			this.logger.error(
+			this.logSafeError(
 				"Failed to create default admin user (non-critical):",
-				error?.message || error,
+				error,
 			);
 		}
 	}
