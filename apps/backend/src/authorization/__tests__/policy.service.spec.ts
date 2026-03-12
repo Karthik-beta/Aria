@@ -1,5 +1,5 @@
 import { Test, type TestingModule } from "@nestjs/testing";
-import { PrismaClient } from "../../generated/prisma/client.js";
+import { PrismaService } from "../../shared/prisma.service";
 import { PolicyService } from "../policy.service";
 import { PermissionService } from "../role-permission.service";
 import { ScopeService } from "../scope.service";
@@ -56,8 +56,8 @@ describe("PolicyService", () => {
 			providers: [
 				PolicyService,
 				{
-					provide: PrismaClient,
-					useValue: mockPrisma as unknown as PrismaClient,
+					provide: PrismaService,
+					useValue: mockPrisma as unknown as PrismaService,
 				},
 				{
 					provide: PermissionService,

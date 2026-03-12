@@ -9,7 +9,8 @@ import { observable } from "@trpc/server/observable";
 import { z } from "zod";
 import type { accountRouter } from "../../../trpc/routers/account.router";
 import { protectedProcedure, router } from "../../../trpc/trpc";
-import type { InventoryService } from "../inventory.service";
+// biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
+import { InventoryService } from "../inventory.service";
 
 // Global event emitter for real-time subscriptions
 const inventoryEvents = new EventEmitter({ captureRejections: true });

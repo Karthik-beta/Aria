@@ -1,7 +1,9 @@
 {
 	"extends": "./tsconfig.json",
-	"include": ["src/**/*", "test/**/*", "test-*.js"],
+	"include": ["src/**/*"],
+	"exclude": ["node_modules", "dist", ".test-dist"],
 	"compilerOptions": {
+		"rootDir": ".",
 		"types": ["jest", "node"]
 	}
 }

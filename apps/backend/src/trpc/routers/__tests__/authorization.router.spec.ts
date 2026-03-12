@@ -20,18 +20,7 @@ const prismaMock: AuthorizationPrismaMock = {
 	teamMember: { findMany: jest.fn() },
 	appSupervisor: { findMany: jest.fn() },
 };
-
-jest.mock("../../../generated/prisma/client.js", () => ({
-	PrismaClient: jest.fn(() => prismaMock),
-}));
-
-jest.mock("../../../auth/auth.config", () => ({
-	auth: {
-		api: {
-			getSession: jest.fn(),
-		},
-	},
-}));
+const getSessionMock = jest.fn();
 
 const createSessionPayload = () => ({
 	user: {
@@ -64,11 +53,13 @@ const createCaller = () => {
 	return authorizationRouter.createCaller(ctx);
 };
 
-const getSessionMock = jest.mocked(auth.api.getSession);
-
 describe("authorizationRouter", () => {
 	beforeEach(() => {
 		jest.clearAllMocks();
+		Object.defineProperty(auth.api, "getSession", {
+			value: getSessionMock,
+			configurable: true,
+		});
 		getSessionMock.mockReset();
 	});
 

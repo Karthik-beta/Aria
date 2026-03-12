@@ -1,6 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import type { Prisma } from "../generated/prisma/client.js";
-import type { PrismaService } from "../shared/prisma.service";
+// biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
+import { PrismaService } from "../shared/prisma.service";
 
 /**
  * AuditService - Tamper-evident logging for authorization changes

@@ -1,6 +1,6 @@
 import { NotFoundException } from "@nestjs/common";
 import { Test, type TestingModule } from "@nestjs/testing";
-import { PrismaClient } from "../../generated/prisma/client.js";
+import { PrismaService } from "../../shared/prisma.service";
 import { PermissionService, RoleService } from "../role-permission.service";
 
 type RolePrismaMock = {
@@ -46,8 +46,8 @@ describe("RoleService", () => {
 			providers: [
 				RoleService,
 				{
-					provide: PrismaClient,
-					useValue: mockPrisma as unknown as PrismaClient,
+					provide: PrismaService,
+					useValue: mockPrisma as unknown as PrismaService,
 				},
 			],
 		}).compile();
@@ -291,8 +291,8 @@ describe("PermissionService", () => {
 			providers: [
 				PermissionService,
 				{
-					provide: PrismaClient,
-					useValue: mockPrisma as unknown as PrismaClient,
+					provide: PrismaService,
+					useValue: mockPrisma as unknown as PrismaService,
 				},
 			],
 		}).compile();

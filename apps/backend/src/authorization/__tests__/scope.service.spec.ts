@@ -1,5 +1,5 @@
 import { Test, type TestingModule } from "@nestjs/testing";
-import { PrismaClient } from "../../generated/prisma/client.js";
+import { PrismaService } from "../../shared/prisma.service";
 import { ScopeService } from "../scope.service";
 
 type ScopePrismaMock = {
@@ -37,8 +37,8 @@ describe("ScopeService", () => {
 			providers: [
 				ScopeService,
 				{
-					provide: PrismaClient,
-					useValue: prismaMock as unknown as PrismaClient,
+					provide: PrismaService,
+					useValue: prismaMock as unknown as PrismaService,
 				},
 			],
 		}).compile();

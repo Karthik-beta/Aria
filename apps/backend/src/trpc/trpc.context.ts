@@ -6,7 +6,8 @@ import type {
 } from "@aria/api-contract";
 import { Injectable } from "@nestjs/common";
 import type { CreateExpressContextOptions } from "@trpc/server/adapters/express";
-import type { PrismaService } from "../shared/prisma.service";
+// biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
+import { PrismaService } from "../shared/prisma.service";
 
 export type { TrpcContextType, TrpcRequestLike, TrpcResponseLike };
 

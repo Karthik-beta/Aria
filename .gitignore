@@ -69,6 +69,9 @@ coverage/
 test-results/
 playwright-report/
 playwright/.cache/
+apps/backend/.test-dist/
+apps/backend/test/**/*.js
+apps/backend/test/**/*.js.map
 
 # Prisma
 apps/backend/prisma/migrations/

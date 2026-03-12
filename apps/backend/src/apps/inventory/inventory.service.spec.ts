@@ -53,9 +53,15 @@ describe("InventoryService", () => {
 			delete: jest.fn(),
 			deleteMany: jest.fn(),
 		},
+		$transaction: jest.fn(),
 	};
 
 	beforeEach(async () => {
+		mockPrisma.$transaction.mockImplementation(
+			async (callback: (tx: typeof mockPrisma) => Promise<unknown>) =>
+				callback(mockPrisma),
+		);
+
 		const module: TestingModule = await Test.createTestingModule({
 			providers: [
 				InventoryService,
@@ -194,6 +200,7 @@ describe("InventoryService", () => {
 					},
 				},
 			});
+			expect(mockPrisma.$transaction).toHaveBeenCalledTimes(1);
 		});
 
 		it("should report IDs that do not exist", async () => {

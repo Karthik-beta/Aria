@@ -63,7 +63,20 @@ const createScopeServiceMock = (): jest.Mocked<ScopeService> =>
 		isInManagementHierarchy: jest.fn(),
 	}) as unknown as jest.Mocked<ScopeService>;
 
+const originalNodeEnv = process.env.NODE_ENV;
+const originalDisableAuth = process.env.DISABLE_AUTH;
+
 describe("Authorization Guards", () => {
+	beforeEach(() => {
+		process.env.NODE_ENV = "test";
+		delete process.env.DISABLE_AUTH;
+	});
+
+	afterAll(() => {
+		process.env.NODE_ENV = originalNodeEnv;
+		process.env.DISABLE_AUTH = originalDisableAuth;
+	});
+
 	describe("PublicRouteGuard", () => {
 		it("allows when route marked public", () => {
 			const reflector = createReflector((key) =>

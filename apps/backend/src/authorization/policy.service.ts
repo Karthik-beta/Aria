@@ -1,7 +1,10 @@
 import { Injectable, type OnModuleDestroy } from "@nestjs/common";
-import type { PrismaService } from "../shared/prisma.service";
-import type { PermissionService } from "./role-permission.service";
-import type { ScopeService } from "./scope.service";
+// biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
+import { PrismaService } from "../shared/prisma.service";
+// biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
+import { PermissionService } from "./role-permission.service";
+// biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
+import { ScopeService } from "./scope.service";
 
 /**
  * User policy resolution result

@@ -1,11 +1,15 @@
 import { Injectable } from "@nestjs/common";
-import type { AuditService } from "../../authorization/audit.service";
-import type { PolicyService } from "../../authorization/policy.service";
-import type {
+// biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
+import { AuditService } from "../../authorization/audit.service";
+// biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
+import { PolicyService } from "../../authorization/policy.service";
+// biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
+import {
 	PermissionService,
 	RoleService,
 } from "../../authorization/role-permission.service";
-import type { ScopeService } from "../../authorization/scope.service";
+// biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
+import { ScopeService } from "../../authorization/scope.service";
 import { createAdminRouter } from "./admin.router";
 
 /**
