@@ -7,6 +7,7 @@ import Providers from "@/components/layout/providers";
 import ThemeProvider from "@/components/layout/ThemeToggle/theme-provider";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { Toaster } from "@/components/ui/sonner";
+import { getActiveThemeValue } from "@/lib/active-theme.server";
 
 export const metadata: Metadata = {
 	title: "Inventory by Pivotr",
@@ -24,7 +25,7 @@ export default async function InventoryLayout({
 	children: React.ReactNode;
 }) {
 	const defaultOpen = false;
-	const activeThemeValue = "default";
+	const activeThemeValue = await getActiveThemeValue();
 
 	return (
 		<ThemeProvider

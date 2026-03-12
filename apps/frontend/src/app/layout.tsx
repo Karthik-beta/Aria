@@ -1,9 +1,9 @@
 import type { Metadata, Viewport } from "next";
 import { AuthGuard } from "@/components/auth/auth-guard";
+import { getActiveThemeValue } from "@/lib/active-theme.server";
 import { fontVariables } from "@/lib/font";
 import { TRPCProvider } from "@/lib/trpc";
 import "./globals.css";
-import "./theme.css";
 
 const META_THEME_COLORS = {
 	light: "#E5E4DF",
@@ -30,7 +30,7 @@ export default async function RootLayout({
 }: {
 	children: React.ReactNode;
 }) {
-	const activeThemeValue = "default";
+	const activeThemeValue = await getActiveThemeValue();
 	const isScaled = activeThemeValue.endsWith("-scaled");
 
 	// Script to update meta theme-color for dark mode (runs before React hydrates)

@@ -9,6 +9,9 @@ export default function GlobalError({
 }) {
 	return (
 		<html lang="en">
+			<head>
+				<title>Application Error</title>
+			</head>
 			<body
 				style={{
 					margin: 0,
@@ -19,7 +22,6 @@ export default function GlobalError({
 					color: "#fafafa",
 				}}
 			>
-				<title>Application Error</title>
 				<main
 					style={{
 						display: "flex",

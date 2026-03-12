@@ -22,6 +22,7 @@ import {
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { persistClientCookie } from "@/lib/client-cookie";
 import { cn } from "@/lib/utils";
 
 const SIDEBAR_COOKIE_NAME = "sidebar_state";
@@ -30,17 +31,6 @@ const SIDEBAR_WIDTH = "16rem";
 const SIDEBAR_WIDTH_MOBILE = "18rem";
 const SIDEBAR_WIDTH_ICON = "3rem";
 const SIDEBAR_KEYBOARD_SHORTCUT = "b";
-
-type CookieStoreCapableWindow = Window & {
-	cookieStore?: {
-		set: (options: {
-			name: string;
-			value: string;
-			path?: string;
-			expires?: number;
-		}) => Promise<void>;
-	};
-};
 
 type SidebarContextProps = {
 	state: "expanded" | "collapsed";
@@ -92,15 +82,12 @@ function SidebarProvider({
 				_setOpen(openState);
 			}
 
-			const cookieStore = (window as CookieStoreCapableWindow).cookieStore;
-			if (cookieStore) {
-				void cookieStore.set({
-					name: SIDEBAR_COOKIE_NAME,
-					value: String(openState),
-					path: "/",
-					expires: Date.now() + SIDEBAR_COOKIE_MAX_AGE * 1000,
-				});
-			}
+			persistClientCookie({
+				name: SIDEBAR_COOKIE_NAME,
+				value: String(openState),
+				path: "/",
+				expires: Date.now() + SIDEBAR_COOKIE_MAX_AGE * 1000,
+			});
 		},
 		[setOpenProp, open],
 	);

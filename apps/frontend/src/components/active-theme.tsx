@@ -9,31 +9,18 @@ import {
 	useRef,
 	useState,
 } from "react";
-
-const COOKIE_NAME = "active_theme";
-const DEFAULT_THEME = "default";
-
-type CookieStoreCapableWindow = Window & {
-	cookieStore?: {
-		set: (options: {
-			name: string;
-			value: string;
-			path?: string;
-			expires?: number;
-			sameSite?: "strict" | "lax" | "none";
-			secure?: boolean;
-		}) => Promise<void>;
-	};
-};
+import {
+	ACTIVE_THEME_COOKIE_NAME,
+	DEFAULT_ACTIVE_THEME,
+	resolveActiveTheme,
+} from "@/lib/active-theme";
+import { persistClientCookie } from "@/lib/client-cookie";
 
 function setThemeCookie(theme: string) {
 	if (typeof window === "undefined") return;
 
-	const cookieStore = (window as CookieStoreCapableWindow).cookieStore;
-	if (!cookieStore) return;
-
-	void cookieStore.set({
-		name: COOKIE_NAME,
+	persistClientCookie({
+		name: ACTIVE_THEME_COOKIE_NAME,
 		value: theme,
 		path: "/",
 		expires: Date.now() + 31_536_000_000,
@@ -46,7 +33,7 @@ function setThemeCookie(theme: string) {
  * Get the current theme from the body's classList
  */
 function _getCurrentThemeFromDOM(): string {
-	if (typeof document === "undefined") return DEFAULT_THEME;
+	if (typeof document === "undefined") return DEFAULT_ACTIVE_THEME;
 
 	const themeClasses = Array.from(document.body.classList).filter(
 		(c) => c.startsWith("theme-") && c !== "theme-scaled",
@@ -54,10 +41,10 @@ function _getCurrentThemeFromDOM(): string {
 
 	if (themeClasses.length > 0) {
 		// Extract theme name from "theme-xyz" -> "xyz"
-		return themeClasses[0].replace("theme-", "");
+		return resolveActiveTheme(themeClasses[0].replace("theme-", ""));
 	}
 
-	return DEFAULT_THEME;
+	return DEFAULT_ACTIVE_THEME;
 }
 
 type ThemeContextType = {
@@ -75,8 +62,8 @@ export function ActiveThemeProvider({
 	initialTheme?: string;
 }) {
 	// Initialize with the server-provided theme, or read from DOM if available
-	const [activeTheme, setActiveThemeState] = useState<string>(
-		() => initialTheme || DEFAULT_THEME,
+	const [activeTheme, setActiveThemeState] = useState<string>(() =>
+		resolveActiveTheme(initialTheme),
 	);
 	const isFirstRender = useRef(true);
 

@@ -3,6 +3,7 @@ import { AppAccessBoundary } from "@/components/auth/app-access-boundary";
 import Providers from "@/components/layout/providers";
 import ThemeProvider from "@/components/layout/ThemeToggle/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
+import { getActiveThemeValue } from "@/lib/active-theme.server";
 
 export const metadata: Metadata = {
 	title: "CRM by Pivotr",
@@ -19,7 +20,7 @@ export default async function CrmLayout({
 }: {
 	children: React.ReactNode;
 }) {
-	const activeThemeValue = "default";
+	const activeThemeValue = await getActiveThemeValue();
 
 	return (
 		<ThemeProvider
