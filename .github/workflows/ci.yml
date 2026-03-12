@@ -3,6 +3,7 @@ name: CI
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  CI_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/aria?schema=public
 
 on:
   push:
@@ -18,6 +19,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+
+      - name: Export DATABASE_URL
+        run: echo "DATABASE_URL=${{ env.CI_DATABASE_URL }}" >> "$GITHUB_ENV"
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
