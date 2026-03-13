@@ -63,6 +63,8 @@ jobs:
           sed -i 's/CHANGE_THIS_TO_A_CRYPTOGRAPHICALLY_SECURE_RANDOM_STRING/test_jwt_secret_123456789/g' .env
           sed -i 's/YOUR_DOMAIN.com/localhost/g' .env
           echo "VERSION=${{ github.sha }}" >> .env
+          echo "BETTER_AUTH_SECRET=test_better_auth_secret_12345678901234567890" >> .env
+          echo "DEFAULT_ADMIN_PASSWORD=test_admin_password_123" >> .env
 
       - name: Build Docker images
         run: |
@@ -153,6 +155,26 @@ jobs:
           docker version
           docker compose version
 
+      - name: Switch Docker to Linux engine
+        shell: pwsh
+        run: |
+          $dockerCli = Join-Path $env:ProgramFiles "Docker\Docker\DockerCli.exe"
+          & $dockerCli -SwitchLinuxEngine
+          $maxAttempts = 30
+          for ($i = 1; $i -le $maxAttempts; $i++) {
+            try {
+              $osType = docker info --format '{{.OSType}}' 2>$null
+              if ($osType -eq "linux") {
+                Write-Host "Docker engine switched to Linux."
+                break
+              }
+            } catch {}
+            Start-Sleep -Seconds 2
+            if ($i -eq $maxAttempts) {
+              throw "Docker did not switch to Linux engine in time."
+            }
+          }
+
       - name: Create environment file
         shell: pwsh
         run: |
@@ -163,6 +185,8 @@ jobs:
           (Get-Content .env) -replace 'CHANGE_THIS_TO_A_CRYPTOGRAPHICALLY_SECURE_RANDOM_STRING', 'test_jwt_secret_123456789' | Set-Content .env
           (Get-Content .env) -replace 'YOUR_DOMAIN.com', 'localhost' | Set-Content .env
           Add-Content .env "VERSION=${{ github.sha }}"
+          Add-Content .env "BETTER_AUTH_SECRET=test_better_auth_secret_12345678901234567890"
+          Add-Content .env "DEFAULT_ADMIN_PASSWORD=test_admin_password_123"
 
       - name: Build Docker images
         run: |
@@ -345,6 +369,8 @@ jobs:
           sed -i 's/CHANGE_THIS_TO_A_STRONG_PASSWORD/test_password_123/g' .env
           sed -i 's/CHANGE_THIS_TO_A_STRONG_REDIS_PASSWORD/redis_test_123/g' .env
           sed -i 's/CHANGE_THIS_TO_A_CRYPTOGRAPHICALLY_SECURE_RANDOM_STRING/test_jwt_secret_123456789/g' .env
+          echo "BETTER_AUTH_SECRET=test_better_auth_secret_12345678901234567890" >> .env
+          echo "DEFAULT_ADMIN_PASSWORD=test_admin_password_123" >> .env
           sed -i 's/YOUR_DOMAIN.com/localhost/g' .env
 
       - name: Start services
