@@ -95,6 +95,10 @@ ENV TURBO_TOKEN=${TURBO_TOKEN}
 ENV TURBO_TEAM=${TURBO_TEAM}
 ENV TURBO_API=${TURBO_API}
 
+# Prisma config uses env("DATABASE_URL"), so provide a build-time placeholder.
+ARG DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres?schema=public
+ENV DATABASE_URL=${DATABASE_URL}
+
 # Generate Prisma client before building (required for backend types)
 RUN cd apps/backend && bun prisma generate
 

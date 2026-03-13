@@ -80,6 +80,10 @@ COPY apps/backend ./apps/backend
 # Install all deps (dev + prod) to enable build toolchain and generators
 RUN bun install --frozen-lockfile
 
+# Prisma config uses env("DATABASE_URL"), so provide a build-time placeholder.
+ARG DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres?schema=public
+ENV DATABASE_URL=${DATABASE_URL}
+
 # Generate Prisma Client for type-safe compilation (dev deps available here)
 RUN cd /app/apps/backend && bun prisma generate
 
