@@ -13,7 +13,7 @@ FROM base AS deps
 WORKDIR /app
 
 # Copy workspace configuration files
-COPY bun.lock package.json turbo.json ./
+COPY bun.lock package.json turbo.json tsconfig.base.json ./
 
 # Copy all package.json files to maintain workspace structure
 COPY packages/api-contract/package.json ./packages/api-contract/
@@ -46,7 +46,7 @@ COPY --from=deps /app/packages ./packages
 COPY --from=deps /app/apps/frontend/node_modules ./apps/frontend/node_modules
 
 # Copy workspace files
-COPY bun.lock package.json turbo.json ./
+COPY bun.lock package.json turbo.json tsconfig.base.json ./
 
 # Copy source code
 COPY packages ./packages
