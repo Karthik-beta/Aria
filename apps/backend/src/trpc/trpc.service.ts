@@ -1,7 +1,10 @@
 import { Injectable, type OnModuleInit } from "@nestjs/common";
-import type { InventoryRouter } from "../apps/inventory/trpc/inventory.router";
+import { InventoryRouter } from "../apps/inventory/trpc/inventory.router";
 import { type AppRouter, createAppRouter } from "./app-router";
-import type { AdminRouter } from "./routers/admin-router.service";
+import { AdminRouter } from "./routers/admin-router.service";
+
+const NEST_ROUTER_DEPENDENCIES = [InventoryRouter, AdminRouter] as const;
+void NEST_ROUTER_DEPENDENCIES;
 
 /**
  * TrpcService is responsible for creating and managing the main tRPC router.

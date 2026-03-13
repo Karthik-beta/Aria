@@ -230,6 +230,22 @@ jobs:
         run: |
           docker compose -f docker-compose.production.yml config
 
+      - name: Set up Node.js for windows-native validation
+        if: steps.docker-engine-final.outputs.os_type != 'linux'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies (windows-native)
+        if: steps.docker-engine-final.outputs.os_type != 'linux'
+        run: |
+          npm install --ignore-scripts
+
+      - name: Run windows-native build validation
+        if: steps.docker-engine-final.outputs.os_type != 'linux'
+        run: |
+          npx turbo run build --filter=@aria/types --filter=@aria/utils --filter=@aria/api-contract
+
       - name: Start services
         if: steps.docker-engine-final.outputs.os_type == 'linux'
         run: |

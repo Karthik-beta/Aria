@@ -24,7 +24,7 @@ echo "📝 Note: This entrypoint will attempt to deploy migrations and resolve b
 
 # Document directory structure assumption:
 # The Dockerfile copies build artifacts to /app/apps/backend/dist
-# NestJS by default outputs to dist/main.js, so we run: node dist/main
+# NestJS by default outputs to dist/main.js, so we run: bun dist/main.js
 # (This path is relative to the current /app/apps/backend directory)
 
 # For existing databases transitioning to Prisma Migrate:
@@ -38,22 +38,14 @@ echo "📝 Note: This entrypoint will attempt to deploy migrations and resolve b
 # The migration name we treat as the baseline (initial schema/DDL)
 BASELINE_MIGRATION="0_init"
 
-echo "🔧 Generating Prisma Client..."
-# Generate Prisma Client first (idempotent operation)
-# Pin to version 6.19.0 to match project dependencies and avoid v7 breaking changes
-if ! bunx prisma@6.19.0 generate 2>&1 | tee /tmp/prisma-generate.log; then
-  echo "❌ Failed to generate Prisma Client"
-  cat /tmp/prisma-generate.log
-  exit 1
-fi
-echo "✅ Prisma Client generated successfully"
+echo "ℹ️ Skipping Prisma Client generation at runtime (already generated during image build)."
 
 echo "🔍 Checking if baseline migration needs resolution... (baselining strategy)"
 
 # Attempt to deploy migrations first
 # If it fails with P3018 (already exists) or P3009 (failed migration),
 # we know we need to resolve the baseline
-if ! bunx prisma@6.19.0 migrate deploy 2>&1 | tee /tmp/migrate-output.log; then
+if ! bunx --bun prisma migrate deploy > /tmp/migrate-output.log 2>&1; then
   MIGRATE_OUTPUT=$(cat /tmp/migrate-output.log)
 
   # Check for P3018 (already exists) - indicates database has existing schema
@@ -63,12 +55,12 @@ if ! bunx prisma@6.19.0 migrate deploy 2>&1 | tee /tmp/migrate-output.log; then
     echo "📋 Marking '${BASELINE_MIGRATION}' as already applied..."
 
     # Mark the baseline migration as applied without executing it
-    if bunx prisma@6.19.0 migrate resolve --applied "${BASELINE_MIGRATION}"; then
+    if bunx --bun prisma migrate resolve --applied "${BASELINE_MIGRATION}"; then
       echo "✅ Baseline migration marked as applied"
       echo "📦 Re-attempting migration deployment..."
 
       # Now deploy should succeed (no pending migrations after baseline resolution)
-      if ! bunx prisma@6.19.0 migrate deploy; then
+      if ! bunx --bun prisma migrate deploy; then
         echo "❌ Migration deployment failed after baseline resolution"
         echo "📋 Migration logs:"
         cat /tmp/migrate-output.log
@@ -86,11 +78,11 @@ if ! bunx prisma@6.19.0 migrate deploy 2>&1 | tee /tmp/migrate-output.log; then
     echo "📋 Marking '${BASELINE_MIGRATION}' as applied..."
 
     # Mark the baseline migration as applied to clear failed state
-    if bunx prisma@6.19.0 migrate resolve --applied "${BASELINE_MIGRATION}"; then
+    if bunx --bun prisma migrate resolve --applied "${BASELINE_MIGRATION}"; then
       echo "✅ Failed migration state resolved"
       echo "📦 Re-attempting migration deployment..."
 
-      if ! bunx prisma@6.19.0 migrate deploy; then
+      if ! bunx --bun prisma migrate deploy; then
         echo "❌ Migration deployment failed after resolving failed state"
         exit 1
       fi
@@ -114,4 +106,4 @@ echo "✅ Migration deployment complete"
 echo "🎯 Starting NestJS application..."
 
 # Start the application (already in /app/apps/backend directory)
-exec node dist/src/main
+exec bun dist/main.js

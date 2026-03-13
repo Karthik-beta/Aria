@@ -146,6 +146,7 @@ RUN bun install --frozen-lockfile --production --ignore-scripts
 # Backend compiled code + prisma schema/migrations
 COPY --from=builder /app/apps/backend/dist /app/apps/backend/dist
 COPY --from=builder /app/apps/backend/prisma /app/apps/backend/prisma
+COPY --from=builder /app/apps/backend/prisma.config.ts /app/apps/backend/prisma.config.ts
 
 # Shared workspace packages: copy only their compiled JS outputs + package.json
 # This keeps workspace symlinks valid and avoids shipping TS sources

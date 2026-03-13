@@ -13,7 +13,8 @@
 		"lint:staged": "biome check --staged --write --files-ignore-unknown=true --no-errors-on-unmatched",
 		"typecheck": "bun x turbo run typecheck",
 		"test": "bun x turbo run test",
-		"prepare": "husky"
+		"prepare": "husky",
+		"validate": "bun x turbo run build test lint typecheck"
 	},
 	"trustedDependencies": [
 		"@prisma/client",
