@@ -14,7 +14,8 @@
 		}
 	},
 	"scripts": {
-		"prebuild": "prisma generate",
+		"prisma:generate": "rimraf src/generated/prisma && prisma generate",
+		"prebuild": "bun run prisma:generate",
 		"build": "nest build",
 		"format": "biome format --write .",
 		"start": "node dist/main.js",
@@ -23,9 +24,9 @@
 		"start:prod": "node dist/main.js",
 		"lint": "biome check .",
 		"lint:fix": "biome check --write .",
-		"pretypecheck": "prisma generate",
+		"pretypecheck": "bun run prisma:generate",
 		"typecheck": "tsc --noEmit --pretty false",
-		"pretest": "prisma generate",
+		"pretest": "bun run prisma:generate",
 		"test": "bun ./scripts/run-unit-tests.ts",
 		"test:watch": "node ./node_modules/jest/bin/jest.js --watch",
 		"test:cov": "node ./node_modules/jest/bin/jest.js --coverage",
@@ -34,7 +35,7 @@
 		"db:migrate": "prisma migrate dev",
 		"db:push": "prisma db push",
 		"db:studio": "prisma studio",
-		"db:generate": "prisma generate",
+		"db:generate": "bun run prisma:generate",
 		"clean": "rimraf dist .test-dist .turbo node_modules"
 	},
 	"jest": {

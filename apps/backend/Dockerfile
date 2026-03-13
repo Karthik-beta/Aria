@@ -23,11 +23,13 @@ FROM base AS deps
 WORKDIR /app
 
 # Workspace manifests (root + package manifests only)
-COPY bun.lock package.json turbo.json ./
+COPY bun.lock package.json turbo.json tsconfig.base.json ./
+COPY packages/api-contract/package.json ./packages/api-contract/
 COPY packages/config-typescript/package.json ./packages/config-typescript/
 COPY packages/types/package.json ./packages/types/
 COPY packages/utils/package.json ./packages/utils/
 COPY apps/backend/package.json ./apps/backend/
+COPY apps/frontend/package.json ./apps/frontend/
 
 # Copy workspace sources needed for workspace protocol resolution
 COPY packages ./packages
@@ -47,7 +49,7 @@ COPY --from=deps /app/packages ./packages
 COPY --from=deps /app/apps/backend/node_modules ./apps/backend/node_modules
 
 # Add app sources
-COPY bun.lock package.json turbo.json ./
+COPY bun.lock package.json turbo.json tsconfig.base.json ./
 COPY apps/backend ./apps/backend
 
 # Useful ports for dev
@@ -63,11 +65,13 @@ FROM base AS builder
 WORKDIR /app
 
 # Copy manifests first for better caching
-COPY bun.lock package.json turbo.json ./
+COPY bun.lock package.json turbo.json tsconfig.base.json ./
+COPY packages/api-contract/package.json ./packages/api-contract/
 COPY packages/config-typescript/package.json ./packages/config-typescript/
 COPY packages/types/package.json ./packages/types/
 COPY packages/utils/package.json ./packages/utils/
 COPY apps/backend/package.json ./apps/backend/
+COPY apps/frontend/package.json ./apps/frontend/
 
 # Copy sources
 COPY packages ./packages
@@ -121,6 +125,7 @@ RUN set -eux; \
 # 1) Copy only the minimal manifests required for a workspace-aware prod install
 # Root + per-package manifests (no sources yet)
 COPY package.json bun.lock ./
+COPY packages/api-contract/package.json ./packages/api-contract/package.json
 COPY packages/config-typescript/package.json ./packages/config-typescript/package.json
 COPY packages/types/package.json ./packages/types/package.json
 COPY packages/utils/package.json ./packages/utils/package.json
@@ -130,7 +135,8 @@ COPY apps/backend/package.json ./apps/backend/package.json
 # 2) Production install happens in the final image to keep symlinks valid
 # Use BuildKit cache for Bun downloads; install prod-only to reduce size
 # Single workspace install ensures all dependencies are resolved together
-RUN bun install --frozen-lockfile --production
+# Ignore lifecycle scripts in runtime image install (e.g., root prepare=husky)
+RUN bun install --frozen-lockfile --production --ignore-scripts
 
 # 3) Bring in the compiled application and only the runtime artifacts
 # Backend compiled code + prisma schema/migrations
