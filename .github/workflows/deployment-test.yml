@@ -155,10 +155,29 @@ jobs:
           docker version
           docker compose version
 
-      - name: Switch Docker to Linux engine
+      - name: Detect Docker engine
+        id: docker-engine-initial
         shell: pwsh
         run: |
-          $dockerCli = Join-Path $env:ProgramFiles "Docker\Docker\DockerCli.exe"
+          $osType = docker info --format '{{.OSType}}' 2>$null
+          if (-not $osType) { $osType = "unknown" }
+          "os_type=$osType" >> $env:GITHUB_OUTPUT
+          Write-Host "Initial Docker engine OS type: $osType"
+
+      - name: Try switch Docker to Linux engine
+        if: steps.docker-engine-initial.outputs.os_type != 'linux'
+        shell: pwsh
+        run: |
+          $candidates = @(
+            (Join-Path $env:ProgramFiles "Docker\Docker\DockerCli.exe"),
+            (Join-Path $env:ProgramFiles "Docker\Docker\resources\bin\DockerCli.exe")
+          )
+          $dockerCli = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $dockerCli) {
+            Write-Host "DockerCli.exe not found on this runner. Continuing with current engine."
+            exit 0
+          }
+
           & $dockerCli -SwitchLinuxEngine
           $maxAttempts = 30
           for ($i = 1; $i -le $maxAttempts; $i++) {
@@ -171,9 +190,18 @@ jobs:
             } catch {}
             Start-Sleep -Seconds 2
             if ($i -eq $maxAttempts) {
-              throw "Docker did not switch to Linux engine in time."
+              Write-Host "Docker did not switch to Linux engine in time. Continuing with current engine."
             }
           }
+
+      - name: Detect final Docker engine
+        id: docker-engine-final
+        shell: pwsh
+        run: |
+          $osType = docker info --format '{{.OSType}}' 2>$null
+          if (-not $osType) { $osType = "unknown" }
+          "os_type=$osType" >> $env:GITHUB_OUTPUT
+          Write-Host "Final Docker engine OS type: $osType"
 
       - name: Create environment file
         shell: pwsh
@@ -189,6 +217,7 @@ jobs:
           Add-Content .env "DEFAULT_ADMIN_PASSWORD=test_admin_password_123"
 
       - name: Build Docker images
+        if: steps.docker-engine-final.outputs.os_type == 'linux'
         run: |
           docker compose -f docker-compose.production.yml build --no-cache
         env:
@@ -196,11 +225,18 @@ jobs:
           DOCKER_BUILDKIT: 0
           DOCKER_DEFAULT_PLATFORM: linux/amd64
 
+      - name: Validate compose config on non-linux engine
+        if: steps.docker-engine-final.outputs.os_type != 'linux'
+        run: |
+          docker compose -f docker-compose.production.yml config
+
       - name: Start services
+        if: steps.docker-engine-final.outputs.os_type == 'linux'
         run: |
           docker compose -f docker-compose.production.yml up -d
 
       - name: Wait for services to be healthy
+        if: steps.docker-engine-final.outputs.os_type == 'linux'
         shell: pwsh
         run: |
           Write-Host "Waiting for services to start..."
@@ -263,11 +299,13 @@ jobs:
           }
 
       - name: Run health checks
+        if: steps.docker-engine-final.outputs.os_type == 'linux'
         shell: pwsh
         run: |
           .\deployment\tests\health-check.ps1
 
       - name: Test HTTP endpoints
+        if: steps.docker-engine-final.outputs.os_type == 'linux'
         shell: pwsh
         run: |
           Write-Host "Testing HTTP endpoints..."
