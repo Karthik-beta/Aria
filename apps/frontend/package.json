@@ -11,7 +11,7 @@
 		"typegen": "next typegen",
 		"pretypecheck": "next typegen",
 		"typecheck": "tsc --noEmit --pretty false",
-		"test": "vitest",
+		"test": "vitest run",
 		"test:ui": "vitest --ui",
 		"test:run": "vitest run",
 		"test:coverage": "vitest run --coverage",

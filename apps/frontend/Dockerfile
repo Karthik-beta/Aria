@@ -1,4 +1,4 @@
-# syntax=docker.io/docker/dockerfile:1
+# syntax=docker/dockerfile:1
 # Frontend Dockerfile - Multi-stage build for Next.js 16 🚀
 # Based on official Next.js with-docker example (best practices) 📚
 # Reference: https://github.com/vercel/next.js/tree/canary/examples/with-docker
@@ -118,8 +118,14 @@ ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
 # Create non-root user for security (following official Next.js Docker pattern)
-RUN addgroup --system --gid 1001 nodejs && \
-    adduser --system --uid 1001 nextjs
+RUN set -eux; \
+    if command -v addgroup >/dev/null 2>&1; then \
+      addgroup --system --gid 1001 nodejs; \
+      adduser --system --uid 1001 --ingroup nodejs nextjs; \
+    else \
+      groupadd -g 1001 -r nodejs; \
+      useradd -u 1001 -r -g nodejs -m -s /usr/sbin/nologin nextjs; \
+    fi
 
 # Automatically leverage output traces to reduce image size
 # https://nextjs.org/docs/advanced-features/output-file-tracing

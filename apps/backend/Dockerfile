@@ -1,4 +1,4 @@
-# syntax=docker.io/docker/dockerfile:1
+# syntax=docker/dockerfile:1
 
 # Production-ready NestJS + Prisma using Bun workspaces
 # Key goals:
@@ -109,7 +109,14 @@ ENV NODE_ENV=production
 ENV PATH="/app/node_modules/.bin:${PATH}"
 
 # Security: non-root user
-RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 nestjs
+RUN set -eux; \
+    if command -v addgroup >/dev/null 2>&1; then \
+      addgroup --system --gid 1001 nodejs; \
+      adduser --system --uid 1001 --ingroup nodejs nestjs; \
+    else \
+      groupadd -g 1001 -r nodejs; \
+      useradd -u 1001 -r -g nodejs -m -s /usr/sbin/nologin nestjs; \
+    fi
 
 # 1) Copy only the minimal manifests required for a workspace-aware prod install
 # Root + per-package manifests (no sources yet)
