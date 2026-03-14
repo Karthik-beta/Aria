@@ -217,8 +217,16 @@ jobs:
           Add-Content .env "BETTER_AUTH_SECRET=test_better_auth_secret_12345678901234567890"
           Add-Content .env "DEFAULT_ADMIN_PASSWORD=test_admin_password_123"
 
+      - name: Require Linux Docker engine
+        if: steps.docker-engine-final.outputs.os_type != 'linux'
+        shell: pwsh
+        env:
+          DOCKER_OS_TYPE: ${{ steps.docker-engine-final.outputs.os_type }}
+        run: |
+          Write-Error "Docker engine is '$env:DOCKER_OS_TYPE'. Linux engine is required for true Docker deployment validation on Windows."
+          exit 1
+
       - name: Build Docker images
-        if: steps.docker-engine-final.outputs.os_type == 'linux'
         run: |
           docker compose -f docker-compose.production.yml build --no-cache
         env:
@@ -226,55 +234,11 @@ jobs:
           DOCKER_BUILDKIT: 0
           DOCKER_DEFAULT_PLATFORM: linux/amd64
 
-      - name: Validate compose config on non-linux engine
-        if: steps.docker-engine-final.outputs.os_type != 'linux'
-        run: |
-          docker compose -f docker-compose.production.yml config
-
-      - name: Set up Node.js for windows-native validation
-        if: steps.docker-engine-final.outputs.os_type != 'linux'
-        uses: actions/setup-node@v5
-        with:
-          node-version: 22
-
-      - name: Install pnpm (windows-native)
-        if: steps.docker-engine-final.outputs.os_type != 'linux'
-        env:
-          COREPACK_ENABLE_STRICT: "0"
-        run: |
-          npm install -g pnpm@10
-
-      - name: Create pnpm workspace manifest (windows-native)
-        if: steps.docker-engine-final.outputs.os_type != 'linux'
-        shell: pwsh
-        run: |
-          @"
-          packages:
-            - "apps/*"
-            - "packages/*"
-          "@ | Set-Content -Path pnpm-workspace.yaml
-
-      - name: Install dependencies (windows-native)
-        if: steps.docker-engine-final.outputs.os_type != 'linux'
-        env:
-          COREPACK_ENABLE_STRICT: "0"
-        run: |
-          pnpm install --ignore-scripts --no-frozen-lockfile --config.package-manager-strict=false
-
-      - name: Run windows-native build validation
-        if: steps.docker-engine-final.outputs.os_type != 'linux'
-        env:
-          COREPACK_ENABLE_STRICT: "0"
-        run: |
-          pnpm -r --filter @aria/types --filter @aria/utils --filter @aria/api-contract run build
-
       - name: Start services
-        if: steps.docker-engine-final.outputs.os_type == 'linux'
         run: |
           docker compose -f docker-compose.production.yml up -d
 
       - name: Wait for services to be healthy
-        if: steps.docker-engine-final.outputs.os_type == 'linux'
         shell: pwsh
         run: |
           Write-Host "Waiting for services to start..."
@@ -337,13 +301,11 @@ jobs:
           }
 
       - name: Run health checks
-        if: steps.docker-engine-final.outputs.os_type == 'linux'
         shell: pwsh
         run: |
           .\deployment\tests\health-check.ps1
 
       - name: Test HTTP endpoints
-        if: steps.docker-engine-final.outputs.os_type == 'linux'
         shell: pwsh
         run: |
           Write-Host "Testing HTTP endpoints..."
