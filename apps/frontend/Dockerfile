@@ -135,8 +135,8 @@ RUN set -eux; \
 # https://nextjs.org/docs/advanced-features/output-file-tracing
 # Official pattern: Copy standalone output to root, then copy static assets
 COPY --from=builder --chown=nextjs:nodejs /app/apps/frontend/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/apps/frontend/.next/static ./app/apps/frontend/.next/static
-COPY --from=builder --chown=nextjs:nodejs /app/apps/frontend/public ./app/apps/frontend/public
+COPY --from=builder --chown=nextjs:nodejs /app/apps/frontend/.next/static ./apps/frontend/.next/static
+COPY --from=builder --chown=nextjs:nodejs /app/apps/frontend/public ./apps/frontend/public
 
 # Health check - accept 2xx and 3xx status codes (redirects are OK) 🩺
 HEALTHCHECK --interval=60s --timeout=10s --start-period=40s --retries=3 \
@@ -154,5 +154,5 @@ ENV HOSTNAME="0.0.0.0"
 
 # Start the Next.js standalone server ▶️
 # Standalone output creates: /app/.next/standalone structure
-# The server.js file is generated at the root of standalone output
-CMD ["node", "app/apps/frontend/server.js"]
+# In this monorepo output, server.js is at /app/apps/frontend/server.js
+CMD ["node", "apps/frontend/server.js"]
