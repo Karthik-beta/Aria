@@ -239,11 +239,15 @@ jobs:
 
       - name: Run Bun build validation (windows-native)
         if: steps.docker-engine-final.outputs.os_type != 'linux'
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres?schema=public
         run: |
           bun run build
 
       - name: Run Bun tests (windows-native)
         if: steps.docker-engine-final.outputs.os_type != 'linux'
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres?schema=public
         run: |
           bun run test
 
