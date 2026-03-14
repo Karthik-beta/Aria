@@ -6,13 +6,10 @@ import AppSidebar from "@/components/layout/app-sidebar";
 import Header from "@/components/layout/header";
 import Providers from "@/components/layout/providers";
 import ThemeProvider from "@/components/layout/ThemeToggle/theme-provider";
-import {
-	SIDEBAR_COOKIE_NAME,
-	SidebarInset,
-	SidebarProvider,
-} from "@/components/ui/sidebar";
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { Toaster } from "@/components/ui/sonner";
 import { getActiveThemeValue } from "@/lib/active-theme.server";
+import { SIDEBAR_COOKIE_NAME } from "@/lib/cookies";
 
 export const metadata: Metadata = {
 	title: "Inventory by Pivotr",
