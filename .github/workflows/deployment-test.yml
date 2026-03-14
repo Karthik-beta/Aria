@@ -86,7 +86,7 @@ jobs:
           echo "✓ PostgreSQL is ready"
 
           # Wait for Redis
-          timeout 60 bash -c 'until docker exec aria-redis redis-cli ping | grep -q PONG; do sleep 2; done'
+          timeout 60 bash -c 'until docker exec aria-redis sh -lc '"'"'if [ -n "$REDIS_PASSWORD" ]; then REDISCLI_AUTH="$REDIS_PASSWORD" redis-cli ping; else redis-cli ping; fi'"'"' | grep -q PONG; do sleep 2; done'
           echo "✓ Redis is ready"
 
           # Wait for backend
@@ -275,7 +275,7 @@ jobs:
           $timeout = 60
           $elapsed = 0
           while ($elapsed -lt $timeout) {
-            $result = docker exec aria-redis redis-cli ping 2>&1
+            $result = docker exec aria-redis sh -lc 'if [ -n "$REDIS_PASSWORD" ]; then REDISCLI_AUTH="$REDIS_PASSWORD" redis-cli ping; else redis-cli ping; fi' 2>&1
             if ($result -match "PONG") {
               Write-Host "✓ Redis is ready"
               break
