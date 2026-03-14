@@ -48,6 +48,50 @@ function createListUnitsOfMeasureProcedure(inventoryService: InventoryService) {
 		});
 }
 
+function createListBundleItemsProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(z.object({ search: z.string().optional() }).optional())
+		.query(async ({ input }) => {
+			return inventoryService.findAllItemsForBundleSelection(input?.search);
+		});
+}
+
+function createListProductBundlesProcedure(inventoryService: InventoryService) {
+	return protectedProcedure.query(async () => {
+		return inventoryService.findAllProductBundles();
+	});
+}
+
+function createCreateProductBundleProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure
+		.input(Inventory.createProductBundleSchema)
+		.mutation(async ({ input }) => {
+			return inventoryService.createProductBundle(input);
+		});
+}
+
+function createUpdateProductBundleProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure
+		.input(Inventory.updateProductBundleSchema)
+		.mutation(async ({ input }) => {
+			return inventoryService.updateProductBundle(input);
+		});
+}
+
+function createDeleteProductBundleProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure
+		.input(z.object({ id: z.string().min(1) }))
+		.mutation(async ({ input }) => {
+			return inventoryService.deleteProductBundle(input.id);
+		});
+}
+
 function createCreateItemProcedure(inventoryService: InventoryService) {
 	return protectedProcedure
 		.input(Inventory.createSchema)
@@ -218,6 +262,11 @@ type InventoryRouterInput = {
 	listItems: ReturnType<typeof createListItemsProcedure>;
 	listItemGroups: ReturnType<typeof createListItemGroupsProcedure>;
 	listUnitsOfMeasure: ReturnType<typeof createListUnitsOfMeasureProcedure>;
+	listBundleItems: ReturnType<typeof createListBundleItemsProcedure>;
+	listProductBundles: ReturnType<typeof createListProductBundlesProcedure>;
+	createProductBundle: ReturnType<typeof createCreateProductBundleProcedure>;
+	updateProductBundle: ReturnType<typeof createUpdateProductBundleProcedure>;
+	deleteProductBundle: ReturnType<typeof createDeleteProductBundleProcedure>;
 	createItem: ReturnType<typeof createCreateItemProcedure>;
 	updateItem: ReturnType<typeof createUpdateItemProcedure>;
 	deleteItem: ReturnType<typeof createDeleteItemProcedure>;
@@ -247,6 +296,11 @@ function createInventoryRouterRecord(
 		listItems: createListItemsProcedure(inventoryService),
 		listItemGroups: createListItemGroupsProcedure(inventoryService),
 		listUnitsOfMeasure: createListUnitsOfMeasureProcedure(inventoryService),
+		listBundleItems: createListBundleItemsProcedure(inventoryService),
+		listProductBundles: createListProductBundlesProcedure(inventoryService),
+		createProductBundle: createCreateProductBundleProcedure(inventoryService),
+		updateProductBundle: createUpdateProductBundleProcedure(inventoryService),
+		deleteProductBundle: createDeleteProductBundleProcedure(inventoryService),
 		createItem: createCreateItemProcedure(inventoryService),
 		updateItem: createUpdateItemProcedure(inventoryService),
 		deleteItem: createDeleteItemProcedure(inventoryService),

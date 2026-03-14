@@ -32,7 +32,7 @@ export const inventoryNavItems: NavItem[] = [
 			},
 			{
 				title: "Product Bundle",
-				url: "/inventory/bundles",
+				url: "/inventory/product-bundle",
 			},
 			{
 				title: "Shipping Rule",

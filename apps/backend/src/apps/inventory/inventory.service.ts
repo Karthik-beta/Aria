@@ -8,7 +8,11 @@ import type { z } from "zod";
 import { Prisma } from "../../generated/prisma/client.js";
 // biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
 import { PrismaService } from "../../shared/prisma.service";
-import { toInventoryItem, toInventoryItemGroup } from "./inventory.types";
+import {
+	toInventoryItem,
+	toInventoryItemGroup,
+	toInventoryProductBundle,
+} from "./inventory.types";
 
 const formatItemGroupDefaults = (defaults?: Inventory.ItemGroupDefault[]) =>
 	defaults?.map(({ company, defaultWarehouse, defaultPriceList }) => ({
@@ -60,6 +64,21 @@ const removeUndefined = <T extends Record<string, unknown>>(obj: T) =>
 	Object.fromEntries(
 		Object.entries(obj).filter(([, value]) => value !== undefined),
 	) as Partial<T>;
+
+type ProductBundleItemInput = {
+	itemId: string;
+	quantity: number;
+	description?: string;
+	unitOfMeasurementId?: string;
+};
+
+const formatProductBundleItems = (items: ProductBundleItemInput[]) =>
+	items.map(({ itemId, quantity, description, unitOfMeasurementId }) => ({
+		itemId,
+		quantity,
+		description,
+		UnitOfMeasurementId: unitOfMeasurementId,
+	}));
 
 /**
  * Simple inventory service with type-safe CRUD operations
@@ -126,6 +145,230 @@ export class InventoryService {
 				: undefined,
 			orderBy: { name: "asc" },
 		});
+	}
+
+	/**
+	 * Item options used in Product Bundle selectors
+	 */
+	async findAllItemsForBundleSelection(
+		search?: string,
+	): Promise<Inventory.BundleSelectableItem[]> {
+		return this.prisma.item.findMany({
+			where: search
+				? {
+						OR: [
+							{ name: { contains: search, mode: "insensitive" } },
+							{ code: { contains: search, mode: "insensitive" } },
+						],
+					}
+				: undefined,
+			select: {
+				id: true,
+				name: true,
+				code: true,
+				defaultUnitOfMeasureId: true,
+			},
+			orderBy: { name: "asc" },
+		});
+	}
+
+	/**
+	 * Get all product bundles
+	 */
+	async findAllProductBundles(): Promise<Inventory.ProductBundle[]> {
+		const bundles = await this.prisma.productBundle.findMany({
+			orderBy: { createdAt: "desc" },
+			include: {
+				parentItem: {
+					select: { id: true, name: true },
+				},
+				bundleItems: {
+					include: {
+						item: {
+							select: { id: true, name: true },
+						},
+						unitOfMeasurement: {
+							select: { id: true, name: true },
+						},
+					},
+				},
+			},
+		});
+
+		return bundles.map(toInventoryProductBundle);
+	}
+
+	/**
+	 * Create a product bundle
+	 */
+	async createProductBundle(
+		data: z.infer<typeof Inventory.createProductBundleSchema>,
+	): Promise<Inventory.ProductBundle> {
+		const existingParent = await this.prisma.item.findUnique({
+			where: { id: data.parentItemId },
+			select: { id: true },
+		});
+		if (!existingParent) {
+			throw new NotFoundException(
+				`Parent item with ID ${data.parentItemId} not found`,
+			);
+		}
+
+		const requestedItemIds = [
+			...new Set(data.bundleItems.map((i) => i.itemId)),
+		];
+		const existingItems = await this.prisma.item.findMany({
+			where: { id: { in: requestedItemIds } },
+			select: { id: true },
+		});
+		const existingItemSet = new Set(existingItems.map((item) => item.id));
+		const missingItemId = requestedItemIds.find(
+			(id) => !existingItemSet.has(id),
+		);
+		if (missingItemId) {
+			throw new NotFoundException(
+				`Bundle item with ID ${missingItemId} not found`,
+			);
+		}
+
+		try {
+			const created = await this.prisma.productBundle.create({
+				data: {
+					parentItemId: data.parentItemId,
+					description: data.description,
+					disabled: data.disabled ?? false,
+					bundleItems: {
+						create: formatProductBundleItems(data.bundleItems),
+					},
+				},
+				include: {
+					parentItem: {
+						select: { id: true, name: true },
+					},
+					bundleItems: {
+						include: {
+							item: {
+								select: { id: true, name: true },
+							},
+							unitOfMeasurement: {
+								select: { id: true, name: true },
+							},
+						},
+					},
+				},
+			});
+
+			return toInventoryProductBundle(created);
+		} catch (error) {
+			if (
+				error instanceof Prisma.PrismaClientKnownRequestError &&
+				error.code === "P2002"
+			) {
+				throw new ConflictException(
+					"Duplicate bundle item found in this product bundle",
+				);
+			}
+			throw error;
+		}
+	}
+
+	/**
+	 * Update a product bundle
+	 */
+	async updateProductBundle(
+		data: z.infer<typeof Inventory.updateProductBundleSchema>,
+	): Promise<Inventory.ProductBundle> {
+		const { id, bundleItems, ...rest } = data;
+
+		const existing = await this.prisma.productBundle.findUnique({
+			where: { id },
+			select: { id: true },
+		});
+		if (!existing) {
+			throw new NotFoundException(`Product bundle with ID ${id} not found`);
+		}
+
+		if (rest.parentItemId) {
+			const parentExists = await this.prisma.item.findUnique({
+				where: { id: rest.parentItemId },
+				select: { id: true },
+			});
+			if (!parentExists) {
+				throw new NotFoundException(
+					`Parent item with ID ${rest.parentItemId} not found`,
+				);
+			}
+		}
+
+		if (bundleItems && bundleItems.length > 0) {
+			const requestedItemIds = [
+				...new Set(bundleItems.map((item) => item.itemId)),
+			];
+			const existingItems = await this.prisma.item.findMany({
+				where: { id: { in: requestedItemIds } },
+				select: { id: true },
+			});
+			const existingItemSet = new Set(existingItems.map((item) => item.id));
+			const missingItemId = requestedItemIds.find(
+				(itemId) => !existingItemSet.has(itemId),
+			);
+			if (missingItemId) {
+				throw new NotFoundException(
+					`Bundle item with ID ${missingItemId} not found`,
+				);
+			}
+		}
+
+		const updated = await this.prisma.productBundle.update({
+			where: { id },
+			data: {
+				...removeUndefined(rest),
+				bundleItems:
+					bundleItems !== undefined
+						? {
+								deleteMany: {},
+								create: formatProductBundleItems(bundleItems),
+							}
+						: undefined,
+			},
+			include: {
+				parentItem: {
+					select: { id: true, name: true },
+				},
+				bundleItems: {
+					include: {
+						item: {
+							select: { id: true, name: true },
+						},
+						unitOfMeasurement: {
+							select: { id: true, name: true },
+						},
+					},
+				},
+			},
+		});
+
+		return toInventoryProductBundle(updated);
+	}
+
+	/**
+	 * Delete a product bundle
+	 */
+	async deleteProductBundle(
+		id: string,
+	): Promise<{ success: boolean; id: string }> {
+		try {
+			await this.prisma.productBundle.delete({ where: { id } });
+			return { success: true, id };
+		} catch (error) {
+			if (
+				error instanceof Prisma.PrismaClientKnownRequestError &&
+				error.code === "P2025"
+			) {
+				throw new NotFoundException(`Product bundle with ID ${id} not found`);
+			}
+			throw error;
+		}
 	}
 
 	/**

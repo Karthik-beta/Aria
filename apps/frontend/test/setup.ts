@@ -97,6 +97,26 @@ class MockResizeObserver implements ResizeObserver {
 }
 global.ResizeObserver = MockResizeObserver;
 
+// Radix Select pointer-event helpers used in JSDOM tests
+if (!Element.prototype.hasPointerCapture) {
+	Element.prototype.hasPointerCapture = () => false;
+}
+if (!Element.prototype.setPointerCapture) {
+	Element.prototype.setPointerCapture = () => {
+		// Test mock - no implementation needed
+	};
+}
+if (!Element.prototype.releasePointerCapture) {
+	Element.prototype.releasePointerCapture = () => {
+		// Test mock - no implementation needed
+	};
+}
+if (!Element.prototype.scrollIntoView) {
+	Element.prototype.scrollIntoView = () => {
+		// Test mock - no implementation needed
+	};
+}
+
 // Suppress console errors/warnings in tests (unless needed for debugging)
 global.console = {
 	...console,

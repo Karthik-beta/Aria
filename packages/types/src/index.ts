@@ -268,6 +268,76 @@ export namespace Inventory {
 		defaults?: ItemGroupDefault[];
 	}
 
+	/**
+	 * Product bundle item row
+	 */
+	export interface ProductBundleItem {
+		id: string;
+		bundleId: string;
+		itemId: string;
+		itemName?: string | null;
+		quantity: number;
+		description?: string | null;
+		unitOfMeasurementId?: string | null;
+		unitOfMeasurementName?: string | null;
+		createdAt: Date;
+		updatedAt: Date;
+	}
+
+	/**
+	 * Product bundle aggregate
+	 */
+	export interface ProductBundle {
+		id: string;
+		parentItemId: string;
+		parentItemName?: string | null;
+		description?: string | null;
+		disabled: boolean;
+		bundleItems: ProductBundleItem[];
+		createdAt: Date;
+		updatedAt: Date;
+	}
+
+	export interface CreateProductBundleItemInput {
+		itemId: string;
+		quantity: number;
+		description?: string;
+		unitOfMeasurementId?: string;
+	}
+
+	export interface CreateProductBundleInput {
+		parentItemId: string;
+		description?: string;
+		disabled?: boolean;
+		bundleItems: CreateProductBundleItemInput[];
+	}
+
+	export interface UpdateProductBundleItemInput {
+		id?: string;
+		itemId: string;
+		quantity: number;
+		description?: string;
+		unitOfMeasurementId?: string;
+	}
+
+	export interface UpdateProductBundleInput {
+		id: string;
+		parentItemId?: string;
+		description?: string;
+		disabled?: boolean;
+		bundleItems?: UpdateProductBundleItemInput[];
+	}
+
+	/**
+	 * Item option used in Product Bundle pickers.
+	 */
+	export interface BundleSelectableItem {
+		id: string;
+		name: string;
+		code: string;
+		defaultUnitOfMeasureId?: string | null;
+	}
+
 	export interface BulkDeleteInput {
 		ids: string[];
 	}
@@ -425,6 +495,41 @@ export namespace Inventory {
 					defaultPriceList: z.string().optional().nullable(),
 				}),
 			)
+			.optional(),
+	});
+
+	export const createProductBundleSchema = z.object({
+		parentItemId: z.string().cuid(),
+		description: z.string().max(1000).optional(),
+		disabled: z.boolean().default(false),
+		bundleItems: z
+			.array(
+				z.object({
+					itemId: z.string().cuid(),
+					quantity: z.number().int().min(1),
+					description: z.string().max(1000).optional(),
+					unitOfMeasurementId: z.string().cuid().optional(),
+				}),
+			)
+			.min(1),
+	});
+
+	export const updateProductBundleSchema = z.object({
+		id: z.string().cuid(),
+		parentItemId: z.string().cuid().optional(),
+		description: z.string().max(1000).optional(),
+		disabled: z.boolean().optional(),
+		bundleItems: z
+			.array(
+				z.object({
+					id: z.string().cuid().optional(),
+					itemId: z.string().cuid(),
+					quantity: z.number().int().min(1),
+					description: z.string().max(1000).optional(),
+					unitOfMeasurementId: z.string().cuid().optional(),
+				}),
+			)
+			.min(1)
 			.optional(),
 	});
 }
