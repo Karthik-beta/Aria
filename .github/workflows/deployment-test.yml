@@ -239,9 +239,10 @@ jobs:
 
       - name: Install pnpm (windows-native)
         if: steps.docker-engine-final.outputs.os_type != 'linux'
+        env:
+          COREPACK_ENABLE_STRICT: "0"
         run: |
           npm install -g pnpm@10
-          pnpm --version
 
       - name: Create pnpm workspace manifest (windows-native)
         if: steps.docker-engine-final.outputs.os_type != 'linux'
