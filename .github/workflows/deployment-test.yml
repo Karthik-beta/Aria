@@ -26,6 +26,7 @@ on:
   workflow_dispatch:
 
 env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   DOCKER_BUILDKIT: 1
   COMPOSE_DOCKER_CLI_BUILD: 1
 
@@ -232,19 +233,25 @@ jobs:
 
       - name: Set up Node.js for windows-native validation
         if: steps.docker-engine-final.outputs.os_type != 'linux'
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 22
+
+      - name: Install pnpm (windows-native)
+        if: steps.docker-engine-final.outputs.os_type != 'linux'
+        run: |
+          npm install -g pnpm@10
+          pnpm --version
 
       - name: Install dependencies (windows-native)
         if: steps.docker-engine-final.outputs.os_type != 'linux'
         run: |
-          npm install --ignore-scripts
+          pnpm install --ignore-scripts --no-frozen-lockfile
 
       - name: Run windows-native build validation
         if: steps.docker-engine-final.outputs.os_type != 'linux'
         run: |
-          npx turbo run build --filter=@aria/types --filter=@aria/utils --filter=@aria/api-contract
+          pnpm exec turbo run build --filter=@aria/types --filter=@aria/utils --filter=@aria/api-contract
 
       - name: Start services
         if: steps.docker-engine-final.outputs.os_type == 'linux'
