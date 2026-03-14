@@ -1,6 +1,6 @@
-# syntax=docker.io/docker/dockerfile:1
+# syntax=docker/dockerfile:1
 
-# Production-ready NestJS (v11) + Prisma (v6) using Bun workspaces
+# Production-ready NestJS + Prisma using Bun workspaces
 # Key goals:
 # - Multi-stage for small, secure images (build tools excluded from runtime)
 # - Bun prod-only install in the final image to avoid broken virtual-store symlinks
@@ -23,22 +23,19 @@ FROM base AS deps
 WORKDIR /app
 
 # Workspace manifests (root + package manifests only)
-# NOTE: If your project uses bun.lockb (newer), copy that instead of bun.lock
-# Using --frozen-lockfile in production builds ensures dependency versions are locked
-COPY bun.lock package.json turbo.json ./
-COPY packages/config-eslint/package.json ./packages/config-eslint/
+COPY bun.lock package.json turbo.json tsconfig.base.json ./
+COPY packages/api-contract/package.json ./packages/api-contract/
 COPY packages/config-typescript/package.json ./packages/config-typescript/
 COPY packages/types/package.json ./packages/types/
 COPY packages/utils/package.json ./packages/utils/
 COPY apps/backend/package.json ./apps/backend/
+COPY apps/frontend/package.json ./apps/frontend/
 
 # Copy workspace sources needed for workspace protocol resolution
 COPY packages ./packages
 
 # Full install (dev + prod) for development/builder caching
-# Using --frozen-lockfile ensures reproducible builds and dependency version locking
-# NOTE: --frozen-lockfile is ACTIVE in this stage to maintain dependency integrity
-RUN rm bun.lock && bun install --no-frozen-lockfile
+RUN bun install --frozen-lockfile
 
 ##############################################
 # Development: quick-start image for local dev
@@ -52,7 +49,7 @@ COPY --from=deps /app/packages ./packages
 COPY --from=deps /app/apps/backend/node_modules ./apps/backend/node_modules
 
 # Add app sources
-COPY bun.lock package.json turbo.json ./
+COPY bun.lock package.json turbo.json tsconfig.base.json ./
 COPY apps/backend ./apps/backend
 
 # Useful ports for dev
@@ -68,21 +65,24 @@ FROM base AS builder
 WORKDIR /app
 
 # Copy manifests first for better caching
-# Using --frozen-lockfile in production builds ensures dependency versions are locked
-COPY bun.lock package.json turbo.json ./
-COPY packages/config-eslint/package.json ./packages/config-eslint/
+COPY bun.lock package.json turbo.json tsconfig.base.json ./
+COPY packages/api-contract/package.json ./packages/api-contract/
 COPY packages/config-typescript/package.json ./packages/config-typescript/
 COPY packages/types/package.json ./packages/types/
 COPY packages/utils/package.json ./packages/utils/
 COPY apps/backend/package.json ./apps/backend/
+COPY apps/frontend/package.json ./apps/frontend/
 
 # Copy sources
 COPY packages ./packages
 COPY apps/backend ./apps/backend
 
 # Install all deps (dev + prod) to enable build toolchain and generators
-# Using --frozen-lockfile ensures reproducible builds and dependency version locking
-RUN rm bun.lock && bun install --no-frozen-lockfile
+RUN bun install --frozen-lockfile
+
+# Prisma config uses env("DATABASE_URL"), so provide a build-time placeholder.
+ARG DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres?schema=public
+ENV DATABASE_URL=${DATABASE_URL}
 
 # Generate Prisma Client for type-safe compilation (dev deps available here)
 RUN cd /app/apps/backend && bun prisma generate
@@ -117,13 +117,19 @@ ENV NODE_ENV=production
 ENV PATH="/app/node_modules/.bin:${PATH}"
 
 # Security: non-root user
-RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 nestjs
+RUN set -eux; \
+    if command -v addgroup >/dev/null 2>&1; then \
+      addgroup --system --gid 1001 nodejs; \
+      adduser --system --uid 1001 --ingroup nodejs nestjs; \
+    else \
+      groupadd -g 1001 -r nodejs; \
+      useradd -u 1001 -r -g nodejs -m -s /usr/sbin/nologin nestjs; \
+    fi
 
 # 1) Copy only the minimal manifests required for a workspace-aware prod install
 # Root + per-package manifests (no sources yet)
-# Using --frozen-lockfile in production builds ensures dependency versions are locked
 COPY package.json bun.lock ./
-COPY packages/config-eslint/package.json ./packages/config-eslint/package.json
+COPY packages/api-contract/package.json ./packages/api-contract/package.json
 COPY packages/config-typescript/package.json ./packages/config-typescript/package.json
 COPY packages/types/package.json ./packages/types/package.json
 COPY packages/utils/package.json ./packages/utils/package.json
@@ -133,14 +139,14 @@ COPY apps/backend/package.json ./apps/backend/package.json
 # 2) Production install happens in the final image to keep symlinks valid
 # Use BuildKit cache for Bun downloads; install prod-only to reduce size
 # Single workspace install ensures all dependencies are resolved together
-# This prevents version conflicts between workspace packages
-# Using --frozen-lockfile ensures reproducible production builds
-RUN rm bun.lock && bun install --no-frozen-lockfile --production
+# Ignore lifecycle scripts in runtime image install (e.g., root prepare=husky)
+RUN bun install --frozen-lockfile --production --ignore-scripts
 
 # 3) Bring in the compiled application and only the runtime artifacts
 # Backend compiled code + prisma schema/migrations
 COPY --from=builder /app/apps/backend/dist /app/apps/backend/dist
 COPY --from=builder /app/apps/backend/prisma /app/apps/backend/prisma
+COPY --from=builder /app/apps/backend/prisma.config.ts /app/apps/backend/prisma.config.ts
 
 # Shared workspace packages: copy only their compiled JS outputs + package.json
 # This keeps workspace symlinks valid and avoids shipping TS sources

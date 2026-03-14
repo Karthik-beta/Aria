@@ -1,7 +1,15 @@
-import { AttendanceChart } from '@/features/hrms/components/attendance-chart';
+"use client";
 
-export default async function BarStats() {
-  await new Promise((resolve) => setTimeout(resolve, 1000));
+import dynamic from "next/dynamic";
 
-  return <AttendanceChart />;
+const AttendanceChart = dynamic(
+	() =>
+		import("@/features/hrms/components/attendance-chart").then(
+			(mod) => mod.AttendanceChart,
+		),
+	{ ssr: false },
+);
+
+export default function BarStats() {
+	return <AttendanceChart />;
 }

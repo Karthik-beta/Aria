@@ -1,12 +1,16 @@
-'use client';
-import { ActiveThemeProvider } from '../active-theme';
+"use client";
+import { ActiveThemeProvider } from "../active-theme";
 
 export default function Providers({
-  activeThemeValue,
-  children,
+	activeThemeValue,
+	children,
 }: {
-  activeThemeValue?: string;
-  children: React.ReactNode;
+	activeThemeValue?: string;
+	children: React.ReactNode;
 }) {
-  return <ActiveThemeProvider initialTheme={activeThemeValue}>{children}</ActiveThemeProvider>;
+	return (
+		<ActiveThemeProvider initialTheme={activeThemeValue}>
+			{children}
+		</ActiveThemeProvider>
+	);
 }

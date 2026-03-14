@@ -1,6 +1,15 @@
-import { SalesPipelineChart } from '@/features/crm/components/sales-pipeline-chart';
+"use client";
 
-export default async function BarStats() {
-  await new Promise((resolve) => setTimeout(resolve, 1000));
-  return <SalesPipelineChart />;
+import dynamic from "next/dynamic";
+
+const SalesPipelineChart = dynamic(
+	() =>
+		import("@/features/crm/components/sales-pipeline-chart").then(
+			(mod) => mod.SalesPipelineChart,
+		),
+	{ ssr: false },
+);
+
+export default function BarStats() {
+	return <SalesPipelineChart />;
 }

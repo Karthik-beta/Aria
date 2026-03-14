@@ -1,6 +1,15 @@
-import { LeadSourceChart } from '@/features/crm/components/lead-source-chart';
+"use client";
 
-export default async function Stats() {
-  await new Promise((resolve) => setTimeout(resolve, 1000));
-  return <LeadSourceChart />;
+import dynamic from "next/dynamic";
+
+const LeadSourceChart = dynamic(
+	() =>
+		import("@/features/crm/components/lead-source-chart").then(
+			(mod) => mod.LeadSourceChart,
+		),
+	{ ssr: false },
+);
+
+export default function Stats() {
+	return <LeadSourceChart />;
 }

@@ -87,11 +87,12 @@ function Test-HttpEndpoint {
         $response = Invoke-WebRequest -Uri $Url -UseBasicParsing -TimeoutSec $Timeout -ErrorAction SilentlyContinue
         $statusCode = $response.StatusCode
         
-        if ($statusCode -eq $ExpectedStatus) {
-            Write-Pass "$Name endpoint returned $statusCode"
+        # Accept 2xx/3xx to handle valid reverse-proxy redirects (HTTP -> HTTPS)
+        if ($statusCode -ge 200 -and $statusCode -lt 400) {
+            Write-Pass "$Name endpoint returned $statusCode (healthy)"
         }
         else {
-            Write-Fail "$Name endpoint returned $statusCode (expected $ExpectedStatus)"
+            Write-Fail "$Name endpoint returned $statusCode (expected $ExpectedStatus or any 2xx/3xx)"
         }
     }
     catch {
@@ -145,9 +146,9 @@ function Test-Database {
         Write-Fail "Could not test PostgreSQL connectivity"
     }
     
-    # Test Redis
+    # Test Redis (authenticate when REDIS_PASSWORD is configured)
     try {
-        $redisResult = docker exec aria-redis redis-cli ping 2>&1
+        $redisResult = docker exec aria-redis sh -lc 'if [ -n "$REDIS_PASSWORD" ]; then REDISCLI_AUTH="$REDIS_PASSWORD" redis-cli ping; else redis-cli ping; fi' 2>&1
         if ($redisResult -match "PONG") {
             Write-Pass "Redis is responding"
         }

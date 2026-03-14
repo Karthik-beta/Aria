@@ -1,5 +1,6 @@
-import { Injectable } from '@nestjs/common';
-import { PrismaClient } from '../generated/prisma/client.js';
+import { Injectable } from "@nestjs/common";
+// biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
+import { PrismaService } from "../shared/prisma.service";
 
 /**
  * ScopeService - Ownership and team-based access control
@@ -14,251 +15,254 @@ import { PrismaClient } from '../generated/prisma/client.js';
  */
 @Injectable()
 export class ScopeService {
-  constructor(private readonly prisma: PrismaClient) { }
+	constructor(private readonly prisma: PrismaService) {}
 
-  /**
-   * Check if user is an active supervisor for the specified app
-   *
-   * @param userId - User ID to check
-   * @param appKey - Application key
-   * @returns true if user is supervisor for the app
-   */
-  async isSupervisorOf(userId: string, appKey: string): Promise<boolean> {
-    const supervisor = await this.prisma.appSupervisor.findFirst({
-      where: {
-        supervisorUserId: userId,
-        appKey,
-      },
-    });
+	/**
+	 * Check if user is an active supervisor for the specified app
+	 *
+	 * @param userId - User ID to check
+	 * @param appKey - Application key
+	 * @returns true if user is supervisor for the app
+	 */
+	async isSupervisorOf(userId: string, appKey: string): Promise<boolean> {
+		const supervisor = await this.prisma.appSupervisor.findFirst({
+			where: {
+				supervisorUserId: userId,
+				appKey,
+			},
+		});
 
-    return !!supervisor;
-  }
+		return !!supervisor;
+	}
 
-  /**
-   * Check if user is a member of the specified team
-   *
-   * @param userId - User ID to check
-   * @param teamId - Team ID
-   * @returns true if user is a team member
-   */
-  async isTeamMember(userId: string, teamId: string): Promise<boolean> {
-    const member = await this.prisma.teamMember.findFirst({
-      where: {
-        userId,
-        teamId,
-      },
-    });
+	/**
+	 * Check if user is a member of the specified team
+	 *
+	 * @param userId - User ID to check
+	 * @param teamId - Team ID
+	 * @returns true if user is a team member
+	 */
+	async isTeamMember(userId: string, teamId: string): Promise<boolean> {
+		const member = await this.prisma.teamMember.findFirst({
+			where: {
+				userId,
+				teamId,
+			},
+		});
 
-    return !!member;
-  }
+		return !!member;
+	}
 
-  /**
-   * Check if user is a manager of the specified team
-   *
-   * @param userId - User ID to check
-   * @param teamId - Team ID
-   * @returns true if user is the team manager
-   */
-  async isTeamManager(userId: string, teamId: string): Promise<boolean> {
-    const team = await this.prisma.team.findFirst({
-      where: {
-        id: teamId,
-        managerUserId: userId,
-      },
-    });
+	/**
+	 * Check if user is a manager of the specified team
+	 *
+	 * @param userId - User ID to check
+	 * @param teamId - Team ID
+	 * @returns true if user is the team manager
+	 */
+	async isTeamManager(userId: string, teamId: string): Promise<boolean> {
+		const team = await this.prisma.team.findFirst({
+			where: {
+				id: teamId,
+				managerUserId: userId,
+			},
+		});
 
-    return !!team;
-  }
+		return !!team;
+	}
 
-  /**
-   * Get all teams a user is a member of
-   *
-   * @param userId - User ID
-   * @param appKey - Optional app filter
-   * @returns Array of team IDs
-   */
-  async getUserTeams(userId: string, appKey?: string): Promise<string[]> {
-    const memberships = await this.prisma.teamMember.findMany({
-      where: {
-        userId,
-        ...(appKey && {
-          team: {
-            appKey,
-          },
-        }),
-      },
-      select: {
-        teamId: true,
-      },
-    });
+	/**
+	 * Get all teams a user is a member of
+	 *
+	 * @param userId - User ID
+	 * @param appKey - Optional app filter
+	 * @returns Array of team IDs
+	 */
+	async getUserTeams(userId: string, appKey?: string): Promise<string[]> {
+		const memberships = await this.prisma.teamMember.findMany({
+			where: {
+				userId,
+				...(appKey && {
+					team: {
+						appKey,
+					},
+				}),
+			},
+			select: {
+				teamId: true,
+			},
+		});
 
-    return memberships.map((m) => m.teamId);
-  }
+		return memberships.map((m) => m.teamId);
+	}
 
-  /**
-   * Get all teams a user manages
-   *
-   * @param userId - User ID
-   * @param appKey - Optional app filter
-   * @returns Array of team IDs
-   */
-  async getManagedTeams(userId: string, appKey?: string): Promise<string[]> {
-    const teams = await this.prisma.team.findMany({
-      where: {
-        managerUserId: userId,
-        ...(appKey && { appKey }),
-      },
-      select: {
-        id: true,
-      },
-    });
+	/**
+	 * Get all teams a user manages
+	 *
+	 * @param userId - User ID
+	 * @param appKey - Optional app filter
+	 * @returns Array of team IDs
+	 */
+	async getManagedTeams(userId: string, appKey?: string): Promise<string[]> {
+		const teams = await this.prisma.team.findMany({
+			where: {
+				managerUserId: userId,
+				...(appKey && { appKey }),
+			},
+			select: {
+				id: true,
+			},
+		});
 
-    return teams.map((t) => t.id);
-  }
+		return teams.map((t) => t.id);
+	}
 
-  /**
-   * Check if user is in the management hierarchy above target user
-   *
-   * @param managerId - Potential manager user ID
-   * @param subordinateId - Potential subordinate user ID
-   * @returns true if managerId is in the hierarchy above subordinateId
-   */
-  async isInManagementHierarchy(
-    managerId: string,
-    subordinateId: string,
-  ): Promise<boolean> {
-    // Recursive check up the management chain (max 10 levels to prevent infinite loops)
-    let currentUserId: string | null = subordinateId;
-    let depth = 0;
-    const MAX_DEPTH = 10;
+	/**
+	 * Check if user is in the management hierarchy above target user
+	 *
+	 * @param managerId - Potential manager user ID
+	 * @param subordinateId - Potential subordinate user ID
+	 * @returns true if managerId is in the hierarchy above subordinateId
+	 */
+	async isInManagementHierarchy(
+		managerId: string,
+		subordinateId: string,
+	): Promise<boolean> {
+		// Recursive check up the management chain (max 10 levels to prevent infinite loops)
+		let currentUserId: string | null = subordinateId;
+		let depth = 0;
+		const MAX_DEPTH = 10;
 
-    while (currentUserId && depth < MAX_DEPTH) {
-      const user: { managerId: string | null } | null =
-        await this.prisma.user.findUnique({
-          where: { id: currentUserId },
-          select: { managerId: true },
-        });
+		while (currentUserId && depth < MAX_DEPTH) {
+			const user: { managerId: string | null } | null =
+				await this.prisma.user.findUnique({
+					where: { id: currentUserId },
+					select: { managerId: true },
+				});
 
-      if (!user || !user.managerId) {
-        return false;
-      }
+			if (!user || !user.managerId) {
+				return false;
+			}
 
-      if (user.managerId === managerId) {
-        return true;
-      }
+			if (user.managerId === managerId) {
+				return true;
+			}
 
-      currentUserId = user.managerId;
-      depth++;
-    }
+			currentUserId = user.managerId;
+			depth++;
+		}
 
-    return false;
-  }
+		return false;
+	}
 
-  /**
-   * Get all subordinates for a manager (direct and indirect)
-   *
-   * @param managerId - Manager user ID
-   * @param includeIndirect - Include indirect reports (reports of reports)
-   * @returns Array of subordinate user IDs
-   */
-  async getSubordinates(
-    managerId: string,
-    includeIndirect: boolean = false,
-  ): Promise<string[]> {
-    if (!includeIndirect) {
-      // Direct reports only
-      const directReports = await this.prisma.user.findMany({
-        where: { managerId },
-        select: { id: true },
-      });
-      return directReports.map((u) => u.id);
-    }
+	/**
+	 * Get all subordinates for a manager (direct and indirect)
+	 *
+	 * @param managerId - Manager user ID
+	 * @param includeIndirect - Include indirect reports (reports of reports)
+	 * @returns Array of subordinate user IDs
+	 */
+	async getSubordinates(
+		managerId: string,
+		includeIndirect: boolean = false,
+	): Promise<string[]> {
+		if (!includeIndirect) {
+			// Direct reports only
+			const directReports = await this.prisma.user.findMany({
+				where: { managerId },
+				select: { id: true },
+			});
+			return directReports.map((u) => u.id);
+		}
 
-    // Get all subordinates recursively
-    const allSubordinates = new Set<string>();
-    const toProcess = [managerId];
-    let depth = 0;
-    const MAX_DEPTH = 10;
+		// Get all subordinates recursively
+		const allSubordinates = new Set<string>();
+		const toProcess = [managerId];
+		let depth = 0;
+		const MAX_DEPTH = 10;
 
-    while (toProcess.length > 0 && depth < MAX_DEPTH) {
-      const currentManagerId = toProcess.shift()!;
-      const directReports = await this.prisma.user.findMany({
-        where: { managerId: currentManagerId },
-        select: { id: true },
-      });
+		while (toProcess.length > 0 && depth < MAX_DEPTH) {
+			const currentManagerId = toProcess.shift();
+			if (!currentManagerId) {
+				break;
+			}
+			const directReports = await this.prisma.user.findMany({
+				where: { managerId: currentManagerId },
+				select: { id: true },
+			});
 
-      for (const report of directReports) {
-        if (!allSubordinates.has(report.id)) {
-          allSubordinates.add(report.id);
-          toProcess.push(report.id);
-        }
-      }
+			for (const report of directReports) {
+				if (!allSubordinates.has(report.id)) {
+					allSubordinates.add(report.id);
+					toProcess.push(report.id);
+				}
+			}
 
-      depth++;
-    }
+			depth++;
+		}
 
-    return Array.from(allSubordinates);
-  }
+		return Array.from(allSubordinates);
+	}
 
-  /**
-   * Check if user can create users in the specified app
-   * Only supervisors of that app (with manager role) can create users
-   *
-   * @param userId - User ID attempting to create user
-   * @param appKey - Application key
-   * @returns true if user can create users for this app
-   */
-  async canCreateUsersInApp(userId: string, appKey: string): Promise<boolean> {
-    // Must be a supervisor of the app
-    const isSupervisor = await this.isSupervisorOf(userId, appKey);
-    if (!isSupervisor) {
-      return false;
-    }
+	/**
+	 * Check if user can create users in the specified app
+	 * Only supervisors of that app (with manager role) can create users
+	 *
+	 * @param userId - User ID attempting to create user
+	 * @param appKey - Application key
+	 * @returns true if user can create users for this app
+	 */
+	async canCreateUsersInApp(userId: string, appKey: string): Promise<boolean> {
+		// Must be a supervisor of the app
+		const isSupervisor = await this.isSupervisorOf(userId, appKey);
+		if (!isSupervisor) {
+			return false;
+		}
 
-    // Must have manager role (will be checked separately by policy service)
-    return true;
-  }
+		// Must have manager role (will be checked separately by policy service)
+		return true;
+	}
 
-  /**
-   * Get all apps a user supervises
-   *
-   * @param userId - User ID
-   * @returns Array of app keys
-   */
-  async getSupervisedApps(userId: string): Promise<string[]> {
-    const supervisions = await this.prisma.appSupervisor.findMany({
-      where: { supervisorUserId: userId },
-      select: { appKey: true },
-    });
+	/**
+	 * Get all apps a user supervises
+	 *
+	 * @param userId - User ID
+	 * @returns Array of app keys
+	 */
+	async getSupervisedApps(userId: string): Promise<string[]> {
+		const supervisions = await this.prisma.appSupervisor.findMany({
+			where: { supervisorUserId: userId },
+			select: { appKey: true },
+		});
 
-    return supervisions.map((s) => s.appKey);
-  }
+		return supervisions.map((s) => s.appKey);
+	}
 
-  /**
-   * Check team scope access for a given resource
-   * Used for filtering queries based on team membership
-   *
-   * @param userId - User ID
-   * @param appKey - Application key
-   * @returns Object with team IDs and whether user has manager access
-   */
-  async getTeamScopeForApp(
-    userId: string,
-    appKey: string,
-  ): Promise<{
-    teamIds: string[];
-    managedTeamIds: string[];
-    isManager: boolean;
-  }> {
-    const [teamIds, managedTeamIds] = await Promise.all([
-      this.getUserTeams(userId, appKey),
-      this.getManagedTeams(userId, appKey),
-    ]);
+	/**
+	 * Check team scope access for a given resource
+	 * Used for filtering queries based on team membership
+	 *
+	 * @param userId - User ID
+	 * @param appKey - Application key
+	 * @returns Object with team IDs and whether user has manager access
+	 */
+	async getTeamScopeForApp(
+		userId: string,
+		appKey: string,
+	): Promise<{
+		teamIds: string[];
+		managedTeamIds: string[];
+		isManager: boolean;
+	}> {
+		const [teamIds, managedTeamIds] = await Promise.all([
+			this.getUserTeams(userId, appKey),
+			this.getManagedTeams(userId, appKey),
+		]);
 
-    return {
-      teamIds,
-      managedTeamIds,
-      isManager: managedTeamIds.length > 0,
-    };
-  }
+		return {
+			teamIds,
+			managedTeamIds,
+			isManager: managedTeamIds.length > 0,
+		};
+	}
 }

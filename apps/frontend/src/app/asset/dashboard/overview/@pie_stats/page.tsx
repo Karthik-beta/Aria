@@ -1,6 +1,15 @@
-import { AssetCategoryChart } from '@/features/asset/components/asset-category-chart';
+"use client";
 
-export default async function Stats() {
-  await new Promise((resolve) => setTimeout(resolve, 1000));
-  return <AssetCategoryChart />;
+import dynamic from "next/dynamic";
+
+const AssetCategoryChart = dynamic(
+	() =>
+		import("@/features/asset/components/asset-category-chart").then(
+			(mod) => mod.AssetCategoryChart,
+		),
+	{ ssr: false },
+);
+
+export default function Stats() {
+	return <AssetCategoryChart />;
 }

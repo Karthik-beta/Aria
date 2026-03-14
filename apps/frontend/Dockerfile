@@ -1,4 +1,4 @@
-# syntax=docker.io/docker/dockerfile:1
+# syntax=docker/dockerfile:1
 # Frontend Dockerfile - Multi-stage build for Next.js 16 🚀
 # Based on official Next.js with-docker example (best practices) 📚
 # Reference: https://github.com/vercel/next.js/tree/canary/examples/with-docker
@@ -13,19 +13,18 @@ FROM base AS deps
 WORKDIR /app
 
 # Copy workspace configuration files
-COPY bun.lock package.json turbo.json ./
+COPY bun.lock package.json turbo.json tsconfig.base.json ./
 
 # Copy all package.json files to maintain workspace structure
-COPY packages/config-eslint/package.json ./packages/config-eslint/
+COPY packages/api-contract/package.json ./packages/api-contract/
 COPY packages/config-typescript/package.json ./packages/config-typescript/
 COPY packages/types/package.json ./packages/types/
 COPY packages/utils/package.json ./packages/utils/
 COPY apps/frontend/package.json ./apps/frontend/
 COPY apps/backend/package.json ./apps/backend/
 
-# Install dependencies with BuildKit cache mount for faster rebuilds
-# Note: --frozen-lockfile removed to allow builds with updated package.json
-RUN rm bun.lock && bun install --no-frozen-lockfile
+# Install dependencies using the committed lockfile
+RUN bun install --frozen-lockfile
 
 # Copy shared packages source (JIT pattern - no build needed, consumed as TypeScript)
 COPY packages ./packages
@@ -35,6 +34,7 @@ COPY apps/backend/src ./apps/backend/src
 COPY apps/backend/prisma ./apps/backend/prisma
 COPY apps/backend/tsconfig.json ./apps/backend/tsconfig.json
 COPY apps/backend/tsconfig.build.json ./apps/backend/tsconfig.build.json
+COPY apps/backend/tsconfig.public-types.json ./apps/backend/tsconfig.public-types.json
 
 # Development stage - for local development with hot reload 🛠️
 FROM base AS development
@@ -46,7 +46,7 @@ COPY --from=deps /app/packages ./packages
 COPY --from=deps /app/apps/frontend/node_modules ./apps/frontend/node_modules
 
 # Copy workspace files
-COPY bun.lock package.json turbo.json ./
+COPY bun.lock package.json turbo.json tsconfig.base.json ./
 
 # Copy source code
 COPY packages ./packages
@@ -70,7 +70,6 @@ WORKDIR /app
 COPY --from=deps /app ./
 
 # Copy frontend source files
-COPY turbo.json ./
 COPY apps/frontend ./apps/frontend
 
 # Set build environment
@@ -96,6 +95,10 @@ ENV TURBO_TOKEN=${TURBO_TOKEN}
 ENV TURBO_TEAM=${TURBO_TEAM}
 ENV TURBO_API=${TURBO_API}
 
+# Prisma config uses env("DATABASE_URL"), so provide a build-time placeholder.
+ARG DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres?schema=public
+ENV DATABASE_URL=${DATABASE_URL}
+
 # Generate Prisma client before building (required for backend types)
 RUN cd apps/backend && bun prisma generate
 
@@ -109,7 +112,6 @@ RUN --mount=type=cache,id=turbo-build-cache,target=/app/.turbo/cache bun --filte
 
 # Build frontend using Turbo (now able to access remote cache via TURBO_* env)
 RUN --mount=type=cache,id=turbo-build-cache,target=/app/.turbo/cache bun turbo build --filter=frontend...
-RUN --mount=type=cache,id=turbo-build-cache,target=/app/.turbo/cache bun turbo build --filter=frontend...
 
 # Production runner stage - minimal production image with standalone output 🏁
 FROM base AS runner
@@ -120,15 +122,21 @@ ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
 # Create non-root user for security (following official Next.js Docker pattern)
-RUN addgroup --system --gid 1001 nodejs && \
-    adduser --system --uid 1001 nextjs
+RUN set -eux; \
+    if command -v addgroup >/dev/null 2>&1; then \
+      addgroup --system --gid 1001 nodejs; \
+      adduser --system --uid 1001 --ingroup nodejs nextjs; \
+    else \
+      groupadd -g 1001 -r nodejs; \
+      useradd -u 1001 -r -g nodejs -m -s /usr/sbin/nologin nextjs; \
+    fi
 
 # Automatically leverage output traces to reduce image size
 # https://nextjs.org/docs/advanced-features/output-file-tracing
 # Official pattern: Copy standalone output to root, then copy static assets
 COPY --from=builder --chown=nextjs:nodejs /app/apps/frontend/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/apps/frontend/.next/static ./app/apps/frontend/.next/static
-COPY --from=builder --chown=nextjs:nodejs /app/apps/frontend/public ./app/apps/frontend/public
+COPY --from=builder --chown=nextjs:nodejs /app/apps/frontend/.next/static ./apps/frontend/.next/static
+COPY --from=builder --chown=nextjs:nodejs /app/apps/frontend/public ./apps/frontend/public
 
 # Health check - accept 2xx and 3xx status codes (redirects are OK) 🩺
 HEALTHCHECK --interval=60s --timeout=10s --start-period=40s --retries=3 \
@@ -146,5 +154,5 @@ ENV HOSTNAME="0.0.0.0"
 
 # Start the Next.js standalone server ▶️
 # Standalone output creates: /app/.next/standalone structure
-# The server.js file is generated at the root of standalone output
-CMD ["node", "app/apps/frontend/server.js"]
+# In this monorepo output, server.js is at /app/apps/frontend/server.js
+CMD ["node", "apps/frontend/server.js"]

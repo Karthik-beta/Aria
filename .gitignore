@@ -1,5 +1,6 @@
 # Dependencies
 node_modules/
+**/node_modules.mixed.*/
 .pnp.cjs
 .pnp.loader.mjs
 .pnpm-store/
@@ -14,6 +15,10 @@ node_modules/
 dist/
 build/
 .next/
+out/
+**/dist-types/
+**/.next/
+**/out/
 *.tsbuildinfo
 tsbuildinfo.json
 tsbuild/
@@ -64,9 +69,16 @@ coverage/
 test-results/
 playwright-report/
 playwright/.cache/
+apps/backend/.test-dist/
+apps/backend/test/**/*.js
+apps/backend/test/**/*.js.map
 
 # Prisma
 apps/backend/prisma/migrations/
+!apps/backend/prisma/migrations/
+!apps/backend/prisma/migrations/**/
+!apps/backend/prisma/migrations/**/migration.sql
+!apps/backend/prisma/migrations/migration_lock.toml
 apps/backend/src/generated/
 
 # SSL/TLS Private Keys - NEVER commit to version control

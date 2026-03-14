@@ -5,38 +5,45 @@
  * Provides consistent error parsing, toast notifications, and error state management.
  */
 
-'use client';
+"use client";
 
-import * as React from 'react';
-import { toast } from 'sonner';
-import { type UserFriendlyError, parseError, getToastMessage } from '@/lib/errors';
+import * as React from "react";
+import { toast } from "sonner";
+import {
+	getToastMessage,
+	parseError,
+	type UserFriendlyError,
+} from "@/lib/errors";
 
-type Operation = 'load' | 'create' | 'update' | 'delete';
+type Operation = "load" | "create" | "update" | "delete";
 
 interface UseErrorHandlerOptions {
-  /** Default operation context for error messages */
-  defaultOperation?: Operation;
-  /** Custom title prefix for toast messages */
-  toastTitlePrefix?: string;
-  /** Whether to automatically show toast on error (default: true) */
-  showToast?: boolean;
+	/** Default operation context for error messages */
+	defaultOperation?: Operation;
+	/** Custom title prefix for toast messages */
+	toastTitlePrefix?: string;
+	/** Whether to automatically show toast on error (default: true) */
+	showToast?: boolean;
 }
 
 interface ErrorHandler {
-  /** Current error info (null if no error) */
-  error: UserFriendlyError | null;
-  /** Whether there is an active error */
-  hasError: boolean;
-  /** Handle an error with toast notification */
-  handleError: (error: unknown, operation?: Operation) => UserFriendlyError;
-  /** Handle an error silently (no toast) */
-  handleErrorSilent: (error: unknown, operation?: Operation) => UserFriendlyError;
-  /** Show error toast for a given error */
-  showErrorToast: (error: unknown, operation?: Operation) => void;
-  /** Clear the current error */
-  clearError: () => void;
-  /** Set a custom error */
-  setError: (error: UserFriendlyError | null) => void;
+	/** Current error info (null if no error) */
+	error: UserFriendlyError | null;
+	/** Whether there is an active error */
+	hasError: boolean;
+	/** Handle an error with toast notification */
+	handleError: (error: unknown, operation?: Operation) => UserFriendlyError;
+	/** Handle an error silently (no toast) */
+	handleErrorSilent: (
+		error: unknown,
+		operation?: Operation,
+	) => UserFriendlyError;
+	/** Show error toast for a given error */
+	showErrorToast: (error: unknown, operation?: Operation) => void;
+	/** Clear the current error */
+	clearError: () => void;
+	/** Set a custom error */
+	setError: (error: UserFriendlyError | null) => void;
 }
 
 /**
@@ -59,54 +66,56 @@ interface ErrorHandler {
  * }
  * ```
  */
-export function useErrorHandler(options: UseErrorHandlerOptions = {}): ErrorHandler {
-  const { defaultOperation, showToast = true } = options;
+export function useErrorHandler(
+	options: UseErrorHandlerOptions = {},
+): ErrorHandler {
+	const { defaultOperation, showToast = true } = options;
 
-  const [error, setError] = React.useState<UserFriendlyError | null>(null);
+	const [error, setError] = React.useState<UserFriendlyError | null>(null);
 
-  const handleErrorSilent = React.useCallback(
-    (rawError: unknown, operation?: Operation): UserFriendlyError => {
-      const parsed = parseError(rawError, operation ?? defaultOperation);
-      setError(parsed);
-      return parsed;
-    },
-    [defaultOperation]
-  );
+	const handleErrorSilent = React.useCallback(
+		(rawError: unknown, operation?: Operation): UserFriendlyError => {
+			const parsed = parseError(rawError, operation ?? defaultOperation);
+			setError(parsed);
+			return parsed;
+		},
+		[defaultOperation],
+	);
 
-  const showErrorToast = React.useCallback(
-    (rawError: unknown, operation?: Operation): void => {
-      const message = getToastMessage(rawError, operation ?? defaultOperation);
-      toast.error(message);
-    },
-    [defaultOperation]
-  );
+	const showErrorToast = React.useCallback(
+		(rawError: unknown, operation?: Operation): void => {
+			const message = getToastMessage(rawError, operation ?? defaultOperation);
+			toast.error(message);
+		},
+		[defaultOperation],
+	);
 
-  const handleError = React.useCallback(
-    (rawError: unknown, operation?: Operation): UserFriendlyError => {
-      const parsed = handleErrorSilent(rawError, operation);
+	const handleError = React.useCallback(
+		(rawError: unknown, operation?: Operation): UserFriendlyError => {
+			const parsed = handleErrorSilent(rawError, operation);
 
-      if (showToast) {
-        toast.error(parsed.message);
-      }
+			if (showToast) {
+				toast.error(parsed.message);
+			}
 
-      return parsed;
-    },
-    [handleErrorSilent, showToast]
-  );
+			return parsed;
+		},
+		[handleErrorSilent, showToast],
+	);
 
-  const clearError = React.useCallback(() => {
-    setError(null);
-  }, []);
+	const clearError = React.useCallback(() => {
+		setError(null);
+	}, []);
 
-  return {
-    error,
-    hasError: error !== null,
-    handleError,
-    handleErrorSilent,
-    showErrorToast,
-    clearError,
-    setError,
-  };
+	return {
+		error,
+		hasError: error !== null,
+		handleError,
+		handleErrorSilent,
+		showErrorToast,
+		clearError,
+		setError,
+	};
 }
 
 /**
@@ -127,49 +136,51 @@ export function useErrorHandler(options: UseErrorHandlerOptions = {}): ErrorHand
  * ```
  */
 export function useQueryError(
-  queryError: unknown,
-  options: {
-    operation?: Operation;
-    onRetry?: () => void;
-    showToast?: boolean;
-  } = {}
+	queryError: unknown,
+	options: {
+		operation?: Operation;
+		onRetry?: () => void;
+		showToast?: boolean;
+	} = {},
 ) {
-  const { operation = 'load', onRetry, showToast = false } = options;
-  const { error, handleError, handleErrorSilent, clearError } = useErrorHandler({
-    defaultOperation: operation,
-    showToast,
-  });
+	const { operation = "load", onRetry, showToast = false } = options;
+	const { error, handleError, handleErrorSilent, clearError } = useErrorHandler(
+		{
+			defaultOperation: operation,
+			showToast,
+		},
+	);
 
-  const prevErrorRef = React.useRef<unknown>(null);
+	const prevErrorRef = React.useRef<unknown>(null);
 
-  React.useEffect(() => {
-    // Only update if the error reference has actually changed
-    if (queryError !== prevErrorRef.current) {
-      prevErrorRef.current = queryError;
+	React.useEffect(() => {
+		// Only update if the error reference has actually changed
+		if (queryError !== prevErrorRef.current) {
+			prevErrorRef.current = queryError;
 
-      if (queryError) {
-        if (showToast) {
-          handleError(queryError);
-        } else {
-          handleErrorSilent(queryError);
-        }
-      } else {
-        clearError();
-      }
-    }
-  }, [queryError, handleError, handleErrorSilent, clearError, showToast]);
+			if (queryError) {
+				if (showToast) {
+					handleError(queryError);
+				} else {
+					handleErrorSilent(queryError);
+				}
+			} else {
+				clearError();
+			}
+		}
+	}, [queryError, handleError, handleErrorSilent, clearError, showToast]);
 
-  const retry = React.useCallback(() => {
-    clearError();
-    onRetry?.();
-  }, [clearError, onRetry]);
+	const retry = React.useCallback(() => {
+		clearError();
+		onRetry?.();
+	}, [clearError, onRetry]);
 
-  return {
-    error,
-    hasError: !!error,
-    retry: onRetry ? retry : undefined,
-    clearError,
-  };
+	return {
+		error,
+		hasError: !!error,
+		retry: onRetry ? retry : undefined,
+		clearError,
+	};
 }
 
 /**
@@ -187,18 +198,18 @@ export function useQueryError(
  * ```
  */
 export function useMutationError(options: {
-  operation: Operation;
-  customMessages?: Partial<Record<string, string>>;
+	operation: Operation;
+	customMessages?: Partial<Record<string, string>>;
 }) {
-  const { operation } = options;
+	const { operation } = options;
 
-  const onError = React.useCallback(
-    (error: unknown) => {
-      const message = getToastMessage(error, operation);
-      toast.error(message);
-    },
-    [operation]
-  );
+	const onError = React.useCallback(
+		(error: unknown) => {
+			const message = getToastMessage(error, operation);
+			toast.error(message);
+		},
+		[operation],
+	);
 
-  return { onError };
+	return { onError };
 }

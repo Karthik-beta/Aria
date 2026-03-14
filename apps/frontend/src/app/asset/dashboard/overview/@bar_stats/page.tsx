@@ -1,6 +1,15 @@
-import { AssetUtilizationChart } from '@/features/asset/components/asset-utilization-chart';
+"use client";
 
-export default async function BarStats() {
-  await new Promise((resolve) => setTimeout(resolve, 1000));
-  return <AssetUtilizationChart />;
+import dynamic from "next/dynamic";
+
+const AssetUtilizationChart = dynamic(
+	() =>
+		import("@/features/asset/components/asset-utilization-chart").then(
+			(mod) => mod.AssetUtilizationChart,
+		),
+	{ ssr: false },
+);
+
+export default function BarStats() {
+	return <AssetUtilizationChart />;
 }

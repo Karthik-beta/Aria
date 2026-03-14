@@ -10,4 +10,4 @@
  * ```
  */
 
-export type { AppRouter } from './trpc/trpc.service';
+export type { AppRouter } from "./public-types";

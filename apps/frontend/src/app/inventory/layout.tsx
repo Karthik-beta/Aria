@@ -1,55 +1,56 @@
-import Providers from '@/components/layout/providers';
-import { Toaster } from '@/components/ui/sonner';
-import ThemeProvider from '@/components/layout/ThemeToggle/theme-provider';
-import { AppAccessBoundary } from '@/components/auth/app-access-boundary';
-import type { Metadata } from 'next';
-import { cookies } from 'next/headers';
-import KBar from '@/components/kbar';
-import AppSidebar from '@/components/layout/app-sidebar';
-import Header from '@/components/layout/header';
-import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
+import type { Metadata } from "next";
+import { AppAccessBoundary } from "@/components/auth/app-access-boundary";
+import KBar from "@/components/kbar";
+import AppSidebar from "@/components/layout/app-sidebar";
+import Header from "@/components/layout/header";
+import Providers from "@/components/layout/providers";
+import ThemeProvider from "@/components/layout/ThemeToggle/theme-provider";
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
+import { Toaster } from "@/components/ui/sonner";
+import { getActiveThemeValue } from "@/lib/active-theme.server";
 
 export const metadata: Metadata = {
-  title: 'Inventory by Pivotr',
-  description: 'Inventory management system from Pivotr',
-  icons: {
-    icon: '/icons/favicon-inventory.svg',
-    shortcut: '/icons/favicon-inventory.svg',
-    apple: '/icons/favicon-inventory.svg',
-  },
+	title: "Inventory by Pivotr",
+	description: "Inventory management system from Pivotr",
+	icons: {
+		icon: "/icons/favicon-inventory.svg",
+		shortcut: "/icons/favicon-inventory.svg",
+		apple: "/icons/favicon-inventory.svg",
+	},
 };
 
-export default async function InventoryLayout({ children }: { children: React.ReactNode }) {
-  // Persisting the sidebar state in the cookie.
-  // Use Promise.all for better performance if we need to read multiple cookies
-  const cookieStore = await cookies();
-  const defaultOpen = cookieStore.get('sidebar_state')?.value === 'true';
-  const activeThemeValue = cookieStore.get('active_theme')?.value || 'default';
+export default async function InventoryLayout({
+	children,
+}: {
+	children: React.ReactNode;
+}) {
+	const defaultOpen = false;
+	const activeThemeValue = await getActiveThemeValue();
 
-  return (
-    <ThemeProvider
-      attribute="class"
-      defaultTheme="system"
-      enableSystem
-      disableTransitionOnChange
-      enableColorScheme
-    >
-      <Providers activeThemeValue={activeThemeValue as string}>
-        <Toaster />
-        <AppAccessBoundary appKey="inventory">
-          <KBar>
-            <SidebarProvider defaultOpen={defaultOpen}>
-              <AppSidebar />
-              <SidebarInset>
-                <Header />
-                {/* page main content */}
-                {children}
-                {/* page main content ends */}
-              </SidebarInset>
-            </SidebarProvider>
-          </KBar>
-        </AppAccessBoundary>
-      </Providers>
-    </ThemeProvider>
-  );
+	return (
+		<ThemeProvider
+			attribute="class"
+			defaultTheme="system"
+			enableSystem
+			disableTransitionOnChange
+			enableColorScheme
+		>
+			<Providers activeThemeValue={activeThemeValue}>
+				<Toaster />
+				<AppAccessBoundary appKey="inventory">
+					<KBar>
+						<SidebarProvider defaultOpen={defaultOpen}>
+							<AppSidebar />
+							<SidebarInset>
+								<Header />
+								{/* page main content */}
+								{children}
+								{/* page main content ends */}
+							</SidebarInset>
+						</SidebarProvider>
+					</KBar>
+				</AppAccessBoundary>
+			</Providers>
+		</ThemeProvider>
+	);
 }

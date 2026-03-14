@@ -1,28 +1,29 @@
-'use client';
+"use client";
 
-import { useSession } from '@/lib/auth-client';
-import { useMemo, useEffect, useState, useRef } from 'react';
+import { logger } from "@aria/utils";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useSession } from "@/lib/auth-client";
 
 /**
  * Extended session type with authorization data
  */
 export interface AuthorizedSession {
-  user: {
-    id: string;
-    email: string;
-    name: string;
-    isActive: boolean;
-    displayName?: string;
-  };
-  session: {
-    id: string;
-    expiresAt: Date;
-    roles?: string[];
-    apps?: Record<string, { roles: string[] }>;
-    permissions?: string[];
-    supervisedApps?: string[];
-    isActive?: boolean;
-  };
+	user: {
+		id: string;
+		email: string;
+		name: string;
+		isActive: boolean;
+		displayName?: string;
+	};
+	session: {
+		id: string;
+		expiresAt: Date;
+		roles?: string[];
+		apps?: Record<string, { roles: string[] }>;
+		permissions?: string[];
+		supervisedApps?: string[];
+		isActive?: boolean;
+	};
 }
 
 /**
@@ -31,228 +32,233 @@ export interface AuthorizedSession {
  * Provides permission/role checking utilities and authorization data.
  */
 export function useAuth() {
-  const { data: session, isPending } = useSession();
-  const [authorizationData, setAuthorizationData] = useState<{
-    roles: string[];
-    permissions: string[];
-    apps: Record<string, { roles: string[] }>;
-    supervisedApps: string[];
-    isActive: boolean;
-  } | null>(null);
+	const { data: session, isPending } = useSession();
+	const [authorizationData, setAuthorizationData] = useState<{
+		roles: string[];
+		permissions: string[];
+		apps: Record<string, { roles: string[] }>;
+		supervisedApps: string[];
+		isActive: boolean;
+	} | null>(null);
 
-  // Track if we're currently fetching to prevent duplicate requests
-  const isFetchingRef = useRef(false);
-  // Track the last user ID we fetched for to prevent redundant fetches
-  const lastFetchedUserIdRef = useRef<string | null>(null);
+	// Track if we're currently fetching to prevent duplicate requests
+	const isFetchingRef = useRef(false);
+	// Track the last user ID we fetched for to prevent redundant fetches
+	const lastFetchedUserIdRef = useRef<string | null>(null);
 
-  // Development mode bypass - skip authentication for testing
-  const isDevelopmentBypass = process.env.NEXT_PUBLIC_DEV_AUTH_BYPASS === 'true';
+	// Development mode bypass - skip authentication for testing
+	const isDevelopmentBypass =
+		process.env.NEXT_PUBLIC_DEV_AUTH_BYPASS === "true";
 
-  /**
-   * Fetch user's authorization data from backend when session changes
-   *
-   * Calls a Next.js API route that acts as a secure server-side proxy,
-   * accessing httpOnly cookies and forwarding them to the backend tRPC endpoint.
-   */
-  useEffect(() => {
-    // In development bypass mode, use mock authorization data
-    if (isDevelopmentBypass) {
-      setAuthorizationData({
-        roles: ['super_admin'],
-        permissions: ['system:*'],
-        apps: {
-          inventory: { roles: ['admin'] },
-          asset: { roles: ['admin'] },
-          crm: { roles: ['admin'] },
-          hrms: { roles: ['admin'] },
-        },
-        supervisedApps: ['inventory', 'asset', 'crm', 'hrms'],
-        isActive: true,
-      });
-      return;
-    }
+	/**
+	 * Fetch user's authorization data from backend when session changes
+	 *
+	 * Calls a Next.js API route that acts as a secure server-side proxy,
+	 * accessing httpOnly cookies and forwarding them to the backend tRPC endpoint.
+	 */
+	useEffect(() => {
+		// In development bypass mode, use mock authorization data
+		if (isDevelopmentBypass) {
+			setAuthorizationData({
+				roles: ["super_admin"],
+				permissions: ["system:*"],
+				apps: {
+					inventory: { roles: ["admin"] },
+					asset: { roles: ["admin"] },
+					crm: { roles: ["admin"] },
+					hrms: { roles: ["admin"] },
+				},
+				supervisedApps: ["inventory", "asset", "crm", "hrms"],
+				isActive: true,
+			});
+			return;
+		}
 
-    const userId = session?.user?.id;
+		const userId = session?.user?.id;
 
-    // Skip if no user, already fetching, or already fetched for this user
-    if (!userId || isFetchingRef.current || lastFetchedUserIdRef.current === userId) {
-      return;
-    }
+		// Skip if no user, already fetching, or already fetched for this user
+		if (
+			!userId ||
+			isFetchingRef.current ||
+			lastFetchedUserIdRef.current === userId
+		) {
+			return;
+		}
 
-    isFetchingRef.current = true;
+		isFetchingRef.current = true;
 
-    fetch('/api/auth/authorization')
-      .then(async (response) => {
-        if (!response.ok) {
-          throw new Error(`Authorization fetch failed: ${response.status}`);
-        }
-        return response.json();
-      })
-      .then((data) => {
-        lastFetchedUserIdRef.current = userId;
-        setAuthorizationData(data);
-      })
-      .catch((error) => {
-        console.error('Failed to fetch authorization data:', error);
-        // Keep default empty authorization on error
-      })
-      .finally(() => {
-        isFetchingRef.current = false;
-      });
-  }, [session?.user?.id, isDevelopmentBypass]);
+		fetch("/api/auth/authorization")
+			.then(async (response) => {
+				if (!response.ok) {
+					throw new Error(`Authorization fetch failed: ${response.status}`);
+				}
+				return response.json();
+			})
+			.then((data) => {
+				lastFetchedUserIdRef.current = userId;
+				setAuthorizationData(data);
+			})
+			.catch((error) => {
+				logger.error("Failed to fetch authorization data:", error);
+				// Keep default empty authorization on error
+			})
+			.finally(() => {
+				isFetchingRef.current = false;
+			});
+	}, [session?.user?.id, isDevelopmentBypass]);
 
-  const authContext = useMemo(() => {
-    // Development bypass - return full access
-    if (isDevelopmentBypass) {
-      return {
-        isAuthenticated: true,
-        isActive: true,
-        user: {
-          id: 'dev-user',
-          email: 'dev@example.com',
-          name: 'Development User',
-        },
-        roles: ['super_admin'],
-        permissions: ['system:*'],
-        apps: {
-          inventory: { roles: ['admin'] },
-          asset: { roles: ['admin'] },
-          crm: { roles: ['admin'] },
-          hrms: { roles: ['admin'] },
-        },
-        supervisedApps: ['inventory', 'asset', 'crm', 'hrms'],
-        hasPermission: () => true,
-        hasAnyPermission: () => true,
-        hasRole: () => true,
-        hasAnyRole: () => true,
-        canAccessApp: () => true,
-        isSupervisorOf: () => true,
-        isLoading: false,
-      };
-    }
+	const authContext = useMemo(() => {
+		// Development bypass - return full access
+		if (isDevelopmentBypass) {
+			return {
+				isAuthenticated: true,
+				isActive: true,
+				user: {
+					id: "dev-user",
+					email: "dev@example.com",
+					name: "Development User",
+				},
+				roles: ["super_admin"],
+				permissions: ["system:*"],
+				apps: {
+					inventory: { roles: ["admin"] },
+					asset: { roles: ["admin"] },
+					crm: { roles: ["admin"] },
+					hrms: { roles: ["admin"] },
+				},
+				supervisedApps: ["inventory", "asset", "crm", "hrms"],
+				hasPermission: () => true,
+				hasAnyPermission: () => true,
+				hasRole: () => true,
+				hasAnyRole: () => true,
+				canAccessApp: () => true,
+				isSupervisorOf: () => true,
+				isLoading: false,
+			};
+		}
 
-    if (!session) {
-      return {
-        isAuthenticated: false,
-        isActive: false,
-        user: null,
-        roles: [],
-        permissions: [],
-        apps: {},
-        supervisedApps: [],
-        hasPermission: () => false,
-        hasAnyPermission: () => false,
-        hasRole: () => false,
-        hasAnyRole: () => false,
-        canAccessApp: () => false,
-        isSupervisorOf: () => false,
-        isLoading: isPending,
-      };
-    }
+		if (!session) {
+			return {
+				isAuthenticated: false,
+				isActive: false,
+				user: null,
+				roles: [],
+				permissions: [],
+				apps: {},
+				supervisedApps: [],
+				hasPermission: () => false,
+				hasAnyPermission: () => false,
+				hasRole: () => false,
+				hasAnyRole: () => false,
+				canAccessApp: () => false,
+				isSupervisorOf: () => false,
+				isLoading: isPending,
+			};
+		}
 
-    // Use authorization data from backend, fallback to session data
-    const roles = authorizationData?.roles ?? [];
-    const permissions = authorizationData?.permissions ?? [];
-    const apps = authorizationData?.apps ?? {};
-    const supervisedApps = authorizationData?.supervisedApps ?? [];
-    const isActive = authorizationData?.isActive ?? true;
+		// Use authorization data from backend, fallback to session data
+		const roles = authorizationData?.roles ?? [];
+		const permissions = authorizationData?.permissions ?? [];
+		const apps = authorizationData?.apps ?? {};
+		const supervisedApps = authorizationData?.supervisedApps ?? [];
+		const isActive = authorizationData?.isActive ?? true;
 
-    /**
-     * Check if user has a specific permission
-     */
-    const hasPermission = (permissionKey: string): boolean => {
-      if (!isActive) return false;
+		/**
+		 * Check if user has a specific permission
+		 */
+		const hasPermission = (permissionKey: string): boolean => {
+			if (!isActive) return false;
 
-      // Check for exact match
-      if (permissions.includes(permissionKey)) return true;
+			// Check for exact match
+			if (permissions.includes(permissionKey)) return true;
 
-      // Check for wildcard permissions
-      const parts = permissionKey.split(':');
+			// Check for wildcard permissions
+			const parts = permissionKey.split(":");
 
-      // Check system:* wildcard
-      if (parts[0] === 'system' && permissions.includes('system:*')) {
-        return true;
-      }
+			// Check system:* wildcard
+			if (parts[0] === "system" && permissions.includes("system:*")) {
+				return true;
+			}
 
-      // Check app:<appKey>:* wildcard
-      if (parts[0] === 'app' && parts.length >= 2) {
-        if (permissions.includes(`app:${parts[1]}:*`)) return true;
-      }
+			// Check app:<appKey>:* wildcard
+			if (parts[0] === "app" && parts.length >= 2) {
+				if (permissions.includes(`app:${parts[1]}:*`)) return true;
+			}
 
-      // Check entity:<appKey>:<entity>:* wildcard
-      if (parts[0] === 'entity' && parts.length >= 3) {
-        if (permissions.includes(`entity:${parts[1]}:${parts[2]}:*`)) {
-          return true;
-        }
-        if (permissions.includes(`entity:${parts[1]}:*`)) return true;
-      }
+			// Check entity:<appKey>:<entity>:* wildcard
+			if (parts[0] === "entity" && parts.length >= 3) {
+				if (permissions.includes(`entity:${parts[1]}:${parts[2]}:*`)) {
+					return true;
+				}
+				if (permissions.includes(`entity:${parts[1]}:*`)) return true;
+			}
 
-      return false;
-    };
+			return false;
+		};
 
-    /**
-     * Check if user has any of the specified permissions
-     */
-    const hasAnyPermission = (...permissionKeys: string[]): boolean => {
-      return permissionKeys.some(hasPermission);
-    };
+		/**
+		 * Check if user has any of the specified permissions
+		 */
+		const hasAnyPermission = (...permissionKeys: string[]): boolean => {
+			return permissionKeys.some(hasPermission);
+		};
 
-    /**
-     * Check if user has a specific role
-     */
-    const hasRole = (roleKey: string): boolean => {
-      if (!isActive) return false;
-      return roles.includes(roleKey);
-    };
+		/**
+		 * Check if user has a specific role
+		 */
+		const hasRole = (roleKey: string): boolean => {
+			if (!isActive) return false;
+			return roles.includes(roleKey);
+		};
 
-    /**
-     * Check if user has any of the specified roles
-     */
-    const hasAnyRole = (...roleKeys: string[]): boolean => {
-      if (!isActive) return false;
-      return roleKeys.some((role) => roles.includes(role));
-    };
+		/**
+		 * Check if user has any of the specified roles
+		 */
+		const hasAnyRole = (...roleKeys: string[]): boolean => {
+			if (!isActive) return false;
+			return roleKeys.some((role) => roles.includes(role));
+		};
 
-    /**
-     * Check if user can access a specific app
-     */
-    const canAccessApp = (appKey: string): boolean => {
-      if (!isActive) return false;
+		/**
+		 * Check if user can access a specific app
+		 */
+		const canAccessApp = (appKey: string): boolean => {
+			if (!isActive) return false;
 
-      // Super admin has access to all apps
-      if (hasRole('super_admin')) return true;
+			// Super admin has access to all apps
+			if (hasRole("super_admin")) return true;
 
-      // Check if user has roles in the app
-      return appKey in apps || supervisedApps.includes(appKey);
-    };
+			// Check if user has roles in the app
+			return appKey in apps || supervisedApps.includes(appKey);
+		};
 
-    /**
-     * Check if user is a supervisor of an app
-     */
-    const isSupervisorOf = (appKey: string): boolean => {
-      if (!isActive) return false;
-      return supervisedApps.includes(appKey);
-    };
+		/**
+		 * Check if user is a supervisor of an app
+		 */
+		const isSupervisorOf = (appKey: string): boolean => {
+			if (!isActive) return false;
+			return supervisedApps.includes(appKey);
+		};
 
-    return {
-      isAuthenticated: true,
-      isActive,
-      user: session.user,
-      roles,
-      permissions,
-      apps,
-      supervisedApps,
-      hasPermission,
-      hasAnyPermission,
-      hasRole,
-      hasAnyRole,
-      canAccessApp,
-      isSupervisorOf,
-      isLoading: false,
-    };
-  }, [session, isPending, authorizationData]);
+		return {
+			isAuthenticated: true,
+			isActive,
+			user: session.user,
+			roles,
+			permissions,
+			apps,
+			supervisedApps,
+			hasPermission,
+			hasAnyPermission,
+			hasRole,
+			hasAnyRole,
+			canAccessApp,
+			isSupervisorOf,
+			isLoading: false,
+		};
+	}, [session, isPending, authorizationData, isDevelopmentBypass]);
 
-  return authContext;
+	return authContext;
 }
 
 /**
@@ -262,13 +268,13 @@ export function useAuth() {
  * @returns Boolean indicating if user has the permission
  */
 export function usePermission(permission: string | string[]): boolean {
-  const { hasPermission, hasAnyPermission } = useAuth();
+	const { hasPermission, hasAnyPermission } = useAuth();
 
-  if (Array.isArray(permission)) {
-    return hasAnyPermission(...permission);
-  }
+	if (Array.isArray(permission)) {
+		return hasAnyPermission(...permission);
+	}
 
-  return hasPermission(permission);
+	return hasPermission(permission);
 }
 
 /**
@@ -278,13 +284,13 @@ export function usePermission(permission: string | string[]): boolean {
  * @returns Boolean indicating if user has the role
  */
 export function useRole(role: string | string[]): boolean {
-  const { hasRole, hasAnyRole } = useAuth();
+	const { hasRole, hasAnyRole } = useAuth();
 
-  if (Array.isArray(role)) {
-    return hasAnyRole(...role);
-  }
+	if (Array.isArray(role)) {
+		return hasAnyRole(...role);
+	}
 
-  return hasRole(role);
+	return hasRole(role);
 }
 
 /**
@@ -294,6 +300,6 @@ export function useRole(role: string | string[]): boolean {
  * @returns Boolean indicating if user can access the app
  */
 export function useAppAccess(appKey: string): boolean {
-  const { canAccessApp } = useAuth();
-  return canAccessApp(appKey);
+	const { canAccessApp } = useAuth();
+	return canAccessApp(appKey);
 }

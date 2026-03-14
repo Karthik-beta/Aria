@@ -1,0 +1,76 @@
+{
+	"$schema": "https://biomejs.dev/schemas/2.4.6/schema.json",
+	"vcs": {
+		"enabled": true,
+		"clientKind": "git",
+		"useIgnoreFile": true
+	},
+	"files": {
+		"includes": [
+			"**",
+			"!!**/dist",
+			"!!**/.next",
+			"!!**/coverage",
+			"!!**/playwright-report",
+			"!!**/test-results",
+			"!!**/tmp-typecheck",
+			"!!apps/backend/test/**/*.js",
+			"!!apps/backend/test/**/*.js.map"
+		]
+	},
+	"formatter": {
+		"enabled": true,
+		"indentStyle": "tab"
+	},
+	"linter": {
+		"enabled": true,
+		"rules": {
+			"recommended": true,
+			"a11y": {
+				"recommended": true
+			},
+			"correctness": {
+				"noUnusedVariables": "error"
+			},
+			"suspicious": {
+				"noExplicitAny": "warn",
+				"noArrayIndexKey": "warn",
+				"noConsole": "warn",
+				"noDebugger": "error"
+			}
+		}
+	},
+	"overrides": [
+		{
+			"includes": ["apps/backend/src/**/*.ts", "apps/backend/test/**/*.ts"],
+			"javascript": {
+				"parser": {
+					"unsafeParameterDecoratorsEnabled": true
+				}
+			}
+		},
+		{
+			"includes": [
+				"apps/*/src/**/*.{ts,tsx,js,jsx}",
+				"packages/*/src/**/*.{ts,tsx,js,jsx}"
+			],
+			"linter": {
+				"rules": {
+					"suspicious": {
+						"noConsole": "error"
+					}
+				}
+			}
+		}
+	],
+	"javascript": {
+		"formatter": {
+			"quoteStyle": "double"
+		}
+	},
+	"css": {
+		"parser": {
+			"tailwindDirectives": true
+		}
+	}
+}

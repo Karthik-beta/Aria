@@ -1,11 +1,11 @@
-'use client';
+"use client";
 
-import * as React from 'react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
-import { httpBatchLink, splitLink, wsLink, createWSClient } from '@trpc/client';
-import type { AppRouter } from 'backend';
-import { trpc } from './client';
+import type { AppRouter } from "@aria/api-contract";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
+import { createWSClient, httpBatchLink, splitLink, wsLink } from "@trpc/client";
+import * as React from "react";
+import { trpc } from "./client";
 
 /**
  * Create a new QueryClient instance
@@ -15,29 +15,29 @@ import { trpc } from './client';
  * - Browser: Reuse single instance to avoid re-creating on suspense
  */
 function makeQueryClient() {
-  return new QueryClient({
-    defaultOptions: {
-      queries: {
-        staleTime: 60 * 1000, // 1 minute
-        refetchOnWindowFocus: false,
-      },
-    },
-  });
+	return new QueryClient({
+		defaultOptions: {
+			queries: {
+				staleTime: 60 * 1000, // 1 minute
+				refetchOnWindowFocus: false,
+			},
+		},
+	});
 }
 
-let browserQueryClient: QueryClient | undefined = undefined;
+let browserQueryClient: QueryClient | undefined;
 
 function getQueryClient() {
-  if (typeof window === 'undefined') {
-    // Server: always make a new query client
-    return makeQueryClient();
-  } else {
-    // Browser: make a new query client if we don't already have one
-    // This is very important, so we don't re-make a new client if React
-    // suspends during the initial render
-    if (!browserQueryClient) browserQueryClient = makeQueryClient();
-    return browserQueryClient;
-  }
+	if (typeof window === "undefined") {
+		// Server: always make a new query client
+		return makeQueryClient();
+	} else {
+		// Browser: make a new query client if we don't already have one
+		// This is very important, so we don't re-make a new client if React
+		// suspends during the initial render
+		if (!browserQueryClient) browserQueryClient = makeQueryClient();
+		return browserQueryClient;
+	}
 }
 
 /**
@@ -50,18 +50,18 @@ function getQueryClient() {
  * CRITICAL: Removes trailing slashes to prevent double-slash issues (//trpc/)
  */
 function getBaseUrl(): string {
-  let baseUrl: string;
+	let baseUrl: string;
 
-  if (typeof window !== 'undefined') {
-    // Browser: use environment variable or empty string for same-origin requests
-    baseUrl = process.env.NEXT_PUBLIC_API_URL || '';
-  } else {
-    // SSR/Server: use environment variable or default to localhost
-    baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
-  }
+	if (typeof window !== "undefined") {
+		// Browser: use environment variable or empty string for same-origin requests
+		baseUrl = process.env.NEXT_PUBLIC_API_URL || "";
+	} else {
+		// SSR/Server: use environment variable or default to localhost
+		baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+	}
 
-  // Remove trailing slash to prevent double-slash in URLs like //trpc/
-  return baseUrl.replace(/\/$/, '');
+	// Remove trailing slash to prevent double-slash in URLs like //trpc/
+	return baseUrl.replace(/\/$/, "");
 }
 
 /**
@@ -80,30 +80,32 @@ function getBaseUrl(): string {
  * CRITICAL: Handles trailing slashes to prevent malformed URLs
  */
 function getWsUrl(): string {
-  if (typeof window === 'undefined') {
-    // SSR context: return dummy URL (WebSocket won't be used server-side)
-    return 'ws://localhost:3001/trpc-ws';
-  }
+	if (typeof window === "undefined") {
+		// SSR context: return dummy URL (WebSocket won't be used server-side)
+		return "ws://localhost:3001/trpc-ws";
+	}
 
-  const baseUrl = process.env.NEXT_PUBLIC_API_URL;
+	const baseUrl = process.env.NEXT_PUBLIC_API_URL;
 
-  if (baseUrl) {
-    // Explicit backend URL provided - use it
-    // Convert http(s):// to ws(s)://
-    const isSecure = baseUrl.startsWith('https://');
-    const protocol = isSecure ? 'wss:' : 'ws:';
+	if (baseUrl) {
+		// Explicit backend URL provided - use it
+		// Convert http(s):// to ws(s)://
+		const isSecure = baseUrl.startsWith("https://");
+		const protocol = isSecure ? "wss:" : "ws:";
 
-    // Remove protocol and trailing slash from URL
-    const urlWithoutProtocol = baseUrl.replace(/^https?:\/\//, '').replace(/\/$/, '');
+		// Remove protocol and trailing slash from URL
+		const urlWithoutProtocol = baseUrl
+			.replace(/^https?:\/\//, "")
+			.replace(/\/$/, "");
 
-    return `${protocol}//${urlWithoutProtocol}/trpc-ws`;
-  }
+		return `${protocol}//${urlWithoutProtocol}/trpc-ws`;
+	}
 
-  // No explicit API URL: use current location (works when proxied through same domain)
-  const isSecure = window.location.protocol === 'https:';
-  const protocol = isSecure ? 'wss:' : 'ws:';
+	// No explicit API URL: use current location (works when proxied through same domain)
+	const isSecure = window.location.protocol === "https:";
+	const protocol = isSecure ? "wss:" : "ws:";
 
-  return `${protocol}//${window.location.host}/trpc-ws`;
+	return `${protocol}//${window.location.host}/trpc-ws`;
 }
 
 /**
@@ -129,74 +131,76 @@ function getWsUrl(): string {
  * - https://tanstack.com/query/latest/docs/framework/react/guides/ssr
  */
 export function TRPCProvider({ children }: { children: React.ReactNode }) {
-  // Use official SSR-safe QueryClient pattern
-  const queryClient = getQueryClient();
+	// Use official SSR-safe QueryClient pattern
+	const queryClient = getQueryClient();
 
-  /**
-   * Initialize tRPC client once with stable configuration
-   *
-   * Per official tRPC SSR pattern:
-   * - Create client in useState for stability across renders
-   * - Use splitLink to route subscriptions vs queries/mutations
-   * - WebSocket client is lazy (only connects when needed)
-   * - SSR-safe: WebSocket only works in browser
-   */
-  const [trpcClient] = React.useState(() => {
-    const baseUrl = getBaseUrl();
-    const httpUrl = `${baseUrl}/trpc`;
-    const wsUrl = getWsUrl();
+	/**
+	 * Initialize tRPC client once with stable configuration
+	 *
+	 * Per official tRPC SSR pattern:
+	 * - Create client in useState for stability across renders
+	 * - Use splitLink to route subscriptions vs queries/mutations
+	 * - WebSocket client is lazy (only connects when needed)
+	 * - SSR-safe: WebSocket only works in browser
+	 */
+	const [trpcClient] = React.useState(() => {
+		const baseUrl = getBaseUrl();
+		const httpUrl = `${baseUrl}/trpc`;
+		const wsUrl = getWsUrl();
 
-    // Create WebSocket client (lazy, won't connect until first subscription)
-    // SSR-safe: typeof window check happens inside wsLink
-    const wsClient =
-      typeof window !== 'undefined'
-        ? createWSClient({
-            url: wsUrl,
-            lazy: {
-              enabled: true,
-              closeMs: 10_000,
-            },
-          })
-        : null;
+		// Create WebSocket client (lazy, won't connect until first subscription)
+		// SSR-safe: typeof window check happens inside wsLink
+		const wsClient =
+			typeof window !== "undefined"
+				? createWSClient({
+						url: wsUrl,
+						lazy: {
+							enabled: true,
+							closeMs: 10_000,
+						},
+					})
+				: null;
 
-    return trpc.createClient({
-      links: [
-        splitLink({
-          // Route subscriptions through WebSocket (if available)
-          condition: (op) => op.type === 'subscription',
-          // Subscriptions: use WebSocket if available, otherwise fall back to HTTP
-          true: wsClient
-            ? wsLink<AppRouter>({ client: wsClient })
-            : httpBatchLink({
-                url: httpUrl,
-                fetch: (url, options) => {
-                  return fetch(url, {
-                    ...options,
-                    credentials: 'include',
-                  });
-                },
-              }),
-          // Queries and mutations: always use HTTP batch link
-          false: httpBatchLink({
-            url: httpUrl,
-            fetch: (url, options) => {
-              return fetch(url, {
-                ...options,
-                credentials: 'include',
-              });
-            },
-          }),
-        }),
-      ],
-    });
-  });
+		return trpc.createClient({
+			links: [
+				splitLink({
+					// Route subscriptions through WebSocket (if available)
+					condition: (op) => op.type === "subscription",
+					// Subscriptions: use WebSocket if available, otherwise fall back to HTTP
+					true: wsClient
+						? wsLink<AppRouter>({ client: wsClient })
+						: httpBatchLink({
+								url: httpUrl,
+								fetch: (url, options) => {
+									return fetch(url, {
+										...options,
+										credentials: "include",
+									});
+								},
+							}),
+					// Queries and mutations: always use HTTP batch link
+					false: httpBatchLink({
+						url: httpUrl,
+						fetch: (url, options) => {
+							return fetch(url, {
+								...options,
+								credentials: "include",
+							});
+						},
+					}),
+				}),
+			],
+		});
+	});
 
-  return (
-    <trpc.Provider client={trpcClient} queryClient={queryClient}>
-      <QueryClientProvider client={queryClient}>
-        {children}
-        {process.env.NODE_ENV === 'development' && <ReactQueryDevtools initialIsOpen={false} />}
-      </QueryClientProvider>
-    </trpc.Provider>
-  );
+	return (
+		<trpc.Provider client={trpcClient} queryClient={queryClient}>
+			<QueryClientProvider client={queryClient}>
+				{children}
+				{process.env.NODE_ENV === "development" && (
+					<ReactQueryDevtools initialIsOpen={false} />
+				)}
+			</QueryClientProvider>
+		</trpc.Provider>
+	);
 }

@@ -1,36 +1,36 @@
 {
-  "name": "aria",
-  "version": "0.1.0",
-  "private": true,
-  "scripts": {
-    "clean": "turbo run clean",
-    "format": "prettier --write .",
-    "format:check": "prettier --check .",
-    "build": "turbo run build",
-    "dev": "turbo run dev",
-    "dev:full": "turbo run dev db:start studio",
-    "start": "turbo run start",
-    "lint": "turbo run lint",
-    "test": "turbo run test",
-    "package": "pwsh -File deployment/scripts/build/windows/build-package.ps1",
-    "package:test": "pwsh -File deployment/scripts/testing/windows/test-package.ps1"
-  },
-  "trustedDependencies": [
-    "@prisma/client",
-    "prisma"
-  ],
-  "devDependencies": {
-    "@nodelib/fs.walk": "^3.0.1",
-    "eslint-config-prettier": "^10.1.8",
-    "eslint-plugin-prettier": "^5.5.4",
-    "prettier": "^3.7.4",
-    "prisma": "^7.2.0",
-    "rimraf": "^6.1.2",
-    "turbo": "^2.7.2"
-  },
-  "packageManager": "bun@1.3.1",
-  "workspaces": [
-    "apps/*",
-    "packages/*"
-  ]
+	"name": "aria",
+	"version": "0.1.0",
+	"private": true,
+	"scripts": {
+		"predev": "bun x turbo run build --filter=@aria/types --filter=@aria/utils",
+		"build": "bun x turbo run build",
+		"dev": "bun x turbo run dev",
+		"dev:full": "bun x turbo run dev db:start studio --parallel",
+		"clean": "bun x turbo run clean",
+		"lint": "bun x turbo run lint",
+		"lint:fix": "bun x turbo run lint:fix",
+		"lint:staged": "biome check --staged --write --files-ignore-unknown=true --no-errors-on-unmatched",
+		"typecheck": "bun x turbo run typecheck",
+		"test": "bun x turbo run test",
+		"prepare": "husky",
+		"validate": "bun x turbo run build test lint typecheck"
+	},
+	"trustedDependencies": [
+		"@prisma/client",
+		"prisma"
+	],
+	"devDependencies": {
+		"@biomejs/biome": "^2.4.6",
+		"@nodelib/fs.walk": "^3.0.1",
+		"husky": "^9.1.7",
+		"prisma": "^7.2.0",
+		"rimraf": "^6.1.3",
+		"turbo": "^2.8.16"
+	},
+	"packageManager": "bun@1.3.1",
+	"workspaces": [
+		"apps/*",
+		"packages/*"
+	]
 }

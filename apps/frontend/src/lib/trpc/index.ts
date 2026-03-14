@@ -24,8 +24,7 @@
  * ```
  */
 
-// Export the provider from provider.tsx
-export { TRPCProvider } from './provider';
-
 // Export the trpc object from client.ts
-export { trpc } from './client';
+export { trpc } from "./client";
+// Export the provider from provider.tsx
+export { TRPCProvider } from "./provider";

@@ -1,6 +1,15 @@
-import { DepreciationTrendChart } from '@/features/asset/components/depreciation-trend-chart';
+"use client";
 
-export default async function AreaStats() {
-  await new Promise((resolve) => setTimeout(resolve, 2000));
-  return <DepreciationTrendChart />;
+import dynamic from "next/dynamic";
+
+const DepreciationTrendChart = dynamic(
+	() =>
+		import("@/features/asset/components/depreciation-trend-chart").then(
+			(mod) => mod.DepreciationTrendChart,
+		),
+	{ ssr: false },
+);
+
+export default function AreaStats() {
+	return <DepreciationTrendChart />;
 }

@@ -1,13 +1,16 @@
-import { config } from 'dotenv';
-import { resolve } from 'path';
-import { readFileSync } from 'fs';
-import { NestFactory } from '@nestjs/core';
-import { AppModule } from './app.module';
-import * as trpcExpress from '@trpc/server/adapters/express';
-import { applyWSSHandler } from '@trpc/server/adapters/ws';
-import { WebSocketServer } from 'ws';
-import { TrpcService } from './trpc/trpc.service';
-import { TrpcContext } from './trpc/trpc.context';
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { logger } from "@aria/utils";
+import { NestFactory } from "@nestjs/core";
+import * as trpcExpress from "@trpc/server/adapters/express";
+import { applyWSSHandler } from "@trpc/server/adapters/ws";
+import { toNodeHandler } from "better-auth/node";
+import { config } from "dotenv";
+import { WebSocketServer } from "ws";
+import { AppModule } from "./app.module";
+import { auth } from "./auth/auth.config";
+import { TrpcContext } from "./trpc/trpc.context";
+import { TrpcService } from "./trpc/trpc.service";
 
 /**
  * Load environment variables from .env file
@@ -23,168 +26,173 @@ import { TrpcContext } from './trpc/trpc.context';
 // When running from apps/backend directory, path is just .env
 // We check both possibilities
 const envPathOptions = [
-  resolve(process.cwd(), 'apps/backend/.env'), // From monorepo root
-  resolve(process.cwd(), '.env'), // From apps/backend directory
+	resolve(process.cwd(), "apps/backend/.env"), // From monorepo root
+	resolve(process.cwd(), ".env"), // From apps/backend directory
 ];
 
 let envPath = envPathOptions[0]; // Default to first option
 try {
-  // Find which path actually exists
-  let fileContent: string | undefined;
-  for (const path of envPathOptions) {
-    try {
-      fileContent = readFileSync(path, 'utf-8');
-      envPath = path;
-      break;
-    } catch {
-      // Try next path
-    }
-  }
+	// Find which path actually exists
+	let fileContent: string | undefined;
+	for (const path of envPathOptions) {
+		try {
+			fileContent = readFileSync(path, "utf-8");
+			envPath = path;
+			break;
+		} catch {
+			// Try next path
+		}
+	}
 
-  if (!fileContent) {
-    throw new Error('No .env file found');
-  }
+	if (!fileContent) {
+		throw new Error("No .env file found");
+	}
 
-  // Load .env and explicitly merge with process.env
-  const result = config({ path: envPath, override: true });
+	// Load .env and explicitly merge with process.env
+	const result = config({ path: envPath, override: true });
 
-  if (result.error) {
-    console.error('[ENV] Error parsing .env file:', result.error.message);
-  } else if (result.parsed) {
-    const parsedCount = Object.keys(result.parsed).length;
-    console.log(`[ENV] Successfully loaded ${parsedCount} variables from .env`);
+	if (result.error) {
+		logger.error(`[ENV] Error parsing .env file: ${result.error.message}`);
+	} else if (result.parsed) {
+		const parsedCount = Object.keys(result.parsed).length;
+		logger.info(`[ENV] Successfully loaded ${parsedCount} variables from .env`);
 
-    // Manually ensure variables are in process.env if dotenv didn't do it
-    if (
-      !process.env.DEFAULT_ADMIN_USERNAME &&
-      result.parsed.DEFAULT_ADMIN_USERNAME
-    ) {
-      Object.assign(process.env, result.parsed);
-    }
-  }
+		// Manually ensure variables are in process.env if dotenv didn't do it
+		if (
+			!process.env.DEFAULT_ADMIN_USERNAME &&
+			result.parsed.DEFAULT_ADMIN_USERNAME
+		) {
+			Object.assign(process.env, result.parsed);
+		}
+	}
 } catch (error) {
-  if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-    console.log(
-      `[ENV] .env file not found at ${envPath} (expected in Docker/production)`,
-    );
-  } else {
-    console.error('[ENV] Failed to load .env file:', error);
-  }
+	if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+		logger.info(
+			`[ENV] .env file not found at ${envPath} (expected in Docker/production)`,
+		);
+	} else {
+		logger.error("[ENV] Failed to load .env file:", error);
+	}
 }
 
 async function bootstrap() {
-  /**
-   * Disable body parser for Better Auth compatibility
-   *
-   * Per @thallesp/nestjs-better-auth official docs, we must disable NestJS's
-   * built-in body parser to allow Better Auth to handle request bodies correctly.
-   */
-  const app = await NestFactory.create(AppModule, {
-    bodyParser: false, // Required for Better Auth
-  });
+	/**
+	 * Disable body parser for Better Auth compatibility
+	 *
+	 * Per @thallesp/nestjs-better-auth official docs, we must disable NestJS's
+	 * built-in body parser to allow Better Auth to handle request bodies correctly.
+	 */
+	const app = await NestFactory.create(AppModule, {
+		bodyParser: false, // Required for Better Auth's Node handler
+	});
 
-  /**
-   * CORS Configuration for Cross-Origin Requests
-   *
-   * Supports both separate domain deployment and Docker Compose scenarios.
-   * Environment variable FRONTEND_URL can contain comma-separated origins.
-   * Trailing slashes are removed to ensure consistent origin matching.
-   */
-  const allowedOriginsRaw = process.env.FRONTEND_URL || 'http://localhost:3000';
+	/**
+	 * CORS Configuration for Cross-Origin Requests
+	 *
+	 * Supports both separate domain deployment and Docker Compose scenarios.
+	 * Environment variable FRONTEND_URL can contain comma-separated origins.
+	 * Trailing slashes are removed to ensure consistent origin matching.
+	 */
+	const allowedOriginsRaw = process.env.FRONTEND_URL || "http://localhost:3000";
 
-  // Split, trim whitespace, and remove trailing slashes from each origin
-  const allowedOrigins = allowedOriginsRaw
-    .split(',')
-    .map((origin) => origin.trim().replace(/\/$/, ''))
-    .filter((origin) => origin.length > 0);
+	// Split, trim whitespace, and remove trailing slashes from each origin
+	const allowedOrigins = allowedOriginsRaw
+		.split(",")
+		.map((origin) => origin.trim().replace(/\/$/, ""))
+		.filter((origin) => origin.length > 0);
 
-  // Enable CORS for frontend with credentials support
-  app.enableCors({
-    origin: allowedOrigins,
-    credentials: true, // Required for cookies in cross-origin requests
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
-    exposedHeaders: ['Set-Cookie'], // Allow browsers to access Set-Cookie header
-  });
+	// Enable CORS for frontend with credentials support
+	app.enableCors({
+		origin: allowedOrigins,
+		credentials: true, // Required for cookies in cross-origin requests
+		methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+		allowedHeaders: ["Content-Type", "Authorization"],
+		exposedHeaders: ["Set-Cookie"], // Allow browsers to access Set-Cookie header
+	});
 
-  // Get tRPC services from DI container
-  const trpcService = app.get(TrpcService);
-  const trpcContext = app.get(TrpcContext);
+	// Get tRPC services from DI container
+	const trpcService = app.get(TrpcService);
+	const trpcContext = app.get(TrpcContext);
 
-  /**
-   * Manually trigger onModuleInit if not already called
-   *
-   * TrpcService.onModuleInit() creates the router. We need to ensure it's called
-   * before we try to get the router, but we also need to mount middleware BEFORE
-   * the application is fully initialized to avoid routing issues.
-   */
-  if (!trpcService.appRouter) {
-    trpcService.onModuleInit();
-  }
+	/**
+	 * Manually trigger onModuleInit if not already called
+	 *
+	 * TrpcService.onModuleInit() creates the router. We need to ensure it's called
+	 * before we try to get the router, but we also need to mount middleware BEFORE
+	 * the application is fully initialized to avoid routing issues.
+	 */
+	if (!trpcService.appRouter) {
+		trpcService.onModuleInit();
+	}
 
-  // Create tRPC router (now safe to call)
-  const appRouter = trpcService.getAppRouter();
+	// Create tRPC router (now safe to call)
+	const appRouter = trpcService.getAppRouter();
 
-  /**
-   * Mount tRPC adapter at /trpc
-   *
-   * Following official tRPC Express adapter pattern.
-   * Context is created per-request with Express req/res objects.
-   */
-  app.use(
-    '/trpc',
-    trpcExpress.createExpressMiddleware({
-      router: appRouter,
-      createContext: (opts) => trpcContext.create(opts),
-    }),
-  );
+	/**
+	 * Mount Better Auth at /api/auth using the official Node integration.
+	 */
+	app.use("/api/auth", toNodeHandler(auth));
 
-  // Start the HTTP server
-  await app.listen(process.env.PORT ?? 3001);
+	/**
+	 * Mount tRPC adapter at /trpc
+	 *
+	 * Following official tRPC Express adapter pattern.
+	 * Context is created per-request with Express req/res objects.
+	 */
+	app.use(
+		"/trpc",
+		trpcExpress.createExpressMiddleware({
+			router: appRouter,
+			createContext: (opts: trpcExpress.CreateExpressContextOptions) =>
+				trpcContext.create(opts),
+		}),
+	);
 
-  // Get the underlying HTTP server instance
-  const httpServer = app.getHttpServer();
+	// Start the HTTP server
+	await app.listen(process.env.PORT ?? 3001);
 
-  // Create WebSocket server for tRPC subscriptions
-  const wss = new WebSocketServer({
-    server: httpServer,
-    path: '/trpc-ws',
-  });
+	// Get the underlying HTTP server instance
+	const httpServer = app.getHttpServer();
 
-  /**
-   * Apply tRPC WebSocket handler
-   *
-   * WebSocket adapter doesn't use Express req/res, so we pass a minimal context.
-   * For WebSocket subscriptions, authentication should be handled via connection params.
-   */
-  const wssHandler = applyWSSHandler({
-    wss,
-    router: appRouter,
-    createContext: () => ({
-      prisma: trpcContext.prisma,
-    }),
-    keepAlive: {
-      enabled: true,
-      pingMs: 30000, // Send ping every 30 seconds
-      pongWaitMs: 5000, // Wait 5 seconds for pong response
-    },
-  });
+	// Create WebSocket server for tRPC subscriptions
+	const wss = new WebSocketServer({
+		server: httpServer,
+		path: "/trpc-ws",
+	});
 
-  // Graceful shutdown for WebSocket connections
-  process.on('SIGTERM', () => {
-    console.log('SIGTERM received, closing WebSocket connections...');
-    wssHandler.broadcastReconnectNotification();
-    wss.close();
-  });
+	/**
+	 * Apply tRPC WebSocket handler
+	 *
+	 * WebSocket adapter doesn't use Express req/res, so we pass a minimal context.
+	 * For WebSocket subscriptions, authentication should be handled via connection params.
+	 */
+	const wssHandler = applyWSSHandler({
+		wss,
+		router: appRouter,
+		createContext: () => ({
+			prisma: trpcContext.prisma,
+		}),
+		keepAlive: {
+			enabled: true,
+			pingMs: 30000, // Send ping every 30 seconds
+			pongWaitMs: 5000, // Wait 5 seconds for pong response
+		},
+	});
 
-  console.log(`Server running on http://localhost:${process.env.PORT ?? 3001}`);
-  console.log(
-    `tRPC endpoint: http://localhost:${process.env.PORT ?? 3001}/trpc`,
-  );
-  console.log(
-    `tRPC WebSocket endpoint: ws://localhost:${process.env.PORT ?? 3001}/trpc-ws`,
-  );
+	// Graceful shutdown for WebSocket connections
+	process.on("SIGTERM", () => {
+		logger.info("SIGTERM received, closing WebSocket connections...");
+		wssHandler.broadcastReconnectNotification();
+		wss.close();
+	});
+
+	logger.info(`Server running on http://localhost:${process.env.PORT ?? 3001}`);
+	logger.info(
+		`tRPC endpoint: http://localhost:${process.env.PORT ?? 3001}/trpc`,
+	);
+	logger.info(
+		`tRPC WebSocket endpoint: ws://localhost:${process.env.PORT ?? 3001}/trpc-ws`,
+	);
 }
 void bootstrap();
 // Trigger build
-

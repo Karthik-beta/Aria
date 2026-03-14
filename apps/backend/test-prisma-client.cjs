@@ -1,24 +1,24 @@
-const { PrismaClient } = require('@prisma/client');
+const { PrismaClient } = require("@prisma/client");
+const { version } = require("@prisma/client/package.json");
 
-async function test() {
-  console.log('✓ Successfully imported PrismaClient from @prisma/client');
+void (async () => {
+	const { logger } = await import("@aria/utils/dist/logger.js");
 
-  const prisma = new PrismaClient();
-  console.log('✓ Successfully instantiated PrismaClient');
+	try {
+		logger.info("✓ Successfully imported PrismaClient from @prisma/client");
 
-  console.log(
-    '✓ Prisma namespace available:',
-    typeof prisma.$connect === 'function',
-  );
-  console.log(
-    '✓ Prisma version:',
-    require('@prisma/client/package.json').version,
-  );
+		const prisma = new PrismaClient();
+		logger.info("✓ Successfully instantiated PrismaClient");
 
-  console.log('\n✅ All Prisma client tests passed!');
-}
+		logger.info(
+			"✓ Prisma namespace available:",
+			typeof prisma.$connect === "function",
+		);
+		logger.info("✓ Prisma version:", version);
 
-test().catch((err) => {
-  console.error('❌ Test failed:', err);
-  process.exit(1);
-});
+		logger.info("\n✅ All Prisma client tests passed!");
+	} catch (err) {
+		logger.error("❌ Test failed:", err);
+		process.exit(1);
+	}
+})();

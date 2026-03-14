@@ -26,6 +26,7 @@ on:
   workflow_dispatch:
 
 env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   DOCKER_BUILDKIT: 1
   COMPOSE_DOCKER_CLI_BUILD: 1
 
@@ -38,7 +39,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -63,6 +64,8 @@ jobs:
           sed -i 's/CHANGE_THIS_TO_A_CRYPTOGRAPHICALLY_SECURE_RANDOM_STRING/test_jwt_secret_123456789/g' .env
           sed -i 's/YOUR_DOMAIN.com/localhost/g' .env
           echo "VERSION=${{ github.sha }}" >> .env
+          echo "BETTER_AUTH_SECRET=test_better_auth_secret_12345678901234567890" >> .env
+          echo "DEFAULT_ADMIN_PASSWORD=test_admin_password_123" >> .env
 
       - name: Build Docker images
         run: |
@@ -84,7 +87,7 @@ jobs:
           echo "✓ PostgreSQL is ready"
 
           # Wait for Redis
-          timeout 60 bash -c 'until docker exec aria-redis redis-cli ping | grep -q PONG; do sleep 2; done'
+          timeout 60 bash -c 'until docker exec aria-redis sh -lc '"'"'if [ -n "$REDIS_PASSWORD" ]; then REDISCLI_AUTH="$REDIS_PASSWORD" redis-cli ping; else redis-cli ping; fi'"'"' | grep -q PONG; do sleep 2; done'
           echo "✓ Redis is ready"
 
           # Wait for backend
@@ -120,13 +123,13 @@ jobs:
         if: always()
         run: |
           echo "=== Frontend Logs ==="
-          docker logs aria-frontend --tail 50
+          docker logs aria-frontend --tail 50 || true
 
           echo "=== Backend Logs ==="
-          docker logs aria-backend --tail 50
+          docker logs aria-backend --tail 50 || true
 
           echo "=== Caddy Logs ==="
-          docker logs aria-caddy --tail 50
+          docker logs aria-caddy --tail 50 || true
 
       - name: Stop services
         if: always()
@@ -146,12 +149,60 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Docker
         run: |
           docker version
           docker compose version
+
+      - name: Detect Docker engine
+        id: docker-engine-initial
+        shell: pwsh
+        run: |
+          $osType = docker info --format '{{.OSType}}' 2>$null
+          if (-not $osType) { $osType = "unknown" }
+          "os_type=$osType" >> $env:GITHUB_OUTPUT
+          Write-Host "Initial Docker engine OS type: $osType"
+
+      - name: Try switch Docker to Linux engine
+        if: steps.docker-engine-initial.outputs.os_type != 'linux'
+        shell: pwsh
+        run: |
+          $candidates = @(
+            (Join-Path $env:ProgramFiles "Docker\Docker\DockerCli.exe"),
+            (Join-Path $env:ProgramFiles "Docker\Docker\resources\bin\DockerCli.exe")
+          )
+          $dockerCli = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $dockerCli) {
+            Write-Host "DockerCli.exe not found on this runner. Continuing with current engine."
+            exit 0
+          }
+
+          & $dockerCli -SwitchLinuxEngine
+          $maxAttempts = 30
+          for ($i = 1; $i -le $maxAttempts; $i++) {
+            try {
+              $osType = docker info --format '{{.OSType}}' 2>$null
+              if ($osType -eq "linux") {
+                Write-Host "Docker engine switched to Linux."
+                break
+              }
+            } catch {}
+            Start-Sleep -Seconds 2
+            if ($i -eq $maxAttempts) {
+              Write-Host "Docker did not switch to Linux engine in time. Continuing with current engine."
+            }
+          }
+
+      - name: Detect final Docker engine
+        id: docker-engine-final
+        shell: pwsh
+        run: |
+          $osType = docker info --format '{{.OSType}}' 2>$null
+          if (-not $osType) { $osType = "unknown" }
+          "os_type=$osType" >> $env:GITHUB_OUTPUT
+          Write-Host "Final Docker engine OS type: $osType"
 
       - name: Create environment file
         shell: pwsh
@@ -163,16 +214,50 @@ jobs:
           (Get-Content .env) -replace 'CHANGE_THIS_TO_A_CRYPTOGRAPHICALLY_SECURE_RANDOM_STRING', 'test_jwt_secret_123456789' | Set-Content .env
           (Get-Content .env) -replace 'YOUR_DOMAIN.com', 'localhost' | Set-Content .env
           Add-Content .env "VERSION=${{ github.sha }}"
+          Add-Content .env "BETTER_AUTH_SECRET=test_better_auth_secret_12345678901234567890"
+          Add-Content .env "DEFAULT_ADMIN_PASSWORD=test_admin_password_123"
 
       - name: Build Docker images
+        if: steps.docker-engine-final.outputs.os_type == 'linux'
         run: |
           docker compose -f docker-compose.production.yml build --no-cache
+        env:
+          COMPOSE_BAKE: false
+          DOCKER_BUILDKIT: 0
+          DOCKER_DEFAULT_PLATFORM: linux/amd64
+
+      - name: Set up Bun (windows-native validation)
+        if: steps.docker-engine-final.outputs.os_type != 'linux'
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.1
+
+      - name: Install dependencies with Bun (windows-native)
+        if: steps.docker-engine-final.outputs.os_type != 'linux'
+        run: |
+          bun ci
+
+      - name: Run Bun build validation (windows-native)
+        if: steps.docker-engine-final.outputs.os_type != 'linux'
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres?schema=public
+        run: |
+          bun run build
+
+      - name: Run Bun tests (windows-native)
+        if: steps.docker-engine-final.outputs.os_type != 'linux'
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres?schema=public
+        run: |
+          bun run test
 
       - name: Start services
+        if: steps.docker-engine-final.outputs.os_type == 'linux'
         run: |
           docker compose -f docker-compose.production.yml up -d
 
       - name: Wait for services to be healthy
+        if: steps.docker-engine-final.outputs.os_type == 'linux'
         shell: pwsh
         run: |
           Write-Host "Waiting for services to start..."
@@ -195,7 +280,7 @@ jobs:
           $timeout = 60
           $elapsed = 0
           while ($elapsed -lt $timeout) {
-            $result = docker exec aria-redis redis-cli ping 2>&1
+            $result = docker exec aria-redis sh -lc 'if [ -n "$REDIS_PASSWORD" ]; then REDISCLI_AUTH="$REDIS_PASSWORD" redis-cli ping; else redis-cli ping; fi' 2>&1
             if ($result -match "PONG") {
               Write-Host "✓ Redis is ready"
               break
@@ -235,11 +320,13 @@ jobs:
           }
 
       - name: Run health checks
+        if: steps.docker-engine-final.outputs.os_type == 'linux'
         shell: pwsh
         run: |
           .\deployment\tests\health-check.ps1
 
       - name: Test HTTP endpoints
+        if: steps.docker-engine-final.outputs.os_type == 'linux'
         shell: pwsh
         run: |
           Write-Host "Testing HTTP endpoints..."
@@ -264,13 +351,13 @@ jobs:
         shell: pwsh
         run: |
           Write-Host "=== Frontend Logs ==="
-          docker logs aria-frontend --tail 50
+          docker logs aria-frontend --tail 50 || true
 
           Write-Host "=== Backend Logs ==="
-          docker logs aria-backend --tail 50
+          docker logs aria-backend --tail 50 || true
 
           Write-Host "=== Caddy Logs ==="
-          docker logs aria-caddy --tail 50
+          docker logs aria-caddy --tail 50 || true
 
       - name: Stop services
         if: always()
@@ -286,10 +373,14 @@ jobs:
   security-scan:
     name: Security Scan
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Run Trivy vulnerability scanner (filesystem)
         uses: aquasecurity/trivy-action@master
@@ -301,8 +392,9 @@ jobs:
           severity: 'CRITICAL,HIGH'
 
       - name: Upload Trivy results to GitHub Security
-        uses: github/codeql-action/upload-sarif@v3
-        if: always()
+        uses: github/codeql-action/upload-sarif@v4
+        if: always() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+        continue-on-error: true
         with:
           sarif_file: 'trivy-results.sarif'
 
@@ -328,7 +420,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up environment
         run: |
@@ -336,6 +428,8 @@ jobs:
           sed -i 's/CHANGE_THIS_TO_A_STRONG_PASSWORD/test_password_123/g' .env
           sed -i 's/CHANGE_THIS_TO_A_STRONG_REDIS_PASSWORD/redis_test_123/g' .env
           sed -i 's/CHANGE_THIS_TO_A_CRYPTOGRAPHICALLY_SECURE_RANDOM_STRING/test_jwt_secret_123456789/g' .env
+          echo "BETTER_AUTH_SECRET=test_better_auth_secret_12345678901234567890" >> .env
+          echo "DEFAULT_ADMIN_PASSWORD=test_admin_password_123" >> .env
           sed -i 's/YOUR_DOMAIN.com/localhost/g' .env
 
       - name: Start services

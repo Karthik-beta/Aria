@@ -1,6 +1,15 @@
-import { RevenueTrendChart } from '@/features/crm/components/revenue-trend-chart';
+"use client";
 
-export default async function AreaStats() {
-  await new Promise((resolve) => setTimeout(resolve, 2000));
-  return <RevenueTrendChart />;
+import dynamic from "next/dynamic";
+
+const RevenueTrendChart = dynamic(
+	() =>
+		import("@/features/crm/components/revenue-trend-chart").then(
+			(mod) => mod.RevenueTrendChart,
+		),
+	{ ssr: false },
+);
+
+export default function AreaStats() {
+	return <RevenueTrendChart />;
 }

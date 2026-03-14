@@ -196,9 +196,10 @@ Prettier runs **through ESLint** (not separately). Formatting violations show as
 Runs on every push/PR to `main`/`master`:
 
 1. `bun install --frozen-lockfile`
-2. `bun lint`
-3. `bun test`
-4. `bun build`
+2. `bun run lint`
+3. `bun run test`
+4. `bun run typecheck`
+5. `bun run build`
 
 **Extend CI when**:
 
@@ -224,7 +225,7 @@ Production topology: Traefik reverse proxy + Postgres + backend + 4 frontends.
 - Custom webpack/rollup configs (trust framework defaults)
 - Manually creating files that CLIs generate
 - Using `any` type or disabling TypeScript strict checks
-- Committing without running `bun format && bun lint && bun build`
+- Committing without running `bun format`, `bun run lint`, `bun run test`, `bun run typecheck`, and `bun run build`
 
 ✅ **Do**:
 
@@ -239,9 +240,10 @@ Production topology: Traefik reverse proxy + Postgres + backend + 4 frontends.
 Before submitting:
 
 - [ ] `bun format` passes
-- [ ] `bun lint` passes
-- [ ] `bun test` passes
-- [ ] `bun build` completes successfully
+- [ ] `bun run lint` passes
+- [ ] `bun run test` passes
+- [ ] `bun run typecheck` passes
+- [ ] `bun run build` completes successfully
 - [ ] Updated relevant README files
 - [ ] Added/updated tests for new features
 - [ ] PR description maps changes to agent responsibilities
@@ -252,9 +254,10 @@ Before submitting:
 | ------------------------- | ----------------------------------------------------- |
 | Install dependencies      | `bun install`                                         |
 | Format code               | `bun format`                                          |
-| Lint entire workspace     | `bun lint`                                            |
-| Run all tests             | `bun test`                                            |
-| Build all apps            | `bun build`                                           |
+| Lint entire workspace     | `bun run lint`                                        |
+| Run all tests             | `bun run test`                                        |
+| Run all type checks       | `bun run typecheck`                                   |
+| Build all apps            | `bun run build`                                       |
 | Start backend dev server  | `bun --filter backend dev`                            |
 | Start frontend dev server | `bun --filter <app> dev`                              |
 | Generate NestJS module    | `cd apps/backend && bun nest g module <name>`         |

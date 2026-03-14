@@ -132,16 +132,16 @@ The frontend has comprehensive testing infrastructure:
 - ✅ **Interactive UI** and coverage reports
 
 ```bash
-# Run unit tests
+# Run unit tests (one-shot)
 bun test
 
-# Run tests in UI mode
+# Run tests in UI mode (interactive)
 bun test:ui
 
 # Run tests with coverage
 bun test:coverage
 
-# Watch mode
+# Watch mode (interactive)
 bun test:watch
 ```
 

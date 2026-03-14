@@ -1,8 +1,7 @@
-'use client';
+"use client";
 
-import { createTRPCReact } from '@trpc/react-query';
-// Import from source instead of dist for development
-import type { AppRouter } from '../../../../../apps/backend/src/trpc/trpc.service';
+import type { AppRouter } from "@aria/api-contract";
+import { createTRPCReact } from "@trpc/react-query";
 
 /**
  * Create tRPC React hooks
@@ -14,4 +13,5 @@ import type { AppRouter } from '../../../../../apps/backend/src/trpc/trpc.servic
  * circular dependency issues. It should be imported by provider.tsx
  * and any components that need to use tRPC hooks.
  */
-export const trpc = createTRPCReact<AppRouter>();
+export const trpc: ReturnType<typeof createTRPCReact<AppRouter>> =
+	createTRPCReact<AppRouter>();

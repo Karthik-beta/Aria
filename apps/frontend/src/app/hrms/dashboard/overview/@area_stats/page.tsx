@@ -1,6 +1,15 @@
-import { LeaveTrendChart } from '@/features/hrms/components/leave-trend-chart';
+"use client";
 
-export default async function AreaStats() {
-  await new Promise((resolve) => setTimeout(resolve, 2000));
-  return <LeaveTrendChart />;
+import dynamic from "next/dynamic";
+
+const LeaveTrendChart = dynamic(
+	() =>
+		import("@/features/hrms/components/leave-trend-chart").then(
+			(mod) => mod.LeaveTrendChart,
+		),
+	{ ssr: false },
+);
+
+export default function AreaStats() {
+	return <LeaveTrendChart />;
 }

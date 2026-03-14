@@ -5,4 +5,4 @@
  * for convenient importing throughout the application.
  */
 
-export { useSession, signIn, signOut, signUp } from '@/lib/auth/client';
+export { signIn, signOut, signUp, useSession } from "@/lib/auth/client";

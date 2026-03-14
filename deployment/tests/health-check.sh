@@ -77,10 +77,11 @@ test_http_endpoint() {
     
     local response_code=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout $TIMEOUT "$url" 2>/dev/null || echo "000")
     
-    if [ "$response_code" -eq "$expected_status" ]; then
-        log_pass "$name endpoint returned $response_code"
+    # Accept 2xx/3xx to handle valid reverse-proxy redirects (HTTP -> HTTPS)
+    if [ "$response_code" -ge 200 ] && [ "$response_code" -lt 400 ]; then
+        log_pass "$name endpoint returned $response_code (healthy)"
     else
-        log_fail "$name endpoint returned $response_code (expected $expected_status)"
+        log_fail "$name endpoint returned $response_code (expected ${expected_status} or any 2xx/3xx)"
     fi
 }
 
@@ -122,8 +123,8 @@ test_database() {
         log_fail "PostgreSQL is not accepting connections"
     fi
     
-    # Test Redis
-    if docker exec aria-redis redis-cli ping | grep -q "PONG"; then
+    # Test Redis (authenticate when REDIS_PASSWORD is configured)
+    if docker exec aria-redis sh -lc 'if [ -n "$REDIS_PASSWORD" ]; then REDISCLI_AUTH="$REDIS_PASSWORD" redis-cli ping; else redis-cli ping; fi' | grep -q "PONG"; then
         log_pass "Redis is responding"
     else
         log_fail "Redis is not responding"

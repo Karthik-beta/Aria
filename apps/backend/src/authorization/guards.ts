@@ -1,20 +1,43 @@
 import {
-  Injectable,
-  CanActivate,
-  ExecutionContext,
-  UnauthorizedException,
-  ForbiddenException,
-  Logger,
-} from '@nestjs/common';
-import { Reflector } from '@nestjs/core';
-import { PolicyService } from './policy.service';
-import { ScopeService } from './scope.service';
+	type CanActivate,
+	type ExecutionContext,
+	ForbiddenException,
+	Injectable,
+	Logger,
+	UnauthorizedException,
+} from "@nestjs/common";
+// biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
+import { Reflector } from "@nestjs/core";
 import {
-  REQUIRE_PERMISSIONS_KEY,
-  REQUIRE_ROLES_KEY,
-  APP_SCOPE_KEY,
-  PUBLIC_ROUTE_KEY,
-} from './decorators';
+	APP_SCOPE_KEY,
+	PUBLIC_ROUTE_KEY,
+	REQUIRE_PERMISSIONS_KEY,
+	REQUIRE_ROLES_KEY,
+} from "./decorators";
+// biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
+import { PolicyService } from "./policy.service";
+// biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
+import { ScopeService } from "./scope.service";
+
+type GuardRequest = {
+	params?: Record<string, unknown>;
+	body?: Record<string, unknown>;
+	query?: Record<string, unknown>;
+};
+
+function isAuthBypassEnabled(): boolean {
+	return (
+		process.env.DISABLE_AUTH === "true" &&
+		process.env.NODE_ENV === "development"
+	);
+}
+
+function hasOwnStringValue(
+	source: Record<string, unknown>,
+	key: string,
+): source is Record<string, string> {
+	return Object.hasOwn(source, key) && typeof source[key] === "string";
+}
 
 /**
  * Authorization Guards for NestJS
@@ -35,30 +58,38 @@ import {
  */
 @Injectable()
 export class PublicRouteGuard implements CanActivate {
-  private readonly logger = new Logger(PublicRouteGuard.name);
+	private readonly logger = new Logger(PublicRouteGuard.name);
 
-  constructor(private reflector: Reflector) {}
+	constructor(private reflector: Reflector) {}
 
-  canActivate(context: ExecutionContext): boolean {
-    const isPublic = this.reflector.getAllAndOverride<boolean>(
-      PUBLIC_ROUTE_KEY,
-      [context.getHandler(), context.getClass()],
-    );
+	canActivate(context: ExecutionContext): boolean {
+		const isPublic = this.reflector.getAllAndOverride<boolean>(
+			PUBLIC_ROUTE_KEY,
+			[context.getHandler(), context.getClass()],
+		);
 
-    if (
-      isPublic ||
-      (process.env.NODE_ENV === 'development' &&
-        process.env.DISABLE_AUTH === 'true')
-    ) {
-      this.logger.debug(
-        'Skipping authorization check (Public route or Dev bypass)',
-      );
-      return true;
-    }
+		if (isPublic || isAuthBypassEnabled()) {
+			this.logger.debug(
+				"Skipping authorization check (Public route or Dev bypass)",
+			);
+			return true;
+		}
 
-    // Not public, let other guards handle authorization
-    return true;
-  }
+		if (
+			process.env.NODE_ENV === "production" &&
+			process.env.DISABLE_AUTH === "true"
+		) {
+			this.logger.error(
+				"DISABLE_AUTH=true was ignored because authorization bypass is never allowed in production.",
+			);
+			throw new UnauthorizedException(
+				"Authentication bypass is not allowed in production",
+			);
+		}
+
+		// Not public, let other guards handle authorization
+		return true;
+	}
 }
 
 /**
@@ -68,39 +99,34 @@ export class PublicRouteGuard implements CanActivate {
  */
 @Injectable()
 export class ActiveUserGuard implements CanActivate {
-  private readonly logger = new Logger(ActiveUserGuard.name);
+	constructor(private policyService: PolicyService) {}
 
-  constructor(private policyService: PolicyService) {}
+	async canActivate(context: ExecutionContext): Promise<boolean> {
+		const request = context.switchToHttp().getRequest();
 
-  async canActivate(context: ExecutionContext): Promise<boolean> {
-    const request = context.switchToHttp().getRequest();
+		// Development bypass
+		if (isAuthBypassEnabled()) {
+			return true;
+		}
 
-    // Development bypass
-    if (
-      process.env.NODE_ENV === 'development' &&
-      process.env.DISABLE_AUTH === 'true'
-    ) {
-      return true;
-    }
+		const user = request.user;
 
-    const user = request.user;
+		if (!user || !user.id) {
+			throw new UnauthorizedException("No authenticated user found");
+		}
 
-    if (!user || !user.id) {
-      throw new UnauthorizedException('No authenticated user found');
-    }
+		// Check if user account is active
+		const policy = await this.policyService.resolveUserPolicy(String(user.id));
 
-    // Check if user account is active
-    const policy = await this.policyService.resolveUserPolicy(String(user.id));
+		if (!policy.isActive) {
+			throw new ForbiddenException("User account is inactive");
+		}
 
-    if (!policy.isActive) {
-      throw new ForbiddenException('User account is inactive');
-    }
+		// Attach policy to request for later use
+		request.userPolicy = policy;
 
-    // Attach policy to request for later use
-    request.userPolicy = policy;
-
-    return true;
-  }
+		return true;
+	}
 }
 
 /**
@@ -110,63 +136,58 @@ export class ActiveUserGuard implements CanActivate {
  */
 @Injectable()
 export class AppScopeGuard implements CanActivate {
-  private readonly logger = new Logger(AppScopeGuard.name);
+	constructor(
+		private reflector: Reflector,
+		private policyService: PolicyService,
+	) {}
 
-  constructor(
-    private reflector: Reflector,
-    private policyService: PolicyService,
-  ) {}
+	async canActivate(context: ExecutionContext): Promise<boolean> {
+		const appKey = this.reflector.getAllAndOverride<string>(APP_SCOPE_KEY, [
+			context.getHandler(),
+			context.getClass(),
+		]);
 
-  async canActivate(context: ExecutionContext): Promise<boolean> {
-    const appKey = this.reflector.getAllAndOverride<string>(APP_SCOPE_KEY, [
-      context.getHandler(),
-      context.getClass(),
-    ]);
+		if (!appKey) {
+			// No app scope required
+			return true;
+		}
 
-    if (!appKey) {
-      // No app scope required
-      return true;
-    }
+		const request = context.switchToHttp().getRequest();
 
-    const request = context.switchToHttp().getRequest();
+		// Development bypass
+		if (isAuthBypassEnabled()) {
+			return true;
+		}
 
-    // Development bypass
-    if (
-      process.env.NODE_ENV === 'development' &&
-      process.env.DISABLE_AUTH === 'true'
-    ) {
-      return true;
-    }
+		const user = request.user;
 
-    const user = request.user;
+		if (!user || !user.id) {
+			throw new UnauthorizedException("No authenticated user found");
+		}
 
-    if (!user || !user.id) {
-      throw new UnauthorizedException('No authenticated user found');
-    }
+		const policy = await this.policyService.resolveUserPolicy(
+			String(user.id),
+			appKey,
+		);
 
-    const policy = await this.policyService.resolveUserPolicy(
-      String(user.id),
-      appKey,
-    );
+		// Super admins have access to all apps
+		if (policy.roles.some((r) => r.roleKey === "super_admin")) {
+			return true;
+		}
 
-    // Super admins have access to all apps
-    if (policy.roles.some((r) => r.roleKey === 'super_admin')) {
-      return true;
-    }
+		// Check if user has any role in this app or supervises it
+		const hasAppAccess =
+			policy.apps.includes(appKey) || policy.supervisedApps.includes(appKey);
 
-    // Check if user has any role in this app or supervises it
-    const hasAppAccess =
-      policy.apps.includes(appKey) || policy.supervisedApps.includes(appKey);
+		if (!hasAppAccess) {
+			throw new ForbiddenException(`No access to application: ${appKey}`);
+		}
 
-    if (!hasAppAccess) {
-      throw new ForbiddenException(`No access to application: ${appKey}`);
-    }
+		// Attach app context to request
+		request.appContext = { appKey };
 
-    // Attach app context to request
-    request.appContext = { appKey };
-
-    return true;
-  }
+		return true;
+	}
 }
 
 /**
@@ -177,119 +198,121 @@ export class AppScopeGuard implements CanActivate {
  */
 @Injectable()
 export class RolePermissionGuard implements CanActivate {
-  private readonly logger = new Logger(RolePermissionGuard.name);
+	constructor(
+		private reflector: Reflector,
+		private policyService: PolicyService,
+	) {}
 
-  constructor(
-    private reflector: Reflector,
-    private policyService: PolicyService,
-  ) {}
+	async canActivate(context: ExecutionContext): Promise<boolean> {
+		const requiredRoles = this.reflector.getAllAndOverride<string[]>(
+			REQUIRE_ROLES_KEY,
+			[context.getHandler(), context.getClass()],
+		);
 
-  async canActivate(context: ExecutionContext): Promise<boolean> {
-    const requiredRoles = this.reflector.getAllAndOverride<string[]>(
-      REQUIRE_ROLES_KEY,
-      [context.getHandler(), context.getClass()],
-    );
+		const requiredPermissions = this.reflector.getAllAndOverride<string[]>(
+			REQUIRE_PERMISSIONS_KEY,
+			[context.getHandler(), context.getClass()],
+		);
 
-    const requiredPermissions = this.reflector.getAllAndOverride<string[]>(
-      REQUIRE_PERMISSIONS_KEY,
-      [context.getHandler(), context.getClass()],
-    );
+		// If no roles or permissions required, allow access
+		if (!requiredRoles && !requiredPermissions) {
+			return true;
+		}
 
-    // If no roles or permissions required, allow access
-    if (!requiredRoles && !requiredPermissions) {
-      return true;
-    }
+		const request = context.switchToHttp().getRequest();
 
-    const request = context.switchToHttp().getRequest();
+		// Development bypass
+		if (isAuthBypassEnabled()) {
+			return true;
+		}
 
-    // Development bypass
-    if (
-      process.env.NODE_ENV === 'development' &&
-      process.env.DISABLE_AUTH === 'true'
-    ) {
-      return true;
-    }
+		const user = request.user;
 
-    const user = request.user;
+		const rawAppKey: unknown = request.appContext?.appKey;
+		const appKey = typeof rawAppKey === "string" ? rawAppKey : undefined;
 
-    const rawAppKey: unknown = request.appContext?.appKey;
-    const appKey = typeof rawAppKey === 'string' ? rawAppKey : undefined;
+		if (!user || !user.id) {
+			throw new UnauthorizedException("No authenticated user found");
+		}
 
-    if (!user || !user.id) {
-      throw new UnauthorizedException('No authenticated user found');
-    }
+		const teamId = this.extractFirstString(request, ["teamId", "team_id"]);
+		const resourceOwnerId = this.extractFirstString(request, [
+			"ownerId",
+			"owner_id",
+			"userId",
+			"user_id",
+		]);
+		const resourceTeamId =
+			this.extractFirstString(request, [
+				"resourceTeamId",
+				"resource_team_id",
+			]) || teamId;
 
-    const teamId = this.extractFirstString(request, ['teamId', 'team_id']);
-    const resourceOwnerId = this.extractFirstString(request, [
-      'ownerId',
-      'owner_id',
-      'userId',
-      'user_id',
-    ]);
-    const resourceTeamId =
-      this.extractFirstString(request, [
-        'resourceTeamId',
-        'resource_team_id',
-      ]) || teamId;
+		// Check required roles
+		if (requiredRoles && requiredRoles.length > 0) {
+			const hasRole = await this.policyService.hasAnyRole(
+				String(user.id),
+				requiredRoles,
+				appKey,
+			);
 
-    // Check required roles
-    if (requiredRoles && requiredRoles.length > 0) {
-      const hasRole = await this.policyService.hasAnyRole(
-        String(user.id),
-        requiredRoles,
-        appKey,
-      );
+			if (!hasRole) {
+				throw new ForbiddenException(
+					`Requires one of the following roles: ${requiredRoles.join(", ")}`,
+				);
+			}
+		}
 
-      if (!hasRole) {
-        throw new ForbiddenException(
-          `Requires one of the following roles: ${requiredRoles.join(', ')}`,
-        );
-      }
-    }
+		// Check required permissions
+		if (requiredPermissions && requiredPermissions.length > 0) {
+			for (const permission of requiredPermissions) {
+				const result = await this.policyService.can(
+					String(user.id),
+					permission,
+					{
+						userId: String(user.id),
+						appKey,
+						...(teamId && { teamId }),
+						...(resourceOwnerId && { resourceOwnerId }),
+						...(resourceTeamId && { resourceTeamId }),
+					},
+				);
 
-    // Check required permissions
-    if (requiredPermissions && requiredPermissions.length > 0) {
-      for (const permission of requiredPermissions) {
-        const result = await this.policyService.can(
-          String(user.id),
-          permission,
-          {
-            userId: String(user.id),
-            appKey,
-            ...(teamId && { teamId }),
-            ...(resourceOwnerId && { resourceOwnerId }),
-            ...(resourceTeamId && { resourceTeamId }),
-          },
-        );
+				if (!result.allowed) {
+					throw new ForbiddenException(
+						result.reason || `Missing required permission: ${permission}`,
+					);
+				}
+			}
+		}
 
-        if (!result.allowed) {
-          throw new ForbiddenException(
-            result.reason || `Missing required permission: ${permission}`,
-          );
-        }
-      }
-    }
+		return true;
+	}
 
-    return true;
-  }
+	private extractFirstString(
+		request: GuardRequest,
+		keys: string[],
+	): string | undefined {
+		const sources = [request.params, request.body, request.query];
+		for (const source of sources) {
+			if (!source) {
+				continue;
+			}
 
-  private extractFirstString(request: any, keys: string[]): string | undefined {
-    const sources = [request.params, request.body, request.query];
-    for (const source of sources) {
-      if (!source) {
-        continue;
-      }
+			for (const key of keys) {
+				if (!hasOwnStringValue(source, key)) {
+					continue;
+				}
 
-      for (const key of keys) {
-        const value = source[key];
-        if (typeof value === 'string' && value.trim().length > 0) {
-          return value;
-        }
-      }
-    }
+				const value = source[key];
+				if (value.trim().length > 0) {
+					return value;
+				}
+			}
+		}
 
-    return undefined;
-  }
+		return undefined;
+	}
 }
 
 /**
@@ -300,64 +323,61 @@ export class RolePermissionGuard implements CanActivate {
  */
 @Injectable()
 export class OwnershipGuard implements CanActivate {
-  private readonly logger = new Logger(OwnershipGuard.name);
+	private readonly logger = new Logger(OwnershipGuard.name);
 
-  constructor(
-    private policyService: PolicyService,
-    private scopeService: ScopeService,
-  ) {}
+	constructor(
+		private policyService: PolicyService,
+		private scopeService: ScopeService,
+	) {}
 
-  async canActivate(context: ExecutionContext): Promise<boolean> {
-    const request = context.switchToHttp().getRequest();
+	async canActivate(context: ExecutionContext): Promise<boolean> {
+		const request = context.switchToHttp().getRequest();
 
-    // Development bypass
-    if (
-      process.env.NODE_ENV === 'development' &&
-      process.env.DISABLE_AUTH === 'true'
-    ) {
-      return true;
-    }
+		// Development bypass
+		if (isAuthBypassEnabled()) {
+			return true;
+		}
 
-    const user = request.user;
+		const user = request.user;
 
-    if (!user || !user.id) {
-      throw new UnauthorizedException('No authenticated user found');
-    }
+		if (!user || !user.id) {
+			throw new UnauthorizedException("No authenticated user found");
+		}
 
-    // Extract resource owner from params or body
-    const resourceOwnerId =
-      request.params?.ownerId ||
-      request.body?.ownerId ||
-      request.query?.ownerId;
+		// Extract resource owner from params or body
+		const resourceOwnerId =
+			request.params?.ownerId ||
+			request.body?.ownerId ||
+			request.query?.ownerId;
 
-    if (!resourceOwnerId) {
-      // If no owner specified, can't validate ownership
-      this.logger.warn('No resource owner ID provided for ownership check');
-      return true;
-    }
+		if (!resourceOwnerId) {
+			// If no owner specified, can't validate ownership
+			this.logger.warn("No resource owner ID provided for ownership check");
+			return true;
+		}
 
-    const policy = await this.policyService.resolveUserPolicy(String(user.id));
+		const policy = await this.policyService.resolveUserPolicy(String(user.id));
 
-    // Super admins bypass ownership
-    if (policy.roles.some((r) => r.roleKey === 'super_admin')) {
-      return true;
-    }
+		// Super admins bypass ownership
+		if (policy.roles.some((r) => r.roleKey === "super_admin")) {
+			return true;
+		}
 
-    // Check if user is the owner or in management hierarchy
-    const isOwner = String(user.id) === String(resourceOwnerId);
-    if (isOwner) {
-      return true;
-    }
+		// Check if user is the owner or in management hierarchy
+		const isOwner = String(user.id) === String(resourceOwnerId);
+		if (isOwner) {
+			return true;
+		}
 
-    const isManager = await this.scopeService.isInManagementHierarchy(
-      String(user.id),
-      String(resourceOwnerId),
-    );
+		const isManager = await this.scopeService.isInManagementHierarchy(
+			String(user.id),
+			String(resourceOwnerId),
+		);
 
-    if (isManager) {
-      return true;
-    }
+		if (isManager) {
+			return true;
+		}
 
-    throw new ForbiddenException('You do not own this resource');
-  }
+		throw new ForbiddenException("You do not own this resource");
+	}
 }

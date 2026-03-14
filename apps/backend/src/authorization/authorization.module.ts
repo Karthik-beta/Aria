@@ -1,17 +1,15 @@
-import { Module, Global } from '@nestjs/common';
-import { PrismaClient } from '../generated/prisma/client.js';
-import { prismaClient } from '../shared/prisma-client.js';
-import { AuditService } from './audit.service';
-import { ScopeService } from './scope.service';
-import { RoleService, PermissionService } from './role-permission.service';
-import { PolicyService } from './policy.service';
+import { Global, Module } from "@nestjs/common";
+import { AuditService } from "./audit.service";
 import {
-  PublicRouteGuard,
-  ActiveUserGuard,
-  AppScopeGuard,
-  RolePermissionGuard,
-  OwnershipGuard,
-} from './guards';
+	ActiveUserGuard,
+	AppScopeGuard,
+	OwnershipGuard,
+	PublicRouteGuard,
+	RolePermissionGuard,
+} from "./guards";
+import { PolicyService } from "./policy.service";
+import { PermissionService, RoleService } from "./role-permission.service";
+import { ScopeService } from "./scope.service";
 
 /**
  * AuthorizationModule - Centralized authorization services and guards
@@ -31,42 +29,35 @@ import {
  */
 @Global()
 @Module({
-  providers: [
-    // Prisma client - use factory provider to return the shared singleton
-    {
-      provide: PrismaClient,
-      useFactory: () => prismaClient,
-    },
+	providers: [
+		// Core services
+		AuditService,
+		ScopeService,
+		RoleService,
+		PermissionService,
+		PolicyService,
 
-    // Core services
-    AuditService,
-    ScopeService,
-    RoleService,
-    PermissionService,
-    PolicyService,
+		// Guards
+		PublicRouteGuard,
+		ActiveUserGuard,
+		AppScopeGuard,
+		RolePermissionGuard,
+		OwnershipGuard,
+	],
+	exports: [
+		// Export services for use in other modules
+		AuditService,
+		ScopeService,
+		RoleService,
+		PermissionService,
+		PolicyService,
 
-    // Guards
-    PublicRouteGuard,
-    ActiveUserGuard,
-    AppScopeGuard,
-    RolePermissionGuard,
-    OwnershipGuard,
-  ],
-  exports: [
-    // Export services for use in other modules
-    AuditService,
-    ScopeService,
-    RoleService,
-    PermissionService,
-    PolicyService,
-
-    // Export guards for use in controllers
-    PublicRouteGuard,
-    ActiveUserGuard,
-    AppScopeGuard,
-    RolePermissionGuard,
-    OwnershipGuard,
-  ],
+		// Export guards for use in controllers
+		PublicRouteGuard,
+		ActiveUserGuard,
+		AppScopeGuard,
+		RolePermissionGuard,
+		OwnershipGuard,
+	],
 })
-export class AuthorizationModule { }
-
+export class AuthorizationModule {}

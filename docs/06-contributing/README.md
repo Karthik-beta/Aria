@@ -77,13 +77,16 @@ Follow our [Code Standards](#code-standards) while making changes.
 bun format
 
 # Check for style issues
-bun lint
+bun run lint
 
 # Run tests
-bun test
+bun run test
+
+# Run type checks
+bun run typecheck
 
 # Build to ensure everything compiles
-bun build
+bun run build
 ```
 
 All of these must pass before submitting!
@@ -287,7 +290,7 @@ describe('calculateDiscount', () => {
 
 ```bash
 # Run all tests
-bun test
+bun run test
 
 # Run tests for specific app
 bun --filter backend test
@@ -308,9 +311,10 @@ Before submitting, ensure:
 
 - [ ] Code follows style guidelines
 - [ ] `bun format` passes
-- [ ] `bun lint` passes
-- [ ] `bun test` passes
-- [ ] `bun build` succeeds
+- [ ] `bun run lint` passes
+- [ ] `bun run test` passes
+- [ ] `bun run typecheck` passes
+- [ ] `bun run build` succeeds
 - [ ] Tests added for new features
 - [ ] Documentation updated (if needed)
 - [ ] Commit messages follow convention

@@ -1,4 +1,4 @@
-import { SetMetadata } from '@nestjs/common';
+import { SetMetadata } from "@nestjs/common";
 
 /**
  * Authorization Decorators for NestJS
@@ -10,10 +10,10 @@ import { SetMetadata } from '@nestjs/common';
  */
 
 // Metadata keys
-export const REQUIRE_PERMISSIONS_KEY = 'require_permissions';
-export const REQUIRE_ROLES_KEY = 'require_roles';
-export const APP_SCOPE_KEY = 'app_scope';
-export const PUBLIC_ROUTE_KEY = 'public_route';
+export const REQUIRE_PERMISSIONS_KEY = "require_permissions";
+export const REQUIRE_ROLES_KEY = "require_roles";
+export const APP_SCOPE_KEY = "app_scope";
+export const PUBLIC_ROUTE_KEY = "public_route";
 
 /**
  * @RequirePermissions - Require specific permissions for route access
@@ -30,7 +30,7 @@ export const PUBLIC_ROUTE_KEY = 'public_route';
  * ```
  */
 export const RequirePermissions = (...permissions: string[]) =>
-  SetMetadata(REQUIRE_PERMISSIONS_KEY, permissions);
+	SetMetadata(REQUIRE_PERMISSIONS_KEY, permissions);
 
 /**
  * @RequireRoles - Require specific roles for route access
@@ -47,7 +47,7 @@ export const RequirePermissions = (...permissions: string[]) =>
  * ```
  */
 export const RequireRoles = (...roles: string[]) =>
-  SetMetadata(REQUIRE_ROLES_KEY, roles);
+	SetMetadata(REQUIRE_ROLES_KEY, roles);
 
 /**
  * @AppScope - Specify the app context for this route

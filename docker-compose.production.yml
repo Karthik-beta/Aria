@@ -219,7 +219,11 @@ services:
     networks:
       - aria-network
     healthcheck:
-      test: ['CMD', 'redis-cli', 'ping']
+      test:
+        [
+          'CMD-SHELL',
+          'if [ -n "$REDIS_PASSWORD" ]; then REDISCLI_AUTH="$REDIS_PASSWORD" redis-cli ping | grep -q PONG; else redis-cli ping | grep -q PONG; fi',
+        ]
       interval: 10s
       timeout: 5s
       retries: 5
