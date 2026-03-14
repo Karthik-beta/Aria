@@ -9,7 +9,7 @@ import {
 	IconUsers,
 } from "@tabler/icons-react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import * as React from "react";
 import {
 	Collapsible,
@@ -249,8 +249,6 @@ export default function AppSidebar() {
 			imageUrl: getImageUrl(),
 		};
 	}, [session]);
-	const _router = useRouter();
-	const [isMounted, setIsMounted] = React.useState(false);
 
 	// Memoize active app calculation to avoid recalculation on every render
 	const activeApp = React.useMemo(
@@ -267,19 +265,6 @@ export default function AppSidebar() {
 		() => getAppNavItems(activeAppId),
 		[activeAppId],
 	);
-
-	// Ensure component only renders after hydration to avoid ID mismatch
-	React.useEffect(() => {
-		setIsMounted(true);
-	}, []);
-
-	React.useEffect(() => {
-		// Side effects based on sidebar state changes
-	}, []);
-
-	if (!isMounted) {
-		return null;
-	}
 
 	return (
 		<Sidebar collapsible="icon">

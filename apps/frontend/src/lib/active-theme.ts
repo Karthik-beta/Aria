@@ -1,4 +1,4 @@
-export const ACTIVE_THEME_COOKIE_NAME = "active_theme";
+export { ACTIVE_THEME_COOKIE_NAME } from "@/lib/cookies";
 export const DEFAULT_ACTIVE_THEME = "default";
 
 const VALID_ACTIVE_THEMES = new Set([

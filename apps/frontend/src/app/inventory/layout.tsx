@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import { AppAccessBoundary } from "@/components/auth/app-access-boundary";
 import KBar from "@/components/kbar";
 import AppSidebar from "@/components/layout/app-sidebar";
@@ -8,6 +9,7 @@ import ThemeProvider from "@/components/layout/ThemeToggle/theme-provider";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { Toaster } from "@/components/ui/sonner";
 import { getActiveThemeValue } from "@/lib/active-theme.server";
+import { SIDEBAR_COOKIE_NAME } from "@/lib/cookies";
 
 export const metadata: Metadata = {
 	title: "Inventory by Pivotr",
@@ -24,7 +26,9 @@ export default async function InventoryLayout({
 }: {
 	children: React.ReactNode;
 }) {
-	const defaultOpen = false;
+	const cookieStore = await cookies();
+	const sidebarCookie = cookieStore.get(SIDEBAR_COOKIE_NAME)?.value;
+	const defaultOpen = sidebarCookie === "true";
 	const activeThemeValue = await getActiveThemeValue();
 
 	return (
