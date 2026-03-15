@@ -5,7 +5,7 @@ import {
 	NotFoundException,
 } from "@nestjs/common";
 import type { z } from "zod";
-import { Prisma } from "../../generated/prisma/client.js";
+import { Prisma } from "../../generated/prisma/client";
 // biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
 import { PrismaService } from "../../shared/prisma.service";
 import {

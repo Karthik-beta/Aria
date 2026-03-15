@@ -1,5 +1,6 @@
 import "@testing-library/jest-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { z } from "zod";
 import {
 	renderWithProviders,
 	screen,
@@ -51,7 +52,6 @@ vi.mock("@hookform/resolvers/zod", () => ({
 }));
 
 vi.mock("@aria/types", () => {
-	const { z } = require("zod");
 	const createShape = {
 		shippingRuleLabel: z.string(),
 		shippingRuleType: z.enum(["SELLING", "BUYING"]),

@@ -1,7 +1,7 @@
 import { Inventory } from "@aria/types";
 import { ConflictException, NotFoundException } from "@nestjs/common";
 import { Test, type TestingModule } from "@nestjs/testing";
-import { Prisma } from "../../generated/prisma/client.js";
+import { Prisma } from "../../generated/prisma/client";
 import { PrismaService } from "../../shared/prisma.service";
 import { InventoryService } from "./inventory.service";
 

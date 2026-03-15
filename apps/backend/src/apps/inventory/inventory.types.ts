@@ -1,5 +1,5 @@
 import type { Inventory } from "@aria/types";
-import type { Prisma } from "../../generated/prisma/client.js";
+import type { Prisma } from "../../generated/prisma/client";
 
 /**
  * Prisma model type for InventoryItem with optional relations
