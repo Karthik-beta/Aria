@@ -46,6 +46,14 @@ export function ExportImportActions<TData>({
 	const fileInputRef = React.useRef<HTMLInputElement>(null);
 	const [isExporting, setIsExporting] = React.useState(false);
 	const [isImporting, setIsImporting] = React.useState(false);
+	const isMountedRef = React.useRef(false);
+
+	React.useEffect(() => {
+		isMountedRef.current = true;
+		return () => {
+			isMountedRef.current = false;
+		};
+	}, []);
 
 	const handleExport = async (format: ExportFormat) => {
 		try {
@@ -71,7 +79,9 @@ export function ExportImportActions<TData>({
 				`Failed to export data: ${error instanceof Error ? error.message : "Unknown error"}`,
 			);
 		} finally {
-			setIsExporting(false);
+			if (isMountedRef.current) {
+				setIsExporting(false);
+			}
 		}
 	};
 
@@ -102,10 +112,12 @@ export function ExportImportActions<TData>({
 				`Failed to import data: ${error instanceof Error ? error.message : "Unknown error"}`,
 			);
 		} finally {
-			setIsImporting(false);
-			// Reset file input
-			if (fileInputRef.current) {
-				fileInputRef.current.value = "";
+			if (isMountedRef.current) {
+				setIsImporting(false);
+				// Reset file input
+				if (fileInputRef.current) {
+					fileInputRef.current.value = "";
+				}
 			}
 		}
 	};

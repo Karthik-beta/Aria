@@ -44,6 +44,14 @@ export function BulkActions<TData>({
 	const [isExecuting, setIsExecuting] = React.useState(false);
 	const [pendingAction, setPendingAction] =
 		React.useState<BulkAction<TData> | null>(null);
+	const isMountedRef = React.useRef(false);
+
+	React.useEffect(() => {
+		isMountedRef.current = true;
+		return () => {
+			isMountedRef.current = false;
+		};
+	}, []);
 
 	// Get selected rows dynamically without memoization to ensure fresh data
 	const selectedRows = table.getFilteredSelectedRowModel().rows;
@@ -71,8 +79,10 @@ export function BulkActions<TData>({
 				`Failed to perform action: ${error instanceof Error ? error.message : "Unknown error"}`,
 			);
 		} finally {
-			setIsExecuting(false);
-			setPendingAction(null);
+			if (isMountedRef.current) {
+				setIsExecuting(false);
+				setPendingAction(null);
+			}
 		}
 	};
 

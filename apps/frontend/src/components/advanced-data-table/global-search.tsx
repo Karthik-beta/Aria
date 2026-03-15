@@ -42,6 +42,7 @@ export function GlobalSearch<TData>({
 	const [suggestions, setSuggestions] = React.useState<string[]>([]);
 	const debounceTimerRef = React.useRef<NodeJS.Timeout | null>(null);
 	const inputRef = React.useRef<HTMLInputElement>(null);
+	const isMountedRef = React.useRef(false);
 
 	// Sync input value with table's global filter state (external changes)
 	const tableGlobalFilter = table.getState().globalFilter as string | undefined;
@@ -56,7 +57,10 @@ export function GlobalSearch<TData>({
 
 	// Cleanup debounce timer on unmount
 	React.useEffect(() => {
+		isMountedRef.current = true;
+
 		return () => {
+			isMountedRef.current = false;
 			if (debounceTimerRef.current) {
 				clearTimeout(debounceTimerRef.current);
 				debounceTimerRef.current = null;
@@ -115,6 +119,9 @@ export function GlobalSearch<TData>({
 
 			// Set new debounced timer to update table filter
 			debounceTimerRef.current = setTimeout(() => {
+				if (!isMountedRef.current) {
+					return;
+				}
 				table.setGlobalFilter(newValue || undefined);
 			}, debounceMs);
 

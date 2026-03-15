@@ -45,9 +45,18 @@ export function useAuth() {
 	const isFetchingRef = useRef(false);
 	// Track the last user ID we fetched for to prevent redundant fetches
 	const lastFetchedUserIdRef = useRef<string | null>(null);
+	const isMountedRef = useRef(false);
+
+	useEffect(() => {
+		isMountedRef.current = true;
+		return () => {
+			isMountedRef.current = false;
+		};
+	}, []);
 
 	// Development mode bypass - skip authentication for testing
 	const isDevelopmentBypass =
+		process.env.NODE_ENV === "development" &&
 		process.env.NEXT_PUBLIC_DEV_AUTH_BYPASS === "true";
 
 	/**
@@ -57,20 +66,24 @@ export function useAuth() {
 	 * accessing httpOnly cookies and forwarding them to the backend tRPC endpoint.
 	 */
 	useEffect(() => {
+		const abortController = new AbortController();
+
 		// In development bypass mode, use mock authorization data
 		if (isDevelopmentBypass) {
-			setAuthorizationData({
-				roles: ["super_admin"],
-				permissions: ["system:*"],
-				apps: {
-					inventory: { roles: ["admin"] },
-					asset: { roles: ["admin"] },
-					crm: { roles: ["admin"] },
-					hrms: { roles: ["admin"] },
-				},
-				supervisedApps: ["inventory", "asset", "crm", "hrms"],
-				isActive: true,
-			});
+			if (isMountedRef.current) {
+				setAuthorizationData({
+					roles: ["super_admin"],
+					permissions: ["system:*"],
+					apps: {
+						inventory: { roles: ["admin"] },
+						asset: { roles: ["admin"] },
+						crm: { roles: ["admin"] },
+						hrms: { roles: ["admin"] },
+					},
+					supervisedApps: ["inventory", "asset", "crm", "hrms"],
+					isActive: true,
+				});
+			}
 			return;
 		}
 
@@ -87,7 +100,9 @@ export function useAuth() {
 
 		isFetchingRef.current = true;
 
-		fetch("/api/auth/authorization")
+		fetch("/api/auth/authorization", {
+			signal: abortController.signal,
+		})
 			.then(async (response) => {
 				if (!response.ok) {
 					throw new Error(`Authorization fetch failed: ${response.status}`);
@@ -96,15 +111,24 @@ export function useAuth() {
 			})
 			.then((data) => {
 				lastFetchedUserIdRef.current = userId;
-				setAuthorizationData(data);
+				if (isMountedRef.current) {
+					setAuthorizationData(data);
+				}
 			})
 			.catch((error) => {
+				if (abortController.signal.aborted) {
+					return;
+				}
 				logger.error("Failed to fetch authorization data:", error);
 				// Keep default empty authorization on error
 			})
 			.finally(() => {
 				isFetchingRef.current = false;
 			});
+
+		return () => {
+			abortController.abort();
+		};
 	}, [session?.user?.id, isDevelopmentBypass]);
 
 	const authContext = useMemo(() => {
