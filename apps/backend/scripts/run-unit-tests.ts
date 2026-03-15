@@ -50,6 +50,9 @@ const tempDir = path.join(projectRoot, ".test-dist");
 try {
 	await rm(tempDir, { recursive: true, force: true });
 
+	// Prisma v7 client is generated to src/generated/prisma and must exist before tsc.
+	await runCommand(["run", "prisma:generate"]);
+
 	await runCommand([
 		"x",
 		"tsc",
