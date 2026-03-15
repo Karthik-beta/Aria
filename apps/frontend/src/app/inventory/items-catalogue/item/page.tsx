@@ -74,14 +74,6 @@ export default function InventoryItemsPage() {
 	// State for delete confirmation only
 	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
 	const [itemToDelete, setItemToDelete] = React.useState<string | null>(null);
-	const [isRealtimeReady, setIsRealtimeReady] = React.useState(false);
-
-	React.useEffect(() => {
-		setIsRealtimeReady(true);
-		return () => {
-			setIsRealtimeReady(false);
-		};
-	}, []);
 
 	// Stable delete handler using ref pattern - prevents columns re-memoization
 	const handleDeleteRef = React.useRef<(id: string) => void>(() => {
@@ -164,10 +156,6 @@ export default function InventoryItemsPage() {
 	const handleSubscriptionStarted = React.useCallback(() => {
 		errorCountRef.current = 0; // Reset error count on successful connection
 	}, []);
-
-	// Official tRPC pattern: subscription runs independently
-	// No need to manually enable/disable based on mount state
-	const shouldSubscribe = isRealtimeReady;
 
 	// Show error toast if query fails (only once per error)
 	// Following official TanStack Query pattern: no manual mount checks needed
@@ -627,13 +615,11 @@ export default function InventoryItemsPage() {
 
 	return (
 		<>
-			{shouldSubscribe && (
-				<InventoryRealtimeSubscription
-					onStarted={handleSubscriptionStarted}
-					onData={handleSubscriptionData}
-					onError={handleSubscriptionError}
-				/>
-			)}
+			<InventoryRealtimeSubscription
+				onStarted={handleSubscriptionStarted}
+				onData={handleSubscriptionData}
+				onError={handleSubscriptionError}
+			/>
 
 			<div className="container mx-auto py-6 space-y-6">
 				{/* Header */}

@@ -14,7 +14,7 @@
 		}
 	},
 	"scripts": {
-		"prisma:generate": "rimraf src/generated/prisma && prisma generate",
+		"prisma:generate": "prisma generate",
 		"prebuild": "bun run prisma:generate",
 		"build": "nest build",
 		"format": "biome format --write .",
@@ -24,9 +24,7 @@
 		"start:prod": "node dist/main.js",
 		"lint": "biome check .",
 		"lint:fix": "biome check --write .",
-		"pretypecheck": "bun run prisma:generate",
 		"typecheck": "tsc --noEmit --pretty false",
-		"pretest": "bun run prisma:generate",
 		"test": "bun ./scripts/run-unit-tests.ts",
 		"test:watch": "node ./node_modules/jest/bin/jest.js --watch",
 		"test:cov": "node ./node_modules/jest/bin/jest.js --coverage",

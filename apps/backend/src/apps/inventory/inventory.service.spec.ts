@@ -53,6 +53,17 @@ describe("InventoryService", () => {
 			delete: jest.fn(),
 			deleteMany: jest.fn(),
 		},
+		item: {
+			findMany: jest.fn(),
+			findUnique: jest.fn(),
+		},
+		productBundle: {
+			findMany: jest.fn(),
+			findUnique: jest.fn(),
+			create: jest.fn(),
+			update: jest.fn(),
+			delete: jest.fn(),
+		},
 		$transaction: jest.fn(),
 	};
 
@@ -220,6 +231,110 @@ describe("InventoryService", () => {
 				count: 1,
 				ids: [mockItem.id],
 				missingIds: ["clh9999999999", "clh8888888888"],
+			});
+		});
+	});
+
+	describe("findAllProductBundles", () => {
+		it("should return all product bundles", async () => {
+			const now = new Date();
+			mockPrisma.productBundle.findMany.mockResolvedValue([
+				{
+					id: "bundle-1",
+					parentItemId: "item-1",
+					description: "Bundle desc",
+					disabled: false,
+					createdAt: now,
+					updatedAt: now,
+					parentItem: { id: "item-1", name: "Parent Item" },
+					bundleItems: [],
+				},
+			]);
+
+			const result = await service.findAllProductBundles();
+			expect(result).toHaveLength(1);
+			expect(result[0].id).toBe("bundle-1");
+			expect(mockPrisma.productBundle.findMany).toHaveBeenCalled();
+		});
+	});
+
+	describe("createProductBundle", () => {
+		it("should create a product bundle", async () => {
+			const now = new Date();
+			const input = Inventory.createProductBundleSchema.parse({
+				parentItemId: "clh1234567890abcde123456",
+				description: "Bundle",
+				disabled: false,
+				bundleItems: [
+					{
+						itemId: "clh1234567890abcde123457",
+						quantity: 2,
+					},
+				],
+			});
+
+			mockPrisma.item.findUnique.mockResolvedValue({ id: input.parentItemId });
+			mockPrisma.item.findMany.mockResolvedValue([
+				{ id: input.bundleItems[0].itemId },
+			]);
+			mockPrisma.productBundle.create.mockResolvedValue({
+				id: "bundle-1",
+				parentItemId: input.parentItemId,
+				description: input.description,
+				disabled: false,
+				createdAt: now,
+				updatedAt: now,
+				parentItem: { id: input.parentItemId, name: "Parent Item" },
+				bundleItems: [
+					{
+						id: "bundle-item-1",
+						bundleId: "bundle-1",
+						itemId: input.bundleItems[0].itemId,
+						quantity: 2,
+						description: null,
+						UnitOfMeasurementId: null,
+						createdAt: now,
+						updatedAt: now,
+						item: { id: input.bundleItems[0].itemId, name: "Item 1" },
+						unitOfMeasurement: null,
+					},
+				],
+			});
+
+			const result = await service.createProductBundle(input);
+			expect(result.id).toBe("bundle-1");
+			expect(mockPrisma.productBundle.create).toHaveBeenCalled();
+		});
+
+		it("should throw NotFoundException when parent item does not exist", async () => {
+			const input = Inventory.createProductBundleSchema.parse({
+				parentItemId: "clh1234567890abcde123456",
+				bundleItems: [
+					{
+						itemId: "clh1234567890abcde123457",
+						quantity: 1,
+					},
+				],
+			});
+			mockPrisma.item.findUnique.mockResolvedValue(null);
+
+			await expect(service.createProductBundle(input)).rejects.toThrow(
+				NotFoundException,
+			);
+		});
+	});
+
+	describe("deleteProductBundle", () => {
+		it("should delete a product bundle", async () => {
+			mockPrisma.productBundle.delete.mockResolvedValue({
+				id: "bundle-1",
+			});
+
+			const result = await service.deleteProductBundle("bundle-1");
+
+			expect(result).toEqual({ success: true, id: "bundle-1" });
+			expect(mockPrisma.productBundle.delete).toHaveBeenCalledWith({
+				where: { id: "bundle-1" },
 			});
 		});
 	});

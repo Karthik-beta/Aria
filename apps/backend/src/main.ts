@@ -26,8 +26,10 @@ import { TrpcService } from "./trpc/trpc.service";
 // When running from apps/backend directory, path is just .env
 // We check both possibilities
 const envPathOptions = [
-	resolve(process.cwd(), "apps/backend/.env"), // From monorepo root
-	resolve(process.cwd(), ".env"), // From apps/backend directory
+	resolve(process.cwd(), "apps/backend/.env.development"), // Backend specific dev env
+	resolve(process.cwd(), ".env.development"), // Root dev env
+	resolve(process.cwd(), "apps/backend/.env"), // Backend specific .env
+	resolve(process.cwd(), ".env"), // Root .env
 ];
 
 let envPath = envPathOptions[0]; // Default to first option

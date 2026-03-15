@@ -25,6 +25,27 @@ export type InventoryItemGroup = Prisma.ItemGroupGetPayload<{
 }>;
 
 /**
+ * Prisma model type for ProductBundle with relations
+ */
+export type InventoryProductBundle = Prisma.ProductBundleGetPayload<{
+	include: {
+		parentItem: {
+			select: { id: true; name: true };
+		};
+		bundleItems: {
+			include: {
+				item: {
+					select: { id: true; name: true };
+				};
+				unitOfMeasurement: {
+					select: { id: true; name: true };
+				};
+			};
+		};
+	};
+}>;
+
+/**
  * Converts a Prisma ItemGroup to Inventory.ItemGroup
  */
 export function toInventoryItemGroup(
@@ -103,6 +124,35 @@ export function toInventoryItem(prismaItem: InventoryItem): Inventory.Item {
 		defaultUnitOfMeasureId: prismaItem.defaultUnitOfMeasureId,
 		createdAt: prismaItem.createdAt,
 		updatedAt: prismaItem.updatedAt,
+	};
+}
+
+/**
+ * Converts a Prisma ProductBundle to Inventory.ProductBundle
+ */
+export function toInventoryProductBundle(
+	prismaBundle: InventoryProductBundle,
+): Inventory.ProductBundle {
+	return {
+		id: prismaBundle.id,
+		parentItemId: prismaBundle.parentItemId,
+		parentItemName: prismaBundle.parentItem?.name ?? null,
+		description: prismaBundle.description,
+		disabled: prismaBundle.disabled,
+		bundleItems: prismaBundle.bundleItems.map((bundleItem) => ({
+			id: bundleItem.id,
+			bundleId: bundleItem.bundleId,
+			itemId: bundleItem.itemId,
+			itemName: bundleItem.item?.name ?? null,
+			quantity: bundleItem.quantity,
+			description: bundleItem.description,
+			unitOfMeasurementId: bundleItem.UnitOfMeasurementId,
+			unitOfMeasurementName: bundleItem.unitOfMeasurement?.name ?? null,
+			createdAt: bundleItem.createdAt,
+			updatedAt: bundleItem.updatedAt,
+		})),
+		createdAt: prismaBundle.createdAt,
+		updatedAt: prismaBundle.updatedAt,
 	};
 }
 

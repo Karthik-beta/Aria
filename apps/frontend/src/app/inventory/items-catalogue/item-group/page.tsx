@@ -68,12 +68,6 @@ export default function ItemGroupsPage() {
 	// State for delete confirmation (optional, if we add delete support)
 	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
 	const [groupToDelete, setGroupToDelete] = React.useState<string | null>(null);
-	const [isRealtimeReady, setIsRealtimeReady] = React.useState(false);
-
-	React.useEffect(() => {
-		setIsRealtimeReady(true);
-		return () => setIsRealtimeReady(false);
-	}, []);
 
 	// Fetch all item groups
 	const {
@@ -372,9 +366,7 @@ export default function ItemGroupsPage() {
 
 	return (
 		<>
-			{isRealtimeReady && (
-				<ItemGroupRealtimeSubscription onData={handleSubscriptionData} />
-			)}
+			<ItemGroupRealtimeSubscription onData={handleSubscriptionData} />
 			<div className="container mx-auto py-6 space-y-6">
 				<div className="flex items-center justify-between">
 					<div>

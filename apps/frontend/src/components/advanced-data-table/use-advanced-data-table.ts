@@ -166,6 +166,81 @@ export function useAdvancedDataTable<TData extends RowData>({
 		onGlobalFilterChangeRef.current = onGlobalFilterChange;
 	}, [onGlobalFilterChange]);
 
+	// Guard table internal state updates until mount completes.
+	// TanStack can queue pagination resets during initialization.
+	// Intentionally using empty dependency arrays for these handlers:
+	// React state setters are stable and we only read isMountedRef.current,
+	// which is mutable ref state and does not need to be in dependencies.
+	const handleRowSelectionChange = React.useCallback(
+		(
+			updater:
+				| RowSelectionState
+				| ((old: RowSelectionState) => RowSelectionState),
+		) => {
+			if (!isMountedRef.current) return;
+			setRowSelection(updater);
+		},
+		[],
+	);
+
+	const handleSortingChange = React.useCallback(
+		(updater: SortingState | ((old: SortingState) => SortingState)) => {
+			if (!isMountedRef.current) return;
+			setSorting(updater);
+		},
+		[],
+	);
+
+	const handleColumnFiltersChange = React.useCallback(
+		(
+			updater:
+				| ColumnFiltersState
+				| ((old: ColumnFiltersState) => ColumnFiltersState),
+		) => {
+			if (!isMountedRef.current) return;
+			setColumnFilters(updater);
+		},
+		[],
+	);
+
+	const handleColumnVisibilityChange = React.useCallback(
+		(
+			updater: VisibilityState | ((old: VisibilityState) => VisibilityState),
+		) => {
+			if (!isMountedRef.current) return;
+			setColumnVisibility(updater);
+		},
+		[],
+	);
+
+	const handlePaginationChange = React.useCallback(
+		(
+			updater: PaginationState | ((old: PaginationState) => PaginationState),
+		) => {
+			if (!isMountedRef.current) return;
+			setPagination(updater);
+		},
+		[],
+	);
+
+	const handleGlobalFilterChange = React.useCallback(
+		(updater: string | ((old: string) => string)) => {
+			if (!isMountedRef.current) return;
+			setGlobalFilter(updater);
+		},
+		[],
+	);
+
+	const handleColumnOrderChange = React.useCallback(
+		(
+			updater: ColumnOrderState | ((old: ColumnOrderState) => ColumnOrderState),
+		) => {
+			if (!isMountedRef.current) return;
+			setColumnOrder(updater);
+		},
+		[],
+	);
+
 	// Handle state changes with callbacks using refs to prevent stale closures
 	// Following official pattern: only call after component is mounted
 	React.useEffect(() => {
@@ -214,13 +289,13 @@ export function useAdvancedDataTable<TData extends RowData>({
 		enableGlobalFilter,
 		globalFilterFn: "includesString" as const,
 		columnResizeMode: "onChange" as const,
-		onRowSelectionChange: setRowSelection,
-		onSortingChange: setSorting,
-		onColumnFiltersChange: setColumnFilters,
-		onColumnVisibilityChange: setColumnVisibility,
-		onPaginationChange: setPagination,
-		onGlobalFilterChange: setGlobalFilter,
-		onColumnOrderChange: setColumnOrder,
+		onRowSelectionChange: handleRowSelectionChange,
+		onSortingChange: handleSortingChange,
+		onColumnFiltersChange: handleColumnFiltersChange,
+		onColumnVisibilityChange: handleColumnVisibilityChange,
+		onPaginationChange: handlePaginationChange,
+		onGlobalFilterChange: handleGlobalFilterChange,
+		onColumnOrderChange: handleColumnOrderChange,
 		getCoreRowModel: getCoreRowModel(),
 		getFilteredRowModel: getFilteredRowModel(),
 		getPaginationRowModel: getPaginationRowModel(),

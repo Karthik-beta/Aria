@@ -43,6 +43,64 @@ type InventoryRouterInput = {
 		output: Inventory.UnitOfMeasure[];
 		meta: object;
 	}>;
+	listBundleItems: TRPCQueryProcedure<{
+		input:
+			| {
+					search?: string | undefined;
+			  }
+			| undefined;
+		output: Inventory.BundleSelectableItem[];
+		meta: object;
+	}>;
+	listProductBundles: TRPCQueryProcedure<{
+		input: void;
+		output: Inventory.ProductBundle[];
+		meta: object;
+	}>;
+	createProductBundle: TRPCMutationProcedure<{
+		input: {
+			parentItemId: string;
+			description?: string | undefined;
+			disabled?: boolean | undefined;
+			bundleItems: {
+				itemId: string;
+				quantity: number;
+				description?: string | undefined;
+				unitOfMeasurementId?: string | undefined;
+			}[];
+		};
+		output: Inventory.ProductBundle;
+		meta: object;
+	}>;
+	updateProductBundle: TRPCMutationProcedure<{
+		input: {
+			id: string;
+			parentItemId?: string | undefined;
+			description?: string | undefined;
+			disabled?: boolean | undefined;
+			bundleItems?:
+				| {
+						id?: string | undefined;
+						itemId: string;
+						quantity: number;
+						description?: string | undefined;
+						unitOfMeasurementId?: string | undefined;
+				  }[]
+				| undefined;
+		};
+		output: Inventory.ProductBundle;
+		meta: object;
+	}>;
+	deleteProductBundle: TRPCMutationProcedure<{
+		input: {
+			id: string;
+		};
+		output: {
+			success: boolean;
+			id: string;
+		};
+		meta: object;
+	}>;
 	createItem: TRPCMutationProcedure<{
 		input: {
 			name: string;
