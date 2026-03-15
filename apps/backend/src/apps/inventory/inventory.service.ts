@@ -1,5 +1,6 @@
 import type { Inventory } from "@aria/types";
 import {
+	BadRequestException,
 	ConflictException,
 	Injectable,
 	NotFoundException,
@@ -10,6 +11,7 @@ import { Prisma } from "../../generated/prisma/client";
 import { PrismaService } from "../../shared/prisma.service";
 import {
 	toInventoryItem,
+	toInventoryItemAlternative,
 	toInventoryItemGroup,
 	toInventoryProductBundle,
 	toInventoryShippingRule,
@@ -80,6 +82,23 @@ const formatProductBundleItems = (items: ProductBundleItemInput[]) =>
 		description,
 		UnitOfMeasurementId: unitOfMeasurementId,
 	}));
+
+const itemAlternativeInclude = {
+	item: {
+		select: {
+			id: true,
+			name: true,
+			code: true,
+		},
+	},
+	alternateItem: {
+		select: {
+			id: true,
+			name: true,
+			code: true,
+		},
+	},
+} as const;
 
 /**
  * Simple inventory service with type-safe CRUD operations
@@ -510,6 +529,271 @@ export class InventoryService {
 				error.code === "P2025"
 			) {
 				throw new NotFoundException(`Shipping rule with ID ${id} not found`);
+			}
+			throw error;
+		}
+	}
+
+	private async ensureItemsExist(itemIds: string[]): Promise<void> {
+		const uniqueIds = [...new Set(itemIds)];
+		const existingItems = await this.prisma.item.findMany({
+			where: { id: { in: uniqueIds } },
+			select: { id: true },
+		});
+		const existingIds = new Set(existingItems.map((item) => item.id));
+		const missingItemId = uniqueIds.find((itemId) => !existingIds.has(itemId));
+
+		if (missingItemId) {
+			throw new NotFoundException(`Item with ID ${missingItemId} not found`);
+		}
+	}
+
+	/**
+	 * Get all item alternatives
+	 */
+	async findAllItemAlternatives(): Promise<Inventory.ItemAlternative[]> {
+		const alternatives = await this.prisma.itemAlternate.findMany({
+			orderBy: { createdAt: "desc" },
+			include: itemAlternativeInclude,
+		});
+
+		return alternatives.map(toInventoryItemAlternative);
+	}
+
+	/**
+	 * Get a single item alternative by id
+	 */
+	async findItemAlternativeById(
+		id: string,
+	): Promise<Inventory.ItemAlternative | null> {
+		const alternative = await this.prisma.itemAlternate.findUnique({
+			where: { id },
+			include: itemAlternativeInclude,
+		});
+
+		if (!alternative) {
+			return null;
+		}
+
+		const reverseAlternative = await this.prisma.itemAlternate.findUnique({
+			where: {
+				itemId_alternateItemId: {
+					itemId: alternative.alternateItemId,
+					alternateItemId: alternative.itemId,
+				},
+			},
+			select: { id: true },
+		});
+
+		return {
+			...toInventoryItemAlternative(alternative),
+			twoWay: Boolean(reverseAlternative),
+		};
+	}
+
+	/**
+	 * Create a new item alternative
+	 */
+	async createItemAlternative(
+		data: z.infer<typeof Inventory.createItemAlternativeSchema>,
+	): Promise<Inventory.ItemAlternative> {
+		if (data.itemId === data.alternativeItemId) {
+			throw new BadRequestException(
+				"Item and alternative item must be different",
+			);
+		}
+
+		await this.ensureItemsExist([data.itemId, data.alternativeItemId]);
+
+		const existing = await this.prisma.itemAlternate.findUnique({
+			where: {
+				itemId_alternateItemId: {
+					itemId: data.itemId,
+					alternateItemId: data.alternativeItemId,
+				},
+			},
+			select: { id: true },
+		});
+
+		if (existing) {
+			throw new ConflictException("Item alternative already exists");
+		}
+
+		try {
+			const created = await this.prisma.$transaction(async (tx) => {
+				const createdAlternative = await tx.itemAlternate.create({
+					data: {
+						itemId: data.itemId,
+						alternateItemId: data.alternativeItemId,
+					},
+					include: itemAlternativeInclude,
+				});
+
+				if (data.twoWay) {
+					await tx.itemAlternate.upsert({
+						where: {
+							itemId_alternateItemId: {
+								itemId: data.alternativeItemId,
+								alternateItemId: data.itemId,
+							},
+						},
+						update: {},
+						create: {
+							itemId: data.alternativeItemId,
+							alternateItemId: data.itemId,
+						},
+					});
+				}
+
+				return createdAlternative;
+			});
+
+			return {
+				...toInventoryItemAlternative(created),
+				twoWay: data.twoWay ?? false,
+			};
+		} catch (error) {
+			if (
+				error instanceof Prisma.PrismaClientKnownRequestError &&
+				error.code === "P2002"
+			) {
+				throw new ConflictException("Item alternative already exists");
+			}
+			throw error;
+		}
+	}
+
+	/**
+	 * Update an existing item alternative
+	 */
+	async updateItemAlternative(
+		data: z.infer<typeof Inventory.updateItemAlternativeSchema>,
+	): Promise<Inventory.ItemAlternative> {
+		const { id, ...rest } = data;
+		const existing = await this.prisma.itemAlternate.findUnique({
+			where: { id },
+			select: {
+				id: true,
+				itemId: true,
+				alternateItemId: true,
+			},
+		});
+
+		if (!existing) {
+			throw new NotFoundException(`Item alternative with ID ${id} not found`);
+		}
+
+		const nextItemId = rest.itemId ?? existing.itemId;
+		const nextAlternativeItemId =
+			rest.alternativeItemId ?? existing.alternateItemId;
+
+		if (nextItemId === nextAlternativeItemId) {
+			throw new BadRequestException(
+				"Item and alternative item must be different",
+			);
+		}
+
+		await this.ensureItemsExist([nextItemId, nextAlternativeItemId]);
+
+		const duplicate = await this.prisma.itemAlternate.findUnique({
+			where: {
+				itemId_alternateItemId: {
+					itemId: nextItemId,
+					alternateItemId: nextAlternativeItemId,
+				},
+			},
+			select: { id: true },
+		});
+
+		if (duplicate && duplicate.id !== id) {
+			throw new ConflictException("Item alternative already exists");
+		}
+
+		try {
+			const updated = await this.prisma.$transaction(async (tx) => {
+				const updatedAlternative = await tx.itemAlternate.update({
+					where: { id },
+					data: {
+						itemId: nextItemId,
+						alternateItemId: nextAlternativeItemId,
+					},
+					include: itemAlternativeInclude,
+				});
+
+				if (rest.twoWay === true) {
+					await tx.itemAlternate.upsert({
+						where: {
+							itemId_alternateItemId: {
+								itemId: nextAlternativeItemId,
+								alternateItemId: nextItemId,
+							},
+						},
+						update: {},
+						create: {
+							itemId: nextAlternativeItemId,
+							alternateItemId: nextItemId,
+						},
+					});
+				}
+
+				if (rest.twoWay === false) {
+					await tx.itemAlternate.deleteMany({
+						where: {
+							itemId: nextAlternativeItemId,
+							alternateItemId: nextItemId,
+						},
+					});
+				}
+
+				return updatedAlternative;
+			});
+
+			const reverseAlternative = await this.prisma.itemAlternate.findUnique({
+				where: {
+					itemId_alternateItemId: {
+						itemId: updated.alternateItemId,
+						alternateItemId: updated.itemId,
+					},
+				},
+				select: { id: true },
+			});
+
+			return {
+				...toInventoryItemAlternative(updated),
+				twoWay: Boolean(reverseAlternative),
+			};
+		} catch (error) {
+			if (
+				error instanceof Prisma.PrismaClientKnownRequestError &&
+				error.code === "P2025"
+			) {
+				throw new NotFoundException(`Item alternative with ID ${id} not found`);
+			}
+			if (
+				error instanceof Prisma.PrismaClientKnownRequestError &&
+				error.code === "P2002"
+			) {
+				throw new ConflictException("Item alternative already exists");
+			}
+			throw error;
+		}
+	}
+
+	/**
+	 * Delete an item alternative
+	 */
+	async deleteItemAlternative(
+		id: string,
+	): Promise<{ success: boolean; id: string }> {
+		try {
+			await this.prisma.itemAlternate.delete({ where: { id } });
+			return { success: true, id };
+		} catch (error) {
+			if (
+				error instanceof Prisma.PrismaClientKnownRequestError &&
+				error.code === "P2025"
+			) {
+				throw new NotFoundException(`Item alternative with ID ${id} not found`);
 			}
 			throw error;
 		}
