@@ -1,7 +1,7 @@
 import { Inventory } from "@aria/types";
 import { ConflictException, NotFoundException } from "@nestjs/common";
 import { Test, type TestingModule } from "@nestjs/testing";
-import { Prisma } from "../../generated/prisma/client.js";
+import { Prisma } from "../../generated/prisma/client";
 import { PrismaService } from "../../shared/prisma.service";
 import { InventoryService } from "./inventory.service";
 
@@ -59,6 +59,14 @@ describe("InventoryService", () => {
 		},
 		productBundle: {
 			findMany: jest.fn(),
+			findUnique: jest.fn(),
+			create: jest.fn(),
+			update: jest.fn(),
+			delete: jest.fn(),
+		},
+		shippingRule: {
+			findMany: jest.fn(),
+			findFirst: jest.fn(),
 			findUnique: jest.fn(),
 			create: jest.fn(),
 			update: jest.fn(),
@@ -336,6 +344,211 @@ describe("InventoryService", () => {
 			expect(mockPrisma.productBundle.delete).toHaveBeenCalledWith({
 				where: { id: "bundle-1" },
 			});
+		});
+	});
+
+	describe("findAllShippingRules", () => {
+		it("should return all shipping rules", async () => {
+			const now = new Date();
+			mockPrisma.shippingRule.findMany.mockResolvedValue([
+				{
+					id: "rule-1",
+					shippingRuleLabel: "Standard Shipping",
+					shippingRuleType: "SELLING",
+					disabled: false,
+					calculateBasedOn: "FIXED",
+					shippingAmount: 10,
+					createdAt: now,
+					updatedAt: now,
+				},
+			]);
+
+			const result = await service.findAllShippingRules();
+
+			expect(result).toHaveLength(1);
+			expect(result[0].shippingRuleLabel).toBe("Standard Shipping");
+			expect(mockPrisma.shippingRule.findMany).toHaveBeenCalledWith({
+				orderBy: { createdAt: "desc" },
+			});
+		});
+	});
+
+	describe("findShippingRuleById", () => {
+		it("should return shipping rule when found", async () => {
+			const now = new Date();
+			mockPrisma.shippingRule.findUnique.mockResolvedValue({
+				id: "rule-1",
+				shippingRuleLabel: "Standard Shipping",
+				shippingRuleType: "SELLING",
+				disabled: false,
+				calculateBasedOn: "FIXED",
+				shippingAmount: 10,
+				createdAt: now,
+				updatedAt: now,
+			});
+
+			const result = await service.findShippingRuleById("rule-1");
+
+			expect(result?.id).toBe("rule-1");
+			expect(mockPrisma.shippingRule.findUnique).toHaveBeenCalledWith({
+				where: { id: "rule-1" },
+			});
+		});
+
+		it("should return null when shipping rule is not found", async () => {
+			mockPrisma.shippingRule.findUnique.mockResolvedValue(null);
+
+			const result = await service.findShippingRuleById("missing-rule");
+
+			expect(result).toBeNull();
+		});
+	});
+
+	describe("createShippingRule", () => {
+		it("should create a shipping rule", async () => {
+			const now = new Date();
+			const input = Inventory.createShippingRuleSchema.parse({
+				shippingRuleLabel: "Priority Shipping",
+				shippingRuleType: "SELLING",
+				disabled: false,
+				calculateBasedOn: "NET_TOTAL",
+				shippingAmount: 25,
+			});
+
+			mockPrisma.shippingRule.findFirst.mockResolvedValue(null);
+			mockPrisma.shippingRule.create.mockResolvedValue({
+				id: "rule-1",
+				...input,
+				createdAt: now,
+				updatedAt: now,
+			});
+
+			const result = await service.createShippingRule(input);
+
+			expect(result.id).toBe("rule-1");
+			expect(mockPrisma.shippingRule.create).toHaveBeenCalledWith({
+				data: {
+					shippingRuleLabel: "Priority Shipping",
+					shippingRuleType: "SELLING",
+					disabled: false,
+					calculateBasedOn: "NET_TOTAL",
+					shippingAmount: 25,
+				},
+			});
+		});
+
+		it("should throw ConflictException when shipping rule label already exists", async () => {
+			const input = Inventory.createShippingRuleSchema.parse({
+				shippingRuleLabel: "Priority Shipping",
+				shippingRuleType: "SELLING",
+				disabled: false,
+				calculateBasedOn: "NET_TOTAL",
+				shippingAmount: 25,
+			});
+
+			mockPrisma.shippingRule.findFirst.mockResolvedValue({ id: "rule-1" });
+
+			await expect(service.createShippingRule(input)).rejects.toThrow(
+				ConflictException,
+			);
+		});
+	});
+
+	describe("updateShippingRule", () => {
+		it("should update an existing shipping rule", async () => {
+			const now = new Date();
+			mockPrisma.shippingRule.findFirst.mockResolvedValue(null);
+			mockPrisma.shippingRule.update.mockResolvedValue({
+				id: "rule-1",
+				shippingRuleLabel: "Priority Shipping Updated",
+				shippingRuleType: "BUYING",
+				disabled: true,
+				calculateBasedOn: "FIXED",
+				shippingAmount: 30,
+				createdAt: now,
+				updatedAt: now,
+			});
+
+			const result = await service.updateShippingRule({
+				id: "rule-1",
+				shippingRuleLabel: "Priority Shipping Updated",
+				shippingRuleType: "BUYING",
+				disabled: true,
+				calculateBasedOn: "FIXED",
+				shippingAmount: 30,
+			});
+
+			expect(result.shippingRuleType).toBe("BUYING");
+			expect(mockPrisma.shippingRule.update).toHaveBeenCalledWith({
+				where: { id: "rule-1" },
+				data: {
+					shippingRuleLabel: "Priority Shipping Updated",
+					shippingRuleType: "BUYING",
+					disabled: true,
+					calculateBasedOn: "FIXED",
+					shippingAmount: 30,
+				},
+			});
+		});
+
+		it("should throw ConflictException when updating to an existing label", async () => {
+			mockPrisma.shippingRule.findFirst.mockResolvedValue({ id: "rule-2" });
+
+			await expect(
+				service.updateShippingRule({
+					id: "rule-1",
+					shippingRuleLabel: "Priority Shipping",
+				}),
+			).rejects.toThrow(ConflictException);
+
+			expect(mockPrisma.shippingRule.update).not.toHaveBeenCalled();
+		});
+
+		it("should throw NotFoundException when shipping rule does not exist", async () => {
+			const error = new Prisma.PrismaClientKnownRequestError(
+				"Record not found",
+				{
+					code: "P2025",
+					clientVersion: "5.0.0",
+				},
+			);
+			mockPrisma.shippingRule.findFirst.mockResolvedValue(null);
+			mockPrisma.shippingRule.update.mockRejectedValue(error);
+
+			await expect(
+				service.updateShippingRule({
+					id: "rule-missing",
+					shippingRuleLabel: "Missing",
+				}),
+			).rejects.toThrow(NotFoundException);
+		});
+	});
+
+	describe("deleteShippingRule", () => {
+		it("should delete a shipping rule", async () => {
+			mockPrisma.shippingRule.delete.mockResolvedValue({ id: "rule-1" });
+
+			const result = await service.deleteShippingRule("rule-1");
+
+			expect(result).toEqual({ success: true, id: "rule-1" });
+			expect(mockPrisma.shippingRule.delete).toHaveBeenCalledWith({
+				where: { id: "rule-1" },
+			});
+		});
+
+		it("should throw NotFoundException when shipping rule does not exist", async () => {
+			const error = new Prisma.PrismaClientKnownRequestError(
+				"Record not found",
+				{
+					code: "P2025",
+					clientVersion: "5.0.0",
+				},
+			);
+			mockPrisma.shippingRule.delete.mockRejectedValue(error);
+
+			await expect(service.deleteShippingRule("rule-missing")).rejects.toThrow(
+				NotFoundException,
+			);
 		});
 	});
 });

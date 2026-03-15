@@ -5,7 +5,7 @@ import {
 	userEvent,
 	waitFor,
 } from "../../../../../test/utils";
-import NewProductBundlePage from "./page";
+import ProductBundleFormPage from "./page";
 
 const mockMutate = vi.fn();
 const mockPush = vi.fn();
@@ -64,9 +64,9 @@ vi.mock("@/lib/trpc", () => ({
 	},
 }));
 
-describe("NewProductBundlePage", () => {
+describe("ProductBundleFormPage", () => {
 	it("renders expected sections", () => {
-		renderWithProviders(<NewProductBundlePage />);
+		renderWithProviders(<ProductBundleFormPage />);
 
 		expect(screen.getByText("New Product Bundle")).toBeInTheDocument();
 		expect(screen.getByText("About Product Bundle")).toBeInTheDocument();
@@ -75,7 +75,7 @@ describe("NewProductBundlePage", () => {
 
 	it("adds an item row", async () => {
 		const user = userEvent.setup();
-		renderWithProviders(<NewProductBundlePage />);
+		renderWithProviders(<ProductBundleFormPage />);
 
 		await user.click(screen.getByRole("button", { name: "Add Row" }));
 
@@ -85,7 +85,7 @@ describe("NewProductBundlePage", () => {
 
 	it("submits bundle payload", async () => {
 		const user = userEvent.setup();
-		renderWithProviders(<NewProductBundlePage />);
+		renderWithProviders(<ProductBundleFormPage />);
 
 		await user.click(screen.getByRole("button", { name: "Save" }));
 

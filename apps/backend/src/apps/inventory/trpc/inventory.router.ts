@@ -92,6 +92,46 @@ function createDeleteProductBundleProcedure(
 		});
 }
 
+function createListShippingRulesProcedure(inventoryService: InventoryService) {
+	return protectedProcedure.query(async () => {
+		return inventoryService.findAllShippingRules();
+	});
+}
+
+function createGetShippingRuleByIdProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure
+		.input(z.object({ id: z.string().min(1) }))
+		.query(async ({ input }) => {
+			return inventoryService.findShippingRuleById(input.id);
+		});
+}
+
+function createCreateShippingRuleProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(Inventory.createShippingRuleSchema)
+		.mutation(async ({ input }) => {
+			return inventoryService.createShippingRule(input);
+		});
+}
+
+function createUpdateShippingRuleProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(Inventory.updateShippingRuleSchema)
+		.mutation(async ({ input }) => {
+			return inventoryService.updateShippingRule(input);
+		});
+}
+
+function createDeleteShippingRuleProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(z.object({ id: z.string().min(1) }))
+		.mutation(async ({ input }) => {
+			return inventoryService.deleteShippingRule(input.id);
+		});
+}
+
 function createCreateItemProcedure(inventoryService: InventoryService) {
 	return protectedProcedure
 		.input(Inventory.createSchema)
@@ -267,6 +307,11 @@ type InventoryRouterInput = {
 	createProductBundle: ReturnType<typeof createCreateProductBundleProcedure>;
 	updateProductBundle: ReturnType<typeof createUpdateProductBundleProcedure>;
 	deleteProductBundle: ReturnType<typeof createDeleteProductBundleProcedure>;
+	listShippingRules: ReturnType<typeof createListShippingRulesProcedure>;
+	getShippingRuleById: ReturnType<typeof createGetShippingRuleByIdProcedure>;
+	createShippingRule: ReturnType<typeof createCreateShippingRuleProcedure>;
+	updateShippingRule: ReturnType<typeof createUpdateShippingRuleProcedure>;
+	deleteShippingRule: ReturnType<typeof createDeleteShippingRuleProcedure>;
 	createItem: ReturnType<typeof createCreateItemProcedure>;
 	updateItem: ReturnType<typeof createUpdateItemProcedure>;
 	deleteItem: ReturnType<typeof createDeleteItemProcedure>;
@@ -301,6 +346,11 @@ function createInventoryRouterRecord(
 		createProductBundle: createCreateProductBundleProcedure(inventoryService),
 		updateProductBundle: createUpdateProductBundleProcedure(inventoryService),
 		deleteProductBundle: createDeleteProductBundleProcedure(inventoryService),
+		listShippingRules: createListShippingRulesProcedure(inventoryService),
+		getShippingRuleById: createGetShippingRuleByIdProcedure(inventoryService),
+		createShippingRule: createCreateShippingRuleProcedure(inventoryService),
+		updateShippingRule: createUpdateShippingRuleProcedure(inventoryService),
+		deleteShippingRule: createDeleteShippingRuleProcedure(inventoryService),
 		createItem: createCreateItemProcedure(inventoryService),
 		updateItem: createUpdateItemProcedure(inventoryService),
 		deleteItem: createDeleteItemProcedure(inventoryService),

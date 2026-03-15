@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import Script from "next/script";
 import { AuthGuard } from "@/components/auth/auth-guard";
 import { getActiveThemeValue } from "@/lib/active-theme.server";
 import { fontVariables } from "@/lib/font";
@@ -22,7 +23,16 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-	themeColor: META_THEME_COLORS.light,
+	themeColor: [
+		{
+			media: "(prefers-color-scheme: light)",
+			color: META_THEME_COLORS.light,
+		},
+		{
+			media: "(prefers-color-scheme: dark)",
+			color: META_THEME_COLORS.dark,
+		},
+	],
 };
 
 export default async function RootLayout({
@@ -33,13 +43,14 @@ export default async function RootLayout({
 	const activeThemeValue = await getActiveThemeValue();
 	const isScaled = activeThemeValue.endsWith("-scaled");
 
-	// Script to update meta theme-color for dark mode (runs before React hydrates)
-	const darkModeScript = `
+	const themeColorSyncScript = `
     try {
-      if (localStorage.theme === 'dark' || ((!('theme' in localStorage) || localStorage.theme === 'system') && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-        document.querySelector('meta[name="theme-color"]')?.setAttribute('content', '${META_THEME_COLORS.dark}');
-      }
-    } catch (e) {}
+      const storedTheme = localStorage.getItem('theme');
+      const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      const isDark = storedTheme === 'dark' || (storedTheme !== 'light' && systemDark);
+      const meta = document.querySelector('meta[name="theme-color"]');
+      if (meta) meta.setAttribute('content', isDark ? '${META_THEME_COLORS.dark}' : '${META_THEME_COLORS.light}');
+    } catch {}
   `;
 
 	// Build className as a static string to ensure identical SSR/client output
@@ -62,10 +73,10 @@ export default async function RootLayout({
 		// for theme handling because browser extensions commonly modify html attributes
 		// See: https://nextjs.org/docs/app/building-your-application/styling/css#suppressing-hydration-warnings
 		<html lang="en" suppressHydrationWarning>
-			<head>
-				<script>{darkModeScript}</script>
-			</head>
 			<body className={bodyClasses}>
+				<Script id="theme-color-sync" strategy="beforeInteractive">
+					{themeColorSyncScript}
+				</Script>
 				<TRPCProvider>
 					<AuthGuard>{children}</AuthGuard>
 				</TRPCProvider>

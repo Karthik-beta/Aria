@@ -20,7 +20,7 @@
  * ║ 2. IMPORT PATH                                                               ║
  * ║    - Client is no longer in node_modules/@prisma/client                      ║
  * ║    - Must use custom output path defined in schema.prisma generator block    ║
- * ║    - Example: import { PrismaClient } from './generated/prisma/client.js'    ║
+ * ║    - Example: import { PrismaClient } from './generated/prisma/client'       ║
  * ║                                                                              ║
  * ║ 3. ENVIRONMENT VARIABLES                                                     ║
  * ║    - Must explicitly load with dotenv (import 'dotenv/config')               ║
@@ -34,7 +34,7 @@
  */
 import "dotenv/config";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { PrismaClient } from "../generated/prisma/client.js";
+import { PrismaClient } from "../generated/prisma/client";
 
 // ============================================================================
 // Environment Configuration

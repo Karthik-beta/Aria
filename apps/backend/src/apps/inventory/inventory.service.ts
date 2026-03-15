@@ -5,13 +5,14 @@ import {
 	NotFoundException,
 } from "@nestjs/common";
 import type { z } from "zod";
-import { Prisma } from "../../generated/prisma/client.js";
+import { Prisma } from "../../generated/prisma/client";
 // biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
 import { PrismaService } from "../../shared/prisma.service";
 import {
 	toInventoryItem,
 	toInventoryItemGroup,
 	toInventoryProductBundle,
+	toInventoryShippingRule,
 } from "./inventory.types";
 
 const formatItemGroupDefaults = (defaults?: Inventory.ItemGroupDefault[]) =>
@@ -366,6 +367,149 @@ export class InventoryService {
 				error.code === "P2025"
 			) {
 				throw new NotFoundException(`Product bundle with ID ${id} not found`);
+			}
+			throw error;
+		}
+	}
+
+	/**
+	 * Get all shipping rules
+	 */
+	async findAllShippingRules(): Promise<Inventory.ShippingRule[]> {
+		const rules = await this.prisma.shippingRule.findMany({
+			orderBy: { createdAt: "desc" },
+		});
+
+		return rules.map(toInventoryShippingRule);
+	}
+
+	/**
+	 * Get a single shipping rule by id
+	 */
+	async findShippingRuleById(
+		id: string,
+	): Promise<Inventory.ShippingRule | null> {
+		const rule = await this.prisma.shippingRule.findUnique({
+			where: { id },
+		});
+
+		return rule ? toInventoryShippingRule(rule) : null;
+	}
+
+	/**
+	 * Create a shipping rule
+	 */
+	async createShippingRule(
+		data: z.infer<typeof Inventory.createShippingRuleSchema>,
+	): Promise<Inventory.ShippingRule> {
+		const duplicate = await this.prisma.shippingRule.findFirst({
+			where: {
+				shippingRuleLabel: {
+					equals: data.shippingRuleLabel,
+					mode: "insensitive",
+				},
+			},
+			select: { id: true },
+		});
+		if (duplicate) {
+			throw new ConflictException(
+				`Shipping rule with label "${data.shippingRuleLabel}" already exists`,
+			);
+		}
+
+		try {
+			const created = await this.prisma.shippingRule.create({
+				data: {
+					shippingRuleLabel: data.shippingRuleLabel,
+					shippingRuleType: data.shippingRuleType,
+					disabled: data.disabled ?? false,
+					calculateBasedOn: data.calculateBasedOn,
+					shippingAmount: data.shippingAmount ?? 0,
+				},
+			});
+
+			return toInventoryShippingRule(created);
+		} catch (error) {
+			if (
+				error instanceof Prisma.PrismaClientKnownRequestError &&
+				error.code === "P2002"
+			) {
+				throw new ConflictException(
+					`Shipping rule with label "${data.shippingRuleLabel}" already exists`,
+				);
+			}
+			throw error;
+		}
+	}
+
+	/**
+	 * Update a shipping rule
+	 */
+	async updateShippingRule(
+		data: z.infer<typeof Inventory.updateShippingRuleSchema>,
+	): Promise<Inventory.ShippingRule> {
+		const { id, ...rest } = data;
+
+		if (rest.shippingRuleLabel !== undefined) {
+			const duplicate = await this.prisma.shippingRule.findFirst({
+				where: {
+					id: { not: id },
+					shippingRuleLabel: {
+						equals: rest.shippingRuleLabel,
+						mode: "insensitive",
+					},
+				},
+				select: { id: true },
+			});
+
+			if (duplicate) {
+				throw new ConflictException(
+					`Shipping rule with label "${rest.shippingRuleLabel}" already exists`,
+				);
+			}
+		}
+
+		try {
+			const updated = await this.prisma.shippingRule.update({
+				where: { id },
+				data: removeUndefined(rest),
+			});
+
+			return toInventoryShippingRule(updated);
+		} catch (error) {
+			if (
+				error instanceof Prisma.PrismaClientKnownRequestError &&
+				error.code === "P2025"
+			) {
+				throw new NotFoundException(`Shipping rule with ID ${id} not found`);
+			}
+			if (
+				error instanceof Prisma.PrismaClientKnownRequestError &&
+				error.code === "P2002"
+			) {
+				throw new ConflictException(
+					`Shipping rule with label "${rest.shippingRuleLabel}" already exists`,
+				);
+			}
+			throw error;
+		}
+	}
+
+	/**
+	 * Delete a shipping rule
+	 */
+	async deleteShippingRule(
+		id: string,
+	): Promise<{ success: boolean; id: string }> {
+		try {
+			await this.prisma.shippingRule.delete({ where: { id } });
+			return { success: true, id };
+		} catch (error) {
+			if (
+				error instanceof Prisma.PrismaClientKnownRequestError &&
+				error.code === "P2025"
+			) {
+				throw new NotFoundException(`Shipping rule with ID ${id} not found`);
 			}
 			throw error;
 		}

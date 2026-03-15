@@ -328,6 +328,43 @@ export namespace Inventory {
 		bundleItems?: UpdateProductBundleItemInput[];
 	}
 
+	export type ShippingRuleType = "SELLING" | "BUYING";
+	export type ShippingRuleCalculationType =
+		| "FIXED"
+		| "NET_TOTAL"
+		| "NET_WEIGHT";
+
+	/**
+	 * Shipping rule entity
+	 */
+	export interface ShippingRule {
+		id: string;
+		shippingRuleLabel: string;
+		shippingRuleType: ShippingRuleType;
+		disabled: boolean;
+		calculateBasedOn: ShippingRuleCalculationType;
+		shippingAmount: number;
+		createdAt: Date;
+		updatedAt: Date;
+	}
+
+	export interface CreateShippingRuleInput {
+		shippingRuleLabel: string;
+		shippingRuleType: ShippingRuleType;
+		disabled?: boolean;
+		calculateBasedOn: ShippingRuleCalculationType;
+		shippingAmount?: number;
+	}
+
+	export interface UpdateShippingRuleInput {
+		id: string;
+		shippingRuleLabel?: string;
+		shippingRuleType?: ShippingRuleType;
+		disabled?: boolean;
+		calculateBasedOn?: ShippingRuleCalculationType;
+		shippingAmount?: number;
+	}
+
 	/**
 	 * Item option used in Product Bundle pickers.
 	 */
@@ -531,6 +568,27 @@ export namespace Inventory {
 			)
 			.min(1)
 			.optional(),
+	});
+
+	export const createShippingRuleSchema = z.object({
+		shippingRuleLabel: z
+			.string()
+			.min(1, "Shipping rule label is required")
+			.max(255)
+			.trim(),
+		shippingRuleType: z.enum(["SELLING", "BUYING"]),
+		disabled: z.boolean().default(false),
+		calculateBasedOn: z.enum(["FIXED", "NET_TOTAL", "NET_WEIGHT"]),
+		shippingAmount: z.number().min(0).default(0),
+	});
+
+	export const updateShippingRuleSchema = z.object({
+		id: z.string().cuid(),
+		shippingRuleLabel: z.string().min(1).max(255).trim().optional(),
+		shippingRuleType: z.enum(["SELLING", "BUYING"]).optional(),
+		disabled: z.boolean().optional(),
+		calculateBasedOn: z.enum(["FIXED", "NET_TOTAL", "NET_WEIGHT"]).optional(),
+		shippingAmount: z.number().min(0).optional(),
 	});
 }
 

@@ -9,7 +9,7 @@ import type {
 	RoleService,
 } from "../../authorization/role-permission.service";
 import type { ScopeService } from "../../authorization/scope.service";
-import type { Prisma } from "../../generated/prisma/client.js";
+import type { Prisma } from "../../generated/prisma/client";
 import { protectedProcedure, router } from "../trpc";
 
 type AdminRouterDependencies = {
