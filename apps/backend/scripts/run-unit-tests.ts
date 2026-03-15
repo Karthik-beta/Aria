@@ -1,7 +1,9 @@
+import { spawn } from "node:child_process";
+import { once } from "node:events";
 import { readdir, rm } from "node:fs/promises";
-import path from "node:path";
+import * as path from "node:path";
 
-const projectRoot = path.resolve(import.meta.dir, "..");
+const projectRoot = process.cwd();
 const bunExecutable = process.execPath;
 const testEnv = {
 	...process.env,
@@ -10,15 +12,13 @@ const testEnv = {
 };
 
 async function runCommand(args: string[]) {
-	const subprocess = Bun.spawn({
-		cmd: [bunExecutable, ...args],
+	const subprocess = spawn(bunExecutable, args, {
 		cwd: projectRoot,
 		env: testEnv,
-		stdout: "inherit",
-		stderr: "inherit",
+		stdio: "inherit",
 	});
 
-	const exitCode = await subprocess.exited;
+	const [exitCode] = await once(subprocess, "close");
 	if (exitCode !== 0) {
 		throw new Error(
 			`Command failed with exit code ${exitCode}: bun ${args.join(" ")}`,
@@ -47,34 +47,41 @@ async function collectSpecFiles(dir: string): Promise<string[]> {
 
 const tempDir = path.join(projectRoot, ".test-dist");
 
-try {
-	await rm(tempDir, { recursive: true, force: true });
+async function main() {
+	try {
+		await rm(tempDir, { recursive: true, force: true });
 
-	// Prisma v7 client is generated to src/generated/prisma and must exist before tsc.
-	await runCommand(["run", "prisma:generate"]);
+		// Prisma v7 client is generated to src/generated/prisma and must exist before tsc.
+		await runCommand(["run", "prisma:generate"]);
 
-	await runCommand([
-		"x",
-		"tsc",
-		"-p",
-		"tsconfig.spec.json",
-		"--outDir",
-		tempDir,
-	]);
+		await runCommand([
+			"x",
+			"tsc",
+			"-p",
+			"tsconfig.spec.json",
+			"--outDir",
+			tempDir,
+		]);
 
-	const compiledSrcDir = path.join(tempDir, "src");
-	const specFiles = await collectSpecFiles(compiledSrcDir);
+		const compiledSrcDir = path.join(tempDir, "src");
+		const specFiles = await collectSpecFiles(compiledSrcDir);
 
-	if (specFiles.length === 0) {
-		throw new Error(`No compiled spec files found in ${compiledSrcDir}`);
+		if (specFiles.length === 0) {
+			throw new Error(`No compiled spec files found in ${compiledSrcDir}`);
+		}
+
+		await runCommand([
+			"test",
+			"--preload",
+			path.join(projectRoot, "node_modules", "reflect-metadata", "Reflect.js"),
+			...specFiles,
+		]);
+	} finally {
+		await rm(tempDir, { recursive: true, force: true });
 	}
-
-	await runCommand([
-		"test",
-		"--preload",
-		path.join(projectRoot, "node_modules", "reflect-metadata", "Reflect.js"),
-		...specFiles,
-	]);
-} finally {
-	await rm(tempDir, { recursive: true, force: true });
 }
+
+main().catch((error) => {
+	console.error(error);
+	process.exitCode = 1;
+});
