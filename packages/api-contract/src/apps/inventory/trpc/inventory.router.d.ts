@@ -101,6 +101,51 @@ type InventoryRouterInput = {
 		};
 		meta: object;
 	}>;
+	listShippingRules: TRPCQueryProcedure<{
+		input: void;
+		output: Inventory.ShippingRule[];
+		meta: object;
+	}>;
+	getShippingRuleById: TRPCQueryProcedure<{
+		input: {
+			id: string;
+		};
+		output: Inventory.ShippingRule | null;
+		meta: object;
+	}>;
+	createShippingRule: TRPCMutationProcedure<{
+		input: {
+			shippingRuleLabel: string;
+			shippingRuleType: "SELLING" | "BUYING";
+			disabled?: boolean | undefined;
+			calculateBasedOn: "FIXED" | "NET_TOTAL" | "NET_WEIGHT";
+			shippingAmount?: number | undefined;
+		};
+		output: Inventory.ShippingRule;
+		meta: object;
+	}>;
+	updateShippingRule: TRPCMutationProcedure<{
+		input: {
+			id: string;
+			shippingRuleLabel?: string | undefined;
+			shippingRuleType?: "SELLING" | "BUYING" | undefined;
+			disabled?: boolean | undefined;
+			calculateBasedOn?: "FIXED" | "NET_TOTAL" | "NET_WEIGHT" | undefined;
+			shippingAmount?: number | undefined;
+		};
+		output: Inventory.ShippingRule;
+		meta: object;
+	}>;
+	deleteShippingRule: TRPCMutationProcedure<{
+		input: {
+			id: string;
+		};
+		output: {
+			success: boolean;
+			id: string;
+		};
+		meta: object;
+	}>;
 	createItem: TRPCMutationProcedure<{
 		input: {
 			name: string;

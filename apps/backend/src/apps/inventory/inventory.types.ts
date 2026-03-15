@@ -46,6 +46,22 @@ export type InventoryProductBundle = Prisma.ProductBundleGetPayload<{
 }>;
 
 /**
+ * Prisma model type for ShippingRule
+ */
+export type InventoryShippingRule = Prisma.ShippingRuleGetPayload<{
+	select: {
+		id: true;
+		shippingRuleLabel: true;
+		shippingRuleType: true;
+		disabled: true;
+		calculateBasedOn: true;
+		shippingAmount: true;
+		createdAt: true;
+		updatedAt: true;
+	};
+}>;
+
+/**
  * Converts a Prisma ItemGroup to Inventory.ItemGroup
  */
 export function toInventoryItemGroup(
@@ -153,6 +169,24 @@ export function toInventoryProductBundle(
 		})),
 		createdAt: prismaBundle.createdAt,
 		updatedAt: prismaBundle.updatedAt,
+	};
+}
+
+/**
+ * Converts a Prisma ShippingRule to Inventory.ShippingRule
+ */
+export function toInventoryShippingRule(
+	prismaShippingRule: InventoryShippingRule,
+): Inventory.ShippingRule {
+	return {
+		id: prismaShippingRule.id,
+		shippingRuleLabel: prismaShippingRule.shippingRuleLabel,
+		shippingRuleType: prismaShippingRule.shippingRuleType,
+		disabled: prismaShippingRule.disabled,
+		calculateBasedOn: prismaShippingRule.calculateBasedOn,
+		shippingAmount: prismaShippingRule.shippingAmount,
+		createdAt: prismaShippingRule.createdAt,
+		updatedAt: prismaShippingRule.updatedAt,
 	};
 }
 

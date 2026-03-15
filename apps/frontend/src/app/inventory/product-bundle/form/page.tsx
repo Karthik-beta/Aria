@@ -233,9 +233,9 @@ export default function NewProductBundlePage() {
 									<TableHead className="w-10" />
 									<TableHead className="w-12">No.</TableHead>
 									<TableHead>Item *</TableHead>
-									<TableHead className="w-[120px]">Qty *</TableHead>
+									<TableHead className="w-30">Qty *</TableHead>
 									<TableHead>Description</TableHead>
-									<TableHead className="w-[180px]">UOM</TableHead>
+									<TableHead className="w-45">UOM</TableHead>
 								</TableRow>
 							</TableHeader>
 							<TableBody>
