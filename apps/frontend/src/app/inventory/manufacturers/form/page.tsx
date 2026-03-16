@@ -4,14 +4,7 @@ import { Inventory } from "@aria/types";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Loader2, Menu } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import {
-	Suspense,
-	useEffect,
-	useMemo,
-	useRef,
-	useState,
-	useTransition,
-} from "react";
+import { Suspense, useEffect, useMemo, useRef, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import type { z } from "zod";
@@ -58,8 +51,6 @@ function ItemManufacturerFormContent() {
 	const id = searchParams.get("id");
 	const isEditMode = Boolean(id);
 	const [isPending, startTransition] = useTransition();
-	const [isInitialized, setIsInitialized] = useState(!isEditMode);
-	const [hasUnsavedChanges, setHasUnsavedChanges] = useState(!isEditMode);
 	const hasHandledMissingManufacturerRef = useRef(false);
 	const utils = trpc.useUtils();
 	const formSchema = useMemo(
@@ -100,14 +91,6 @@ function ItemManufacturerFormContent() {
 	);
 
 	useEffect(() => {
-		if (!isInitialized) return;
-		const subscription = form.watch(() => {
-			setHasUnsavedChanges(true);
-		});
-		return () => subscription.unsubscribe();
-	}, [form, isInitialized]);
-
-	useEffect(() => {
 		if (!isEditMode || !itemManufacturer) return;
 
 		form.reset({
@@ -116,8 +99,6 @@ function ItemManufacturerFormContent() {
 			manufacturerPartNumber: itemManufacturer.manufacturerPartNumber,
 			isDefault: itemManufacturer.isDefault,
 		});
-		setHasUnsavedChanges(false);
-		setIsInitialized(true);
 	}, [form, isEditMode, itemManufacturer]);
 
 	useEffect(() => {
@@ -150,7 +131,6 @@ function ItemManufacturerFormContent() {
 	const createMutation = trpc.inventory.createItemManufacturer.useMutation({
 		onSuccess: async () => {
 			toast.success("Item manufacturer created successfully");
-			setHasUnsavedChanges(false);
 			await utils.inventory.listItemManufacturers.invalidate();
 			startTransition(() => {
 				router.push("/inventory/manufacturers");
@@ -164,7 +144,6 @@ function ItemManufacturerFormContent() {
 	const updateMutation = trpc.inventory.updateItemManufacturer.useMutation({
 		onSuccess: async () => {
 			toast.success("Item manufacturer updated successfully");
-			setHasUnsavedChanges(false);
 			await utils.inventory.listItemManufacturers.invalidate();
 			if (id) {
 				await utils.inventory.getItemManufacturerById.invalidate({ id });
@@ -208,6 +187,7 @@ function ItemManufacturerFormContent() {
 
 	const isSubmitting =
 		createMutation.isPending || updateMutation.isPending || isPending;
+	const hasUnsavedChanges = form.formState.isDirty;
 
 	if (isEditMode && isFetchingItemManufacturer) {
 		return (

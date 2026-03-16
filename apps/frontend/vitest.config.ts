@@ -10,7 +10,9 @@ export default defineConfig({
 		environment: "jsdom",
 		pool: "forks",
 		maxWorkers: 1,
-		isolate: false,
+		isolate: true,
+		clearMocks: true,
+		mockReset: true,
 		setupFiles: ["./test/setup.ts"],
 		include: ["**/*.{test,spec}.{ts,tsx}"],
 		exclude: [

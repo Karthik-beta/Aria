@@ -96,6 +96,26 @@ const itemManufacturerInclude = {
 	},
 } as const;
 
+const ITEM_MANUFACTURERS_DEFAULT_PER_ITEM_INDEX =
+	"item_manufacturers_itemId_default_unique";
+
+const isDefaultItemManufacturerConstraintViolation = (
+	error: Prisma.PrismaClientKnownRequestError,
+): boolean => {
+	if (error.code !== "P2002") return false;
+
+	const target = error.meta?.target;
+	if (Array.isArray(target) && target.length === 1 && target[0] === "itemId") {
+		return true;
+	}
+
+	if (typeof target === "string" && target === "itemId") {
+		return true;
+	}
+
+	return error.message.includes(ITEM_MANUFACTURERS_DEFAULT_PER_ITEM_INDEX);
+};
+
 /**
  * Simple inventory service with type-safe CRUD operations
  */
@@ -596,6 +616,11 @@ export class InventoryService {
 				error instanceof Prisma.PrismaClientKnownRequestError &&
 				error.code === "P2002"
 			) {
+				if (isDefaultItemManufacturerConstraintViolation(error)) {
+					throw new ConflictException(
+						"An item can only have one default manufacturer",
+					);
+				}
 				throw new ConflictException("Item manufacturer already exists");
 			}
 			throw error;
@@ -661,6 +686,11 @@ export class InventoryService {
 				error instanceof Prisma.PrismaClientKnownRequestError &&
 				error.code === "P2002"
 			) {
+				if (isDefaultItemManufacturerConstraintViolation(error)) {
+					throw new ConflictException(
+						"An item can only have one default manufacturer",
+					);
+				}
 				throw new ConflictException("Item manufacturer already exists");
 			}
 			throw error;

@@ -520,7 +520,11 @@ export default function ItemManufacturersPage() {
 						<DialogTitle>New Item Manufacturer</DialogTitle>
 					</DialogHeader>
 
-					<form onSubmit={submitQuickCreate} className="space-y-5 px-5 py-5">
+					<form
+						id="quick-create-manufacturer-form"
+						onSubmit={submitQuickCreate}
+						className="space-y-5 px-5 py-5"
+					>
 						<div className="space-y-2">
 							<Label htmlFor="quick-item-code">Item Code *</Label>
 							<Select
@@ -596,8 +600,8 @@ export default function ItemManufacturersPage() {
 							<Link href={editFullFormHref}>Edit Full Form</Link>
 						</Button>
 						<Button
-							type="button"
-							onClick={submitQuickCreate}
+							type="submit"
+							form="quick-create-manufacturer-form"
 							disabled={createMutation.isPending}
 						>
 							{createMutation.isPending ? (
