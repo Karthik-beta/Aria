@@ -10,6 +10,7 @@ import { Prisma } from "../../generated/prisma/client";
 // biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
 import { PrismaService } from "../../shared/prisma.service";
 import {
+	itemAlternativeInclude,
 	toInventoryItem,
 	toInventoryItemAlternative,
 	toInventoryItemGroup,
@@ -82,23 +83,6 @@ const formatProductBundleItems = (items: ProductBundleItemInput[]) =>
 		description,
 		UnitOfMeasurementId: unitOfMeasurementId,
 	}));
-
-const itemAlternativeInclude = {
-	item: {
-		select: {
-			id: true,
-			name: true,
-			code: true,
-		},
-	},
-	alternateItem: {
-		select: {
-			id: true,
-			name: true,
-			code: true,
-		},
-	},
-} as const;
 
 /**
  * Simple inventory service with type-safe CRUD operations
@@ -557,7 +541,48 @@ export class InventoryService {
 			include: itemAlternativeInclude,
 		});
 
-		return alternatives.map(toInventoryItemAlternative);
+		const groupedAlternatives = new Map<
+			string,
+			{
+				canonical?: (typeof alternatives)[number];
+				reverse?: (typeof alternatives)[number];
+			}
+		>();
+
+		for (const alternative of alternatives) {
+			const [firstItemId, secondItemId] = [
+				alternative.itemId,
+				alternative.alternateItemId,
+			].sort();
+			const key = `${firstItemId}:${secondItemId}`;
+			const existingGroup = groupedAlternatives.get(key) ?? {};
+			const isCanonicalDirection =
+				alternative.itemId === firstItemId &&
+				alternative.alternateItemId === secondItemId;
+
+			if (isCanonicalDirection) {
+				existingGroup.canonical = alternative;
+			} else {
+				existingGroup.reverse = alternative;
+			}
+
+			groupedAlternatives.set(key, existingGroup);
+		}
+
+		const deduplicated: Inventory.ItemAlternative[] = [];
+		for (const group of groupedAlternatives.values()) {
+			const canonical = group.canonical ?? group.reverse;
+			if (!canonical) {
+				continue;
+			}
+
+			deduplicated.push({
+				...toInventoryItemAlternative(canonical),
+				twoWay: Boolean(group.canonical && group.reverse),
+			});
+		}
+
+		return deduplicated;
 	}
 
 	/**
@@ -645,12 +670,25 @@ export class InventoryService {
 					});
 				}
 
-				return createdAlternative;
+				const reverseAlternative = await tx.itemAlternate.findUnique({
+					where: {
+						itemId_alternateItemId: {
+							itemId: data.alternativeItemId,
+							alternateItemId: data.itemId,
+						},
+					},
+					select: { id: true },
+				});
+
+				return {
+					createdAlternative,
+					twoWay: Boolean(reverseAlternative),
+				};
 			});
 
 			return {
-				...toInventoryItemAlternative(created),
-				twoWay: data.twoWay ?? false,
+				...toInventoryItemAlternative(created.createdAlternative),
+				twoWay: created.twoWay,
 			};
 		} catch (error) {
 			if (
@@ -711,6 +749,19 @@ export class InventoryService {
 
 		try {
 			const updated = await this.prisma.$transaction(async (tx) => {
+				const pairChanged =
+					existing.itemId !== nextItemId ||
+					existing.alternateItemId !== nextAlternativeItemId;
+
+				if (pairChanged) {
+					await tx.itemAlternate.deleteMany({
+						where: {
+							itemId: existing.alternateItemId,
+							alternateItemId: existing.itemId,
+						},
+					});
+				}
+
 				const updatedAlternative = await tx.itemAlternate.update({
 					where: { id },
 					data: {
@@ -786,7 +837,34 @@ export class InventoryService {
 		id: string,
 	): Promise<{ success: boolean; id: string }> {
 		try {
-			await this.prisma.itemAlternate.delete({ where: { id } });
+			await this.prisma.$transaction(async (tx) => {
+				const existing = await tx.itemAlternate.findUnique({
+					where: { id },
+					select: { itemId: true, alternateItemId: true },
+				});
+
+				if (!existing) {
+					throw new NotFoundException(
+						`Item alternative with ID ${id} not found`,
+					);
+				}
+
+				await tx.itemAlternate.deleteMany({
+					where: {
+						OR: [
+							{
+								itemId: existing.itemId,
+								alternateItemId: existing.alternateItemId,
+							},
+							{
+								itemId: existing.alternateItemId,
+								alternateItemId: existing.itemId,
+							},
+						],
+					},
+				});
+			});
+
 			return { success: true, id };
 		} catch (error) {
 			if (

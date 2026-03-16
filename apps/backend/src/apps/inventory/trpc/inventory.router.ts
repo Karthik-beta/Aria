@@ -144,7 +144,7 @@ function createGetItemAlternativeByIdProcedure(
 	inventoryService: InventoryService,
 ) {
 	return protectedProcedure
-		.input(z.object({ id: z.string().min(1) }))
+		.input(z.object({ id: z.string().cuid() }))
 		.query(async ({ input }) => {
 			return inventoryService.findItemAlternativeById(input.id);
 		});
@@ -174,7 +174,7 @@ function createDeleteItemAlternativeProcedure(
 	inventoryService: InventoryService,
 ) {
 	return protectedProcedure
-		.input(z.object({ id: z.string().min(1) }))
+		.input(z.object({ id: z.string().cuid() }))
 		.mutation(async ({ input }) => {
 			return inventoryService.deleteItemAlternative(input.id);
 		});

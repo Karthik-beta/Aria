@@ -61,6 +61,10 @@ function ItemAlternativeFormContent() {
 			{ id: id ?? "" },
 			{ enabled: isEditMode },
 		);
+	const selectedItemId = form.watch("itemId");
+	const alternativeSelectableItems = selectableItems.filter(
+		(item) => item.id !== selectedItemId,
+	);
 
 	useEffect(() => {
 		if (!isInitialized) return;
@@ -101,20 +105,34 @@ function ItemAlternativeFormContent() {
 		if (isEditMode || selectableItems.length === 0) return;
 
 		const currentItemId = form.getValues("itemId");
+		const nextItemId = currentItemId || selectableItems[0].id;
 		if (!currentItemId) {
-			form.setValue("itemId", selectableItems[0].id, {
+			form.setValue("itemId", nextItemId, {
 				shouldDirty: false,
 			});
 		}
 
 		const currentAlternativeId = form.getValues("alternativeItemId");
-		const preferredAlternative = selectableItems[1] ?? selectableItems[0];
+		const preferredAlternative = selectableItems.find(
+			(item) => item.id !== nextItemId,
+		);
 		if (!currentAlternativeId && preferredAlternative) {
 			form.setValue("alternativeItemId", preferredAlternative.id, {
 				shouldDirty: false,
 			});
 		}
 	}, [form, isEditMode, selectableItems]);
+
+	useEffect(() => {
+		if (isEditMode) return;
+		if (!selectedItemId) return;
+
+		if (form.getValues("alternativeItemId") === selectedItemId) {
+			form.setValue("alternativeItemId", "", {
+				shouldDirty: false,
+			});
+		}
+	}, [form, isEditMode, selectedItemId]);
 
 	const createMutation = trpc.inventory.createItemAlternative.useMutation({
 		onSuccess: async () => {
@@ -213,7 +231,7 @@ function ItemAlternativeFormContent() {
 					<div className="space-y-2">
 						<Label htmlFor="itemId">Item Code *</Label>
 						<Select
-							value={form.watch("itemId") || undefined}
+							value={selectedItemId || undefined}
 							onValueChange={(value) =>
 								form.setValue("itemId", value, { shouldDirty: true })
 							}
@@ -250,7 +268,7 @@ function ItemAlternativeFormContent() {
 								<SelectValue placeholder="Select alternative item code" />
 							</SelectTrigger>
 							<SelectContent>
-								{selectableItems.map((item) => (
+								{alternativeSelectableItems.map((item) => (
 									<SelectItem key={item.id} value={item.id}>
 										{item.code}
 									</SelectItem>

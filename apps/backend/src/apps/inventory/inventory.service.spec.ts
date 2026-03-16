@@ -591,11 +591,53 @@ describe("InventoryService", () => {
 					alternativeItemId: "item-2",
 					alternativeItemCode: "ITEM-2",
 					alternativeItemName: "Item Two",
+					twoWay: false,
 					createdAt: now,
 					updatedAt: now,
 				},
 			]);
 			expect(mockPrisma.itemAlternate.findMany).toHaveBeenCalled();
+		});
+
+		it("should deduplicate two-way mappings and mark them as two-way", async () => {
+			const now = new Date();
+			mockPrisma.itemAlternate.findMany.mockResolvedValue([
+				{
+					id: "alt-reverse",
+					itemId: "item-2",
+					alternateItemId: "item-1",
+					createdAt: now,
+					updatedAt: now,
+					item: { id: "item-2", name: "Item Two", code: "ITEM-2" },
+					alternateItem: { id: "item-1", name: "Item One", code: "ITEM-1" },
+				},
+				{
+					id: "alt-canonical",
+					itemId: "item-1",
+					alternateItemId: "item-2",
+					createdAt: now,
+					updatedAt: now,
+					item: { id: "item-1", name: "Item One", code: "ITEM-1" },
+					alternateItem: { id: "item-2", name: "Item Two", code: "ITEM-2" },
+				},
+			]);
+
+			const result = await service.findAllItemAlternatives();
+
+			expect(result).toEqual([
+				{
+					id: "alt-canonical",
+					itemId: "item-1",
+					itemCode: "ITEM-1",
+					itemName: "Item One",
+					alternativeItemId: "item-2",
+					alternativeItemCode: "ITEM-2",
+					alternativeItemName: "Item Two",
+					twoWay: true,
+					createdAt: now,
+					updatedAt: now,
+				},
+			]);
 		});
 	});
 
@@ -676,7 +718,9 @@ describe("InventoryService", () => {
 				{ id: input.itemId },
 				{ id: input.alternativeItemId },
 			]);
-			mockPrisma.itemAlternate.findUnique.mockResolvedValue(null);
+			mockPrisma.itemAlternate.findUnique
+				.mockResolvedValueOnce(null)
+				.mockResolvedValueOnce({ id: "alt-2" });
 			mockPrisma.itemAlternate.create.mockResolvedValue({
 				id: "alt-1",
 				itemId: input.itemId,
@@ -696,6 +740,41 @@ describe("InventoryService", () => {
 
 			expect(result.twoWay).toBe(true);
 			expect(mockPrisma.itemAlternate.upsert).toHaveBeenCalled();
+		});
+
+		it("should return twoWay true when reverse mapping already exists", async () => {
+			const now = new Date();
+			const input = Inventory.createItemAlternativeSchema.parse({
+				itemId: "clh1234567890abcde123452",
+				alternativeItemId: "clh1234567890abcde123453",
+				twoWay: false,
+			});
+
+			mockPrisma.item.findMany.mockResolvedValue([
+				{ id: input.itemId },
+				{ id: input.alternativeItemId },
+			]);
+			mockPrisma.itemAlternate.findUnique
+				.mockResolvedValueOnce(null)
+				.mockResolvedValueOnce({ id: "alt-existing-reverse" });
+			mockPrisma.itemAlternate.create.mockResolvedValue({
+				id: "alt-1",
+				itemId: input.itemId,
+				alternateItemId: input.alternativeItemId,
+				createdAt: now,
+				updatedAt: now,
+				item: { id: input.itemId, name: "Item A", code: "ITEM-A" },
+				alternateItem: {
+					id: input.alternativeItemId,
+					name: "Item B",
+					code: "ITEM-B",
+				},
+			});
+
+			const result = await service.createItemAlternative(input);
+
+			expect(result.twoWay).toBe(true);
+			expect(mockPrisma.itemAlternate.upsert).not.toHaveBeenCalled();
 		});
 
 		it("should throw BadRequestException when item and alternative are the same", async () => {
@@ -771,7 +850,13 @@ describe("InventoryService", () => {
 
 			expect(result.itemCode).toBe("ITEM-C");
 			expect(result.twoWay).toBe(false);
-			expect(mockPrisma.itemAlternate.deleteMany).toHaveBeenCalledWith({
+			expect(mockPrisma.itemAlternate.deleteMany).toHaveBeenNthCalledWith(1, {
+				where: {
+					itemId: "clh1234567890abcde123458",
+					alternateItemId: "clh1234567890abcde123457",
+				},
+			});
+			expect(mockPrisma.itemAlternate.deleteMany).toHaveBeenNthCalledWith(2, {
 				where: {
 					itemId: "clh1234567890abcde123460",
 					alternateItemId: "clh1234567890abcde123459",
@@ -779,7 +864,7 @@ describe("InventoryService", () => {
 			});
 		});
 
-		it("should upsert reverse relation when two-way is enabled", async () => {
+		it("should remove stale reverse mapping when pair changes and two-way is enabled", async () => {
 			const now = new Date();
 			mockPrisma.itemAlternate.findUnique
 				.mockResolvedValueOnce({
@@ -790,22 +875,22 @@ describe("InventoryService", () => {
 				.mockResolvedValueOnce(null)
 				.mockResolvedValueOnce({ id: "reverse-1" });
 			mockPrisma.item.findMany.mockResolvedValue([
-				{ id: "clh1234567890abcde123461" },
-				{ id: "clh1234567890abcde123462" },
+				{ id: "clh1234567890abcde123465" },
+				{ id: "clh1234567890abcde123466" },
 			]);
 			mockPrisma.itemAlternate.update.mockResolvedValue({
 				id: "alt-1",
-				itemId: "clh1234567890abcde123461",
-				alternateItemId: "clh1234567890abcde123462",
+				itemId: "clh1234567890abcde123465",
+				alternateItemId: "clh1234567890abcde123466",
 				createdAt: now,
 				updatedAt: now,
 				item: {
-					id: "clh1234567890abcde123461",
+					id: "clh1234567890abcde123465",
 					name: "Item E",
 					code: "ITEM-E",
 				},
 				alternateItem: {
-					id: "clh1234567890abcde123462",
+					id: "clh1234567890abcde123466",
 					name: "Item F",
 					code: "ITEM-F",
 				},
@@ -814,11 +899,19 @@ describe("InventoryService", () => {
 
 			const result = await service.updateItemAlternative({
 				id: "alt-1",
+				itemId: "clh1234567890abcde123465",
+				alternativeItemId: "clh1234567890abcde123466",
 				twoWay: true,
 			});
 
 			expect(result.twoWay).toBe(true);
 			expect(mockPrisma.itemAlternate.upsert).toHaveBeenCalled();
+			expect(mockPrisma.itemAlternate.deleteMany).toHaveBeenCalledWith({
+				where: {
+					itemId: "clh1234567890abcde123462",
+					alternateItemId: "clh1234567890abcde123461",
+				},
+			});
 		});
 
 		it("should throw NotFoundException when item alternative does not exist", async () => {
@@ -851,14 +944,37 @@ describe("InventoryService", () => {
 
 	describe("deleteItemAlternative", () => {
 		it("should delete an item alternative", async () => {
-			mockPrisma.itemAlternate.delete.mockResolvedValue({ id: "alt-1" });
+			mockPrisma.itemAlternate.findUnique.mockResolvedValue({
+				itemId: "clh1234567890abcde123467",
+				alternateItemId: "clh1234567890abcde123468",
+			});
+			mockPrisma.itemAlternate.deleteMany.mockResolvedValue({ count: 2 });
 
 			const result = await service.deleteItemAlternative("alt-1");
 
 			expect(result).toEqual({ success: true, id: "alt-1" });
-			expect(mockPrisma.itemAlternate.delete).toHaveBeenCalledWith({
-				where: { id: "alt-1" },
+			expect(mockPrisma.itemAlternate.deleteMany).toHaveBeenCalledWith({
+				where: {
+					OR: [
+						{
+							itemId: "clh1234567890abcde123467",
+							alternateItemId: "clh1234567890abcde123468",
+						},
+						{
+							itemId: "clh1234567890abcde123468",
+							alternateItemId: "clh1234567890abcde123467",
+						},
+					],
+				},
 			});
+		});
+
+		it("should throw NotFoundException when item alternative does not exist", async () => {
+			mockPrisma.itemAlternate.findUnique.mockResolvedValue(null);
+
+			await expect(
+				service.deleteItemAlternative("missing-alt"),
+			).rejects.toThrow(NotFoundException);
 		});
 	});
 });

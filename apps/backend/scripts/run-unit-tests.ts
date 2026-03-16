@@ -95,6 +95,8 @@ async function main() {
 }
 
 main().catch((error) => {
-	process.stderr.write(`${error}\n`);
+	const message =
+		error instanceof Error ? (error.stack ?? error.message) : String(error);
+	process.stderr.write(`${message}\n`);
 	process.exitCode = 1;
 });
