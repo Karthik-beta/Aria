@@ -128,6 +128,9 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
 	get itemAlternate() {
 		return this.client.itemAlternate;
 	}
+	get itemManufacturer() {
+		return this.client.itemManufacturer;
+	}
 	get itemBarcode() {
 		return this.client.itemBarcode;
 	}

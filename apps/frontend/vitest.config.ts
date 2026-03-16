@@ -2,14 +2,15 @@ import path from "node:path";
 import react from "@vitejs/plugin-react";
 import { configDefaults, defineConfig } from "vitest/config";
 
-process.env.NODE_ENV = "test";
-
 export default defineConfig({
 	plugins: [react()],
 	test: {
 		name: "frontend",
 		globals: true,
 		environment: "jsdom",
+		pool: "forks",
+		maxWorkers: 1,
+		isolate: false,
 		setupFiles: ["./test/setup.ts"],
 		include: ["**/*.{test,spec}.{ts,tsx}"],
 		exclude: [
@@ -37,9 +38,7 @@ export default defineConfig({
 				statements: 80,
 			},
 		},
-		mockReset: true,
 		restoreMocks: true,
-		clearMocks: true,
 	},
 	resolve: {
 		alias: {

@@ -357,6 +357,37 @@ export namespace Inventory {
 		twoWay?: boolean;
 	}
 
+	/**
+	 * Item manufacturer mapping for an inventory item.
+	 */
+	export interface ItemManufacturer {
+		id: string;
+		itemId: string;
+		itemCode: string;
+		itemName?: string | null;
+		itemDescription?: string | null;
+		manufacturer: string;
+		manufacturerPartNumber: string;
+		isDefault: boolean;
+		createdAt: Date;
+		updatedAt: Date;
+	}
+
+	export interface CreateItemManufacturerInput {
+		itemId: string;
+		manufacturer: string;
+		manufacturerPartNumber: string;
+		isDefault?: boolean;
+	}
+
+	export interface UpdateItemManufacturerInput {
+		id: string;
+		itemId?: string;
+		manufacturer?: string;
+		manufacturerPartNumber?: string;
+		isDefault?: boolean;
+	}
+
 	export type ShippingRuleType = "SELLING" | "BUYING";
 	export type ShippingRuleCalculationType =
 		| "FIXED"
@@ -401,6 +432,7 @@ export namespace Inventory {
 		id: string;
 		name: string;
 		code: string;
+		description?: string | null;
 		defaultUnitOfMeasureId?: string | null;
 	}
 
@@ -629,6 +661,25 @@ export namespace Inventory {
 				path: ["alternativeItemId"],
 			},
 		);
+
+	export const createItemManufacturerSchema = z.object({
+		itemId: z.string().cuid(),
+		manufacturer: z.string().min(1, "Manufacturer is required").max(255).trim(),
+		manufacturerPartNumber: z
+			.string()
+			.min(1, "Manufacturer part number is required")
+			.max(255)
+			.trim(),
+		isDefault: z.boolean().default(false),
+	});
+
+	export const updateItemManufacturerSchema = z.object({
+		id: z.string().cuid(),
+		itemId: z.string().cuid().optional(),
+		manufacturer: z.string().min(1).max(255).trim().optional(),
+		manufacturerPartNumber: z.string().min(1).max(255).trim().optional(),
+		isDefault: z.boolean().optional(),
+	});
 
 	export const createShippingRuleSchema = z.object({
 		shippingRuleLabel: z
