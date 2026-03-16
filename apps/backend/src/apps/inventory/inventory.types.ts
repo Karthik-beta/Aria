@@ -62,6 +62,33 @@ export type InventoryShippingRule = Prisma.ShippingRuleGetPayload<{
 }>;
 
 /**
+ * Prisma model type for ItemAlternate with relations
+ */
+export const itemAlternativeInclude = {
+	item: {
+		select: {
+			id: true,
+			name: true,
+			code: true,
+		},
+	},
+	alternateItem: {
+		select: {
+			id: true,
+			name: true,
+			code: true,
+		},
+	},
+} as const satisfies Prisma.ItemAlternateInclude;
+
+/**
+ * Prisma model type for ItemAlternate with relations
+ */
+export type InventoryItemAlternative = Prisma.ItemAlternateGetPayload<{
+	include: typeof itemAlternativeInclude;
+}>;
+
+/**
  * Converts a Prisma ItemGroup to Inventory.ItemGroup
  */
 export function toInventoryItemGroup(
@@ -187,6 +214,25 @@ export function toInventoryShippingRule(
 		shippingAmount: prismaShippingRule.shippingAmount,
 		createdAt: prismaShippingRule.createdAt,
 		updatedAt: prismaShippingRule.updatedAt,
+	};
+}
+
+/**
+ * Converts a Prisma ItemAlternate to Inventory.ItemAlternative
+ */
+export function toInventoryItemAlternative(
+	prismaItemAlternative: InventoryItemAlternative,
+): Inventory.ItemAlternative {
+	return {
+		id: prismaItemAlternative.id,
+		itemId: prismaItemAlternative.itemId,
+		itemCode: prismaItemAlternative.item.code,
+		itemName: prismaItemAlternative.item.name,
+		alternativeItemId: prismaItemAlternative.alternateItemId,
+		alternativeItemCode: prismaItemAlternative.alternateItem.code,
+		alternativeItemName: prismaItemAlternative.alternateItem.name,
+		createdAt: prismaItemAlternative.createdAt,
+		updatedAt: prismaItemAlternative.updatedAt,
 	};
 }
 

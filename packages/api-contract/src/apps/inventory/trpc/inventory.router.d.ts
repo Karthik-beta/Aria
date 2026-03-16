@@ -146,6 +146,47 @@ type InventoryRouterInput = {
 		};
 		meta: object;
 	}>;
+	listItemAlternatives: TRPCQueryProcedure<{
+		input: void;
+		output: Inventory.ItemAlternative[];
+		meta: object;
+	}>;
+	getItemAlternativeById: TRPCQueryProcedure<{
+		input: {
+			id: string;
+		};
+		output: Inventory.ItemAlternative | null;
+		meta: object;
+	}>;
+	createItemAlternative: TRPCMutationProcedure<{
+		input: {
+			itemId: string;
+			alternativeItemId: string;
+			twoWay?: boolean | undefined;
+		};
+		output: Inventory.ItemAlternative;
+		meta: object;
+	}>;
+	updateItemAlternative: TRPCMutationProcedure<{
+		input: {
+			id: string;
+			itemId?: string | undefined;
+			alternativeItemId?: string | undefined;
+			twoWay?: boolean | undefined;
+		};
+		output: Inventory.ItemAlternative;
+		meta: object;
+	}>;
+	deleteItemAlternative: TRPCMutationProcedure<{
+		input: {
+			id: string;
+		};
+		output: {
+			success: boolean;
+			id: string;
+		};
+		meta: object;
+	}>;
 	createItem: TRPCMutationProcedure<{
 		input: {
 			name: string;

@@ -1,6 +1,5 @@
 import "@testing-library/jest-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { z } from "zod";
 import {
 	renderWithProviders,
 	screen,
@@ -53,11 +52,11 @@ vi.mock("@hookform/resolvers/zod", () => ({
 
 vi.mock("@aria/types", () => {
 	const createShape = {
-		shippingRuleLabel: z.string(),
-		shippingRuleType: z.enum(["SELLING", "BUYING"]),
-		disabled: z.boolean(),
-		calculateBasedOn: z.enum(["FIXED", "NET_TOTAL", "NET_WEIGHT"]),
-		shippingAmount: z.number(),
+		shippingRuleLabel: {} as never,
+		shippingRuleType: {} as never,
+		disabled: {} as never,
+		calculateBasedOn: {} as never,
+		shippingAmount: {} as never,
 	};
 
 	return {

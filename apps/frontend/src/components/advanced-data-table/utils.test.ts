@@ -14,6 +14,7 @@ describe("Table Utilities", () => {
 
 		afterEach(() => {
 			vi.restoreAllMocks();
+			vi.useRealTimers();
 		});
 
 		it("should delay function execution", () => {
@@ -71,6 +72,7 @@ describe("Table Utilities", () => {
 
 		afterEach(() => {
 			vi.restoreAllMocks();
+			vi.useRealTimers();
 		});
 
 		it("should execute function immediately on first call", () => {
@@ -124,6 +126,7 @@ describe("Table Utilities", () => {
 
 		afterEach(() => {
 			vi.restoreAllMocks();
+			vi.useRealTimers();
 		});
 
 		it("should debounce function calls", () => {
@@ -172,6 +175,7 @@ describe("Table Utilities", () => {
 
 		afterEach(() => {
 			vi.restoreAllMocks();
+			vi.useRealTimers();
 		});
 
 		it("should throttle function calls", () => {

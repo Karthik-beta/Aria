@@ -11,18 +11,31 @@ const testEnv = {
 	BETTER_AUTH_SECRET: "test-secret",
 };
 
-async function runCommand(args: string[]) {
-	const subprocess = spawn(bunExecutable, args, {
-		cwd: projectRoot,
-		env: testEnv,
-		stdio: "inherit",
-	});
+async function runCommand(args: string[], retries = 0) {
+	let attempt = 0;
 
-	const [exitCode] = await once(subprocess, "close");
-	if (exitCode !== 0) {
-		throw new Error(
-			`Command failed with exit code ${exitCode}: bun ${args.join(" ")}`,
-		);
+	while (attempt <= retries) {
+		const subprocess = spawn(bunExecutable, args, {
+			cwd: projectRoot,
+			env: testEnv,
+			stdio: "inherit",
+		});
+
+		const [exitCode] = await once(subprocess, "close");
+		if (exitCode === 0) {
+			return;
+		}
+
+		attempt += 1;
+		if (attempt > retries) {
+			throw new Error(
+				`Command failed with exit code ${exitCode}: bun ${args.join(" ")}`,
+			);
+		}
+
+		await new Promise((resolve) => {
+			setTimeout(resolve, 250 * attempt);
+		});
 	}
 }
 
@@ -51,8 +64,8 @@ async function main() {
 	try {
 		await rm(tempDir, { recursive: true, force: true });
 
-		// Prisma v7 client is generated to src/generated/prisma and must exist before tsc.
-		await runCommand(["run", "prisma:generate"]);
+		// Build and test run concurrently in Turborepo; retry avoids transient Prisma generate races.
+		await runCommand(["run", "prisma:generate"], 2);
 
 		await runCommand([
 			"x",
@@ -82,6 +95,8 @@ async function main() {
 }
 
 main().catch((error) => {
-	console.error(error);
+	const message =
+		error instanceof Error ? (error.stack ?? error.message) : String(error);
+	process.stderr.write(`${message}\n`);
 	process.exitCode = 1;
 });

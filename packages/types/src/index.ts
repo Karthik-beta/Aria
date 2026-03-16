@@ -328,6 +328,35 @@ export namespace Inventory {
 		bundleItems?: UpdateProductBundleItemInput[];
 	}
 
+	/**
+	 * Item alternative mapping between two inventory items.
+	 */
+	export interface ItemAlternative {
+		id: string;
+		itemId: string;
+		itemCode: string;
+		itemName?: string | null;
+		alternativeItemId: string;
+		alternativeItemCode: string;
+		alternativeItemName?: string | null;
+		twoWay?: boolean;
+		createdAt: Date;
+		updatedAt: Date;
+	}
+
+	export interface CreateItemAlternativeInput {
+		itemId: string;
+		alternativeItemId: string;
+		twoWay?: boolean;
+	}
+
+	export interface UpdateItemAlternativeInput {
+		id: string;
+		itemId?: string;
+		alternativeItemId?: string;
+		twoWay?: boolean;
+	}
+
 	export type ShippingRuleType = "SELLING" | "BUYING";
 	export type ShippingRuleCalculationType =
 		| "FIXED"
@@ -569,6 +598,37 @@ export namespace Inventory {
 			.min(1)
 			.optional(),
 	});
+
+	export const createItemAlternativeSchema = z
+		.object({
+			itemId: z.string().cuid(),
+			alternativeItemId: z.string().cuid(),
+			twoWay: z.boolean().default(false),
+		})
+		.refine((value) => value.itemId !== value.alternativeItemId, {
+			message: "Item and alternative item must be different",
+			path: ["alternativeItemId"],
+		});
+
+	export const updateItemAlternativeSchema = z
+		.object({
+			id: z.string().cuid(),
+			itemId: z.string().cuid().optional(),
+			alternativeItemId: z.string().cuid().optional(),
+			twoWay: z.boolean().optional(),
+		})
+		.refine(
+			(value) =>
+				!(
+					value.itemId &&
+					value.alternativeItemId &&
+					value.itemId === value.alternativeItemId
+				),
+			{
+				message: "Item and alternative item must be different",
+				path: ["alternativeItemId"],
+			},
+		);
 
 	export const createShippingRuleSchema = z.object({
 		shippingRuleLabel: z

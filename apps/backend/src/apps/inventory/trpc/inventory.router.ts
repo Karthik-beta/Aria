@@ -132,6 +132,54 @@ function createDeleteShippingRuleProcedure(inventoryService: InventoryService) {
 		});
 }
 
+function createListItemAlternativesProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure.query(async () => {
+		return inventoryService.findAllItemAlternatives();
+	});
+}
+
+function createGetItemAlternativeByIdProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure
+		.input(z.object({ id: z.string().cuid() }))
+		.query(async ({ input }) => {
+			return inventoryService.findItemAlternativeById(input.id);
+		});
+}
+
+function createCreateItemAlternativeProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure
+		.input(Inventory.createItemAlternativeSchema)
+		.mutation(async ({ input }) => {
+			return inventoryService.createItemAlternative(input);
+		});
+}
+
+function createUpdateItemAlternativeProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure
+		.input(Inventory.updateItemAlternativeSchema)
+		.mutation(async ({ input }) => {
+			return inventoryService.updateItemAlternative(input);
+		});
+}
+
+function createDeleteItemAlternativeProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure
+		.input(z.object({ id: z.string().cuid() }))
+		.mutation(async ({ input }) => {
+			return inventoryService.deleteItemAlternative(input.id);
+		});
+}
+
 function createCreateItemProcedure(inventoryService: InventoryService) {
 	return protectedProcedure
 		.input(Inventory.createSchema)
@@ -312,6 +360,19 @@ type InventoryRouterInput = {
 	createShippingRule: ReturnType<typeof createCreateShippingRuleProcedure>;
 	updateShippingRule: ReturnType<typeof createUpdateShippingRuleProcedure>;
 	deleteShippingRule: ReturnType<typeof createDeleteShippingRuleProcedure>;
+	listItemAlternatives: ReturnType<typeof createListItemAlternativesProcedure>;
+	getItemAlternativeById: ReturnType<
+		typeof createGetItemAlternativeByIdProcedure
+	>;
+	createItemAlternative: ReturnType<
+		typeof createCreateItemAlternativeProcedure
+	>;
+	updateItemAlternative: ReturnType<
+		typeof createUpdateItemAlternativeProcedure
+	>;
+	deleteItemAlternative: ReturnType<
+		typeof createDeleteItemAlternativeProcedure
+	>;
 	createItem: ReturnType<typeof createCreateItemProcedure>;
 	updateItem: ReturnType<typeof createUpdateItemProcedure>;
 	deleteItem: ReturnType<typeof createDeleteItemProcedure>;
@@ -351,6 +412,15 @@ function createInventoryRouterRecord(
 		createShippingRule: createCreateShippingRuleProcedure(inventoryService),
 		updateShippingRule: createUpdateShippingRuleProcedure(inventoryService),
 		deleteShippingRule: createDeleteShippingRuleProcedure(inventoryService),
+		listItemAlternatives: createListItemAlternativesProcedure(inventoryService),
+		getItemAlternativeById:
+			createGetItemAlternativeByIdProcedure(inventoryService),
+		createItemAlternative:
+			createCreateItemAlternativeProcedure(inventoryService),
+		updateItemAlternative:
+			createUpdateItemAlternativeProcedure(inventoryService),
+		deleteItemAlternative:
+			createDeleteItemAlternativeProcedure(inventoryService),
 		createItem: createCreateItemProcedure(inventoryService),
 		updateItem: createUpdateItemProcedure(inventoryService),
 		deleteItem: createDeleteItemProcedure(inventoryService),
