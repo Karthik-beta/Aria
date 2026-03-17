@@ -4,6 +4,8 @@ node_modules/
 .pnp.cjs
 .pnp.loader.mjs
 .pnpm-store/
+package-lock.json
+yarn.lock
 
 # Bun
 .bun/
@@ -22,6 +24,11 @@ out/
 *.tsbuildinfo
 tsbuildinfo.json
 tsbuild/
+target/
+.errors/
+
+# Rust compiler crashes
+rustc-ice-*.txt
 
 # Environment files
 .env*
@@ -35,6 +42,8 @@ tsbuild/
 *.swp
 *.swo
 *~
+**/.#*
+.nvmrc
 
 # OS generated files
 .DS_Store
@@ -53,6 +62,8 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
+*.cpuprofile
+*.heapsnapshot
 
 # Runtime data
 pids/
@@ -72,6 +83,15 @@ playwright/.cache/
 apps/backend/.test-dist/
 apps/backend/test/**/*.js
 apps/backend/test/**/*.js.map
+test/**/out/*
+test/**/next-env.d.ts
+test/**/.next*
+/e2e-tests
+test/tmp/**
+test/.trace
+test/traces
+pr-stats.md
+test-timings.json
 
 # Prisma
 apps/backend/prisma/migrations/
@@ -107,5 +127,31 @@ temp/
 # Temporary files
 *.txt
 
+# Vercel & Next caches
+.vercel
+.now
+.swc/
+
+# Storybook logs
+*storybook.log
+
+# Examples
+examples/**/out/*
+
+# Conductor worktrees (keep scripts)
+.conductor/*/
+!.conductor/scripts/
+
+index.scip
+
+# Eval artifacts
+evals/.tarballs/
+evals/experiments/
+evals/results/
+evals/agent-results.json
+
 # Claude folder
 .claude
+
+# Turborepo
+.turbo
