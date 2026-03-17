@@ -715,6 +715,33 @@ describe("InventoryService", () => {
 				ConflictException,
 			);
 		});
+
+		it("should throw ConflictException with the default manufacturer message when the partial index is violated", async () => {
+			const input = Inventory.createItemManufacturerSchema.parse({
+				itemId: "clh1234567890abcde123450",
+				manufacturer: "Apple",
+				manufacturerPartNumber: "APL-002",
+				isDefault: true,
+			});
+
+			mockPrisma.item.findMany.mockResolvedValue([{ id: input.itemId }]);
+			mockPrisma.itemManufacturer.updateMany.mockResolvedValue({ count: 0 });
+			const error = new Prisma.PrismaClientKnownRequestError(
+				"Default manufacturer already exists",
+				{
+					code: "P2002",
+					clientVersion: "5.0.0",
+					meta: { target: ["itemId"] },
+				},
+			);
+			mockPrisma.itemManufacturer.create.mockRejectedValue(error);
+
+			const promise = service.createItemManufacturer(input);
+			await expect(promise).rejects.toMatchObject({
+				name: ConflictException.name,
+				message: "An item can only have one default manufacturer",
+			});
+		});
 	});
 
 	describe("updateItemManufacturer", () => {
@@ -774,6 +801,35 @@ describe("InventoryService", () => {
 					manufacturerPartNumber: "APL-UPDATED",
 				}),
 			).rejects.toThrow(NotFoundException);
+		});
+
+		it("should throw ConflictException with default manufacturer message when partial index fails", async () => {
+			mockPrisma.itemManufacturer.findUnique.mockResolvedValue({
+				id: "mf-conflict",
+				itemId: "item-conflict",
+				isDefault: false,
+			});
+
+			mockPrisma.itemManufacturer.updateMany.mockResolvedValue({ count: 1 });
+			const error = new Prisma.PrismaClientKnownRequestError(
+				"Default manufacturer already exists",
+				{
+					code: "P2002",
+					clientVersion: "5.0.0",
+					meta: { target: ["itemId"] },
+				},
+			);
+			mockPrisma.itemManufacturer.update.mockRejectedValue(error);
+
+			const promise = service.updateItemManufacturer({
+				id: "mf-conflict",
+				isDefault: true,
+			});
+
+			await expect(promise).rejects.toMatchObject({
+				name: ConflictException.name,
+				message: "An item can only have one default manufacturer",
+			});
 		});
 	});
 
