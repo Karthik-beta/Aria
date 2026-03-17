@@ -152,6 +152,11 @@ describe("ItemAlternativeFormPage", () => {
 		const user = userEvent.setup();
 		renderWithProviders(<ItemAlternativeFormPage />);
 
+		await waitFor(() => {
+			expect(screen.getByText("43567-OR")).toBeInTheDocument();
+			expect(screen.getByText("43567-BLA")).toBeInTheDocument();
+		});
+
 		await user.click(screen.getByRole("button", { name: "Save" }));
 
 		await waitFor(() => {

@@ -85,6 +85,14 @@ describe("InventoryService", () => {
 			delete: jest.fn(),
 			deleteMany: jest.fn(),
 		},
+		itemManufacturer: {
+			findMany: jest.fn(),
+			findUnique: jest.fn(),
+			create: jest.fn(),
+			update: jest.fn(),
+			updateMany: jest.fn(),
+			delete: jest.fn(),
+		},
 		$transaction: jest.fn(),
 	};
 
@@ -562,6 +570,296 @@ describe("InventoryService", () => {
 			await expect(service.deleteShippingRule("rule-missing")).rejects.toThrow(
 				NotFoundException,
 			);
+		});
+	});
+
+	describe("findAllItemManufacturers", () => {
+		it("should return all item manufacturers", async () => {
+			const now = new Date();
+			mockPrisma.itemManufacturer.findMany.mockResolvedValue([
+				{
+					id: "mf-1",
+					itemId: "item-1",
+					manufacturer: "Apple",
+					manufacturerPartNumber: "APL-001",
+					isDefault: true,
+					createdAt: now,
+					updatedAt: now,
+					item: {
+						id: "item-1",
+						code: "01223",
+						name: "iPhone 13",
+						description: "Phone",
+					},
+				},
+			]);
+
+			const result = await service.findAllItemManufacturers();
+
+			expect(result).toEqual([
+				{
+					id: "mf-1",
+					itemId: "item-1",
+					itemCode: "01223",
+					itemName: "iPhone 13",
+					itemDescription: "Phone",
+					manufacturer: "Apple",
+					manufacturerPartNumber: "APL-001",
+					isDefault: true,
+					createdAt: now,
+					updatedAt: now,
+				},
+			]);
+			expect(mockPrisma.itemManufacturer.findMany).toHaveBeenCalledWith({
+				orderBy: { createdAt: "desc" },
+				include: {
+					item: {
+						select: {
+							id: true,
+							code: true,
+							name: true,
+							description: true,
+						},
+					},
+				},
+			});
+		});
+	});
+
+	describe("findItemManufacturerById", () => {
+		it("should return item manufacturer when found", async () => {
+			const now = new Date();
+			mockPrisma.itemManufacturer.findUnique.mockResolvedValue({
+				id: "mf-1",
+				itemId: "item-1",
+				manufacturer: "Apple",
+				manufacturerPartNumber: "APL-001",
+				isDefault: false,
+				createdAt: now,
+				updatedAt: now,
+				item: {
+					id: "item-1",
+					code: "01223",
+					name: "iPhone 13",
+					description: "Phone",
+				},
+			});
+
+			const result = await service.findItemManufacturerById("mf-1");
+
+			expect(result?.id).toBe("mf-1");
+			expect(result?.itemCode).toBe("01223");
+		});
+
+		it("should return null when item manufacturer is not found", async () => {
+			mockPrisma.itemManufacturer.findUnique.mockResolvedValue(null);
+
+			const result = await service.findItemManufacturerById("missing-mf");
+
+			expect(result).toBeNull();
+		});
+	});
+
+	describe("createItemManufacturer", () => {
+		it("should create an item manufacturer", async () => {
+			const now = new Date();
+			const input = Inventory.createItemManufacturerSchema.parse({
+				itemId: "clh1234567890abcde123450",
+				manufacturer: "Apple",
+				manufacturerPartNumber: "APL-001",
+				isDefault: true,
+			});
+
+			mockPrisma.item.findMany.mockResolvedValue([{ id: input.itemId }]);
+			mockPrisma.itemManufacturer.updateMany.mockResolvedValue({ count: 1 });
+			mockPrisma.itemManufacturer.create.mockResolvedValue({
+				id: "mf-1",
+				itemId: input.itemId,
+				manufacturer: input.manufacturer,
+				manufacturerPartNumber: input.manufacturerPartNumber,
+				isDefault: true,
+				createdAt: now,
+				updatedAt: now,
+				item: {
+					id: input.itemId,
+					code: "01223",
+					name: "iPhone 13",
+					description: "Phone",
+				},
+			});
+
+			const result = await service.createItemManufacturer(input);
+
+			expect(result.id).toBe("mf-1");
+			expect(result.isDefault).toBe(true);
+			expect(mockPrisma.itemManufacturer.updateMany).toHaveBeenCalled();
+			expect(mockPrisma.itemManufacturer.create).toHaveBeenCalled();
+		});
+
+		it("should throw ConflictException when duplicate exists", async () => {
+			const input = Inventory.createItemManufacturerSchema.parse({
+				itemId: "clh1234567890abcde123450",
+				manufacturer: "Apple",
+				manufacturerPartNumber: "APL-001",
+				isDefault: false,
+			});
+
+			mockPrisma.item.findMany.mockResolvedValue([{ id: input.itemId }]);
+			const error = new Prisma.PrismaClientKnownRequestError("Duplicate", {
+				code: "P2002",
+				clientVersion: "5.0.0",
+			});
+			mockPrisma.itemManufacturer.create.mockRejectedValue(error);
+
+			await expect(service.createItemManufacturer(input)).rejects.toThrow(
+				ConflictException,
+			);
+		});
+
+		it("should throw ConflictException with the default manufacturer message when the partial index is violated", async () => {
+			const input = Inventory.createItemManufacturerSchema.parse({
+				itemId: "clh1234567890abcde123450",
+				manufacturer: "Apple",
+				manufacturerPartNumber: "APL-002",
+				isDefault: true,
+			});
+
+			mockPrisma.item.findMany.mockResolvedValue([{ id: input.itemId }]);
+			mockPrisma.itemManufacturer.updateMany.mockResolvedValue({ count: 0 });
+			const error = new Prisma.PrismaClientKnownRequestError(
+				"Default manufacturer already exists",
+				{
+					code: "P2002",
+					clientVersion: "5.0.0",
+					meta: { target: ["itemId"] },
+				},
+			);
+			mockPrisma.itemManufacturer.create.mockRejectedValue(error);
+
+			const promise = service.createItemManufacturer(input);
+			await expect(promise).rejects.toMatchObject({
+				name: ConflictException.name,
+				message: "An item can only have one default manufacturer",
+			});
+		});
+	});
+
+	describe("updateItemManufacturer", () => {
+		it("should update an item manufacturer", async () => {
+			const now = new Date();
+			mockPrisma.itemManufacturer.findUnique.mockResolvedValue({
+				id: "mf-1",
+				itemId: "item-1",
+				isDefault: false,
+			});
+			mockPrisma.itemManufacturer.update.mockResolvedValue({
+				id: "mf-1",
+				itemId: "item-1",
+				manufacturer: "Apple",
+				manufacturerPartNumber: "APL-UPDATED",
+				isDefault: false,
+				createdAt: now,
+				updatedAt: now,
+				item: {
+					id: "item-1",
+					code: "01223",
+					name: "iPhone 13",
+					description: "Phone",
+				},
+			});
+
+			const result = await service.updateItemManufacturer({
+				id: "mf-1",
+				manufacturerPartNumber: "APL-UPDATED",
+			});
+
+			expect(result.manufacturerPartNumber).toBe("APL-UPDATED");
+			expect(mockPrisma.itemManufacturer.update).toHaveBeenCalledWith({
+				where: { id: "mf-1" },
+				data: {
+					manufacturerPartNumber: "APL-UPDATED",
+				},
+				include: {
+					item: {
+						select: {
+							id: true,
+							code: true,
+							name: true,
+							description: true,
+						},
+					},
+				},
+			});
+		});
+
+		it("should throw NotFoundException when item manufacturer does not exist", async () => {
+			mockPrisma.itemManufacturer.findUnique.mockResolvedValue(null);
+
+			await expect(
+				service.updateItemManufacturer({
+					id: "missing-mf",
+					manufacturerPartNumber: "APL-UPDATED",
+				}),
+			).rejects.toThrow(NotFoundException);
+		});
+
+		it("should throw ConflictException with default manufacturer message when partial index fails", async () => {
+			mockPrisma.itemManufacturer.findUnique.mockResolvedValue({
+				id: "mf-conflict",
+				itemId: "item-conflict",
+				isDefault: false,
+			});
+
+			mockPrisma.itemManufacturer.updateMany.mockResolvedValue({ count: 1 });
+			const error = new Prisma.PrismaClientKnownRequestError(
+				"Default manufacturer already exists",
+				{
+					code: "P2002",
+					clientVersion: "5.0.0",
+					meta: { target: ["itemId"] },
+				},
+			);
+			mockPrisma.itemManufacturer.update.mockRejectedValue(error);
+
+			const promise = service.updateItemManufacturer({
+				id: "mf-conflict",
+				isDefault: true,
+			});
+
+			await expect(promise).rejects.toMatchObject({
+				name: ConflictException.name,
+				message: "An item can only have one default manufacturer",
+			});
+		});
+	});
+
+	describe("deleteItemManufacturer", () => {
+		it("should delete an item manufacturer", async () => {
+			mockPrisma.itemManufacturer.delete.mockResolvedValue({
+				id: "mf-1",
+			});
+
+			const result = await service.deleteItemManufacturer("mf-1");
+
+			expect(result).toEqual({ success: true, id: "mf-1" });
+			expect(mockPrisma.itemManufacturer.delete).toHaveBeenCalledWith({
+				where: { id: "mf-1" },
+			});
+		});
+
+		it("should throw NotFoundException when item manufacturer does not exist", async () => {
+			const error = new Prisma.PrismaClientKnownRequestError(
+				"Record not found",
+				{
+					code: "P2025",
+					clientVersion: "5.0.0",
+				},
+			);
+			mockPrisma.itemManufacturer.delete.mockRejectedValue(error);
+
+			await expect(
+				service.deleteItemManufacturer("missing-mf"),
+			).rejects.toThrow(NotFoundException);
 		});
 	});
 

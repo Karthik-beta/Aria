@@ -14,6 +14,7 @@ import {
 	toInventoryItem,
 	toInventoryItemAlternative,
 	toInventoryItemGroup,
+	toInventoryItemManufacturer,
 	toInventoryProductBundle,
 	toInventoryShippingRule,
 } from "./inventory.types";
@@ -83,6 +84,37 @@ const formatProductBundleItems = (items: ProductBundleItemInput[]) =>
 		description,
 		UnitOfMeasurementId: unitOfMeasurementId,
 	}));
+
+const itemManufacturerInclude = {
+	item: {
+		select: {
+			id: true,
+			code: true,
+			name: true,
+			description: true,
+		},
+	},
+} as const;
+
+const ITEM_MANUFACTURERS_DEFAULT_PER_ITEM_INDEX =
+	"item_manufacturers_itemId_default_unique";
+
+const isDefaultItemManufacturerConstraintViolation = (
+	error: Prisma.PrismaClientKnownRequestError,
+): boolean => {
+	if (error.code !== "P2002") return false;
+
+	const target = error.meta?.target;
+	if (Array.isArray(target) && target.length === 1 && target[0] === "itemId") {
+		return true;
+	}
+
+	if (typeof target === "string" && target === "itemId") {
+		return true;
+	}
+
+	return error.message.includes(ITEM_MANUFACTURERS_DEFAULT_PER_ITEM_INDEX);
+};
 
 /**
  * Simple inventory service with type-safe CRUD operations
@@ -170,6 +202,7 @@ export class InventoryService {
 				id: true,
 				name: true,
 				code: true,
+				description: true,
 				defaultUnitOfMeasureId: true,
 			},
 			orderBy: { name: "asc" },
@@ -513,6 +546,176 @@ export class InventoryService {
 				error.code === "P2025"
 			) {
 				throw new NotFoundException(`Shipping rule with ID ${id} not found`);
+			}
+			throw error;
+		}
+	}
+
+	/**
+	 * Get all item manufacturers
+	 */
+	async findAllItemManufacturers(): Promise<Inventory.ItemManufacturer[]> {
+		const manufacturers = await this.prisma.itemManufacturer.findMany({
+			orderBy: { createdAt: "desc" },
+			include: itemManufacturerInclude,
+		});
+
+		return manufacturers.map(toInventoryItemManufacturer);
+	}
+
+	/**
+	 * Get a single item manufacturer by id
+	 */
+	async findItemManufacturerById(
+		id: string,
+	): Promise<Inventory.ItemManufacturer | null> {
+		const manufacturer = await this.prisma.itemManufacturer.findUnique({
+			where: { id },
+			include: itemManufacturerInclude,
+		});
+
+		return manufacturer ? toInventoryItemManufacturer(manufacturer) : null;
+	}
+
+	/**
+	 * Create an item manufacturer mapping
+	 */
+	async createItemManufacturer(
+		data: z.infer<typeof Inventory.createItemManufacturerSchema>,
+	): Promise<Inventory.ItemManufacturer> {
+		await this.ensureItemsExist([data.itemId]);
+
+		try {
+			const created = await this.prisma.$transaction(async (tx) => {
+				if (data.isDefault) {
+					await tx.itemManufacturer.updateMany({
+						where: {
+							itemId: data.itemId,
+							isDefault: true,
+						},
+						data: {
+							isDefault: false,
+						},
+					});
+				}
+
+				return tx.itemManufacturer.create({
+					data: {
+						itemId: data.itemId,
+						manufacturer: data.manufacturer,
+						manufacturerPartNumber: data.manufacturerPartNumber,
+						isDefault: data.isDefault ?? false,
+					},
+					include: itemManufacturerInclude,
+				});
+			});
+
+			return toInventoryItemManufacturer(created);
+		} catch (error) {
+			if (
+				error instanceof Prisma.PrismaClientKnownRequestError &&
+				error.code === "P2002"
+			) {
+				if (isDefaultItemManufacturerConstraintViolation(error)) {
+					throw new ConflictException(
+						"An item can only have one default manufacturer",
+					);
+				}
+				throw new ConflictException("Item manufacturer already exists");
+			}
+			throw error;
+		}
+	}
+
+	/**
+	 * Update an item manufacturer mapping
+	 */
+	async updateItemManufacturer(
+		data: z.infer<typeof Inventory.updateItemManufacturerSchema>,
+	): Promise<Inventory.ItemManufacturer> {
+		const { id, ...rest } = data;
+		const existing = await this.prisma.itemManufacturer.findUnique({
+			where: { id },
+			select: { id: true, itemId: true, isDefault: true },
+		});
+
+		if (!existing) {
+			throw new NotFoundException(`Item manufacturer with ID ${id} not found`);
+		}
+
+		if (rest.itemId) {
+			await this.ensureItemsExist([rest.itemId]);
+		}
+
+		const nextItemId = rest.itemId ?? existing.itemId;
+		const nextIsDefault = rest.isDefault ?? existing.isDefault;
+
+		try {
+			const updated = await this.prisma.$transaction(async (tx) => {
+				if (nextIsDefault) {
+					await tx.itemManufacturer.updateMany({
+						where: {
+							itemId: nextItemId,
+							isDefault: true,
+							id: { not: id },
+						},
+						data: {
+							isDefault: false,
+						},
+					});
+				}
+
+				return tx.itemManufacturer.update({
+					where: { id },
+					data: removeUndefined(rest),
+					include: itemManufacturerInclude,
+				});
+			});
+
+			return toInventoryItemManufacturer(updated);
+		} catch (error) {
+			if (
+				error instanceof Prisma.PrismaClientKnownRequestError &&
+				error.code === "P2025"
+			) {
+				throw new NotFoundException(
+					`Item manufacturer with ID ${id} not found`,
+				);
+			}
+			if (
+				error instanceof Prisma.PrismaClientKnownRequestError &&
+				error.code === "P2002"
+			) {
+				if (isDefaultItemManufacturerConstraintViolation(error)) {
+					throw new ConflictException(
+						"An item can only have one default manufacturer",
+					);
+				}
+				throw new ConflictException("Item manufacturer already exists");
+			}
+			throw error;
+		}
+	}
+
+	/**
+	 * Delete an item manufacturer mapping
+	 */
+	async deleteItemManufacturer(
+		id: string,
+	): Promise<{ success: boolean; id: string }> {
+		try {
+			await this.prisma.itemManufacturer.delete({
+				where: { id },
+			});
+			return { success: true, id };
+		} catch (error) {
+			if (
+				error instanceof Prisma.PrismaClientKnownRequestError &&
+				error.code === "P2025"
+			) {
+				throw new NotFoundException(
+					`Item manufacturer with ID ${id} not found`,
+				);
 			}
 			throw error;
 		}

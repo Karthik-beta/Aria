@@ -89,6 +89,22 @@ export type InventoryItemAlternative = Prisma.ItemAlternateGetPayload<{
 }>;
 
 /**
+ * Prisma model type for ItemManufacturer with item relation
+ */
+export type InventoryItemManufacturer = Prisma.ItemManufacturerGetPayload<{
+	include: {
+		item: {
+			select: {
+				id: true;
+				code: true;
+				name: true;
+				description: true;
+			};
+		};
+	};
+}>;
+
+/**
  * Converts a Prisma ItemGroup to Inventory.ItemGroup
  */
 export function toInventoryItemGroup(
@@ -233,6 +249,26 @@ export function toInventoryItemAlternative(
 		alternativeItemName: prismaItemAlternative.alternateItem.name,
 		createdAt: prismaItemAlternative.createdAt,
 		updatedAt: prismaItemAlternative.updatedAt,
+	};
+}
+
+/**
+ * Converts a Prisma ItemManufacturer to Inventory.ItemManufacturer
+ */
+export function toInventoryItemManufacturer(
+	prismaManufacturer: InventoryItemManufacturer,
+): Inventory.ItemManufacturer {
+	return {
+		id: prismaManufacturer.id,
+		itemId: prismaManufacturer.itemId,
+		itemCode: prismaManufacturer.item.code,
+		itemName: prismaManufacturer.item.name,
+		itemDescription: prismaManufacturer.item.description,
+		manufacturer: prismaManufacturer.manufacturer,
+		manufacturerPartNumber: prismaManufacturer.manufacturerPartNumber,
+		isDefault: prismaManufacturer.isDefault,
+		createdAt: prismaManufacturer.createdAt,
+		updatedAt: prismaManufacturer.updatedAt,
 	};
 }
 
