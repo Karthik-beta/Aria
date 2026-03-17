@@ -59,7 +59,13 @@
 				"!index.scip",
 				"!**/evals/**"
 			],
-			"outputs": ["dist/**", "build/**", ".next/**", "!.next/cache/**", "!.next/dev/**"],
+			"outputs": [
+				"dist/**",
+				"build/**",
+				".next/**",
+				"!.next/cache/**",
+				"!.next/dev/**"
+			],
 			"cache": true
 		},
 		"typecheck": {
