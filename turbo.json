@@ -1,7 +1,7 @@
 {
 	"$schema": "https://turborepo.com/schema.json",
 	"remoteCache": {
-		"enabled": false
+		"enabled": true
 	},
 	"globalDependencies": [
 		"biome.json",
@@ -37,10 +37,35 @@
 				"!**/*.tsbuildinfo",
 				"!**/coverage/**",
 				"!**/playwright-report/**",
+				"!**/.next/cache/**",
+				"!**/.next/dev/**",
 				"!**/test-results/**",
-				"!**/tmp-typecheck/**"
+				"!**/tmp-typecheck/**",
+				"!**/target/**",
+				"!**/.errors/**",
+				"!**/test/**/out/**",
+				"!**/test/**/next-env.d.ts",
+				"!**/test/**/.next*",
+				"!**/test/tmp/**",
+				"!**/test/.trace",
+				"!**/test/traces",
+				"!**/pr-stats.md",
+				"!**/test-timings.json",
+				"!**/.vercel/**",
+				"!**/.now/**",
+				"!**/.swc/**",
+				"!**/examples/**/out/**",
+				"!**/.conductor/**",
+				"!index.scip",
+				"!**/evals/**"
 			],
-			"outputs": ["dist/**", "build/**", ".next/**", "!.next/cache/**"],
+			"outputs": [
+				"dist/**",
+				"build/**",
+				".next/**",
+				"!.next/cache/**",
+				"!.next/dev/**"
+			],
 			"cache": true
 		},
 		"typecheck": {
@@ -56,8 +81,27 @@
 				"!**/*.tsbuildinfo",
 				"!**/coverage/**",
 				"!**/playwright-report/**",
+				"!**/.next/cache/**",
+				"!**/.next/dev/**",
 				"!**/test-results/**",
-				"!**/tmp-typecheck/**"
+				"!**/tmp-typecheck/**",
+				"!**/target/**",
+				"!**/.errors/**",
+				"!**/test/**/out/**",
+				"!**/test/**/next-env.d.ts",
+				"!**/test/**/.next*",
+				"!**/test/tmp/**",
+				"!**/test/.trace",
+				"!**/test/traces",
+				"!**/pr-stats.md",
+				"!**/test-timings.json",
+				"!**/.vercel/**",
+				"!**/.now/**",
+				"!**/.swc/**",
+				"!**/examples/**/out/**",
+				"!**/.conductor/**",
+				"!index.scip",
+				"!**/evals/**"
 			],
 			"outputs": [],
 			"cache": true
@@ -91,8 +135,27 @@
 				"!**/*.tsbuildinfo",
 				"!**/coverage/**",
 				"!**/playwright-report/**",
+				"!**/.next/cache/**",
+				"!**/.next/dev/**",
 				"!**/test-results/**",
-				"!**/tmp-typecheck/**"
+				"!**/tmp-typecheck/**",
+				"!**/target/**",
+				"!**/.errors/**",
+				"!**/test/**/out/**",
+				"!**/test/**/next-env.d.ts",
+				"!**/test/**/.next*",
+				"!**/test/tmp/**",
+				"!**/test/.trace",
+				"!**/test/traces",
+				"!**/pr-stats.md",
+				"!**/test-timings.json",
+				"!**/.vercel/**",
+				"!**/.now/**",
+				"!**/.swc/**",
+				"!**/examples/**/out/**",
+				"!**/.conductor/**",
+				"!index.scip",
+				"!**/evals/**"
 			],
 			"outputs": []
 		},
