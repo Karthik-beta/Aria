@@ -167,6 +167,7 @@ model Item {
   primaryItemAlternates  ItemAlternate[]     @relation("PrimaryItem")
   productBundles         ProductBundle[]
   productBundleItems     ProductBundleItem[]
+  itemManufacturers      ItemManufacturer[]
 }
 
 model UnitOfMeasurement {
@@ -237,6 +238,21 @@ model ItemAlternate {
   item            Item     @relation("PrimaryItem", fields: [itemId], references: [id])
 
   @@unique([itemId, alternateItemId])
+}
+
+model ItemManufacturer {
+  id                     String   @id @default(cuid())
+  itemId                 String
+  manufacturer           String   @db.VarChar(255)
+  manufacturerPartNumber String   @db.VarChar(255)
+  isDefault              Boolean  @default(false)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+  item                   Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@unique([itemId, manufacturer, manufacturerPartNumber])
+  @@index([itemId])
+  @@map("item_manufacturers")
 }
 
 model User {
