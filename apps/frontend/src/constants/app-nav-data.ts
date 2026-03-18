@@ -32,19 +32,19 @@ export const inventoryNavItems: NavItem[] = [
 			},
 			{
 				title: "Product Bundle",
-				url: "/inventory/product-bundle",
+				url: "/inventory/items-catalogue/product-bundle",
 			},
 			{
 				title: "Shipping Rule",
-				url: "/inventory/shipping-rules",
+				url: "/inventory/items-catalogue/shipping-rules",
 			},
 			{
 				title: "Item Alternative",
-				url: "/inventory/item-alternatives",
+				url: "/inventory/items-catalogue/item-alternatives",
 			},
 			{
 				title: "Item Manufacturer",
-				url: "/inventory/manufacturers",
+				url: "/inventory/items-catalogue/manufacturers",
 			},
 		],
 	},
