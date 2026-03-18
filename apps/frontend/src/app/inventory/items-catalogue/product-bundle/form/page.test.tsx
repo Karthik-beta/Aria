@@ -1,10 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import {
-	renderWithProviders,
-	screen,
-	userEvent,
-	waitFor,
-} from "../../../../../test/utils";
+import { renderWithProviders, screen, userEvent, waitFor } from "@/test/utils";
 import ProductBundleFormPage from "./page";
 
 const mockMutate = vi.fn();
