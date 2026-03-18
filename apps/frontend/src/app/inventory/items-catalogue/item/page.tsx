@@ -3,7 +3,8 @@
  * Enterprise-grade table with full CRUD operations using tRPC + Advanced Data Table
  *
  * Navigation Pattern: Uses Next.js Link components for navigation (no router.push memory leaks)
- * CRUD Pattern: Separate pages for create/edit (no modals), inline delete with confirmation
+ * CRUD Pattern: Quick-create dialog for common item entry, full page for deeper create/edit flows,
+ * inline delete with confirmation
  */
 
 "use client";
@@ -16,7 +17,6 @@ import {
 	Eye,
 	MoreHorizontal,
 	Package,
-	Plus,
 	Trash,
 	XCircle,
 } from "lucide-react";
@@ -29,7 +29,7 @@ import {
 	useAdvancedDataTable,
 } from "@/components/advanced-data-table";
 import { AlertModal } from "@/components/modal/alert-modal";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
 	DropdownMenu,
@@ -41,9 +41,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ErrorState } from "@/components/ui/error-display";
 import { DataTableColumnHeader } from "@/components/ui/table/data-table-column-header";
+import { NewItemDialog } from "@/features/inventory/components/new-item-dialog";
 import { getToastMessage } from "@/lib/errors";
 import { trpc } from "@/lib/trpc";
-import { cn } from "@/lib/utils";
 
 type InventorySubscriptionEvent = {
 	type: "created" | "updated" | "deleted";
@@ -673,17 +673,7 @@ export default function InventoryItemsPage() {
 						enableColumnReordering
 						exportFormats={["csv", "excel", "json", "pdf"]}
 						bulkActions={bulkActions}
-						primaryAction={
-							<Link
-								href="/inventory/items-catalogue/item/form"
-								className={cn(
-									buttonVariants({ variant: "default", size: "sm" }),
-								)}
-							>
-								<Plus className="mr-2 h-4 w-4" />
-								Add Item
-							</Link>
-						}
+						primaryAction={<NewItemDialog />}
 						ariaLabel="Inventory items table"
 						ariaDescription="A table of all inventory items with advanced filtering, sorting, and bulk actions"
 					/>
