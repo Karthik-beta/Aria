@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { renderWithProviders, screen } from "../../../../test/utils";
+import { renderWithProviders, screen } from "../../../../../test/utils";
 import ItemManufacturersPage from "./page";
 
 vi.mock("@hookform/resolvers/zod", () => ({
