@@ -70,6 +70,13 @@ function ItemFormContent() {
 	const searchParams = useSearchParams();
 	const itemId = searchParams.get("id");
 	const isEditMode = Boolean(itemId);
+	const queryCode = searchParams.get("code")?.trim() ?? "";
+	const queryName = searchParams.get("name")?.trim() || queryCode;
+	const queryItemGroupId = searchParams.get("itemGroupId")?.trim() || undefined;
+	const queryDefaultUnitOfMeasureId =
+		searchParams.get("defaultUnitOfMeasureId")?.trim() || undefined;
+	const queryMaintainStock = searchParams.get("maintainStock");
+	const queryIsFixedAsset = searchParams.get("isFixedAsset") === "true";
 	const [isPending, startTransition] = useTransition();
 	const [hasUnsavedChanges, setHasUnsavedChanges] = useState(!isEditMode);
 	const [isInitialized, setIsInitialized] = useState(!isEditMode);
@@ -85,25 +92,25 @@ function ItemFormContent() {
 	// Form setup with zod validation
 	const form = useForm<CreateFormValues>({
 		resolver: zodResolver(Inventory.createSchema),
-		defaultValues: {
-			name: "",
-			code: "",
-			quantity: 0,
-			description: "",
-			disabled: false,
-			maintainStock: true,
-			allowAlternateItem: false,
-			hasVariants: false,
-			openingStock: 0,
-			valuationRate: undefined,
-			standardSellingRate: undefined,
-			isZeroRated: false,
-			isExempt: false,
-			isFixedAsset: false,
-			taxCode: "",
-			itemGroupId: undefined,
-			defaultUnitOfMeasureId: undefined,
-			shelfLifeInDays: undefined,
+			defaultValues: {
+				name: queryName,
+				code: queryCode,
+				quantity: 0,
+				description: "",
+				disabled: false,
+				maintainStock:
+					queryMaintainStock === null ? true : queryMaintainStock === "true",
+				allowAlternateItem: false,
+				hasVariants: false,
+				openingStock: 0,
+				valuationRate: undefined,
+				standardSellingRate: undefined,
+				isZeroRated: false,
+				isExempt: false,
+				taxCode: "",
+				itemGroupId: queryItemGroupId,
+				defaultUnitOfMeasureId: queryDefaultUnitOfMeasureId,
+				shelfLifeInDays: undefined,
 			warrantyPeriodInDays: undefined,
 			endOfLife: undefined,
 			weightPerUnit: undefined,
@@ -115,6 +122,7 @@ function ItemFormContent() {
 			hasSerialNo: false,
 			barcodes: [],
 			reorderSettings: [],
+			isFixedAsset: queryIsFixedAsset,
 		},
 	});
 
