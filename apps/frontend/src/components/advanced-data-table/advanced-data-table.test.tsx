@@ -6,7 +6,7 @@
 import type { ColumnDef } from "@tanstack/react-table";
 import { screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { renderWithProviders } from "../../../test/utils";
+import { renderWithProviders } from "@/test/utils";
 import { AdvancedDataTable } from "./advanced-data-table";
 import { useAdvancedDataTable } from "./use-advanced-data-table";
 

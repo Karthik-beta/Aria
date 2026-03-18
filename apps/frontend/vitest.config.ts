@@ -43,10 +43,17 @@ export default defineConfig({
 		restoreMocks: true,
 	},
 	resolve: {
-		alias: {
-			"@": path.resolve(__dirname, "./src"),
-			"@aria/types": path.resolve(__dirname, "../../packages/types/src"),
-			"@aria/utils": path.resolve(__dirname, "../../packages/utils/src"),
-		},
+		alias: [
+			{ find: "@/test", replacement: path.resolve(__dirname, "./test") },
+			{ find: "@", replacement: path.resolve(__dirname, "./src") },
+			{
+				find: "@aria/types",
+				replacement: path.resolve(__dirname, "../../packages/types/src"),
+			},
+			{
+				find: "@aria/utils",
+				replacement: path.resolve(__dirname, "../../packages/utils/src"),
+			},
+		],
 	},
 });

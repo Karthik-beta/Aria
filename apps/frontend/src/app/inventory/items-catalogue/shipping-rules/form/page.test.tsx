@@ -1,11 +1,6 @@
 import "@testing-library/jest-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import {
-	renderWithProviders,
-	screen,
-	userEvent,
-	waitFor,
-} from "../../../../../test/utils";
+import { renderWithProviders, screen, userEvent, waitFor } from "@/test/utils";
 import ShippingRuleFormPage from "./page";
 
 const mockCreateMutate = vi.fn();
