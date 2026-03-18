@@ -58,10 +58,11 @@ export function NewItemDialog() {
 		{ search: "" },
 		{ staleTime: 30_000 },
 	);
-	const { data: unitsOfMeasure = [] } = trpc.inventory.listUnitsOfMeasure.useQuery(
-		{ search: "" },
-		{ staleTime: 30_000 },
-	);
+	const { data: unitsOfMeasure = [] } =
+		trpc.inventory.listUnitsOfMeasure.useQuery(
+			{ search: "" },
+			{ staleTime: 30_000 },
+		);
 
 	const quickForm = useForm<QuickCreateItemValues>({
 		defaultValues: {
@@ -74,7 +75,9 @@ export function NewItemDialog() {
 	});
 
 	const preferredUnitOfMeasureId = React.useMemo(
-		() => unitsOfMeasure.find((unit) => unit.name === "Nos")?.id ?? unitsOfMeasure[0]?.id,
+		() =>
+			unitsOfMeasure.find((unit) => unit.name === "Nos")?.id ??
+			unitsOfMeasure[0]?.id,
 		[unitsOfMeasure],
 	);
 
@@ -226,7 +229,10 @@ export function NewItemDialog() {
 					className="space-y-5 px-5 py-5"
 				>
 					<div className="space-y-2">
-						<Label htmlFor="quick-item-code" className="text-xs font-medium text-gray-500">
+						<Label
+							htmlFor="quick-item-code"
+							className="text-xs font-medium text-gray-500"
+						>
 							Item Code <span className="text-destructive">*</span>
 						</Label>
 						<Input
@@ -294,7 +300,8 @@ export function NewItemDialog() {
 
 					<div className="space-y-2">
 						<Label className="text-xs font-medium text-gray-500">
-							Default Unit of Measure <span className="text-destructive">*</span>
+							Default Unit of Measure{" "}
+							<span className="text-destructive">*</span>
 						</Label>
 						<Controller
 							name="defaultUnitOfMeasureId"
