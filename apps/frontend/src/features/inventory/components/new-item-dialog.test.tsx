@@ -75,7 +75,9 @@ describe("NewItemDialog", () => {
 		await user.click(screen.getByRole("button", { name: "Add Item" }));
 
 		await waitFor(() => {
-			expect(screen.getByRole("heading", { name: "New Item" })).toBeInTheDocument();
+			expect(
+				screen.getByRole("heading", { name: "New Item" }),
+			).toBeInTheDocument();
 			expect(screen.getByRole("button", { name: "Nos" })).toBeInTheDocument();
 		});
 

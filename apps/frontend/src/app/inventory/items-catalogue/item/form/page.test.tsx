@@ -1,6 +1,10 @@
 import "@testing-library/jest-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { renderWithProviders, screen, waitFor } from "../../../../../../test/utils";
+import {
+	renderWithProviders,
+	screen,
+	waitFor,
+} from "../../../../../../test/utils";
 import ItemFormPage from "./page";
 
 const mockCreateMutate = vi.fn();
@@ -114,7 +118,9 @@ describe("ItemFormPage", () => {
 
 		expect(screen.getByLabelText("Maintain Stock")).not.toBeChecked();
 		expect(screen.getByLabelText("Is Fixed Asset")).toBeChecked();
-		expect(screen.getByRole("button", { name: "Furniture" })).toBeInTheDocument();
+		expect(
+			screen.getByRole("button", { name: "Furniture" }),
+		).toBeInTheDocument();
 		expect(screen.getByRole("button", { name: "Nos" })).toBeInTheDocument();
 	});
 });
