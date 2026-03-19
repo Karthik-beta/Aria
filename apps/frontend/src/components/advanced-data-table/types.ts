@@ -13,6 +13,11 @@ import type {
 	Table,
 	VisibilityState,
 } from "@tanstack/react-table";
+import type {
+	BulkEditColumnConfig,
+	BulkEditFieldType,
+	Option,
+} from "@/types/data-table";
 
 /**
  * Supported export formats
@@ -72,6 +77,32 @@ export type BulkAction<TData extends RowData = RowData> = {
 };
 
 /**
+ * Resolved bulk-edit field definition derived from a column.
+ */
+export interface ResolvedBulkEditField {
+	columnId: string;
+	field: string;
+	type: BulkEditFieldType;
+	label: string;
+	placeholder?: string;
+	options?: readonly Option[];
+	allowClear: boolean;
+	columnConfig: BulkEditColumnConfig;
+}
+
+/**
+ * Normalized bulk-edit request passed to consuming pages.
+ */
+export interface BulkEditRequest<TData extends RowData = RowData> {
+	rows: readonly Row<TData>[];
+	columnId: string;
+	field: string;
+	operation: "set" | "clear";
+	value?: string | number | boolean;
+	config: ResolvedBulkEditField;
+}
+
+/**
  * Props for the AdvancedDataTable component
  * @template TData - The row data type extending RowData
  */
@@ -101,6 +132,9 @@ export interface AdvancedDataTableProps<TData extends RowData> {
 
 	/** Enable bulk actions on selected rows */
 	enableBulkActions?: boolean;
+
+	/** Enable built-in bulk edit for eligible columns */
+	enableBulkEdit?: boolean;
 
 	/** Enable virtualization for large datasets (>50 rows) */
 	enableVirtualization?: boolean;
@@ -137,6 +171,9 @@ export interface AdvancedDataTableProps<TData extends RowData> {
 	// Bulk actions
 	/** Array of bulk action definitions */
 	bulkActions?: readonly BulkAction<TData>[];
+
+	/** Built-in bulk edit handler */
+	onBulkEdit?: (request: BulkEditRequest<TData>) => void | Promise<void>;
 
 	// CRUD operations
 	/** Handler for creating new rows */

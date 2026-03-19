@@ -409,6 +409,24 @@ describe("useAdvancedDataTable", () => {
 				expect(selectionState).toEqual({ "0": true });
 			});
 		});
+
+		it("should use custom row ids when getRowId is provided", () => {
+			const { result } = renderHook(() =>
+				useAdvancedDataTable({
+					data: testData,
+					columns: testColumns,
+					enableRowSelection: true,
+					getRowId: (row) => row.name,
+				}),
+			);
+
+			act(() => {
+				result.current.table.getRowModel().rows[0]?.toggleSelected(true);
+			});
+
+			expect(result.current.table.getRowModel().rows[0]?.id).toBe("Alice");
+			expect(result.current.state.rowSelection).toEqual({ Alice: true });
+		});
 	});
 
 	describe("Column Visibility", () => {
@@ -465,6 +483,20 @@ describe("useAdvancedDataTable", () => {
 			);
 
 			expect(result.current.table.options.meta?.onReload).toBe(onReload);
+		});
+
+		it("should expose getRowId in table options", () => {
+			const getRowId = (row: TestData) => row.name;
+
+			const { result } = renderHook(() =>
+				useAdvancedDataTable({
+					data: testData,
+					columns: testColumns,
+					getRowId,
+				}),
+			);
+
+			expect(result.current.table.options.getRowId).toBe(getRowId);
 		});
 	});
 

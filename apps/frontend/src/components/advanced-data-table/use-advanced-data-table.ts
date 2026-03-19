@@ -18,6 +18,7 @@ import {
 	getPaginationRowModel,
 	getSortedRowModel,
 	type PaginationState,
+	type Row,
 	type RowData,
 	type RowSelectionState,
 	type SortingState,
@@ -78,6 +79,9 @@ export interface UseAdvancedDataTableProps<TData extends RowData> {
 
 	/** Optional reload callback exposed via table.options.meta.onReload */
 	onReload?: () => void | Promise<void>;
+
+	/** Optional stable row-id resolver */
+	getRowId?: (originalRow: TData, index: number, parent?: Row<TData>) => string;
 }
 
 /**
@@ -102,6 +106,7 @@ export function useAdvancedDataTable<TData extends RowData>({
 	onRowSelectionChange,
 	onGlobalFilterChange,
 	onReload,
+	getRowId,
 }: UseAdvancedDataTableProps<TData>) {
 	// State management
 	const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({});
@@ -304,6 +309,7 @@ export function useAdvancedDataTable<TData extends RowData>({
 		getFacetedUniqueValues: getFacetedUniqueValues(),
 		getFacetedMinMaxValues: getFacetedMinMaxValues(),
 		manualPagination: pageCount > 0,
+		getRowId,
 		// Expose onReload in meta so consumers (toolbar) can call it
 		meta: {
 			onReload,

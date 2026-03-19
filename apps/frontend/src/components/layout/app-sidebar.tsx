@@ -94,13 +94,56 @@ function hasProperty<T extends string>(
 	return typeof obj === "object" && obj !== null && prop in obj;
 }
 
+function normalizePathname(pathname: string) {
+	return pathname === "/" ? pathname : pathname.replace(/\/+$/, "");
+}
+
+function isPathActive(pathname: string, targetPath: string) {
+	if (!targetPath || targetPath === "#") {
+		return false;
+	}
+
+	const normalizedPathname = normalizePathname(pathname);
+	const normalizedTargetPath = normalizePathname(targetPath);
+
+	return (
+		normalizedPathname === normalizedTargetPath ||
+		normalizedPathname.startsWith(`${normalizedTargetPath}/`)
+	);
+}
+
+function isNavItemActive(pathname: string, item: NavItem) {
+	if (item.items?.length) {
+		return item.items.some((subItem) => isPathActive(pathname, subItem.url));
+	}
+
+	return isPathActive(pathname, item.url);
+}
+
+function getActiveMenuClassName(isActive: boolean, isSubItem = false) {
+	if (!isActive) {
+		return undefined;
+	}
+
+	return isSubItem
+		? "!bg-sidebar-foreground/10 !text-sidebar-foreground"
+		: "!bg-sidebar-foreground/8 !text-sidebar-foreground";
+}
+
 /**
  * Memoized navigation sub-item component for better performance
  */
 const NavSubItem = React.memo(
 	({ subItem, pathname }: { subItem: NavItem; pathname: string }) => (
 		<SidebarMenuSubItem>
-			<SidebarMenuSubButton asChild isActive={pathname === subItem.url}>
+			<SidebarMenuSubButton
+				asChild
+				isActive={isPathActive(pathname, subItem.url)}
+				className={getActiveMenuClassName(
+					isPathActive(pathname, subItem.url),
+					true,
+				)}
+			>
 				<Link
 					href={subItem.url}
 					title={
@@ -125,20 +168,28 @@ const NavItemComponent = React.memo(
 		const Icon = item.icon
 			? Icons[item.icon as keyof typeof Icons]
 			: Icons.logo;
+		const isItemActive = isNavItemActive(pathname, item);
+		const [isOpen, setIsOpen] = React.useState(isItemActive);
+
+		React.useEffect(() => {
+			setIsOpen(isItemActive);
+		}, [isItemActive]);
 
 		if (item?.items && item?.items?.length > 0) {
 			return (
 				<Collapsible
 					key={item.title}
 					asChild
-					defaultOpen={item.isActive}
+					open={isOpen}
+					onOpenChange={setIsOpen}
 					className="group/collapsible"
 				>
 					<SidebarMenuItem>
 						<CollapsibleTrigger asChild>
 							<SidebarMenuButton
 								tooltip={item.title}
-								isActive={pathname === item.url}
+								isActive={isItemActive}
+								className={getActiveMenuClassName(isItemActive)}
 							>
 								{item.icon && <Icon />}
 								<span>{item.title}</span>
@@ -166,7 +217,8 @@ const NavItemComponent = React.memo(
 				<SidebarMenuButton
 					asChild
 					tooltip={item.title}
-					isActive={pathname === item.url}
+					isActive={isItemActive}
+					className={getActiveMenuClassName(isItemActive)}
 				>
 					<Link
 						href={item.url}

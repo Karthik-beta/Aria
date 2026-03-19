@@ -43,6 +43,7 @@ export function AdvancedDataTable<TData extends RowData>({
 	enableExport = true,
 	enableImport = true,
 	enableBulkActions = true,
+	enableBulkEdit = false,
 	enableVirtualization = true,
 	enableRealtime = false,
 	enableInlineEdit: _enableInlineEdit = false,
@@ -53,6 +54,7 @@ export function AdvancedDataTable<TData extends RowData>({
 	onExport,
 	onImport,
 	bulkActions,
+	onBulkEdit,
 	onRowCreate: _onRowCreate,
 	onRowUpdate: _onRowUpdate,
 	onRowDelete: _onRowDelete,
@@ -258,7 +260,10 @@ export function AdvancedDataTable<TData extends RowData>({
 					}
 					enableColumnReordering={enableColumnReordering}
 					bulkActions={enableBulkActions ? bulkActions : []}
+					enableBulkEdit={enableBulkEdit}
+					onBulkEdit={onBulkEdit}
 					primaryAction={primaryAction}
+					onTableError={handleError}
 				/>
 			)}
 

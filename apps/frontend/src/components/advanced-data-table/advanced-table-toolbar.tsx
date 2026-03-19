@@ -38,10 +38,17 @@ import {
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { BulkEditDialog } from "./bulk-edit-dialog";
+import { getBulkEditableFields } from "./bulk-edit-utils";
 import { ColumnManager } from "./column-manager";
 import { ExportImportActions } from "./export-import-actions";
 import { GlobalSearch } from "./global-search";
-import type { BulkAction, ExportFormat } from "./types";
+import type {
+	AdvancedDataTableError,
+	BulkAction,
+	BulkEditRequest,
+	ExportFormat,
+} from "./types";
 
 interface AdvancedTableToolbarProps<TData extends RowData>
 	extends React.ComponentProps<"div"> {
@@ -75,11 +82,20 @@ interface AdvancedTableToolbarProps<TData extends RowData>
 	/** Bulk action definitions */
 	bulkActions?: readonly BulkAction<TData>[];
 
+	/** Enable built-in bulk edit action */
+	enableBulkEdit?: boolean;
+
+	/** Built-in bulk edit handler */
+	onBulkEdit?: (request: BulkEditRequest<TData>) => void | Promise<void>;
+
 	/** Primary action button (shown when no rows selected) */
 	primaryAction?: React.ReactNode;
 
 	/** Optional reload callback invoked when the user clicks the Reload button */
 	onReload?: () => void | Promise<void>;
+
+	/** Table-level error handler */
+	onTableError?: (error: AdvancedDataTableError) => void;
 }
 
 /**
@@ -96,14 +112,19 @@ export function AdvancedTableToolbar<TData extends RowData>({
 	onImport,
 	enableColumnReordering = true,
 	bulkActions = [],
+	enableBulkEdit = false,
+	onBulkEdit,
 	primaryAction,
 	onReload,
+	onTableError,
 	children,
 	className,
 	...props
 }: AdvancedTableToolbarProps<TData>) {
 	const [isExecuting, setIsExecuting] = React.useState(false);
 	const [isReloading, setIsReloading] = React.useState(false);
+	const [isBulkEditOpen, setIsBulkEditOpen] = React.useState(false);
+	const [isBulkEditing, setIsBulkEditing] = React.useState(false);
 	const [pendingAction, setPendingAction] =
 		React.useState<BulkAction<TData> | null>(null);
 
@@ -140,6 +161,15 @@ export function AdvancedTableToolbar<TData extends RowData>({
 	const selectedRows = table.getFilteredSelectedRowModel().rows;
 	const selectedCount = selectedRows.length;
 	const hasSelection = selectedCount > 0;
+	const bulkEditableFields = React.useMemo(
+		() => getBulkEditableFields(table),
+		[table],
+	);
+	const canBulkEdit =
+		enableBulkEdit &&
+		typeof onBulkEdit === "function" &&
+		bulkEditableFields.length > 0;
+	const hasActionItems = bulkActions.length > 0 || canBulkEdit;
 
 	// Reset all filters
 	const onReset = React.useCallback(() => {
@@ -257,6 +287,44 @@ export function AdvancedTableToolbar<TData extends RowData>({
 		setPendingAction(null);
 	}, []);
 
+	const handleBulkEditSubmit = React.useCallback(
+		async (request: BulkEditRequest<TData>) => {
+			if (!onBulkEdit) {
+				return;
+			}
+
+			try {
+				setIsBulkEditing(true);
+				await onBulkEdit(request);
+				if (isMountedRef.current) {
+					toast.success(
+						`Successfully updated ${selectedCount} row(s) via bulk edit`,
+					);
+					setIsBulkEditOpen(false);
+					table.resetRowSelection();
+				}
+			} catch (error) {
+				logger.error("[BulkEdit]", error);
+				if (isMountedRef.current) {
+					toast.error(
+						`Failed to perform bulk edit: ${error instanceof Error ? error.message : "Unknown error"}`,
+					);
+					onTableError?.({
+						type: "bulk-action",
+						message: "Failed to perform bulk edit",
+						actionLabel: "Bulk Edit",
+						cause: error,
+					});
+				}
+			} finally {
+				if (isMountedRef.current) {
+					setIsBulkEditing(false);
+				}
+			}
+		},
+		[onBulkEdit, onTableError, selectedCount, table],
+	);
+
 	// Fallback spin class name
 	const spinClass = "aria-toolbar-spin";
 
@@ -297,33 +365,56 @@ export function AdvancedTableToolbar<TData extends RowData>({
 					</div>
 					<div className="flex items-center gap-2">
 						{/* Dynamic Primary Action / Bulk Actions Button */}
-						{hasSelection && bulkActions.length > 0 ? (
+						{hasSelection && hasActionItems ? (
 							<>
 								<Button
 									variant="ghost"
 									size="sm"
 									onClick={() => table.resetRowSelection()}
-									disabled={isExecuting || isReloading}
+									disabled={isExecuting || isReloading || isBulkEditing}
+									aria-label="Clear selected rows"
 								>
 									Clear
 								</Button>
 								<DropdownMenu>
 									<DropdownMenuTrigger asChild>
-										<Button variant="default" size="sm" disabled={isExecuting}>
-											{isExecuting || isReloading ? "Processing..." : "Actions"}
+										<Button
+											variant="default"
+											size="sm"
+											disabled={isExecuting || isReloading || isBulkEditing}
+											aria-label={
+												isExecuting || isReloading || isBulkEditing
+													? "Processing bulk actions"
+													: "Open bulk actions"
+											}
+										>
+											{isExecuting || isReloading || isBulkEditing
+												? "Processing..."
+												: "Actions"}
 											<ChevronDown className="ml-2 h-4 w-4" />
 										</Button>
 									</DropdownMenuTrigger>
 									<DropdownMenuContent align="end">
 										<DropdownMenuLabel>Bulk Operations</DropdownMenuLabel>
 										<DropdownMenuSeparator />
+										{canBulkEdit && (
+											<DropdownMenuItem
+												onClick={() => !isReloading && setIsBulkEditOpen(true)}
+												disabled={isExecuting || isReloading || isBulkEditing}
+											>
+												Bulk Edit
+											</DropdownMenuItem>
+										)}
+										{canBulkEdit && bulkActions.length > 0 && (
+											<DropdownMenuSeparator />
+										)}
 										{bulkActions.map((action) => (
 											<DropdownMenuItem
 												key={action.label}
 												onClick={() =>
 													!isReloading && handleActionClick(action)
 												}
-												disabled={isExecuting || isReloading}
+												disabled={isExecuting || isReloading || isBulkEditing}
 												className={cn(
 													action.variant === "destructive" &&
 														"text-destructive",
@@ -455,6 +546,17 @@ export function AdvancedTableToolbar<TData extends RowData>({
 					</AlertDialogFooter>
 				</AlertDialogContent>
 			</AlertDialog>
+
+			{canBulkEdit && (
+				<BulkEditDialog
+					open={isBulkEditOpen}
+					onOpenChange={setIsBulkEditOpen}
+					rows={selectedRows}
+					fields={bulkEditableFields}
+					isSubmitting={isBulkEditing}
+					onSubmit={handleBulkEditSubmit}
+				/>
+			)}
 		</>
 	);
 }
