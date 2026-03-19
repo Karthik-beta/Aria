@@ -3,6 +3,7 @@ import {
 	BadRequestException,
 	ConflictException,
 	Injectable,
+	Logger,
 	NotFoundException,
 } from "@nestjs/common";
 import type { z } from "zod";
@@ -19,6 +20,11 @@ import {
 	toInventoryShippingRule,
 	toInventoryUnitOfMeasure,
 } from "./inventory.types";
+import {
+	loadUomSeedEntriesFromCsv,
+	normalizeUomName,
+	type UomSeedEntry,
+} from "./uom-seed";
 
 const formatItemGroupDefaults = (defaults?: Inventory.ItemGroupDefault[]) =>
 	defaults?.map(({ company, defaultWarehouse, defaultPriceList }) => ({
@@ -131,6 +137,8 @@ const isDefaultItemManufacturerConstraintViolation = (
  */
 @Injectable()
 export class InventoryService {
+	private readonly logger = new Logger(InventoryService.name);
+
 	constructor(private readonly prisma: PrismaService) {}
 
 	/**
@@ -194,6 +202,54 @@ export class InventoryService {
 		});
 
 		return units.map(toInventoryUnitOfMeasure);
+	}
+
+	/**
+	 * Preload standard UOM records from seed CSV.
+	 *
+	 * This operation is idempotent:
+	 * - Existing rows are never updated/deleted.
+	 * - Only missing names (case-insensitive) are inserted.
+	 */
+	async preloadStandardUnitsOfMeasure(
+		seedEntries?: UomSeedEntry[],
+	): Promise<{ total: number; inserted: number }> {
+		const entries = seedEntries ?? (await loadUomSeedEntriesFromCsv());
+		if (entries.length === 0) {
+			this.logger.warn("No UOM seed entries found; skipping preload");
+			return { total: 0, inserted: 0 };
+		}
+
+		const existingUnits = await this.prisma.unitOfMeasurement.findMany({
+			select: { name: true },
+		});
+		const existingNames = new Set(
+			existingUnits.map((unit) => normalizeUomName(unit.name)),
+		);
+
+		const missingEntries = entries.filter(
+			(entry) => !existingNames.has(normalizeUomName(entry.name)),
+		);
+
+		if (missingEntries.length === 0) {
+			this.logger.log(
+				`UOM preload skipped: all ${entries.length} standard units already exist`,
+			);
+			return { total: entries.length, inserted: 0 };
+		}
+
+		const created = await this.prisma.unitOfMeasurement.createMany({
+			data: missingEntries.map((entry) => ({
+				name: entry.name,
+				disabled: entry.disabled,
+				isWholeNumber: entry.isWholeNumber,
+			})),
+		});
+
+		this.logger.log(
+			`UOM preload inserted ${created.count} missing records (source total: ${entries.length})`,
+		);
+		return { total: entries.length, inserted: created.count };
 	}
 
 	/**

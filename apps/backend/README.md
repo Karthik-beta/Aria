@@ -38,6 +38,13 @@ The server will start at `http://localhost:3000` with hot-reload enabled (change
 | Check code style     | `bun --filter backend lint`      | Finds and fixes code formatting issues    |
 | See test coverage    | `bun --filter backend test:cov`  | Shows how much code is tested             |
 
+## 📦 Standard UOM Seed Data
+
+- Canonical file path: `apps/backend/prisma/seeds/data/uom.csv`
+- Behavior: backend startup preloads missing Unit of Measure rows from this CSV.
+- Safety: preload is idempotent and **insert-only** by case-insensitive name. Existing rows are not updated or deleted.
+- Update workflow: edit `uom.csv`, keep headers as `"UOM Name","Enabled","Must be Whole Number"`, and restart backend to preload newly added names.
+
 ## 📁 Project Structure
 
 ```
