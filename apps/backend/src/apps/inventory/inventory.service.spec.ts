@@ -90,6 +90,7 @@ describe("InventoryService", () => {
 			findFirst: jest.fn(),
 			findUnique: jest.fn(),
 			create: jest.fn(),
+			createMany: jest.fn(),
 			update: jest.fn(),
 			delete: jest.fn(),
 		},
@@ -611,6 +612,54 @@ describe("InventoryService", () => {
 				},
 				orderBy: { name: "asc" },
 			});
+		});
+	});
+
+	describe("preloadStandardUnitsOfMeasure", () => {
+		const seedEntries = [
+			{ name: "Nos", disabled: false, isWholeNumber: true },
+			{ name: "Box", disabled: false, isWholeNumber: true },
+		];
+
+		it("should insert all seed rows when no UOM exists", async () => {
+			mockPrisma.unitOfMeasurement.findMany.mockResolvedValue([]);
+			mockPrisma.unitOfMeasurement.createMany.mockResolvedValue({ count: 2 });
+
+			const result = await service.preloadStandardUnitsOfMeasure(seedEntries);
+
+			expect(mockPrisma.unitOfMeasurement.findMany).toHaveBeenCalledWith({
+				select: { name: true },
+			});
+			expect(mockPrisma.unitOfMeasurement.createMany).toHaveBeenCalledWith({
+				data: seedEntries,
+			});
+			expect(result).toEqual({ total: 2, inserted: 2 });
+		});
+
+		it("should insert only missing rows when database is partially populated", async () => {
+			mockPrisma.unitOfMeasurement.findMany.mockResolvedValue([
+				{ name: "nos" },
+			]);
+			mockPrisma.unitOfMeasurement.createMany.mockResolvedValue({ count: 1 });
+
+			const result = await service.preloadStandardUnitsOfMeasure(seedEntries);
+
+			expect(mockPrisma.unitOfMeasurement.createMany).toHaveBeenCalledWith({
+				data: [{ name: "Box", disabled: false, isWholeNumber: true }],
+			});
+			expect(result).toEqual({ total: 2, inserted: 1 });
+		});
+
+		it("should not insert when all rows already exist (case-insensitive)", async () => {
+			mockPrisma.unitOfMeasurement.findMany.mockResolvedValue([
+				{ name: "nos" },
+				{ name: "BOX" },
+			]);
+
+			const result = await service.preloadStandardUnitsOfMeasure(seedEntries);
+
+			expect(mockPrisma.unitOfMeasurement.createMany).not.toHaveBeenCalled();
+			expect(result).toEqual({ total: 2, inserted: 0 });
 		});
 	});
 
