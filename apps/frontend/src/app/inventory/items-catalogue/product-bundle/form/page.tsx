@@ -2,7 +2,7 @@
 
 import type { Inventory } from "@aria/types";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Loader2, Menu, Plus, Trash2 } from "lucide-react";
+import { Loader2, Plus, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
@@ -139,7 +139,6 @@ export default function NewProductBundlePage() {
 		<div className="flex min-h-screen flex-col bg-[#f8f9fa] px-4 py-4 md:px-6">
 			<div className="mb-4 flex items-center justify-between">
 				<div className="flex items-center gap-3">
-					<Menu className="h-5 w-5 text-muted-foreground" />
 					<h1 className="text-3xl font-bold tracking-tight">
 						New Product Bundle
 					</h1>

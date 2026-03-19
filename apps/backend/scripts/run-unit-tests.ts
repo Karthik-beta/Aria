@@ -64,7 +64,8 @@ async function main() {
 	try {
 		await rm(tempDir, { recursive: true, force: true });
 
-		// Build and test run concurrently in Turborepo; retry avoids transient Prisma generate races.
+		// Build and test run concurrently in Turborepo; the shared Prisma wrapper serializes
+		// generation and retry still covers transient CLI failures.
 		await runCommand(["run", "prisma:generate"], 2);
 
 		await runCommand([

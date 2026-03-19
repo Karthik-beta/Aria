@@ -2,7 +2,7 @@
 
 import { Inventory } from "@aria/types";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Loader2, Menu } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
 	Suspense,
@@ -197,7 +197,6 @@ function ShippingRuleFormContent() {
 		<div className="flex min-h-screen flex-col bg-[#f8f9fa] px-4 py-4 md:px-6">
 			<div className="mb-4 flex items-center justify-between">
 				<div className="flex items-center gap-3">
-					<Menu className="h-5 w-5 text-muted-foreground" />
 					<h1 className="text-3xl font-bold tracking-tight">
 						{isEditMode ? shippingRule?.shippingRuleLabel : "New Shipping Rule"}
 					</h1>

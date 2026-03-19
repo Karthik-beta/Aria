@@ -80,12 +80,33 @@ export namespace Inventory {
 		id: string;
 		/** Unit name (e.g., "Nos", "Kg", "Pcs") */
 		name: string;
+		/** Whether this unit is disabled in selection lists */
+		disabled: boolean;
 		/** Whether the unit represents whole numbers only */
 		isWholeNumber: boolean;
 		/** When this unit was created */
 		createdAt: Date;
 		/** When this unit was last updated */
 		updatedAt: Date;
+	}
+
+	/**
+	 * Input for creating a unit of measure
+	 */
+	export interface CreateUnitOfMeasureInput {
+		name: string;
+		disabled?: boolean;
+		isWholeNumber?: boolean;
+	}
+
+	/**
+	 * Input for updating a unit of measure
+	 */
+	export interface UpdateUnitOfMeasureInput {
+		id: string;
+		name?: string;
+		disabled?: boolean;
+		isWholeNumber?: boolean;
 	}
 
 	export interface ItemBarcode {
@@ -549,6 +570,25 @@ export namespace Inventory {
 			.optional(),
 		itemGroupId: z.string().cuid().optional(),
 		defaultUnitOfMeasureId: z.string().cuid().optional(),
+	});
+
+	/**
+	 * Validation schema for creating units of measure
+	 */
+	export const createUnitOfMeasureSchema = z.object({
+		name: z.string().min(1, "UOM name is required").max(255).trim(),
+		disabled: z.boolean().default(false),
+		isWholeNumber: z.boolean().default(true),
+	});
+
+	/**
+	 * Validation schema for updating units of measure
+	 */
+	export const updateUnitOfMeasureSchema = z.object({
+		id: z.string().cuid(),
+		name: z.string().min(1).max(255).trim().optional(),
+		disabled: z.boolean().optional(),
+		isWholeNumber: z.boolean().optional(),
 	});
 
 	/**
