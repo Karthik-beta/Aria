@@ -62,6 +62,20 @@ export type InventoryShippingRule = Prisma.ShippingRuleGetPayload<{
 }>;
 
 /**
+ * Prisma model type for UnitOfMeasurement with scalar fields only
+ */
+export type InventoryUnitOfMeasure = Prisma.UnitOfMeasurementGetPayload<{
+	select: {
+		id: true;
+		name: true;
+		disabled: true;
+		isWholeNumber: true;
+		createdAt: true;
+		updatedAt: true;
+	};
+}>;
+
+/**
  * Prisma model type for ItemAlternate with relations
  */
 export const itemAlternativeInclude = {
@@ -230,6 +244,22 @@ export function toInventoryShippingRule(
 		shippingAmount: prismaShippingRule.shippingAmount,
 		createdAt: prismaShippingRule.createdAt,
 		updatedAt: prismaShippingRule.updatedAt,
+	};
+}
+
+/**
+ * Converts a Prisma UnitOfMeasurement to Inventory.UnitOfMeasure
+ */
+export function toInventoryUnitOfMeasure(
+	prismaUnitOfMeasure: InventoryUnitOfMeasure,
+): Inventory.UnitOfMeasure {
+	return {
+		id: prismaUnitOfMeasure.id,
+		name: prismaUnitOfMeasure.name,
+		disabled: prismaUnitOfMeasure.disabled,
+		isWholeNumber: prismaUnitOfMeasure.isWholeNumber,
+		createdAt: prismaUnitOfMeasure.createdAt,
+		updatedAt: prismaUnitOfMeasure.updatedAt,
 	};
 }
 

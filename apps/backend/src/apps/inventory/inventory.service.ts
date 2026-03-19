@@ -17,6 +17,7 @@ import {
 	toInventoryItemManufacturer,
 	toInventoryProductBundle,
 	toInventoryShippingRule,
+	toInventoryUnitOfMeasure,
 } from "./inventory.types";
 
 const formatItemGroupDefaults = (defaults?: Inventory.ItemGroupDefault[]) =>
@@ -69,6 +70,15 @@ const removeUndefined = <T extends Record<string, unknown>>(obj: T) =>
 	Object.fromEntries(
 		Object.entries(obj).filter(([, value]) => value !== undefined),
 	) as Partial<T>;
+
+const unitOfMeasureSelect = {
+	id: true,
+	name: true,
+	disabled: true,
+	isWholeNumber: true,
+	createdAt: true,
+	updatedAt: true,
+} as const;
 
 type ProductBundleItemInput = {
 	itemId: string;
@@ -170,7 +180,7 @@ export class InventoryService {
 	async findAllUnitsOfMeasure(
 		search?: string,
 	): Promise<Inventory.UnitOfMeasure[]> {
-		return this.prisma.unitOfMeasurement.findMany({
+		const units = await this.prisma.unitOfMeasurement.findMany({
 			where: search
 				? {
 						name: {
@@ -179,8 +189,157 @@ export class InventoryService {
 						},
 					}
 				: undefined,
+			select: unitOfMeasureSelect,
 			orderBy: { name: "asc" },
 		});
+
+		return units.map(toInventoryUnitOfMeasure);
+	}
+
+	/**
+	 * Get a single unit of measure by id
+	 */
+	async findUnitOfMeasureById(
+		id: string,
+	): Promise<Inventory.UnitOfMeasure | null> {
+		const unit = await this.prisma.unitOfMeasurement.findUnique({
+			where: { id },
+			select: unitOfMeasureSelect,
+		});
+
+		return unit ? toInventoryUnitOfMeasure(unit) : null;
+	}
+
+	/**
+	 * Create a unit of measure
+	 */
+	async createUnitOfMeasure(
+		data: z.infer<typeof Inventory.createUnitOfMeasureSchema>,
+	): Promise<Inventory.UnitOfMeasure> {
+		const duplicate = await this.prisma.unitOfMeasurement.findFirst({
+			where: {
+				name: {
+					equals: data.name,
+					mode: "insensitive",
+				},
+			},
+			select: { id: true },
+		});
+
+		if (duplicate) {
+			throw new ConflictException(
+				`Unit of measure with name "${data.name}" already exists`,
+			);
+		}
+
+		try {
+			const created = await this.prisma.unitOfMeasurement.create({
+				data: {
+					name: data.name,
+					disabled: data.disabled ?? false,
+					isWholeNumber: data.isWholeNumber ?? true,
+				},
+				select: unitOfMeasureSelect,
+			});
+
+			return toInventoryUnitOfMeasure(created);
+		} catch (error) {
+			if (
+				error instanceof Prisma.PrismaClientKnownRequestError &&
+				error.code === "P2002"
+			) {
+				throw new ConflictException(
+					`Unit of measure with name "${data.name}" already exists`,
+				);
+			}
+			throw error;
+		}
+	}
+
+	/**
+	 * Update a unit of measure
+	 */
+	async updateUnitOfMeasure(
+		data: z.infer<typeof Inventory.updateUnitOfMeasureSchema>,
+	): Promise<Inventory.UnitOfMeasure> {
+		const { id, ...rest } = data;
+
+		const existing = await this.prisma.unitOfMeasurement.findUnique({
+			where: { id },
+			select: { id: true, name: true },
+		});
+
+		if (!existing) {
+			throw new NotFoundException(`Unit of measure with ID ${id} not found`);
+		}
+
+		if (rest.name !== undefined) {
+			const duplicate = await this.prisma.unitOfMeasurement.findFirst({
+				where: {
+					id: { not: id },
+					name: {
+						equals: rest.name,
+						mode: "insensitive",
+					},
+				},
+				select: { id: true },
+			});
+
+			if (duplicate) {
+				throw new ConflictException(
+					`Unit of measure with name "${rest.name}" already exists`,
+				);
+			}
+		}
+
+		try {
+			const updated = await this.prisma.unitOfMeasurement.update({
+				where: { id },
+				data: removeUndefined(rest),
+				select: unitOfMeasureSelect,
+			});
+
+			return toInventoryUnitOfMeasure(updated);
+		} catch (error) {
+			if (
+				error instanceof Prisma.PrismaClientKnownRequestError &&
+				error.code === "P2025"
+			) {
+				throw new NotFoundException(`Unit of measure with ID ${id} not found`);
+			}
+			if (
+				error instanceof Prisma.PrismaClientKnownRequestError &&
+				error.code === "P2002"
+			) {
+				const conflictName = rest.name ?? existing.name;
+				throw new ConflictException(
+					conflictName
+						? `Unit of measure with name "${conflictName}" already exists`
+						: "Unit of measure already exists",
+				);
+			}
+			throw error;
+		}
+	}
+
+	/**
+	 * Delete a unit of measure
+	 */
+	async deleteUnitOfMeasure(
+		id: string,
+	): Promise<{ success: boolean; id: string }> {
+		try {
+			await this.prisma.unitOfMeasurement.delete({ where: { id } });
+			return { success: true, id };
+		} catch (error) {
+			if (
+				error instanceof Prisma.PrismaClientKnownRequestError &&
+				error.code === "P2025"
+			) {
+				throw new NotFoundException(`Unit of measure with ID ${id} not found`);
+			}
+			throw error;
+		}
 	}
 
 	/**

@@ -48,6 +48,15 @@ describe("InventoryService", () => {
 		reorderSettings: [],
 	};
 
+	const mockUnitOfMeasure = {
+		id: "clh123uom0000",
+		name: "Nos",
+		disabled: false,
+		isWholeNumber: true,
+		createdAt: new Date(),
+		updatedAt: new Date(),
+	};
+
 	const mockPrisma = {
 		inventoryItem: {
 			findMany: jest.fn(),
@@ -69,6 +78,14 @@ describe("InventoryService", () => {
 			delete: jest.fn(),
 		},
 		shippingRule: {
+			findMany: jest.fn(),
+			findFirst: jest.fn(),
+			findUnique: jest.fn(),
+			create: jest.fn(),
+			update: jest.fn(),
+			delete: jest.fn(),
+		},
+		unitOfMeasurement: {
 			findMany: jest.fn(),
 			findFirst: jest.fn(),
 			findUnique: jest.fn(),
@@ -568,6 +585,197 @@ describe("InventoryService", () => {
 			mockPrisma.shippingRule.delete.mockRejectedValue(error);
 
 			await expect(service.deleteShippingRule("rule-missing")).rejects.toThrow(
+				NotFoundException,
+			);
+		});
+	});
+
+	describe("findAllUnitsOfMeasure", () => {
+		it("should return all units of measure", async () => {
+			mockPrisma.unitOfMeasurement.findMany.mockResolvedValue([
+				mockUnitOfMeasure,
+			]);
+
+			const result = await service.findAllUnitsOfMeasure();
+
+			expect(result).toEqual([mockUnitOfMeasure]);
+			expect(mockPrisma.unitOfMeasurement.findMany).toHaveBeenCalledWith({
+				where: undefined,
+				select: {
+					id: true,
+					name: true,
+					disabled: true,
+					isWholeNumber: true,
+					createdAt: true,
+					updatedAt: true,
+				},
+				orderBy: { name: "asc" },
+			});
+		});
+	});
+
+	describe("findUnitOfMeasureById", () => {
+		it("should return a unit of measure when found", async () => {
+			mockPrisma.unitOfMeasurement.findUnique.mockResolvedValue(
+				mockUnitOfMeasure,
+			);
+
+			const result = await service.findUnitOfMeasureById(mockUnitOfMeasure.id);
+
+			expect(result).toEqual(mockUnitOfMeasure);
+		});
+
+		it("should return null when a unit of measure is not found", async () => {
+			mockPrisma.unitOfMeasurement.findUnique.mockResolvedValue(null);
+
+			const result = await service.findUnitOfMeasureById("missing-uom");
+
+			expect(result).toBeNull();
+		});
+	});
+
+	describe("createUnitOfMeasure", () => {
+		it("should create a unit of measure", async () => {
+			const input = Inventory.createUnitOfMeasureSchema.parse({
+				name: "Nos",
+			});
+			mockPrisma.unitOfMeasurement.findFirst.mockResolvedValue(null);
+			mockPrisma.unitOfMeasurement.create.mockResolvedValue(mockUnitOfMeasure);
+
+			const result = await service.createUnitOfMeasure(input);
+
+			expect(result).toEqual(mockUnitOfMeasure);
+			expect(mockPrisma.unitOfMeasurement.create).toHaveBeenCalledWith({
+				data: {
+					name: "Nos",
+					disabled: false,
+					isWholeNumber: true,
+				},
+				select: {
+					id: true,
+					name: true,
+					disabled: true,
+					isWholeNumber: true,
+					createdAt: true,
+					updatedAt: true,
+				},
+			});
+		});
+
+		it("should throw ConflictException when name already exists", async () => {
+			const input = Inventory.createUnitOfMeasureSchema.parse({
+				name: "Nos",
+			});
+			mockPrisma.unitOfMeasurement.findFirst.mockResolvedValue({
+				id: "existing-uom",
+			});
+
+			await expect(service.createUnitOfMeasure(input)).rejects.toThrow(
+				ConflictException,
+			);
+		});
+	});
+
+	describe("updateUnitOfMeasure", () => {
+		it("should update a unit of measure", async () => {
+			const input = Inventory.updateUnitOfMeasureSchema.parse({
+				id: mockUnitOfMeasure.id,
+				name: "Kilogram",
+				disabled: true,
+				isWholeNumber: false,
+			});
+			mockPrisma.unitOfMeasurement.findUnique.mockResolvedValue(
+				mockUnitOfMeasure,
+			);
+			mockPrisma.unitOfMeasurement.findFirst.mockResolvedValue(null);
+			mockPrisma.unitOfMeasurement.update.mockResolvedValue({
+				...mockUnitOfMeasure,
+				name: "Kilogram",
+				disabled: true,
+				isWholeNumber: false,
+			});
+
+			const result = await service.updateUnitOfMeasure(input);
+
+			expect(result.name).toBe("Kilogram");
+			expect(result.disabled).toBe(true);
+			expect(result.isWholeNumber).toBe(false);
+		});
+
+		it("should throw NotFoundException when a unit of measure does not exist", async () => {
+			mockPrisma.unitOfMeasurement.findUnique.mockResolvedValue(null);
+
+			await expect(
+				service.updateUnitOfMeasure({
+					id: "missing-uom",
+					name: "Kilogram",
+				}),
+			).rejects.toThrow(NotFoundException);
+		});
+
+		it("should throw ConflictException when renaming to an existing unit", async () => {
+			mockPrisma.unitOfMeasurement.findUnique.mockResolvedValue(
+				mockUnitOfMeasure,
+			);
+			mockPrisma.unitOfMeasurement.findFirst.mockResolvedValue({
+				id: "existing-uom",
+			});
+
+			await expect(
+				service.updateUnitOfMeasure({
+					id: mockUnitOfMeasure.id,
+					name: "Box",
+				}),
+			).rejects.toThrow(ConflictException);
+		});
+
+		it("should fall back to a generic conflict message when the name is unavailable", async () => {
+			mockPrisma.unitOfMeasurement.findUnique.mockResolvedValue({
+				...mockUnitOfMeasure,
+				name: undefined,
+			} as unknown as typeof mockUnitOfMeasure);
+			mockPrisma.unitOfMeasurement.update.mockRejectedValue(
+				new Prisma.PrismaClientKnownRequestError("Duplicate", {
+					code: "P2002",
+					clientVersion: "5.0.0",
+				}),
+			);
+
+			await expect(
+				service.updateUnitOfMeasure({
+					id: mockUnitOfMeasure.id,
+					disabled: true,
+				}),
+			).rejects.toThrow("Unit of measure already exists");
+		});
+	});
+
+	describe("deleteUnitOfMeasure", () => {
+		it("should delete a unit of measure", async () => {
+			mockPrisma.unitOfMeasurement.delete.mockResolvedValue(mockUnitOfMeasure);
+
+			const result = await service.deleteUnitOfMeasure(mockUnitOfMeasure.id);
+
+			expect(result).toEqual({
+				success: true,
+				id: mockUnitOfMeasure.id,
+			});
+			expect(mockPrisma.unitOfMeasurement.delete).toHaveBeenCalledWith({
+				where: { id: mockUnitOfMeasure.id },
+			});
+		});
+
+		it("should throw NotFoundException when a unit of measure does not exist", async () => {
+			const error = new Prisma.PrismaClientKnownRequestError(
+				"Record not found",
+				{
+					code: "P2025",
+					clientVersion: "5.0.0",
+				},
+			);
+			mockPrisma.unitOfMeasurement.delete.mockRejectedValue(error);
+
+			await expect(service.deleteUnitOfMeasure("missing-uom")).rejects.toThrow(
 				NotFoundException,
 			);
 		});

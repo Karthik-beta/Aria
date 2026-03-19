@@ -13,7 +13,6 @@ import {
 	List,
 	ListOrdered,
 	Loader2,
-	Menu,
 	MoreHorizontal,
 	Quote,
 	Settings,
@@ -287,7 +286,6 @@ function ItemFormContent() {
 				{/* Header with Actions */}
 				<div className="mb-6 flex items-center justify-between">
 					<div className="flex items-center gap-3">
-						<Menu className="h-5 w-5 text-gray-400 cursor-pointer" />
 						<h1 className="text-2xl font-bold tracking-tight">
 							{isEditMode ? item?.name : "New Item"}
 						</h1>
