@@ -2,6 +2,13 @@ import type { ColumnSort, Row, RowData } from "@tanstack/react-table";
 import type { DataTableConfig } from "@/config/data-table";
 import type { FilterItemSchema } from "@/lib/parsers";
 
+export type BulkEditFieldType =
+	| "text"
+	| "number"
+	| "boolean"
+	| "select"
+	| "date";
+
 declare module "@tanstack/react-table" {
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	interface ColumnMeta<TData extends RowData, TValue> {
@@ -16,6 +23,7 @@ declare module "@tanstack/react-table" {
 		searchable?: boolean;
 		resizable?: boolean;
 		freezable?: boolean;
+		bulkEdit?: BulkEditColumnConfig;
 	}
 
 	// Extend TableMeta to support reload callback
@@ -30,6 +38,15 @@ export interface Option {
 	value: string;
 	count?: number;
 	icon?: React.FC<React.SVGProps<SVGSVGElement>>;
+}
+
+export interface BulkEditColumnConfig {
+	type: BulkEditFieldType;
+	field?: string;
+	label?: string;
+	placeholder?: string;
+	options?: Option[];
+	allowClear?: boolean;
 }
 
 export type FilterOperator = DataTableConfig["operators"][number];

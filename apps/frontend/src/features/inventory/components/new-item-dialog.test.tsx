@@ -64,7 +64,7 @@ describe("NewItemDialog", () => {
 	});
 
 	it("builds the full form handoff and submits the quick create payload", async () => {
-		const user = userEvent.setup();
+		const user = userEvent.setup({ pointerEventsCheck: 0 });
 		renderWithProviders(<NewItemDialog />);
 
 		await user.click(screen.getByRole("button", { name: "Add Item" }));
@@ -78,7 +78,7 @@ describe("NewItemDialog", () => {
 
 		await user.type(screen.getByLabelText(/Item Code/i), "abc-123");
 		await user.click(screen.getByRole("button", { name: "Item Group" }));
-		await user.click(screen.getByText("Furniture"));
+		await user.click(await screen.findByText("Furniture"));
 		await user.click(screen.getByLabelText(/Maintain Stock/i));
 		await user.click(screen.getByLabelText(/Is Fixed Asset/i));
 
