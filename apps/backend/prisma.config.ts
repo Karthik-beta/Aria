@@ -8,8 +8,8 @@
  * @see https://www.prisma.io/docs/orm/more/upgrade-guides/upgrading-versions/upgrading-to-prisma-7
  *
  * Key Changes from Prisma v6:
- * - The `url`, `directUrl`, and `shadowDatabaseUrl` fields in the `datasource` block
- *   of schema.prisma are deprecated. Configure them here instead.
+ * - The `url` and `shadowDatabaseUrl` fields in the `datasource` block
+ *   of schema.prisma are configured here.
  * - The `seed` script is now defined in this config file, not package.json.
  * - Environment variables must be explicitly loaded (dotenv/config).
  */
@@ -31,7 +31,7 @@ export default defineConfig({
 	 */
 	migrations: {
 		path: "prisma/migrations",
-		// seed: 'bun run prisma/seed.ts', // Uncomment when seed script is created
+		seed: "bun prisma/seed-authorization.ts",
 	},
 
 	/**
@@ -43,12 +43,10 @@ export default defineConfig({
 	 *
 	 * Available options:
 	 * - `url`: Primary database connection string (required)
-	 * - `directUrl`: (optional) Direct connection URL for migrations (bypasses poolers)
 	 * - `shadowDatabaseUrl`: (optional) URL for shadow database used during migrations
 	 */
 	datasource: {
 		url: env("DATABASE_URL"),
-		// directUrl: env('DIRECT_URL'),           // Uncomment for connection pooler setups
 		// shadowDatabaseUrl: env('SHADOW_DB_URL'), // Uncomment for shadow database
 	},
 });

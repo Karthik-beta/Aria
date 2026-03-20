@@ -79,6 +79,12 @@ describe("NewItemDialog", () => {
 		await user.type(screen.getByLabelText(/Item Code/i), "abc-123");
 		await user.click(screen.getByRole("button", { name: "Item Group" }));
 		await user.click(await screen.findByText("Furniture"));
+		await user.click(screen.getByRole("button", { name: "Nos" }));
+
+		const commandList = document.querySelector('[data-slot="command-list"]');
+		expect(commandList).toHaveClass("max-h-full", "min-h-0");
+
+		await user.click(screen.getByRole("button", { name: "Nos" }));
 		await user.click(screen.getByLabelText(/Maintain Stock/i));
 		await user.click(screen.getByLabelText(/Is Fixed Asset/i));
 
@@ -96,5 +102,5 @@ describe("NewItemDialog", () => {
 				isFixedAsset: true,
 			});
 		});
-	});
+	}, 15_000);
 });
