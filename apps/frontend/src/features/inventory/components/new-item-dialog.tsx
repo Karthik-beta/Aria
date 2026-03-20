@@ -328,14 +328,14 @@ export function NewItemDialog() {
 										</Button>
 									</PopoverTrigger>
 									<PopoverContent
-										className="p-0 pointer-events-auto"
+										className="pointer-events-auto max-h-[min(24rem,calc(var(--radix-popover-content-available-height)-1rem))] overflow-hidden p-0"
 										style={{
 											width: "var(--radix-popover-trigger-width)",
 										}}
 									>
-										<Command>
+										<Command className="min-h-0">
 											<CommandInput placeholder="Search units..." />
-											<CommandList>
+											<CommandList className="max-h-full min-h-0">
 												<CommandEmpty>No results</CommandEmpty>
 												<CommandGroup>
 													{unitsOfMeasure.map((unit) => (

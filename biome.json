@@ -42,14 +42,6 @@
 	},
 	"overrides": [
 		{
-			"includes": ["apps/backend/src/**/*.ts", "apps/backend/test/**/*.ts"],
-			"javascript": {
-				"parser": {
-					"unsafeParameterDecoratorsEnabled": true
-				}
-			}
-		},
-		{
 			"includes": [
 				"apps/*/src/**/*.{ts,tsx,js,jsx}",
 				"packages/*/src/**/*.{ts,tsx,js,jsx}"
