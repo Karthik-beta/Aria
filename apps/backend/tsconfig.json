@@ -10,19 +10,8 @@
 		"declaration": false,
 		"declarationMap": false,
 		"useUnknownInCatchVariables": false,
-		"types": ["node"],
-		"paths": {
-			"@prisma/client": ["./src/generated/client"],
-			"@prisma/client/*": ["./src/generated/client/*"]
-		}
+		"types": ["node", "jest"]
 	},
 	"include": ["src/**/*"],
-	"exclude": [
-		"node_modules",
-		"dist",
-		"test",
-		"src/generated/prisma/**/*.js",
-		"src/**/*.spec.ts",
-		"src/**/__tests__/**/*.ts"
-	]
+	"exclude": ["node_modules", "dist", "test", "src/generated/prisma/**/*.js"]
 }

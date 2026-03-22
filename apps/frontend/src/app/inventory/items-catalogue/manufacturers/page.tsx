@@ -210,8 +210,8 @@ export default function ItemManufacturersPage() {
 
 		const query = params.toString();
 		return query
-			? `/inventory/manufacturers/form?${query}`
-			: "/inventory/manufacturers/form";
+			? `/inventory/items-catalogue/manufacturers/form?${query}`
+			: "/inventory/items-catalogue/manufacturers/form";
 	}, [
 		quickFormIsDefault,
 		quickFormItemId,
@@ -406,7 +406,7 @@ export default function ItemManufacturersPage() {
 							<DropdownMenuSeparator />
 							<DropdownMenuItem asChild>
 								<Link
-									href={`/inventory/manufacturers/form?id=${row.original.id}`}
+									href={`/inventory/items-catalogue/manufacturers/form?id=${row.original.id}`}
 								>
 									<Edit className="mr-2 h-4 w-4" />
 									Edit Item Manufacturer

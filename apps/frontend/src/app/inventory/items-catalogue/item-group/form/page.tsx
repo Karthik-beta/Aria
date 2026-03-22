@@ -14,7 +14,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState, useTransition } from "react";
 import { Controller, useFieldArray, useForm } from "react-hook-form";
 import { toast } from "sonner";
-import { z } from "zod";
+import * as z from "zod";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -25,6 +25,7 @@ import {
 	CommandInput,
 	CommandItem,
 	CommandList,
+	CommandSeparator,
 } from "@/components/ui/command";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -80,19 +81,26 @@ function ItemGroupFormContent() {
 	const searchParams = useSearchParams();
 	const groupId = searchParams.get("id");
 	const isEditMode = Boolean(groupId);
+	const initialParentId = (() => {
+		const parentId = searchParams.get("parentId")?.trim();
+		if (!parentId) {
+			return null;
+		}
+
+		return z.string().cuid().safeParse(parentId).success ? parentId : null;
+	})();
 	const [isPending, startTransition] = useTransition();
 	const [hasUnsavedChanges, setHasUnsavedChanges] = useState(!isEditMode);
 	const [isInitialized, setIsInitialized] = useState(!isEditMode);
 
 	// Combobox states
 	const [parentGroupOpen, setParentGroupOpen] = useState(false);
-	const [parentGroupSearch, _setParentGroupSearch] = useState("");
 
 	const form = useForm<FormInput>({
 		resolver: zodResolver(formSchema),
 		defaultValues: {
 			groupName: "",
-			parentId: null,
+			parentId: isEditMode ? null : initialParentId,
 			isGroup: false,
 			defaults: [],
 			taxes: [],
@@ -124,26 +132,20 @@ function ItemGroupFormContent() {
 		return () => subscription.unsubscribe();
 	}, [form, isInitialized]);
 
-	// Fetch existing group if editing
-	const { data: allGroups, isLoading: isFetchingGroup } =
+	// Fetch item groups once and reuse the same source for edit hydration and the parent dropdown.
+	const { data: itemGroups = [], isLoading: isFetchingItemGroups } =
 		trpc.inventory.listItemGroups.useQuery(undefined, {
-			enabled: isEditMode,
+			staleTime: 30000,
 		});
 
-	const itemGroup = allGroups?.find((g) => g.id === groupId);
-
-	// Fetch potential parent groups
-	const { data: itemGroups = [] } = trpc.inventory.listItemGroups.useQuery(
-		{ search: parentGroupSearch },
-		{ staleTime: 30000 },
-	);
+	const itemGroup = itemGroups.find((g) => g.id === groupId);
 
 	// Initialize form with data
 	useEffect(() => {
 		if (isEditMode && itemGroup) {
 			form.reset({
 				groupName: itemGroup.groupName,
-				parentId: itemGroup.parentId,
+				parentId: itemGroup.parentId ?? null, // Normalize undefined from the backend to null for the form.
 				isGroup: itemGroup.isGroup,
 				defaults: itemGroup.defaults || [],
 				taxes: [], // Backend doesn't seem to return taxes yet
@@ -192,8 +194,9 @@ function ItemGroupFormContent() {
 	const selectedParentGroup = itemGroups.find(
 		(g) => g.id === form.watch("parentId"),
 	);
+	const parentDropdownGroups = itemGroups.filter((g) => g.id !== groupId);
 
-	if (isEditMode && isFetchingGroup) {
+	if (isEditMode && isFetchingItemGroups) {
 		return (
 			<div className="flex min-h-screen items-center justify-center">
 				<Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -276,13 +279,10 @@ function ItemGroupFormContent() {
 												role="combobox"
 												className={cn(
 													"h-10 w-full justify-between bg-gray-50/50 font-normal",
-													!field.value && "text-muted-foreground",
+													!selectedParentGroup && "text-muted-foreground",
 												)}
 											>
-												{selectedParentGroup?.groupName || field.value
-													? itemGroups.find((g) => g.id === field.value)
-															?.groupName || field.value
-													: ""}
+												{selectedParentGroup?.groupName || "Top-level group"}
 												<ChevronDown className="h-4 w-4 opacity-50" />
 											</Button>
 										</PopoverTrigger>
@@ -293,9 +293,25 @@ function ItemGroupFormContent() {
 											<Command>
 												<CommandInput placeholder="Search item groups..." />
 												<CommandList>
-													<CommandEmpty>No item group found.</CommandEmpty>
-													<CommandGroup>
-														{itemGroups.map((group) => (
+													<CommandEmpty>No item groups found.</CommandEmpty>
+													<CommandItem
+														onSelect={() => {
+															field.onChange(null);
+															setParentGroupOpen(false);
+														}}
+													>
+														<div className="flex flex-col items-start">
+															<span className="font-medium">
+																Top-level group
+															</span>
+															<span className="text-xs text-muted-foreground">
+																No parent assigned
+															</span>
+														</div>
+													</CommandItem>
+													<CommandSeparator />
+													<CommandGroup heading="All Item Groups">
+														{parentDropdownGroups.map((group) => (
 															<CommandItem
 																key={group.id}
 																onSelect={() => {
@@ -303,7 +319,14 @@ function ItemGroupFormContent() {
 																	setParentGroupOpen(false);
 																}}
 															>
-																{group.groupName}
+																<div className="flex flex-col items-start">
+																	<span className="font-medium">
+																		{group.groupName}
+																	</span>
+																	<span className="text-xs text-muted-foreground">
+																		{group.parentGroupName || "All Item Groups"}
+																	</span>
+																</div>
 															</CommandItem>
 														))}
 													</CommandGroup>

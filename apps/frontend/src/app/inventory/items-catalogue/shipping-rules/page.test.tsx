@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { renderWithProviders, screen } from "../../../../test/utils";
+import { renderWithProviders, screen } from "@/test/utils";
 import ShippingRulesPage from "./page";
 
 vi.mock("@/lib/trpc", () => ({

@@ -43,6 +43,42 @@ type InventoryRouterInput = {
 		output: Inventory.UnitOfMeasure[];
 		meta: object;
 	}>;
+	getUnitOfMeasureById: TRPCQueryProcedure<{
+		input: {
+			id: string;
+		};
+		output: Inventory.UnitOfMeasure | null;
+		meta: object;
+	}>;
+	createUnitOfMeasure: TRPCMutationProcedure<{
+		input: {
+			name: string;
+			disabled?: boolean | undefined;
+			isWholeNumber?: boolean | undefined;
+		};
+		output: Inventory.UnitOfMeasure;
+		meta: object;
+	}>;
+	updateUnitOfMeasure: TRPCMutationProcedure<{
+		input: {
+			id: string;
+			name?: string | undefined;
+			disabled?: boolean | undefined;
+			isWholeNumber?: boolean | undefined;
+		};
+		output: Inventory.UnitOfMeasure;
+		meta: object;
+	}>;
+	deleteUnitOfMeasure: TRPCMutationProcedure<{
+		input: {
+			id: string;
+		};
+		output: {
+			success: boolean;
+			id: string;
+		};
+		meta: object;
+	}>;
 	listBundleItems: TRPCQueryProcedure<{
 		input:
 			| {

@@ -1,33 +1,31 @@
 import "@testing-library/jest-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import {
-	renderWithProviders,
-	screen,
-	userEvent,
-	waitFor,
-} from "../../../../../test/utils";
-import ShippingRuleFormPage from "./page";
+import { renderWithProviders, screen, userEvent, waitFor } from "@/test/utils";
+import ItemAlternativeFormPage from "./page";
 
 const mockCreateMutate = vi.fn();
 const mockUpdateMutate = vi.fn();
 const mockPush = vi.fn();
 
 let currentId: string | null = null;
-const mockRules = [
+const mockItemAlternatives = [
 	{
-		id: "clh123rule",
-		shippingRuleLabel: "Priority Shipping",
-		shippingRuleType: "SELLING" as const,
-		disabled: false,
-		calculateBasedOn: "NET_TOTAL" as const,
-		shippingAmount: 25,
+		id: "clh123alt",
+		itemId: "clh1234567890abcde123450",
+		itemCode: "43567-OR",
+		itemName: "Orange Shirt",
+		alternativeItemId: "clh1234567890abcde123451",
+		alternativeItemCode: "43567-BLA",
+		alternativeItemName: "Black Shirt",
+		twoWay: true,
 		createdAt: new Date("2026-01-01"),
 		updatedAt: new Date("2026-01-02"),
 	},
 ];
 
-const getMockRuleById = (id: string | null) =>
-	mockRules.find((rule) => rule.id === id) ?? null;
+const getMockItemAlternativeById = (id: string | null) =>
+	mockItemAlternatives.find((itemAlternative) => itemAlternative.id === id) ??
+	null;
 
 vi.mock("next/navigation", () => ({
 	useRouter: () => ({
@@ -52,23 +50,21 @@ vi.mock("@hookform/resolvers/zod", () => ({
 
 vi.mock("@aria/types", () => {
 	const createShape = {
-		shippingRuleLabel: {} as never,
-		shippingRuleType: {} as never,
-		disabled: {} as never,
-		calculateBasedOn: {} as never,
-		shippingAmount: {} as never,
+		itemId: {} as never,
+		alternativeItemId: {} as never,
+		twoWay: {} as never,
 	};
 
 	return {
 		Inventory: {
-			createShippingRuleSchema: {
+			createItemAlternativeSchema: {
 				shape: createShape,
 				safeParse: (input: unknown) => ({
 					success: true as const,
 					data: input,
 				}),
 			},
-			updateShippingRuleSchema: {
+			updateItemAlternativeSchema: {
 				omit: () => ({
 					extend: () => ({
 						safeParse: (input: unknown) => ({
@@ -90,25 +86,46 @@ vi.mock("@/lib/trpc", () => ({
 	trpc: {
 		useUtils: () => ({
 			inventory: {
-				listShippingRules: {
+				listItemAlternatives: {
+					invalidate: vi.fn().mockResolvedValue(undefined),
+				},
+				getItemAlternativeById: {
 					invalidate: vi.fn().mockResolvedValue(undefined),
 				},
 			},
 		}),
 		inventory: {
-			getShippingRuleById: {
+			listBundleItems: {
 				useQuery: () => ({
-					data: getMockRuleById(currentId),
+					data: [
+						{
+							id: "clh1234567890abcde123450",
+							name: "Orange Shirt",
+							code: "43567-OR",
+							defaultUnitOfMeasureId: null,
+						},
+						{
+							id: "clh1234567890abcde123451",
+							name: "Black Shirt",
+							code: "43567-BLA",
+							defaultUnitOfMeasureId: null,
+						},
+					],
+				}),
+			},
+			getItemAlternativeById: {
+				useQuery: () => ({
+					data: getMockItemAlternativeById(currentId),
 					isLoading: false,
 				}),
 			},
-			createShippingRule: {
+			createItemAlternative: {
 				useMutation: () => ({
 					isPending: false,
 					mutate: mockCreateMutate,
 				}),
 			},
-			updateShippingRule: {
+			updateItemAlternative: {
 				useMutation: () => ({
 					isPending: false,
 					mutate: mockUpdateMutate,
@@ -118,7 +135,7 @@ vi.mock("@/lib/trpc", () => ({
 	},
 }));
 
-describe("ShippingRuleFormPage", () => {
+describe("ItemAlternativeFormPage", () => {
 	beforeEach(() => {
 		currentId = null;
 		mockCreateMutate.mockClear();
@@ -128,54 +145,51 @@ describe("ShippingRuleFormPage", () => {
 
 	it("submits create payload", async () => {
 		const user = userEvent.setup();
-		renderWithProviders(<ShippingRuleFormPage />);
+		renderWithProviders(<ItemAlternativeFormPage />);
 
-		await user.type(
-			screen.getByLabelText(/Shipping Rule Label/i),
-			"Standard Shipping",
-		);
+		await waitFor(() => {
+			expect(screen.getByText("43567-OR")).toBeInTheDocument();
+			expect(screen.getByText("43567-BLA")).toBeInTheDocument();
+		});
+
 		await user.click(screen.getByRole("button", { name: "Save" }));
 
 		await waitFor(() => {
 			expect(mockCreateMutate).toHaveBeenCalledWith({
-				shippingRuleLabel: "Standard Shipping",
-				shippingRuleType: "SELLING",
-				disabled: false,
-				calculateBasedOn: "FIXED",
-				shippingAmount: 0,
+				itemId: "clh1234567890abcde123450",
+				alternativeItemId: "clh1234567890abcde123451",
+				twoWay: false,
 			});
 		});
 	});
 
 	it("prefills edit form and submits update payload", async () => {
-		currentId = "clh123rule";
+		currentId = "clh123alt";
 		const user = userEvent.setup();
-		renderWithProviders(<ShippingRuleFormPage />);
+		renderWithProviders(<ItemAlternativeFormPage />);
 
 		await waitFor(() => {
-			expect(screen.getByDisplayValue("Priority Shipping")).toBeInTheDocument();
+			expect(screen.getByText("43567-OR -> 43567-BLA")).toBeInTheDocument();
 		});
 
 		await user.click(screen.getByRole("button", { name: "Save" }));
 
 		await waitFor(() => {
 			expect(mockUpdateMutate).toHaveBeenCalledWith({
-				id: "clh123rule",
-				shippingRuleLabel: "Priority Shipping",
-				shippingRuleType: "SELLING",
-				disabled: false,
-				calculateBasedOn: "NET_TOTAL",
-				shippingAmount: 25,
+				id: "clh123alt",
+				itemId: "clh1234567890abcde123450",
+				alternativeItemId: "clh1234567890abcde123451",
+				twoWay: true,
 			});
 		});
 	});
 
 	it("redirects to list when edit id is not found", async () => {
 		currentId = "missing-id";
-		renderWithProviders(<ShippingRuleFormPage />);
+		renderWithProviders(<ItemAlternativeFormPage />);
 
 		await waitFor(() => {
-			expect(mockPush).toHaveBeenCalledWith("/inventory/shipping-rules");
+			expect(mockPush).toHaveBeenCalledWith("/inventory/item-alternatives");
 		});
 	});
 });

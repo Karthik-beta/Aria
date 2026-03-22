@@ -14,13 +14,13 @@
 		}
 	},
 	"scripts": {
-		"prisma:generate": "prisma generate",
+		"prisma:generate": "bun x --bun prisma generate",
 		"prebuild": "bun run prisma:generate",
-		"build": "nest build",
+		"build": "bun x -p @nestjs/cli nest build",
 		"format": "biome format --write .",
 		"start": "node dist/main.js",
-		"dev": "nest start --watch",
-		"start:debug": "nest start --debug --watch",
+		"dev": "bun x -p @nestjs/cli nest start --watch",
+		"start:debug": "bun x -p @nestjs/cli nest start --debug --watch",
 		"start:prod": "node dist/main.js",
 		"lint": "biome check .",
 		"lint:fix": "biome check --write .",
@@ -30,11 +30,12 @@
 		"test:cov": "node ./node_modules/jest/bin/jest.js --coverage",
 		"test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
 		"test:e2e": "node ./node_modules/jest/bin/jest.js --config ./test/jest-e2e.json",
-		"db:migrate": "prisma migrate dev",
-		"db:push": "prisma db push",
-		"db:studio": "prisma studio",
+		"db:migrate": "bun x --bun prisma migrate dev",
+		"db:push": "bun x --bun prisma db push",
+		"db:studio": "bun x --bun prisma studio",
 		"db:generate": "bun run prisma:generate",
-		"clean": "rimraf dist .test-dist .turbo node_modules"
+		"db:seed": "bun x --bun prisma db seed",
+		"clean": "rimraf dist .test-dist .turbo tsconfig.tsbuildinfo tsconfig.build.tsbuildinfo"
 	},
 	"jest": {
 		"moduleFileExtensions": [
@@ -60,7 +61,7 @@
 		"@nestjs/core": "^11.1.10",
 		"@nestjs/platform-express": "^11.1.10",
 		"@prisma/adapter-pg": "^7.4.2",
-		"@prisma/client": "^7.4.2",
+		"@prisma/client": "^7.5.0",
 		"@trpc/server": "^11.8.1",
 		"@types/ws": "^8.18.1",
 		"@willsoto/nestjs-prometheus": "^6.0.2",
@@ -69,7 +70,7 @@
 		"dotenv": "^17.2.3",
 		"express": "^5.2.1",
 		"pg": "^8.16.3",
-		"prisma": "^7.4.2",
+		"prisma": "^7.5.0",
 		"prom-client": "^15.1.3",
 		"reflect-metadata": "^0.2.2",
 		"rxjs": "^7.8.2",

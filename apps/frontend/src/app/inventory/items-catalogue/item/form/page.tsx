@@ -13,7 +13,6 @@ import {
 	List,
 	ListOrdered,
 	Loader2,
-	Menu,
 	MoreHorizontal,
 	Quote,
 	Settings,
@@ -70,6 +69,13 @@ function ItemFormContent() {
 	const searchParams = useSearchParams();
 	const itemId = searchParams.get("id");
 	const isEditMode = Boolean(itemId);
+	const queryCode = searchParams.get("code")?.trim() ?? "";
+	const queryName = searchParams.get("name")?.trim() || queryCode;
+	const queryItemGroupId = searchParams.get("itemGroupId")?.trim() || undefined;
+	const queryDefaultUnitOfMeasureId =
+		searchParams.get("defaultUnitOfMeasureId")?.trim() || undefined;
+	const queryMaintainStock = searchParams.get("maintainStock");
+	const queryIsFixedAsset = searchParams.get("isFixedAsset") === "true";
 	const [isPending, startTransition] = useTransition();
 	const [hasUnsavedChanges, setHasUnsavedChanges] = useState(!isEditMode);
 	const [isInitialized, setIsInitialized] = useState(!isEditMode);
@@ -86,12 +92,13 @@ function ItemFormContent() {
 	const form = useForm<CreateFormValues>({
 		resolver: zodResolver(Inventory.createSchema),
 		defaultValues: {
-			name: "",
-			code: "",
+			name: queryName,
+			code: queryCode,
 			quantity: 0,
 			description: "",
 			disabled: false,
-			maintainStock: true,
+			maintainStock:
+				queryMaintainStock === null ? true : queryMaintainStock === "true",
 			allowAlternateItem: false,
 			hasVariants: false,
 			openingStock: 0,
@@ -99,10 +106,9 @@ function ItemFormContent() {
 			standardSellingRate: undefined,
 			isZeroRated: false,
 			isExempt: false,
-			isFixedAsset: false,
 			taxCode: "",
-			itemGroupId: undefined,
-			defaultUnitOfMeasureId: undefined,
+			itemGroupId: queryItemGroupId,
+			defaultUnitOfMeasureId: queryDefaultUnitOfMeasureId,
 			shelfLifeInDays: undefined,
 			warrantyPeriodInDays: undefined,
 			endOfLife: undefined,
@@ -115,6 +121,7 @@ function ItemFormContent() {
 			hasSerialNo: false,
 			barcodes: [],
 			reorderSettings: [],
+			isFixedAsset: queryIsFixedAsset,
 		},
 	});
 
@@ -279,7 +286,6 @@ function ItemFormContent() {
 				{/* Header with Actions */}
 				<div className="mb-6 flex items-center justify-between">
 					<div className="flex items-center gap-3">
-						<Menu className="h-5 w-5 text-gray-400 cursor-pointer" />
 						<h1 className="text-2xl font-bold tracking-tight">
 							{isEditMode ? item?.name : "New Item"}
 						</h1>
