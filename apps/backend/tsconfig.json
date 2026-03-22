@@ -10,7 +10,7 @@
 		"declaration": false,
 		"declarationMap": false,
 		"useUnknownInCatchVariables": false,
-		"types": ["node"]
+		"types": ["node", "jest"]
 	},
 	"include": ["src/**/*"],
 	"exclude": ["node_modules", "dist", "test", "src/generated/prisma/**/*.js"]
