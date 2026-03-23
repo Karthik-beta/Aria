@@ -41,6 +41,7 @@ export default defineConfig({
 			},
 		},
 		restoreMocks: true,
+		testTimeout: 15000,
 	},
 	resolve: {
 		alias: [

@@ -927,6 +927,196 @@ export namespace Inventory {
 	export const bulkDeleteMaterialRequestsSchema = z.object({
 		ids: z.array(z.string().min(1)).min(1),
 	});
+
+	// ============================================================================
+	// Stock Entry Types & Schemas
+	// ============================================================================
+
+	export type StockEntryType =
+		| "MATERIAL_RECEIPT"
+		| "MATERIAL_ISSUE"
+		| "MATERIAL_TRANSFER"
+		| "MATERIAL_TRANSFER_FOR_MANUFACTURE"
+		| "MANUFACTURE"
+		| "REPACK"
+		| "SEND_TO_SUBCONTRACTOR";
+
+	export type StockEntryStatus = "DRAFT" | "SUBMITTED" | "CANCELLED";
+
+	export interface StockEntryItem {
+		id: string;
+		stockEntryId: string;
+		sourceWarehouse?: string | null;
+		targetWarehouse?: string | null;
+		itemCode: string;
+		itemName?: string | null;
+		description?: string | null;
+		qty: number;
+		basicRate: number;
+		basicAmount: number;
+		unitOfMeasure?: string | null;
+	}
+
+	export interface StockEntry {
+		id: string;
+		series: string;
+		stockEntryType: StockEntryType;
+		postingDate: Date;
+		company: string;
+		status: StockEntryStatus;
+		project?: string | null;
+		defaultSourceWarehouse?: string | null;
+		defaultTargetWarehouse?: string | null;
+		isOpening: boolean;
+		remarks?: string | null;
+		printHeading?: string | null;
+		letterHead?: string | null;
+		inspectionRequired: boolean;
+		items: StockEntryItem[];
+		createdAt: Date;
+		updatedAt: Date;
+	}
+
+	export interface CreateStockEntryItemInput {
+		sourceWarehouse?: string;
+		targetWarehouse?: string;
+		itemCode: string;
+		itemName?: string;
+		description?: string;
+		qty: number;
+		basicRate?: number;
+		unitOfMeasure?: string;
+	}
+
+	export interface CreateStockEntryInput {
+		stockEntryType: StockEntryType;
+		postingDate?: Date;
+		company: string;
+		project?: string;
+		defaultSourceWarehouse?: string;
+		defaultTargetWarehouse?: string;
+		isOpening?: boolean;
+		remarks?: string;
+		printHeading?: string;
+		letterHead?: string;
+		inspectionRequired?: boolean;
+		items: CreateStockEntryItemInput[];
+	}
+
+	export interface UpdateStockEntryItemInput {
+		id?: string;
+		sourceWarehouse?: string;
+		targetWarehouse?: string;
+		itemCode: string;
+		itemName?: string;
+		description?: string;
+		qty: number;
+		basicRate?: number;
+		unitOfMeasure?: string;
+	}
+
+	export interface UpdateStockEntryInput {
+		id: string;
+		stockEntryType?: StockEntryType;
+		postingDate?: Date;
+		company?: string;
+		status?: StockEntryStatus;
+		project?: string | null;
+		defaultSourceWarehouse?: string | null;
+		defaultTargetWarehouse?: string | null;
+		isOpening?: boolean;
+		remarks?: string | null;
+		printHeading?: string | null;
+		letterHead?: string | null;
+		inspectionRequired?: boolean;
+		items?: UpdateStockEntryItemInput[];
+	}
+
+	export const createStockEntryItemSchema = z.object({
+		sourceWarehouse: z.string().max(255).optional(),
+		targetWarehouse: z.string().max(255).optional(),
+		itemCode: z.string().min(1, "Item code is required").max(100).trim(),
+		itemName: z.string().max(255).optional(),
+		description: z.string().max(1000).optional(),
+		qty: z.number().min(0.001, "Quantity must be greater than 0"),
+		basicRate: z.number().min(0).default(0),
+		unitOfMeasure: z.string().max(50).optional(),
+	});
+
+	export const createStockEntrySchema = z.object({
+		stockEntryType: z.enum([
+			"MATERIAL_RECEIPT",
+			"MATERIAL_ISSUE",
+			"MATERIAL_TRANSFER",
+			"MATERIAL_TRANSFER_FOR_MANUFACTURE",
+			"MANUFACTURE",
+			"REPACK",
+			"SEND_TO_SUBCONTRACTOR",
+		]),
+		postingDate: z.coerce.date().optional(),
+		company: z.string().min(1, "Company is required").max(255).trim(),
+		project: z.string().max(255).optional(),
+		defaultSourceWarehouse: z.string().max(255).optional(),
+		defaultTargetWarehouse: z.string().max(255).optional(),
+		isOpening: z.boolean().default(false),
+		remarks: z
+			.string()
+			.max(65_535, "Remarks must be 65,535 characters or fewer")
+			.optional(),
+		printHeading: z.string().max(255).optional(),
+		letterHead: z.string().max(255).optional(),
+		inspectionRequired: z.boolean().default(false),
+		items: z
+			.array(createStockEntryItemSchema)
+			.min(1, "At least one item is required"),
+	});
+
+	export const updateStockEntryItemSchema = z.object({
+		id: z.string().optional(),
+		sourceWarehouse: z.string().max(255).optional(),
+		targetWarehouse: z.string().max(255).optional(),
+		itemCode: z.string().min(1, "Item code is required").max(100).trim(),
+		itemName: z.string().max(255).optional(),
+		description: z.string().max(1000).optional(),
+		qty: z.number().min(0.001, "Quantity must be greater than 0"),
+		basicRate: z.number().min(0).optional(),
+		unitOfMeasure: z.string().max(50).optional(),
+	});
+
+	export const updateStockEntrySchema = z.object({
+		id: z.string().min(1),
+		stockEntryType: z
+			.enum([
+				"MATERIAL_RECEIPT",
+				"MATERIAL_ISSUE",
+				"MATERIAL_TRANSFER",
+				"MATERIAL_TRANSFER_FOR_MANUFACTURE",
+				"MANUFACTURE",
+				"REPACK",
+				"SEND_TO_SUBCONTRACTOR",
+			])
+			.optional(),
+		postingDate: z.coerce.date().optional(),
+		company: z.string().min(1).max(255).trim().optional(),
+		status: z.enum(["DRAFT", "SUBMITTED", "CANCELLED"]).optional(),
+		project: z.string().max(255).optional().nullable(),
+		defaultSourceWarehouse: z.string().max(255).optional().nullable(),
+		defaultTargetWarehouse: z.string().max(255).optional().nullable(),
+		isOpening: z.boolean().optional(),
+		remarks: z
+			.string()
+			.max(65_535, "Remarks must be 65,535 characters or fewer")
+			.optional()
+			.nullable(),
+		printHeading: z.string().max(255).optional().nullable(),
+		letterHead: z.string().max(255).optional().nullable(),
+		inspectionRequired: z.boolean().optional(),
+		items: z.array(updateStockEntryItemSchema).min(1).optional(),
+	});
+
+	export const bulkDeleteStockEntriesSchema = z.object({
+		ids: z.array(z.string().min(1)).min(1),
+	});
 }
 
 // ============================================================================

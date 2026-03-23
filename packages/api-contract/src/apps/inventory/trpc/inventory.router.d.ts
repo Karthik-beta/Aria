@@ -24,6 +24,11 @@ type MaterialRequestsChangedEvent = {
 	data: Inventory.MaterialRequest | { id: string };
 };
 
+type StockEntriesChangedEvent = {
+	type: "created" | "updated" | "deleted";
+	data: Inventory.StockEntry | { id: string };
+};
+
 type InventoryRouterInput = {
 	listItems: TRPCQueryProcedure<{
 		input: void;
@@ -571,6 +576,118 @@ type InventoryRouterInput = {
 	onMaterialRequestsChanged: LegacyObservableSubscriptionProcedure<{
 		input: void;
 		output: MaterialRequestsChangedEvent;
+		meta: object;
+	}>;
+	listStockEntries: TRPCQueryProcedure<{
+		input: void;
+		output: Inventory.StockEntry[];
+		meta: object;
+	}>;
+	getStockEntryById: TRPCQueryProcedure<{
+		input: {
+			id: string;
+		};
+		output: Inventory.StockEntry | null;
+		meta: object;
+	}>;
+	createStockEntry: TRPCMutationProcedure<{
+		input: {
+			stockEntryType:
+				| "MATERIAL_RECEIPT"
+				| "MATERIAL_ISSUE"
+				| "MATERIAL_TRANSFER"
+				| "MATERIAL_TRANSFER_FOR_MANUFACTURE"
+				| "MANUFACTURE"
+				| "REPACK"
+				| "SEND_TO_SUBCONTRACTOR";
+			postingDate?: unknown;
+			company: string;
+			project?: string | undefined;
+			defaultSourceWarehouse?: string | undefined;
+			defaultTargetWarehouse?: string | undefined;
+			isOpening?: boolean | undefined;
+			remarks?: string | undefined;
+			printHeading?: string | undefined;
+			letterHead?: string | undefined;
+			inspectionRequired?: boolean | undefined;
+			items: {
+				sourceWarehouse?: string | undefined;
+				targetWarehouse?: string | undefined;
+				itemCode: string;
+				itemName?: string | undefined;
+				description?: string | undefined;
+				qty: number;
+				basicRate?: number | undefined;
+				unitOfMeasure?: string | undefined;
+			}[];
+		};
+		output: Inventory.StockEntry;
+		meta: object;
+	}>;
+	updateStockEntry: TRPCMutationProcedure<{
+		input: {
+			id: string;
+			stockEntryType?:
+				| "MATERIAL_RECEIPT"
+				| "MATERIAL_ISSUE"
+				| "MATERIAL_TRANSFER"
+				| "MATERIAL_TRANSFER_FOR_MANUFACTURE"
+				| "MANUFACTURE"
+				| "REPACK"
+				| "SEND_TO_SUBCONTRACTOR"
+				| undefined;
+			postingDate?: unknown;
+			company?: string | undefined;
+			status?: "DRAFT" | "SUBMITTED" | "CANCELLED" | undefined;
+			project?: string | null | undefined;
+			defaultSourceWarehouse?: string | null | undefined;
+			defaultTargetWarehouse?: string | null | undefined;
+			isOpening?: boolean | undefined;
+			remarks?: string | null | undefined;
+			printHeading?: string | null | undefined;
+			letterHead?: string | null | undefined;
+			inspectionRequired?: boolean | undefined;
+			items?:
+				| {
+						id?: string | undefined;
+						sourceWarehouse?: string | undefined;
+						targetWarehouse?: string | undefined;
+						itemCode: string;
+						itemName?: string | undefined;
+						description?: string | undefined;
+						qty: number;
+						basicRate?: number | undefined;
+						unitOfMeasure?: string | undefined;
+				  }[]
+				| undefined;
+		};
+		output: Inventory.StockEntry;
+		meta: object;
+	}>;
+	deleteStockEntry: TRPCMutationProcedure<{
+		input: {
+			id: string;
+		};
+		output: {
+			success: boolean;
+			id: string;
+		};
+		meta: object;
+	}>;
+	deleteManyStockEntries: TRPCMutationProcedure<{
+		input: {
+			ids: string[];
+		};
+		output: {
+			success: boolean;
+			count: number;
+			ids: string[];
+		};
+		meta: object;
+	}>;
+	onStockEntriesChanged: LegacyObservableSubscriptionProcedure<{
+		input: void;
+		output: StockEntriesChangedEvent;
 		meta: object;
 	}>;
 };

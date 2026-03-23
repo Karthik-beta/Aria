@@ -534,6 +534,65 @@ enum MaterialRequestStatus {
   CANCELLED
 }
 
+model StockEntry {
+  id                     String           @id @default(cuid())
+  series                 String           @unique @db.VarChar(50)
+  stockEntryType         StockEntryType
+  postingDate            DateTime         @default(now())
+  company                String           @db.VarChar(255)
+  status                 StockEntryStatus @default(DRAFT)
+  project                String?          @db.VarChar(255)
+  defaultSourceWarehouse String?          @db.VarChar(255)
+  defaultTargetWarehouse String?          @db.VarChar(255)
+  isOpening              Boolean          @default(false)
+  remarks                String?
+  printHeading           String?          @db.VarChar(255)
+  letterHead             String?          @db.VarChar(255)
+  inspectionRequired     Boolean          @default(false)
+  items                  StockEntryItem[]
+  createdAt              DateTime         @default(now())
+  updatedAt              DateTime         @updatedAt
+
+  @@index([series])
+  @@index([status])
+  @@index([postingDate])
+  @@map("stock_entries")
+}
+
+model StockEntryItem {
+  id              String     @id @default(cuid())
+  stockEntryId    String
+  sourceWarehouse String?    @db.VarChar(255)
+  targetWarehouse String?    @db.VarChar(255)
+  itemCode        String     @db.VarChar(100)
+  itemName        String?    @db.VarChar(255)
+  description     String?
+  qty             Float      @default(0)
+  basicRate       Float      @default(0)
+  basicAmount     Float      @default(0)
+  unitOfMeasure   String?    @db.VarChar(50)
+  stockEntry      StockEntry @relation(fields: [stockEntryId], references: [id], onDelete: Cascade)
+
+  @@index([stockEntryId])
+  @@map("stock_entry_items")
+}
+
+enum StockEntryType {
+  MATERIAL_RECEIPT
+  MATERIAL_ISSUE
+  MATERIAL_TRANSFER
+  MATERIAL_TRANSFER_FOR_MANUFACTURE
+  MANUFACTURE
+  REPACK
+  SEND_TO_SUBCONTRACTOR
+}
+
+enum StockEntryStatus {
+  DRAFT
+  SUBMITTED
+  CANCELLED
+}
+
 enum RuleType {
   SELLING
   BUYING

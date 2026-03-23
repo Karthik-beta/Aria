@@ -539,6 +539,95 @@ const onMaterialRequestsChangedProcedure = protectedProcedure.subscription(
 	},
 );
 
+// ─── Stock Entry Procedures ──────────────────────────────────────────────────
+
+type StockEntriesChangedEvent = {
+	type: "created" | "updated" | "deleted";
+	data: Inventory.StockEntry | { id: string };
+};
+
+function createListStockEntriesProcedure(inventoryService: InventoryService) {
+	return protectedProcedure.query(async () => {
+		return inventoryService.findAllStockEntries();
+	});
+}
+
+function createGetStockEntryByIdProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(z.object({ id: z.string().min(1) }))
+		.query(async ({ input }) => {
+			return inventoryService.findStockEntryById(input.id);
+		});
+}
+
+function createCreateStockEntryProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(Inventory.createStockEntrySchema)
+		.mutation(async ({ input }) => {
+			const result = await inventoryService.createStockEntry(input);
+			void inventoryEvents.emit("stockEntryCreated", result);
+			return result;
+		});
+}
+
+function createUpdateStockEntryProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(Inventory.updateStockEntrySchema)
+		.mutation(async ({ input }) => {
+			const result = await inventoryService.updateStockEntry(input);
+			void inventoryEvents.emit("stockEntryUpdated", result);
+			return result;
+		});
+}
+
+function createDeleteStockEntryProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(z.object({ id: z.string().min(1) }))
+		.mutation(async ({ input }) => {
+			const result = await inventoryService.deleteStockEntry(input.id);
+			void inventoryEvents.emit("stockEntryDeleted", { id: input.id });
+			return result;
+		});
+}
+
+function createDeleteManyStockEntriesProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure
+		.input(Inventory.bulkDeleteStockEntriesSchema)
+		.mutation(async ({ input }) => {
+			const result = await inventoryService.deleteManyStockEntries(input.ids);
+			for (const id of result.ids) {
+				inventoryEvents.emit("stockEntryDeleted", { id });
+			}
+			return result;
+		});
+}
+
+const onStockEntriesChangedProcedure = protectedProcedure.subscription(() => {
+	return observable<StockEntriesChangedEvent>((emit) => {
+		const onCreated = (data: Inventory.StockEntry) => {
+			emit.next({ type: "created", data });
+		};
+		const onUpdated = (data: Inventory.StockEntry) => {
+			emit.next({ type: "updated", data });
+		};
+		const onDeleted = (data: { id: string }) => {
+			emit.next({ type: "deleted", data });
+		};
+
+		inventoryEvents.on("stockEntryCreated", onCreated);
+		inventoryEvents.on("stockEntryUpdated", onUpdated);
+		inventoryEvents.on("stockEntryDeleted", onDeleted);
+
+		return () => {
+			inventoryEvents.off("stockEntryCreated", onCreated);
+			inventoryEvents.off("stockEntryUpdated", onUpdated);
+			inventoryEvents.off("stockEntryDeleted", onDeleted);
+		};
+	});
+});
+
 type InventoryRouterInput = {
 	listItems: ReturnType<typeof createListItemsProcedure>;
 	listItemGroups: ReturnType<typeof createListItemGroupsProcedure>;
@@ -614,6 +703,15 @@ type InventoryRouterInput = {
 		typeof createDeleteManyMaterialRequestsProcedure
 	>;
 	onMaterialRequestsChanged: typeof onMaterialRequestsChangedProcedure;
+	listStockEntries: ReturnType<typeof createListStockEntriesProcedure>;
+	getStockEntryById: ReturnType<typeof createGetStockEntryByIdProcedure>;
+	createStockEntry: ReturnType<typeof createCreateStockEntryProcedure>;
+	updateStockEntry: ReturnType<typeof createUpdateStockEntryProcedure>;
+	deleteStockEntry: ReturnType<typeof createDeleteStockEntryProcedure>;
+	deleteManyStockEntries: ReturnType<
+		typeof createDeleteManyStockEntriesProcedure
+	>;
+	onStockEntriesChanged: typeof onStockEntriesChangedProcedure;
 };
 
 type InventoryRouterRoot = (typeof accountRouter)["_def"]["_config"]["$types"];
@@ -688,6 +786,14 @@ function createInventoryRouterRecord(
 		deleteManyMaterialRequests:
 			createDeleteManyMaterialRequestsProcedure(inventoryService),
 		onMaterialRequestsChanged: onMaterialRequestsChangedProcedure,
+		listStockEntries: createListStockEntriesProcedure(inventoryService),
+		getStockEntryById: createGetStockEntryByIdProcedure(inventoryService),
+		createStockEntry: createCreateStockEntryProcedure(inventoryService),
+		updateStockEntry: createUpdateStockEntryProcedure(inventoryService),
+		deleteStockEntry: createDeleteStockEntryProcedure(inventoryService),
+		deleteManyStockEntries:
+			createDeleteManyStockEntriesProcedure(inventoryService),
+		onStockEntriesChanged: onStockEntriesChangedProcedure,
 	};
 }
 

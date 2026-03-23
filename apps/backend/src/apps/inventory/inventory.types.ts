@@ -362,3 +362,51 @@ export function toInventoryMaterialRequest(
 		updatedAt: prismaMR.updatedAt,
 	};
 }
+
+/**
+ * Prisma model type for StockEntry with items
+ */
+export type InventoryStockEntry = Prisma.StockEntryGetPayload<{
+	include: {
+		items: true;
+	};
+}>;
+
+/**
+ * Converts a Prisma StockEntry to Inventory.StockEntry
+ */
+export function toInventoryStockEntry(
+	prismaEntry: InventoryStockEntry,
+): Inventory.StockEntry {
+	return {
+		id: prismaEntry.id,
+		series: prismaEntry.series,
+		stockEntryType: prismaEntry.stockEntryType as Inventory.StockEntryType,
+		postingDate: prismaEntry.postingDate,
+		company: prismaEntry.company,
+		status: prismaEntry.status as Inventory.StockEntryStatus,
+		project: prismaEntry.project,
+		defaultSourceWarehouse: prismaEntry.defaultSourceWarehouse,
+		defaultTargetWarehouse: prismaEntry.defaultTargetWarehouse,
+		isOpening: prismaEntry.isOpening,
+		remarks: prismaEntry.remarks,
+		printHeading: prismaEntry.printHeading,
+		letterHead: prismaEntry.letterHead,
+		inspectionRequired: prismaEntry.inspectionRequired,
+		items: prismaEntry.items.map((item) => ({
+			id: item.id,
+			stockEntryId: item.stockEntryId,
+			sourceWarehouse: item.sourceWarehouse,
+			targetWarehouse: item.targetWarehouse,
+			itemCode: item.itemCode,
+			itemName: item.itemName,
+			description: item.description,
+			qty: item.qty,
+			basicRate: item.basicRate,
+			basicAmount: item.basicAmount,
+			unitOfMeasure: item.unitOfMeasure,
+		})),
+		createdAt: prismaEntry.createdAt,
+		updatedAt: prismaEntry.updatedAt,
+	};
+}

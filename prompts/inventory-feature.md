@@ -1,6 +1,6 @@
 You are working on the branch: "feat/inventory-stock-transaction".
 
-Current page: "PAGE_NAME"
+Current page: "Stock Entry"
 
 You are building a core sub-module inside an inventory management system.
 

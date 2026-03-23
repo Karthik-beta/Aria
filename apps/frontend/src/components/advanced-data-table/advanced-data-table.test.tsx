@@ -222,8 +222,8 @@ async function openBulkEditDialog() {
 	const user = userEvent.setup({ pointerEventsCheck: 0 });
 
 	await user.click(screen.getByLabelText("Select row 1"));
-	await user.click(screen.getByRole("button", { name: /actions/i }));
-	await user.click(screen.getByRole("menuitem", { name: "Bulk Edit" }));
+	await user.click(await screen.findByRole("button", { name: /actions/i }));
+	await user.click(await screen.findByRole("menuitem", { name: "Bulk Edit" }));
 
 	return user;
 }

@@ -57,6 +57,40 @@ describe("InventoryService", () => {
 		updatedAt: new Date(),
 	};
 
+	const mockStockEntryItem = {
+		id: "clh123ste_item01",
+		stockEntryId: "clh123ste000001",
+		itemCode: "STE-ITM-001",
+		itemName: "Stock Test Item",
+		sourceWarehouse: null as string | null,
+		targetWarehouse: null as string | null,
+		description: null as string | null,
+		qty: 10,
+		basicRate: 100,
+		basicAmount: 1000,
+		unitOfMeasure: null as string | null,
+	};
+
+	const mockStockEntry = {
+		id: "clh123ste000001",
+		series: "MAT-STE-2026-00001",
+		stockEntryType: "MATERIAL_RECEIPT" as const,
+		postingDate: new Date("2026-01-15T00:00:00.000Z"),
+		company: "Aria Corp",
+		status: "DRAFT" as const,
+		project: null as string | null,
+		defaultSourceWarehouse: null as string | null,
+		defaultTargetWarehouse: null as string | null,
+		isOpening: false,
+		remarks: null as string | null,
+		printHeading: null as string | null,
+		letterHead: null as string | null,
+		inspectionRequired: false,
+		items: [mockStockEntryItem],
+		createdAt: new Date(),
+		updatedAt: new Date(),
+	};
+
 	const mockMRItem = {
 		id: "clh123mr_item01",
 		materialRequestId: "clh123mr000001",
@@ -153,6 +187,22 @@ describe("InventoryService", () => {
 			deleteMany: jest.fn(),
 		},
 		materialRequestItem: {
+			findMany: jest.fn(),
+			deleteMany: jest.fn(),
+			update: jest.fn(),
+			create: jest.fn(),
+		},
+		stockEntry: {
+			findMany: jest.fn(),
+			findFirst: jest.fn(),
+			findUnique: jest.fn(),
+			findUniqueOrThrow: jest.fn(),
+			create: jest.fn(),
+			update: jest.fn(),
+			delete: jest.fn(),
+			deleteMany: jest.fn(),
+		},
+		stockEntryItem: {
 			findMany: jest.fn(),
 			deleteMany: jest.fn(),
 			update: jest.fn(),
@@ -1843,6 +1893,275 @@ describe("InventoryService", () => {
 
 			await expect(
 				service.deleteManyMaterialRequests([mockMR.id]),
+			).rejects.toThrow(Prisma.PrismaClientKnownRequestError);
+		});
+	});
+
+	// ─── StockEntries ─────────────────────────────────────────────────────────────
+
+	describe("findAllStockEntries", () => {
+		it("should return all stock entries ordered by createdAt desc", async () => {
+			mockPrisma.stockEntry.findMany.mockResolvedValue([mockStockEntry]);
+
+			const result = await service.findAllStockEntries();
+
+			expect(result).toHaveLength(1);
+			expect(result[0]?.id).toBe(mockStockEntry.id);
+			expect(result[0]?.series).toBe(mockStockEntry.series);
+			expect(mockPrisma.stockEntry.findMany).toHaveBeenCalledWith({
+				orderBy: { createdAt: "desc" },
+				include: { items: true },
+				take: 250,
+			});
+		});
+
+		it("should return an empty array when no entries exist", async () => {
+			mockPrisma.stockEntry.findMany.mockResolvedValue([]);
+
+			const result = await service.findAllStockEntries();
+
+			expect(result).toEqual([]);
+		});
+	});
+
+	describe("findStockEntryById", () => {
+		it("should return a stock entry when found", async () => {
+			mockPrisma.stockEntry.findUnique.mockResolvedValue(mockStockEntry);
+
+			const result = await service.findStockEntryById(mockStockEntry.id);
+
+			expect(result).not.toBeNull();
+			expect(result?.id).toBe(mockStockEntry.id);
+			expect(mockPrisma.stockEntry.findUnique).toHaveBeenCalledWith({
+				where: { id: mockStockEntry.id },
+				include: { items: true },
+			});
+		});
+
+		it("should return null when the stock entry is not found", async () => {
+			mockPrisma.stockEntry.findUnique.mockResolvedValue(null);
+
+			const result = await service.findStockEntryById("nonexistent");
+
+			expect(result).toBeNull();
+		});
+	});
+
+	describe("createStockEntry", () => {
+		const createInput: Inventory.CreateStockEntryInput = {
+			stockEntryType: "MATERIAL_RECEIPT",
+			company: "Aria Corp",
+			items: [{ itemCode: "STE-ITM-001", qty: 10, basicRate: 100 }],
+		};
+
+		it("should create a stock entry with a generated series", async () => {
+			mockPrisma.stockEntry.findFirst.mockResolvedValue(null);
+			mockPrisma.stockEntry.create.mockResolvedValue(mockStockEntry);
+
+			const result = await service.createStockEntry(createInput);
+
+			expect(result.id).toBe(mockStockEntry.id);
+			expect(mockPrisma.stockEntry.create).toHaveBeenCalledTimes(1);
+			const callArgs = mockPrisma.stockEntry.create.mock.calls[0][0] as {
+				data: { series: string; status: string };
+			};
+			expect(callArgs.data.series).toMatch(/^MAT-STE-\d{4}-\d{5}$/);
+			expect(callArgs.data.status).toBe("DRAFT");
+		});
+
+		it("should increment series based on the last existing series", async () => {
+			mockPrisma.stockEntry.findFirst.mockResolvedValue({
+				series: "MAT-STE-2026-00003",
+			});
+			mockPrisma.stockEntry.create.mockResolvedValue(mockStockEntry);
+
+			await service.createStockEntry(createInput);
+
+			const callArgs = mockPrisma.stockEntry.create.mock.calls[0][0] as {
+				data: { series: string };
+			};
+			expect(callArgs.data.series).toBe("MAT-STE-2026-00004");
+		});
+
+		it("should retry once on a series uniqueness conflict and succeed", async () => {
+			const p2002 = new Prisma.PrismaClientKnownRequestError("Duplicate", {
+				code: "P2002",
+				clientVersion: "5.0.0",
+			});
+			mockPrisma.stockEntry.findFirst
+				.mockResolvedValueOnce(null)
+				.mockResolvedValueOnce(null);
+			mockPrisma.stockEntry.create
+				.mockRejectedValueOnce(p2002)
+				.mockResolvedValueOnce(mockStockEntry);
+
+			const result = await service.createStockEntry(createInput);
+
+			expect(result.id).toBe(mockStockEntry.id);
+			expect(mockPrisma.stockEntry.create).toHaveBeenCalledTimes(2);
+		});
+
+		it("should throw after 3 consecutive series conflicts (P2002)", async () => {
+			const p2002 = new Prisma.PrismaClientKnownRequestError("Duplicate", {
+				code: "P2002",
+				clientVersion: "5.0.0",
+			});
+			mockPrisma.stockEntry.findFirst.mockResolvedValue(null);
+			mockPrisma.stockEntry.create.mockRejectedValue(p2002);
+
+			await expect(
+				service.createStockEntry(createInput),
+			).rejects.toBeInstanceOf(Prisma.PrismaClientKnownRequestError);
+			expect(mockPrisma.stockEntry.create).toHaveBeenCalledTimes(3);
+		});
+	});
+
+	describe("updateStockEntry", () => {
+		it("should throw NotFoundException when the stock entry does not exist", async () => {
+			mockPrisma.stockEntry.findUnique.mockResolvedValue(null);
+
+			await expect(
+				service.updateStockEntry({ id: "nonexistent", company: "Corp" }),
+			).rejects.toThrow(NotFoundException);
+		});
+
+		it("should update header fields and items in a transaction", async () => {
+			mockPrisma.stockEntry.findUnique.mockResolvedValue({
+				id: mockStockEntry.id,
+			});
+			mockPrisma.stockEntryItem.findMany.mockResolvedValue([
+				{ id: mockStockEntryItem.id },
+			]);
+			mockPrisma.stockEntry.update.mockResolvedValue({});
+			mockPrisma.stockEntryItem.deleteMany.mockResolvedValue({ count: 0 });
+			mockPrisma.stockEntryItem.update.mockResolvedValue(mockStockEntryItem);
+			mockPrisma.stockEntry.findUniqueOrThrow.mockResolvedValue(mockStockEntry);
+
+			const result = await service.updateStockEntry({
+				id: mockStockEntry.id,
+				company: "Updated Corp",
+				items: [
+					{ id: mockStockEntryItem.id, itemCode: "STE-ITM-001", qty: 20 },
+				],
+			});
+
+			expect(result.id).toBe(mockStockEntry.id);
+			expect(mockPrisma.$transaction).toHaveBeenCalledTimes(1);
+			expect(mockPrisma.stockEntry.update).toHaveBeenCalledWith(
+				expect.objectContaining({ where: { id: mockStockEntry.id } }),
+			);
+			expect(mockPrisma.stockEntryItem.deleteMany).toHaveBeenCalledWith({
+				where: {
+					stockEntryId: mockStockEntry.id,
+					id: { notIn: [mockStockEntryItem.id] },
+				},
+			});
+			expect(mockPrisma.stockEntryItem.update).toHaveBeenCalledWith(
+				expect.objectContaining({ where: { id: mockStockEntryItem.id } }),
+			);
+		});
+
+		it("should reject item ids that belong to a different stock entry", async () => {
+			mockPrisma.stockEntry.findUnique.mockResolvedValue({
+				id: mockStockEntry.id,
+			});
+			mockPrisma.stockEntryItem.findMany.mockResolvedValue([]);
+			mockPrisma.stockEntry.update.mockResolvedValue({});
+			mockPrisma.stockEntry.findUniqueOrThrow.mockResolvedValue(mockStockEntry);
+
+			await expect(
+				service.updateStockEntry({
+					id: mockStockEntry.id,
+					items: [{ id: "foreign-item-id", itemCode: "STE-ITM-001", qty: 1 }],
+				}),
+			).rejects.toThrow(BadRequestException);
+		});
+
+		it("should create new items that have no id", async () => {
+			mockPrisma.stockEntry.findUnique.mockResolvedValue({
+				id: mockStockEntry.id,
+			});
+			mockPrisma.stockEntryItem.findMany.mockResolvedValue([]);
+			mockPrisma.stockEntry.update.mockResolvedValue({});
+			mockPrisma.stockEntryItem.deleteMany.mockResolvedValue({ count: 0 });
+			mockPrisma.stockEntryItem.create.mockResolvedValue(mockStockEntryItem);
+			mockPrisma.stockEntry.findUniqueOrThrow.mockResolvedValue(mockStockEntry);
+
+			await service.updateStockEntry({
+				id: mockStockEntry.id,
+				items: [{ itemCode: "NEW-STE-001", qty: 5 }],
+			});
+
+			expect(mockPrisma.stockEntryItem.create).toHaveBeenCalledWith(
+				expect.objectContaining({
+					data: expect.objectContaining({
+						stockEntryId: mockStockEntry.id,
+						itemCode: "NEW-STE-001",
+					}),
+				}),
+			);
+		});
+	});
+
+	describe("deleteStockEntry", () => {
+		it("should delete the stock entry and return success", async () => {
+			mockPrisma.stockEntry.delete.mockResolvedValue({});
+
+			const result = await service.deleteStockEntry(mockStockEntry.id);
+
+			expect(result).toEqual({ success: true, id: mockStockEntry.id });
+			expect(mockPrisma.stockEntry.delete).toHaveBeenCalledWith({
+				where: { id: mockStockEntry.id },
+			});
+		});
+
+		it("should throw NotFoundException when the record does not exist", async () => {
+			const p2025 = new Prisma.PrismaClientKnownRequestError(
+				"Record not found",
+				{ code: "P2025", clientVersion: "5.0.0" },
+			);
+			mockPrisma.stockEntry.delete.mockRejectedValue(p2025);
+
+			await expect(service.deleteStockEntry("nonexistent")).rejects.toThrow(
+				NotFoundException,
+			);
+		});
+	});
+
+	describe("deleteManyStockEntries", () => {
+		it("should bulk-delete and return the count", async () => {
+			const ids = [mockStockEntry.id, "clh123ste000002"];
+			mockPrisma.stockEntry.deleteMany.mockResolvedValue({ count: 2 });
+
+			const result = await service.deleteManyStockEntries(ids);
+
+			expect(result).toEqual({ success: true, count: 2, ids });
+			expect(mockPrisma.stockEntry.deleteMany).toHaveBeenCalledWith({
+				where: { id: { in: ids } },
+			});
+		});
+
+		it("should deduplicate ids before deleting", async () => {
+			const id = mockStockEntry.id;
+			mockPrisma.stockEntry.deleteMany.mockResolvedValue({ count: 1 });
+
+			const result = await service.deleteManyStockEntries([id, id]);
+
+			expect(result.ids).toEqual([id]);
+			expect(mockPrisma.stockEntry.deleteMany).toHaveBeenCalledWith({
+				where: { id: { in: [id] } },
+			});
+		});
+
+		it("should re-throw Prisma errors after logging", async () => {
+			const dbError = new Prisma.PrismaClientKnownRequestError(
+				"Foreign key constraint",
+				{ code: "P2003", clientVersion: "5.0.0" },
+			);
+			mockPrisma.stockEntry.deleteMany.mockRejectedValue(dbError);
+
+			await expect(
+				service.deleteManyStockEntries([mockStockEntry.id]),
 			).rejects.toThrow(Prisma.PrismaClientKnownRequestError);
 		});
 	});
