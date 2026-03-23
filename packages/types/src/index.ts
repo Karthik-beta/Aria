@@ -741,6 +741,192 @@ export namespace Inventory {
 		calculateBasedOn: z.enum(["FIXED", "NET_TOTAL", "NET_WEIGHT"]).optional(),
 		shippingAmount: z.number().min(0).optional(),
 	});
+
+	// ============================================================================
+	// Material Request Types & Schemas
+	// ============================================================================
+
+	export type MaterialRequestPurpose =
+		| "PURCHASE"
+		| "MANUFACTURE"
+		| "MATERIAL_TRANSFER"
+		| "MATERIAL_ISSUE"
+		| "CUSTOMER_PROVIDED";
+
+	export type MaterialRequestStatus =
+		| "DRAFT"
+		| "PENDING"
+		| "APPROVED"
+		| "ORDERED"
+		| "PARTIALLY_ORDERED"
+		| "PARTIALLY_RECEIVED"
+		| "RECEIVED"
+		| "CANCELLED";
+
+	export interface MaterialRequestItem {
+		id: string;
+		materialRequestId: string;
+		itemCode: string;
+		itemName?: string | null;
+		requiredBy?: Date | null;
+		quantity: number;
+		orderedQty: number;
+		receivedQty: number;
+		targetWarehouse?: string | null;
+		unitOfMeasure?: string | null;
+	}
+
+	export interface MaterialRequest {
+		id: string;
+		series: string;
+		transactionDate: Date;
+		purpose: MaterialRequestPurpose;
+		company: string;
+		requiredBy?: Date | null;
+		status: MaterialRequestStatus;
+		targetWarehouse?: string | null;
+		terms?: string | null;
+		termsContent?: string | null;
+		letterHead?: string | null;
+		printHeading?: string | null;
+		items: MaterialRequestItem[];
+		createdAt: Date;
+		updatedAt: Date;
+	}
+
+	export interface CreateMaterialRequestItemInput {
+		itemCode: string;
+		itemName?: string;
+		requiredBy?: Date;
+		quantity: number;
+		targetWarehouse?: string;
+		unitOfMeasure?: string;
+	}
+
+	export interface CreateMaterialRequestInput {
+		transactionDate?: Date;
+		purpose?: MaterialRequestPurpose;
+		company: string;
+		requiredBy?: Date;
+		targetWarehouse?: string;
+		terms?: string;
+		termsContent?: string;
+		letterHead?: string;
+		printHeading?: string;
+		items: CreateMaterialRequestItemInput[];
+	}
+
+	export interface UpdateMaterialRequestItemInput {
+		id?: string;
+		itemCode: string;
+		itemName?: string;
+		requiredBy?: Date;
+		quantity: number;
+		targetWarehouse?: string;
+		unitOfMeasure?: string;
+	}
+
+	export interface UpdateMaterialRequestInput {
+		id: string;
+		transactionDate?: Date;
+		purpose?: MaterialRequestPurpose;
+		company?: string;
+		requiredBy?: Date | null;
+		status?: MaterialRequestStatus;
+		targetWarehouse?: string | null;
+		terms?: string | null;
+		termsContent?: string | null;
+		letterHead?: string | null;
+		printHeading?: string | null;
+		items?: UpdateMaterialRequestItemInput[];
+	}
+
+	export const createMaterialRequestItemSchema = z.object({
+		itemCode: z.string().min(1, "Item code is required").max(100).trim(),
+		itemName: z.string().max(255).optional(),
+		requiredBy: z.coerce.date().optional(),
+		quantity: z.number().min(0.001, "Quantity must be greater than 0"),
+		targetWarehouse: z.string().max(255).optional(),
+		unitOfMeasure: z.string().max(50).optional(),
+	});
+
+	export const createMaterialRequestSchema = z.object({
+		transactionDate: z.coerce.date().optional(),
+		purpose: z
+			.enum([
+				"PURCHASE",
+				"MANUFACTURE",
+				"MATERIAL_TRANSFER",
+				"MATERIAL_ISSUE",
+				"CUSTOMER_PROVIDED",
+			])
+			.default("PURCHASE"),
+		company: z.string().min(1, "Company is required").max(255).trim(),
+		requiredBy: z.coerce.date().optional(),
+		targetWarehouse: z.string().max(255).optional(),
+		terms: z.string().max(255).optional(),
+		termsContent: z
+			.string()
+			.max(65_535, "Terms content must be 65,535 characters or fewer")
+			.optional(),
+		letterHead: z.string().max(255).optional(),
+		printHeading: z.string().max(255).optional(),
+		items: z
+			.array(createMaterialRequestItemSchema)
+			.min(1, "At least one item is required"),
+	});
+
+	export const updateMaterialRequestItemSchema = z.object({
+		id: z.string().optional(),
+		itemCode: z.string().min(1, "Item code is required").max(100).trim(),
+		itemName: z.string().max(255).optional(),
+		requiredBy: z.coerce.date().optional(),
+		quantity: z.number().min(0.001, "Quantity must be greater than 0"),
+		targetWarehouse: z.string().max(255).optional(),
+		unitOfMeasure: z.string().max(50).optional(),
+	});
+
+	export const updateMaterialRequestSchema = z.object({
+		id: z.string().min(1),
+		transactionDate: z.coerce.date().optional(),
+		purpose: z
+			.enum([
+				"PURCHASE",
+				"MANUFACTURE",
+				"MATERIAL_TRANSFER",
+				"MATERIAL_ISSUE",
+				"CUSTOMER_PROVIDED",
+			])
+			.optional(),
+		company: z.string().min(1).max(255).trim().optional(),
+		requiredBy: z.coerce.date().optional().nullable(),
+		status: z
+			.enum([
+				"DRAFT",
+				"PENDING",
+				"APPROVED",
+				"ORDERED",
+				"PARTIALLY_ORDERED",
+				"PARTIALLY_RECEIVED",
+				"RECEIVED",
+				"CANCELLED",
+			])
+			.optional(),
+		targetWarehouse: z.string().max(255).optional().nullable(),
+		terms: z.string().max(255).optional().nullable(),
+		termsContent: z
+			.string()
+			.max(65_535, "Terms content must be 65,535 characters or fewer")
+			.optional()
+			.nullable(),
+		letterHead: z.string().max(255).optional().nullable(),
+		printHeading: z.string().max(255).optional().nullable(),
+		items: z.array(updateMaterialRequestItemSchema).min(1).optional(),
+	});
+
+	export const bulkDeleteMaterialRequestsSchema = z.object({
+		ids: z.array(z.string().min(1)).min(1),
+	});
 }
 
 // ============================================================================

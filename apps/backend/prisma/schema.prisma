@@ -475,6 +475,65 @@ model AuditLog {
   @@map("audit_logs")
 }
 
+model MaterialRequest {
+  id              String                  @id @default(cuid())
+  series          String                  @unique @db.VarChar(50)
+  transactionDate DateTime                @default(now())
+  purpose         MaterialRequestPurpose  @default(PURCHASE)
+  company         String                  @db.VarChar(255)
+  requiredBy      DateTime?
+  status          MaterialRequestStatus   @default(PENDING)
+  targetWarehouse String?                 @db.VarChar(255)
+  terms           String?                 @db.VarChar(255)
+  termsContent    String?
+  letterHead      String?                 @db.VarChar(255)
+  printHeading    String?                 @db.VarChar(255)
+  items           MaterialRequestItem[]
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
+
+  @@index([series])
+  @@index([status])
+  @@index([transactionDate])
+  @@map("material_requests")
+}
+
+model MaterialRequestItem {
+  id                String          @id @default(cuid())
+  materialRequestId String
+  itemCode          String          @db.VarChar(100)
+  itemName          String?         @db.VarChar(255)
+  requiredBy        DateTime?
+  quantity          Float           @default(0)
+  orderedQty        Float           @default(0)
+  receivedQty       Float           @default(0)
+  targetWarehouse   String?         @db.VarChar(255)
+  unitOfMeasure     String?         @db.VarChar(50)
+  materialRequest   MaterialRequest @relation(fields: [materialRequestId], references: [id], onDelete: Cascade)
+
+  @@index([materialRequestId])
+  @@map("material_request_items")
+}
+
+enum MaterialRequestPurpose {
+  PURCHASE
+  MANUFACTURE
+  MATERIAL_TRANSFER
+  MATERIAL_ISSUE
+  CUSTOMER_PROVIDED
+}
+
+enum MaterialRequestStatus {
+  DRAFT
+  PENDING
+  APPROVED
+  ORDERED
+  PARTIALLY_ORDERED
+  PARTIALLY_RECEIVED
+  RECEIVED
+  CANCELLED
+}
+
 enum RuleType {
   SELLING
   BUYING

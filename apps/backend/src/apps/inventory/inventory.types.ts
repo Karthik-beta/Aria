@@ -317,3 +317,48 @@ export function isInventoryItem(value: unknown): value is InventoryItem {
 		"updatedAt" in value
 	);
 }
+
+/**
+ * Prisma model type for MaterialRequest with items
+ */
+export type InventoryMaterialRequest = Prisma.MaterialRequestGetPayload<{
+	include: {
+		items: true;
+	};
+}>;
+
+/**
+ * Converts a Prisma MaterialRequest to Inventory.MaterialRequest
+ */
+export function toInventoryMaterialRequest(
+	prismaMR: InventoryMaterialRequest,
+): Inventory.MaterialRequest {
+	return {
+		id: prismaMR.id,
+		series: prismaMR.series,
+		transactionDate: prismaMR.transactionDate,
+		purpose: prismaMR.purpose as Inventory.MaterialRequestPurpose,
+		company: prismaMR.company,
+		requiredBy: prismaMR.requiredBy,
+		status: prismaMR.status as Inventory.MaterialRequestStatus,
+		targetWarehouse: prismaMR.targetWarehouse,
+		terms: prismaMR.terms,
+		termsContent: prismaMR.termsContent,
+		letterHead: prismaMR.letterHead,
+		printHeading: prismaMR.printHeading,
+		items: prismaMR.items.map((item) => ({
+			id: item.id,
+			materialRequestId: item.materialRequestId,
+			itemCode: item.itemCode,
+			itemName: item.itemName,
+			requiredBy: item.requiredBy,
+			quantity: item.quantity,
+			orderedQty: item.orderedQty,
+			receivedQty: item.receivedQty,
+			targetWarehouse: item.targetWarehouse,
+			unitOfMeasure: item.unitOfMeasure,
+		})),
+		createdAt: prismaMR.createdAt,
+		updatedAt: prismaMR.updatedAt,
+	};
+}

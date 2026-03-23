@@ -19,6 +19,11 @@ type ItemsChangedEvent = {
 	data: Inventory.Item | { id: string };
 };
 
+type MaterialRequestsChangedEvent = {
+	type: "created" | "updated" | "deleted";
+	data: Inventory.MaterialRequest | { id: string };
+};
+
 type InventoryRouterInput = {
 	listItems: TRPCQueryProcedure<{
 		input: void;
@@ -456,6 +461,116 @@ type InventoryRouterInput = {
 	onItemsChanged: LegacyObservableSubscriptionProcedure<{
 		input: void;
 		output: ItemsChangedEvent;
+		meta: object;
+	}>;
+	listMaterialRequests: TRPCQueryProcedure<{
+		input: void;
+		output: Inventory.MaterialRequest[];
+		meta: object;
+	}>;
+	getMaterialRequestById: TRPCQueryProcedure<{
+		input: {
+			id: string;
+		};
+		output: Inventory.MaterialRequest | null;
+		meta: object;
+	}>;
+	createMaterialRequest: TRPCMutationProcedure<{
+		input: {
+			company: string;
+			transactionDate?: unknown;
+			purpose?:
+				| "PURCHASE"
+				| "MANUFACTURE"
+				| "MATERIAL_TRANSFER"
+				| "MATERIAL_ISSUE"
+				| "CUSTOMER_PROVIDED"
+				| undefined;
+			requiredBy?: unknown;
+			targetWarehouse?: string | undefined;
+			terms?: string | undefined;
+			termsContent?: string | undefined;
+			letterHead?: string | undefined;
+			printHeading?: string | undefined;
+			items: {
+				itemCode: string;
+				itemName?: string | undefined;
+				requiredBy?: unknown;
+				quantity: number;
+				targetWarehouse?: string | undefined;
+				unitOfMeasure?: string | undefined;
+			}[];
+		};
+		output: Inventory.MaterialRequest;
+		meta: object;
+	}>;
+	updateMaterialRequest: TRPCMutationProcedure<{
+		input: {
+			id: string;
+			transactionDate?: unknown;
+			purpose?:
+				| "PURCHASE"
+				| "MANUFACTURE"
+				| "MATERIAL_TRANSFER"
+				| "MATERIAL_ISSUE"
+				| "CUSTOMER_PROVIDED"
+				| undefined;
+			company?: string | undefined;
+			requiredBy?: unknown;
+			status?:
+				| "DRAFT"
+				| "PENDING"
+				| "APPROVED"
+				| "ORDERED"
+				| "PARTIALLY_ORDERED"
+				| "PARTIALLY_RECEIVED"
+				| "RECEIVED"
+				| "CANCELLED"
+				| undefined;
+			targetWarehouse?: string | null | undefined;
+			terms?: string | null | undefined;
+			termsContent?: string | null | undefined;
+			letterHead?: string | null | undefined;
+			printHeading?: string | null | undefined;
+			items?:
+				| {
+						id?: string | undefined;
+						itemCode: string;
+						itemName?: string | undefined;
+						requiredBy?: unknown;
+						quantity: number;
+						targetWarehouse?: string | undefined;
+						unitOfMeasure?: string | undefined;
+				  }[]
+				| undefined;
+		};
+		output: Inventory.MaterialRequest;
+		meta: object;
+	}>;
+	deleteMaterialRequest: TRPCMutationProcedure<{
+		input: {
+			id: string;
+		};
+		output: {
+			success: boolean;
+			id: string;
+		};
+		meta: object;
+	}>;
+	deleteManyMaterialRequests: TRPCMutationProcedure<{
+		input: {
+			ids: string[];
+		};
+		output: {
+			success: boolean;
+			count: number;
+			ids: string[];
+		};
+		meta: object;
+	}>;
+	onMaterialRequestsChanged: LegacyObservableSubscriptionProcedure<{
+		input: void;
+		output: MaterialRequestsChangedEvent;
 		meta: object;
 	}>;
 };

@@ -56,7 +56,7 @@ export const inventoryNavItems: NavItem[] = [
 		items: [
 			{
 				title: "Material Request",
-				url: "/inventory/material-requests",
+				url: "/inventory/stock-transaction/material-request",
 			},
 			{
 				title: "Stock Entry",

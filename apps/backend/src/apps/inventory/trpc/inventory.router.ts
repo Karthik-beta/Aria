@@ -434,6 +434,111 @@ const onItemsChangedProcedure = protectedProcedure.subscription(() => {
 	});
 });
 
+// ─── Material Request Procedures ────────────────────────────────────────────
+
+type MaterialRequestsChangedEvent = {
+	type: "created" | "updated" | "deleted";
+	data: Inventory.MaterialRequest | { id: string };
+};
+
+function createListMaterialRequestsProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure.query(async () => {
+		return inventoryService.findAllMaterialRequests();
+	});
+}
+
+function createGetMaterialRequestByIdProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure
+		.input(z.object({ id: z.string().min(1) }))
+		.query(async ({ input }) => {
+			return inventoryService.findMaterialRequestById(input.id);
+		});
+}
+
+function createCreateMaterialRequestProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure
+		.input(Inventory.createMaterialRequestSchema)
+		.mutation(async ({ input }) => {
+			const result = await inventoryService.createMaterialRequest(input);
+			void inventoryEvents.emit("materialRequestCreated", result);
+			return result;
+		});
+}
+
+function createUpdateMaterialRequestProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure
+		.input(Inventory.updateMaterialRequestSchema)
+		.mutation(async ({ input }) => {
+			const result = await inventoryService.updateMaterialRequest(input);
+			void inventoryEvents.emit("materialRequestUpdated", result);
+			return result;
+		});
+}
+
+function createDeleteMaterialRequestProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure
+		.input(z.object({ id: z.string().min(1) }))
+		.mutation(async ({ input }) => {
+			const result = await inventoryService.deleteMaterialRequest(input.id);
+			inventoryEvents.emit("materialRequestDeleted", { id: input.id });
+			return result;
+		});
+}
+
+function createDeleteManyMaterialRequestsProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure
+		.input(Inventory.bulkDeleteMaterialRequestsSchema)
+		.mutation(async ({ input }) => {
+			const result = await inventoryService.deleteManyMaterialRequests(
+				input.ids,
+			);
+			for (const id of result.ids) {
+				inventoryEvents.emit("materialRequestDeleted", { id });
+			}
+			return result;
+		});
+}
+
+const onMaterialRequestsChangedProcedure = protectedProcedure.subscription(
+	() => {
+		return observable<MaterialRequestsChangedEvent>((emit) => {
+			const onCreated = (data: Inventory.MaterialRequest) => {
+				emit.next({ type: "created", data });
+			};
+
+			const onUpdated = (data: Inventory.MaterialRequest) => {
+				emit.next({ type: "updated", data });
+			};
+
+			const onDeleted = (data: { id: string }) => {
+				emit.next({ type: "deleted", data });
+			};
+
+			inventoryEvents.on("materialRequestCreated", onCreated);
+			inventoryEvents.on("materialRequestUpdated", onUpdated);
+			inventoryEvents.on("materialRequestDeleted", onDeleted);
+
+			return () => {
+				inventoryEvents.off("materialRequestCreated", onCreated);
+				inventoryEvents.off("materialRequestUpdated", onUpdated);
+				inventoryEvents.off("materialRequestDeleted", onDeleted);
+			};
+		});
+	},
+);
+
 type InventoryRouterInput = {
 	listItems: ReturnType<typeof createListItemsProcedure>;
 	listItemGroups: ReturnType<typeof createListItemGroupsProcedure>;
@@ -492,6 +597,23 @@ type InventoryRouterInput = {
 	onItemUpdated: typeof onItemUpdatedProcedure;
 	onItemDeleted: typeof onItemDeletedProcedure;
 	onItemsChanged: typeof onItemsChangedProcedure;
+	listMaterialRequests: ReturnType<typeof createListMaterialRequestsProcedure>;
+	getMaterialRequestById: ReturnType<
+		typeof createGetMaterialRequestByIdProcedure
+	>;
+	createMaterialRequest: ReturnType<
+		typeof createCreateMaterialRequestProcedure
+	>;
+	updateMaterialRequest: ReturnType<
+		typeof createUpdateMaterialRequestProcedure
+	>;
+	deleteMaterialRequest: ReturnType<
+		typeof createDeleteMaterialRequestProcedure
+	>;
+	deleteManyMaterialRequests: ReturnType<
+		typeof createDeleteManyMaterialRequestsProcedure
+	>;
+	onMaterialRequestsChanged: typeof onMaterialRequestsChangedProcedure;
 };
 
 type InventoryRouterRoot = (typeof accountRouter)["_def"]["_config"]["$types"];
@@ -554,6 +676,18 @@ function createInventoryRouterRecord(
 		onItemUpdated: onItemUpdatedProcedure,
 		onItemDeleted: onItemDeletedProcedure,
 		onItemsChanged: onItemsChangedProcedure,
+		listMaterialRequests: createListMaterialRequestsProcedure(inventoryService),
+		getMaterialRequestById:
+			createGetMaterialRequestByIdProcedure(inventoryService),
+		createMaterialRequest:
+			createCreateMaterialRequestProcedure(inventoryService),
+		updateMaterialRequest:
+			createUpdateMaterialRequestProcedure(inventoryService),
+		deleteMaterialRequest:
+			createDeleteMaterialRequestProcedure(inventoryService),
+		deleteManyMaterialRequests:
+			createDeleteManyMaterialRequestsProcedure(inventoryService),
+		onMaterialRequestsChanged: onMaterialRequestsChangedProcedure,
 	};
 }
 
