@@ -3,7 +3,8 @@ import {
 	Logger,
 	type OnApplicationBootstrap,
 } from "@nestjs/common";
-import type { InventoryService } from "./inventory.service";
+// biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
+import { InventoryService } from "./inventory.service";
 
 @Injectable()
 export class InventoryStartupService implements OnApplicationBootstrap {
