@@ -843,6 +843,195 @@ type InventoryRouterInput = {
 		output: DeliveryNotesChangedEvent;
 		meta: object;
 	}>;
+	listPurchaseReceipts: TRPCQueryProcedure<{
+		input:
+			| {
+					skip?: number | undefined;
+					take?: number | undefined;
+					search?: string | undefined;
+					status?:
+						| "DRAFT"
+						| "PARTLY_BILLED"
+						| "TO_BILL"
+						| "COMPLETED"
+						| "RETURN_ISSUED"
+						| "CANCELLED"
+						| "CLOSED"
+						| undefined;
+			  }
+			| undefined;
+		output: Inventory.PurchaseReceipt[];
+		meta: object;
+	}>;
+	getPurchaseReceiptById: TRPCQueryProcedure<{
+		input: {
+			id: string;
+		};
+		output: Inventory.PurchaseReceipt | null;
+		meta: object;
+	}>;
+	createPurchaseReceipt: TRPCMutationProcedure<{
+		input: {
+			supplier: string;
+			company: string;
+			items: {
+				itemCode: string;
+				acceptedQuantity: number;
+				itemName?: string | undefined;
+				description?: string | undefined;
+				rejectedQuantity?: number | undefined;
+				rate?: number | undefined;
+				uom?: string | undefined;
+				acceptedWarehouse?: string | undefined;
+				rejectedWarehouse?: string | undefined;
+			}[];
+			seriesPattern?: string | undefined;
+			postingDate?: unknown;
+			postingTime?: string | undefined;
+			editPostingDateTime?: boolean | undefined;
+			status?:
+				| "DRAFT"
+				| "PARTLY_BILLED"
+				| "TO_BILL"
+				| "COMPLETED"
+				| "RETURN_ISSUED"
+				| "CANCELLED"
+				| "CLOSED"
+				| undefined;
+			isReturn?: boolean | undefined;
+			applyPutawayRule?: boolean | undefined;
+			supplierDeliveryNote?: string | undefined;
+			acceptedWarehouse?: string | undefined;
+			rejectedWarehouse?: string | undefined;
+			isSubcontracted?: boolean | undefined;
+			currency?: string | undefined;
+			priceList?: string | undefined;
+			disableRoundedTotal?: boolean | undefined;
+			supplierAddress?: string | undefined;
+			contactPerson?: string | undefined;
+			shippingAddressTemplate?: string | undefined;
+			companyTRN?: string | undefined;
+			billingAddress?: string | undefined;
+			terms?: string | undefined;
+			termsContent?: string | undefined;
+			letterHead?: string | undefined;
+			printHeading?: string | undefined;
+			groupSameItems?: boolean | undefined;
+			permitNumber?: string | undefined;
+			recoverableStandardRatedExpenses?: number | undefined;
+			reverseChargeApplicable?: "Y" | "N" | undefined;
+			transporterName?: string | undefined;
+			vehicleNumber?: string | undefined;
+			vehicleDate?: unknown;
+			instructions?: string | undefined;
+			remarks?: string | undefined;
+			isInternalSupplier?: boolean | undefined;
+			taxes?:
+				| {
+						type: string;
+						accountHead: string;
+						taxRate?: number | undefined;
+						amount?: number | undefined;
+				  }[]
+				| undefined;
+		};
+		output: Inventory.PurchaseReceipt;
+		meta: object;
+	}>;
+	updatePurchaseReceipt: TRPCMutationProcedure<{
+		input: {
+			id: string;
+			seriesPattern?: string | null | undefined;
+			postingDate?: unknown;
+			postingTime?: string | null | undefined;
+			editPostingDateTime?: boolean | undefined;
+			supplier?: string | undefined;
+			company?: string | undefined;
+			status?:
+				| "DRAFT"
+				| "PARTLY_BILLED"
+				| "TO_BILL"
+				| "COMPLETED"
+				| "RETURN_ISSUED"
+				| "CANCELLED"
+				| "CLOSED"
+				| undefined;
+			isReturn?: boolean | undefined;
+			applyPutawayRule?: boolean | undefined;
+			supplierDeliveryNote?: string | null | undefined;
+			acceptedWarehouse?: string | null | undefined;
+			rejectedWarehouse?: string | null | undefined;
+			isSubcontracted?: boolean | undefined;
+			currency?: string | null | undefined;
+			priceList?: string | null | undefined;
+			disableRoundedTotal?: boolean | undefined;
+			supplierAddress?: string | null | undefined;
+			contactPerson?: string | null | undefined;
+			shippingAddressTemplate?: string | null | undefined;
+			companyTRN?: string | null | undefined;
+			billingAddress?: string | null | undefined;
+			terms?: string | null | undefined;
+			termsContent?: string | null | undefined;
+			letterHead?: string | null | undefined;
+			printHeading?: string | null | undefined;
+			groupSameItems?: boolean | undefined;
+			permitNumber?: string | null | undefined;
+			recoverableStandardRatedExpenses?: number | undefined;
+			reverseChargeApplicable?: "Y" | "N" | undefined;
+			transporterName?: string | null | undefined;
+			vehicleNumber?: string | null | undefined;
+			vehicleDate?: unknown;
+			instructions?: string | null | undefined;
+			remarks?: string | null | undefined;
+			isInternalSupplier?: boolean | undefined;
+			items?:
+				| {
+						id?: string | undefined;
+						itemCode: string;
+						acceptedQuantity: number;
+						itemName?: string | undefined;
+						description?: string | undefined;
+						rejectedQuantity?: number | undefined;
+						rate?: number | undefined;
+						uom?: string | undefined;
+						acceptedWarehouse?: string | undefined;
+						rejectedWarehouse?: string | undefined;
+				  }[]
+				| undefined;
+			taxes?:
+				| {
+						id?: string | undefined;
+						type: string;
+						accountHead: string;
+						taxRate?: number | undefined;
+						amount?: number | undefined;
+				  }[]
+				| undefined;
+		};
+		output: Inventory.PurchaseReceipt;
+		meta: object;
+	}>;
+	deletePurchaseReceipt: TRPCMutationProcedure<{
+		input: {
+			id: string;
+		};
+		output: {
+			success: boolean;
+			id: string;
+		};
+		meta: object;
+	}>;
+	deleteManyPurchaseReceipts: TRPCMutationProcedure<{
+		input: {
+			ids: string[];
+		};
+		output: {
+			success: boolean;
+			count: number;
+			ids: string[];
+		};
+		meta: object;
+	}>;
 };
 
 type InventoryRouterRoot = (typeof accountRouter)["_def"]["_config"]["$types"];

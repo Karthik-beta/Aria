@@ -1474,6 +1474,407 @@ export namespace Inventory {
 	export const bulkDeleteDeliveryNotesSchema = z.object({
 		ids: z.array(z.string().min(1)).min(1),
 	});
+
+	// ============================================================================
+	// Purchase Receipt Types & Schemas
+	// ============================================================================
+
+	export type PurchaseReceiptStatus =
+		| "DRAFT"
+		| "PARTLY_BILLED"
+		| "TO_BILL"
+		| "COMPLETED"
+		| "RETURN_ISSUED"
+		| "CANCELLED"
+		| "CLOSED";
+
+	export interface PurchaseReceiptItem {
+		id: string;
+		purchaseReceiptId: string;
+		itemCode: string;
+		itemName?: string | null;
+		description?: string | null;
+		acceptedQuantity: number;
+		rejectedQuantity: number;
+		rate: number;
+		amount: number;
+		uom?: string | null;
+		acceptedWarehouse?: string | null;
+		rejectedWarehouse?: string | null;
+	}
+
+	export interface PurchaseReceiptTax {
+		id: string;
+		purchaseReceiptId: string;
+		type: string;
+		accountHead: string;
+		taxRate: number;
+		amount: number;
+		total: number;
+	}
+
+	export interface PurchaseReceipt {
+		id: string;
+		series: string;
+		seriesPattern: string;
+		postingDate: Date;
+		postingTime: string;
+		editPostingDateTime: boolean;
+		supplier: string;
+		company: string;
+		status: PurchaseReceiptStatus;
+		isReturn: boolean;
+		applyPutawayRule: boolean;
+		supplierDeliveryNote?: string | null;
+		acceptedWarehouse?: string | null;
+		rejectedWarehouse?: string | null;
+		isSubcontracted: boolean;
+		currency?: string | null;
+		priceList?: string | null;
+		totalQuantity: number;
+		totalAcceptedQuantity: number;
+		totalRejectedQuantity: number;
+		totalAmount: number;
+		taxesAndChargesAdded: number;
+		taxesAndChargesDeducted: number;
+		totalTaxesAndCharges: number;
+		grandTotal: number;
+		roundingAdjustment: number;
+		roundedTotal: number;
+		disableRoundedTotal: boolean;
+		supplierAddress?: string | null;
+		contactPerson?: string | null;
+		shippingAddressTemplate?: string | null;
+		companyTRN?: string | null;
+		billingAddress?: string | null;
+		terms?: string | null;
+		termsContent?: string | null;
+		letterHead?: string | null;
+		printHeading?: string | null;
+		groupSameItems: boolean;
+		permitNumber?: string | null;
+		recoverableStandardRatedExpenses: number;
+		reverseChargeApplicable: "Y" | "N";
+		transporterName?: string | null;
+		vehicleNumber?: string | null;
+		vehicleDate?: Date | null;
+		instructions?: string | null;
+		remarks?: string | null;
+		isInternalSupplier: boolean;
+		items: PurchaseReceiptItem[];
+		taxes: PurchaseReceiptTax[];
+		createdAt: Date;
+		updatedAt: Date;
+	}
+
+	export interface CreatePurchaseReceiptItemInput {
+		itemCode: string;
+		itemName?: string;
+		description?: string;
+		acceptedQuantity: number;
+		rejectedQuantity?: number;
+		rate?: number;
+		uom?: string;
+		acceptedWarehouse?: string;
+		rejectedWarehouse?: string;
+	}
+
+	export interface CreatePurchaseReceiptTaxInput {
+		type: string;
+		accountHead: string;
+		taxRate?: number;
+		amount?: number;
+	}
+
+	export interface CreatePurchaseReceiptInput {
+		seriesPattern?: string;
+		postingDate?: Date;
+		postingTime?: string;
+		editPostingDateTime?: boolean;
+		supplier: string;
+		company: string;
+		status?: PurchaseReceiptStatus;
+		isReturn?: boolean;
+		applyPutawayRule?: boolean;
+		supplierDeliveryNote?: string;
+		acceptedWarehouse?: string;
+		rejectedWarehouse?: string;
+		isSubcontracted?: boolean;
+		currency?: string;
+		priceList?: string;
+		disableRoundedTotal?: boolean;
+		supplierAddress?: string;
+		contactPerson?: string;
+		shippingAddressTemplate?: string;
+		companyTRN?: string;
+		billingAddress?: string;
+		terms?: string;
+		termsContent?: string;
+		letterHead?: string;
+		printHeading?: string;
+		groupSameItems?: boolean;
+		permitNumber?: string;
+		recoverableStandardRatedExpenses?: number;
+		reverseChargeApplicable?: "Y" | "N";
+		transporterName?: string;
+		vehicleNumber?: string;
+		vehicleDate?: Date;
+		instructions?: string;
+		remarks?: string;
+		isInternalSupplier?: boolean;
+		items: CreatePurchaseReceiptItemInput[];
+		taxes?: CreatePurchaseReceiptTaxInput[];
+	}
+
+	export interface UpdatePurchaseReceiptItemInput {
+		id?: string;
+		itemCode: string;
+		itemName?: string;
+		description?: string;
+		acceptedQuantity: number;
+		rejectedQuantity?: number;
+		rate?: number;
+		uom?: string;
+		acceptedWarehouse?: string;
+		rejectedWarehouse?: string;
+	}
+
+	export interface UpdatePurchaseReceiptTaxInput {
+		id?: string;
+		type: string;
+		accountHead: string;
+		taxRate?: number;
+		amount?: number;
+	}
+
+	export interface UpdatePurchaseReceiptInput {
+		id: string;
+		seriesPattern?: string | null;
+		postingDate?: Date;
+		postingTime?: string | null;
+		editPostingDateTime?: boolean;
+		supplier?: string;
+		company?: string;
+		status?: PurchaseReceiptStatus;
+		isReturn?: boolean;
+		applyPutawayRule?: boolean;
+		supplierDeliveryNote?: string | null;
+		acceptedWarehouse?: string | null;
+		rejectedWarehouse?: string | null;
+		isSubcontracted?: boolean;
+		currency?: string | null;
+		priceList?: string | null;
+		disableRoundedTotal?: boolean;
+		supplierAddress?: string | null;
+		contactPerson?: string | null;
+		shippingAddressTemplate?: string | null;
+		companyTRN?: string | null;
+		billingAddress?: string | null;
+		terms?: string | null;
+		termsContent?: string | null;
+		letterHead?: string | null;
+		printHeading?: string | null;
+		groupSameItems?: boolean;
+		permitNumber?: string | null;
+		recoverableStandardRatedExpenses?: number;
+		reverseChargeApplicable?: "Y" | "N";
+		transporterName?: string | null;
+		vehicleNumber?: string | null;
+		vehicleDate?: Date | null;
+		instructions?: string | null;
+		remarks?: string | null;
+		isInternalSupplier?: boolean;
+		items?: UpdatePurchaseReceiptItemInput[];
+		taxes?: UpdatePurchaseReceiptTaxInput[];
+	}
+
+	export const purchaseReceiptStatusSchema = z.enum([
+		"DRAFT",
+		"PARTLY_BILLED",
+		"TO_BILL",
+		"COMPLETED",
+		"RETURN_ISSUED",
+		"CANCELLED",
+		"CLOSED",
+	]);
+
+	const postingTimeSchema = z
+		.string()
+		.regex(
+			/^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/,
+			"Posting time must be in HH:mm or HH:mm:ss format",
+		);
+
+	export const createPurchaseReceiptItemSchema = z
+		.object({
+			itemCode: z.string().min(1, "Item code is required").max(100).trim(),
+			itemName: z.string().max(255).optional(),
+			description: z.string().max(1000).optional(),
+			acceptedQuantity: z
+				.number()
+				.min(0, "Accepted quantity cannot be negative"),
+			rejectedQuantity: z.number().min(0).default(0),
+			rate: z.number().min(0).default(0),
+			uom: z.string().max(50).optional(),
+			acceptedWarehouse: z.string().max(255).optional(),
+			rejectedWarehouse: z.string().max(255).optional(),
+		})
+		.refine(
+			(item) => item.acceptedQuantity + item.rejectedQuantity > 0,
+			"Accepted quantity or rejected quantity must be greater than 0",
+		);
+
+	export const createPurchaseReceiptTaxSchema = z.object({
+		type: z.string().min(1, "Tax type is required").max(255).trim(),
+		accountHead: z.string().min(1, "Account head is required").max(255).trim(),
+		taxRate: z.number().min(-100).max(100).default(0),
+		amount: z.number().optional(),
+	});
+
+	export const createPurchaseReceiptSchema = z.object({
+		seriesPattern: z.string().max(50).optional(),
+		postingDate: z.coerce.date().optional(),
+		postingTime: postingTimeSchema.optional(),
+		editPostingDateTime: z.boolean().default(false),
+		supplier: z.string().min(1, "Supplier is required").max(255).trim(),
+		company: z.string().min(1, "Company is required").max(255).trim(),
+		status: purchaseReceiptStatusSchema.default("DRAFT"),
+		isReturn: z.boolean().default(false),
+		applyPutawayRule: z.boolean().default(false),
+		supplierDeliveryNote: z.string().max(255).optional(),
+		acceptedWarehouse: z.string().max(255).optional(),
+		rejectedWarehouse: z.string().max(255).optional(),
+		isSubcontracted: z.boolean().default(false),
+		currency: z.string().max(10).optional(),
+		priceList: z.string().max(255).optional(),
+		disableRoundedTotal: z.boolean().default(false),
+		supplierAddress: z.string().max(255).optional(),
+		contactPerson: z.string().max(255).optional(),
+		shippingAddressTemplate: z.string().max(255).optional(),
+		companyTRN: z.string().max(100).optional(),
+		billingAddress: z.string().max(255).optional(),
+		terms: z.string().max(255).optional(),
+		termsContent: z
+			.string()
+			.max(65_535, "Terms content must be 65,535 characters or fewer")
+			.optional(),
+		letterHead: z.string().max(255).optional(),
+		printHeading: z.string().max(255).optional(),
+		groupSameItems: z.boolean().default(false),
+		permitNumber: z.string().max(255).optional(),
+		recoverableStandardRatedExpenses: z.number().min(0).default(0),
+		reverseChargeApplicable: z.enum(["Y", "N"]).default("N"),
+		transporterName: z.string().max(255).optional(),
+		vehicleNumber: z.string().max(100).optional(),
+		vehicleDate: z.coerce.date().optional(),
+		instructions: z
+			.string()
+			.max(65_535, "Instructions must be 65,535 characters or fewer")
+			.optional(),
+		remarks: z
+			.string()
+			.max(65_535, "Remarks must be 65,535 characters or fewer")
+			.optional(),
+		isInternalSupplier: z.boolean().default(false),
+		items: z
+			.array(createPurchaseReceiptItemSchema)
+			.min(1, "At least one item is required"),
+		taxes: z.array(createPurchaseReceiptTaxSchema).optional(),
+	});
+
+	export const updatePurchaseReceiptItemSchema = z
+		.object({
+			id: z.string().optional(),
+			itemCode: z.string().min(1, "Item code is required").max(100).trim(),
+			itemName: z.string().max(255).optional(),
+			description: z.string().max(1000).optional(),
+			acceptedQuantity: z
+				.number()
+				.min(0, "Accepted quantity cannot be negative"),
+			rejectedQuantity: z.number().min(0).default(0),
+			rate: z.number().min(0).optional(),
+			uom: z.string().max(50).optional(),
+			acceptedWarehouse: z.string().max(255).optional(),
+			rejectedWarehouse: z.string().max(255).optional(),
+		})
+		.refine(
+			(item) => item.acceptedQuantity + item.rejectedQuantity > 0,
+			"Accepted quantity or rejected quantity must be greater than 0",
+		);
+
+	export const updatePurchaseReceiptTaxSchema = z.object({
+		id: z.string().optional(),
+		type: z.string().min(1, "Tax type is required").max(255).trim(),
+		accountHead: z.string().min(1, "Account head is required").max(255).trim(),
+		taxRate: z.number().min(-100).max(100).optional(),
+		amount: z.number().optional(),
+	});
+
+	export const updatePurchaseReceiptSchema = z.object({
+		id: z.string().min(1),
+		seriesPattern: z.string().max(50).optional().nullable(),
+		postingDate: z.coerce.date().optional(),
+		postingTime: postingTimeSchema.optional().nullable(),
+		editPostingDateTime: z.boolean().optional(),
+		supplier: z.string().min(1).max(255).trim().optional(),
+		company: z.string().min(1).max(255).trim().optional(),
+		status: purchaseReceiptStatusSchema.optional(),
+		isReturn: z.boolean().optional(),
+		applyPutawayRule: z.boolean().optional(),
+		supplierDeliveryNote: z.string().max(255).optional().nullable(),
+		acceptedWarehouse: z.string().max(255).optional().nullable(),
+		rejectedWarehouse: z.string().max(255).optional().nullable(),
+		isSubcontracted: z.boolean().optional(),
+		currency: z.string().max(10).optional().nullable(),
+		priceList: z.string().max(255).optional().nullable(),
+		disableRoundedTotal: z.boolean().optional(),
+		supplierAddress: z.string().max(255).optional().nullable(),
+		contactPerson: z.string().max(255).optional().nullable(),
+		shippingAddressTemplate: z.string().max(255).optional().nullable(),
+		companyTRN: z.string().max(100).optional().nullable(),
+		billingAddress: z.string().max(255).optional().nullable(),
+		terms: z.string().max(255).optional().nullable(),
+		termsContent: z
+			.string()
+			.max(65_535, "Terms content must be 65,535 characters or fewer")
+			.optional()
+			.nullable(),
+		letterHead: z.string().max(255).optional().nullable(),
+		printHeading: z.string().max(255).optional().nullable(),
+		groupSameItems: z.boolean().optional(),
+		permitNumber: z.string().max(255).optional().nullable(),
+		recoverableStandardRatedExpenses: z.number().min(0).optional(),
+		reverseChargeApplicable: z.enum(["Y", "N"]).optional(),
+		transporterName: z.string().max(255).optional().nullable(),
+		vehicleNumber: z.string().max(100).optional().nullable(),
+		vehicleDate: z.coerce.date().optional().nullable(),
+		instructions: z
+			.string()
+			.max(65_535, "Instructions must be 65,535 characters or fewer")
+			.optional()
+			.nullable(),
+		remarks: z
+			.string()
+			.max(65_535, "Remarks must be 65,535 characters or fewer")
+			.optional()
+			.nullable(),
+		isInternalSupplier: z.boolean().optional(),
+		items: z.array(updatePurchaseReceiptItemSchema).min(1).optional(),
+		taxes: z.array(updatePurchaseReceiptTaxSchema).optional(),
+	});
+
+	export const listPurchaseReceiptsSchema = z
+		.object({
+			skip: z.number().int().min(0).optional(),
+			take: z.number().int().min(1).max(250).optional(),
+			search: z.string().max(255).optional(),
+			status: purchaseReceiptStatusSchema.optional(),
+		})
+		.optional();
+
+	export const bulkDeletePurchaseReceiptsSchema = z.object({
+		ids: z.array(z.string().min(1)).min(1),
+	});
 }
 
 // ============================================================================

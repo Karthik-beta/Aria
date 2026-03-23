@@ -9,6 +9,7 @@ export default defineConfig({
 		globals: true,
 		environment: "jsdom",
 		pool: "forks",
+		maxWorkers: 1,
 		fileParallelism: false,
 		isolate: true,
 		clearMocks: true,

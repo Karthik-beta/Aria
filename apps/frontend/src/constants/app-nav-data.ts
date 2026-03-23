@@ -68,7 +68,7 @@ export const inventoryNavItems: NavItem[] = [
 			},
 			{
 				title: "Purchase Receipt",
-				url: "/inventory/purchase-receipts",
+				url: "/inventory/stock-transaction/purchase-receipt",
 			},
 			{
 				title: "Pick List",

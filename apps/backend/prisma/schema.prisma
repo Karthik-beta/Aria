@@ -710,3 +710,106 @@ enum DeliveryNoteStatus {
   CANCELLED
   CLOSED
 }
+
+model PurchaseReceipt {
+  id                             String                @id @default(cuid())
+  series                         String                @unique @db.VarChar(50)
+  seriesPattern                  String                @default("MAT-PRE-.YYYY.-") @db.VarChar(50)
+  postingDate                    DateTime              @default(now())
+  postingTime                    String                @default("00:00:00") @db.VarChar(8)
+  editPostingDateTime            Boolean               @default(false)
+  supplier                       String                @db.VarChar(255)
+  company                        String                @db.VarChar(255)
+  status                         PurchaseReceiptStatus @default(DRAFT)
+  isReturn                       Boolean               @default(false)
+  applyPutawayRule               Boolean               @default(false)
+  supplierDeliveryNote           String?               @db.VarChar(255)
+  acceptedWarehouse              String?               @db.VarChar(255)
+  rejectedWarehouse              String?               @db.VarChar(255)
+  isSubcontracted                Boolean               @default(false)
+  currency                       String?               @db.VarChar(10)
+  priceList                      String?               @db.VarChar(255)
+  totalQuantity                  Float                 @default(0)
+  totalAcceptedQuantity          Float                 @default(0)
+  totalRejectedQuantity          Float                 @default(0)
+  totalAmount                    Float                 @default(0)
+  taxesAndChargesAdded           Float                 @default(0)
+  taxesAndChargesDeducted        Float                 @default(0)
+  totalTaxesAndCharges           Float                 @default(0)
+  grandTotal                     Float                 @default(0)
+  roundingAdjustment             Float                 @default(0)
+  roundedTotal                   Float                 @default(0)
+  disableRoundedTotal            Boolean               @default(false)
+  supplierAddress                String?               @db.VarChar(255)
+  contactPerson                  String?               @db.VarChar(255)
+  shippingAddressTemplate        String?               @db.VarChar(255)
+  companyTRN                     String?               @db.VarChar(100)
+  billingAddress                 String?               @db.VarChar(255)
+  terms                          String?               @db.VarChar(255)
+  termsContent                   String?               @db.Text
+  letterHead                     String?               @db.VarChar(255)
+  printHeading                   String?               @db.VarChar(255)
+  groupSameItems                 Boolean               @default(false)
+  permitNumber                   String?               @db.VarChar(255)
+  recoverableStandardRatedExpenses Float               @default(0)
+  reverseChargeApplicable        String                @default("N") @db.VarChar(10)
+  transporterName                String?               @db.VarChar(255)
+  vehicleNumber                  String?               @db.VarChar(100)
+  vehicleDate                    DateTime?
+  instructions                   String?
+  remarks                        String?
+  isInternalSupplier             Boolean               @default(false)
+  items                          PurchaseReceiptItem[]
+  taxes                          PurchaseReceiptTax[]
+  createdAt                      DateTime              @default(now())
+  updatedAt                      DateTime              @updatedAt
+
+  @@index([series])
+  @@index([status])
+  @@index([postingDate])
+  @@index([supplier])
+  @@map("purchase_receipts")
+}
+
+model PurchaseReceiptItem {
+  id               String          @id @default(cuid())
+  purchaseReceiptId String
+  itemCode         String          @db.VarChar(100)
+  itemName         String?         @db.VarChar(255)
+  description      String?
+  acceptedQuantity Float           @default(0)
+  rejectedQuantity Float           @default(0)
+  rate             Float           @default(0)
+  amount           Float           @default(0)
+  uom              String?         @db.VarChar(50)
+  acceptedWarehouse String?        @db.VarChar(255)
+  rejectedWarehouse String?        @db.VarChar(255)
+  purchaseReceipt  PurchaseReceipt @relation(fields: [purchaseReceiptId], references: [id], onDelete: Cascade)
+
+  @@index([purchaseReceiptId])
+  @@map("purchase_receipt_items")
+}
+
+model PurchaseReceiptTax {
+  id               String          @id @default(cuid())
+  purchaseReceiptId String
+  type             String          @db.VarChar(255)
+  accountHead      String          @db.VarChar(255)
+  taxRate          Float           @default(0)
+  amount           Float           @default(0)
+  total            Float           @default(0)
+  purchaseReceipt  PurchaseReceipt @relation(fields: [purchaseReceiptId], references: [id], onDelete: Cascade)
+
+  @@index([purchaseReceiptId])
+  @@map("purchase_receipt_taxes")
+}
+
+enum PurchaseReceiptStatus {
+  DRAFT
+  PARTLY_BILLED
+  TO_BILL
+  COMPLETED
+  RETURN_ISSUED
+  CANCELLED
+  CLOSED
+}

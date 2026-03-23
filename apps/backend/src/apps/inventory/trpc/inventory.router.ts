@@ -719,6 +719,68 @@ const onDeliveryNotesChangedProcedure = protectedProcedure.subscription(() => {
 	});
 });
 
+// ─── Purchase Receipt Procedures ─────────────────────────────────────────────
+
+function createListPurchaseReceiptsProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure
+		.input(Inventory.listPurchaseReceiptsSchema)
+		.query(async ({ input }) => {
+			return inventoryService.findAllPurchaseReceipts(input);
+		});
+}
+
+function createGetPurchaseReceiptByIdProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure
+		.input(z.object({ id: z.string().min(1) }))
+		.query(async ({ input }) => {
+			return inventoryService.findPurchaseReceiptById(input.id);
+		});
+}
+
+function createCreatePurchaseReceiptProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure
+		.input(Inventory.createPurchaseReceiptSchema)
+		.mutation(async ({ input }) => {
+			return inventoryService.createPurchaseReceipt(input);
+		});
+}
+
+function createUpdatePurchaseReceiptProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure
+		.input(Inventory.updatePurchaseReceiptSchema)
+		.mutation(async ({ input }) => {
+			return inventoryService.updatePurchaseReceipt(input);
+		});
+}
+
+function createDeletePurchaseReceiptProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure
+		.input(z.object({ id: z.string().min(1) }))
+		.mutation(async ({ input }) => {
+			return inventoryService.deletePurchaseReceipt(input.id);
+		});
+}
+
+function createDeleteManyPurchaseReceiptsProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure
+		.input(Inventory.bulkDeletePurchaseReceiptsSchema)
+		.mutation(async ({ input }) => {
+			return inventoryService.deleteManyPurchaseReceipts(input.ids);
+		});
+}
+
 type InventoryRouterInput = {
 	listItems: ReturnType<typeof createListItemsProcedure>;
 	listItemGroups: ReturnType<typeof createListItemGroupsProcedure>;
@@ -812,6 +874,22 @@ type InventoryRouterInput = {
 		typeof createDeleteManyDeliveryNotesProcedure
 	>;
 	onDeliveryNotesChanged: typeof onDeliveryNotesChangedProcedure;
+	listPurchaseReceipts: ReturnType<typeof createListPurchaseReceiptsProcedure>;
+	getPurchaseReceiptById: ReturnType<
+		typeof createGetPurchaseReceiptByIdProcedure
+	>;
+	createPurchaseReceipt: ReturnType<
+		typeof createCreatePurchaseReceiptProcedure
+	>;
+	updatePurchaseReceipt: ReturnType<
+		typeof createUpdatePurchaseReceiptProcedure
+	>;
+	deletePurchaseReceipt: ReturnType<
+		typeof createDeletePurchaseReceiptProcedure
+	>;
+	deleteManyPurchaseReceipts: ReturnType<
+		typeof createDeleteManyPurchaseReceiptsProcedure
+	>;
 };
 
 type InventoryRouterRoot = (typeof accountRouter)["_def"]["_config"]["$types"];
@@ -902,6 +980,17 @@ function createInventoryRouterRecord(
 		deleteManyDeliveryNotes:
 			createDeleteManyDeliveryNotesProcedure(inventoryService),
 		onDeliveryNotesChanged: onDeliveryNotesChangedProcedure,
+		listPurchaseReceipts: createListPurchaseReceiptsProcedure(inventoryService),
+		getPurchaseReceiptById:
+			createGetPurchaseReceiptByIdProcedure(inventoryService),
+		createPurchaseReceipt:
+			createCreatePurchaseReceiptProcedure(inventoryService),
+		updatePurchaseReceipt:
+			createUpdatePurchaseReceiptProcedure(inventoryService),
+		deletePurchaseReceipt:
+			createDeletePurchaseReceiptProcedure(inventoryService),
+		deleteManyPurchaseReceipts:
+			createDeleteManyPurchaseReceiptsProcedure(inventoryService),
 	};
 }
 

@@ -485,3 +485,96 @@ export function toInventoryDeliveryNote(
 		updatedAt: prismaNote.updatedAt,
 	};
 }
+
+/**
+ * Prisma model type for PurchaseReceipt with items and taxes.
+ */
+export type InventoryPurchaseReceipt = Prisma.PurchaseReceiptGetPayload<{
+	include: {
+		items: true;
+		taxes: true;
+	};
+}>;
+
+/**
+ * Converts a Prisma PurchaseReceipt to Inventory.PurchaseReceipt.
+ */
+export function toInventoryPurchaseReceipt(
+	prismaReceipt: InventoryPurchaseReceipt,
+): Inventory.PurchaseReceipt {
+	return {
+		id: prismaReceipt.id,
+		series: prismaReceipt.series,
+		seriesPattern: prismaReceipt.seriesPattern,
+		postingDate: prismaReceipt.postingDate,
+		postingTime: prismaReceipt.postingTime,
+		editPostingDateTime: prismaReceipt.editPostingDateTime,
+		supplier: prismaReceipt.supplier,
+		company: prismaReceipt.company,
+		status: prismaReceipt.status as Inventory.PurchaseReceiptStatus,
+		isReturn: prismaReceipt.isReturn,
+		applyPutawayRule: prismaReceipt.applyPutawayRule,
+		supplierDeliveryNote: prismaReceipt.supplierDeliveryNote,
+		acceptedWarehouse: prismaReceipt.acceptedWarehouse,
+		rejectedWarehouse: prismaReceipt.rejectedWarehouse,
+		isSubcontracted: prismaReceipt.isSubcontracted,
+		currency: prismaReceipt.currency,
+		priceList: prismaReceipt.priceList,
+		totalQuantity: prismaReceipt.totalQuantity,
+		totalAcceptedQuantity: prismaReceipt.totalAcceptedQuantity,
+		totalRejectedQuantity: prismaReceipt.totalRejectedQuantity,
+		totalAmount: prismaReceipt.totalAmount,
+		taxesAndChargesAdded: prismaReceipt.taxesAndChargesAdded,
+		taxesAndChargesDeducted: prismaReceipt.taxesAndChargesDeducted,
+		totalTaxesAndCharges: prismaReceipt.totalTaxesAndCharges,
+		grandTotal: prismaReceipt.grandTotal,
+		roundingAdjustment: prismaReceipt.roundingAdjustment,
+		roundedTotal: prismaReceipt.roundedTotal,
+		disableRoundedTotal: prismaReceipt.disableRoundedTotal,
+		supplierAddress: prismaReceipt.supplierAddress,
+		contactPerson: prismaReceipt.contactPerson,
+		shippingAddressTemplate: prismaReceipt.shippingAddressTemplate,
+		companyTRN: prismaReceipt.companyTRN,
+		billingAddress: prismaReceipt.billingAddress,
+		terms: prismaReceipt.terms,
+		termsContent: prismaReceipt.termsContent,
+		letterHead: prismaReceipt.letterHead,
+		printHeading: prismaReceipt.printHeading,
+		groupSameItems: prismaReceipt.groupSameItems,
+		permitNumber: prismaReceipt.permitNumber,
+		recoverableStandardRatedExpenses:
+			prismaReceipt.recoverableStandardRatedExpenses,
+		reverseChargeApplicable: prismaReceipt.reverseChargeApplicable as "Y" | "N",
+		transporterName: prismaReceipt.transporterName,
+		vehicleNumber: prismaReceipt.vehicleNumber,
+		vehicleDate: prismaReceipt.vehicleDate,
+		instructions: prismaReceipt.instructions,
+		remarks: prismaReceipt.remarks,
+		isInternalSupplier: prismaReceipt.isInternalSupplier,
+		items: prismaReceipt.items.map((item) => ({
+			id: item.id,
+			purchaseReceiptId: item.purchaseReceiptId,
+			itemCode: item.itemCode,
+			itemName: item.itemName,
+			description: item.description,
+			acceptedQuantity: item.acceptedQuantity,
+			rejectedQuantity: item.rejectedQuantity,
+			rate: item.rate,
+			amount: item.amount,
+			uom: item.uom,
+			acceptedWarehouse: item.acceptedWarehouse,
+			rejectedWarehouse: item.rejectedWarehouse,
+		})),
+		taxes: prismaReceipt.taxes.map((tax) => ({
+			id: tax.id,
+			purchaseReceiptId: tax.purchaseReceiptId,
+			type: tax.type,
+			accountHead: tax.accountHead,
+			taxRate: tax.taxRate,
+			amount: tax.amount,
+			total: tax.total,
+		})),
+		createdAt: prismaReceipt.createdAt,
+		updatedAt: prismaReceipt.updatedAt,
+	};
+}
