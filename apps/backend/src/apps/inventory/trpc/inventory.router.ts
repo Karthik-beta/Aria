@@ -628,6 +628,97 @@ const onStockEntriesChangedProcedure = protectedProcedure.subscription(() => {
 	});
 });
 
+// ─── Delivery Note Procedures ────────────────────────────────────────────────
+
+type DeliveryNotesChangedEvent = {
+	type: "created" | "updated" | "deleted";
+	data: Inventory.DeliveryNote | { id: string };
+};
+
+function createListDeliveryNotesProcedure(inventoryService: InventoryService) {
+	return protectedProcedure.query(async () => {
+		return inventoryService.findAllDeliveryNotes();
+	});
+}
+
+function createGetDeliveryNoteByIdProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure
+		.input(z.object({ id: z.string().min(1) }))
+		.query(async ({ input }) => {
+			return inventoryService.findDeliveryNoteById(input.id);
+		});
+}
+
+function createCreateDeliveryNoteProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(Inventory.createDeliveryNoteSchema)
+		.mutation(async ({ input }) => {
+			const result = await inventoryService.createDeliveryNote(input);
+			void inventoryEvents.emit("deliveryNoteCreated", result);
+			return result;
+		});
+}
+
+function createUpdateDeliveryNoteProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(Inventory.updateDeliveryNoteSchema)
+		.mutation(async ({ input }) => {
+			const result = await inventoryService.updateDeliveryNote(input);
+			void inventoryEvents.emit("deliveryNoteUpdated", result);
+			return result;
+		});
+}
+
+function createDeleteDeliveryNoteProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(z.object({ id: z.string().min(1) }))
+		.mutation(async ({ input }) => {
+			const result = await inventoryService.deleteDeliveryNote(input.id);
+			void inventoryEvents.emit("deliveryNoteDeleted", { id: input.id });
+			return result;
+		});
+}
+
+function createDeleteManyDeliveryNotesProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure
+		.input(Inventory.bulkDeleteDeliveryNotesSchema)
+		.mutation(async ({ input }) => {
+			const result = await inventoryService.deleteManyDeliveryNotes(input.ids);
+			for (const id of result.ids) {
+				inventoryEvents.emit("deliveryNoteDeleted", { id });
+			}
+			return result;
+		});
+}
+
+const onDeliveryNotesChangedProcedure = protectedProcedure.subscription(() => {
+	return observable<DeliveryNotesChangedEvent>((emit) => {
+		const onCreated = (data: Inventory.DeliveryNote) => {
+			emit.next({ type: "created", data });
+		};
+		const onUpdated = (data: Inventory.DeliveryNote) => {
+			emit.next({ type: "updated", data });
+		};
+		const onDeleted = (data: { id: string }) => {
+			emit.next({ type: "deleted", data });
+		};
+
+		inventoryEvents.on("deliveryNoteCreated", onCreated);
+		inventoryEvents.on("deliveryNoteUpdated", onUpdated);
+		inventoryEvents.on("deliveryNoteDeleted", onDeleted);
+
+		return () => {
+			inventoryEvents.off("deliveryNoteCreated", onCreated);
+			inventoryEvents.off("deliveryNoteUpdated", onUpdated);
+			inventoryEvents.off("deliveryNoteDeleted", onDeleted);
+		};
+	});
+});
+
 type InventoryRouterInput = {
 	listItems: ReturnType<typeof createListItemsProcedure>;
 	listItemGroups: ReturnType<typeof createListItemGroupsProcedure>;
@@ -712,6 +803,15 @@ type InventoryRouterInput = {
 		typeof createDeleteManyStockEntriesProcedure
 	>;
 	onStockEntriesChanged: typeof onStockEntriesChangedProcedure;
+	listDeliveryNotes: ReturnType<typeof createListDeliveryNotesProcedure>;
+	getDeliveryNoteById: ReturnType<typeof createGetDeliveryNoteByIdProcedure>;
+	createDeliveryNote: ReturnType<typeof createCreateDeliveryNoteProcedure>;
+	updateDeliveryNote: ReturnType<typeof createUpdateDeliveryNoteProcedure>;
+	deleteDeliveryNote: ReturnType<typeof createDeleteDeliveryNoteProcedure>;
+	deleteManyDeliveryNotes: ReturnType<
+		typeof createDeleteManyDeliveryNotesProcedure
+	>;
+	onDeliveryNotesChanged: typeof onDeliveryNotesChangedProcedure;
 };
 
 type InventoryRouterRoot = (typeof accountRouter)["_def"]["_config"]["$types"];
@@ -794,6 +894,14 @@ function createInventoryRouterRecord(
 		deleteManyStockEntries:
 			createDeleteManyStockEntriesProcedure(inventoryService),
 		onStockEntriesChanged: onStockEntriesChangedProcedure,
+		listDeliveryNotes: createListDeliveryNotesProcedure(inventoryService),
+		getDeliveryNoteById: createGetDeliveryNoteByIdProcedure(inventoryService),
+		createDeliveryNote: createCreateDeliveryNoteProcedure(inventoryService),
+		updateDeliveryNote: createUpdateDeliveryNoteProcedure(inventoryService),
+		deleteDeliveryNote: createDeleteDeliveryNoteProcedure(inventoryService),
+		deleteManyDeliveryNotes:
+			createDeleteManyDeliveryNotesProcedure(inventoryService),
+		onDeliveryNotesChanged: onDeliveryNotesChangedProcedure,
 	};
 }
 

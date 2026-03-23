@@ -603,3 +603,110 @@ enum CalculationType {
   NET_TOTAL
   NET_WEIGHT
 }
+
+model DeliveryNote {
+  id                       String             @id @default(cuid())
+  series                   String             @unique @db.VarChar(50)
+  postingDate              DateTime           @default(now())
+  customer                 String             @db.VarChar(255)
+  company                  String             @db.VarChar(255)
+  status                   DeliveryNoteStatus @default(DRAFT)
+  isReturn                 Boolean            @default(false)
+
+  // Currency and Price List
+  currency                 String?            @db.VarChar(10)
+  priceList                String?            @db.VarChar(255)
+
+  // Source Warehouse (applied to all items by default)
+  sourceWarehouse          String?            @db.VarChar(255)
+
+  // Totals
+  totalQuantity            Float              @default(0)
+  totalAmount              Float              @default(0)
+  grandTotal               Float              @default(0)
+  roundingAdjustment       Float              @default(0)
+  roundedTotal             Float              @default(0)
+
+  // Additional Discount
+  additionalDiscountOn     String?            @db.VarChar(100)
+  additionalDiscountPercent Float?
+  additionalDiscountAmount Float?
+
+  // Address & Contact
+  shippingAddress          String?            @db.VarChar(255)
+  dispatchAddress          String?            @db.VarChar(255)
+  companyAddress           String?            @db.VarChar(255)
+  companyContact           String?            @db.VarChar(255)
+  companyTRN               String?            @db.VarChar(100)
+
+  // Terms
+  terms                    String?            @db.VarChar(255)
+  // Stored as PostgreSQL TEXT to align with Zod 65,535-character limit
+  termsContent             String?            @db.Text
+
+  // Transporter Info
+  transporter              String?            @db.VarChar(255)
+  driverName               String?            @db.VarChar(255)
+  driver                   String?            @db.VarChar(255)
+  transportReceiptDate     DateTime?
+  transportReceiptNo       String?            @db.VarChar(255)
+  vehicleNo                String?            @db.VarChar(100)
+
+  // Customer PO Details
+  customerPoNo             String?
+  customerPoDate           DateTime?
+
+  // Commission
+  salesPartner             String?            @db.VarChar(255)
+  commissionRate           Float?
+
+  // Print Settings
+  letterHead               String?            @db.VarChar(255)
+  printHeading             String?            @db.VarChar(255)
+  printWithoutAmount       Boolean            @default(false)
+  groupSameItems           Boolean            @default(false)
+
+  // VAT Details
+  permitNumber             String?            @db.VarChar(255)
+  vatEmirate               String?            @db.VarChar(100)
+
+  // Additional Info
+  project                  String?            @db.VarChar(255)
+
+  items     DeliveryNoteItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([series])
+  @@index([status])
+  @@index([postingDate])
+  @@index([customer])
+  @@map("delivery_notes")
+}
+
+model DeliveryNoteItem {
+  id             String       @id @default(cuid())
+  deliveryNoteId String
+  itemCode       String       @db.VarChar(100)
+  itemName       String?      @db.VarChar(255)
+  description    String?
+  quantity       Float        @default(0)
+  uom            String?      @db.VarChar(50)
+  rate           Float        @default(0)
+  amount         Float        @default(0)
+  warehouse      String?      @db.VarChar(255)
+  deliveryNote   DeliveryNote @relation(fields: [deliveryNoteId], references: [id], onDelete: Cascade)
+
+  @@index([deliveryNoteId])
+  @@map("delivery_note_items")
+}
+
+enum DeliveryNoteStatus {
+  DRAFT
+  TO_BILL
+  COMPLETED
+  RETURN_ISSUED
+  CANCELLED
+  CLOSED
+}

@@ -1117,6 +1117,363 @@ export namespace Inventory {
 	export const bulkDeleteStockEntriesSchema = z.object({
 		ids: z.array(z.string().min(1)).min(1),
 	});
+
+	// ============================================================================
+	// Delivery Note Types & Schemas
+	// ============================================================================
+
+	export type DeliveryNoteStatus =
+		| "DRAFT"
+		| "TO_BILL"
+		| "COMPLETED"
+		| "RETURN_ISSUED"
+		| "CANCELLED"
+		| "CLOSED";
+
+	export interface DeliveryNoteItem {
+		id: string;
+		deliveryNoteId: string;
+		itemCode: string;
+		itemName?: string | null;
+		description?: string | null;
+		quantity: number;
+		uom?: string | null;
+		rate: number;
+		amount: number;
+		warehouse?: string | null;
+	}
+
+	export interface DeliveryNote {
+		id: string;
+		series: string;
+		postingDate: Date;
+		customer: string;
+		company: string;
+		status: DeliveryNoteStatus;
+		isReturn: boolean;
+		currency?: string | null;
+		priceList?: string | null;
+		sourceWarehouse?: string | null;
+		totalQuantity: number;
+		totalAmount: number;
+		grandTotal: number;
+		roundingAdjustment: number;
+		roundedTotal: number;
+		additionalDiscountOn?: string | null;
+		additionalDiscountPercent?: number | null;
+		additionalDiscountAmount?: number | null;
+		shippingAddress?: string | null;
+		dispatchAddress?: string | null;
+		companyAddress?: string | null;
+		companyContact?: string | null;
+		companyTRN?: string | null;
+		terms?: string | null;
+		termsContent?: string | null;
+		transporter?: string | null;
+		driverName?: string | null;
+		driver?: string | null;
+		transportReceiptDate?: Date | null;
+		transportReceiptNo?: string | null;
+		vehicleNo?: string | null;
+		customerPoNo?: string | null;
+		customerPoDate?: Date | null;
+		salesPartner?: string | null;
+		commissionRate?: number | null;
+		letterHead?: string | null;
+		printHeading?: string | null;
+		printWithoutAmount: boolean;
+		groupSameItems: boolean;
+		permitNumber?: string | null;
+		vatEmirate?: string | null;
+		project?: string | null;
+		items: DeliveryNoteItem[];
+		createdAt: Date;
+		updatedAt: Date;
+	}
+
+	export interface CreateDeliveryNoteItemInput {
+		itemCode: string;
+		itemName?: string;
+		description?: string;
+		quantity: number;
+		uom?: string;
+		rate?: number;
+		warehouse?: string;
+	}
+
+	/**
+	 * Input payload for creating a Delivery Note document.
+	 *
+	 * This type is shared across frontends and backend and is used as the
+	 * contract for Delivery Note creation APIs.
+	 */
+	export interface CreateDeliveryNoteInput {
+		/**
+		 * Posting date of the delivery note.
+		 * If omitted, the server may default this to the current date.
+		 */
+		postingDate?: Date;
+		/** Linked customer identifier (e.g., customer name or code). */
+		customer: string;
+		/** Company for which this delivery note is being created. */
+		company: string;
+		/** Whether this delivery note represents a return. */
+		isReturn?: boolean;
+		/** Currency code for amounts on this delivery note (e.g., "AED"). */
+		currency?: string;
+		/** Price list to use for pricing items on this delivery note. */
+		priceList?: string;
+		/** Default source warehouse for all items, when applicable. */
+		sourceWarehouse?: string;
+		/**
+		 * Base on which the additional discount is calculated.
+		 *
+		 * Common values include things like "Net Total" or "Grand Total".
+		 * Consumers should treat this as an enum-like string and only pass
+		 * values supported by the backend.
+		 */
+		additionalDiscountOn?: string;
+		/**
+		 * Percentage of additional discount to apply on `additionalDiscountOn`.
+		 *
+		 * Expected to be in the range 0–100. Typically only one of
+		 * `additionalDiscountPercent` or `additionalDiscountAmount` is used
+		 * for a given delivery note; if both are provided, server-side logic
+		 * determines precedence.
+		 */
+		additionalDiscountPercent?: number;
+		/**
+		 * Fixed additional discount amount.
+		 *
+		 * This is an absolute discount value, as opposed to
+		 * `additionalDiscountPercent` which is rate-based. Usually only one
+		 * of `additionalDiscountPercent` or `additionalDiscountAmount` should
+		 * be provided.
+		 */
+		additionalDiscountAmount?: number;
+		/** Customer shipping/delivery address. */
+		shippingAddress?: string;
+		/** Dispatch address (from where goods are sent). */
+		dispatchAddress?: string;
+		/** Company address printed on the delivery note. */
+		companyAddress?: string;
+		/** Company contact person or contact ID. */
+		companyContact?: string;
+		/** Company Tax Registration Number (TRN). */
+		companyTRN?: string;
+		/** Payment or delivery terms reference. */
+		terms?: string;
+		/** Human-readable terms and conditions content. */
+		termsContent?: string;
+		/** Transporter or logistics provider name. */
+		transporter?: string;
+		/** Driver's name for the delivery. */
+		driverName?: string;
+		/** Driver identifier (e.g., employee ID). */
+		driver?: string;
+		/** Date on the transport receipt, if applicable. */
+		transportReceiptDate?: Date;
+		/** Reference number of the transport receipt. */
+		transportReceiptNo?: string;
+		/** Vehicle number used for delivery. */
+		vehicleNo?: string;
+		/** Customer purchase order number linked to this delivery. */
+		customerPoNo?: string;
+		/** Customer purchase order date. */
+		customerPoDate?: Date;
+		/** Sales partner or agent associated with this delivery. */
+		salesPartner?: string;
+		/** Commission rate for the sales partner, expressed as a percentage. */
+		commissionRate?: number;
+		/** Letterhead to use when printing the delivery note. */
+		letterHead?: string;
+		/** Custom print heading/title for the delivery note. */
+		printHeading?: string;
+		/** Whether to print the delivery note without showing amounts. */
+		printWithoutAmount?: boolean;
+		/** Whether to group identical items together when printing. */
+		groupSameItems?: boolean;
+		/** Permit number associated with this delivery, if required. */
+		permitNumber?: string;
+		/** VAT emirate or tax jurisdiction for this delivery. */
+		vatEmirate?: string;
+		/** Project reference linked to this delivery. */
+		project?: string;
+		/** Line items included in the delivery note. */
+		items: CreateDeliveryNoteItemInput[];
+	}
+
+	export interface UpdateDeliveryNoteItemInput {
+		id?: string;
+		itemCode: string;
+		itemName?: string;
+		description?: string;
+		quantity: number;
+		uom?: string;
+		rate?: number;
+		warehouse?: string;
+	}
+
+	export interface UpdateDeliveryNoteInput {
+		id: string;
+		postingDate?: Date;
+		customer?: string;
+		company?: string;
+		status?: DeliveryNoteStatus;
+		isReturn?: boolean;
+		currency?: string | null;
+		priceList?: string | null;
+		sourceWarehouse?: string | null;
+		additionalDiscountOn?: string | null;
+		additionalDiscountPercent?: number | null;
+		additionalDiscountAmount?: number | null;
+		shippingAddress?: string | null;
+		dispatchAddress?: string | null;
+		companyAddress?: string | null;
+		companyContact?: string | null;
+		companyTRN?: string | null;
+		terms?: string | null;
+		termsContent?: string | null;
+		transporter?: string | null;
+		driverName?: string | null;
+		driver?: string | null;
+		transportReceiptDate?: Date | null;
+		transportReceiptNo?: string | null;
+		vehicleNo?: string | null;
+		customerPoNo?: string | null;
+		customerPoDate?: Date | null;
+		salesPartner?: string | null;
+		commissionRate?: number | null;
+		letterHead?: string | null;
+		printHeading?: string | null;
+		printWithoutAmount?: boolean;
+		groupSameItems?: boolean;
+		permitNumber?: string | null;
+		vatEmirate?: string | null;
+		project?: string | null;
+		items?: UpdateDeliveryNoteItemInput[];
+	}
+
+	export const createDeliveryNoteItemSchema = z.object({
+		itemCode: z.string().min(1, "Item code is required").max(100).trim(),
+		itemName: z.string().max(255).optional(),
+		description: z.string().max(1000).optional(),
+		quantity: z.number().min(0.001, "Quantity must be greater than 0"),
+		uom: z.string().max(50).optional(),
+		rate: z.number().min(0).default(0),
+		warehouse: z.string().max(255).optional(),
+	});
+
+	export const createDeliveryNoteSchema = z.object({
+		postingDate: z.coerce.date().optional(),
+		customer: z.string().min(1, "Customer is required").max(255).trim(),
+		company: z.string().min(1, "Company is required").max(255).trim(),
+		isReturn: z.boolean().default(false),
+		currency: z.string().max(10).optional(),
+		priceList: z.string().max(255).optional(),
+		sourceWarehouse: z.string().max(255).optional(),
+		additionalDiscountOn: z.string().max(100).optional(),
+		additionalDiscountPercent: z.number().min(0).max(100).optional(),
+		additionalDiscountAmount: z.number().min(0).optional(),
+		shippingAddress: z.string().max(255).optional(),
+		dispatchAddress: z.string().max(255).optional(),
+		companyAddress: z.string().max(255).optional(),
+		companyContact: z.string().max(255).optional(),
+		companyTRN: z.string().max(100).optional(),
+		terms: z.string().max(255).optional(),
+		termsContent: z
+			.string()
+			.max(65_535, "Terms content must be 65,535 characters or fewer")
+			.optional(),
+		transporter: z.string().max(255).optional(),
+		driverName: z.string().max(255).optional(),
+		driver: z.string().max(255).optional(),
+		transportReceiptDate: z.coerce.date().optional(),
+		transportReceiptNo: z.string().max(255).optional(),
+		vehicleNo: z.string().max(100).optional(),
+		customerPoNo: z.string().optional(),
+		customerPoDate: z.coerce.date().optional(),
+		salesPartner: z.string().max(255).optional(),
+		commissionRate: z.number().min(0).max(100).optional(),
+		letterHead: z.string().max(255).optional(),
+		printHeading: z.string().max(255).optional(),
+		printWithoutAmount: z.boolean().default(false),
+		groupSameItems: z.boolean().default(false),
+		permitNumber: z.string().max(255).optional(),
+		vatEmirate: z.string().max(100).optional(),
+		project: z.string().max(255).optional(),
+		items: z
+			.array(createDeliveryNoteItemSchema)
+			.min(1, "At least one item is required"),
+	});
+
+	export const updateDeliveryNoteItemSchema = z.object({
+		id: z.string().optional(),
+		itemCode: z.string().min(1, "Item code is required").max(100).trim(),
+		itemName: z.string().max(255).optional(),
+		description: z.string().max(1000).optional(),
+		quantity: z.number().min(0.001, "Quantity must be greater than 0"),
+		uom: z.string().max(50).optional(),
+		rate: z.number().min(0).optional(),
+		warehouse: z.string().max(255).optional(),
+	});
+
+	export const updateDeliveryNoteSchema = z.object({
+		id: z.string().min(1),
+		postingDate: z.coerce.date().optional(),
+		customer: z.string().min(1).max(255).trim().optional(),
+		company: z.string().min(1).max(255).trim().optional(),
+		status: z
+			.enum([
+				"DRAFT",
+				"TO_BILL",
+				"COMPLETED",
+				"RETURN_ISSUED",
+				"CANCELLED",
+				"CLOSED",
+			])
+			.optional(),
+		isReturn: z.boolean().optional(),
+		currency: z.string().max(10).optional().nullable(),
+		priceList: z.string().max(255).optional().nullable(),
+		sourceWarehouse: z.string().max(255).optional().nullable(),
+		additionalDiscountOn: z.string().max(100).optional().nullable(),
+		additionalDiscountPercent: z.number().min(0).max(100).optional().nullable(),
+		additionalDiscountAmount: z.number().min(0).optional().nullable(),
+		shippingAddress: z.string().max(255).optional().nullable(),
+		dispatchAddress: z.string().max(255).optional().nullable(),
+		companyAddress: z.string().max(255).optional().nullable(),
+		companyContact: z.string().max(255).optional().nullable(),
+		companyTRN: z.string().max(100).optional().nullable(),
+		terms: z.string().max(255).optional().nullable(),
+		termsContent: z
+			.string()
+			.max(65_535, "Terms content must be 65,535 characters or fewer")
+			.optional()
+			.nullable(),
+		transporter: z.string().max(255).optional().nullable(),
+		driverName: z.string().max(255).optional().nullable(),
+		driver: z.string().max(255).optional().nullable(),
+		transportReceiptDate: z.coerce.date().optional().nullable(),
+		transportReceiptNo: z.string().max(255).optional().nullable(),
+		vehicleNo: z.string().max(100).optional().nullable(),
+		customerPoNo: z.string().optional().nullable(),
+		customerPoDate: z.coerce.date().optional().nullable(),
+		salesPartner: z.string().max(255).optional().nullable(),
+		commissionRate: z.number().min(0).max(100).optional().nullable(),
+		letterHead: z.string().max(255).optional().nullable(),
+		printHeading: z.string().max(255).optional().nullable(),
+		printWithoutAmount: z.boolean().optional(),
+		groupSameItems: z.boolean().optional(),
+		permitNumber: z.string().max(255).optional().nullable(),
+		vatEmirate: z.string().max(100).optional().nullable(),
+		project: z.string().max(255).optional().nullable(),
+		items: z.array(updateDeliveryNoteItemSchema).min(1).optional(),
+	});
+
+	export const bulkDeleteDeliveryNotesSchema = z.object({
+		ids: z.array(z.string().min(1)).min(1),
+	});
 }
 
 // ============================================================================

@@ -4,9 +4,8 @@ import {
 	ConflictException,
 	NotFoundException,
 } from "@nestjs/common";
-import { Test, type TestingModule } from "@nestjs/testing";
 import { Prisma } from "../../generated/prisma/client";
-import { PrismaService } from "../../shared/prisma.service";
+import type { PrismaService } from "../../shared/prisma.service";
 import { InventoryService } from "./inventory.service";
 
 describe("InventoryService", () => {
@@ -208,24 +207,34 @@ describe("InventoryService", () => {
 			update: jest.fn(),
 			create: jest.fn(),
 		},
+		deliveryNote: {
+			findMany: jest.fn(),
+			findFirst: jest.fn(),
+			findUnique: jest.fn(),
+			findUniqueOrThrow: jest.fn(),
+			create: jest.fn(),
+			update: jest.fn(),
+			delete: jest.fn(),
+			deleteMany: jest.fn(),
+		},
+		deliveryNoteItem: {
+			findMany: jest.fn(),
+			deleteMany: jest.fn(),
+			update: jest.fn(),
+			create: jest.fn(),
+		},
 		$transaction: jest.fn(),
 	};
 
-	beforeEach(async () => {
+	beforeEach(() => {
+		jest.clearAllMocks();
+
 		mockPrisma.$transaction.mockImplementation(
 			async (callback: (tx: typeof mockPrisma) => Promise<unknown>) =>
 				callback(mockPrisma),
 		);
 
-		const module: TestingModule = await Test.createTestingModule({
-			providers: [
-				InventoryService,
-				{ provide: PrismaService, useValue: mockPrisma },
-			],
-		}).compile();
-
-		service = module.get<InventoryService>(InventoryService);
-		jest.clearAllMocks();
+		service = new InventoryService(mockPrisma as unknown as PrismaService);
 	});
 
 	it("should be defined", () => {
@@ -2162,6 +2171,242 @@ describe("InventoryService", () => {
 
 			await expect(
 				service.deleteManyStockEntries([mockStockEntry.id]),
+			).rejects.toThrow(Prisma.PrismaClientKnownRequestError);
+		});
+	});
+
+	// ── Delivery Note ──────────────────────────────────────────────────────────
+
+	const mockDeliveryNoteItem = {
+		id: "clh123dn_item01",
+		deliveryNoteId: "clh123dn000001",
+		itemCode: "DN-ITM-001",
+		itemName: "Delivery Test Item",
+		description: null as string | null,
+		quantity: 5,
+		uom: null as string | null,
+		rate: 200,
+		amount: 1000,
+		warehouse: null as string | null,
+	};
+
+	const mockDeliveryNote = {
+		id: "clh123dn000001",
+		series: "MAT-DN-2026-00001",
+		customer: "Test Customer",
+		company: "Aria Corp",
+		status: "DRAFT" as const,
+		postingDate: new Date("2026-01-15T00:00:00.000Z"),
+		isReturn: false,
+		currency: null as string | null,
+		priceList: null as string | null,
+		sourceWarehouse: null as string | null,
+		totalQuantity: 5,
+		totalNetWeight: null as number | null,
+		totalAmount: 1000,
+		additionalDiscountOn: null as string | null,
+		additionalDiscountPercent: null as number | null,
+		additionalDiscountAmount: null as number | null,
+		grandTotal: 1000,
+		roundingAdjustment: null as number | null,
+		shippingAddress: null as string | null,
+		dispatchAddress: null as string | null,
+		companyAddress: null as string | null,
+		companyContact: null as string | null,
+		companyTRN: null as string | null,
+		terms: null as string | null,
+		termsContent: null as string | null,
+		transporter: null as string | null,
+		driverName: null as string | null,
+		driver: null as string | null,
+		transportReceiptDate: null as Date | null,
+		transportReceiptNo: null as string | null,
+		vehicleNo: null as string | null,
+		customerPoNo: null as string | null,
+		customerPoDate: null as Date | null,
+		salesPartner: null as string | null,
+		commissionRate: null as number | null,
+		letterHead: null as string | null,
+		printHeading: null as string | null,
+		printWithoutAmount: false,
+		groupSameItems: false,
+		permitNumber: null as string | null,
+		vatEmirate: null as string | null,
+		project: null as string | null,
+		items: [mockDeliveryNoteItem],
+		createdAt: new Date(),
+		updatedAt: new Date(),
+	};
+
+	describe("findAllDeliveryNotes", () => {
+		it("should return all delivery notes mapped to domain type", async () => {
+			mockPrisma.deliveryNote.findMany.mockResolvedValue([mockDeliveryNote]);
+
+			const result = await service.findAllDeliveryNotes();
+
+			expect(result[0]?.id).toBe(mockDeliveryNote.id);
+			expect(result[0]?.series).toBe(mockDeliveryNote.series);
+			expect(mockPrisma.deliveryNote.findMany).toHaveBeenCalledWith(
+				expect.objectContaining({ include: { items: true } }),
+			);
+		});
+	});
+
+	describe("findDeliveryNoteById", () => {
+		it("should return a delivery note by id", async () => {
+			mockPrisma.deliveryNote.findUnique.mockResolvedValue(mockDeliveryNote);
+
+			const result = await service.findDeliveryNoteById(mockDeliveryNote.id);
+
+			expect(result?.id).toBe(mockDeliveryNote.id);
+			expect(mockPrisma.deliveryNote.findUnique).toHaveBeenCalledWith(
+				expect.objectContaining({ where: { id: mockDeliveryNote.id } }),
+			);
+		});
+
+		it("should return null when not found", async () => {
+			mockPrisma.deliveryNote.findUnique.mockResolvedValue(null);
+
+			const result = await service.findDeliveryNoteById("nonexistent");
+
+			expect(result).toBeNull();
+		});
+	});
+
+	describe("createDeliveryNote", () => {
+		it("should create a delivery note with a generated series", async () => {
+			mockPrisma.deliveryNote.findFirst.mockResolvedValue(null);
+			mockPrisma.deliveryNote.create.mockResolvedValue(mockDeliveryNote);
+
+			const result = await service.createDeliveryNote({
+				customer: "Test Customer",
+				company: "Aria Corp",
+				items: [{ itemCode: "DN-ITM-001", quantity: 5, rate: 200 }],
+			});
+
+			expect(result.id).toBe(mockDeliveryNote.id);
+			expect(mockPrisma.deliveryNote.create).toHaveBeenCalled();
+		});
+
+		it("should retry series generation on P2002 conflict", async () => {
+			const conflictError = new Prisma.PrismaClientKnownRequestError(
+				"Unique constraint",
+				{ code: "P2002", clientVersion: "5.0.0" },
+			);
+			mockPrisma.deliveryNote.findFirst.mockResolvedValue(null);
+			mockPrisma.deliveryNote.create
+				.mockRejectedValueOnce(conflictError)
+				.mockResolvedValueOnce(mockDeliveryNote);
+
+			const result = await service.createDeliveryNote({
+				customer: "Test Customer",
+				company: "Aria Corp",
+				items: [{ itemCode: "DN-ITM-001", quantity: 5, rate: 200 }],
+			});
+
+			expect(result.id).toBe(mockDeliveryNote.id);
+			expect(mockPrisma.deliveryNote.create).toHaveBeenCalledTimes(2);
+		});
+	});
+
+	describe("updateDeliveryNote", () => {
+		it("should update a delivery note and upsert items in a transaction", async () => {
+			mockPrisma.deliveryNote.findUnique.mockResolvedValue({
+				id: mockDeliveryNote.id,
+			});
+			mockPrisma.deliveryNoteItem.findMany.mockResolvedValue([
+				{
+					id: mockDeliveryNoteItem.id,
+					quantity: 10,
+					rate: 200,
+				},
+			]);
+			mockPrisma.deliveryNoteItem.update.mockResolvedValue(
+				mockDeliveryNoteItem,
+			);
+			mockPrisma.deliveryNote.findUniqueOrThrow.mockResolvedValue(
+				mockDeliveryNote,
+			);
+
+			const result = await service.updateDeliveryNote({
+				id: mockDeliveryNote.id,
+				customer: "Updated Customer",
+				items: [
+					{
+						id: mockDeliveryNoteItem.id,
+						itemCode: "DN-ITM-001",
+						quantity: 10,
+					},
+				],
+			});
+
+			expect(result.id).toBe(mockDeliveryNote.id);
+			expect(mockPrisma.$transaction).toHaveBeenCalled();
+		});
+	});
+
+	describe("deleteDeliveryNote", () => {
+		it("should delete a delivery note and return success", async () => {
+			mockPrisma.deliveryNote.delete.mockResolvedValue(mockDeliveryNote);
+
+			const result = await service.deleteDeliveryNote(mockDeliveryNote.id);
+
+			expect(result).toEqual({
+				success: true,
+				id: mockDeliveryNote.id,
+			});
+			expect(mockPrisma.deliveryNote.delete).toHaveBeenCalledWith({
+				where: { id: mockDeliveryNote.id },
+			});
+		});
+
+		it("should return success: false when record not found (P2025)", async () => {
+			const notFoundError = new Prisma.PrismaClientKnownRequestError(
+				"Record not found",
+				{ code: "P2025", clientVersion: "5.0.0" },
+			);
+			mockPrisma.deliveryNote.delete.mockRejectedValue(notFoundError);
+
+			const result = await service.deleteDeliveryNote("nonexistent");
+
+			expect(result).toEqual({ success: false, id: "nonexistent" });
+		});
+	});
+
+	describe("deleteManyDeliveryNotes", () => {
+		it("should bulk-delete and return the count", async () => {
+			const ids = [mockDeliveryNote.id, "clh123dn000002"];
+			mockPrisma.deliveryNote.deleteMany.mockResolvedValue({ count: 2 });
+
+			const result = await service.deleteManyDeliveryNotes(ids);
+
+			expect(result).toEqual({ success: true, count: 2, ids });
+			expect(mockPrisma.deliveryNote.deleteMany).toHaveBeenCalledWith({
+				where: { id: { in: ids } },
+			});
+		});
+
+		it("should deduplicate ids before deleting", async () => {
+			const id = mockDeliveryNote.id;
+			mockPrisma.deliveryNote.deleteMany.mockResolvedValue({ count: 1 });
+
+			const result = await service.deleteManyDeliveryNotes([id, id]);
+
+			expect(result.ids).toEqual([id]);
+			expect(mockPrisma.deliveryNote.deleteMany).toHaveBeenCalledWith({
+				where: { id: { in: [id] } },
+			});
+		});
+
+		it("should re-throw Prisma errors after logging", async () => {
+			const dbError = new Prisma.PrismaClientKnownRequestError(
+				"Foreign key constraint",
+				{ code: "P2003", clientVersion: "5.0.0" },
+			);
+			mockPrisma.deliveryNote.deleteMany.mockRejectedValue(dbError);
+
+			await expect(
+				service.deleteManyDeliveryNotes([mockDeliveryNote.id]),
 			).rejects.toThrow(Prisma.PrismaClientKnownRequestError);
 		});
 	});

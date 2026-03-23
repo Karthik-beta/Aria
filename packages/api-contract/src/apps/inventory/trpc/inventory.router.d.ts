@@ -29,6 +29,11 @@ type StockEntriesChangedEvent = {
 	data: Inventory.StockEntry | { id: string };
 };
 
+type DeliveryNotesChangedEvent = {
+	type: "created" | "updated" | "deleted";
+	data: Inventory.DeliveryNote | { id: string };
+};
+
 type InventoryRouterInput = {
 	listItems: TRPCQueryProcedure<{
 		input: void;
@@ -688,6 +693,154 @@ type InventoryRouterInput = {
 	onStockEntriesChanged: LegacyObservableSubscriptionProcedure<{
 		input: void;
 		output: StockEntriesChangedEvent;
+		meta: object;
+	}>;
+	listDeliveryNotes: TRPCQueryProcedure<{
+		input: void;
+		output: Inventory.DeliveryNote[];
+		meta: object;
+	}>;
+	getDeliveryNoteById: TRPCQueryProcedure<{
+		input: {
+			id: string;
+		};
+		output: Inventory.DeliveryNote | null;
+		meta: object;
+	}>;
+	createDeliveryNote: TRPCMutationProcedure<{
+		input: {
+			customer: string;
+			company: string;
+			postingDate?: unknown;
+			isReturn?: boolean | undefined;
+			currency?: string | undefined;
+			priceList?: string | undefined;
+			sourceWarehouse?: string | undefined;
+			additionalDiscountOn?: string | undefined;
+			additionalDiscountPercent?: number | undefined;
+			additionalDiscountAmount?: number | undefined;
+			shippingAddress?: string | undefined;
+			dispatchAddress?: string | undefined;
+			companyAddress?: string | undefined;
+			companyContact?: string | undefined;
+			companyTRN?: string | undefined;
+			terms?: string | undefined;
+			termsContent?: string | undefined;
+			transporter?: string | undefined;
+			driverName?: string | undefined;
+			driver?: string | undefined;
+			transportReceiptDate?: unknown;
+			transportReceiptNo?: string | undefined;
+			vehicleNo?: string | undefined;
+			customerPoNo?: string | undefined;
+			customerPoDate?: unknown;
+			salesPartner?: string | undefined;
+			commissionRate?: number | undefined;
+			letterHead?: string | undefined;
+			printHeading?: string | undefined;
+			printWithoutAmount?: boolean | undefined;
+			groupSameItems?: boolean | undefined;
+			permitNumber?: string | undefined;
+			vatEmirate?: string | undefined;
+			project?: string | undefined;
+			items: {
+				itemCode: string;
+				itemName?: string | undefined;
+				description?: string | undefined;
+				quantity: number;
+				uom?: string | undefined;
+				rate?: number | undefined;
+				warehouse?: string | undefined;
+			}[];
+		};
+		output: Inventory.DeliveryNote;
+		meta: object;
+	}>;
+	updateDeliveryNote: TRPCMutationProcedure<{
+		input: {
+			id: string;
+			postingDate?: unknown;
+			customer?: string | undefined;
+			company?: string | undefined;
+			status?:
+				| "DRAFT"
+				| "TO_BILL"
+				| "COMPLETED"
+				| "RETURN_ISSUED"
+				| "CANCELLED"
+				| "CLOSED"
+				| undefined;
+			isReturn?: boolean | undefined;
+			currency?: string | null | undefined;
+			priceList?: string | null | undefined;
+			sourceWarehouse?: string | null | undefined;
+			additionalDiscountOn?: string | null | undefined;
+			additionalDiscountPercent?: number | null | undefined;
+			additionalDiscountAmount?: number | null | undefined;
+			shippingAddress?: string | null | undefined;
+			dispatchAddress?: string | null | undefined;
+			companyAddress?: string | null | undefined;
+			companyContact?: string | null | undefined;
+			companyTRN?: string | null | undefined;
+			terms?: string | null | undefined;
+			termsContent?: string | null | undefined;
+			transporter?: string | null | undefined;
+			driverName?: string | null | undefined;
+			driver?: string | null | undefined;
+			transportReceiptDate?: unknown;
+			transportReceiptNo?: string | null | undefined;
+			vehicleNo?: string | null | undefined;
+			customerPoNo?: string | null | undefined;
+			customerPoDate?: unknown;
+			salesPartner?: string | null | undefined;
+			commissionRate?: number | null | undefined;
+			letterHead?: string | null | undefined;
+			printHeading?: string | null | undefined;
+			printWithoutAmount?: boolean | undefined;
+			groupSameItems?: boolean | undefined;
+			permitNumber?: string | null | undefined;
+			vatEmirate?: string | null | undefined;
+			project?: string | null | undefined;
+			items?:
+				| {
+						id?: string | undefined;
+						itemCode: string;
+						itemName?: string | undefined;
+						description?: string | undefined;
+						quantity: number;
+						uom?: string | undefined;
+						rate?: number | undefined;
+						warehouse?: string | undefined;
+				  }[]
+				| undefined;
+		};
+		output: Inventory.DeliveryNote;
+		meta: object;
+	}>;
+	deleteDeliveryNote: TRPCMutationProcedure<{
+		input: {
+			id: string;
+		};
+		output: {
+			success: boolean;
+			id: string;
+		};
+		meta: object;
+	}>;
+	deleteManyDeliveryNotes: TRPCMutationProcedure<{
+		input: {
+			ids: string[];
+		};
+		output: {
+			success: boolean;
+			count: number;
+			ids: string[];
+		};
+		meta: object;
+	}>;
+	onDeliveryNotesChanged: LegacyObservableSubscriptionProcedure<{
+		input: void;
+		output: DeliveryNotesChangedEvent;
 		meta: object;
 	}>;
 };

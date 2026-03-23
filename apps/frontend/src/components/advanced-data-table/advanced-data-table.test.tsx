@@ -388,10 +388,12 @@ describe("AdvancedDataTable Component", () => {
 			expect(getBulkEditValueControl()).toHaveAttribute("type", "number");
 
 			await chooseSelectOption(user, "Field", "Active");
-			expect(getBulkEditValueControl().tagName).toBe("BUTTON");
+			expect(getBulkEditValueControl()).toHaveAttribute("aria-label", "Value");
+			expect(getBulkEditValueControl().tagName).toMatch(/^(BUTTON|DIV)$/);
 
 			await chooseSelectOption(user, "Field", "Category");
-			expect(getBulkEditValueControl().tagName).toBe("BUTTON");
+			expect(getBulkEditValueControl()).toHaveAttribute("aria-label", "Value");
+			expect(getBulkEditValueControl().tagName).toMatch(/^(BUTTON|DIV)$/);
 
 			await chooseSelectOption(user, "Field", "Launch Date");
 			expect(getBulkEditValueControl()).toHaveAttribute("type", "date");

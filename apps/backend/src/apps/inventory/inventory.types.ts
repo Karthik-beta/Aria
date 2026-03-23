@@ -410,3 +410,78 @@ export function toInventoryStockEntry(
 		updatedAt: prismaEntry.updatedAt,
 	};
 }
+
+/**
+ * Prisma model type for DeliveryNote with items
+ */
+export type InventoryDeliveryNote = Prisma.DeliveryNoteGetPayload<{
+	include: {
+		items: true;
+	};
+}>;
+
+/**
+ * Converts a Prisma DeliveryNote to Inventory.DeliveryNote
+ */
+export function toInventoryDeliveryNote(
+	prismaNote: InventoryDeliveryNote,
+): Inventory.DeliveryNote {
+	return {
+		id: prismaNote.id,
+		series: prismaNote.series,
+		postingDate: prismaNote.postingDate,
+		customer: prismaNote.customer,
+		company: prismaNote.company,
+		status: prismaNote.status as Inventory.DeliveryNoteStatus,
+		isReturn: prismaNote.isReturn,
+		currency: prismaNote.currency,
+		priceList: prismaNote.priceList,
+		sourceWarehouse: prismaNote.sourceWarehouse,
+		totalQuantity: prismaNote.totalQuantity,
+		totalAmount: prismaNote.totalAmount,
+		grandTotal: prismaNote.grandTotal,
+		roundingAdjustment: prismaNote.roundingAdjustment,
+		roundedTotal: prismaNote.roundedTotal,
+		additionalDiscountOn: prismaNote.additionalDiscountOn,
+		additionalDiscountPercent: prismaNote.additionalDiscountPercent,
+		additionalDiscountAmount: prismaNote.additionalDiscountAmount,
+		shippingAddress: prismaNote.shippingAddress,
+		dispatchAddress: prismaNote.dispatchAddress,
+		companyAddress: prismaNote.companyAddress,
+		companyContact: prismaNote.companyContact,
+		companyTRN: prismaNote.companyTRN,
+		terms: prismaNote.terms,
+		termsContent: prismaNote.termsContent,
+		transporter: prismaNote.transporter,
+		driverName: prismaNote.driverName,
+		driver: prismaNote.driver,
+		transportReceiptDate: prismaNote.transportReceiptDate,
+		transportReceiptNo: prismaNote.transportReceiptNo,
+		vehicleNo: prismaNote.vehicleNo,
+		customerPoNo: prismaNote.customerPoNo,
+		customerPoDate: prismaNote.customerPoDate,
+		salesPartner: prismaNote.salesPartner,
+		commissionRate: prismaNote.commissionRate,
+		letterHead: prismaNote.letterHead,
+		printHeading: prismaNote.printHeading,
+		printWithoutAmount: prismaNote.printWithoutAmount,
+		groupSameItems: prismaNote.groupSameItems,
+		permitNumber: prismaNote.permitNumber,
+		vatEmirate: prismaNote.vatEmirate,
+		project: prismaNote.project,
+		items: prismaNote.items.map((item) => ({
+			id: item.id,
+			deliveryNoteId: item.deliveryNoteId,
+			itemCode: item.itemCode,
+			itemName: item.itemName,
+			description: item.description,
+			quantity: item.quantity,
+			uom: item.uom,
+			rate: item.rate,
+			amount: item.amount,
+			warehouse: item.warehouse,
+		})),
+		createdAt: prismaNote.createdAt,
+		updatedAt: prismaNote.updatedAt,
+	};
+}

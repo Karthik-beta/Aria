@@ -12,6 +12,7 @@ import { Prisma } from "../../generated/prisma/client";
 import { PrismaService } from "../../shared/prisma.service";
 import {
 	itemAlternativeInclude,
+	toInventoryDeliveryNote,
 	toInventoryItem,
 	toInventoryItemAlternative,
 	toInventoryItemGroup,
@@ -2123,6 +2124,468 @@ export class InventoryService {
 			if (error instanceof Prisma.PrismaClientKnownRequestError) {
 				this.logger.error(
 					`Bulk delete stock entries failed [${error.code}]`,
+					error.stack,
+				);
+			}
+			throw error;
+		}
+	}
+
+	// ============================================================================
+	// Delivery Note Methods
+	// ============================================================================
+
+	/**
+	 * Generate a unique series number for a new Delivery Note.
+	 * Format: MAT-DN-YYYY-NNNNN.
+	 * Not atomic on its own — the caller retries on P2002 conflicts.
+	 */
+	private async generateDeliveryNoteSeries(date: Date): Promise<string> {
+		const year = date.getFullYear();
+		const prefix = `MAT-DN-${year}-`;
+
+		const lastEntry = await this.prisma.deliveryNote.findFirst({
+			where: {
+				series: { startsWith: prefix },
+			},
+			orderBy: { series: "desc" },
+			select: { series: true },
+		});
+
+		let nextNumber = 1;
+		if (lastEntry) {
+			const numStr = lastEntry.series.slice(prefix.length);
+			const num = parseInt(numStr, 10);
+			if (!Number.isNaN(num)) {
+				nextNumber = num + 1;
+			}
+		}
+
+		return `${prefix}${String(nextNumber).padStart(5, "0")}`;
+	}
+
+	/**
+	 * Get delivery notes with pagination support.
+	 * Defaults to the 250 most recent records when no params are provided.
+	 */
+	async findAllDeliveryNotes(params?: {
+		skip?: number;
+		take?: number;
+	}): Promise<Inventory.DeliveryNote[]> {
+		const MAX_TAKE = 250;
+		const rawSkip = params?.skip ?? 0;
+		const rawTake = params?.take ?? MAX_TAKE;
+
+		const skip = rawSkip < 0 ? 0 : rawSkip;
+		const take = rawTake <= 0 ? 1 : rawTake > MAX_TAKE ? MAX_TAKE : rawTake;
+
+		const notes = await this.prisma.deliveryNote.findMany({
+			orderBy: { createdAt: "desc" },
+			include: { items: true },
+			skip,
+			take,
+		});
+		return notes.map(toInventoryDeliveryNote);
+	}
+
+	/**
+	 * Get a single delivery note by id.
+	 */
+	async findDeliveryNoteById(
+		id: string,
+	): Promise<Inventory.DeliveryNote | null> {
+		const note = await this.prisma.deliveryNote.findUnique({
+			where: { id },
+			include: { items: true },
+		});
+		return note ? toInventoryDeliveryNote(note) : null;
+	}
+
+	/**
+	 * Compute delivery note totals from items and discount settings.
+	 * totalAmount = sum of item amounts; grandTotal applies any discount.
+	 */
+	private computeDeliveryNoteTotals(
+		items: { quantity: number; rate: number }[],
+		additionalDiscountPercent?: number | null,
+		additionalDiscountAmount?: number | null,
+	): {
+		totalQuantity: number;
+		totalAmount: number;
+		grandTotal: number;
+		roundingAdjustment: number;
+		roundedTotal: number;
+	} {
+		const totalQuantity = items.reduce((sum, i) => sum + i.quantity, 0);
+		const totalAmount = items.reduce((sum, i) => sum + i.quantity * i.rate, 0);
+
+		let grandTotal = totalAmount;
+
+		// Discount precedence: percent takes priority over fixed amount if both are provided.
+		if (additionalDiscountPercent != null) {
+			grandTotal = totalAmount * (1 - additionalDiscountPercent / 100);
+		} else if (additionalDiscountAmount != null) {
+			grandTotal = Math.max(0, totalAmount - additionalDiscountAmount);
+		}
+
+		const roundedTotal = Math.round(grandTotal);
+		const roundingAdjustment = roundedTotal - grandTotal;
+
+		return {
+			totalQuantity,
+			totalAmount,
+			grandTotal,
+			roundingAdjustment,
+			roundedTotal,
+		};
+	}
+
+	/**
+	 * Create a new delivery note.
+	 * Retries up to 3 times on a series uniqueness conflict (P2002).
+	 * Item amounts are computed as quantity × rate on creation.
+	 */
+	async createDeliveryNote(
+		data: Inventory.CreateDeliveryNoteInput,
+	): Promise<Inventory.DeliveryNote> {
+		const postingDate = data.postingDate ?? new Date();
+
+		for (let attempt = 0; attempt < 3; attempt++) {
+			const series = await this.generateDeliveryNoteSeries(postingDate);
+			try {
+				const itemsWithAmounts = data.items.map((item) => ({
+					itemCode: item.itemCode,
+					itemName: item.itemName,
+					description: item.description,
+					quantity: item.quantity,
+					uom: item.uom,
+					rate: item.rate ?? 0,
+					amount: item.quantity * (item.rate ?? 0),
+					warehouse: item.warehouse,
+				}));
+
+				const totals = this.computeDeliveryNoteTotals(
+					itemsWithAmounts,
+					data.additionalDiscountPercent,
+					data.additionalDiscountAmount,
+				);
+
+				const created = await this.prisma.deliveryNote.create({
+					data: {
+						series,
+						postingDate,
+						customer: data.customer,
+						company: data.company,
+						status: "DRAFT",
+						isReturn: data.isReturn ?? false,
+						currency: data.currency,
+						priceList: data.priceList,
+						sourceWarehouse: data.sourceWarehouse,
+						...totals,
+						additionalDiscountOn: data.additionalDiscountOn,
+						additionalDiscountPercent: data.additionalDiscountPercent,
+						additionalDiscountAmount: data.additionalDiscountAmount,
+						shippingAddress: data.shippingAddress,
+						dispatchAddress: data.dispatchAddress,
+						companyAddress: data.companyAddress,
+						companyContact: data.companyContact,
+						companyTRN: data.companyTRN,
+						terms: data.terms,
+						termsContent: data.termsContent,
+						transporter: data.transporter,
+						driverName: data.driverName,
+						driver: data.driver,
+						transportReceiptDate: data.transportReceiptDate,
+						transportReceiptNo: data.transportReceiptNo,
+						vehicleNo: data.vehicleNo,
+						customerPoNo: data.customerPoNo,
+						customerPoDate: data.customerPoDate,
+						salesPartner: data.salesPartner,
+						commissionRate: data.commissionRate,
+						letterHead: data.letterHead,
+						printHeading: data.printHeading,
+						printWithoutAmount: data.printWithoutAmount ?? false,
+						groupSameItems: data.groupSameItems ?? false,
+						permitNumber: data.permitNumber,
+						vatEmirate: data.vatEmirate,
+						project: data.project,
+						items: {
+							create: itemsWithAmounts,
+						},
+					},
+					include: { items: true },
+				});
+				return toInventoryDeliveryNote(created);
+			} catch (error) {
+				const isSeriesConflict =
+					error instanceof Prisma.PrismaClientKnownRequestError &&
+					error.code === "P2002";
+				if (isSeriesConflict && attempt < 2) {
+					const backoffMs = 50 * 2 ** attempt + Math.floor(Math.random() * 50);
+					await new Promise((resolve) => setTimeout(resolve, backoffMs));
+					continue;
+				}
+				throw error;
+			}
+		}
+		throw new Error("Failed to allocate a unique series number");
+	}
+
+	/**
+	 * Update an existing delivery note.
+	 * Items are upserted: existing items (matched by id) are updated in-place,
+	 * new items (no id) are created, items absent from the payload are deleted.
+	 * Item amounts and totals are recomputed on every update.
+	 * All mutations run in a single transaction.
+	 */
+	async updateDeliveryNote(
+		data: Inventory.UpdateDeliveryNoteInput,
+	): Promise<Inventory.DeliveryNote> {
+		const { id, items, ...rest } = data;
+
+		const existing = await this.prisma.deliveryNote.findUnique({
+			where: { id },
+			select: { id: true },
+		});
+
+		if (!existing) {
+			throw new NotFoundException(`Delivery note with ID ${id} not found`);
+		}
+
+		const updated = await this.prisma.$transaction(async (tx) => {
+			await tx.deliveryNote.update({
+				where: { id },
+				data: {
+					...(rest.postingDate !== undefined && {
+						postingDate: rest.postingDate,
+					}),
+					...(rest.customer !== undefined && { customer: rest.customer }),
+					...(rest.company !== undefined && { company: rest.company }),
+					...(rest.status !== undefined && { status: rest.status }),
+					...(rest.isReturn !== undefined && { isReturn: rest.isReturn }),
+					...(rest.currency !== undefined && { currency: rest.currency }),
+					...(rest.priceList !== undefined && { priceList: rest.priceList }),
+					...(rest.sourceWarehouse !== undefined && {
+						sourceWarehouse: rest.sourceWarehouse,
+					}),
+					...(rest.additionalDiscountOn !== undefined && {
+						additionalDiscountOn: rest.additionalDiscountOn,
+					}),
+					...(rest.additionalDiscountPercent !== undefined && {
+						additionalDiscountPercent: rest.additionalDiscountPercent,
+					}),
+					...(rest.additionalDiscountAmount !== undefined && {
+						additionalDiscountAmount: rest.additionalDiscountAmount,
+					}),
+					...(rest.shippingAddress !== undefined && {
+						shippingAddress: rest.shippingAddress,
+					}),
+					...(rest.dispatchAddress !== undefined && {
+						dispatchAddress: rest.dispatchAddress,
+					}),
+					...(rest.companyAddress !== undefined && {
+						companyAddress: rest.companyAddress,
+					}),
+					...(rest.companyContact !== undefined && {
+						companyContact: rest.companyContact,
+					}),
+					...(rest.companyTRN !== undefined && {
+						companyTRN: rest.companyTRN,
+					}),
+					...(rest.terms !== undefined && { terms: rest.terms }),
+					...(rest.termsContent !== undefined && {
+						termsContent: rest.termsContent,
+					}),
+					...(rest.transporter !== undefined && {
+						transporter: rest.transporter,
+					}),
+					...(rest.driverName !== undefined && {
+						driverName: rest.driverName,
+					}),
+					...(rest.driver !== undefined && { driver: rest.driver }),
+					...(rest.transportReceiptDate !== undefined && {
+						transportReceiptDate: rest.transportReceiptDate,
+					}),
+					...(rest.transportReceiptNo !== undefined && {
+						transportReceiptNo: rest.transportReceiptNo,
+					}),
+					...(rest.vehicleNo !== undefined && { vehicleNo: rest.vehicleNo }),
+					...(rest.customerPoNo !== undefined && {
+						customerPoNo: rest.customerPoNo,
+					}),
+					...(rest.customerPoDate !== undefined && {
+						customerPoDate: rest.customerPoDate,
+					}),
+					...(rest.salesPartner !== undefined && {
+						salesPartner: rest.salesPartner,
+					}),
+					...(rest.commissionRate !== undefined && {
+						commissionRate: rest.commissionRate,
+					}),
+					...(rest.letterHead !== undefined && {
+						letterHead: rest.letterHead,
+					}),
+					...(rest.printHeading !== undefined && {
+						printHeading: rest.printHeading,
+					}),
+					...(rest.printWithoutAmount !== undefined && {
+						printWithoutAmount: rest.printWithoutAmount,
+					}),
+					...(rest.groupSameItems !== undefined && {
+						groupSameItems: rest.groupSameItems,
+					}),
+					...(rest.permitNumber !== undefined && {
+						permitNumber: rest.permitNumber,
+					}),
+					...(rest.vatEmirate !== undefined && {
+						vatEmirate: rest.vatEmirate,
+					}),
+					...(rest.project !== undefined && { project: rest.project }),
+				},
+			});
+
+			if (items !== undefined) {
+				const keptIds = items
+					.filter((i): i is typeof i & { id: string } => Boolean(i.id))
+					.map((i) => i.id);
+				if (keptIds.length > 0) {
+					const ownedItems = await tx.deliveryNoteItem.findMany({
+						where: {
+							id: { in: keptIds },
+							deliveryNoteId: id,
+						},
+						select: { id: true },
+					});
+					const ownedIds = new Set(ownedItems.map((item) => item.id));
+					const foreignItemId = keptIds.find((itemId) => !ownedIds.has(itemId));
+					if (foreignItemId) {
+						throw new BadRequestException(
+							`Delivery note item with ID ${foreignItemId} does not belong to delivery note ${id}`,
+						);
+					}
+				}
+
+				// Delete items no longer present in the payload
+				if (keptIds.length === 0) {
+					await tx.deliveryNoteItem.deleteMany({
+						where: { deliveryNoteId: id },
+					});
+				} else {
+					await tx.deliveryNoteItem.deleteMany({
+						where: {
+							deliveryNoteId: id,
+							id: { notIn: keptIds },
+						},
+					});
+				}
+
+				// Update existing items in-place; create new items
+				for (const item of items) {
+					const rate = item.rate ?? 0;
+					const amount = item.quantity * rate;
+
+					if (item.id) {
+						await tx.deliveryNoteItem.update({
+							where: { id: item.id },
+							data: {
+								itemCode: item.itemCode,
+								itemName: item.itemName,
+								description: item.description,
+								quantity: item.quantity,
+								uom: item.uom,
+								rate,
+								amount,
+								warehouse: item.warehouse,
+							},
+						});
+					} else {
+						await tx.deliveryNoteItem.create({
+							data: {
+								deliveryNoteId: id,
+								itemCode: item.itemCode,
+								itemName: item.itemName,
+								description: item.description,
+								quantity: item.quantity,
+								uom: item.uom,
+								rate,
+								amount,
+								warehouse: item.warehouse,
+							},
+						});
+					}
+				}
+
+				// Recompute totals from updated items
+				const allItems = await tx.deliveryNoteItem.findMany({
+					where: { deliveryNoteId: id },
+					select: { quantity: true, rate: true },
+				});
+
+				const currentNote = await tx.deliveryNote.findUniqueOrThrow({
+					where: { id },
+					select: {
+						additionalDiscountPercent: true,
+						additionalDiscountAmount: true,
+					},
+				});
+
+				const newTotals = this.computeDeliveryNoteTotals(
+					allItems,
+					currentNote.additionalDiscountPercent,
+					currentNote.additionalDiscountAmount,
+				);
+
+				await tx.deliveryNote.update({
+					where: { id },
+					data: newTotals,
+				});
+			}
+
+			return tx.deliveryNote.findUniqueOrThrow({
+				where: { id },
+				include: { items: true },
+			});
+		});
+
+		return toInventoryDeliveryNote(updated);
+	}
+
+	/**
+	 * Delete a single delivery note.
+	 */
+	async deleteDeliveryNote(
+		id: string,
+	): Promise<{ success: boolean; id: string }> {
+		try {
+			await this.prisma.deliveryNote.delete({ where: { id } });
+			return { success: true, id };
+		} catch (error) {
+			if (
+				error instanceof Prisma.PrismaClientKnownRequestError &&
+				error.code === "P2025"
+			) {
+				return { success: false, id };
+			}
+			throw error;
+		}
+	}
+
+	/**
+	 * Delete multiple delivery notes.
+	 */
+	async deleteManyDeliveryNotes(
+		ids: string[],
+	): Promise<{ success: boolean; count: number; ids: string[] }> {
+		const uniqueIds = [...new Set(ids)];
+		try {
+			const result = await this.prisma.deliveryNote.deleteMany({
+				where: { id: { in: uniqueIds } },
+			});
+			return { success: true, count: result.count, ids: uniqueIds };
+		} catch (error) {
+			if (error instanceof Prisma.PrismaClientKnownRequestError) {
+				this.logger.error(
+					`Bulk delete delivery notes failed [${error.code}]`,
 					error.stack,
 				);
 			}
