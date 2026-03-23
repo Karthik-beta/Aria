@@ -2,6 +2,21 @@
 
 > AI coding guidance for the Aria B2B ERP monorepo—a bun + Turborepo workspace hosting NestJS backend and four Next.js 15 frontends.
 
+## ⛔ HARD RULE — Git Identity (DO NOT OVERRIDE)
+
+The repository owner is **Karthik P** whose verified GitHub account is `Karthik-beta`.
+
+- `user.name` = `Karthik P`
+- `user.email` = `karthikpar@protonmail.com`
+
+**AI agents MUST NOT**:
+- Run `git config user.name` or `git config user.email` with any other values
+- Set `GIT_AUTHOR_NAME`, `GIT_AUTHOR_EMAIL`, `GIT_COMMITTER_NAME`, or `GIT_COMMITTER_EMAIL` environment variables
+- Use `--author` flags on `git commit`
+- Modify `.git/config` in any way that affects the `[user]` section
+
+Violating this rule causes commits to be attributed to a random service account instead of the real owner. The pre-commit hook will abort any commit made with wrong identity.
+
 ## Architecture Overview
 
 **Monorepo Structure**: Single repository with multiple applications under unified dependency management.

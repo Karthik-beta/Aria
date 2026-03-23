@@ -2,6 +2,15 @@
 
 > Guardians of a modular, type-safe, and relentlessly simple B2B ERP suite.
 
+## ⛔ HARD RULE — Git Identity (ALL AGENTS)
+
+This repository belongs to **Karthik P** (GitHub: `Karthik-beta`). The correct git identity is permanently fixed:
+
+- `user.name` = `Karthik P`
+- `user.email` = `karthikpar@protonmail.com`
+
+No agent, under any circumstances, may change these values in `.git/config`, global config, or via environment variables. The pre-commit hook enforces this and will block any commit attributed to a different identity.
+
 ## Operating Context
 
 Aria is a bun-powered Turborepo that hosts the entire ERP surface area under one roof. The backend NestJS service lives in `apps/backend`, a single Next.js 16 App Router frontend with route groups (asset, CRM, hrms, inventory) lives in `apps/frontend`, and reusable building blocks reside in `packages/config-eslint`, `packages/config-typescript`, `packages/types`, and `packages/utils`. Docker Compose plus Caddy orchestrates deployment, and `.github/workflows/ci.yml` guards the main branch. Every contribution must respect this living architecture.
