@@ -26,6 +26,7 @@ import {
 	toInventoryStockEntry,
 	toInventoryUnitOfMeasure,
 } from "./inventory.types";
+import { buildItemPriceStockRows } from "./item-price-stock-report";
 import {
 	buildStockAgeingRows,
 	type StockAgeingBucketRange,
@@ -198,7 +199,8 @@ const LIST_QUERY_TAKE_MAX = 250;
 
 type StockAvailabilityParams =
 	| Inventory.ListStockProjectedQtyInput
-	| Inventory.ListStockSummaryInput;
+	| Inventory.ListStockSummaryInput
+	| Inventory.ListItemPriceStockInput;
 
 /**
  * Simple inventory service with type-safe CRUD operations
@@ -3888,6 +3890,70 @@ export class InventoryService {
 		);
 
 		return summaryRows.slice(skip, skip + take);
+	}
+
+	/**
+	 * Get item price stock rows by combining current stock availability with
+	 * configured buying/selling rates for each item.
+	 */
+	async findItemPriceStock(params?: Inventory.ListItemPriceStockInput) {
+		const rawSkip = params?.skip ?? 0;
+		const rawTake = params?.take ?? LIST_QUERY_TAKE_MAX;
+		const skip = rawSkip < 0 ? 0 : rawSkip;
+		const take =
+			rawTake <= 0
+				? 1
+				: rawTake > LIST_QUERY_TAKE_MAX
+					? LIST_QUERY_TAKE_MAX
+					: rawTake;
+
+		const projectedRows = await this.collectStockProjectedQtyRows(params);
+
+		if (projectedRows.length === 0) {
+			return [];
+		}
+
+		const itemCodes = [...new Set(projectedRows.map((row) => row.itemCode))];
+		const priceMetadata = await this.prisma.inventoryItem.findMany({
+			where: {
+				code: {
+					in: itemCodes,
+				},
+			},
+			select: {
+				code: true,
+				valuationRate: true,
+				standardSellingRate: true,
+			},
+		});
+
+		const ratesByCode = new Map(
+			priceMetadata.map((item) => [item.code, item] as const),
+		);
+
+		const rows = buildItemPriceStockRows(
+			projectedRows.map((row) => {
+				const rates = ratesByCode.get(row.itemCode);
+				return {
+					id: row.id,
+					company: row.company,
+					itemCode: row.itemCode,
+					itemName: row.itemName,
+					itemGroupName: row.itemGroupName,
+					brandName: row.brandName,
+					warehouse: row.warehouse,
+					actualQty: row.actualQty,
+					buyingRate: rates?.valuationRate ?? 0,
+					sellingRate: rates?.standardSellingRate ?? 0,
+					lastActivityDate: row.lastActivityDate,
+				};
+			}),
+			{
+				includeZeroStockItems: params?.includeZeroStockItems,
+			},
+		);
+
+		return rows.slice(skip, skip + take);
 	}
 
 	/**

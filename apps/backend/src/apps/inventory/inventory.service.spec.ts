@@ -2849,6 +2849,164 @@ describe("InventoryService", () => {
 		});
 	});
 
+	describe("findItemPriceStock", () => {
+		it("should combine stock availability with buying and selling rates", async () => {
+			mockPrisma.stockEntryItem.findMany.mockReset();
+			mockPrisma.materialRequest.findMany.mockReset();
+			mockPrisma.deliveryNote.findMany.mockReset();
+			mockPrisma.pickList.findMany.mockReset();
+			mockPrisma.inventoryItem.findMany.mockReset();
+			mockPrisma.item.findMany.mockReset();
+
+			mockPrisma.stockEntryItem.findMany
+				.mockResolvedValueOnce([
+					{
+						...mockStockEntryItem,
+						itemCode: "STE-ITM-001",
+						itemName: "Stock Test Item",
+						qty: 8,
+						basicAmount: 800,
+						stockEntry: {
+							...mockStockEntry,
+							status: "SUBMITTED",
+							defaultTargetWarehouse: "Stores - GH",
+						},
+					},
+				])
+				.mockResolvedValueOnce([])
+				.mockResolvedValueOnce([]);
+			mockPrisma.materialRequest.findMany.mockResolvedValue([]);
+			mockPrisma.deliveryNote.findMany.mockResolvedValue([]);
+			mockPrisma.pickList.findMany.mockResolvedValue([]);
+			mockPrisma.inventoryItem.findMany
+				.mockResolvedValueOnce([
+					{
+						id: "inv-item-001",
+						name: "Stock Test Item",
+						code: "STE-ITM-001",
+						description: "Primary item",
+						disabled: false,
+						maintainStock: true,
+						allowAlternateItem: false,
+						hasVariants: false,
+						openingStock: 0,
+						valuationRate: 100,
+						standardSellingRate: 200,
+						isZeroRated: false,
+						isExempt: false,
+						isFixedAsset: false,
+						taxCode: null,
+						shelfLifeInDays: null,
+						warrantyPeriodInDays: null,
+						endOfLife: null,
+						weightPerUnit: null,
+						weightUom: null,
+						allowNegativeStock: false,
+						valuationMethod: null,
+						defaultMaterialRequestType: null,
+						hasBatchNo: false,
+						hasSerialNo: false,
+						itemGroupId: "group-001",
+						defaultUnitOfMeasureId: "uom-001",
+						quantity: 0,
+						createdAt: new Date(),
+						updatedAt: new Date(),
+						defaultUnitOfMeasure: { name: "Nos" },
+						itemGroup: { groupName: "Phones" },
+						reorderSettings: [],
+					},
+				])
+				.mockResolvedValueOnce([
+					{
+						code: "STE-ITM-001",
+						valuationRate: 100,
+						standardSellingRate: 200,
+					},
+				]);
+			mockPrisma.item.findMany.mockResolvedValue([
+				{ code: "STE-ITM-001", brand: { name: "Apple" } },
+			]);
+
+			const result = await service.findItemPriceStock({ take: 25 });
+
+			expect(result).toHaveLength(1);
+			expect(result[0]).toMatchObject({
+				itemCode: "STE-ITM-001",
+				warehouse: "Stores - GH",
+				availableQty: 8,
+				buyingPriceList: "Standard Buying",
+				buyingRate: 100,
+				sellingPriceList: "Standard Selling",
+				sellingRate: 200,
+			});
+		});
+
+		it("should map filters into movement query and bound pagination", async () => {
+			mockPrisma.stockEntryItem.findMany.mockReset();
+			mockPrisma.materialRequest.findMany.mockReset();
+			mockPrisma.deliveryNote.findMany.mockReset();
+			mockPrisma.pickList.findMany.mockReset();
+			mockPrisma.inventoryItem.findMany.mockReset();
+			mockPrisma.item.findMany.mockReset();
+
+			mockPrisma.stockEntryItem.findMany
+				.mockResolvedValueOnce([])
+				.mockResolvedValueOnce([])
+				.mockResolvedValueOnce([]);
+			mockPrisma.materialRequest.findMany.mockResolvedValue([]);
+			mockPrisma.deliveryNote.findMany.mockResolvedValue([]);
+			mockPrisma.pickList.findMany.mockResolvedValue([]);
+			mockPrisma.inventoryItem.findMany
+				.mockResolvedValueOnce([])
+				.mockResolvedValueOnce([]);
+			mockPrisma.item.findMany
+				.mockResolvedValueOnce([{ code: "STE-ITM-001" }])
+				.mockResolvedValueOnce([]);
+
+			await service.findItemPriceStock({
+				take: 999,
+				skip: -2,
+				company: "Aria",
+				warehouse: "Stores - GH",
+				itemCode: "STE",
+				itemGroup: "Phones",
+				brand: "Apple",
+				search: "nova",
+				includeZeroStockItems: true,
+			});
+
+			expect(mockPrisma.stockEntryItem.findMany).toHaveBeenCalledWith(
+				expect.objectContaining({
+					where: expect.objectContaining({
+						AND: expect.arrayContaining([
+							expect.objectContaining({
+								itemCode: expect.objectContaining({ contains: "STE" }),
+							}),
+							expect.objectContaining({
+								itemCode: expect.objectContaining({ in: ["STE-ITM-001"] }),
+							}),
+							expect.objectContaining({
+								stockEntry: expect.objectContaining({
+									status: "SUBMITTED",
+									company: expect.objectContaining({ contains: "Aria" }),
+								}),
+							}),
+						]),
+					}),
+				}),
+			);
+			expect(mockPrisma.item.findMany).toHaveBeenCalledWith(
+				expect.objectContaining({
+					where: expect.objectContaining({
+						brand: expect.objectContaining({
+							name: expect.objectContaining({ contains: "Apple" }),
+						}),
+					}),
+				}),
+			);
+		});
+	});
+
 	describe("findStockAgeing", () => {
 		it("should derive FIFO stock ageing rows with bucket values and metadata", async () => {
 			mockPrisma.stockEntryItem.findMany.mockReset();
