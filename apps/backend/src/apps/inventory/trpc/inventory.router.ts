@@ -628,6 +628,66 @@ const onStockEntriesChangedProcedure = protectedProcedure.subscription(() => {
 	});
 });
 
+function createListStockLedgerProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(Inventory.listStockLedgerSchema)
+		.query(async ({ input }) => {
+			return inventoryService.findStockLedger(input);
+		});
+}
+
+function createListStockBalanceProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(Inventory.listStockBalanceSchema)
+		.query(async ({ input }) => {
+			return inventoryService.findStockBalance(input);
+		});
+}
+
+function createListStockProjectedQtyProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure
+		.input(Inventory.listStockProjectedQtySchema)
+		.query(async ({ input }) => {
+			return inventoryService.findStockProjectedQty(input);
+		});
+}
+
+function createListStockSummaryProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(Inventory.listStockSummarySchema)
+		.query(async ({ input }) => {
+			return inventoryService.findStockSummary(input);
+		});
+}
+
+function createListStockAgeingProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(Inventory.listStockAgeingSchema)
+		.query(async ({ input }) => {
+			return inventoryService.findStockAgeing(input);
+		});
+}
+
+function createListItemPriceStockProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(Inventory.listItemPriceStockSchema)
+		.query(async ({ input }) => {
+			return inventoryService.findItemPriceStock(input);
+		});
+}
+
+function createListWarehouseWiseStockBalanceProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure
+		.input(Inventory.listWarehouseWiseStockBalanceSchema)
+		.query(async ({ input }) => {
+			return inventoryService.findWarehouseWiseStockBalance(input);
+		});
+}
+
 // ─── Delivery Note Procedures ────────────────────────────────────────────────
 
 type DeliveryNotesChangedEvent = {
@@ -1051,6 +1111,17 @@ type InventoryRouterInput = {
 		typeof createDeleteManyStockEntriesProcedure
 	>;
 	onStockEntriesChanged: typeof onStockEntriesChangedProcedure;
+	listStockLedger: ReturnType<typeof createListStockLedgerProcedure>;
+	listStockBalance: ReturnType<typeof createListStockBalanceProcedure>;
+	listStockProjectedQty: ReturnType<
+		typeof createListStockProjectedQtyProcedure
+	>;
+	listStockSummary: ReturnType<typeof createListStockSummaryProcedure>;
+	listStockAgeing: ReturnType<typeof createListStockAgeingProcedure>;
+	listItemPriceStock: ReturnType<typeof createListItemPriceStockProcedure>;
+	listWarehouseWiseStockBalance: ReturnType<
+		typeof createListWarehouseWiseStockBalanceProcedure
+	>;
 	listDeliveryNotes: ReturnType<typeof createListDeliveryNotesProcedure>;
 	getDeliveryNoteById: ReturnType<typeof createGetDeliveryNoteByIdProcedure>;
 	createDeliveryNote: ReturnType<typeof createCreateDeliveryNoteProcedure>;
@@ -1174,6 +1245,15 @@ function createInventoryRouterRecord(
 		deleteManyStockEntries:
 			createDeleteManyStockEntriesProcedure(inventoryService),
 		onStockEntriesChanged: onStockEntriesChangedProcedure,
+		listStockLedger: createListStockLedgerProcedure(inventoryService),
+		listStockBalance: createListStockBalanceProcedure(inventoryService),
+		listStockProjectedQty:
+			createListStockProjectedQtyProcedure(inventoryService),
+		listStockSummary: createListStockSummaryProcedure(inventoryService),
+		listStockAgeing: createListStockAgeingProcedure(inventoryService),
+		listItemPriceStock: createListItemPriceStockProcedure(inventoryService),
+		listWarehouseWiseStockBalance:
+			createListWarehouseWiseStockBalanceProcedure(inventoryService),
 		listDeliveryNotes: createListDeliveryNotesProcedure(inventoryService),
 		getDeliveryNoteById: createGetDeliveryNoteByIdProcedure(inventoryService),
 		createDeliveryNote: createCreateDeliveryNoteProcedure(inventoryService),

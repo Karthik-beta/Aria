@@ -1119,6 +1119,417 @@ export namespace Inventory {
 	});
 
 	// ============================================================================
+	// Stock Ledger Report Types & Schemas
+	// ============================================================================
+
+	export interface StockLedgerRow {
+		id: string;
+		stockEntryId: string;
+		stockEntryItemId: string;
+		series: string;
+		voucherNo: string;
+		postingDate: Date;
+		company: string;
+		status: StockEntryStatus;
+		stockEntryType: StockEntryType;
+		project?: string | null;
+		itemCode: string;
+		itemName?: string | null;
+		itemGroupName?: string | null;
+		brandName?: string | null;
+		description?: string | null;
+		warehouse: string;
+		sourceWarehouse?: string | null;
+		targetWarehouse?: string | null;
+		batchNo?: string | null;
+		serialNo?: string | null;
+		movementType: "IN" | "OUT";
+		qtyIn: number;
+		qtyOut: number;
+		balanceQty: number;
+		basicRate: number;
+		basicAmount: number;
+		valuationRate?: number | null;
+		balanceValue?: number | null;
+		unitOfMeasure?: string | null;
+		remarks?: string | null;
+		createdAt: Date;
+		updatedAt: Date;
+	}
+
+	export interface ListStockLedgerInput {
+		skip?: number;
+		take?: number;
+		search?: string;
+		company?: string;
+		warehouse?: string;
+		itemCode?: string;
+		itemGroup?: string;
+		brand?: string;
+		voucherNo?: string;
+		stockEntryType?: StockEntryType;
+		status?: StockEntryStatus;
+		project?: string;
+		dateFrom?: Date;
+		dateTo?: Date;
+	}
+
+	export const listStockLedgerSchema = z
+		.object({
+			skip: z.number().int().min(0).optional(),
+			take: z.number().int().min(1).max(250).optional(),
+			search: z.string().max(255).optional(),
+			company: z.string().max(255).optional(),
+			warehouse: z.string().max(255).optional(),
+			itemCode: z.string().max(100).optional(),
+			itemGroup: z.string().max(255).optional(),
+			brand: z.string().max(255).optional(),
+			voucherNo: z.string().max(50).optional(),
+			stockEntryType: z
+				.enum([
+					"MATERIAL_RECEIPT",
+					"MATERIAL_ISSUE",
+					"MATERIAL_TRANSFER",
+					"MATERIAL_TRANSFER_FOR_MANUFACTURE",
+					"MANUFACTURE",
+					"REPACK",
+					"SEND_TO_SUBCONTRACTOR",
+				])
+				.optional(),
+			status: z.enum(["DRAFT", "SUBMITTED", "CANCELLED"]).optional(),
+			project: z.string().max(255).optional(),
+			dateFrom: z.coerce.date().optional(),
+			dateTo: z.coerce.date().optional(),
+		})
+		.optional();
+
+	export interface StockBalanceRow {
+		id: string;
+		company: string;
+		itemCode: string;
+		itemName?: string | null;
+		itemGroupName?: string | null;
+		brandName?: string | null;
+		warehouse: string;
+		unitOfMeasure?: string | null;
+		openingQty: number;
+		openingValue: number;
+		inQty: number;
+		inValue: number;
+		outQty: number;
+		outValue: number;
+		balanceQty: number;
+		valuationRate?: number | null;
+		balanceValue?: number | null;
+		lastPostingDate?: Date | null;
+	}
+
+	export interface ListStockBalanceInput {
+		skip?: number;
+		take?: number;
+		search?: string;
+		company?: string;
+		warehouse?: string;
+		itemCode?: string;
+		itemGroup?: string;
+		brand?: string;
+		project?: string;
+		status?: StockEntryStatus;
+		dateFrom?: Date;
+		dateTo?: Date;
+		includeZeroStockItems?: boolean;
+	}
+
+	export const listStockBalanceSchema = z
+		.object({
+			skip: z.number().int().min(0).optional(),
+			take: z.number().int().min(1).max(250).optional(),
+			search: z.string().max(255).optional(),
+			company: z.string().max(255).optional(),
+			warehouse: z.string().max(255).optional(),
+			itemCode: z.string().max(100).optional(),
+			itemGroup: z.string().max(255).optional(),
+			brand: z.string().max(255).optional(),
+			project: z.string().max(255).optional(),
+			status: z.enum(["DRAFT", "SUBMITTED", "CANCELLED"]).optional(),
+			dateFrom: z.coerce.date().optional(),
+			dateTo: z.coerce.date().optional(),
+			includeZeroStockItems: z.boolean().optional(),
+		})
+		.optional();
+
+	export interface StockProjectedQtyRow {
+		id: string;
+		company: string;
+		itemCode: string;
+		itemName?: string | null;
+		description?: string | null;
+		itemGroupName?: string | null;
+		brandName?: string | null;
+		warehouse: string;
+		unitOfMeasure?: string | null;
+		actualQty: number;
+		plannedQty: number;
+		requestedQty: number;
+		orderedQty: number;
+		reservedQty: number;
+		reservedQtyForProduction: number;
+		reservedQtyForSubcontracting: number;
+		reservedQtyForProductionPlan: number;
+		projectedQty: number;
+		reorderLevel: number;
+		reorderQty: number;
+		shortageQty: number;
+		lastActivityDate?: Date | null;
+	}
+
+	export interface ListStockProjectedQtyInput {
+		skip?: number;
+		take?: number;
+		search?: string;
+		company?: string;
+		warehouse?: string;
+		itemCode?: string;
+		itemGroup?: string;
+		brand?: string;
+		includeZeroStockItems?: boolean;
+	}
+
+	export const listStockProjectedQtySchema = z
+		.object({
+			skip: z.number().int().min(0).optional(),
+			take: z.number().int().min(1).max(250).optional(),
+			search: z.string().max(255).optional(),
+			company: z.string().max(255).optional(),
+			warehouse: z.string().max(255).optional(),
+			itemCode: z.string().max(100).optional(),
+			itemGroup: z.string().max(255).optional(),
+			brand: z.string().max(255).optional(),
+			includeZeroStockItems: z.boolean().optional(),
+		})
+		.optional();
+
+	export type StockSummaryMetric =
+		| "PROJECTED_QTY"
+		| "ACTUAL_QTY"
+		| "RESERVED_QTY"
+		| "RESERVED_QTY_FOR_PRODUCTION"
+		| "RESERVED_QTY_FOR_SUBCONTRACTING"
+		| "SHORTAGE_QTY";
+
+	export type StockSummarySortDirection = "asc" | "desc";
+
+	export type StockSummaryHealth = "CRITICAL" | "LOW" | "HEALTHY" | "SURPLUS";
+
+	export type StockSummaryAction = "ADD" | "MOVE_AND_ADD";
+
+	export interface StockSummaryRow {
+		id: string;
+		company: string;
+		itemCode: string;
+		itemName?: string | null;
+		description?: string | null;
+		itemGroupName?: string | null;
+		brandName?: string | null;
+		warehouse: string;
+		unitOfMeasure?: string | null;
+		actualQty: number;
+		plannedQty: number;
+		requestedQty: number;
+		orderedQty: number;
+		reservedQty: number;
+		reservedQtyForProduction: number;
+		reservedQtyForSubcontracting: number;
+		reservedQtyForProductionPlan: number;
+		projectedQty: number;
+		reorderLevel: number;
+		reorderQty: number;
+		shortageQty: number;
+		primaryMetric: StockSummaryMetric;
+		primaryMetricValue: number;
+		stockHealth: StockSummaryHealth;
+		recommendedAction: StockSummaryAction;
+		lastActivityDate?: Date | null;
+	}
+
+	export interface ListStockSummaryInput {
+		skip?: number;
+		take?: number;
+		search?: string;
+		company?: string;
+		warehouse?: string;
+		itemCode?: string;
+		itemGroup?: string;
+		brand?: string;
+		metric?: StockSummaryMetric;
+		sortDirection?: StockSummarySortDirection;
+		includeZeroStockItems?: boolean;
+	}
+
+	export const stockSummaryMetricSchema = z.enum([
+		"PROJECTED_QTY",
+		"ACTUAL_QTY",
+		"RESERVED_QTY",
+		"RESERVED_QTY_FOR_PRODUCTION",
+		"RESERVED_QTY_FOR_SUBCONTRACTING",
+		"SHORTAGE_QTY",
+	]);
+
+	export const listStockSummarySchema = z
+		.object({
+			skip: z.number().int().min(0).optional(),
+			take: z.number().int().min(1).max(250).optional(),
+			search: z.string().max(255).optional(),
+			company: z.string().max(255).optional(),
+			warehouse: z.string().max(255).optional(),
+			itemCode: z.string().max(100).optional(),
+			itemGroup: z.string().max(255).optional(),
+			brand: z.string().max(255).optional(),
+			metric: stockSummaryMetricSchema.optional(),
+			sortDirection: z.enum(["asc", "desc"]).optional(),
+			includeZeroStockItems: z.boolean().optional(),
+		})
+		.optional();
+
+	export interface StockAgeingBucket {
+		index: number;
+		minAge: number;
+		maxAge?: number | null;
+		quantity: number;
+		value: number;
+	}
+
+	export interface StockAgeingRow {
+		id: string;
+		company: string;
+		itemCode: string;
+		itemName?: string | null;
+		description?: string | null;
+		itemGroupName?: string | null;
+		brandName?: string | null;
+		warehouse?: string | null;
+		unitOfMeasure?: string | null;
+		availableQty: number;
+		averageAge: number;
+		averageRate: number;
+		asOfDate: Date;
+		buckets: StockAgeingBucket[];
+	}
+
+	export interface ListStockAgeingInput {
+		skip?: number;
+		take?: number;
+		company?: string;
+		warehouse?: string;
+		itemCode?: string;
+		brand?: string;
+		asOfDate?: Date;
+		showWarehouseWiseStock?: boolean;
+		ageingRanges?: string;
+	}
+
+	export const listStockAgeingSchema = z
+		.object({
+			skip: z.number().int().min(0).optional(),
+			take: z.number().int().min(1).max(250).optional(),
+			company: z.string().max(255).optional(),
+			warehouse: z.string().max(255).optional(),
+			itemCode: z.string().max(100).optional(),
+			brand: z.string().max(255).optional(),
+			asOfDate: z.coerce.date().optional(),
+			showWarehouseWiseStock: z.boolean().optional(),
+			ageingRanges: z.string().max(64).optional(),
+		})
+		.optional();
+
+	export interface ItemPriceStockRow {
+		id: string;
+		company: string;
+		itemCode: string;
+		itemName?: string | null;
+		itemGroupName?: string | null;
+		brandName?: string | null;
+		warehouse: string;
+		availableQty: number;
+		buyingPriceList: string;
+		buyingRate: number;
+		sellingPriceList: string;
+		sellingRate: number;
+		lastActivityDate?: Date | null;
+	}
+
+	export interface ListItemPriceStockInput {
+		skip?: number;
+		take?: number;
+		search?: string;
+		company?: string;
+		warehouse?: string;
+		itemCode?: string;
+		itemGroup?: string;
+		brand?: string;
+		includeZeroStockItems?: boolean;
+	}
+
+	export const listItemPriceStockSchema = z
+		.object({
+			skip: z.number().int().min(0).optional(),
+			take: z.number().int().min(1).max(250).optional(),
+			search: z.string().max(255).optional(),
+			company: z.string().max(255).optional(),
+			warehouse: z.string().max(255).optional(),
+			itemCode: z.string().max(100).optional(),
+			itemGroup: z.string().max(255).optional(),
+			brand: z.string().max(255).optional(),
+			includeZeroStockItems: z.boolean().optional(),
+		})
+		.optional();
+
+	export interface WarehouseWiseStockBalanceRow {
+		id: string;
+		stockEntryId: string;
+		stockEntryItemId: string;
+		company: string;
+		itemCode: string;
+		itemName?: string | null;
+		warehouse: string;
+		postingDate: Date;
+		voucherNo: string;
+		qtyChange: number;
+		incomingRate: number;
+		movementType: "IN" | "OUT";
+		createdAt: Date;
+		updatedAt: Date;
+	}
+
+	export interface ListWarehouseWiseStockBalanceInput {
+		skip?: number;
+		take?: number;
+		search?: string;
+		company?: string;
+		warehouse?: string;
+		itemCode?: string;
+		voucherNo?: string;
+		status?: StockEntryStatus;
+		dateFrom?: Date;
+		dateTo?: Date;
+	}
+
+	export const listWarehouseWiseStockBalanceSchema = z
+		.object({
+			skip: z.number().int().min(0).optional(),
+			take: z.number().int().min(1).max(250).optional(),
+			search: z.string().max(255).optional(),
+			company: z.string().max(255).optional(),
+			warehouse: z.string().max(255).optional(),
+			itemCode: z.string().max(100).optional(),
+			voucherNo: z.string().max(50).optional(),
+			status: z.enum(["DRAFT", "SUBMITTED", "CANCELLED"]).optional(),
+			dateFrom: z.coerce.date().optional(),
+			dateTo: z.coerce.date().optional(),
+		})
+		.optional();
+
+	// ============================================================================
 	// Delivery Note Types & Schemas
 	// ============================================================================
 

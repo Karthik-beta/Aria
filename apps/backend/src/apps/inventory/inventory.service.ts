@@ -26,11 +26,24 @@ import {
 	toInventoryStockEntry,
 	toInventoryUnitOfMeasure,
 } from "./inventory.types";
+import { buildItemPriceStockRows } from "./item-price-stock-report";
+import {
+	buildStockAgeingRows,
+	type StockAgeingBucketRange,
+} from "./stock-ageing-report";
+import { buildStockBalanceRows } from "./stock-balance-report";
+import { buildStockLedgerRows } from "./stock-ledger-report";
+import {
+	buildStockProjectedQtyRows,
+	type StockProjectedQtySourceRow,
+} from "./stock-projected-qty-report";
+import { buildStockSummaryRows } from "./stock-summary-report";
 import {
 	loadUomSeedEntriesFromCsv,
 	normalizeUomName,
 	type UomSeedEntry,
 } from "./uom-seed";
+import { buildWarehouseWiseStockBalanceRows } from "./warehouse-wise-stock-balance-report";
 
 const formatItemGroupDefaults = (defaults?: Inventory.ItemGroupDefault[]) =>
 	defaults?.map(({ company, defaultWarehouse, defaultPriceList }) => ({
@@ -92,6 +105,50 @@ const unitOfMeasureSelect = {
 	updatedAt: true,
 } as const;
 
+const DEFAULT_STOCK_AGEING_BREAKS = [30, 60, 90] as const;
+
+function parseStockAgeingBucketRanges(
+	rawRanges?: string,
+): StockAgeingBucketRange[] {
+	const normalizedInput = rawRanges?.trim();
+	const numericBreaks = (
+		normalizedInput && normalizedInput.length > 0
+			? normalizedInput.split(",")
+			: [...DEFAULT_STOCK_AGEING_BREAKS].map(String)
+	)
+		.map((segment) => segment.trim())
+		.filter((segment) => segment.length > 0)
+		.map((segment) => Number.parseInt(segment, 10));
+
+	if (
+		numericBreaks.length === 0 ||
+		numericBreaks.some((value) => !Number.isFinite(value) || value < 0)
+	) {
+		throw new BadRequestException(
+			"Ageing ranges must be a comma-separated list of positive day values",
+		);
+	}
+
+	const uniqueSortedBreaks = [...new Set(numericBreaks)].sort(
+		(left, right) => left - right,
+	);
+
+	const ranges = uniqueSortedBreaks.map<StockAgeingBucketRange>(
+		(value, index) => ({
+			minAge: index === 0 ? 0 : uniqueSortedBreaks[index - 1] + 1,
+			maxAge: value,
+		}),
+	);
+
+	return [
+		...ranges,
+		{
+			minAge: uniqueSortedBreaks[uniqueSortedBreaks.length - 1] + 1,
+			maxAge: null,
+		},
+	];
+}
+
 type ProductBundleItemInput = {
 	itemId: string;
 	quantity: number;
@@ -140,6 +197,11 @@ const isDefaultItemManufacturerConstraintViolation = (
 
 /** Maximum number of rows returned by any paginated list query. */
 const LIST_QUERY_TAKE_MAX = 250;
+
+type StockAvailabilityParams =
+	| Inventory.ListStockProjectedQtyInput
+	| Inventory.ListStockSummaryInput
+	| Inventory.ListItemPriceStockInput;
 
 /**
  * Simple inventory service with type-safe CRUD operations
@@ -2602,6 +2664,1609 @@ export class InventoryService {
 			}
 			throw error;
 		}
+	}
+
+	/**
+	 * Get stock ledger report rows derived from stock entry items.
+	 * Rows are bounded, filterable, and ordered deterministically before running
+	 * balances are computed per item-and-warehouse partition.
+	 */
+	async findStockLedger(params?: Inventory.ListStockLedgerInput) {
+		const rawSkip = params?.skip ?? 0;
+		const rawTake = params?.take ?? LIST_QUERY_TAKE_MAX;
+		const skip = rawSkip < 0 ? 0 : rawSkip;
+		const take =
+			rawTake <= 0
+				? 1
+				: rawTake > LIST_QUERY_TAKE_MAX
+					? LIST_QUERY_TAKE_MAX
+					: rawTake;
+
+		const search = params?.search?.trim();
+		const company = params?.company?.trim();
+		const warehouse = params?.warehouse?.trim();
+		const itemCode = params?.itemCode?.trim();
+		const itemGroup = params?.itemGroup?.trim();
+		const brand = params?.brand?.trim();
+		const voucherNo = params?.voucherNo?.trim();
+		const project = params?.project?.trim();
+		const dateFrom = params?.dateFrom;
+		const dateTo = params?.dateTo;
+
+		if (dateFrom && dateTo && dateFrom > dateTo) {
+			throw new BadRequestException("dateFrom cannot be later than dateTo");
+		}
+
+		let filteredItemCodes: string[] | undefined;
+
+		if (itemGroup || brand) {
+			const matchingItems = await this.prisma.item.findMany({
+				where: {
+					...(itemGroup
+						? {
+								itemGroup: {
+									groupName: {
+										contains: itemGroup,
+										mode: "insensitive",
+									},
+								},
+							}
+						: {}),
+					...(brand
+						? {
+								brand: {
+									name: {
+										contains: brand,
+										mode: "insensitive",
+									},
+								},
+							}
+						: {}),
+				},
+				select: { code: true },
+			});
+
+			filteredItemCodes = matchingItems.map((item) => item.code);
+
+			if (filteredItemCodes.length === 0) {
+				return [];
+			}
+		}
+
+		const whereClauses: Prisma.StockEntryItemWhereInput[] = [];
+
+		if (itemCode) {
+			whereClauses.push({
+				itemCode: {
+					contains: itemCode,
+					mode: "insensitive",
+				},
+			});
+		}
+
+		if (filteredItemCodes) {
+			whereClauses.push({
+				itemCode: {
+					in: filteredItemCodes,
+				},
+			});
+		}
+
+		if (warehouse) {
+			whereClauses.push({
+				OR: [
+					{ sourceWarehouse: { equals: warehouse, mode: "insensitive" } },
+					{ targetWarehouse: { equals: warehouse, mode: "insensitive" } },
+					{
+						stockEntry: {
+							defaultSourceWarehouse: {
+								equals: warehouse,
+								mode: "insensitive",
+							},
+						},
+					},
+					{
+						stockEntry: {
+							defaultTargetWarehouse: {
+								equals: warehouse,
+								mode: "insensitive",
+							},
+						},
+					},
+				],
+			});
+		}
+
+		if (search) {
+			whereClauses.push({
+				OR: [
+					{ itemCode: { contains: search, mode: "insensitive" } },
+					{ itemName: { contains: search, mode: "insensitive" } },
+					{ description: { contains: search, mode: "insensitive" } },
+					{ sourceWarehouse: { contains: search, mode: "insensitive" } },
+					{ targetWarehouse: { contains: search, mode: "insensitive" } },
+					{
+						stockEntry: {
+							series: { contains: search, mode: "insensitive" },
+						},
+					},
+					{
+						stockEntry: {
+							company: { contains: search, mode: "insensitive" },
+						},
+					},
+					{
+						stockEntry: {
+							remarks: { contains: search, mode: "insensitive" },
+						},
+					},
+				],
+			});
+		}
+
+		const stockEntryWhere: Prisma.StockEntryWhereInput = {
+			...(company
+				? {
+						company: { contains: company, mode: "insensitive" },
+					}
+				: {}),
+			...(voucherNo
+				? {
+						series: { contains: voucherNo, mode: "insensitive" },
+					}
+				: {}),
+			...(params?.stockEntryType
+				? { stockEntryType: params.stockEntryType }
+				: {}),
+			...(params?.status ? { status: params.status } : {}),
+			...(project
+				? {
+						project: { contains: project, mode: "insensitive" },
+					}
+				: {}),
+			...(dateFrom || dateTo
+				? {
+						postingDate: {
+							...(dateFrom ? { gte: dateFrom } : {}),
+							...(dateTo ? { lte: dateTo } : {}),
+						},
+					}
+				: {}),
+		};
+
+		if (Object.keys(stockEntryWhere).length > 0) {
+			whereClauses.push({ stockEntry: stockEntryWhere });
+		}
+
+		const where: Prisma.StockEntryItemWhereInput =
+			whereClauses.length === 0
+				? {}
+				: whereClauses.length === 1
+					? whereClauses[0]
+					: { AND: whereClauses };
+
+		const items = await this.prisma.stockEntryItem.findMany({
+			where,
+			include: { stockEntry: true },
+			orderBy: [
+				{ stockEntry: { postingDate: "asc" } },
+				{ stockEntry: { createdAt: "asc" } },
+				{ id: "asc" },
+			],
+			skip,
+			take,
+		});
+
+		const itemCodes = [...new Set(items.map((item) => item.itemCode))];
+		const itemMetadata =
+			itemCodes.length === 0
+				? []
+				: await this.prisma.item.findMany({
+						where: {
+							code: {
+								in: itemCodes,
+							},
+						},
+						select: {
+							code: true,
+							valuationRate: true,
+							itemGroup: {
+								select: {
+									groupName: true,
+								},
+							},
+							brand: {
+								select: {
+									name: true,
+								},
+							},
+						},
+					});
+
+		const metadataByCode = new Map(
+			itemMetadata.map((item) => [item.code, item] as const),
+		);
+
+		return buildStockLedgerRows(items, { warehouse }).map((row) => {
+			const metadata = metadataByCode.get(row.itemCode);
+			const valuationRate = metadata?.valuationRate ?? null;
+
+			return {
+				...row,
+				voucherNo: row.series,
+				itemGroupName: metadata?.itemGroup?.groupName ?? null,
+				brandName: metadata?.brand?.name ?? null,
+				valuationRate,
+				balanceValue:
+					valuationRate == null ? null : valuationRate * row.balanceQty,
+			};
+		});
+	}
+
+	/**
+	 * Get warehouse-wise stock balance movement rows.
+	 * This report focuses on warehouse-level item movements and keeps
+	 * one row per stock movement line.
+	 */
+	async findWarehouseWiseStockBalance(
+		params?: Inventory.ListWarehouseWiseStockBalanceInput,
+	) {
+		const rawSkip = params?.skip ?? 0;
+		const rawTake = params?.take ?? LIST_QUERY_TAKE_MAX;
+		const skip = rawSkip < 0 ? 0 : rawSkip;
+		const take =
+			rawTake <= 0
+				? 1
+				: rawTake > LIST_QUERY_TAKE_MAX
+					? LIST_QUERY_TAKE_MAX
+					: rawTake;
+
+		const search = params?.search?.trim();
+		const company = params?.company?.trim();
+		const warehouse = params?.warehouse?.trim();
+		const itemCode = params?.itemCode?.trim();
+		const voucherNo = params?.voucherNo?.trim();
+		const dateFrom = params?.dateFrom;
+		const dateTo = params?.dateTo;
+		const status = params?.status ?? "SUBMITTED";
+
+		if (dateFrom && dateTo && dateFrom > dateTo) {
+			throw new BadRequestException("dateFrom cannot be later than dateTo");
+		}
+
+		const whereClauses: Prisma.StockEntryItemWhereInput[] = [];
+
+		if (itemCode) {
+			whereClauses.push({
+				itemCode: {
+					contains: itemCode,
+					mode: "insensitive",
+				},
+			});
+		}
+
+		if (warehouse) {
+			whereClauses.push({
+				OR: [
+					{ sourceWarehouse: { equals: warehouse, mode: "insensitive" } },
+					{ targetWarehouse: { equals: warehouse, mode: "insensitive" } },
+					{
+						stockEntry: {
+							defaultSourceWarehouse: {
+								equals: warehouse,
+								mode: "insensitive",
+							},
+						},
+					},
+					{
+						stockEntry: {
+							defaultTargetWarehouse: {
+								equals: warehouse,
+								mode: "insensitive",
+							},
+						},
+					},
+				],
+			});
+		}
+
+		if (search) {
+			whereClauses.push({
+				OR: [
+					{ itemCode: { contains: search, mode: "insensitive" } },
+					{ itemName: { contains: search, mode: "insensitive" } },
+					{ sourceWarehouse: { contains: search, mode: "insensitive" } },
+					{ targetWarehouse: { contains: search, mode: "insensitive" } },
+					{
+						stockEntry: {
+							series: { contains: search, mode: "insensitive" },
+						},
+					},
+					{
+						stockEntry: {
+							company: { contains: search, mode: "insensitive" },
+						},
+					},
+				],
+			});
+		}
+
+		const stockEntryWhere: Prisma.StockEntryWhereInput = {
+			status,
+			...(company
+				? {
+						company: { contains: company, mode: "insensitive" },
+					}
+				: {}),
+			...(voucherNo
+				? {
+						series: { contains: voucherNo, mode: "insensitive" },
+					}
+				: {}),
+			...(dateFrom || dateTo
+				? {
+						postingDate: {
+							...(dateFrom ? { gte: dateFrom } : {}),
+							...(dateTo ? { lte: dateTo } : {}),
+						},
+					}
+				: {}),
+		};
+
+		whereClauses.push({ stockEntry: stockEntryWhere });
+
+		const where: Prisma.StockEntryItemWhereInput =
+			whereClauses.length === 1 ? whereClauses[0] : { AND: whereClauses };
+
+		const items = await this.prisma.stockEntryItem.findMany({
+			where,
+			include: { stockEntry: true },
+			orderBy: [
+				{ stockEntry: { postingDate: "desc" } },
+				{ stockEntry: { createdAt: "desc" } },
+				{ id: "asc" },
+			],
+		});
+
+		const rows = buildWarehouseWiseStockBalanceRows(
+			buildStockLedgerRows(items, { warehouse }),
+		);
+
+		return rows.slice(skip, skip + take);
+	}
+
+	/**
+	 * Get stock balance rows aggregated by company, item, and warehouse.
+	 * The report derives opening, inward, outward, and closing values from
+	 * stock entry movements up to the requested end date.
+	 */
+	async findStockBalance(params?: Inventory.ListStockBalanceInput) {
+		const rawSkip = params?.skip ?? 0;
+		const rawTake = params?.take ?? LIST_QUERY_TAKE_MAX;
+		const skip = rawSkip < 0 ? 0 : rawSkip;
+		const take =
+			rawTake <= 0
+				? 1
+				: rawTake > LIST_QUERY_TAKE_MAX
+					? LIST_QUERY_TAKE_MAX
+					: rawTake;
+
+		const search = params?.search?.trim();
+		const company = params?.company?.trim();
+		const warehouse = params?.warehouse?.trim();
+		const itemCode = params?.itemCode?.trim();
+		const itemGroup = params?.itemGroup?.trim();
+		const brand = params?.brand?.trim();
+		const project = params?.project?.trim();
+		const dateFrom = params?.dateFrom;
+		const dateTo = params?.dateTo;
+		const status = params?.status ?? "SUBMITTED";
+
+		if (dateFrom && dateTo && dateFrom > dateTo) {
+			throw new BadRequestException("dateFrom cannot be later than dateTo");
+		}
+
+		let filteredItemCodes: string[] | undefined;
+
+		if (itemGroup || brand) {
+			const matchingItems = await this.prisma.item.findMany({
+				where: {
+					...(itemGroup
+						? {
+								itemGroup: {
+									groupName: {
+										contains: itemGroup,
+										mode: "insensitive",
+									},
+								},
+							}
+						: {}),
+					...(brand
+						? {
+								brand: {
+									name: {
+										contains: brand,
+										mode: "insensitive",
+									},
+								},
+							}
+						: {}),
+				},
+				select: { code: true },
+			});
+
+			filteredItemCodes = matchingItems.map((item) => item.code);
+
+			if (filteredItemCodes.length === 0) {
+				return [];
+			}
+		}
+
+		const whereClauses: Prisma.StockEntryItemWhereInput[] = [];
+
+		if (itemCode) {
+			whereClauses.push({
+				itemCode: {
+					contains: itemCode,
+					mode: "insensitive",
+				},
+			});
+		}
+
+		if (filteredItemCodes) {
+			whereClauses.push({
+				itemCode: {
+					in: filteredItemCodes,
+				},
+			});
+		}
+
+		if (warehouse) {
+			whereClauses.push({
+				OR: [
+					{ sourceWarehouse: { equals: warehouse, mode: "insensitive" } },
+					{ targetWarehouse: { equals: warehouse, mode: "insensitive" } },
+					{
+						stockEntry: {
+							defaultSourceWarehouse: {
+								equals: warehouse,
+								mode: "insensitive",
+							},
+						},
+					},
+					{
+						stockEntry: {
+							defaultTargetWarehouse: {
+								equals: warehouse,
+								mode: "insensitive",
+							},
+						},
+					},
+				],
+			});
+		}
+
+		if (search) {
+			whereClauses.push({
+				OR: [
+					{ itemCode: { contains: search, mode: "insensitive" } },
+					{ itemName: { contains: search, mode: "insensitive" } },
+					{ description: { contains: search, mode: "insensitive" } },
+					{ sourceWarehouse: { contains: search, mode: "insensitive" } },
+					{ targetWarehouse: { contains: search, mode: "insensitive" } },
+					{
+						stockEntry: {
+							company: { contains: search, mode: "insensitive" },
+						},
+					},
+					{
+						stockEntry: {
+							series: { contains: search, mode: "insensitive" },
+						},
+					},
+				],
+			});
+		}
+
+		const stockEntryWhere: Prisma.StockEntryWhereInput = {
+			...(company
+				? {
+						company: { contains: company, mode: "insensitive" },
+					}
+				: {}),
+			status,
+			...(project
+				? {
+						project: { contains: project, mode: "insensitive" },
+					}
+				: {}),
+			...(dateTo
+				? {
+						postingDate: {
+							lte: dateTo,
+						},
+					}
+				: {}),
+		};
+
+		whereClauses.push({ stockEntry: stockEntryWhere });
+
+		const where: Prisma.StockEntryItemWhereInput =
+			whereClauses.length === 1 ? whereClauses[0] : { AND: whereClauses };
+
+		const items = await this.prisma.stockEntryItem.findMany({
+			where,
+			include: { stockEntry: true },
+			orderBy: [
+				{ stockEntry: { postingDate: "asc" } },
+				{ stockEntry: { createdAt: "asc" } },
+				{ id: "asc" },
+			],
+		});
+
+		if (items.length === 0) {
+			return [];
+		}
+
+		const itemCodes = [...new Set(items.map((item) => item.itemCode))];
+		const itemMetadata = await this.prisma.item.findMany({
+			where: {
+				code: {
+					in: itemCodes,
+				},
+			},
+			select: {
+				code: true,
+				valuationRate: true,
+				itemGroup: {
+					select: {
+						groupName: true,
+					},
+				},
+				brand: {
+					select: {
+						name: true,
+					},
+				},
+			},
+		});
+
+		const metadataByCode = new Map(
+			itemMetadata.map((item) => [item.code, item] as const),
+		);
+
+		const balanceRows = buildStockBalanceRows(
+			buildStockLedgerRows(items, { warehouse }).map((row) => {
+				const metadata = metadataByCode.get(row.itemCode);
+
+				return {
+					company: row.company,
+					itemCode: row.itemCode,
+					itemName: row.itemName,
+					itemGroupName: metadata?.itemGroup?.groupName ?? null,
+					brandName: metadata?.brand?.name ?? null,
+					warehouse: row.warehouse,
+					unitOfMeasure: row.unitOfMeasure,
+					postingDate: row.postingDate,
+					qtyIn: row.qtyIn,
+					qtyOut: row.qtyOut,
+					basicAmount: row.basicAmount,
+					valuationRate: metadata?.valuationRate ?? null,
+				};
+			}),
+			{
+				dateFrom,
+				includeZeroStockItems: params?.includeZeroStockItems,
+			},
+		);
+
+		return balanceRows.slice(skip, skip + take);
+	}
+
+	/**
+	 * Get projected stock rows by combining on-hand stock, open demand/supply,
+	 * pending production movements, and warehouse reorder settings.
+	 */
+	private async collectStockProjectedQtyRows(params?: StockAvailabilityParams) {
+		const search = params?.search?.trim().toLowerCase();
+		const company = params?.company?.trim();
+		const warehouse = params?.warehouse?.trim();
+		const itemCode = params?.itemCode?.trim();
+		const itemGroup = params?.itemGroup?.trim();
+		const brand = params?.brand?.trim();
+
+		const codeFilterSets: string[][] = [];
+
+		if (itemGroup) {
+			const groupItems = await this.prisma.inventoryItem.findMany({
+				where: {
+					itemGroup: {
+						groupName: {
+							contains: itemGroup,
+							mode: "insensitive",
+						},
+					},
+				},
+				select: { code: true },
+			});
+
+			codeFilterSets.push(groupItems.map((entry) => entry.code));
+		}
+
+		if (brand) {
+			const brandItems = await this.prisma.item.findMany({
+				where: {
+					brand: {
+						name: {
+							contains: brand,
+							mode: "insensitive",
+						},
+					},
+				},
+				select: { code: true },
+			});
+
+			codeFilterSets.push(brandItems.map((entry) => entry.code));
+		}
+
+		const filteredItemCodes =
+			codeFilterSets.length === 0
+				? undefined
+				: codeFilterSets.reduce<string[]>((current, next) => {
+						if (current.length === 0) {
+							return [...new Set(next)];
+						}
+
+						const nextSet = new Set(next);
+						return current.filter((code) => nextSet.has(code));
+					}, []);
+
+		if (filteredItemCodes && filteredItemCodes.length === 0) {
+			return [];
+		}
+
+		const stockWhereClauses: Prisma.StockEntryItemWhereInput[] = [];
+
+		if (itemCode) {
+			stockWhereClauses.push({
+				itemCode: {
+					contains: itemCode,
+					mode: "insensitive",
+				},
+			});
+		}
+
+		if (filteredItemCodes) {
+			stockWhereClauses.push({
+				itemCode: {
+					in: filteredItemCodes,
+				},
+			});
+		}
+
+		if (warehouse) {
+			stockWhereClauses.push({
+				OR: [
+					{ sourceWarehouse: { equals: warehouse, mode: "insensitive" } },
+					{ targetWarehouse: { equals: warehouse, mode: "insensitive" } },
+					{
+						stockEntry: {
+							defaultSourceWarehouse: {
+								equals: warehouse,
+								mode: "insensitive",
+							},
+						},
+					},
+					{
+						stockEntry: {
+							defaultTargetWarehouse: {
+								equals: warehouse,
+								mode: "insensitive",
+							},
+						},
+					},
+				],
+			});
+		}
+
+		if (search) {
+			stockWhereClauses.push({
+				OR: [
+					{ itemCode: { contains: search, mode: "insensitive" } },
+					{ itemName: { contains: search, mode: "insensitive" } },
+					{ description: { contains: search, mode: "insensitive" } },
+					{ sourceWarehouse: { contains: search, mode: "insensitive" } },
+					{ targetWarehouse: { contains: search, mode: "insensitive" } },
+					{
+						stockEntry: {
+							series: { contains: search, mode: "insensitive" },
+						},
+					},
+				],
+			});
+		}
+
+		stockWhereClauses.push({
+			stockEntry: {
+				status: "SUBMITTED",
+				...(company
+					? {
+							company: {
+								contains: company,
+								mode: "insensitive",
+							},
+						}
+					: {}),
+			},
+		});
+
+		const stockEntryItems = await this.prisma.stockEntryItem.findMany({
+			where:
+				stockWhereClauses.length === 1
+					? stockWhereClauses[0]
+					: { AND: stockWhereClauses },
+			include: { stockEntry: true },
+			orderBy: [
+				{ stockEntry: { postingDate: "asc" } },
+				{ stockEntry: { createdAt: "asc" } },
+				{ id: "asc" },
+			],
+		});
+
+		const actualRows = buildStockLedgerRows(stockEntryItems, { warehouse }).map(
+			(row) => ({
+				company: row.company,
+				itemCode: row.itemCode,
+				itemName: row.itemName,
+				description: row.description,
+				warehouse: row.warehouse,
+				unitOfMeasure: row.unitOfMeasure,
+				actualQty: row.qtyIn - row.qtyOut,
+				lastActivityDate: row.postingDate,
+			}),
+		);
+
+		const plannedWhereClauses: Prisma.StockEntryItemWhereInput[] = [];
+
+		if (itemCode) {
+			plannedWhereClauses.push({
+				itemCode: {
+					contains: itemCode,
+					mode: "insensitive",
+				},
+			});
+		}
+
+		if (filteredItemCodes) {
+			plannedWhereClauses.push({
+				itemCode: {
+					in: filteredItemCodes,
+				},
+			});
+		}
+
+		plannedWhereClauses.push({
+			stockEntry: {
+				status: "DRAFT",
+				stockEntryType: {
+					in: ["MANUFACTURE", "MATERIAL_TRANSFER_FOR_MANUFACTURE"],
+				},
+				...(company
+					? {
+							company: {
+								contains: company,
+								mode: "insensitive",
+							},
+						}
+					: {}),
+			},
+		});
+
+		const plannedEntryItems = await this.prisma.stockEntryItem.findMany({
+			where:
+				plannedWhereClauses.length === 1
+					? plannedWhereClauses[0]
+					: { AND: plannedWhereClauses },
+			include: { stockEntry: true },
+		});
+
+		const plannedRows = plannedEntryItems
+			.map((item) => {
+				const targetWarehouse =
+					item.targetWarehouse ?? item.stockEntry.defaultTargetWarehouse;
+
+				if (!targetWarehouse) {
+					return null;
+				}
+
+				if (
+					warehouse &&
+					targetWarehouse.localeCompare(warehouse, undefined, {
+						sensitivity: "accent",
+					}) !== 0
+				) {
+					return null;
+				}
+
+				return {
+					company: item.stockEntry.company,
+					itemCode: item.itemCode,
+					itemName: item.itemName,
+					description: item.description,
+					warehouse: targetWarehouse,
+					unitOfMeasure: item.unitOfMeasure,
+					plannedQty: item.qty,
+					lastActivityDate: item.stockEntry.postingDate,
+				};
+			})
+			.filter((row): row is NonNullable<typeof row> => row != null);
+
+		const subcontractWhereClauses: Prisma.StockEntryItemWhereInput[] = [];
+
+		if (itemCode) {
+			subcontractWhereClauses.push({
+				itemCode: {
+					contains: itemCode,
+					mode: "insensitive",
+				},
+			});
+		}
+
+		if (filteredItemCodes) {
+			subcontractWhereClauses.push({
+				itemCode: {
+					in: filteredItemCodes,
+				},
+			});
+		}
+
+		subcontractWhereClauses.push({
+			stockEntry: {
+				status: "DRAFT",
+				stockEntryType: "SEND_TO_SUBCONTRACTOR",
+				...(company
+					? {
+							company: {
+								contains: company,
+								mode: "insensitive",
+							},
+						}
+					: {}),
+			},
+		});
+
+		const subcontractEntryItems = await this.prisma.stockEntryItem.findMany({
+			where:
+				subcontractWhereClauses.length === 1
+					? subcontractWhereClauses[0]
+					: { AND: subcontractWhereClauses },
+			include: { stockEntry: true },
+		});
+
+		const subcontractRows = subcontractEntryItems
+			.map((item) => {
+				const sourceWarehouse =
+					item.sourceWarehouse ?? item.stockEntry.defaultSourceWarehouse;
+
+				if (!sourceWarehouse) {
+					return null;
+				}
+
+				if (
+					warehouse &&
+					sourceWarehouse.localeCompare(warehouse, undefined, {
+						sensitivity: "accent",
+					}) !== 0
+				) {
+					return null;
+				}
+
+				return {
+					company: item.stockEntry.company,
+					itemCode: item.itemCode,
+					itemName: item.itemName,
+					description: item.description,
+					warehouse: sourceWarehouse,
+					unitOfMeasure: item.unitOfMeasure,
+					reservedQtyForSubcontracting: item.qty,
+					lastActivityDate: item.stockEntry.postingDate,
+				};
+			})
+			.filter((row): row is NonNullable<typeof row> => row != null);
+
+		const materialRequests = await this.prisma.materialRequest.findMany({
+			where: {
+				status: {
+					in: [
+						"PENDING",
+						"APPROVED",
+						"ORDERED",
+						"PARTIALLY_ORDERED",
+						"PARTIALLY_RECEIVED",
+					],
+				},
+				...(company
+					? {
+							company: {
+								contains: company,
+								mode: "insensitive",
+							},
+						}
+					: {}),
+			},
+			include: { items: true },
+			orderBy: [{ transactionDate: "asc" }, { createdAt: "asc" }],
+		});
+
+		const requestRows = materialRequests.flatMap((request) =>
+			request.items
+				.map((item) => {
+					const rowWarehouse = item.targetWarehouse ?? request.targetWarehouse;
+
+					if (!rowWarehouse) {
+						return null;
+					}
+
+					if (
+						warehouse &&
+						rowWarehouse.localeCompare(warehouse, undefined, {
+							sensitivity: "accent",
+						}) !== 0
+					) {
+						return null;
+					}
+
+					if (
+						itemCode &&
+						!item.itemCode.toLowerCase().includes(itemCode.toLowerCase())
+					) {
+						return null;
+					}
+
+					if (filteredItemCodes && !filteredItemCodes.includes(item.itemCode)) {
+						return null;
+					}
+
+					if (
+						search &&
+						![
+							request.series,
+							request.company,
+							item.itemCode,
+							item.itemName,
+							rowWarehouse,
+						]
+							.filter((value): value is string => Boolean(value))
+							.some((value) => value.toLowerCase().includes(search))
+					) {
+						return null;
+					}
+
+					return {
+						company: request.company,
+						itemCode: item.itemCode,
+						itemName: item.itemName,
+						warehouse: rowWarehouse,
+						unitOfMeasure: item.unitOfMeasure,
+						requestedQty: Math.max(item.quantity - item.orderedQty, 0),
+						orderedQty: Math.max(item.orderedQty - item.receivedQty, 0),
+						lastActivityDate: item.requiredBy ?? request.transactionDate,
+					};
+				})
+				.filter((row): row is NonNullable<typeof row> => row != null),
+		);
+
+		const deliveryNotes = await this.prisma.deliveryNote.findMany({
+			where: {
+				status: {
+					in: ["DRAFT", "TO_BILL"],
+				},
+				isReturn: false,
+				...(company
+					? {
+							company: {
+								contains: company,
+								mode: "insensitive",
+							},
+						}
+					: {}),
+			},
+			include: { items: true },
+			orderBy: [{ postingDate: "asc" }, { createdAt: "asc" }],
+		});
+
+		const reservedRows = deliveryNotes.flatMap((note) =>
+			note.items
+				.map((item) => {
+					const rowWarehouse = item.warehouse ?? note.sourceWarehouse;
+
+					if (!rowWarehouse) {
+						return null;
+					}
+
+					if (
+						warehouse &&
+						rowWarehouse.localeCompare(warehouse, undefined, {
+							sensitivity: "accent",
+						}) !== 0
+					) {
+						return null;
+					}
+
+					if (
+						itemCode &&
+						!item.itemCode.toLowerCase().includes(itemCode.toLowerCase())
+					) {
+						return null;
+					}
+
+					if (filteredItemCodes && !filteredItemCodes.includes(item.itemCode)) {
+						return null;
+					}
+
+					if (
+						search &&
+						![
+							note.series,
+							note.company,
+							item.itemCode,
+							item.itemName,
+							rowWarehouse,
+						]
+							.filter((value): value is string => Boolean(value))
+							.some((value) => value.toLowerCase().includes(search))
+					) {
+						return null;
+					}
+
+					return {
+						company: note.company,
+						itemCode: item.itemCode,
+						itemName: item.itemName,
+						description: item.description,
+						warehouse: rowWarehouse,
+						unitOfMeasure: item.uom,
+						reservedQty: item.quantity,
+						lastActivityDate: note.postingDate,
+					};
+				})
+				.filter((row): row is NonNullable<typeof row> => row != null),
+		);
+
+		const pickLists = await this.prisma.pickList.findMany({
+			where: {
+				status: {
+					in: ["DRAFT", "OPEN"],
+				},
+				purpose: "MATERIAL_TRANSFER_FOR_MANUFACTURE",
+				...(company
+					? {
+							company: {
+								contains: company,
+								mode: "insensitive",
+							},
+						}
+					: {}),
+			},
+			include: { items: true },
+			orderBy: [{ createdAt: "asc" }, { updatedAt: "asc" }],
+		});
+
+		const productionReservationRows = pickLists.flatMap((pickList) =>
+			pickList.items
+				.map((item) => {
+					const rowWarehouse = item.warehouse ?? pickList.warehouse;
+					const outstandingQty = Math.max(item.qty - (item.pickedQty ?? 0), 0);
+
+					if (!rowWarehouse || outstandingQty <= 0) {
+						return null;
+					}
+
+					if (
+						warehouse &&
+						rowWarehouse.localeCompare(warehouse, undefined, {
+							sensitivity: "accent",
+						}) !== 0
+					) {
+						return null;
+					}
+
+					if (
+						itemCode &&
+						!item.item.toLowerCase().includes(itemCode.toLowerCase())
+					) {
+						return null;
+					}
+
+					if (filteredItemCodes && !filteredItemCodes.includes(item.item)) {
+						return null;
+					}
+
+					if (
+						search &&
+						![pickList.series, pickList.company, item.item, rowWarehouse]
+							.filter((value): value is string => Boolean(value))
+							.some((value) => value.toLowerCase().includes(search))
+					) {
+						return null;
+					}
+
+					return {
+						company: pickList.company,
+						itemCode: item.item,
+						warehouse: rowWarehouse,
+						reservedQtyForProduction: outstandingQty,
+						lastActivityDate: pickList.updatedAt,
+					};
+				})
+				.filter((row): row is NonNullable<typeof row> => row != null),
+		);
+
+		const allItemCodes = new Set<string>();
+		for (const row of [
+			...actualRows,
+			...plannedRows,
+			...subcontractRows,
+			...requestRows,
+			...reservedRows,
+			...productionReservationRows,
+		]) {
+			allItemCodes.add(row.itemCode);
+		}
+
+		const codes = [...allItemCodes];
+
+		const inventoryItems =
+			codes.length === 0
+				? []
+				: await this.prisma.inventoryItem.findMany({
+						where: { code: { in: codes } },
+						include: {
+							defaultUnitOfMeasure: {
+								select: {
+									name: true,
+								},
+							},
+							itemGroup: {
+								select: {
+									groupName: true,
+								},
+							},
+							reorderSettings: true,
+						},
+					});
+
+		const itemsByCode = new Map(
+			inventoryItems.map((entry) => [entry.code, entry] as const),
+		);
+
+		const brandMetadata =
+			codes.length === 0
+				? []
+				: await this.prisma.item.findMany({
+						where: { code: { in: codes } },
+						select: {
+							code: true,
+							brand: {
+								select: {
+									name: true,
+								},
+							},
+						},
+					});
+
+		const brandsByCode = new Map(
+			brandMetadata.map(
+				(entry) => [entry.code, entry.brand?.name ?? null] as const,
+			),
+		);
+
+		const companyCandidatesByItemWarehouse = new Map<string, Set<string>>();
+		for (const row of [
+			...actualRows,
+			...plannedRows,
+			...subcontractRows,
+			...requestRows,
+			...reservedRows,
+			...productionReservationRows,
+		]) {
+			const key = `${row.itemCode}::${row.warehouse}`;
+			const candidates =
+				companyCandidatesByItemWarehouse.get(key) ?? new Set<string>();
+			if (row.company) {
+				candidates.add(row.company);
+			}
+			companyCandidatesByItemWarehouse.set(key, candidates);
+		}
+
+		const reorderRows = inventoryItems.flatMap((entry) =>
+			entry.reorderSettings.flatMap((setting) => {
+				if (warehouse && setting.warehouse !== warehouse) {
+					return [];
+				}
+
+				const key = `${entry.code}::${setting.warehouse}`;
+				const companiesForRow = company
+					? [company]
+					: [
+							...(companyCandidatesByItemWarehouse.get(key) ??
+								new Set<string>(["All Companies"])),
+						];
+
+				return companiesForRow.map((rowCompany) => ({
+					company: rowCompany,
+					itemCode: entry.code,
+					itemName: entry.name,
+					description: entry.description,
+					itemGroupName: entry.itemGroup?.groupName ?? null,
+					brandName: brandsByCode.get(entry.code) ?? null,
+					warehouse: setting.warehouse,
+					reorderLevel: setting.reorderLevel,
+					reorderQty: setting.reorderQty,
+					lastActivityDate: entry.updatedAt,
+				}));
+			}),
+		);
+
+		const projectedSourceRows: StockProjectedQtySourceRow[] = [
+			...actualRows,
+			...plannedRows,
+			...subcontractRows,
+			...requestRows,
+			...reservedRows,
+			...productionReservationRows,
+			...reorderRows,
+		].map((row) => {
+			const sourceRow = row as Partial<StockProjectedQtySourceRow>;
+			const inventoryItem = itemsByCode.get(row.itemCode);
+			const normalizedCompany = row.company ?? company ?? "Unknown Company";
+			return {
+				company: normalizedCompany,
+				itemCode: row.itemCode,
+				itemName: sourceRow.itemName ?? inventoryItem?.name ?? null,
+				description:
+					sourceRow.description ?? inventoryItem?.description ?? null,
+				itemGroupName:
+					sourceRow.itemGroupName ??
+					inventoryItem?.itemGroup?.groupName ??
+					null,
+				brandName:
+					sourceRow.brandName ?? brandsByCode.get(row.itemCode) ?? null,
+				warehouse: row.warehouse,
+				unitOfMeasure:
+					sourceRow.unitOfMeasure ??
+					inventoryItem?.defaultUnitOfMeasure?.name ??
+					null,
+				actualQty: sourceRow.actualQty ?? 0,
+				plannedQty: sourceRow.plannedQty ?? 0,
+				requestedQty: sourceRow.requestedQty ?? 0,
+				orderedQty: sourceRow.orderedQty ?? 0,
+				reservedQty: sourceRow.reservedQty ?? 0,
+				reservedQtyForProduction: sourceRow.reservedQtyForProduction ?? 0,
+				reservedQtyForSubcontracting:
+					sourceRow.reservedQtyForSubcontracting ?? 0,
+				reservedQtyForProductionPlan:
+					sourceRow.reservedQtyForProductionPlan ?? 0,
+				reorderLevel: sourceRow.reorderLevel ?? 0,
+				reorderQty: sourceRow.reorderQty ?? 0,
+				lastActivityDate: row.lastActivityDate ?? null,
+			};
+		});
+
+		const projectedRows = buildStockProjectedQtyRows(projectedSourceRows, {
+			includeZeroStockItems: params?.includeZeroStockItems,
+		});
+
+		return projectedRows;
+	}
+
+	async findStockProjectedQty(params?: Inventory.ListStockProjectedQtyInput) {
+		const rawSkip = params?.skip ?? 0;
+		const rawTake = params?.take ?? LIST_QUERY_TAKE_MAX;
+		const skip = rawSkip < 0 ? 0 : rawSkip;
+		const take =
+			rawTake <= 0
+				? 1
+				: rawTake > LIST_QUERY_TAKE_MAX
+					? LIST_QUERY_TAKE_MAX
+					: rawTake;
+
+		const projectedRows = await this.collectStockProjectedQtyRows(params);
+
+		return projectedRows.slice(skip, skip + take);
+	}
+
+	/**
+	 * Get stock summary rows for operational triage, ordered by a selected metric.
+	 */
+	async findStockSummary(params?: Inventory.ListStockSummaryInput) {
+		const rawSkip = params?.skip ?? 0;
+		const rawTake = params?.take ?? LIST_QUERY_TAKE_MAX;
+		const skip = rawSkip < 0 ? 0 : rawSkip;
+		const take =
+			rawTake <= 0
+				? 1
+				: rawTake > LIST_QUERY_TAKE_MAX
+					? LIST_QUERY_TAKE_MAX
+					: rawTake;
+
+		const projectedRows = await this.collectStockProjectedQtyRows(params);
+		const summaryRows = buildStockSummaryRows(
+			projectedRows.map((row) => ({
+				id: row.id,
+				company: row.company,
+				itemCode: row.itemCode,
+				itemName: row.itemName ?? null,
+				description: row.description ?? null,
+				itemGroupName: row.itemGroupName ?? null,
+				brandName: row.brandName ?? null,
+				warehouse: row.warehouse,
+				unitOfMeasure: row.unitOfMeasure ?? null,
+				actualQty: row.actualQty,
+				plannedQty: row.plannedQty,
+				requestedQty: row.requestedQty,
+				orderedQty: row.orderedQty,
+				reservedQty: row.reservedQty,
+				reservedQtyForProduction: row.reservedQtyForProduction,
+				reservedQtyForSubcontracting: row.reservedQtyForSubcontracting,
+				reservedQtyForProductionPlan: row.reservedQtyForProductionPlan,
+				projectedQty: row.projectedQty,
+				reorderLevel: row.reorderLevel,
+				reorderQty: row.reorderQty,
+				shortageQty: row.shortageQty,
+				lastActivityDate: row.lastActivityDate ?? null,
+			})),
+			{
+				metric: params?.metric,
+				sortDirection: params?.sortDirection,
+			},
+		);
+
+		return summaryRows.slice(skip, skip + take);
+	}
+
+	/**
+	 * Get item price stock rows by combining current stock availability with
+	 * configured buying/selling rates for each item.
+	 */
+	async findItemPriceStock(params?: Inventory.ListItemPriceStockInput) {
+		const rawSkip = params?.skip ?? 0;
+		const rawTake = params?.take ?? LIST_QUERY_TAKE_MAX;
+		const skip = rawSkip < 0 ? 0 : rawSkip;
+		const take =
+			rawTake <= 0
+				? 1
+				: rawTake > LIST_QUERY_TAKE_MAX
+					? LIST_QUERY_TAKE_MAX
+					: rawTake;
+
+		const projectedRows = await this.collectStockProjectedQtyRows(params);
+
+		if (projectedRows.length === 0) {
+			return [];
+		}
+
+		const itemCodes = [...new Set(projectedRows.map((row) => row.itemCode))];
+		const priceMetadata = await this.prisma.inventoryItem.findMany({
+			where: {
+				code: {
+					in: itemCodes,
+				},
+			},
+			select: {
+				code: true,
+				valuationRate: true,
+				standardSellingRate: true,
+			},
+		});
+
+		const ratesByCode = new Map(
+			priceMetadata.map((item) => [item.code, item] as const),
+		);
+
+		const rows = buildItemPriceStockRows(
+			projectedRows.map((row) => {
+				const rates = ratesByCode.get(row.itemCode);
+				return {
+					id: row.id,
+					company: row.company,
+					itemCode: row.itemCode,
+					itemName: row.itemName,
+					itemGroupName: row.itemGroupName,
+					brandName: row.brandName,
+					warehouse: row.warehouse,
+					actualQty: row.actualQty,
+					buyingRate: rates?.valuationRate ?? 0,
+					sellingRate: rates?.standardSellingRate ?? 0,
+					lastActivityDate: row.lastActivityDate,
+				};
+			}),
+			{
+				includeZeroStockItems: params?.includeZeroStockItems,
+			},
+		);
+
+		return rows.slice(skip, skip + take);
+	}
+
+	/**
+	 * Get stock ageing rows using FIFO-preserved layer ages across warehouses.
+	 */
+	async findStockAgeing(params?: Inventory.ListStockAgeingInput) {
+		const rawSkip = params?.skip ?? 0;
+		const rawTake = params?.take ?? LIST_QUERY_TAKE_MAX;
+		const skip = rawSkip < 0 ? 0 : rawSkip;
+		const take =
+			rawTake <= 0
+				? 1
+				: rawTake > LIST_QUERY_TAKE_MAX
+					? LIST_QUERY_TAKE_MAX
+					: rawTake;
+
+		const company = params?.company?.trim();
+		const warehouse = params?.warehouse?.trim();
+		const itemCode = params?.itemCode?.trim();
+		const brand = params?.brand?.trim();
+		const asOfDate = params?.asOfDate ?? new Date();
+		const bucketRanges = parseStockAgeingBucketRanges(params?.ageingRanges);
+
+		let filteredItemCodes: string[] | undefined;
+
+		if (brand) {
+			const matchingItems = await this.prisma.item.findMany({
+				where: {
+					brand: {
+						name: {
+							contains: brand,
+							mode: "insensitive",
+						},
+					},
+				},
+				select: { code: true },
+			});
+
+			filteredItemCodes = matchingItems.map((item) => item.code);
+
+			if (filteredItemCodes.length === 0) {
+				return [];
+			}
+		}
+
+		const whereClauses: Prisma.StockEntryItemWhereInput[] = [
+			{
+				stockEntry: {
+					status: "SUBMITTED",
+					postingDate: {
+						lte: asOfDate,
+					},
+					...(company
+						? {
+								company: {
+									contains: company,
+									mode: "insensitive",
+								},
+							}
+						: {}),
+				},
+			},
+		];
+
+		if (itemCode) {
+			whereClauses.push({
+				itemCode: {
+					contains: itemCode,
+					mode: "insensitive",
+				},
+			});
+		}
+
+		if (filteredItemCodes) {
+			whereClauses.push({
+				itemCode: {
+					in: filteredItemCodes,
+				},
+			});
+		}
+
+		if (warehouse) {
+			whereClauses.push({
+				OR: [
+					{ sourceWarehouse: { equals: warehouse, mode: "insensitive" } },
+					{ targetWarehouse: { equals: warehouse, mode: "insensitive" } },
+					{
+						stockEntry: {
+							defaultSourceWarehouse: {
+								equals: warehouse,
+								mode: "insensitive",
+							},
+						},
+					},
+					{
+						stockEntry: {
+							defaultTargetWarehouse: {
+								equals: warehouse,
+								mode: "insensitive",
+							},
+						},
+					},
+				],
+			});
+		}
+
+		const stockItems = await this.prisma.stockEntryItem.findMany({
+			where:
+				whereClauses.length === 1 ? whereClauses[0] : { AND: whereClauses },
+			include: { stockEntry: true },
+			orderBy: [
+				{ stockEntry: { postingDate: "asc" } },
+				{ stockEntry: { createdAt: "asc" } },
+				{ id: "asc" },
+			],
+		});
+
+		if (stockItems.length === 0) {
+			return [];
+		}
+
+		const ageingRows = buildStockAgeingRows(stockItems, {
+			asOfDate,
+			showWarehouseWiseStock: params?.showWarehouseWiseStock,
+			bucketRanges,
+		});
+
+		if (ageingRows.length === 0) {
+			return [];
+		}
+
+		const itemCodes = [...new Set(ageingRows.map((row) => row.itemCode))];
+		const [inventoryItems, brandMetadata] = await Promise.all([
+			this.prisma.inventoryItem.findMany({
+				where: { code: { in: itemCodes } },
+				include: {
+					defaultUnitOfMeasure: {
+						select: { name: true },
+					},
+					itemGroup: {
+						select: { groupName: true },
+					},
+				},
+			}),
+			this.prisma.item.findMany({
+				where: { code: { in: itemCodes } },
+				select: {
+					code: true,
+					brand: {
+						select: { name: true },
+					},
+				},
+			}),
+		]);
+
+		const inventoryItemsByCode = new Map(
+			inventoryItems.map((item) => [item.code, item] as const),
+		);
+		const brandNamesByCode = new Map(
+			brandMetadata.map(
+				(item) => [item.code, item.brand?.name ?? null] as const,
+			),
+		);
+
+		return ageingRows
+			.map((row) => {
+				const inventoryItem = inventoryItemsByCode.get(row.itemCode);
+				return {
+					...row,
+					itemName: row.itemName ?? inventoryItem?.name ?? null,
+					description: row.description ?? inventoryItem?.description ?? null,
+					itemGroupName: inventoryItem?.itemGroup?.groupName ?? null,
+					brandName: brandNamesByCode.get(row.itemCode) ?? null,
+					unitOfMeasure:
+						row.unitOfMeasure ??
+						inventoryItem?.defaultUnitOfMeasure?.name ??
+						null,
+				};
+			})
+			.slice(skip, skip + take);
 	}
 
 	// ============================================================================

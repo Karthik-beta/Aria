@@ -705,6 +705,152 @@ type InventoryRouterInput = {
 		output: StockEntriesChangedEvent;
 		meta: object;
 	}>;
+	listStockLedger: TRPCQueryProcedure<{
+		input:
+			| {
+					skip?: number | undefined;
+					take?: number | undefined;
+					search?: string | undefined;
+					company?: string | undefined;
+					warehouse?: string | undefined;
+					itemCode?: string | undefined;
+					itemGroup?: string | undefined;
+					brand?: string | undefined;
+					voucherNo?: string | undefined;
+					stockEntryType?:
+						| "MATERIAL_RECEIPT"
+						| "MATERIAL_ISSUE"
+						| "MATERIAL_TRANSFER"
+						| "MATERIAL_TRANSFER_FOR_MANUFACTURE"
+						| "MANUFACTURE"
+						| "REPACK"
+						| "SEND_TO_SUBCONTRACTOR"
+						| undefined;
+					status?: "DRAFT" | "SUBMITTED" | "CANCELLED" | undefined;
+					project?: string | undefined;
+					dateFrom?: unknown;
+					dateTo?: unknown;
+			  }
+			| undefined;
+		output: Inventory.StockLedgerRow[];
+		meta: object;
+	}>;
+	listStockBalance: TRPCQueryProcedure<{
+		input:
+			| {
+					skip?: number | undefined;
+					take?: number | undefined;
+					search?: string | undefined;
+					company?: string | undefined;
+					warehouse?: string | undefined;
+					itemCode?: string | undefined;
+					itemGroup?: string | undefined;
+					brand?: string | undefined;
+					project?: string | undefined;
+					status?: "DRAFT" | "SUBMITTED" | "CANCELLED" | undefined;
+					dateFrom?: unknown;
+					dateTo?: unknown;
+					includeZeroStockItems?: boolean | undefined;
+			  }
+			| undefined;
+		output: Inventory.StockBalanceRow[];
+		meta: object;
+	}>;
+	listStockProjectedQty: TRPCQueryProcedure<{
+		input:
+			| {
+					skip?: number | undefined;
+					take?: number | undefined;
+					search?: string | undefined;
+					company?: string | undefined;
+					warehouse?: string | undefined;
+					itemCode?: string | undefined;
+					itemGroup?: string | undefined;
+					brand?: string | undefined;
+					includeZeroStockItems?: boolean | undefined;
+			  }
+			| undefined;
+		output: Inventory.StockProjectedQtyRow[];
+		meta: object;
+	}>;
+	listStockSummary: TRPCQueryProcedure<{
+		input:
+			| {
+					skip?: number | undefined;
+					take?: number | undefined;
+					search?: string | undefined;
+					company?: string | undefined;
+					warehouse?: string | undefined;
+					itemCode?: string | undefined;
+					itemGroup?: string | undefined;
+					brand?: string | undefined;
+					metric?:
+						| "PROJECTED_QTY"
+						| "ACTUAL_QTY"
+						| "RESERVED_QTY"
+						| "RESERVED_QTY_FOR_PRODUCTION"
+						| "RESERVED_QTY_FOR_SUBCONTRACTING"
+						| "SHORTAGE_QTY"
+						| undefined;
+					sortDirection?: "asc" | "desc" | undefined;
+					includeZeroStockItems?: boolean | undefined;
+			  }
+			| undefined;
+		output: Inventory.StockSummaryRow[];
+		meta: object;
+	}>;
+	listStockAgeing: TRPCQueryProcedure<{
+		input:
+			| {
+					skip?: number | undefined;
+					take?: number | undefined;
+					company?: string | undefined;
+					warehouse?: string | undefined;
+					itemCode?: string | undefined;
+					brand?: string | undefined;
+					asOfDate?: unknown;
+					showWarehouseWiseStock?: boolean | undefined;
+					ageingRanges?: string | undefined;
+			  }
+			| undefined;
+		output: Inventory.StockAgeingRow[];
+		meta: object;
+	}>;
+	listItemPriceStock: TRPCQueryProcedure<{
+		input:
+			| {
+					skip?: number | undefined;
+					take?: number | undefined;
+					search?: string | undefined;
+					company?: string | undefined;
+					warehouse?: string | undefined;
+					itemCode?: string | undefined;
+					itemGroup?: string | undefined;
+					brand?: string | undefined;
+					includeZeroStockItems?: boolean | undefined;
+			  }
+			| undefined;
+		output: Inventory.ItemPriceStockRow[];
+		meta: object;
+	}>;
+	listWarehouseWiseStockBalance: TRPCQueryProcedure<{
+		input:
+			| {
+					skip?: number | undefined;
+					take?: number | undefined;
+					search?: string | undefined;
+					company?: string | undefined;
+					warehouse?: string | undefined;
+					itemCode?: string | undefined;
+					voucherNo?: string | undefined;
+					status?: "DRAFT" | "SUBMITTED" | "CANCELLED" | undefined;
+					dateFrom?: unknown;
+					dateTo?: unknown;
+			  }
+			| undefined;
+		output: Inventory.WarehouseWiseStockBalanceRow[];
+		meta: object;
+	}>;
 	listDeliveryNotes: TRPCQueryProcedure<{
 		input: void;
 		output: Inventory.DeliveryNote[];

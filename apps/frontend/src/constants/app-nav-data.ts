@@ -88,23 +88,31 @@ export const inventoryNavItems: NavItem[] = [
 		items: [
 			{
 				title: "Stock Ledger",
-				url: "/inventory/reports/stock-ledger",
+				url: "/inventory/stock-reports/stock-ledger",
 			},
 			{
 				title: "Stock Balance",
-				url: "/inventory/reports/stock-balance",
+				url: "/inventory/stock-reports/stock-balance",
 			},
 			{
 				title: "Stock Projected Qty",
-				url: "/inventory/reports/projected-qty",
+				url: "/inventory/stock-reports/stock-projected-qty",
 			},
 			{
 				title: "Stock Summary",
-				url: "/inventory/reports/stock-summary",
+				url: "/inventory/stock-reports/stock-summary",
 			},
 			{
 				title: "Stock Ageing",
-				url: "/inventory/reports/stock-ageing",
+				url: "/inventory/stock-reports/stock-ageing",
+			},
+			{
+				title: "Item Price Stock",
+				url: "/inventory/stock-reports/item-price-stock",
+			},
+			{
+				title: "Warehouse Wise Stock Balance",
+				url: "/inventory/stock-reports/warehouse-wise-stock-balance",
 			},
 		],
 	},
