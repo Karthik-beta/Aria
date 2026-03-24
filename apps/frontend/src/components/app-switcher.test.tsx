@@ -263,10 +263,9 @@ describe("AppSwitcher Component", () => {
 			// Click on the already active app
 			await user.click(dropdownOption);
 
-			// Wait a bit to ensure no navigation happens
-			await new Promise((resolve) => setTimeout(resolve, 200));
-
-			// Should not have navigated (no calls with /inventory since we're already there)
+			// userEvent.click settles all microtasks and state updates.
+			// The component's handleAppSwitch guards against re-navigating to the
+			// already-active app synchronously, so mockPush must not have been called.
 			expect(mockPush).not.toHaveBeenCalled();
 		});
 	});

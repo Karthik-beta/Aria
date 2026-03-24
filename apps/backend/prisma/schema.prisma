@@ -475,6 +475,124 @@ model AuditLog {
   @@map("audit_logs")
 }
 
+model MaterialRequest {
+  id              String                  @id @default(cuid())
+  series          String                  @unique @db.VarChar(50)
+  transactionDate DateTime                @default(now())
+  purpose         MaterialRequestPurpose  @default(PURCHASE)
+  company         String                  @db.VarChar(255)
+  requiredBy      DateTime?
+  status          MaterialRequestStatus   @default(PENDING)
+  targetWarehouse String?                 @db.VarChar(255)
+  terms           String?                 @db.VarChar(255)
+  termsContent    String?
+  letterHead      String?                 @db.VarChar(255)
+  printHeading    String?                 @db.VarChar(255)
+  items           MaterialRequestItem[]
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
+
+  @@index([series])
+  @@index([status])
+  @@index([transactionDate])
+  @@map("material_requests")
+}
+
+model MaterialRequestItem {
+  id                String          @id @default(cuid())
+  materialRequestId String
+  itemCode          String          @db.VarChar(100)
+  itemName          String?         @db.VarChar(255)
+  requiredBy        DateTime?
+  quantity          Float           @default(0)
+  orderedQty        Float           @default(0)
+  receivedQty       Float           @default(0)
+  targetWarehouse   String?         @db.VarChar(255)
+  unitOfMeasure     String?         @db.VarChar(50)
+  materialRequest   MaterialRequest @relation(fields: [materialRequestId], references: [id], onDelete: Cascade)
+
+  @@index([materialRequestId])
+  @@map("material_request_items")
+}
+
+enum MaterialRequestPurpose {
+  PURCHASE
+  MANUFACTURE
+  MATERIAL_TRANSFER
+  MATERIAL_ISSUE
+  CUSTOMER_PROVIDED
+}
+
+enum MaterialRequestStatus {
+  DRAFT
+  PENDING
+  APPROVED
+  ORDERED
+  PARTIALLY_ORDERED
+  PARTIALLY_RECEIVED
+  RECEIVED
+  CANCELLED
+}
+
+model StockEntry {
+  id                     String           @id @default(cuid())
+  series                 String           @unique @db.VarChar(50)
+  stockEntryType         StockEntryType
+  postingDate            DateTime         @default(now())
+  company                String           @db.VarChar(255)
+  status                 StockEntryStatus @default(DRAFT)
+  project                String?          @db.VarChar(255)
+  defaultSourceWarehouse String?          @db.VarChar(255)
+  defaultTargetWarehouse String?          @db.VarChar(255)
+  isOpening              Boolean          @default(false)
+  remarks                String?
+  printHeading           String?          @db.VarChar(255)
+  letterHead             String?          @db.VarChar(255)
+  inspectionRequired     Boolean          @default(false)
+  items                  StockEntryItem[]
+  createdAt              DateTime         @default(now())
+  updatedAt              DateTime         @updatedAt
+
+  @@index([series])
+  @@index([status])
+  @@index([postingDate])
+  @@map("stock_entries")
+}
+
+model StockEntryItem {
+  id              String     @id @default(cuid())
+  stockEntryId    String
+  sourceWarehouse String?    @db.VarChar(255)
+  targetWarehouse String?    @db.VarChar(255)
+  itemCode        String     @db.VarChar(100)
+  itemName        String?    @db.VarChar(255)
+  description     String?
+  qty             Float      @default(0)
+  basicRate       Float      @default(0)
+  basicAmount     Float      @default(0)
+  unitOfMeasure   String?    @db.VarChar(50)
+  stockEntry      StockEntry @relation(fields: [stockEntryId], references: [id], onDelete: Cascade)
+
+  @@index([stockEntryId])
+  @@map("stock_entry_items")
+}
+
+enum StockEntryType {
+  MATERIAL_RECEIPT
+  MATERIAL_ISSUE
+  MATERIAL_TRANSFER
+  MATERIAL_TRANSFER_FOR_MANUFACTURE
+  MANUFACTURE
+  REPACK
+  SEND_TO_SUBCONTRACTOR
+}
+
+enum StockEntryStatus {
+  DRAFT
+  SUBMITTED
+  CANCELLED
+}
+
 enum RuleType {
   SELLING
   BUYING
@@ -484,4 +602,314 @@ enum CalculationType {
   FIXED
   NET_TOTAL
   NET_WEIGHT
+}
+
+model DeliveryNote {
+  id                       String             @id @default(cuid())
+  series                   String             @unique @db.VarChar(50)
+  postingDate              DateTime           @default(now())
+  customer                 String             @db.VarChar(255)
+  company                  String             @db.VarChar(255)
+  status                   DeliveryNoteStatus @default(DRAFT)
+  isReturn                 Boolean            @default(false)
+
+  // Currency and Price List
+  currency                 String?            @db.VarChar(10)
+  priceList                String?            @db.VarChar(255)
+
+  // Source Warehouse (applied to all items by default)
+  sourceWarehouse          String?            @db.VarChar(255)
+
+  // Totals
+  totalQuantity            Float              @default(0)
+  totalAmount              Float              @default(0)
+  grandTotal               Float              @default(0)
+  roundingAdjustment       Float              @default(0)
+  roundedTotal             Float              @default(0)
+
+  // Additional Discount
+  additionalDiscountOn     String?            @db.VarChar(100)
+  additionalDiscountPercent Float?
+  additionalDiscountAmount Float?
+
+  // Address & Contact
+  shippingAddress          String?            @db.VarChar(255)
+  dispatchAddress          String?            @db.VarChar(255)
+  companyAddress           String?            @db.VarChar(255)
+  companyContact           String?            @db.VarChar(255)
+  companyTRN               String?            @db.VarChar(100)
+
+  // Terms
+  terms                    String?            @db.VarChar(255)
+  // Stored as PostgreSQL TEXT to align with Zod 65,535-character limit
+  termsContent             String?            @db.Text
+
+  // Transporter Info
+  transporter              String?            @db.VarChar(255)
+  driverName               String?            @db.VarChar(255)
+  driver                   String?            @db.VarChar(255)
+  transportReceiptDate     DateTime?
+  transportReceiptNo       String?            @db.VarChar(255)
+  vehicleNo                String?            @db.VarChar(100)
+
+  // Customer PO Details
+  customerPoNo             String?
+  customerPoDate           DateTime?
+
+  // Commission
+  salesPartner             String?            @db.VarChar(255)
+  commissionRate           Float?
+
+  // Print Settings
+  letterHead               String?            @db.VarChar(255)
+  printHeading             String?            @db.VarChar(255)
+  printWithoutAmount       Boolean            @default(false)
+  groupSameItems           Boolean            @default(false)
+
+  // VAT Details
+  permitNumber             String?            @db.VarChar(255)
+  vatEmirate               String?            @db.VarChar(100)
+
+  // Additional Info
+  project                  String?            @db.VarChar(255)
+
+  items     DeliveryNoteItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([series])
+  @@index([status])
+  @@index([postingDate])
+  @@index([customer])
+  @@map("delivery_notes")
+}
+
+model DeliveryNoteItem {
+  id             String       @id @default(cuid())
+  deliveryNoteId String
+  itemCode       String       @db.VarChar(100)
+  itemName       String?      @db.VarChar(255)
+  description    String?
+  quantity       Float        @default(0)
+  uom            String?      @db.VarChar(50)
+  rate           Float        @default(0)
+  amount         Float        @default(0)
+  warehouse      String?      @db.VarChar(255)
+  deliveryNote   DeliveryNote @relation(fields: [deliveryNoteId], references: [id], onDelete: Cascade)
+
+  @@index([deliveryNoteId])
+  @@map("delivery_note_items")
+}
+
+enum DeliveryNoteStatus {
+  DRAFT
+  TO_BILL
+  COMPLETED
+  RETURN_ISSUED
+  CANCELLED
+  CLOSED
+}
+
+model PurchaseReceipt {
+  id                             String                @id @default(cuid())
+  series                         String                @unique @db.VarChar(50)
+  seriesPattern                  String                @default("MAT-PRE-.YYYY.-") @db.VarChar(50)
+  postingDate                    DateTime              @default(now())
+  postingTime                    String                @default("00:00:00") @db.VarChar(8)
+  editPostingDateTime            Boolean               @default(false)
+  supplier                       String                @db.VarChar(255)
+  company                        String                @db.VarChar(255)
+  status                         PurchaseReceiptStatus @default(DRAFT)
+  isReturn                       Boolean               @default(false)
+  applyPutawayRule               Boolean               @default(false)
+  supplierDeliveryNote           String?               @db.VarChar(255)
+  acceptedWarehouse              String?               @db.VarChar(255)
+  rejectedWarehouse              String?               @db.VarChar(255)
+  isSubcontracted                Boolean               @default(false)
+  currency                       String?               @db.VarChar(10)
+  priceList                      String?               @db.VarChar(255)
+  totalQuantity                  Float                 @default(0)
+  totalAcceptedQuantity          Float                 @default(0)
+  totalRejectedQuantity          Float                 @default(0)
+  totalAmount                    Float                 @default(0)
+  taxesAndChargesAdded           Float                 @default(0)
+  taxesAndChargesDeducted        Float                 @default(0)
+  totalTaxesAndCharges           Float                 @default(0)
+  grandTotal                     Float                 @default(0)
+  roundingAdjustment             Float                 @default(0)
+  roundedTotal                   Float                 @default(0)
+  disableRoundedTotal            Boolean               @default(false)
+  supplierAddress                String?               @db.VarChar(255)
+  contactPerson                  String?               @db.VarChar(255)
+  shippingAddressTemplate        String?               @db.VarChar(255)
+  companyTRN                     String?               @db.VarChar(100)
+  billingAddress                 String?               @db.VarChar(255)
+  terms                          String?               @db.VarChar(255)
+  termsContent                   String?               @db.Text
+  letterHead                     String?               @db.VarChar(255)
+  printHeading                   String?               @db.VarChar(255)
+  groupSameItems                 Boolean               @default(false)
+  permitNumber                   String?               @db.VarChar(255)
+  recoverableStandardRatedExpenses Float               @default(0)
+  reverseChargeApplicable        String                @default("N") @db.VarChar(10)
+  transporterName                String?               @db.VarChar(255)
+  vehicleNumber                  String?               @db.VarChar(100)
+  vehicleDate                    DateTime?
+  instructions                   String?
+  remarks                        String?
+  isInternalSupplier             Boolean               @default(false)
+  items                          PurchaseReceiptItem[]
+  taxes                          PurchaseReceiptTax[]
+  createdAt                      DateTime              @default(now())
+  updatedAt                      DateTime              @updatedAt
+
+  @@index([series])
+  @@index([status])
+  @@index([postingDate])
+  @@index([supplier])
+  @@map("purchase_receipts")
+}
+
+model PurchaseReceiptItem {
+  id               String          @id @default(cuid())
+  purchaseReceiptId String
+  itemCode         String          @db.VarChar(100)
+  itemName         String?         @db.VarChar(255)
+  description      String?
+  acceptedQuantity Float           @default(0)
+  rejectedQuantity Float           @default(0)
+  rate             Float           @default(0)
+  amount           Float           @default(0)
+  uom              String?         @db.VarChar(50)
+  acceptedWarehouse String?        @db.VarChar(255)
+  rejectedWarehouse String?        @db.VarChar(255)
+  purchaseReceipt  PurchaseReceipt @relation(fields: [purchaseReceiptId], references: [id], onDelete: Cascade)
+
+  @@index([purchaseReceiptId])
+  @@map("purchase_receipt_items")
+}
+
+model PurchaseReceiptTax {
+  id               String          @id @default(cuid())
+  purchaseReceiptId String
+  type             String          @db.VarChar(255)
+  accountHead      String          @db.VarChar(255)
+  taxRate          Float           @default(0)
+  amount           Float           @default(0)
+  total            Float           @default(0)
+  purchaseReceipt  PurchaseReceipt @relation(fields: [purchaseReceiptId], references: [id], onDelete: Cascade)
+
+  @@index([purchaseReceiptId])
+  @@map("purchase_receipt_taxes")
+}
+
+enum PurchaseReceiptStatus {
+  DRAFT
+  PARTLY_BILLED
+  TO_BILL
+  COMPLETED
+  RETURN_ISSUED
+  CANCELLED
+  CLOSED
+}
+
+enum PickListStatus {
+  DRAFT
+  OPEN
+  COMPLETED
+  CANCELLED
+}
+
+enum PickListPurpose {
+  MATERIAL_TRANSFER_FOR_MANUFACTURE
+  DELIVERY
+  MATERIAL_TRANSFER
+}
+
+model PickList {
+  id                          String          @id @default(cuid())
+  series                      String          @unique @db.VarChar(50)
+  seriesPattern               String          @default("STO-PICK-.YYYY.-") @db.VarChar(50)
+  status                      PickListStatus  @default(DRAFT)
+  company                     String          @db.VarChar(255)
+  customer                    String?         @db.VarChar(255)
+  purpose                     PickListPurpose @default(MATERIAL_TRANSFER_FOR_MANUFACTURE)
+  workOrder                   String?         @db.VarChar(255)
+  warehouse                   String?         @db.VarChar(255)
+  considerRejectedWarehouses  Boolean         @default(false)
+  pickManually                Boolean         @default(false)
+  ignorePricingRule           Boolean         @default(false)
+  scanMode                    Boolean         @default(false)
+  promptQty                   Boolean         @default(false)
+  scanBarcode                 String?         @db.VarChar(255)
+  groupSameItems              Boolean         @default(false)
+  items                       PickListItem[]
+  createdAt                   DateTime        @default(now())
+  updatedAt                   DateTime        @updatedAt
+
+  @@index([series])
+  @@index([status])
+  @@map("pick_lists")
+}
+
+model PickListItem {
+  id         String   @id @default(cuid())
+  pickListId String
+  item       String   @db.VarChar(255)
+  warehouse  String?  @db.VarChar(255)
+  qty        Float    @default(0)
+  stockQty   Float?
+  pickedQty  Float?
+  pickList   PickList @relation(fields: [pickListId], references: [id], onDelete: Cascade)
+
+  @@index([pickListId])
+  @@map("pick_list_items")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Delivery Trip
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum DeliveryTripStatus {
+  DRAFT
+  SCHEDULED
+  IN_TRANSIT
+  COMPLETED
+  CANCELLED
+}
+
+model DeliveryTrip {
+  id                             String              @id @default(cuid())
+  series                         String              @unique @db.VarChar(50)
+  seriesPattern                  String              @default("MAT-DT-.YYYY.-") @db.VarChar(50)
+  status                         DeliveryTripStatus  @default(DRAFT)
+  company                        String              @db.VarChar(255)
+  driver                         String?             @db.VarChar(255)
+  driverAddress                  String?             @db.VarChar(500)
+  vehicle                        String?             @db.VarChar(255)
+  departureTime                  DateTime?
+  initialEmailNotificationSent   Boolean             @default(false)
+  stops                          DeliveryTripStop[]
+  createdAt                      DateTime            @default(now())
+  updatedAt                      DateTime            @updatedAt
+
+  @@index([series])
+  @@index([status])
+  @@map("delivery_trips")
+}
+
+model DeliveryTripStop {
+  id               String       @id @default(cuid())
+  deliveryTripId   String
+  stopNumber       Int
+  customer         String?      @db.VarChar(255)
+  addressName      String       @db.VarChar(500)
+  locked           Boolean      @default(false)
+  deliveryNote     String?      @db.VarChar(50)
+  estimatedArrival DateTime?
+  deliveryTrip     DeliveryTrip @relation(fields: [deliveryTripId], references: [id], onDelete: Cascade)
+
+  @@index([deliveryTripId])
+  @@map("delivery_trip_stops")
 }

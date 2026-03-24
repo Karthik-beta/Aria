@@ -14,8 +14,9 @@
 		"typecheck": "bun x turbo run typecheck",
 		"test": "bun x turbo run test",
 		"prepare": "husky",
-		"validate": "bun x turbo run build test lint typecheck",
-		"validate:fix": "bun x turbo run build test lint:fix typecheck"
+		"validate": "bun x turbo run build test lint typecheck --continue",
+		"validate:fix": "bun x turbo run build test lint:fix typecheck --continue",
+		"validate:local": "bun x turbo run lint typecheck test --continue"
 	},
 	"trustedDependencies": [
 		"@prisma/client",

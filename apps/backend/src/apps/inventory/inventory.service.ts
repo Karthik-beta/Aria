@@ -12,12 +12,18 @@ import { Prisma } from "../../generated/prisma/client";
 import { PrismaService } from "../../shared/prisma.service";
 import {
 	itemAlternativeInclude,
+	toInventoryDeliveryNote,
+	toInventoryDeliveryTrip,
 	toInventoryItem,
 	toInventoryItemAlternative,
 	toInventoryItemGroup,
 	toInventoryItemManufacturer,
+	toInventoryMaterialRequest,
+	toInventoryPickList,
 	toInventoryProductBundle,
+	toInventoryPurchaseReceipt,
 	toInventoryShippingRule,
+	toInventoryStockEntry,
 	toInventoryUnitOfMeasure,
 } from "./inventory.types";
 import {
@@ -131,6 +137,9 @@ const isDefaultItemManufacturerConstraintViolation = (
 
 	return error.message.includes(ITEM_MANUFACTURERS_DEFAULT_PER_ITEM_INDEX);
 };
+
+/** Maximum number of rows returned by any paginated list query. */
+const LIST_QUERY_TAKE_MAX = 250;
 
 /**
  * Simple inventory service with type-safe CRUD operations
@@ -1552,5 +1561,2463 @@ export class InventoryService {
 				missingIds,
 			};
 		});
+	}
+
+	// ============================================================================
+	// Material Request Methods
+	// ============================================================================
+
+	/**
+	 * Generate a series number for a new Material Request
+	 * Format: MAT-MR-YYYY-NNNNN
+	 */
+	private async generateMaterialRequestSeries(date: Date): Promise<string> {
+		const year = date.getFullYear();
+		const prefix = `MAT-MR-${year}-`;
+
+		const lastRequest = await this.prisma.materialRequest.findFirst({
+			where: {
+				series: { startsWith: prefix },
+			},
+			orderBy: { series: "desc" },
+			select: { series: true },
+		});
+
+		let nextNumber = 1;
+		if (lastRequest) {
+			const numStr = lastRequest.series.slice(prefix.length);
+			const num = parseInt(numStr, 10);
+			if (!Number.isNaN(num)) {
+				nextNumber = num + 1;
+			}
+		}
+
+		return `${prefix}${String(nextNumber).padStart(5, "0")}`;
+	}
+
+	/**
+	 * Get all material requests
+	 */
+	async findAllMaterialRequests(): Promise<Inventory.MaterialRequest[]> {
+		const requests = await this.prisma.materialRequest.findMany({
+			orderBy: { createdAt: "desc" },
+			include: { items: true },
+			take: 250,
+		});
+		return requests.map(toInventoryMaterialRequest);
+	}
+
+	/**
+	 * Get a single material request by id
+	 */
+	async findMaterialRequestById(
+		id: string,
+	): Promise<Inventory.MaterialRequest | null> {
+		const request = await this.prisma.materialRequest.findUnique({
+			where: { id },
+			include: { items: true },
+		});
+		return request ? toInventoryMaterialRequest(request) : null;
+	}
+
+	/**
+	 * Create a new material request.
+	 * Retries up to 3 times on a series uniqueness conflict (P2002) to handle
+	 * concurrent requests that may generate the same series number.
+	 */
+	async createMaterialRequest(
+		data: Inventory.CreateMaterialRequestInput,
+	): Promise<Inventory.MaterialRequest> {
+		const transactionDate = data.transactionDate ?? new Date();
+
+		for (let attempt = 0; attempt < 3; attempt++) {
+			const series = await this.generateMaterialRequestSeries(transactionDate);
+			try {
+				const created = await this.prisma.materialRequest.create({
+					data: {
+						series,
+						transactionDate,
+						purpose: data.purpose ?? "PURCHASE",
+						company: data.company,
+						requiredBy: data.requiredBy,
+						status: "DRAFT",
+						targetWarehouse: data.targetWarehouse,
+						terms: data.terms,
+						termsContent: data.termsContent,
+						letterHead: data.letterHead,
+						printHeading: data.printHeading,
+						items: {
+							create: data.items.map((item) => ({
+								itemCode: item.itemCode,
+								itemName: item.itemName,
+								requiredBy: item.requiredBy,
+								quantity: item.quantity,
+								targetWarehouse: item.targetWarehouse,
+								unitOfMeasure: item.unitOfMeasure,
+							})),
+						},
+					},
+					include: { items: true },
+				});
+				return toInventoryMaterialRequest(created);
+			} catch (error) {
+				const isSeriesConflict =
+					error instanceof Prisma.PrismaClientKnownRequestError &&
+					error.code === "P2002";
+				if (isSeriesConflict && attempt < 2) {
+					continue;
+				}
+				throw error;
+			}
+		}
+		// Unreachable — the loop always returns or throws.
+		throw new Error("Failed to allocate a unique series number");
+	}
+
+	/**
+	 * Update an existing material request.
+	 * Items are upserted: existing items (matched by id) are updated in-place,
+	 * preserving orderedQty / receivedQty. New items (no id) are created.
+	 * Items absent from the payload are deleted. All mutations run in a
+	 * single transaction.
+	 */
+	async updateMaterialRequest(
+		data: Inventory.UpdateMaterialRequestInput,
+	): Promise<Inventory.MaterialRequest> {
+		const { id, items, ...rest } = data;
+
+		const existing = await this.prisma.materialRequest.findUnique({
+			where: { id },
+			select: { id: true },
+		});
+
+		if (!existing) {
+			throw new NotFoundException(`Material request with ID ${id} not found`);
+		}
+
+		const updated = await this.prisma.$transaction(async (tx) => {
+			await tx.materialRequest.update({
+				where: { id },
+				data: {
+					...(rest.transactionDate !== undefined && {
+						transactionDate: rest.transactionDate,
+					}),
+					...(rest.purpose !== undefined && { purpose: rest.purpose }),
+					...(rest.company !== undefined && { company: rest.company }),
+					...(rest.requiredBy !== undefined && {
+						requiredBy: rest.requiredBy,
+					}),
+					...(rest.status !== undefined && { status: rest.status }),
+					...(rest.targetWarehouse !== undefined && {
+						targetWarehouse: rest.targetWarehouse,
+					}),
+					...(rest.terms !== undefined && { terms: rest.terms }),
+					...(rest.termsContent !== undefined && {
+						termsContent: rest.termsContent,
+					}),
+					...(rest.letterHead !== undefined && {
+						letterHead: rest.letterHead,
+					}),
+					...(rest.printHeading !== undefined && {
+						printHeading: rest.printHeading,
+					}),
+				},
+			});
+
+			if (items !== undefined) {
+				const keptIds = items
+					.filter((i): i is typeof i & { id: string } => Boolean(i.id))
+					.map((i) => i.id);
+
+				if (keptIds.length > 0) {
+					const ownedItems = await tx.materialRequestItem.findMany({
+						where: {
+							id: { in: keptIds },
+							materialRequestId: id,
+						},
+						select: { id: true },
+					});
+					const ownedIds = new Set(ownedItems.map((item) => item.id));
+					const foreignItemId = keptIds.find((itemId) => !ownedIds.has(itemId));
+					if (foreignItemId) {
+						throw new BadRequestException(
+							`Material request item with ID ${foreignItemId} does not belong to material request ${id}`,
+						);
+					}
+				}
+
+				// Delete items that are no longer present in the payload
+				await tx.materialRequestItem.deleteMany({
+					where: {
+						materialRequestId: id,
+						...(keptIds.length > 0 ? { id: { notIn: keptIds } } : {}),
+					},
+				});
+
+				// Update existing items in-place (preserves orderedQty / receivedQty)
+				// and create new items (no id supplied)
+				for (const item of items) {
+					if (item.id) {
+						await tx.materialRequestItem.update({
+							where: { id: item.id },
+							data: {
+								itemCode: item.itemCode,
+								itemName: item.itemName,
+								requiredBy: item.requiredBy,
+								quantity: item.quantity,
+								targetWarehouse: item.targetWarehouse,
+								unitOfMeasure: item.unitOfMeasure,
+							},
+						});
+					} else {
+						await tx.materialRequestItem.create({
+							data: {
+								materialRequestId: id,
+								itemCode: item.itemCode,
+								itemName: item.itemName,
+								requiredBy: item.requiredBy,
+								quantity: item.quantity,
+								targetWarehouse: item.targetWarehouse,
+								unitOfMeasure: item.unitOfMeasure,
+							},
+						});
+					}
+				}
+			}
+
+			return tx.materialRequest.findUniqueOrThrow({
+				where: { id },
+				include: { items: true },
+			});
+		});
+
+		return toInventoryMaterialRequest(updated);
+	}
+
+	/**
+	 * Delete a material request
+	 */
+	async deleteMaterialRequest(
+		id: string,
+	): Promise<{ success: boolean; id: string }> {
+		try {
+			await this.prisma.materialRequest.delete({ where: { id } });
+			return { success: true, id };
+		} catch (error) {
+			if (
+				error instanceof Prisma.PrismaClientKnownRequestError &&
+				error.code === "P2025"
+			) {
+				throw new NotFoundException(`Material request with ID ${id} not found`);
+			}
+			throw error;
+		}
+	}
+
+	/**
+	 * Delete multiple material requests.
+	 * deleteMany silently returns count: 0 for non-existent IDs — this is
+	 * intentional; callers do not need to verify each ID individually.
+	 */
+	async deleteManyMaterialRequests(
+		ids: string[],
+	): Promise<{ success: boolean; count: number; ids: string[] }> {
+		const uniqueIds = [...new Set(ids)];
+		try {
+			const result = await this.prisma.materialRequest.deleteMany({
+				where: { id: { in: uniqueIds } },
+			});
+			return { success: true, count: result.count, ids: uniqueIds };
+		} catch (error) {
+			if (error instanceof Prisma.PrismaClientKnownRequestError) {
+				this.logger.error(
+					`Bulk delete material requests failed [${error.code}]`,
+					error.stack,
+				);
+			}
+			throw error;
+		}
+	}
+
+	// ============================================================================
+	// Stock Entry Methods
+	// ============================================================================
+
+	/**
+	 * Generate a unique series number for a new Stock Entry.
+	 * Format: MAT-STE-YYYY-NNNNN.
+	 * This is not atomic on its own — the caller retries on P2002 conflicts.
+	 */
+	private async generateStockEntrySeries(date: Date): Promise<string> {
+		const year = date.getFullYear();
+		const prefix = `MAT-STE-${year}-`;
+
+		const lastEntry = await this.prisma.stockEntry.findFirst({
+			where: {
+				series: { startsWith: prefix },
+			},
+			orderBy: { createdAt: "desc" },
+			select: { series: true },
+		});
+
+		let nextNumber = 1;
+		if (lastEntry) {
+			const numStr = lastEntry.series.slice(prefix.length);
+			const num = parseInt(numStr, 10);
+			if (!Number.isNaN(num)) {
+				nextNumber = num + 1;
+			}
+		}
+
+		return `${prefix}${String(nextNumber).padStart(5, "0")}`;
+	}
+
+	/**
+	 * Get all stock entries (bounded to 250 most recent).
+	 */
+	async findAllStockEntries(): Promise<Inventory.StockEntry[]> {
+		const entries = await this.prisma.stockEntry.findMany({
+			orderBy: { createdAt: "desc" },
+			include: { items: true },
+			take: 250,
+		});
+		return entries.map(toInventoryStockEntry);
+	}
+
+	/**
+	 * Get a single stock entry by id.
+	 */
+	async findStockEntryById(id: string): Promise<Inventory.StockEntry | null> {
+		const entry = await this.prisma.stockEntry.findUnique({
+			where: { id },
+			include: { items: true },
+		});
+		return entry ? toInventoryStockEntry(entry) : null;
+	}
+
+	/**
+	 * Create a new stock entry.
+	 * Retries up to 3 times on a series uniqueness conflict (P2002).
+	 * basicAmount is computed as qty × basicRate on creation.
+	 */
+	async createStockEntry(
+		data: Inventory.CreateStockEntryInput,
+	): Promise<Inventory.StockEntry> {
+		const postingDate = data.postingDate ?? new Date();
+
+		for (let attempt = 0; attempt < 3; attempt++) {
+			const series = await this.generateStockEntrySeries(postingDate);
+			try {
+				const created = await this.prisma.stockEntry.create({
+					data: {
+						series,
+						stockEntryType: data.stockEntryType,
+						postingDate,
+						company: data.company,
+						status: "DRAFT",
+						project: data.project,
+						defaultSourceWarehouse: data.defaultSourceWarehouse,
+						defaultTargetWarehouse: data.defaultTargetWarehouse,
+						isOpening: data.isOpening ?? false,
+						remarks: data.remarks,
+						printHeading: data.printHeading,
+						letterHead: data.letterHead,
+						inspectionRequired: data.inspectionRequired ?? false,
+						items: {
+							create: data.items.map((item) => ({
+								sourceWarehouse: item.sourceWarehouse,
+								targetWarehouse: item.targetWarehouse,
+								itemCode: item.itemCode,
+								itemName: item.itemName,
+								description: item.description,
+								qty: item.qty,
+								basicRate: item.basicRate ?? 0,
+								basicAmount: item.qty * (item.basicRate ?? 0),
+								unitOfMeasure: item.unitOfMeasure,
+							})),
+						},
+					},
+					include: { items: true },
+				});
+				return toInventoryStockEntry(created);
+			} catch (error) {
+				const isSeriesConflict =
+					error instanceof Prisma.PrismaClientKnownRequestError &&
+					error.code === "P2002";
+				if (isSeriesConflict && attempt < 2) {
+					continue;
+				}
+				throw error;
+			}
+		}
+		throw new Error("Failed to allocate a unique series number");
+	}
+
+	/**
+	 * Update an existing stock entry.
+	 * Items are upserted: existing items (matched by id) are updated in-place,
+	 * new items (no id) are created, items absent from the payload are deleted.
+	 * basicAmount is recomputed for every updated/created item.
+	 * All mutations run in a single transaction.
+	 */
+	async updateStockEntry(
+		data: Inventory.UpdateStockEntryInput,
+	): Promise<Inventory.StockEntry> {
+		const { id, items, ...rest } = data;
+
+		const existing = await this.prisma.stockEntry.findUnique({
+			where: { id },
+			select: { id: true },
+		});
+
+		if (!existing) {
+			throw new NotFoundException(`Stock entry with ID ${id} not found`);
+		}
+
+		const updated = await this.prisma.$transaction(async (tx) => {
+			await tx.stockEntry.update({
+				where: { id },
+				data: {
+					...(rest.stockEntryType !== undefined && {
+						stockEntryType: rest.stockEntryType,
+					}),
+					...(rest.postingDate !== undefined && {
+						postingDate: rest.postingDate,
+					}),
+					...(rest.company !== undefined && { company: rest.company }),
+					...(rest.status !== undefined && { status: rest.status }),
+					...(rest.project !== undefined && { project: rest.project }),
+					...(rest.defaultSourceWarehouse !== undefined && {
+						defaultSourceWarehouse: rest.defaultSourceWarehouse,
+					}),
+					...(rest.defaultTargetWarehouse !== undefined && {
+						defaultTargetWarehouse: rest.defaultTargetWarehouse,
+					}),
+					...(rest.isOpening !== undefined && { isOpening: rest.isOpening }),
+					...(rest.remarks !== undefined && { remarks: rest.remarks }),
+					...(rest.printHeading !== undefined && {
+						printHeading: rest.printHeading,
+					}),
+					...(rest.letterHead !== undefined && {
+						letterHead: rest.letterHead,
+					}),
+					...(rest.inspectionRequired !== undefined && {
+						inspectionRequired: rest.inspectionRequired,
+					}),
+				},
+			});
+
+			if (items !== undefined) {
+				const keptIds = items
+					.filter((i): i is typeof i & { id: string } => Boolean(i.id))
+					.map((i) => i.id);
+
+				if (keptIds.length > 0) {
+					const ownedItems = await tx.stockEntryItem.findMany({
+						where: {
+							id: { in: keptIds },
+							stockEntryId: id,
+						},
+						select: { id: true },
+					});
+					const ownedIds = new Set(ownedItems.map((item) => item.id));
+					const foreignItemId = keptIds.find((itemId) => !ownedIds.has(itemId));
+					if (foreignItemId) {
+						throw new BadRequestException(
+							`Stock entry item with ID ${foreignItemId} does not belong to stock entry ${id}`,
+						);
+					}
+				}
+
+				// Delete items no longer present in the payload
+				if (keptIds.length === 0) {
+					// No kept item IDs provided: intentionally remove all items for this stock entry
+					await tx.stockEntryItem.deleteMany({
+						where: {
+							stockEntryId: id,
+						},
+					});
+				} else {
+					await tx.stockEntryItem.deleteMany({
+						where: {
+							stockEntryId: id,
+							id: { notIn: keptIds },
+						},
+					});
+				}
+
+				// Update existing items in-place; create new items
+				for (const item of items) {
+					const basicRate = item.basicRate ?? 0;
+					const basicAmount = item.qty * basicRate;
+
+					if (item.id) {
+						await tx.stockEntryItem.update({
+							where: { id: item.id },
+							data: {
+								sourceWarehouse: item.sourceWarehouse,
+								targetWarehouse: item.targetWarehouse,
+								itemCode: item.itemCode,
+								itemName: item.itemName,
+								description: item.description,
+								qty: item.qty,
+								basicRate,
+								basicAmount,
+								unitOfMeasure: item.unitOfMeasure,
+							},
+						});
+					} else {
+						await tx.stockEntryItem.create({
+							data: {
+								stockEntryId: id,
+								sourceWarehouse: item.sourceWarehouse,
+								targetWarehouse: item.targetWarehouse,
+								itemCode: item.itemCode,
+								itemName: item.itemName,
+								description: item.description,
+								qty: item.qty,
+								basicRate,
+								basicAmount,
+								unitOfMeasure: item.unitOfMeasure,
+							},
+						});
+					}
+				}
+			}
+
+			return tx.stockEntry.findUniqueOrThrow({
+				where: { id },
+				include: { items: true },
+			});
+		});
+
+		return toInventoryStockEntry(updated);
+	}
+
+	/**
+	 * Delete a single stock entry.
+	 */
+	async deleteStockEntry(
+		id: string,
+	): Promise<{ success: boolean; id: string }> {
+		try {
+			await this.prisma.stockEntry.delete({ where: { id } });
+			return { success: true, id };
+		} catch (error) {
+			if (
+				error instanceof Prisma.PrismaClientKnownRequestError &&
+				error.code === "P2025"
+			) {
+				throw new NotFoundException(`Stock entry with ID ${id} not found`);
+			}
+			throw error;
+		}
+	}
+
+	/**
+	 * Delete multiple stock entries.
+	 */
+	async deleteManyStockEntries(
+		ids: string[],
+	): Promise<{ success: boolean; count: number; ids: string[] }> {
+		const uniqueIds = [...new Set(ids)];
+		try {
+			const result = await this.prisma.stockEntry.deleteMany({
+				where: { id: { in: uniqueIds } },
+			});
+			return { success: true, count: result.count, ids: uniqueIds };
+		} catch (error) {
+			if (error instanceof Prisma.PrismaClientKnownRequestError) {
+				this.logger.error(
+					`Bulk delete stock entries failed [${error.code}]`,
+					error.stack,
+				);
+			}
+			throw error;
+		}
+	}
+
+	// ============================================================================
+	// Delivery Note Methods
+	// ============================================================================
+
+	/**
+	 * Generate a unique series number for a new Delivery Note.
+	 * Format: MAT-DN-YYYY-NNNNN.
+	 * Not atomic on its own — the caller retries on P2002 conflicts.
+	 */
+	private async generateDeliveryNoteSeries(date: Date): Promise<string> {
+		const year = date.getFullYear();
+		const prefix = `MAT-DN-${year}-`;
+
+		const lastEntry = await this.prisma.deliveryNote.findFirst({
+			where: {
+				series: { startsWith: prefix },
+			},
+			orderBy: { series: "desc" },
+			select: { series: true },
+		});
+
+		let nextNumber = 1;
+		if (lastEntry) {
+			const numStr = lastEntry.series.slice(prefix.length);
+			const num = parseInt(numStr, 10);
+			if (!Number.isNaN(num)) {
+				nextNumber = num + 1;
+			}
+		}
+
+		return `${prefix}${String(nextNumber).padStart(5, "0")}`;
+	}
+
+	/**
+	 * Get delivery notes with pagination support.
+	 * Defaults to the 250 most recent records when no params are provided.
+	 */
+	async findAllDeliveryNotes(params?: {
+		skip?: number;
+		take?: number;
+	}): Promise<Inventory.DeliveryNote[]> {
+		const rawSkip = params?.skip ?? 0;
+		const rawTake = params?.take ?? LIST_QUERY_TAKE_MAX;
+
+		const skip = rawSkip < 0 ? 0 : rawSkip;
+		const take =
+			rawTake <= 0
+				? 1
+				: rawTake > LIST_QUERY_TAKE_MAX
+					? LIST_QUERY_TAKE_MAX
+					: rawTake;
+
+		const notes = await this.prisma.deliveryNote.findMany({
+			orderBy: { createdAt: "desc" },
+			include: { items: true },
+			skip,
+			take,
+		});
+		return notes.map(toInventoryDeliveryNote);
+	}
+
+	/**
+	 * Get a single delivery note by id.
+	 */
+	async findDeliveryNoteById(
+		id: string,
+	): Promise<Inventory.DeliveryNote | null> {
+		const note = await this.prisma.deliveryNote.findUnique({
+			where: { id },
+			include: { items: true },
+		});
+		return note ? toInventoryDeliveryNote(note) : null;
+	}
+
+	/**
+	 * Compute delivery note totals from items and discount settings.
+	 * totalAmount = sum of item amounts; grandTotal applies any discount.
+	 */
+	private computeDeliveryNoteTotals(
+		items: { quantity: number; rate: number }[],
+		additionalDiscountPercent?: number | null,
+		additionalDiscountAmount?: number | null,
+	): {
+		totalQuantity: number;
+		totalAmount: number;
+		grandTotal: number;
+		roundingAdjustment: number;
+		roundedTotal: number;
+	} {
+		const totalQuantity = items.reduce((sum, i) => sum + i.quantity, 0);
+		const totalAmount = items.reduce((sum, i) => sum + i.quantity * i.rate, 0);
+
+		let grandTotal = totalAmount;
+
+		// Discount precedence: percent takes priority over fixed amount if both are provided.
+		if (additionalDiscountPercent != null) {
+			grandTotal = totalAmount * (1 - additionalDiscountPercent / 100);
+		} else if (additionalDiscountAmount != null) {
+			grandTotal = Math.max(0, totalAmount - additionalDiscountAmount);
+		}
+
+		const roundedTotal = Math.round(grandTotal);
+		const roundingAdjustment = roundedTotal - grandTotal;
+
+		return {
+			totalQuantity,
+			totalAmount,
+			grandTotal,
+			roundingAdjustment,
+			roundedTotal,
+		};
+	}
+
+	/**
+	 * Create a new delivery note.
+	 * Retries up to 3 times on a series uniqueness conflict (P2002).
+	 * Item amounts are computed as quantity × rate on creation.
+	 */
+	async createDeliveryNote(
+		data: Inventory.CreateDeliveryNoteInput,
+	): Promise<Inventory.DeliveryNote> {
+		const postingDate = data.postingDate ?? new Date();
+
+		for (let attempt = 0; attempt < 3; attempt++) {
+			const series = await this.generateDeliveryNoteSeries(postingDate);
+			try {
+				const itemsWithAmounts = data.items.map((item) => ({
+					itemCode: item.itemCode,
+					itemName: item.itemName,
+					description: item.description,
+					quantity: item.quantity,
+					uom: item.uom,
+					rate: item.rate ?? 0,
+					amount: item.quantity * (item.rate ?? 0),
+					warehouse: item.warehouse,
+				}));
+
+				const totals = this.computeDeliveryNoteTotals(
+					itemsWithAmounts,
+					data.additionalDiscountPercent,
+					data.additionalDiscountAmount,
+				);
+
+				const created = await this.prisma.deliveryNote.create({
+					data: {
+						series,
+						postingDate,
+						customer: data.customer,
+						company: data.company,
+						status: "DRAFT",
+						isReturn: data.isReturn ?? false,
+						currency: data.currency,
+						priceList: data.priceList,
+						sourceWarehouse: data.sourceWarehouse,
+						...totals,
+						additionalDiscountOn: data.additionalDiscountOn,
+						additionalDiscountPercent: data.additionalDiscountPercent,
+						additionalDiscountAmount: data.additionalDiscountAmount,
+						shippingAddress: data.shippingAddress,
+						dispatchAddress: data.dispatchAddress,
+						companyAddress: data.companyAddress,
+						companyContact: data.companyContact,
+						companyTRN: data.companyTRN,
+						terms: data.terms,
+						termsContent: data.termsContent,
+						transporter: data.transporter,
+						driverName: data.driverName,
+						driver: data.driver,
+						transportReceiptDate: data.transportReceiptDate,
+						transportReceiptNo: data.transportReceiptNo,
+						vehicleNo: data.vehicleNo,
+						customerPoNo: data.customerPoNo,
+						customerPoDate: data.customerPoDate,
+						salesPartner: data.salesPartner,
+						commissionRate: data.commissionRate,
+						letterHead: data.letterHead,
+						printHeading: data.printHeading,
+						printWithoutAmount: data.printWithoutAmount ?? false,
+						groupSameItems: data.groupSameItems ?? false,
+						permitNumber: data.permitNumber,
+						vatEmirate: data.vatEmirate,
+						project: data.project,
+						items: {
+							create: itemsWithAmounts,
+						},
+					},
+					include: { items: true },
+				});
+				return toInventoryDeliveryNote(created);
+			} catch (error) {
+				const isSeriesConflict =
+					error instanceof Prisma.PrismaClientKnownRequestError &&
+					error.code === "P2002";
+				if (isSeriesConflict && attempt < 2) {
+					await new Promise((resolve) =>
+						setTimeout(resolve, this.computeBackoffMs(attempt)),
+					);
+					continue;
+				}
+				throw error;
+			}
+		}
+		throw new Error("Failed to allocate a unique series number");
+	}
+
+	/**
+	 * Update an existing delivery note.
+	 * Items are upserted: existing items (matched by id) are updated in-place,
+	 * new items (no id) are created, items absent from the payload are deleted.
+	 * Item amounts and totals are recomputed on every update.
+	 * All mutations run in a single transaction.
+	 */
+	async updateDeliveryNote(
+		data: Inventory.UpdateDeliveryNoteInput,
+	): Promise<Inventory.DeliveryNote> {
+		const { id, items, ...rest } = data;
+
+		const existing = await this.prisma.deliveryNote.findUnique({
+			where: { id },
+			select: { id: true },
+		});
+
+		if (!existing) {
+			throw new NotFoundException(`Delivery note with ID ${id} not found`);
+		}
+
+		const updated = await this.prisma.$transaction(async (tx) => {
+			await tx.deliveryNote.update({
+				where: { id },
+				data: {
+					...(rest.postingDate !== undefined && {
+						postingDate: rest.postingDate,
+					}),
+					...(rest.customer !== undefined && { customer: rest.customer }),
+					...(rest.company !== undefined && { company: rest.company }),
+					...(rest.status !== undefined && { status: rest.status }),
+					...(rest.isReturn !== undefined && { isReturn: rest.isReturn }),
+					...(rest.currency !== undefined && { currency: rest.currency }),
+					...(rest.priceList !== undefined && { priceList: rest.priceList }),
+					...(rest.sourceWarehouse !== undefined && {
+						sourceWarehouse: rest.sourceWarehouse,
+					}),
+					...(rest.additionalDiscountOn !== undefined && {
+						additionalDiscountOn: rest.additionalDiscountOn,
+					}),
+					...(rest.additionalDiscountPercent !== undefined && {
+						additionalDiscountPercent: rest.additionalDiscountPercent,
+					}),
+					...(rest.additionalDiscountAmount !== undefined && {
+						additionalDiscountAmount: rest.additionalDiscountAmount,
+					}),
+					...(rest.shippingAddress !== undefined && {
+						shippingAddress: rest.shippingAddress,
+					}),
+					...(rest.dispatchAddress !== undefined && {
+						dispatchAddress: rest.dispatchAddress,
+					}),
+					...(rest.companyAddress !== undefined && {
+						companyAddress: rest.companyAddress,
+					}),
+					...(rest.companyContact !== undefined && {
+						companyContact: rest.companyContact,
+					}),
+					...(rest.companyTRN !== undefined && {
+						companyTRN: rest.companyTRN,
+					}),
+					...(rest.terms !== undefined && { terms: rest.terms }),
+					...(rest.termsContent !== undefined && {
+						termsContent: rest.termsContent,
+					}),
+					...(rest.transporter !== undefined && {
+						transporter: rest.transporter,
+					}),
+					...(rest.driverName !== undefined && {
+						driverName: rest.driverName,
+					}),
+					...(rest.driver !== undefined && { driver: rest.driver }),
+					...(rest.transportReceiptDate !== undefined && {
+						transportReceiptDate: rest.transportReceiptDate,
+					}),
+					...(rest.transportReceiptNo !== undefined && {
+						transportReceiptNo: rest.transportReceiptNo,
+					}),
+					...(rest.vehicleNo !== undefined && { vehicleNo: rest.vehicleNo }),
+					...(rest.customerPoNo !== undefined && {
+						customerPoNo: rest.customerPoNo,
+					}),
+					...(rest.customerPoDate !== undefined && {
+						customerPoDate: rest.customerPoDate,
+					}),
+					...(rest.salesPartner !== undefined && {
+						salesPartner: rest.salesPartner,
+					}),
+					...(rest.commissionRate !== undefined && {
+						commissionRate: rest.commissionRate,
+					}),
+					...(rest.letterHead !== undefined && {
+						letterHead: rest.letterHead,
+					}),
+					...(rest.printHeading !== undefined && {
+						printHeading: rest.printHeading,
+					}),
+					...(rest.printWithoutAmount !== undefined && {
+						printWithoutAmount: rest.printWithoutAmount,
+					}),
+					...(rest.groupSameItems !== undefined && {
+						groupSameItems: rest.groupSameItems,
+					}),
+					...(rest.permitNumber !== undefined && {
+						permitNumber: rest.permitNumber,
+					}),
+					...(rest.vatEmirate !== undefined && {
+						vatEmirate: rest.vatEmirate,
+					}),
+					...(rest.project !== undefined && { project: rest.project }),
+				},
+			});
+
+			if (items !== undefined) {
+				const keptIds = items
+					.filter((i): i is typeof i & { id: string } => Boolean(i.id))
+					.map((i) => i.id);
+				if (keptIds.length > 0) {
+					const ownedItems = await tx.deliveryNoteItem.findMany({
+						where: {
+							id: { in: keptIds },
+							deliveryNoteId: id,
+						},
+						select: { id: true },
+					});
+					const ownedIds = new Set(ownedItems.map((item) => item.id));
+					const foreignItemId = keptIds.find((itemId) => !ownedIds.has(itemId));
+					if (foreignItemId) {
+						throw new BadRequestException(
+							`Delivery note item with ID ${foreignItemId} does not belong to delivery note ${id}`,
+						);
+					}
+				}
+
+				// Delete items no longer present in the payload
+				if (keptIds.length === 0) {
+					await tx.deliveryNoteItem.deleteMany({
+						where: { deliveryNoteId: id },
+					});
+				} else {
+					await tx.deliveryNoteItem.deleteMany({
+						where: {
+							deliveryNoteId: id,
+							id: { notIn: keptIds },
+						},
+					});
+				}
+
+				// Update existing items in-place; create new items
+				for (const item of items) {
+					const rate = item.rate ?? 0;
+					const amount = item.quantity * rate;
+
+					if (item.id) {
+						await tx.deliveryNoteItem.update({
+							where: { id: item.id },
+							data: {
+								itemCode: item.itemCode,
+								itemName: item.itemName,
+								description: item.description,
+								quantity: item.quantity,
+								uom: item.uom,
+								rate,
+								amount,
+								warehouse: item.warehouse,
+							},
+						});
+					} else {
+						await tx.deliveryNoteItem.create({
+							data: {
+								deliveryNoteId: id,
+								itemCode: item.itemCode,
+								itemName: item.itemName,
+								description: item.description,
+								quantity: item.quantity,
+								uom: item.uom,
+								rate,
+								amount,
+								warehouse: item.warehouse,
+							},
+						});
+					}
+				}
+
+				// Recompute totals from updated items
+				const allItems = await tx.deliveryNoteItem.findMany({
+					where: { deliveryNoteId: id },
+					select: { quantity: true, rate: true },
+				});
+
+				const currentNote = await tx.deliveryNote.findUniqueOrThrow({
+					where: { id },
+					select: {
+						additionalDiscountPercent: true,
+						additionalDiscountAmount: true,
+					},
+				});
+
+				const newTotals = this.computeDeliveryNoteTotals(
+					allItems,
+					currentNote.additionalDiscountPercent,
+					currentNote.additionalDiscountAmount,
+				);
+
+				await tx.deliveryNote.update({
+					where: { id },
+					data: newTotals,
+				});
+			}
+
+			return tx.deliveryNote.findUniqueOrThrow({
+				where: { id },
+				include: { items: true },
+			});
+		});
+
+		return toInventoryDeliveryNote(updated);
+	}
+
+	/**
+	 * Delete a single delivery note.
+	 */
+	async deleteDeliveryNote(
+		id: string,
+	): Promise<{ success: boolean; id: string }> {
+		try {
+			await this.prisma.deliveryNote.delete({ where: { id } });
+			return { success: true, id };
+		} catch (error) {
+			if (
+				error instanceof Prisma.PrismaClientKnownRequestError &&
+				error.code === "P2025"
+			) {
+				return { success: false, id };
+			}
+			throw error;
+		}
+	}
+
+	/**
+	 * Delete multiple delivery notes.
+	 */
+	async deleteManyDeliveryNotes(
+		ids: string[],
+	): Promise<{ success: boolean; count: number; ids: string[] }> {
+		const uniqueIds = [...new Set(ids)];
+		try {
+			const result = await this.prisma.deliveryNote.deleteMany({
+				where: { id: { in: uniqueIds } },
+			});
+			return { success: true, count: result.count, ids: uniqueIds };
+		} catch (error) {
+			if (error instanceof Prisma.PrismaClientKnownRequestError) {
+				this.logger.error(
+					`Bulk delete delivery notes failed [${error.code}]`,
+					error.stack,
+				);
+			}
+			throw error;
+		}
+	}
+
+	// ============================================================================
+	// Purchase Receipt Methods
+	// ============================================================================
+
+	private roundCurrency(value: number): number {
+		const rounded = Math.round((value + Number.EPSILON) * 100) / 100;
+		return Object.is(rounded, -0) ? 0 : rounded;
+	}
+
+	private normalizePurchaseReceiptSeriesPattern(
+		seriesPattern?: string | null,
+	): string {
+		const raw = seriesPattern?.trim();
+		if (!raw) {
+			return "MAT-PRE-.YYYY.-";
+		}
+		return raw;
+	}
+
+	private resolvePurchaseReceiptSeriesPrefix(
+		seriesPattern: string,
+		date: Date,
+	): string {
+		const year = String(date.getFullYear());
+		let prefix = seriesPattern
+			.replace(/\.YYYY\./g, year)
+			.replace(/YYYY/g, year)
+			.replace(/\./g, "")
+			.replace(/--+/g, "-")
+			.trim();
+
+		if (!prefix.endsWith("-")) {
+			prefix = `${prefix}-`;
+		}
+
+		return prefix;
+	}
+
+	private normalizePostingTime(
+		postingTime: string | undefined | null,
+		postingDate: Date,
+	): string {
+		if (!postingTime) {
+			return postingDate.toTimeString().slice(0, 8);
+		}
+		const trimmed = postingTime.trim();
+		if (/^\d{2}:\d{2}$/.test(trimmed)) {
+			return `${trimmed}:00`;
+		}
+		return trimmed;
+	}
+
+	private computePurchaseReceiptTotals(
+		items: Array<{
+			acceptedQuantity: number;
+			rejectedQuantity: number;
+			rate: number;
+		}>,
+		taxes: Array<{ taxRate: number; amount?: number | null }>,
+		options: {
+			isReturn: boolean;
+			disableRoundedTotal: boolean;
+			preferProvidedTaxAmounts: boolean;
+		},
+	): {
+		items: Array<{ amount: number }>;
+		taxes: Array<{ amount: number; total: number }>;
+		totals: {
+			totalQuantity: number;
+			totalAcceptedQuantity: number;
+			totalRejectedQuantity: number;
+			totalAmount: number;
+			taxesAndChargesAdded: number;
+			taxesAndChargesDeducted: number;
+			totalTaxesAndCharges: number;
+			grandTotal: number;
+			roundingAdjustment: number;
+			roundedTotal: number;
+		};
+	} {
+		const sign = options.isReturn ? -1 : 1;
+
+		const computedItems = items.map((item) => {
+			const acceptedQuantity = this.roundCurrency(item.acceptedQuantity * sign);
+			const rejectedQuantity = this.roundCurrency(item.rejectedQuantity * sign);
+			const rowQuantity = this.roundCurrency(
+				acceptedQuantity + rejectedQuantity,
+			);
+			const amount = this.roundCurrency(rowQuantity * item.rate);
+
+			return { amount, acceptedQuantity, rejectedQuantity, rowQuantity };
+		});
+
+		const totalAcceptedQuantity = this.roundCurrency(
+			computedItems.reduce((sum, item) => sum + item.acceptedQuantity, 0),
+		);
+		const totalRejectedQuantity = this.roundCurrency(
+			computedItems.reduce((sum, item) => sum + item.rejectedQuantity, 0),
+		);
+		const totalQuantity = this.roundCurrency(
+			computedItems.reduce((sum, item) => sum + item.rowQuantity, 0),
+		);
+		const totalAmount = this.roundCurrency(
+			computedItems.reduce((sum, item) => sum + item.amount, 0),
+		);
+
+		let runningTotal = totalAmount;
+		const computedTaxes = taxes.map((tax) => {
+			const providedAmount =
+				typeof tax.amount === "number" && Number.isFinite(tax.amount)
+					? tax.amount
+					: null;
+			const shouldUseProvidedAmount =
+				providedAmount !== null &&
+				(options.preferProvidedTaxAmounts ||
+					Math.abs(tax.taxRate) < Number.EPSILON);
+			const amount = shouldUseProvidedAmount
+				? this.roundCurrency(providedAmount)
+				: this.roundCurrency((totalAmount * tax.taxRate) / 100);
+
+			runningTotal = this.roundCurrency(runningTotal + amount);
+			return {
+				amount,
+				total: runningTotal,
+			};
+		});
+
+		const taxesAndChargesAdded = this.roundCurrency(
+			computedTaxes.reduce((sum, tax) => {
+				return tax.amount > 0 ? sum + tax.amount : sum;
+			}, 0),
+		);
+		const taxesAndChargesDeducted = this.roundCurrency(
+			computedTaxes.reduce((sum, tax) => {
+				return tax.amount < 0 ? sum + Math.abs(tax.amount) : sum;
+			}, 0),
+		);
+		const totalTaxesAndCharges = this.roundCurrency(
+			computedTaxes.reduce((sum, tax) => sum + tax.amount, 0),
+		);
+		const grandTotal = this.roundCurrency(totalAmount + totalTaxesAndCharges);
+		const roundedTotal = options.disableRoundedTotal
+			? grandTotal
+			: Math.round(grandTotal);
+		const roundingAdjustment = options.disableRoundedTotal
+			? 0
+			: this.roundCurrency(roundedTotal - grandTotal);
+
+		return {
+			items: computedItems.map((item) => ({ amount: item.amount })),
+			taxes: computedTaxes,
+			totals: {
+				totalQuantity,
+				totalAcceptedQuantity,
+				totalRejectedQuantity,
+				totalAmount,
+				taxesAndChargesAdded,
+				taxesAndChargesDeducted,
+				totalTaxesAndCharges,
+				grandTotal,
+				roundingAdjustment,
+				roundedTotal,
+			},
+		};
+	}
+
+	/**
+	 * Generate a unique series number for a new Purchase Receipt.
+	 * Format default: MAT-PRE-YYYY-NNNNN.
+	 */
+	private async generatePurchaseReceiptSeries(
+		date: Date,
+		seriesPattern?: string | null,
+	): Promise<string> {
+		const normalizedPattern =
+			this.normalizePurchaseReceiptSeriesPattern(seriesPattern);
+		const prefix = this.resolvePurchaseReceiptSeriesPrefix(
+			normalizedPattern,
+			date,
+		);
+
+		const lastReceipt = await this.prisma.purchaseReceipt.findFirst({
+			where: {
+				series: { startsWith: prefix },
+			},
+			orderBy: { series: "desc" },
+			select: { series: true },
+		});
+
+		let nextNumber = 1;
+		if (lastReceipt) {
+			const numStr = lastReceipt.series.slice(prefix.length);
+			const num = parseInt(numStr, 10);
+			if (!Number.isNaN(num)) {
+				nextNumber = num + 1;
+			}
+		}
+
+		return `${prefix}${String(nextNumber).padStart(5, "0")}`;
+	}
+
+	/**
+	 * Get purchase receipts with bounded pagination, optional status filter, and search.
+	 */
+	async findAllPurchaseReceipts(params?: {
+		skip?: number;
+		take?: number;
+		search?: string;
+		status?: Inventory.PurchaseReceiptStatus;
+	}): Promise<Inventory.PurchaseReceipt[]> {
+		const rawSkip = params?.skip ?? 0;
+		const rawTake = params?.take ?? 100;
+		const search = params?.search?.trim();
+
+		const skip = rawSkip < 0 ? 0 : rawSkip;
+		const take =
+			rawTake <= 0
+				? 1
+				: rawTake > LIST_QUERY_TAKE_MAX
+					? LIST_QUERY_TAKE_MAX
+					: rawTake;
+
+		const where: Prisma.PurchaseReceiptWhereInput = {
+			...(params?.status ? { status: params.status } : {}),
+			...(search
+				? {
+						OR: [
+							{ series: { contains: search, mode: "insensitive" } },
+							{ supplier: { contains: search, mode: "insensitive" } },
+							{ company: { contains: search, mode: "insensitive" } },
+						],
+					}
+				: {}),
+		};
+
+		const receipts = await this.prisma.purchaseReceipt.findMany({
+			where,
+			orderBy: { createdAt: "desc" },
+			include: {
+				items: true,
+				taxes: true,
+			},
+			skip,
+			take,
+		});
+
+		return receipts.map(toInventoryPurchaseReceipt);
+	}
+
+	/**
+	 * Get a single purchase receipt by id.
+	 */
+	async findPurchaseReceiptById(
+		id: string,
+	): Promise<Inventory.PurchaseReceipt | null> {
+		const receipt = await this.prisma.purchaseReceipt.findUnique({
+			where: { id },
+			include: {
+				items: true,
+				taxes: true,
+			},
+		});
+
+		return receipt ? toInventoryPurchaseReceipt(receipt) : null;
+	}
+
+	/**
+	 * Create a new purchase receipt.
+	 * Retries up to 3 times on a series uniqueness conflict (P2002).
+	 */
+	async createPurchaseReceipt(
+		data: Inventory.CreatePurchaseReceiptInput,
+	): Promise<Inventory.PurchaseReceipt> {
+		const postingDate = data.postingDate ?? new Date();
+		const postingTime = this.normalizePostingTime(
+			data.postingTime,
+			postingDate,
+		);
+		const seriesPattern = this.normalizePurchaseReceiptSeriesPattern(
+			data.seriesPattern,
+		);
+		const isReturn = data.isReturn ?? false;
+		const disableRoundedTotal = data.disableRoundedTotal ?? false;
+
+		const computed = this.computePurchaseReceiptTotals(
+			data.items.map((item) => ({
+				acceptedQuantity: item.acceptedQuantity,
+				rejectedQuantity: item.rejectedQuantity ?? 0,
+				rate: item.rate ?? 0,
+			})),
+			(data.taxes ?? []).map((tax) => ({
+				taxRate: tax.taxRate ?? 0,
+				amount: tax.amount,
+			})),
+			{
+				isReturn,
+				disableRoundedTotal,
+				preferProvidedTaxAmounts: true,
+			},
+		);
+
+		for (let attempt = 0; attempt < 3; attempt++) {
+			const series = await this.generatePurchaseReceiptSeries(
+				postingDate,
+				seriesPattern,
+			);
+			try {
+				const created = await this.prisma.purchaseReceipt.create({
+					data: {
+						series,
+						seriesPattern,
+						postingDate,
+						postingTime,
+						editPostingDateTime: data.editPostingDateTime ?? false,
+						supplier: data.supplier,
+						company: data.company,
+						status: data.status ?? "DRAFT",
+						isReturn,
+						applyPutawayRule: data.applyPutawayRule ?? false,
+						supplierDeliveryNote: data.supplierDeliveryNote,
+						acceptedWarehouse: data.acceptedWarehouse,
+						rejectedWarehouse: data.rejectedWarehouse,
+						isSubcontracted: data.isSubcontracted ?? false,
+						currency: data.currency,
+						priceList: data.priceList,
+						disableRoundedTotal,
+						...computed.totals,
+						supplierAddress: data.supplierAddress,
+						contactPerson: data.contactPerson,
+						shippingAddressTemplate: data.shippingAddressTemplate,
+						companyTRN: data.companyTRN,
+						billingAddress: data.billingAddress,
+						terms: data.terms,
+						termsContent: data.termsContent,
+						letterHead: data.letterHead,
+						printHeading: data.printHeading,
+						groupSameItems: data.groupSameItems ?? false,
+						permitNumber: data.permitNumber,
+						recoverableStandardRatedExpenses:
+							data.recoverableStandardRatedExpenses ?? 0,
+						reverseChargeApplicable: data.reverseChargeApplicable ?? "N",
+						transporterName: data.transporterName,
+						vehicleNumber: data.vehicleNumber,
+						vehicleDate: data.vehicleDate,
+						instructions: data.instructions,
+						remarks: data.remarks,
+						isInternalSupplier: data.isInternalSupplier ?? false,
+						items: {
+							create: data.items.map((item, index) => ({
+								itemCode: item.itemCode,
+								itemName: item.itemName,
+								description: item.description,
+								acceptedQuantity: item.acceptedQuantity,
+								rejectedQuantity: item.rejectedQuantity ?? 0,
+								rate: item.rate ?? 0,
+								amount: computed.items[index]?.amount ?? 0,
+								uom: item.uom,
+								acceptedWarehouse: item.acceptedWarehouse,
+								rejectedWarehouse: item.rejectedWarehouse,
+							})),
+						},
+						taxes: {
+							create: (data.taxes ?? []).map((tax, index) => ({
+								type: tax.type,
+								accountHead: tax.accountHead,
+								taxRate: tax.taxRate ?? 0,
+								amount: computed.taxes[index]?.amount ?? 0,
+								total: computed.taxes[index]?.total ?? 0,
+							})),
+						},
+					},
+					include: {
+						items: true,
+						taxes: true,
+					},
+				});
+
+				return toInventoryPurchaseReceipt(created);
+			} catch (error) {
+				const isSeriesConflict =
+					error instanceof Prisma.PrismaClientKnownRequestError &&
+					error.code === "P2002";
+				if (isSeriesConflict && attempt < 2) {
+					await new Promise((resolve) =>
+						setTimeout(resolve, this.computeBackoffMs(attempt)),
+					);
+					continue;
+				}
+				throw error;
+			}
+		}
+
+		throw new ConflictException("Failed to allocate a unique series number");
+	}
+
+	/**
+	 * Update an existing purchase receipt with nested items/taxes upsert logic.
+	 */
+	async updatePurchaseReceipt(
+		data: Inventory.UpdatePurchaseReceiptInput,
+	): Promise<Inventory.PurchaseReceipt> {
+		const { id, items, taxes, ...rest } = data;
+
+		const existing = await this.prisma.purchaseReceipt.findUnique({
+			where: { id },
+			select: {
+				id: true,
+				isReturn: true,
+				disableRoundedTotal: true,
+			},
+		});
+
+		if (!existing) {
+			throw new NotFoundException(`Purchase receipt with ID ${id} not found`);
+		}
+
+		const effectiveIsReturn = rest.isReturn ?? existing.isReturn;
+		const effectiveDisableRoundedTotal =
+			rest.disableRoundedTotal ?? existing.disableRoundedTotal;
+
+		const updated = await this.prisma.$transaction(async (tx) => {
+			await tx.purchaseReceipt.update({
+				where: { id },
+				data: {
+					...(rest.seriesPattern !== undefined && {
+						seriesPattern:
+							rest.seriesPattern === null
+								? this.normalizePurchaseReceiptSeriesPattern(null)
+								: this.normalizePurchaseReceiptSeriesPattern(
+										rest.seriesPattern,
+									),
+					}),
+					...(rest.postingDate !== undefined && {
+						postingDate: rest.postingDate,
+					}),
+					...(rest.postingTime !== undefined && {
+						postingTime:
+							rest.postingTime === null
+								? this.normalizePostingTime(undefined, new Date())
+								: this.normalizePostingTime(
+										rest.postingTime,
+										rest.postingDate ?? new Date(),
+									),
+					}),
+					...(rest.editPostingDateTime !== undefined && {
+						editPostingDateTime: rest.editPostingDateTime,
+					}),
+					...(rest.supplier !== undefined && { supplier: rest.supplier }),
+					...(rest.company !== undefined && { company: rest.company }),
+					...(rest.status !== undefined && { status: rest.status }),
+					...(rest.isReturn !== undefined && { isReturn: rest.isReturn }),
+					...(rest.applyPutawayRule !== undefined && {
+						applyPutawayRule: rest.applyPutawayRule,
+					}),
+					...(rest.supplierDeliveryNote !== undefined && {
+						supplierDeliveryNote: rest.supplierDeliveryNote,
+					}),
+					...(rest.acceptedWarehouse !== undefined && {
+						acceptedWarehouse: rest.acceptedWarehouse,
+					}),
+					...(rest.rejectedWarehouse !== undefined && {
+						rejectedWarehouse: rest.rejectedWarehouse,
+					}),
+					...(rest.isSubcontracted !== undefined && {
+						isSubcontracted: rest.isSubcontracted,
+					}),
+					...(rest.currency !== undefined && { currency: rest.currency }),
+					...(rest.priceList !== undefined && { priceList: rest.priceList }),
+					...(rest.disableRoundedTotal !== undefined && {
+						disableRoundedTotal: rest.disableRoundedTotal,
+					}),
+					...(rest.supplierAddress !== undefined && {
+						supplierAddress: rest.supplierAddress,
+					}),
+					...(rest.contactPerson !== undefined && {
+						contactPerson: rest.contactPerson,
+					}),
+					...(rest.shippingAddressTemplate !== undefined && {
+						shippingAddressTemplate: rest.shippingAddressTemplate,
+					}),
+					...(rest.companyTRN !== undefined && {
+						companyTRN: rest.companyTRN,
+					}),
+					...(rest.billingAddress !== undefined && {
+						billingAddress: rest.billingAddress,
+					}),
+					...(rest.terms !== undefined && { terms: rest.terms }),
+					...(rest.termsContent !== undefined && {
+						termsContent: rest.termsContent,
+					}),
+					...(rest.letterHead !== undefined && {
+						letterHead: rest.letterHead,
+					}),
+					...(rest.printHeading !== undefined && {
+						printHeading: rest.printHeading,
+					}),
+					...(rest.groupSameItems !== undefined && {
+						groupSameItems: rest.groupSameItems,
+					}),
+					...(rest.permitNumber !== undefined && {
+						permitNumber: rest.permitNumber,
+					}),
+					...(rest.recoverableStandardRatedExpenses !== undefined && {
+						recoverableStandardRatedExpenses:
+							rest.recoverableStandardRatedExpenses,
+					}),
+					...(rest.reverseChargeApplicable !== undefined && {
+						reverseChargeApplicable: rest.reverseChargeApplicable,
+					}),
+					...(rest.transporterName !== undefined && {
+						transporterName: rest.transporterName,
+					}),
+					...(rest.vehicleNumber !== undefined && {
+						vehicleNumber: rest.vehicleNumber,
+					}),
+					...(rest.vehicleDate !== undefined && {
+						vehicleDate: rest.vehicleDate,
+					}),
+					...(rest.instructions !== undefined && {
+						instructions: rest.instructions,
+					}),
+					...(rest.remarks !== undefined && { remarks: rest.remarks }),
+					...(rest.isInternalSupplier !== undefined && {
+						isInternalSupplier: rest.isInternalSupplier,
+					}),
+				},
+			});
+
+			if (items !== undefined) {
+				const keptIds = items
+					.filter((item): item is typeof item & { id: string } =>
+						Boolean(item.id),
+					)
+					.map((item) => item.id);
+
+				if (keptIds.length > 0) {
+					const ownedItems = await tx.purchaseReceiptItem.findMany({
+						where: {
+							id: { in: keptIds },
+							purchaseReceiptId: id,
+						},
+						select: { id: true },
+					});
+					const ownedIds = new Set(ownedItems.map((item) => item.id));
+					const foreignItemId = keptIds.find((itemId) => !ownedIds.has(itemId));
+					if (foreignItemId) {
+						throw new BadRequestException(
+							`Purchase receipt item with ID ${foreignItemId} does not belong to purchase receipt ${id}`,
+						);
+					}
+				}
+
+				if (keptIds.length === 0) {
+					await tx.purchaseReceiptItem.deleteMany({
+						where: { purchaseReceiptId: id },
+					});
+				} else {
+					await tx.purchaseReceiptItem.deleteMany({
+						where: {
+							purchaseReceiptId: id,
+							id: { notIn: keptIds },
+						},
+					});
+				}
+
+				for (const item of items) {
+					const lineRate = item.rate ?? 0;
+					const lineAmount = this.roundCurrency(
+						(item.acceptedQuantity + (item.rejectedQuantity ?? 0)) *
+							lineRate *
+							(effectiveIsReturn ? -1 : 1),
+					);
+
+					if (item.id) {
+						await tx.purchaseReceiptItem.update({
+							where: { id: item.id },
+							data: {
+								itemCode: item.itemCode,
+								itemName: item.itemName,
+								description: item.description,
+								acceptedQuantity: item.acceptedQuantity,
+								rejectedQuantity: item.rejectedQuantity ?? 0,
+								rate: lineRate,
+								amount: lineAmount,
+								uom: item.uom,
+								acceptedWarehouse: item.acceptedWarehouse,
+								rejectedWarehouse: item.rejectedWarehouse,
+							},
+						});
+					} else {
+						await tx.purchaseReceiptItem.create({
+							data: {
+								purchaseReceiptId: id,
+								itemCode: item.itemCode,
+								itemName: item.itemName,
+								description: item.description,
+								acceptedQuantity: item.acceptedQuantity,
+								rejectedQuantity: item.rejectedQuantity ?? 0,
+								rate: lineRate,
+								amount: lineAmount,
+								uom: item.uom,
+								acceptedWarehouse: item.acceptedWarehouse,
+								rejectedWarehouse: item.rejectedWarehouse,
+							},
+						});
+					}
+				}
+			}
+
+			if (taxes !== undefined) {
+				const keptIds = taxes
+					.filter((tax): tax is typeof tax & { id: string } => Boolean(tax.id))
+					.map((tax) => tax.id);
+
+				if (keptIds.length > 0) {
+					const ownedTaxes = await tx.purchaseReceiptTax.findMany({
+						where: {
+							id: { in: keptIds },
+							purchaseReceiptId: id,
+						},
+						select: { id: true },
+					});
+					const ownedIds = new Set(ownedTaxes.map((tax) => tax.id));
+					const foreignTaxId = keptIds.find((taxId) => !ownedIds.has(taxId));
+					if (foreignTaxId) {
+						throw new BadRequestException(
+							`Purchase receipt tax row with ID ${foreignTaxId} does not belong to purchase receipt ${id}`,
+						);
+					}
+				}
+
+				if (keptIds.length === 0) {
+					await tx.purchaseReceiptTax.deleteMany({
+						where: { purchaseReceiptId: id },
+					});
+				} else {
+					await tx.purchaseReceiptTax.deleteMany({
+						where: {
+							purchaseReceiptId: id,
+							id: { notIn: keptIds },
+						},
+					});
+				}
+
+				for (const tax of taxes) {
+					if (tax.id) {
+						await tx.purchaseReceiptTax.update({
+							where: { id: tax.id },
+							data: {
+								type: tax.type,
+								accountHead: tax.accountHead,
+								taxRate: tax.taxRate ?? 0,
+								amount: tax.amount ?? 0,
+							},
+						});
+					} else {
+						await tx.purchaseReceiptTax.create({
+							data: {
+								purchaseReceiptId: id,
+								type: tax.type,
+								accountHead: tax.accountHead,
+								taxRate: tax.taxRate ?? 0,
+								amount: tax.amount ?? 0,
+								total: 0,
+							},
+						});
+					}
+				}
+			}
+
+			const allItems = await tx.purchaseReceiptItem.findMany({
+				where: { purchaseReceiptId: id },
+				orderBy: { id: "asc" },
+				select: {
+					id: true,
+					acceptedQuantity: true,
+					rejectedQuantity: true,
+					rate: true,
+				},
+			});
+			const allTaxes = await tx.purchaseReceiptTax.findMany({
+				where: { purchaseReceiptId: id },
+				orderBy: { id: "asc" },
+				select: {
+					id: true,
+					taxRate: true,
+					amount: true,
+				},
+			});
+
+			const recomputed = this.computePurchaseReceiptTotals(
+				allItems.map((item) => ({
+					acceptedQuantity: item.acceptedQuantity,
+					rejectedQuantity: item.rejectedQuantity,
+					rate: item.rate,
+				})),
+				allTaxes.map((tax) => ({
+					taxRate: tax.taxRate,
+					amount: tax.amount,
+				})),
+				{
+					isReturn: effectiveIsReturn,
+					disableRoundedTotal: effectiveDisableRoundedTotal,
+					preferProvidedTaxAmounts: taxes !== undefined,
+				},
+			);
+
+			await Promise.all(
+				allItems.map((item, index) =>
+					tx.purchaseReceiptItem.update({
+						where: { id: item.id },
+						data: { amount: recomputed.items[index]?.amount ?? 0 },
+					}),
+				),
+			);
+
+			await Promise.all(
+				allTaxes.map((tax, index) =>
+					tx.purchaseReceiptTax.update({
+						where: { id: tax.id },
+						data: {
+							amount: recomputed.taxes[index]?.amount ?? 0,
+							total: recomputed.taxes[index]?.total ?? 0,
+						},
+					}),
+				),
+			);
+
+			await tx.purchaseReceipt.update({
+				where: { id },
+				data: {
+					...recomputed.totals,
+				},
+			});
+
+			return tx.purchaseReceipt.findUniqueOrThrow({
+				where: { id },
+				include: {
+					items: true,
+					taxes: true,
+				},
+			});
+		});
+
+		return toInventoryPurchaseReceipt(updated);
+	}
+
+	/**
+	 * Delete a single purchase receipt.
+	 */
+	async deletePurchaseReceipt(
+		id: string,
+	): Promise<{ success: boolean; id: string }> {
+		try {
+			await this.prisma.purchaseReceipt.delete({
+				where: { id },
+			});
+			return { success: true, id };
+		} catch (error) {
+			if (
+				error instanceof Prisma.PrismaClientKnownRequestError &&
+				error.code === "P2025"
+			) {
+				throw new NotFoundException(`Purchase receipt with ID ${id} not found`);
+			}
+			throw error;
+		}
+	}
+
+	/**
+	 * Delete multiple purchase receipts.
+	 */
+	async deleteManyPurchaseReceipts(
+		ids: string[],
+	): Promise<{ success: boolean; count: number; ids: string[] }> {
+		const uniqueIds = [...new Set(ids)];
+		try {
+			const result = await this.prisma.purchaseReceipt.deleteMany({
+				where: { id: { in: uniqueIds } },
+			});
+			return { success: true, count: result.count, ids: uniqueIds };
+		} catch (error) {
+			if (error instanceof Prisma.PrismaClientKnownRequestError) {
+				this.logger.error(
+					`Bulk delete purchase receipts failed [${error.code}]`,
+					error.stack,
+				);
+			}
+			throw error;
+		}
+	}
+
+	// ============================================================================
+	// Pick List
+	// ============================================================================
+
+	/**
+	 * Compute exponential backoff delay for series-conflict retries.
+	 * Adds ±50 ms jitter to reduce thundering-herd contention.
+	 *
+	 * @param attempt - Zero-based attempt index (0 = first retry).
+	 * @returns Delay in milliseconds.
+	 */
+	private computeBackoffMs(attempt: number): number {
+		return 50 * 2 ** attempt + Math.floor(Math.random() * 50);
+	}
+
+	/**
+	 * Generate a unique series number for a pick list using prefix STO-PICK.
+	 * Uses read-then-retry with exponential backoff to handle concurrent writes.
+	 */
+	private async generatePickListSeries(date: Date): Promise<string> {
+		const year = date.getFullYear();
+		const prefix = `STO-PICK-${year}-`;
+
+		const lastPickList = await this.prisma.pickList.findFirst({
+			where: { series: { startsWith: prefix } },
+			orderBy: { series: "desc" },
+			select: { series: true },
+		});
+
+		let nextNumber = 1;
+		if (lastPickList) {
+			const numStr = lastPickList.series.slice(prefix.length);
+			const num = parseInt(numStr, 10);
+			if (!Number.isNaN(num)) {
+				nextNumber = num + 1;
+			}
+		}
+
+		return `${prefix}${String(nextNumber).padStart(5, "0")}`;
+	}
+
+	/**
+	 * Get pick lists with bounded pagination, optional status filter, and search.
+	 */
+	async findAllPickLists(params?: {
+		skip?: number;
+		take?: number;
+		search?: string;
+		status?: Inventory.PickListStatus;
+	}): Promise<Inventory.PickList[]> {
+		const rawSkip = params?.skip ?? 0;
+		const rawTake = params?.take ?? 100;
+		const search = params?.search?.trim();
+
+		const skip = rawSkip < 0 ? 0 : rawSkip;
+		const take =
+			rawTake <= 0
+				? 1
+				: rawTake > LIST_QUERY_TAKE_MAX
+					? LIST_QUERY_TAKE_MAX
+					: rawTake;
+
+		const where: Prisma.PickListWhereInput = {
+			...(params?.status ? { status: params.status } : {}),
+			...(search
+				? {
+						OR: [
+							{ series: { contains: search, mode: "insensitive" } },
+							{ company: { contains: search, mode: "insensitive" } },
+							{ customer: { contains: search, mode: "insensitive" } },
+						],
+					}
+				: {}),
+		};
+
+		const pickLists = await this.prisma.pickList.findMany({
+			where,
+			orderBy: { createdAt: "desc" },
+			include: { items: true },
+			skip,
+			take,
+		});
+
+		return pickLists.map(toInventoryPickList);
+	}
+
+	/**
+	 * Get a single pick list by id.
+	 */
+	async findPickListById(id: string): Promise<Inventory.PickList | null> {
+		const pickList = await this.prisma.pickList.findUnique({
+			where: { id },
+			include: { items: true },
+		});
+
+		return pickList ? toInventoryPickList(pickList) : null;
+	}
+
+	/**
+	 * Create a new pick list.
+	 * Retries up to 3 times on a series uniqueness conflict (P2002).
+	 */
+	async createPickList(
+		data: Inventory.CreatePickListInput,
+	): Promise<Inventory.PickList> {
+		const postingDate = new Date();
+
+		for (let attempt = 0; attempt < 3; attempt++) {
+			const series = await this.generatePickListSeries(postingDate);
+			try {
+				const created = await this.prisma.pickList.create({
+					data: {
+						series,
+						company: data.company,
+						customer: data.customer,
+						status: data.status ?? "DRAFT",
+						purpose: data.purpose ?? "MATERIAL_TRANSFER_FOR_MANUFACTURE",
+						workOrder: data.workOrder,
+						warehouse: data.warehouse,
+						considerRejectedWarehouses:
+							data.considerRejectedWarehouses ?? false,
+						pickManually: data.pickManually ?? false,
+						ignorePricingRule: data.ignorePricingRule ?? false,
+						scanMode: data.scanMode ?? false,
+						promptQty: data.promptQty ?? false,
+						scanBarcode: data.scanBarcode,
+						groupSameItems: data.groupSameItems ?? false,
+						items: {
+							create: (data.items ?? []).map((item) => ({
+								item: item.item,
+								warehouse: item.warehouse,
+								qty: item.qty,
+								stockQty: item.stockQty,
+								pickedQty: item.pickedQty,
+							})),
+						},
+					},
+					include: { items: true },
+				});
+
+				return toInventoryPickList(created);
+			} catch (error) {
+				const isSeriesConflict =
+					error instanceof Prisma.PrismaClientKnownRequestError &&
+					error.code === "P2002";
+				if (isSeriesConflict && attempt < 2) {
+					await new Promise((resolve) =>
+						setTimeout(resolve, this.computeBackoffMs(attempt)),
+					);
+					continue;
+				}
+				if (!isSeriesConflict) {
+					throw error;
+				}
+				// Series conflict on last attempt — fall through to throw below.
+			}
+		}
+
+		throw new ConflictException("Failed to allocate a unique series number");
+	}
+
+	/**
+	 * Update an existing pick list with nested item upsert logic.
+	 * Preserves existing item rows; removes rows no longer in the payload.
+	 */
+	async updatePickList(
+		data: Inventory.UpdatePickListInput,
+	): Promise<Inventory.PickList> {
+		const { id, items, ...rest } = data;
+
+		const existing = await this.prisma.pickList.findUnique({
+			where: { id },
+			select: { id: true },
+		});
+
+		if (!existing) {
+			throw new NotFoundException(`Pick list with ID ${id} not found`);
+		}
+
+		const updated = await this.prisma.$transaction(async (tx) => {
+			await tx.pickList.update({
+				where: { id },
+				data: {
+					...(rest.company !== undefined && { company: rest.company }),
+					...(rest.customer !== undefined && { customer: rest.customer }),
+					...(rest.purpose !== undefined && { purpose: rest.purpose }),
+					...(rest.workOrder !== undefined && { workOrder: rest.workOrder }),
+					...(rest.warehouse !== undefined && { warehouse: rest.warehouse }),
+					...(rest.considerRejectedWarehouses !== undefined && {
+						considerRejectedWarehouses: rest.considerRejectedWarehouses,
+					}),
+					...(rest.pickManually !== undefined && {
+						pickManually: rest.pickManually,
+					}),
+					...(rest.ignorePricingRule !== undefined && {
+						ignorePricingRule: rest.ignorePricingRule,
+					}),
+					...(rest.scanMode !== undefined && { scanMode: rest.scanMode }),
+					...(rest.promptQty !== undefined && { promptQty: rest.promptQty }),
+					...(rest.scanBarcode !== undefined && {
+						scanBarcode: rest.scanBarcode,
+					}),
+					...(rest.groupSameItems !== undefined && {
+						groupSameItems: rest.groupSameItems,
+					}),
+					...(rest.status !== undefined && { status: rest.status }),
+				},
+			});
+
+			if (items !== undefined) {
+				const keptIds = items
+					.filter((item): item is typeof item & { id: string } =>
+						Boolean(item.id),
+					)
+					.map((item) => item.id);
+
+				if (keptIds.length > 0) {
+					const ownedItems = await tx.pickListItem.findMany({
+						where: {
+							id: { in: keptIds },
+							pickListId: id,
+						},
+						select: { id: true },
+					});
+					const ownedIds = new Set(ownedItems.map((item) => item.id));
+					const foreignItemId = keptIds.find((itemId) => !ownedIds.has(itemId));
+					if (foreignItemId) {
+						throw new BadRequestException(
+							`Pick list item with ID ${foreignItemId} does not belong to pick list ${id}`,
+						);
+					}
+				}
+
+				if (keptIds.length === 0) {
+					await tx.pickListItem.deleteMany({
+						where: { pickListId: id },
+					});
+				} else {
+					await tx.pickListItem.deleteMany({
+						where: {
+							pickListId: id,
+							id: { notIn: keptIds },
+						},
+					});
+				}
+
+				for (const item of items) {
+					if (item.id) {
+						await tx.pickListItem.update({
+							where: { id: item.id },
+							data: {
+								item: item.item,
+								warehouse: item.warehouse,
+								qty: item.qty,
+								stockQty: item.stockQty,
+								pickedQty: item.pickedQty,
+							},
+						});
+					} else {
+						await tx.pickListItem.create({
+							data: {
+								pickListId: id,
+								item: item.item,
+								warehouse: item.warehouse,
+								qty: item.qty,
+								stockQty: item.stockQty,
+								pickedQty: item.pickedQty,
+							},
+						});
+					}
+				}
+			}
+
+			return tx.pickList.findUniqueOrThrow({
+				where: { id },
+				include: { items: true },
+			});
+		});
+
+		return toInventoryPickList(updated);
+	}
+
+	/**
+	 * Delete a single pick list.
+	 */
+	async deletePickList(id: string): Promise<{ success: boolean; id: string }> {
+		try {
+			await this.prisma.pickList.delete({
+				where: { id },
+			});
+			return { success: true, id };
+		} catch (error) {
+			if (
+				error instanceof Prisma.PrismaClientKnownRequestError &&
+				error.code === "P2025"
+			) {
+				throw new NotFoundException(`Pick list with ID ${id} not found`);
+			}
+			throw error;
+		}
+	}
+
+	/**
+	 * Delete multiple pick lists.
+	 */
+	async deleteManyPickLists(
+		ids: string[],
+	): Promise<{ success: boolean; count: number; ids: string[] }> {
+		const uniqueIds = [...new Set(ids)];
+		try {
+			const result = await this.prisma.pickList.deleteMany({
+				where: { id: { in: uniqueIds } },
+			});
+			return { success: true, count: result.count, ids: uniqueIds };
+		} catch (error) {
+			if (error instanceof Prisma.PrismaClientKnownRequestError) {
+				this.logger.error(
+					`Bulk delete pick lists failed [${error.code}]`,
+					error.stack,
+				);
+			}
+			throw error;
+		}
+	}
+
+	// ═══════════════════════════════════════════════════════════════════════════
+	// Delivery Trip
+	// ═══════════════════════════════════════════════════════════════════════════
+
+	/**
+	 * Generate a unique series number for a delivery trip using prefix MAT-DT.
+	 * Uses read-then-retry with exponential backoff to handle concurrent writes.
+	 */
+	private async generateDeliveryTripSeries(date: Date): Promise<string> {
+		const year = date.getFullYear();
+		const prefix = `MAT-DT-${year}-`;
+
+		const trips = await this.prisma.deliveryTrip.findMany({
+			where: { series: { startsWith: prefix } },
+			orderBy: { createdAt: "desc" },
+			select: { series: true },
+		});
+
+		let maxNumber = 0;
+		for (const trip of trips) {
+			const numStr = trip.series.slice(prefix.length);
+			const num = parseInt(numStr, 10);
+			if (!Number.isNaN(num) && num > maxNumber) {
+				maxNumber = num;
+			}
+		}
+
+		const nextNumber = maxNumber + 1;
+		return `${prefix}${String(nextNumber).padStart(5, "0")}`;
+	}
+
+	/**
+	 * Get delivery trips with bounded pagination, optional status filter, and search.
+	 */
+	async findAllDeliveryTrips(params?: {
+		skip?: number;
+		take?: number;
+		search?: string;
+		status?: Inventory.DeliveryTripStatus;
+	}): Promise<Inventory.DeliveryTrip[]> {
+		const rawSkip = params?.skip ?? 0;
+		const rawTake = params?.take ?? 100;
+		const search = params?.search?.trim();
+
+		const skip = rawSkip < 0 ? 0 : rawSkip;
+		const take =
+			rawTake <= 0
+				? 1
+				: rawTake > LIST_QUERY_TAKE_MAX
+					? LIST_QUERY_TAKE_MAX
+					: rawTake;
+
+		const where: Prisma.DeliveryTripWhereInput = {
+			...(params?.status ? { status: params.status } : {}),
+			...(search
+				? {
+						OR: [
+							{ series: { contains: search, mode: "insensitive" } },
+							{ driver: { contains: search, mode: "insensitive" } },
+							{ company: { contains: search, mode: "insensitive" } },
+							{ vehicle: { contains: search, mode: "insensitive" } },
+						],
+					}
+				: {}),
+		};
+
+		const trips = await this.prisma.deliveryTrip.findMany({
+			where,
+			orderBy: { createdAt: "desc" },
+			include: { stops: { orderBy: { stopNumber: "asc" } } },
+			skip,
+			take,
+		});
+
+		return trips.map(toInventoryDeliveryTrip);
+	}
+
+	/**
+	 * Find a single delivery trip by ID.
+	 */
+	async findDeliveryTripById(
+		id: string,
+	): Promise<Inventory.DeliveryTrip | null> {
+		const trip = await this.prisma.deliveryTrip.findUnique({
+			where: { id },
+			include: { stops: { orderBy: { stopNumber: "asc" } } },
+		});
+		return trip ? toInventoryDeliveryTrip(trip) : null;
+	}
+
+	/**
+	 * Create a delivery trip with its stops.
+	 * Series generation uses retry + exponential backoff to handle concurrent writes.
+	 */
+	async createDeliveryTrip(
+		data: Inventory.CreateDeliveryTripInput,
+	): Promise<Inventory.DeliveryTrip> {
+		const departureTime = data.departureTime ?? undefined;
+		const createdAt = new Date();
+
+		for (let attempt = 0; attempt < 3; attempt++) {
+			const series = await this.generateDeliveryTripSeries(createdAt);
+			try {
+				const created = await this.prisma.deliveryTrip.create({
+					data: {
+						series,
+						company: data.company,
+						status: data.status ?? "DRAFT",
+						driver: data.driver ?? null,
+						driverAddress: data.driverAddress ?? null,
+						vehicle: data.vehicle ?? null,
+						departureTime: departureTime ?? null,
+						initialEmailNotificationSent:
+							data.initialEmailNotificationSent ?? false,
+						stops: {
+							create: (data.stops ?? []).map((stop) => ({
+								stopNumber: stop.stopNumber,
+								customer: stop.customer ?? null,
+								addressName: stop.addressName,
+								locked: stop.locked ?? false,
+								deliveryNote: stop.deliveryNote ?? null,
+								estimatedArrival: stop.estimatedArrival ?? null,
+							})),
+						},
+					},
+					include: { stops: { orderBy: { stopNumber: "asc" } } },
+				});
+				return toInventoryDeliveryTrip(created);
+			} catch (error) {
+				const isSeriesConflict =
+					error instanceof Prisma.PrismaClientKnownRequestError &&
+					error.code === "P2002";
+				if (isSeriesConflict && attempt < 2) {
+					// Back off before retrying series allocation; computeBackoffMs uses the
+					// current attempt (e.g. for exponential backoff) to determine the delay.
+					await new Promise((resolve) =>
+						setTimeout(resolve, this.computeBackoffMs(attempt)),
+					);
+					continue;
+				}
+				if (!isSeriesConflict) {
+					throw error;
+				}
+				// Series conflict on last attempt — fall through to throw below.
+			}
+		}
+
+		throw new ConflictException("Failed to allocate a unique series number");
+	}
+
+	/**
+	 * Update a delivery trip and its stops using a safe upsert strategy.
+	 * Existing stops are updated in-place; removed stops are deleted; new stops are created.
+	 */
+	async updateDeliveryTrip(
+		data: Inventory.UpdateDeliveryTripInput,
+	): Promise<Inventory.DeliveryTrip> {
+		const { id, stops, ...rest } = data;
+
+		const existing = await this.prisma.deliveryTrip.findUnique({
+			where: { id },
+			select: { id: true },
+		});
+
+		if (!existing) {
+			throw new NotFoundException(`Delivery trip with ID ${id} not found`);
+		}
+
+		const updated = await this.prisma.$transaction(async (tx) => {
+			// 1. Update parent fields (only non-undefined)
+			await tx.deliveryTrip.update({
+				where: { id },
+				data: {
+					...(rest.company !== undefined && { company: rest.company }),
+					...(rest.driver !== undefined && { driver: rest.driver }),
+					...(rest.driverAddress !== undefined && {
+						driverAddress: rest.driverAddress,
+					}),
+					...(rest.vehicle !== undefined && { vehicle: rest.vehicle }),
+					...(rest.departureTime !== undefined && {
+						departureTime: rest.departureTime,
+					}),
+					...(rest.status !== undefined && { status: rest.status }),
+					...(rest.initialEmailNotificationSent !== undefined && {
+						initialEmailNotificationSent: rest.initialEmailNotificationSent,
+					}),
+				},
+			});
+
+			if (stops !== undefined) {
+				// 2. Validate ownership of any stops with existing IDs
+				const keptIds = stops
+					.filter((s): s is typeof s & { id: string } => Boolean(s.id))
+					.map((s) => s.id);
+
+				if (keptIds.length > 0) {
+					const ownedStops = await tx.deliveryTripStop.findMany({
+						where: { id: { in: keptIds }, deliveryTripId: id },
+						select: { id: true },
+					});
+					const ownedIds = new Set(ownedStops.map((s) => s.id));
+					const foreignStopId = keptIds.find((sid) => !ownedIds.has(sid));
+					if (foreignStopId) {
+						throw new BadRequestException(
+							`Delivery trip stop with ID ${foreignStopId} does not belong to delivery trip ${id}`,
+						);
+					}
+				}
+
+				// 3. Delete stops no longer in payload
+				await tx.deliveryTripStop.deleteMany({
+					where: {
+						deliveryTripId: id,
+						...(keptIds.length > 0 ? { id: { notIn: keptIds } } : {}),
+					},
+				});
+
+				// 4. Upsert: update existing (by id), create new (no id)
+				for (const stop of stops) {
+					if (stop.id) {
+						await tx.deliveryTripStop.update({
+							where: { id: stop.id },
+							data: {
+								stopNumber: stop.stopNumber,
+								customer: stop.customer ?? null,
+								addressName: stop.addressName,
+								locked: stop.locked ?? false,
+								deliveryNote: stop.deliveryNote ?? null,
+								estimatedArrival: stop.estimatedArrival ?? null,
+							},
+						});
+					} else {
+						await tx.deliveryTripStop.create({
+							data: {
+								deliveryTripId: id,
+								stopNumber: stop.stopNumber,
+								customer: stop.customer ?? null,
+								addressName: stop.addressName,
+								locked: stop.locked ?? false,
+								deliveryNote: stop.deliveryNote ?? null,
+								estimatedArrival: stop.estimatedArrival ?? null,
+							},
+						});
+					}
+				}
+			}
+
+			// 5. Return updated record
+			return tx.deliveryTrip.findUniqueOrThrow({
+				where: { id },
+				include: { stops: { orderBy: { stopNumber: "asc" } } },
+			});
+		});
+
+		return toInventoryDeliveryTrip(updated);
+	}
+
+	/**
+	 * Delete a single delivery trip. Stops are removed via cascade.
+	 */
+	async deleteDeliveryTrip(
+		id: string,
+	): Promise<{ success: boolean; id: string }> {
+		try {
+			await this.prisma.deliveryTrip.delete({ where: { id } });
+			return { success: true, id };
+		} catch (error) {
+			if (
+				error instanceof Prisma.PrismaClientKnownRequestError &&
+				error.code === "P2025"
+			) {
+				throw new NotFoundException(`Delivery trip with ID ${id} not found`);
+			}
+			throw error;
+		}
+	}
+
+	/**
+	 * Delete multiple delivery trips.
+	 */
+	async deleteManyDeliveryTrips(
+		ids: string[],
+	): Promise<{ success: boolean; count: number; ids: string[] }> {
+		const uniqueIds = [...new Set(ids)];
+		try {
+			const result = await this.prisma.deliveryTrip.deleteMany({
+				where: { id: { in: uniqueIds } },
+			});
+			return { success: true, count: result.count, ids: uniqueIds };
+		} catch (error) {
+			if (error instanceof Prisma.PrismaClientKnownRequestError) {
+				this.logger.error(
+					`Bulk delete delivery trips failed [${error.code}]`,
+					error.stack,
+				);
+			}
+			throw error;
+		}
 	}
 }

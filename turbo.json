@@ -164,7 +164,7 @@
 			"outputs": []
 		},
 		"test": {
-			"dependsOn": ["^build", "^test"],
+			"dependsOn": ["^build"],
 			"outputs": []
 		},
 		"package": {

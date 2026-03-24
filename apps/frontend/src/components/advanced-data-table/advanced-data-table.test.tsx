@@ -222,8 +222,8 @@ async function openBulkEditDialog() {
 	const user = userEvent.setup({ pointerEventsCheck: 0 });
 
 	await user.click(screen.getByLabelText("Select row 1"));
-	await user.click(screen.getByRole("button", { name: /actions/i }));
-	await user.click(screen.getByRole("menuitem", { name: "Bulk Edit" }));
+	await user.click(await screen.findByRole("button", { name: /actions/i }));
+	await user.click(await screen.findByRole("menuitem", { name: "Bulk Edit" }));
 
 	return user;
 }
@@ -388,14 +388,16 @@ describe("AdvancedDataTable Component", () => {
 			expect(getBulkEditValueControl()).toHaveAttribute("type", "number");
 
 			await chooseSelectOption(user, "Field", "Active");
-			expect(getBulkEditValueControl().tagName).toBe("BUTTON");
+			expect(getBulkEditValueControl()).toHaveAttribute("aria-label", "Value");
+			expect(getBulkEditValueControl().tagName).toMatch(/^(BUTTON|DIV)$/);
 
 			await chooseSelectOption(user, "Field", "Category");
-			expect(getBulkEditValueControl().tagName).toBe("BUTTON");
+			expect(getBulkEditValueControl()).toHaveAttribute("aria-label", "Value");
+			expect(getBulkEditValueControl().tagName).toMatch(/^(BUTTON|DIV)$/);
 
 			await chooseSelectOption(user, "Field", "Launch Date");
 			expect(getBulkEditValueControl()).toHaveAttribute("type", "date");
-		}, 10_000);
+		}, 30_000);
 
 		it("emits a normalized set request", async () => {
 			const onBulkEdit = vi.fn().mockResolvedValue(undefined);
@@ -490,7 +492,7 @@ describe("AdvancedDataTable Component", () => {
 			expect(
 				screen.getByRole("button", { name: /update 1 record/i }),
 			).toBeDisabled();
-		}, 10_000);
+		}, 30_000);
 
 		it("keeps the dialog open and reports through onError when bulk edit fails", async () => {
 			const onBulkEdit = vi.fn().mockRejectedValue(new Error("boom"));

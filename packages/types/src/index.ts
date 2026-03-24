@@ -741,6 +741,1456 @@ export namespace Inventory {
 		calculateBasedOn: z.enum(["FIXED", "NET_TOTAL", "NET_WEIGHT"]).optional(),
 		shippingAmount: z.number().min(0).optional(),
 	});
+
+	// ============================================================================
+	// Material Request Types & Schemas
+	// ============================================================================
+
+	export type MaterialRequestPurpose =
+		| "PURCHASE"
+		| "MANUFACTURE"
+		| "MATERIAL_TRANSFER"
+		| "MATERIAL_ISSUE"
+		| "CUSTOMER_PROVIDED";
+
+	export type MaterialRequestStatus =
+		| "DRAFT"
+		| "PENDING"
+		| "APPROVED"
+		| "ORDERED"
+		| "PARTIALLY_ORDERED"
+		| "PARTIALLY_RECEIVED"
+		| "RECEIVED"
+		| "CANCELLED";
+
+	export interface MaterialRequestItem {
+		id: string;
+		materialRequestId: string;
+		itemCode: string;
+		itemName?: string | null;
+		requiredBy?: Date | null;
+		quantity: number;
+		orderedQty: number;
+		receivedQty: number;
+		targetWarehouse?: string | null;
+		unitOfMeasure?: string | null;
+	}
+
+	export interface MaterialRequest {
+		id: string;
+		series: string;
+		transactionDate: Date;
+		purpose: MaterialRequestPurpose;
+		company: string;
+		requiredBy?: Date | null;
+		status: MaterialRequestStatus;
+		targetWarehouse?: string | null;
+		terms?: string | null;
+		termsContent?: string | null;
+		letterHead?: string | null;
+		printHeading?: string | null;
+		items: MaterialRequestItem[];
+		createdAt: Date;
+		updatedAt: Date;
+	}
+
+	export interface CreateMaterialRequestItemInput {
+		itemCode: string;
+		itemName?: string;
+		requiredBy?: Date;
+		quantity: number;
+		targetWarehouse?: string;
+		unitOfMeasure?: string;
+	}
+
+	export interface CreateMaterialRequestInput {
+		transactionDate?: Date;
+		purpose?: MaterialRequestPurpose;
+		company: string;
+		requiredBy?: Date;
+		targetWarehouse?: string;
+		terms?: string;
+		termsContent?: string;
+		letterHead?: string;
+		printHeading?: string;
+		items: CreateMaterialRequestItemInput[];
+	}
+
+	export interface UpdateMaterialRequestItemInput {
+		id?: string;
+		itemCode: string;
+		itemName?: string;
+		requiredBy?: Date;
+		quantity: number;
+		targetWarehouse?: string;
+		unitOfMeasure?: string;
+	}
+
+	export interface UpdateMaterialRequestInput {
+		id: string;
+		transactionDate?: Date;
+		purpose?: MaterialRequestPurpose;
+		company?: string;
+		requiredBy?: Date | null;
+		status?: MaterialRequestStatus;
+		targetWarehouse?: string | null;
+		terms?: string | null;
+		termsContent?: string | null;
+		letterHead?: string | null;
+		printHeading?: string | null;
+		items?: UpdateMaterialRequestItemInput[];
+	}
+
+	export const createMaterialRequestItemSchema = z.object({
+		itemCode: z.string().min(1, "Item code is required").max(100).trim(),
+		itemName: z.string().max(255).optional(),
+		requiredBy: z.coerce.date().optional(),
+		quantity: z.number().min(0.001, "Quantity must be greater than 0"),
+		targetWarehouse: z.string().max(255).optional(),
+		unitOfMeasure: z.string().max(50).optional(),
+	});
+
+	export const createMaterialRequestSchema = z.object({
+		transactionDate: z.coerce.date().optional(),
+		purpose: z
+			.enum([
+				"PURCHASE",
+				"MANUFACTURE",
+				"MATERIAL_TRANSFER",
+				"MATERIAL_ISSUE",
+				"CUSTOMER_PROVIDED",
+			])
+			.default("PURCHASE"),
+		company: z.string().min(1, "Company is required").max(255).trim(),
+		requiredBy: z.coerce.date().optional(),
+		targetWarehouse: z.string().max(255).optional(),
+		terms: z.string().max(255).optional(),
+		termsContent: z
+			.string()
+			.max(65_535, "Terms content must be 65,535 characters or fewer")
+			.optional(),
+		letterHead: z.string().max(255).optional(),
+		printHeading: z.string().max(255).optional(),
+		items: z
+			.array(createMaterialRequestItemSchema)
+			.min(1, "At least one item is required"),
+	});
+
+	export const updateMaterialRequestItemSchema = z.object({
+		id: z.string().optional(),
+		itemCode: z.string().min(1, "Item code is required").max(100).trim(),
+		itemName: z.string().max(255).optional(),
+		requiredBy: z.coerce.date().optional(),
+		quantity: z.number().min(0.001, "Quantity must be greater than 0"),
+		targetWarehouse: z.string().max(255).optional(),
+		unitOfMeasure: z.string().max(50).optional(),
+	});
+
+	export const updateMaterialRequestSchema = z.object({
+		id: z.string().min(1),
+		transactionDate: z.coerce.date().optional(),
+		purpose: z
+			.enum([
+				"PURCHASE",
+				"MANUFACTURE",
+				"MATERIAL_TRANSFER",
+				"MATERIAL_ISSUE",
+				"CUSTOMER_PROVIDED",
+			])
+			.optional(),
+		company: z.string().min(1).max(255).trim().optional(),
+		requiredBy: z.coerce.date().optional().nullable(),
+		status: z
+			.enum([
+				"DRAFT",
+				"PENDING",
+				"APPROVED",
+				"ORDERED",
+				"PARTIALLY_ORDERED",
+				"PARTIALLY_RECEIVED",
+				"RECEIVED",
+				"CANCELLED",
+			])
+			.optional(),
+		targetWarehouse: z.string().max(255).optional().nullable(),
+		terms: z.string().max(255).optional().nullable(),
+		termsContent: z
+			.string()
+			.max(65_535, "Terms content must be 65,535 characters or fewer")
+			.optional()
+			.nullable(),
+		letterHead: z.string().max(255).optional().nullable(),
+		printHeading: z.string().max(255).optional().nullable(),
+		items: z.array(updateMaterialRequestItemSchema).min(1).optional(),
+	});
+
+	export const bulkDeleteMaterialRequestsSchema = z.object({
+		ids: z.array(z.string().min(1)).min(1),
+	});
+
+	// ============================================================================
+	// Stock Entry Types & Schemas
+	// ============================================================================
+
+	export type StockEntryType =
+		| "MATERIAL_RECEIPT"
+		| "MATERIAL_ISSUE"
+		| "MATERIAL_TRANSFER"
+		| "MATERIAL_TRANSFER_FOR_MANUFACTURE"
+		| "MANUFACTURE"
+		| "REPACK"
+		| "SEND_TO_SUBCONTRACTOR";
+
+	export type StockEntryStatus = "DRAFT" | "SUBMITTED" | "CANCELLED";
+
+	export interface StockEntryItem {
+		id: string;
+		stockEntryId: string;
+		sourceWarehouse?: string | null;
+		targetWarehouse?: string | null;
+		itemCode: string;
+		itemName?: string | null;
+		description?: string | null;
+		qty: number;
+		basicRate: number;
+		basicAmount: number;
+		unitOfMeasure?: string | null;
+	}
+
+	export interface StockEntry {
+		id: string;
+		series: string;
+		stockEntryType: StockEntryType;
+		postingDate: Date;
+		company: string;
+		status: StockEntryStatus;
+		project?: string | null;
+		defaultSourceWarehouse?: string | null;
+		defaultTargetWarehouse?: string | null;
+		isOpening: boolean;
+		remarks?: string | null;
+		printHeading?: string | null;
+		letterHead?: string | null;
+		inspectionRequired: boolean;
+		items: StockEntryItem[];
+		createdAt: Date;
+		updatedAt: Date;
+	}
+
+	export interface CreateStockEntryItemInput {
+		sourceWarehouse?: string;
+		targetWarehouse?: string;
+		itemCode: string;
+		itemName?: string;
+		description?: string;
+		qty: number;
+		basicRate?: number;
+		unitOfMeasure?: string;
+	}
+
+	export interface CreateStockEntryInput {
+		stockEntryType: StockEntryType;
+		postingDate?: Date;
+		company: string;
+		project?: string;
+		defaultSourceWarehouse?: string;
+		defaultTargetWarehouse?: string;
+		isOpening?: boolean;
+		remarks?: string;
+		printHeading?: string;
+		letterHead?: string;
+		inspectionRequired?: boolean;
+		items: CreateStockEntryItemInput[];
+	}
+
+	export interface UpdateStockEntryItemInput {
+		id?: string;
+		sourceWarehouse?: string;
+		targetWarehouse?: string;
+		itemCode: string;
+		itemName?: string;
+		description?: string;
+		qty: number;
+		basicRate?: number;
+		unitOfMeasure?: string;
+	}
+
+	export interface UpdateStockEntryInput {
+		id: string;
+		stockEntryType?: StockEntryType;
+		postingDate?: Date;
+		company?: string;
+		status?: StockEntryStatus;
+		project?: string | null;
+		defaultSourceWarehouse?: string | null;
+		defaultTargetWarehouse?: string | null;
+		isOpening?: boolean;
+		remarks?: string | null;
+		printHeading?: string | null;
+		letterHead?: string | null;
+		inspectionRequired?: boolean;
+		items?: UpdateStockEntryItemInput[];
+	}
+
+	export const createStockEntryItemSchema = z.object({
+		sourceWarehouse: z.string().max(255).optional(),
+		targetWarehouse: z.string().max(255).optional(),
+		itemCode: z.string().min(1, "Item code is required").max(100).trim(),
+		itemName: z.string().max(255).optional(),
+		description: z.string().max(1000).optional(),
+		qty: z.number().min(0.001, "Quantity must be greater than 0"),
+		basicRate: z.number().min(0).default(0),
+		unitOfMeasure: z.string().max(50).optional(),
+	});
+
+	export const createStockEntrySchema = z.object({
+		stockEntryType: z.enum([
+			"MATERIAL_RECEIPT",
+			"MATERIAL_ISSUE",
+			"MATERIAL_TRANSFER",
+			"MATERIAL_TRANSFER_FOR_MANUFACTURE",
+			"MANUFACTURE",
+			"REPACK",
+			"SEND_TO_SUBCONTRACTOR",
+		]),
+		postingDate: z.coerce.date().optional(),
+		company: z.string().min(1, "Company is required").max(255).trim(),
+		project: z.string().max(255).optional(),
+		defaultSourceWarehouse: z.string().max(255).optional(),
+		defaultTargetWarehouse: z.string().max(255).optional(),
+		isOpening: z.boolean().default(false),
+		remarks: z
+			.string()
+			.max(65_535, "Remarks must be 65,535 characters or fewer")
+			.optional(),
+		printHeading: z.string().max(255).optional(),
+		letterHead: z.string().max(255).optional(),
+		inspectionRequired: z.boolean().default(false),
+		items: z
+			.array(createStockEntryItemSchema)
+			.min(1, "At least one item is required"),
+	});
+
+	export const updateStockEntryItemSchema = z.object({
+		id: z.string().optional(),
+		sourceWarehouse: z.string().max(255).optional(),
+		targetWarehouse: z.string().max(255).optional(),
+		itemCode: z.string().min(1, "Item code is required").max(100).trim(),
+		itemName: z.string().max(255).optional(),
+		description: z.string().max(1000).optional(),
+		qty: z.number().min(0.001, "Quantity must be greater than 0"),
+		basicRate: z.number().min(0).optional(),
+		unitOfMeasure: z.string().max(50).optional(),
+	});
+
+	export const updateStockEntrySchema = z.object({
+		id: z.string().min(1),
+		stockEntryType: z
+			.enum([
+				"MATERIAL_RECEIPT",
+				"MATERIAL_ISSUE",
+				"MATERIAL_TRANSFER",
+				"MATERIAL_TRANSFER_FOR_MANUFACTURE",
+				"MANUFACTURE",
+				"REPACK",
+				"SEND_TO_SUBCONTRACTOR",
+			])
+			.optional(),
+		postingDate: z.coerce.date().optional(),
+		company: z.string().min(1).max(255).trim().optional(),
+		status: z.enum(["DRAFT", "SUBMITTED", "CANCELLED"]).optional(),
+		project: z.string().max(255).optional().nullable(),
+		defaultSourceWarehouse: z.string().max(255).optional().nullable(),
+		defaultTargetWarehouse: z.string().max(255).optional().nullable(),
+		isOpening: z.boolean().optional(),
+		remarks: z
+			.string()
+			.max(65_535, "Remarks must be 65,535 characters or fewer")
+			.optional()
+			.nullable(),
+		printHeading: z.string().max(255).optional().nullable(),
+		letterHead: z.string().max(255).optional().nullable(),
+		inspectionRequired: z.boolean().optional(),
+		items: z.array(updateStockEntryItemSchema).min(1).optional(),
+	});
+
+	export const bulkDeleteStockEntriesSchema = z.object({
+		ids: z.array(z.string().min(1)).min(1),
+	});
+
+	// ============================================================================
+	// Delivery Note Types & Schemas
+	// ============================================================================
+
+	export type DeliveryNoteStatus =
+		| "DRAFT"
+		| "TO_BILL"
+		| "COMPLETED"
+		| "RETURN_ISSUED"
+		| "CANCELLED"
+		| "CLOSED";
+
+	export interface DeliveryNoteItem {
+		id: string;
+		deliveryNoteId: string;
+		itemCode: string;
+		itemName?: string | null;
+		description?: string | null;
+		quantity: number;
+		uom?: string | null;
+		rate: number;
+		amount: number;
+		warehouse?: string | null;
+	}
+
+	export interface DeliveryNote {
+		id: string;
+		series: string;
+		postingDate: Date;
+		customer: string;
+		company: string;
+		status: DeliveryNoteStatus;
+		isReturn: boolean;
+		currency?: string | null;
+		priceList?: string | null;
+		sourceWarehouse?: string | null;
+		totalQuantity: number;
+		totalAmount: number;
+		grandTotal: number;
+		roundingAdjustment: number;
+		roundedTotal: number;
+		additionalDiscountOn?: string | null;
+		additionalDiscountPercent?: number | null;
+		additionalDiscountAmount?: number | null;
+		shippingAddress?: string | null;
+		dispatchAddress?: string | null;
+		companyAddress?: string | null;
+		companyContact?: string | null;
+		companyTRN?: string | null;
+		terms?: string | null;
+		termsContent?: string | null;
+		transporter?: string | null;
+		driverName?: string | null;
+		driver?: string | null;
+		transportReceiptDate?: Date | null;
+		transportReceiptNo?: string | null;
+		vehicleNo?: string | null;
+		customerPoNo?: string | null;
+		customerPoDate?: Date | null;
+		salesPartner?: string | null;
+		commissionRate?: number | null;
+		letterHead?: string | null;
+		printHeading?: string | null;
+		printWithoutAmount: boolean;
+		groupSameItems: boolean;
+		permitNumber?: string | null;
+		vatEmirate?: string | null;
+		project?: string | null;
+		items: DeliveryNoteItem[];
+		createdAt: Date;
+		updatedAt: Date;
+	}
+
+	export interface CreateDeliveryNoteItemInput {
+		itemCode: string;
+		itemName?: string;
+		description?: string;
+		quantity: number;
+		uom?: string;
+		rate?: number;
+		warehouse?: string;
+	}
+
+	/**
+	 * Input payload for creating a Delivery Note document.
+	 *
+	 * This type is shared across frontends and backend and is used as the
+	 * contract for Delivery Note creation APIs.
+	 */
+	export interface CreateDeliveryNoteInput {
+		/**
+		 * Posting date of the delivery note.
+		 * If omitted, the server may default this to the current date.
+		 */
+		postingDate?: Date;
+		/** Linked customer identifier (e.g., customer name or code). */
+		customer: string;
+		/** Company for which this delivery note is being created. */
+		company: string;
+		/** Whether this delivery note represents a return. */
+		isReturn?: boolean;
+		/** Currency code for amounts on this delivery note (e.g., "AED"). */
+		currency?: string;
+		/** Price list to use for pricing items on this delivery note. */
+		priceList?: string;
+		/** Default source warehouse for all items, when applicable. */
+		sourceWarehouse?: string;
+		/**
+		 * Base on which the additional discount is calculated.
+		 *
+		 * Common values include things like "Net Total" or "Grand Total".
+		 * Consumers should treat this as an enum-like string and only pass
+		 * values supported by the backend.
+		 */
+		additionalDiscountOn?: string;
+		/**
+		 * Percentage of additional discount to apply on `additionalDiscountOn`.
+		 *
+		 * Expected to be in the range 0–100. Typically only one of
+		 * `additionalDiscountPercent` or `additionalDiscountAmount` is used
+		 * for a given delivery note; if both are provided, server-side logic
+		 * determines precedence.
+		 */
+		additionalDiscountPercent?: number;
+		/**
+		 * Fixed additional discount amount.
+		 *
+		 * This is an absolute discount value, as opposed to
+		 * `additionalDiscountPercent` which is rate-based. Usually only one
+		 * of `additionalDiscountPercent` or `additionalDiscountAmount` should
+		 * be provided.
+		 */
+		additionalDiscountAmount?: number;
+		/** Customer shipping/delivery address. */
+		shippingAddress?: string;
+		/** Dispatch address (from where goods are sent). */
+		dispatchAddress?: string;
+		/** Company address printed on the delivery note. */
+		companyAddress?: string;
+		/** Company contact person or contact ID. */
+		companyContact?: string;
+		/** Company Tax Registration Number (TRN). */
+		companyTRN?: string;
+		/** Payment or delivery terms reference. */
+		terms?: string;
+		/** Human-readable terms and conditions content. */
+		termsContent?: string;
+		/** Transporter or logistics provider name. */
+		transporter?: string;
+		/** Driver's name for the delivery. */
+		driverName?: string;
+		/** Driver identifier (e.g., employee ID). */
+		driver?: string;
+		/** Date on the transport receipt, if applicable. */
+		transportReceiptDate?: Date;
+		/** Reference number of the transport receipt. */
+		transportReceiptNo?: string;
+		/** Vehicle number used for delivery. */
+		vehicleNo?: string;
+		/** Customer purchase order number linked to this delivery. */
+		customerPoNo?: string;
+		/** Customer purchase order date. */
+		customerPoDate?: Date;
+		/** Sales partner or agent associated with this delivery. */
+		salesPartner?: string;
+		/** Commission rate for the sales partner, expressed as a percentage. */
+		commissionRate?: number;
+		/** Letterhead to use when printing the delivery note. */
+		letterHead?: string;
+		/** Custom print heading/title for the delivery note. */
+		printHeading?: string;
+		/** Whether to print the delivery note without showing amounts. */
+		printWithoutAmount?: boolean;
+		/** Whether to group identical items together when printing. */
+		groupSameItems?: boolean;
+		/** Permit number associated with this delivery, if required. */
+		permitNumber?: string;
+		/** VAT emirate or tax jurisdiction for this delivery. */
+		vatEmirate?: string;
+		/** Project reference linked to this delivery. */
+		project?: string;
+		/** Line items included in the delivery note. */
+		items: CreateDeliveryNoteItemInput[];
+	}
+
+	export interface UpdateDeliveryNoteItemInput {
+		id?: string;
+		itemCode: string;
+		itemName?: string;
+		description?: string;
+		quantity: number;
+		uom?: string;
+		rate?: number;
+		warehouse?: string;
+	}
+
+	export interface UpdateDeliveryNoteInput {
+		id: string;
+		postingDate?: Date;
+		customer?: string;
+		company?: string;
+		status?: DeliveryNoteStatus;
+		isReturn?: boolean;
+		currency?: string | null;
+		priceList?: string | null;
+		sourceWarehouse?: string | null;
+		additionalDiscountOn?: string | null;
+		additionalDiscountPercent?: number | null;
+		additionalDiscountAmount?: number | null;
+		shippingAddress?: string | null;
+		dispatchAddress?: string | null;
+		companyAddress?: string | null;
+		companyContact?: string | null;
+		companyTRN?: string | null;
+		terms?: string | null;
+		termsContent?: string | null;
+		transporter?: string | null;
+		driverName?: string | null;
+		driver?: string | null;
+		transportReceiptDate?: Date | null;
+		transportReceiptNo?: string | null;
+		vehicleNo?: string | null;
+		customerPoNo?: string | null;
+		customerPoDate?: Date | null;
+		salesPartner?: string | null;
+		commissionRate?: number | null;
+		letterHead?: string | null;
+		printHeading?: string | null;
+		printWithoutAmount?: boolean;
+		groupSameItems?: boolean;
+		permitNumber?: string | null;
+		vatEmirate?: string | null;
+		project?: string | null;
+		items?: UpdateDeliveryNoteItemInput[];
+	}
+
+	export const createDeliveryNoteItemSchema = z.object({
+		itemCode: z.string().min(1, "Item code is required").max(100).trim(),
+		itemName: z.string().max(255).optional(),
+		description: z.string().max(1000).optional(),
+		quantity: z.number().min(0.001, "Quantity must be greater than 0"),
+		uom: z.string().max(50).optional(),
+		rate: z.number().min(0).default(0),
+		warehouse: z.string().max(255).optional(),
+	});
+
+	export const createDeliveryNoteSchema = z.object({
+		postingDate: z.coerce.date().optional(),
+		customer: z.string().min(1, "Customer is required").max(255).trim(),
+		company: z.string().min(1, "Company is required").max(255).trim(),
+		isReturn: z.boolean().default(false),
+		currency: z.string().max(10).optional(),
+		priceList: z.string().max(255).optional(),
+		sourceWarehouse: z.string().max(255).optional(),
+		additionalDiscountOn: z.string().max(100).optional(),
+		additionalDiscountPercent: z.number().min(0).max(100).optional(),
+		additionalDiscountAmount: z.number().min(0).optional(),
+		shippingAddress: z.string().max(255).optional(),
+		dispatchAddress: z.string().max(255).optional(),
+		companyAddress: z.string().max(255).optional(),
+		companyContact: z.string().max(255).optional(),
+		companyTRN: z.string().max(100).optional(),
+		terms: z.string().max(255).optional(),
+		termsContent: z
+			.string()
+			.max(65_535, "Terms content must be 65,535 characters or fewer")
+			.optional(),
+		transporter: z.string().max(255).optional(),
+		driverName: z.string().max(255).optional(),
+		driver: z.string().max(255).optional(),
+		transportReceiptDate: z.coerce.date().optional(),
+		transportReceiptNo: z.string().max(255).optional(),
+		vehicleNo: z.string().max(100).optional(),
+		customerPoNo: z.string().optional(),
+		customerPoDate: z.coerce.date().optional(),
+		salesPartner: z.string().max(255).optional(),
+		commissionRate: z.number().min(0).max(100).optional(),
+		letterHead: z.string().max(255).optional(),
+		printHeading: z.string().max(255).optional(),
+		printWithoutAmount: z.boolean().default(false),
+		groupSameItems: z.boolean().default(false),
+		permitNumber: z.string().max(255).optional(),
+		vatEmirate: z.string().max(100).optional(),
+		project: z.string().max(255).optional(),
+		items: z
+			.array(createDeliveryNoteItemSchema)
+			.min(1, "At least one item is required"),
+	});
+
+	export const updateDeliveryNoteItemSchema = z.object({
+		id: z.string().optional(),
+		itemCode: z.string().min(1, "Item code is required").max(100).trim(),
+		itemName: z.string().max(255).optional(),
+		description: z.string().max(1000).optional(),
+		quantity: z.number().min(0.001, "Quantity must be greater than 0"),
+		uom: z.string().max(50).optional(),
+		rate: z.number().min(0).optional(),
+		warehouse: z.string().max(255).optional(),
+	});
+
+	export const updateDeliveryNoteSchema = z.object({
+		id: z.string().min(1),
+		postingDate: z.coerce.date().optional(),
+		customer: z.string().min(1).max(255).trim().optional(),
+		company: z.string().min(1).max(255).trim().optional(),
+		status: z
+			.enum([
+				"DRAFT",
+				"TO_BILL",
+				"COMPLETED",
+				"RETURN_ISSUED",
+				"CANCELLED",
+				"CLOSED",
+			])
+			.optional(),
+		isReturn: z.boolean().optional(),
+		currency: z.string().max(10).optional().nullable(),
+		priceList: z.string().max(255).optional().nullable(),
+		sourceWarehouse: z.string().max(255).optional().nullable(),
+		additionalDiscountOn: z.string().max(100).optional().nullable(),
+		additionalDiscountPercent: z.number().min(0).max(100).optional().nullable(),
+		additionalDiscountAmount: z.number().min(0).optional().nullable(),
+		shippingAddress: z.string().max(255).optional().nullable(),
+		dispatchAddress: z.string().max(255).optional().nullable(),
+		companyAddress: z.string().max(255).optional().nullable(),
+		companyContact: z.string().max(255).optional().nullable(),
+		companyTRN: z.string().max(100).optional().nullable(),
+		terms: z.string().max(255).optional().nullable(),
+		termsContent: z
+			.string()
+			.max(65_535, "Terms content must be 65,535 characters or fewer")
+			.optional()
+			.nullable(),
+		transporter: z.string().max(255).optional().nullable(),
+		driverName: z.string().max(255).optional().nullable(),
+		driver: z.string().max(255).optional().nullable(),
+		transportReceiptDate: z.coerce.date().optional().nullable(),
+		transportReceiptNo: z.string().max(255).optional().nullable(),
+		vehicleNo: z.string().max(100).optional().nullable(),
+		customerPoNo: z.string().optional().nullable(),
+		customerPoDate: z.coerce.date().optional().nullable(),
+		salesPartner: z.string().max(255).optional().nullable(),
+		commissionRate: z.number().min(0).max(100).optional().nullable(),
+		letterHead: z.string().max(255).optional().nullable(),
+		printHeading: z.string().max(255).optional().nullable(),
+		printWithoutAmount: z.boolean().optional(),
+		groupSameItems: z.boolean().optional(),
+		permitNumber: z.string().max(255).optional().nullable(),
+		vatEmirate: z.string().max(100).optional().nullable(),
+		project: z.string().max(255).optional().nullable(),
+		items: z.array(updateDeliveryNoteItemSchema).min(1).optional(),
+	});
+
+	export const bulkDeleteDeliveryNotesSchema = z.object({
+		ids: z.array(z.string().min(1)).min(1),
+	});
+
+	// ============================================================================
+	// Purchase Receipt Types & Schemas
+	// ============================================================================
+
+	export type PurchaseReceiptStatus =
+		| "DRAFT"
+		| "PARTLY_BILLED"
+		| "TO_BILL"
+		| "COMPLETED"
+		| "RETURN_ISSUED"
+		| "CANCELLED"
+		| "CLOSED";
+
+	export interface PurchaseReceiptItem {
+		id: string;
+		purchaseReceiptId: string;
+		itemCode: string;
+		itemName?: string | null;
+		description?: string | null;
+		acceptedQuantity: number;
+		rejectedQuantity: number;
+		rate: number;
+		amount: number;
+		uom?: string | null;
+		acceptedWarehouse?: string | null;
+		rejectedWarehouse?: string | null;
+	}
+
+	export interface PurchaseReceiptTax {
+		id: string;
+		purchaseReceiptId: string;
+		type: string;
+		accountHead: string;
+		taxRate: number;
+		amount: number;
+		total: number;
+	}
+
+	export interface PurchaseReceipt {
+		id: string;
+		series: string;
+		seriesPattern: string;
+		postingDate: Date;
+		postingTime: string;
+		editPostingDateTime: boolean;
+		supplier: string;
+		company: string;
+		status: PurchaseReceiptStatus;
+		isReturn: boolean;
+		applyPutawayRule: boolean;
+		supplierDeliveryNote?: string | null;
+		acceptedWarehouse?: string | null;
+		rejectedWarehouse?: string | null;
+		isSubcontracted: boolean;
+		currency?: string | null;
+		priceList?: string | null;
+		totalQuantity: number;
+		totalAcceptedQuantity: number;
+		totalRejectedQuantity: number;
+		totalAmount: number;
+		taxesAndChargesAdded: number;
+		taxesAndChargesDeducted: number;
+		totalTaxesAndCharges: number;
+		grandTotal: number;
+		roundingAdjustment: number;
+		roundedTotal: number;
+		disableRoundedTotal: boolean;
+		supplierAddress?: string | null;
+		contactPerson?: string | null;
+		shippingAddressTemplate?: string | null;
+		companyTRN?: string | null;
+		billingAddress?: string | null;
+		terms?: string | null;
+		termsContent?: string | null;
+		letterHead?: string | null;
+		printHeading?: string | null;
+		groupSameItems: boolean;
+		permitNumber?: string | null;
+		recoverableStandardRatedExpenses: number;
+		reverseChargeApplicable: "Y" | "N";
+		transporterName?: string | null;
+		vehicleNumber?: string | null;
+		vehicleDate?: Date | null;
+		instructions?: string | null;
+		remarks?: string | null;
+		isInternalSupplier: boolean;
+		items: PurchaseReceiptItem[];
+		taxes: PurchaseReceiptTax[];
+		createdAt: Date;
+		updatedAt: Date;
+	}
+
+	export interface CreatePurchaseReceiptItemInput {
+		itemCode: string;
+		itemName?: string;
+		description?: string;
+		acceptedQuantity: number;
+		rejectedQuantity?: number;
+		rate?: number;
+		uom?: string;
+		acceptedWarehouse?: string;
+		rejectedWarehouse?: string;
+	}
+
+	export interface CreatePurchaseReceiptTaxInput {
+		type: string;
+		accountHead: string;
+		taxRate?: number;
+		amount?: number;
+	}
+
+	export interface CreatePurchaseReceiptInput {
+		seriesPattern?: string;
+		postingDate?: Date;
+		postingTime?: string;
+		editPostingDateTime?: boolean;
+		supplier: string;
+		company: string;
+		status?: PurchaseReceiptStatus;
+		isReturn?: boolean;
+		applyPutawayRule?: boolean;
+		supplierDeliveryNote?: string;
+		acceptedWarehouse?: string;
+		rejectedWarehouse?: string;
+		isSubcontracted?: boolean;
+		currency?: string;
+		priceList?: string;
+		disableRoundedTotal?: boolean;
+		supplierAddress?: string;
+		contactPerson?: string;
+		shippingAddressTemplate?: string;
+		companyTRN?: string;
+		billingAddress?: string;
+		terms?: string;
+		termsContent?: string;
+		letterHead?: string;
+		printHeading?: string;
+		groupSameItems?: boolean;
+		permitNumber?: string;
+		recoverableStandardRatedExpenses?: number;
+		reverseChargeApplicable?: "Y" | "N";
+		transporterName?: string;
+		vehicleNumber?: string;
+		vehicleDate?: Date;
+		instructions?: string;
+		remarks?: string;
+		isInternalSupplier?: boolean;
+		items: CreatePurchaseReceiptItemInput[];
+		taxes?: CreatePurchaseReceiptTaxInput[];
+	}
+
+	export interface UpdatePurchaseReceiptItemInput {
+		id?: string;
+		itemCode: string;
+		itemName?: string;
+		description?: string;
+		acceptedQuantity: number;
+		rejectedQuantity?: number;
+		rate?: number;
+		uom?: string;
+		acceptedWarehouse?: string;
+		rejectedWarehouse?: string;
+	}
+
+	export interface UpdatePurchaseReceiptTaxInput {
+		id?: string;
+		type: string;
+		accountHead: string;
+		taxRate?: number;
+		amount?: number;
+	}
+
+	export interface UpdatePurchaseReceiptInput {
+		id: string;
+		seriesPattern?: string | null;
+		postingDate?: Date;
+		postingTime?: string | null;
+		editPostingDateTime?: boolean;
+		supplier?: string;
+		company?: string;
+		status?: PurchaseReceiptStatus;
+		isReturn?: boolean;
+		applyPutawayRule?: boolean;
+		supplierDeliveryNote?: string | null;
+		acceptedWarehouse?: string | null;
+		rejectedWarehouse?: string | null;
+		isSubcontracted?: boolean;
+		currency?: string | null;
+		priceList?: string | null;
+		disableRoundedTotal?: boolean;
+		supplierAddress?: string | null;
+		contactPerson?: string | null;
+		shippingAddressTemplate?: string | null;
+		companyTRN?: string | null;
+		billingAddress?: string | null;
+		terms?: string | null;
+		termsContent?: string | null;
+		letterHead?: string | null;
+		printHeading?: string | null;
+		groupSameItems?: boolean;
+		permitNumber?: string | null;
+		recoverableStandardRatedExpenses?: number;
+		reverseChargeApplicable?: "Y" | "N";
+		transporterName?: string | null;
+		vehicleNumber?: string | null;
+		vehicleDate?: Date | null;
+		instructions?: string | null;
+		remarks?: string | null;
+		isInternalSupplier?: boolean;
+		items?: UpdatePurchaseReceiptItemInput[];
+		taxes?: UpdatePurchaseReceiptTaxInput[];
+	}
+
+	export const purchaseReceiptStatusSchema = z.enum([
+		"DRAFT",
+		"PARTLY_BILLED",
+		"TO_BILL",
+		"COMPLETED",
+		"RETURN_ISSUED",
+		"CANCELLED",
+		"CLOSED",
+	]);
+
+	const postingTimeSchema = z
+		.string()
+		.regex(
+			/^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/,
+			"Posting time must be in HH:mm or HH:mm:ss format",
+		);
+
+	export const createPurchaseReceiptItemSchema = z
+		.object({
+			itemCode: z.string().min(1, "Item code is required").max(100).trim(),
+			itemName: z.string().max(255).optional(),
+			description: z.string().max(1000).optional(),
+			acceptedQuantity: z
+				.number()
+				.min(0, "Accepted quantity cannot be negative"),
+			rejectedQuantity: z.number().min(0).default(0),
+			rate: z.number().min(0).default(0),
+			uom: z.string().max(50).optional(),
+			acceptedWarehouse: z.string().max(255).optional(),
+			rejectedWarehouse: z.string().max(255).optional(),
+		})
+		.refine(
+			(item) => item.acceptedQuantity + item.rejectedQuantity > 0,
+			"Accepted quantity or rejected quantity must be greater than 0",
+		);
+
+	export const createPurchaseReceiptTaxSchema = z.object({
+		type: z.string().min(1, "Tax type is required").max(255).trim(),
+		accountHead: z.string().min(1, "Account head is required").max(255).trim(),
+		taxRate: z.number().min(-100).max(100).default(0),
+		amount: z.number().optional(),
+	});
+
+	export const createPurchaseReceiptSchema = z.object({
+		seriesPattern: z.string().max(50).optional(),
+		postingDate: z.coerce.date().optional(),
+		postingTime: postingTimeSchema.optional(),
+		editPostingDateTime: z.boolean().default(false),
+		supplier: z.string().min(1, "Supplier is required").max(255).trim(),
+		company: z.string().min(1, "Company is required").max(255).trim(),
+		status: purchaseReceiptStatusSchema.default("DRAFT"),
+		isReturn: z.boolean().default(false),
+		applyPutawayRule: z.boolean().default(false),
+		supplierDeliveryNote: z.string().max(255).optional(),
+		acceptedWarehouse: z.string().max(255).optional(),
+		rejectedWarehouse: z.string().max(255).optional(),
+		isSubcontracted: z.boolean().default(false),
+		currency: z.string().max(10).optional(),
+		priceList: z.string().max(255).optional(),
+		disableRoundedTotal: z.boolean().default(false),
+		supplierAddress: z.string().max(255).optional(),
+		contactPerson: z.string().max(255).optional(),
+		shippingAddressTemplate: z.string().max(255).optional(),
+		companyTRN: z.string().max(100).optional(),
+		billingAddress: z.string().max(255).optional(),
+		terms: z.string().max(255).optional(),
+		termsContent: z
+			.string()
+			.max(65_535, "Terms content must be 65,535 characters or fewer")
+			.optional(),
+		letterHead: z.string().max(255).optional(),
+		printHeading: z.string().max(255).optional(),
+		groupSameItems: z.boolean().default(false),
+		permitNumber: z.string().max(255).optional(),
+		recoverableStandardRatedExpenses: z.number().min(0).default(0),
+		reverseChargeApplicable: z.enum(["Y", "N"]).default("N"),
+		transporterName: z.string().max(255).optional(),
+		vehicleNumber: z.string().max(100).optional(),
+		vehicleDate: z.coerce.date().optional(),
+		instructions: z
+			.string()
+			.max(65_535, "Instructions must be 65,535 characters or fewer")
+			.optional(),
+		remarks: z
+			.string()
+			.max(65_535, "Remarks must be 65,535 characters or fewer")
+			.optional(),
+		isInternalSupplier: z.boolean().default(false),
+		items: z
+			.array(createPurchaseReceiptItemSchema)
+			.min(1, "At least one item is required"),
+		taxes: z.array(createPurchaseReceiptTaxSchema).optional(),
+	});
+
+	export const updatePurchaseReceiptItemSchema = z
+		.object({
+			id: z.string().optional(),
+			itemCode: z.string().min(1, "Item code is required").max(100).trim(),
+			itemName: z.string().max(255).optional(),
+			description: z.string().max(1000).optional(),
+			acceptedQuantity: z
+				.number()
+				.min(0, "Accepted quantity cannot be negative"),
+			rejectedQuantity: z.number().min(0).default(0),
+			rate: z.number().min(0).optional(),
+			uom: z.string().max(50).optional(),
+			acceptedWarehouse: z.string().max(255).optional(),
+			rejectedWarehouse: z.string().max(255).optional(),
+		})
+		.refine(
+			(item) => item.acceptedQuantity + item.rejectedQuantity > 0,
+			"Accepted quantity or rejected quantity must be greater than 0",
+		);
+
+	export const updatePurchaseReceiptTaxSchema = z.object({
+		id: z.string().optional(),
+		type: z.string().min(1, "Tax type is required").max(255).trim(),
+		accountHead: z.string().min(1, "Account head is required").max(255).trim(),
+		taxRate: z.number().min(-100).max(100).optional(),
+		amount: z.number().optional(),
+	});
+
+	export const updatePurchaseReceiptSchema = z.object({
+		id: z.string().min(1),
+		seriesPattern: z.string().max(50).optional().nullable(),
+		postingDate: z.coerce.date().optional(),
+		postingTime: postingTimeSchema.optional().nullable(),
+		editPostingDateTime: z.boolean().optional(),
+		supplier: z.string().min(1).max(255).trim().optional(),
+		company: z.string().min(1).max(255).trim().optional(),
+		status: purchaseReceiptStatusSchema.optional(),
+		isReturn: z.boolean().optional(),
+		applyPutawayRule: z.boolean().optional(),
+		supplierDeliveryNote: z.string().max(255).optional().nullable(),
+		acceptedWarehouse: z.string().max(255).optional().nullable(),
+		rejectedWarehouse: z.string().max(255).optional().nullable(),
+		isSubcontracted: z.boolean().optional(),
+		currency: z.string().max(10).optional().nullable(),
+		priceList: z.string().max(255).optional().nullable(),
+		disableRoundedTotal: z.boolean().optional(),
+		supplierAddress: z.string().max(255).optional().nullable(),
+		contactPerson: z.string().max(255).optional().nullable(),
+		shippingAddressTemplate: z.string().max(255).optional().nullable(),
+		companyTRN: z.string().max(100).optional().nullable(),
+		billingAddress: z.string().max(255).optional().nullable(),
+		terms: z.string().max(255).optional().nullable(),
+		termsContent: z
+			.string()
+			.max(65_535, "Terms content must be 65,535 characters or fewer")
+			.optional()
+			.nullable(),
+		letterHead: z.string().max(255).optional().nullable(),
+		printHeading: z.string().max(255).optional().nullable(),
+		groupSameItems: z.boolean().optional(),
+		permitNumber: z.string().max(255).optional().nullable(),
+		recoverableStandardRatedExpenses: z.number().min(0).optional(),
+		reverseChargeApplicable: z.enum(["Y", "N"]).optional(),
+		transporterName: z.string().max(255).optional().nullable(),
+		vehicleNumber: z.string().max(100).optional().nullable(),
+		vehicleDate: z.coerce.date().optional().nullable(),
+		instructions: z
+			.string()
+			.max(65_535, "Instructions must be 65,535 characters or fewer")
+			.optional()
+			.nullable(),
+		remarks: z
+			.string()
+			.max(65_535, "Remarks must be 65,535 characters or fewer")
+			.optional()
+			.nullable(),
+		isInternalSupplier: z.boolean().optional(),
+		items: z.array(updatePurchaseReceiptItemSchema).min(1).optional(),
+		taxes: z.array(updatePurchaseReceiptTaxSchema).optional(),
+	});
+
+	export const listPurchaseReceiptsSchema = z
+		.object({
+			skip: z.number().int().min(0).optional(),
+			take: z.number().int().min(1).max(250).optional(),
+			search: z.string().max(255).optional(),
+			status: purchaseReceiptStatusSchema.optional(),
+		})
+		.optional();
+
+	export const bulkDeletePurchaseReceiptsSchema = z.object({
+		ids: z.array(z.string().min(1)).min(1),
+	});
+
+	// ============================================================================
+	// Pick List
+	// ============================================================================
+
+	export type PickListStatus = "DRAFT" | "OPEN" | "COMPLETED" | "CANCELLED";
+
+	export type PickListPurpose =
+		| "MATERIAL_TRANSFER_FOR_MANUFACTURE"
+		| "DELIVERY"
+		| "MATERIAL_TRANSFER";
+
+	export interface PickListItem {
+		id: string;
+		pickListId: string;
+		item: string;
+		warehouse?: string | null;
+		qty: number;
+		stockQty?: number | null;
+		pickedQty?: number | null;
+	}
+
+	export interface PickList {
+		id: string;
+		series: string;
+		seriesPattern: string;
+		status: PickListStatus;
+		company: string;
+		customer?: string | null;
+		purpose: PickListPurpose;
+		workOrder?: string | null;
+		warehouse?: string | null;
+		considerRejectedWarehouses: boolean;
+		pickManually: boolean;
+		ignorePricingRule: boolean;
+		scanMode: boolean;
+		promptQty: boolean;
+		scanBarcode?: string | null;
+		groupSameItems: boolean;
+		items: PickListItem[];
+		createdAt: Date;
+		updatedAt: Date;
+	}
+
+	export interface CreatePickListItemInput {
+		item: string;
+		warehouse?: string;
+		qty: number;
+		stockQty?: number;
+		pickedQty?: number;
+	}
+
+	export interface CreatePickListInput {
+		company: string;
+		customer?: string;
+		status?: PickListStatus;
+		purpose?: PickListPurpose;
+		workOrder?: string;
+		warehouse?: string;
+		considerRejectedWarehouses?: boolean;
+		pickManually?: boolean;
+		ignorePricingRule?: boolean;
+		scanMode?: boolean;
+		promptQty?: boolean;
+		scanBarcode?: string;
+		groupSameItems?: boolean;
+		items?: CreatePickListItemInput[];
+	}
+
+	export interface UpdatePickListItemInput {
+		id?: string;
+		item: string;
+		warehouse?: string | null;
+		qty: number;
+		stockQty?: number | null;
+		pickedQty?: number | null;
+	}
+
+	export interface UpdatePickListInput {
+		id: string;
+		company?: string;
+		customer?: string | null;
+		purpose?: PickListPurpose;
+		workOrder?: string | null;
+		warehouse?: string | null;
+		considerRejectedWarehouses?: boolean;
+		pickManually?: boolean;
+		ignorePricingRule?: boolean;
+		scanMode?: boolean;
+		promptQty?: boolean;
+		scanBarcode?: string | null;
+		groupSameItems?: boolean;
+		status?: PickListStatus;
+		items?: UpdatePickListItemInput[];
+	}
+
+	export const pickListStatusSchema = z.enum([
+		"DRAFT",
+		"OPEN",
+		"COMPLETED",
+		"CANCELLED",
+	]);
+
+	export const pickListPurposeSchema = z.enum([
+		"MATERIAL_TRANSFER_FOR_MANUFACTURE",
+		"DELIVERY",
+		"MATERIAL_TRANSFER",
+	]);
+
+	export const createPickListItemSchema = z.object({
+		item: z.string().min(1, "Item is required").max(255).trim(),
+		warehouse: z.string().max(255).optional(),
+		qty: z.number().min(0, "Quantity cannot be negative"),
+		stockQty: z.number().min(0).optional(),
+		pickedQty: z.number().min(0).optional(),
+	});
+
+	export const createPickListSchema = z.object({
+		company: z.string().min(1, "Company is required").max(255).trim(),
+		customer: z.string().max(255).optional(),
+		status: pickListStatusSchema.optional(),
+		purpose: pickListPurposeSchema.default("MATERIAL_TRANSFER_FOR_MANUFACTURE"),
+		workOrder: z.string().max(255).optional(),
+		warehouse: z.string().max(255).optional(),
+		considerRejectedWarehouses: z.boolean().default(false),
+		pickManually: z.boolean().default(false),
+		ignorePricingRule: z.boolean().default(false),
+		scanMode: z.boolean().default(false),
+		promptQty: z.boolean().default(false),
+		scanBarcode: z.string().max(255).optional(),
+		groupSameItems: z.boolean().default(false),
+		items: z.array(createPickListItemSchema),
+	});
+
+	export const updatePickListItemSchema = z.object({
+		id: z.string().optional(),
+		item: z.string().min(1, "Item is required").max(255).trim(),
+		warehouse: z.string().max(255).optional().nullable(),
+		qty: z.number().min(0, "Quantity cannot be negative"),
+		stockQty: z.number().min(0).optional().nullable(),
+		pickedQty: z.number().min(0).optional().nullable(),
+	});
+
+	export const updatePickListSchema = z.object({
+		id: z.string().min(1),
+		company: z.string().min(1).max(255).trim().optional(),
+		customer: z.string().max(255).optional().nullable(),
+		purpose: pickListPurposeSchema.optional(),
+		workOrder: z.string().max(255).optional().nullable(),
+		warehouse: z.string().max(255).optional().nullable(),
+		considerRejectedWarehouses: z.boolean().optional(),
+		pickManually: z.boolean().optional(),
+		ignorePricingRule: z.boolean().optional(),
+		scanMode: z.boolean().optional(),
+		promptQty: z.boolean().optional(),
+		scanBarcode: z.string().max(255).optional().nullable(),
+		groupSameItems: z.boolean().optional(),
+		status: pickListStatusSchema.optional(),
+		items: z.array(updatePickListItemSchema).optional(),
+	});
+
+	export const listPickListsSchema = z
+		.object({
+			skip: z.number().int().min(0).optional(),
+			take: z.number().int().min(1).max(250).optional(),
+			search: z.string().max(255).optional(),
+			status: pickListStatusSchema.optional(),
+		})
+		.optional();
+
+	export const bulkDeletePickListsSchema = z.object({
+		ids: z.array(z.string().min(1)).min(1),
+	});
+
+	// ─────────────────────────────────────────────────────────────────────────
+	// Delivery Trip
+	// ─────────────────────────────────────────────────────────────────────────
+
+	export type DeliveryTripStatus =
+		| "DRAFT"
+		| "SCHEDULED"
+		| "IN_TRANSIT"
+		| "COMPLETED"
+		| "CANCELLED";
+
+	export interface DeliveryTripStop {
+		id: string;
+		deliveryTripId: string;
+		stopNumber: number;
+		customer?: string | null;
+		addressName: string;
+		locked: boolean;
+		deliveryNote?: string | null;
+		estimatedArrival?: Date | null;
+	}
+
+	export interface DeliveryTrip {
+		id: string;
+		series: string;
+		seriesPattern: string;
+		status: DeliveryTripStatus;
+		company: string;
+		driver?: string | null;
+		driverAddress?: string | null;
+		vehicle?: string | null;
+		departureTime?: Date | null;
+		initialEmailNotificationSent: boolean;
+		stops: DeliveryTripStop[];
+		createdAt: Date;
+		updatedAt: Date;
+	}
+
+	export interface CreateDeliveryTripStopInput {
+		stopNumber: number;
+		customer?: string;
+		addressName: string;
+		locked?: boolean;
+		deliveryNote?: string;
+		estimatedArrival?: Date;
+	}
+
+	export interface UpdateDeliveryTripStopInput {
+		id?: string;
+		stopNumber: number;
+		customer?: string | null;
+		addressName: string;
+		locked?: boolean;
+		deliveryNote?: string | null;
+		estimatedArrival?: Date | null;
+	}
+
+	export interface CreateDeliveryTripInput {
+		company: string;
+		driver?: string;
+		driverAddress?: string;
+		vehicle?: string;
+		departureTime?: Date;
+		status?: DeliveryTripStatus;
+		initialEmailNotificationSent?: boolean;
+		stops?: CreateDeliveryTripStopInput[];
+	}
+
+	export interface UpdateDeliveryTripInput {
+		id: string;
+		company?: string;
+		driver?: string | null;
+		driverAddress?: string | null;
+		vehicle?: string | null;
+		departureTime?: Date | null;
+		status?: DeliveryTripStatus;
+		initialEmailNotificationSent?: boolean;
+		stops?: UpdateDeliveryTripStopInput[];
+	}
+
+	export const deliveryTripStatusSchema = z.enum([
+		"DRAFT",
+		"SCHEDULED",
+		"IN_TRANSIT",
+		"COMPLETED",
+		"CANCELLED",
+	]);
+
+	export const createDeliveryTripStopSchema = z.object({
+		stopNumber: z.number().int().min(1),
+		customer: z.string().max(255).optional(),
+		addressName: z.string().min(1, "Address Name is required").max(500).trim(),
+		locked: z.boolean().default(false),
+		deliveryNote: z.string().max(50).optional(),
+		estimatedArrival: z.coerce.date().optional(),
+	});
+
+	export const updateDeliveryTripStopSchema = z.object({
+		id: z.string().optional(),
+		stopNumber: z.number().int().min(1),
+		customer: z.string().max(255).optional().nullable(),
+		addressName: z.string().min(1, "Address Name is required").max(500).trim(),
+		locked: z.boolean().default(false),
+		deliveryNote: z.string().max(50).optional().nullable(),
+		estimatedArrival: z.coerce.date().optional().nullable(),
+	});
+
+	export const createDeliveryTripSchema = z.object({
+		company: z.string().min(1, "Company is required").max(255).trim(),
+		driver: z.string().max(255).optional(),
+		driverAddress: z.string().max(500).optional(),
+		vehicle: z.string().max(255).optional(),
+		departureTime: z.coerce.date().optional(),
+		status: deliveryTripStatusSchema.optional(),
+		initialEmailNotificationSent: z.boolean().default(false),
+		stops: z.array(createDeliveryTripStopSchema).default([]),
+	});
+
+	export const updateDeliveryTripSchema = z.object({
+		id: z.string().min(1),
+		company: z.string().min(1).max(255).trim().optional(),
+		driver: z.string().max(255).optional().nullable(),
+		driverAddress: z.string().max(500).optional().nullable(),
+		vehicle: z.string().max(255).optional().nullable(),
+		departureTime: z.coerce.date().optional().nullable(),
+		status: deliveryTripStatusSchema.optional(),
+		initialEmailNotificationSent: z.boolean().optional(),
+		stops: z.array(updateDeliveryTripStopSchema).optional(),
+	});
+
+	export const listDeliveryTripsSchema = z
+		.object({
+			skip: z.number().int().min(0).optional(),
+			take: z.number().int().min(1).max(250).optional(),
+			search: z.string().max(255).optional(),
+			status: deliveryTripStatusSchema.optional(),
+		})
+		.optional();
+
+	export const bulkDeleteDeliveryTripsSchema = z.object({
+		ids: z.array(z.string().min(1)).min(1),
+	});
 }
 
 // ============================================================================

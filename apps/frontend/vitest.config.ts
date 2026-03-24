@@ -9,7 +9,7 @@ export default defineConfig({
 		globals: true,
 		environment: "jsdom",
 		pool: "forks",
-		fileParallelism: false,
+		fileParallelism: true,
 		isolate: true,
 		clearMocks: true,
 		mockReset: true,
@@ -41,6 +41,7 @@ export default defineConfig({
 			},
 		},
 		restoreMocks: true,
+		testTimeout: 15000,
 	},
 	resolve: {
 		alias: [

@@ -56,27 +56,27 @@ export const inventoryNavItems: NavItem[] = [
 		items: [
 			{
 				title: "Material Request",
-				url: "/inventory/material-requests",
+				url: "/inventory/stock-transaction/material-request",
 			},
 			{
 				title: "Stock Entry",
-				url: "/inventory/stock-entries",
+				url: "/inventory/stock-transaction/stock-entry",
 			},
 			{
 				title: "Delivery Note",
-				url: "/inventory/delivery-notes",
+				url: "/inventory/stock-transaction/delivery-note",
 			},
 			{
 				title: "Purchase Receipt",
-				url: "/inventory/purchase-receipts",
+				url: "/inventory/stock-transaction/purchase-receipt",
 			},
 			{
 				title: "Pick List",
-				url: "/inventory/pick-lists",
+				url: "/inventory/stock-transaction/pick-list",
 			},
 			{
 				title: "Delivery Trip",
-				url: "/inventory/delivery-trips",
+				url: "/inventory/stock-transaction/delivery-trip",
 			},
 		],
 	},
