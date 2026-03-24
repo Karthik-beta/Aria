@@ -18,6 +18,7 @@ import {
 	toInventoryItemGroup,
 	toInventoryItemManufacturer,
 	toInventoryMaterialRequest,
+	toInventoryPickList,
 	toInventoryProductBundle,
 	toInventoryPurchaseReceipt,
 	toInventoryShippingRule,
@@ -135,6 +136,9 @@ const isDefaultItemManufacturerConstraintViolation = (
 
 	return error.message.includes(ITEM_MANUFACTURERS_DEFAULT_PER_ITEM_INDEX);
 };
+
+/** Maximum number of rows returned by any paginated list query. */
+const LIST_QUERY_TAKE_MAX = 250;
 
 /**
  * Simple inventory service with type-safe CRUD operations
@@ -2173,12 +2177,16 @@ export class InventoryService {
 		skip?: number;
 		take?: number;
 	}): Promise<Inventory.DeliveryNote[]> {
-		const MAX_TAKE = 250;
 		const rawSkip = params?.skip ?? 0;
-		const rawTake = params?.take ?? MAX_TAKE;
+		const rawTake = params?.take ?? LIST_QUERY_TAKE_MAX;
 
 		const skip = rawSkip < 0 ? 0 : rawSkip;
-		const take = rawTake <= 0 ? 1 : rawTake > MAX_TAKE ? MAX_TAKE : rawTake;
+		const take =
+			rawTake <= 0
+				? 1
+				: rawTake > LIST_QUERY_TAKE_MAX
+					? LIST_QUERY_TAKE_MAX
+					: rawTake;
 
 		const notes = await this.prisma.deliveryNote.findMany({
 			orderBy: { createdAt: "desc" },
@@ -2322,8 +2330,9 @@ export class InventoryService {
 					error instanceof Prisma.PrismaClientKnownRequestError &&
 					error.code === "P2002";
 				if (isSeriesConflict && attempt < 2) {
-					const backoffMs = 50 * 2 ** attempt + Math.floor(Math.random() * 50);
-					await new Promise((resolve) => setTimeout(resolve, backoffMs));
+					await new Promise((resolve) =>
+						setTimeout(resolve, this.computeBackoffMs(attempt)),
+					);
 					continue;
 				}
 				throw error;
@@ -2804,13 +2813,17 @@ export class InventoryService {
 		search?: string;
 		status?: Inventory.PurchaseReceiptStatus;
 	}): Promise<Inventory.PurchaseReceipt[]> {
-		const MAX_TAKE = 250;
 		const rawSkip = params?.skip ?? 0;
 		const rawTake = params?.take ?? 100;
 		const search = params?.search?.trim();
 
 		const skip = rawSkip < 0 ? 0 : rawSkip;
-		const take = rawTake <= 0 ? 1 : rawTake > MAX_TAKE ? MAX_TAKE : rawTake;
+		const take =
+			rawTake <= 0
+				? 1
+				: rawTake > LIST_QUERY_TAKE_MAX
+					? LIST_QUERY_TAKE_MAX
+					: rawTake;
 
 		const where: Prisma.PurchaseReceiptWhereInput = {
 			...(params?.status ? { status: params.status } : {}),
@@ -2973,8 +2986,9 @@ export class InventoryService {
 					error instanceof Prisma.PrismaClientKnownRequestError &&
 					error.code === "P2002";
 				if (isSeriesConflict && attempt < 2) {
-					const backoffMs = 50 * 2 ** attempt + Math.floor(Math.random() * 50);
-					await new Promise((resolve) => setTimeout(resolve, backoffMs));
+					await new Promise((resolve) =>
+						setTimeout(resolve, this.computeBackoffMs(attempt)),
+					);
 					continue;
 				}
 				throw error;
@@ -3374,6 +3388,331 @@ export class InventoryService {
 			if (error instanceof Prisma.PrismaClientKnownRequestError) {
 				this.logger.error(
 					`Bulk delete purchase receipts failed [${error.code}]`,
+					error.stack,
+				);
+			}
+			throw error;
+		}
+	}
+
+	// ============================================================================
+	// Pick List
+	// ============================================================================
+
+	/**
+	 * Compute exponential backoff delay for series-conflict retries.
+	 * Adds ±50 ms jitter to reduce thundering-herd contention.
+	 *
+	 * @param attempt - Zero-based attempt index (0 = first retry).
+	 * @returns Delay in milliseconds.
+	 */
+	private computeBackoffMs(attempt: number): number {
+		return 50 * 2 ** attempt + Math.floor(Math.random() * 50);
+	}
+
+	/**
+	 * Generate a unique series number for a pick list using prefix STO-PICK.
+	 * Uses read-then-retry with exponential backoff to handle concurrent writes.
+	 */
+	private async generatePickListSeries(date: Date): Promise<string> {
+		const year = date.getFullYear();
+		const prefix = `STO-PICK-${year}-`;
+
+		const lastPickList = await this.prisma.pickList.findFirst({
+			where: { series: { startsWith: prefix } },
+			orderBy: { series: "desc" },
+			select: { series: true },
+		});
+
+		let nextNumber = 1;
+		if (lastPickList) {
+			const numStr = lastPickList.series.slice(prefix.length);
+			const num = parseInt(numStr, 10);
+			if (!Number.isNaN(num)) {
+				nextNumber = num + 1;
+			}
+		}
+
+		return `${prefix}${String(nextNumber).padStart(5, "0")}`;
+	}
+
+	/**
+	 * Get pick lists with bounded pagination, optional status filter, and search.
+	 */
+	async findAllPickLists(params?: {
+		skip?: number;
+		take?: number;
+		search?: string;
+		status?: Inventory.PickListStatus;
+	}): Promise<Inventory.PickList[]> {
+		const rawSkip = params?.skip ?? 0;
+		const rawTake = params?.take ?? 100;
+		const search = params?.search?.trim();
+
+		const skip = rawSkip < 0 ? 0 : rawSkip;
+		const take =
+			rawTake <= 0
+				? 1
+				: rawTake > LIST_QUERY_TAKE_MAX
+					? LIST_QUERY_TAKE_MAX
+					: rawTake;
+
+		const where: Prisma.PickListWhereInput = {
+			...(params?.status ? { status: params.status } : {}),
+			...(search
+				? {
+						OR: [
+							{ series: { contains: search, mode: "insensitive" } },
+							{ company: { contains: search, mode: "insensitive" } },
+							{ customer: { contains: search, mode: "insensitive" } },
+						],
+					}
+				: {}),
+		};
+
+		const pickLists = await this.prisma.pickList.findMany({
+			where,
+			orderBy: { createdAt: "desc" },
+			include: { items: true },
+			skip,
+			take,
+		});
+
+		return pickLists.map(toInventoryPickList);
+	}
+
+	/**
+	 * Get a single pick list by id.
+	 */
+	async findPickListById(id: string): Promise<Inventory.PickList | null> {
+		const pickList = await this.prisma.pickList.findUnique({
+			where: { id },
+			include: { items: true },
+		});
+
+		return pickList ? toInventoryPickList(pickList) : null;
+	}
+
+	/**
+	 * Create a new pick list.
+	 * Retries up to 3 times on a series uniqueness conflict (P2002).
+	 */
+	async createPickList(
+		data: Inventory.CreatePickListInput,
+	): Promise<Inventory.PickList> {
+		const postingDate = new Date();
+
+		for (let attempt = 0; attempt < 3; attempt++) {
+			const series = await this.generatePickListSeries(postingDate);
+			try {
+				const created = await this.prisma.pickList.create({
+					data: {
+						series,
+						company: data.company,
+						customer: data.customer,
+						status: data.status ?? "DRAFT",
+						purpose: data.purpose ?? "MATERIAL_TRANSFER_FOR_MANUFACTURE",
+						workOrder: data.workOrder,
+						warehouse: data.warehouse,
+						considerRejectedWarehouses:
+							data.considerRejectedWarehouses ?? false,
+						pickManually: data.pickManually ?? false,
+						ignorePricingRule: data.ignorePricingRule ?? false,
+						scanMode: data.scanMode ?? false,
+						promptQty: data.promptQty ?? false,
+						scanBarcode: data.scanBarcode,
+						groupSameItems: data.groupSameItems ?? false,
+						items: {
+							create: (data.items ?? []).map((item) => ({
+								item: item.item,
+								warehouse: item.warehouse,
+								qty: item.qty,
+								stockQty: item.stockQty,
+								pickedQty: item.pickedQty,
+							})),
+						},
+					},
+					include: { items: true },
+				});
+
+				return toInventoryPickList(created);
+			} catch (error) {
+				const isSeriesConflict =
+					error instanceof Prisma.PrismaClientKnownRequestError &&
+					error.code === "P2002";
+				if (isSeriesConflict && attempt < 2) {
+					await new Promise((resolve) =>
+						setTimeout(resolve, this.computeBackoffMs(attempt)),
+					);
+					continue;
+				}
+				if (!isSeriesConflict) {
+					throw error;
+				}
+				// Series conflict on last attempt — fall through to throw below.
+			}
+		}
+
+		throw new ConflictException("Failed to allocate a unique series number");
+	}
+
+	/**
+	 * Update an existing pick list with nested item upsert logic.
+	 * Preserves existing item rows; removes rows no longer in the payload.
+	 */
+	async updatePickList(
+		data: Inventory.UpdatePickListInput,
+	): Promise<Inventory.PickList> {
+		const { id, items, ...rest } = data;
+
+		const existing = await this.prisma.pickList.findUnique({
+			where: { id },
+			select: { id: true },
+		});
+
+		if (!existing) {
+			throw new NotFoundException(`Pick list with ID ${id} not found`);
+		}
+
+		const updated = await this.prisma.$transaction(async (tx) => {
+			await tx.pickList.update({
+				where: { id },
+				data: {
+					...(rest.company !== undefined && { company: rest.company }),
+					...(rest.customer !== undefined && { customer: rest.customer }),
+					...(rest.purpose !== undefined && { purpose: rest.purpose }),
+					...(rest.workOrder !== undefined && { workOrder: rest.workOrder }),
+					...(rest.warehouse !== undefined && { warehouse: rest.warehouse }),
+					...(rest.considerRejectedWarehouses !== undefined && {
+						considerRejectedWarehouses: rest.considerRejectedWarehouses,
+					}),
+					...(rest.pickManually !== undefined && {
+						pickManually: rest.pickManually,
+					}),
+					...(rest.ignorePricingRule !== undefined && {
+						ignorePricingRule: rest.ignorePricingRule,
+					}),
+					...(rest.scanMode !== undefined && { scanMode: rest.scanMode }),
+					...(rest.promptQty !== undefined && { promptQty: rest.promptQty }),
+					...(rest.scanBarcode !== undefined && {
+						scanBarcode: rest.scanBarcode,
+					}),
+					...(rest.groupSameItems !== undefined && {
+						groupSameItems: rest.groupSameItems,
+					}),
+					...(rest.status !== undefined && { status: rest.status }),
+				},
+			});
+
+			if (items !== undefined) {
+				const keptIds = items
+					.filter((item): item is typeof item & { id: string } =>
+						Boolean(item.id),
+					)
+					.map((item) => item.id);
+
+				if (keptIds.length > 0) {
+					const ownedItems = await tx.pickListItem.findMany({
+						where: {
+							id: { in: keptIds },
+							pickListId: id,
+						},
+						select: { id: true },
+					});
+					const ownedIds = new Set(ownedItems.map((item) => item.id));
+					const foreignItemId = keptIds.find((itemId) => !ownedIds.has(itemId));
+					if (foreignItemId) {
+						throw new BadRequestException(
+							`Pick list item with ID ${foreignItemId} does not belong to pick list ${id}`,
+						);
+					}
+				}
+
+				if (keptIds.length === 0) {
+					await tx.pickListItem.deleteMany({
+						where: { pickListId: id },
+					});
+				} else {
+					await tx.pickListItem.deleteMany({
+						where: {
+							pickListId: id,
+							id: { notIn: keptIds },
+						},
+					});
+				}
+
+				for (const item of items) {
+					if (item.id) {
+						await tx.pickListItem.update({
+							where: { id: item.id },
+							data: {
+								item: item.item,
+								warehouse: item.warehouse,
+								qty: item.qty,
+								stockQty: item.stockQty,
+								pickedQty: item.pickedQty,
+							},
+						});
+					} else {
+						await tx.pickListItem.create({
+							data: {
+								pickListId: id,
+								item: item.item,
+								warehouse: item.warehouse,
+								qty: item.qty,
+								stockQty: item.stockQty,
+								pickedQty: item.pickedQty,
+							},
+						});
+					}
+				}
+			}
+
+			return tx.pickList.findUniqueOrThrow({
+				where: { id },
+				include: { items: true },
+			});
+		});
+
+		return toInventoryPickList(updated);
+	}
+
+	/**
+	 * Delete a single pick list.
+	 */
+	async deletePickList(id: string): Promise<{ success: boolean; id: string }> {
+		try {
+			await this.prisma.pickList.delete({
+				where: { id },
+			});
+			return { success: true, id };
+		} catch (error) {
+			if (
+				error instanceof Prisma.PrismaClientKnownRequestError &&
+				error.code === "P2025"
+			) {
+				throw new NotFoundException(`Pick list with ID ${id} not found`);
+			}
+			throw error;
+		}
+	}
+
+	/**
+	 * Delete multiple pick lists.
+	 */
+	async deleteManyPickLists(
+		ids: string[],
+	): Promise<{ success: boolean; count: number; ids: string[] }> {
+		const uniqueIds = [...new Set(ids)];
+		try {
+			const result = await this.prisma.pickList.deleteMany({
+				where: { id: { in: uniqueIds } },
+			});
+			return { success: true, count: result.count, ids: uniqueIds };
+		} catch (error) {
+			if (error instanceof Prisma.PrismaClientKnownRequestError) {
+				this.logger.error(
+					`Bulk delete pick lists failed [${error.code}]`,
 					error.stack,
 				);
 			}

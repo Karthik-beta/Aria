@@ -578,3 +578,49 @@ export function toInventoryPurchaseReceipt(
 		updatedAt: prismaReceipt.updatedAt,
 	};
 }
+
+/**
+ * Prisma model type for PickList with items
+ */
+export type InventoryPickList = Prisma.PickListGetPayload<{
+	include: {
+		items: true;
+	};
+}>;
+
+/**
+ * Converts a Prisma PickList to Inventory.PickList
+ */
+export function toInventoryPickList(
+	prismaPickList: InventoryPickList,
+): Inventory.PickList {
+	return {
+		id: prismaPickList.id,
+		series: prismaPickList.series,
+		seriesPattern: prismaPickList.seriesPattern,
+		status: prismaPickList.status as Inventory.PickListStatus,
+		company: prismaPickList.company,
+		customer: prismaPickList.customer,
+		purpose: prismaPickList.purpose as Inventory.PickListPurpose,
+		workOrder: prismaPickList.workOrder,
+		warehouse: prismaPickList.warehouse,
+		considerRejectedWarehouses: prismaPickList.considerRejectedWarehouses,
+		pickManually: prismaPickList.pickManually,
+		ignorePricingRule: prismaPickList.ignorePricingRule,
+		scanMode: prismaPickList.scanMode,
+		promptQty: prismaPickList.promptQty,
+		scanBarcode: prismaPickList.scanBarcode,
+		groupSameItems: prismaPickList.groupSameItems,
+		items: prismaPickList.items.map((item) => ({
+			id: item.id,
+			pickListId: item.pickListId,
+			item: item.item,
+			warehouse: item.warehouse,
+			qty: item.qty,
+			stockQty: item.stockQty,
+			pickedQty: item.pickedQty,
+		})),
+		createdAt: prismaPickList.createdAt,
+		updatedAt: prismaPickList.updatedAt,
+	};
+}

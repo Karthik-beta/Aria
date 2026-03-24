@@ -72,7 +72,7 @@ export const inventoryNavItems: NavItem[] = [
 			},
 			{
 				title: "Pick List",
-				url: "/inventory/pick-lists",
+				url: "/inventory/stock-transaction/pick-list",
 			},
 			{
 				title: "Delivery Trip",

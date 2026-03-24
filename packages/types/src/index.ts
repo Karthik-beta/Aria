@@ -1875,6 +1875,179 @@ export namespace Inventory {
 	export const bulkDeletePurchaseReceiptsSchema = z.object({
 		ids: z.array(z.string().min(1)).min(1),
 	});
+
+	// ============================================================================
+	// Pick List
+	// ============================================================================
+
+	export type PickListStatus = "DRAFT" | "OPEN" | "COMPLETED" | "CANCELLED";
+
+	export type PickListPurpose =
+		| "MATERIAL_TRANSFER_FOR_MANUFACTURE"
+		| "DELIVERY"
+		| "MATERIAL_TRANSFER";
+
+	export interface PickListItem {
+		id: string;
+		pickListId: string;
+		item: string;
+		warehouse?: string | null;
+		qty: number;
+		stockQty?: number | null;
+		pickedQty?: number | null;
+	}
+
+	export interface PickList {
+		id: string;
+		series: string;
+		seriesPattern: string;
+		status: PickListStatus;
+		company: string;
+		customer?: string | null;
+		purpose: PickListPurpose;
+		workOrder?: string | null;
+		warehouse?: string | null;
+		considerRejectedWarehouses: boolean;
+		pickManually: boolean;
+		ignorePricingRule: boolean;
+		scanMode: boolean;
+		promptQty: boolean;
+		scanBarcode?: string | null;
+		groupSameItems: boolean;
+		items: PickListItem[];
+		createdAt: Date;
+		updatedAt: Date;
+	}
+
+	export interface CreatePickListItemInput {
+		item: string;
+		warehouse?: string;
+		qty: number;
+		stockQty?: number;
+		pickedQty?: number;
+	}
+
+	export interface CreatePickListInput {
+		company: string;
+		customer?: string;
+		status?: PickListStatus;
+		purpose?: PickListPurpose;
+		workOrder?: string;
+		warehouse?: string;
+		considerRejectedWarehouses?: boolean;
+		pickManually?: boolean;
+		ignorePricingRule?: boolean;
+		scanMode?: boolean;
+		promptQty?: boolean;
+		scanBarcode?: string;
+		groupSameItems?: boolean;
+		items?: CreatePickListItemInput[];
+	}
+
+	export interface UpdatePickListItemInput {
+		id?: string;
+		item: string;
+		warehouse?: string | null;
+		qty: number;
+		stockQty?: number | null;
+		pickedQty?: number | null;
+	}
+
+	export interface UpdatePickListInput {
+		id: string;
+		company?: string;
+		customer?: string | null;
+		purpose?: PickListPurpose;
+		workOrder?: string | null;
+		warehouse?: string | null;
+		considerRejectedWarehouses?: boolean;
+		pickManually?: boolean;
+		ignorePricingRule?: boolean;
+		scanMode?: boolean;
+		promptQty?: boolean;
+		scanBarcode?: string | null;
+		groupSameItems?: boolean;
+		status?: PickListStatus;
+		items?: UpdatePickListItemInput[];
+	}
+
+	export const pickListStatusSchema = z.enum([
+		"DRAFT",
+		"OPEN",
+		"COMPLETED",
+		"CANCELLED",
+	]);
+
+	export const pickListPurposeSchema = z.enum([
+		"MATERIAL_TRANSFER_FOR_MANUFACTURE",
+		"DELIVERY",
+		"MATERIAL_TRANSFER",
+	]);
+
+	export const createPickListItemSchema = z.object({
+		item: z.string().min(1, "Item is required").max(255).trim(),
+		warehouse: z.string().max(255).optional(),
+		qty: z.number().min(0, "Quantity cannot be negative"),
+		stockQty: z.number().min(0).optional(),
+		pickedQty: z.number().min(0).optional(),
+	});
+
+	export const createPickListSchema = z.object({
+		company: z.string().min(1, "Company is required").max(255).trim(),
+		customer: z.string().max(255).optional(),
+		status: pickListStatusSchema.optional(),
+		purpose: pickListPurposeSchema.default("MATERIAL_TRANSFER_FOR_MANUFACTURE"),
+		workOrder: z.string().max(255).optional(),
+		warehouse: z.string().max(255).optional(),
+		considerRejectedWarehouses: z.boolean().default(false),
+		pickManually: z.boolean().default(false),
+		ignorePricingRule: z.boolean().default(false),
+		scanMode: z.boolean().default(false),
+		promptQty: z.boolean().default(false),
+		scanBarcode: z.string().max(255).optional(),
+		groupSameItems: z.boolean().default(false),
+		items: z.array(createPickListItemSchema),
+	});
+
+	export const updatePickListItemSchema = z.object({
+		id: z.string().optional(),
+		item: z.string().min(1, "Item is required").max(255).trim(),
+		warehouse: z.string().max(255).optional().nullable(),
+		qty: z.number().min(0, "Quantity cannot be negative"),
+		stockQty: z.number().min(0).optional().nullable(),
+		pickedQty: z.number().min(0).optional().nullable(),
+	});
+
+	export const updatePickListSchema = z.object({
+		id: z.string().min(1),
+		company: z.string().min(1).max(255).trim().optional(),
+		customer: z.string().max(255).optional().nullable(),
+		purpose: pickListPurposeSchema.optional(),
+		workOrder: z.string().max(255).optional().nullable(),
+		warehouse: z.string().max(255).optional().nullable(),
+		considerRejectedWarehouses: z.boolean().optional(),
+		pickManually: z.boolean().optional(),
+		ignorePricingRule: z.boolean().optional(),
+		scanMode: z.boolean().optional(),
+		promptQty: z.boolean().optional(),
+		scanBarcode: z.string().max(255).optional().nullable(),
+		groupSameItems: z.boolean().optional(),
+		status: pickListStatusSchema.optional(),
+		items: z.array(updatePickListItemSchema).optional(),
+	});
+
+	export const listPickListsSchema = z
+		.object({
+			skip: z.number().int().min(0).optional(),
+			take: z.number().int().min(1).max(250).optional(),
+			search: z.string().max(255).optional(),
+			status: pickListStatusSchema.optional(),
+		})
+		.optional();
+
+	export const bulkDeletePickListsSchema = z.object({
+		ids: z.array(z.string().min(1)).min(1),
+	});
 }
 
 // ============================================================================

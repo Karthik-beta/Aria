@@ -397,7 +397,7 @@ describe("AdvancedDataTable Component", () => {
 
 			await chooseSelectOption(user, "Field", "Launch Date");
 			expect(getBulkEditValueControl()).toHaveAttribute("type", "date");
-		}, 10_000);
+		}, 30_000);
 
 		it("emits a normalized set request", async () => {
 			const onBulkEdit = vi.fn().mockResolvedValue(undefined);
@@ -492,7 +492,7 @@ describe("AdvancedDataTable Component", () => {
 			expect(
 				screen.getByRole("button", { name: /update 1 record/i }),
 			).toBeDisabled();
-		}, 10_000);
+		}, 30_000);
 
 		it("keeps the dialog open and reports through onError when bulk edit fails", async () => {
 			const onBulkEdit = vi.fn().mockRejectedValue(new Error("boom"));

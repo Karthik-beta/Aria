@@ -781,6 +781,97 @@ function createDeleteManyPurchaseReceiptsProcedure(
 		});
 }
 
+// ─── Pick List Procedures ────────────────────────────────────────────────────
+
+type PickListsChangedEvent = {
+	type: "created" | "updated" | "deleted";
+	data: Inventory.PickList | { id: string };
+};
+
+function createListPickListsProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(Inventory.listPickListsSchema)
+		.query(async ({ input }) => {
+			return inventoryService.findAllPickLists(input);
+		});
+}
+
+function createGetPickListByIdProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(z.object({ id: z.string().min(1) }))
+		.query(async ({ input }) => {
+			return inventoryService.findPickListById(input.id);
+		});
+}
+
+function createCreatePickListProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(Inventory.createPickListSchema)
+		.mutation(async ({ input }) => {
+			const result = await inventoryService.createPickList(input);
+			void inventoryEvents.emit("pickListCreated", result);
+			return result;
+		});
+}
+
+function createUpdatePickListProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(Inventory.updatePickListSchema)
+		.mutation(async ({ input }) => {
+			const result = await inventoryService.updatePickList(input);
+			void inventoryEvents.emit("pickListUpdated", result);
+			return result;
+		});
+}
+
+function createDeletePickListProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(z.object({ id: z.string().min(1) }))
+		.mutation(async ({ input }) => {
+			const result = await inventoryService.deletePickList(input.id);
+			void inventoryEvents.emit("pickListDeleted", { id: input.id });
+			return result;
+		});
+}
+
+function createDeleteManyPickListsProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure
+		.input(Inventory.bulkDeletePickListsSchema)
+		.mutation(async ({ input }) => {
+			const result = await inventoryService.deleteManyPickLists(input.ids);
+			for (const id of result.ids) {
+				void inventoryEvents.emit("pickListDeleted", { id });
+			}
+			return result;
+		});
+}
+
+const onPickListsChangedProcedure = protectedProcedure.subscription(() => {
+	return observable<PickListsChangedEvent>((emit) => {
+		const onCreated = (data: Inventory.PickList) => {
+			emit.next({ type: "created", data });
+		};
+		const onUpdated = (data: Inventory.PickList) => {
+			emit.next({ type: "updated", data });
+		};
+		const onDeleted = (data: { id: string }) => {
+			emit.next({ type: "deleted", data });
+		};
+
+		inventoryEvents.on("pickListCreated", onCreated);
+		inventoryEvents.on("pickListUpdated", onUpdated);
+		inventoryEvents.on("pickListDeleted", onDeleted);
+
+		return () => {
+			inventoryEvents.off("pickListCreated", onCreated);
+			inventoryEvents.off("pickListUpdated", onUpdated);
+			inventoryEvents.off("pickListDeleted", onDeleted);
+		};
+	});
+});
+
 type InventoryRouterInput = {
 	listItems: ReturnType<typeof createListItemsProcedure>;
 	listItemGroups: ReturnType<typeof createListItemGroupsProcedure>;
@@ -890,6 +981,13 @@ type InventoryRouterInput = {
 	deleteManyPurchaseReceipts: ReturnType<
 		typeof createDeleteManyPurchaseReceiptsProcedure
 	>;
+	listPickLists: ReturnType<typeof createListPickListsProcedure>;
+	getPickListById: ReturnType<typeof createGetPickListByIdProcedure>;
+	createPickList: ReturnType<typeof createCreatePickListProcedure>;
+	updatePickList: ReturnType<typeof createUpdatePickListProcedure>;
+	deletePickList: ReturnType<typeof createDeletePickListProcedure>;
+	deleteManyPickLists: ReturnType<typeof createDeleteManyPickListsProcedure>;
+	onPickListsChanged: typeof onPickListsChangedProcedure;
 };
 
 type InventoryRouterRoot = (typeof accountRouter)["_def"]["_config"]["$types"];
@@ -991,6 +1089,13 @@ function createInventoryRouterRecord(
 			createDeletePurchaseReceiptProcedure(inventoryService),
 		deleteManyPurchaseReceipts:
 			createDeleteManyPurchaseReceiptsProcedure(inventoryService),
+		listPickLists: createListPickListsProcedure(inventoryService),
+		getPickListById: createGetPickListByIdProcedure(inventoryService),
+		createPickList: createCreatePickListProcedure(inventoryService),
+		updatePickList: createUpdatePickListProcedure(inventoryService),
+		deletePickList: createDeletePickListProcedure(inventoryService),
+		deleteManyPickLists: createDeleteManyPickListsProcedure(inventoryService),
+		onPickListsChanged: onPickListsChangedProcedure,
 	};
 }
 

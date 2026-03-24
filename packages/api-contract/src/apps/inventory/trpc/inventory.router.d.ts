@@ -34,6 +34,11 @@ type DeliveryNotesChangedEvent = {
 	data: Inventory.DeliveryNote | { id: string };
 };
 
+type PickListsChangedEvent = {
+	type: "created" | "updated" | "deleted";
+	data: Inventory.PickList | { id: string };
+};
+
 type InventoryRouterInput = {
 	listItems: TRPCQueryProcedure<{
 		input: void;
@@ -1030,6 +1035,113 @@ type InventoryRouterInput = {
 			count: number;
 			ids: string[];
 		};
+		meta: object;
+	}>;
+	listPickLists: TRPCQueryProcedure<{
+		input:
+			| {
+					skip?: number | undefined;
+					take?: number | undefined;
+					search?: string | undefined;
+					status?: "DRAFT" | "OPEN" | "COMPLETED" | "CANCELLED" | undefined;
+			  }
+			| undefined;
+		output: Inventory.PickList[];
+		meta: object;
+	}>;
+	getPickListById: TRPCQueryProcedure<{
+		input: {
+			id: string;
+		};
+		output: Inventory.PickList | null;
+		meta: object;
+	}>;
+	createPickList: TRPCMutationProcedure<{
+		input: {
+			company: string;
+			customer?: string | undefined;
+			status?: "DRAFT" | "OPEN" | "COMPLETED" | "CANCELLED" | undefined;
+			purpose?:
+				| "MATERIAL_TRANSFER_FOR_MANUFACTURE"
+				| "DELIVERY"
+				| "MATERIAL_TRANSFER"
+				| undefined;
+			workOrder?: string | undefined;
+			warehouse?: string | undefined;
+			considerRejectedWarehouses?: boolean | undefined;
+			pickManually?: boolean | undefined;
+			ignorePricingRule?: boolean | undefined;
+			scanMode?: boolean | undefined;
+			promptQty?: boolean | undefined;
+			scanBarcode?: string | undefined;
+			groupSameItems?: boolean | undefined;
+			items?: Array<{
+				item: string;
+				qty: number;
+				warehouse?: string | undefined;
+				stockQty?: number | undefined;
+				pickedQty?: number | undefined;
+			}>;
+		};
+		output: Inventory.PickList;
+		meta: object;
+	}>;
+	updatePickList: TRPCMutationProcedure<{
+		input: {
+			id: string;
+			company?: string | undefined;
+			customer?: string | null | undefined;
+			status?: "DRAFT" | "OPEN" | "COMPLETED" | "CANCELLED" | undefined;
+			purpose?:
+				| "MATERIAL_TRANSFER_FOR_MANUFACTURE"
+				| "DELIVERY"
+				| "MATERIAL_TRANSFER"
+				| undefined;
+			workOrder?: string | null | undefined;
+			warehouse?: string | null | undefined;
+			considerRejectedWarehouses?: boolean | undefined;
+			pickManually?: boolean | undefined;
+			ignorePricingRule?: boolean | undefined;
+			scanMode?: boolean | undefined;
+			promptQty?: boolean | undefined;
+			scanBarcode?: string | null | undefined;
+			groupSameItems?: boolean | undefined;
+			items?: Array<{
+				id?: string | undefined;
+				item: string;
+				qty: number;
+				warehouse?: string | null | undefined;
+				stockQty?: number | null | undefined;
+				pickedQty?: number | null | undefined;
+			}>;
+		};
+		output: Inventory.PickList;
+		meta: object;
+	}>;
+	deletePickList: TRPCMutationProcedure<{
+		input: {
+			id: string;
+		};
+		output: {
+			success: boolean;
+			id: string;
+		};
+		meta: object;
+	}>;
+	deleteManyPickLists: TRPCMutationProcedure<{
+		input: {
+			ids: string[];
+		};
+		output: {
+			success: boolean;
+			count: number;
+			ids: string[];
+		};
+		meta: object;
+	}>;
+	onPickListsChanged: LegacyObservableSubscriptionProcedure<{
+		input: void;
+		output: PickListsChangedEvent;
 		meta: object;
 	}>;
 };

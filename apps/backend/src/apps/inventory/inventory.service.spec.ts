@@ -245,6 +245,22 @@ describe("InventoryService", () => {
 			update: jest.fn(),
 			create: jest.fn(),
 		},
+		pickList: {
+			findMany: jest.fn(),
+			findFirst: jest.fn(),
+			findUnique: jest.fn(),
+			findUniqueOrThrow: jest.fn(),
+			create: jest.fn(),
+			update: jest.fn(),
+			delete: jest.fn(),
+			deleteMany: jest.fn(),
+		},
+		pickListItem: {
+			findMany: jest.fn(),
+			deleteMany: jest.fn(),
+			update: jest.fn(),
+			create: jest.fn(),
+		},
 		$transaction: jest.fn(),
 	};
 
@@ -2705,6 +2721,196 @@ describe("InventoryService", () => {
 			});
 			expect(mockPrisma.purchaseReceipt.deleteMany).toHaveBeenCalledWith({
 				where: { id: { in: [mockPurchaseReceipt.id] } },
+			});
+		});
+	});
+
+	// ── Pick List ─────────────────────────────────────────────────────────────
+
+	const mockPickListItem = {
+		id: "clh123pklitem01",
+		pickListId: "clh123pkl000001",
+		item: "ITEM-001",
+		warehouse: "Main Warehouse" as string | null,
+		qty: 5,
+		stockQty: null as number | null,
+		pickedQty: null as number | null,
+	};
+
+	const mockPickList = {
+		id: "clh123pkl000001",
+		series: "STO-PICK-2026-00001",
+		seriesPattern: "STO-PICK-.YYYY.-",
+		status: "DRAFT" as const,
+		company: "Aria Corp",
+		customer: null as string | null,
+		purpose: "MATERIAL_TRANSFER_FOR_MANUFACTURE" as const,
+		workOrder: null as string | null,
+		warehouse: null as string | null,
+		considerRejectedWarehouses: false,
+		pickManually: false,
+		ignorePricingRule: false,
+		scanMode: false,
+		promptQty: false,
+		scanBarcode: null as string | null,
+		groupSameItems: false,
+		items: [mockPickListItem],
+		createdAt: new Date(),
+		updatedAt: new Date(),
+	};
+
+	describe("findAllPickLists", () => {
+		it("should apply bounded pagination and optional filters", async () => {
+			mockPrisma.pickList.findMany.mockResolvedValue([mockPickList]);
+
+			const result = await service.findAllPickLists({
+				skip: -5,
+				take: 999,
+				search: "aria",
+				status: "OPEN",
+			});
+
+			expect(result).toHaveLength(1);
+			expect(result[0]?.id).toBe(mockPickList.id);
+			expect(mockPrisma.pickList.findMany).toHaveBeenCalledWith(
+				expect.objectContaining({
+					skip: 0,
+					take: 250,
+					where: expect.objectContaining({
+						status: "OPEN",
+						OR: expect.any(Array),
+					}),
+				}),
+			);
+		});
+	});
+
+	describe("createPickList", () => {
+		it("should create a pick list with a generated series", async () => {
+			mockPrisma.pickList.findFirst.mockResolvedValue(null);
+			mockPrisma.pickList.create.mockResolvedValue(mockPickList);
+
+			const result = await service.createPickList({
+				company: "Aria Corp",
+				items: [{ item: "ITEM-001", qty: 5 }],
+			});
+
+			expect(result.id).toBe(mockPickList.id);
+			const callArgs = mockPrisma.pickList.create.mock.calls[0][0] as {
+				data: { series: string };
+			};
+			expect(callArgs.data.series).toMatch(/^STO-PICK-\d{4}-\d{5}$/);
+		});
+
+		it("should retry on a series uniqueness conflict and succeed", async () => {
+			const conflict = new Prisma.PrismaClientKnownRequestError("Duplicate", {
+				code: "P2002",
+				clientVersion: "5.0.0",
+			});
+			mockPrisma.pickList.findFirst
+				.mockResolvedValueOnce(null)
+				.mockResolvedValueOnce(null);
+			mockPrisma.pickList.create
+				.mockRejectedValueOnce(conflict)
+				.mockResolvedValueOnce(mockPickList);
+
+			const result = await service.createPickList({ company: "Aria Corp" });
+
+			expect(result.id).toBe(mockPickList.id);
+			expect(mockPrisma.pickList.create).toHaveBeenCalledTimes(2);
+		});
+
+		it("should throw ConflictException after 3 failed series attempts", async () => {
+			const conflict = new Prisma.PrismaClientKnownRequestError("Duplicate", {
+				code: "P2002",
+				clientVersion: "5.0.0",
+			});
+			mockPrisma.pickList.findFirst.mockResolvedValue(null);
+			mockPrisma.pickList.create.mockRejectedValue(conflict);
+
+			await expect(
+				service.createPickList({ company: "Aria Corp" }),
+			).rejects.toThrow(ConflictException);
+			expect(mockPrisma.pickList.create).toHaveBeenCalledTimes(3);
+		});
+	});
+
+	describe("updatePickList", () => {
+		it("should patch nested items without replacing unchanged rows", async () => {
+			mockPrisma.pickList.findUnique.mockResolvedValue({ id: mockPickList.id });
+			mockPrisma.pickList.update.mockResolvedValue({});
+			mockPrisma.pickListItem.findMany.mockResolvedValue([
+				{ id: mockPickListItem.id },
+			]);
+			mockPrisma.pickListItem.deleteMany.mockResolvedValue({ count: 0 });
+			mockPrisma.pickListItem.update.mockResolvedValue(mockPickListItem);
+			mockPrisma.pickList.findUniqueOrThrow.mockResolvedValue(mockPickList);
+
+			const result = await service.updatePickList({
+				id: mockPickList.id,
+				items: [{ id: mockPickListItem.id, item: "ITEM-001", qty: 10 }],
+			});
+
+			expect(result.id).toBe(mockPickList.id);
+			expect(mockPrisma.pickListItem.deleteMany).toHaveBeenCalledWith({
+				where: {
+					pickListId: mockPickList.id,
+					id: { notIn: [mockPickListItem.id] },
+				},
+			});
+			expect(mockPrisma.$transaction).toHaveBeenCalledTimes(1);
+		});
+
+		it("should throw NotFoundException when pick list does not exist", async () => {
+			mockPrisma.pickList.findUnique.mockResolvedValue(null);
+
+			await expect(
+				service.updatePickList({ id: "missing-id", company: "X" }),
+			).rejects.toThrow(NotFoundException);
+		});
+	});
+
+	describe("deletePickList", () => {
+		it("should delete a pick list", async () => {
+			mockPrisma.pickList.delete.mockResolvedValue({});
+
+			const result = await service.deletePickList(mockPickList.id);
+
+			expect(result).toEqual({ success: true, id: mockPickList.id });
+			expect(mockPrisma.pickList.delete).toHaveBeenCalledWith({
+				where: { id: mockPickList.id },
+			});
+		});
+
+		it("should throw NotFoundException when pick list does not exist", async () => {
+			const notFoundError = new Prisma.PrismaClientKnownRequestError(
+				"Record not found",
+				{ code: "P2025", clientVersion: "5.0.0" },
+			);
+			mockPrisma.pickList.delete.mockRejectedValue(notFoundError);
+
+			await expect(service.deletePickList("missing-id")).rejects.toThrow(
+				NotFoundException,
+			);
+		});
+	});
+
+	describe("deleteManyPickLists", () => {
+		it("should deduplicate ids and bulk-delete pick lists", async () => {
+			mockPrisma.pickList.deleteMany.mockResolvedValue({ count: 1 });
+
+			const result = await service.deleteManyPickLists([
+				mockPickList.id,
+				mockPickList.id,
+			]);
+
+			expect(result).toEqual({
+				success: true,
+				count: 1,
+				ids: [mockPickList.id],
+			});
+			expect(mockPrisma.pickList.deleteMany).toHaveBeenCalledWith({
+				where: { id: { in: [mockPickList.id] } },
 			});
 		});
 	});
