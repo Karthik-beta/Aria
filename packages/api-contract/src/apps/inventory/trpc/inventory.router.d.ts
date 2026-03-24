@@ -756,6 +756,23 @@ type InventoryRouterInput = {
 		output: Inventory.StockBalanceRow[];
 		meta: object;
 	}>;
+	listStockProjectedQty: TRPCQueryProcedure<{
+		input:
+			| {
+					skip?: number | undefined;
+					take?: number | undefined;
+					search?: string | undefined;
+					company?: string | undefined;
+					warehouse?: string | undefined;
+					itemCode?: string | undefined;
+					itemGroup?: string | undefined;
+					brand?: string | undefined;
+					includeZeroStockItems?: boolean | undefined;
+			  }
+			| undefined;
+		output: Inventory.StockProjectedQtyRow[];
+		meta: object;
+	}>;
 	listDeliveryNotes: TRPCQueryProcedure<{
 		input: void;
 		output: Inventory.DeliveryNote[];

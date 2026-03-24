@@ -121,6 +121,38 @@ describe("InventoryService", () => {
 		updatedAt: new Date(),
 	};
 
+	const mockProjectedPickListItem = {
+		id: "clh123pick_item01",
+		pickListId: "clh123pick000001",
+		item: "STE-ITM-001",
+		warehouse: "Stores - GH",
+		qty: 6,
+		stockQty: 10,
+		pickedQty: 2,
+	};
+
+	const mockProjectedPickList = {
+		id: "clh123pick000001",
+		series: "STO-PICK-2026-00001",
+		seriesPattern: "STO-PICK-.YYYY.-",
+		status: "OPEN" as const,
+		company: "Aria Corp",
+		customer: null as string | null,
+		purpose: "MATERIAL_TRANSFER_FOR_MANUFACTURE" as const,
+		workOrder: null as string | null,
+		warehouse: "Stores - GH",
+		considerRejectedWarehouses: false,
+		pickManually: false,
+		ignorePricingRule: false,
+		scanMode: false,
+		promptQty: false,
+		scanBarcode: null as string | null,
+		groupSameItems: false,
+		items: [mockProjectedPickListItem],
+		createdAt: new Date("2026-03-20T00:00:00.000Z"),
+		updatedAt: new Date("2026-03-21T00:00:00.000Z"),
+	};
+
 	const mockPrisma = {
 		inventoryItem: {
 			findMany: jest.fn(),
@@ -2487,6 +2519,173 @@ describe("InventoryService", () => {
 					dateTo: new Date("2026-03-01T00:00:00.000Z"),
 				}),
 			).rejects.toThrow(BadRequestException);
+		});
+	});
+
+	describe("findStockProjectedQty", () => {
+		it("should combine stock, request, and reservation buckets into projected quantities", async () => {
+			mockPrisma.stockEntryItem.findMany
+				.mockResolvedValueOnce([
+					{
+						...mockStockEntryItem,
+						qty: 11,
+						basicAmount: 1100,
+						stockEntry: {
+							...mockStockEntry,
+							status: "SUBMITTED",
+							defaultTargetWarehouse: "Stores - GH",
+						},
+					},
+				])
+				.mockResolvedValueOnce([])
+				.mockResolvedValueOnce([]);
+			mockPrisma.materialRequest.findMany.mockResolvedValue([
+				{
+					...mockMR,
+					status: "PARTIALLY_ORDERED",
+					company: "Aria Corp",
+					items: [
+						{
+							...mockMRItem,
+							itemCode: "STE-ITM-001",
+							quantity: 55,
+							orderedQty: 25,
+							receivedQty: 0,
+							targetWarehouse: "Stores - GH",
+						},
+					],
+				},
+			]);
+			mockPrisma.deliveryNote.findMany.mockResolvedValue([
+				{
+					id: "clh123dn000001",
+					series: "MAT-DN-2026-00001",
+					postingDate: new Date("2026-03-22T00:00:00.000Z"),
+					customer: "Test Customer",
+					company: "Aria Corp",
+					status: "TO_BILL" as const,
+					isReturn: false,
+					currency: null,
+					priceList: null,
+					sourceWarehouse: "Stores - GH",
+					totalQuantity: 5,
+					totalAmount: 0,
+					grandTotal: 0,
+					roundingAdjustment: 0,
+					roundedTotal: 0,
+					additionalDiscountOn: null,
+					additionalDiscountPercent: null,
+					additionalDiscountAmount: null,
+					shippingAddress: null,
+					dispatchAddress: null,
+					companyAddress: null,
+					companyContact: null,
+					companyTRN: null,
+					terms: null,
+					termsContent: null,
+					transporter: null,
+					driverName: null,
+					driver: null,
+					transportReceiptDate: null,
+					transportReceiptNo: null,
+					vehicleNo: null,
+					customerPoNo: null,
+					customerPoDate: null,
+					salesPartner: null,
+					commissionRate: null,
+					letterHead: null,
+					printHeading: null,
+					printWithoutAmount: false,
+					groupSameItems: false,
+					permitNumber: null,
+					vatEmirate: null,
+					project: null,
+					items: [
+						{
+							id: "clh123dn_item01",
+							deliveryNoteId: "clh123dn000001",
+							itemCode: "STE-ITM-001",
+							itemName: "Stock Test Item",
+							description: null,
+							quantity: 5,
+							uom: "Nos",
+							rate: 0,
+							amount: 0,
+							warehouse: "Stores - GH",
+						},
+					],
+					createdAt: new Date("2026-03-22T00:00:00.000Z"),
+					updatedAt: new Date("2026-03-22T00:00:00.000Z"),
+				},
+			]);
+			mockPrisma.pickList.findMany.mockResolvedValue([mockProjectedPickList]);
+			mockPrisma.inventoryItem.findMany
+				.mockResolvedValueOnce([
+					{
+						id: "inv-item-001",
+						name: "Stock Test Item",
+						code: "STE-ITM-001",
+						description: "Primary item",
+						disabled: false,
+						maintainStock: true,
+						allowAlternateItem: false,
+						hasVariants: false,
+						openingStock: 0,
+						valuationRate: 100,
+						standardSellingRate: 0,
+						isZeroRated: false,
+						isExempt: false,
+						isFixedAsset: false,
+						taxCode: null,
+						shelfLifeInDays: null,
+						warrantyPeriodInDays: null,
+						endOfLife: null,
+						weightPerUnit: null,
+						weightUom: null,
+						allowNegativeStock: false,
+						valuationMethod: null,
+						defaultMaterialRequestType: null,
+						hasBatchNo: false,
+						hasSerialNo: false,
+						itemGroupId: "group-001",
+						defaultUnitOfMeasureId: "uom-001",
+						quantity: 0,
+						createdAt: new Date(),
+						updatedAt: new Date(),
+						itemGroup: { groupName: "Phones" },
+						reorderSettings: [
+							{
+								id: "reorder-001",
+								itemId: "inv-item-001",
+								warehouse: "Stores - GH",
+								reorderLevel: 60,
+								reorderQty: 10,
+								materialRequestType: null,
+							},
+						],
+					},
+				])
+				.mockResolvedValueOnce([]);
+			mockPrisma.item.findMany.mockResolvedValue([
+				{ code: "STE-ITM-001", brand: { name: "Apple" } },
+			]);
+
+			const result = await service.findStockProjectedQty({ take: 25 });
+
+			expect(result).toHaveLength(1);
+			expect(result[0]).toMatchObject({
+				company: "Aria Corp",
+				itemCode: "STE-ITM-001",
+				warehouse: "Stores - GH",
+				actualQty: 11,
+				requestedQty: 30,
+				orderedQty: 25,
+				reservedQty: 5,
+				reservedQtyForProduction: 4,
+				projectedQty: 57,
+				reorderLevel: 60,
+				shortageQty: 3,
+			});
 		});
 	});
 
