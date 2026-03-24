@@ -2522,6 +2522,93 @@ describe("InventoryService", () => {
 		});
 	});
 
+	describe("findWarehouseWiseStockBalance", () => {
+		it("should map stock movement rows into warehouse-wise balance rows", async () => {
+			mockPrisma.stockEntryItem.findMany.mockReset();
+			mockPrisma.stockEntryItem.findMany.mockResolvedValue([
+				{
+					...mockStockEntryItem,
+					id: "clh123ste_item01",
+					itemCode: "STE-ITM-001",
+					itemName: "Stock Test Item",
+					qty: 4,
+					basicRate: 250,
+					basicAmount: 1000,
+					stockEntry: {
+						...mockStockEntry,
+						status: "SUBMITTED",
+						defaultTargetWarehouse: "Stores - GH",
+						postingDate: new Date("2026-03-22T00:00:00.000Z"),
+					},
+				},
+			]);
+
+			const result = await service.findWarehouseWiseStockBalance({ take: 25 });
+
+			expect(result).toHaveLength(1);
+			expect(result[0]).toMatchObject({
+				itemCode: "STE-ITM-001",
+				itemName: "Stock Test Item",
+				warehouse: "Stores - GH",
+				voucherNo: "MAT-STE-2026-00001",
+				qtyChange: 4,
+				incomingRate: 250,
+				company: "Aria Corp",
+				movementType: "IN",
+			});
+		});
+
+		it("should map filters and bound pagination for warehouse-wise rows", async () => {
+			mockPrisma.stockEntryItem.findMany.mockReset();
+			mockPrisma.stockEntryItem.findMany.mockResolvedValue([]);
+
+			await service.findWarehouseWiseStockBalance({
+				take: 999,
+				skip: -4,
+				search: "stock",
+				company: "Aria",
+				warehouse: "Stores - GH",
+				itemCode: "STE",
+				voucherNo: "MAT-STE",
+				status: "DRAFT",
+				dateFrom: new Date("2026-03-01T00:00:00.000Z"),
+				dateTo: new Date("2026-03-31T00:00:00.000Z"),
+			});
+
+			expect(mockPrisma.stockEntryItem.findMany).toHaveBeenCalledWith(
+				expect.objectContaining({
+					where: expect.objectContaining({
+						AND: expect.arrayContaining([
+							expect.objectContaining({
+								itemCode: expect.objectContaining({ contains: "STE" }),
+							}),
+							expect.objectContaining({
+								stockEntry: expect.objectContaining({
+									status: "DRAFT",
+									company: expect.objectContaining({ contains: "Aria" }),
+									series: expect.objectContaining({ contains: "MAT-STE" }),
+									postingDate: expect.objectContaining({
+										gte: new Date("2026-03-01T00:00:00.000Z"),
+										lte: new Date("2026-03-31T00:00:00.000Z"),
+									}),
+								}),
+							}),
+						]),
+					}),
+				}),
+			);
+		});
+
+		it("should reject invalid date ranges", async () => {
+			await expect(
+				service.findWarehouseWiseStockBalance({
+					dateFrom: new Date("2026-04-01T00:00:00.000Z"),
+					dateTo: new Date("2026-03-01T00:00:00.000Z"),
+				}),
+			).rejects.toThrow(BadRequestException);
+		});
+	});
+
 	describe("findStockProjectedQty", () => {
 		it("should combine stock, request, and reservation buckets into projected quantities", async () => {
 			mockPrisma.stockEntryItem.findMany

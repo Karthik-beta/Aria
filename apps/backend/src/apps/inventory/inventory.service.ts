@@ -43,6 +43,7 @@ import {
 	normalizeUomName,
 	type UomSeedEntry,
 } from "./uom-seed";
+import { buildWarehouseWiseStockBalanceRows } from "./warehouse-wise-stock-balance-report";
 
 const formatItemGroupDefaults = (defaults?: Inventory.ItemGroupDefault[]) =>
 	defaults?.map(({ company, defaultWarehouse, defaultPriceList }) => ({
@@ -2900,6 +2901,138 @@ export class InventoryService {
 					valuationRate == null ? null : valuationRate * row.balanceQty,
 			};
 		});
+	}
+
+	/**
+	 * Get warehouse-wise stock balance movement rows.
+	 * This report focuses on warehouse-level item movements and keeps
+	 * one row per stock movement line.
+	 */
+	async findWarehouseWiseStockBalance(
+		params?: Inventory.ListWarehouseWiseStockBalanceInput,
+	) {
+		const rawSkip = params?.skip ?? 0;
+		const rawTake = params?.take ?? LIST_QUERY_TAKE_MAX;
+		const skip = rawSkip < 0 ? 0 : rawSkip;
+		const take =
+			rawTake <= 0
+				? 1
+				: rawTake > LIST_QUERY_TAKE_MAX
+					? LIST_QUERY_TAKE_MAX
+					: rawTake;
+
+		const search = params?.search?.trim();
+		const company = params?.company?.trim();
+		const warehouse = params?.warehouse?.trim();
+		const itemCode = params?.itemCode?.trim();
+		const voucherNo = params?.voucherNo?.trim();
+		const dateFrom = params?.dateFrom;
+		const dateTo = params?.dateTo;
+		const status = params?.status ?? "SUBMITTED";
+
+		if (dateFrom && dateTo && dateFrom > dateTo) {
+			throw new BadRequestException("dateFrom cannot be later than dateTo");
+		}
+
+		const whereClauses: Prisma.StockEntryItemWhereInput[] = [];
+
+		if (itemCode) {
+			whereClauses.push({
+				itemCode: {
+					contains: itemCode,
+					mode: "insensitive",
+				},
+			});
+		}
+
+		if (warehouse) {
+			whereClauses.push({
+				OR: [
+					{ sourceWarehouse: { equals: warehouse, mode: "insensitive" } },
+					{ targetWarehouse: { equals: warehouse, mode: "insensitive" } },
+					{
+						stockEntry: {
+							defaultSourceWarehouse: {
+								equals: warehouse,
+								mode: "insensitive",
+							},
+						},
+					},
+					{
+						stockEntry: {
+							defaultTargetWarehouse: {
+								equals: warehouse,
+								mode: "insensitive",
+							},
+						},
+					},
+				],
+			});
+		}
+
+		if (search) {
+			whereClauses.push({
+				OR: [
+					{ itemCode: { contains: search, mode: "insensitive" } },
+					{ itemName: { contains: search, mode: "insensitive" } },
+					{ sourceWarehouse: { contains: search, mode: "insensitive" } },
+					{ targetWarehouse: { contains: search, mode: "insensitive" } },
+					{
+						stockEntry: {
+							series: { contains: search, mode: "insensitive" },
+						},
+					},
+					{
+						stockEntry: {
+							company: { contains: search, mode: "insensitive" },
+						},
+					},
+				],
+			});
+		}
+
+		const stockEntryWhere: Prisma.StockEntryWhereInput = {
+			status,
+			...(company
+				? {
+						company: { contains: company, mode: "insensitive" },
+					}
+				: {}),
+			...(voucherNo
+				? {
+						series: { contains: voucherNo, mode: "insensitive" },
+					}
+				: {}),
+			...(dateFrom || dateTo
+				? {
+						postingDate: {
+							...(dateFrom ? { gte: dateFrom } : {}),
+							...(dateTo ? { lte: dateTo } : {}),
+						},
+					}
+				: {}),
+		};
+
+		whereClauses.push({ stockEntry: stockEntryWhere });
+
+		const where: Prisma.StockEntryItemWhereInput =
+			whereClauses.length === 1 ? whereClauses[0] : { AND: whereClauses };
+
+		const items = await this.prisma.stockEntryItem.findMany({
+			where,
+			include: { stockEntry: true },
+			orderBy: [
+				{ stockEntry: { postingDate: "desc" } },
+				{ stockEntry: { createdAt: "desc" } },
+				{ id: "asc" },
+			],
+		});
+
+		const rows = buildWarehouseWiseStockBalanceRows(
+			buildStockLedgerRows(items, { warehouse }),
+		);
+
+		return rows.slice(skip, skip + take);
 	}
 
 	/**

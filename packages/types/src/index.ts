@@ -1484,6 +1484,51 @@ export namespace Inventory {
 		})
 		.optional();
 
+	export interface WarehouseWiseStockBalanceRow {
+		id: string;
+		stockEntryId: string;
+		stockEntryItemId: string;
+		company: string;
+		itemCode: string;
+		itemName?: string | null;
+		warehouse: string;
+		postingDate: Date;
+		voucherNo: string;
+		qtyChange: number;
+		incomingRate: number;
+		movementType: "IN" | "OUT";
+		createdAt: Date;
+		updatedAt: Date;
+	}
+
+	export interface ListWarehouseWiseStockBalanceInput {
+		skip?: number;
+		take?: number;
+		search?: string;
+		company?: string;
+		warehouse?: string;
+		itemCode?: string;
+		voucherNo?: string;
+		status?: StockEntryStatus;
+		dateFrom?: Date;
+		dateTo?: Date;
+	}
+
+	export const listWarehouseWiseStockBalanceSchema = z
+		.object({
+			skip: z.number().int().min(0).optional(),
+			take: z.number().int().min(1).max(250).optional(),
+			search: z.string().max(255).optional(),
+			company: z.string().max(255).optional(),
+			warehouse: z.string().max(255).optional(),
+			itemCode: z.string().max(100).optional(),
+			voucherNo: z.string().max(50).optional(),
+			status: z.enum(["DRAFT", "SUBMITTED", "CANCELLED"]).optional(),
+			dateFrom: z.coerce.date().optional(),
+			dateTo: z.coerce.date().optional(),
+		})
+		.optional();
+
 	// ============================================================================
 	// Delivery Note Types & Schemas
 	// ============================================================================

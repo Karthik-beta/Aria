@@ -833,6 +833,24 @@ type InventoryRouterInput = {
 		output: Inventory.ItemPriceStockRow[];
 		meta: object;
 	}>;
+	listWarehouseWiseStockBalance: TRPCQueryProcedure<{
+		input:
+			| {
+					skip?: number | undefined;
+					take?: number | undefined;
+					search?: string | undefined;
+					company?: string | undefined;
+					warehouse?: string | undefined;
+					itemCode?: string | undefined;
+					voucherNo?: string | undefined;
+					status?: "DRAFT" | "SUBMITTED" | "CANCELLED" | undefined;
+					dateFrom?: unknown;
+					dateTo?: unknown;
+			  }
+			| undefined;
+		output: Inventory.WarehouseWiseStockBalanceRow[];
+		meta: object;
+	}>;
 	listDeliveryNotes: TRPCQueryProcedure<{
 		input: void;
 		output: Inventory.DeliveryNote[];

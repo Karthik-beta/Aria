@@ -678,6 +678,16 @@ function createListItemPriceStockProcedure(inventoryService: InventoryService) {
 		});
 }
 
+function createListWarehouseWiseStockBalanceProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure
+		.input(Inventory.listWarehouseWiseStockBalanceSchema)
+		.query(async ({ input }) => {
+			return inventoryService.findWarehouseWiseStockBalance(input);
+		});
+}
+
 // ─── Delivery Note Procedures ────────────────────────────────────────────────
 
 type DeliveryNotesChangedEvent = {
@@ -1109,6 +1119,9 @@ type InventoryRouterInput = {
 	listStockSummary: ReturnType<typeof createListStockSummaryProcedure>;
 	listStockAgeing: ReturnType<typeof createListStockAgeingProcedure>;
 	listItemPriceStock: ReturnType<typeof createListItemPriceStockProcedure>;
+	listWarehouseWiseStockBalance: ReturnType<
+		typeof createListWarehouseWiseStockBalanceProcedure
+	>;
 	listDeliveryNotes: ReturnType<typeof createListDeliveryNotesProcedure>;
 	getDeliveryNoteById: ReturnType<typeof createGetDeliveryNoteByIdProcedure>;
 	createDeliveryNote: ReturnType<typeof createCreateDeliveryNoteProcedure>;
@@ -1239,6 +1252,8 @@ function createInventoryRouterRecord(
 		listStockSummary: createListStockSummaryProcedure(inventoryService),
 		listStockAgeing: createListStockAgeingProcedure(inventoryService),
 		listItemPriceStock: createListItemPriceStockProcedure(inventoryService),
+		listWarehouseWiseStockBalance:
+			createListWarehouseWiseStockBalanceProcedure(inventoryService),
 		listDeliveryNotes: createListDeliveryNotesProcedure(inventoryService),
 		getDeliveryNoteById: createGetDeliveryNoteByIdProcedure(inventoryService),
 		createDeliveryNote: createCreateDeliveryNoteProcedure(inventoryService),
