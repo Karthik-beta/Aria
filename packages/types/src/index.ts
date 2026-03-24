@@ -1203,6 +1203,61 @@ export namespace Inventory {
 		})
 		.optional();
 
+	export interface StockBalanceRow {
+		id: string;
+		company: string;
+		itemCode: string;
+		itemName?: string | null;
+		itemGroupName?: string | null;
+		brandName?: string | null;
+		warehouse: string;
+		unitOfMeasure?: string | null;
+		openingQty: number;
+		openingValue: number;
+		inQty: number;
+		inValue: number;
+		outQty: number;
+		outValue: number;
+		balanceQty: number;
+		valuationRate?: number | null;
+		balanceValue?: number | null;
+		lastPostingDate?: Date | null;
+	}
+
+	export interface ListStockBalanceInput {
+		skip?: number;
+		take?: number;
+		search?: string;
+		company?: string;
+		warehouse?: string;
+		itemCode?: string;
+		itemGroup?: string;
+		brand?: string;
+		project?: string;
+		status?: StockEntryStatus;
+		dateFrom?: Date;
+		dateTo?: Date;
+		includeZeroStockItems?: boolean;
+	}
+
+	export const listStockBalanceSchema = z
+		.object({
+			skip: z.number().int().min(0).optional(),
+			take: z.number().int().min(1).max(250).optional(),
+			search: z.string().max(255).optional(),
+			company: z.string().max(255).optional(),
+			warehouse: z.string().max(255).optional(),
+			itemCode: z.string().max(100).optional(),
+			itemGroup: z.string().max(255).optional(),
+			brand: z.string().max(255).optional(),
+			project: z.string().max(255).optional(),
+			status: z.enum(["DRAFT", "SUBMITTED", "CANCELLED"]).optional(),
+			dateFrom: z.coerce.date().optional(),
+			dateTo: z.coerce.date().optional(),
+			includeZeroStockItems: z.boolean().optional(),
+		})
+		.optional();
+
 	// ============================================================================
 	// Delivery Note Types & Schemas
 	// ============================================================================

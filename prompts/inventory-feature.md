@@ -1,6 +1,6 @@
 You are working on the branch: "feat/inventory-stock-reports".
 
-Current page: "Stock Ledger"
+Current page: "Stock Balance"
 
 You are building a core sub-module inside an inventory management system.
 

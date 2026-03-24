@@ -26,6 +26,7 @@ import {
 	toInventoryStockEntry,
 	toInventoryUnitOfMeasure,
 } from "./inventory.types";
+import { buildStockBalanceRows } from "./stock-balance-report";
 import { buildStockLedgerRows } from "./stock-ledger-report";
 import {
 	loadUomSeedEntriesFromCsv,
@@ -2840,6 +2841,234 @@ export class InventoryService {
 					valuationRate == null ? null : valuationRate * row.balanceQty,
 			};
 		});
+	}
+
+	/**
+	 * Get stock balance rows aggregated by company, item, and warehouse.
+	 * The report derives opening, inward, outward, and closing values from
+	 * stock entry movements up to the requested end date.
+	 */
+	async findStockBalance(params?: Inventory.ListStockBalanceInput) {
+		const rawSkip = params?.skip ?? 0;
+		const rawTake = params?.take ?? LIST_QUERY_TAKE_MAX;
+		const skip = rawSkip < 0 ? 0 : rawSkip;
+		const take =
+			rawTake <= 0
+				? 1
+				: rawTake > LIST_QUERY_TAKE_MAX
+					? LIST_QUERY_TAKE_MAX
+					: rawTake;
+
+		const search = params?.search?.trim();
+		const company = params?.company?.trim();
+		const warehouse = params?.warehouse?.trim();
+		const itemCode = params?.itemCode?.trim();
+		const itemGroup = params?.itemGroup?.trim();
+		const brand = params?.brand?.trim();
+		const project = params?.project?.trim();
+		const dateFrom = params?.dateFrom;
+		const dateTo = params?.dateTo;
+		const status = params?.status ?? "SUBMITTED";
+
+		if (dateFrom && dateTo && dateFrom > dateTo) {
+			throw new BadRequestException("dateFrom cannot be later than dateTo");
+		}
+
+		let filteredItemCodes: string[] | undefined;
+
+		if (itemGroup || brand) {
+			const matchingItems = await this.prisma.item.findMany({
+				where: {
+					...(itemGroup
+						? {
+								itemGroup: {
+									groupName: {
+										contains: itemGroup,
+										mode: "insensitive",
+									},
+								},
+							}
+						: {}),
+					...(brand
+						? {
+								brand: {
+									name: {
+										contains: brand,
+										mode: "insensitive",
+									},
+								},
+							}
+						: {}),
+				},
+				select: { code: true },
+			});
+
+			filteredItemCodes = matchingItems.map((item) => item.code);
+
+			if (filteredItemCodes.length === 0) {
+				return [];
+			}
+		}
+
+		const whereClauses: Prisma.StockEntryItemWhereInput[] = [];
+
+		if (itemCode) {
+			whereClauses.push({
+				itemCode: {
+					contains: itemCode,
+					mode: "insensitive",
+				},
+			});
+		}
+
+		if (filteredItemCodes) {
+			whereClauses.push({
+				itemCode: {
+					in: filteredItemCodes,
+				},
+			});
+		}
+
+		if (warehouse) {
+			whereClauses.push({
+				OR: [
+					{ sourceWarehouse: { equals: warehouse, mode: "insensitive" } },
+					{ targetWarehouse: { equals: warehouse, mode: "insensitive" } },
+					{
+						stockEntry: {
+							defaultSourceWarehouse: {
+								equals: warehouse,
+								mode: "insensitive",
+							},
+						},
+					},
+					{
+						stockEntry: {
+							defaultTargetWarehouse: {
+								equals: warehouse,
+								mode: "insensitive",
+							},
+						},
+					},
+				],
+			});
+		}
+
+		if (search) {
+			whereClauses.push({
+				OR: [
+					{ itemCode: { contains: search, mode: "insensitive" } },
+					{ itemName: { contains: search, mode: "insensitive" } },
+					{ description: { contains: search, mode: "insensitive" } },
+					{ sourceWarehouse: { contains: search, mode: "insensitive" } },
+					{ targetWarehouse: { contains: search, mode: "insensitive" } },
+					{
+						stockEntry: {
+							company: { contains: search, mode: "insensitive" },
+						},
+					},
+					{
+						stockEntry: {
+							series: { contains: search, mode: "insensitive" },
+						},
+					},
+				],
+			});
+		}
+
+		const stockEntryWhere: Prisma.StockEntryWhereInput = {
+			...(company
+				? {
+						company: { contains: company, mode: "insensitive" },
+					}
+				: {}),
+			status,
+			...(project
+				? {
+						project: { contains: project, mode: "insensitive" },
+					}
+				: {}),
+			...(dateTo
+				? {
+						postingDate: {
+							lte: dateTo,
+						},
+					}
+				: {}),
+		};
+
+		whereClauses.push({ stockEntry: stockEntryWhere });
+
+		const where: Prisma.StockEntryItemWhereInput =
+			whereClauses.length === 1 ? whereClauses[0] : { AND: whereClauses };
+
+		const items = await this.prisma.stockEntryItem.findMany({
+			where,
+			include: { stockEntry: true },
+			orderBy: [
+				{ stockEntry: { postingDate: "asc" } },
+				{ stockEntry: { createdAt: "asc" } },
+				{ id: "asc" },
+			],
+		});
+
+		if (items.length === 0) {
+			return [];
+		}
+
+		const itemCodes = [...new Set(items.map((item) => item.itemCode))];
+		const itemMetadata = await this.prisma.item.findMany({
+			where: {
+				code: {
+					in: itemCodes,
+				},
+			},
+			select: {
+				code: true,
+				valuationRate: true,
+				itemGroup: {
+					select: {
+						groupName: true,
+					},
+				},
+				brand: {
+					select: {
+						name: true,
+					},
+				},
+			},
+		});
+
+		const metadataByCode = new Map(
+			itemMetadata.map((item) => [item.code, item] as const),
+		);
+
+		const balanceRows = buildStockBalanceRows(
+			buildStockLedgerRows(items, { warehouse }).map((row) => {
+				const metadata = metadataByCode.get(row.itemCode);
+
+				return {
+					company: row.company,
+					itemCode: row.itemCode,
+					itemName: row.itemName,
+					itemGroupName: metadata?.itemGroup?.groupName ?? null,
+					brandName: metadata?.brand?.name ?? null,
+					warehouse: row.warehouse,
+					unitOfMeasure: row.unitOfMeasure,
+					postingDate: row.postingDate,
+					qtyIn: row.qtyIn,
+					qtyOut: row.qtyOut,
+					basicAmount: row.basicAmount,
+					valuationRate: metadata?.valuationRate ?? null,
+				};
+			}),
+			{
+				dateFrom,
+				includeZeroStockItems: params?.includeZeroStockItems,
+			},
+		);
+
+		return balanceRows.slice(skip, skip + take);
 	}
 
 	// ============================================================================

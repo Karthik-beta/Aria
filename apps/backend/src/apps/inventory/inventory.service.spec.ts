@@ -2347,6 +2347,149 @@ describe("InventoryService", () => {
 		});
 	});
 
+	describe("findStockBalance", () => {
+		it("should aggregate opening, inward, outward, and closing balances", async () => {
+			mockPrisma.stockEntryItem.findMany.mockReset();
+			mockPrisma.item.findMany.mockReset();
+			mockPrisma.stockEntryItem.findMany.mockResolvedValue([
+				{
+					...mockStockEntryItem,
+					qty: 10,
+					basicAmount: 1000,
+					stockEntry: {
+						...mockStockEntry,
+						status: "SUBMITTED",
+						postingDate: new Date("2026-02-20T00:00:00.000Z"),
+						defaultTargetWarehouse: "Stores - GH",
+					},
+				},
+				{
+					...mockStockEntryItem,
+					qty: 3,
+					basicAmount: 300,
+					sourceWarehouse: "Stores - GH",
+					stockEntry: {
+						...mockStockEntry,
+						id: "clh123ste000002",
+						series: "MAT-STE-2026-00002",
+						stockEntryType: "MATERIAL_ISSUE",
+						status: "SUBMITTED",
+						postingDate: new Date("2026-03-05T00:00:00.000Z"),
+						defaultTargetWarehouse: null,
+					},
+				},
+			]);
+			mockPrisma.item.findMany.mockResolvedValue([
+				{
+					code: mockStockEntryItem.itemCode,
+					valuationRate: 125,
+					itemGroup: { groupName: "Phones" },
+					brand: { name: "Apple" },
+				},
+			]);
+
+			const result = await service.findStockBalance({
+				dateFrom: new Date("2026-03-01T00:00:00.000Z"),
+				take: 25,
+			});
+
+			expect(result).toHaveLength(1);
+			expect(result[0]).toMatchObject({
+				company: "Aria Corp",
+				itemCode: mockStockEntryItem.itemCode,
+				itemGroupName: "Phones",
+				brandName: "Apple",
+				warehouse: "Stores - GH",
+				openingQty: 10,
+				openingValue: 1000,
+				inQty: 0,
+				outQty: 3,
+				outValue: 300,
+				balanceQty: 7,
+				valuationRate: 125,
+				balanceValue: 875,
+			});
+			expect(mockPrisma.stockEntryItem.findMany).toHaveBeenCalledWith(
+				expect.objectContaining({
+					include: { stockEntry: true },
+					where: expect.objectContaining({
+						stockEntry: expect.objectContaining({ status: "SUBMITTED" }),
+					}),
+				}),
+			);
+		});
+
+		it("should map filters and preserve zero-balance rows only when requested", async () => {
+			mockPrisma.stockEntryItem.findMany.mockReset();
+			mockPrisma.item.findMany.mockReset();
+			mockPrisma.stockEntryItem.findMany.mockResolvedValue([]);
+			mockPrisma.item.findMany
+				.mockResolvedValueOnce([{ code: "ITEM-001" }])
+				.mockResolvedValueOnce([]);
+
+			await service.findStockBalance({
+				take: 500,
+				skip: -1,
+				search: "nova",
+				company: "Aria",
+				warehouse: "Stores - GH",
+				itemCode: "ITEM",
+				itemGroup: "Phones",
+				brand: "Apple",
+				project: "Project",
+				status: "DRAFT",
+				dateTo: new Date("2026-03-31T00:00:00.000Z"),
+				includeZeroStockItems: true,
+			});
+
+			expect(mockPrisma.stockEntryItem.findMany).toHaveBeenCalledWith(
+				expect.objectContaining({
+					where: expect.objectContaining({
+						AND: expect.arrayContaining([
+							expect.objectContaining({
+								itemCode: expect.objectContaining({ contains: "ITEM" }),
+							}),
+							expect.objectContaining({
+								itemCode: expect.objectContaining({ in: ["ITEM-001"] }),
+							}),
+							expect.objectContaining({
+								stockEntry: expect.objectContaining({
+									company: expect.objectContaining({ contains: "Aria" }),
+									status: "DRAFT",
+									project: expect.objectContaining({ contains: "Project" }),
+									postingDate: expect.objectContaining({
+										lte: new Date("2026-03-31T00:00:00.000Z"),
+									}),
+								}),
+							}),
+						]),
+					}),
+				}),
+			);
+			expect(mockPrisma.item.findMany).toHaveBeenCalledWith(
+				expect.objectContaining({
+					where: expect.objectContaining({
+						itemGroup: expect.objectContaining({
+							groupName: expect.objectContaining({ contains: "Phones" }),
+						}),
+						brand: expect.objectContaining({
+							name: expect.objectContaining({ contains: "Apple" }),
+						}),
+					}),
+				}),
+			);
+		});
+
+		it("should reject an invalid stock balance date range", async () => {
+			await expect(
+				service.findStockBalance({
+					dateFrom: new Date("2026-04-01T00:00:00.000Z"),
+					dateTo: new Date("2026-03-01T00:00:00.000Z"),
+				}),
+			).rejects.toThrow(BadRequestException);
+		});
+	});
+
 	// ── Delivery Note ──────────────────────────────────────────────────────────
 
 	const mockDeliveryNoteItem = {
