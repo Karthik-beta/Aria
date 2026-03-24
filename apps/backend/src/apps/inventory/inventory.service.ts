@@ -32,6 +32,7 @@ import {
 	buildStockProjectedQtyRows,
 	type StockProjectedQtySourceRow,
 } from "./stock-projected-qty-report";
+import { buildStockSummaryRows } from "./stock-summary-report";
 import {
 	loadUomSeedEntriesFromCsv,
 	normalizeUomName,
@@ -146,6 +147,10 @@ const isDefaultItemManufacturerConstraintViolation = (
 
 /** Maximum number of rows returned by any paginated list query. */
 const LIST_QUERY_TAKE_MAX = 250;
+
+type StockAvailabilityParams =
+	| Inventory.ListStockProjectedQtyInput
+	| Inventory.ListStockSummaryInput;
 
 /**
  * Simple inventory service with type-safe CRUD operations
@@ -3079,17 +3084,7 @@ export class InventoryService {
 	 * Get projected stock rows by combining on-hand stock, open demand/supply,
 	 * pending production movements, and warehouse reorder settings.
 	 */
-	async findStockProjectedQty(params?: Inventory.ListStockProjectedQtyInput) {
-		const rawSkip = params?.skip ?? 0;
-		const rawTake = params?.take ?? LIST_QUERY_TAKE_MAX;
-		const skip = rawSkip < 0 ? 0 : rawSkip;
-		const take =
-			rawTake <= 0
-				? 1
-				: rawTake > LIST_QUERY_TAKE_MAX
-					? LIST_QUERY_TAKE_MAX
-					: rawTake;
-
+	private async collectStockProjectedQtyRows(params?: StockAvailabilityParams) {
 		const search = params?.search?.trim().toLowerCase();
 		const company = params?.company?.trim();
 		const warehouse = params?.warehouse?.trim();
@@ -3779,7 +3774,72 @@ export class InventoryService {
 			includeZeroStockItems: params?.includeZeroStockItems,
 		});
 
+		return projectedRows;
+	}
+
+	async findStockProjectedQty(params?: Inventory.ListStockProjectedQtyInput) {
+		const rawSkip = params?.skip ?? 0;
+		const rawTake = params?.take ?? LIST_QUERY_TAKE_MAX;
+		const skip = rawSkip < 0 ? 0 : rawSkip;
+		const take =
+			rawTake <= 0
+				? 1
+				: rawTake > LIST_QUERY_TAKE_MAX
+					? LIST_QUERY_TAKE_MAX
+					: rawTake;
+
+		const projectedRows = await this.collectStockProjectedQtyRows(params);
+
 		return projectedRows.slice(skip, skip + take);
+	}
+
+	/**
+	 * Get stock summary rows for operational triage, ordered by a selected metric.
+	 */
+	async findStockSummary(params?: Inventory.ListStockSummaryInput) {
+		const rawSkip = params?.skip ?? 0;
+		const rawTake = params?.take ?? LIST_QUERY_TAKE_MAX;
+		const skip = rawSkip < 0 ? 0 : rawSkip;
+		const take =
+			rawTake <= 0
+				? 1
+				: rawTake > LIST_QUERY_TAKE_MAX
+					? LIST_QUERY_TAKE_MAX
+					: rawTake;
+
+		const projectedRows = await this.collectStockProjectedQtyRows(params);
+		const summaryRows = buildStockSummaryRows(
+			projectedRows.map((row) => ({
+				id: row.id,
+				company: row.company,
+				itemCode: row.itemCode,
+				itemName: row.itemName ?? null,
+				description: row.description ?? null,
+				itemGroupName: row.itemGroupName ?? null,
+				brandName: row.brandName ?? null,
+				warehouse: row.warehouse,
+				unitOfMeasure: row.unitOfMeasure ?? null,
+				actualQty: row.actualQty,
+				plannedQty: row.plannedQty,
+				requestedQty: row.requestedQty,
+				orderedQty: row.orderedQty,
+				reservedQty: row.reservedQty,
+				reservedQtyForProduction: row.reservedQtyForProduction,
+				reservedQtyForSubcontracting: row.reservedQtyForSubcontracting,
+				reservedQtyForProductionPlan: row.reservedQtyForProductionPlan,
+				projectedQty: row.projectedQty,
+				reorderLevel: row.reorderLevel,
+				reorderQty: row.reorderQty,
+				shortageQty: row.shortageQty,
+				lastActivityDate: row.lastActivityDate ?? null,
+			})),
+			{
+				metric: params?.metric,
+				sortDirection: params?.sortDirection,
+			},
+		);
+
+		return summaryRows.slice(skip, skip + take);
 	}
 
 	// ============================================================================

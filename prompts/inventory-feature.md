@@ -1,6 +1,6 @@
 You are working on the branch: "feat/inventory-stock-reports".
 
-Current page: "Stock Projected Qty"
+Current page: "Stock Summary"
 
 You are building a core sub-module inside an inventory management system.
 
@@ -65,6 +65,7 @@ Must Refer pages that are already completed/built from "Stock Reports" sub-modul
 Currently completed pages from "Stock Reports" sub-module:
 - Stock Ledger
 - Stock Balance
+- Stock Projected Qty
 - 
 Reuse the same:
 - Layout structure

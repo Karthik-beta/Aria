@@ -1309,6 +1309,88 @@ export namespace Inventory {
 		})
 		.optional();
 
+	export type StockSummaryMetric =
+		| "PROJECTED_QTY"
+		| "ACTUAL_QTY"
+		| "RESERVED_QTY"
+		| "RESERVED_QTY_FOR_PRODUCTION"
+		| "RESERVED_QTY_FOR_SUBCONTRACTING"
+		| "SHORTAGE_QTY";
+
+	export type StockSummarySortDirection = "asc" | "desc";
+
+	export type StockSummaryHealth = "CRITICAL" | "LOW" | "HEALTHY" | "SURPLUS";
+
+	export type StockSummaryAction = "ADD" | "MOVE_AND_ADD";
+
+	export interface StockSummaryRow {
+		id: string;
+		company: string;
+		itemCode: string;
+		itemName?: string | null;
+		description?: string | null;
+		itemGroupName?: string | null;
+		brandName?: string | null;
+		warehouse: string;
+		unitOfMeasure?: string | null;
+		actualQty: number;
+		plannedQty: number;
+		requestedQty: number;
+		orderedQty: number;
+		reservedQty: number;
+		reservedQtyForProduction: number;
+		reservedQtyForSubcontracting: number;
+		reservedQtyForProductionPlan: number;
+		projectedQty: number;
+		reorderLevel: number;
+		reorderQty: number;
+		shortageQty: number;
+		primaryMetric: StockSummaryMetric;
+		primaryMetricValue: number;
+		stockHealth: StockSummaryHealth;
+		recommendedAction: StockSummaryAction;
+		lastActivityDate?: Date | null;
+	}
+
+	export interface ListStockSummaryInput {
+		skip?: number;
+		take?: number;
+		search?: string;
+		company?: string;
+		warehouse?: string;
+		itemCode?: string;
+		itemGroup?: string;
+		brand?: string;
+		metric?: StockSummaryMetric;
+		sortDirection?: StockSummarySortDirection;
+		includeZeroStockItems?: boolean;
+	}
+
+	export const stockSummaryMetricSchema = z.enum([
+		"PROJECTED_QTY",
+		"ACTUAL_QTY",
+		"RESERVED_QTY",
+		"RESERVED_QTY_FOR_PRODUCTION",
+		"RESERVED_QTY_FOR_SUBCONTRACTING",
+		"SHORTAGE_QTY",
+	]);
+
+	export const listStockSummarySchema = z
+		.object({
+			skip: z.number().int().min(0).optional(),
+			take: z.number().int().min(1).max(250).optional(),
+			search: z.string().max(255).optional(),
+			company: z.string().max(255).optional(),
+			warehouse: z.string().max(255).optional(),
+			itemCode: z.string().max(100).optional(),
+			itemGroup: z.string().max(255).optional(),
+			brand: z.string().max(255).optional(),
+			metric: stockSummaryMetricSchema.optional(),
+			sortDirection: z.enum(["asc", "desc"]).optional(),
+			includeZeroStockItems: z.boolean().optional(),
+		})
+		.optional();
+
 	// ============================================================================
 	// Delivery Note Types & Schemas
 	// ============================================================================

@@ -654,6 +654,14 @@ function createListStockProjectedQtyProcedure(
 		});
 }
 
+function createListStockSummaryProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(Inventory.listStockSummarySchema)
+		.query(async ({ input }) => {
+			return inventoryService.findStockSummary(input);
+		});
+}
+
 // ─── Delivery Note Procedures ────────────────────────────────────────────────
 
 type DeliveryNotesChangedEvent = {
@@ -1082,6 +1090,7 @@ type InventoryRouterInput = {
 	listStockProjectedQty: ReturnType<
 		typeof createListStockProjectedQtyProcedure
 	>;
+	listStockSummary: ReturnType<typeof createListStockSummaryProcedure>;
 	listDeliveryNotes: ReturnType<typeof createListDeliveryNotesProcedure>;
 	getDeliveryNoteById: ReturnType<typeof createGetDeliveryNoteByIdProcedure>;
 	createDeliveryNote: ReturnType<typeof createCreateDeliveryNoteProcedure>;
@@ -1209,6 +1218,7 @@ function createInventoryRouterRecord(
 		listStockBalance: createListStockBalanceProcedure(inventoryService),
 		listStockProjectedQty:
 			createListStockProjectedQtyProcedure(inventoryService),
+		listStockSummary: createListStockSummaryProcedure(inventoryService),
 		listDeliveryNotes: createListDeliveryNotesProcedure(inventoryService),
 		getDeliveryNoteById: createGetDeliveryNoteByIdProcedure(inventoryService),
 		createDeliveryNote: createCreateDeliveryNoteProcedure(inventoryService),

@@ -2689,6 +2689,166 @@ describe("InventoryService", () => {
 		});
 	});
 
+	describe("findStockSummary", () => {
+		it("should derive sorted stock summary rows from projected quantities", async () => {
+			mockPrisma.stockEntryItem.findMany.mockReset();
+			mockPrisma.materialRequest.findMany.mockReset();
+			mockPrisma.deliveryNote.findMany.mockReset();
+			mockPrisma.pickList.findMany.mockReset();
+			mockPrisma.inventoryItem.findMany.mockReset();
+			mockPrisma.item.findMany.mockReset();
+
+			mockPrisma.stockEntryItem.findMany
+				.mockResolvedValueOnce([
+					{
+						...mockStockEntryItem,
+						itemCode: "STE-ITM-001",
+						itemName: "Stock Test Item",
+						qty: 2,
+						basicAmount: 200,
+						stockEntry: {
+							...mockStockEntry,
+							status: "SUBMITTED",
+							defaultTargetWarehouse: "Stores - GH",
+						},
+					},
+					{
+						...mockStockEntryItem,
+						id: "clh123ste_item02",
+						itemCode: "STE-ITM-002",
+						itemName: "Stock Test Item 2",
+						qty: 9,
+						basicAmount: 900,
+						stockEntry: {
+							...mockStockEntry,
+							id: "clh123ste000002",
+							series: "MAT-STE-2026-00002",
+							status: "SUBMITTED",
+							defaultTargetWarehouse: "Stores - GH",
+						},
+					},
+				])
+				.mockResolvedValueOnce([])
+				.mockResolvedValueOnce([]);
+			mockPrisma.materialRequest.findMany.mockResolvedValue([]);
+			mockPrisma.deliveryNote.findMany.mockResolvedValue([]);
+			mockPrisma.pickList.findMany.mockResolvedValue([]);
+			mockPrisma.inventoryItem.findMany.mockResolvedValue([
+				{
+					id: "inv-item-001",
+					name: "Stock Test Item",
+					code: "STE-ITM-001",
+					description: "Primary item",
+					disabled: false,
+					maintainStock: true,
+					allowAlternateItem: false,
+					hasVariants: false,
+					openingStock: 0,
+					valuationRate: 100,
+					standardSellingRate: 0,
+					isZeroRated: false,
+					isExempt: false,
+					isFixedAsset: false,
+					taxCode: null,
+					shelfLifeInDays: null,
+					warrantyPeriodInDays: null,
+					endOfLife: null,
+					weightPerUnit: null,
+					weightUom: null,
+					allowNegativeStock: false,
+					valuationMethod: null,
+					defaultMaterialRequestType: null,
+					hasBatchNo: false,
+					hasSerialNo: false,
+					itemGroupId: "group-001",
+					defaultUnitOfMeasureId: "uom-001",
+					quantity: 0,
+					createdAt: new Date(),
+					updatedAt: new Date(),
+					defaultUnitOfMeasure: { name: "Nos" },
+					itemGroup: { groupName: "Phones" },
+					reorderSettings: [
+						{
+							id: "reorder-001",
+							itemId: "inv-item-001",
+							warehouse: "Stores - GH",
+							reorderLevel: 10,
+							reorderQty: 5,
+							materialRequestType: null,
+						},
+					],
+				},
+				{
+					id: "inv-item-002",
+					name: "Stock Test Item 2",
+					code: "STE-ITM-002",
+					description: "Secondary item",
+					disabled: false,
+					maintainStock: true,
+					allowAlternateItem: false,
+					hasVariants: false,
+					openingStock: 0,
+					valuationRate: 100,
+					standardSellingRate: 0,
+					isZeroRated: false,
+					isExempt: false,
+					isFixedAsset: false,
+					taxCode: null,
+					shelfLifeInDays: null,
+					warrantyPeriodInDays: null,
+					endOfLife: null,
+					weightPerUnit: null,
+					weightUom: null,
+					allowNegativeStock: false,
+					valuationMethod: null,
+					defaultMaterialRequestType: null,
+					hasBatchNo: false,
+					hasSerialNo: false,
+					itemGroupId: "group-001",
+					defaultUnitOfMeasureId: "uom-001",
+					quantity: 0,
+					createdAt: new Date(),
+					updatedAt: new Date(),
+					defaultUnitOfMeasure: { name: "Nos" },
+					itemGroup: { groupName: "Phones" },
+					reorderSettings: [
+						{
+							id: "reorder-002",
+							itemId: "inv-item-002",
+							warehouse: "Stores - GH",
+							reorderLevel: 5,
+							reorderQty: 2,
+							materialRequestType: null,
+						},
+					],
+				},
+			]);
+			mockPrisma.item.findMany.mockResolvedValue([
+				{ code: "STE-ITM-001", brand: { name: "Apple" } },
+				{ code: "STE-ITM-002", brand: { name: "Apple" } },
+			]);
+
+			const result = await service.findStockSummary({
+				metric: "SHORTAGE_QTY",
+				take: 25,
+			});
+
+			expect(result).toHaveLength(2);
+			expect(result[0]).toMatchObject({
+				itemCode: "STE-ITM-001",
+				primaryMetric: "SHORTAGE_QTY",
+				primaryMetricValue: 8,
+				stockHealth: "LOW",
+				recommendedAction: "MOVE_AND_ADD",
+			});
+			expect(result[1]).toMatchObject({
+				itemCode: "STE-ITM-002",
+				primaryMetricValue: 0,
+				stockHealth: "SURPLUS",
+			});
+		});
+	});
+
 	// ── Delivery Note ──────────────────────────────────────────────────────────
 
 	const mockDeliveryNoteItem = {

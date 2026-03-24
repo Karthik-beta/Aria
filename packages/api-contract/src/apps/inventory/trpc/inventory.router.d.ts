@@ -773,6 +773,32 @@ type InventoryRouterInput = {
 		output: Inventory.StockProjectedQtyRow[];
 		meta: object;
 	}>;
+	listStockSummary: TRPCQueryProcedure<{
+		input:
+			| {
+					skip?: number | undefined;
+					take?: number | undefined;
+					search?: string | undefined;
+					company?: string | undefined;
+					warehouse?: string | undefined;
+					itemCode?: string | undefined;
+					itemGroup?: string | undefined;
+					brand?: string | undefined;
+					metric?:
+						| "PROJECTED_QTY"
+						| "ACTUAL_QTY"
+						| "RESERVED_QTY"
+						| "RESERVED_QTY_FOR_PRODUCTION"
+						| "RESERVED_QTY_FOR_SUBCONTRACTING"
+						| "SHORTAGE_QTY"
+						| undefined;
+					sortDirection?: "asc" | "desc" | undefined;
+					includeZeroStockItems?: boolean | undefined;
+			  }
+			| undefined;
+		output: Inventory.StockSummaryRow[];
+		meta: object;
+	}>;
 	listDeliveryNotes: TRPCQueryProcedure<{
 		input: void;
 		output: Inventory.DeliveryNote[];
