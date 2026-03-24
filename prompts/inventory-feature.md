@@ -1,6 +1,6 @@
 You are working on the branch: "feat/inventory-stock-reports".
 
-Current page: "Stock Summary"
+Current page: "Stock Ageing"
 
 You are building a core sub-module inside an inventory management system.
 
@@ -66,6 +66,7 @@ Currently completed pages from "Stock Reports" sub-module:
 - Stock Ledger
 - Stock Balance
 - Stock Projected Qty
+- Stock Summary
 - 
 Reuse the same:
 - Layout structure

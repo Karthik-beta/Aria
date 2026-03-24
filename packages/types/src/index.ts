@@ -1391,6 +1391,57 @@ export namespace Inventory {
 		})
 		.optional();
 
+	export interface StockAgeingBucket {
+		index: number;
+		minAge: number;
+		maxAge?: number | null;
+		quantity: number;
+		value: number;
+	}
+
+	export interface StockAgeingRow {
+		id: string;
+		company: string;
+		itemCode: string;
+		itemName?: string | null;
+		description?: string | null;
+		itemGroupName?: string | null;
+		brandName?: string | null;
+		warehouse?: string | null;
+		unitOfMeasure?: string | null;
+		availableQty: number;
+		averageAge: number;
+		averageRate: number;
+		asOfDate: Date;
+		buckets: StockAgeingBucket[];
+	}
+
+	export interface ListStockAgeingInput {
+		skip?: number;
+		take?: number;
+		company?: string;
+		warehouse?: string;
+		itemCode?: string;
+		brand?: string;
+		asOfDate?: Date;
+		showWarehouseWiseStock?: boolean;
+		ageingRanges?: string;
+	}
+
+	export const listStockAgeingSchema = z
+		.object({
+			skip: z.number().int().min(0).optional(),
+			take: z.number().int().min(1).max(250).optional(),
+			company: z.string().max(255).optional(),
+			warehouse: z.string().max(255).optional(),
+			itemCode: z.string().max(100).optional(),
+			brand: z.string().max(255).optional(),
+			asOfDate: z.coerce.date().optional(),
+			showWarehouseWiseStock: z.boolean().optional(),
+			ageingRanges: z.string().max(64).optional(),
+		})
+		.optional();
+
 	// ============================================================================
 	// Delivery Note Types & Schemas
 	// ============================================================================

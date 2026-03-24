@@ -662,6 +662,14 @@ function createListStockSummaryProcedure(inventoryService: InventoryService) {
 		});
 }
 
+function createListStockAgeingProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(Inventory.listStockAgeingSchema)
+		.query(async ({ input }) => {
+			return inventoryService.findStockAgeing(input);
+		});
+}
+
 // ─── Delivery Note Procedures ────────────────────────────────────────────────
 
 type DeliveryNotesChangedEvent = {
@@ -1091,6 +1099,7 @@ type InventoryRouterInput = {
 		typeof createListStockProjectedQtyProcedure
 	>;
 	listStockSummary: ReturnType<typeof createListStockSummaryProcedure>;
+	listStockAgeing: ReturnType<typeof createListStockAgeingProcedure>;
 	listDeliveryNotes: ReturnType<typeof createListDeliveryNotesProcedure>;
 	getDeliveryNoteById: ReturnType<typeof createGetDeliveryNoteByIdProcedure>;
 	createDeliveryNote: ReturnType<typeof createCreateDeliveryNoteProcedure>;
@@ -1219,6 +1228,7 @@ function createInventoryRouterRecord(
 		listStockProjectedQty:
 			createListStockProjectedQtyProcedure(inventoryService),
 		listStockSummary: createListStockSummaryProcedure(inventoryService),
+		listStockAgeing: createListStockAgeingProcedure(inventoryService),
 		listDeliveryNotes: createListDeliveryNotesProcedure(inventoryService),
 		getDeliveryNoteById: createGetDeliveryNoteByIdProcedure(inventoryService),
 		createDeliveryNote: createCreateDeliveryNoteProcedure(inventoryService),

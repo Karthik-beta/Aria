@@ -799,6 +799,23 @@ type InventoryRouterInput = {
 		output: Inventory.StockSummaryRow[];
 		meta: object;
 	}>;
+	listStockAgeing: TRPCQueryProcedure<{
+		input:
+			| {
+					skip?: number | undefined;
+					take?: number | undefined;
+					company?: string | undefined;
+					warehouse?: string | undefined;
+					itemCode?: string | undefined;
+					brand?: string | undefined;
+					asOfDate?: unknown;
+					showWarehouseWiseStock?: boolean | undefined;
+					ageingRanges?: string | undefined;
+			  }
+			| undefined;
+		output: Inventory.StockAgeingRow[];
+		meta: object;
+	}>;
 	listDeliveryNotes: TRPCQueryProcedure<{
 		input: void;
 		output: Inventory.DeliveryNote[];

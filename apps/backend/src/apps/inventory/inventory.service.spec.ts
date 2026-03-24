@@ -2849,6 +2849,174 @@ describe("InventoryService", () => {
 		});
 	});
 
+	describe("findStockAgeing", () => {
+		it("should derive FIFO stock ageing rows with bucket values and metadata", async () => {
+			mockPrisma.stockEntryItem.findMany.mockReset();
+			mockPrisma.inventoryItem.findMany.mockReset();
+			mockPrisma.item.findMany.mockReset();
+
+			mockPrisma.stockEntryItem.findMany.mockResolvedValue([
+				{
+					...mockStockEntryItem,
+					itemCode: "STE-ITM-001",
+					itemName: "Stock Test Item",
+					qty: 10,
+					basicRate: 100,
+					basicAmount: 1000,
+					stockEntry: {
+						...mockStockEntry,
+						status: "SUBMITTED",
+						postingDate: new Date("2026-01-01T00:00:00.000Z"),
+						defaultTargetWarehouse: "Stores - GH",
+					},
+				},
+				{
+					...mockStockEntryItem,
+					id: "clh123ste_item02",
+					itemCode: "STE-ITM-001",
+					itemName: "Stock Test Item",
+					sourceWarehouse: "Stores - GH",
+					targetWarehouse: null,
+					qty: 4,
+					basicRate: 100,
+					basicAmount: 400,
+					stockEntry: {
+						...mockStockEntry,
+						id: "clh123ste000002",
+						series: "MAT-STE-2026-00002",
+						stockEntryType: "MATERIAL_ISSUE",
+						status: "SUBMITTED",
+						postingDate: new Date("2026-01-20T00:00:00.000Z"),
+						defaultSourceWarehouse: "Stores - GH",
+						defaultTargetWarehouse: null,
+					},
+				},
+			]);
+			mockPrisma.inventoryItem.findMany.mockResolvedValue([
+				{
+					id: "inv-item-001",
+					name: "Stock Test Item",
+					code: "STE-ITM-001",
+					description: "Primary item",
+					disabled: false,
+					maintainStock: true,
+					allowAlternateItem: false,
+					hasVariants: false,
+					openingStock: 0,
+					valuationRate: 100,
+					standardSellingRate: 0,
+					isZeroRated: false,
+					isExempt: false,
+					isFixedAsset: false,
+					taxCode: null,
+					shelfLifeInDays: null,
+					warrantyPeriodInDays: null,
+					endOfLife: null,
+					weightPerUnit: null,
+					weightUom: null,
+					allowNegativeStock: false,
+					valuationMethod: null,
+					defaultMaterialRequestType: null,
+					hasBatchNo: false,
+					hasSerialNo: false,
+					itemGroupId: "group-001",
+					defaultUnitOfMeasureId: "uom-001",
+					quantity: 0,
+					createdAt: new Date(),
+					updatedAt: new Date(),
+					defaultUnitOfMeasure: { name: "Nos" },
+					itemGroup: { groupName: "Phones" },
+				},
+			]);
+			mockPrisma.item.findMany.mockResolvedValue([
+				{ code: "STE-ITM-001", brand: { name: "Apple" } },
+			]);
+
+			const result = await service.findStockAgeing({
+				asOfDate: new Date("2026-02-10T00:00:00.000Z"),
+				ageingRanges: "30,60,90",
+				showWarehouseWiseStock: true,
+				take: 25,
+			});
+
+			expect(result).toHaveLength(1);
+			expect(result[0]).toMatchObject({
+				company: "Aria Corp",
+				itemCode: "STE-ITM-001",
+				itemGroupName: "Phones",
+				brandName: "Apple",
+				warehouse: "Stores - GH",
+				unitOfMeasure: "Nos",
+				availableQty: 6,
+				averageAge: 40,
+				averageRate: 100,
+			});
+			expect(result[0]?.buckets).toEqual([
+				{ index: 0, minAge: 0, maxAge: 30, quantity: 0, value: 0 },
+				{ index: 1, minAge: 31, maxAge: 60, quantity: 6, value: 600 },
+				{ index: 2, minAge: 61, maxAge: 90, quantity: 0, value: 0 },
+				{ index: 3, minAge: 91, maxAge: null, quantity: 0, value: 0 },
+			]);
+		});
+
+		it("should map filters into the ageing movement query", async () => {
+			mockPrisma.stockEntryItem.findMany.mockReset();
+			mockPrisma.item.findMany.mockReset();
+			mockPrisma.stockEntryItem.findMany.mockResolvedValue([]);
+			mockPrisma.item.findMany.mockResolvedValue([{ code: "STE-ITM-001" }]);
+
+			await service.findStockAgeing({
+				take: 500,
+				skip: -4,
+				company: "Aria",
+				warehouse: "Stores - GH",
+				itemCode: "STE",
+				brand: "Apple",
+				asOfDate: new Date("2026-03-31T00:00:00.000Z"),
+			});
+
+			expect(mockPrisma.stockEntryItem.findMany).toHaveBeenCalledWith(
+				expect.objectContaining({
+					where: expect.objectContaining({
+						AND: expect.arrayContaining([
+							expect.objectContaining({
+								stockEntry: expect.objectContaining({
+									status: "SUBMITTED",
+									company: expect.objectContaining({ contains: "Aria" }),
+									postingDate: expect.objectContaining({
+										lte: new Date("2026-03-31T00:00:00.000Z"),
+									}),
+								}),
+							}),
+							expect.objectContaining({
+								itemCode: expect.objectContaining({ contains: "STE" }),
+							}),
+							expect.objectContaining({
+								itemCode: expect.objectContaining({ in: ["STE-ITM-001"] }),
+							}),
+						]),
+					}),
+					include: { stockEntry: true },
+				}),
+			);
+			expect(mockPrisma.item.findMany).toHaveBeenCalledWith(
+				expect.objectContaining({
+					where: expect.objectContaining({
+						brand: expect.objectContaining({
+							name: expect.objectContaining({ contains: "Apple" }),
+						}),
+					}),
+				}),
+			);
+		});
+
+		it("should reject invalid ageing range input", async () => {
+			await expect(
+				service.findStockAgeing({ ageingRanges: "30,bad,90" }),
+			).rejects.toThrow(BadRequestException);
+		});
+	});
+
 	// ── Delivery Note ──────────────────────────────────────────────────────────
 
 	const mockDeliveryNoteItem = {

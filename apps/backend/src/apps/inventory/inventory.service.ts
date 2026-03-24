@@ -26,6 +26,10 @@ import {
 	toInventoryStockEntry,
 	toInventoryUnitOfMeasure,
 } from "./inventory.types";
+import {
+	buildStockAgeingRows,
+	type StockAgeingBucketRange,
+} from "./stock-ageing-report";
 import { buildStockBalanceRows } from "./stock-balance-report";
 import { buildStockLedgerRows } from "./stock-ledger-report";
 import {
@@ -98,6 +102,50 @@ const unitOfMeasureSelect = {
 	createdAt: true,
 	updatedAt: true,
 } as const;
+
+const DEFAULT_STOCK_AGEING_BREAKS = [30, 60, 90] as const;
+
+function parseStockAgeingBucketRanges(
+	rawRanges?: string,
+): StockAgeingBucketRange[] {
+	const normalizedInput = rawRanges?.trim();
+	const numericBreaks = (
+		normalizedInput && normalizedInput.length > 0
+			? normalizedInput.split(",")
+			: [...DEFAULT_STOCK_AGEING_BREAKS].map(String)
+	)
+		.map((segment) => segment.trim())
+		.filter((segment) => segment.length > 0)
+		.map((segment) => Number.parseInt(segment, 10));
+
+	if (
+		numericBreaks.length === 0 ||
+		numericBreaks.some((value) => !Number.isFinite(value) || value < 0)
+	) {
+		throw new BadRequestException(
+			"Ageing ranges must be a comma-separated list of positive day values",
+		);
+	}
+
+	const uniqueSortedBreaks = [...new Set(numericBreaks)].sort(
+		(left, right) => left - right,
+	);
+
+	const ranges = uniqueSortedBreaks.map<StockAgeingBucketRange>(
+		(value, index) => ({
+			minAge: index === 0 ? 0 : uniqueSortedBreaks[index - 1] + 1,
+			maxAge: value,
+		}),
+	);
+
+	return [
+		...ranges,
+		{
+			minAge: uniqueSortedBreaks[uniqueSortedBreaks.length - 1] + 1,
+			maxAge: null,
+		},
+	];
+}
 
 type ProductBundleItemInput = {
 	itemId: string;
@@ -3840,6 +3888,186 @@ export class InventoryService {
 		);
 
 		return summaryRows.slice(skip, skip + take);
+	}
+
+	/**
+	 * Get stock ageing rows using FIFO-preserved layer ages across warehouses.
+	 */
+	async findStockAgeing(params?: Inventory.ListStockAgeingInput) {
+		const rawSkip = params?.skip ?? 0;
+		const rawTake = params?.take ?? LIST_QUERY_TAKE_MAX;
+		const skip = rawSkip < 0 ? 0 : rawSkip;
+		const take =
+			rawTake <= 0
+				? 1
+				: rawTake > LIST_QUERY_TAKE_MAX
+					? LIST_QUERY_TAKE_MAX
+					: rawTake;
+
+		const company = params?.company?.trim();
+		const warehouse = params?.warehouse?.trim();
+		const itemCode = params?.itemCode?.trim();
+		const brand = params?.brand?.trim();
+		const asOfDate = params?.asOfDate ?? new Date();
+		const bucketRanges = parseStockAgeingBucketRanges(params?.ageingRanges);
+
+		let filteredItemCodes: string[] | undefined;
+
+		if (brand) {
+			const matchingItems = await this.prisma.item.findMany({
+				where: {
+					brand: {
+						name: {
+							contains: brand,
+							mode: "insensitive",
+						},
+					},
+				},
+				select: { code: true },
+			});
+
+			filteredItemCodes = matchingItems.map((item) => item.code);
+
+			if (filteredItemCodes.length === 0) {
+				return [];
+			}
+		}
+
+		const whereClauses: Prisma.StockEntryItemWhereInput[] = [
+			{
+				stockEntry: {
+					status: "SUBMITTED",
+					postingDate: {
+						lte: asOfDate,
+					},
+					...(company
+						? {
+								company: {
+									contains: company,
+									mode: "insensitive",
+								},
+							}
+						: {}),
+				},
+			},
+		];
+
+		if (itemCode) {
+			whereClauses.push({
+				itemCode: {
+					contains: itemCode,
+					mode: "insensitive",
+				},
+			});
+		}
+
+		if (filteredItemCodes) {
+			whereClauses.push({
+				itemCode: {
+					in: filteredItemCodes,
+				},
+			});
+		}
+
+		if (warehouse) {
+			whereClauses.push({
+				OR: [
+					{ sourceWarehouse: { equals: warehouse, mode: "insensitive" } },
+					{ targetWarehouse: { equals: warehouse, mode: "insensitive" } },
+					{
+						stockEntry: {
+							defaultSourceWarehouse: {
+								equals: warehouse,
+								mode: "insensitive",
+							},
+						},
+					},
+					{
+						stockEntry: {
+							defaultTargetWarehouse: {
+								equals: warehouse,
+								mode: "insensitive",
+							},
+						},
+					},
+				],
+			});
+		}
+
+		const stockItems = await this.prisma.stockEntryItem.findMany({
+			where:
+				whereClauses.length === 1 ? whereClauses[0] : { AND: whereClauses },
+			include: { stockEntry: true },
+			orderBy: [
+				{ stockEntry: { postingDate: "asc" } },
+				{ stockEntry: { createdAt: "asc" } },
+				{ id: "asc" },
+			],
+		});
+
+		if (stockItems.length === 0) {
+			return [];
+		}
+
+		const ageingRows = buildStockAgeingRows(stockItems, {
+			asOfDate,
+			showWarehouseWiseStock: params?.showWarehouseWiseStock,
+			bucketRanges,
+		});
+
+		if (ageingRows.length === 0) {
+			return [];
+		}
+
+		const itemCodes = [...new Set(ageingRows.map((row) => row.itemCode))];
+		const [inventoryItems, brandMetadata] = await Promise.all([
+			this.prisma.inventoryItem.findMany({
+				where: { code: { in: itemCodes } },
+				include: {
+					defaultUnitOfMeasure: {
+						select: { name: true },
+					},
+					itemGroup: {
+						select: { groupName: true },
+					},
+				},
+			}),
+			this.prisma.item.findMany({
+				where: { code: { in: itemCodes } },
+				select: {
+					code: true,
+					brand: {
+						select: { name: true },
+					},
+				},
+			}),
+		]);
+
+		const inventoryItemsByCode = new Map(
+			inventoryItems.map((item) => [item.code, item] as const),
+		);
+		const brandNamesByCode = new Map(
+			brandMetadata.map(
+				(item) => [item.code, item.brand?.name ?? null] as const,
+			),
+		);
+
+		return ageingRows
+			.map((row) => {
+				const inventoryItem = inventoryItemsByCode.get(row.itemCode);
+				return {
+					...row,
+					itemName: row.itemName ?? inventoryItem?.name ?? null,
+					description: row.description ?? inventoryItem?.description ?? null,
+					itemGroupName: inventoryItem?.itemGroup?.groupName ?? null,
+					brandName: brandNamesByCode.get(row.itemCode) ?? null,
+					unitOfMeasure:
+						row.unitOfMeasure ??
+						inventoryItem?.defaultUnitOfMeasure?.name ??
+						null,
+				};
+			})
+			.slice(skip, skip + take);
 	}
 
 	// ============================================================================
