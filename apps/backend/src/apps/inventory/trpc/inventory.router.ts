@@ -628,6 +628,14 @@ const onStockEntriesChangedProcedure = protectedProcedure.subscription(() => {
 	});
 });
 
+function createListStockLedgerProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(Inventory.listStockLedgerSchema)
+		.query(async ({ input }) => {
+			return inventoryService.findStockLedger(input);
+		});
+}
+
 // ─── Delivery Note Procedures ────────────────────────────────────────────────
 
 type DeliveryNotesChangedEvent = {
@@ -1051,6 +1059,7 @@ type InventoryRouterInput = {
 		typeof createDeleteManyStockEntriesProcedure
 	>;
 	onStockEntriesChanged: typeof onStockEntriesChangedProcedure;
+	listStockLedger: ReturnType<typeof createListStockLedgerProcedure>;
 	listDeliveryNotes: ReturnType<typeof createListDeliveryNotesProcedure>;
 	getDeliveryNoteById: ReturnType<typeof createGetDeliveryNoteByIdProcedure>;
 	createDeliveryNote: ReturnType<typeof createCreateDeliveryNoteProcedure>;
@@ -1174,6 +1183,7 @@ function createInventoryRouterRecord(
 		deleteManyStockEntries:
 			createDeleteManyStockEntriesProcedure(inventoryService),
 		onStockEntriesChanged: onStockEntriesChangedProcedure,
+		listStockLedger: createListStockLedgerProcedure(inventoryService),
 		listDeliveryNotes: createListDeliveryNotesProcedure(inventoryService),
 		getDeliveryNoteById: createGetDeliveryNoteByIdProcedure(inventoryService),
 		createDeliveryNote: createCreateDeliveryNoteProcedure(inventoryService),

@@ -2228,6 +2228,125 @@ describe("InventoryService", () => {
 		});
 	});
 
+	describe("findStockLedger", () => {
+		it("should return derived ledger rows for bounded stock entry items", async () => {
+			mockPrisma.stockEntryItem.findMany.mockResolvedValue([
+				{
+					...mockStockEntryItem,
+					stockEntry: {
+						...mockStockEntry,
+						defaultTargetWarehouse: "Stores - GH",
+					},
+				},
+			]);
+			mockPrisma.item.findMany.mockResolvedValue([
+				{
+					code: mockStockEntryItem.itemCode,
+					valuationRate: 45071.79,
+					itemGroup: { groupName: "Phones" },
+					brand: { name: "Apple" },
+				},
+			]);
+
+			const result = await service.findStockLedger({ take: 25 });
+
+			expect(result).toHaveLength(1);
+			expect(result[0]).toMatchObject({
+				voucherNo: mockStockEntry.series,
+				itemCode: mockStockEntryItem.itemCode,
+				itemGroupName: "Phones",
+				brandName: "Apple",
+				valuationRate: 45071.79,
+				warehouse: "Stores - GH",
+				qtyIn: mockStockEntryItem.qty,
+				qtyOut: 0,
+				balanceQty: mockStockEntryItem.qty,
+			});
+			expect(mockPrisma.stockEntryItem.findMany).toHaveBeenCalledWith(
+				expect.objectContaining({
+					skip: 0,
+					take: 25,
+					include: { stockEntry: true },
+				}),
+			);
+		});
+
+		it("should map filters into the stock entry item query", async () => {
+			mockPrisma.stockEntryItem.findMany.mockResolvedValue([]);
+			mockPrisma.item.findMany
+				.mockResolvedValueOnce([{ code: "ITEM-001" }])
+				.mockResolvedValueOnce([]);
+
+			await service.findStockLedger({
+				take: 500,
+				skip: -10,
+				search: "receipt",
+				company: "Aria",
+				warehouse: "Stores - GH",
+				itemCode: "ITEM",
+				itemGroup: "Phones",
+				brand: "Apple",
+				voucherNo: "MAT-STE",
+				stockEntryType: "MATERIAL_RECEIPT",
+				status: "DRAFT",
+				project: "Project",
+				dateFrom: new Date("2026-01-01T00:00:00.000Z"),
+				dateTo: new Date("2026-01-31T00:00:00.000Z"),
+			});
+
+			expect(mockPrisma.stockEntryItem.findMany).toHaveBeenCalledWith(
+				expect.objectContaining({
+					skip: 0,
+					take: 250,
+					where: expect.objectContaining({
+						AND: expect.arrayContaining([
+							expect.objectContaining({
+								itemCode: expect.objectContaining({ contains: "ITEM" }),
+							}),
+							expect.objectContaining({
+								itemCode: expect.objectContaining({ in: ["ITEM-001"] }),
+							}),
+							expect.objectContaining({
+								stockEntry: expect.objectContaining({
+									company: expect.objectContaining({ contains: "Aria" }),
+									series: expect.objectContaining({ contains: "MAT-STE" }),
+									stockEntryType: "MATERIAL_RECEIPT",
+									status: "DRAFT",
+									project: expect.objectContaining({ contains: "Project" }),
+									postingDate: expect.objectContaining({
+										gte: new Date("2026-01-01T00:00:00.000Z"),
+										lte: new Date("2026-01-31T00:00:00.000Z"),
+									}),
+								}),
+							}),
+						]),
+					}),
+				}),
+			);
+			expect(mockPrisma.item.findMany).toHaveBeenCalledWith(
+				expect.objectContaining({
+					where: expect.objectContaining({
+						itemGroup: expect.objectContaining({
+							groupName: expect.objectContaining({ contains: "Phones" }),
+						}),
+						brand: expect.objectContaining({
+							name: expect.objectContaining({ contains: "Apple" }),
+						}),
+					}),
+				}),
+			);
+		});
+
+		it("should reject an invalid date range", async () => {
+			await expect(
+				service.findStockLedger({
+					dateFrom: new Date("2026-02-01T00:00:00.000Z"),
+					dateTo: new Date("2026-01-01T00:00:00.000Z"),
+				}),
+			).rejects.toThrow(BadRequestException);
+		});
+	});
+
 	// ── Delivery Note ──────────────────────────────────────────────────────────
 
 	const mockDeliveryNoteItem = {

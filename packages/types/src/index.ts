@@ -1119,6 +1119,91 @@ export namespace Inventory {
 	});
 
 	// ============================================================================
+	// Stock Ledger Report Types & Schemas
+	// ============================================================================
+
+	export interface StockLedgerRow {
+		id: string;
+		stockEntryId: string;
+		stockEntryItemId: string;
+		series: string;
+		voucherNo: string;
+		postingDate: Date;
+		company: string;
+		status: StockEntryStatus;
+		stockEntryType: StockEntryType;
+		project?: string | null;
+		itemCode: string;
+		itemName?: string | null;
+		itemGroupName?: string | null;
+		brandName?: string | null;
+		description?: string | null;
+		warehouse: string;
+		sourceWarehouse?: string | null;
+		targetWarehouse?: string | null;
+		batchNo?: string | null;
+		serialNo?: string | null;
+		movementType: "IN" | "OUT";
+		qtyIn: number;
+		qtyOut: number;
+		balanceQty: number;
+		basicRate: number;
+		basicAmount: number;
+		valuationRate?: number | null;
+		balanceValue?: number | null;
+		unitOfMeasure?: string | null;
+		remarks?: string | null;
+		createdAt: Date;
+		updatedAt: Date;
+	}
+
+	export interface ListStockLedgerInput {
+		skip?: number;
+		take?: number;
+		search?: string;
+		company?: string;
+		warehouse?: string;
+		itemCode?: string;
+		itemGroup?: string;
+		brand?: string;
+		voucherNo?: string;
+		stockEntryType?: StockEntryType;
+		status?: StockEntryStatus;
+		project?: string;
+		dateFrom?: Date;
+		dateTo?: Date;
+	}
+
+	export const listStockLedgerSchema = z
+		.object({
+			skip: z.number().int().min(0).optional(),
+			take: z.number().int().min(1).max(250).optional(),
+			search: z.string().max(255).optional(),
+			company: z.string().max(255).optional(),
+			warehouse: z.string().max(255).optional(),
+			itemCode: z.string().max(100).optional(),
+			itemGroup: z.string().max(255).optional(),
+			brand: z.string().max(255).optional(),
+			voucherNo: z.string().max(50).optional(),
+			stockEntryType: z
+				.enum([
+					"MATERIAL_RECEIPT",
+					"MATERIAL_ISSUE",
+					"MATERIAL_TRANSFER",
+					"MATERIAL_TRANSFER_FOR_MANUFACTURE",
+					"MANUFACTURE",
+					"REPACK",
+					"SEND_TO_SUBCONTRACTOR",
+				])
+				.optional(),
+			status: z.enum(["DRAFT", "SUBMITTED", "CANCELLED"]).optional(),
+			project: z.string().max(255).optional(),
+			dateFrom: z.coerce.date().optional(),
+			dateTo: z.coerce.date().optional(),
+		})
+		.optional();
+
+	// ============================================================================
 	// Delivery Note Types & Schemas
 	// ============================================================================
 

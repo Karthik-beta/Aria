@@ -26,6 +26,7 @@ import {
 	toInventoryStockEntry,
 	toInventoryUnitOfMeasure,
 } from "./inventory.types";
+import { buildStockLedgerRows } from "./stock-ledger-report";
 import {
 	loadUomSeedEntriesFromCsv,
 	normalizeUomName,
@@ -2602,6 +2603,243 @@ export class InventoryService {
 			}
 			throw error;
 		}
+	}
+
+	/**
+	 * Get stock ledger report rows derived from stock entry items.
+	 * Rows are bounded, filterable, and ordered deterministically before running
+	 * balances are computed per item-and-warehouse partition.
+	 */
+	async findStockLedger(params?: Inventory.ListStockLedgerInput) {
+		const rawSkip = params?.skip ?? 0;
+		const rawTake = params?.take ?? LIST_QUERY_TAKE_MAX;
+		const skip = rawSkip < 0 ? 0 : rawSkip;
+		const take =
+			rawTake <= 0
+				? 1
+				: rawTake > LIST_QUERY_TAKE_MAX
+					? LIST_QUERY_TAKE_MAX
+					: rawTake;
+
+		const search = params?.search?.trim();
+		const company = params?.company?.trim();
+		const warehouse = params?.warehouse?.trim();
+		const itemCode = params?.itemCode?.trim();
+		const itemGroup = params?.itemGroup?.trim();
+		const brand = params?.brand?.trim();
+		const voucherNo = params?.voucherNo?.trim();
+		const project = params?.project?.trim();
+		const dateFrom = params?.dateFrom;
+		const dateTo = params?.dateTo;
+
+		if (dateFrom && dateTo && dateFrom > dateTo) {
+			throw new BadRequestException("dateFrom cannot be later than dateTo");
+		}
+
+		let filteredItemCodes: string[] | undefined;
+
+		if (itemGroup || brand) {
+			const matchingItems = await this.prisma.item.findMany({
+				where: {
+					...(itemGroup
+						? {
+								itemGroup: {
+									groupName: {
+										contains: itemGroup,
+										mode: "insensitive",
+									},
+								},
+							}
+						: {}),
+					...(brand
+						? {
+								brand: {
+									name: {
+										contains: brand,
+										mode: "insensitive",
+									},
+								},
+							}
+						: {}),
+				},
+				select: { code: true },
+			});
+
+			filteredItemCodes = matchingItems.map((item) => item.code);
+
+			if (filteredItemCodes.length === 0) {
+				return [];
+			}
+		}
+
+		const whereClauses: Prisma.StockEntryItemWhereInput[] = [];
+
+		if (itemCode) {
+			whereClauses.push({
+				itemCode: {
+					contains: itemCode,
+					mode: "insensitive",
+				},
+			});
+		}
+
+		if (filteredItemCodes) {
+			whereClauses.push({
+				itemCode: {
+					in: filteredItemCodes,
+				},
+			});
+		}
+
+		if (warehouse) {
+			whereClauses.push({
+				OR: [
+					{ sourceWarehouse: { equals: warehouse, mode: "insensitive" } },
+					{ targetWarehouse: { equals: warehouse, mode: "insensitive" } },
+					{
+						stockEntry: {
+							defaultSourceWarehouse: {
+								equals: warehouse,
+								mode: "insensitive",
+							},
+						},
+					},
+					{
+						stockEntry: {
+							defaultTargetWarehouse: {
+								equals: warehouse,
+								mode: "insensitive",
+							},
+						},
+					},
+				],
+			});
+		}
+
+		if (search) {
+			whereClauses.push({
+				OR: [
+					{ itemCode: { contains: search, mode: "insensitive" } },
+					{ itemName: { contains: search, mode: "insensitive" } },
+					{ description: { contains: search, mode: "insensitive" } },
+					{ sourceWarehouse: { contains: search, mode: "insensitive" } },
+					{ targetWarehouse: { contains: search, mode: "insensitive" } },
+					{
+						stockEntry: {
+							series: { contains: search, mode: "insensitive" },
+						},
+					},
+					{
+						stockEntry: {
+							company: { contains: search, mode: "insensitive" },
+						},
+					},
+					{
+						stockEntry: {
+							remarks: { contains: search, mode: "insensitive" },
+						},
+					},
+				],
+			});
+		}
+
+		const stockEntryWhere: Prisma.StockEntryWhereInput = {
+			...(company
+				? {
+						company: { contains: company, mode: "insensitive" },
+					}
+				: {}),
+			...(voucherNo
+				? {
+						series: { contains: voucherNo, mode: "insensitive" },
+					}
+				: {}),
+			...(params?.stockEntryType
+				? { stockEntryType: params.stockEntryType }
+				: {}),
+			...(params?.status ? { status: params.status } : {}),
+			...(project
+				? {
+						project: { contains: project, mode: "insensitive" },
+					}
+				: {}),
+			...(dateFrom || dateTo
+				? {
+						postingDate: {
+							...(dateFrom ? { gte: dateFrom } : {}),
+							...(dateTo ? { lte: dateTo } : {}),
+						},
+					}
+				: {}),
+		};
+
+		if (Object.keys(stockEntryWhere).length > 0) {
+			whereClauses.push({ stockEntry: stockEntryWhere });
+		}
+
+		const where: Prisma.StockEntryItemWhereInput =
+			whereClauses.length === 0
+				? {}
+				: whereClauses.length === 1
+					? whereClauses[0]
+					: { AND: whereClauses };
+
+		const items = await this.prisma.stockEntryItem.findMany({
+			where,
+			include: { stockEntry: true },
+			orderBy: [
+				{ stockEntry: { postingDate: "asc" } },
+				{ stockEntry: { createdAt: "asc" } },
+				{ id: "asc" },
+			],
+			skip,
+			take,
+		});
+
+		const itemCodes = [...new Set(items.map((item) => item.itemCode))];
+		const itemMetadata =
+			itemCodes.length === 0
+				? []
+				: await this.prisma.item.findMany({
+						where: {
+							code: {
+								in: itemCodes,
+							},
+						},
+						select: {
+							code: true,
+							valuationRate: true,
+							itemGroup: {
+								select: {
+									groupName: true,
+								},
+							},
+							brand: {
+								select: {
+									name: true,
+								},
+							},
+						},
+					});
+
+		const metadataByCode = new Map(
+			itemMetadata.map((item) => [item.code, item] as const),
+		);
+
+		return buildStockLedgerRows(items, { warehouse }).map((row) => {
+			const metadata = metadataByCode.get(row.itemCode);
+			const valuationRate = metadata?.valuationRate ?? null;
+
+			return {
+				...row,
+				voucherNo: row.series,
+				itemGroupName: metadata?.itemGroup?.groupName ?? null,
+				brandName: metadata?.brand?.name ?? null,
+				valuationRate,
+				balanceValue:
+					valuationRate == null ? null : valuationRate * row.balanceQty,
+			};
+		});
 	}
 
 	// ============================================================================

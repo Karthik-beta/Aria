@@ -705,6 +705,36 @@ type InventoryRouterInput = {
 		output: StockEntriesChangedEvent;
 		meta: object;
 	}>;
+	listStockLedger: TRPCQueryProcedure<{
+		input:
+			| {
+					skip?: number | undefined;
+					take?: number | undefined;
+					search?: string | undefined;
+					company?: string | undefined;
+					warehouse?: string | undefined;
+					itemCode?: string | undefined;
+					itemGroup?: string | undefined;
+					brand?: string | undefined;
+					voucherNo?: string | undefined;
+					stockEntryType?:
+						| "MATERIAL_RECEIPT"
+						| "MATERIAL_ISSUE"
+						| "MATERIAL_TRANSFER"
+						| "MATERIAL_TRANSFER_FOR_MANUFACTURE"
+						| "MANUFACTURE"
+						| "REPACK"
+						| "SEND_TO_SUBCONTRACTOR"
+						| undefined;
+					status?: "DRAFT" | "SUBMITTED" | "CANCELLED" | undefined;
+					project?: string | undefined;
+					dateFrom?: unknown;
+					dateTo?: unknown;
+			  }
+			| undefined;
+		output: Inventory.StockLedgerRow[];
+		meta: object;
+	}>;
 	listDeliveryNotes: TRPCQueryProcedure<{
 		input: void;
 		output: Inventory.DeliveryNote[];

@@ -1,19 +1,20 @@
-You are working on the branch: "feat/inventory-stock-transaction".
+You are working on the branch: "feat/inventory-stock-reports".
 
-Current page: "Delivery Trip"
+Current page: "Stock Ledger"
 
 You are building a core sub-module inside an inventory management system.
 
 ## Context
-Sub-module: "Stock Transaction"
+Sub-module: "Stock Reports"
 
 This sub-module contains the following pages:
-1. Material Request
-2. Stock Entry
-3. Delivery Note
-4. Purchase Receipt
-5. Pick List
-6. Delivery Trip
+1. Stock Ledger
+2. Stock Balance
+3. Stock Projected Qty
+4. Stock Summary
+5. Stock Ageing
+6. Item Price Stock
+7. Warehouse Wise Stock Balance
 
 ## Objective
 Build the current page as a complete, production-ready full-stack feature.
@@ -48,10 +49,21 @@ Do not copy the exact design.
 ## Design System
 Follow the existing design language of this codebase.
 
-Use the "Items Catalogue" sub-module as the primary reference for UI/UX patterns, especially pages like:
+Use the "Items Catalogue" and "Stock Transaction" sub-module as the primary reference for UI/UX patterns, especially pages like:
 - Item
 - Item Group
 - Product Bundle
+- Shipping Rule
+- Item Alternative
+- Material Request
+- Stock Entry
+- Delivery Trip
+- etc.
+
+Must Refer pages that are already completed/built from "Stock Reports" sub-module if any.
+
+Currently completed pages from "Stock Reports" sub-module:
+- Stock Ledger
 
 Reuse the same:
 - Layout structure
@@ -65,7 +77,7 @@ The final implementation must feel native and consistent with the existing produ
 ## File Structure Constraint
 All files and folders for this page must lie inside:
 
-apps/frontend/src/app/inventory/stock-transaction
+apps/frontend/src/app/inventory/stock-reports
 
 Follow the existing folder and naming conventions used in nearby modules.
 
