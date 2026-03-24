@@ -248,4 +248,4 @@ A complete implementation of the current page that:
 - Reflects real-world inventory workflows
 - Includes proper testing code for the implemented functionality
 - Avoids dead code, destructive updates, unsafe typing, stale data issues, and missing critical infrastructure wiring
-- Must pass "bun run validate" with zero errors and zero warnings
+- Must pass "bun run validate:local" with zero errors and zero warnings
