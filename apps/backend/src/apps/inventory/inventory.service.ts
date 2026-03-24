@@ -13,6 +13,7 @@ import { PrismaService } from "../../shared/prisma.service";
 import {
 	itemAlternativeInclude,
 	toInventoryDeliveryNote,
+	toInventoryDeliveryTrip,
 	toInventoryItem,
 	toInventoryItemAlternative,
 	toInventoryItemGroup,
@@ -3713,6 +3714,306 @@ export class InventoryService {
 			if (error instanceof Prisma.PrismaClientKnownRequestError) {
 				this.logger.error(
 					`Bulk delete pick lists failed [${error.code}]`,
+					error.stack,
+				);
+			}
+			throw error;
+		}
+	}
+
+	// ═══════════════════════════════════════════════════════════════════════════
+	// Delivery Trip
+	// ═══════════════════════════════════════════════════════════════════════════
+
+	/**
+	 * Generate a unique series number for a delivery trip using prefix MAT-DT.
+	 * Uses read-then-retry with exponential backoff to handle concurrent writes.
+	 */
+	private async generateDeliveryTripSeries(date: Date): Promise<string> {
+		const year = date.getFullYear();
+		const prefix = `MAT-DT-${year}-`;
+
+		const trips = await this.prisma.deliveryTrip.findMany({
+			where: { series: { startsWith: prefix } },
+			orderBy: { createdAt: "desc" },
+			select: { series: true },
+		});
+
+		let maxNumber = 0;
+		for (const trip of trips) {
+			const numStr = trip.series.slice(prefix.length);
+			const num = parseInt(numStr, 10);
+			if (!Number.isNaN(num) && num > maxNumber) {
+				maxNumber = num;
+			}
+		}
+
+		const nextNumber = maxNumber + 1;
+		return `${prefix}${String(nextNumber).padStart(5, "0")}`;
+	}
+
+	/**
+	 * Get delivery trips with bounded pagination, optional status filter, and search.
+	 */
+	async findAllDeliveryTrips(params?: {
+		skip?: number;
+		take?: number;
+		search?: string;
+		status?: Inventory.DeliveryTripStatus;
+	}): Promise<Inventory.DeliveryTrip[]> {
+		const rawSkip = params?.skip ?? 0;
+		const rawTake = params?.take ?? 100;
+		const search = params?.search?.trim();
+
+		const skip = rawSkip < 0 ? 0 : rawSkip;
+		const take =
+			rawTake <= 0
+				? 1
+				: rawTake > LIST_QUERY_TAKE_MAX
+					? LIST_QUERY_TAKE_MAX
+					: rawTake;
+
+		const where: Prisma.DeliveryTripWhereInput = {
+			...(params?.status ? { status: params.status } : {}),
+			...(search
+				? {
+						OR: [
+							{ series: { contains: search, mode: "insensitive" } },
+							{ driver: { contains: search, mode: "insensitive" } },
+							{ company: { contains: search, mode: "insensitive" } },
+							{ vehicle: { contains: search, mode: "insensitive" } },
+						],
+					}
+				: {}),
+		};
+
+		const trips = await this.prisma.deliveryTrip.findMany({
+			where,
+			orderBy: { createdAt: "desc" },
+			include: { stops: { orderBy: { stopNumber: "asc" } } },
+			skip,
+			take,
+		});
+
+		return trips.map(toInventoryDeliveryTrip);
+	}
+
+	/**
+	 * Find a single delivery trip by ID.
+	 */
+	async findDeliveryTripById(
+		id: string,
+	): Promise<Inventory.DeliveryTrip | null> {
+		const trip = await this.prisma.deliveryTrip.findUnique({
+			where: { id },
+			include: { stops: { orderBy: { stopNumber: "asc" } } },
+		});
+		return trip ? toInventoryDeliveryTrip(trip) : null;
+	}
+
+	/**
+	 * Create a delivery trip with its stops.
+	 * Series generation uses retry + exponential backoff to handle concurrent writes.
+	 */
+	async createDeliveryTrip(
+		data: Inventory.CreateDeliveryTripInput,
+	): Promise<Inventory.DeliveryTrip> {
+		const departureTime = data.departureTime ?? undefined;
+		const createdAt = new Date();
+
+		for (let attempt = 0; attempt < 3; attempt++) {
+			const series = await this.generateDeliveryTripSeries(createdAt);
+			try {
+				const created = await this.prisma.deliveryTrip.create({
+					data: {
+						series,
+						company: data.company,
+						status: data.status ?? "DRAFT",
+						driver: data.driver ?? null,
+						driverAddress: data.driverAddress ?? null,
+						vehicle: data.vehicle ?? null,
+						departureTime: departureTime ?? null,
+						initialEmailNotificationSent:
+							data.initialEmailNotificationSent ?? false,
+						stops: {
+							create: (data.stops ?? []).map((stop) => ({
+								stopNumber: stop.stopNumber,
+								customer: stop.customer ?? null,
+								addressName: stop.addressName,
+								locked: stop.locked ?? false,
+								deliveryNote: stop.deliveryNote ?? null,
+								estimatedArrival: stop.estimatedArrival ?? null,
+							})),
+						},
+					},
+					include: { stops: { orderBy: { stopNumber: "asc" } } },
+				});
+				return toInventoryDeliveryTrip(created);
+			} catch (error) {
+				const isSeriesConflict =
+					error instanceof Prisma.PrismaClientKnownRequestError &&
+					error.code === "P2002";
+				if (isSeriesConflict && attempt < 2) {
+					// Back off before retrying series allocation; computeBackoffMs uses the
+					// current attempt (e.g. for exponential backoff) to determine the delay.
+					await new Promise((resolve) =>
+						setTimeout(resolve, this.computeBackoffMs(attempt)),
+					);
+					continue;
+				}
+				if (!isSeriesConflict) {
+					throw error;
+				}
+				// Series conflict on last attempt — fall through to throw below.
+			}
+		}
+
+		throw new ConflictException("Failed to allocate a unique series number");
+	}
+
+	/**
+	 * Update a delivery trip and its stops using a safe upsert strategy.
+	 * Existing stops are updated in-place; removed stops are deleted; new stops are created.
+	 */
+	async updateDeliveryTrip(
+		data: Inventory.UpdateDeliveryTripInput,
+	): Promise<Inventory.DeliveryTrip> {
+		const { id, stops, ...rest } = data;
+
+		const existing = await this.prisma.deliveryTrip.findUnique({
+			where: { id },
+			select: { id: true },
+		});
+
+		if (!existing) {
+			throw new NotFoundException(`Delivery trip with ID ${id} not found`);
+		}
+
+		const updated = await this.prisma.$transaction(async (tx) => {
+			// 1. Update parent fields (only non-undefined)
+			await tx.deliveryTrip.update({
+				where: { id },
+				data: {
+					...(rest.company !== undefined && { company: rest.company }),
+					...(rest.driver !== undefined && { driver: rest.driver }),
+					...(rest.driverAddress !== undefined && {
+						driverAddress: rest.driverAddress,
+					}),
+					...(rest.vehicle !== undefined && { vehicle: rest.vehicle }),
+					...(rest.departureTime !== undefined && {
+						departureTime: rest.departureTime,
+					}),
+					...(rest.status !== undefined && { status: rest.status }),
+					...(rest.initialEmailNotificationSent !== undefined && {
+						initialEmailNotificationSent: rest.initialEmailNotificationSent,
+					}),
+				},
+			});
+
+			if (stops !== undefined) {
+				// 2. Validate ownership of any stops with existing IDs
+				const keptIds = stops
+					.filter((s): s is typeof s & { id: string } => Boolean(s.id))
+					.map((s) => s.id);
+
+				if (keptIds.length > 0) {
+					const ownedStops = await tx.deliveryTripStop.findMany({
+						where: { id: { in: keptIds }, deliveryTripId: id },
+						select: { id: true },
+					});
+					const ownedIds = new Set(ownedStops.map((s) => s.id));
+					const foreignStopId = keptIds.find((sid) => !ownedIds.has(sid));
+					if (foreignStopId) {
+						throw new BadRequestException(
+							`Delivery trip stop with ID ${foreignStopId} does not belong to delivery trip ${id}`,
+						);
+					}
+				}
+
+				// 3. Delete stops no longer in payload
+				await tx.deliveryTripStop.deleteMany({
+					where: {
+						deliveryTripId: id,
+						...(keptIds.length > 0 ? { id: { notIn: keptIds } } : {}),
+					},
+				});
+
+				// 4. Upsert: update existing (by id), create new (no id)
+				for (const stop of stops) {
+					if (stop.id) {
+						await tx.deliveryTripStop.update({
+							where: { id: stop.id },
+							data: {
+								stopNumber: stop.stopNumber,
+								customer: stop.customer ?? null,
+								addressName: stop.addressName,
+								locked: stop.locked ?? false,
+								deliveryNote: stop.deliveryNote ?? null,
+								estimatedArrival: stop.estimatedArrival ?? null,
+							},
+						});
+					} else {
+						await tx.deliveryTripStop.create({
+							data: {
+								deliveryTripId: id,
+								stopNumber: stop.stopNumber,
+								customer: stop.customer ?? null,
+								addressName: stop.addressName,
+								locked: stop.locked ?? false,
+								deliveryNote: stop.deliveryNote ?? null,
+								estimatedArrival: stop.estimatedArrival ?? null,
+							},
+						});
+					}
+				}
+			}
+
+			// 5. Return updated record
+			return tx.deliveryTrip.findUniqueOrThrow({
+				where: { id },
+				include: { stops: { orderBy: { stopNumber: "asc" } } },
+			});
+		});
+
+		return toInventoryDeliveryTrip(updated);
+	}
+
+	/**
+	 * Delete a single delivery trip. Stops are removed via cascade.
+	 */
+	async deleteDeliveryTrip(
+		id: string,
+	): Promise<{ success: boolean; id: string }> {
+		try {
+			await this.prisma.deliveryTrip.delete({ where: { id } });
+			return { success: true, id };
+		} catch (error) {
+			if (
+				error instanceof Prisma.PrismaClientKnownRequestError &&
+				error.code === "P2025"
+			) {
+				throw new NotFoundException(`Delivery trip with ID ${id} not found`);
+			}
+			throw error;
+		}
+	}
+
+	/**
+	 * Delete multiple delivery trips.
+	 */
+	async deleteManyDeliveryTrips(
+		ids: string[],
+	): Promise<{ success: boolean; count: number; ids: string[] }> {
+		const uniqueIds = [...new Set(ids)];
+		try {
+			const result = await this.prisma.deliveryTrip.deleteMany({
+				where: { id: { in: uniqueIds } },
+			});
+			return { success: true, count: result.count, ids: uniqueIds };
+		} catch (error) {
+			if (error instanceof Prisma.PrismaClientKnownRequestError) {
+				this.logger.error(
+					`Bulk delete delivery trips failed [${error.code}]`,
 					error.stack,
 				);
 			}

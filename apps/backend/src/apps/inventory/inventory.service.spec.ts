@@ -261,6 +261,22 @@ describe("InventoryService", () => {
 			update: jest.fn(),
 			create: jest.fn(),
 		},
+		deliveryTrip: {
+			findMany: jest.fn(),
+			findFirst: jest.fn(),
+			findUnique: jest.fn(),
+			findUniqueOrThrow: jest.fn(),
+			create: jest.fn(),
+			update: jest.fn(),
+			delete: jest.fn(),
+			deleteMany: jest.fn(),
+		},
+		deliveryTripStop: {
+			findMany: jest.fn(),
+			deleteMany: jest.fn(),
+			update: jest.fn(),
+			create: jest.fn(),
+		},
 		$transaction: jest.fn(),
 	};
 
@@ -268,8 +284,7 @@ describe("InventoryService", () => {
 		jest.clearAllMocks();
 
 		mockPrisma.$transaction.mockImplementation(
-			async (callback: (tx: typeof mockPrisma) => Promise<unknown>) =>
-				callback(mockPrisma),
+			(callback: (tx: typeof mockPrisma) => unknown) => callback(mockPrisma),
 		);
 
 		service = new InventoryService(mockPrisma as unknown as PrismaService);
@@ -2911,6 +2926,203 @@ describe("InventoryService", () => {
 			});
 			expect(mockPrisma.pickList.deleteMany).toHaveBeenCalledWith({
 				where: { id: { in: [mockPickList.id] } },
+			});
+		});
+	});
+
+	// ── Delivery Trip ──────────────────────────────────────────────────────────
+
+	const mockDeliveryTripStop = {
+		id: "clh123dtstop001",
+		deliveryTripId: "clh123dt000001",
+		stopNumber: 1,
+		customer: "Customer A",
+		addressName: "456 Oak Ave",
+		locked: false,
+		deliveryNote: null,
+		estimatedArrival: null,
+	};
+
+	const mockDeliveryTrip = {
+		id: "clh123dt000001",
+		series: "MAT-DT-2026-00001",
+		seriesPattern: "MAT-DT-.YYYY.-",
+		status: "DRAFT",
+		company: "Aria Corp",
+		driver: "John Doe",
+		driverAddress: "123 Main St",
+		vehicle: "Truck-01",
+		departureTime: new Date("2026-04-01T08:00:00.000Z"),
+		initialEmailNotificationSent: false,
+		createdAt: new Date(),
+		updatedAt: new Date(),
+		stops: [mockDeliveryTripStop],
+	};
+
+	describe("findAllDeliveryTrips", () => {
+		it("should apply bounded pagination and optional filters", async () => {
+			mockPrisma.deliveryTrip.findMany.mockResolvedValue([mockDeliveryTrip]);
+
+			const result = await service.findAllDeliveryTrips({
+				skip: -5,
+				take: 999,
+				search: "aria",
+				status: "DRAFT",
+			});
+
+			expect(result).toHaveLength(1);
+			expect(result[0]?.id).toBe(mockDeliveryTrip.id);
+			expect(mockPrisma.deliveryTrip.findMany).toHaveBeenCalledWith(
+				expect.objectContaining({
+					skip: 0,
+					take: 250,
+					where: expect.objectContaining({
+						status: "DRAFT",
+						OR: expect.any(Array),
+					}),
+				}),
+			);
+		});
+	});
+
+	describe("createDeliveryTrip", () => {
+		it("should create a delivery trip with a generated series", async () => {
+			mockPrisma.deliveryTrip.findFirst.mockResolvedValue(null);
+			mockPrisma.deliveryTrip.create.mockResolvedValue(mockDeliveryTrip);
+
+			const result = await service.createDeliveryTrip({
+				company: "Aria Corp",
+				stops: [{ stopNumber: 1, addressName: "456 Oak Ave" }],
+			});
+
+			expect(result.id).toBe(mockDeliveryTrip.id);
+			const callArgs = mockPrisma.deliveryTrip.create.mock.calls[0][0] as {
+				data: { series: string };
+			};
+			expect(callArgs.data.series).toMatch(/^MAT-DT-\d{4}-\d{5}$/);
+		});
+
+		it("should retry on a series uniqueness conflict and succeed", async () => {
+			const conflict = new Prisma.PrismaClientKnownRequestError("Duplicate", {
+				code: "P2002",
+				clientVersion: "5.0.0",
+			});
+			mockPrisma.deliveryTrip.findFirst
+				.mockResolvedValueOnce(null)
+				.mockResolvedValueOnce(null);
+			mockPrisma.deliveryTrip.create
+				.mockRejectedValueOnce(conflict)
+				.mockResolvedValueOnce(mockDeliveryTrip);
+
+			const result = await service.createDeliveryTrip({ company: "Aria Corp" });
+
+			expect(result.id).toBe(mockDeliveryTrip.id);
+			expect(mockPrisma.deliveryTrip.create).toHaveBeenCalledTimes(2);
+		});
+
+		it("should throw ConflictException after 3 failed series attempts", async () => {
+			const conflict = new Prisma.PrismaClientKnownRequestError("Duplicate", {
+				code: "P2002",
+				clientVersion: "5.0.0",
+			});
+			mockPrisma.deliveryTrip.findFirst.mockResolvedValue(null);
+			mockPrisma.deliveryTrip.create.mockRejectedValue(conflict);
+
+			await expect(
+				service.createDeliveryTrip({ company: "Aria Corp" }),
+			).rejects.toThrow(ConflictException);
+			expect(mockPrisma.deliveryTrip.create).toHaveBeenCalledTimes(3);
+		});
+	});
+
+	describe("updateDeliveryTrip", () => {
+		it("should patch nested stops without replacing unchanged rows", async () => {
+			mockPrisma.deliveryTrip.findUnique.mockResolvedValue({
+				id: mockDeliveryTrip.id,
+			});
+			mockPrisma.deliveryTrip.update.mockResolvedValue({});
+			mockPrisma.deliveryTripStop.findMany.mockResolvedValue([
+				{ id: mockDeliveryTripStop.id },
+			]);
+			mockPrisma.deliveryTripStop.deleteMany.mockResolvedValue({ count: 0 });
+			mockPrisma.deliveryTripStop.update.mockResolvedValue(
+				mockDeliveryTripStop,
+			);
+			mockPrisma.deliveryTrip.findUniqueOrThrow.mockResolvedValue(
+				mockDeliveryTrip,
+			);
+
+			const result = await service.updateDeliveryTrip({
+				id: mockDeliveryTrip.id,
+				stops: [
+					{
+						id: mockDeliveryTripStop.id,
+						stopNumber: 1,
+						addressName: "456 Oak Ave",
+					},
+				],
+			});
+
+			expect(result.id).toBe(mockDeliveryTrip.id);
+			expect(mockPrisma.deliveryTripStop.deleteMany).toHaveBeenCalledWith({
+				where: {
+					deliveryTripId: mockDeliveryTrip.id,
+					id: { notIn: [mockDeliveryTripStop.id] },
+				},
+			});
+			expect(mockPrisma.$transaction).toHaveBeenCalledTimes(1);
+		});
+
+		it("should throw NotFoundException when delivery trip does not exist", async () => {
+			mockPrisma.deliveryTrip.findUnique.mockResolvedValue(null);
+
+			await expect(
+				service.updateDeliveryTrip({ id: "missing-id", company: "X" }),
+			).rejects.toThrow(NotFoundException);
+		});
+	});
+
+	describe("deleteDeliveryTrip", () => {
+		it("should delete a delivery trip", async () => {
+			mockPrisma.deliveryTrip.delete.mockResolvedValue({});
+
+			const result = await service.deleteDeliveryTrip(mockDeliveryTrip.id);
+
+			expect(result).toEqual({ success: true, id: mockDeliveryTrip.id });
+			expect(mockPrisma.deliveryTrip.delete).toHaveBeenCalledWith({
+				where: { id: mockDeliveryTrip.id },
+			});
+		});
+
+		it("should throw NotFoundException when delivery trip does not exist", async () => {
+			const notFoundError = new Prisma.PrismaClientKnownRequestError(
+				"Record not found",
+				{ code: "P2025", clientVersion: "5.0.0" },
+			);
+			mockPrisma.deliveryTrip.delete.mockRejectedValue(notFoundError);
+
+			await expect(service.deleteDeliveryTrip("missing-id")).rejects.toThrow(
+				NotFoundException,
+			);
+		});
+	});
+
+	describe("deleteManyDeliveryTrips", () => {
+		it("should deduplicate ids and bulk-delete delivery trips", async () => {
+			mockPrisma.deliveryTrip.deleteMany.mockResolvedValue({ count: 1 });
+
+			const result = await service.deleteManyDeliveryTrips([
+				mockDeliveryTrip.id,
+				mockDeliveryTrip.id,
+			]);
+
+			expect(result).toEqual({
+				success: true,
+				count: 1,
+				ids: [mockDeliveryTrip.id],
+			});
+			expect(mockPrisma.deliveryTrip.deleteMany).toHaveBeenCalledWith({
+				where: { id: { in: [mockDeliveryTrip.id] } },
 			});
 		});
 	});

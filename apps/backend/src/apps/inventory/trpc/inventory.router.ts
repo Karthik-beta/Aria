@@ -872,6 +872,101 @@ const onPickListsChangedProcedure = protectedProcedure.subscription(() => {
 	});
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Delivery Trip procedures
+// ─────────────────────────────────────────────────────────────────────────────
+
+type DeliveryTripsChangedEvent = {
+	type: "created" | "updated" | "deleted";
+	data: Inventory.DeliveryTrip | { id: string };
+};
+
+function createListDeliveryTripsProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(Inventory.listDeliveryTripsSchema)
+		.query(async ({ input }) => {
+			return inventoryService.findAllDeliveryTrips(input);
+		});
+}
+
+function createGetDeliveryTripByIdProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure
+		.input(z.object({ id: z.string().min(1) }))
+		.query(async ({ input }) => {
+			return inventoryService.findDeliveryTripById(input.id);
+		});
+}
+
+function createCreateDeliveryTripProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(Inventory.createDeliveryTripSchema)
+		.mutation(async ({ input }) => {
+			const result = await inventoryService.createDeliveryTrip(input);
+			void inventoryEvents.emit("deliveryTripCreated", result);
+			return result;
+		});
+}
+
+function createUpdateDeliveryTripProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(Inventory.updateDeliveryTripSchema)
+		.mutation(async ({ input }) => {
+			const result = await inventoryService.updateDeliveryTrip(input);
+			void inventoryEvents.emit("deliveryTripUpdated", result);
+			return result;
+		});
+}
+
+function createDeleteDeliveryTripProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(z.object({ id: z.string().min(1) }))
+		.mutation(async ({ input }) => {
+			const result = await inventoryService.deleteDeliveryTrip(input.id);
+			void inventoryEvents.emit("deliveryTripDeleted", { id: input.id });
+			return result;
+		});
+}
+
+function createDeleteManyDeliveryTripsProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure
+		.input(Inventory.bulkDeleteDeliveryTripsSchema)
+		.mutation(async ({ input }) => {
+			const result = await inventoryService.deleteManyDeliveryTrips(input.ids);
+			for (const id of result.ids) {
+				void inventoryEvents.emit("deliveryTripDeleted", { id });
+			}
+			return result;
+		});
+}
+
+const onDeliveryTripsChangedProcedure = protectedProcedure.subscription(() => {
+	return observable<DeliveryTripsChangedEvent>((emit) => {
+		const onCreated = (data: Inventory.DeliveryTrip) => {
+			emit.next({ type: "created", data });
+		};
+		const onUpdated = (data: Inventory.DeliveryTrip) => {
+			emit.next({ type: "updated", data });
+		};
+		const onDeleted = (data: { id: string }) => {
+			emit.next({ type: "deleted", data });
+		};
+
+		inventoryEvents.on("deliveryTripCreated", onCreated);
+		inventoryEvents.on("deliveryTripUpdated", onUpdated);
+		inventoryEvents.on("deliveryTripDeleted", onDeleted);
+
+		return () => {
+			inventoryEvents.off("deliveryTripCreated", onCreated);
+			inventoryEvents.off("deliveryTripUpdated", onUpdated);
+			inventoryEvents.off("deliveryTripDeleted", onDeleted);
+		};
+	});
+});
+
 type InventoryRouterInput = {
 	listItems: ReturnType<typeof createListItemsProcedure>;
 	listItemGroups: ReturnType<typeof createListItemGroupsProcedure>;
@@ -988,6 +1083,15 @@ type InventoryRouterInput = {
 	deletePickList: ReturnType<typeof createDeletePickListProcedure>;
 	deleteManyPickLists: ReturnType<typeof createDeleteManyPickListsProcedure>;
 	onPickListsChanged: typeof onPickListsChangedProcedure;
+	listDeliveryTrips: ReturnType<typeof createListDeliveryTripsProcedure>;
+	getDeliveryTripById: ReturnType<typeof createGetDeliveryTripByIdProcedure>;
+	createDeliveryTrip: ReturnType<typeof createCreateDeliveryTripProcedure>;
+	updateDeliveryTrip: ReturnType<typeof createUpdateDeliveryTripProcedure>;
+	deleteDeliveryTrip: ReturnType<typeof createDeleteDeliveryTripProcedure>;
+	deleteManyDeliveryTrips: ReturnType<
+		typeof createDeleteManyDeliveryTripsProcedure
+	>;
+	onDeliveryTripsChanged: typeof onDeliveryTripsChangedProcedure;
 };
 
 type InventoryRouterRoot = (typeof accountRouter)["_def"]["_config"]["$types"];
@@ -1096,6 +1200,14 @@ function createInventoryRouterRecord(
 		deletePickList: createDeletePickListProcedure(inventoryService),
 		deleteManyPickLists: createDeleteManyPickListsProcedure(inventoryService),
 		onPickListsChanged: onPickListsChangedProcedure,
+		listDeliveryTrips: createListDeliveryTripsProcedure(inventoryService),
+		getDeliveryTripById: createGetDeliveryTripByIdProcedure(inventoryService),
+		createDeliveryTrip: createCreateDeliveryTripProcedure(inventoryService),
+		updateDeliveryTrip: createUpdateDeliveryTripProcedure(inventoryService),
+		deleteDeliveryTrip: createDeleteDeliveryTripProcedure(inventoryService),
+		deleteManyDeliveryTrips:
+			createDeleteManyDeliveryTripsProcedure(inventoryService),
+		onDeliveryTripsChanged: onDeliveryTripsChangedProcedure,
 	};
 }
 

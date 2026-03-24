@@ -39,6 +39,11 @@ type PickListsChangedEvent = {
 	data: Inventory.PickList | { id: string };
 };
 
+type DeliveryTripsChangedEvent = {
+	type: "created" | "updated" | "deleted";
+	data: Inventory.DeliveryTrip | { id: string };
+};
+
 type InventoryRouterInput = {
 	listItems: TRPCQueryProcedure<{
 		input: void;
@@ -1142,6 +1147,82 @@ type InventoryRouterInput = {
 	onPickListsChanged: LegacyObservableSubscriptionProcedure<{
 		input: void;
 		output: PickListsChangedEvent;
+		meta: object;
+	}>;
+	listDeliveryTrips: TRPCQueryProcedure<{
+		input:
+			| {
+					skip?: number | undefined;
+					take?: number | undefined;
+					search?: string | undefined;
+					status?: Inventory.DeliveryTripStatus | undefined;
+			  }
+			| undefined;
+		output: Inventory.DeliveryTrip[];
+		meta: object;
+	}>;
+	getDeliveryTripById: TRPCQueryProcedure<{
+		input: { id: string };
+		output: Inventory.DeliveryTrip | null;
+		meta: object;
+	}>;
+	createDeliveryTrip: TRPCMutationProcedure<{
+		input: {
+			company: string;
+			driver?: string | undefined;
+			driverAddress?: string | undefined;
+			vehicle?: string | undefined;
+			departureTime?: unknown;
+			status?: Inventory.DeliveryTripStatus | undefined;
+			initialEmailNotificationSent?: boolean | undefined;
+			stops?: Array<{
+				stopNumber: number;
+				customer?: string | undefined;
+				addressName: string;
+				locked?: boolean | undefined;
+				deliveryNote?: string | undefined;
+				estimatedArrival?: unknown;
+			}>;
+		};
+		output: Inventory.DeliveryTrip;
+		meta: object;
+	}>;
+	updateDeliveryTrip: TRPCMutationProcedure<{
+		input: {
+			id: string;
+			company?: string | undefined;
+			driver?: string | null | undefined;
+			driverAddress?: string | null | undefined;
+			vehicle?: string | null | undefined;
+			departureTime?: unknown;
+			status?: Inventory.DeliveryTripStatus | undefined;
+			initialEmailNotificationSent?: boolean | undefined;
+			stops?: Array<{
+				id?: string | undefined;
+				stopNumber: number;
+				customer?: string | null | undefined;
+				addressName: string;
+				locked?: boolean | undefined;
+				deliveryNote?: string | null | undefined;
+				estimatedArrival?: unknown;
+			}>;
+		};
+		output: Inventory.DeliveryTrip;
+		meta: object;
+	}>;
+	deleteDeliveryTrip: TRPCMutationProcedure<{
+		input: { id: string };
+		output: { success: boolean; id: string };
+		meta: object;
+	}>;
+	deleteManyDeliveryTrips: TRPCMutationProcedure<{
+		input: { ids: string[] };
+		output: { success: boolean; count: number; ids: string[] };
+		meta: object;
+	}>;
+	onDeliveryTripsChanged: LegacyObservableSubscriptionProcedure<{
+		input: void;
+		output: DeliveryTripsChangedEvent;
 		meta: object;
 	}>;
 };

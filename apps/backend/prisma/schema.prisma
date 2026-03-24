@@ -866,3 +866,50 @@ model PickListItem {
   @@index([pickListId])
   @@map("pick_list_items")
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Delivery Trip
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum DeliveryTripStatus {
+  DRAFT
+  SCHEDULED
+  IN_TRANSIT
+  COMPLETED
+  CANCELLED
+}
+
+model DeliveryTrip {
+  id                             String              @id @default(cuid())
+  series                         String              @unique @db.VarChar(50)
+  seriesPattern                  String              @default("MAT-DT-.YYYY.-") @db.VarChar(50)
+  status                         DeliveryTripStatus  @default(DRAFT)
+  company                        String              @db.VarChar(255)
+  driver                         String?             @db.VarChar(255)
+  driverAddress                  String?             @db.VarChar(500)
+  vehicle                        String?             @db.VarChar(255)
+  departureTime                  DateTime?
+  initialEmailNotificationSent   Boolean             @default(false)
+  stops                          DeliveryTripStop[]
+  createdAt                      DateTime            @default(now())
+  updatedAt                      DateTime            @updatedAt
+
+  @@index([series])
+  @@index([status])
+  @@map("delivery_trips")
+}
+
+model DeliveryTripStop {
+  id               String       @id @default(cuid())
+  deliveryTripId   String
+  stopNumber       Int
+  customer         String?      @db.VarChar(255)
+  addressName      String       @db.VarChar(500)
+  locked           Boolean      @default(false)
+  deliveryNote     String?      @db.VarChar(50)
+  estimatedArrival DateTime?
+  deliveryTrip     DeliveryTrip @relation(fields: [deliveryTripId], references: [id], onDelete: Cascade)
+
+  @@index([deliveryTripId])
+  @@map("delivery_trip_stops")
+}

@@ -624,3 +624,60 @@ export function toInventoryPickList(
 		updatedAt: prismaPickList.updatedAt,
 	};
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Delivery Trip
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Prisma model type for DeliveryTrip with stops
+ */
+export type InventoryDeliveryTrip = Prisma.DeliveryTripGetPayload<{
+	include: {
+		stops: true;
+	};
+}>;
+
+/**
+ * Converts a Prisma DeliveryTripStop to Inventory.DeliveryTripStop
+ */
+export function toInventoryDeliveryTripStop(
+	stop: InventoryDeliveryTrip["stops"][number],
+): Inventory.DeliveryTripStop {
+	return {
+		id: stop.id,
+		deliveryTripId: stop.deliveryTripId,
+		stopNumber: stop.stopNumber,
+		customer: stop.customer,
+		addressName: stop.addressName,
+		locked: stop.locked,
+		deliveryNote: stop.deliveryNote,
+		estimatedArrival: stop.estimatedArrival,
+	};
+}
+
+/**
+ * Converts a Prisma DeliveryTrip (with stops) to Inventory.DeliveryTrip
+ */
+export function toInventoryDeliveryTrip(
+	prismaDeliveryTrip: InventoryDeliveryTrip,
+): Inventory.DeliveryTrip {
+	return {
+		id: prismaDeliveryTrip.id,
+		series: prismaDeliveryTrip.series,
+		seriesPattern: prismaDeliveryTrip.seriesPattern,
+		status: prismaDeliveryTrip.status as Inventory.DeliveryTripStatus,
+		company: prismaDeliveryTrip.company,
+		driver: prismaDeliveryTrip.driver,
+		driverAddress: prismaDeliveryTrip.driverAddress,
+		vehicle: prismaDeliveryTrip.vehicle,
+		departureTime: prismaDeliveryTrip.departureTime,
+		initialEmailNotificationSent:
+			prismaDeliveryTrip.initialEmailNotificationSent,
+		stops: prismaDeliveryTrip.stops
+			.sort((a, b) => a.stopNumber - b.stopNumber)
+			.map(toInventoryDeliveryTripStop),
+		createdAt: prismaDeliveryTrip.createdAt,
+		updatedAt: prismaDeliveryTrip.updatedAt,
+	};
+}

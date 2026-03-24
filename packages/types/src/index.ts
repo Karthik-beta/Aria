@@ -2048,6 +2048,149 @@ export namespace Inventory {
 	export const bulkDeletePickListsSchema = z.object({
 		ids: z.array(z.string().min(1)).min(1),
 	});
+
+	// ─────────────────────────────────────────────────────────────────────────
+	// Delivery Trip
+	// ─────────────────────────────────────────────────────────────────────────
+
+	export type DeliveryTripStatus =
+		| "DRAFT"
+		| "SCHEDULED"
+		| "IN_TRANSIT"
+		| "COMPLETED"
+		| "CANCELLED";
+
+	export interface DeliveryTripStop {
+		id: string;
+		deliveryTripId: string;
+		stopNumber: number;
+		customer?: string | null;
+		addressName: string;
+		locked: boolean;
+		deliveryNote?: string | null;
+		estimatedArrival?: Date | null;
+	}
+
+	export interface DeliveryTrip {
+		id: string;
+		series: string;
+		seriesPattern: string;
+		status: DeliveryTripStatus;
+		company: string;
+		driver?: string | null;
+		driverAddress?: string | null;
+		vehicle?: string | null;
+		departureTime?: Date | null;
+		initialEmailNotificationSent: boolean;
+		stops: DeliveryTripStop[];
+		createdAt: Date;
+		updatedAt: Date;
+	}
+
+	export interface CreateDeliveryTripStopInput {
+		stopNumber: number;
+		customer?: string;
+		addressName: string;
+		locked?: boolean;
+		deliveryNote?: string;
+		estimatedArrival?: Date;
+	}
+
+	export interface UpdateDeliveryTripStopInput {
+		id?: string;
+		stopNumber: number;
+		customer?: string | null;
+		addressName: string;
+		locked?: boolean;
+		deliveryNote?: string | null;
+		estimatedArrival?: Date | null;
+	}
+
+	export interface CreateDeliveryTripInput {
+		company: string;
+		driver?: string;
+		driverAddress?: string;
+		vehicle?: string;
+		departureTime?: Date;
+		status?: DeliveryTripStatus;
+		initialEmailNotificationSent?: boolean;
+		stops?: CreateDeliveryTripStopInput[];
+	}
+
+	export interface UpdateDeliveryTripInput {
+		id: string;
+		company?: string;
+		driver?: string | null;
+		driverAddress?: string | null;
+		vehicle?: string | null;
+		departureTime?: Date | null;
+		status?: DeliveryTripStatus;
+		initialEmailNotificationSent?: boolean;
+		stops?: UpdateDeliveryTripStopInput[];
+	}
+
+	export const deliveryTripStatusSchema = z.enum([
+		"DRAFT",
+		"SCHEDULED",
+		"IN_TRANSIT",
+		"COMPLETED",
+		"CANCELLED",
+	]);
+
+	export const createDeliveryTripStopSchema = z.object({
+		stopNumber: z.number().int().min(1),
+		customer: z.string().max(255).optional(),
+		addressName: z.string().min(1, "Address Name is required").max(500).trim(),
+		locked: z.boolean().default(false),
+		deliveryNote: z.string().max(50).optional(),
+		estimatedArrival: z.coerce.date().optional(),
+	});
+
+	export const updateDeliveryTripStopSchema = z.object({
+		id: z.string().optional(),
+		stopNumber: z.number().int().min(1),
+		customer: z.string().max(255).optional().nullable(),
+		addressName: z.string().min(1, "Address Name is required").max(500).trim(),
+		locked: z.boolean().default(false),
+		deliveryNote: z.string().max(50).optional().nullable(),
+		estimatedArrival: z.coerce.date().optional().nullable(),
+	});
+
+	export const createDeliveryTripSchema = z.object({
+		company: z.string().min(1, "Company is required").max(255).trim(),
+		driver: z.string().max(255).optional(),
+		driverAddress: z.string().max(500).optional(),
+		vehicle: z.string().max(255).optional(),
+		departureTime: z.coerce.date().optional(),
+		status: deliveryTripStatusSchema.optional(),
+		initialEmailNotificationSent: z.boolean().default(false),
+		stops: z.array(createDeliveryTripStopSchema).default([]),
+	});
+
+	export const updateDeliveryTripSchema = z.object({
+		id: z.string().min(1),
+		company: z.string().min(1).max(255).trim().optional(),
+		driver: z.string().max(255).optional().nullable(),
+		driverAddress: z.string().max(500).optional().nullable(),
+		vehicle: z.string().max(255).optional().nullable(),
+		departureTime: z.coerce.date().optional().nullable(),
+		status: deliveryTripStatusSchema.optional(),
+		initialEmailNotificationSent: z.boolean().optional(),
+		stops: z.array(updateDeliveryTripStopSchema).optional(),
+	});
+
+	export const listDeliveryTripsSchema = z
+		.object({
+			skip: z.number().int().min(0).optional(),
+			take: z.number().int().min(1).max(250).optional(),
+			search: z.string().max(255).optional(),
+			status: deliveryTripStatusSchema.optional(),
+		})
+		.optional();
+
+	export const bulkDeleteDeliveryTripsSchema = z.object({
+		ids: z.array(z.string().min(1)).min(1),
+	});
 }
 
 // ============================================================================

@@ -170,6 +170,12 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
 	get pickListItem() {
 		return this.client.pickListItem;
 	}
+	get deliveryTrip() {
+		return this.client.deliveryTrip;
+	}
+	get deliveryTripStop() {
+		return this.client.deliveryTripStop;
+	}
 
 	// ═══════════════════════════════════════════════════════════════════════════
 	// Transaction Support
