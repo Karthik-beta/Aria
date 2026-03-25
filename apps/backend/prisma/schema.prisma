@@ -81,6 +81,7 @@ model InventoryItem {
 
   defaultUnitOfMeasureId String?
   defaultUnitOfMeasure   UnitOfMeasurement? @relation(fields: [defaultUnitOfMeasureId], references: [id])
+  batches                Batch[]
   serialNos              SerialNo[]
 
   quantity  Int      @default(0)
@@ -314,6 +315,7 @@ model Warehouse {
   childWarehouses             Warehouse[] @relation("WarehouseHierarchy")
   defaultInTransitWarehouse   Warehouse?  @relation("WarehouseTransitDefault", fields: [defaultInTransitWarehouseId], references: [id])
   transitDefaultFor           Warehouse[] @relation("WarehouseTransitDefault")
+  currentBatches              Batch[]     @relation("BatchCurrentWarehouse")
   currentSerialNos            SerialNo[]  @relation("SerialNoCurrentWarehouse")
   serialNoStatusHistory       SerialNoHistory[]
 
@@ -684,6 +686,7 @@ model StockEntry {
   letterHead             String?          @db.VarChar(255)
   inspectionRequired     Boolean          @default(false)
   items                  StockEntryItem[]
+  batches                Batch[]
   serialNos              SerialNo[]
   createdAt              DateTime         @default(now())
   updatedAt              DateTime         @updatedAt
@@ -809,6 +812,7 @@ model DeliveryNote {
   project                  String?            @db.VarChar(255)
 
   items     DeliveryNoteItem[]
+  batches   Batch[]
   serialNos SerialNo[]
 
   createdAt DateTime @default(now())
@@ -897,6 +901,7 @@ model PurchaseReceipt {
   isInternalSupplier             Boolean               @default(false)
   items                          PurchaseReceiptItem[]
   taxes                          PurchaseReceiptTax[]
+  batches                        Batch[]
   serialNos                      SerialNo[]
   createdAt                      DateTime              @default(now())
   updatedAt                      DateTime              @updatedAt
@@ -1013,6 +1018,41 @@ enum SerialNoStatus {
   RETURNED
   SCRAPPED
   DISPOSED
+}
+
+model Batch {
+  id                    String           @id @default(cuid())
+  batchId               String           @unique @db.VarChar(120)
+  itemId                String
+  company               String           @db.VarChar(255)
+  currentWarehouseId    String?
+  purchaseReceiptId     String?
+  deliveryNoteId        String?
+  stockEntryId          String?
+  useBatchWiseValuation Boolean          @default(false)
+  manufacturingDate     DateTime?
+  expiryDate            DateTime?
+  description           String?
+  quantity              Float            @default(0)
+  isDisabled            Boolean          @default(false)
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+  item                  InventoryItem    @relation(fields: [itemId], references: [id])
+  currentWarehouse      Warehouse?       @relation("BatchCurrentWarehouse", fields: [currentWarehouseId], references: [id])
+  purchaseReceipt       PurchaseReceipt? @relation(fields: [purchaseReceiptId], references: [id])
+  deliveryNote          DeliveryNote?    @relation(fields: [deliveryNoteId], references: [id])
+  stockEntry            StockEntry?      @relation(fields: [stockEntryId], references: [id])
+
+  @@index([itemId])
+  @@index([company])
+  @@index([currentWarehouseId])
+  @@index([purchaseReceiptId])
+  @@index([deliveryNoteId])
+  @@index([stockEntryId])
+  @@index([expiryDate])
+  @@index([isDisabled])
+  @@index([quantity])
+  @@map("batches")
 }
 
 enum SerialNoHistoryEventType {

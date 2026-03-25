@@ -49,6 +49,11 @@ type SerialNosChangedEvent = {
 	data: Inventory.SerialNo | { id: string };
 };
 
+type BatchesChangedEvent = {
+	type: "created" | "updated" | "deleted";
+	data: Inventory.Batch | { id: string };
+};
+
 type InventoryRouterInput = {
 	listItems: TRPCQueryProcedure<{
 		input: void;
@@ -721,6 +726,92 @@ type InventoryRouterInput = {
 	onItemsChanged: LegacyObservableSubscriptionProcedure<{
 		input: void;
 		output: ItemsChangedEvent;
+		meta: object;
+	}>;
+	listBatches: TRPCQueryProcedure<{
+		input:
+			| {
+					skip?: number | undefined;
+					take?: number | undefined;
+					search?: string | undefined;
+					itemId?: string | undefined;
+					warehouseId?: string | undefined;
+					company?: string | undefined;
+					status?: "ACTIVE" | "EMPTY" | "EXPIRED" | "DISABLED" | undefined;
+					includeDisabled?: boolean | undefined;
+					sortBy?:
+						| "updatedAt"
+						| "createdAt"
+						| "batchId"
+						| "itemCode"
+						| "warehouse"
+						| "expiryDate"
+						| "quantity"
+						| "company"
+						| undefined;
+					sortDirection?: "asc" | "desc" | undefined;
+			  }
+			| undefined;
+		output: Inventory.BatchListResult;
+		meta: object;
+	}>;
+	getBatchById: TRPCQueryProcedure<{
+		input: { id: string };
+		output: Inventory.Batch | null;
+		meta: object;
+	}>;
+	createBatch: TRPCMutationProcedure<{
+		input: {
+			batchId: string;
+			itemId: string;
+			company: string;
+			currentWarehouseId?: string | null | undefined;
+			purchaseReceiptId?: string | null | undefined;
+			deliveryNoteId?: string | null | undefined;
+			stockEntryId?: string | null | undefined;
+			useBatchWiseValuation?: boolean | undefined;
+			manufacturingDate?: unknown;
+			expiryDate?: unknown;
+			description?: string | null | undefined;
+			quantity?: number | undefined;
+			isDisabled?: boolean | undefined;
+		};
+		output: Inventory.Batch;
+		meta: object;
+	}>;
+	updateBatch: TRPCMutationProcedure<{
+		input: {
+			id: string;
+			batchId?: string | undefined;
+			itemId?: string | undefined;
+			company?: string | undefined;
+			currentWarehouseId?: string | null | undefined;
+			purchaseReceiptId?: string | null | undefined;
+			deliveryNoteId?: string | null | undefined;
+			stockEntryId?: string | null | undefined;
+			useBatchWiseValuation?: boolean | undefined;
+			manufacturingDate?: unknown;
+			expiryDate?: unknown;
+			description?: string | null | undefined;
+			quantity?: number | undefined;
+			isDisabled?: boolean | undefined;
+		};
+		output: Inventory.Batch;
+		meta: object;
+	}>;
+	deleteBatch: TRPCMutationProcedure<{
+		input: {
+			id: string;
+		};
+		output: {
+			success: boolean;
+			id: string;
+		};
+		meta: object;
+	}>;
+	onBatchesChanged: LegacyObservableSubscriptionProcedure<{
+		input: void;
+		output: BatchesChangedEvent;
 		meta: object;
 	}>;
 	listSerialNos: TRPCQueryProcedure<{

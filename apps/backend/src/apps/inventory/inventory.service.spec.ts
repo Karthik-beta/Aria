@@ -151,6 +151,44 @@ describe("InventoryService", () => {
 		],
 	};
 
+	const mockBatch = {
+		id: "clh123batch0000000001",
+		batchId: "BATCH-1001",
+		itemId: mockItem.id,
+		itemCode: mockItem.code,
+		itemName: mockItem.name,
+		company: "Aria Corp",
+		currentWarehouseId: mockWarehouse.id,
+		currentWarehouseName: mockWarehouse.name,
+		purchaseReceiptId: null as string | null,
+		purchaseReceiptSeries: null as string | null,
+		deliveryNoteId: null as string | null,
+		deliveryNoteSeries: null as string | null,
+		stockEntryId: null as string | null,
+		stockEntrySeries: null as string | null,
+		useBatchWiseValuation: false,
+		manufacturingDate: new Date("2026-03-20T00:00:00.000Z"),
+		expiryDate: new Date("2026-12-31T00:00:00.000Z"),
+		description: "Tempered glass lot",
+		quantity: 10,
+		status: "ACTIVE" as const,
+		isDisabled: false,
+		createdAt: new Date("2026-03-20T00:00:00.000Z"),
+		updatedAt: new Date("2026-03-21T00:00:00.000Z"),
+		item: {
+			id: mockItem.id,
+			code: mockItem.code,
+			name: mockItem.name,
+		},
+		currentWarehouse: {
+			id: mockWarehouse.id,
+			name: mockWarehouse.name,
+		},
+		purchaseReceipt: null,
+		deliveryNote: null,
+		stockEntry: null,
+	};
+
 	const mockStockSettingsInput = {
 		itemNamingBy: "ITEM_CODE" as const,
 		defaultWarehouse: null,
@@ -354,6 +392,14 @@ describe("InventoryService", () => {
 			count: jest.fn(),
 		},
 		serialNo: {
+			findMany: jest.fn(),
+			findUnique: jest.fn(),
+			create: jest.fn(),
+			update: jest.fn(),
+			delete: jest.fn(),
+			count: jest.fn(),
+		},
+		batch: {
 			findMany: jest.fn(),
 			findUnique: jest.fn(),
 			create: jest.fn(),
@@ -5146,6 +5192,119 @@ describe("InventoryService", () => {
 			});
 
 			await expect(service.deleteSerialNo(mockSerialNo.id)).rejects.toThrow(
+				BadRequestException,
+			);
+		});
+	});
+
+	describe("batches", () => {
+		it("should list batches with bounded filters", async () => {
+			mockPrisma.batch.findMany.mockResolvedValue([mockBatch]);
+			mockPrisma.batch.count.mockResolvedValue(1);
+
+			const result = await service.findBatches({
+				search: "BATCH-1001",
+				status: "ACTIVE",
+				take: 25,
+			});
+
+			expect(result.totalCount).toBe(1);
+			expect(result.items[0]?.batchId).toBe("BATCH-1001");
+			expect(mockPrisma.batch.findMany).toHaveBeenCalledWith(
+				expect.objectContaining({
+					skip: 0,
+					take: 25,
+				}),
+			);
+		});
+
+		it("should create a batch when the item supports batch tracking", async () => {
+			mockPrisma.inventoryItem.findUnique.mockResolvedValue({
+				id: mockItem.id,
+				code: mockItem.code,
+				name: mockItem.name,
+				hasBatchNo: true,
+				disabled: false,
+			});
+			mockPrisma.warehouse.findUnique.mockResolvedValue({
+				id: mockWarehouse.id,
+				name: mockWarehouse.name,
+				company: "Aria Corp",
+				disabled: false,
+			});
+			mockPrisma.batch.create.mockResolvedValue(mockBatch);
+
+			const result = await service.createBatch({
+				batchId: "BATCH-1001",
+				itemId: mockItem.id,
+				company: "Aria Corp",
+				currentWarehouseId: mockWarehouse.id,
+				useBatchWiseValuation: false,
+				quantity: 10,
+				isDisabled: false,
+			});
+
+			expect(result.batchId).toBe("BATCH-1001");
+			expect(mockPrisma.batch.create).toHaveBeenCalled();
+		});
+
+		it("should reject quantity without a warehouse", async () => {
+			mockPrisma.inventoryItem.findUnique.mockResolvedValue({
+				id: mockItem.id,
+				code: mockItem.code,
+				name: mockItem.name,
+				hasBatchNo: true,
+				disabled: false,
+			});
+
+			await expect(
+				service.createBatch({
+					batchId: "BATCH-1002",
+					itemId: mockItem.id,
+					company: "Aria Corp",
+					useBatchWiseValuation: false,
+					quantity: 5,
+					isDisabled: false,
+				}),
+			).rejects.toThrow(BadRequestException);
+		});
+
+		it("should reject changing item or warehouse while quantity exists", async () => {
+			mockPrisma.batch.findUnique.mockResolvedValueOnce({
+				id: mockBatch.id,
+				batchId: mockBatch.batchId,
+				itemId: mockBatch.itemId,
+				company: mockBatch.company,
+				currentWarehouseId: mockBatch.currentWarehouseId,
+				purchaseReceiptId: null,
+				deliveryNoteId: null,
+				stockEntryId: null,
+				useBatchWiseValuation: false,
+				manufacturingDate: mockBatch.manufacturingDate,
+				expiryDate: mockBatch.expiryDate,
+				description: mockBatch.description,
+				quantity: 10,
+				isDisabled: false,
+			});
+
+			await expect(
+				service.updateBatch({
+					id: mockBatch.id,
+					currentWarehouseId: "clh123warehouse0009",
+				}),
+			).rejects.toThrow(BadRequestException);
+		});
+
+		it("should prevent deleting a linked batch with stock on hand", async () => {
+			mockPrisma.batch.findUnique.mockResolvedValue({
+				id: mockBatch.id,
+				quantity: 10,
+				purchaseReceiptId: "receipt-1",
+				deliveryNoteId: null,
+				stockEntryId: null,
+			});
+
+			await expect(service.deleteBatch(mockBatch.id)).rejects.toThrow(
 				BadRequestException,
 			);
 		});

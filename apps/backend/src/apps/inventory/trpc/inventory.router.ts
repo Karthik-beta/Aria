@@ -31,6 +31,11 @@ type SerialNosChangedEvent = {
 	data: Inventory.SerialNo | { id: string };
 };
 
+type BatchesChangedEvent = {
+	type: "created" | "updated" | "deleted";
+	data: Inventory.Batch | { id: string };
+};
+
 function createListItemsProcedure(inventoryService: InventoryService) {
 	return protectedProcedure.query(async () => {
 		return inventoryService.findAll();
@@ -66,6 +71,52 @@ function createListSerialNosProcedure(inventoryService: InventoryService) {
 		.input(Inventory.listSerialNosSchema)
 		.query(async ({ input }) => {
 			return inventoryService.findSerialNos(input);
+		});
+}
+
+function createListBatchesProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(Inventory.listBatchesSchema)
+		.query(async ({ input }) => {
+			return inventoryService.findBatches(input);
+		});
+}
+
+function createGetBatchByIdProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(z.object({ id: z.string().cuid() }))
+		.query(async ({ input }) => {
+			return inventoryService.findBatchById(input.id);
+		});
+}
+
+function createCreateBatchProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(Inventory.createBatchSchema)
+		.mutation(async ({ input }) => {
+			const result = await inventoryService.createBatch(input);
+			void inventoryEvents.emit("batchCreated", result);
+			return result;
+		});
+}
+
+function createUpdateBatchProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(Inventory.updateBatchSchema)
+		.mutation(async ({ input }) => {
+			const result = await inventoryService.updateBatch(input);
+			void inventoryEvents.emit("batchUpdated", result);
+			return result;
+		});
+}
+
+function createDeleteBatchProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(z.object({ id: z.string().cuid() }))
+		.mutation(async ({ input }) => {
+			const result = await inventoryService.deleteBatch(input.id);
+			void inventoryEvents.emit("batchDeleted", { id: input.id });
+			return result;
 		});
 }
 
@@ -675,6 +726,30 @@ const onSerialNosChangedProcedure = protectedProcedure.subscription(() => {
 	});
 });
 
+const onBatchesChangedProcedure = protectedProcedure.subscription(() => {
+	return observable<BatchesChangedEvent>((emit) => {
+		const onCreated = (data: Inventory.Batch) => {
+			emit.next({ type: "created", data });
+		};
+		const onUpdated = (data: Inventory.Batch) => {
+			emit.next({ type: "updated", data });
+		};
+		const onDeleted = (data: { id: string }) => {
+			emit.next({ type: "deleted", data });
+		};
+
+		inventoryEvents.on("batchCreated", onCreated);
+		inventoryEvents.on("batchUpdated", onUpdated);
+		inventoryEvents.on("batchDeleted", onDeleted);
+
+		return () => {
+			inventoryEvents.off("batchCreated", onCreated);
+			inventoryEvents.off("batchUpdated", onUpdated);
+			inventoryEvents.off("batchDeleted", onDeleted);
+		};
+	});
+});
+
 // ─── Material Request Procedures ────────────────────────────────────────────
 
 type MaterialRequestsChangedEvent = {
@@ -1273,6 +1348,11 @@ type InventoryRouterInput = {
 	listItemGroups: ReturnType<typeof createListItemGroupsProcedure>;
 	listUnitsOfMeasure: ReturnType<typeof createListUnitsOfMeasureProcedure>;
 	listWarehouses: ReturnType<typeof createListWarehousesProcedure>;
+	listBatches: ReturnType<typeof createListBatchesProcedure>;
+	getBatchById: ReturnType<typeof createGetBatchByIdProcedure>;
+	createBatch: ReturnType<typeof createCreateBatchProcedure>;
+	updateBatch: ReturnType<typeof createUpdateBatchProcedure>;
+	deleteBatch: ReturnType<typeof createDeleteBatchProcedure>;
 	listSerialNos: ReturnType<typeof createListSerialNosProcedure>;
 	getSerialNoById: ReturnType<typeof createGetSerialNoByIdProcedure>;
 	createSerialNo: ReturnType<typeof createCreateSerialNoProcedure>;
@@ -1354,6 +1434,7 @@ type InventoryRouterInput = {
 	onItemUpdated: typeof onItemUpdatedProcedure;
 	onItemDeleted: typeof onItemDeletedProcedure;
 	onItemsChanged: typeof onItemsChangedProcedure;
+	onBatchesChanged: typeof onBatchesChangedProcedure;
 	onSerialNosChanged: typeof onSerialNosChangedProcedure;
 	listMaterialRequests: ReturnType<typeof createListMaterialRequestsProcedure>;
 	getMaterialRequestById: ReturnType<
@@ -1451,6 +1532,11 @@ function createInventoryRouterRecord(
 		listItemGroups: createListItemGroupsProcedure(inventoryService),
 		listUnitsOfMeasure: createListUnitsOfMeasureProcedure(inventoryService),
 		listWarehouses: createListWarehousesProcedure(inventoryService),
+		listBatches: createListBatchesProcedure(inventoryService),
+		getBatchById: createGetBatchByIdProcedure(inventoryService),
+		createBatch: createCreateBatchProcedure(inventoryService),
+		updateBatch: createUpdateBatchProcedure(inventoryService),
+		deleteBatch: createDeleteBatchProcedure(inventoryService),
 		listSerialNos: createListSerialNosProcedure(inventoryService),
 		getSerialNoById: createGetSerialNoByIdProcedure(inventoryService),
 		createSerialNo: createCreateSerialNoProcedure(inventoryService),
@@ -1521,6 +1607,7 @@ function createInventoryRouterRecord(
 		onItemUpdated: onItemUpdatedProcedure,
 		onItemDeleted: onItemDeletedProcedure,
 		onItemsChanged: onItemsChangedProcedure,
+		onBatchesChanged: onBatchesChangedProcedure,
 		onSerialNosChanged: onSerialNosChangedProcedure,
 		listMaterialRequests: createListMaterialRequestsProcedure(inventoryService),
 		getMaterialRequestById:

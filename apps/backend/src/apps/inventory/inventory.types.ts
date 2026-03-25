@@ -153,6 +153,46 @@ export type InventoryWarehouse = Prisma.WarehouseGetPayload<{
 	};
 }>;
 
+export interface InventoryBatch {
+	id: string;
+	batchId: string;
+	itemId: string;
+	company: string;
+	currentWarehouseId: string | null;
+	purchaseReceiptId: string | null;
+	deliveryNoteId: string | null;
+	stockEntryId: string | null;
+	useBatchWiseValuation: boolean;
+	manufacturingDate: Date | null;
+	expiryDate: Date | null;
+	description: string | null;
+	quantity: number;
+	isDisabled: boolean;
+	createdAt: Date;
+	updatedAt: Date;
+	item: {
+		id: string;
+		code: string;
+		name: string;
+	};
+	currentWarehouse?: {
+		id: string;
+		name: string;
+	} | null;
+	purchaseReceipt?: {
+		id: string;
+		series: string;
+	} | null;
+	deliveryNote?: {
+		id: string;
+		series: string;
+	} | null;
+	stockEntry?: {
+		id: string;
+		series: string;
+	} | null;
+}
+
 /**
  * Prisma model type for SerialNo with display relations and ordered history.
  */
@@ -531,6 +571,45 @@ export function toInventoryWarehouse(
 			prismaWarehouse.defaultInTransitWarehouse?.name ?? null,
 		createdAt: prismaWarehouse.createdAt,
 		updatedAt: prismaWarehouse.updatedAt,
+	};
+}
+
+/**
+ * Converts a Prisma Batch with relations to Inventory.Batch.
+ */
+export function toInventoryBatch(prismaBatch: InventoryBatch): Inventory.Batch {
+	return {
+		id: prismaBatch.id,
+		batchId: prismaBatch.batchId,
+		itemId: prismaBatch.itemId,
+		itemCode: prismaBatch.item.code,
+		itemName: prismaBatch.item.name,
+		company: prismaBatch.company,
+		currentWarehouseId: prismaBatch.currentWarehouseId,
+		currentWarehouseName: prismaBatch.currentWarehouse?.name ?? null,
+		purchaseReceiptId: prismaBatch.purchaseReceiptId,
+		purchaseReceiptSeries: prismaBatch.purchaseReceipt?.series ?? null,
+		deliveryNoteId: prismaBatch.deliveryNoteId,
+		deliveryNoteSeries: prismaBatch.deliveryNote?.series ?? null,
+		stockEntryId: prismaBatch.stockEntryId,
+		stockEntrySeries: prismaBatch.stockEntry?.series ?? null,
+		useBatchWiseValuation: prismaBatch.useBatchWiseValuation,
+		manufacturingDate: prismaBatch.manufacturingDate,
+		expiryDate: prismaBatch.expiryDate,
+		description: prismaBatch.description,
+		quantity: prismaBatch.quantity,
+		status: Inventory.batchStatusSchema.parse(
+			prismaBatch.isDisabled
+				? "DISABLED"
+				: prismaBatch.expiryDate && prismaBatch.expiryDate < new Date()
+					? "EXPIRED"
+					: prismaBatch.quantity <= 0
+						? "EMPTY"
+						: "ACTIVE",
+		),
+		isDisabled: prismaBatch.isDisabled,
+		createdAt: prismaBatch.createdAt,
+		updatedAt: prismaBatch.updatedAt,
 	};
 }
 

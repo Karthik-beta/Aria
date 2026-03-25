@@ -191,6 +191,201 @@ export namespace Inventory {
 		defaultInTransitWarehouseId?: string | null;
 	}
 
+	export const batchStatusSchema = z.enum([
+		"ACTIVE",
+		"EMPTY",
+		"EXPIRED",
+		"DISABLED",
+	]);
+
+	export type BatchStatus = z.infer<typeof batchStatusSchema>;
+
+	export const batchSortBySchema = z.enum([
+		"updatedAt",
+		"createdAt",
+		"batchId",
+		"itemCode",
+		"warehouse",
+		"expiryDate",
+		"quantity",
+		"company",
+	]);
+
+	export type BatchSortBy = z.infer<typeof batchSortBySchema>;
+
+	export interface BatchLinkSummary {
+		purchaseReceiptId?: string | null;
+		purchaseReceiptSeries?: string | null;
+		deliveryNoteId?: string | null;
+		deliveryNoteSeries?: string | null;
+		stockEntryId?: string | null;
+		stockEntrySeries?: string | null;
+	}
+
+	export interface Batch extends BatchLinkSummary {
+		id: string;
+		batchId: string;
+		itemId: string;
+		itemCode: string;
+		itemName: string;
+		company: string;
+		currentWarehouseId?: string | null;
+		currentWarehouseName?: string | null;
+		useBatchWiseValuation: boolean;
+		manufacturingDate?: Date | null;
+		expiryDate?: Date | null;
+		description?: string | null;
+		quantity: number;
+		status: BatchStatus;
+		isDisabled: boolean;
+		createdAt: Date;
+		updatedAt: Date;
+	}
+
+	export interface BatchListResult {
+		items: Batch[];
+		totalCount: number;
+	}
+
+	export interface ListBatchesInput {
+		skip?: number;
+		take?: number;
+		search?: string;
+		itemId?: string;
+		warehouseId?: string;
+		company?: string;
+		status?: BatchStatus;
+		includeDisabled?: boolean;
+		sortBy?: BatchSortBy;
+		sortDirection?: "asc" | "desc";
+	}
+
+	export interface CreateBatchInput {
+		batchId: string;
+		itemId: string;
+		company: string;
+		currentWarehouseId?: string | null;
+		purchaseReceiptId?: string | null;
+		deliveryNoteId?: string | null;
+		stockEntryId?: string | null;
+		useBatchWiseValuation?: boolean;
+		manufacturingDate?: Date | null;
+		expiryDate?: Date | null;
+		description?: string | null;
+		quantity?: number;
+		isDisabled?: boolean;
+	}
+
+	export interface UpdateBatchInput {
+		id: string;
+		batchId?: string;
+		itemId?: string;
+		company?: string;
+		currentWarehouseId?: string | null;
+		purchaseReceiptId?: string | null;
+		deliveryNoteId?: string | null;
+		stockEntryId?: string | null;
+		useBatchWiseValuation?: boolean;
+		manufacturingDate?: Date | null;
+		expiryDate?: Date | null;
+		description?: string | null;
+		quantity?: number;
+		isDisabled?: boolean;
+	}
+
+	export const listBatchesSchema = z
+		.object({
+			skip: z.number().int().min(0).optional(),
+			take: z.number().int().min(1).max(250).optional(),
+			search: z.string().max(255).trim().optional(),
+			itemId: z.string().cuid().optional(),
+			warehouseId: z.string().cuid().optional(),
+			company: z.string().max(255).trim().optional(),
+			status: batchStatusSchema.optional(),
+			includeDisabled: z.boolean().optional(),
+			sortBy: batchSortBySchema.optional(),
+			sortDirection: z.enum(["asc", "desc"]).optional(),
+		})
+		.optional();
+
+	const batchInputFields = {
+		batchId: z.string().min(1, "Batch ID is required").max(120).trim(),
+		itemId: z.string().cuid("Item is required"),
+		company: z.string().min(1, "Company is required").max(255).trim(),
+		currentWarehouseId: z.string().cuid().optional().nullable(),
+		purchaseReceiptId: z.string().min(1).optional().nullable(),
+		deliveryNoteId: z.string().min(1).optional().nullable(),
+		stockEntryId: z.string().min(1).optional().nullable(),
+		useBatchWiseValuation: z.boolean().default(false),
+		manufacturingDate: z.coerce.date().optional().nullable(),
+		expiryDate: z.coerce.date().optional().nullable(),
+		description: z
+			.string()
+			.max(65_535, "Description must be 65,535 characters or fewer")
+			.optional()
+			.nullable(),
+		quantity: z.number().min(0, "Quantity cannot be negative").default(0),
+		isDisabled: z.boolean().default(false),
+	} satisfies z.ZodRawShape;
+
+	const validateBatchDates = (
+		value: {
+			manufacturingDate?: Date | null;
+			expiryDate?: Date | null;
+			quantity?: number;
+			currentWarehouseId?: string | null;
+		},
+		ctx: z.RefinementCtx,
+	) => {
+		if (
+			value.manufacturingDate &&
+			value.expiryDate &&
+			value.expiryDate < value.manufacturingDate
+		) {
+			ctx.addIssue({
+				code: z.ZodIssueCode.custom,
+				message: "Expiry date must be on or after the manufacturing date",
+				path: ["expiryDate"],
+			});
+		}
+
+		if ((value.quantity ?? 0) > 0 && !value.currentWarehouseId) {
+			ctx.addIssue({
+				code: z.ZodIssueCode.custom,
+				message:
+					"A warehouse is required when batch quantity is greater than zero",
+				path: ["currentWarehouseId"],
+			});
+		}
+	};
+
+	export const createBatchSchema = z
+		.object(batchInputFields)
+		.superRefine((value, ctx) => {
+			validateBatchDates(value, ctx);
+		});
+
+	export const updateBatchSchema = z
+		.object({
+			id: z.string().cuid(),
+			batchId: batchInputFields.batchId.optional(),
+			itemId: batchInputFields.itemId.optional(),
+			company: batchInputFields.company.optional(),
+			currentWarehouseId: batchInputFields.currentWarehouseId,
+			purchaseReceiptId: batchInputFields.purchaseReceiptId,
+			deliveryNoteId: batchInputFields.deliveryNoteId,
+			stockEntryId: batchInputFields.stockEntryId,
+			useBatchWiseValuation: z.boolean().optional(),
+			manufacturingDate: batchInputFields.manufacturingDate,
+			expiryDate: batchInputFields.expiryDate,
+			description: batchInputFields.description,
+			quantity: z.number().min(0, "Quantity cannot be negative").optional(),
+			isDisabled: z.boolean().optional(),
+		})
+		.superRefine((value, ctx) => {
+			validateBatchDates(value, ctx);
+		});
+
 	export const serialNoStatusSchema = z.enum([
 		"DRAFT",
 		"AVAILABLE",
