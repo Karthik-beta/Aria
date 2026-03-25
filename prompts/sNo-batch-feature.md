@@ -1,6 +1,6 @@
 You are working on the branch: "feat/inventory-serial-no-and-batch".
 
-Current page: "Serial No"
+Current page: "Batch"
 
 Valid page values:
 - Serial No
@@ -432,4 +432,3 @@ The final implementation must:
   - run `bun run lint` (and `bun run lint:fix` if needed) and ensure zero errors
   - run `bun run test` and ensure all relevant tests pass
   - focus only on affected packages and modules related to the current page
-  - do NOT run `bun run validate:local`

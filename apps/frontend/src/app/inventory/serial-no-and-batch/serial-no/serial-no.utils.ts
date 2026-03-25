@@ -36,12 +36,13 @@ export function toDateInputValue(value?: Date | string | null): string {
 	return date.toISOString().slice(0, 10);
 }
 
-function toNullableString(value: string): string | null {
+function toNullableString(value: string | undefined): string | null {
+	if (!value) return null;
 	const trimmed = value.trim();
 	return trimmed.length > 0 ? trimmed : null;
 }
 
-function toNullableDate(value: string): Date | null {
+function toNullableDate(value: string | undefined): Date | null {
 	if (!value) return null;
 	return new Date(`${value}T00:00:00.000Z`);
 }

@@ -3,9 +3,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithProviders, screen, userEvent, waitFor } from "@/test/utils";
 import SerialNoPage from "./page";
 
-const mockDeleteMutate = vi.fn();
-const mockInvalidate = vi.fn().mockResolvedValue(undefined);
-const mockUseSubscription = vi.fn();
+const { mockDeleteMutate, mockInvalidate, mockUseSubscription } = vi.hoisted(
+	() => ({
+		mockDeleteMutate: vi.fn(),
+		mockInvalidate: vi.fn().mockResolvedValue(undefined),
+		mockUseSubscription: vi.fn(),
+	}),
+);
 
 vi.mock("@/lib/trpc", () => ({
 	trpc: {
@@ -111,7 +115,9 @@ describe("SerialNoPage", () => {
 	it("renders serial number list data", () => {
 		renderWithProviders(<SerialNoPage />);
 
-		expect(screen.getByText("Serial No")).toBeInTheDocument();
+		expect(
+			screen.getByRole("heading", { name: "Serial No" }),
+		).toBeInTheDocument();
 		expect(screen.getByText("SN-1001")).toBeInTheDocument();
 		expect(screen.getByText("LAP-001")).toBeInTheDocument();
 		expect(screen.getByText("Stores - GH")).toBeInTheDocument();

@@ -241,7 +241,7 @@ function SerialNoFormContent() {
 						<Badge variant="secondary">Not Saved</Badge>
 					)}
 					{isEditMode && serialNo ? (
-						<StatusBadge status={selectedStatus} />
+						<StatusBadge status={selectedStatus ?? "DRAFT"} />
 					) : null}
 				</div>
 				<Button

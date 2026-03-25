@@ -20,7 +20,7 @@ export const serialNoFormSchema = z.object({
 	isDisabled: z.boolean().default(false),
 });
 
-export type SerialNoFormValues = z.infer<typeof serialNoFormSchema>;
+export type SerialNoFormValues = z.input<typeof serialNoFormSchema>;
 
 export function getSerialNoFormDefaults(): SerialNoFormValues {
 	return {

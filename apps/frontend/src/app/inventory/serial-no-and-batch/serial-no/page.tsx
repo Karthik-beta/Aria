@@ -1,6 +1,6 @@
 "use client";
 
-import type { Inventory } from "@aria/types";
+import { Inventory } from "@aria/types";
 import type { ColumnDef, PaginationState } from "@tanstack/react-table";
 import { Edit, MoreHorizontal, Plus, RefreshCw, Trash } from "lucide-react";
 import Link from "next/link";
@@ -135,7 +135,6 @@ export default function SerialNoPage() {
 
 	const {
 		data,
-		isLoading,
 		error: queryError,
 		refetch,
 	} = trpc.inventory.listSerialNos.useQuery(queryInput, {
@@ -371,16 +370,12 @@ export default function SerialNoPage() {
 		[],
 	);
 
-	const table = useAdvancedDataTable({
+	const { table } = useAdvancedDataTable<SerialNoRow>({
 		data: serialNos,
 		columns,
 		pageCount,
-		state: {
-			pagination,
-		},
 		onPaginationChange: setPagination,
 		getRowId: (row) => row.id,
-		manualPagination: true,
 		enableGlobalFilter: false,
 	});
 
@@ -399,8 +394,8 @@ export default function SerialNoPage() {
 	if (queryError) {
 		return (
 			<ErrorState
+				error={queryError}
 				title="Unable to load serial numbers"
-				message={getToastMessage(queryError, "load")}
 				onRetry={() => void refetch()}
 			/>
 		);
@@ -595,8 +590,11 @@ export default function SerialNoPage() {
 
 			<AdvancedDataTable
 				table={table}
-				loading={isLoading}
-				emptyMessage="No serial numbers found"
+				data={serialNos}
+				enableGlobalSearch={false}
+				enableBulkActions={false}
+				enableExport={false}
+				enableImport={false}
 			/>
 
 			<AlertModal
@@ -607,8 +605,6 @@ export default function SerialNoPage() {
 				}}
 				onConfirm={confirmDelete}
 				loading={deleteMutation.isPending}
-				title="Delete Serial No"
-				description="This action permanently removes the serial number master record."
 			/>
 		</div>
 	);

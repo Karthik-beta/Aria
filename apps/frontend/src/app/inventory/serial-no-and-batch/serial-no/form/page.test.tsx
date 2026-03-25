@@ -10,14 +10,14 @@ const mockPush = vi.fn();
 let currentId: string | null = null;
 
 const serialNoRecord = {
-	id: "serial-1",
+	id: "clserial00000000000001",
 	serialNo: "SN-1001",
-	itemId: "item-1",
+	itemId: "clitem000000000000001",
 	itemCode: "LAP-001",
 	itemName: "Laptop",
 	company: "Aria Corp",
 	status: "AVAILABLE" as const,
-	currentWarehouseId: "warehouse-1",
+	currentWarehouseId: "clwarehouse0000000001",
 	currentWarehouseName: "Stores - GH",
 	purchaseReceiptId: null,
 	purchaseReceiptSeries: null,
@@ -70,7 +70,7 @@ vi.mock("@/lib/trpc", () => ({
 				useQuery: () => ({
 					data: [
 						{
-							id: "item-1",
+							id: "clitem000000000000001",
 							code: "LAP-001",
 							name: "Laptop",
 							hasSerialNo: true,
@@ -84,7 +84,7 @@ vi.mock("@/lib/trpc", () => ({
 					data: {
 						items: [
 							{
-								id: "warehouse-1",
+								id: "clwarehouse0000000001",
 								name: "Stores - GH",
 								company: "Aria Corp",
 							},
@@ -129,7 +129,7 @@ describe("SerialNoFormPage", () => {
 			expect(mockCreateMutate).toHaveBeenCalledWith(
 				expect.objectContaining({
 					serialNo: "SN-2002",
-					itemId: "item-1",
+					itemId: "clitem000000000000001",
 					company: "Aria Corp",
 				}),
 			);
@@ -137,7 +137,7 @@ describe("SerialNoFormPage", () => {
 	});
 
 	it("prefills and submits the update payload", async () => {
-		currentId = "serial-1";
+		currentId = "clserial00000000000001";
 		const user = userEvent.setup();
 		renderWithProviders(<SerialNoFormPage />);
 
@@ -152,7 +152,7 @@ describe("SerialNoFormPage", () => {
 		await waitFor(() => {
 			expect(mockUpdateMutate).toHaveBeenCalledWith(
 				expect.objectContaining({
-					id: "serial-1",
+					id: "clserial00000000000001",
 					serialNo: "SN-1001-REV",
 				}),
 			);
