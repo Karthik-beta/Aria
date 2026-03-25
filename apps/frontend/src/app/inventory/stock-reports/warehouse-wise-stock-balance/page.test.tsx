@@ -113,18 +113,20 @@ describe("WarehouseWiseStockBalancePage", () => {
 	});
 
 	it("applies filter dialog rules", async () => {
-		const user = userEvent.setup();
 		renderWithProviders(<WarehouseWiseStockBalancePage />);
 
-		await user.click(screen.getByRole("button", { name: "Filter" }));
+		fireEvent.click(screen.getByRole("button", { name: "Filter" }));
 
-		const valueInputs = screen.getAllByLabelText("Filter value");
-		await user.clear(valueInputs[0] as HTMLInputElement);
-		await user.type(valueInputs[0] as HTMLInputElement, "ITEM-001");
-		await user.click(screen.getByRole("button", { name: "Apply Filters" }));
+		const valueInputs = await screen.findAllByLabelText("Filter value");
+		fireEvent.change(valueInputs[0] as HTMLInputElement, {
+			target: { value: "ITEM-001" },
+		});
+		fireEvent.click(screen.getByRole("button", { name: "Apply Filters" }));
 
-		expect(screen.getByText("ITEM-001")).toBeInTheDocument();
-		expect(screen.queryByText("ITEM-002")).not.toBeInTheDocument();
+		await waitFor(() => {
+			expect(screen.getByText("ITEM-001")).toBeInTheDocument();
+			expect(screen.queryByText("ITEM-002")).not.toBeInTheDocument();
+		});
 	});
 
 	it("applies grouping through the add group dialog", async () => {

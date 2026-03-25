@@ -73,6 +73,22 @@ export namespace Inventory {
 	}
 
 	/**
+	 * Brand master entity used to classify items by manufacturer or label.
+	 */
+	export interface Brand {
+		/** Unique identifier (CUID) */
+		id: string;
+		/** Brand name */
+		name: string;
+		/** Optional description of the brand */
+		description?: string | null;
+		/** When this brand was created */
+		createdAt: Date;
+		/** When this brand was last updated */
+		updatedAt: Date;
+	}
+
+	/**
 	 * Unit of Measurement entity
 	 */
 	export interface UnitOfMeasure {
@@ -88,6 +104,376 @@ export namespace Inventory {
 		createdAt: Date;
 		/** When this unit was last updated */
 		updatedAt: Date;
+	}
+
+	/**
+	 * Warehouse master entity used by inventory documents and defaults.
+	 */
+	export interface Warehouse {
+		/** Unique identifier (CUID) */
+		id: string;
+		/** Warehouse name/identifier visible across the ERP */
+		name: string;
+		/** Whether the warehouse is disabled for operational use */
+		disabled: boolean;
+		/** Whether this warehouse acts as a grouping node in the hierarchy */
+		isGroupWarehouse: boolean;
+		/** Parent warehouse relation for nested structures */
+		parentWarehouseId?: string | null;
+		/** Parent warehouse display name */
+		parentWarehouseName?: string | null;
+		/** Owning company */
+		company: string;
+		/** Whether this warehouse is used for rejected materials */
+		isRejectedWarehouse: boolean;
+		phoneNo?: string | null;
+		mobileNo?: string | null;
+		addressLine1?: string | null;
+		addressLine2?: string | null;
+		city?: string | null;
+		state?: string | null;
+		pin?: string | null;
+		warehouseType?: string | null;
+		defaultInTransitWarehouseId?: string | null;
+		defaultInTransitWarehouseName?: string | null;
+		createdAt: Date;
+		updatedAt: Date;
+	}
+
+	export interface WarehouseListResult {
+		items: Warehouse[];
+		totalCount: number;
+	}
+
+	export interface ListWarehousesInput {
+		skip?: number;
+		take?: number;
+		search?: string;
+		company?: string;
+		disabled?: boolean;
+		isGroupWarehouse?: boolean;
+	}
+
+	export interface CreateWarehouseInput {
+		name: string;
+		disabled?: boolean;
+		isGroupWarehouse?: boolean;
+		parentWarehouseId?: string | null;
+		company: string;
+		isRejectedWarehouse?: boolean;
+		phoneNo?: string | null;
+		mobileNo?: string | null;
+		addressLine1?: string | null;
+		addressLine2?: string | null;
+		city?: string | null;
+		state?: string | null;
+		pin?: string | null;
+		warehouseType?: string | null;
+		defaultInTransitWarehouseId?: string | null;
+	}
+
+	export interface UpdateWarehouseInput {
+		id: string;
+		name?: string;
+		disabled?: boolean;
+		isGroupWarehouse?: boolean;
+		parentWarehouseId?: string | null;
+		company?: string;
+		isRejectedWarehouse?: boolean;
+		phoneNo?: string | null;
+		mobileNo?: string | null;
+		addressLine1?: string | null;
+		addressLine2?: string | null;
+		city?: string | null;
+		state?: string | null;
+		pin?: string | null;
+		warehouseType?: string | null;
+		defaultInTransitWarehouseId?: string | null;
+	}
+
+	export const ITEM_VARIANT_COPY_FIELD_KEYS = [
+		"description",
+		"item_group",
+		"stock_uom",
+		"disabled",
+		"allow_alternate_item",
+		"maintain_stock",
+		"is_fixed_asset",
+		"opening_stock",
+		"valuation_rate",
+		"standard_selling_rate",
+		"shelf_life_in_days",
+		"end_of_life",
+		"default_material_request_type",
+		"valuation_method",
+		"warranty_period_in_days",
+		"weight_per_unit",
+		"weight_uom",
+		"allow_negative_stock",
+		"has_batch_no",
+		"has_serial_no",
+	] as const;
+
+	export type ItemVariantCopyFieldKey =
+		(typeof ITEM_VARIANT_COPY_FIELD_KEYS)[number];
+
+	export interface ItemVariantCopyFieldOption {
+		value: ItemVariantCopyFieldKey;
+		label: string;
+		category: string;
+		itemProperty: string;
+		description?: string;
+	}
+
+	export const ITEM_VARIANT_COPY_FIELD_OPTIONS: readonly ItemVariantCopyFieldOption[] =
+		[
+			{
+				value: "description",
+				label: "Details",
+				category: "Basics",
+				itemProperty: "description",
+				description: "Copies the item description into generated variants.",
+			},
+			{
+				value: "item_group",
+				label: "Item Group",
+				category: "Basics",
+				itemProperty: "itemGroupId",
+				description: "Keeps variants aligned to the same item group.",
+			},
+			{
+				value: "stock_uom",
+				label: "Stock UOM",
+				category: "Basics",
+				itemProperty: "defaultUnitOfMeasureId",
+				description: "Copies the default stock unit of measure.",
+			},
+			{
+				value: "disabled",
+				label: "Disabled",
+				category: "Basics",
+				itemProperty: "disabled",
+			},
+			{
+				value: "allow_alternate_item",
+				label: "Allow Alternative Item",
+				category: "Basics",
+				itemProperty: "allowAlternateItem",
+			},
+			{
+				value: "maintain_stock",
+				label: "Maintain Stock",
+				category: "Basics",
+				itemProperty: "maintainStock",
+			},
+			{
+				value: "is_fixed_asset",
+				label: "Is Fixed Asset",
+				category: "Financial",
+				itemProperty: "isFixedAsset",
+			},
+			{
+				value: "opening_stock",
+				label: "Opening Stock",
+				category: "Inventory",
+				itemProperty: "openingStock",
+			},
+			{
+				value: "valuation_rate",
+				label: "Valuation Rate",
+				category: "Financial",
+				itemProperty: "valuationRate",
+			},
+			{
+				value: "standard_selling_rate",
+				label: "Standard Selling Rate",
+				category: "Financial",
+				itemProperty: "standardSellingRate",
+			},
+			{
+				value: "shelf_life_in_days",
+				label: "Shelf Life in Days",
+				category: "Inventory",
+				itemProperty: "shelfLifeInDays",
+			},
+			{
+				value: "end_of_life",
+				label: "End of Life",
+				category: "Inventory",
+				itemProperty: "endOfLife",
+			},
+			{
+				value: "default_material_request_type",
+				label: "Default Material Request Type",
+				category: "Inventory",
+				itemProperty: "defaultMaterialRequestType",
+			},
+			{
+				value: "valuation_method",
+				label: "Valuation Method",
+				category: "Inventory",
+				itemProperty: "valuationMethod",
+			},
+			{
+				value: "warranty_period_in_days",
+				label: "Warranty Period in Days",
+				category: "Inventory",
+				itemProperty: "warrantyPeriodInDays",
+			},
+			{
+				value: "weight_per_unit",
+				label: "Weight per Unit",
+				category: "Logistics",
+				itemProperty: "weightPerUnit",
+			},
+			{
+				value: "weight_uom",
+				label: "Weight UOM",
+				category: "Logistics",
+				itemProperty: "weightUom",
+			},
+			{
+				value: "allow_negative_stock",
+				label: "Allow Negative Stock",
+				category: "Inventory",
+				itemProperty: "allowNegativeStock",
+			},
+			{
+				value: "has_batch_no",
+				label: "Has Batch No",
+				category: "Tracking",
+				itemProperty: "hasBatchNo",
+			},
+			{
+				value: "has_serial_no",
+				label: "Has Serial No",
+				category: "Tracking",
+				itemProperty: "hasSerialNo",
+			},
+		] as const;
+
+	export interface ItemVariantSettingsCopyField {
+		id: string;
+		fieldKey: ItemVariantCopyFieldKey;
+		label: string;
+		category: string;
+		itemProperty: string;
+		position: number;
+	}
+
+	export interface ItemVariantSettings {
+		id: string;
+		doNotUpdateVariantsOnSave: boolean;
+		allowRenameAttributeValue: boolean;
+		copyFields: ItemVariantSettingsCopyField[];
+		createdAt: Date;
+		updatedAt: Date;
+	}
+
+	export interface UpdateItemVariantSettingsFieldInput {
+		id?: string;
+		fieldKey: ItemVariantCopyFieldKey;
+	}
+
+	export interface UpdateItemVariantSettingsInput {
+		doNotUpdateVariantsOnSave: boolean;
+		allowRenameAttributeValue: boolean;
+		copyFields: UpdateItemVariantSettingsFieldInput[];
+	}
+
+	export type StockItemNamingBy = "ITEM_CODE" | "NAMING_SERIES";
+	export type StockValuationMethod = "FIFO" | "MOVING_AVERAGE";
+	export type StockQualityInspectionAction = "STOP" | "WARN";
+	export type StockSerialBatchPickStrategy = "FIFO" | "LIFO" | "EXPIRY";
+
+	/**
+	 * Singleton inventory-wide stock settings.
+	 */
+	export interface StockSettings {
+		/** Unique identifier (CUID) */
+		id: string;
+		/** Strategy used when deriving item naming defaults */
+		itemNamingBy: StockItemNamingBy;
+		/** Default warehouse label used across stock transactions */
+		defaultWarehouse: string | null;
+		/** Default valuation method applied to new stock items */
+		defaultValuationMethod: StockValuationMethod;
+		/** Default stock UOM label */
+		defaultStockUom: string | null;
+		autoInsertItemPriceIfMissing: boolean;
+		updateExistingPriceListRate: boolean;
+		allowToEditStockUomQtyForSalesDocuments: boolean;
+		allowToEditStockUomQtyForPurchaseDocuments: boolean;
+		overDeliveryReceiptAllowancePercent: number;
+		allowNegativeStock: boolean;
+		showBarcodeFieldInStockTransactions: boolean;
+		convertItemDescriptionToCleanHtmlInTransactions: boolean;
+		overTransferAllowancePercent: number;
+		allowInternalTransfersAtArmsLengthPrice: boolean;
+		overPickingAllowancePercent: number;
+		actionIfQualityInspectionIsNotSubmitted: StockQualityInspectionAction;
+		actionIfQualityInspectionIsRejected: StockQualityInspectionAction;
+		enableStockReservation: boolean;
+		allowPartialReservation: boolean;
+		autoReserveStockForSalesOrderOnPurchase: boolean;
+		autoReserveSerialAndBatchNos: boolean;
+		autoCreateSerialAndBatchBundleForOutward: boolean;
+		disableSerialNoAndBatchSelector: boolean;
+		haveDefaultNamingSeriesForBatchId: boolean;
+		pickSerialBatchBasedOn: StockSerialBatchPickStrategy;
+		useSerialBatchFields: boolean;
+		doNotUpdateSerialBatchOnCreationOfAutoBundle: boolean;
+		allowExistingSerialNoToBeManufacturedReceivedAgain: boolean;
+		setSerialAndBatchBundleNamingBasedOnNamingSeries: boolean;
+		raiseMaterialRequestWhenStockReachesReorderLevel: boolean;
+		notifyByEmailOnCreationOfAutomaticMaterialRequest: boolean;
+		allowMaterialTransferFromDeliveryNoteToSalesInvoice: boolean;
+		allowMaterialTransferFromPurchaseReceiptToPurchaseInvoice: boolean;
+		freezeStocksOlderThanDays: number;
+		/** When this settings record was created */
+		createdAt: Date;
+		/** When this settings record was last updated */
+		updatedAt: Date;
+	}
+
+	/**
+	 * Input for updating stock settings.
+	 */
+	export interface UpdateStockSettingsInput {
+		itemNamingBy: StockItemNamingBy;
+		defaultWarehouse?: string | null;
+		defaultValuationMethod: StockValuationMethod;
+		defaultStockUom?: string | null;
+		autoInsertItemPriceIfMissing: boolean;
+		updateExistingPriceListRate: boolean;
+		allowToEditStockUomQtyForSalesDocuments: boolean;
+		allowToEditStockUomQtyForPurchaseDocuments: boolean;
+		overDeliveryReceiptAllowancePercent: number;
+		allowNegativeStock: boolean;
+		showBarcodeFieldInStockTransactions: boolean;
+		convertItemDescriptionToCleanHtmlInTransactions: boolean;
+		overTransferAllowancePercent: number;
+		allowInternalTransfersAtArmsLengthPrice: boolean;
+		overPickingAllowancePercent: number;
+		actionIfQualityInspectionIsNotSubmitted: StockQualityInspectionAction;
+		actionIfQualityInspectionIsRejected: StockQualityInspectionAction;
+		enableStockReservation: boolean;
+		allowPartialReservation: boolean;
+		autoReserveStockForSalesOrderOnPurchase: boolean;
+		autoReserveSerialAndBatchNos: boolean;
+		autoCreateSerialAndBatchBundleForOutward: boolean;
+		disableSerialNoAndBatchSelector: boolean;
+		haveDefaultNamingSeriesForBatchId: boolean;
+		pickSerialBatchBasedOn: StockSerialBatchPickStrategy;
+		useSerialBatchFields: boolean;
+		doNotUpdateSerialBatchOnCreationOfAutoBundle: boolean;
+		allowExistingSerialNoToBeManufacturedReceivedAgain: boolean;
+		setSerialAndBatchBundleNamingBasedOnNamingSeries: boolean;
+		raiseMaterialRequestWhenStockReachesReorderLevel: boolean;
+		notifyByEmailOnCreationOfAutomaticMaterialRequest: boolean;
+		allowMaterialTransferFromDeliveryNoteToSalesInvoice: boolean;
+		allowMaterialTransferFromPurchaseReceiptToPurchaseInvoice: boolean;
+		freezeStocksOlderThanDays: number;
 	}
 
 	/**
@@ -581,6 +967,84 @@ export namespace Inventory {
 		isWholeNumber: z.boolean().default(true),
 	});
 
+	export const listWarehousesSchema = z
+		.object({
+			skip: z.number().int().min(0).optional(),
+			take: z.number().int().min(1).max(250).optional(),
+			search: z.string().max(255).optional(),
+			company: z.string().max(255).optional(),
+			disabled: z.boolean().optional(),
+			isGroupWarehouse: z.boolean().optional(),
+		})
+		.optional();
+
+	export const createWarehouseSchema = z.object({
+		name: z.string().min(1, "Warehouse name is required").max(255).trim(),
+		disabled: z.boolean().default(false),
+		isGroupWarehouse: z.boolean().default(false),
+		parentWarehouseId: z.string().cuid().optional().nullable(),
+		company: z.string().min(1, "Company is required").max(255).trim(),
+		isRejectedWarehouse: z.boolean().default(false),
+		phoneNo: z.string().max(50).trim().optional().nullable(),
+		mobileNo: z.string().max(50).trim().optional().nullable(),
+		addressLine1: z.string().max(255).trim().optional().nullable(),
+		addressLine2: z.string().max(255).trim().optional().nullable(),
+		city: z.string().max(255).trim().optional().nullable(),
+		state: z.string().max(255).trim().optional().nullable(),
+		pin: z.string().max(20).trim().optional().nullable(),
+		warehouseType: z.string().max(100).trim().optional().nullable(),
+		defaultInTransitWarehouseId: z.string().cuid().optional().nullable(),
+	});
+
+	export const updateWarehouseSchema = z.object({
+		id: z.string().cuid(),
+		name: z.string().min(1).max(255).trim().optional(),
+		disabled: z.boolean().optional(),
+		isGroupWarehouse: z.boolean().optional(),
+		parentWarehouseId: z.string().cuid().optional().nullable(),
+		company: z.string().min(1).max(255).trim().optional(),
+		isRejectedWarehouse: z.boolean().optional(),
+		phoneNo: z.string().max(50).trim().optional().nullable(),
+		mobileNo: z.string().max(50).trim().optional().nullable(),
+		addressLine1: z.string().max(255).trim().optional().nullable(),
+		addressLine2: z.string().max(255).trim().optional().nullable(),
+		city: z.string().max(255).trim().optional().nullable(),
+		state: z.string().max(255).trim().optional().nullable(),
+		pin: z.string().max(20).trim().optional().nullable(),
+		warehouseType: z.string().max(100).trim().optional().nullable(),
+		defaultInTransitWarehouseId: z.string().cuid().optional().nullable(),
+	});
+
+	export const updateItemVariantSettingsSchema = z
+		.object({
+			doNotUpdateVariantsOnSave: z.boolean(),
+			allowRenameAttributeValue: z.boolean(),
+			copyFields: z
+				.array(
+					z.object({
+						id: z.string().cuid().optional(),
+						fieldKey: z.enum(ITEM_VARIANT_COPY_FIELD_KEYS),
+					}),
+				)
+				.max(100),
+		})
+		.superRefine((settings, ctx) => {
+			const seenFieldKeys = new Set<ItemVariantCopyFieldKey>();
+
+			for (const [index, field] of settings.copyFields.entries()) {
+				if (seenFieldKeys.has(field.fieldKey)) {
+					ctx.addIssue({
+						code: z.ZodIssueCode.custom,
+						message: "Copy fields to variant must be unique",
+						path: ["copyFields", index, "fieldKey"],
+					});
+					continue;
+				}
+
+				seenFieldKeys.add(field.fieldKey);
+			}
+		});
+
 	/**
 	 * Validation schema for updating units of measure
 	 */
@@ -589,6 +1053,152 @@ export namespace Inventory {
 		name: z.string().min(1).max(255).trim().optional(),
 		disabled: z.boolean().optional(),
 		isWholeNumber: z.boolean().optional(),
+	});
+
+	/**
+	 * Validation schema for creating a brand
+	 */
+	export const createBrandSchema = z.object({
+		name: z.string().min(1, "Brand name is required").max(255).trim(),
+		description: z.string().max(1000).trim().optional().nullable(),
+	});
+
+	/**
+	 * Validation schema for updating a brand
+	 */
+	export const updateBrandSchema = z.object({
+		id: z.string().cuid(),
+		name: z.string().min(1).max(255).trim().optional(),
+		description: z.string().max(1000).trim().optional().nullable(),
+	});
+
+	// ============================================================================
+	// Item Attribute
+	// ============================================================================
+
+	/**
+	 * A single attribute value row nested inside an ItemAttribute (e.g. "Red" / "R").
+	 */
+	export interface ItemAttributeValue {
+		/** Unique identifier (CUID) */
+		id: string;
+		/** Parent attribute ID */
+		attributeId: string;
+		/** The display value (e.g. "Red", "Large") */
+		attributeValue: string;
+		/** Short abbreviation used in variant codes (e.g. "R", "L") */
+		abbreviation: string;
+		/** Zero-based display order position */
+		position: number;
+		/** When this value was created */
+		createdAt: Date;
+		/** When this value was last updated */
+		updatedAt: Date;
+	}
+
+	/**
+	 * Item Attribute master entity — defines product variant dimensions
+	 * (e.g. Colour, Size) together with their allowed values.
+	 */
+	export interface ItemAttribute {
+		/** Unique identifier (CUID) */
+		id: string;
+		/** Attribute name (e.g. "Colour", "Size") */
+		name: string;
+		/** Whether the attribute is disabled for selection */
+		disabled: boolean;
+		/**
+		 * When true the attribute values represent numeric ranges
+		 * rather than discrete text values.
+		 */
+		numericValues: boolean;
+		/** Ordered list of allowed values for this attribute */
+		attributeValues: ItemAttributeValue[];
+		/** When this attribute was created */
+		createdAt: Date;
+		/** When this attribute was last updated */
+		updatedAt: Date;
+	}
+
+	/**
+	 * Schema for a single attribute value input row (used in create/update payloads).
+	 */
+	export const itemAttributeValueInputSchema = z.object({
+		/** Existing row ID — present only when updating an existing value */
+		id: z.string().cuid().optional(),
+		attributeValue: z
+			.string()
+			.min(1, "Attribute value is required")
+			.max(255)
+			.trim(),
+		abbreviation: z.string().min(1, "Abbreviation is required").max(50).trim(),
+	});
+
+	/**
+	 * Validation schema for creating an item attribute.
+	 */
+	export const createItemAttributeSchema = z.object({
+		name: z.string().min(1, "Attribute name is required").max(255).trim(),
+		disabled: z.boolean().default(false),
+		numericValues: z.boolean().default(false),
+		attributeValues: z.array(itemAttributeValueInputSchema).default([]),
+	});
+
+	/**
+	 * Validation schema for updating an item attribute.
+	 */
+	export const updateItemAttributeSchema = z.object({
+		id: z.string().cuid(),
+		name: z.string().min(1).max(255).trim().optional(),
+		disabled: z.boolean().optional(),
+		numericValues: z.boolean().optional(),
+		/** When provided, fully replaces the attribute values list using a safe upsert strategy */
+		attributeValues: z.array(itemAttributeValueInputSchema).optional(),
+	});
+
+	const stockItemNamingBySchema = z.enum(["ITEM_CODE", "NAMING_SERIES"]);
+	const stockValuationMethodSchema = z.enum(["FIFO", "MOVING_AVERAGE"]);
+	const stockQualityInspectionActionSchema = z.enum(["STOP", "WARN"]);
+	const stockSerialBatchPickStrategySchema = z.enum(["FIFO", "LIFO", "EXPIRY"]);
+
+	/**
+	 * Validation schema for updating singleton stock settings.
+	 */
+	export const updateStockSettingsSchema = z.object({
+		itemNamingBy: stockItemNamingBySchema,
+		defaultWarehouse: z.string().max(255).trim().nullable().optional(),
+		defaultValuationMethod: stockValuationMethodSchema,
+		defaultStockUom: z.string().max(50).trim().nullable().optional(),
+		autoInsertItemPriceIfMissing: z.boolean(),
+		updateExistingPriceListRate: z.boolean(),
+		allowToEditStockUomQtyForSalesDocuments: z.boolean(),
+		allowToEditStockUomQtyForPurchaseDocuments: z.boolean(),
+		overDeliveryReceiptAllowancePercent: z.number().min(0).max(100),
+		allowNegativeStock: z.boolean(),
+		showBarcodeFieldInStockTransactions: z.boolean(),
+		convertItemDescriptionToCleanHtmlInTransactions: z.boolean(),
+		overTransferAllowancePercent: z.number().min(0).max(100),
+		allowInternalTransfersAtArmsLengthPrice: z.boolean(),
+		overPickingAllowancePercent: z.number().min(0).max(100),
+		actionIfQualityInspectionIsNotSubmitted: stockQualityInspectionActionSchema,
+		actionIfQualityInspectionIsRejected: stockQualityInspectionActionSchema,
+		enableStockReservation: z.boolean(),
+		allowPartialReservation: z.boolean(),
+		autoReserveStockForSalesOrderOnPurchase: z.boolean(),
+		autoReserveSerialAndBatchNos: z.boolean(),
+		autoCreateSerialAndBatchBundleForOutward: z.boolean(),
+		disableSerialNoAndBatchSelector: z.boolean(),
+		haveDefaultNamingSeriesForBatchId: z.boolean(),
+		pickSerialBatchBasedOn: stockSerialBatchPickStrategySchema,
+		useSerialBatchFields: z.boolean(),
+		doNotUpdateSerialBatchOnCreationOfAutoBundle: z.boolean(),
+		allowExistingSerialNoToBeManufacturedReceivedAgain: z.boolean(),
+		setSerialAndBatchBundleNamingBasedOnNamingSeries: z.boolean(),
+		raiseMaterialRequestWhenStockReachesReorderLevel: z.boolean(),
+		notifyByEmailOnCreationOfAutomaticMaterialRequest: z.boolean(),
+		allowMaterialTransferFromDeliveryNoteToSalesInvoice: z.boolean(),
+		allowMaterialTransferFromPurchaseReceiptToPurchaseInvoice: z.boolean(),
+		freezeStocksOlderThanDays: z.number().int().min(0).max(3650),
 	});
 
 	/**

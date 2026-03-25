@@ -12,19 +12,24 @@ import { Prisma } from "../../generated/prisma/client";
 import { PrismaService } from "../../shared/prisma.service";
 import {
 	itemAlternativeInclude,
+	toInventoryBrand,
 	toInventoryDeliveryNote,
 	toInventoryDeliveryTrip,
 	toInventoryItem,
 	toInventoryItemAlternative,
+	toInventoryItemAttribute,
 	toInventoryItemGroup,
 	toInventoryItemManufacturer,
+	toInventoryItemVariantSettings,
 	toInventoryMaterialRequest,
 	toInventoryPickList,
 	toInventoryProductBundle,
 	toInventoryPurchaseReceipt,
 	toInventoryShippingRule,
 	toInventoryStockEntry,
+	toInventoryStockSettings,
 	toInventoryUnitOfMeasure,
+	toInventoryWarehouse,
 } from "./inventory.types";
 import { buildItemPriceStockRows } from "./item-price-stock-report";
 import {
@@ -96,6 +101,35 @@ const removeUndefined = <T extends Record<string, unknown>>(obj: T) =>
 		Object.entries(obj).filter(([, value]) => value !== undefined),
 	) as Partial<T>;
 
+const brandSelect = {
+	id: true,
+	name: true,
+	description: true,
+	createdAt: true,
+	updatedAt: true,
+} as const;
+
+const itemAttributeSelect = {
+	id: true,
+	name: true,
+	disabled: true,
+	numericValues: true,
+	createdAt: true,
+	updatedAt: true,
+	attributeValues: {
+		select: {
+			id: true,
+			attributeId: true,
+			attributeValue: true,
+			abbreviation: true,
+			position: true,
+			createdAt: true,
+			updatedAt: true,
+		},
+		orderBy: { position: "asc" as const },
+	},
+} as const;
+
 const unitOfMeasureSelect = {
 	id: true,
 	name: true,
@@ -103,6 +137,97 @@ const unitOfMeasureSelect = {
 	isWholeNumber: true,
 	createdAt: true,
 	updatedAt: true,
+} as const;
+
+const warehouseSelect = {
+	id: true,
+	name: true,
+	disabled: true,
+	isGroupWarehouse: true,
+	parentWarehouseId: true,
+	company: true,
+	isRejectedWarehouse: true,
+	phoneNo: true,
+	mobileNo: true,
+	addressLine1: true,
+	addressLine2: true,
+	city: true,
+	state: true,
+	pin: true,
+	warehouseType: true,
+	defaultInTransitWarehouseId: true,
+	createdAt: true,
+	updatedAt: true,
+	parentWarehouse: {
+		select: {
+			id: true,
+			name: true,
+		},
+	},
+	defaultInTransitWarehouse: {
+		select: {
+			id: true,
+			name: true,
+		},
+	},
+} as const;
+
+const stockSettingsSelect = {
+	id: true,
+	itemNamingBy: true,
+	defaultWarehouse: true,
+	defaultValuationMethod: true,
+	defaultStockUom: true,
+	autoInsertItemPriceIfMissing: true,
+	updateExistingPriceListRate: true,
+	allowToEditStockUomQtyForSalesDocuments: true,
+	allowToEditStockUomQtyForPurchaseDocuments: true,
+	overDeliveryReceiptAllowancePercent: true,
+	allowNegativeStock: true,
+	showBarcodeFieldInStockTransactions: true,
+	convertItemDescriptionToCleanHtmlInTransactions: true,
+	overTransferAllowancePercent: true,
+	allowInternalTransfersAtArmsLengthPrice: true,
+	overPickingAllowancePercent: true,
+	actionIfQualityInspectionIsNotSubmitted: true,
+	actionIfQualityInspectionIsRejected: true,
+	enableStockReservation: true,
+	allowPartialReservation: true,
+	autoReserveStockForSalesOrderOnPurchase: true,
+	autoReserveSerialAndBatchNos: true,
+	autoCreateSerialAndBatchBundleForOutward: true,
+	disableSerialNoAndBatchSelector: true,
+	haveDefaultNamingSeriesForBatchId: true,
+	pickSerialBatchBasedOn: true,
+	useSerialBatchFields: true,
+	doNotUpdateSerialBatchOnCreationOfAutoBundle: true,
+	allowExistingSerialNoToBeManufacturedReceivedAgain: true,
+	setSerialAndBatchBundleNamingBasedOnNamingSeries: true,
+	raiseMaterialRequestWhenStockReachesReorderLevel: true,
+	notifyByEmailOnCreationOfAutomaticMaterialRequest: true,
+	allowMaterialTransferFromDeliveryNoteToSalesInvoice: true,
+	allowMaterialTransferFromPurchaseReceiptToPurchaseInvoice: true,
+	freezeStocksOlderThanDays: true,
+	createdAt: true,
+	updatedAt: true,
+} as const;
+
+const itemVariantSettingsSelect = {
+	id: true,
+	doNotUpdateVariantsOnSave: true,
+	allowRenameAttributeValue: true,
+	createdAt: true,
+	updatedAt: true,
+	copyFields: {
+		select: {
+			id: true,
+			fieldKey: true,
+			position: true,
+		},
+		orderBy: {
+			position: "asc",
+		},
+	},
 } as const;
 
 const DEFAULT_STOCK_AGEING_BREAKS = [30, 60, 90] as const;
@@ -273,6 +398,802 @@ export class InventoryService {
 		});
 
 		return units.map(toInventoryUnitOfMeasure);
+	}
+
+	private normalizeWarehouseText(value?: string | null): string | null {
+		const normalized = value?.trim();
+		return normalized ? normalized : null;
+	}
+
+	private hasWarehouseNameChanged(
+		existingName: string,
+		nextName: string,
+	): boolean {
+		return (
+			existingName.localeCompare(nextName, undefined, {
+				sensitivity: "accent",
+			}) !== 0
+		);
+	}
+
+	private async ensureWarehouseNameAvailable(
+		name: string,
+		excludeId?: string,
+	): Promise<void> {
+		const duplicate = await this.prisma.warehouse.findFirst({
+			where: {
+				name: {
+					equals: name,
+					mode: "insensitive",
+				},
+				...(excludeId ? { id: { not: excludeId } } : {}),
+			},
+			select: { id: true },
+		});
+
+		if (duplicate) {
+			throw new ConflictException(
+				`Warehouse with name "${name}" already exists`,
+			);
+		}
+	}
+
+	private async validateWarehouseHierarchy(params: {
+		warehouseId?: string;
+		parentWarehouseId?: string | null;
+		defaultInTransitWarehouseId?: string | null;
+		isGroupWarehouse: boolean;
+	}): Promise<void> {
+		const {
+			warehouseId,
+			parentWarehouseId,
+			defaultInTransitWarehouseId,
+			isGroupWarehouse,
+		} = params;
+
+		if (warehouseId && parentWarehouseId === warehouseId) {
+			throw new BadRequestException(
+				"A warehouse cannot be its own parent warehouse",
+			);
+		}
+
+		if (warehouseId && defaultInTransitWarehouseId === warehouseId) {
+			throw new BadRequestException(
+				"A warehouse cannot reference itself as the default in-transit warehouse",
+			);
+		}
+
+		if (parentWarehouseId) {
+			const parentWarehouse = await this.prisma.warehouse.findUnique({
+				where: { id: parentWarehouseId },
+				select: {
+					id: true,
+					name: true,
+					isGroupWarehouse: true,
+					parentWarehouseId: true,
+				},
+			});
+
+			if (!parentWarehouse) {
+				throw new NotFoundException("Parent warehouse not found");
+			}
+
+			if (!parentWarehouse.isGroupWarehouse) {
+				throw new BadRequestException(
+					"Parent warehouse must be marked as a group warehouse",
+				);
+			}
+
+			if (warehouseId) {
+				let ancestorId = parentWarehouse.parentWarehouseId;
+				while (ancestorId) {
+					if (ancestorId === warehouseId) {
+						throw new BadRequestException(
+							"Warehouse hierarchy cannot contain cycles",
+						);
+					}
+
+					const ancestor = await this.prisma.warehouse.findUnique({
+						where: { id: ancestorId },
+						select: { parentWarehouseId: true },
+					});
+
+					ancestorId = ancestor?.parentWarehouseId ?? null;
+				}
+			}
+		}
+
+		if (defaultInTransitWarehouseId) {
+			const transitWarehouse = await this.prisma.warehouse.findUnique({
+				where: { id: defaultInTransitWarehouseId },
+				select: { id: true },
+			});
+
+			if (!transitWarehouse) {
+				throw new NotFoundException("Default in-transit warehouse not found");
+			}
+		}
+
+		if (!isGroupWarehouse && warehouseId) {
+			const childCount = await this.prisma.warehouse.count({
+				where: { parentWarehouseId: warehouseId },
+			});
+
+			if (childCount > 0) {
+				throw new BadRequestException(
+					"A warehouse with child warehouses must remain a group warehouse",
+				);
+			}
+		}
+	}
+
+	private async assertWarehouseNameIsNotReferenced(
+		name: string,
+	): Promise<void> {
+		const [
+			stockSettingsCount,
+			itemGroupDefaultCount,
+			itemReorderCount,
+			materialRequestCount,
+			materialRequestItemCount,
+			stockEntryCount,
+			stockEntryItemCount,
+			deliveryNoteCount,
+			deliveryNoteItemCount,
+			purchaseReceiptCount,
+			purchaseReceiptItemCount,
+			pickListCount,
+			pickListItemCount,
+		] = await this.prisma.$transaction([
+			this.prisma.stockSettings.count({
+				where: {
+					defaultWarehouse: {
+						equals: name,
+						mode: "insensitive",
+					},
+				},
+			}),
+			this.prisma.itemGroupDefault.count({
+				where: {
+					defaultWarehouse: {
+						equals: name,
+						mode: "insensitive",
+					},
+				},
+			}),
+			this.prisma.itemReorder.count({
+				where: {
+					warehouse: {
+						equals: name,
+						mode: "insensitive",
+					},
+				},
+			}),
+			this.prisma.materialRequest.count({
+				where: {
+					targetWarehouse: {
+						equals: name,
+						mode: "insensitive",
+					},
+				},
+			}),
+			this.prisma.materialRequestItem.count({
+				where: {
+					targetWarehouse: {
+						equals: name,
+						mode: "insensitive",
+					},
+				},
+			}),
+			this.prisma.stockEntry.count({
+				where: {
+					OR: [
+						{
+							defaultSourceWarehouse: {
+								equals: name,
+								mode: "insensitive",
+							},
+						},
+						{
+							defaultTargetWarehouse: {
+								equals: name,
+								mode: "insensitive",
+							},
+						},
+					],
+				},
+			}),
+			this.prisma.stockEntryItem.count({
+				where: {
+					OR: [
+						{
+							sourceWarehouse: {
+								equals: name,
+								mode: "insensitive",
+							},
+						},
+						{
+							targetWarehouse: {
+								equals: name,
+								mode: "insensitive",
+							},
+						},
+					],
+				},
+			}),
+			this.prisma.deliveryNote.count({
+				where: {
+					sourceWarehouse: {
+						equals: name,
+						mode: "insensitive",
+					},
+				},
+			}),
+			this.prisma.deliveryNoteItem.count({
+				where: {
+					warehouse: {
+						equals: name,
+						mode: "insensitive",
+					},
+				},
+			}),
+			this.prisma.purchaseReceipt.count({
+				where: {
+					OR: [
+						{
+							acceptedWarehouse: {
+								equals: name,
+								mode: "insensitive",
+							},
+						},
+						{
+							rejectedWarehouse: {
+								equals: name,
+								mode: "insensitive",
+							},
+						},
+					],
+				},
+			}),
+			this.prisma.purchaseReceiptItem.count({
+				where: {
+					OR: [
+						{
+							acceptedWarehouse: {
+								equals: name,
+								mode: "insensitive",
+							},
+						},
+						{
+							rejectedWarehouse: {
+								equals: name,
+								mode: "insensitive",
+							},
+						},
+					],
+				},
+			}),
+			this.prisma.pickList.count({
+				where: {
+					warehouse: {
+						equals: name,
+						mode: "insensitive",
+					},
+				},
+			}),
+			this.prisma.pickListItem.count({
+				where: {
+					warehouse: {
+						equals: name,
+						mode: "insensitive",
+					},
+				},
+			}),
+		]);
+
+		const totalReferences =
+			stockSettingsCount +
+			itemGroupDefaultCount +
+			itemReorderCount +
+			materialRequestCount +
+			materialRequestItemCount +
+			stockEntryCount +
+			stockEntryItemCount +
+			deliveryNoteCount +
+			deliveryNoteItemCount +
+			purchaseReceiptCount +
+			purchaseReceiptItemCount +
+			pickListCount +
+			pickListItemCount;
+
+		if (totalReferences > 0) {
+			throw new BadRequestException(
+				`Warehouse "${name}" cannot be changed or deleted because it is already referenced by inventory records`,
+			);
+		}
+	}
+
+	private async assertWarehouseCanBeDeleted(params: {
+		id: string;
+		name: string;
+	}): Promise<void> {
+		const [childCount, transitDependentCount] = await this.prisma.$transaction([
+			this.prisma.warehouse.count({
+				where: { parentWarehouseId: params.id },
+			}),
+			this.prisma.warehouse.count({
+				where: { defaultInTransitWarehouseId: params.id },
+			}),
+		]);
+
+		if (childCount > 0) {
+			throw new BadRequestException(
+				"Warehouse cannot be deleted while child warehouses still reference it",
+			);
+		}
+
+		if (transitDependentCount > 0) {
+			throw new BadRequestException(
+				"Warehouse cannot be deleted while it is configured as a default in-transit warehouse",
+			);
+		}
+
+		await this.assertWarehouseNameIsNotReferenced(params.name);
+	}
+
+	/**
+	 * Get warehouses with bounded filters for inventory settings.
+	 */
+	async findWarehouses(
+		params?: Inventory.ListWarehousesInput,
+	): Promise<Inventory.WarehouseListResult> {
+		const rawSkip = params?.skip ?? 0;
+		const rawTake = params?.take ?? LIST_QUERY_TAKE_MAX;
+		const skip = rawSkip < 0 ? 0 : rawSkip;
+		const take =
+			rawTake <= 0
+				? 1
+				: rawTake > LIST_QUERY_TAKE_MAX
+					? LIST_QUERY_TAKE_MAX
+					: rawTake;
+		const search = params?.search?.trim();
+		const company = params?.company?.trim();
+
+		const whereClauses: Prisma.WarehouseWhereInput[] = [];
+
+		if (search) {
+			whereClauses.push({
+				OR: [
+					{ name: { contains: search, mode: "insensitive" } },
+					{ company: { contains: search, mode: "insensitive" } },
+					{ city: { contains: search, mode: "insensitive" } },
+					{ state: { contains: search, mode: "insensitive" } },
+					{ warehouseType: { contains: search, mode: "insensitive" } },
+					{
+						parentWarehouse: {
+							name: { contains: search, mode: "insensitive" },
+						},
+					},
+				],
+			});
+		}
+
+		if (company) {
+			whereClauses.push({
+				company: {
+					contains: company,
+					mode: "insensitive",
+				},
+			});
+		}
+
+		if (typeof params?.disabled === "boolean") {
+			whereClauses.push({ disabled: params.disabled });
+		}
+
+		if (typeof params?.isGroupWarehouse === "boolean") {
+			whereClauses.push({ isGroupWarehouse: params.isGroupWarehouse });
+		}
+
+		const where: Prisma.WarehouseWhereInput | undefined =
+			whereClauses.length === 0
+				? undefined
+				: whereClauses.length === 1
+					? whereClauses[0]
+					: { AND: whereClauses };
+
+		const [items, totalCount] = await this.prisma.$transaction([
+			this.prisma.warehouse.findMany({
+				where,
+				select: warehouseSelect,
+				orderBy: [{ updatedAt: "desc" }, { name: "asc" }],
+				skip,
+				take,
+			}),
+			this.prisma.warehouse.count({ where }),
+		]);
+
+		return {
+			items: items.map(toInventoryWarehouse),
+			totalCount,
+		};
+	}
+
+	/**
+	 * Get a single warehouse by id.
+	 */
+	async findWarehouseById(id: string): Promise<Inventory.Warehouse | null> {
+		const warehouse = await this.prisma.warehouse.findUnique({
+			where: { id },
+			select: warehouseSelect,
+		});
+
+		return warehouse ? toInventoryWarehouse(warehouse) : null;
+	}
+
+	/**
+	 * Create a warehouse master record.
+	 */
+	async createWarehouse(
+		data: z.infer<typeof Inventory.createWarehouseSchema>,
+	): Promise<Inventory.Warehouse> {
+		const normalizedName = data.name.trim();
+		await this.ensureWarehouseNameAvailable(normalizedName);
+		await this.validateWarehouseHierarchy({
+			parentWarehouseId: data.parentWarehouseId ?? null,
+			defaultInTransitWarehouseId: data.defaultInTransitWarehouseId ?? null,
+			isGroupWarehouse: data.isGroupWarehouse ?? false,
+		});
+
+		const created = await this.prisma.warehouse.create({
+			data: {
+				name: normalizedName,
+				disabled: data.disabled ?? false,
+				isGroupWarehouse: data.isGroupWarehouse ?? false,
+				parentWarehouseId: data.parentWarehouseId ?? null,
+				company: data.company.trim(),
+				isRejectedWarehouse: data.isRejectedWarehouse ?? false,
+				phoneNo: this.normalizeWarehouseText(data.phoneNo),
+				mobileNo: this.normalizeWarehouseText(data.mobileNo),
+				addressLine1: this.normalizeWarehouseText(data.addressLine1),
+				addressLine2: this.normalizeWarehouseText(data.addressLine2),
+				city: this.normalizeWarehouseText(data.city),
+				state: this.normalizeWarehouseText(data.state),
+				pin: this.normalizeWarehouseText(data.pin),
+				warehouseType: this.normalizeWarehouseText(data.warehouseType),
+				defaultInTransitWarehouseId: data.defaultInTransitWarehouseId ?? null,
+			},
+			select: warehouseSelect,
+		});
+
+		return toInventoryWarehouse(created);
+	}
+
+	/**
+	 * Update a warehouse master record.
+	 */
+	async updateWarehouse(
+		data: z.infer<typeof Inventory.updateWarehouseSchema>,
+	): Promise<Inventory.Warehouse> {
+		const existing = await this.prisma.warehouse.findUnique({
+			where: { id: data.id },
+			select: warehouseSelect,
+		});
+
+		if (!existing) {
+			throw new NotFoundException(`Warehouse with id "${data.id}" not found`);
+		}
+
+		const normalizedName = data.name?.trim() ?? existing.name;
+		const warehouseNameChanged = this.hasWarehouseNameChanged(
+			existing.name,
+			normalizedName,
+		);
+
+		if (warehouseNameChanged) {
+			await this.ensureWarehouseNameAvailable(normalizedName, data.id);
+			await this.assertWarehouseNameIsNotReferenced(existing.name);
+		}
+
+		await this.validateWarehouseHierarchy({
+			warehouseId: existing.id,
+			parentWarehouseId:
+				data.parentWarehouseId !== undefined
+					? data.parentWarehouseId
+					: existing.parentWarehouseId,
+			defaultInTransitWarehouseId:
+				data.defaultInTransitWarehouseId !== undefined
+					? data.defaultInTransitWarehouseId
+					: existing.defaultInTransitWarehouseId,
+			isGroupWarehouse: data.isGroupWarehouse ?? existing.isGroupWarehouse,
+		});
+
+		const updated = await this.prisma.warehouse.update({
+			where: { id: data.id },
+			data: removeUndefined({
+				name: data.name !== undefined ? normalizedName : undefined,
+				disabled: data.disabled,
+				isGroupWarehouse: data.isGroupWarehouse,
+				parentWarehouseId: data.parentWarehouseId,
+				company: data.company !== undefined ? data.company.trim() : undefined,
+				isRejectedWarehouse: data.isRejectedWarehouse,
+				phoneNo:
+					data.phoneNo !== undefined
+						? this.normalizeWarehouseText(data.phoneNo)
+						: undefined,
+				mobileNo:
+					data.mobileNo !== undefined
+						? this.normalizeWarehouseText(data.mobileNo)
+						: undefined,
+				addressLine1:
+					data.addressLine1 !== undefined
+						? this.normalizeWarehouseText(data.addressLine1)
+						: undefined,
+				addressLine2:
+					data.addressLine2 !== undefined
+						? this.normalizeWarehouseText(data.addressLine2)
+						: undefined,
+				city:
+					data.city !== undefined
+						? this.normalizeWarehouseText(data.city)
+						: undefined,
+				state:
+					data.state !== undefined
+						? this.normalizeWarehouseText(data.state)
+						: undefined,
+				pin:
+					data.pin !== undefined
+						? this.normalizeWarehouseText(data.pin)
+						: undefined,
+				warehouseType:
+					data.warehouseType !== undefined
+						? this.normalizeWarehouseText(data.warehouseType)
+						: undefined,
+				defaultInTransitWarehouseId: data.defaultInTransitWarehouseId,
+			}),
+			select: warehouseSelect,
+		});
+
+		return toInventoryWarehouse(updated);
+	}
+
+	/**
+	 * Delete a warehouse when it is no longer referenced.
+	 */
+	async deleteWarehouse(id: string): Promise<{ success: boolean; id: string }> {
+		const existing = await this.prisma.warehouse.findUnique({
+			where: { id },
+			select: { id: true, name: true },
+		});
+
+		if (!existing) {
+			throw new NotFoundException(`Warehouse with id "${id}" not found`);
+		}
+
+		await this.assertWarehouseCanBeDeleted(existing);
+
+		await this.prisma.warehouse.delete({ where: { id } });
+
+		return { success: true, id };
+	}
+
+	private normalizeStockSettingsText(value?: string | null): string | null {
+		const normalized = value?.trim();
+		return normalized ? normalized : null;
+	}
+
+	private assertUniqueItemVariantCopyFields(
+		copyFields: z.infer<
+			typeof Inventory.updateItemVariantSettingsSchema
+		>["copyFields"],
+	): void {
+		const seenFieldKeys = new Set<Inventory.ItemVariantCopyFieldKey>();
+
+		for (const field of copyFields) {
+			if (seenFieldKeys.has(field.fieldKey)) {
+				throw new BadRequestException(
+					`Copy field "${field.fieldKey}" can only be added once`,
+				);
+			}
+
+			seenFieldKeys.add(field.fieldKey);
+		}
+	}
+
+	private async resolveCanonicalUnitOfMeasureName(
+		name: string | null,
+	): Promise<string | null> {
+		if (!name) {
+			return null;
+		}
+
+		const unit = await this.prisma.unitOfMeasurement.findFirst({
+			where: {
+				name: {
+					equals: name,
+					mode: "insensitive",
+				},
+				disabled: false,
+			},
+			select: { name: true },
+		});
+
+		if (!unit) {
+			throw new BadRequestException(
+				`Default stock UOM "${name}" does not exist or is disabled`,
+			);
+		}
+
+		return unit.name;
+	}
+
+	/**
+	 * Get the singleton item variant settings record, creating it when missing.
+	 */
+	async findItemVariantSettings(): Promise<Inventory.ItemVariantSettings> {
+		const existing = await this.prisma.itemVariantSettings.findUnique({
+			where: { singletonKey: "default" },
+			select: itemVariantSettingsSelect,
+		});
+
+		if (existing) {
+			return toInventoryItemVariantSettings(existing);
+		}
+
+		const created = await this.prisma.itemVariantSettings.upsert({
+			where: { singletonKey: "default" },
+			update: {},
+			create: {
+				singletonKey: "default",
+			},
+			select: itemVariantSettingsSelect,
+		});
+
+		return toInventoryItemVariantSettings(created);
+	}
+
+	/**
+	 * Update the singleton item variant settings record while preserving child row identity.
+	 */
+	async updateItemVariantSettings(
+		data: z.infer<typeof Inventory.updateItemVariantSettingsSchema>,
+	): Promise<Inventory.ItemVariantSettings> {
+		this.assertUniqueItemVariantCopyFields(data.copyFields);
+
+		const updated = await this.prisma.$transaction(async (tx) => {
+			const settings = await tx.itemVariantSettings.upsert({
+				where: { singletonKey: "default" },
+				update: {
+					doNotUpdateVariantsOnSave: data.doNotUpdateVariantsOnSave,
+					allowRenameAttributeValue: data.allowRenameAttributeValue,
+				},
+				create: {
+					singletonKey: "default",
+					doNotUpdateVariantsOnSave: data.doNotUpdateVariantsOnSave,
+					allowRenameAttributeValue: data.allowRenameAttributeValue,
+				},
+				select: { id: true },
+			});
+
+			const existingFields = await tx.itemVariantSettingsField.findMany({
+				where: { settingsId: settings.id },
+				orderBy: { position: "asc" },
+			});
+
+			const existingFieldsById = new Map(
+				existingFields.map((field) => [field.id, field]),
+			);
+			const incomingIds = new Set(
+				data.copyFields.flatMap((field) => (field.id ? [field.id] : [])),
+			);
+
+			for (const field of data.copyFields) {
+				if (field.id && !existingFieldsById.has(field.id)) {
+					throw new BadRequestException(
+						"One or more item variant copy field rows no longer exist",
+					);
+				}
+			}
+
+			const fieldIdsToDelete = existingFields
+				.filter((field) => !incomingIds.has(field.id))
+				.map((field) => field.id);
+
+			if (fieldIdsToDelete.length > 0) {
+				await tx.itemVariantSettingsField.deleteMany({
+					where: {
+						settingsId: settings.id,
+						id: { in: fieldIdsToDelete },
+					},
+				});
+			}
+
+			for (const [position, field] of data.copyFields.entries()) {
+				if (field.id) {
+					await tx.itemVariantSettingsField.update({
+						where: { id: field.id },
+						data: {
+							fieldKey: field.fieldKey,
+							position,
+						},
+					});
+					continue;
+				}
+
+				await tx.itemVariantSettingsField.create({
+					data: {
+						settingsId: settings.id,
+						fieldKey: field.fieldKey,
+						position,
+					},
+				});
+			}
+
+			return tx.itemVariantSettings.findUniqueOrThrow({
+				where: { id: settings.id },
+				select: itemVariantSettingsSelect,
+			});
+		});
+
+		return toInventoryItemVariantSettings(updated);
+	}
+
+	/**
+	 * Get the singleton stock settings record, creating it when missing.
+	 */
+	async findStockSettings(): Promise<Inventory.StockSettings> {
+		const existing = await this.prisma.stockSettings.findUnique({
+			where: { singletonKey: "default" },
+			select: stockSettingsSelect,
+		});
+
+		if (existing) {
+			return toInventoryStockSettings(existing);
+		}
+
+		const created = await this.prisma.stockSettings.upsert({
+			where: { singletonKey: "default" },
+			update: {},
+			create: {
+				singletonKey: "default",
+			},
+			select: stockSettingsSelect,
+		});
+
+		return toInventoryStockSettings(created);
+	}
+
+	/**
+	 * Update the singleton stock settings record.
+	 */
+	async updateStockSettings(
+		data: z.infer<typeof Inventory.updateStockSettingsSchema>,
+	): Promise<Inventory.StockSettings> {
+		const normalizedDefaultWarehouse = this.normalizeStockSettingsText(
+			data.defaultWarehouse,
+		);
+		const normalizedDefaultStockUom =
+			await this.resolveCanonicalUnitOfMeasureName(
+				this.normalizeStockSettingsText(data.defaultStockUom),
+			);
+
+		const updated = await this.prisma.stockSettings.upsert({
+			where: { singletonKey: "default" },
+			update: {
+				...data,
+				defaultWarehouse: normalizedDefaultWarehouse,
+				defaultStockUom: normalizedDefaultStockUom,
+			},
+			create: {
+				singletonKey: "default",
+				...data,
+				defaultWarehouse: normalizedDefaultWarehouse,
+				defaultStockUom: normalizedDefaultStockUom,
+			},
+			select: stockSettingsSelect,
+		});
+
+		return toInventoryStockSettings(updated);
 	}
 
 	/**
@@ -464,6 +1385,352 @@ export class InventoryService {
 				error.code === "P2025"
 			) {
 				throw new NotFoundException(`Unit of measure with ID ${id} not found`);
+			}
+			throw error;
+		}
+	}
+
+	/**
+	 * Get all brands
+	 */
+	async findAllBrands(search?: string): Promise<Inventory.Brand[]> {
+		const brands = await this.prisma.brand.findMany({
+			where: search
+				? {
+						name: {
+							contains: search,
+							mode: "insensitive",
+						},
+					}
+				: undefined,
+			select: brandSelect,
+			orderBy: { name: "asc" },
+		});
+
+		return brands.map(toInventoryBrand);
+	}
+
+	/**
+	 * Get a single brand by id
+	 */
+	async findBrandById(id: string): Promise<Inventory.Brand | null> {
+		const brand = await this.prisma.brand.findUnique({
+			where: { id },
+			select: brandSelect,
+		});
+
+		return brand ? toInventoryBrand(brand) : null;
+	}
+
+	/**
+	 * Create a brand
+	 */
+	async createBrand(
+		data: z.infer<typeof Inventory.createBrandSchema>,
+	): Promise<Inventory.Brand> {
+		const duplicate = await this.prisma.brand.findFirst({
+			where: {
+				name: {
+					equals: data.name,
+					mode: "insensitive",
+				},
+			},
+			select: { id: true },
+		});
+
+		if (duplicate) {
+			throw new ConflictException(
+				`Brand with name "${data.name}" already exists`,
+			);
+		}
+
+		try {
+			const created = await this.prisma.brand.create({
+				data: {
+					name: data.name,
+					description: data.description ?? null,
+				},
+				select: brandSelect,
+			});
+
+			return toInventoryBrand(created);
+		} catch (error) {
+			if (
+				error instanceof Prisma.PrismaClientKnownRequestError &&
+				error.code === "P2002"
+			) {
+				throw new ConflictException(
+					`Brand with name "${data.name}" already exists`,
+				);
+			}
+			throw error;
+		}
+	}
+
+	/**
+	 * Update a brand
+	 */
+	async updateBrand(
+		data: z.infer<typeof Inventory.updateBrandSchema>,
+	): Promise<Inventory.Brand> {
+		const { id, ...rest } = data;
+
+		const existing = await this.prisma.brand.findUnique({
+			where: { id },
+			select: { id: true, name: true },
+		});
+
+		if (!existing) {
+			throw new NotFoundException(`Brand with ID ${id} not found`);
+		}
+
+		if (rest.name !== undefined) {
+			const duplicate = await this.prisma.brand.findFirst({
+				where: {
+					id: { not: id },
+					name: {
+						equals: rest.name,
+						mode: "insensitive",
+					},
+				},
+				select: { id: true },
+			});
+
+			if (duplicate) {
+				throw new ConflictException(
+					`Brand with name "${rest.name}" already exists`,
+				);
+			}
+		}
+
+		try {
+			const updated = await this.prisma.brand.update({
+				where: { id },
+				data: removeUndefined(rest),
+				select: brandSelect,
+			});
+
+			return toInventoryBrand(updated);
+		} catch (error) {
+			if (
+				error instanceof Prisma.PrismaClientKnownRequestError &&
+				error.code === "P2025"
+			) {
+				throw new NotFoundException(`Brand with ID ${id} not found`);
+			}
+			if (
+				error instanceof Prisma.PrismaClientKnownRequestError &&
+				error.code === "P2002"
+			) {
+				const conflictName = rest.name ?? existing.name;
+				throw new ConflictException(
+					conflictName
+						? `Brand with name "${conflictName}" already exists`
+						: "Brand already exists",
+				);
+			}
+			throw error;
+		}
+	}
+
+	/**
+	 * Delete a brand
+	 */
+	async deleteBrand(id: string): Promise<{ success: boolean; id: string }> {
+		try {
+			await this.prisma.brand.delete({ where: { id } });
+			return { success: true, id };
+		} catch (error) {
+			if (
+				error instanceof Prisma.PrismaClientKnownRequestError &&
+				error.code === "P2025"
+			) {
+				throw new NotFoundException(`Brand with ID ${id} not found`);
+			}
+			throw error;
+		}
+	}
+
+	// ============================================================================
+	// Item Attribute
+	// ============================================================================
+
+	/**
+	 * List all item attributes, optionally filtered by name.
+	 */
+	async findAllItemAttributes(
+		search?: string,
+	): Promise<Inventory.ItemAttribute[]> {
+		const attributes = await this.prisma.itemAttribute.findMany({
+			where: search
+				? { name: { contains: search, mode: "insensitive" } }
+				: undefined,
+			select: itemAttributeSelect,
+			orderBy: { name: "asc" },
+		});
+		return attributes.map(toInventoryItemAttribute);
+	}
+
+	/**
+	 * Find a single item attribute by ID, including its nested values.
+	 */
+	async findItemAttributeById(id: string): Promise<Inventory.ItemAttribute> {
+		const attribute = await this.prisma.itemAttribute.findUnique({
+			where: { id },
+			select: itemAttributeSelect,
+		});
+		if (!attribute) {
+			throw new NotFoundException(`Item Attribute with ID ${id} not found`);
+		}
+		return toInventoryItemAttribute(attribute);
+	}
+
+	/**
+	 * Create a new item attribute with its initial attribute values.
+	 */
+	async createItemAttribute(
+		data: z.infer<typeof Inventory.createItemAttributeSchema>,
+	): Promise<Inventory.ItemAttribute> {
+		try {
+			const attribute = await this.prisma.itemAttribute.create({
+				data: {
+					name: data.name,
+					disabled: data.disabled,
+					numericValues: data.numericValues,
+					attributeValues: {
+						create: data.attributeValues.map((v, index) => ({
+							attributeValue: v.attributeValue,
+							abbreviation: v.abbreviation,
+							position: index,
+						})),
+					},
+				},
+				select: itemAttributeSelect,
+			});
+			return toInventoryItemAttribute(attribute);
+		} catch (error) {
+			if (
+				error instanceof Prisma.PrismaClientKnownRequestError &&
+				error.code === "P2002"
+			) {
+				throw new ConflictException(
+					`Item Attribute with name "${data.name}" already exists`,
+				);
+			}
+			throw error;
+		}
+	}
+
+	/**
+	 * Update an item attribute.
+	 *
+	 * @remarks
+	 * When `attributeValues` is provided, uses a safe upsert strategy inside a
+	 * transaction: existing rows (with an `id`) are updated in-place, new rows
+	 * (without an `id`) are created, and rows no longer referenced are deleted.
+	 * This avoids the data-loss risk of a full delete-then-recreate.
+	 */
+	async updateItemAttribute(
+		data: z.infer<typeof Inventory.updateItemAttributeSchema>,
+	): Promise<Inventory.ItemAttribute> {
+		const { id, attributeValues, ...rest } = data;
+
+		// Verify the record exists first so we get a clean 404 instead of a Prisma error.
+		const existing = await this.prisma.itemAttribute.findUnique({
+			where: { id },
+			select: { id: true, name: true },
+		});
+		if (!existing) {
+			throw new NotFoundException(`Item Attribute with ID ${id} not found`);
+		}
+
+		try {
+			const updated = await this.prisma.$transaction(async (tx) => {
+				// Scalar field updates
+				await tx.itemAttribute.update({
+					where: { id },
+					data: removeUndefined(rest),
+				});
+
+				if (attributeValues !== undefined) {
+					const incomingIds = attributeValues
+						.filter((v) => v.id !== undefined)
+						.map((v) => v.id as string);
+
+					// Delete orphaned rows
+					await tx.itemAttributeValue.deleteMany({
+						where: { attributeId: id, id: { notIn: incomingIds } },
+					});
+
+					// Upsert each incoming row
+					for (let i = 0; i < attributeValues.length; i++) {
+						const v = attributeValues[i];
+						if (v.id) {
+							await tx.itemAttributeValue.update({
+								where: { id: v.id },
+								data: {
+									attributeValue: v.attributeValue,
+									abbreviation: v.abbreviation,
+									position: i,
+								},
+							});
+						} else {
+							await tx.itemAttributeValue.create({
+								data: {
+									attributeId: id,
+									attributeValue: v.attributeValue,
+									abbreviation: v.abbreviation,
+									position: i,
+								},
+							});
+						}
+					}
+				}
+
+				return tx.itemAttribute.findUniqueOrThrow({
+					where: { id },
+					select: itemAttributeSelect,
+				});
+			});
+
+			return toInventoryItemAttribute(updated);
+		} catch (error) {
+			if (
+				error instanceof Prisma.PrismaClientKnownRequestError &&
+				error.code === "P2025"
+			) {
+				throw new NotFoundException(`Item Attribute with ID ${id} not found`);
+			}
+			if (
+				error instanceof Prisma.PrismaClientKnownRequestError &&
+				error.code === "P2002"
+			) {
+				const conflictName = rest.name ?? existing.name;
+				throw new ConflictException(
+					conflictName
+						? `Item Attribute with name "${conflictName}" already exists`
+						: "Item Attribute already exists",
+				);
+			}
+			throw error;
+		}
+	}
+
+	/**
+	 * Delete an item attribute (cascade deletes all attribute values).
+	 */
+	async deleteItemAttribute(
+		id: string,
+	): Promise<{ success: boolean; id: string }> {
+		try {
+			await this.prisma.itemAttribute.delete({ where: { id } });
+			return { success: true, id };
+		} catch (error) {
+			if (
+				error instanceof Prisma.PrismaClientKnownRequestError &&
+				error.code === "P2025"
+			) {
+				throw new NotFoundException(`Item Attribute with ID ${id} not found`);
 			}
 			throw error;
 		}

@@ -48,6 +48,80 @@ function createListUnitsOfMeasureProcedure(inventoryService: InventoryService) {
 		});
 }
 
+function createListWarehousesProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(Inventory.listWarehousesSchema)
+		.query(async ({ input }) => {
+			return inventoryService.findWarehouses(input);
+		});
+}
+
+function createGetWarehouseByIdProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(z.object({ id: z.string().cuid() }))
+		.query(async ({ input }) => {
+			return inventoryService.findWarehouseById(input.id);
+		});
+}
+
+function createCreateWarehouseProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(Inventory.createWarehouseSchema)
+		.mutation(async ({ input }) => {
+			return inventoryService.createWarehouse(input);
+		});
+}
+
+function createUpdateWarehouseProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(Inventory.updateWarehouseSchema)
+		.mutation(async ({ input }) => {
+			return inventoryService.updateWarehouse(input);
+		});
+}
+
+function createDeleteWarehouseProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(z.object({ id: z.string().cuid() }))
+		.mutation(async ({ input }) => {
+			return inventoryService.deleteWarehouse(input.id);
+		});
+}
+
+function createGetStockSettingsProcedure(inventoryService: InventoryService) {
+	return protectedProcedure.query(async () => {
+		return inventoryService.findStockSettings();
+	});
+}
+
+function createGetItemVariantSettingsProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure.query(async () => {
+		return inventoryService.findItemVariantSettings();
+	});
+}
+
+function createUpdateItemVariantSettingsProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure
+		.input(Inventory.updateItemVariantSettingsSchema)
+		.mutation(async ({ input }) => {
+			return inventoryService.updateItemVariantSettings(input);
+		});
+}
+
+function createUpdateStockSettingsProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure
+		.input(Inventory.updateStockSettingsSchema)
+		.mutation(async ({ input }) => {
+			return inventoryService.updateStockSettings(input);
+		});
+}
+
 function createGetUnitOfMeasureByIdProcedure(
 	inventoryService: InventoryService,
 ) {
@@ -85,6 +159,98 @@ function createDeleteUnitOfMeasureProcedure(
 		.input(z.object({ id: z.string().cuid() }))
 		.mutation(async ({ input }) => {
 			return inventoryService.deleteUnitOfMeasure(input.id);
+		});
+}
+
+function createListBrandsProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(z.object({ search: z.string().optional() }).optional())
+		.query(async ({ input }) => {
+			return inventoryService.findAllBrands(input?.search);
+		});
+}
+
+function createGetBrandByIdProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(z.object({ id: z.string().cuid() }))
+		.query(async ({ input }) => {
+			return inventoryService.findBrandById(input.id);
+		});
+}
+
+function createCreateBrandProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(Inventory.createBrandSchema)
+		.mutation(async ({ input }) => {
+			return inventoryService.createBrand(input);
+		});
+}
+
+function createUpdateBrandProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(Inventory.updateBrandSchema)
+		.mutation(async ({ input }) => {
+			return inventoryService.updateBrand(input);
+		});
+}
+
+function createDeleteBrandProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(z.object({ id: z.string().cuid() }))
+		.mutation(async ({ input }) => {
+			return inventoryService.deleteBrand(input.id);
+		});
+}
+
+// ============================================================================
+// Item Attribute procedures
+// ============================================================================
+
+function createListItemAttributesProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(z.object({ search: z.string().optional() }).optional())
+		.query(async ({ input }) => {
+			return inventoryService.findAllItemAttributes(input?.search);
+		});
+}
+
+function createGetItemAttributeByIdProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure
+		.input(z.object({ id: z.string().cuid() }))
+		.query(async ({ input }) => {
+			return inventoryService.findItemAttributeById(input.id);
+		});
+}
+
+function createCreateItemAttributeProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure
+		.input(Inventory.createItemAttributeSchema)
+		.mutation(async ({ input }) => {
+			return inventoryService.createItemAttribute(input);
+		});
+}
+
+function createUpdateItemAttributeProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure
+		.input(Inventory.updateItemAttributeSchema)
+		.mutation(async ({ input }) => {
+			return inventoryService.updateItemAttribute(input);
+		});
+}
+
+function createDeleteItemAttributeProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure
+		.input(z.object({ id: z.string().cuid() }))
+		.mutation(async ({ input }) => {
+			return inventoryService.deleteItemAttribute(input.id);
 		});
 }
 
@@ -1031,10 +1197,33 @@ type InventoryRouterInput = {
 	listItems: ReturnType<typeof createListItemsProcedure>;
 	listItemGroups: ReturnType<typeof createListItemGroupsProcedure>;
 	listUnitsOfMeasure: ReturnType<typeof createListUnitsOfMeasureProcedure>;
+	listWarehouses: ReturnType<typeof createListWarehousesProcedure>;
+	getWarehouseById: ReturnType<typeof createGetWarehouseByIdProcedure>;
+	createWarehouse: ReturnType<typeof createCreateWarehouseProcedure>;
+	updateWarehouse: ReturnType<typeof createUpdateWarehouseProcedure>;
+	deleteWarehouse: ReturnType<typeof createDeleteWarehouseProcedure>;
+	getStockSettings: ReturnType<typeof createGetStockSettingsProcedure>;
+	getItemVariantSettings: ReturnType<
+		typeof createGetItemVariantSettingsProcedure
+	>;
+	updateItemVariantSettings: ReturnType<
+		typeof createUpdateItemVariantSettingsProcedure
+	>;
+	updateStockSettings: ReturnType<typeof createUpdateStockSettingsProcedure>;
 	getUnitOfMeasureById: ReturnType<typeof createGetUnitOfMeasureByIdProcedure>;
 	createUnitOfMeasure: ReturnType<typeof createCreateUnitOfMeasureProcedure>;
 	updateUnitOfMeasure: ReturnType<typeof createUpdateUnitOfMeasureProcedure>;
 	deleteUnitOfMeasure: ReturnType<typeof createDeleteUnitOfMeasureProcedure>;
+	listBrands: ReturnType<typeof createListBrandsProcedure>;
+	getBrandById: ReturnType<typeof createGetBrandByIdProcedure>;
+	createBrand: ReturnType<typeof createCreateBrandProcedure>;
+	updateBrand: ReturnType<typeof createUpdateBrandProcedure>;
+	deleteBrand: ReturnType<typeof createDeleteBrandProcedure>;
+	listItemAttributes: ReturnType<typeof createListItemAttributesProcedure>;
+	getItemAttributeById: ReturnType<typeof createGetItemAttributeByIdProcedure>;
+	createItemAttribute: ReturnType<typeof createCreateItemAttributeProcedure>;
+	updateItemAttribute: ReturnType<typeof createUpdateItemAttributeProcedure>;
+	deleteItemAttribute: ReturnType<typeof createDeleteItemAttributeProcedure>;
 	listBundleItems: ReturnType<typeof createListBundleItemsProcedure>;
 	listProductBundles: ReturnType<typeof createListProductBundlesProcedure>;
 	createProductBundle: ReturnType<typeof createCreateProductBundleProcedure>;
@@ -1180,10 +1369,31 @@ function createInventoryRouterRecord(
 		listItems: createListItemsProcedure(inventoryService),
 		listItemGroups: createListItemGroupsProcedure(inventoryService),
 		listUnitsOfMeasure: createListUnitsOfMeasureProcedure(inventoryService),
+		listWarehouses: createListWarehousesProcedure(inventoryService),
+		getWarehouseById: createGetWarehouseByIdProcedure(inventoryService),
+		createWarehouse: createCreateWarehouseProcedure(inventoryService),
+		updateWarehouse: createUpdateWarehouseProcedure(inventoryService),
+		deleteWarehouse: createDeleteWarehouseProcedure(inventoryService),
+		getStockSettings: createGetStockSettingsProcedure(inventoryService),
+		getItemVariantSettings:
+			createGetItemVariantSettingsProcedure(inventoryService),
+		updateItemVariantSettings:
+			createUpdateItemVariantSettingsProcedure(inventoryService),
+		updateStockSettings: createUpdateStockSettingsProcedure(inventoryService),
 		getUnitOfMeasureById: createGetUnitOfMeasureByIdProcedure(inventoryService),
 		createUnitOfMeasure: createCreateUnitOfMeasureProcedure(inventoryService),
 		updateUnitOfMeasure: createUpdateUnitOfMeasureProcedure(inventoryService),
 		deleteUnitOfMeasure: createDeleteUnitOfMeasureProcedure(inventoryService),
+		listBrands: createListBrandsProcedure(inventoryService),
+		getBrandById: createGetBrandByIdProcedure(inventoryService),
+		createBrand: createCreateBrandProcedure(inventoryService),
+		updateBrand: createUpdateBrandProcedure(inventoryService),
+		deleteBrand: createDeleteBrandProcedure(inventoryService),
+		listItemAttributes: createListItemAttributesProcedure(inventoryService),
+		getItemAttributeById: createGetItemAttributeByIdProcedure(inventoryService),
+		createItemAttribute: createCreateItemAttributeProcedure(inventoryService),
+		updateItemAttribute: createUpdateItemAttributeProcedure(inventoryService),
+		deleteItemAttribute: createDeleteItemAttributeProcedure(inventoryService),
 		listBundleItems: createListBundleItemsProcedure(inventoryService),
 		listProductBundles: createListProductBundlesProcedure(inventoryService),
 		createProductBundle: createCreateProductBundleProcedure(inventoryService),

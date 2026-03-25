@@ -144,6 +144,76 @@ model ItemGroupDefault {
   @@map("item_group_defaults")
 }
 
+model StockSettings {
+  id                                                     String   @id @default(cuid())
+  singletonKey                                           String   @unique @default("default") @db.VarChar(32)
+  itemNamingBy                                           String   @db.VarChar(50) @default("ITEM_CODE")
+  defaultWarehouse                                       String?  @db.VarChar(255)
+  defaultValuationMethod                                 String   @db.VarChar(50) @default("FIFO")
+  defaultStockUom                                        String?  @db.VarChar(50)
+  autoInsertItemPriceIfMissing                           Boolean  @default(false)
+  updateExistingPriceListRate                            Boolean  @default(false)
+  allowToEditStockUomQtyForSalesDocuments                Boolean  @default(false)
+  allowToEditStockUomQtyForPurchaseDocuments             Boolean  @default(false)
+  overDeliveryReceiptAllowancePercent                    Float    @default(0)
+  allowNegativeStock                                     Boolean  @default(false)
+  showBarcodeFieldInStockTransactions                    Boolean  @default(false)
+  convertItemDescriptionToCleanHtmlInTransactions        Boolean  @default(false)
+  overTransferAllowancePercent                           Float    @default(0)
+  allowInternalTransfersAtArmsLengthPrice                Boolean  @default(false)
+  overPickingAllowancePercent                            Float    @default(0)
+  actionIfQualityInspectionIsNotSubmitted                String   @db.VarChar(20) @default("STOP")
+  actionIfQualityInspectionIsRejected                    String   @db.VarChar(20) @default("STOP")
+  enableStockReservation                                 Boolean  @default(false)
+  allowPartialReservation                                Boolean  @default(false)
+  autoReserveStockForSalesOrderOnPurchase                Boolean  @default(false)
+  autoReserveSerialAndBatchNos                           Boolean  @default(false)
+  autoCreateSerialAndBatchBundleForOutward               Boolean  @default(false)
+  disableSerialNoAndBatchSelector                        Boolean  @default(false)
+  haveDefaultNamingSeriesForBatchId                      Boolean  @default(false)
+  pickSerialBatchBasedOn                                 String   @db.VarChar(20) @default("FIFO")
+  useSerialBatchFields                                   Boolean  @default(false)
+  doNotUpdateSerialBatchOnCreationOfAutoBundle           Boolean  @default(false)
+  allowExistingSerialNoToBeManufacturedReceivedAgain     Boolean  @default(false)
+  setSerialAndBatchBundleNamingBasedOnNamingSeries       Boolean  @default(false)
+  raiseMaterialRequestWhenStockReachesReorderLevel       Boolean  @default(false)
+  notifyByEmailOnCreationOfAutomaticMaterialRequest      Boolean  @default(false)
+  allowMaterialTransferFromDeliveryNoteToSalesInvoice    Boolean  @default(false)
+  allowMaterialTransferFromPurchaseReceiptToPurchaseInvoice Boolean @default(false)
+  freezeStocksOlderThanDays                              Int      @default(60)
+  createdAt                                              DateTime @default(now())
+  updatedAt                                              DateTime @updatedAt
+
+  @@map("stock_settings")
+}
+
+model ItemVariantSettings {
+  id                        String                     @id @default(cuid())
+  singletonKey              String                     @unique @default("default") @db.VarChar(32)
+  doNotUpdateVariantsOnSave Boolean                    @default(false)
+  allowRenameAttributeValue Boolean                    @default(false)
+  createdAt                 DateTime                   @default(now())
+  updatedAt                 DateTime                   @updatedAt
+  copyFields                ItemVariantSettingsField[]
+
+  @@map("item_variant_settings")
+}
+
+model ItemVariantSettingsField {
+  id         String              @id @default(cuid())
+  settingsId String
+  fieldKey   String              @db.VarChar(100)
+  position   Int
+  createdAt  DateTime            @default(now())
+  updatedAt  DateTime            @updatedAt
+  settings   ItemVariantSettings @relation(fields: [settingsId], references: [id], onDelete: Cascade)
+
+  @@unique([settingsId, fieldKey])
+  @@unique([settingsId, position])
+  @@index([settingsId])
+  @@map("item_variant_settings_fields")
+}
+
 model Item {
   id                     String              @id @default(cuid())
   name                   String              @db.VarChar(255)
@@ -189,6 +259,67 @@ model Brand {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   items       Item[]
+}
+
+model ItemAttribute {
+  id              String               @id @default(cuid())
+  name            String               @db.VarChar(255)
+  disabled        Boolean              @default(false)
+  numericValues   Boolean              @default(false)
+  attributeValues ItemAttributeValue[]
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  @@index([name])
+  @@index([disabled])
+  @@map("item_attributes")
+}
+
+model ItemAttributeValue {
+  id             String        @id @default(cuid())
+  attributeId    String
+  attributeValue String        @db.VarChar(255)
+  abbreviation   String        @db.VarChar(50)
+  position       Int           @default(0)
+  attribute      ItemAttribute @relation(fields: [attributeId], references: [id], onDelete: Cascade)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@unique([attributeId, attributeValue])
+  @@index([attributeId])
+  @@map("item_attribute_values")
+}
+
+model Warehouse {
+  id                          String      @id @default(cuid())
+  name                        String      @unique @db.VarChar(255)
+  disabled                    Boolean     @default(false)
+  isGroupWarehouse            Boolean     @default(false)
+  parentWarehouseId           String?
+  company                     String      @db.VarChar(255)
+  isRejectedWarehouse         Boolean     @default(false)
+  phoneNo                     String?     @db.VarChar(50)
+  mobileNo                    String?     @db.VarChar(50)
+  addressLine1                String?     @db.VarChar(255)
+  addressLine2                String?     @db.VarChar(255)
+  city                        String?     @db.VarChar(255)
+  state                       String?     @db.VarChar(255)
+  pin                         String?     @db.VarChar(20)
+  warehouseType               String?     @db.VarChar(100)
+  defaultInTransitWarehouseId String?
+  createdAt                   DateTime    @default(now())
+  updatedAt                   DateTime    @updatedAt
+  parentWarehouse             Warehouse?  @relation("WarehouseHierarchy", fields: [parentWarehouseId], references: [id])
+  childWarehouses             Warehouse[] @relation("WarehouseHierarchy")
+  defaultInTransitWarehouse   Warehouse?  @relation("WarehouseTransitDefault", fields: [defaultInTransitWarehouseId], references: [id])
+  transitDefaultFor           Warehouse[] @relation("WarehouseTransitDefault")
+
+  @@index([company])
+  @@index([disabled])
+  @@index([isGroupWarehouse])
+  @@index([parentWarehouseId])
+  @@index([defaultInTransitWarehouseId])
+  @@map("warehouses")
 }
 
 model ProductBundle {

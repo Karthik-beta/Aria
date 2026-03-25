@@ -56,6 +56,108 @@ describe("InventoryService", () => {
 		updatedAt: new Date(),
 	};
 
+	const mockItemAttributeValue = {
+		id: "clh123iav0001",
+		attributeId: "clh123ia0001",
+		attributeValue: "Red",
+		abbreviation: "R",
+		position: 0,
+		createdAt: new Date(),
+		updatedAt: new Date(),
+	};
+
+	const mockItemAttribute = {
+		id: "clh123ia0001",
+		name: "Colour",
+		disabled: false,
+		numericValues: false,
+		createdAt: new Date(),
+		updatedAt: new Date(),
+		attributeValues: [mockItemAttributeValue],
+	};
+
+	const mockWarehouse = {
+		id: "clh123warehouse0000",
+		name: "Stores - GH",
+		disabled: false,
+		isGroupWarehouse: false,
+		parentWarehouseId: null,
+		company: "Aria Corp",
+		isRejectedWarehouse: false,
+		phoneNo: null,
+		mobileNo: null,
+		addressLine1: null,
+		addressLine2: null,
+		city: null,
+		state: null,
+		pin: null,
+		warehouseType: "Retail",
+		defaultInTransitWarehouseId: null,
+		parentWarehouse: null,
+		defaultInTransitWarehouse: null,
+		createdAt: new Date(),
+		updatedAt: new Date(),
+	};
+
+	const mockStockSettingsInput = {
+		itemNamingBy: "ITEM_CODE" as const,
+		defaultWarehouse: null,
+		defaultValuationMethod: "FIFO" as const,
+		defaultStockUom: "Nos",
+		autoInsertItemPriceIfMissing: false,
+		updateExistingPriceListRate: false,
+		allowToEditStockUomQtyForSalesDocuments: false,
+		allowToEditStockUomQtyForPurchaseDocuments: false,
+		overDeliveryReceiptAllowancePercent: 0,
+		allowNegativeStock: false,
+		showBarcodeFieldInStockTransactions: false,
+		convertItemDescriptionToCleanHtmlInTransactions: false,
+		overTransferAllowancePercent: 0,
+		allowInternalTransfersAtArmsLengthPrice: false,
+		overPickingAllowancePercent: 0,
+		actionIfQualityInspectionIsNotSubmitted: "STOP" as const,
+		actionIfQualityInspectionIsRejected: "STOP" as const,
+		enableStockReservation: false,
+		allowPartialReservation: false,
+		autoReserveStockForSalesOrderOnPurchase: false,
+		autoReserveSerialAndBatchNos: false,
+		autoCreateSerialAndBatchBundleForOutward: false,
+		disableSerialNoAndBatchSelector: false,
+		haveDefaultNamingSeriesForBatchId: false,
+		pickSerialBatchBasedOn: "FIFO" as const,
+		useSerialBatchFields: false,
+		doNotUpdateSerialBatchOnCreationOfAutoBundle: false,
+		allowExistingSerialNoToBeManufacturedReceivedAgain: false,
+		setSerialAndBatchBundleNamingBasedOnNamingSeries: false,
+		raiseMaterialRequestWhenStockReachesReorderLevel: false,
+		notifyByEmailOnCreationOfAutomaticMaterialRequest: false,
+		allowMaterialTransferFromDeliveryNoteToSalesInvoice: false,
+		allowMaterialTransferFromPurchaseReceiptToPurchaseInvoice: false,
+		freezeStocksOlderThanDays: 60,
+	};
+
+	const mockStockSettings = {
+		id: "clh123stocksettings0000",
+		...mockStockSettingsInput,
+		createdAt: new Date(),
+		updatedAt: new Date(),
+	};
+
+	const mockItemVariantSettings = {
+		id: "clh123variantsettings0000",
+		doNotUpdateVariantsOnSave: false,
+		allowRenameAttributeValue: true,
+		copyFields: [
+			{
+				id: "clh123variantfield0001",
+				fieldKey: "description",
+				position: 0,
+			},
+		],
+		createdAt: new Date(),
+		updatedAt: new Date(),
+	};
+
 	const mockStockEntryItem = {
 		id: "clh123ste_item01",
 		stockEntryId: "clh123ste000001",
@@ -190,6 +292,37 @@ describe("InventoryService", () => {
 			update: jest.fn(),
 			delete: jest.fn(),
 		},
+		warehouse: {
+			findMany: jest.fn(),
+			findFirst: jest.fn(),
+			findUnique: jest.fn(),
+			create: jest.fn(),
+			update: jest.fn(),
+			delete: jest.fn(),
+			count: jest.fn(),
+		},
+		itemGroupDefault: {
+			count: jest.fn(),
+		},
+		itemReorder: {
+			count: jest.fn(),
+		},
+		stockSettings: {
+			findUnique: jest.fn(),
+			upsert: jest.fn(),
+			count: jest.fn(),
+		},
+		itemVariantSettings: {
+			findUnique: jest.fn(),
+			findUniqueOrThrow: jest.fn(),
+			upsert: jest.fn(),
+		},
+		itemVariantSettingsField: {
+			findMany: jest.fn(),
+			create: jest.fn(),
+			update: jest.fn(),
+			deleteMany: jest.fn(),
+		},
 		itemAlternate: {
 			findMany: jest.fn(),
 			findUnique: jest.fn(),
@@ -216,12 +349,14 @@ describe("InventoryService", () => {
 			update: jest.fn(),
 			delete: jest.fn(),
 			deleteMany: jest.fn(),
+			count: jest.fn(),
 		},
 		materialRequestItem: {
 			findMany: jest.fn(),
 			deleteMany: jest.fn(),
 			update: jest.fn(),
 			create: jest.fn(),
+			count: jest.fn(),
 		},
 		stockEntry: {
 			findMany: jest.fn(),
@@ -232,12 +367,14 @@ describe("InventoryService", () => {
 			update: jest.fn(),
 			delete: jest.fn(),
 			deleteMany: jest.fn(),
+			count: jest.fn(),
 		},
 		stockEntryItem: {
 			findMany: jest.fn(),
 			deleteMany: jest.fn(),
 			update: jest.fn(),
 			create: jest.fn(),
+			count: jest.fn(),
 		},
 		deliveryNote: {
 			findMany: jest.fn(),
@@ -248,12 +385,14 @@ describe("InventoryService", () => {
 			update: jest.fn(),
 			delete: jest.fn(),
 			deleteMany: jest.fn(),
+			count: jest.fn(),
 		},
 		deliveryNoteItem: {
 			findMany: jest.fn(),
 			deleteMany: jest.fn(),
 			update: jest.fn(),
 			create: jest.fn(),
+			count: jest.fn(),
 		},
 		purchaseReceipt: {
 			findMany: jest.fn(),
@@ -264,12 +403,14 @@ describe("InventoryService", () => {
 			update: jest.fn(),
 			delete: jest.fn(),
 			deleteMany: jest.fn(),
+			count: jest.fn(),
 		},
 		purchaseReceiptItem: {
 			findMany: jest.fn(),
 			deleteMany: jest.fn(),
 			update: jest.fn(),
 			create: jest.fn(),
+			count: jest.fn(),
 		},
 		purchaseReceiptTax: {
 			findMany: jest.fn(),
@@ -286,12 +427,14 @@ describe("InventoryService", () => {
 			update: jest.fn(),
 			delete: jest.fn(),
 			deleteMany: jest.fn(),
+			count: jest.fn(),
 		},
 		pickListItem: {
 			findMany: jest.fn(),
 			deleteMany: jest.fn(),
 			update: jest.fn(),
 			create: jest.fn(),
+			count: jest.fn(),
 		},
 		deliveryTrip: {
 			findMany: jest.fn(),
@@ -309,6 +452,19 @@ describe("InventoryService", () => {
 			update: jest.fn(),
 			create: jest.fn(),
 		},
+		itemAttribute: {
+			findMany: jest.fn(),
+			findUnique: jest.fn(),
+			findUniqueOrThrow: jest.fn(),
+			create: jest.fn(),
+			update: jest.fn(),
+			delete: jest.fn(),
+		},
+		itemAttributeValue: {
+			deleteMany: jest.fn(),
+			update: jest.fn(),
+			create: jest.fn(),
+		},
 		$transaction: jest.fn(),
 	};
 
@@ -316,7 +472,17 @@ describe("InventoryService", () => {
 		jest.clearAllMocks();
 
 		mockPrisma.$transaction.mockImplementation(
-			(callback: (tx: typeof mockPrisma) => unknown) => callback(mockPrisma),
+			(
+				input:
+					| ((tx: typeof mockPrisma) => unknown)
+					| readonly Promise<unknown>[],
+			) => {
+				if (typeof input === "function") {
+					return input(mockPrisma);
+				}
+
+				return Promise.all(input);
+			},
 		);
 
 		service = new InventoryService(mockPrisma as unknown as PrismaService);
@@ -874,6 +1040,455 @@ describe("InventoryService", () => {
 		});
 	});
 
+	describe("findWarehouses", () => {
+		it("should return bounded warehouse rows with the total count", async () => {
+			mockPrisma.warehouse.findMany.mockResolvedValue([mockWarehouse]);
+			mockPrisma.warehouse.count.mockResolvedValue(1);
+
+			const result = await service.findWarehouses({
+				skip: 0,
+				take: 20,
+				search: "Stores",
+				company: "Aria",
+				disabled: false,
+				isGroupWarehouse: false,
+			});
+
+			expect(result).toEqual({
+				items: [
+					{
+						id: mockWarehouse.id,
+						name: mockWarehouse.name,
+						disabled: mockWarehouse.disabled,
+						isGroupWarehouse: mockWarehouse.isGroupWarehouse,
+						parentWarehouseId: mockWarehouse.parentWarehouseId,
+						parentWarehouseName: null,
+						company: mockWarehouse.company,
+						isRejectedWarehouse: mockWarehouse.isRejectedWarehouse,
+						phoneNo: mockWarehouse.phoneNo,
+						mobileNo: mockWarehouse.mobileNo,
+						addressLine1: mockWarehouse.addressLine1,
+						addressLine2: mockWarehouse.addressLine2,
+						city: mockWarehouse.city,
+						state: mockWarehouse.state,
+						pin: mockWarehouse.pin,
+						warehouseType: mockWarehouse.warehouseType,
+						defaultInTransitWarehouseId:
+							mockWarehouse.defaultInTransitWarehouseId,
+						defaultInTransitWarehouseName: null,
+						createdAt: mockWarehouse.createdAt,
+						updatedAt: mockWarehouse.updatedAt,
+					},
+				],
+				totalCount: 1,
+			});
+			expect(mockPrisma.warehouse.findMany).toHaveBeenCalledWith(
+				expect.objectContaining({
+					skip: 0,
+					take: 20,
+					select: expect.objectContaining({
+						name: true,
+						company: true,
+					}),
+				}),
+			);
+		});
+	});
+
+	describe("createWarehouse", () => {
+		it("should create a warehouse and normalize optional fields", async () => {
+			const input = Inventory.createWarehouseSchema.parse({
+				name: " Stores - GH ",
+				company: " Aria Corp ",
+				phoneNo: "  ",
+				warehouseType: " Retail ",
+			});
+			mockPrisma.warehouse.findFirst.mockResolvedValue(null);
+			mockPrisma.warehouse.create.mockResolvedValue(mockWarehouse);
+
+			const result = await service.createWarehouse(input);
+
+			expect(result.name).toBe(mockWarehouse.name);
+			expect(mockPrisma.warehouse.create).toHaveBeenCalledWith({
+				data: expect.objectContaining({
+					name: "Stores - GH",
+					company: "Aria Corp",
+					phoneNo: null,
+					warehouseType: "Retail",
+				}),
+				select: expect.objectContaining({
+					id: true,
+					name: true,
+					company: true,
+				}),
+			});
+		});
+
+		it("should reject duplicate warehouse names", async () => {
+			const input = Inventory.createWarehouseSchema.parse({
+				name: "Stores - GH",
+				company: "Aria Corp",
+			});
+			mockPrisma.warehouse.findFirst.mockResolvedValue({ id: "duplicate-id" });
+
+			await expect(service.createWarehouse(input)).rejects.toThrow(
+				ConflictException,
+			);
+		});
+	});
+
+	describe("updateWarehouse", () => {
+		it("should update a warehouse when the name stays stable", async () => {
+			mockPrisma.warehouse.findUnique.mockResolvedValue(mockWarehouse);
+			mockPrisma.warehouse.count.mockResolvedValue(0);
+			mockPrisma.warehouse.update.mockResolvedValue({
+				...mockWarehouse,
+				disabled: true,
+			});
+
+			const result = await service.updateWarehouse({
+				id: mockWarehouse.id,
+				disabled: true,
+			});
+
+			expect(result.disabled).toBe(true);
+			expect(mockPrisma.warehouse.update).toHaveBeenCalledWith({
+				where: { id: mockWarehouse.id },
+				data: expect.objectContaining({ disabled: true }),
+				select: expect.objectContaining({
+					id: true,
+					name: true,
+				}),
+			});
+		});
+
+		it("should reject renaming a warehouse that is already referenced", async () => {
+			mockPrisma.warehouse.findUnique.mockResolvedValue(mockWarehouse);
+			mockPrisma.warehouse.findFirst.mockResolvedValue(null);
+			mockPrisma.stockSettings.count.mockResolvedValue(1);
+			mockPrisma.itemGroupDefault.count.mockResolvedValue(0);
+			mockPrisma.itemReorder.count.mockResolvedValue(0);
+			mockPrisma.materialRequest.count.mockResolvedValue(0);
+			mockPrisma.materialRequestItem.count.mockResolvedValue(0);
+			mockPrisma.stockEntry.count.mockResolvedValue(0);
+			mockPrisma.stockEntryItem.count.mockResolvedValue(0);
+			mockPrisma.deliveryNote.count.mockResolvedValue(0);
+			mockPrisma.deliveryNoteItem.count.mockResolvedValue(0);
+			mockPrisma.purchaseReceipt.count.mockResolvedValue(0);
+			mockPrisma.purchaseReceiptItem.count.mockResolvedValue(0);
+			mockPrisma.pickList.count.mockResolvedValue(0);
+			mockPrisma.pickListItem.count.mockResolvedValue(0);
+
+			await expect(
+				service.updateWarehouse({
+					id: mockWarehouse.id,
+					name: "Stores - Dubai",
+				}),
+			).rejects.toThrow(BadRequestException);
+		});
+	});
+
+	describe("deleteWarehouse", () => {
+		it("should delete a warehouse when it is not referenced", async () => {
+			mockPrisma.warehouse.findUnique.mockResolvedValue({
+				id: mockWarehouse.id,
+				name: mockWarehouse.name,
+			});
+			mockPrisma.warehouse.count.mockResolvedValue(0);
+			mockPrisma.stockSettings.count.mockResolvedValue(0);
+			mockPrisma.itemGroupDefault.count.mockResolvedValue(0);
+			mockPrisma.itemReorder.count.mockResolvedValue(0);
+			mockPrisma.materialRequest.count.mockResolvedValue(0);
+			mockPrisma.materialRequestItem.count.mockResolvedValue(0);
+			mockPrisma.stockEntry.count.mockResolvedValue(0);
+			mockPrisma.stockEntryItem.count.mockResolvedValue(0);
+			mockPrisma.deliveryNote.count.mockResolvedValue(0);
+			mockPrisma.deliveryNoteItem.count.mockResolvedValue(0);
+			mockPrisma.purchaseReceipt.count.mockResolvedValue(0);
+			mockPrisma.purchaseReceiptItem.count.mockResolvedValue(0);
+			mockPrisma.pickList.count.mockResolvedValue(0);
+			mockPrisma.pickListItem.count.mockResolvedValue(0);
+			mockPrisma.warehouse.delete.mockResolvedValue(mockWarehouse);
+
+			const result = await service.deleteWarehouse(mockWarehouse.id);
+
+			expect(result).toEqual({ success: true, id: mockWarehouse.id });
+			expect(mockPrisma.warehouse.delete).toHaveBeenCalledWith({
+				where: { id: mockWarehouse.id },
+			});
+		});
+
+		it("should reject deleting a warehouse with child warehouses", async () => {
+			mockPrisma.warehouse.findUnique.mockResolvedValue({
+				id: mockWarehouse.id,
+				name: mockWarehouse.name,
+			});
+			mockPrisma.warehouse.count.mockResolvedValueOnce(1);
+
+			await expect(service.deleteWarehouse(mockWarehouse.id)).rejects.toThrow(
+				BadRequestException,
+			);
+		});
+	});
+
+	describe("findStockSettings", () => {
+		it("should return the existing singleton stock settings", async () => {
+			mockPrisma.stockSettings.findUnique.mockResolvedValue(mockStockSettings);
+
+			const result = await service.findStockSettings();
+
+			expect(result).toEqual(mockStockSettings);
+			expect(mockPrisma.stockSettings.findUnique).toHaveBeenCalledWith({
+				where: { singletonKey: "default" },
+				select: expect.objectContaining({
+					id: true,
+					itemNamingBy: true,
+					defaultStockUom: true,
+					freezeStocksOlderThanDays: true,
+				}),
+			});
+			expect(mockPrisma.stockSettings.upsert).not.toHaveBeenCalled();
+		});
+
+		it("should create the singleton stock settings when missing", async () => {
+			mockPrisma.stockSettings.findUnique.mockResolvedValue(null);
+			mockPrisma.stockSettings.upsert.mockResolvedValue(mockStockSettings);
+
+			const result = await service.findStockSettings();
+
+			expect(result.id).toBe(mockStockSettings.id);
+			expect(mockPrisma.stockSettings.upsert).toHaveBeenCalledWith({
+				where: { singletonKey: "default" },
+				update: {},
+				create: { singletonKey: "default" },
+				select: expect.objectContaining({
+					id: true,
+					itemNamingBy: true,
+					defaultStockUom: true,
+					freezeStocksOlderThanDays: true,
+				}),
+			});
+		});
+	});
+
+	describe("findItemVariantSettings", () => {
+		it("should return the existing singleton item variant settings", async () => {
+			mockPrisma.itemVariantSettings.findUnique.mockResolvedValue(
+				mockItemVariantSettings,
+			);
+
+			const result = await service.findItemVariantSettings();
+
+			expect(result).toEqual({
+				id: mockItemVariantSettings.id,
+				doNotUpdateVariantsOnSave: false,
+				allowRenameAttributeValue: true,
+				copyFields: [
+					{
+						id: "clh123variantfield0001",
+						fieldKey: "description",
+						label: "Details",
+						category: "Basics",
+						itemProperty: "description",
+						position: 0,
+					},
+				],
+				createdAt: mockItemVariantSettings.createdAt,
+				updatedAt: mockItemVariantSettings.updatedAt,
+			});
+			expect(mockPrisma.itemVariantSettings.findUnique).toHaveBeenCalledWith({
+				where: { singletonKey: "default" },
+				select: expect.objectContaining({
+					id: true,
+					doNotUpdateVariantsOnSave: true,
+					copyFields: expect.any(Object),
+				}),
+			});
+		});
+
+		it("should create the singleton item variant settings when missing", async () => {
+			mockPrisma.itemVariantSettings.findUnique.mockResolvedValue(null);
+			mockPrisma.itemVariantSettings.upsert.mockResolvedValue({
+				...mockItemVariantSettings,
+				copyFields: [],
+			});
+
+			const result = await service.findItemVariantSettings();
+
+			expect(result.copyFields).toEqual([]);
+			expect(mockPrisma.itemVariantSettings.upsert).toHaveBeenCalledWith({
+				where: { singletonKey: "default" },
+				update: {},
+				create: { singletonKey: "default" },
+				select: expect.objectContaining({
+					id: true,
+					copyFields: expect.any(Object),
+				}),
+			});
+		});
+	});
+
+	describe("updateItemVariantSettings", () => {
+		it("should patch copy field rows without recreating preserved rows", async () => {
+			const existingFields = [
+				{
+					id: "clh123variantfield0001",
+					settingsId: mockItemVariantSettings.id,
+					fieldKey: "description",
+					position: 0,
+				},
+				{
+					id: "clh123variantfield0002",
+					settingsId: mockItemVariantSettings.id,
+					fieldKey: "disabled",
+					position: 1,
+				},
+			];
+
+			mockPrisma.itemVariantSettings.upsert.mockResolvedValue({
+				id: mockItemVariantSettings.id,
+			});
+			mockPrisma.itemVariantSettingsField.findMany.mockResolvedValue(
+				existingFields,
+			);
+			mockPrisma.itemVariantSettingsField.deleteMany.mockResolvedValue({
+				count: 1,
+			});
+			mockPrisma.itemVariantSettings.findUniqueOrThrow.mockResolvedValue({
+				...mockItemVariantSettings,
+				copyFields: [
+					{
+						id: "clh123variantfield0001",
+						fieldKey: "description",
+						position: 0,
+					},
+					{
+						id: "clh123variantfield0003",
+						fieldKey: "stock_uom",
+						position: 1,
+					},
+				],
+			});
+
+			const result = await service.updateItemVariantSettings({
+				doNotUpdateVariantsOnSave: true,
+				allowRenameAttributeValue: false,
+				copyFields: [
+					{
+						id: "clh123variantfield0001",
+						fieldKey: "description",
+					},
+					{
+						fieldKey: "stock_uom",
+					},
+				],
+			});
+
+			expect(mockPrisma.itemVariantSettingsField.update).toHaveBeenCalledWith({
+				where: { id: "clh123variantfield0001" },
+				data: { fieldKey: "description", position: 0 },
+			});
+			expect(mockPrisma.itemVariantSettingsField.create).toHaveBeenCalledWith({
+				data: {
+					settingsId: mockItemVariantSettings.id,
+					fieldKey: "stock_uom",
+					position: 1,
+				},
+			});
+			expect(
+				mockPrisma.itemVariantSettingsField.deleteMany,
+			).toHaveBeenCalledWith({
+				where: {
+					settingsId: mockItemVariantSettings.id,
+					id: { in: ["clh123variantfield0002"] },
+				},
+			});
+			expect(result.copyFields).toEqual([
+				{
+					id: "clh123variantfield0001",
+					fieldKey: "description",
+					label: "Details",
+					category: "Basics",
+					itemProperty: "description",
+					position: 0,
+				},
+				{
+					id: "clh123variantfield0003",
+					fieldKey: "stock_uom",
+					label: "Stock UOM",
+					category: "Basics",
+					itemProperty: "defaultUnitOfMeasureId",
+					position: 1,
+				},
+			]);
+		});
+
+		it("should reject duplicate copy fields", async () => {
+			await expect(
+				service.updateItemVariantSettings({
+					doNotUpdateVariantsOnSave: false,
+					allowRenameAttributeValue: false,
+					copyFields: [
+						{ fieldKey: "description" },
+						{ fieldKey: "description" },
+					],
+				}),
+			).rejects.toThrow(BadRequestException);
+		});
+	});
+
+	describe("updateStockSettings", () => {
+		it("should upsert stock settings and canonicalize the default stock UOM", async () => {
+			const input = Inventory.updateStockSettingsSchema.parse({
+				...mockStockSettingsInput,
+				defaultWarehouse: " Stores - GH ",
+				defaultStockUom: "nos",
+			});
+			mockPrisma.unitOfMeasurement.findFirst.mockResolvedValue({ name: "Nos" });
+			mockPrisma.stockSettings.upsert.mockResolvedValue({
+				...mockStockSettings,
+				defaultWarehouse: "Stores - GH",
+				defaultStockUom: "Nos",
+			});
+
+			const result = await service.updateStockSettings(input);
+
+			expect(result.defaultWarehouse).toBe("Stores - GH");
+			expect(result.defaultStockUom).toBe("Nos");
+			expect(mockPrisma.stockSettings.upsert).toHaveBeenCalledWith({
+				where: { singletonKey: "default" },
+				update: expect.objectContaining({
+					defaultWarehouse: "Stores - GH",
+					defaultStockUom: "Nos",
+				}),
+				create: expect.objectContaining({
+					singletonKey: "default",
+					defaultWarehouse: "Stores - GH",
+					defaultStockUom: "Nos",
+				}),
+				select: expect.objectContaining({
+					id: true,
+					itemNamingBy: true,
+					defaultStockUom: true,
+					freezeStocksOlderThanDays: true,
+				}),
+			});
+		});
+
+		it("should reject a default stock UOM that does not exist", async () => {
+			const input = Inventory.updateStockSettingsSchema.parse({
+				...mockStockSettingsInput,
+				defaultStockUom: "Ghost UOM",
+			});
+			mockPrisma.unitOfMeasurement.findFirst.mockResolvedValue(null);
+
+			await expect(service.updateStockSettings(input)).rejects.toThrow(
+				BadRequestException,
+			);
+			expect(mockPrisma.stockSettings.upsert).not.toHaveBeenCalled();
+		});
+	});
+
 	describe("createUnitOfMeasure", () => {
 		it("should create a unit of measure", async () => {
 			const input = Inventory.createUnitOfMeasureSchema.parse({
@@ -1016,6 +1631,226 @@ describe("InventoryService", () => {
 			mockPrisma.unitOfMeasurement.delete.mockRejectedValue(error);
 
 			await expect(service.deleteUnitOfMeasure("missing-uom")).rejects.toThrow(
+				NotFoundException,
+			);
+		});
+	});
+
+	// ==========================================================================
+	// Item Attribute
+	// ==========================================================================
+
+	describe("findAllItemAttributes", () => {
+		it("should return all item attributes with nested values", async () => {
+			mockPrisma.itemAttribute.findMany.mockResolvedValue([mockItemAttribute]);
+
+			const result = await service.findAllItemAttributes();
+
+			expect(result).toHaveLength(1);
+			expect(result[0]).toMatchObject({
+				id: mockItemAttribute.id,
+				name: mockItemAttribute.name,
+				disabled: mockItemAttribute.disabled,
+				numericValues: mockItemAttribute.numericValues,
+			});
+			expect(result[0].attributeValues).toHaveLength(1);
+			expect(result[0].attributeValues[0]).toMatchObject({
+				attributeValue: "Red",
+				abbreviation: "R",
+			});
+		});
+
+		it("should pass the search filter when provided", async () => {
+			mockPrisma.itemAttribute.findMany.mockResolvedValue([]);
+
+			await service.findAllItemAttributes("Colour");
+
+			expect(mockPrisma.itemAttribute.findMany).toHaveBeenCalledWith(
+				expect.objectContaining({
+					where: { name: { contains: "Colour", mode: "insensitive" } },
+				}),
+			);
+		});
+	});
+
+	describe("findItemAttributeById", () => {
+		it("should return an item attribute by id", async () => {
+			mockPrisma.itemAttribute.findUnique.mockResolvedValue(mockItemAttribute);
+
+			const result = await service.findItemAttributeById(mockItemAttribute.id);
+
+			expect(result.id).toBe(mockItemAttribute.id);
+			expect(result.name).toBe(mockItemAttribute.name);
+		});
+
+		it("should throw NotFoundException when id does not exist", async () => {
+			mockPrisma.itemAttribute.findUnique.mockResolvedValue(null);
+
+			await expect(service.findItemAttributeById("missing-id")).rejects.toThrow(
+				NotFoundException,
+			);
+		});
+	});
+
+	describe("createItemAttribute", () => {
+		it("should create an item attribute with nested values", async () => {
+			mockPrisma.itemAttribute.create.mockResolvedValue(mockItemAttribute);
+
+			const result = await service.createItemAttribute({
+				name: "Colour",
+				disabled: false,
+				numericValues: false,
+				attributeValues: [{ attributeValue: "Red", abbreviation: "R" }],
+			});
+
+			expect(result.name).toBe("Colour");
+			expect(mockPrisma.itemAttribute.create).toHaveBeenCalledWith(
+				expect.objectContaining({
+					data: expect.objectContaining({
+						name: "Colour",
+						attributeValues: {
+							create: [
+								expect.objectContaining({
+									attributeValue: "Red",
+									abbreviation: "R",
+									position: 0,
+								}),
+							],
+						},
+					}),
+				}),
+			);
+		});
+
+		it("should throw ConflictException on duplicate name (P2002)", async () => {
+			const error = new Prisma.PrismaClientKnownRequestError(
+				"Unique constraint failed",
+				{ code: "P2002", clientVersion: "5.0.0" },
+			);
+			mockPrisma.itemAttribute.create.mockRejectedValue(error);
+
+			await expect(
+				service.createItemAttribute({
+					name: "Colour",
+					disabled: false,
+					numericValues: false,
+					attributeValues: [],
+				}),
+			).rejects.toThrow(ConflictException);
+		});
+	});
+
+	describe("updateItemAttribute", () => {
+		it("should update scalar fields and upsert attribute values", async () => {
+			mockPrisma.itemAttribute.findUnique.mockResolvedValue(mockItemAttribute);
+			mockPrisma.itemAttribute.update.mockResolvedValue(mockItemAttribute);
+			mockPrisma.itemAttributeValue.deleteMany.mockResolvedValue({ count: 0 });
+			mockPrisma.itemAttributeValue.update.mockResolvedValue(
+				mockItemAttributeValue,
+			);
+			mockPrisma.itemAttribute.findUniqueOrThrow.mockResolvedValue(
+				mockItemAttribute,
+			);
+
+			const result = await service.updateItemAttribute({
+				id: mockItemAttribute.id,
+				name: "Colour",
+				attributeValues: [
+					{
+						id: mockItemAttributeValue.id,
+						attributeValue: "Red",
+						abbreviation: "R",
+					},
+				],
+			});
+
+			expect(result.id).toBe(mockItemAttribute.id);
+			// existing value should be updated, not created
+			expect(mockPrisma.itemAttributeValue.update).toHaveBeenCalledWith(
+				expect.objectContaining({
+					where: { id: mockItemAttributeValue.id },
+					data: expect.objectContaining({ attributeValue: "Red" }),
+				}),
+			);
+		});
+
+		it("should create new attribute values when no id is provided", async () => {
+			mockPrisma.itemAttribute.findUnique.mockResolvedValue(mockItemAttribute);
+			mockPrisma.itemAttribute.update.mockResolvedValue(mockItemAttribute);
+			mockPrisma.itemAttributeValue.deleteMany.mockResolvedValue({ count: 0 });
+			mockPrisma.itemAttributeValue.create.mockResolvedValue(
+				mockItemAttributeValue,
+			);
+			mockPrisma.itemAttribute.findUniqueOrThrow.mockResolvedValue(
+				mockItemAttribute,
+			);
+
+			await service.updateItemAttribute({
+				id: mockItemAttribute.id,
+				attributeValues: [{ attributeValue: "Blue", abbreviation: "B" }],
+			});
+
+			expect(mockPrisma.itemAttributeValue.create).toHaveBeenCalledWith(
+				expect.objectContaining({
+					data: expect.objectContaining({
+						attributeValue: "Blue",
+						abbreviation: "B",
+					}),
+				}),
+			);
+		});
+
+		it("should throw NotFoundException when attribute does not exist", async () => {
+			mockPrisma.itemAttribute.findUnique.mockResolvedValue(null);
+
+			await expect(
+				service.updateItemAttribute({
+					id: "missing-id",
+					name: "X",
+				}),
+			).rejects.toThrow(NotFoundException);
+		});
+
+		it("should throw ConflictException on duplicate name (P2002)", async () => {
+			mockPrisma.itemAttribute.findUnique.mockResolvedValue(mockItemAttribute);
+			const error = new Prisma.PrismaClientKnownRequestError(
+				"Unique constraint failed",
+				{ code: "P2002", clientVersion: "5.0.0" },
+			);
+			mockPrisma.itemAttribute.update.mockRejectedValue(error);
+
+			await expect(
+				service.updateItemAttribute({
+					id: mockItemAttribute.id,
+					name: "Colour",
+				}),
+			).rejects.toThrow(ConflictException);
+		});
+	});
+
+	describe("deleteItemAttribute", () => {
+		it("should delete an item attribute by id", async () => {
+			mockPrisma.itemAttribute.delete.mockResolvedValue(mockItemAttribute);
+
+			const result = await service.deleteItemAttribute(mockItemAttribute.id);
+
+			expect(result).toEqual({
+				success: true,
+				id: mockItemAttribute.id,
+			});
+			expect(mockPrisma.itemAttribute.delete).toHaveBeenCalledWith({
+				where: { id: mockItemAttribute.id },
+			});
+		});
+
+		it("should throw NotFoundException when item attribute does not exist", async () => {
+			const error = new Prisma.PrismaClientKnownRequestError(
+				"Record not found",
+				{ code: "P2025", clientVersion: "5.0.0" },
+			);
+			mockPrisma.itemAttribute.delete.mockRejectedValue(error);
+
+			await expect(service.deleteItemAttribute("missing-id")).rejects.toThrow(
 				NotFoundException,
 			);
 		});

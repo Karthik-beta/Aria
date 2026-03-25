@@ -1,0 +1,46 @@
+-- CreateTable
+CREATE TABLE "stock_settings" (
+    "id" TEXT NOT NULL,
+    "singletonKey" VARCHAR(32) NOT NULL DEFAULT 'default',
+    "itemNamingBy" VARCHAR(50) NOT NULL DEFAULT 'ITEM_CODE',
+    "defaultWarehouse" VARCHAR(255),
+    "defaultValuationMethod" VARCHAR(50) NOT NULL DEFAULT 'FIFO',
+    "defaultStockUom" VARCHAR(50),
+    "autoInsertItemPriceIfMissing" BOOLEAN NOT NULL DEFAULT false,
+    "updateExistingPriceListRate" BOOLEAN NOT NULL DEFAULT false,
+    "allowToEditStockUomQtyForSalesDocuments" BOOLEAN NOT NULL DEFAULT false,
+    "allowToEditStockUomQtyForPurchaseDocuments" BOOLEAN NOT NULL DEFAULT false,
+    "overDeliveryReceiptAllowancePercent" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "allowNegativeStock" BOOLEAN NOT NULL DEFAULT false,
+    "showBarcodeFieldInStockTransactions" BOOLEAN NOT NULL DEFAULT false,
+    "convertItemDescriptionToCleanHtmlInTransactions" BOOLEAN NOT NULL DEFAULT false,
+    "overTransferAllowancePercent" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "allowInternalTransfersAtArmsLengthPrice" BOOLEAN NOT NULL DEFAULT false,
+    "overPickingAllowancePercent" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "actionIfQualityInspectionIsNotSubmitted" VARCHAR(20) NOT NULL DEFAULT 'STOP',
+    "actionIfQualityInspectionIsRejected" VARCHAR(20) NOT NULL DEFAULT 'STOP',
+    "enableStockReservation" BOOLEAN NOT NULL DEFAULT false,
+    "allowPartialReservation" BOOLEAN NOT NULL DEFAULT false,
+    "autoReserveStockForSalesOrderOnPurchase" BOOLEAN NOT NULL DEFAULT false,
+    "autoReserveSerialAndBatchNos" BOOLEAN NOT NULL DEFAULT false,
+    "autoCreateSerialAndBatchBundleForOutward" BOOLEAN NOT NULL DEFAULT false,
+    "disableSerialNoAndBatchSelector" BOOLEAN NOT NULL DEFAULT false,
+    "haveDefaultNamingSeriesForBatchId" BOOLEAN NOT NULL DEFAULT false,
+    "pickSerialBatchBasedOn" VARCHAR(20) NOT NULL DEFAULT 'FIFO',
+    "useSerialBatchFields" BOOLEAN NOT NULL DEFAULT false,
+    "doNotUpdateSerialBatchOnCreationOfAutoBundle" BOOLEAN NOT NULL DEFAULT false,
+    "allowExistingSerialNoToBeManufacturedReceivedAgain" BOOLEAN NOT NULL DEFAULT false,
+    "setSerialAndBatchBundleNamingBasedOnNamingSeries" BOOLEAN NOT NULL DEFAULT false,
+    "raiseMaterialRequestWhenStockReachesReorderLevel" BOOLEAN NOT NULL DEFAULT false,
+    "notifyByEmailOnCreationOfAutomaticMaterialRequest" BOOLEAN NOT NULL DEFAULT false,
+    "allowMaterialTransferFromDeliveryNoteToSalesInvoice" BOOLEAN NOT NULL DEFAULT false,
+    "allowMaterialTransferFromPurchaseReceiptToPurchaseInvoice" BOOLEAN NOT NULL DEFAULT false,
+    "freezeStocksOlderThanDays" INTEGER NOT NULL DEFAULT 60,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "stock_settings_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "stock_settings_singletonKey_key" ON "stock_settings"("singletonKey");

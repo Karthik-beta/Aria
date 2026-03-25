@@ -116,6 +116,21 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
 	get brand() {
 		return this.client.brand;
 	}
+	get itemAttribute() {
+		return this.client.itemAttribute;
+	}
+	get itemAttributeValue() {
+		return this.client.itemAttributeValue;
+	}
+	get warehouse() {
+		return this.client.warehouse;
+	}
+	get itemVariantSettings() {
+		return this.client.itemVariantSettings;
+	}
+	get itemVariantSettingsField() {
+		return this.client.itemVariantSettingsField;
+	}
 	get productBundle() {
 		return this.client.productBundle;
 	}
@@ -175,6 +190,9 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
 	}
 	get deliveryTripStop() {
 		return this.client.deliveryTripStop;
+	}
+	get stockSettings() {
+		return this.client.stockSettings;
 	}
 
 	// ═══════════════════════════════════════════════════════════════════════════

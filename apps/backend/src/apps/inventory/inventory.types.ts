@@ -1,4 +1,4 @@
-import type { Inventory } from "@aria/types";
+import { Inventory } from "@aria/types";
 import type { Prisma } from "../../generated/prisma/client";
 
 /**
@@ -62,6 +62,46 @@ export type InventoryShippingRule = Prisma.ShippingRuleGetPayload<{
 }>;
 
 /**
+ * Prisma model type for Brand with scalar fields only
+ */
+export type InventoryBrand = Prisma.BrandGetPayload<{
+	select: {
+		id: true;
+		name: true;
+		description: true;
+		createdAt: true;
+		updatedAt: true;
+	};
+}>;
+
+/**
+ * Prisma model type for ItemAttribute with nested attribute values.
+ * Values are ordered by position ascending.
+ */
+export type InventoryItemAttribute = Prisma.ItemAttributeGetPayload<{
+	select: {
+		id: true;
+		name: true;
+		disabled: true;
+		numericValues: true;
+		createdAt: true;
+		updatedAt: true;
+		attributeValues: {
+			select: {
+				id: true;
+				attributeId: true;
+				attributeValue: true;
+				abbreviation: true;
+				position: true;
+				createdAt: true;
+				updatedAt: true;
+			};
+			orderBy: { position: "asc" };
+		};
+	};
+}>;
+
+/**
  * Prisma model type for UnitOfMeasurement with scalar fields only
  */
 export type InventoryUnitOfMeasure = Prisma.UnitOfMeasurementGetPayload<{
@@ -74,6 +114,110 @@ export type InventoryUnitOfMeasure = Prisma.UnitOfMeasurementGetPayload<{
 		updatedAt: true;
 	};
 }>;
+
+/**
+ * Prisma model type for Warehouse with related display names.
+ */
+export type InventoryWarehouse = Prisma.WarehouseGetPayload<{
+	select: {
+		id: true;
+		name: true;
+		disabled: true;
+		isGroupWarehouse: true;
+		parentWarehouseId: true;
+		company: true;
+		isRejectedWarehouse: true;
+		phoneNo: true;
+		mobileNo: true;
+		addressLine1: true;
+		addressLine2: true;
+		city: true;
+		state: true;
+		pin: true;
+		warehouseType: true;
+		defaultInTransitWarehouseId: true;
+		createdAt: true;
+		updatedAt: true;
+		parentWarehouse: {
+			select: {
+				id: true;
+				name: true;
+			};
+		};
+		defaultInTransitWarehouse: {
+			select: {
+				id: true;
+				name: true;
+			};
+		};
+	};
+}>;
+
+/**
+ * Prisma model type for singleton StockSettings.
+ */
+export type InventoryStockSettings = Prisma.StockSettingsGetPayload<{
+	select: {
+		id: true;
+		itemNamingBy: true;
+		defaultWarehouse: true;
+		defaultValuationMethod: true;
+		defaultStockUom: true;
+		autoInsertItemPriceIfMissing: true;
+		updateExistingPriceListRate: true;
+		allowToEditStockUomQtyForSalesDocuments: true;
+		allowToEditStockUomQtyForPurchaseDocuments: true;
+		overDeliveryReceiptAllowancePercent: true;
+		allowNegativeStock: true;
+		showBarcodeFieldInStockTransactions: true;
+		convertItemDescriptionToCleanHtmlInTransactions: true;
+		overTransferAllowancePercent: true;
+		allowInternalTransfersAtArmsLengthPrice: true;
+		overPickingAllowancePercent: true;
+		actionIfQualityInspectionIsNotSubmitted: true;
+		actionIfQualityInspectionIsRejected: true;
+		enableStockReservation: true;
+		allowPartialReservation: true;
+		autoReserveStockForSalesOrderOnPurchase: true;
+		autoReserveSerialAndBatchNos: true;
+		autoCreateSerialAndBatchBundleForOutward: true;
+		disableSerialNoAndBatchSelector: true;
+		haveDefaultNamingSeriesForBatchId: true;
+		pickSerialBatchBasedOn: true;
+		useSerialBatchFields: true;
+		doNotUpdateSerialBatchOnCreationOfAutoBundle: true;
+		allowExistingSerialNoToBeManufacturedReceivedAgain: true;
+		setSerialAndBatchBundleNamingBasedOnNamingSeries: true;
+		raiseMaterialRequestWhenStockReachesReorderLevel: true;
+		notifyByEmailOnCreationOfAutomaticMaterialRequest: true;
+		allowMaterialTransferFromDeliveryNoteToSalesInvoice: true;
+		allowMaterialTransferFromPurchaseReceiptToPurchaseInvoice: true;
+		freezeStocksOlderThanDays: true;
+		createdAt: true;
+		updatedAt: true;
+	};
+}>;
+
+/**
+ * Prisma model type for singleton ItemVariantSettings with ordered child rows.
+ */
+export type InventoryItemVariantSettings =
+	Prisma.ItemVariantSettingsGetPayload<{
+		select: {
+			id: true;
+			doNotUpdateVariantsOnSave: true;
+			allowRenameAttributeValue: true;
+			createdAt: true;
+			updatedAt: true;
+			copyFields: {
+				select: {
+					id: true;
+					fieldKey: true;
+					position: true;
+				};
+			};
+		};
+	}>;
 
 /**
  * Prisma model type for ItemAlternate with relations
@@ -248,6 +392,44 @@ export function toInventoryShippingRule(
 }
 
 /**
+ * Converts a Prisma Brand to Inventory.Brand
+ */
+export function toInventoryBrand(prismaBrand: InventoryBrand): Inventory.Brand {
+	return {
+		id: prismaBrand.id,
+		name: prismaBrand.name,
+		description: prismaBrand.description,
+		createdAt: prismaBrand.createdAt,
+		updatedAt: prismaBrand.updatedAt,
+	};
+}
+
+/**
+ * Converts a Prisma ItemAttribute (with nested values) to Inventory.ItemAttribute.
+ */
+export function toInventoryItemAttribute(
+	prismaAttr: InventoryItemAttribute,
+): Inventory.ItemAttribute {
+	return {
+		id: prismaAttr.id,
+		name: prismaAttr.name,
+		disabled: prismaAttr.disabled,
+		numericValues: prismaAttr.numericValues,
+		attributeValues: prismaAttr.attributeValues.map((v) => ({
+			id: v.id,
+			attributeId: v.attributeId,
+			attributeValue: v.attributeValue,
+			abbreviation: v.abbreviation,
+			position: v.position,
+			createdAt: v.createdAt,
+			updatedAt: v.updatedAt,
+		})),
+		createdAt: prismaAttr.createdAt,
+		updatedAt: prismaAttr.updatedAt,
+	};
+}
+
+/**
  * Converts a Prisma UnitOfMeasurement to Inventory.UnitOfMeasure
  */
 export function toInventoryUnitOfMeasure(
@@ -260,6 +442,167 @@ export function toInventoryUnitOfMeasure(
 		isWholeNumber: prismaUnitOfMeasure.isWholeNumber,
 		createdAt: prismaUnitOfMeasure.createdAt,
 		updatedAt: prismaUnitOfMeasure.updatedAt,
+	};
+}
+
+/**
+ * Converts a Prisma Warehouse record to Inventory.Warehouse.
+ */
+export function toInventoryWarehouse(
+	prismaWarehouse: InventoryWarehouse,
+): Inventory.Warehouse {
+	return {
+		id: prismaWarehouse.id,
+		name: prismaWarehouse.name,
+		disabled: prismaWarehouse.disabled,
+		isGroupWarehouse: prismaWarehouse.isGroupWarehouse,
+		parentWarehouseId: prismaWarehouse.parentWarehouseId,
+		parentWarehouseName: prismaWarehouse.parentWarehouse?.name ?? null,
+		company: prismaWarehouse.company,
+		isRejectedWarehouse: prismaWarehouse.isRejectedWarehouse,
+		phoneNo: prismaWarehouse.phoneNo,
+		mobileNo: prismaWarehouse.mobileNo,
+		addressLine1: prismaWarehouse.addressLine1,
+		addressLine2: prismaWarehouse.addressLine2,
+		city: prismaWarehouse.city,
+		state: prismaWarehouse.state,
+		pin: prismaWarehouse.pin,
+		warehouseType: prismaWarehouse.warehouseType,
+		defaultInTransitWarehouseId: prismaWarehouse.defaultInTransitWarehouseId,
+		defaultInTransitWarehouseName:
+			prismaWarehouse.defaultInTransitWarehouse?.name ?? null,
+		createdAt: prismaWarehouse.createdAt,
+		updatedAt: prismaWarehouse.updatedAt,
+	};
+}
+
+/**
+ * Converts Prisma singleton stock settings to Inventory.StockSettings.
+ */
+export function toInventoryStockSettings(
+	prismaStockSettings: InventoryStockSettings,
+): Inventory.StockSettings {
+	const parsedSettings = Inventory.updateStockSettingsSchema.parse({
+		itemNamingBy: prismaStockSettings.itemNamingBy,
+		defaultWarehouse: prismaStockSettings.defaultWarehouse,
+		defaultValuationMethod: prismaStockSettings.defaultValuationMethod,
+		defaultStockUom: prismaStockSettings.defaultStockUom,
+		autoInsertItemPriceIfMissing:
+			prismaStockSettings.autoInsertItemPriceIfMissing,
+		updateExistingPriceListRate:
+			prismaStockSettings.updateExistingPriceListRate,
+		allowToEditStockUomQtyForSalesDocuments:
+			prismaStockSettings.allowToEditStockUomQtyForSalesDocuments,
+		allowToEditStockUomQtyForPurchaseDocuments:
+			prismaStockSettings.allowToEditStockUomQtyForPurchaseDocuments,
+		overDeliveryReceiptAllowancePercent:
+			prismaStockSettings.overDeliveryReceiptAllowancePercent,
+		allowNegativeStock: prismaStockSettings.allowNegativeStock,
+		showBarcodeFieldInStockTransactions:
+			prismaStockSettings.showBarcodeFieldInStockTransactions,
+		convertItemDescriptionToCleanHtmlInTransactions:
+			prismaStockSettings.convertItemDescriptionToCleanHtmlInTransactions,
+		overTransferAllowancePercent:
+			prismaStockSettings.overTransferAllowancePercent,
+		allowInternalTransfersAtArmsLengthPrice:
+			prismaStockSettings.allowInternalTransfersAtArmsLengthPrice,
+		overPickingAllowancePercent:
+			prismaStockSettings.overPickingAllowancePercent,
+		actionIfQualityInspectionIsNotSubmitted:
+			prismaStockSettings.actionIfQualityInspectionIsNotSubmitted,
+		actionIfQualityInspectionIsRejected:
+			prismaStockSettings.actionIfQualityInspectionIsRejected,
+		enableStockReservation: prismaStockSettings.enableStockReservation,
+		allowPartialReservation: prismaStockSettings.allowPartialReservation,
+		autoReserveStockForSalesOrderOnPurchase:
+			prismaStockSettings.autoReserveStockForSalesOrderOnPurchase,
+		autoReserveSerialAndBatchNos:
+			prismaStockSettings.autoReserveSerialAndBatchNos,
+		autoCreateSerialAndBatchBundleForOutward:
+			prismaStockSettings.autoCreateSerialAndBatchBundleForOutward,
+		disableSerialNoAndBatchSelector:
+			prismaStockSettings.disableSerialNoAndBatchSelector,
+		haveDefaultNamingSeriesForBatchId:
+			prismaStockSettings.haveDefaultNamingSeriesForBatchId,
+		pickSerialBatchBasedOn: prismaStockSettings.pickSerialBatchBasedOn,
+		useSerialBatchFields: prismaStockSettings.useSerialBatchFields,
+		doNotUpdateSerialBatchOnCreationOfAutoBundle:
+			prismaStockSettings.doNotUpdateSerialBatchOnCreationOfAutoBundle,
+		allowExistingSerialNoToBeManufacturedReceivedAgain:
+			prismaStockSettings.allowExistingSerialNoToBeManufacturedReceivedAgain,
+		setSerialAndBatchBundleNamingBasedOnNamingSeries:
+			prismaStockSettings.setSerialAndBatchBundleNamingBasedOnNamingSeries,
+		raiseMaterialRequestWhenStockReachesReorderLevel:
+			prismaStockSettings.raiseMaterialRequestWhenStockReachesReorderLevel,
+		notifyByEmailOnCreationOfAutomaticMaterialRequest:
+			prismaStockSettings.notifyByEmailOnCreationOfAutomaticMaterialRequest,
+		allowMaterialTransferFromDeliveryNoteToSalesInvoice:
+			prismaStockSettings.allowMaterialTransferFromDeliveryNoteToSalesInvoice,
+		allowMaterialTransferFromPurchaseReceiptToPurchaseInvoice:
+			prismaStockSettings.allowMaterialTransferFromPurchaseReceiptToPurchaseInvoice,
+		freezeStocksOlderThanDays: prismaStockSettings.freezeStocksOlderThanDays,
+	});
+
+	return {
+		id: prismaStockSettings.id,
+		...parsedSettings,
+		defaultWarehouse: parsedSettings.defaultWarehouse ?? null,
+		defaultStockUom: parsedSettings.defaultStockUom ?? null,
+		createdAt: prismaStockSettings.createdAt,
+		updatedAt: prismaStockSettings.updatedAt,
+	};
+}
+
+/**
+ * Converts Prisma singleton item variant settings to Inventory.ItemVariantSettings.
+ */
+export function toInventoryItemVariantSettings(
+	prismaSettings: InventoryItemVariantSettings,
+): Inventory.ItemVariantSettings {
+	const parsedSettings = Inventory.updateItemVariantSettingsSchema.parse({
+		doNotUpdateVariantsOnSave: prismaSettings.doNotUpdateVariantsOnSave,
+		allowRenameAttributeValue: prismaSettings.allowRenameAttributeValue,
+		copyFields: prismaSettings.copyFields.map((field) => ({
+			id: field.id,
+			fieldKey: field.fieldKey,
+		})),
+	});
+
+	const optionsByKey = new Map<
+		Inventory.ItemVariantCopyFieldKey,
+		Inventory.ItemVariantCopyFieldOption
+	>(
+		Inventory.ITEM_VARIANT_COPY_FIELD_OPTIONS.map((option) => [
+			option.value,
+			option,
+		]),
+	);
+
+	return {
+		id: prismaSettings.id,
+		doNotUpdateVariantsOnSave: parsedSettings.doNotUpdateVariantsOnSave,
+		allowRenameAttributeValue: parsedSettings.allowRenameAttributeValue,
+		copyFields: parsedSettings.copyFields.map((field, index) => {
+			const persistedField = prismaSettings.copyFields[index];
+			const option = optionsByKey.get(field.fieldKey);
+
+			if (!persistedField || !option) {
+				throw new Error(
+					`Unknown item variant copy field option: ${field.fieldKey}`,
+				);
+			}
+
+			return {
+				id: persistedField.id,
+				fieldKey: field.fieldKey,
+				label: option.label,
+				category: option.category,
+				itemProperty: option.itemProperty,
+				position: persistedField.position ?? index,
+			};
+		}),
+		createdAt: prismaSettings.createdAt,
+		updatedAt: prismaSettings.updatedAt,
 	};
 }
 

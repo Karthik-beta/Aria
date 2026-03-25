@@ -68,6 +68,142 @@ type InventoryRouterInput = {
 		output: Inventory.UnitOfMeasure[];
 		meta: object;
 	}>;
+	listWarehouses: TRPCQueryProcedure<{
+		input:
+			| {
+					skip?: number | undefined;
+					take?: number | undefined;
+					search?: string | undefined;
+					company?: string | undefined;
+					disabled?: boolean | undefined;
+					isGroupWarehouse?: boolean | undefined;
+			  }
+			| undefined;
+		output: Inventory.WarehouseListResult;
+		meta: object;
+	}>;
+	getWarehouseById: TRPCQueryProcedure<{
+		input: {
+			id: string;
+		};
+		output: Inventory.Warehouse | null;
+		meta: object;
+	}>;
+	createWarehouse: TRPCMutationProcedure<{
+		input: {
+			name: string;
+			disabled?: boolean | undefined;
+			isGroupWarehouse?: boolean | undefined;
+			parentWarehouseId?: string | null | undefined;
+			company: string;
+			isRejectedWarehouse?: boolean | undefined;
+			phoneNo?: string | null | undefined;
+			mobileNo?: string | null | undefined;
+			addressLine1?: string | null | undefined;
+			addressLine2?: string | null | undefined;
+			city?: string | null | undefined;
+			state?: string | null | undefined;
+			pin?: string | null | undefined;
+			warehouseType?: string | null | undefined;
+			defaultInTransitWarehouseId?: string | null | undefined;
+		};
+		output: Inventory.Warehouse;
+		meta: object;
+	}>;
+	updateWarehouse: TRPCMutationProcedure<{
+		input: {
+			id: string;
+			name?: string | undefined;
+			disabled?: boolean | undefined;
+			isGroupWarehouse?: boolean | undefined;
+			parentWarehouseId?: string | null | undefined;
+			company?: string | undefined;
+			isRejectedWarehouse?: boolean | undefined;
+			phoneNo?: string | null | undefined;
+			mobileNo?: string | null | undefined;
+			addressLine1?: string | null | undefined;
+			addressLine2?: string | null | undefined;
+			city?: string | null | undefined;
+			state?: string | null | undefined;
+			pin?: string | null | undefined;
+			warehouseType?: string | null | undefined;
+			defaultInTransitWarehouseId?: string | null | undefined;
+		};
+		output: Inventory.Warehouse;
+		meta: object;
+	}>;
+	deleteWarehouse: TRPCMutationProcedure<{
+		input: {
+			id: string;
+		};
+		output: {
+			success: boolean;
+			id: string;
+		};
+		meta: object;
+	}>;
+	getItemVariantSettings: TRPCQueryProcedure<{
+		input: void;
+		output: Inventory.ItemVariantSettings;
+		meta: object;
+	}>;
+	updateItemVariantSettings: TRPCMutationProcedure<{
+		input: {
+			doNotUpdateVariantsOnSave: boolean;
+			allowRenameAttributeValue: boolean;
+			copyFields: {
+				id?: string | undefined;
+				fieldKey: Inventory.ItemVariantCopyFieldKey;
+			}[];
+		};
+		output: Inventory.ItemVariantSettings;
+		meta: object;
+	}>;
+	getStockSettings: TRPCQueryProcedure<{
+		input: void;
+		output: Inventory.StockSettings;
+		meta: object;
+	}>;
+	updateStockSettings: TRPCMutationProcedure<{
+		input: {
+			itemNamingBy: "ITEM_CODE" | "NAMING_SERIES";
+			defaultWarehouse?: string | null | undefined;
+			defaultValuationMethod: "FIFO" | "MOVING_AVERAGE";
+			defaultStockUom?: string | null | undefined;
+			autoInsertItemPriceIfMissing: boolean;
+			updateExistingPriceListRate: boolean;
+			allowToEditStockUomQtyForSalesDocuments: boolean;
+			allowToEditStockUomQtyForPurchaseDocuments: boolean;
+			overDeliveryReceiptAllowancePercent: number;
+			allowNegativeStock: boolean;
+			showBarcodeFieldInStockTransactions: boolean;
+			convertItemDescriptionToCleanHtmlInTransactions: boolean;
+			overTransferAllowancePercent: number;
+			allowInternalTransfersAtArmsLengthPrice: boolean;
+			overPickingAllowancePercent: number;
+			actionIfQualityInspectionIsNotSubmitted: "STOP" | "WARN";
+			actionIfQualityInspectionIsRejected: "STOP" | "WARN";
+			enableStockReservation: boolean;
+			allowPartialReservation: boolean;
+			autoReserveStockForSalesOrderOnPurchase: boolean;
+			autoReserveSerialAndBatchNos: boolean;
+			autoCreateSerialAndBatchBundleForOutward: boolean;
+			disableSerialNoAndBatchSelector: boolean;
+			haveDefaultNamingSeriesForBatchId: boolean;
+			pickSerialBatchBasedOn: "FIFO" | "LIFO" | "EXPIRY";
+			useSerialBatchFields: boolean;
+			doNotUpdateSerialBatchOnCreationOfAutoBundle: boolean;
+			allowExistingSerialNoToBeManufacturedReceivedAgain: boolean;
+			setSerialAndBatchBundleNamingBasedOnNamingSeries: boolean;
+			raiseMaterialRequestWhenStockReachesReorderLevel: boolean;
+			notifyByEmailOnCreationOfAutomaticMaterialRequest: boolean;
+			allowMaterialTransferFromDeliveryNoteToSalesInvoice: boolean;
+			allowMaterialTransferFromPurchaseReceiptToPurchaseInvoice: boolean;
+			freezeStocksOlderThanDays: number;
+		};
+		output: Inventory.StockSettings;
+		meta: object;
+	}>;
 	getUnitOfMeasureById: TRPCQueryProcedure<{
 		input: {
 			id: string;
@@ -95,6 +231,105 @@ type InventoryRouterInput = {
 		meta: object;
 	}>;
 	deleteUnitOfMeasure: TRPCMutationProcedure<{
+		input: {
+			id: string;
+		};
+		output: {
+			success: boolean;
+			id: string;
+		};
+		meta: object;
+	}>;
+	listBrands: TRPCQueryProcedure<{
+		input:
+			| {
+					search?: string | undefined;
+			  }
+			| undefined;
+		output: Inventory.Brand[];
+		meta: object;
+	}>;
+	getBrandById: TRPCQueryProcedure<{
+		input: {
+			id: string;
+		};
+		output: Inventory.Brand | null;
+		meta: object;
+	}>;
+	createBrand: TRPCMutationProcedure<{
+		input: {
+			name: string;
+			description?: string | null | undefined;
+		};
+		output: Inventory.Brand;
+		meta: object;
+	}>;
+	updateBrand: TRPCMutationProcedure<{
+		input: {
+			id: string;
+			name?: string | undefined;
+			description?: string | null | undefined;
+		};
+		output: Inventory.Brand;
+		meta: object;
+	}>;
+	deleteBrand: TRPCMutationProcedure<{
+		input: {
+			id: string;
+		};
+		output: {
+			success: boolean;
+			id: string;
+		};
+		meta: object;
+	}>;
+	listItemAttributes: TRPCQueryProcedure<{
+		input:
+			| {
+					search?: string | undefined;
+			  }
+			| undefined;
+		output: Inventory.ItemAttribute[];
+		meta: object;
+	}>;
+	getItemAttributeById: TRPCQueryProcedure<{
+		input: {
+			id: string;
+		};
+		output: Inventory.ItemAttribute | null;
+		meta: object;
+	}>;
+	createItemAttribute: TRPCMutationProcedure<{
+		input: {
+			name: string;
+			disabled?: boolean | undefined;
+			numericValues?: boolean | undefined;
+			attributeValues?: {
+				attributeValue: string;
+				abbreviation: string;
+				position?: number | undefined;
+			}[];
+		};
+		output: Inventory.ItemAttribute;
+		meta: object;
+	}>;
+	updateItemAttribute: TRPCMutationProcedure<{
+		input: {
+			id: string;
+			name?: string | undefined;
+			disabled?: boolean | undefined;
+			numericValues?: boolean | undefined;
+			attributeValues?: {
+				id?: string | undefined;
+				attributeValue: string;
+				abbreviation: string;
+				position?: number | undefined;
+			}[];
+		};
+		output: Inventory.ItemAttribute;
+		meta: object;
+	}>;
+	deleteItemAttribute: TRPCMutationProcedure<{
 		input: {
 			id: string;
 		};

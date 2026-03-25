@@ -155,3 +155,6 @@ evals/agent-results.json
 
 # Turborepo
 .turbo
+
+# ERPNext
+.erpnext
