@@ -156,7 +156,7 @@ export const inventoryNavItems: NavItem[] = [
 		items: [
 			{
 				title: "Serial No",
-				url: "/inventory/serial-nos",
+				url: "/inventory/serial-no-and-batch/serial-no",
 			},
 			{
 				title: "Batch",

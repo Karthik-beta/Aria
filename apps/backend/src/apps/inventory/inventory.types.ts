@@ -154,6 +154,64 @@ export type InventoryWarehouse = Prisma.WarehouseGetPayload<{
 }>;
 
 /**
+ * Prisma model type for SerialNo with display relations and ordered history.
+ */
+export type InventorySerialNo = Prisma.SerialNoGetPayload<{
+	include: {
+		item: {
+			select: {
+				id: true;
+				code: true;
+				name: true;
+			};
+		};
+		currentWarehouse: {
+			select: {
+				id: true;
+				name: true;
+			};
+		};
+		purchaseReceipt: {
+			select: {
+				id: true;
+				series: true;
+			};
+		};
+		deliveryNote: {
+			select: {
+				id: true;
+				series: true;
+			};
+		};
+		stockEntry: {
+			select: {
+				id: true;
+				series: true;
+			};
+		};
+		pickList: {
+			select: {
+				id: true;
+				series: true;
+			};
+		};
+		history: {
+			include: {
+				warehouse: {
+					select: {
+						id: true;
+						name: true;
+					};
+				};
+			};
+			orderBy: {
+				createdAt: "desc";
+			};
+		};
+	};
+}>;
+
+/**
  * Prisma model type for singleton StockSettings.
  */
 export type InventoryStockSettings = Prisma.StockSettingsGetPayload<{
@@ -473,6 +531,54 @@ export function toInventoryWarehouse(
 			prismaWarehouse.defaultInTransitWarehouse?.name ?? null,
 		createdAt: prismaWarehouse.createdAt,
 		updatedAt: prismaWarehouse.updatedAt,
+	};
+}
+
+/**
+ * Converts a Prisma SerialNo with relations to Inventory.SerialNo.
+ */
+export function toInventorySerialNo(
+	prismaSerialNo: InventorySerialNo,
+): Inventory.SerialNo {
+	return {
+		id: prismaSerialNo.id,
+		serialNo: prismaSerialNo.serialNo,
+		itemId: prismaSerialNo.itemId,
+		itemCode: prismaSerialNo.item.code,
+		itemName: prismaSerialNo.item.name,
+		company: prismaSerialNo.company,
+		status: prismaSerialNo.status as Inventory.SerialNoStatus,
+		currentWarehouseId: prismaSerialNo.currentWarehouseId,
+		currentWarehouseName: prismaSerialNo.currentWarehouse?.name ?? null,
+		purchaseReceiptId: prismaSerialNo.purchaseReceiptId,
+		purchaseReceiptSeries: prismaSerialNo.purchaseReceipt?.series ?? null,
+		deliveryNoteId: prismaSerialNo.deliveryNoteId,
+		deliveryNoteSeries: prismaSerialNo.deliveryNote?.series ?? null,
+		stockEntryId: prismaSerialNo.stockEntryId,
+		stockEntrySeries: prismaSerialNo.stockEntry?.series ?? null,
+		pickListId: prismaSerialNo.pickListId,
+		pickListSeries: prismaSerialNo.pickList?.series ?? null,
+		workOrder: prismaSerialNo.workOrder,
+		purchaseDate: prismaSerialNo.purchaseDate,
+		warrantyExpiryDate: prismaSerialNo.warrantyExpiryDate,
+		serviceContractExpiryDate: prismaSerialNo.serviceContractExpiryDate,
+		maintenanceStatus: prismaSerialNo.maintenanceStatus,
+		notes: prismaSerialNo.notes,
+		isDisabled: prismaSerialNo.isDisabled,
+		createdAt: prismaSerialNo.createdAt,
+		updatedAt: prismaSerialNo.updatedAt,
+		history: prismaSerialNo.history.map((entry) => ({
+			id: entry.id,
+			serialNoId: entry.serialNoId,
+			eventType: entry.eventType,
+			fromStatus: entry.fromStatus as Inventory.SerialNoStatus | null,
+			toStatus: entry.toStatus as Inventory.SerialNoStatus | null,
+			warehouseId: entry.warehouseId,
+			warehouseName: entry.warehouse?.name ?? null,
+			transactionLabel: entry.transactionLabel,
+			notes: entry.notes,
+			createdAt: entry.createdAt,
+		})),
 	};
 }
 

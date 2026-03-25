@@ -99,6 +99,58 @@ describe("InventoryService", () => {
 		updatedAt: new Date(),
 	};
 
+	const mockSerialNo = {
+		id: "clh123serial0000",
+		serialNo: "SN-1001",
+		itemId: mockItem.id,
+		company: "Aria Corp",
+		status: "AVAILABLE" as const,
+		currentWarehouseId: mockWarehouse.id,
+		purchaseReceiptId: null as string | null,
+		deliveryNoteId: null as string | null,
+		stockEntryId: null as string | null,
+		pickListId: null as string | null,
+		workOrder: "WO-1",
+		purchaseDate: new Date("2026-03-20T00:00:00.000Z"),
+		warrantyExpiryDate: new Date("2027-03-20T00:00:00.000Z"),
+		serviceContractExpiryDate: null as Date | null,
+		maintenanceStatus: "Active",
+		notes: "Installed at site",
+		isDisabled: false,
+		createdAt: new Date("2026-03-20T00:00:00.000Z"),
+		updatedAt: new Date("2026-03-21T00:00:00.000Z"),
+		item: {
+			id: mockItem.id,
+			code: mockItem.code,
+			name: mockItem.name,
+		},
+		currentWarehouse: {
+			id: mockWarehouse.id,
+			name: mockWarehouse.name,
+		},
+		purchaseReceipt: null,
+		deliveryNote: null,
+		stockEntry: null,
+		pickList: null,
+		history: [
+			{
+				id: "serial-history-1",
+				serialNoId: "clh123serial0000",
+				eventType: "CREATED" as const,
+				fromStatus: null,
+				toStatus: "AVAILABLE" as const,
+				warehouseId: mockWarehouse.id,
+				transactionLabel: null,
+				notes: "Installed at site",
+				createdAt: new Date("2026-03-20T00:00:00.000Z"),
+				warehouse: {
+					id: mockWarehouse.id,
+					name: mockWarehouse.name,
+				},
+			},
+		],
+	};
+
 	const mockStockSettingsInput = {
 		itemNamingBy: "ITEM_CODE" as const,
 		defaultWarehouse: null,
@@ -295,6 +347,14 @@ describe("InventoryService", () => {
 		warehouse: {
 			findMany: jest.fn(),
 			findFirst: jest.fn(),
+			findUnique: jest.fn(),
+			create: jest.fn(),
+			update: jest.fn(),
+			delete: jest.fn(),
+			count: jest.fn(),
+		},
+		serialNo: {
+			findMany: jest.fn(),
 			findUnique: jest.fn(),
 			create: jest.fn(),
 			update: jest.fn(),
@@ -4993,6 +5053,101 @@ describe("InventoryService", () => {
 			expect(mockPrisma.deliveryTrip.deleteMany).toHaveBeenCalledWith({
 				where: { id: { in: [mockDeliveryTrip.id] } },
 			});
+		});
+	});
+
+	describe("serial numbers", () => {
+		it("should list serial numbers with bounded filters", async () => {
+			mockPrisma.serialNo.findMany.mockResolvedValue([mockSerialNo]);
+			mockPrisma.serialNo.count.mockResolvedValue(1);
+
+			const result = await service.findSerialNos({
+				search: "SN-1001",
+				status: "AVAILABLE",
+				take: 25,
+			});
+
+			expect(result.totalCount).toBe(1);
+			expect(result.items[0]?.serialNo).toBe("SN-1001");
+			expect(mockPrisma.serialNo.findMany).toHaveBeenCalledWith(
+				expect.objectContaining({
+					skip: 0,
+					take: 25,
+				}),
+			);
+		});
+
+		it("should create a serial number when the item supports serial tracking", async () => {
+			mockPrisma.inventoryItem.findUnique.mockResolvedValue({
+				id: mockItem.id,
+				code: mockItem.code,
+				name: mockItem.name,
+				hasSerialNo: true,
+				disabled: false,
+			});
+			mockPrisma.warehouse.findUnique.mockResolvedValue({
+				id: mockWarehouse.id,
+				name: mockWarehouse.name,
+				company: "Aria Corp",
+				disabled: false,
+			});
+			mockPrisma.serialNo.create.mockResolvedValue(mockSerialNo);
+
+			const result = await service.createSerialNo({
+				serialNo: "SN-1001",
+				itemId: mockItem.id,
+				company: "Aria Corp",
+				status: "AVAILABLE",
+				currentWarehouseId: mockWarehouse.id,
+				isDisabled: false,
+			});
+
+			expect(result.serialNo).toBe("SN-1001");
+			expect(mockPrisma.serialNo.create).toHaveBeenCalled();
+		});
+
+		it("should reject invalid status transitions when updating a serial number", async () => {
+			mockPrisma.serialNo.findUnique.mockResolvedValue({
+				id: mockSerialNo.id,
+				serialNo: mockSerialNo.serialNo,
+				itemId: mockSerialNo.itemId,
+				company: mockSerialNo.company,
+				status: "DISPOSED",
+				currentWarehouseId: null,
+				purchaseReceiptId: null,
+				deliveryNoteId: null,
+				stockEntryId: null,
+				pickListId: null,
+				workOrder: null,
+				purchaseDate: null,
+				warrantyExpiryDate: null,
+				serviceContractExpiryDate: null,
+				maintenanceStatus: null,
+				notes: null,
+				isDisabled: false,
+			});
+
+			await expect(
+				service.updateSerialNo({
+					id: mockSerialNo.id,
+					status: "AVAILABLE",
+				}),
+			).rejects.toThrow(BadRequestException);
+		});
+
+		it("should prevent deleting linked serial numbers", async () => {
+			mockPrisma.serialNo.findUnique.mockResolvedValue({
+				id: mockSerialNo.id,
+				status: "AVAILABLE",
+				purchaseReceiptId: "receipt-1",
+				deliveryNoteId: null,
+				stockEntryId: null,
+				pickListId: null,
+			});
+
+			await expect(service.deleteSerialNo(mockSerialNo.id)).rejects.toThrow(
+				BadRequestException,
+			);
 		});
 	});
 });

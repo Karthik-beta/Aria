@@ -26,6 +26,11 @@ type ItemsChangedEvent = {
 	data: Inventory.Item | { id: string };
 };
 
+type SerialNosChangedEvent = {
+	type: "created" | "updated" | "deleted";
+	data: Inventory.SerialNo | { id: string };
+};
+
 function createListItemsProcedure(inventoryService: InventoryService) {
 	return protectedProcedure.query(async () => {
 		return inventoryService.findAll();
@@ -53,6 +58,52 @@ function createListWarehousesProcedure(inventoryService: InventoryService) {
 		.input(Inventory.listWarehousesSchema)
 		.query(async ({ input }) => {
 			return inventoryService.findWarehouses(input);
+		});
+}
+
+function createListSerialNosProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(Inventory.listSerialNosSchema)
+		.query(async ({ input }) => {
+			return inventoryService.findSerialNos(input);
+		});
+}
+
+function createGetSerialNoByIdProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(z.object({ id: z.string().cuid() }))
+		.query(async ({ input }) => {
+			return inventoryService.findSerialNoById(input.id);
+		});
+}
+
+function createCreateSerialNoProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(Inventory.createSerialNoSchema)
+		.mutation(async ({ input }) => {
+			const result = await inventoryService.createSerialNo(input);
+			void inventoryEvents.emit("serialNoCreated", result);
+			return result;
+		});
+}
+
+function createUpdateSerialNoProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(Inventory.updateSerialNoSchema)
+		.mutation(async ({ input }) => {
+			const result = await inventoryService.updateSerialNo(input);
+			void inventoryEvents.emit("serialNoUpdated", result);
+			return result;
+		});
+}
+
+function createDeleteSerialNoProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(z.object({ id: z.string().cuid() }))
+		.mutation(async ({ input }) => {
+			const result = await inventoryService.deleteSerialNo(input.id);
+			void inventoryEvents.emit("serialNoDeleted", { id: input.id });
+			return result;
 		});
 }
 
@@ -596,6 +647,30 @@ const onItemsChangedProcedure = protectedProcedure.subscription(() => {
 			inventoryEvents.off("itemCreated", onCreated);
 			inventoryEvents.off("itemUpdated", onUpdated);
 			inventoryEvents.off("itemDeleted", onDeleted);
+		};
+	});
+});
+
+const onSerialNosChangedProcedure = protectedProcedure.subscription(() => {
+	return observable<SerialNosChangedEvent>((emit) => {
+		const onCreated = (data: Inventory.SerialNo) => {
+			emit.next({ type: "created", data });
+		};
+		const onUpdated = (data: Inventory.SerialNo) => {
+			emit.next({ type: "updated", data });
+		};
+		const onDeleted = (data: { id: string }) => {
+			emit.next({ type: "deleted", data });
+		};
+
+		inventoryEvents.on("serialNoCreated", onCreated);
+		inventoryEvents.on("serialNoUpdated", onUpdated);
+		inventoryEvents.on("serialNoDeleted", onDeleted);
+
+		return () => {
+			inventoryEvents.off("serialNoCreated", onCreated);
+			inventoryEvents.off("serialNoUpdated", onUpdated);
+			inventoryEvents.off("serialNoDeleted", onDeleted);
 		};
 	});
 });
@@ -1198,6 +1273,11 @@ type InventoryRouterInput = {
 	listItemGroups: ReturnType<typeof createListItemGroupsProcedure>;
 	listUnitsOfMeasure: ReturnType<typeof createListUnitsOfMeasureProcedure>;
 	listWarehouses: ReturnType<typeof createListWarehousesProcedure>;
+	listSerialNos: ReturnType<typeof createListSerialNosProcedure>;
+	getSerialNoById: ReturnType<typeof createGetSerialNoByIdProcedure>;
+	createSerialNo: ReturnType<typeof createCreateSerialNoProcedure>;
+	updateSerialNo: ReturnType<typeof createUpdateSerialNoProcedure>;
+	deleteSerialNo: ReturnType<typeof createDeleteSerialNoProcedure>;
 	getWarehouseById: ReturnType<typeof createGetWarehouseByIdProcedure>;
 	createWarehouse: ReturnType<typeof createCreateWarehouseProcedure>;
 	updateWarehouse: ReturnType<typeof createUpdateWarehouseProcedure>;
@@ -1274,6 +1354,7 @@ type InventoryRouterInput = {
 	onItemUpdated: typeof onItemUpdatedProcedure;
 	onItemDeleted: typeof onItemDeletedProcedure;
 	onItemsChanged: typeof onItemsChangedProcedure;
+	onSerialNosChanged: typeof onSerialNosChangedProcedure;
 	listMaterialRequests: ReturnType<typeof createListMaterialRequestsProcedure>;
 	getMaterialRequestById: ReturnType<
 		typeof createGetMaterialRequestByIdProcedure
@@ -1370,6 +1451,11 @@ function createInventoryRouterRecord(
 		listItemGroups: createListItemGroupsProcedure(inventoryService),
 		listUnitsOfMeasure: createListUnitsOfMeasureProcedure(inventoryService),
 		listWarehouses: createListWarehousesProcedure(inventoryService),
+		listSerialNos: createListSerialNosProcedure(inventoryService),
+		getSerialNoById: createGetSerialNoByIdProcedure(inventoryService),
+		createSerialNo: createCreateSerialNoProcedure(inventoryService),
+		updateSerialNo: createUpdateSerialNoProcedure(inventoryService),
+		deleteSerialNo: createDeleteSerialNoProcedure(inventoryService),
 		getWarehouseById: createGetWarehouseByIdProcedure(inventoryService),
 		createWarehouse: createCreateWarehouseProcedure(inventoryService),
 		updateWarehouse: createUpdateWarehouseProcedure(inventoryService),
@@ -1435,6 +1521,7 @@ function createInventoryRouterRecord(
 		onItemUpdated: onItemUpdatedProcedure,
 		onItemDeleted: onItemDeletedProcedure,
 		onItemsChanged: onItemsChangedProcedure,
+		onSerialNosChanged: onSerialNosChangedProcedure,
 		listMaterialRequests: createListMaterialRequestsProcedure(inventoryService),
 		getMaterialRequestById:
 			createGetMaterialRequestByIdProcedure(inventoryService),

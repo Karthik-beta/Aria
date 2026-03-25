@@ -191,6 +191,245 @@ export namespace Inventory {
 		defaultInTransitWarehouseId?: string | null;
 	}
 
+	export const serialNoStatusSchema = z.enum([
+		"DRAFT",
+		"AVAILABLE",
+		"DELIVERED",
+		"INSTALLED",
+		"RETURNED",
+		"SCRAPPED",
+		"DISPOSED",
+	]);
+
+	export type SerialNoStatus = z.infer<typeof serialNoStatusSchema>;
+
+	export const serialNoSortBySchema = z.enum([
+		"updatedAt",
+		"createdAt",
+		"serialNo",
+		"itemCode",
+		"warehouse",
+		"status",
+		"company",
+	]);
+
+	export type SerialNoSortBy = z.infer<typeof serialNoSortBySchema>;
+
+	export interface SerialNoLinkSummary {
+		purchaseReceiptId?: string | null;
+		purchaseReceiptSeries?: string | null;
+		deliveryNoteId?: string | null;
+		deliveryNoteSeries?: string | null;
+		stockEntryId?: string | null;
+		stockEntrySeries?: string | null;
+		pickListId?: string | null;
+		pickListSeries?: string | null;
+	}
+
+	export interface SerialNoHistoryEntry {
+		id: string;
+		serialNoId: string;
+		eventType:
+			| "CREATED"
+			| "UPDATED"
+			| "STATUS_CHANGED"
+			| "WAREHOUSE_CHANGED"
+			| "LINKS_CHANGED";
+		fromStatus?: SerialNoStatus | null;
+		toStatus?: SerialNoStatus | null;
+		warehouseId?: string | null;
+		warehouseName?: string | null;
+		transactionLabel?: string | null;
+		notes?: string | null;
+		createdAt: Date;
+	}
+
+	export interface SerialNo extends SerialNoLinkSummary {
+		id: string;
+		serialNo: string;
+		itemId: string;
+		itemCode: string;
+		itemName: string;
+		company: string;
+		status: SerialNoStatus;
+		currentWarehouseId?: string | null;
+		currentWarehouseName?: string | null;
+		workOrder?: string | null;
+		purchaseDate?: Date | null;
+		warrantyExpiryDate?: Date | null;
+		serviceContractExpiryDate?: Date | null;
+		maintenanceStatus?: string | null;
+		notes?: string | null;
+		isDisabled: boolean;
+		createdAt: Date;
+		updatedAt: Date;
+		history: SerialNoHistoryEntry[];
+	}
+
+	export interface SerialNoListResult {
+		items: SerialNo[];
+		totalCount: number;
+	}
+
+	export interface ListSerialNosInput {
+		skip?: number;
+		take?: number;
+		search?: string;
+		itemId?: string;
+		warehouseId?: string;
+		company?: string;
+		status?: SerialNoStatus;
+		includeDisabled?: boolean;
+		sortBy?: SerialNoSortBy;
+		sortDirection?: "asc" | "desc";
+	}
+
+	export interface CreateSerialNoInput {
+		serialNo: string;
+		itemId: string;
+		company: string;
+		status?: SerialNoStatus;
+		currentWarehouseId?: string | null;
+		purchaseReceiptId?: string | null;
+		deliveryNoteId?: string | null;
+		stockEntryId?: string | null;
+		pickListId?: string | null;
+		workOrder?: string | null;
+		purchaseDate?: Date | null;
+		warrantyExpiryDate?: Date | null;
+		serviceContractExpiryDate?: Date | null;
+		maintenanceStatus?: string | null;
+		notes?: string | null;
+		isDisabled?: boolean;
+	}
+
+	export interface UpdateSerialNoInput {
+		id: string;
+		serialNo?: string;
+		itemId?: string;
+		company?: string;
+		status?: SerialNoStatus;
+		currentWarehouseId?: string | null;
+		purchaseReceiptId?: string | null;
+		deliveryNoteId?: string | null;
+		stockEntryId?: string | null;
+		pickListId?: string | null;
+		workOrder?: string | null;
+		purchaseDate?: Date | null;
+		warrantyExpiryDate?: Date | null;
+		serviceContractExpiryDate?: Date | null;
+		maintenanceStatus?: string | null;
+		notes?: string | null;
+		isDisabled?: boolean;
+	}
+
+	export const listSerialNosSchema = z
+		.object({
+			skip: z.number().int().min(0).optional(),
+			take: z.number().int().min(1).max(250).optional(),
+			search: z.string().max(255).trim().optional(),
+			itemId: z.string().cuid().optional(),
+			warehouseId: z.string().cuid().optional(),
+			company: z.string().max(255).trim().optional(),
+			status: serialNoStatusSchema.optional(),
+			includeDisabled: z.boolean().optional(),
+			sortBy: serialNoSortBySchema.optional(),
+			sortDirection: z.enum(["asc", "desc"]).optional(),
+		})
+		.optional();
+
+	const serialNoInputFields = {
+		serialNo: z
+			.string()
+			.min(1, "Serial number is required")
+			.max(120)
+			.trim()
+			.toUpperCase(),
+		itemId: z.string().cuid("Item is required"),
+		company: z.string().min(1, "Company is required").max(255).trim(),
+		status: serialNoStatusSchema.default("DRAFT"),
+		currentWarehouseId: z.string().cuid().optional().nullable(),
+		purchaseReceiptId: z.string().min(1).optional().nullable(),
+		deliveryNoteId: z.string().min(1).optional().nullable(),
+		stockEntryId: z.string().min(1).optional().nullable(),
+		pickListId: z.string().min(1).optional().nullable(),
+		workOrder: z.string().max(255).trim().optional().nullable(),
+		purchaseDate: z.coerce.date().optional().nullable(),
+		warrantyExpiryDate: z.coerce.date().optional().nullable(),
+		serviceContractExpiryDate: z.coerce.date().optional().nullable(),
+		maintenanceStatus: z.string().max(255).trim().optional().nullable(),
+		notes: z
+			.string()
+			.max(65_535, "Notes must be 65,535 characters or fewer")
+			.optional()
+			.nullable(),
+		isDisabled: z.boolean().default(false),
+	} satisfies z.ZodRawShape;
+
+	const validateSerialNoDateOrder = (
+		value: {
+			purchaseDate?: Date | null;
+			warrantyExpiryDate?: Date | null;
+			serviceContractExpiryDate?: Date | null;
+		},
+		ctx: z.RefinementCtx,
+	) => {
+		if (
+			value.purchaseDate &&
+			value.warrantyExpiryDate &&
+			value.warrantyExpiryDate < value.purchaseDate
+		) {
+			ctx.addIssue({
+				code: z.ZodIssueCode.custom,
+				message: "Warranty expiry must be on or after the purchase date",
+				path: ["warrantyExpiryDate"],
+			});
+		}
+
+		if (
+			value.purchaseDate &&
+			value.serviceContractExpiryDate &&
+			value.serviceContractExpiryDate < value.purchaseDate
+		) {
+			ctx.addIssue({
+				code: z.ZodIssueCode.custom,
+				message:
+					"Service contract expiry must be on or after the purchase date",
+				path: ["serviceContractExpiryDate"],
+			});
+		}
+	};
+
+	export const createSerialNoSchema = z
+		.object(serialNoInputFields)
+		.superRefine((value, ctx) => {
+			validateSerialNoDateOrder(value, ctx);
+		});
+
+	export const updateSerialNoSchema = z
+		.object({
+			id: z.string().cuid(),
+			serialNo: serialNoInputFields.serialNo.optional(),
+			itemId: serialNoInputFields.itemId.optional(),
+			company: serialNoInputFields.company.optional(),
+			status: serialNoStatusSchema.optional(),
+			currentWarehouseId: serialNoInputFields.currentWarehouseId,
+			purchaseReceiptId: serialNoInputFields.purchaseReceiptId,
+			deliveryNoteId: serialNoInputFields.deliveryNoteId,
+			stockEntryId: serialNoInputFields.stockEntryId,
+			pickListId: serialNoInputFields.pickListId,
+			workOrder: serialNoInputFields.workOrder,
+			purchaseDate: serialNoInputFields.purchaseDate,
+			warrantyExpiryDate: serialNoInputFields.warrantyExpiryDate,
+			serviceContractExpiryDate: serialNoInputFields.serviceContractExpiryDate,
+			maintenanceStatus: serialNoInputFields.maintenanceStatus,
+			notes: serialNoInputFields.notes,
+			isDisabled: z.boolean().optional(),
+		})
+		.superRefine((value, ctx) => {
+			validateSerialNoDateOrder(value, ctx);
+		});
+
 	export const ITEM_VARIANT_COPY_FIELD_KEYS = [
 		"description",
 		"item_group",

@@ -81,6 +81,7 @@ model InventoryItem {
 
   defaultUnitOfMeasureId String?
   defaultUnitOfMeasure   UnitOfMeasurement? @relation(fields: [defaultUnitOfMeasureId], references: [id])
+  serialNos              SerialNo[]
 
   quantity  Int      @default(0)
   createdAt DateTime @default(now())
@@ -313,6 +314,8 @@ model Warehouse {
   childWarehouses             Warehouse[] @relation("WarehouseHierarchy")
   defaultInTransitWarehouse   Warehouse?  @relation("WarehouseTransitDefault", fields: [defaultInTransitWarehouseId], references: [id])
   transitDefaultFor           Warehouse[] @relation("WarehouseTransitDefault")
+  currentSerialNos            SerialNo[]  @relation("SerialNoCurrentWarehouse")
+  serialNoStatusHistory       SerialNoHistory[]
 
   @@index([company])
   @@index([disabled])
@@ -681,6 +684,7 @@ model StockEntry {
   letterHead             String?          @db.VarChar(255)
   inspectionRequired     Boolean          @default(false)
   items                  StockEntryItem[]
+  serialNos              SerialNo[]
   createdAt              DateTime         @default(now())
   updatedAt              DateTime         @updatedAt
 
@@ -805,6 +809,7 @@ model DeliveryNote {
   project                  String?            @db.VarChar(255)
 
   items     DeliveryNoteItem[]
+  serialNos SerialNo[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -892,6 +897,7 @@ model PurchaseReceipt {
   isInternalSupplier             Boolean               @default(false)
   items                          PurchaseReceiptItem[]
   taxes                          PurchaseReceiptTax[]
+  serialNos                      SerialNo[]
   createdAt                      DateTime              @default(now())
   updatedAt                      DateTime              @updatedAt
 
@@ -976,6 +982,7 @@ model PickList {
   scanBarcode                 String?         @db.VarChar(255)
   groupSameItems              Boolean         @default(false)
   items                       PickListItem[]
+  serialNos                   SerialNo[]
   createdAt                   DateTime        @default(now())
   updatedAt                   DateTime        @updatedAt
 
@@ -996,6 +1003,83 @@ model PickListItem {
 
   @@index([pickListId])
   @@map("pick_list_items")
+}
+
+enum SerialNoStatus {
+  DRAFT
+  AVAILABLE
+  DELIVERED
+  INSTALLED
+  RETURNED
+  SCRAPPED
+  DISPOSED
+}
+
+enum SerialNoHistoryEventType {
+  CREATED
+  UPDATED
+  STATUS_CHANGED
+  WAREHOUSE_CHANGED
+  LINKS_CHANGED
+}
+
+model SerialNo {
+  id                          String         @id @default(cuid())
+  serialNo                    String         @unique @db.VarChar(120)
+  itemId                      String
+  company                     String         @db.VarChar(255)
+  status                      SerialNoStatus @default(DRAFT)
+  currentWarehouseId          String?
+  purchaseReceiptId           String?
+  deliveryNoteId              String?
+  stockEntryId                String?
+  pickListId                  String?
+  workOrder                   String?        @db.VarChar(255)
+  purchaseDate                DateTime?
+  warrantyExpiryDate          DateTime?
+  serviceContractExpiryDate   DateTime?
+  maintenanceStatus           String?        @db.VarChar(255)
+  notes                       String?
+  isDisabled                  Boolean        @default(false)
+  createdAt                   DateTime       @default(now())
+  updatedAt                   DateTime       @updatedAt
+  item                        InventoryItem  @relation(fields: [itemId], references: [id])
+  currentWarehouse            Warehouse?     @relation("SerialNoCurrentWarehouse", fields: [currentWarehouseId], references: [id])
+  purchaseReceipt             PurchaseReceipt? @relation(fields: [purchaseReceiptId], references: [id])
+  deliveryNote                DeliveryNote?  @relation(fields: [deliveryNoteId], references: [id])
+  stockEntry                  StockEntry?    @relation(fields: [stockEntryId], references: [id])
+  pickList                    PickList?      @relation(fields: [pickListId], references: [id])
+  history                     SerialNoHistory[]
+
+  @@index([itemId])
+  @@index([company])
+  @@index([status])
+  @@index([currentWarehouseId])
+  @@index([purchaseReceiptId])
+  @@index([deliveryNoteId])
+  @@index([stockEntryId])
+  @@index([pickListId])
+  @@index([warrantyExpiryDate])
+  @@index([serviceContractExpiryDate])
+  @@map("serial_nos")
+}
+
+model SerialNoHistory {
+  id                 String                   @id @default(cuid())
+  serialNoId         String
+  eventType          SerialNoHistoryEventType
+  fromStatus         SerialNoStatus?
+  toStatus           SerialNoStatus?
+  warehouseId        String?
+  transactionLabel   String?                  @db.VarChar(255)
+  notes              String?
+  createdAt          DateTime                 @default(now())
+  serialNo           SerialNo                 @relation(fields: [serialNoId], references: [id], onDelete: Cascade)
+  warehouse          Warehouse?               @relation(fields: [warehouseId], references: [id])
+
+  @@index([serialNoId, createdAt])
+  @@index([eventType])
+  @@map("serial_no_history")
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
