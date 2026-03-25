@@ -73,6 +73,22 @@ export namespace Inventory {
 	}
 
 	/**
+	 * Brand master entity used to classify items by manufacturer or label.
+	 */
+	export interface Brand {
+		/** Unique identifier (CUID) */
+		id: string;
+		/** Brand name */
+		name: string;
+		/** Optional description of the brand */
+		description?: string | null;
+		/** When this brand was created */
+		createdAt: Date;
+		/** When this brand was last updated */
+		updatedAt: Date;
+	}
+
+	/**
 	 * Unit of Measurement entity
 	 */
 	export interface UnitOfMeasure {
@@ -1037,6 +1053,23 @@ export namespace Inventory {
 		name: z.string().min(1).max(255).trim().optional(),
 		disabled: z.boolean().optional(),
 		isWholeNumber: z.boolean().optional(),
+	});
+
+	/**
+	 * Validation schema for creating a brand
+	 */
+	export const createBrandSchema = z.object({
+		name: z.string().min(1, "Brand name is required").max(255).trim(),
+		description: z.string().max(1000).trim().optional().nullable(),
+	});
+
+	/**
+	 * Validation schema for updating a brand
+	 */
+	export const updateBrandSchema = z.object({
+		id: z.string().cuid(),
+		name: z.string().min(1).max(255).trim().optional(),
+		description: z.string().max(1000).trim().optional().nullable(),
 	});
 
 	const stockItemNamingBySchema = z.enum(["ITEM_CODE", "NAMING_SERIES"]);

@@ -1,6 +1,6 @@
 You are working on the branch: "feat/inventory-settings-module".
 
-Current page: "Item Variant Settings"
+Current page: "Brand"
 
 Valid page values:
 - Stock Settings

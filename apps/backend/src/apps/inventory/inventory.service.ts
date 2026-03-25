@@ -12,6 +12,7 @@ import { Prisma } from "../../generated/prisma/client";
 import { PrismaService } from "../../shared/prisma.service";
 import {
 	itemAlternativeInclude,
+	toInventoryBrand,
 	toInventoryDeliveryNote,
 	toInventoryDeliveryTrip,
 	toInventoryItem,
@@ -98,6 +99,14 @@ const removeUndefined = <T extends Record<string, unknown>>(obj: T) =>
 	Object.fromEntries(
 		Object.entries(obj).filter(([, value]) => value !== undefined),
 	) as Partial<T>;
+
+const brandSelect = {
+	id: true,
+	name: true,
+	description: true,
+	createdAt: true,
+	updatedAt: true,
+} as const;
 
 const unitOfMeasureSelect = {
 	id: true,
@@ -1354,6 +1363,167 @@ export class InventoryService {
 				error.code === "P2025"
 			) {
 				throw new NotFoundException(`Unit of measure with ID ${id} not found`);
+			}
+			throw error;
+		}
+	}
+
+	/**
+	 * Get all brands
+	 */
+	async findAllBrands(search?: string): Promise<Inventory.Brand[]> {
+		const brands = await this.prisma.brand.findMany({
+			where: search
+				? {
+						name: {
+							contains: search,
+							mode: "insensitive",
+						},
+					}
+				: undefined,
+			select: brandSelect,
+			orderBy: { name: "asc" },
+		});
+
+		return brands.map(toInventoryBrand);
+	}
+
+	/**
+	 * Get a single brand by id
+	 */
+	async findBrandById(id: string): Promise<Inventory.Brand | null> {
+		const brand = await this.prisma.brand.findUnique({
+			where: { id },
+			select: brandSelect,
+		});
+
+		return brand ? toInventoryBrand(brand) : null;
+	}
+
+	/**
+	 * Create a brand
+	 */
+	async createBrand(
+		data: z.infer<typeof Inventory.createBrandSchema>,
+	): Promise<Inventory.Brand> {
+		const duplicate = await this.prisma.brand.findFirst({
+			where: {
+				name: {
+					equals: data.name,
+					mode: "insensitive",
+				},
+			},
+			select: { id: true },
+		});
+
+		if (duplicate) {
+			throw new ConflictException(
+				`Brand with name "${data.name}" already exists`,
+			);
+		}
+
+		try {
+			const created = await this.prisma.brand.create({
+				data: {
+					name: data.name,
+					description: data.description ?? null,
+				},
+				select: brandSelect,
+			});
+
+			return toInventoryBrand(created);
+		} catch (error) {
+			if (
+				error instanceof Prisma.PrismaClientKnownRequestError &&
+				error.code === "P2002"
+			) {
+				throw new ConflictException(
+					`Brand with name "${data.name}" already exists`,
+				);
+			}
+			throw error;
+		}
+	}
+
+	/**
+	 * Update a brand
+	 */
+	async updateBrand(
+		data: z.infer<typeof Inventory.updateBrandSchema>,
+	): Promise<Inventory.Brand> {
+		const { id, ...rest } = data;
+
+		const existing = await this.prisma.brand.findUnique({
+			where: { id },
+			select: { id: true, name: true },
+		});
+
+		if (!existing) {
+			throw new NotFoundException(`Brand with ID ${id} not found`);
+		}
+
+		if (rest.name !== undefined) {
+			const duplicate = await this.prisma.brand.findFirst({
+				where: {
+					id: { not: id },
+					name: {
+						equals: rest.name,
+						mode: "insensitive",
+					},
+				},
+				select: { id: true },
+			});
+
+			if (duplicate) {
+				throw new ConflictException(
+					`Brand with name "${rest.name}" already exists`,
+				);
+			}
+		}
+
+		try {
+			const updated = await this.prisma.brand.update({
+				where: { id },
+				data: removeUndefined(rest),
+				select: brandSelect,
+			});
+
+			return toInventoryBrand(updated);
+		} catch (error) {
+			if (
+				error instanceof Prisma.PrismaClientKnownRequestError &&
+				error.code === "P2025"
+			) {
+				throw new NotFoundException(`Brand with ID ${id} not found`);
+			}
+			if (
+				error instanceof Prisma.PrismaClientKnownRequestError &&
+				error.code === "P2002"
+			) {
+				const conflictName = rest.name ?? existing.name;
+				throw new ConflictException(
+					conflictName
+						? `Brand with name "${conflictName}" already exists`
+						: "Brand already exists",
+				);
+			}
+			throw error;
+		}
+	}
+
+	/**
+	 * Delete a brand
+	 */
+	async deleteBrand(id: string): Promise<{ success: boolean; id: string }> {
+		try {
+			await this.prisma.brand.delete({ where: { id } });
+			return { success: true, id };
+		} catch (error) {
+			if (
+				error instanceof Prisma.PrismaClientKnownRequestError &&
+				error.code === "P2025"
+			) {
+				throw new NotFoundException(`Brand with ID ${id} not found`);
 			}
 			throw error;
 		}

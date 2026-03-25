@@ -240,6 +240,49 @@ type InventoryRouterInput = {
 		};
 		meta: object;
 	}>;
+	listBrands: TRPCQueryProcedure<{
+		input:
+			| {
+					search?: string | undefined;
+			  }
+			| undefined;
+		output: Inventory.Brand[];
+		meta: object;
+	}>;
+	getBrandById: TRPCQueryProcedure<{
+		input: {
+			id: string;
+		};
+		output: Inventory.Brand | null;
+		meta: object;
+	}>;
+	createBrand: TRPCMutationProcedure<{
+		input: {
+			name: string;
+			description?: string | null | undefined;
+		};
+		output: Inventory.Brand;
+		meta: object;
+	}>;
+	updateBrand: TRPCMutationProcedure<{
+		input: {
+			id: string;
+			name?: string | undefined;
+			description?: string | null | undefined;
+		};
+		output: Inventory.Brand;
+		meta: object;
+	}>;
+	deleteBrand: TRPCMutationProcedure<{
+		input: {
+			id: string;
+		};
+		output: {
+			success: boolean;
+			id: string;
+		};
+		meta: object;
+	}>;
 	listBundleItems: TRPCQueryProcedure<{
 		input:
 			| {

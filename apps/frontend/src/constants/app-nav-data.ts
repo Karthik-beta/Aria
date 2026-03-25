@@ -136,7 +136,7 @@ export const inventoryNavItems: NavItem[] = [
 			},
 			{
 				title: "Brand",
-				url: "/inventory/brands",
+				url: "/inventory/inventory-settings/brand",
 			},
 			{
 				title: "Item Attribute",

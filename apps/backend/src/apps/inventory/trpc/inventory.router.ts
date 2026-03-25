@@ -162,6 +162,46 @@ function createDeleteUnitOfMeasureProcedure(
 		});
 }
 
+function createListBrandsProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(z.object({ search: z.string().optional() }).optional())
+		.query(async ({ input }) => {
+			return inventoryService.findAllBrands(input?.search);
+		});
+}
+
+function createGetBrandByIdProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(z.object({ id: z.string().cuid() }))
+		.query(async ({ input }) => {
+			return inventoryService.findBrandById(input.id);
+		});
+}
+
+function createCreateBrandProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(Inventory.createBrandSchema)
+		.mutation(async ({ input }) => {
+			return inventoryService.createBrand(input);
+		});
+}
+
+function createUpdateBrandProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(Inventory.updateBrandSchema)
+		.mutation(async ({ input }) => {
+			return inventoryService.updateBrand(input);
+		});
+}
+
+function createDeleteBrandProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(z.object({ id: z.string().cuid() }))
+		.mutation(async ({ input }) => {
+			return inventoryService.deleteBrand(input.id);
+		});
+}
+
 function createListBundleItemsProcedure(inventoryService: InventoryService) {
 	return protectedProcedure
 		.input(z.object({ search: z.string().optional() }).optional())
@@ -1122,6 +1162,11 @@ type InventoryRouterInput = {
 	createUnitOfMeasure: ReturnType<typeof createCreateUnitOfMeasureProcedure>;
 	updateUnitOfMeasure: ReturnType<typeof createUpdateUnitOfMeasureProcedure>;
 	deleteUnitOfMeasure: ReturnType<typeof createDeleteUnitOfMeasureProcedure>;
+	listBrands: ReturnType<typeof createListBrandsProcedure>;
+	getBrandById: ReturnType<typeof createGetBrandByIdProcedure>;
+	createBrand: ReturnType<typeof createCreateBrandProcedure>;
+	updateBrand: ReturnType<typeof createUpdateBrandProcedure>;
+	deleteBrand: ReturnType<typeof createDeleteBrandProcedure>;
 	listBundleItems: ReturnType<typeof createListBundleItemsProcedure>;
 	listProductBundles: ReturnType<typeof createListProductBundlesProcedure>;
 	createProductBundle: ReturnType<typeof createCreateProductBundleProcedure>;
@@ -1282,6 +1327,11 @@ function createInventoryRouterRecord(
 		createUnitOfMeasure: createCreateUnitOfMeasureProcedure(inventoryService),
 		updateUnitOfMeasure: createUpdateUnitOfMeasureProcedure(inventoryService),
 		deleteUnitOfMeasure: createDeleteUnitOfMeasureProcedure(inventoryService),
+		listBrands: createListBrandsProcedure(inventoryService),
+		getBrandById: createGetBrandByIdProcedure(inventoryService),
+		createBrand: createCreateBrandProcedure(inventoryService),
+		updateBrand: createUpdateBrandProcedure(inventoryService),
+		deleteBrand: createDeleteBrandProcedure(inventoryService),
 		listBundleItems: createListBundleItemsProcedure(inventoryService),
 		listProductBundles: createListProductBundlesProcedure(inventoryService),
 		createProductBundle: createCreateProductBundleProcedure(inventoryService),

@@ -62,6 +62,19 @@ export type InventoryShippingRule = Prisma.ShippingRuleGetPayload<{
 }>;
 
 /**
+ * Prisma model type for Brand with scalar fields only
+ */
+export type InventoryBrand = Prisma.BrandGetPayload<{
+	select: {
+		id: true;
+		name: true;
+		description: true;
+		createdAt: true;
+		updatedAt: true;
+	};
+}>;
+
+/**
  * Prisma model type for UnitOfMeasurement with scalar fields only
  */
 export type InventoryUnitOfMeasure = Prisma.UnitOfMeasurementGetPayload<{
@@ -348,6 +361,19 @@ export function toInventoryShippingRule(
 		shippingAmount: prismaShippingRule.shippingAmount,
 		createdAt: prismaShippingRule.createdAt,
 		updatedAt: prismaShippingRule.updatedAt,
+	};
+}
+
+/**
+ * Converts a Prisma Brand to Inventory.Brand
+ */
+export function toInventoryBrand(prismaBrand: InventoryBrand): Inventory.Brand {
+	return {
+		id: prismaBrand.id,
+		name: prismaBrand.name,
+		description: prismaBrand.description,
+		createdAt: prismaBrand.createdAt,
+		updatedAt: prismaBrand.updatedAt,
 	};
 }
 
