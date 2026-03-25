@@ -128,7 +128,7 @@ export const inventoryNavItems: NavItem[] = [
 			},
 			{
 				title: "Warehouse",
-				url: "/inventory/warehouses",
+				url: "/inventory/inventory-settings/warehouse",
 			},
 			{
 				title: "Unit of Measure (UOM)",

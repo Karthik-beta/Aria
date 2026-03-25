@@ -76,6 +76,44 @@ export type InventoryUnitOfMeasure = Prisma.UnitOfMeasurementGetPayload<{
 }>;
 
 /**
+ * Prisma model type for Warehouse with related display names.
+ */
+export type InventoryWarehouse = Prisma.WarehouseGetPayload<{
+	select: {
+		id: true;
+		name: true;
+		disabled: true;
+		isGroupWarehouse: true;
+		parentWarehouseId: true;
+		company: true;
+		isRejectedWarehouse: true;
+		phoneNo: true;
+		mobileNo: true;
+		addressLine1: true;
+		addressLine2: true;
+		city: true;
+		state: true;
+		pin: true;
+		warehouseType: true;
+		defaultInTransitWarehouseId: true;
+		createdAt: true;
+		updatedAt: true;
+		parentWarehouse: {
+			select: {
+				id: true;
+				name: true;
+			};
+		};
+		defaultInTransitWarehouse: {
+			select: {
+				id: true;
+				name: true;
+			};
+		};
+	};
+}>;
+
+/**
  * Prisma model type for singleton StockSettings.
  */
 export type InventoryStockSettings = Prisma.StockSettingsGetPayload<{
@@ -305,6 +343,37 @@ export function toInventoryUnitOfMeasure(
 		isWholeNumber: prismaUnitOfMeasure.isWholeNumber,
 		createdAt: prismaUnitOfMeasure.createdAt,
 		updatedAt: prismaUnitOfMeasure.updatedAt,
+	};
+}
+
+/**
+ * Converts a Prisma Warehouse record to Inventory.Warehouse.
+ */
+export function toInventoryWarehouse(
+	prismaWarehouse: InventoryWarehouse,
+): Inventory.Warehouse {
+	return {
+		id: prismaWarehouse.id,
+		name: prismaWarehouse.name,
+		disabled: prismaWarehouse.disabled,
+		isGroupWarehouse: prismaWarehouse.isGroupWarehouse,
+		parentWarehouseId: prismaWarehouse.parentWarehouseId,
+		parentWarehouseName: prismaWarehouse.parentWarehouse?.name ?? null,
+		company: prismaWarehouse.company,
+		isRejectedWarehouse: prismaWarehouse.isRejectedWarehouse,
+		phoneNo: prismaWarehouse.phoneNo,
+		mobileNo: prismaWarehouse.mobileNo,
+		addressLine1: prismaWarehouse.addressLine1,
+		addressLine2: prismaWarehouse.addressLine2,
+		city: prismaWarehouse.city,
+		state: prismaWarehouse.state,
+		pin: prismaWarehouse.pin,
+		warehouseType: prismaWarehouse.warehouseType,
+		defaultInTransitWarehouseId: prismaWarehouse.defaultInTransitWarehouseId,
+		defaultInTransitWarehouseName:
+			prismaWarehouse.defaultInTransitWarehouse?.name ?? null,
+		createdAt: prismaWarehouse.createdAt,
+		updatedAt: prismaWarehouse.updatedAt,
 	};
 }
 

@@ -68,6 +68,80 @@ type InventoryRouterInput = {
 		output: Inventory.UnitOfMeasure[];
 		meta: object;
 	}>;
+	listWarehouses: TRPCQueryProcedure<{
+		input:
+			| {
+					skip?: number | undefined;
+					take?: number | undefined;
+					search?: string | undefined;
+					company?: string | undefined;
+					disabled?: boolean | undefined;
+					isGroupWarehouse?: boolean | undefined;
+			  }
+			| undefined;
+		output: Inventory.WarehouseListResult;
+		meta: object;
+	}>;
+	getWarehouseById: TRPCQueryProcedure<{
+		input: {
+			id: string;
+		};
+		output: Inventory.Warehouse | null;
+		meta: object;
+	}>;
+	createWarehouse: TRPCMutationProcedure<{
+		input: {
+			name: string;
+			disabled?: boolean | undefined;
+			isGroupWarehouse?: boolean | undefined;
+			parentWarehouseId?: string | null | undefined;
+			company: string;
+			isRejectedWarehouse?: boolean | undefined;
+			phoneNo?: string | null | undefined;
+			mobileNo?: string | null | undefined;
+			addressLine1?: string | null | undefined;
+			addressLine2?: string | null | undefined;
+			city?: string | null | undefined;
+			state?: string | null | undefined;
+			pin?: string | null | undefined;
+			warehouseType?: string | null | undefined;
+			defaultInTransitWarehouseId?: string | null | undefined;
+		};
+		output: Inventory.Warehouse;
+		meta: object;
+	}>;
+	updateWarehouse: TRPCMutationProcedure<{
+		input: {
+			id: string;
+			name?: string | undefined;
+			disabled?: boolean | undefined;
+			isGroupWarehouse?: boolean | undefined;
+			parentWarehouseId?: string | null | undefined;
+			company?: string | undefined;
+			isRejectedWarehouse?: boolean | undefined;
+			phoneNo?: string | null | undefined;
+			mobileNo?: string | null | undefined;
+			addressLine1?: string | null | undefined;
+			addressLine2?: string | null | undefined;
+			city?: string | null | undefined;
+			state?: string | null | undefined;
+			pin?: string | null | undefined;
+			warehouseType?: string | null | undefined;
+			defaultInTransitWarehouseId?: string | null | undefined;
+		};
+		output: Inventory.Warehouse;
+		meta: object;
+	}>;
+	deleteWarehouse: TRPCMutationProcedure<{
+		input: {
+			id: string;
+		};
+		output: {
+			success: boolean;
+			id: string;
+		};
+		meta: object;
+	}>;
 	getStockSettings: TRPCQueryProcedure<{
 		input: void;
 		output: Inventory.StockSettings;

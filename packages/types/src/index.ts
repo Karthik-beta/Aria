@@ -90,6 +90,91 @@ export namespace Inventory {
 		updatedAt: Date;
 	}
 
+	/**
+	 * Warehouse master entity used by inventory documents and defaults.
+	 */
+	export interface Warehouse {
+		/** Unique identifier (CUID) */
+		id: string;
+		/** Warehouse name/identifier visible across the ERP */
+		name: string;
+		/** Whether the warehouse is disabled for operational use */
+		disabled: boolean;
+		/** Whether this warehouse acts as a grouping node in the hierarchy */
+		isGroupWarehouse: boolean;
+		/** Parent warehouse relation for nested structures */
+		parentWarehouseId?: string | null;
+		/** Parent warehouse display name */
+		parentWarehouseName?: string | null;
+		/** Owning company */
+		company: string;
+		/** Whether this warehouse is used for rejected materials */
+		isRejectedWarehouse: boolean;
+		phoneNo?: string | null;
+		mobileNo?: string | null;
+		addressLine1?: string | null;
+		addressLine2?: string | null;
+		city?: string | null;
+		state?: string | null;
+		pin?: string | null;
+		warehouseType?: string | null;
+		defaultInTransitWarehouseId?: string | null;
+		defaultInTransitWarehouseName?: string | null;
+		createdAt: Date;
+		updatedAt: Date;
+	}
+
+	export interface WarehouseListResult {
+		items: Warehouse[];
+		totalCount: number;
+	}
+
+	export interface ListWarehousesInput {
+		skip?: number;
+		take?: number;
+		search?: string;
+		company?: string;
+		disabled?: boolean;
+		isGroupWarehouse?: boolean;
+	}
+
+	export interface CreateWarehouseInput {
+		name: string;
+		disabled?: boolean;
+		isGroupWarehouse?: boolean;
+		parentWarehouseId?: string | null;
+		company: string;
+		isRejectedWarehouse?: boolean;
+		phoneNo?: string | null;
+		mobileNo?: string | null;
+		addressLine1?: string | null;
+		addressLine2?: string | null;
+		city?: string | null;
+		state?: string | null;
+		pin?: string | null;
+		warehouseType?: string | null;
+		defaultInTransitWarehouseId?: string | null;
+	}
+
+	export interface UpdateWarehouseInput {
+		id: string;
+		name?: string;
+		disabled?: boolean;
+		isGroupWarehouse?: boolean;
+		parentWarehouseId?: string | null;
+		company?: string;
+		isRejectedWarehouse?: boolean;
+		phoneNo?: string | null;
+		mobileNo?: string | null;
+		addressLine1?: string | null;
+		addressLine2?: string | null;
+		city?: string | null;
+		state?: string | null;
+		pin?: string | null;
+		warehouseType?: string | null;
+		defaultInTransitWarehouseId?: string | null;
+	}
+
 	export type StockItemNamingBy = "ITEM_CODE" | "NAMING_SERIES";
 	export type StockValuationMethod = "FIFO" | "MOVING_AVERAGE";
 	export type StockQualityInspectionAction = "STOP" | "WARN";
@@ -674,6 +759,54 @@ export namespace Inventory {
 		name: z.string().min(1, "UOM name is required").max(255).trim(),
 		disabled: z.boolean().default(false),
 		isWholeNumber: z.boolean().default(true),
+	});
+
+	export const listWarehousesSchema = z
+		.object({
+			skip: z.number().int().min(0).optional(),
+			take: z.number().int().min(1).max(250).optional(),
+			search: z.string().max(255).optional(),
+			company: z.string().max(255).optional(),
+			disabled: z.boolean().optional(),
+			isGroupWarehouse: z.boolean().optional(),
+		})
+		.optional();
+
+	export const createWarehouseSchema = z.object({
+		name: z.string().min(1, "Warehouse name is required").max(255).trim(),
+		disabled: z.boolean().default(false),
+		isGroupWarehouse: z.boolean().default(false),
+		parentWarehouseId: z.string().cuid().optional().nullable(),
+		company: z.string().min(1, "Company is required").max(255).trim(),
+		isRejectedWarehouse: z.boolean().default(false),
+		phoneNo: z.string().max(50).trim().optional().nullable(),
+		mobileNo: z.string().max(50).trim().optional().nullable(),
+		addressLine1: z.string().max(255).trim().optional().nullable(),
+		addressLine2: z.string().max(255).trim().optional().nullable(),
+		city: z.string().max(255).trim().optional().nullable(),
+		state: z.string().max(255).trim().optional().nullable(),
+		pin: z.string().max(20).trim().optional().nullable(),
+		warehouseType: z.string().max(100).trim().optional().nullable(),
+		defaultInTransitWarehouseId: z.string().cuid().optional().nullable(),
+	});
+
+	export const updateWarehouseSchema = z.object({
+		id: z.string().cuid(),
+		name: z.string().min(1).max(255).trim().optional(),
+		disabled: z.boolean().optional(),
+		isGroupWarehouse: z.boolean().optional(),
+		parentWarehouseId: z.string().cuid().optional().nullable(),
+		company: z.string().min(1).max(255).trim().optional(),
+		isRejectedWarehouse: z.boolean().optional(),
+		phoneNo: z.string().max(50).trim().optional().nullable(),
+		mobileNo: z.string().max(50).trim().optional().nullable(),
+		addressLine1: z.string().max(255).trim().optional().nullable(),
+		addressLine2: z.string().max(255).trim().optional().nullable(),
+		city: z.string().max(255).trim().optional().nullable(),
+		state: z.string().max(255).trim().optional().nullable(),
+		pin: z.string().max(20).trim().optional().nullable(),
+		warehouseType: z.string().max(100).trim().optional().nullable(),
+		defaultInTransitWarehouseId: z.string().cuid().optional().nullable(),
 	});
 
 	/**

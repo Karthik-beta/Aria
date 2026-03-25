@@ -116,6 +116,9 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
 	get brand() {
 		return this.client.brand;
 	}
+	get warehouse() {
+		return this.client.warehouse;
+	}
 	get productBundle() {
 		return this.client.productBundle;
 	}

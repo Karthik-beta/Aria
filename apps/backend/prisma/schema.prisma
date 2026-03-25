@@ -234,6 +234,38 @@ model Brand {
   items       Item[]
 }
 
+model Warehouse {
+  id                          String      @id @default(cuid())
+  name                        String      @unique @db.VarChar(255)
+  disabled                    Boolean     @default(false)
+  isGroupWarehouse            Boolean     @default(false)
+  parentWarehouseId           String?
+  company                     String      @db.VarChar(255)
+  isRejectedWarehouse         Boolean     @default(false)
+  phoneNo                     String?     @db.VarChar(50)
+  mobileNo                    String?     @db.VarChar(50)
+  addressLine1                String?     @db.VarChar(255)
+  addressLine2                String?     @db.VarChar(255)
+  city                        String?     @db.VarChar(255)
+  state                       String?     @db.VarChar(255)
+  pin                         String?     @db.VarChar(20)
+  warehouseType               String?     @db.VarChar(100)
+  defaultInTransitWarehouseId String?
+  createdAt                   DateTime    @default(now())
+  updatedAt                   DateTime    @updatedAt
+  parentWarehouse             Warehouse?  @relation("WarehouseHierarchy", fields: [parentWarehouseId], references: [id])
+  childWarehouses             Warehouse[] @relation("WarehouseHierarchy")
+  defaultInTransitWarehouse   Warehouse?  @relation("WarehouseTransitDefault", fields: [defaultInTransitWarehouseId], references: [id])
+  transitDefaultFor           Warehouse[] @relation("WarehouseTransitDefault")
+
+  @@index([company])
+  @@index([disabled])
+  @@index([isGroupWarehouse])
+  @@index([parentWarehouseId])
+  @@index([defaultInTransitWarehouseId])
+  @@map("warehouses")
+}
+
 model ProductBundle {
   id           String              @id @default(cuid())
   parentItemId String

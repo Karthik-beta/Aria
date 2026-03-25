@@ -48,6 +48,46 @@ function createListUnitsOfMeasureProcedure(inventoryService: InventoryService) {
 		});
 }
 
+function createListWarehousesProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(Inventory.listWarehousesSchema)
+		.query(async ({ input }) => {
+			return inventoryService.findWarehouses(input);
+		});
+}
+
+function createGetWarehouseByIdProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(z.object({ id: z.string().cuid() }))
+		.query(async ({ input }) => {
+			return inventoryService.findWarehouseById(input.id);
+		});
+}
+
+function createCreateWarehouseProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(Inventory.createWarehouseSchema)
+		.mutation(async ({ input }) => {
+			return inventoryService.createWarehouse(input);
+		});
+}
+
+function createUpdateWarehouseProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(Inventory.updateWarehouseSchema)
+		.mutation(async ({ input }) => {
+			return inventoryService.updateWarehouse(input);
+		});
+}
+
+function createDeleteWarehouseProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(z.object({ id: z.string().cuid() }))
+		.mutation(async ({ input }) => {
+			return inventoryService.deleteWarehouse(input.id);
+		});
+}
+
 function createGetStockSettingsProcedure(inventoryService: InventoryService) {
 	return protectedProcedure.query(async () => {
 		return inventoryService.findStockSettings();
@@ -1047,6 +1087,11 @@ type InventoryRouterInput = {
 	listItems: ReturnType<typeof createListItemsProcedure>;
 	listItemGroups: ReturnType<typeof createListItemGroupsProcedure>;
 	listUnitsOfMeasure: ReturnType<typeof createListUnitsOfMeasureProcedure>;
+	listWarehouses: ReturnType<typeof createListWarehousesProcedure>;
+	getWarehouseById: ReturnType<typeof createGetWarehouseByIdProcedure>;
+	createWarehouse: ReturnType<typeof createCreateWarehouseProcedure>;
+	updateWarehouse: ReturnType<typeof createUpdateWarehouseProcedure>;
+	deleteWarehouse: ReturnType<typeof createDeleteWarehouseProcedure>;
 	getStockSettings: ReturnType<typeof createGetStockSettingsProcedure>;
 	updateStockSettings: ReturnType<typeof createUpdateStockSettingsProcedure>;
 	getUnitOfMeasureById: ReturnType<typeof createGetUnitOfMeasureByIdProcedure>;
@@ -1198,6 +1243,11 @@ function createInventoryRouterRecord(
 		listItems: createListItemsProcedure(inventoryService),
 		listItemGroups: createListItemGroupsProcedure(inventoryService),
 		listUnitsOfMeasure: createListUnitsOfMeasureProcedure(inventoryService),
+		listWarehouses: createListWarehousesProcedure(inventoryService),
+		getWarehouseById: createGetWarehouseByIdProcedure(inventoryService),
+		createWarehouse: createCreateWarehouseProcedure(inventoryService),
+		updateWarehouse: createUpdateWarehouseProcedure(inventoryService),
+		deleteWarehouse: createDeleteWarehouseProcedure(inventoryService),
 		getStockSettings: createGetStockSettingsProcedure(inventoryService),
 		updateStockSettings: createUpdateStockSettingsProcedure(inventoryService),
 		getUnitOfMeasureById: createGetUnitOfMeasureByIdProcedure(inventoryService),
