@@ -1,6 +1,6 @@
 You are working on the branch: "feat/inventory-settings-module".
 
-Current page: "Brand"
+Current page: "Item Attribute"
 
 Valid page values:
 - Stock Settings

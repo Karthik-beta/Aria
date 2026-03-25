@@ -261,6 +261,35 @@ model Brand {
   items       Item[]
 }
 
+model ItemAttribute {
+  id              String               @id @default(cuid())
+  name            String               @db.VarChar(255)
+  disabled        Boolean              @default(false)
+  numericValues   Boolean              @default(false)
+  attributeValues ItemAttributeValue[]
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  @@index([name])
+  @@index([disabled])
+  @@map("item_attributes")
+}
+
+model ItemAttributeValue {
+  id             String        @id @default(cuid())
+  attributeId    String
+  attributeValue String        @db.VarChar(255)
+  abbreviation   String        @db.VarChar(50)
+  position       Int           @default(0)
+  attribute      ItemAttribute @relation(fields: [attributeId], references: [id], onDelete: Cascade)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@unique([attributeId, attributeValue])
+  @@index([attributeId])
+  @@map("item_attribute_values")
+}
+
 model Warehouse {
   id                          String      @id @default(cuid())
   name                        String      @unique @db.VarChar(255)

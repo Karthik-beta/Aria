@@ -56,6 +56,26 @@ describe("InventoryService", () => {
 		updatedAt: new Date(),
 	};
 
+	const mockItemAttributeValue = {
+		id: "clh123iav0001",
+		attributeId: "clh123ia0001",
+		attributeValue: "Red",
+		abbreviation: "R",
+		position: 0,
+		createdAt: new Date(),
+		updatedAt: new Date(),
+	};
+
+	const mockItemAttribute = {
+		id: "clh123ia0001",
+		name: "Colour",
+		disabled: false,
+		numericValues: false,
+		createdAt: new Date(),
+		updatedAt: new Date(),
+		attributeValues: [mockItemAttributeValue],
+	};
+
 	const mockWarehouse = {
 		id: "clh123warehouse0000",
 		name: "Stores - GH",
@@ -428,6 +448,19 @@ describe("InventoryService", () => {
 		},
 		deliveryTripStop: {
 			findMany: jest.fn(),
+			deleteMany: jest.fn(),
+			update: jest.fn(),
+			create: jest.fn(),
+		},
+		itemAttribute: {
+			findMany: jest.fn(),
+			findUnique: jest.fn(),
+			findUniqueOrThrow: jest.fn(),
+			create: jest.fn(),
+			update: jest.fn(),
+			delete: jest.fn(),
+		},
+		itemAttributeValue: {
 			deleteMany: jest.fn(),
 			update: jest.fn(),
 			create: jest.fn(),
@@ -1598,6 +1631,226 @@ describe("InventoryService", () => {
 			mockPrisma.unitOfMeasurement.delete.mockRejectedValue(error);
 
 			await expect(service.deleteUnitOfMeasure("missing-uom")).rejects.toThrow(
+				NotFoundException,
+			);
+		});
+	});
+
+	// ==========================================================================
+	// Item Attribute
+	// ==========================================================================
+
+	describe("findAllItemAttributes", () => {
+		it("should return all item attributes with nested values", async () => {
+			mockPrisma.itemAttribute.findMany.mockResolvedValue([mockItemAttribute]);
+
+			const result = await service.findAllItemAttributes();
+
+			expect(result).toHaveLength(1);
+			expect(result[0]).toMatchObject({
+				id: mockItemAttribute.id,
+				name: mockItemAttribute.name,
+				disabled: mockItemAttribute.disabled,
+				numericValues: mockItemAttribute.numericValues,
+			});
+			expect(result[0].attributeValues).toHaveLength(1);
+			expect(result[0].attributeValues[0]).toMatchObject({
+				attributeValue: "Red",
+				abbreviation: "R",
+			});
+		});
+
+		it("should pass the search filter when provided", async () => {
+			mockPrisma.itemAttribute.findMany.mockResolvedValue([]);
+
+			await service.findAllItemAttributes("Colour");
+
+			expect(mockPrisma.itemAttribute.findMany).toHaveBeenCalledWith(
+				expect.objectContaining({
+					where: { name: { contains: "Colour", mode: "insensitive" } },
+				}),
+			);
+		});
+	});
+
+	describe("findItemAttributeById", () => {
+		it("should return an item attribute by id", async () => {
+			mockPrisma.itemAttribute.findUnique.mockResolvedValue(mockItemAttribute);
+
+			const result = await service.findItemAttributeById(mockItemAttribute.id);
+
+			expect(result.id).toBe(mockItemAttribute.id);
+			expect(result.name).toBe(mockItemAttribute.name);
+		});
+
+		it("should throw NotFoundException when id does not exist", async () => {
+			mockPrisma.itemAttribute.findUnique.mockResolvedValue(null);
+
+			await expect(service.findItemAttributeById("missing-id")).rejects.toThrow(
+				NotFoundException,
+			);
+		});
+	});
+
+	describe("createItemAttribute", () => {
+		it("should create an item attribute with nested values", async () => {
+			mockPrisma.itemAttribute.create.mockResolvedValue(mockItemAttribute);
+
+			const result = await service.createItemAttribute({
+				name: "Colour",
+				disabled: false,
+				numericValues: false,
+				attributeValues: [{ attributeValue: "Red", abbreviation: "R" }],
+			});
+
+			expect(result.name).toBe("Colour");
+			expect(mockPrisma.itemAttribute.create).toHaveBeenCalledWith(
+				expect.objectContaining({
+					data: expect.objectContaining({
+						name: "Colour",
+						attributeValues: {
+							create: [
+								expect.objectContaining({
+									attributeValue: "Red",
+									abbreviation: "R",
+									position: 0,
+								}),
+							],
+						},
+					}),
+				}),
+			);
+		});
+
+		it("should throw ConflictException on duplicate name (P2002)", async () => {
+			const error = new Prisma.PrismaClientKnownRequestError(
+				"Unique constraint failed",
+				{ code: "P2002", clientVersion: "5.0.0" },
+			);
+			mockPrisma.itemAttribute.create.mockRejectedValue(error);
+
+			await expect(
+				service.createItemAttribute({
+					name: "Colour",
+					disabled: false,
+					numericValues: false,
+					attributeValues: [],
+				}),
+			).rejects.toThrow(ConflictException);
+		});
+	});
+
+	describe("updateItemAttribute", () => {
+		it("should update scalar fields and upsert attribute values", async () => {
+			mockPrisma.itemAttribute.findUnique.mockResolvedValue(mockItemAttribute);
+			mockPrisma.itemAttribute.update.mockResolvedValue(mockItemAttribute);
+			mockPrisma.itemAttributeValue.deleteMany.mockResolvedValue({ count: 0 });
+			mockPrisma.itemAttributeValue.update.mockResolvedValue(
+				mockItemAttributeValue,
+			);
+			mockPrisma.itemAttribute.findUniqueOrThrow.mockResolvedValue(
+				mockItemAttribute,
+			);
+
+			const result = await service.updateItemAttribute({
+				id: mockItemAttribute.id,
+				name: "Colour",
+				attributeValues: [
+					{
+						id: mockItemAttributeValue.id,
+						attributeValue: "Red",
+						abbreviation: "R",
+					},
+				],
+			});
+
+			expect(result.id).toBe(mockItemAttribute.id);
+			// existing value should be updated, not created
+			expect(mockPrisma.itemAttributeValue.update).toHaveBeenCalledWith(
+				expect.objectContaining({
+					where: { id: mockItemAttributeValue.id },
+					data: expect.objectContaining({ attributeValue: "Red" }),
+				}),
+			);
+		});
+
+		it("should create new attribute values when no id is provided", async () => {
+			mockPrisma.itemAttribute.findUnique.mockResolvedValue(mockItemAttribute);
+			mockPrisma.itemAttribute.update.mockResolvedValue(mockItemAttribute);
+			mockPrisma.itemAttributeValue.deleteMany.mockResolvedValue({ count: 0 });
+			mockPrisma.itemAttributeValue.create.mockResolvedValue(
+				mockItemAttributeValue,
+			);
+			mockPrisma.itemAttribute.findUniqueOrThrow.mockResolvedValue(
+				mockItemAttribute,
+			);
+
+			await service.updateItemAttribute({
+				id: mockItemAttribute.id,
+				attributeValues: [{ attributeValue: "Blue", abbreviation: "B" }],
+			});
+
+			expect(mockPrisma.itemAttributeValue.create).toHaveBeenCalledWith(
+				expect.objectContaining({
+					data: expect.objectContaining({
+						attributeValue: "Blue",
+						abbreviation: "B",
+					}),
+				}),
+			);
+		});
+
+		it("should throw NotFoundException when attribute does not exist", async () => {
+			mockPrisma.itemAttribute.findUnique.mockResolvedValue(null);
+
+			await expect(
+				service.updateItemAttribute({
+					id: "missing-id",
+					name: "X",
+				}),
+			).rejects.toThrow(NotFoundException);
+		});
+
+		it("should throw ConflictException on duplicate name (P2002)", async () => {
+			mockPrisma.itemAttribute.findUnique.mockResolvedValue(mockItemAttribute);
+			const error = new Prisma.PrismaClientKnownRequestError(
+				"Unique constraint failed",
+				{ code: "P2002", clientVersion: "5.0.0" },
+			);
+			mockPrisma.itemAttribute.update.mockRejectedValue(error);
+
+			await expect(
+				service.updateItemAttribute({
+					id: mockItemAttribute.id,
+					name: "Colour",
+				}),
+			).rejects.toThrow(ConflictException);
+		});
+	});
+
+	describe("deleteItemAttribute", () => {
+		it("should delete an item attribute by id", async () => {
+			mockPrisma.itemAttribute.delete.mockResolvedValue(mockItemAttribute);
+
+			const result = await service.deleteItemAttribute(mockItemAttribute.id);
+
+			expect(result).toEqual({
+				success: true,
+				id: mockItemAttribute.id,
+			});
+			expect(mockPrisma.itemAttribute.delete).toHaveBeenCalledWith({
+				where: { id: mockItemAttribute.id },
+			});
+		});
+
+		it("should throw NotFoundException when item attribute does not exist", async () => {
+			const error = new Prisma.PrismaClientKnownRequestError(
+				"Record not found",
+				{ code: "P2025", clientVersion: "5.0.0" },
+			);
+			mockPrisma.itemAttribute.delete.mockRejectedValue(error);
+
+			await expect(service.deleteItemAttribute("missing-id")).rejects.toThrow(
 				NotFoundException,
 			);
 		});

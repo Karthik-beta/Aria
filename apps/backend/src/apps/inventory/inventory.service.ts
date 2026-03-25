@@ -17,6 +17,7 @@ import {
 	toInventoryDeliveryTrip,
 	toInventoryItem,
 	toInventoryItemAlternative,
+	toInventoryItemAttribute,
 	toInventoryItemGroup,
 	toInventoryItemManufacturer,
 	toInventoryItemVariantSettings,
@@ -106,6 +107,27 @@ const brandSelect = {
 	description: true,
 	createdAt: true,
 	updatedAt: true,
+} as const;
+
+const itemAttributeSelect = {
+	id: true,
+	name: true,
+	disabled: true,
+	numericValues: true,
+	createdAt: true,
+	updatedAt: true,
+	attributeValues: {
+		select: {
+			id: true,
+			attributeId: true,
+			attributeValue: true,
+			abbreviation: true,
+			position: true,
+			createdAt: true,
+			updatedAt: true,
+		},
+		orderBy: { position: "asc" as const },
+	},
 } as const;
 
 const unitOfMeasureSelect = {
@@ -1524,6 +1546,191 @@ export class InventoryService {
 				error.code === "P2025"
 			) {
 				throw new NotFoundException(`Brand with ID ${id} not found`);
+			}
+			throw error;
+		}
+	}
+
+	// ============================================================================
+	// Item Attribute
+	// ============================================================================
+
+	/**
+	 * List all item attributes, optionally filtered by name.
+	 */
+	async findAllItemAttributes(
+		search?: string,
+	): Promise<Inventory.ItemAttribute[]> {
+		const attributes = await this.prisma.itemAttribute.findMany({
+			where: search
+				? { name: { contains: search, mode: "insensitive" } }
+				: undefined,
+			select: itemAttributeSelect,
+			orderBy: { name: "asc" },
+		});
+		return attributes.map(toInventoryItemAttribute);
+	}
+
+	/**
+	 * Find a single item attribute by ID, including its nested values.
+	 */
+	async findItemAttributeById(id: string): Promise<Inventory.ItemAttribute> {
+		const attribute = await this.prisma.itemAttribute.findUnique({
+			where: { id },
+			select: itemAttributeSelect,
+		});
+		if (!attribute) {
+			throw new NotFoundException(`Item Attribute with ID ${id} not found`);
+		}
+		return toInventoryItemAttribute(attribute);
+	}
+
+	/**
+	 * Create a new item attribute with its initial attribute values.
+	 */
+	async createItemAttribute(
+		data: z.infer<typeof Inventory.createItemAttributeSchema>,
+	): Promise<Inventory.ItemAttribute> {
+		try {
+			const attribute = await this.prisma.itemAttribute.create({
+				data: {
+					name: data.name,
+					disabled: data.disabled,
+					numericValues: data.numericValues,
+					attributeValues: {
+						create: data.attributeValues.map((v, index) => ({
+							attributeValue: v.attributeValue,
+							abbreviation: v.abbreviation,
+							position: index,
+						})),
+					},
+				},
+				select: itemAttributeSelect,
+			});
+			return toInventoryItemAttribute(attribute);
+		} catch (error) {
+			if (
+				error instanceof Prisma.PrismaClientKnownRequestError &&
+				error.code === "P2002"
+			) {
+				throw new ConflictException(
+					`Item Attribute with name "${data.name}" already exists`,
+				);
+			}
+			throw error;
+		}
+	}
+
+	/**
+	 * Update an item attribute.
+	 *
+	 * @remarks
+	 * When `attributeValues` is provided, uses a safe upsert strategy inside a
+	 * transaction: existing rows (with an `id`) are updated in-place, new rows
+	 * (without an `id`) are created, and rows no longer referenced are deleted.
+	 * This avoids the data-loss risk of a full delete-then-recreate.
+	 */
+	async updateItemAttribute(
+		data: z.infer<typeof Inventory.updateItemAttributeSchema>,
+	): Promise<Inventory.ItemAttribute> {
+		const { id, attributeValues, ...rest } = data;
+
+		// Verify the record exists first so we get a clean 404 instead of a Prisma error.
+		const existing = await this.prisma.itemAttribute.findUnique({
+			where: { id },
+			select: { id: true, name: true },
+		});
+		if (!existing) {
+			throw new NotFoundException(`Item Attribute with ID ${id} not found`);
+		}
+
+		try {
+			const updated = await this.prisma.$transaction(async (tx) => {
+				// Scalar field updates
+				await tx.itemAttribute.update({
+					where: { id },
+					data: removeUndefined(rest),
+				});
+
+				if (attributeValues !== undefined) {
+					const incomingIds = attributeValues
+						.filter((v) => v.id !== undefined)
+						.map((v) => v.id as string);
+
+					// Delete orphaned rows
+					await tx.itemAttributeValue.deleteMany({
+						where: { attributeId: id, id: { notIn: incomingIds } },
+					});
+
+					// Upsert each incoming row
+					for (let i = 0; i < attributeValues.length; i++) {
+						const v = attributeValues[i];
+						if (v.id) {
+							await tx.itemAttributeValue.update({
+								where: { id: v.id },
+								data: {
+									attributeValue: v.attributeValue,
+									abbreviation: v.abbreviation,
+									position: i,
+								},
+							});
+						} else {
+							await tx.itemAttributeValue.create({
+								data: {
+									attributeId: id,
+									attributeValue: v.attributeValue,
+									abbreviation: v.abbreviation,
+									position: i,
+								},
+							});
+						}
+					}
+				}
+
+				return tx.itemAttribute.findUniqueOrThrow({
+					where: { id },
+					select: itemAttributeSelect,
+				});
+			});
+
+			return toInventoryItemAttribute(updated);
+		} catch (error) {
+			if (
+				error instanceof Prisma.PrismaClientKnownRequestError &&
+				error.code === "P2025"
+			) {
+				throw new NotFoundException(`Item Attribute with ID ${id} not found`);
+			}
+			if (
+				error instanceof Prisma.PrismaClientKnownRequestError &&
+				error.code === "P2002"
+			) {
+				const conflictName = rest.name ?? existing.name;
+				throw new ConflictException(
+					conflictName
+						? `Item Attribute with name "${conflictName}" already exists`
+						: "Item Attribute already exists",
+				);
+			}
+			throw error;
+		}
+	}
+
+	/**
+	 * Delete an item attribute (cascade deletes all attribute values).
+	 */
+	async deleteItemAttribute(
+		id: string,
+	): Promise<{ success: boolean; id: string }> {
+		try {
+			await this.prisma.itemAttribute.delete({ where: { id } });
+			return { success: true, id };
+		} catch (error) {
+			if (
+				error instanceof Prisma.PrismaClientKnownRequestError &&
+				error.code === "P2025"
+			) {
+				throw new NotFoundException(`Item Attribute with ID ${id} not found`);
 			}
 			throw error;
 		}

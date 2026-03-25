@@ -75,6 +75,33 @@ export type InventoryBrand = Prisma.BrandGetPayload<{
 }>;
 
 /**
+ * Prisma model type for ItemAttribute with nested attribute values.
+ * Values are ordered by position ascending.
+ */
+export type InventoryItemAttribute = Prisma.ItemAttributeGetPayload<{
+	select: {
+		id: true;
+		name: true;
+		disabled: true;
+		numericValues: true;
+		createdAt: true;
+		updatedAt: true;
+		attributeValues: {
+			select: {
+				id: true;
+				attributeId: true;
+				attributeValue: true;
+				abbreviation: true;
+				position: true;
+				createdAt: true;
+				updatedAt: true;
+			};
+			orderBy: { position: "asc" };
+		};
+	};
+}>;
+
+/**
  * Prisma model type for UnitOfMeasurement with scalar fields only
  */
 export type InventoryUnitOfMeasure = Prisma.UnitOfMeasurementGetPayload<{
@@ -374,6 +401,31 @@ export function toInventoryBrand(prismaBrand: InventoryBrand): Inventory.Brand {
 		description: prismaBrand.description,
 		createdAt: prismaBrand.createdAt,
 		updatedAt: prismaBrand.updatedAt,
+	};
+}
+
+/**
+ * Converts a Prisma ItemAttribute (with nested values) to Inventory.ItemAttribute.
+ */
+export function toInventoryItemAttribute(
+	prismaAttr: InventoryItemAttribute,
+): Inventory.ItemAttribute {
+	return {
+		id: prismaAttr.id,
+		name: prismaAttr.name,
+		disabled: prismaAttr.disabled,
+		numericValues: prismaAttr.numericValues,
+		attributeValues: prismaAttr.attributeValues.map((v) => ({
+			id: v.id,
+			attributeId: v.attributeId,
+			attributeValue: v.attributeValue,
+			abbreviation: v.abbreviation,
+			position: v.position,
+			createdAt: v.createdAt,
+			updatedAt: v.updatedAt,
+		})),
+		createdAt: prismaAttr.createdAt,
+		updatedAt: prismaAttr.updatedAt,
 	};
 }
 

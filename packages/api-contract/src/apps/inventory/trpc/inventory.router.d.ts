@@ -283,6 +283,62 @@ type InventoryRouterInput = {
 		};
 		meta: object;
 	}>;
+	listItemAttributes: TRPCQueryProcedure<{
+		input:
+			| {
+					search?: string | undefined;
+			  }
+			| undefined;
+		output: Inventory.ItemAttribute[];
+		meta: object;
+	}>;
+	getItemAttributeById: TRPCQueryProcedure<{
+		input: {
+			id: string;
+		};
+		output: Inventory.ItemAttribute | null;
+		meta: object;
+	}>;
+	createItemAttribute: TRPCMutationProcedure<{
+		input: {
+			name: string;
+			disabled?: boolean | undefined;
+			numericValues?: boolean | undefined;
+			attributeValues?: {
+				attributeValue: string;
+				abbreviation: string;
+				position?: number | undefined;
+			}[];
+		};
+		output: Inventory.ItemAttribute;
+		meta: object;
+	}>;
+	updateItemAttribute: TRPCMutationProcedure<{
+		input: {
+			id: string;
+			name?: string | undefined;
+			disabled?: boolean | undefined;
+			numericValues?: boolean | undefined;
+			attributeValues?: {
+				id?: string | undefined;
+				attributeValue: string;
+				abbreviation: string;
+				position?: number | undefined;
+			}[];
+		};
+		output: Inventory.ItemAttribute;
+		meta: object;
+	}>;
+	deleteItemAttribute: TRPCMutationProcedure<{
+		input: {
+			id: string;
+		};
+		output: {
+			success: boolean;
+			id: string;
+		};
+		meta: object;
+	}>;
 	listBundleItems: TRPCQueryProcedure<{
 		input:
 			| {

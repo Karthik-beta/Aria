@@ -1072,6 +1072,90 @@ export namespace Inventory {
 		description: z.string().max(1000).trim().optional().nullable(),
 	});
 
+	// ============================================================================
+	// Item Attribute
+	// ============================================================================
+
+	/**
+	 * A single attribute value row nested inside an ItemAttribute (e.g. "Red" / "R").
+	 */
+	export interface ItemAttributeValue {
+		/** Unique identifier (CUID) */
+		id: string;
+		/** Parent attribute ID */
+		attributeId: string;
+		/** The display value (e.g. "Red", "Large") */
+		attributeValue: string;
+		/** Short abbreviation used in variant codes (e.g. "R", "L") */
+		abbreviation: string;
+		/** Zero-based display order position */
+		position: number;
+		/** When this value was created */
+		createdAt: Date;
+		/** When this value was last updated */
+		updatedAt: Date;
+	}
+
+	/**
+	 * Item Attribute master entity — defines product variant dimensions
+	 * (e.g. Colour, Size) together with their allowed values.
+	 */
+	export interface ItemAttribute {
+		/** Unique identifier (CUID) */
+		id: string;
+		/** Attribute name (e.g. "Colour", "Size") */
+		name: string;
+		/** Whether the attribute is disabled for selection */
+		disabled: boolean;
+		/**
+		 * When true the attribute values represent numeric ranges
+		 * rather than discrete text values.
+		 */
+		numericValues: boolean;
+		/** Ordered list of allowed values for this attribute */
+		attributeValues: ItemAttributeValue[];
+		/** When this attribute was created */
+		createdAt: Date;
+		/** When this attribute was last updated */
+		updatedAt: Date;
+	}
+
+	/**
+	 * Schema for a single attribute value input row (used in create/update payloads).
+	 */
+	export const itemAttributeValueInputSchema = z.object({
+		/** Existing row ID — present only when updating an existing value */
+		id: z.string().cuid().optional(),
+		attributeValue: z
+			.string()
+			.min(1, "Attribute value is required")
+			.max(255)
+			.trim(),
+		abbreviation: z.string().min(1, "Abbreviation is required").max(50).trim(),
+	});
+
+	/**
+	 * Validation schema for creating an item attribute.
+	 */
+	export const createItemAttributeSchema = z.object({
+		name: z.string().min(1, "Attribute name is required").max(255).trim(),
+		disabled: z.boolean().default(false),
+		numericValues: z.boolean().default(false),
+		attributeValues: z.array(itemAttributeValueInputSchema).default([]),
+	});
+
+	/**
+	 * Validation schema for updating an item attribute.
+	 */
+	export const updateItemAttributeSchema = z.object({
+		id: z.string().cuid(),
+		name: z.string().min(1).max(255).trim().optional(),
+		disabled: z.boolean().optional(),
+		numericValues: z.boolean().optional(),
+		/** When provided, fully replaces the attribute values list using a safe upsert strategy */
+		attributeValues: z.array(itemAttributeValueInputSchema).optional(),
+	});
+
 	const stockItemNamingBySchema = z.enum(["ITEM_CODE", "NAMING_SERIES"]);
 	const stockValuationMethodSchema = z.enum(["FIFO", "MOVING_AVERAGE"]);
 	const stockQualityInspectionActionSchema = z.enum(["STOP", "WARN"]);
