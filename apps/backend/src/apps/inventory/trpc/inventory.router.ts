@@ -48,6 +48,22 @@ function createListUnitsOfMeasureProcedure(inventoryService: InventoryService) {
 		});
 }
 
+function createGetStockSettingsProcedure(inventoryService: InventoryService) {
+	return protectedProcedure.query(async () => {
+		return inventoryService.findStockSettings();
+	});
+}
+
+function createUpdateStockSettingsProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure
+		.input(Inventory.updateStockSettingsSchema)
+		.mutation(async ({ input }) => {
+			return inventoryService.updateStockSettings(input);
+		});
+}
+
 function createGetUnitOfMeasureByIdProcedure(
 	inventoryService: InventoryService,
 ) {
@@ -1031,6 +1047,8 @@ type InventoryRouterInput = {
 	listItems: ReturnType<typeof createListItemsProcedure>;
 	listItemGroups: ReturnType<typeof createListItemGroupsProcedure>;
 	listUnitsOfMeasure: ReturnType<typeof createListUnitsOfMeasureProcedure>;
+	getStockSettings: ReturnType<typeof createGetStockSettingsProcedure>;
+	updateStockSettings: ReturnType<typeof createUpdateStockSettingsProcedure>;
 	getUnitOfMeasureById: ReturnType<typeof createGetUnitOfMeasureByIdProcedure>;
 	createUnitOfMeasure: ReturnType<typeof createCreateUnitOfMeasureProcedure>;
 	updateUnitOfMeasure: ReturnType<typeof createUpdateUnitOfMeasureProcedure>;
@@ -1180,6 +1198,8 @@ function createInventoryRouterRecord(
 		listItems: createListItemsProcedure(inventoryService),
 		listItemGroups: createListItemGroupsProcedure(inventoryService),
 		listUnitsOfMeasure: createListUnitsOfMeasureProcedure(inventoryService),
+		getStockSettings: createGetStockSettingsProcedure(inventoryService),
+		updateStockSettings: createUpdateStockSettingsProcedure(inventoryService),
 		getUnitOfMeasureById: createGetUnitOfMeasureByIdProcedure(inventoryService),
 		createUnitOfMeasure: createCreateUnitOfMeasureProcedure(inventoryService),
 		updateUnitOfMeasure: createUpdateUnitOfMeasureProcedure(inventoryService),

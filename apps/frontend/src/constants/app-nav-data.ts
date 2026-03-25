@@ -124,7 +124,7 @@ export const inventoryNavItems: NavItem[] = [
 		items: [
 			{
 				title: "Stock Settings",
-				url: "/inventory/settings/stock",
+				url: "/inventory/inventory-settings/stock-settings",
 			},
 			{
 				title: "Warehouse",
@@ -132,7 +132,7 @@ export const inventoryNavItems: NavItem[] = [
 			},
 			{
 				title: "Unit of Measure (UOM)",
-				url: "/inventory/uom",
+				url: "/inventory/inventory-settings/uom",
 			},
 			{
 				title: "Brand",

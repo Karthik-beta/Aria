@@ -24,6 +24,7 @@ import {
 	toInventoryPurchaseReceipt,
 	toInventoryShippingRule,
 	toInventoryStockEntry,
+	toInventoryStockSettings,
 	toInventoryUnitOfMeasure,
 } from "./inventory.types";
 import { buildItemPriceStockRows } from "./item-price-stock-report";
@@ -101,6 +102,46 @@ const unitOfMeasureSelect = {
 	name: true,
 	disabled: true,
 	isWholeNumber: true,
+	createdAt: true,
+	updatedAt: true,
+} as const;
+
+const stockSettingsSelect = {
+	id: true,
+	itemNamingBy: true,
+	defaultWarehouse: true,
+	defaultValuationMethod: true,
+	defaultStockUom: true,
+	autoInsertItemPriceIfMissing: true,
+	updateExistingPriceListRate: true,
+	allowToEditStockUomQtyForSalesDocuments: true,
+	allowToEditStockUomQtyForPurchaseDocuments: true,
+	overDeliveryReceiptAllowancePercent: true,
+	allowNegativeStock: true,
+	showBarcodeFieldInStockTransactions: true,
+	convertItemDescriptionToCleanHtmlInTransactions: true,
+	overTransferAllowancePercent: true,
+	allowInternalTransfersAtArmsLengthPrice: true,
+	overPickingAllowancePercent: true,
+	actionIfQualityInspectionIsNotSubmitted: true,
+	actionIfQualityInspectionIsRejected: true,
+	enableStockReservation: true,
+	allowPartialReservation: true,
+	autoReserveStockForSalesOrderOnPurchase: true,
+	autoReserveSerialAndBatchNos: true,
+	autoCreateSerialAndBatchBundleForOutward: true,
+	disableSerialNoAndBatchSelector: true,
+	haveDefaultNamingSeriesForBatchId: true,
+	pickSerialBatchBasedOn: true,
+	useSerialBatchFields: true,
+	doNotUpdateSerialBatchOnCreationOfAutoBundle: true,
+	allowExistingSerialNoToBeManufacturedReceivedAgain: true,
+	setSerialAndBatchBundleNamingBasedOnNamingSeries: true,
+	raiseMaterialRequestWhenStockReachesReorderLevel: true,
+	notifyByEmailOnCreationOfAutomaticMaterialRequest: true,
+	allowMaterialTransferFromDeliveryNoteToSalesInvoice: true,
+	allowMaterialTransferFromPurchaseReceiptToPurchaseInvoice: true,
+	freezeStocksOlderThanDays: true,
 	createdAt: true,
 	updatedAt: true,
 } as const;
@@ -273,6 +314,96 @@ export class InventoryService {
 		});
 
 		return units.map(toInventoryUnitOfMeasure);
+	}
+
+	private normalizeStockSettingsText(value?: string | null): string | null {
+		const normalized = value?.trim();
+		return normalized ? normalized : null;
+	}
+
+	private async resolveCanonicalUnitOfMeasureName(
+		name: string | null,
+	): Promise<string | null> {
+		if (!name) {
+			return null;
+		}
+
+		const unit = await this.prisma.unitOfMeasurement.findFirst({
+			where: {
+				name: {
+					equals: name,
+					mode: "insensitive",
+				},
+				disabled: false,
+			},
+			select: { name: true },
+		});
+
+		if (!unit) {
+			throw new BadRequestException(
+				`Default stock UOM "${name}" does not exist or is disabled`,
+			);
+		}
+
+		return unit.name;
+	}
+
+	/**
+	 * Get the singleton stock settings record, creating it when missing.
+	 */
+	async findStockSettings(): Promise<Inventory.StockSettings> {
+		const existing = await this.prisma.stockSettings.findUnique({
+			where: { singletonKey: "default" },
+			select: stockSettingsSelect,
+		});
+
+		if (existing) {
+			return toInventoryStockSettings(existing);
+		}
+
+		const created = await this.prisma.stockSettings.upsert({
+			where: { singletonKey: "default" },
+			update: {},
+			create: {
+				singletonKey: "default",
+			},
+			select: stockSettingsSelect,
+		});
+
+		return toInventoryStockSettings(created);
+	}
+
+	/**
+	 * Update the singleton stock settings record.
+	 */
+	async updateStockSettings(
+		data: z.infer<typeof Inventory.updateStockSettingsSchema>,
+	): Promise<Inventory.StockSettings> {
+		const normalizedDefaultWarehouse = this.normalizeStockSettingsText(
+			data.defaultWarehouse,
+		);
+		const normalizedDefaultStockUom =
+			await this.resolveCanonicalUnitOfMeasureName(
+				this.normalizeStockSettingsText(data.defaultStockUom),
+			);
+
+		const updated = await this.prisma.stockSettings.upsert({
+			where: { singletonKey: "default" },
+			update: {
+				...data,
+				defaultWarehouse: normalizedDefaultWarehouse,
+				defaultStockUom: normalizedDefaultStockUom,
+			},
+			create: {
+				singletonKey: "default",
+				...data,
+				defaultWarehouse: normalizedDefaultWarehouse,
+				defaultStockUom: normalizedDefaultStockUom,
+			},
+			select: stockSettingsSelect,
+		});
+
+		return toInventoryStockSettings(updated);
 	}
 
 	/**

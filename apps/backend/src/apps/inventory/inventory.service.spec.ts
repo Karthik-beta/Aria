@@ -56,6 +56,50 @@ describe("InventoryService", () => {
 		updatedAt: new Date(),
 	};
 
+	const mockStockSettingsInput = {
+		itemNamingBy: "ITEM_CODE" as const,
+		defaultWarehouse: null,
+		defaultValuationMethod: "FIFO" as const,
+		defaultStockUom: "Nos",
+		autoInsertItemPriceIfMissing: false,
+		updateExistingPriceListRate: false,
+		allowToEditStockUomQtyForSalesDocuments: false,
+		allowToEditStockUomQtyForPurchaseDocuments: false,
+		overDeliveryReceiptAllowancePercent: 0,
+		allowNegativeStock: false,
+		showBarcodeFieldInStockTransactions: false,
+		convertItemDescriptionToCleanHtmlInTransactions: false,
+		overTransferAllowancePercent: 0,
+		allowInternalTransfersAtArmsLengthPrice: false,
+		overPickingAllowancePercent: 0,
+		actionIfQualityInspectionIsNotSubmitted: "STOP" as const,
+		actionIfQualityInspectionIsRejected: "STOP" as const,
+		enableStockReservation: false,
+		allowPartialReservation: false,
+		autoReserveStockForSalesOrderOnPurchase: false,
+		autoReserveSerialAndBatchNos: false,
+		autoCreateSerialAndBatchBundleForOutward: false,
+		disableSerialNoAndBatchSelector: false,
+		haveDefaultNamingSeriesForBatchId: false,
+		pickSerialBatchBasedOn: "FIFO" as const,
+		useSerialBatchFields: false,
+		doNotUpdateSerialBatchOnCreationOfAutoBundle: false,
+		allowExistingSerialNoToBeManufacturedReceivedAgain: false,
+		setSerialAndBatchBundleNamingBasedOnNamingSeries: false,
+		raiseMaterialRequestWhenStockReachesReorderLevel: false,
+		notifyByEmailOnCreationOfAutomaticMaterialRequest: false,
+		allowMaterialTransferFromDeliveryNoteToSalesInvoice: false,
+		allowMaterialTransferFromPurchaseReceiptToPurchaseInvoice: false,
+		freezeStocksOlderThanDays: 60,
+	};
+
+	const mockStockSettings = {
+		id: "clh123stocksettings0000",
+		...mockStockSettingsInput,
+		createdAt: new Date(),
+		updatedAt: new Date(),
+	};
+
 	const mockStockEntryItem = {
 		id: "clh123ste_item01",
 		stockEntryId: "clh123ste000001",
@@ -189,6 +233,10 @@ describe("InventoryService", () => {
 			createMany: jest.fn(),
 			update: jest.fn(),
 			delete: jest.fn(),
+		},
+		stockSettings: {
+			findUnique: jest.fn(),
+			upsert: jest.fn(),
 		},
 		itemAlternate: {
 			findMany: jest.fn(),
@@ -871,6 +919,98 @@ describe("InventoryService", () => {
 			const result = await service.findUnitOfMeasureById("missing-uom");
 
 			expect(result).toBeNull();
+		});
+	});
+
+	describe("findStockSettings", () => {
+		it("should return the existing singleton stock settings", async () => {
+			mockPrisma.stockSettings.findUnique.mockResolvedValue(mockStockSettings);
+
+			const result = await service.findStockSettings();
+
+			expect(result).toEqual(mockStockSettings);
+			expect(mockPrisma.stockSettings.findUnique).toHaveBeenCalledWith({
+				where: { singletonKey: "default" },
+				select: expect.objectContaining({
+					id: true,
+					itemNamingBy: true,
+					defaultStockUom: true,
+					freezeStocksOlderThanDays: true,
+				}),
+			});
+			expect(mockPrisma.stockSettings.upsert).not.toHaveBeenCalled();
+		});
+
+		it("should create the singleton stock settings when missing", async () => {
+			mockPrisma.stockSettings.findUnique.mockResolvedValue(null);
+			mockPrisma.stockSettings.upsert.mockResolvedValue(mockStockSettings);
+
+			const result = await service.findStockSettings();
+
+			expect(result.id).toBe(mockStockSettings.id);
+			expect(mockPrisma.stockSettings.upsert).toHaveBeenCalledWith({
+				where: { singletonKey: "default" },
+				update: {},
+				create: { singletonKey: "default" },
+				select: expect.objectContaining({
+					id: true,
+					itemNamingBy: true,
+					defaultStockUom: true,
+					freezeStocksOlderThanDays: true,
+				}),
+			});
+		});
+	});
+
+	describe("updateStockSettings", () => {
+		it("should upsert stock settings and canonicalize the default stock UOM", async () => {
+			const input = Inventory.updateStockSettingsSchema.parse({
+				...mockStockSettingsInput,
+				defaultWarehouse: " Stores - GH ",
+				defaultStockUom: "nos",
+			});
+			mockPrisma.unitOfMeasurement.findFirst.mockResolvedValue({ name: "Nos" });
+			mockPrisma.stockSettings.upsert.mockResolvedValue({
+				...mockStockSettings,
+				defaultWarehouse: "Stores - GH",
+				defaultStockUom: "Nos",
+			});
+
+			const result = await service.updateStockSettings(input);
+
+			expect(result.defaultWarehouse).toBe("Stores - GH");
+			expect(result.defaultStockUom).toBe("Nos");
+			expect(mockPrisma.stockSettings.upsert).toHaveBeenCalledWith({
+				where: { singletonKey: "default" },
+				update: expect.objectContaining({
+					defaultWarehouse: "Stores - GH",
+					defaultStockUom: "Nos",
+				}),
+				create: expect.objectContaining({
+					singletonKey: "default",
+					defaultWarehouse: "Stores - GH",
+					defaultStockUom: "Nos",
+				}),
+				select: expect.objectContaining({
+					id: true,
+					itemNamingBy: true,
+					defaultStockUom: true,
+					freezeStocksOlderThanDays: true,
+				}),
+			});
+		});
+
+		it("should reject a default stock UOM that does not exist", async () => {
+			const input = Inventory.updateStockSettingsSchema.parse({
+				...mockStockSettingsInput,
+				defaultStockUom: "Ghost UOM",
+			});
+			mockPrisma.unitOfMeasurement.findFirst.mockResolvedValue(null);
+
+			await expect(service.updateStockSettings(input)).rejects.toThrow(
+				BadRequestException,
+			);
+			expect(mockPrisma.stockSettings.upsert).not.toHaveBeenCalled();
 		});
 	});
 

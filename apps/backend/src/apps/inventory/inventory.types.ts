@@ -1,4 +1,4 @@
-import type { Inventory } from "@aria/types";
+import { Inventory } from "@aria/types";
 import type { Prisma } from "../../generated/prisma/client";
 
 /**
@@ -70,6 +70,51 @@ export type InventoryUnitOfMeasure = Prisma.UnitOfMeasurementGetPayload<{
 		name: true;
 		disabled: true;
 		isWholeNumber: true;
+		createdAt: true;
+		updatedAt: true;
+	};
+}>;
+
+/**
+ * Prisma model type for singleton StockSettings.
+ */
+export type InventoryStockSettings = Prisma.StockSettingsGetPayload<{
+	select: {
+		id: true;
+		itemNamingBy: true;
+		defaultWarehouse: true;
+		defaultValuationMethod: true;
+		defaultStockUom: true;
+		autoInsertItemPriceIfMissing: true;
+		updateExistingPriceListRate: true;
+		allowToEditStockUomQtyForSalesDocuments: true;
+		allowToEditStockUomQtyForPurchaseDocuments: true;
+		overDeliveryReceiptAllowancePercent: true;
+		allowNegativeStock: true;
+		showBarcodeFieldInStockTransactions: true;
+		convertItemDescriptionToCleanHtmlInTransactions: true;
+		overTransferAllowancePercent: true;
+		allowInternalTransfersAtArmsLengthPrice: true;
+		overPickingAllowancePercent: true;
+		actionIfQualityInspectionIsNotSubmitted: true;
+		actionIfQualityInspectionIsRejected: true;
+		enableStockReservation: true;
+		allowPartialReservation: true;
+		autoReserveStockForSalesOrderOnPurchase: true;
+		autoReserveSerialAndBatchNos: true;
+		autoCreateSerialAndBatchBundleForOutward: true;
+		disableSerialNoAndBatchSelector: true;
+		haveDefaultNamingSeriesForBatchId: true;
+		pickSerialBatchBasedOn: true;
+		useSerialBatchFields: true;
+		doNotUpdateSerialBatchOnCreationOfAutoBundle: true;
+		allowExistingSerialNoToBeManufacturedReceivedAgain: true;
+		setSerialAndBatchBundleNamingBasedOnNamingSeries: true;
+		raiseMaterialRequestWhenStockReachesReorderLevel: true;
+		notifyByEmailOnCreationOfAutomaticMaterialRequest: true;
+		allowMaterialTransferFromDeliveryNoteToSalesInvoice: true;
+		allowMaterialTransferFromPurchaseReceiptToPurchaseInvoice: true;
+		freezeStocksOlderThanDays: true;
 		createdAt: true;
 		updatedAt: true;
 	};
@@ -260,6 +305,83 @@ export function toInventoryUnitOfMeasure(
 		isWholeNumber: prismaUnitOfMeasure.isWholeNumber,
 		createdAt: prismaUnitOfMeasure.createdAt,
 		updatedAt: prismaUnitOfMeasure.updatedAt,
+	};
+}
+
+/**
+ * Converts Prisma singleton stock settings to Inventory.StockSettings.
+ */
+export function toInventoryStockSettings(
+	prismaStockSettings: InventoryStockSettings,
+): Inventory.StockSettings {
+	const parsedSettings = Inventory.updateStockSettingsSchema.parse({
+		itemNamingBy: prismaStockSettings.itemNamingBy,
+		defaultWarehouse: prismaStockSettings.defaultWarehouse,
+		defaultValuationMethod: prismaStockSettings.defaultValuationMethod,
+		defaultStockUom: prismaStockSettings.defaultStockUom,
+		autoInsertItemPriceIfMissing:
+			prismaStockSettings.autoInsertItemPriceIfMissing,
+		updateExistingPriceListRate:
+			prismaStockSettings.updateExistingPriceListRate,
+		allowToEditStockUomQtyForSalesDocuments:
+			prismaStockSettings.allowToEditStockUomQtyForSalesDocuments,
+		allowToEditStockUomQtyForPurchaseDocuments:
+			prismaStockSettings.allowToEditStockUomQtyForPurchaseDocuments,
+		overDeliveryReceiptAllowancePercent:
+			prismaStockSettings.overDeliveryReceiptAllowancePercent,
+		allowNegativeStock: prismaStockSettings.allowNegativeStock,
+		showBarcodeFieldInStockTransactions:
+			prismaStockSettings.showBarcodeFieldInStockTransactions,
+		convertItemDescriptionToCleanHtmlInTransactions:
+			prismaStockSettings.convertItemDescriptionToCleanHtmlInTransactions,
+		overTransferAllowancePercent:
+			prismaStockSettings.overTransferAllowancePercent,
+		allowInternalTransfersAtArmsLengthPrice:
+			prismaStockSettings.allowInternalTransfersAtArmsLengthPrice,
+		overPickingAllowancePercent:
+			prismaStockSettings.overPickingAllowancePercent,
+		actionIfQualityInspectionIsNotSubmitted:
+			prismaStockSettings.actionIfQualityInspectionIsNotSubmitted,
+		actionIfQualityInspectionIsRejected:
+			prismaStockSettings.actionIfQualityInspectionIsRejected,
+		enableStockReservation: prismaStockSettings.enableStockReservation,
+		allowPartialReservation: prismaStockSettings.allowPartialReservation,
+		autoReserveStockForSalesOrderOnPurchase:
+			prismaStockSettings.autoReserveStockForSalesOrderOnPurchase,
+		autoReserveSerialAndBatchNos:
+			prismaStockSettings.autoReserveSerialAndBatchNos,
+		autoCreateSerialAndBatchBundleForOutward:
+			prismaStockSettings.autoCreateSerialAndBatchBundleForOutward,
+		disableSerialNoAndBatchSelector:
+			prismaStockSettings.disableSerialNoAndBatchSelector,
+		haveDefaultNamingSeriesForBatchId:
+			prismaStockSettings.haveDefaultNamingSeriesForBatchId,
+		pickSerialBatchBasedOn: prismaStockSettings.pickSerialBatchBasedOn,
+		useSerialBatchFields: prismaStockSettings.useSerialBatchFields,
+		doNotUpdateSerialBatchOnCreationOfAutoBundle:
+			prismaStockSettings.doNotUpdateSerialBatchOnCreationOfAutoBundle,
+		allowExistingSerialNoToBeManufacturedReceivedAgain:
+			prismaStockSettings.allowExistingSerialNoToBeManufacturedReceivedAgain,
+		setSerialAndBatchBundleNamingBasedOnNamingSeries:
+			prismaStockSettings.setSerialAndBatchBundleNamingBasedOnNamingSeries,
+		raiseMaterialRequestWhenStockReachesReorderLevel:
+			prismaStockSettings.raiseMaterialRequestWhenStockReachesReorderLevel,
+		notifyByEmailOnCreationOfAutomaticMaterialRequest:
+			prismaStockSettings.notifyByEmailOnCreationOfAutomaticMaterialRequest,
+		allowMaterialTransferFromDeliveryNoteToSalesInvoice:
+			prismaStockSettings.allowMaterialTransferFromDeliveryNoteToSalesInvoice,
+		allowMaterialTransferFromPurchaseReceiptToPurchaseInvoice:
+			prismaStockSettings.allowMaterialTransferFromPurchaseReceiptToPurchaseInvoice,
+		freezeStocksOlderThanDays: prismaStockSettings.freezeStocksOlderThanDays,
+	});
+
+	return {
+		id: prismaStockSettings.id,
+		...parsedSettings,
+		defaultWarehouse: parsedSettings.defaultWarehouse ?? null,
+		defaultStockUom: parsedSettings.defaultStockUom ?? null,
+		createdAt: prismaStockSettings.createdAt,
+		updatedAt: prismaStockSettings.updatedAt,
 	};
 }
 

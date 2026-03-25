@@ -68,6 +68,51 @@ type InventoryRouterInput = {
 		output: Inventory.UnitOfMeasure[];
 		meta: object;
 	}>;
+	getStockSettings: TRPCQueryProcedure<{
+		input: void;
+		output: Inventory.StockSettings;
+		meta: object;
+	}>;
+	updateStockSettings: TRPCMutationProcedure<{
+		input: {
+			itemNamingBy: "ITEM_CODE" | "NAMING_SERIES";
+			defaultWarehouse?: string | null | undefined;
+			defaultValuationMethod: "FIFO" | "MOVING_AVERAGE";
+			defaultStockUom?: string | null | undefined;
+			autoInsertItemPriceIfMissing: boolean;
+			updateExistingPriceListRate: boolean;
+			allowToEditStockUomQtyForSalesDocuments: boolean;
+			allowToEditStockUomQtyForPurchaseDocuments: boolean;
+			overDeliveryReceiptAllowancePercent: number;
+			allowNegativeStock: boolean;
+			showBarcodeFieldInStockTransactions: boolean;
+			convertItemDescriptionToCleanHtmlInTransactions: boolean;
+			overTransferAllowancePercent: number;
+			allowInternalTransfersAtArmsLengthPrice: boolean;
+			overPickingAllowancePercent: number;
+			actionIfQualityInspectionIsNotSubmitted: "STOP" | "WARN";
+			actionIfQualityInspectionIsRejected: "STOP" | "WARN";
+			enableStockReservation: boolean;
+			allowPartialReservation: boolean;
+			autoReserveStockForSalesOrderOnPurchase: boolean;
+			autoReserveSerialAndBatchNos: boolean;
+			autoCreateSerialAndBatchBundleForOutward: boolean;
+			disableSerialNoAndBatchSelector: boolean;
+			haveDefaultNamingSeriesForBatchId: boolean;
+			pickSerialBatchBasedOn: "FIFO" | "LIFO" | "EXPIRY";
+			useSerialBatchFields: boolean;
+			doNotUpdateSerialBatchOnCreationOfAutoBundle: boolean;
+			allowExistingSerialNoToBeManufacturedReceivedAgain: boolean;
+			setSerialAndBatchBundleNamingBasedOnNamingSeries: boolean;
+			raiseMaterialRequestWhenStockReachesReorderLevel: boolean;
+			notifyByEmailOnCreationOfAutomaticMaterialRequest: boolean;
+			allowMaterialTransferFromDeliveryNoteToSalesInvoice: boolean;
+			allowMaterialTransferFromPurchaseReceiptToPurchaseInvoice: boolean;
+			freezeStocksOlderThanDays: number;
+		};
+		output: Inventory.StockSettings;
+		meta: object;
+	}>;
 	getUnitOfMeasureById: TRPCQueryProcedure<{
 		input: {
 			id: string;

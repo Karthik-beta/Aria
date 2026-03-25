@@ -90,6 +90,101 @@ export namespace Inventory {
 		updatedAt: Date;
 	}
 
+	export type StockItemNamingBy = "ITEM_CODE" | "NAMING_SERIES";
+	export type StockValuationMethod = "FIFO" | "MOVING_AVERAGE";
+	export type StockQualityInspectionAction = "STOP" | "WARN";
+	export type StockSerialBatchPickStrategy = "FIFO" | "LIFO" | "EXPIRY";
+
+	/**
+	 * Singleton inventory-wide stock settings.
+	 */
+	export interface StockSettings {
+		/** Unique identifier (CUID) */
+		id: string;
+		/** Strategy used when deriving item naming defaults */
+		itemNamingBy: StockItemNamingBy;
+		/** Default warehouse label used across stock transactions */
+		defaultWarehouse: string | null;
+		/** Default valuation method applied to new stock items */
+		defaultValuationMethod: StockValuationMethod;
+		/** Default stock UOM label */
+		defaultStockUom: string | null;
+		autoInsertItemPriceIfMissing: boolean;
+		updateExistingPriceListRate: boolean;
+		allowToEditStockUomQtyForSalesDocuments: boolean;
+		allowToEditStockUomQtyForPurchaseDocuments: boolean;
+		overDeliveryReceiptAllowancePercent: number;
+		allowNegativeStock: boolean;
+		showBarcodeFieldInStockTransactions: boolean;
+		convertItemDescriptionToCleanHtmlInTransactions: boolean;
+		overTransferAllowancePercent: number;
+		allowInternalTransfersAtArmsLengthPrice: boolean;
+		overPickingAllowancePercent: number;
+		actionIfQualityInspectionIsNotSubmitted: StockQualityInspectionAction;
+		actionIfQualityInspectionIsRejected: StockQualityInspectionAction;
+		enableStockReservation: boolean;
+		allowPartialReservation: boolean;
+		autoReserveStockForSalesOrderOnPurchase: boolean;
+		autoReserveSerialAndBatchNos: boolean;
+		autoCreateSerialAndBatchBundleForOutward: boolean;
+		disableSerialNoAndBatchSelector: boolean;
+		haveDefaultNamingSeriesForBatchId: boolean;
+		pickSerialBatchBasedOn: StockSerialBatchPickStrategy;
+		useSerialBatchFields: boolean;
+		doNotUpdateSerialBatchOnCreationOfAutoBundle: boolean;
+		allowExistingSerialNoToBeManufacturedReceivedAgain: boolean;
+		setSerialAndBatchBundleNamingBasedOnNamingSeries: boolean;
+		raiseMaterialRequestWhenStockReachesReorderLevel: boolean;
+		notifyByEmailOnCreationOfAutomaticMaterialRequest: boolean;
+		allowMaterialTransferFromDeliveryNoteToSalesInvoice: boolean;
+		allowMaterialTransferFromPurchaseReceiptToPurchaseInvoice: boolean;
+		freezeStocksOlderThanDays: number;
+		/** When this settings record was created */
+		createdAt: Date;
+		/** When this settings record was last updated */
+		updatedAt: Date;
+	}
+
+	/**
+	 * Input for updating stock settings.
+	 */
+	export interface UpdateStockSettingsInput {
+		itemNamingBy: StockItemNamingBy;
+		defaultWarehouse?: string | null;
+		defaultValuationMethod: StockValuationMethod;
+		defaultStockUom?: string | null;
+		autoInsertItemPriceIfMissing: boolean;
+		updateExistingPriceListRate: boolean;
+		allowToEditStockUomQtyForSalesDocuments: boolean;
+		allowToEditStockUomQtyForPurchaseDocuments: boolean;
+		overDeliveryReceiptAllowancePercent: number;
+		allowNegativeStock: boolean;
+		showBarcodeFieldInStockTransactions: boolean;
+		convertItemDescriptionToCleanHtmlInTransactions: boolean;
+		overTransferAllowancePercent: number;
+		allowInternalTransfersAtArmsLengthPrice: boolean;
+		overPickingAllowancePercent: number;
+		actionIfQualityInspectionIsNotSubmitted: StockQualityInspectionAction;
+		actionIfQualityInspectionIsRejected: StockQualityInspectionAction;
+		enableStockReservation: boolean;
+		allowPartialReservation: boolean;
+		autoReserveStockForSalesOrderOnPurchase: boolean;
+		autoReserveSerialAndBatchNos: boolean;
+		autoCreateSerialAndBatchBundleForOutward: boolean;
+		disableSerialNoAndBatchSelector: boolean;
+		haveDefaultNamingSeriesForBatchId: boolean;
+		pickSerialBatchBasedOn: StockSerialBatchPickStrategy;
+		useSerialBatchFields: boolean;
+		doNotUpdateSerialBatchOnCreationOfAutoBundle: boolean;
+		allowExistingSerialNoToBeManufacturedReceivedAgain: boolean;
+		setSerialAndBatchBundleNamingBasedOnNamingSeries: boolean;
+		raiseMaterialRequestWhenStockReachesReorderLevel: boolean;
+		notifyByEmailOnCreationOfAutomaticMaterialRequest: boolean;
+		allowMaterialTransferFromDeliveryNoteToSalesInvoice: boolean;
+		allowMaterialTransferFromPurchaseReceiptToPurchaseInvoice: boolean;
+		freezeStocksOlderThanDays: number;
+	}
+
 	/**
 	 * Input for creating a unit of measure
 	 */
@@ -589,6 +684,51 @@ export namespace Inventory {
 		name: z.string().min(1).max(255).trim().optional(),
 		disabled: z.boolean().optional(),
 		isWholeNumber: z.boolean().optional(),
+	});
+
+	const stockItemNamingBySchema = z.enum(["ITEM_CODE", "NAMING_SERIES"]);
+	const stockValuationMethodSchema = z.enum(["FIFO", "MOVING_AVERAGE"]);
+	const stockQualityInspectionActionSchema = z.enum(["STOP", "WARN"]);
+	const stockSerialBatchPickStrategySchema = z.enum(["FIFO", "LIFO", "EXPIRY"]);
+
+	/**
+	 * Validation schema for updating singleton stock settings.
+	 */
+	export const updateStockSettingsSchema = z.object({
+		itemNamingBy: stockItemNamingBySchema,
+		defaultWarehouse: z.string().max(255).trim().nullable().optional(),
+		defaultValuationMethod: stockValuationMethodSchema,
+		defaultStockUom: z.string().max(50).trim().nullable().optional(),
+		autoInsertItemPriceIfMissing: z.boolean(),
+		updateExistingPriceListRate: z.boolean(),
+		allowToEditStockUomQtyForSalesDocuments: z.boolean(),
+		allowToEditStockUomQtyForPurchaseDocuments: z.boolean(),
+		overDeliveryReceiptAllowancePercent: z.number().min(0).max(100),
+		allowNegativeStock: z.boolean(),
+		showBarcodeFieldInStockTransactions: z.boolean(),
+		convertItemDescriptionToCleanHtmlInTransactions: z.boolean(),
+		overTransferAllowancePercent: z.number().min(0).max(100),
+		allowInternalTransfersAtArmsLengthPrice: z.boolean(),
+		overPickingAllowancePercent: z.number().min(0).max(100),
+		actionIfQualityInspectionIsNotSubmitted: stockQualityInspectionActionSchema,
+		actionIfQualityInspectionIsRejected: stockQualityInspectionActionSchema,
+		enableStockReservation: z.boolean(),
+		allowPartialReservation: z.boolean(),
+		autoReserveStockForSalesOrderOnPurchase: z.boolean(),
+		autoReserveSerialAndBatchNos: z.boolean(),
+		autoCreateSerialAndBatchBundleForOutward: z.boolean(),
+		disableSerialNoAndBatchSelector: z.boolean(),
+		haveDefaultNamingSeriesForBatchId: z.boolean(),
+		pickSerialBatchBasedOn: stockSerialBatchPickStrategySchema,
+		useSerialBatchFields: z.boolean(),
+		doNotUpdateSerialBatchOnCreationOfAutoBundle: z.boolean(),
+		allowExistingSerialNoToBeManufacturedReceivedAgain: z.boolean(),
+		setSerialAndBatchBundleNamingBasedOnNamingSeries: z.boolean(),
+		raiseMaterialRequestWhenStockReachesReorderLevel: z.boolean(),
+		notifyByEmailOnCreationOfAutomaticMaterialRequest: z.boolean(),
+		allowMaterialTransferFromDeliveryNoteToSalesInvoice: z.boolean(),
+		allowMaterialTransferFromPurchaseReceiptToPurchaseInvoice: z.boolean(),
+		freezeStocksOlderThanDays: z.number().int().min(0).max(3650),
 	});
 
 	/**
