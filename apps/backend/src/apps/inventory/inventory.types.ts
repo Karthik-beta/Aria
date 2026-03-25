@@ -159,6 +159,27 @@ export type InventoryStockSettings = Prisma.StockSettingsGetPayload<{
 }>;
 
 /**
+ * Prisma model type for singleton ItemVariantSettings with ordered child rows.
+ */
+export type InventoryItemVariantSettings =
+	Prisma.ItemVariantSettingsGetPayload<{
+		select: {
+			id: true;
+			doNotUpdateVariantsOnSave: true;
+			allowRenameAttributeValue: true;
+			createdAt: true;
+			updatedAt: true;
+			copyFields: {
+				select: {
+					id: true;
+					fieldKey: true;
+					position: true;
+				};
+			};
+		};
+	}>;
+
+/**
  * Prisma model type for ItemAlternate with relations
  */
 export const itemAlternativeInclude = {
@@ -451,6 +472,59 @@ export function toInventoryStockSettings(
 		defaultStockUom: parsedSettings.defaultStockUom ?? null,
 		createdAt: prismaStockSettings.createdAt,
 		updatedAt: prismaStockSettings.updatedAt,
+	};
+}
+
+/**
+ * Converts Prisma singleton item variant settings to Inventory.ItemVariantSettings.
+ */
+export function toInventoryItemVariantSettings(
+	prismaSettings: InventoryItemVariantSettings,
+): Inventory.ItemVariantSettings {
+	const parsedSettings = Inventory.updateItemVariantSettingsSchema.parse({
+		doNotUpdateVariantsOnSave: prismaSettings.doNotUpdateVariantsOnSave,
+		allowRenameAttributeValue: prismaSettings.allowRenameAttributeValue,
+		copyFields: prismaSettings.copyFields.map((field) => ({
+			id: field.id,
+			fieldKey: field.fieldKey,
+		})),
+	});
+
+	const optionsByKey = new Map<
+		Inventory.ItemVariantCopyFieldKey,
+		Inventory.ItemVariantCopyFieldOption
+	>(
+		Inventory.ITEM_VARIANT_COPY_FIELD_OPTIONS.map((option) => [
+			option.value,
+			option,
+		]),
+	);
+
+	return {
+		id: prismaSettings.id,
+		doNotUpdateVariantsOnSave: parsedSettings.doNotUpdateVariantsOnSave,
+		allowRenameAttributeValue: parsedSettings.allowRenameAttributeValue,
+		copyFields: parsedSettings.copyFields.map((field, index) => {
+			const persistedField = prismaSettings.copyFields[index];
+			const option = optionsByKey.get(field.fieldKey);
+
+			if (!persistedField || !option) {
+				throw new Error(
+					`Unknown item variant copy field option: ${field.fieldKey}`,
+				);
+			}
+
+			return {
+				id: persistedField.id,
+				fieldKey: field.fieldKey,
+				label: option.label,
+				category: option.category,
+				itemProperty: option.itemProperty,
+				position: persistedField.position ?? index,
+			};
+		}),
+		createdAt: prismaSettings.createdAt,
+		updatedAt: prismaSettings.updatedAt,
 	};
 }
 

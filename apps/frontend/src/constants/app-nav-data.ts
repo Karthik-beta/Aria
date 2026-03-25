@@ -142,6 +142,10 @@ export const inventoryNavItems: NavItem[] = [
 				title: "Item Attribute",
 				url: "/inventory/item-attributes",
 			},
+			{
+				title: "Item Variant Settings",
+				url: "/inventory/inventory-settings/item-variant-settings",
+			},
 		],
 	},
 	{

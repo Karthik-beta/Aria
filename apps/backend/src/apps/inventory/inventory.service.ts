@@ -18,6 +18,7 @@ import {
 	toInventoryItemAlternative,
 	toInventoryItemGroup,
 	toInventoryItemManufacturer,
+	toInventoryItemVariantSettings,
 	toInventoryMaterialRequest,
 	toInventoryPickList,
 	toInventoryProductBundle,
@@ -178,6 +179,24 @@ const stockSettingsSelect = {
 	freezeStocksOlderThanDays: true,
 	createdAt: true,
 	updatedAt: true,
+} as const;
+
+const itemVariantSettingsSelect = {
+	id: true,
+	doNotUpdateVariantsOnSave: true,
+	allowRenameAttributeValue: true,
+	createdAt: true,
+	updatedAt: true,
+	copyFields: {
+		select: {
+			id: true,
+			fieldKey: true,
+			position: true,
+		},
+		orderBy: {
+			position: "asc",
+		},
+	},
 } as const;
 
 const DEFAULT_STOCK_AGEING_BREAKS = [30, 60, 90] as const;
@@ -932,6 +951,24 @@ export class InventoryService {
 		return normalized ? normalized : null;
 	}
 
+	private assertUniqueItemVariantCopyFields(
+		copyFields: z.infer<
+			typeof Inventory.updateItemVariantSettingsSchema
+		>["copyFields"],
+	): void {
+		const seenFieldKeys = new Set<Inventory.ItemVariantCopyFieldKey>();
+
+		for (const field of copyFields) {
+			if (seenFieldKeys.has(field.fieldKey)) {
+				throw new BadRequestException(
+					`Copy field "${field.fieldKey}" can only be added once`,
+				);
+			}
+
+			seenFieldKeys.add(field.fieldKey);
+		}
+	}
+
 	private async resolveCanonicalUnitOfMeasureName(
 		name: string | null,
 	): Promise<string | null> {
@@ -957,6 +994,117 @@ export class InventoryService {
 		}
 
 		return unit.name;
+	}
+
+	/**
+	 * Get the singleton item variant settings record, creating it when missing.
+	 */
+	async findItemVariantSettings(): Promise<Inventory.ItemVariantSettings> {
+		const existing = await this.prisma.itemVariantSettings.findUnique({
+			where: { singletonKey: "default" },
+			select: itemVariantSettingsSelect,
+		});
+
+		if (existing) {
+			return toInventoryItemVariantSettings(existing);
+		}
+
+		const created = await this.prisma.itemVariantSettings.upsert({
+			where: { singletonKey: "default" },
+			update: {},
+			create: {
+				singletonKey: "default",
+			},
+			select: itemVariantSettingsSelect,
+		});
+
+		return toInventoryItemVariantSettings(created);
+	}
+
+	/**
+	 * Update the singleton item variant settings record while preserving child row identity.
+	 */
+	async updateItemVariantSettings(
+		data: z.infer<typeof Inventory.updateItemVariantSettingsSchema>,
+	): Promise<Inventory.ItemVariantSettings> {
+		this.assertUniqueItemVariantCopyFields(data.copyFields);
+
+		const updated = await this.prisma.$transaction(async (tx) => {
+			const settings = await tx.itemVariantSettings.upsert({
+				where: { singletonKey: "default" },
+				update: {
+					doNotUpdateVariantsOnSave: data.doNotUpdateVariantsOnSave,
+					allowRenameAttributeValue: data.allowRenameAttributeValue,
+				},
+				create: {
+					singletonKey: "default",
+					doNotUpdateVariantsOnSave: data.doNotUpdateVariantsOnSave,
+					allowRenameAttributeValue: data.allowRenameAttributeValue,
+				},
+				select: { id: true },
+			});
+
+			const existingFields = await tx.itemVariantSettingsField.findMany({
+				where: { settingsId: settings.id },
+				orderBy: { position: "asc" },
+			});
+
+			const existingFieldsById = new Map(
+				existingFields.map((field) => [field.id, field]),
+			);
+			const incomingIds = new Set(
+				data.copyFields.flatMap((field) => (field.id ? [field.id] : [])),
+			);
+
+			for (const field of data.copyFields) {
+				if (field.id && !existingFieldsById.has(field.id)) {
+					throw new BadRequestException(
+						"One or more item variant copy field rows no longer exist",
+					);
+				}
+			}
+
+			const fieldIdsToDelete = existingFields
+				.filter((field) => !incomingIds.has(field.id))
+				.map((field) => field.id);
+
+			if (fieldIdsToDelete.length > 0) {
+				await tx.itemVariantSettingsField.deleteMany({
+					where: {
+						settingsId: settings.id,
+						id: { in: fieldIdsToDelete },
+					},
+				});
+			}
+
+			for (const [position, field] of data.copyFields.entries()) {
+				if (field.id) {
+					await tx.itemVariantSettingsField.update({
+						where: { id: field.id },
+						data: {
+							fieldKey: field.fieldKey,
+							position,
+						},
+					});
+					continue;
+				}
+
+				await tx.itemVariantSettingsField.create({
+					data: {
+						settingsId: settings.id,
+						fieldKey: field.fieldKey,
+						position,
+					},
+				});
+			}
+
+			return tx.itemVariantSettings.findUniqueOrThrow({
+				where: { id: settings.id },
+				select: itemVariantSettingsSelect,
+			});
+		});
+
+		return toInventoryItemVariantSettings(updated);
 	}
 
 	/**

@@ -175,6 +175,196 @@ export namespace Inventory {
 		defaultInTransitWarehouseId?: string | null;
 	}
 
+	export const ITEM_VARIANT_COPY_FIELD_KEYS = [
+		"description",
+		"item_group",
+		"stock_uom",
+		"disabled",
+		"allow_alternate_item",
+		"maintain_stock",
+		"is_fixed_asset",
+		"opening_stock",
+		"valuation_rate",
+		"standard_selling_rate",
+		"shelf_life_in_days",
+		"end_of_life",
+		"default_material_request_type",
+		"valuation_method",
+		"warranty_period_in_days",
+		"weight_per_unit",
+		"weight_uom",
+		"allow_negative_stock",
+		"has_batch_no",
+		"has_serial_no",
+	] as const;
+
+	export type ItemVariantCopyFieldKey =
+		(typeof ITEM_VARIANT_COPY_FIELD_KEYS)[number];
+
+	export interface ItemVariantCopyFieldOption {
+		value: ItemVariantCopyFieldKey;
+		label: string;
+		category: string;
+		itemProperty: string;
+		description?: string;
+	}
+
+	export const ITEM_VARIANT_COPY_FIELD_OPTIONS: readonly ItemVariantCopyFieldOption[] =
+		[
+			{
+				value: "description",
+				label: "Details",
+				category: "Basics",
+				itemProperty: "description",
+				description: "Copies the item description into generated variants.",
+			},
+			{
+				value: "item_group",
+				label: "Item Group",
+				category: "Basics",
+				itemProperty: "itemGroupId",
+				description: "Keeps variants aligned to the same item group.",
+			},
+			{
+				value: "stock_uom",
+				label: "Stock UOM",
+				category: "Basics",
+				itemProperty: "defaultUnitOfMeasureId",
+				description: "Copies the default stock unit of measure.",
+			},
+			{
+				value: "disabled",
+				label: "Disabled",
+				category: "Basics",
+				itemProperty: "disabled",
+			},
+			{
+				value: "allow_alternate_item",
+				label: "Allow Alternative Item",
+				category: "Basics",
+				itemProperty: "allowAlternateItem",
+			},
+			{
+				value: "maintain_stock",
+				label: "Maintain Stock",
+				category: "Basics",
+				itemProperty: "maintainStock",
+			},
+			{
+				value: "is_fixed_asset",
+				label: "Is Fixed Asset",
+				category: "Financial",
+				itemProperty: "isFixedAsset",
+			},
+			{
+				value: "opening_stock",
+				label: "Opening Stock",
+				category: "Inventory",
+				itemProperty: "openingStock",
+			},
+			{
+				value: "valuation_rate",
+				label: "Valuation Rate",
+				category: "Financial",
+				itemProperty: "valuationRate",
+			},
+			{
+				value: "standard_selling_rate",
+				label: "Standard Selling Rate",
+				category: "Financial",
+				itemProperty: "standardSellingRate",
+			},
+			{
+				value: "shelf_life_in_days",
+				label: "Shelf Life in Days",
+				category: "Inventory",
+				itemProperty: "shelfLifeInDays",
+			},
+			{
+				value: "end_of_life",
+				label: "End of Life",
+				category: "Inventory",
+				itemProperty: "endOfLife",
+			},
+			{
+				value: "default_material_request_type",
+				label: "Default Material Request Type",
+				category: "Inventory",
+				itemProperty: "defaultMaterialRequestType",
+			},
+			{
+				value: "valuation_method",
+				label: "Valuation Method",
+				category: "Inventory",
+				itemProperty: "valuationMethod",
+			},
+			{
+				value: "warranty_period_in_days",
+				label: "Warranty Period in Days",
+				category: "Inventory",
+				itemProperty: "warrantyPeriodInDays",
+			},
+			{
+				value: "weight_per_unit",
+				label: "Weight per Unit",
+				category: "Logistics",
+				itemProperty: "weightPerUnit",
+			},
+			{
+				value: "weight_uom",
+				label: "Weight UOM",
+				category: "Logistics",
+				itemProperty: "weightUom",
+			},
+			{
+				value: "allow_negative_stock",
+				label: "Allow Negative Stock",
+				category: "Inventory",
+				itemProperty: "allowNegativeStock",
+			},
+			{
+				value: "has_batch_no",
+				label: "Has Batch No",
+				category: "Tracking",
+				itemProperty: "hasBatchNo",
+			},
+			{
+				value: "has_serial_no",
+				label: "Has Serial No",
+				category: "Tracking",
+				itemProperty: "hasSerialNo",
+			},
+		] as const;
+
+	export interface ItemVariantSettingsCopyField {
+		id: string;
+		fieldKey: ItemVariantCopyFieldKey;
+		label: string;
+		category: string;
+		itemProperty: string;
+		position: number;
+	}
+
+	export interface ItemVariantSettings {
+		id: string;
+		doNotUpdateVariantsOnSave: boolean;
+		allowRenameAttributeValue: boolean;
+		copyFields: ItemVariantSettingsCopyField[];
+		createdAt: Date;
+		updatedAt: Date;
+	}
+
+	export interface UpdateItemVariantSettingsFieldInput {
+		id?: string;
+		fieldKey: ItemVariantCopyFieldKey;
+	}
+
+	export interface UpdateItemVariantSettingsInput {
+		doNotUpdateVariantsOnSave: boolean;
+		allowRenameAttributeValue: boolean;
+		copyFields: UpdateItemVariantSettingsFieldInput[];
+	}
+
 	export type StockItemNamingBy = "ITEM_CODE" | "NAMING_SERIES";
 	export type StockValuationMethod = "FIFO" | "MOVING_AVERAGE";
 	export type StockQualityInspectionAction = "STOP" | "WARN";
@@ -808,6 +998,36 @@ export namespace Inventory {
 		warehouseType: z.string().max(100).trim().optional().nullable(),
 		defaultInTransitWarehouseId: z.string().cuid().optional().nullable(),
 	});
+
+	export const updateItemVariantSettingsSchema = z
+		.object({
+			doNotUpdateVariantsOnSave: z.boolean(),
+			allowRenameAttributeValue: z.boolean(),
+			copyFields: z
+				.array(
+					z.object({
+						id: z.string().cuid().optional(),
+						fieldKey: z.enum(ITEM_VARIANT_COPY_FIELD_KEYS),
+					}),
+				)
+				.max(100),
+		})
+		.superRefine((settings, ctx) => {
+			const seenFieldKeys = new Set<ItemVariantCopyFieldKey>();
+
+			for (const [index, field] of settings.copyFields.entries()) {
+				if (seenFieldKeys.has(field.fieldKey)) {
+					ctx.addIssue({
+						code: z.ZodIssueCode.custom,
+						message: "Copy fields to variant must be unique",
+						path: ["copyFields", index, "fieldKey"],
+					});
+					continue;
+				}
+
+				seenFieldKeys.add(field.fieldKey);
+			}
+		});
 
 	/**
 	 * Validation schema for updating units of measure

@@ -119,6 +119,12 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
 	get warehouse() {
 		return this.client.warehouse;
 	}
+	get itemVariantSettings() {
+		return this.client.itemVariantSettings;
+	}
+	get itemVariantSettingsField() {
+		return this.client.itemVariantSettingsField;
+	}
 	get productBundle() {
 		return this.client.productBundle;
 	}

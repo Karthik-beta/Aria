@@ -94,6 +94,24 @@ function createGetStockSettingsProcedure(inventoryService: InventoryService) {
 	});
 }
 
+function createGetItemVariantSettingsProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure.query(async () => {
+		return inventoryService.findItemVariantSettings();
+	});
+}
+
+function createUpdateItemVariantSettingsProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure
+		.input(Inventory.updateItemVariantSettingsSchema)
+		.mutation(async ({ input }) => {
+			return inventoryService.updateItemVariantSettings(input);
+		});
+}
+
 function createUpdateStockSettingsProcedure(
 	inventoryService: InventoryService,
 ) {
@@ -1093,6 +1111,12 @@ type InventoryRouterInput = {
 	updateWarehouse: ReturnType<typeof createUpdateWarehouseProcedure>;
 	deleteWarehouse: ReturnType<typeof createDeleteWarehouseProcedure>;
 	getStockSettings: ReturnType<typeof createGetStockSettingsProcedure>;
+	getItemVariantSettings: ReturnType<
+		typeof createGetItemVariantSettingsProcedure
+	>;
+	updateItemVariantSettings: ReturnType<
+		typeof createUpdateItemVariantSettingsProcedure
+	>;
 	updateStockSettings: ReturnType<typeof createUpdateStockSettingsProcedure>;
 	getUnitOfMeasureById: ReturnType<typeof createGetUnitOfMeasureByIdProcedure>;
 	createUnitOfMeasure: ReturnType<typeof createCreateUnitOfMeasureProcedure>;
@@ -1249,6 +1273,10 @@ function createInventoryRouterRecord(
 		updateWarehouse: createUpdateWarehouseProcedure(inventoryService),
 		deleteWarehouse: createDeleteWarehouseProcedure(inventoryService),
 		getStockSettings: createGetStockSettingsProcedure(inventoryService),
+		getItemVariantSettings:
+			createGetItemVariantSettingsProcedure(inventoryService),
+		updateItemVariantSettings:
+			createUpdateItemVariantSettingsProcedure(inventoryService),
 		updateStockSettings: createUpdateStockSettingsProcedure(inventoryService),
 		getUnitOfMeasureById: createGetUnitOfMeasureByIdProcedure(inventoryService),
 		createUnitOfMeasure: createCreateUnitOfMeasureProcedure(inventoryService),

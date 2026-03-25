@@ -142,6 +142,23 @@ type InventoryRouterInput = {
 		};
 		meta: object;
 	}>;
+	getItemVariantSettings: TRPCQueryProcedure<{
+		input: void;
+		output: Inventory.ItemVariantSettings;
+		meta: object;
+	}>;
+	updateItemVariantSettings: TRPCMutationProcedure<{
+		input: {
+			doNotUpdateVariantsOnSave: boolean;
+			allowRenameAttributeValue: boolean;
+			copyFields: {
+				id?: string | undefined;
+				fieldKey: Inventory.ItemVariantCopyFieldKey;
+			}[];
+		};
+		output: Inventory.ItemVariantSettings;
+		meta: object;
+	}>;
 	getStockSettings: TRPCQueryProcedure<{
 		input: void;
 		output: Inventory.StockSettings;

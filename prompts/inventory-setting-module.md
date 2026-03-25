@@ -1,10 +1,11 @@
 You are working on the branch: "feat/inventory-settings-module".
 
-Current page: "Warehouse"
+Current page: "Item Variant Settings"
 
 Valid page values:
 - Stock Settings
 - Warehouse
+- Item Variant Settings
 - Brand
 - Item Attribute
 
@@ -19,6 +20,7 @@ This sub-module contains the following pages:
 3. Unit of Measure (UOM)
 4. Brand
 5. Item Attribute
+6. Item Variant Settings
 
 Current implementation status:
 - UOM page is already completed
