@@ -1077,6 +1077,7 @@ export function toInventoryDeliveryNote(
 			itemName: item.itemName,
 			description: item.description,
 			quantity: item.quantity,
+			packedQty: item.packedQty,
 			uom: item.uom,
 			rate: item.rate,
 			amount: item.amount,
@@ -1280,5 +1281,48 @@ export function toInventoryDeliveryTrip(
 			.map(toInventoryDeliveryTripStop),
 		createdAt: prismaDeliveryTrip.createdAt,
 		updatedAt: prismaDeliveryTrip.updatedAt,
+	};
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Packing Slip
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type InventoryPackingSlip = Prisma.PackingSlipGetPayload<{
+	include: { items: true };
+}>;
+
+/**
+ * Converts a Prisma PackingSlip (with items) to Inventory.PackingSlip.
+ */
+export function toInventoryPackingSlip(
+	ps: InventoryPackingSlip,
+): Inventory.PackingSlip {
+	return {
+		id: ps.id,
+		series: ps.series,
+		status: ps.status as Inventory.PackingSlipStatus,
+		deliveryNoteId: ps.deliveryNoteId,
+		fromCaseNo: ps.fromCaseNo,
+		toCaseNo: ps.toCaseNo,
+		netWeightPkg: ps.netWeightPkg,
+		netWeightUom: ps.netWeightUom,
+		grossWeightPkg: ps.grossWeightPkg,
+		grossWeightUom: ps.grossWeightUom,
+		letterHead: ps.letterHead,
+		items: ps.items.map((item) => ({
+			id: item.id,
+			packingSlipId: item.packingSlipId,
+			deliveryNoteItemId: item.deliveryNoteItemId,
+			itemCode: item.itemCode,
+			itemName: item.itemName,
+			description: item.description,
+			qty: item.qty,
+			netWeight: item.netWeight,
+			weightUom: item.weightUom,
+			batchNo: item.batchNo,
+		})),
+		createdAt: ps.createdAt,
+		updatedAt: ps.updatedAt,
 	};
 }

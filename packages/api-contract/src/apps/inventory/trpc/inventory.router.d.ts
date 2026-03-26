@@ -2025,6 +2025,93 @@ type InventoryRouterInput = {
 		output: DeliveryTripsChangedEvent;
 		meta: object;
 	}>;
+	listPackingSlips: TRPCQueryProcedure<{
+		input:
+			| {
+					deliveryNoteId?: string | undefined;
+					status?: Inventory.PackingSlipStatus | undefined;
+					skip?: number | undefined;
+					take?: number | undefined;
+			  }
+			| undefined;
+		output: Inventory.PackingSlip[];
+		meta: object;
+	}>;
+	getPackingSlipById: TRPCQueryProcedure<{
+		input: { id: string };
+		output: Inventory.PackingSlip | null;
+		meta: object;
+	}>;
+	getRecommendedCaseNo: TRPCQueryProcedure<{
+		input: { deliveryNoteId: string };
+		output: number;
+		meta: object;
+	}>;
+	createPackingSlip: TRPCMutationProcedure<{
+		input: {
+			deliveryNoteId: string;
+			fromCaseNo: number;
+			toCaseNo?: number | undefined;
+			grossWeightPkg?: number | undefined;
+			grossWeightUom?: string | null | undefined;
+			letterHead?: string | null | undefined;
+			items: Array<{
+				deliveryNoteItemId: string;
+				itemCode: string;
+				itemName?: string | null | undefined;
+				description?: string | null | undefined;
+				qty: number;
+				netWeight?: number | undefined;
+				weightUom?: string | null | undefined;
+				batchNo?: string | null | undefined;
+			}>;
+		};
+		output: Inventory.PackingSlip;
+		meta: object;
+	}>;
+	updatePackingSlip: TRPCMutationProcedure<{
+		input: {
+			id: string;
+			fromCaseNo?: number | undefined;
+			toCaseNo?: number | undefined;
+			grossWeightPkg?: number | undefined;
+			grossWeightUom?: string | null | undefined;
+			letterHead?: string | null | undefined;
+			items?: Array<{
+				id?: string | undefined;
+				deliveryNoteItemId: string;
+				itemCode: string;
+				itemName?: string | null | undefined;
+				description?: string | null | undefined;
+				qty: number;
+				netWeight?: number | undefined;
+				weightUom?: string | null | undefined;
+				batchNo?: string | null | undefined;
+			}>;
+		};
+		output: Inventory.PackingSlip;
+		meta: object;
+	}>;
+	submitPackingSlip: TRPCMutationProcedure<{
+		input: { id: string };
+		output: Inventory.PackingSlip;
+		meta: object;
+	}>;
+	cancelPackingSlip: TRPCMutationProcedure<{
+		input: { id: string };
+		output: Inventory.PackingSlip;
+		meta: object;
+	}>;
+	deletePackingSlip: TRPCMutationProcedure<{
+		input: { id: string };
+		output: { success: boolean; id: string };
+		meta: object;
+	}>;
+	deleteManyPackingSlips: TRPCMutationProcedure<{
+		input: { ids: string[] };
+		output: { success: boolean; count: number; ids: string[] };
+		meta: object;
+	}>;
 };
 
 type InventoryRouterRoot = (typeof accountRouter)["_def"]["_config"]["$types"];

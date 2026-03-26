@@ -25,6 +25,7 @@ import {
 	toInventoryItemManufacturer,
 	toInventoryItemVariantSettings,
 	toInventoryMaterialRequest,
+	toInventoryPackingSlip,
 	toInventoryPickList,
 	toInventoryProductBundle,
 	toInventoryPurchaseReceipt,
@@ -9817,5 +9818,532 @@ export class InventoryService {
 			}
 			throw error;
 		}
+	}
+
+	// ─────────────────────────────────────────────────────────────────────────────
+	// Packing Slip
+	// ─────────────────────────────────────────────────────────────────────────────
+
+	private async generatePackingSlipSeries(date: Date): Promise<string> {
+		const year = date.getFullYear();
+		const prefix = `MAT-PAC-${year}-`;
+
+		const lastEntry = await this.prisma.packingSlip.findFirst({
+			where: { series: { startsWith: prefix } },
+			orderBy: { series: "desc" },
+			select: { series: true },
+		});
+
+		let nextNumber = 1;
+		if (lastEntry) {
+			const numStr = lastEntry.series.slice(prefix.length);
+			const num = parseInt(numStr, 10);
+			if (!Number.isNaN(num)) {
+				nextNumber = num + 1;
+			}
+		}
+
+		return `${prefix}${String(nextNumber).padStart(5, "0")}`;
+	}
+
+	/**
+	 * Calculate the net weight and UOM for a packing slip from its items.
+	 * Throws if items use different UOMs.
+	 */
+	private computePackingSlipWeights(
+		items: { netWeight: number; weightUom?: string | null }[],
+		grossWeightPkg?: number,
+	): {
+		netWeightPkg: number;
+		netWeightUom: string | null;
+		grossWeightPkg: number;
+		grossWeightUom: string | null;
+	} {
+		const uom = items.length > 0 ? (items[0].weightUom ?? null) : null;
+
+		for (const item of items) {
+			if ((item.weightUom ?? null) !== uom) {
+				throw new BadRequestException(
+					"All items must use the same weight UOM. Ensure every item has the same UOM.",
+				);
+			}
+		}
+
+		const netWeightPkg = items.reduce(
+			(sum, item) => sum + (item.netWeight ?? 0),
+			0,
+		);
+
+		const gross = grossWeightPkg != null ? grossWeightPkg : netWeightPkg;
+
+		return {
+			netWeightPkg: Math.round(netWeightPkg * 100) / 100,
+			netWeightUom: uom,
+			grossWeightPkg: Math.round(gross * 100) / 100,
+			grossWeightUom: uom,
+		};
+	}
+
+	/**
+	 * Validate that package numbers don't overlap with existing submitted packing slips.
+	 */
+	private async validateCaseNos(
+		deliveryNoteId: string,
+		fromCaseNo: number,
+		toCaseNo: number,
+		excludeId?: string,
+	): Promise<void> {
+		if (fromCaseNo <= 0) {
+			throw new BadRequestException("From Package No. must be greater than 0.");
+		}
+		if (toCaseNo < fromCaseNo) {
+			throw new BadRequestException(
+				"To Package No. cannot be less than From Package No.",
+			);
+		}
+
+		const overlapping = await this.prisma.packingSlip.findFirst({
+			where: {
+				deliveryNoteId,
+				status: "SUBMITTED",
+				...(excludeId ? { id: { not: excludeId } } : {}),
+				OR: [
+					{ fromCaseNo: { gte: fromCaseNo, lte: toCaseNo } },
+					{ toCaseNo: { gte: fromCaseNo, lte: toCaseNo } },
+					{
+						AND: [
+							{ fromCaseNo: { lte: fromCaseNo } },
+							{ toCaseNo: { gte: fromCaseNo } },
+						],
+					},
+				],
+			},
+			select: { toCaseNo: true },
+		});
+
+		if (overlapping) {
+			const recommended = overlapping.toCaseNo + 1;
+			throw new BadRequestException(
+				`Package No(s) already in use. Try from Package No ${recommended}.`,
+			);
+		}
+	}
+
+	/**
+	 * Validate that item quantities don't exceed remaining unpacked quantities.
+	 */
+	private async validatePackingSlipItemQtys(
+		items: { deliveryNoteItemId: string; qty: number }[],
+		excludePackingSlipId?: string,
+	): Promise<void> {
+		for (const item of items) {
+			const dn = await this.prisma.deliveryNoteItem.findUnique({
+				where: { id: item.deliveryNoteItemId },
+				select: { quantity: true, packedQty: true },
+			});
+
+			if (!dn) {
+				throw new BadRequestException(
+					`Delivery note item "${item.deliveryNoteItemId}" not found.`,
+				);
+			}
+
+			// When updating, subtract the current packing slip's contribution from packedQty
+			let alreadyPacked = dn.packedQty;
+			if (excludePackingSlipId) {
+				const existingQty = await this.prisma.packingSlipItem.findFirst({
+					where: {
+						packingSlipId: excludePackingSlipId,
+						deliveryNoteItemId: item.deliveryNoteItemId,
+					},
+					select: { qty: true },
+				});
+				if (existingQty) {
+					alreadyPacked = Math.max(0, alreadyPacked - existingQty.qty);
+				}
+			}
+
+			const remaining = dn.quantity - alreadyPacked;
+
+			if (item.qty <= 0) {
+				throw new BadRequestException(`Item quantity must be greater than 0.`);
+			}
+
+			if (item.qty > remaining + 0.0001) {
+				throw new BadRequestException(
+					`Quantity ${item.qty} exceeds the remaining unpacked quantity ${remaining} for this item.`,
+				);
+			}
+		}
+	}
+
+	/**
+	 * Get recommended next package number for a delivery note.
+	 */
+	async getRecommendedCaseNo(deliveryNoteId: string): Promise<number> {
+		const last = await this.prisma.packingSlip.findFirst({
+			where: { deliveryNoteId, status: "SUBMITTED" },
+			orderBy: { toCaseNo: "desc" },
+			select: { toCaseNo: true },
+		});
+		return (last?.toCaseNo ?? 0) + 1;
+	}
+
+	/**
+	 * List packing slips with optional filtering.
+	 */
+	async findAllPackingSlips(params?: {
+		deliveryNoteId?: string;
+		status?: Inventory.PackingSlipStatus;
+		skip?: number;
+		take?: number;
+	}): Promise<Inventory.PackingSlip[]> {
+		const skip = Math.max(0, params?.skip ?? 0);
+		const take = Math.min(
+			Math.max(1, params?.take ?? LIST_QUERY_TAKE_MAX),
+			LIST_QUERY_TAKE_MAX,
+		);
+
+		const slips = await this.prisma.packingSlip.findMany({
+			where: {
+				...(params?.deliveryNoteId
+					? { deliveryNoteId: params.deliveryNoteId }
+					: {}),
+				...(params?.status ? { status: params.status } : {}),
+			},
+			include: { items: true },
+			orderBy: { createdAt: "desc" },
+			skip,
+			take,
+		});
+
+		return slips.map(toInventoryPackingSlip);
+	}
+
+	/**
+	 * Get a single packing slip by ID.
+	 */
+	async findPackingSlipById(id: string): Promise<Inventory.PackingSlip | null> {
+		const ps = await this.prisma.packingSlip.findUnique({
+			where: { id },
+			include: { items: true },
+		});
+		return ps ? toInventoryPackingSlip(ps) : null;
+	}
+
+	/**
+	 * Create a new packing slip for a draft delivery note.
+	 * Validates:
+	 * - Delivery note exists and is in DRAFT status
+	 * - Package numbers are valid and non-overlapping
+	 * - Item quantities don't exceed remaining unpacked quantities
+	 */
+	async createPackingSlip(
+		data: Inventory.CreatePackingSlipInput,
+	): Promise<Inventory.PackingSlip> {
+		const dn = await this.prisma.deliveryNote.findUnique({
+			where: { id: data.deliveryNoteId },
+			select: { id: true, status: true },
+		});
+
+		if (!dn) {
+			throw new NotFoundException(
+				`Delivery note with ID "${data.deliveryNoteId}" not found.`,
+			);
+		}
+
+		if (dn.status !== "DRAFT") {
+			throw new BadRequestException(
+				"A Packing Slip can only be created for a Draft Delivery Note.",
+			);
+		}
+
+		const fromCaseNo = data.fromCaseNo;
+		const toCaseNo = data.toCaseNo ?? fromCaseNo;
+
+		await this.validateCaseNos(data.deliveryNoteId, fromCaseNo, toCaseNo);
+		await this.validatePackingSlipItemQtys(data.items);
+
+		const weights = this.computePackingSlipWeights(
+			data.items.map((i) => ({
+				netWeight: i.netWeight ?? 0,
+				weightUom: i.weightUom,
+			})),
+			data.grossWeightPkg,
+		);
+
+		for (let attempt = 0; attempt < 3; attempt++) {
+			const series = await this.generatePackingSlipSeries(new Date());
+			try {
+				const ps = await this.prisma.packingSlip.create({
+					data: {
+						series,
+						status: "DRAFT",
+						deliveryNoteId: data.deliveryNoteId,
+						fromCaseNo,
+						toCaseNo,
+						netWeightPkg: weights.netWeightPkg,
+						netWeightUom: weights.netWeightUom,
+						grossWeightPkg: weights.grossWeightPkg,
+						grossWeightUom: data.grossWeightUom ?? weights.grossWeightUom,
+						letterHead: data.letterHead,
+						items: {
+							create: data.items.map((item) => ({
+								deliveryNoteItemId: item.deliveryNoteItemId,
+								itemCode: item.itemCode,
+								itemName: item.itemName,
+								description: item.description,
+								qty: item.qty,
+								netWeight: item.netWeight ?? 0,
+								weightUom: item.weightUom,
+								batchNo: item.batchNo,
+							})),
+						},
+					},
+					include: { items: true },
+				});
+				return toInventoryPackingSlip(ps);
+			} catch (error) {
+				const isConflict =
+					error instanceof Prisma.PrismaClientKnownRequestError &&
+					error.code === "P2002";
+				if (isConflict && attempt < 2) {
+					await new Promise((r) =>
+						setTimeout(r, this.computeBackoffMs(attempt)),
+					);
+					continue;
+				}
+				throw error;
+			}
+		}
+		throw new Error("Failed to allocate a unique packing slip series");
+	}
+
+	/**
+	 * Update a draft packing slip. Only draft slips can be updated.
+	 */
+	async updatePackingSlip(
+		data: Inventory.UpdatePackingSlipInput,
+	): Promise<Inventory.PackingSlip> {
+		const existing = await this.prisma.packingSlip.findUnique({
+			where: { id: data.id },
+			include: { items: true },
+		});
+
+		if (!existing) {
+			throw new NotFoundException(
+				`Packing slip with ID "${data.id}" not found.`,
+			);
+		}
+
+		if (existing.status !== "DRAFT") {
+			throw new BadRequestException("Only Draft packing slips can be edited.");
+		}
+
+		const fromCaseNo = data.fromCaseNo ?? existing.fromCaseNo;
+		const toCaseNo = data.toCaseNo ?? existing.toCaseNo;
+
+		await this.validateCaseNos(
+			existing.deliveryNoteId,
+			fromCaseNo,
+			toCaseNo,
+			existing.id,
+		);
+
+		if (data.items) {
+			await this.validatePackingSlipItemQtys(data.items, existing.id);
+		}
+
+		const itemsForWeight = (data.items ?? existing.items).map(
+			(i: { netWeight?: number | null; weightUom?: string | null }) => ({
+				netWeight: i.netWeight ?? 0,
+				weightUom: i.weightUom,
+			}),
+		);
+		const weights = this.computePackingSlipWeights(
+			itemsForWeight,
+			data.grossWeightPkg ?? existing.grossWeightPkg,
+		);
+
+		const updated = await this.prisma.$transaction(async (tx) => {
+			if (data.items) {
+				await tx.packingSlipItem.deleteMany({
+					where: { packingSlipId: existing.id },
+				});
+			}
+
+			return tx.packingSlip.update({
+				where: { id: existing.id },
+				data: {
+					fromCaseNo,
+					toCaseNo,
+					netWeightPkg: weights.netWeightPkg,
+					netWeightUom: weights.netWeightUom,
+					grossWeightPkg: weights.grossWeightPkg,
+					grossWeightUom:
+						data.grossWeightUom !== undefined
+							? data.grossWeightUom
+							: weights.grossWeightUom,
+					...(data.letterHead !== undefined && { letterHead: data.letterHead }),
+					...(data.items && {
+						items: {
+							create: data.items.map((item) => ({
+								deliveryNoteItemId: item.deliveryNoteItemId,
+								itemCode: item.itemCode,
+								itemName: item.itemName,
+								description: item.description,
+								qty: item.qty,
+								netWeight: item.netWeight ?? 0,
+								weightUom: item.weightUom,
+								batchNo: item.batchNo,
+							})),
+						},
+					}),
+				},
+				include: { items: true },
+			});
+		});
+
+		return toInventoryPackingSlip(updated);
+	}
+
+	/**
+	 * Submit a packing slip. Transitions to SUBMITTED and increments packedQty
+	 * on each referenced delivery note item.
+	 */
+	async submitPackingSlip(id: string): Promise<Inventory.PackingSlip> {
+		const existing = await this.prisma.packingSlip.findUnique({
+			where: { id },
+			include: { items: true },
+		});
+
+		if (!existing) {
+			throw new NotFoundException(`Packing slip with ID "${id}" not found.`);
+		}
+
+		if (existing.status !== "DRAFT") {
+			throw new BadRequestException(
+				"Only Draft packing slips can be submitted.",
+			);
+		}
+
+		// Validate case nos (no overlap with already-submitted ones)
+		await this.validateCaseNos(
+			existing.deliveryNoteId,
+			existing.fromCaseNo,
+			existing.toCaseNo,
+			existing.id,
+		);
+
+		// Validate quantities (fresh check at submit time)
+		await this.validatePackingSlipItemQtys(existing.items, existing.id);
+
+		const updated = await this.prisma.$transaction(async (tx) => {
+			for (const item of existing.items) {
+				await tx.deliveryNoteItem.update({
+					where: { id: item.deliveryNoteItemId },
+					data: { packedQty: { increment: item.qty } },
+				});
+			}
+
+			return tx.packingSlip.update({
+				where: { id },
+				data: { status: "SUBMITTED" },
+				include: { items: true },
+			});
+		});
+
+		return toInventoryPackingSlip(updated);
+	}
+
+	/**
+	 * Cancel a submitted packing slip. Reverses packedQty on delivery note items.
+	 */
+	async cancelPackingSlip(id: string): Promise<Inventory.PackingSlip> {
+		const existing = await this.prisma.packingSlip.findUnique({
+			where: { id },
+			include: { items: true },
+		});
+
+		if (!existing) {
+			throw new NotFoundException(`Packing slip with ID "${id}" not found.`);
+		}
+
+		if (existing.status !== "SUBMITTED") {
+			throw new BadRequestException(
+				"Only Submitted packing slips can be cancelled.",
+			);
+		}
+
+		const updated = await this.prisma.$transaction(async (tx) => {
+			for (const item of existing.items) {
+				await tx.deliveryNoteItem.update({
+					where: { id: item.deliveryNoteItemId },
+					data: {
+						packedQty: { decrement: item.qty },
+					},
+				});
+			}
+
+			return tx.packingSlip.update({
+				where: { id },
+				data: { status: "CANCELLED" },
+				include: { items: true },
+			});
+		});
+
+		return toInventoryPackingSlip(updated);
+	}
+
+	/**
+	 * Delete a draft packing slip.
+	 */
+	async deletePackingSlip(
+		id: string,
+	): Promise<{ success: boolean; id: string }> {
+		const existing = await this.prisma.packingSlip.findUnique({
+			where: { id },
+			select: { id: true, status: true },
+		});
+
+		if (!existing) {
+			throw new NotFoundException(`Packing slip with ID "${id}" not found.`);
+		}
+
+		if (existing.status === "SUBMITTED") {
+			throw new BadRequestException(
+				"Submitted packing slips cannot be deleted. Cancel them first.",
+			);
+		}
+
+		await this.prisma.packingSlip.delete({ where: { id } });
+		return { success: true, id };
+	}
+
+	/**
+	 * Bulk delete draft/cancelled packing slips.
+	 */
+	async deleteManyPackingSlips(
+		ids: string[],
+	): Promise<{ success: boolean; count: number; ids: string[] }> {
+		const uniqueIds = [...new Set(ids)];
+
+		const submitted = await this.prisma.packingSlip.findMany({
+			where: { id: { in: uniqueIds }, status: "SUBMITTED" },
+			select: { series: true },
+		});
+
+		if (submitted.length > 0) {
+			const series = submitted.map((s) => s.series).join(", ");
+			throw new BadRequestException(
+				`Cannot delete submitted packing slips: ${series}. Cancel them first.`,
+			);
+		}
+
+		const result = await this.prisma.packingSlip.deleteMany({
+			where: { id: { in: uniqueIds } },
+		});
+
+		return { success: true, count: result.count, ids: uniqueIds };
 	}
 }

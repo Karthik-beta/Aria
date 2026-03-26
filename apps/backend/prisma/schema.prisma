@@ -816,6 +816,7 @@ model DeliveryNote {
   batches           Batch[]
   installationNotes InstallationNote[]
   serialNos         SerialNo[]
+  packingSlips      PackingSlip[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -834,11 +835,13 @@ model DeliveryNoteItem {
   itemName       String?      @db.VarChar(255)
   description    String?
   quantity       Float        @default(0)
+  packedQty      Float        @default(0)
   uom            String?      @db.VarChar(50)
   rate           Float        @default(0)
   amount         Float        @default(0)
   warehouse      String?      @db.VarChar(255)
   deliveryNote   DeliveryNote @relation(fields: [deliveryNoteId], references: [id], onDelete: Cascade)
+  packingSlipItems PackingSlipItem[]
 
   @@index([deliveryNoteId])
   @@map("delivery_note_items")
@@ -1224,4 +1227,55 @@ model DeliveryTripStop {
 
   @@index([deliveryTripId])
   @@map("delivery_trip_stops")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Packing Slip
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum PackingSlipStatus {
+  DRAFT
+  SUBMITTED
+  CANCELLED
+}
+
+model PackingSlip {
+  id               String             @id @default(cuid())
+  series           String             @unique @db.VarChar(50)
+  status           PackingSlipStatus  @default(DRAFT)
+  deliveryNoteId   String
+  fromCaseNo       Int
+  toCaseNo         Int
+  netWeightPkg     Float              @default(0)
+  netWeightUom     String?            @db.VarChar(50)
+  grossWeightPkg   Float              @default(0)
+  grossWeightUom   String?            @db.VarChar(50)
+  letterHead       String?            @db.VarChar(255)
+  deliveryNote     DeliveryNote       @relation(fields: [deliveryNoteId], references: [id])
+  items            PackingSlipItem[]
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  @@index([deliveryNoteId])
+  @@index([status])
+  @@map("packing_slips")
+}
+
+model PackingSlipItem {
+  id                  String           @id @default(cuid())
+  packingSlipId       String
+  deliveryNoteItemId  String
+  itemCode            String           @db.VarChar(100)
+  itemName            String?          @db.VarChar(255)
+  description         String?
+  qty                 Float            @default(0)
+  netWeight           Float            @default(0)
+  weightUom           String?          @db.VarChar(50)
+  batchNo             String?          @db.VarChar(255)
+  packingSlip         PackingSlip      @relation(fields: [packingSlipId], references: [id], onDelete: Cascade)
+  deliveryNoteItem    DeliveryNoteItem @relation(fields: [deliveryNoteItemId], references: [id])
+
+  @@index([packingSlipId])
+  @@index([deliveryNoteItemId])
+  @@map("packing_slip_items")
 }

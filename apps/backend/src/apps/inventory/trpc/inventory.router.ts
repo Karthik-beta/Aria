@@ -1458,6 +1458,84 @@ const onDeliveryTripsChangedProcedure = protectedProcedure.subscription(() => {
 	});
 });
 
+// ─── Packing Slip Procedures ──────────────────────────────────────────────────
+
+function createListPackingSlipsProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(Inventory.listPackingSlipsSchema)
+		.query(async ({ input }) => {
+			return inventoryService.findAllPackingSlips(input);
+		});
+}
+
+function createGetPackingSlipByIdProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(z.object({ id: z.string().min(1) }))
+		.query(async ({ input }) => {
+			return inventoryService.findPackingSlipById(input.id);
+		});
+}
+
+function createGetRecommendedCaseNoProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure
+		.input(z.object({ deliveryNoteId: z.string().min(1) }))
+		.query(async ({ input }) => {
+			return inventoryService.getRecommendedCaseNo(input.deliveryNoteId);
+		});
+}
+
+function createCreatePackingSlipProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(Inventory.createPackingSlipSchema)
+		.mutation(async ({ input }) => {
+			return inventoryService.createPackingSlip(input);
+		});
+}
+
+function createUpdatePackingSlipProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(Inventory.updatePackingSlipSchema)
+		.mutation(async ({ input }) => {
+			return inventoryService.updatePackingSlip(input);
+		});
+}
+
+function createSubmitPackingSlipProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(z.object({ id: z.string().min(1) }))
+		.mutation(async ({ input }) => {
+			return inventoryService.submitPackingSlip(input.id);
+		});
+}
+
+function createCancelPackingSlipProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(z.object({ id: z.string().min(1) }))
+		.mutation(async ({ input }) => {
+			return inventoryService.cancelPackingSlip(input.id);
+		});
+}
+
+function createDeletePackingSlipProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(z.object({ id: z.string().min(1) }))
+		.mutation(async ({ input }) => {
+			return inventoryService.deletePackingSlip(input.id);
+		});
+}
+
+function createDeleteManyPackingSlipsProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure
+		.input(Inventory.bulkDeletePackingSlipsSchema)
+		.mutation(async ({ input }) => {
+			return inventoryService.deleteManyPackingSlips(input.ids);
+		});
+}
+
 type InventoryRouterInput = {
 	listItems: ReturnType<typeof createListItemsProcedure>;
 	listItemGroups: ReturnType<typeof createListItemGroupsProcedure>;
@@ -1652,6 +1730,17 @@ type InventoryRouterInput = {
 		typeof createDeleteManyDeliveryTripsProcedure
 	>;
 	onDeliveryTripsChanged: typeof onDeliveryTripsChangedProcedure;
+	listPackingSlips: ReturnType<typeof createListPackingSlipsProcedure>;
+	getPackingSlipById: ReturnType<typeof createGetPackingSlipByIdProcedure>;
+	getRecommendedCaseNo: ReturnType<typeof createGetRecommendedCaseNoProcedure>;
+	createPackingSlip: ReturnType<typeof createCreatePackingSlipProcedure>;
+	updatePackingSlip: ReturnType<typeof createUpdatePackingSlipProcedure>;
+	submitPackingSlip: ReturnType<typeof createSubmitPackingSlipProcedure>;
+	cancelPackingSlip: ReturnType<typeof createCancelPackingSlipProcedure>;
+	deletePackingSlip: ReturnType<typeof createDeletePackingSlipProcedure>;
+	deleteManyPackingSlips: ReturnType<
+		typeof createDeleteManyPackingSlipsProcedure
+	>;
 };
 
 type InventoryRouterRoot = (typeof accountRouter)["_def"]["_config"]["$types"];
@@ -1826,6 +1915,16 @@ function createInventoryRouterRecord(
 		deleteManyDeliveryTrips:
 			createDeleteManyDeliveryTripsProcedure(inventoryService),
 		onDeliveryTripsChanged: onDeliveryTripsChangedProcedure,
+		listPackingSlips: createListPackingSlipsProcedure(inventoryService),
+		getPackingSlipById: createGetPackingSlipByIdProcedure(inventoryService),
+		getRecommendedCaseNo: createGetRecommendedCaseNoProcedure(inventoryService),
+		createPackingSlip: createCreatePackingSlipProcedure(inventoryService),
+		updatePackingSlip: createUpdatePackingSlipProcedure(inventoryService),
+		submitPackingSlip: createSubmitPackingSlipProcedure(inventoryService),
+		cancelPackingSlip: createCancelPackingSlipProcedure(inventoryService),
+		deletePackingSlip: createDeletePackingSlipProcedure(inventoryService),
+		deleteManyPackingSlips:
+			createDeleteManyPackingSlipsProcedure(inventoryService),
 	};
 }
 

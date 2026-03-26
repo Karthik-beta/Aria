@@ -3071,6 +3071,7 @@ export namespace Inventory {
 		itemName?: string | null;
 		description?: string | null;
 		quantity: number;
+		packedQty: number;
 		uom?: string | null;
 		rate: number;
 		amount: number;
@@ -3408,6 +3409,149 @@ export namespace Inventory {
 	export const bulkDeleteDeliveryNotesSchema = z.object({
 		ids: z.array(z.string().min(1)).min(1),
 	});
+
+	// ============================================================================
+	// Packing Slip Types & Schemas
+	// ============================================================================
+
+	export type PackingSlipStatus = "DRAFT" | "SUBMITTED" | "CANCELLED";
+
+	export interface PackingSlipItem {
+		id: string;
+		packingSlipId: string;
+		deliveryNoteItemId: string;
+		itemCode: string;
+		itemName: string | null;
+		description: string | null;
+		qty: number;
+		netWeight: number;
+		weightUom: string | null;
+		batchNo: string | null;
+	}
+
+	export interface PackingSlip {
+		id: string;
+		series: string;
+		status: PackingSlipStatus;
+		deliveryNoteId: string;
+		fromCaseNo: number;
+		toCaseNo: number;
+		netWeightPkg: number;
+		netWeightUom: string | null;
+		grossWeightPkg: number;
+		grossWeightUom: string | null;
+		letterHead: string | null;
+		items: PackingSlipItem[];
+		createdAt: Date;
+		updatedAt: Date;
+	}
+
+	export interface CreatePackingSlipItemInput {
+		deliveryNoteItemId: string;
+		itemCode: string;
+		itemName?: string | null;
+		description?: string | null;
+		qty: number;
+		netWeight?: number;
+		weightUom?: string | null;
+		batchNo?: string | null;
+	}
+
+	export interface CreatePackingSlipInput {
+		deliveryNoteId: string;
+		fromCaseNo: number;
+		toCaseNo?: number;
+		grossWeightPkg?: number;
+		grossWeightUom?: string | null;
+		letterHead?: string | null;
+		items: CreatePackingSlipItemInput[];
+	}
+
+	export interface UpdatePackingSlipItemInput {
+		id?: string;
+		deliveryNoteItemId: string;
+		itemCode: string;
+		itemName?: string | null;
+		description?: string | null;
+		qty: number;
+		netWeight?: number;
+		weightUom?: string | null;
+		batchNo?: string | null;
+	}
+
+	export interface UpdatePackingSlipInput {
+		id: string;
+		fromCaseNo?: number;
+		toCaseNo?: number;
+		grossWeightPkg?: number;
+		grossWeightUom?: string | null;
+		letterHead?: string | null;
+		items?: UpdatePackingSlipItemInput[];
+	}
+
+	export const packingSlipStatusSchema = z.enum([
+		"DRAFT",
+		"SUBMITTED",
+		"CANCELLED",
+	]);
+
+	export const createPackingSlipItemSchema = z.object({
+		deliveryNoteItemId: z.string().min(1, "Delivery note item is required"),
+		itemCode: z.string().min(1, "Item code is required").max(100),
+		itemName: z.string().max(255).optional().nullable(),
+		description: z.string().optional().nullable(),
+		qty: z.number().positive("Quantity must be greater than 0"),
+		netWeight: z.number().min(0).optional().default(0),
+		weightUom: z.string().max(50).optional().nullable(),
+		batchNo: z.string().max(255).optional().nullable(),
+	});
+
+	export const createPackingSlipSchema = z.object({
+		deliveryNoteId: z.string().min(1, "Delivery Note is required"),
+		fromCaseNo: z.number().int().min(1, "From Package No. must be at least 1"),
+		toCaseNo: z.number().int().min(1).optional(),
+		grossWeightPkg: z.number().min(0).optional(),
+		grossWeightUom: z.string().max(50).optional().nullable(),
+		letterHead: z.string().max(255).optional().nullable(),
+		items: z
+			.array(createPackingSlipItemSchema)
+			.min(1, "At least one item is required"),
+	});
+
+	export const updatePackingSlipItemSchema = z.object({
+		id: z.string().optional(),
+		deliveryNoteItemId: z.string().min(1),
+		itemCode: z.string().min(1).max(100),
+		itemName: z.string().max(255).optional().nullable(),
+		description: z.string().optional().nullable(),
+		qty: z.number().positive("Quantity must be greater than 0"),
+		netWeight: z.number().min(0).optional().default(0),
+		weightUom: z.string().max(50).optional().nullable(),
+		batchNo: z.string().max(255).optional().nullable(),
+	});
+
+	export const updatePackingSlipSchema = z.object({
+		id: z.string().min(1),
+		fromCaseNo: z.number().int().min(1).optional(),
+		toCaseNo: z.number().int().min(1).optional(),
+		grossWeightPkg: z.number().min(0).optional(),
+		grossWeightUom: z.string().max(50).optional().nullable(),
+		letterHead: z.string().max(255).optional().nullable(),
+		items: z.array(updatePackingSlipItemSchema).min(1).optional(),
+	});
+
+	export const bulkDeletePackingSlipsSchema = z.object({
+		ids: z.array(z.string().min(1)).min(1),
+	});
+
+	export const listPackingSlipsSchema = z
+		.object({
+			deliveryNoteId: z.string().optional(),
+			status: packingSlipStatusSchema.optional(),
+			skip: z.number().int().min(0).optional(),
+			take: z.number().int().min(1).max(250).optional(),
+		})
+		.optional();
 
 	// ============================================================================
 	// Purchase Receipt Types & Schemas

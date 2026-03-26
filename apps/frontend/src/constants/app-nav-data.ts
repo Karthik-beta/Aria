@@ -176,7 +176,7 @@ export const inventoryNavItems: NavItem[] = [
 			},
 			{
 				title: "Serial No Warranty Expiry",
-				url: "/inventory/serial-no-warranty-expiry",
+				url: "/inventory/serial-no-and-batch/serial-no-warranty-expiry",
 			},
 		],
 	},
@@ -188,7 +188,7 @@ export const inventoryNavItems: NavItem[] = [
 		items: [
 			{
 				title: "Packing Slip",
-				url: "/inventory/packing-slip",
+				url: "/inventory/inventory-tools/packing-slip",
 			},
 			{
 				title: "Quality Inspection Template",
