@@ -321,7 +321,7 @@ export default function ShippingRulesPage() {
 					enableColumnReordering
 					primaryAction={
 						<Link
-							href="/inventory/shipping-rules/form"
+							href="/inventory/items-catalogue/shipping-rules/form"
 							className={cn(buttonVariants({ variant: "default", size: "sm" }))}
 						>
 							<Plus className="mr-2 h-4 w-4" />

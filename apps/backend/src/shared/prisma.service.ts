@@ -203,8 +203,26 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
 	get deliveryTripStop() {
 		return this.client.deliveryTripStop;
 	}
+	get packingSlip() {
+		return this.client.packingSlip;
+	}
+	get packingSlipItem() {
+		return this.client.packingSlipItem;
+	}
 	get stockSettings() {
 		return this.client.stockSettings;
+	}
+	get qiParameterGroup() {
+		return this.client.qiParameterGroup;
+	}
+	get qiParameter() {
+		return this.client.qiParameter;
+	}
+	get qiTemplate() {
+		return this.client.qiTemplate;
+	}
+	get qiTemplateItem() {
+		return this.client.qiTemplateItem;
 	}
 
 	// ═══════════════════════════════════════════════════════════════════════════

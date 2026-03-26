@@ -25,9 +25,13 @@ import {
 	toInventoryItemManufacturer,
 	toInventoryItemVariantSettings,
 	toInventoryMaterialRequest,
+	toInventoryPackingSlip,
 	toInventoryPickList,
 	toInventoryProductBundle,
 	toInventoryPurchaseReceipt,
+	toInventoryQiParameter,
+	toInventoryQiParameterGroup,
+	toInventoryQiTemplate,
 	toInventorySerialNo,
 	toInventoryShippingRule,
 	toInventoryStockEntry,
@@ -7397,6 +7401,103 @@ export class InventoryService {
 	}
 
 	/**
+	 * Quick Stock Balance lookup.
+	 *
+	 * Returns the stock quantity and value for a single item at a specific
+	 * warehouse on a specific date. The caller must supply exactly one of
+	 * `itemCode` or `barcode`; if neither is provided, a `BadRequestException`
+	 * is thrown. If a barcode is supplied but no matching item is found in
+	 * `inventory_items`, a `NotFoundException` is thrown.
+	 */
+	async getQuickStockBalance(
+		params: Inventory.QuickStockBalanceInput,
+	): Promise<Inventory.QuickStockBalanceResult> {
+		const warehouse = params.warehouse.trim();
+		const date = params.date;
+
+		if (!params.itemCode && !params.barcode) {
+			throw new BadRequestException(
+				"Provide either an item code or a barcode.",
+			);
+		}
+
+		// Resolve item code from barcode when barcode lookup is requested
+		let resolvedItemCode: string;
+
+		if (params.barcode) {
+			const barcodeEntry = await this.prisma.itemBarcode.findFirst({
+				where: { barcode: params.barcode.trim() },
+				select: { item: { select: { code: true } } },
+			});
+
+			if (!barcodeEntry) {
+				throw new NotFoundException(
+					`No item is registered for barcode "${params.barcode}".`,
+				);
+			}
+
+			resolvedItemCode = barcodeEntry.item.code;
+		} else {
+			resolvedItemCode = (params.itemCode as string).trim();
+		}
+
+		// Load item metadata
+		const item = await this.prisma.inventoryItem.findFirst({
+			where: { code: { equals: resolvedItemCode, mode: "insensitive" } },
+			select: {
+				name: true,
+				code: true,
+				description: true,
+				valuationRate: true,
+				barcodes: { select: { barcode: true } },
+			},
+		});
+
+		if (!item) {
+			throw new NotFoundException(
+				`Item with code "${resolvedItemCode}" was not found.`,
+			);
+		}
+
+		// Pull all submitted stock entry movements for this item up to the date
+		const movements = await this.prisma.stockEntryItem.findMany({
+			where: {
+				itemCode: { equals: resolvedItemCode, mode: "insensitive" },
+				stockEntry: {
+					status: "SUBMITTED",
+					postingDate: { lte: date },
+				},
+			},
+			include: { stockEntry: true },
+			orderBy: [
+				{ stockEntry: { postingDate: "asc" } },
+				{ stockEntry: { createdAt: "asc" } },
+				{ id: "asc" },
+			],
+		});
+
+		// Build ledger rows for the specific warehouse, then compute balance
+		const ledgerRows = buildStockLedgerRows(movements, { warehouse });
+
+		let availableQty = 0;
+		for (const row of ledgerRows) {
+			availableQty += row.qtyIn - row.qtyOut;
+		}
+
+		const valuationRate = item.valuationRate ?? 0;
+		const stockValue = availableQty * valuationRate;
+
+		return {
+			itemCode: item.code,
+			itemName: item.name,
+			description: item.description ?? null,
+			barcodes: item.barcodes.map((b) => b.barcode),
+			availableQty,
+			stockValue,
+		};
+	}
+
+	/**
 	 * Get projected stock rows by combining on-hand stock, open demand/supply,
 	 * pending production movements, and warehouse reorder settings.
 	 */
@@ -9817,5 +9918,929 @@ export class InventoryService {
 			}
 			throw error;
 		}
+	}
+
+	// ─────────────────────────────────────────────────────────────────────────────
+	// Packing Slip
+	// ─────────────────────────────────────────────────────────────────────────────
+
+	private async generatePackingSlipSeries(date: Date): Promise<string> {
+		const year = date.getFullYear();
+		const prefix = `MAT-PAC-${year}-`;
+
+		const lastEntry = await this.prisma.packingSlip.findFirst({
+			where: { series: { startsWith: prefix } },
+			orderBy: { series: "desc" },
+			select: { series: true },
+		});
+
+		let nextNumber = 1;
+		if (lastEntry) {
+			const numStr = lastEntry.series.slice(prefix.length);
+			const num = parseInt(numStr, 10);
+			if (!Number.isNaN(num)) {
+				nextNumber = num + 1;
+			}
+		}
+
+		return `${prefix}${String(nextNumber).padStart(5, "0")}`;
+	}
+
+	/**
+	 * Calculate the net weight and UOM for a packing slip from its items.
+	 * Throws if items use different UOMs.
+	 */
+	private computePackingSlipWeights(
+		items: { netWeight: number; weightUom?: string | null }[],
+		grossWeightPkg?: number,
+	): {
+		netWeightPkg: number;
+		netWeightUom: string | null;
+		grossWeightPkg: number;
+		grossWeightUom: string | null;
+	} {
+		const uom = items.length > 0 ? (items[0].weightUom ?? null) : null;
+
+		for (const item of items) {
+			if ((item.weightUom ?? null) !== uom) {
+				throw new BadRequestException(
+					"All items must use the same weight UOM. Ensure every item has the same UOM.",
+				);
+			}
+		}
+
+		const netWeightPkg = items.reduce(
+			(sum, item) => sum + (item.netWeight ?? 0),
+			0,
+		);
+
+		const gross = grossWeightPkg != null ? grossWeightPkg : netWeightPkg;
+
+		return {
+			netWeightPkg: Math.round(netWeightPkg * 100) / 100,
+			netWeightUom: uom,
+			grossWeightPkg: Math.round(gross * 100) / 100,
+			grossWeightUom: uom,
+		};
+	}
+
+	/**
+	 * Validate that package numbers don't overlap with existing submitted packing slips.
+	 */
+	private async validateCaseNos(
+		deliveryNoteId: string,
+		fromCaseNo: number,
+		toCaseNo: number,
+		excludeId?: string,
+	): Promise<void> {
+		if (fromCaseNo <= 0) {
+			throw new BadRequestException("From Package No. must be greater than 0.");
+		}
+		if (toCaseNo < fromCaseNo) {
+			throw new BadRequestException(
+				"To Package No. cannot be less than From Package No.",
+			);
+		}
+
+		const overlapping = await this.prisma.packingSlip.findFirst({
+			where: {
+				deliveryNoteId,
+				status: "SUBMITTED",
+				...(excludeId ? { id: { not: excludeId } } : {}),
+				OR: [
+					{ fromCaseNo: { gte: fromCaseNo, lte: toCaseNo } },
+					{ toCaseNo: { gte: fromCaseNo, lte: toCaseNo } },
+					{
+						AND: [
+							{ fromCaseNo: { lte: fromCaseNo } },
+							{ toCaseNo: { gte: fromCaseNo } },
+						],
+					},
+				],
+			},
+			select: { toCaseNo: true },
+		});
+
+		if (overlapping) {
+			const recommended = overlapping.toCaseNo + 1;
+			throw new BadRequestException(
+				`Package No(s) already in use. Try from Package No ${recommended}.`,
+			);
+		}
+	}
+
+	/**
+	 * Validate that item quantities don't exceed remaining unpacked quantities.
+	 */
+	private async validatePackingSlipItemQtys(
+		items: { deliveryNoteItemId: string; qty: number }[],
+		excludePackingSlipId?: string,
+	): Promise<void> {
+		for (const item of items) {
+			const dn = await this.prisma.deliveryNoteItem.findUnique({
+				where: { id: item.deliveryNoteItemId },
+				select: { quantity: true, packedQty: true },
+			});
+
+			if (!dn) {
+				throw new BadRequestException(
+					`Delivery note item "${item.deliveryNoteItemId}" not found.`,
+				);
+			}
+
+			// When updating, subtract the current packing slip's contribution from packedQty
+			let alreadyPacked = dn.packedQty;
+			if (excludePackingSlipId) {
+				const existingQty = await this.prisma.packingSlipItem.findFirst({
+					where: {
+						packingSlipId: excludePackingSlipId,
+						deliveryNoteItemId: item.deliveryNoteItemId,
+					},
+					select: { qty: true },
+				});
+				if (existingQty) {
+					alreadyPacked = Math.max(0, alreadyPacked - existingQty.qty);
+				}
+			}
+
+			const remaining = dn.quantity - alreadyPacked;
+
+			if (item.qty <= 0) {
+				throw new BadRequestException(`Item quantity must be greater than 0.`);
+			}
+
+			if (item.qty > remaining + 0.0001) {
+				throw new BadRequestException(
+					`Quantity ${item.qty} exceeds the remaining unpacked quantity ${remaining} for this item.`,
+				);
+			}
+		}
+	}
+
+	/**
+	 * Get recommended next package number for a delivery note.
+	 */
+	async getRecommendedCaseNo(deliveryNoteId: string): Promise<number> {
+		const last = await this.prisma.packingSlip.findFirst({
+			where: { deliveryNoteId, status: "SUBMITTED" },
+			orderBy: { toCaseNo: "desc" },
+			select: { toCaseNo: true },
+		});
+		return (last?.toCaseNo ?? 0) + 1;
+	}
+
+	/**
+	 * List packing slips with optional filtering.
+	 */
+	async findAllPackingSlips(params?: {
+		deliveryNoteId?: string;
+		status?: Inventory.PackingSlipStatus;
+		skip?: number;
+		take?: number;
+	}): Promise<Inventory.PackingSlip[]> {
+		const skip = Math.max(0, params?.skip ?? 0);
+		const take = Math.min(
+			Math.max(1, params?.take ?? LIST_QUERY_TAKE_MAX),
+			LIST_QUERY_TAKE_MAX,
+		);
+
+		const slips = await this.prisma.packingSlip.findMany({
+			where: {
+				...(params?.deliveryNoteId
+					? { deliveryNoteId: params.deliveryNoteId }
+					: {}),
+				...(params?.status ? { status: params.status } : {}),
+			},
+			include: { items: true },
+			orderBy: { createdAt: "desc" },
+			skip,
+			take,
+		});
+
+		return slips.map(toInventoryPackingSlip);
+	}
+
+	/**
+	 * Get a single packing slip by ID.
+	 */
+	async findPackingSlipById(id: string): Promise<Inventory.PackingSlip | null> {
+		const ps = await this.prisma.packingSlip.findUnique({
+			where: { id },
+			include: { items: true },
+		});
+		return ps ? toInventoryPackingSlip(ps) : null;
+	}
+
+	/**
+	 * Create a new packing slip for a draft delivery note.
+	 * Validates:
+	 * - Delivery note exists and is in DRAFT status
+	 * - Package numbers are valid and non-overlapping
+	 * - Item quantities don't exceed remaining unpacked quantities
+	 */
+	async createPackingSlip(
+		data: Inventory.CreatePackingSlipInput,
+	): Promise<Inventory.PackingSlip> {
+		const dn = await this.prisma.deliveryNote.findUnique({
+			where: { id: data.deliveryNoteId },
+			select: { id: true, status: true },
+		});
+
+		if (!dn) {
+			throw new NotFoundException(
+				`Delivery note with ID "${data.deliveryNoteId}" not found.`,
+			);
+		}
+
+		if (dn.status !== "DRAFT") {
+			throw new BadRequestException(
+				"A Packing Slip can only be created for a Draft Delivery Note.",
+			);
+		}
+
+		const fromCaseNo = data.fromCaseNo;
+		const toCaseNo = data.toCaseNo ?? fromCaseNo;
+
+		await this.validateCaseNos(data.deliveryNoteId, fromCaseNo, toCaseNo);
+		await this.validatePackingSlipItemQtys(data.items);
+
+		const weights = this.computePackingSlipWeights(
+			data.items.map((i) => ({
+				netWeight: i.netWeight ?? 0,
+				weightUom: i.weightUom,
+			})),
+			data.grossWeightPkg,
+		);
+
+		for (let attempt = 0; attempt < 3; attempt++) {
+			const series = await this.generatePackingSlipSeries(new Date());
+			try {
+				const ps = await this.prisma.packingSlip.create({
+					data: {
+						series,
+						status: "DRAFT",
+						deliveryNoteId: data.deliveryNoteId,
+						fromCaseNo,
+						toCaseNo,
+						netWeightPkg: weights.netWeightPkg,
+						netWeightUom: weights.netWeightUom,
+						grossWeightPkg: weights.grossWeightPkg,
+						grossWeightUom: data.grossWeightUom ?? weights.grossWeightUom,
+						letterHead: data.letterHead,
+						items: {
+							create: data.items.map((item) => ({
+								deliveryNoteItemId: item.deliveryNoteItemId,
+								itemCode: item.itemCode,
+								itemName: item.itemName,
+								description: item.description,
+								qty: item.qty,
+								netWeight: item.netWeight ?? 0,
+								weightUom: item.weightUom,
+								batchNo: item.batchNo,
+							})),
+						},
+					},
+					include: { items: true },
+				});
+				return toInventoryPackingSlip(ps);
+			} catch (error) {
+				const isConflict =
+					error instanceof Prisma.PrismaClientKnownRequestError &&
+					error.code === "P2002";
+				if (isConflict && attempt < 2) {
+					await new Promise((r) =>
+						setTimeout(r, this.computeBackoffMs(attempt)),
+					);
+					continue;
+				}
+				throw error;
+			}
+		}
+		throw new Error("Failed to allocate a unique packing slip series");
+	}
+
+	/**
+	 * Update a draft packing slip. Only draft slips can be updated.
+	 */
+	async updatePackingSlip(
+		data: Inventory.UpdatePackingSlipInput,
+	): Promise<Inventory.PackingSlip> {
+		const existing = await this.prisma.packingSlip.findUnique({
+			where: { id: data.id },
+			include: { items: true },
+		});
+
+		if (!existing) {
+			throw new NotFoundException(
+				`Packing slip with ID "${data.id}" not found.`,
+			);
+		}
+
+		if (existing.status !== "DRAFT") {
+			throw new BadRequestException("Only Draft packing slips can be edited.");
+		}
+
+		const fromCaseNo = data.fromCaseNo ?? existing.fromCaseNo;
+		const toCaseNo = data.toCaseNo ?? existing.toCaseNo;
+
+		await this.validateCaseNos(
+			existing.deliveryNoteId,
+			fromCaseNo,
+			toCaseNo,
+			existing.id,
+		);
+
+		if (data.items) {
+			await this.validatePackingSlipItemQtys(data.items, existing.id);
+		}
+
+		const itemsForWeight = (data.items ?? existing.items).map(
+			(i: { netWeight?: number | null; weightUom?: string | null }) => ({
+				netWeight: i.netWeight ?? 0,
+				weightUom: i.weightUom,
+			}),
+		);
+		const weights = this.computePackingSlipWeights(
+			itemsForWeight,
+			data.grossWeightPkg ?? existing.grossWeightPkg,
+		);
+
+		const updated = await this.prisma.$transaction(async (tx) => {
+			if (data.items) {
+				await tx.packingSlipItem.deleteMany({
+					where: { packingSlipId: existing.id },
+				});
+			}
+
+			return tx.packingSlip.update({
+				where: { id: existing.id },
+				data: {
+					fromCaseNo,
+					toCaseNo,
+					netWeightPkg: weights.netWeightPkg,
+					netWeightUom: weights.netWeightUom,
+					grossWeightPkg: weights.grossWeightPkg,
+					grossWeightUom:
+						data.grossWeightUom !== undefined
+							? data.grossWeightUom
+							: weights.grossWeightUom,
+					...(data.letterHead !== undefined && { letterHead: data.letterHead }),
+					...(data.items && {
+						items: {
+							create: data.items.map((item) => ({
+								deliveryNoteItemId: item.deliveryNoteItemId,
+								itemCode: item.itemCode,
+								itemName: item.itemName,
+								description: item.description,
+								qty: item.qty,
+								netWeight: item.netWeight ?? 0,
+								weightUom: item.weightUom,
+								batchNo: item.batchNo,
+							})),
+						},
+					}),
+				},
+				include: { items: true },
+			});
+		});
+
+		return toInventoryPackingSlip(updated);
+	}
+
+	/**
+	 * Submit a packing slip. Transitions to SUBMITTED and increments packedQty
+	 * on each referenced delivery note item.
+	 */
+	async submitPackingSlip(id: string): Promise<Inventory.PackingSlip> {
+		const existing = await this.prisma.packingSlip.findUnique({
+			where: { id },
+			include: { items: true },
+		});
+
+		if (!existing) {
+			throw new NotFoundException(`Packing slip with ID "${id}" not found.`);
+		}
+
+		if (existing.status !== "DRAFT") {
+			throw new BadRequestException(
+				"Only Draft packing slips can be submitted.",
+			);
+		}
+
+		// Validate case nos (no overlap with already-submitted ones)
+		await this.validateCaseNos(
+			existing.deliveryNoteId,
+			existing.fromCaseNo,
+			existing.toCaseNo,
+			existing.id,
+		);
+
+		// Validate quantities (fresh check at submit time)
+		await this.validatePackingSlipItemQtys(existing.items, existing.id);
+
+		const updated = await this.prisma.$transaction(async (tx) => {
+			for (const item of existing.items) {
+				await tx.deliveryNoteItem.update({
+					where: { id: item.deliveryNoteItemId },
+					data: { packedQty: { increment: item.qty } },
+				});
+			}
+
+			return tx.packingSlip.update({
+				where: { id },
+				data: { status: "SUBMITTED" },
+				include: { items: true },
+			});
+		});
+
+		return toInventoryPackingSlip(updated);
+	}
+
+	/**
+	 * Cancel a submitted packing slip. Reverses packedQty on delivery note items.
+	 */
+	async cancelPackingSlip(id: string): Promise<Inventory.PackingSlip> {
+		const existing = await this.prisma.packingSlip.findUnique({
+			where: { id },
+			include: { items: true },
+		});
+
+		if (!existing) {
+			throw new NotFoundException(`Packing slip with ID "${id}" not found.`);
+		}
+
+		if (existing.status !== "SUBMITTED") {
+			throw new BadRequestException(
+				"Only Submitted packing slips can be cancelled.",
+			);
+		}
+
+		const updated = await this.prisma.$transaction(async (tx) => {
+			for (const item of existing.items) {
+				await tx.deliveryNoteItem.update({
+					where: { id: item.deliveryNoteItemId },
+					data: {
+						packedQty: { decrement: item.qty },
+					},
+				});
+			}
+
+			return tx.packingSlip.update({
+				where: { id },
+				data: { status: "CANCELLED" },
+				include: { items: true },
+			});
+		});
+
+		return toInventoryPackingSlip(updated);
+	}
+
+	/**
+	 * Delete a draft packing slip.
+	 */
+	async deletePackingSlip(
+		id: string,
+	): Promise<{ success: boolean; id: string }> {
+		const existing = await this.prisma.packingSlip.findUnique({
+			where: { id },
+			select: { id: true, status: true },
+		});
+
+		if (!existing) {
+			throw new NotFoundException(`Packing slip with ID "${id}" not found.`);
+		}
+
+		if (existing.status === "SUBMITTED") {
+			throw new BadRequestException(
+				"Submitted packing slips cannot be deleted. Cancel them first.",
+			);
+		}
+
+		await this.prisma.packingSlip.delete({ where: { id } });
+		return { success: true, id };
+	}
+
+	/**
+	 * Bulk delete draft/cancelled packing slips.
+	 */
+	async deleteManyPackingSlips(
+		ids: string[],
+	): Promise<{ success: boolean; count: number; ids: string[] }> {
+		const uniqueIds = [...new Set(ids)];
+
+		const submitted = await this.prisma.packingSlip.findMany({
+			where: { id: { in: uniqueIds }, status: "SUBMITTED" },
+			select: { series: true },
+		});
+
+		if (submitted.length > 0) {
+			const series = submitted.map((s) => s.series).join(", ");
+			throw new BadRequestException(
+				`Cannot delete submitted packing slips: ${series}. Cancel them first.`,
+			);
+		}
+
+		const result = await this.prisma.packingSlip.deleteMany({
+			where: { id: { in: uniqueIds } },
+		});
+
+		return { success: true, count: result.count, ids: uniqueIds };
+	}
+
+	// ─── Quality Inspection Parameter Groups ──────────────────────────────────
+
+	async findAllQiParameterGroups(): Promise<Inventory.QiParameterGroup[]> {
+		const groups = await this.prisma.qiParameterGroup.findMany({
+			orderBy: { name: "asc" },
+		});
+		return groups.map(toInventoryQiParameterGroup);
+	}
+
+	async createQiParameterGroup(data: {
+		name: string;
+	}): Promise<Inventory.QiParameterGroup> {
+		const existing = await this.prisma.qiParameterGroup.findUnique({
+			where: { name: data.name },
+		});
+		if (existing) {
+			throw new ConflictException(
+				`A parameter group named "${data.name}" already exists`,
+			);
+		}
+		const created = await this.prisma.qiParameterGroup.create({
+			data: { name: data.name },
+		});
+		return toInventoryQiParameterGroup(created);
+	}
+
+	async updateQiParameterGroup(data: {
+		id: string;
+		name: string;
+	}): Promise<Inventory.QiParameterGroup> {
+		const existing = await this.prisma.qiParameterGroup.findUnique({
+			where: { id: data.id },
+		});
+		if (!existing) {
+			throw new NotFoundException(
+				`QI parameter group with id "${data.id}" not found`,
+			);
+		}
+		const duplicate = await this.prisma.qiParameterGroup.findFirst({
+			where: { name: data.name, id: { not: data.id } },
+		});
+		if (duplicate) {
+			throw new ConflictException(
+				`A parameter group named "${data.name}" already exists`,
+			);
+		}
+		const updated = await this.prisma.qiParameterGroup.update({
+			where: { id: data.id },
+			data: { name: data.name },
+		});
+		return toInventoryQiParameterGroup(updated);
+	}
+
+	async deleteQiParameterGroup(
+		id: string,
+	): Promise<{ success: boolean; id: string }> {
+		const existing = await this.prisma.qiParameterGroup.findUnique({
+			where: { id },
+		});
+		if (!existing) {
+			throw new NotFoundException(
+				`QI parameter group with id "${id}" not found`,
+			);
+		}
+		await this.prisma.qiParameterGroup.delete({ where: { id } });
+		return { success: true, id };
+	}
+
+	// ─── Quality Inspection Parameters ───────────────────────────────────────
+
+	async findAllQiParameters(params?: {
+		search?: string;
+		groupId?: string;
+	}): Promise<Inventory.QiParameter[]> {
+		const parameters = await this.prisma.qiParameter.findMany({
+			where: {
+				...(params?.search && {
+					parameter: { contains: params.search, mode: "insensitive" },
+				}),
+				...(params?.groupId !== undefined && { groupId: params.groupId }),
+			},
+			include: { group: true },
+			orderBy: { parameter: "asc" },
+		});
+		return parameters.map(toInventoryQiParameter);
+	}
+
+	async findQiParameterById(id: string): Promise<Inventory.QiParameter | null> {
+		const p = await this.prisma.qiParameter.findUnique({
+			where: { id },
+			include: { group: true },
+		});
+		return p ? toInventoryQiParameter(p) : null;
+	}
+
+	async createQiParameter(data: {
+		parameter: string;
+		description?: string | null;
+		groupId?: string | null;
+	}): Promise<Inventory.QiParameter> {
+		const existing = await this.prisma.qiParameter.findUnique({
+			where: { parameter: data.parameter },
+		});
+		if (existing) {
+			throw new ConflictException(
+				`A parameter named "${data.parameter}" already exists`,
+			);
+		}
+		if (data.groupId) {
+			const group = await this.prisma.qiParameterGroup.findUnique({
+				where: { id: data.groupId },
+			});
+			if (!group) {
+				throw new NotFoundException(
+					`QI parameter group with id "${data.groupId}" not found`,
+				);
+			}
+		}
+		const created = await this.prisma.qiParameter.create({
+			data: {
+				parameter: data.parameter,
+				description: data.description ?? null,
+				groupId: data.groupId ?? null,
+			},
+			include: { group: true },
+		});
+		return toInventoryQiParameter(created);
+	}
+
+	async updateQiParameter(data: {
+		id: string;
+		parameter?: string;
+		description?: string | null;
+		groupId?: string | null;
+	}): Promise<Inventory.QiParameter> {
+		const existing = await this.prisma.qiParameter.findUnique({
+			where: { id: data.id },
+		});
+		if (!existing) {
+			throw new NotFoundException(
+				`QI parameter with id "${data.id}" not found`,
+			);
+		}
+		if (data.parameter && data.parameter !== existing.parameter) {
+			const duplicate = await this.prisma.qiParameter.findUnique({
+				where: { parameter: data.parameter },
+			});
+			if (duplicate) {
+				throw new ConflictException(
+					`A parameter named "${data.parameter}" already exists`,
+				);
+			}
+		}
+		if (data.groupId) {
+			const group = await this.prisma.qiParameterGroup.findUnique({
+				where: { id: data.groupId },
+			});
+			if (!group) {
+				throw new NotFoundException(
+					`QI parameter group with id "${data.groupId}" not found`,
+				);
+			}
+		}
+		const updated = await this.prisma.qiParameter.update({
+			where: { id: data.id },
+			data: {
+				...(data.parameter != null && { parameter: data.parameter }),
+				...(data.description !== undefined && {
+					description: data.description,
+				}),
+				...(data.groupId !== undefined && { groupId: data.groupId }),
+			},
+			include: { group: true },
+		});
+		return toInventoryQiParameter(updated);
+	}
+
+	async deleteQiParameter(
+		id: string,
+	): Promise<{ success: boolean; id: string }> {
+		const existing = await this.prisma.qiParameter.findUnique({
+			where: { id },
+		});
+		if (!existing) {
+			throw new NotFoundException(`QI parameter with id "${id}" not found`);
+		}
+		await this.prisma.qiParameter.delete({ where: { id } });
+		return { success: true, id };
+	}
+
+	// ─── Quality Inspection Templates ─────────────────────────────────────────
+
+	async findAllQiTemplates(params?: {
+		search?: string;
+		skip?: number;
+		take?: number;
+	}): Promise<Inventory.QiTemplate[]> {
+		const templates = await this.prisma.qiTemplate.findMany({
+			where: params?.search
+				? { name: { contains: params.search, mode: "insensitive" } }
+				: undefined,
+			include: {
+				items: {
+					include: { parameter: { include: { group: true } } },
+					orderBy: { sortOrder: "asc" },
+				},
+			},
+			orderBy: { name: "asc" },
+			skip: params?.skip,
+			take: params?.take,
+		});
+		return templates.map(toInventoryQiTemplate);
+	}
+
+	async findQiTemplateById(id: string): Promise<Inventory.QiTemplate | null> {
+		const t = await this.prisma.qiTemplate.findUnique({
+			where: { id },
+			include: {
+				items: {
+					include: { parameter: { include: { group: true } } },
+					orderBy: { sortOrder: "asc" },
+				},
+			},
+		});
+		return t ? toInventoryQiTemplate(t) : null;
+	}
+
+	async createQiTemplate(data: {
+		name: string;
+		items: Array<{
+			parameterId: string;
+			sortOrder?: number;
+			numeric?: boolean;
+			formulaBased?: boolean;
+			value?: string | null;
+			minValue?: number | null;
+			maxValue?: number | null;
+			acceptanceFormula?: string | null;
+		}>;
+	}): Promise<Inventory.QiTemplate> {
+		const existing = await this.prisma.qiTemplate.findUnique({
+			where: { name: data.name },
+		});
+		if (existing) {
+			throw new ConflictException(
+				`A template named "${data.name}" already exists`,
+			);
+		}
+		// Validate all parameters exist
+		const paramIds = [...new Set(data.items.map((i) => i.parameterId))];
+		const foundParams = await this.prisma.qiParameter.findMany({
+			where: { id: { in: paramIds } },
+			select: { id: true },
+		});
+		if (foundParams.length !== paramIds.length) {
+			const missing = paramIds.filter(
+				(id) => !foundParams.some((p) => p.id === id),
+			);
+			throw new NotFoundException(
+				`QI parameters not found: ${missing.join(", ")}`,
+			);
+		}
+		const template = await this.prisma.qiTemplate.create({
+			data: {
+				name: data.name,
+				items: {
+					create: data.items.map((item, idx) => ({
+						parameterId: item.parameterId,
+						sortOrder: item.sortOrder ?? idx,
+						numeric: item.numeric ?? true,
+						formulaBased: item.formulaBased ?? false,
+						value: item.value ?? null,
+						minValue: item.minValue ?? null,
+						maxValue: item.maxValue ?? null,
+						acceptanceFormula: item.acceptanceFormula ?? null,
+					})),
+				},
+			},
+			include: {
+				items: {
+					include: { parameter: { include: { group: true } } },
+					orderBy: { sortOrder: "asc" },
+				},
+			},
+		});
+		return toInventoryQiTemplate(template);
+	}
+
+	async updateQiTemplate(data: {
+		id: string;
+		name?: string;
+		items?: Array<{
+			id?: string;
+			parameterId: string;
+			sortOrder?: number;
+			numeric?: boolean;
+			formulaBased?: boolean;
+			value?: string | null;
+			minValue?: number | null;
+			maxValue?: number | null;
+			acceptanceFormula?: string | null;
+		}>;
+	}): Promise<Inventory.QiTemplate> {
+		const existing = await this.prisma.qiTemplate.findUnique({
+			where: { id: data.id },
+		});
+		if (!existing) {
+			throw new NotFoundException(`QI template with id "${data.id}" not found`);
+		}
+		if (data.name && data.name !== existing.name) {
+			const duplicate = await this.prisma.qiTemplate.findUnique({
+				where: { name: data.name },
+			});
+			if (duplicate) {
+				throw new ConflictException(
+					`A template named "${data.name}" already exists`,
+				);
+			}
+		}
+		if (data.items) {
+			const paramIds = [...new Set(data.items.map((i) => i.parameterId))];
+			const foundParams = await this.prisma.qiParameter.findMany({
+				where: { id: { in: paramIds } },
+				select: { id: true },
+			});
+			if (foundParams.length !== paramIds.length) {
+				const missing = paramIds.filter(
+					(id) => !foundParams.some((p) => p.id === id),
+				);
+				throw new NotFoundException(
+					`QI parameters not found: ${missing.join(", ")}`,
+				);
+			}
+		}
+
+		const updated = await this.prisma.$transaction(async (tx) => {
+			if (data.name) {
+				await tx.qiTemplate.update({
+					where: { id: data.id },
+					data: { name: data.name },
+				});
+			}
+			if (data.items) {
+				await tx.qiTemplateItem.deleteMany({
+					where: { templateId: data.id },
+				});
+				await tx.qiTemplateItem.createMany({
+					data: data.items.map((item, idx) => ({
+						templateId: data.id,
+						parameterId: item.parameterId,
+						sortOrder: item.sortOrder ?? idx,
+						numeric: item.numeric ?? true,
+						formulaBased: item.formulaBased ?? false,
+						value: item.value ?? null,
+						minValue: item.minValue ?? null,
+						maxValue: item.maxValue ?? null,
+						acceptanceFormula: item.acceptanceFormula ?? null,
+					})),
+				});
+			}
+			return tx.qiTemplate.findUniqueOrThrow({
+				where: { id: data.id },
+				include: {
+					items: {
+						include: { parameter: { include: { group: true } } },
+						orderBy: { sortOrder: "asc" },
+					},
+				},
+			});
+		});
+
+		return toInventoryQiTemplate(updated);
+	}
+
+	async deleteQiTemplate(
+		id: string,
+	): Promise<{ success: boolean; id: string }> {
+		const existing = await this.prisma.qiTemplate.findUnique({
+			where: { id },
+		});
+		if (!existing) {
+			throw new NotFoundException(`QI template with id "${id}" not found`);
+		}
+		await this.prisma.qiTemplate.delete({ where: { id } });
+		return { success: true, id };
+	}
+
+	async deleteManyQiTemplates(
+		ids: string[],
+	): Promise<{ success: boolean; count: number; ids: string[] }> {
+		const uniqueIds = [...new Set(ids)];
+		const result = await this.prisma.qiTemplate.deleteMany({
+			where: { id: { in: uniqueIds } },
+		});
+		return { success: true, count: result.count, ids: uniqueIds };
 	}
 }

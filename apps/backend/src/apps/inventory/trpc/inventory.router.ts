@@ -1075,6 +1075,16 @@ function createListStockBalanceProcedure(inventoryService: InventoryService) {
 		});
 }
 
+function createGetQuickStockBalanceProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure
+		.input(Inventory.quickStockBalanceSchema)
+		.query(async ({ input }) => {
+			return inventoryService.getQuickStockBalance(input);
+		});
+}
+
 function createListStockProjectedQtyProcedure(
 	inventoryService: InventoryService,
 ) {
@@ -1458,6 +1468,218 @@ const onDeliveryTripsChangedProcedure = protectedProcedure.subscription(() => {
 	});
 });
 
+// ─── Packing Slip Procedures ──────────────────────────────────────────────────
+
+function createListPackingSlipsProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(Inventory.listPackingSlipsSchema)
+		.query(async ({ input }) => {
+			return inventoryService.findAllPackingSlips(input);
+		});
+}
+
+function createGetPackingSlipByIdProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(z.object({ id: z.string().min(1) }))
+		.query(async ({ input }) => {
+			return inventoryService.findPackingSlipById(input.id);
+		});
+}
+
+function createGetRecommendedCaseNoProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure
+		.input(z.object({ deliveryNoteId: z.string().min(1) }))
+		.query(async ({ input }) => {
+			return inventoryService.getRecommendedCaseNo(input.deliveryNoteId);
+		});
+}
+
+function createCreatePackingSlipProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(Inventory.createPackingSlipSchema)
+		.mutation(async ({ input }) => {
+			return inventoryService.createPackingSlip(input);
+		});
+}
+
+function createUpdatePackingSlipProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(Inventory.updatePackingSlipSchema)
+		.mutation(async ({ input }) => {
+			return inventoryService.updatePackingSlip(input);
+		});
+}
+
+function createSubmitPackingSlipProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(z.object({ id: z.string().min(1) }))
+		.mutation(async ({ input }) => {
+			return inventoryService.submitPackingSlip(input.id);
+		});
+}
+
+function createCancelPackingSlipProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(z.object({ id: z.string().min(1) }))
+		.mutation(async ({ input }) => {
+			return inventoryService.cancelPackingSlip(input.id);
+		});
+}
+
+function createDeletePackingSlipProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(z.object({ id: z.string().min(1) }))
+		.mutation(async ({ input }) => {
+			return inventoryService.deletePackingSlip(input.id);
+		});
+}
+
+function createDeleteManyPackingSlipsProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure
+		.input(Inventory.bulkDeletePackingSlipsSchema)
+		.mutation(async ({ input }) => {
+			return inventoryService.deleteManyPackingSlips(input.ids);
+		});
+}
+
+// ─── QI Parameter Group Procedures ───────────────────────────────────────────
+
+function createListQiParameterGroupsProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure.query(async () => {
+		return inventoryService.findAllQiParameterGroups();
+	});
+}
+
+function createCreateQiParameterGroupProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure
+		.input(Inventory.createQiParameterGroupSchema)
+		.mutation(async ({ input }) => {
+			return inventoryService.createQiParameterGroup(input);
+		});
+}
+
+function createUpdateQiParameterGroupProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure
+		.input(Inventory.updateQiParameterGroupSchema)
+		.mutation(async ({ input }) => {
+			return inventoryService.updateQiParameterGroup(input);
+		});
+}
+
+function createDeleteQiParameterGroupProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure
+		.input(z.object({ id: z.string().min(1) }))
+		.mutation(async ({ input }) => {
+			return inventoryService.deleteQiParameterGroup(input.id);
+		});
+}
+
+// ─── QI Parameter Procedures ─────────────────────────────────────────────────
+
+function createListQiParametersProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(Inventory.listQiParametersSchema)
+		.query(async ({ input }) => {
+			return inventoryService.findAllQiParameters(input);
+		});
+}
+
+function createGetQiParameterByIdProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(z.object({ id: z.string().min(1) }))
+		.query(async ({ input }) => {
+			return inventoryService.findQiParameterById(input.id);
+		});
+}
+
+function createCreateQiParameterProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(Inventory.createQiParameterSchema)
+		.mutation(async ({ input }) => {
+			return inventoryService.createQiParameter(input);
+		});
+}
+
+function createUpdateQiParameterProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(Inventory.updateQiParameterSchema)
+		.mutation(async ({ input }) => {
+			return inventoryService.updateQiParameter(input);
+		});
+}
+
+function createDeleteQiParameterProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(z.object({ id: z.string().min(1) }))
+		.mutation(async ({ input }) => {
+			return inventoryService.deleteQiParameter(input.id);
+		});
+}
+
+// ─── QI Template Procedures ───────────────────────────────────────────────────
+
+function createListQiTemplatesProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(Inventory.listQiTemplatesSchema)
+		.query(async ({ input }) => {
+			return inventoryService.findAllQiTemplates(input);
+		});
+}
+
+function createGetQiTemplateByIdProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(z.object({ id: z.string().min(1) }))
+		.query(async ({ input }) => {
+			return inventoryService.findQiTemplateById(input.id);
+		});
+}
+
+function createCreateQiTemplateProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(Inventory.createQiTemplateSchema)
+		.mutation(async ({ input }) => {
+			return inventoryService.createQiTemplate(input);
+		});
+}
+
+function createUpdateQiTemplateProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(Inventory.updateQiTemplateSchema)
+		.mutation(async ({ input }) => {
+			return inventoryService.updateQiTemplate(input);
+		});
+}
+
+function createDeleteQiTemplateProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(z.object({ id: z.string().min(1) }))
+		.mutation(async ({ input }) => {
+			return inventoryService.deleteQiTemplate(input.id);
+		});
+}
+
+function createDeleteManyQiTemplatesProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure
+		.input(Inventory.bulkDeleteQiTemplatesSchema)
+		.mutation(async ({ input }) => {
+			return inventoryService.deleteManyQiTemplates(input.ids);
+		});
+}
+
 type InventoryRouterInput = {
 	listItems: ReturnType<typeof createListItemsProcedure>;
 	listItemGroups: ReturnType<typeof createListItemGroupsProcedure>;
@@ -1602,6 +1824,7 @@ type InventoryRouterInput = {
 	onStockEntriesChanged: typeof onStockEntriesChangedProcedure;
 	listStockLedger: ReturnType<typeof createListStockLedgerProcedure>;
 	listStockBalance: ReturnType<typeof createListStockBalanceProcedure>;
+	getQuickStockBalance: ReturnType<typeof createGetQuickStockBalanceProcedure>;
 	listStockProjectedQty: ReturnType<
 		typeof createListStockProjectedQtyProcedure
 	>;
@@ -1652,6 +1875,42 @@ type InventoryRouterInput = {
 		typeof createDeleteManyDeliveryTripsProcedure
 	>;
 	onDeliveryTripsChanged: typeof onDeliveryTripsChangedProcedure;
+	listPackingSlips: ReturnType<typeof createListPackingSlipsProcedure>;
+	getPackingSlipById: ReturnType<typeof createGetPackingSlipByIdProcedure>;
+	getRecommendedCaseNo: ReturnType<typeof createGetRecommendedCaseNoProcedure>;
+	createPackingSlip: ReturnType<typeof createCreatePackingSlipProcedure>;
+	updatePackingSlip: ReturnType<typeof createUpdatePackingSlipProcedure>;
+	submitPackingSlip: ReturnType<typeof createSubmitPackingSlipProcedure>;
+	cancelPackingSlip: ReturnType<typeof createCancelPackingSlipProcedure>;
+	deletePackingSlip: ReturnType<typeof createDeletePackingSlipProcedure>;
+	deleteManyPackingSlips: ReturnType<
+		typeof createDeleteManyPackingSlipsProcedure
+	>;
+	listQiParameterGroups: ReturnType<
+		typeof createListQiParameterGroupsProcedure
+	>;
+	createQiParameterGroup: ReturnType<
+		typeof createCreateQiParameterGroupProcedure
+	>;
+	updateQiParameterGroup: ReturnType<
+		typeof createUpdateQiParameterGroupProcedure
+	>;
+	deleteQiParameterGroup: ReturnType<
+		typeof createDeleteQiParameterGroupProcedure
+	>;
+	listQiParameters: ReturnType<typeof createListQiParametersProcedure>;
+	getQiParameterById: ReturnType<typeof createGetQiParameterByIdProcedure>;
+	createQiParameter: ReturnType<typeof createCreateQiParameterProcedure>;
+	updateQiParameter: ReturnType<typeof createUpdateQiParameterProcedure>;
+	deleteQiParameter: ReturnType<typeof createDeleteQiParameterProcedure>;
+	listQiTemplates: ReturnType<typeof createListQiTemplatesProcedure>;
+	getQiTemplateById: ReturnType<typeof createGetQiTemplateByIdProcedure>;
+	createQiTemplate: ReturnType<typeof createCreateQiTemplateProcedure>;
+	updateQiTemplate: ReturnType<typeof createUpdateQiTemplateProcedure>;
+	deleteQiTemplate: ReturnType<typeof createDeleteQiTemplateProcedure>;
+	deleteManyQiTemplates: ReturnType<
+		typeof createDeleteManyQiTemplatesProcedure
+	>;
 };
 
 type InventoryRouterRoot = (typeof accountRouter)["_def"]["_config"]["$types"];
@@ -1785,6 +2044,7 @@ function createInventoryRouterRecord(
 		onStockEntriesChanged: onStockEntriesChangedProcedure,
 		listStockLedger: createListStockLedgerProcedure(inventoryService),
 		listStockBalance: createListStockBalanceProcedure(inventoryService),
+		getQuickStockBalance: createGetQuickStockBalanceProcedure(inventoryService),
 		listStockProjectedQty:
 			createListStockProjectedQtyProcedure(inventoryService),
 		listStockSummary: createListStockSummaryProcedure(inventoryService),
@@ -1826,6 +2086,36 @@ function createInventoryRouterRecord(
 		deleteManyDeliveryTrips:
 			createDeleteManyDeliveryTripsProcedure(inventoryService),
 		onDeliveryTripsChanged: onDeliveryTripsChangedProcedure,
+		listPackingSlips: createListPackingSlipsProcedure(inventoryService),
+		getPackingSlipById: createGetPackingSlipByIdProcedure(inventoryService),
+		getRecommendedCaseNo: createGetRecommendedCaseNoProcedure(inventoryService),
+		createPackingSlip: createCreatePackingSlipProcedure(inventoryService),
+		updatePackingSlip: createUpdatePackingSlipProcedure(inventoryService),
+		submitPackingSlip: createSubmitPackingSlipProcedure(inventoryService),
+		cancelPackingSlip: createCancelPackingSlipProcedure(inventoryService),
+		deletePackingSlip: createDeletePackingSlipProcedure(inventoryService),
+		deleteManyPackingSlips:
+			createDeleteManyPackingSlipsProcedure(inventoryService),
+		listQiParameterGroups:
+			createListQiParameterGroupsProcedure(inventoryService),
+		createQiParameterGroup:
+			createCreateQiParameterGroupProcedure(inventoryService),
+		updateQiParameterGroup:
+			createUpdateQiParameterGroupProcedure(inventoryService),
+		deleteQiParameterGroup:
+			createDeleteQiParameterGroupProcedure(inventoryService),
+		listQiParameters: createListQiParametersProcedure(inventoryService),
+		getQiParameterById: createGetQiParameterByIdProcedure(inventoryService),
+		createQiParameter: createCreateQiParameterProcedure(inventoryService),
+		updateQiParameter: createUpdateQiParameterProcedure(inventoryService),
+		deleteQiParameter: createDeleteQiParameterProcedure(inventoryService),
+		listQiTemplates: createListQiTemplatesProcedure(inventoryService),
+		getQiTemplateById: createGetQiTemplateByIdProcedure(inventoryService),
+		createQiTemplate: createCreateQiTemplateProcedure(inventoryService),
+		updateQiTemplate: createUpdateQiTemplateProcedure(inventoryService),
+		deleteQiTemplate: createDeleteQiTemplateProcedure(inventoryService),
+		deleteManyQiTemplates:
+			createDeleteManyQiTemplatesProcedure(inventoryService),
 	};
 }
 

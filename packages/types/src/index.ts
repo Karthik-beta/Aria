@@ -3053,6 +3053,51 @@ export namespace Inventory {
 		.optional();
 
 	// ============================================================================
+	// Quick Stock Balance Types & Schemas
+	// ============================================================================
+
+	/**
+	 * Input for the Quick Stock Balance lookup.
+	 * Caller must provide a warehouse and a date, plus either an itemCode or
+	 * a barcode (not both are required – exactly one must be non-empty).
+	 */
+	export interface QuickStockBalanceInput {
+		/** Warehouse name (exact match) */
+		warehouse: string;
+		/** Lookup date – balance is computed up to and including this date */
+		date: Date;
+		/** Item code – mutually exclusive with `barcode` */
+		itemCode?: string;
+		/** Item barcode – mutually exclusive with `itemCode` */
+		barcode?: string;
+	}
+
+	export const quickStockBalanceSchema = z.object({
+		warehouse: z.string().min(1).max(255).trim(),
+		date: z.coerce.date(),
+		itemCode: z.string().min(1).max(100).trim().optional(),
+		barcode: z.string().min(1).max(255).trim().optional(),
+	});
+
+	/**
+	 * Result returned by the Quick Stock Balance lookup.
+	 */
+	export interface QuickStockBalanceResult {
+		/** Resolved item code */
+		itemCode: string;
+		/** Human-readable item name */
+		itemName: string | null;
+		/** Item description */
+		description: string | null;
+		/** All barcodes registered for this item */
+		barcodes: string[];
+		/** Stock quantity available up to (and including) the given date */
+		availableQty: number;
+		/** Stock value (qty × valuation rate) up to the given date */
+		stockValue: number;
+	}
+
+	// ============================================================================
 	// Delivery Note Types & Schemas
 	// ============================================================================
 
@@ -3071,6 +3116,7 @@ export namespace Inventory {
 		itemName?: string | null;
 		description?: string | null;
 		quantity: number;
+		packedQty: number;
 		uom?: string | null;
 		rate: number;
 		amount: number;
@@ -3408,6 +3454,149 @@ export namespace Inventory {
 	export const bulkDeleteDeliveryNotesSchema = z.object({
 		ids: z.array(z.string().min(1)).min(1),
 	});
+
+	// ============================================================================
+	// Packing Slip Types & Schemas
+	// ============================================================================
+
+	export type PackingSlipStatus = "DRAFT" | "SUBMITTED" | "CANCELLED";
+
+	export interface PackingSlipItem {
+		id: string;
+		packingSlipId: string;
+		deliveryNoteItemId: string;
+		itemCode: string;
+		itemName: string | null;
+		description: string | null;
+		qty: number;
+		netWeight: number;
+		weightUom: string | null;
+		batchNo: string | null;
+	}
+
+	export interface PackingSlip {
+		id: string;
+		series: string;
+		status: PackingSlipStatus;
+		deliveryNoteId: string;
+		fromCaseNo: number;
+		toCaseNo: number;
+		netWeightPkg: number;
+		netWeightUom: string | null;
+		grossWeightPkg: number;
+		grossWeightUom: string | null;
+		letterHead: string | null;
+		items: PackingSlipItem[];
+		createdAt: Date;
+		updatedAt: Date;
+	}
+
+	export interface CreatePackingSlipItemInput {
+		deliveryNoteItemId: string;
+		itemCode: string;
+		itemName?: string | null;
+		description?: string | null;
+		qty: number;
+		netWeight?: number;
+		weightUom?: string | null;
+		batchNo?: string | null;
+	}
+
+	export interface CreatePackingSlipInput {
+		deliveryNoteId: string;
+		fromCaseNo: number;
+		toCaseNo?: number;
+		grossWeightPkg?: number;
+		grossWeightUom?: string | null;
+		letterHead?: string | null;
+		items: CreatePackingSlipItemInput[];
+	}
+
+	export interface UpdatePackingSlipItemInput {
+		id?: string;
+		deliveryNoteItemId: string;
+		itemCode: string;
+		itemName?: string | null;
+		description?: string | null;
+		qty: number;
+		netWeight?: number;
+		weightUom?: string | null;
+		batchNo?: string | null;
+	}
+
+	export interface UpdatePackingSlipInput {
+		id: string;
+		fromCaseNo?: number;
+		toCaseNo?: number;
+		grossWeightPkg?: number;
+		grossWeightUom?: string | null;
+		letterHead?: string | null;
+		items?: UpdatePackingSlipItemInput[];
+	}
+
+	export const packingSlipStatusSchema = z.enum([
+		"DRAFT",
+		"SUBMITTED",
+		"CANCELLED",
+	]);
+
+	export const createPackingSlipItemSchema = z.object({
+		deliveryNoteItemId: z.string().min(1, "Delivery note item is required"),
+		itemCode: z.string().min(1, "Item code is required").max(100),
+		itemName: z.string().max(255).optional().nullable(),
+		description: z.string().optional().nullable(),
+		qty: z.number().positive("Quantity must be greater than 0"),
+		netWeight: z.number().min(0).optional().default(0),
+		weightUom: z.string().max(50).optional().nullable(),
+		batchNo: z.string().max(255).optional().nullable(),
+	});
+
+	export const createPackingSlipSchema = z.object({
+		deliveryNoteId: z.string().min(1, "Delivery Note is required"),
+		fromCaseNo: z.number().int().min(1, "From Package No. must be at least 1"),
+		toCaseNo: z.number().int().min(1).optional(),
+		grossWeightPkg: z.number().min(0).optional(),
+		grossWeightUom: z.string().max(50).optional().nullable(),
+		letterHead: z.string().max(255).optional().nullable(),
+		items: z
+			.array(createPackingSlipItemSchema)
+			.min(1, "At least one item is required"),
+	});
+
+	export const updatePackingSlipItemSchema = z.object({
+		id: z.string().optional(),
+		deliveryNoteItemId: z.string().min(1),
+		itemCode: z.string().min(1).max(100),
+		itemName: z.string().max(255).optional().nullable(),
+		description: z.string().optional().nullable(),
+		qty: z.number().positive("Quantity must be greater than 0"),
+		netWeight: z.number().min(0).optional().default(0),
+		weightUom: z.string().max(50).optional().nullable(),
+		batchNo: z.string().max(255).optional().nullable(),
+	});
+
+	export const updatePackingSlipSchema = z.object({
+		id: z.string().min(1),
+		fromCaseNo: z.number().int().min(1).optional(),
+		toCaseNo: z.number().int().min(1).optional(),
+		grossWeightPkg: z.number().min(0).optional(),
+		grossWeightUom: z.string().max(50).optional().nullable(),
+		letterHead: z.string().max(255).optional().nullable(),
+		items: z.array(updatePackingSlipItemSchema).min(1).optional(),
+	});
+
+	export const bulkDeletePackingSlipsSchema = z.object({
+		ids: z.array(z.string().min(1)).min(1),
+	});
+
+	export const listPackingSlipsSchema = z
+		.object({
+			deliveryNoteId: z.string().optional(),
+			status: packingSlipStatusSchema.optional(),
+			skip: z.number().int().min(0).optional(),
+			take: z.number().int().min(1).max(250).optional(),
+		})
+		.optional();
 
 	// ============================================================================
 	// Purchase Receipt Types & Schemas
@@ -4123,6 +4312,177 @@ export namespace Inventory {
 		.optional();
 
 	export const bulkDeleteDeliveryTripsSchema = z.object({
+		ids: z.array(z.string().min(1)).min(1),
+	});
+
+	// ============================================================================
+	// Quality Inspection Types & Schemas
+	// ============================================================================
+
+	export interface QiParameterGroup {
+		id: string;
+		name: string;
+		createdAt: Date;
+		updatedAt: Date;
+	}
+
+	export interface QiParameter {
+		id: string;
+		parameter: string;
+		description: string | null;
+		groupId: string | null;
+		groupName: string | null;
+		createdAt: Date;
+		updatedAt: Date;
+	}
+
+	/** Acceptance criteria mode for a template item. */
+	export type QiAcceptanceMode = "NUMERIC" | "VALUE" | "FORMULA";
+
+	export interface QiTemplateItem {
+		id: string;
+		templateId: string;
+		parameterId: string;
+		parameterName: string;
+		parameterGroupId: string | null;
+		parameterGroupName: string | null;
+		sortOrder: number;
+		numeric: boolean;
+		formulaBased: boolean;
+		value: string | null;
+		minValue: number | null;
+		maxValue: number | null;
+		acceptanceFormula: string | null;
+	}
+
+	export interface QiTemplate {
+		id: string;
+		name: string;
+		items: QiTemplateItem[];
+		createdAt: Date;
+		updatedAt: Date;
+	}
+
+	// ── Parameter Group schemas ──────────────────────────────────────────────────
+
+	export const createQiParameterGroupSchema = z.object({
+		name: z
+			.string()
+			.min(1, "Group name is required")
+			.max(255, "Group name must be at most 255 characters"),
+	});
+
+	export const updateQiParameterGroupSchema = z.object({
+		id: z.string().min(1),
+		name: z
+			.string()
+			.min(1, "Group name is required")
+			.max(255, "Group name must be at most 255 characters"),
+	});
+
+	// ── Parameter schemas ────────────────────────────────────────────────────────
+
+	export const createQiParameterSchema = z.object({
+		parameter: z
+			.string()
+			.min(1, "Parameter name is required")
+			.max(255, "Parameter name must be at most 255 characters"),
+		description: z.string().optional().nullable(),
+		groupId: z.string().optional().nullable(),
+	});
+
+	export const updateQiParameterSchema = z.object({
+		id: z.string().min(1),
+		parameter: z.string().min(1).max(255).optional(),
+		description: z.string().optional().nullable(),
+		groupId: z.string().optional().nullable(),
+	});
+
+	export const listQiParametersSchema = z
+		.object({
+			search: z.string().max(255).optional(),
+			groupId: z.string().optional(),
+		})
+		.optional();
+
+	// ── Template item schema ─────────────────────────────────────────────────────
+
+	export const createQiTemplateItemSchema = z
+		.object({
+			parameterId: z.string().min(1, "Parameter is required"),
+			sortOrder: z.number().int().min(0).optional().default(0),
+			numeric: z.boolean().default(true),
+			formulaBased: z.boolean().default(false),
+			value: z.string().max(500).optional().nullable(),
+			minValue: z.number().optional().nullable(),
+			maxValue: z.number().optional().nullable(),
+			acceptanceFormula: z.string().optional().nullable(),
+		})
+		.superRefine((data, ctx) => {
+			if (data.formulaBased) return; // formula mode — no further checks
+			if (data.numeric) {
+				if (data.minValue == null && data.maxValue == null) {
+					ctx.addIssue({
+						code: z.ZodIssueCode.custom,
+						message: "Numeric parameters require at least a min or max value",
+						path: ["minValue"],
+					});
+				}
+			}
+		});
+
+	export const updateQiTemplateItemSchema = z
+		.object({
+			id: z.string().optional(), // present when updating an existing item
+			parameterId: z.string().min(1, "Parameter is required"),
+			sortOrder: z.number().int().min(0).optional().default(0),
+			numeric: z.boolean().default(true),
+			formulaBased: z.boolean().default(false),
+			value: z.string().max(500).optional().nullable(),
+			minValue: z.number().optional().nullable(),
+			maxValue: z.number().optional().nullable(),
+			acceptanceFormula: z.string().optional().nullable(),
+		})
+		.superRefine((data, ctx) => {
+			if (data.formulaBased) return;
+			if (data.numeric) {
+				if (data.minValue == null && data.maxValue == null) {
+					ctx.addIssue({
+						code: z.ZodIssueCode.custom,
+						message: "Numeric parameters require at least a min or max value",
+						path: ["minValue"],
+					});
+				}
+			}
+		});
+
+	// ── Template schemas ─────────────────────────────────────────────────────────
+
+	export const createQiTemplateSchema = z.object({
+		name: z
+			.string()
+			.min(1, "Template name is required")
+			.max(255, "Template name must be at most 255 characters"),
+		items: z
+			.array(createQiTemplateItemSchema)
+			.min(1, "At least one parameter is required"),
+	});
+
+	export const updateQiTemplateSchema = z.object({
+		id: z.string().min(1),
+		name: z.string().min(1).max(255).optional(),
+		items: z.array(updateQiTemplateItemSchema).min(1).optional(),
+	});
+
+	export const listQiTemplatesSchema = z
+		.object({
+			search: z.string().max(255).optional(),
+			skip: z.number().int().min(0).optional(),
+			take: z.number().int().min(1).max(250).optional(),
+		})
+		.optional();
+
+	export const bulkDeleteQiTemplatesSchema = z.object({
 		ids: z.array(z.string().min(1)).min(1),
 	});
 }

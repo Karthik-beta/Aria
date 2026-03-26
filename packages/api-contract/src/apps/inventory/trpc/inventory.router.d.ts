@@ -1410,6 +1410,16 @@ type InventoryRouterInput = {
 		output: Inventory.StockBalanceRow[];
 		meta: object;
 	}>;
+	getQuickStockBalance: TRPCQueryProcedure<{
+		input: {
+			warehouse: string;
+			date: unknown;
+			itemCode?: string | undefined;
+			barcode?: string | undefined;
+		};
+		output: Inventory.QuickStockBalanceResult;
+		meta: object;
+	}>;
 	listStockProjectedQty: TRPCQueryProcedure<{
 		input:
 			| {
@@ -2023,6 +2033,203 @@ type InventoryRouterInput = {
 	onDeliveryTripsChanged: LegacyObservableSubscriptionProcedure<{
 		input: void;
 		output: DeliveryTripsChangedEvent;
+		meta: object;
+	}>;
+	listPackingSlips: TRPCQueryProcedure<{
+		input:
+			| {
+					deliveryNoteId?: string | undefined;
+					status?: Inventory.PackingSlipStatus | undefined;
+					skip?: number | undefined;
+					take?: number | undefined;
+			  }
+			| undefined;
+		output: Inventory.PackingSlip[];
+		meta: object;
+	}>;
+	getPackingSlipById: TRPCQueryProcedure<{
+		input: { id: string };
+		output: Inventory.PackingSlip | null;
+		meta: object;
+	}>;
+	getRecommendedCaseNo: TRPCQueryProcedure<{
+		input: { deliveryNoteId: string };
+		output: number;
+		meta: object;
+	}>;
+	createPackingSlip: TRPCMutationProcedure<{
+		input: {
+			deliveryNoteId: string;
+			fromCaseNo: number;
+			toCaseNo?: number | undefined;
+			grossWeightPkg?: number | undefined;
+			grossWeightUom?: string | null | undefined;
+			letterHead?: string | null | undefined;
+			items: Array<{
+				deliveryNoteItemId: string;
+				itemCode: string;
+				itemName?: string | null | undefined;
+				description?: string | null | undefined;
+				qty: number;
+				netWeight?: number | undefined;
+				weightUom?: string | null | undefined;
+				batchNo?: string | null | undefined;
+			}>;
+		};
+		output: Inventory.PackingSlip;
+		meta: object;
+	}>;
+	updatePackingSlip: TRPCMutationProcedure<{
+		input: {
+			id: string;
+			fromCaseNo?: number | undefined;
+			toCaseNo?: number | undefined;
+			grossWeightPkg?: number | undefined;
+			grossWeightUom?: string | null | undefined;
+			letterHead?: string | null | undefined;
+			items?: Array<{
+				id?: string | undefined;
+				deliveryNoteItemId: string;
+				itemCode: string;
+				itemName?: string | null | undefined;
+				description?: string | null | undefined;
+				qty: number;
+				netWeight?: number | undefined;
+				weightUom?: string | null | undefined;
+				batchNo?: string | null | undefined;
+			}>;
+		};
+		output: Inventory.PackingSlip;
+		meta: object;
+	}>;
+	submitPackingSlip: TRPCMutationProcedure<{
+		input: { id: string };
+		output: Inventory.PackingSlip;
+		meta: object;
+	}>;
+	cancelPackingSlip: TRPCMutationProcedure<{
+		input: { id: string };
+		output: Inventory.PackingSlip;
+		meta: object;
+	}>;
+	deletePackingSlip: TRPCMutationProcedure<{
+		input: { id: string };
+		output: { success: boolean; id: string };
+		meta: object;
+	}>;
+	deleteManyPackingSlips: TRPCMutationProcedure<{
+		input: { ids: string[] };
+		output: { success: boolean; count: number; ids: string[] };
+		meta: object;
+	}>;
+	listQiParameterGroups: TRPCQueryProcedure<{
+		input: void;
+		output: Inventory.QiParameterGroup[];
+		meta: object;
+	}>;
+	createQiParameterGroup: TRPCMutationProcedure<{
+		input: { name: string };
+		output: Inventory.QiParameterGroup;
+		meta: object;
+	}>;
+	updateQiParameterGroup: TRPCMutationProcedure<{
+		input: { id: string; name: string };
+		output: Inventory.QiParameterGroup;
+		meta: object;
+	}>;
+	deleteQiParameterGroup: TRPCMutationProcedure<{
+		input: { id: string };
+		output: { success: boolean; id: string };
+		meta: object;
+	}>;
+	listQiParameters: TRPCQueryProcedure<{
+		input?: { search?: string; groupId?: string } | undefined;
+		output: Inventory.QiParameter[];
+		meta: object;
+	}>;
+	getQiParameterById: TRPCQueryProcedure<{
+		input: { id: string };
+		output: Inventory.QiParameter | null;
+		meta: object;
+	}>;
+	createQiParameter: TRPCMutationProcedure<{
+		input: {
+			parameter: string;
+			description?: string | null;
+			groupId?: string | null;
+		};
+		output: Inventory.QiParameter;
+		meta: object;
+	}>;
+	updateQiParameter: TRPCMutationProcedure<{
+		input: {
+			id: string;
+			parameter?: string;
+			description?: string | null;
+			groupId?: string | null;
+		};
+		output: Inventory.QiParameter;
+		meta: object;
+	}>;
+	deleteQiParameter: TRPCMutationProcedure<{
+		input: { id: string };
+		output: { success: boolean; id: string };
+		meta: object;
+	}>;
+	listQiTemplates: TRPCQueryProcedure<{
+		input?: { search?: string; skip?: number; take?: number } | undefined;
+		output: Inventory.QiTemplate[];
+		meta: object;
+	}>;
+	getQiTemplateById: TRPCQueryProcedure<{
+		input: { id: string };
+		output: Inventory.QiTemplate | null;
+		meta: object;
+	}>;
+	createQiTemplate: TRPCMutationProcedure<{
+		input: {
+			name: string;
+			items: Array<{
+				parameterId: string;
+				sortOrder?: number;
+				numeric?: boolean;
+				formulaBased?: boolean;
+				value?: string | null;
+				minValue?: number | null;
+				maxValue?: number | null;
+				acceptanceFormula?: string | null;
+			}>;
+		};
+		output: Inventory.QiTemplate;
+		meta: object;
+	}>;
+	updateQiTemplate: TRPCMutationProcedure<{
+		input: {
+			id: string;
+			name?: string;
+			items?: Array<{
+				id?: string;
+				parameterId: string;
+				sortOrder?: number;
+				numeric?: boolean;
+				formulaBased?: boolean;
+				value?: string | null;
+				minValue?: number | null;
+				maxValue?: number | null;
+				acceptanceFormula?: string | null;
+			}>;
+		};
+		output: Inventory.QiTemplate;
+		meta: object;
+	}>;
+	deleteQiTemplate: TRPCMutationProcedure<{
+		input: { id: string };
+		output: { success: boolean; id: string };
+		meta: object;
+	}>;
+	deleteManyQiTemplates: TRPCMutationProcedure<{
+		input: { ids: string[] };
+		output: { success: boolean; count: number; ids: string[] };
 		meta: object;
 	}>;
 };
