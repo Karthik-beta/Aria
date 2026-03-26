@@ -7401,6 +7401,103 @@ export class InventoryService {
 	}
 
 	/**
+	 * Quick Stock Balance lookup.
+	 *
+	 * Returns the stock quantity and value for a single item at a specific
+	 * warehouse on a specific date. The caller must supply exactly one of
+	 * `itemCode` or `barcode`; if neither is provided, a `BadRequestException`
+	 * is thrown. If a barcode is supplied but no matching item is found in
+	 * `inventory_items`, a `NotFoundException` is thrown.
+	 */
+	async getQuickStockBalance(
+		params: Inventory.QuickStockBalanceInput,
+	): Promise<Inventory.QuickStockBalanceResult> {
+		const warehouse = params.warehouse.trim();
+		const date = params.date;
+
+		if (!params.itemCode && !params.barcode) {
+			throw new BadRequestException(
+				"Provide either an item code or a barcode.",
+			);
+		}
+
+		// Resolve item code from barcode when barcode lookup is requested
+		let resolvedItemCode: string;
+
+		if (params.barcode) {
+			const barcodeEntry = await this.prisma.itemBarcode.findFirst({
+				where: { barcode: params.barcode.trim() },
+				select: { item: { select: { code: true } } },
+			});
+
+			if (!barcodeEntry) {
+				throw new NotFoundException(
+					`No item is registered for barcode "${params.barcode}".`,
+				);
+			}
+
+			resolvedItemCode = barcodeEntry.item.code;
+		} else {
+			resolvedItemCode = (params.itemCode as string).trim();
+		}
+
+		// Load item metadata
+		const item = await this.prisma.inventoryItem.findFirst({
+			where: { code: { equals: resolvedItemCode, mode: "insensitive" } },
+			select: {
+				name: true,
+				code: true,
+				description: true,
+				valuationRate: true,
+				barcodes: { select: { barcode: true } },
+			},
+		});
+
+		if (!item) {
+			throw new NotFoundException(
+				`Item with code "${resolvedItemCode}" was not found.`,
+			);
+		}
+
+		// Pull all submitted stock entry movements for this item up to the date
+		const movements = await this.prisma.stockEntryItem.findMany({
+			where: {
+				itemCode: { equals: resolvedItemCode, mode: "insensitive" },
+				stockEntry: {
+					status: "SUBMITTED",
+					postingDate: { lte: date },
+				},
+			},
+			include: { stockEntry: true },
+			orderBy: [
+				{ stockEntry: { postingDate: "asc" } },
+				{ stockEntry: { createdAt: "asc" } },
+				{ id: "asc" },
+			],
+		});
+
+		// Build ledger rows for the specific warehouse, then compute balance
+		const ledgerRows = buildStockLedgerRows(movements, { warehouse });
+
+		let availableQty = 0;
+		for (const row of ledgerRows) {
+			availableQty += row.qtyIn - row.qtyOut;
+		}
+
+		const valuationRate = item.valuationRate ?? 0;
+		const stockValue = availableQty * valuationRate;
+
+		return {
+			itemCode: item.code,
+			itemName: item.name,
+			description: item.description ?? null,
+			barcodes: item.barcodes.map((b) => b.barcode),
+			availableQty,
+			stockValue,
+		};
+	}
+
+	/**
 	 * Get projected stock rows by combining on-hand stock, open demand/supply,
 	 * pending production movements, and warehouse reorder settings.
 	 */

@@ -196,7 +196,7 @@ export const inventoryNavItems: NavItem[] = [
 			},
 			{
 				title: "Quick Stock Balance",
-				url: "/inventory/quick-stock-balance",
+				url: "/inventory/inventory-tools/quick-stock-balance",
 			},
 		],
 	},

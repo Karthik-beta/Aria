@@ -1075,6 +1075,16 @@ function createListStockBalanceProcedure(inventoryService: InventoryService) {
 		});
 }
 
+function createGetQuickStockBalanceProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure
+		.input(Inventory.quickStockBalanceSchema)
+		.query(async ({ input }) => {
+			return inventoryService.getQuickStockBalance(input);
+		});
+}
+
 function createListStockProjectedQtyProcedure(
 	inventoryService: InventoryService,
 ) {
@@ -1814,6 +1824,7 @@ type InventoryRouterInput = {
 	onStockEntriesChanged: typeof onStockEntriesChangedProcedure;
 	listStockLedger: ReturnType<typeof createListStockLedgerProcedure>;
 	listStockBalance: ReturnType<typeof createListStockBalanceProcedure>;
+	getQuickStockBalance: ReturnType<typeof createGetQuickStockBalanceProcedure>;
 	listStockProjectedQty: ReturnType<
 		typeof createListStockProjectedQtyProcedure
 	>;
@@ -2033,6 +2044,8 @@ function createInventoryRouterRecord(
 		onStockEntriesChanged: onStockEntriesChangedProcedure,
 		listStockLedger: createListStockLedgerProcedure(inventoryService),
 		listStockBalance: createListStockBalanceProcedure(inventoryService),
+		getQuickStockBalance:
+			createGetQuickStockBalanceProcedure(inventoryService),
 		listStockProjectedQty:
 			createListStockProjectedQtyProcedure(inventoryService),
 		listStockSummary: createListStockSummaryProcedure(inventoryService),

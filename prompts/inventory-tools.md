@@ -1,6 +1,6 @@
 You are working inside the Aria ERP monorepo.
 
-CURRENT_WORKING_PAGE = "Quality Inspection Template"
+CURRENT_WORKING_PAGE = "Quick Stock Balance"
 
 Your task is to fully implement the target page end-to-end in Aria by studying the equivalent ERPNext implementation from the `.erpnext` folder at the root of the monorepo, then recreating its business functionality in Aria.
 

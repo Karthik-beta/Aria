@@ -3053,6 +3053,51 @@ export namespace Inventory {
 		.optional();
 
 	// ============================================================================
+	// Quick Stock Balance Types & Schemas
+	// ============================================================================
+
+	/**
+	 * Input for the Quick Stock Balance lookup.
+	 * Caller must provide a warehouse and a date, plus either an itemCode or
+	 * a barcode (not both are required – exactly one must be non-empty).
+	 */
+	export interface QuickStockBalanceInput {
+		/** Warehouse name (exact match) */
+		warehouse: string;
+		/** Lookup date – balance is computed up to and including this date */
+		date: Date;
+		/** Item code – mutually exclusive with `barcode` */
+		itemCode?: string;
+		/** Item barcode – mutually exclusive with `itemCode` */
+		barcode?: string;
+	}
+
+	export const quickStockBalanceSchema = z.object({
+		warehouse: z.string().min(1).max(255).trim(),
+		date: z.coerce.date(),
+		itemCode: z.string().min(1).max(100).trim().optional(),
+		barcode: z.string().min(1).max(255).trim().optional(),
+	});
+
+	/**
+	 * Result returned by the Quick Stock Balance lookup.
+	 */
+	export interface QuickStockBalanceResult {
+		/** Resolved item code */
+		itemCode: string;
+		/** Human-readable item name */
+		itemName: string | null;
+		/** Item description */
+		description: string | null;
+		/** All barcodes registered for this item */
+		barcodes: string[];
+		/** Stock quantity available up to (and including) the given date */
+		availableQty: number;
+		/** Stock value (qty × valuation rate) up to the given date */
+		stockValue: number;
+	}
+
+	// ============================================================================
 	// Delivery Note Types & Schemas
 	// ============================================================================
 
