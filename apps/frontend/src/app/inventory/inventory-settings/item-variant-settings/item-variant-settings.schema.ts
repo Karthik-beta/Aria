@@ -1,4 +1,4 @@
-import { z } from "zod";
+import * as z from "zod";
 
 const itemVariantSettingsCopyFieldFormSchema = z.object({
 	id: z.string().cuid().optional(),

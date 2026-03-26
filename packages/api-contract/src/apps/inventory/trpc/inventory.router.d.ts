@@ -44,6 +44,21 @@ type DeliveryTripsChangedEvent = {
 	data: Inventory.DeliveryTrip | { id: string };
 };
 
+type SerialNosChangedEvent = {
+	type: "created" | "updated" | "deleted";
+	data: Inventory.SerialNo | { id: string };
+};
+
+type BatchesChangedEvent = {
+	type: "created" | "updated" | "deleted";
+	data: Inventory.Batch | { id: string };
+};
+
+type InstallationNotesChangedEvent = {
+	type: "created" | "updated" | "deleted";
+	data: Inventory.InstallationNote | { id: string };
+};
+
 type InventoryRouterInput = {
 	listItems: TRPCQueryProcedure<{
 		input: void;
@@ -716,6 +731,410 @@ type InventoryRouterInput = {
 	onItemsChanged: LegacyObservableSubscriptionProcedure<{
 		input: void;
 		output: ItemsChangedEvent;
+		meta: object;
+	}>;
+	listBatches: TRPCQueryProcedure<{
+		input:
+			| {
+					skip?: number | undefined;
+					take?: number | undefined;
+					search?: string | undefined;
+					itemId?: string | undefined;
+					warehouseId?: string | undefined;
+					deliveryNoteId?: string | undefined;
+					company?: string | undefined;
+					status?: "ACTIVE" | "EMPTY" | "EXPIRED" | "DISABLED" | undefined;
+					includeDisabled?: boolean | undefined;
+					sortBy?:
+						| "updatedAt"
+						| "createdAt"
+						| "batchId"
+						| "itemCode"
+						| "warehouse"
+						| "expiryDate"
+						| "quantity"
+						| "company"
+						| undefined;
+					sortDirection?: "asc" | "desc" | undefined;
+			  }
+			| undefined;
+		output: Inventory.BatchListResult;
+		meta: object;
+	}>;
+	getBatchById: TRPCQueryProcedure<{
+		input: { id: string };
+		output: Inventory.Batch | null;
+		meta: object;
+	}>;
+	createBatch: TRPCMutationProcedure<{
+		input: {
+			batchId: string;
+			itemId: string;
+			company: string;
+			currentWarehouseId?: string | null | undefined;
+			purchaseReceiptId?: string | null | undefined;
+			deliveryNoteId?: string | null | undefined;
+			stockEntryId?: string | null | undefined;
+			useBatchWiseValuation?: boolean | undefined;
+			manufacturingDate?: unknown;
+			expiryDate?: unknown;
+			description?: string | null | undefined;
+			quantity?: number | undefined;
+			isDisabled?: boolean | undefined;
+		};
+		output: Inventory.Batch;
+		meta: object;
+	}>;
+	updateBatch: TRPCMutationProcedure<{
+		input: {
+			id: string;
+			batchId?: string | undefined;
+			itemId?: string | undefined;
+			company?: string | undefined;
+			currentWarehouseId?: string | null | undefined;
+			purchaseReceiptId?: string | null | undefined;
+			deliveryNoteId?: string | null | undefined;
+			stockEntryId?: string | null | undefined;
+			useBatchWiseValuation?: boolean | undefined;
+			manufacturingDate?: unknown;
+			expiryDate?: unknown;
+			description?: string | null | undefined;
+			quantity?: number | undefined;
+			isDisabled?: boolean | undefined;
+		};
+		output: Inventory.Batch;
+		meta: object;
+	}>;
+	deleteBatch: TRPCMutationProcedure<{
+		input: {
+			id: string;
+		};
+		output: {
+			success: boolean;
+			id: string;
+		};
+		meta: object;
+	}>;
+	onBatchesChanged: LegacyObservableSubscriptionProcedure<{
+		input: void;
+		output: BatchesChangedEvent;
+		meta: object;
+	}>;
+	listSerialNos: TRPCQueryProcedure<{
+		input:
+			| {
+					skip?: number | undefined;
+					take?: number | undefined;
+					search?: string | undefined;
+					itemId?: string | undefined;
+					warehouseId?: string | undefined;
+					company?: string | undefined;
+					status?:
+						| "DRAFT"
+						| "AVAILABLE"
+						| "DELIVERED"
+						| "INSTALLED"
+						| "RETURNED"
+						| "SCRAPPED"
+						| "DISPOSED"
+						| undefined;
+					includeDisabled?: boolean | undefined;
+					sortBy?:
+						| "updatedAt"
+						| "createdAt"
+						| "serialNo"
+						| "itemCode"
+						| "warehouse"
+						| "status"
+						| "company"
+						| undefined;
+					sortDirection?: "asc" | "desc" | undefined;
+			  }
+			| undefined;
+		output: Inventory.SerialNoListResult;
+		meta: object;
+	}>;
+	listSerialNoServiceContractExpiry: TRPCQueryProcedure<{
+		input:
+			| {
+					skip?: number | undefined;
+					take?: number | undefined;
+					search?: string | undefined;
+					itemId?: string | undefined;
+					warehouseId?: string | undefined;
+					company?: string | undefined;
+					status?:
+						| "DRAFT"
+						| "AVAILABLE"
+						| "DELIVERED"
+						| "INSTALLED"
+						| "RETURNED"
+						| "SCRAPPED"
+						| "DISPOSED"
+						| undefined;
+					includeDisabled?: boolean | undefined;
+					expiryState?: "EXPIRED" | "DUE_SOON" | "ACTIVE" | undefined;
+					expiryDateFrom?: unknown;
+					expiryDateTo?: unknown;
+					expiringWithinDays?: number | undefined;
+					sortBy?:
+						| "serviceContractExpiryDate"
+						| "updatedAt"
+						| "serialNo"
+						| "itemCode"
+						| "warehouse"
+						| "status"
+						| "company"
+						| undefined;
+					sortDirection?: "asc" | "desc" | undefined;
+			  }
+			| undefined;
+		output: Inventory.SerialNoServiceContractExpiryListResult;
+		meta: object;
+	}>;
+	listSerialNoWarrantyExpiry: TRPCQueryProcedure<{
+		input:
+			| {
+					skip?: number | undefined;
+					take?: number | undefined;
+					search?: string | undefined;
+					itemId?: string | undefined;
+					warehouseId?: string | undefined;
+					company?: string | undefined;
+					status?:
+						| "DRAFT"
+						| "AVAILABLE"
+						| "DELIVERED"
+						| "INSTALLED"
+						| "RETURNED"
+						| "SCRAPPED"
+						| "DISPOSED"
+						| undefined;
+					includeDisabled?: boolean | undefined;
+					expiryState?: "EXPIRED" | "DUE_SOON" | "ACTIVE" | undefined;
+					expiryDateFrom?: unknown;
+					expiryDateTo?: unknown;
+					expiringWithinDays?: number | undefined;
+					sortBy?:
+						| "warrantyExpiryDate"
+						| "updatedAt"
+						| "serialNo"
+						| "itemCode"
+						| "warehouse"
+						| "status"
+						| "company"
+						| undefined;
+					sortDirection?: "asc" | "desc" | undefined;
+			  }
+			| undefined;
+		output: Inventory.SerialNoWarrantyExpiryListResult;
+		meta: object;
+	}>;
+	listSerialNoStatus: TRPCQueryProcedure<{
+		input:
+			| {
+					skip?: number | undefined;
+					take?: number | undefined;
+					search?: string | undefined;
+					itemId?: string | undefined;
+					warehouseId?: string | undefined;
+					company?: string | undefined;
+					status?:
+						| "DRAFT"
+						| "AVAILABLE"
+						| "DELIVERED"
+						| "INSTALLED"
+						| "RETURNED"
+						| "SCRAPPED"
+						| "DISPOSED"
+						| undefined;
+					includeDisabled?: boolean | undefined;
+					sortBy?:
+						| "updatedAt"
+						| "createdAt"
+						| "serialNo"
+						| "itemCode"
+						| "warehouse"
+						| "status"
+						| "company"
+						| undefined;
+					sortDirection?: "asc" | "desc" | undefined;
+			  }
+			| undefined;
+		output: Inventory.SerialNoStatusListResult;
+		meta: object;
+	}>;
+	getSerialNoById: TRPCQueryProcedure<{
+		input: { id: string };
+		output: Inventory.SerialNo | null;
+		meta: object;
+	}>;
+	createSerialNo: TRPCMutationProcedure<{
+		input: {
+			serialNo: string;
+			itemId: string;
+			company: string;
+			status?:
+				| "DRAFT"
+				| "AVAILABLE"
+				| "DELIVERED"
+				| "INSTALLED"
+				| "RETURNED"
+				| "SCRAPPED"
+				| "DISPOSED"
+				| undefined;
+			currentWarehouseId?: string | null | undefined;
+			purchaseReceiptId?: string | null | undefined;
+			deliveryNoteId?: string | null | undefined;
+			stockEntryId?: string | null | undefined;
+			pickListId?: string | null | undefined;
+			workOrder?: string | null | undefined;
+			purchaseDate?: unknown;
+			warrantyExpiryDate?: unknown;
+			serviceContractExpiryDate?: unknown;
+			maintenanceStatus?: string | null | undefined;
+			notes?: string | null | undefined;
+			isDisabled?: boolean | undefined;
+		};
+		output: Inventory.SerialNo;
+		meta: object;
+	}>;
+	updateSerialNo: TRPCMutationProcedure<{
+		input: {
+			id: string;
+			serialNo?: string | undefined;
+			itemId?: string | undefined;
+			company?: string | undefined;
+			status?:
+				| "DRAFT"
+				| "AVAILABLE"
+				| "DELIVERED"
+				| "INSTALLED"
+				| "RETURNED"
+				| "SCRAPPED"
+				| "DISPOSED"
+				| undefined;
+			currentWarehouseId?: string | null | undefined;
+			purchaseReceiptId?: string | null | undefined;
+			deliveryNoteId?: string | null | undefined;
+			stockEntryId?: string | null | undefined;
+			pickListId?: string | null | undefined;
+			workOrder?: string | null | undefined;
+			purchaseDate?: unknown;
+			warrantyExpiryDate?: unknown;
+			serviceContractExpiryDate?: unknown;
+			maintenanceStatus?: string | null | undefined;
+			notes?: string | null | undefined;
+			isDisabled?: boolean | undefined;
+		};
+		output: Inventory.SerialNo;
+		meta: object;
+	}>;
+	deleteSerialNo: TRPCMutationProcedure<{
+		input: { id: string };
+		output: { success: boolean; id: string };
+		meta: object;
+	}>;
+	onSerialNosChanged: LegacyObservableSubscriptionProcedure<{
+		input: void;
+		output: SerialNosChangedEvent;
+		meta: object;
+	}>;
+	listInstallationNotes: TRPCQueryProcedure<{
+		input:
+			| {
+					skip?: number | undefined;
+					take?: number | undefined;
+					search?: string | undefined;
+					status?:
+						| "DRAFT"
+						| "IN_PROGRESS"
+						| "COMPLETED"
+						| "CANCELLED"
+						| undefined;
+					company?: string | undefined;
+					deliveryNoteId?: string | undefined;
+					sortBy?:
+						| "updatedAt"
+						| "createdAt"
+						| "series"
+						| "installationDate"
+						| "customer"
+						| "status"
+						| "company"
+						| undefined;
+					sortDirection?: "asc" | "desc" | undefined;
+			  }
+			| undefined;
+		output: Inventory.InstallationNoteListResult;
+		meta: object;
+	}>;
+	getInstallationNoteById: TRPCQueryProcedure<{
+		input: { id: string };
+		output: Inventory.InstallationNote | null;
+		meta: object;
+	}>;
+	createInstallationNote: TRPCMutationProcedure<{
+		input: {
+			seriesPattern?: string | undefined;
+			installationDate?: unknown;
+			installationTime?: string | null | undefined;
+			customer: string;
+			customerName?: string | null | undefined;
+			customerAddress?: string | null | undefined;
+			contactPerson?: string | null | undefined;
+			territory?: string | undefined;
+			customerGroup?: string | null | undefined;
+			company: string;
+			status?: "DRAFT" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED" | undefined;
+			deliveryNoteId?: string | null | undefined;
+			remarks?: string | null | undefined;
+			items: {
+				itemId: string;
+				serialNoId?: string | null | undefined;
+				description?: string | null | undefined;
+				installedQty: number;
+			}[];
+		};
+		output: Inventory.InstallationNote;
+		meta: object;
+	}>;
+	updateInstallationNote: TRPCMutationProcedure<{
+		input: {
+			id: string;
+			installationDate?: unknown;
+			installationTime?: string | null | undefined;
+			customer?: string | undefined;
+			customerName?: string | null | undefined;
+			customerAddress?: string | null | undefined;
+			contactPerson?: string | null | undefined;
+			territory?: string | undefined;
+			customerGroup?: string | null | undefined;
+			company?: string | undefined;
+			status?: "DRAFT" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED" | undefined;
+			deliveryNoteId?: string | null | undefined;
+			remarks?: string | null | undefined;
+			items?:
+				| {
+						id?: string | undefined;
+						itemId: string;
+						serialNoId?: string | null | undefined;
+						description?: string | null | undefined;
+						installedQty: number;
+				  }[]
+				| undefined;
+		};
+		output: Inventory.InstallationNote;
+		meta: object;
+	}>;
+	deleteInstallationNote: TRPCMutationProcedure<{
+		input: { id: string };
+		output: { success: boolean; id: string };
+		meta: object;
+	}>;
+	onInstallationNotesChanged: LegacyObservableSubscriptionProcedure<{
+		input: void;
+		output: InstallationNotesChangedEvent;
 		meta: object;
 	}>;
 	listMaterialRequests: TRPCQueryProcedure<{

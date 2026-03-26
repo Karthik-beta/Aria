@@ -99,6 +99,136 @@ describe("InventoryService", () => {
 		updatedAt: new Date(),
 	};
 
+	const mockSerialNo = {
+		id: "clh123serial0000",
+		serialNo: "SN-1001",
+		itemId: mockItem.id,
+		company: "Aria Corp",
+		status: "AVAILABLE" as const,
+		currentWarehouseId: mockWarehouse.id,
+		purchaseReceiptId: null as string | null,
+		deliveryNoteId: null as string | null,
+		stockEntryId: null as string | null,
+		pickListId: null as string | null,
+		workOrder: "WO-1",
+		purchaseDate: new Date("2026-03-20T00:00:00.000Z"),
+		warrantyExpiryDate: new Date("2027-03-20T00:00:00.000Z"),
+		serviceContractExpiryDate: null as Date | null,
+		maintenanceStatus: "Active",
+		notes: "Installed at site",
+		isDisabled: false,
+		createdAt: new Date("2026-03-20T00:00:00.000Z"),
+		updatedAt: new Date("2026-03-21T00:00:00.000Z"),
+		item: {
+			id: mockItem.id,
+			code: mockItem.code,
+			name: mockItem.name,
+		},
+		currentWarehouse: {
+			id: mockWarehouse.id,
+			name: mockWarehouse.name,
+		},
+		purchaseReceipt: null,
+		deliveryNote: null,
+		stockEntry: null,
+		pickList: null,
+		history: [
+			{
+				id: "serial-history-1",
+				serialNoId: "clh123serial0000",
+				eventType: "CREATED" as const,
+				fromStatus: null,
+				toStatus: "AVAILABLE" as const,
+				warehouseId: mockWarehouse.id,
+				transactionLabel: null,
+				notes: "Installed at site",
+				createdAt: new Date("2026-03-20T00:00:00.000Z"),
+				warehouse: {
+					id: mockWarehouse.id,
+					name: mockWarehouse.name,
+				},
+			},
+		],
+	};
+
+	const mockBatch = {
+		id: "clh123batch0000000001",
+		batchId: "BATCH-1001",
+		itemId: mockItem.id,
+		itemCode: mockItem.code,
+		itemName: mockItem.name,
+		company: "Aria Corp",
+		currentWarehouseId: mockWarehouse.id,
+		currentWarehouseName: mockWarehouse.name,
+		purchaseReceiptId: null as string | null,
+		purchaseReceiptSeries: null as string | null,
+		deliveryNoteId: null as string | null,
+		deliveryNoteSeries: null as string | null,
+		stockEntryId: null as string | null,
+		stockEntrySeries: null as string | null,
+		useBatchWiseValuation: false,
+		manufacturingDate: new Date("2026-03-20T00:00:00.000Z"),
+		expiryDate: new Date("2026-12-31T00:00:00.000Z"),
+		description: "Tempered glass lot",
+		quantity: 10,
+		status: "ACTIVE" as const,
+		isDisabled: false,
+		createdAt: new Date("2026-03-20T00:00:00.000Z"),
+		updatedAt: new Date("2026-03-21T00:00:00.000Z"),
+		item: {
+			id: mockItem.id,
+			code: mockItem.code,
+			name: mockItem.name,
+		},
+		currentWarehouse: {
+			id: mockWarehouse.id,
+			name: mockWarehouse.name,
+		},
+		purchaseReceipt: null,
+		deliveryNote: null,
+		stockEntry: null,
+	};
+
+	const mockInstallationNote = {
+		id: "clinstallationnote00001",
+		series: "MAT-INS-2026-00001",
+		seriesPattern: "MAT-INS-.YYYY.-",
+		installationDate: new Date("2026-03-26T00:00:00.000Z"),
+		installationTime: "10:30:00",
+		customer: "Acme Industries",
+		customerName: "Acme Industries",
+		customerAddress: "Dubai",
+		contactPerson: "John",
+		territory: "All Territories",
+		customerGroup: "Corporate",
+		company: "Aria Corp",
+		status: "DRAFT" as const,
+		deliveryNoteId: null as string | null,
+		remarks: "Ready to install",
+		deliveryNote: null,
+		items: [
+			{
+				id: "clinstallationrow0001",
+				installationNoteId: "clinstallationnote00001",
+				itemId: mockItem.id,
+				serialNoId: mockSerialNo.id,
+				description: "Onsite setup",
+				installedQty: 1,
+				item: {
+					id: mockItem.id,
+					code: mockItem.code,
+					name: mockItem.name,
+				},
+				serialNo: {
+					id: mockSerialNo.id,
+					serialNo: mockSerialNo.serialNo,
+				},
+			},
+		],
+		createdAt: new Date("2026-03-26T00:00:00.000Z"),
+		updatedAt: new Date("2026-03-26T01:00:00.000Z"),
+	};
+
 	const mockStockSettingsInput = {
 		itemNamingBy: "ITEM_CODE" as const,
 		defaultWarehouse: null,
@@ -300,6 +430,37 @@ describe("InventoryService", () => {
 			update: jest.fn(),
 			delete: jest.fn(),
 			count: jest.fn(),
+		},
+		serialNo: {
+			findMany: jest.fn(),
+			findUnique: jest.fn(),
+			create: jest.fn(),
+			update: jest.fn(),
+			delete: jest.fn(),
+			count: jest.fn(),
+		},
+		batch: {
+			findMany: jest.fn(),
+			findUnique: jest.fn(),
+			create: jest.fn(),
+			update: jest.fn(),
+			delete: jest.fn(),
+			count: jest.fn(),
+		},
+		installationNote: {
+			findMany: jest.fn(),
+			findFirst: jest.fn(),
+			findUnique: jest.fn(),
+			create: jest.fn(),
+			update: jest.fn(),
+			delete: jest.fn(),
+			count: jest.fn(),
+		},
+		installationNoteItem: {
+			findMany: jest.fn(),
+			deleteMany: jest.fn(),
+			update: jest.fn(),
+			create: jest.fn(),
 		},
 		itemGroupDefault: {
 			count: jest.fn(),
@@ -4993,6 +5154,612 @@ describe("InventoryService", () => {
 			expect(mockPrisma.deliveryTrip.deleteMany).toHaveBeenCalledWith({
 				where: { id: { in: [mockDeliveryTrip.id] } },
 			});
+		});
+	});
+
+	describe("serial numbers", () => {
+		it("should list serial numbers with bounded filters", async () => {
+			mockPrisma.serialNo.findMany.mockResolvedValue([mockSerialNo]);
+			mockPrisma.serialNo.count.mockResolvedValue(1);
+
+			const result = await service.findSerialNos({
+				search: "SN-1001",
+				status: "AVAILABLE",
+				take: 25,
+			});
+
+			expect(result.totalCount).toBe(1);
+			expect(result.items[0]?.serialNo).toBe("SN-1001");
+			expect(mockPrisma.serialNo.findMany).toHaveBeenCalledWith(
+				expect.objectContaining({
+					skip: 0,
+					take: 25,
+				}),
+			);
+		});
+
+		it("should list service contract expiry rows with derived states", async () => {
+			const today = new Date();
+			today.setUTCHours(0, 0, 0, 0);
+			const expiredDate = new Date(today);
+			expiredDate.setUTCDate(expiredDate.getUTCDate() - 5);
+			const dueSoonDate = new Date(today);
+			dueSoonDate.setUTCDate(dueSoonDate.getUTCDate() + 10);
+
+			mockPrisma.serialNo.findMany.mockResolvedValue([
+				{
+					...mockSerialNo,
+					id: "serial-expired",
+					serialNo: "SN-EXPIRED",
+					serviceContractExpiryDate: expiredDate,
+				},
+				{
+					...mockSerialNo,
+					id: "serial-due-soon",
+					serialNo: "SN-DUE-SOON",
+					serviceContractExpiryDate: dueSoonDate,
+				},
+			]);
+			mockPrisma.serialNo.count.mockResolvedValue(2);
+
+			const result = await service.findSerialNoServiceContractExpiry({
+				status: "AVAILABLE",
+				expiringWithinDays: 30,
+				take: 20,
+			});
+
+			expect(result.totalCount).toBe(2);
+			expect(result.items[0]?.expiryState).toBe("EXPIRED");
+			expect(result.items[1]?.expiryState).toBe("DUE_SOON");
+			expect(mockPrisma.serialNo.findMany).toHaveBeenCalledWith(
+				expect.objectContaining({
+					skip: 0,
+					take: 20,
+					where: expect.objectContaining({
+						AND: expect.arrayContaining([
+							expect.objectContaining({
+								serviceContractExpiryDate: { not: null },
+							}),
+							expect.objectContaining({ status: "AVAILABLE" }),
+						]),
+					}),
+				}),
+			);
+		});
+
+		it("should apply expiry-state windows for service contract expiry rows", async () => {
+			mockPrisma.serialNo.findMany.mockResolvedValue([]);
+			mockPrisma.serialNo.count.mockResolvedValue(0);
+
+			await service.findSerialNoServiceContractExpiry({
+				expiryState: "ACTIVE",
+				expiringWithinDays: 15,
+			});
+
+			expect(mockPrisma.serialNo.findMany).toHaveBeenCalledWith(
+				expect.objectContaining({
+					where: expect.objectContaining({
+						AND: expect.arrayContaining([
+							expect.objectContaining({
+								serviceContractExpiryDate: expect.objectContaining({
+									gt: expect.any(Date),
+								}),
+							}),
+						]),
+					}),
+				}),
+			);
+		});
+
+		it("should list warranty expiry rows with derived states", async () => {
+			const today = new Date();
+			today.setUTCHours(0, 0, 0, 0);
+			const expiredDate = new Date(today);
+			expiredDate.setUTCDate(expiredDate.getUTCDate() - 5);
+			const dueSoonDate = new Date(today);
+			dueSoonDate.setUTCDate(dueSoonDate.getUTCDate() + 10);
+
+			mockPrisma.serialNo.findMany.mockResolvedValue([
+				{
+					...mockSerialNo,
+					id: "serial-warranty-expired",
+					serialNo: "SN-WE-1",
+					warrantyExpiryDate: expiredDate,
+					serviceContractExpiryDate: null,
+				},
+				{
+					...mockSerialNo,
+					id: "serial-warranty-due-soon",
+					serialNo: "SN-WD-1",
+					warrantyExpiryDate: dueSoonDate,
+					serviceContractExpiryDate: null,
+				},
+			]);
+			mockPrisma.serialNo.count.mockResolvedValue(2);
+
+			const result = await service.findSerialNoWarrantyExpiry({
+				status: "AVAILABLE",
+				expiringWithinDays: 30,
+				take: 20,
+			});
+
+			expect(result.totalCount).toBe(2);
+			expect(result.items[0]?.expiryState).toBe("EXPIRED");
+			expect(result.items[1]?.expiryState).toBe("DUE_SOON");
+			expect(mockPrisma.serialNo.findMany).toHaveBeenCalledWith(
+				expect.objectContaining({
+					skip: 0,
+					take: 20,
+					where: expect.objectContaining({
+						AND: expect.arrayContaining([
+							expect.objectContaining({
+								warrantyExpiryDate: { not: null },
+							}),
+							expect.objectContaining({ status: "AVAILABLE" }),
+						]),
+					}),
+				}),
+			);
+		});
+
+		it("should apply expiry-state windows for warranty expiry rows", async () => {
+			mockPrisma.serialNo.findMany.mockResolvedValue([]);
+			mockPrisma.serialNo.count.mockResolvedValue(0);
+
+			await service.findSerialNoWarrantyExpiry({
+				expiryState: "ACTIVE",
+				expiringWithinDays: 15,
+			});
+
+			expect(mockPrisma.serialNo.findMany).toHaveBeenCalledWith(
+				expect.objectContaining({
+					where: expect.objectContaining({
+						AND: expect.arrayContaining([
+							expect.objectContaining({
+								warrantyExpiryDate: expect.objectContaining({
+									gt: expect.any(Date),
+								}),
+							}),
+						]),
+					}),
+				}),
+			);
+		});
+
+		it("should filter warranty expiry by EXPIRED state", async () => {
+			mockPrisma.serialNo.findMany.mockResolvedValue([]);
+			mockPrisma.serialNo.count.mockResolvedValue(0);
+
+			await service.findSerialNoWarrantyExpiry({
+				expiryState: "EXPIRED",
+				expiringWithinDays: 30,
+			});
+
+			expect(mockPrisma.serialNo.findMany).toHaveBeenCalledWith(
+				expect.objectContaining({
+					where: expect.objectContaining({
+						AND: expect.arrayContaining([
+							expect.objectContaining({
+								warrantyExpiryDate: expect.objectContaining({
+									lt: expect.any(Date),
+								}),
+							}),
+						]),
+					}),
+				}),
+			);
+		});
+
+		it("should apply date range filter for warranty expiry", async () => {
+			mockPrisma.serialNo.findMany.mockResolvedValue([]);
+			mockPrisma.serialNo.count.mockResolvedValue(0);
+
+			await service.findSerialNoWarrantyExpiry({
+				expiryDateFrom: new Date("2026-04-01T00:00:00.000Z"),
+				expiryDateTo: new Date("2026-04-30T00:00:00.000Z"),
+			});
+
+			expect(mockPrisma.serialNo.findMany).toHaveBeenCalledWith(
+				expect.objectContaining({
+					where: expect.objectContaining({
+						AND: expect.arrayContaining([
+							expect.objectContaining({
+								warrantyExpiryDate: expect.objectContaining({
+									gte: expect.any(Date),
+									lte: expect.any(Date),
+								}),
+							}),
+						]),
+					}),
+				}),
+			);
+		});
+
+		it("should exclude disabled serial numbers from warranty expiry by default", async () => {
+			mockPrisma.serialNo.findMany.mockResolvedValue([]);
+			mockPrisma.serialNo.count.mockResolvedValue(0);
+
+			await service.findSerialNoWarrantyExpiry();
+
+			expect(mockPrisma.serialNo.findMany).toHaveBeenCalledWith(
+				expect.objectContaining({
+					where: expect.objectContaining({
+						AND: expect.arrayContaining([
+							expect.objectContaining({ isDisabled: false }),
+						]),
+					}),
+				}),
+			);
+		});
+
+		it("should skip serial nos without warrantyExpiryDate even when in result set", async () => {
+			mockPrisma.serialNo.findMany.mockResolvedValue([
+				{
+					...mockSerialNo,
+					warrantyExpiryDate: null,
+					serviceContractExpiryDate: null,
+				},
+			]);
+			mockPrisma.serialNo.count.mockResolvedValue(1);
+
+			const result = await service.findSerialNoWarrantyExpiry();
+
+			expect(result.items).toHaveLength(0);
+			expect(result.totalCount).toBe(1);
+		});
+
+		it("should list serial number status rows with derived status ageing", async () => {
+			const statusChangedAt = new Date("2026-03-24T00:00:00.000Z");
+
+			mockPrisma.serialNo.findMany.mockResolvedValue([
+				{
+					...mockSerialNo,
+					history: [
+						{
+							...mockSerialNo.history[0],
+							id: "serial-history-2",
+							eventType: "STATUS_CHANGED",
+							fromStatus: "DRAFT",
+							toStatus: "AVAILABLE",
+							createdAt: statusChangedAt,
+						},
+					],
+				},
+			]);
+			mockPrisma.serialNo.count.mockResolvedValue(1);
+
+			const result = await service.findSerialNoStatus({
+				status: "AVAILABLE",
+				take: 20,
+			});
+
+			expect(result.totalCount).toBe(1);
+			expect(result.items[0]?.status).toBe("AVAILABLE");
+			expect(result.items[0]?.lastStatusChangedAt).toEqual(statusChangedAt);
+			expect(result.items[0]?.daysInCurrentStatus).toBeGreaterThanOrEqual(0);
+			expect(mockPrisma.serialNo.findMany).toHaveBeenCalledWith(
+				expect.objectContaining({
+					skip: 0,
+					take: 20,
+					where: expect.objectContaining({
+						AND: expect.arrayContaining([
+							expect.objectContaining({ status: "AVAILABLE" }),
+						]),
+					}),
+				}),
+			);
+		});
+
+		it("should list serial number status rows without disabled records by default", async () => {
+			mockPrisma.serialNo.findMany.mockResolvedValue([]);
+			mockPrisma.serialNo.count.mockResolvedValue(0);
+
+			await service.findSerialNoStatus();
+
+			expect(mockPrisma.serialNo.findMany).toHaveBeenCalledWith(
+				expect.objectContaining({
+					where: expect.objectContaining({ isDisabled: false }),
+				}),
+			);
+		});
+
+		it("should create a serial number when the item supports serial tracking", async () => {
+			mockPrisma.inventoryItem.findUnique.mockResolvedValue({
+				id: mockItem.id,
+				code: mockItem.code,
+				name: mockItem.name,
+				hasSerialNo: true,
+				disabled: false,
+			});
+			mockPrisma.warehouse.findUnique.mockResolvedValue({
+				id: mockWarehouse.id,
+				name: mockWarehouse.name,
+				company: "Aria Corp",
+				disabled: false,
+			});
+			mockPrisma.serialNo.create.mockResolvedValue(mockSerialNo);
+
+			const result = await service.createSerialNo({
+				serialNo: "SN-1001",
+				itemId: mockItem.id,
+				company: "Aria Corp",
+				status: "AVAILABLE",
+				currentWarehouseId: mockWarehouse.id,
+				isDisabled: false,
+			});
+
+			expect(result.serialNo).toBe("SN-1001");
+			expect(mockPrisma.serialNo.create).toHaveBeenCalled();
+		});
+
+		it("should reject invalid status transitions when updating a serial number", async () => {
+			mockPrisma.serialNo.findUnique.mockResolvedValue({
+				id: mockSerialNo.id,
+				serialNo: mockSerialNo.serialNo,
+				itemId: mockSerialNo.itemId,
+				company: mockSerialNo.company,
+				status: "DISPOSED",
+				currentWarehouseId: null,
+				purchaseReceiptId: null,
+				deliveryNoteId: null,
+				stockEntryId: null,
+				pickListId: null,
+				workOrder: null,
+				purchaseDate: null,
+				warrantyExpiryDate: null,
+				serviceContractExpiryDate: null,
+				maintenanceStatus: null,
+				notes: null,
+				isDisabled: false,
+			});
+
+			await expect(
+				service.updateSerialNo({
+					id: mockSerialNo.id,
+					status: "AVAILABLE",
+				}),
+			).rejects.toThrow(BadRequestException);
+		});
+
+		it("should prevent deleting linked serial numbers", async () => {
+			mockPrisma.serialNo.findUnique.mockResolvedValue({
+				id: mockSerialNo.id,
+				status: "AVAILABLE",
+				purchaseReceiptId: "receipt-1",
+				deliveryNoteId: null,
+				stockEntryId: null,
+				pickListId: null,
+			});
+
+			await expect(service.deleteSerialNo(mockSerialNo.id)).rejects.toThrow(
+				BadRequestException,
+			);
+		});
+	});
+
+	describe("batches", () => {
+		it("should list batches with bounded filters", async () => {
+			mockPrisma.batch.findMany.mockResolvedValue([mockBatch]);
+			mockPrisma.batch.count.mockResolvedValue(1);
+
+			const result = await service.findBatches({
+				search: "BATCH-1001",
+				status: "ACTIVE",
+				take: 25,
+			});
+
+			expect(result.totalCount).toBe(1);
+			expect(result.items[0]?.batchId).toBe("BATCH-1001");
+			expect(mockPrisma.batch.findMany).toHaveBeenCalledWith(
+				expect.objectContaining({
+					skip: 0,
+					take: 25,
+				}),
+			);
+		});
+
+		it("should create a batch when the item supports batch tracking", async () => {
+			mockPrisma.inventoryItem.findUnique.mockResolvedValue({
+				id: mockItem.id,
+				code: mockItem.code,
+				name: mockItem.name,
+				hasBatchNo: true,
+				disabled: false,
+			});
+			mockPrisma.warehouse.findUnique.mockResolvedValue({
+				id: mockWarehouse.id,
+				name: mockWarehouse.name,
+				company: "Aria Corp",
+				disabled: false,
+			});
+			mockPrisma.batch.create.mockResolvedValue(mockBatch);
+
+			const result = await service.createBatch({
+				batchId: "BATCH-1001",
+				itemId: mockItem.id,
+				company: "Aria Corp",
+				currentWarehouseId: mockWarehouse.id,
+				useBatchWiseValuation: false,
+				quantity: 10,
+				isDisabled: false,
+			});
+
+			expect(result.batchId).toBe("BATCH-1001");
+			expect(mockPrisma.batch.create).toHaveBeenCalled();
+		});
+
+		it("should reject quantity without a warehouse", async () => {
+			mockPrisma.inventoryItem.findUnique.mockResolvedValue({
+				id: mockItem.id,
+				code: mockItem.code,
+				name: mockItem.name,
+				hasBatchNo: true,
+				disabled: false,
+			});
+
+			await expect(
+				service.createBatch({
+					batchId: "BATCH-1002",
+					itemId: mockItem.id,
+					company: "Aria Corp",
+					useBatchWiseValuation: false,
+					quantity: 5,
+					isDisabled: false,
+				}),
+			).rejects.toThrow(BadRequestException);
+		});
+
+		it("should reject changing item or warehouse while quantity exists", async () => {
+			mockPrisma.batch.findUnique.mockResolvedValueOnce({
+				id: mockBatch.id,
+				batchId: mockBatch.batchId,
+				itemId: mockBatch.itemId,
+				company: mockBatch.company,
+				currentWarehouseId: mockBatch.currentWarehouseId,
+				purchaseReceiptId: null,
+				deliveryNoteId: null,
+				stockEntryId: null,
+				useBatchWiseValuation: false,
+				manufacturingDate: mockBatch.manufacturingDate,
+				expiryDate: mockBatch.expiryDate,
+				description: mockBatch.description,
+				quantity: 10,
+				isDisabled: false,
+			});
+
+			await expect(
+				service.updateBatch({
+					id: mockBatch.id,
+					currentWarehouseId: "clh123warehouse0009",
+				}),
+			).rejects.toThrow(BadRequestException);
+		});
+
+		it("should prevent deleting a linked batch with stock on hand", async () => {
+			mockPrisma.batch.findUnique.mockResolvedValue({
+				id: mockBatch.id,
+				quantity: 10,
+				purchaseReceiptId: "receipt-1",
+				deliveryNoteId: null,
+				stockEntryId: null,
+			});
+
+			await expect(service.deleteBatch(mockBatch.id)).rejects.toThrow(
+				BadRequestException,
+			);
+		});
+	});
+
+	describe("installation notes", () => {
+		it("should list installation notes with bounded filters", async () => {
+			mockPrisma.installationNote.findMany.mockResolvedValue([
+				mockInstallationNote,
+			]);
+			mockPrisma.installationNote.count.mockResolvedValue(1);
+
+			const result = await service.findInstallationNotes({
+				search: "Acme",
+				status: "DRAFT",
+				take: 25,
+			});
+
+			expect(result.totalCount).toBe(1);
+			expect(result.items[0]?.series).toBe("MAT-INS-2026-00001");
+			expect(mockPrisma.installationNote.findMany).toHaveBeenCalledWith(
+				expect.objectContaining({
+					skip: 0,
+					take: 25,
+				}),
+			);
+		});
+
+		it("should create an installation note and install linked serials", async () => {
+			mockPrisma.installationNote.findFirst.mockResolvedValue(null);
+			mockPrisma.inventoryItem.findMany.mockResolvedValue([
+				{
+					id: mockItem.id,
+					code: mockItem.code,
+					name: mockItem.name,
+					hasSerialNo: true,
+					disabled: false,
+				},
+			]);
+			mockPrisma.serialNo.findMany.mockResolvedValue([
+				{
+					id: mockSerialNo.id,
+					serialNo: mockSerialNo.serialNo,
+					itemId: mockItem.id,
+					company: "Aria Corp",
+					status: "DELIVERED",
+					deliveryNoteId: null,
+					isDisabled: false,
+				},
+			]);
+			mockPrisma.installationNote.create.mockResolvedValue(
+				mockInstallationNote,
+			);
+			mockPrisma.serialNo.update.mockResolvedValue(mockSerialNo);
+
+			const result = await service.createInstallationNote({
+				customer: "Acme Industries",
+				company: "Aria Corp",
+				status: "COMPLETED",
+				items: [
+					{
+						itemId: mockItem.id,
+						serialNoId: mockSerialNo.id,
+						description: "Onsite setup",
+						installedQty: 1,
+					},
+				],
+			});
+
+			expect(result.series).toBe("MAT-INS-2026-00001");
+			expect(mockPrisma.serialNo.update).toHaveBeenCalledWith(
+				expect.objectContaining({
+					where: { id: mockSerialNo.id },
+					data: expect.objectContaining({
+						status: "INSTALLED",
+					}),
+				}),
+			);
+		});
+
+		it("should reject completed installation notes without required serial numbers", async () => {
+			mockPrisma.inventoryItem.findMany.mockResolvedValue([
+				{
+					id: mockItem.id,
+					code: mockItem.code,
+					name: mockItem.name,
+					hasSerialNo: true,
+					disabled: false,
+				},
+			]);
+
+			await expect(
+				service.createInstallationNote({
+					customer: "Acme Industries",
+					company: "Aria Corp",
+					status: "COMPLETED",
+					items: [
+						{
+							itemId: mockItem.id,
+							installedQty: 1,
+						},
+					],
+				}),
+			).rejects.toThrow(BadRequestException);
+		});
+
+		it("should prevent deleting non-draft installation notes", async () => {
+			mockPrisma.installationNote.findUnique.mockResolvedValue({
+				id: mockInstallationNote.id,
+				status: "COMPLETED",
+			});
+
+			await expect(
+				service.deleteInstallationNote(mockInstallationNote.id),
+			).rejects.toThrow(BadRequestException);
 		});
 	});
 });

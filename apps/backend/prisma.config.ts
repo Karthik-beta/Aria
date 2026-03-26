@@ -13,8 +13,19 @@
  * - The `seed` script is now defined in this config file, not package.json.
  * - Environment variables must be explicitly loaded (dotenv/config).
  */
-import "dotenv/config";
+import * as path from "node:path";
+import dotenv from "dotenv";
 import { defineConfig, env } from "prisma/config";
+
+// Load monorepo root env first, then per-environment overrides.
+// This keeps backend CLI commands working whether they are run from the package
+// directory or through Turbo/Bun from the workspace root.
+const workspaceRoot = path.resolve(__dirname, "..", "..");
+const rootEnv = path.resolve(workspaceRoot, ".env");
+const devEnv = path.resolve(workspaceRoot, ".env.development");
+
+dotenv.config({ path: rootEnv });
+dotenv.config({ path: devEnv, override: true });
 
 export default defineConfig({
 	/**

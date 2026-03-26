@@ -153,6 +153,138 @@ export type InventoryWarehouse = Prisma.WarehouseGetPayload<{
 	};
 }>;
 
+export interface InventoryBatch {
+	id: string;
+	batchId: string;
+	itemId: string;
+	company: string;
+	currentWarehouseId: string | null;
+	purchaseReceiptId: string | null;
+	deliveryNoteId: string | null;
+	stockEntryId: string | null;
+	useBatchWiseValuation: boolean;
+	manufacturingDate: Date | null;
+	expiryDate: Date | null;
+	description: string | null;
+	quantity: number;
+	isDisabled: boolean;
+	createdAt: Date;
+	updatedAt: Date;
+	item: {
+		id: string;
+		code: string;
+		name: string;
+	};
+	currentWarehouse?: {
+		id: string;
+		name: string;
+	} | null;
+	purchaseReceipt?: {
+		id: string;
+		series: string;
+	} | null;
+	deliveryNote?: {
+		id: string;
+		series: string;
+	} | null;
+	stockEntry?: {
+		id: string;
+		series: string;
+	} | null;
+}
+
+/**
+ * Prisma model type for SerialNo with display relations and ordered history.
+ */
+export type InventorySerialNo = Prisma.SerialNoGetPayload<{
+	include: {
+		item: {
+			select: {
+				id: true;
+				code: true;
+				name: true;
+			};
+		};
+		currentWarehouse: {
+			select: {
+				id: true;
+				name: true;
+			};
+		};
+		purchaseReceipt: {
+			select: {
+				id: true;
+				series: true;
+			};
+		};
+		deliveryNote: {
+			select: {
+				id: true;
+				series: true;
+			};
+		};
+		stockEntry: {
+			select: {
+				id: true;
+				series: true;
+			};
+		};
+		pickList: {
+			select: {
+				id: true;
+				series: true;
+			};
+		};
+		history: {
+			include: {
+				warehouse: {
+					select: {
+						id: true;
+						name: true;
+					};
+				};
+			};
+			orderBy: {
+				createdAt: "desc";
+			};
+		};
+	};
+}>;
+
+/**
+ * Prisma model type for InstallationNote with header links and row relations.
+ */
+export type InventoryInstallationNote = Prisma.InstallationNoteGetPayload<{
+	include: {
+		deliveryNote: {
+			select: {
+				id: true;
+				series: true;
+			};
+		};
+		items: {
+			include: {
+				item: {
+					select: {
+						id: true;
+						code: true;
+						name: true;
+					};
+				};
+				serialNo: {
+					select: {
+						id: true;
+						serialNo: true;
+					};
+				};
+			};
+			orderBy: {
+				id: "asc";
+			};
+		};
+	};
+}>;
+
 /**
  * Prisma model type for singleton StockSettings.
  */
@@ -473,6 +605,132 @@ export function toInventoryWarehouse(
 			prismaWarehouse.defaultInTransitWarehouse?.name ?? null,
 		createdAt: prismaWarehouse.createdAt,
 		updatedAt: prismaWarehouse.updatedAt,
+	};
+}
+
+/**
+ * Converts a Prisma Batch with relations to Inventory.Batch.
+ */
+export function toInventoryBatch(prismaBatch: InventoryBatch): Inventory.Batch {
+	return {
+		id: prismaBatch.id,
+		batchId: prismaBatch.batchId,
+		itemId: prismaBatch.itemId,
+		itemCode: prismaBatch.item.code,
+		itemName: prismaBatch.item.name,
+		company: prismaBatch.company,
+		currentWarehouseId: prismaBatch.currentWarehouseId,
+		currentWarehouseName: prismaBatch.currentWarehouse?.name ?? null,
+		purchaseReceiptId: prismaBatch.purchaseReceiptId,
+		purchaseReceiptSeries: prismaBatch.purchaseReceipt?.series ?? null,
+		deliveryNoteId: prismaBatch.deliveryNoteId,
+		deliveryNoteSeries: prismaBatch.deliveryNote?.series ?? null,
+		stockEntryId: prismaBatch.stockEntryId,
+		stockEntrySeries: prismaBatch.stockEntry?.series ?? null,
+		useBatchWiseValuation: prismaBatch.useBatchWiseValuation,
+		manufacturingDate: prismaBatch.manufacturingDate,
+		expiryDate: prismaBatch.expiryDate,
+		description: prismaBatch.description,
+		quantity: prismaBatch.quantity,
+		status: Inventory.batchStatusSchema.parse(
+			prismaBatch.isDisabled
+				? "DISABLED"
+				: prismaBatch.expiryDate && prismaBatch.expiryDate < new Date()
+					? "EXPIRED"
+					: prismaBatch.quantity <= 0
+						? "EMPTY"
+						: "ACTIVE",
+		),
+		isDisabled: prismaBatch.isDisabled,
+		createdAt: prismaBatch.createdAt,
+		updatedAt: prismaBatch.updatedAt,
+	};
+}
+
+/**
+ * Converts a Prisma SerialNo with relations to Inventory.SerialNo.
+ */
+export function toInventorySerialNo(
+	prismaSerialNo: InventorySerialNo,
+): Inventory.SerialNo {
+	return {
+		id: prismaSerialNo.id,
+		serialNo: prismaSerialNo.serialNo,
+		itemId: prismaSerialNo.itemId,
+		itemCode: prismaSerialNo.item.code,
+		itemName: prismaSerialNo.item.name,
+		company: prismaSerialNo.company,
+		status: prismaSerialNo.status as Inventory.SerialNoStatus,
+		currentWarehouseId: prismaSerialNo.currentWarehouseId,
+		currentWarehouseName: prismaSerialNo.currentWarehouse?.name ?? null,
+		purchaseReceiptId: prismaSerialNo.purchaseReceiptId,
+		purchaseReceiptSeries: prismaSerialNo.purchaseReceipt?.series ?? null,
+		deliveryNoteId: prismaSerialNo.deliveryNoteId,
+		deliveryNoteSeries: prismaSerialNo.deliveryNote?.series ?? null,
+		stockEntryId: prismaSerialNo.stockEntryId,
+		stockEntrySeries: prismaSerialNo.stockEntry?.series ?? null,
+		pickListId: prismaSerialNo.pickListId,
+		pickListSeries: prismaSerialNo.pickList?.series ?? null,
+		workOrder: prismaSerialNo.workOrder,
+		purchaseDate: prismaSerialNo.purchaseDate,
+		warrantyExpiryDate: prismaSerialNo.warrantyExpiryDate,
+		serviceContractExpiryDate: prismaSerialNo.serviceContractExpiryDate,
+		maintenanceStatus: prismaSerialNo.maintenanceStatus,
+		notes: prismaSerialNo.notes,
+		isDisabled: prismaSerialNo.isDisabled,
+		createdAt: prismaSerialNo.createdAt,
+		updatedAt: prismaSerialNo.updatedAt,
+		history: prismaSerialNo.history.map((entry) => ({
+			id: entry.id,
+			serialNoId: entry.serialNoId,
+			eventType: entry.eventType,
+			fromStatus: entry.fromStatus as Inventory.SerialNoStatus | null,
+			toStatus: entry.toStatus as Inventory.SerialNoStatus | null,
+			warehouseId: entry.warehouseId,
+			warehouseName: entry.warehouse?.name ?? null,
+			transactionLabel: entry.transactionLabel,
+			notes: entry.notes,
+			createdAt: entry.createdAt,
+		})),
+	};
+}
+
+/**
+ * Converts a Prisma InstallationNote with relations to Inventory.InstallationNote.
+ */
+export function toInventoryInstallationNote(
+	prismaNote: InventoryInstallationNote,
+): Inventory.InstallationNote {
+	return {
+		id: prismaNote.id,
+		series: prismaNote.series,
+		seriesPattern: prismaNote.seriesPattern,
+		installationDate: prismaNote.installationDate,
+		installationTime: prismaNote.installationTime,
+		customer: prismaNote.customer,
+		customerName: prismaNote.customerName,
+		customerAddress: prismaNote.customerAddress,
+		contactPerson: prismaNote.contactPerson,
+		territory: prismaNote.territory,
+		customerGroup: prismaNote.customerGroup,
+		company: prismaNote.company,
+		status: prismaNote.status as Inventory.InstallationNoteStatus,
+		deliveryNoteId: prismaNote.deliveryNoteId,
+		deliveryNoteSeries: prismaNote.deliveryNote?.series ?? null,
+		remarks: prismaNote.remarks,
+		items: prismaNote.items.map((item) => ({
+			id: item.id,
+			installationNoteId: item.installationNoteId,
+			itemId: item.itemId,
+			itemCode: item.item.code,
+			itemName: item.item.name,
+			serialNoId: item.serialNoId,
+			serialNo: item.serialNo?.serialNo ?? null,
+			description: item.description,
+			installedQty: item.installedQty,
+		})),
+		createdAt: prismaNote.createdAt,
+		updatedAt: prismaNote.updatedAt,
 	};
 }
 

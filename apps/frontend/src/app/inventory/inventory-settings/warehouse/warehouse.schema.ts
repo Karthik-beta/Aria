@@ -1,4 +1,4 @@
-import { z } from "zod";
+import * as z from "zod";
 
 const trimmedOptionalString = (maxLength: number) =>
 	z.string().max(maxLength).default("");

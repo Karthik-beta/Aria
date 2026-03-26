@@ -2,9 +2,18 @@ import { spawn } from "node:child_process";
 import { once } from "node:events";
 import { readdir, rm } from "node:fs/promises";
 import * as path from "node:path";
+import dotenv from "dotenv";
 
 const projectRoot = process.cwd();
+const workspaceRoot = path.resolve(projectRoot, "..", "..");
 const bunExecutable = process.execPath;
+
+dotenv.config({ path: path.join(workspaceRoot, ".env") });
+dotenv.config({
+	path: path.join(workspaceRoot, ".env.development"),
+	override: true,
+});
+
 const testEnv = {
 	...process.env,
 	NODE_ENV: "test",

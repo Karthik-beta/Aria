@@ -156,23 +156,23 @@ export const inventoryNavItems: NavItem[] = [
 		items: [
 			{
 				title: "Serial No",
-				url: "/inventory/serial-nos",
+				url: "/inventory/serial-no-and-batch/serial-no",
 			},
 			{
 				title: "Batch",
-				url: "/inventory/batches",
+				url: "/inventory/serial-no-and-batch/batch",
 			},
 			{
 				title: "Installation Note",
-				url: "/inventory/installation-notes",
+				url: "/inventory/serial-no-and-batch/installation-note",
 			},
 			{
 				title: "Serial No Service Contract Expiry",
-				url: "/inventory/serial-no-service-contract-expiry",
+				url: "/inventory/serial-no-and-batch/serial-no-service-contract-expiry",
 			},
 			{
 				title: "Serial No Status",
-				url: "/inventory/serial-no-status",
+				url: "/inventory/serial-no-and-batch/serial-no-status",
 			},
 			{
 				title: "Serial No Warranty Expiry",

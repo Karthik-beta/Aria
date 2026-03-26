@@ -1,4 +1,4 @@
-import { z } from "zod";
+import * as z from "zod";
 
 // ============================================================================
 // API Response Contracts
@@ -190,6 +190,919 @@ export namespace Inventory {
 		warehouseType?: string | null;
 		defaultInTransitWarehouseId?: string | null;
 	}
+
+	export const batchStatusSchema = z.enum([
+		"ACTIVE",
+		"EMPTY",
+		"EXPIRED",
+		"DISABLED",
+	]);
+
+	export type BatchStatus = z.infer<typeof batchStatusSchema>;
+
+	export const batchSortBySchema = z.enum([
+		"updatedAt",
+		"createdAt",
+		"batchId",
+		"itemCode",
+		"warehouse",
+		"expiryDate",
+		"quantity",
+		"company",
+	]);
+
+	export type BatchSortBy = z.infer<typeof batchSortBySchema>;
+
+	export interface BatchLinkSummary {
+		purchaseReceiptId?: string | null;
+		purchaseReceiptSeries?: string | null;
+		deliveryNoteId?: string | null;
+		deliveryNoteSeries?: string | null;
+		stockEntryId?: string | null;
+		stockEntrySeries?: string | null;
+	}
+
+	export interface Batch extends BatchLinkSummary {
+		id: string;
+		batchId: string;
+		itemId: string;
+		itemCode: string;
+		itemName: string;
+		company: string;
+		currentWarehouseId?: string | null;
+		currentWarehouseName?: string | null;
+		useBatchWiseValuation: boolean;
+		manufacturingDate?: Date | null;
+		expiryDate?: Date | null;
+		description?: string | null;
+		quantity: number;
+		status: BatchStatus;
+		isDisabled: boolean;
+		createdAt: Date;
+		updatedAt: Date;
+	}
+
+	export interface BatchListResult {
+		items: Batch[];
+		totalCount: number;
+	}
+
+	export interface ListBatchesInput {
+		skip?: number;
+		take?: number;
+		search?: string;
+		itemId?: string;
+		warehouseId?: string;
+		company?: string;
+		status?: BatchStatus;
+		includeDisabled?: boolean;
+		sortBy?: BatchSortBy;
+		sortDirection?: "asc" | "desc";
+	}
+
+	export interface CreateBatchInput {
+		batchId: string;
+		itemId: string;
+		company: string;
+		currentWarehouseId?: string | null;
+		purchaseReceiptId?: string | null;
+		deliveryNoteId?: string | null;
+		stockEntryId?: string | null;
+		useBatchWiseValuation?: boolean;
+		manufacturingDate?: Date | null;
+		expiryDate?: Date | null;
+		description?: string | null;
+		quantity?: number;
+		isDisabled?: boolean;
+	}
+
+	export interface UpdateBatchInput {
+		id: string;
+		batchId?: string;
+		itemId?: string;
+		company?: string;
+		currentWarehouseId?: string | null;
+		purchaseReceiptId?: string | null;
+		deliveryNoteId?: string | null;
+		stockEntryId?: string | null;
+		useBatchWiseValuation?: boolean;
+		manufacturingDate?: Date | null;
+		expiryDate?: Date | null;
+		description?: string | null;
+		quantity?: number;
+		isDisabled?: boolean;
+	}
+
+	export const listBatchesSchema = z
+		.object({
+			skip: z.number().int().min(0).optional(),
+			take: z.number().int().min(1).max(250).optional(),
+			search: z.string().max(255).trim().optional(),
+			itemId: z.string().cuid().optional(),
+			warehouseId: z.string().cuid().optional(),
+			company: z.string().max(255).trim().optional(),
+			status: batchStatusSchema.optional(),
+			includeDisabled: z.boolean().optional(),
+			sortBy: batchSortBySchema.optional(),
+			sortDirection: z.enum(["asc", "desc"]).optional(),
+		})
+		.optional();
+
+	const batchInputFields = {
+		batchId: z.string().min(1, "Batch ID is required").max(120).trim(),
+		itemId: z.string().cuid("Item is required"),
+		company: z.string().min(1, "Company is required").max(255).trim(),
+		currentWarehouseId: z.string().cuid().optional().nullable(),
+		purchaseReceiptId: z.string().min(1).optional().nullable(),
+		deliveryNoteId: z.string().min(1).optional().nullable(),
+		stockEntryId: z.string().min(1).optional().nullable(),
+		useBatchWiseValuation: z.boolean().default(false),
+		manufacturingDate: z.coerce.date().optional().nullable(),
+		expiryDate: z.coerce.date().optional().nullable(),
+		description: z
+			.string()
+			.max(65_535, "Description must be 65,535 characters or fewer")
+			.optional()
+			.nullable(),
+		quantity: z.number().min(0, "Quantity cannot be negative").default(0),
+		isDisabled: z.boolean().default(false),
+	} satisfies z.ZodRawShape;
+
+	const validateBatchDates = (
+		value: {
+			manufacturingDate?: Date | null;
+			expiryDate?: Date | null;
+			quantity?: number;
+			currentWarehouseId?: string | null;
+		},
+		ctx: z.RefinementCtx,
+	) => {
+		if (
+			value.manufacturingDate &&
+			value.expiryDate &&
+			value.expiryDate < value.manufacturingDate
+		) {
+			ctx.addIssue({
+				code: z.ZodIssueCode.custom,
+				message: "Expiry date must be on or after the manufacturing date",
+				path: ["expiryDate"],
+			});
+		}
+
+		if ((value.quantity ?? 0) > 0 && !value.currentWarehouseId) {
+			ctx.addIssue({
+				code: z.ZodIssueCode.custom,
+				message:
+					"A warehouse is required when batch quantity is greater than zero",
+				path: ["currentWarehouseId"],
+			});
+		}
+	};
+
+	export const createBatchSchema = z
+		.object(batchInputFields)
+		.superRefine((value, ctx) => {
+			validateBatchDates(value, ctx);
+		});
+
+	export const updateBatchSchema = z
+		.object({
+			id: z.string().cuid(),
+			batchId: batchInputFields.batchId.optional(),
+			itemId: batchInputFields.itemId.optional(),
+			company: batchInputFields.company.optional(),
+			currentWarehouseId: batchInputFields.currentWarehouseId,
+			purchaseReceiptId: batchInputFields.purchaseReceiptId,
+			deliveryNoteId: batchInputFields.deliveryNoteId,
+			stockEntryId: batchInputFields.stockEntryId,
+			useBatchWiseValuation: z.boolean().optional(),
+			manufacturingDate: batchInputFields.manufacturingDate,
+			expiryDate: batchInputFields.expiryDate,
+			description: batchInputFields.description,
+			quantity: z.number().min(0, "Quantity cannot be negative").optional(),
+			isDisabled: z.boolean().optional(),
+		})
+		.superRefine((value, ctx) => {
+			validateBatchDates(value, ctx);
+		});
+
+	export const serialNoStatusSchema = z.enum([
+		"DRAFT",
+		"AVAILABLE",
+		"DELIVERED",
+		"INSTALLED",
+		"RETURNED",
+		"SCRAPPED",
+		"DISPOSED",
+	]);
+
+	export type SerialNoStatus = z.infer<typeof serialNoStatusSchema>;
+
+	export const serialNoSortBySchema = z.enum([
+		"updatedAt",
+		"createdAt",
+		"serialNo",
+		"itemCode",
+		"warehouse",
+		"status",
+		"company",
+	]);
+
+	export type SerialNoSortBy = z.infer<typeof serialNoSortBySchema>;
+
+	export interface SerialNoLinkSummary {
+		purchaseReceiptId?: string | null;
+		purchaseReceiptSeries?: string | null;
+		deliveryNoteId?: string | null;
+		deliveryNoteSeries?: string | null;
+		stockEntryId?: string | null;
+		stockEntrySeries?: string | null;
+		pickListId?: string | null;
+		pickListSeries?: string | null;
+	}
+
+	export interface SerialNoHistoryEntry {
+		id: string;
+		serialNoId: string;
+		eventType:
+			| "CREATED"
+			| "UPDATED"
+			| "STATUS_CHANGED"
+			| "WAREHOUSE_CHANGED"
+			| "LINKS_CHANGED";
+		fromStatus?: SerialNoStatus | null;
+		toStatus?: SerialNoStatus | null;
+		warehouseId?: string | null;
+		warehouseName?: string | null;
+		transactionLabel?: string | null;
+		notes?: string | null;
+		createdAt: Date;
+	}
+
+	export interface SerialNo extends SerialNoLinkSummary {
+		id: string;
+		serialNo: string;
+		itemId: string;
+		itemCode: string;
+		itemName: string;
+		company: string;
+		status: SerialNoStatus;
+		currentWarehouseId?: string | null;
+		currentWarehouseName?: string | null;
+		workOrder?: string | null;
+		purchaseDate?: Date | null;
+		warrantyExpiryDate?: Date | null;
+		serviceContractExpiryDate?: Date | null;
+		maintenanceStatus?: string | null;
+		notes?: string | null;
+		isDisabled: boolean;
+		createdAt: Date;
+		updatedAt: Date;
+		history: SerialNoHistoryEntry[];
+	}
+
+	export interface SerialNoListResult {
+		items: SerialNo[];
+		totalCount: number;
+	}
+
+	export const serialNoServiceContractExpiryStateSchema = z.enum([
+		"EXPIRED",
+		"DUE_SOON",
+		"ACTIVE",
+	]);
+
+	export type SerialNoServiceContractExpiryState = z.infer<
+		typeof serialNoServiceContractExpiryStateSchema
+	>;
+
+	export const serialNoServiceContractExpirySortBySchema = z.enum([
+		"serviceContractExpiryDate",
+		"updatedAt",
+		"serialNo",
+		"itemCode",
+		"warehouse",
+		"status",
+		"company",
+	]);
+
+	export type SerialNoServiceContractExpirySortBy = z.infer<
+		typeof serialNoServiceContractExpirySortBySchema
+	>;
+
+	export interface SerialNoServiceContractExpiryRow
+		extends SerialNoLinkSummary {
+		id: string;
+		serialNo: string;
+		itemId: string;
+		itemCode: string;
+		itemName: string;
+		company: string;
+		status: SerialNoStatus;
+		currentWarehouseId?: string | null;
+		currentWarehouseName?: string | null;
+		workOrder?: string | null;
+		purchaseDate?: Date | null;
+		serviceContractExpiryDate: Date;
+		daysUntilExpiry: number;
+		expiryState: SerialNoServiceContractExpiryState;
+		maintenanceStatus?: string | null;
+		notes?: string | null;
+		isDisabled: boolean;
+		createdAt: Date;
+		updatedAt: Date;
+	}
+
+	export interface SerialNoServiceContractExpiryListResult {
+		items: SerialNoServiceContractExpiryRow[];
+		totalCount: number;
+	}
+
+	export const serialNoWarrantyExpiryStateSchema = z.enum([
+		"EXPIRED",
+		"DUE_SOON",
+		"ACTIVE",
+	]);
+
+	export type SerialNoWarrantyExpiryState = z.infer<
+		typeof serialNoWarrantyExpiryStateSchema
+	>;
+
+	export const serialNoWarrantyExpirySortBySchema = z.enum([
+		"warrantyExpiryDate",
+		"updatedAt",
+		"serialNo",
+		"itemCode",
+		"warehouse",
+		"status",
+		"company",
+	]);
+
+	export type SerialNoWarrantyExpirySortBy = z.infer<
+		typeof serialNoWarrantyExpirySortBySchema
+	>;
+
+	export interface SerialNoWarrantyExpiryRow extends SerialNoLinkSummary {
+		id: string;
+		serialNo: string;
+		itemId: string;
+		itemCode: string;
+		itemName: string;
+		company: string;
+		status: SerialNoStatus;
+		currentWarehouseId?: string | null;
+		currentWarehouseName?: string | null;
+		workOrder?: string | null;
+		purchaseDate?: Date | null;
+		warrantyExpiryDate: Date;
+		daysUntilExpiry: number;
+		expiryState: SerialNoWarrantyExpiryState;
+		maintenanceStatus?: string | null;
+		notes?: string | null;
+		isDisabled: boolean;
+		createdAt: Date;
+		updatedAt: Date;
+	}
+
+	export interface SerialNoWarrantyExpiryListResult {
+		items: SerialNoWarrantyExpiryRow[];
+		totalCount: number;
+	}
+
+	export interface ListSerialNoWarrantyExpiryInput {
+		skip?: number;
+		take?: number;
+		search?: string;
+		itemId?: string;
+		warehouseId?: string;
+		company?: string;
+		status?: SerialNoStatus;
+		includeDisabled?: boolean;
+		expiryState?: SerialNoWarrantyExpiryState;
+		expiryDateFrom?: Date;
+		expiryDateTo?: Date;
+		expiringWithinDays?: number;
+		sortBy?: SerialNoWarrantyExpirySortBy;
+		sortDirection?: "asc" | "desc";
+	}
+
+	export const serialNoStatusSortBySchema = z.enum([
+		"updatedAt",
+		"createdAt",
+		"serialNo",
+		"itemCode",
+		"warehouse",
+		"status",
+		"company",
+	]);
+
+	export type SerialNoStatusSortBy = z.infer<typeof serialNoStatusSortBySchema>;
+
+	export interface SerialNoStatusRow extends SerialNoLinkSummary {
+		id: string;
+		serialNo: string;
+		itemId: string;
+		itemCode: string;
+		itemName: string;
+		company: string;
+		status: SerialNoStatus;
+		currentWarehouseId?: string | null;
+		currentWarehouseName?: string | null;
+		workOrder?: string | null;
+		purchaseDate?: Date | null;
+		warrantyExpiryDate?: Date | null;
+		serviceContractExpiryDate?: Date | null;
+		lastStatusChangedAt: Date;
+		daysInCurrentStatus: number;
+		maintenanceStatus?: string | null;
+		notes?: string | null;
+		isDisabled: boolean;
+		createdAt: Date;
+		updatedAt: Date;
+	}
+
+	export interface SerialNoStatusListResult {
+		items: SerialNoStatusRow[];
+		totalCount: number;
+	}
+
+	export interface ListSerialNoStatusInput {
+		skip?: number;
+		take?: number;
+		search?: string;
+		itemId?: string;
+		warehouseId?: string;
+		company?: string;
+		status?: SerialNoStatus;
+		includeDisabled?: boolean;
+		sortBy?: SerialNoStatusSortBy;
+		sortDirection?: "asc" | "desc";
+	}
+
+	export interface ListSerialNoServiceContractExpiryInput {
+		skip?: number;
+		take?: number;
+		search?: string;
+		itemId?: string;
+		warehouseId?: string;
+		company?: string;
+		status?: SerialNoStatus;
+		includeDisabled?: boolean;
+		expiryState?: SerialNoServiceContractExpiryState;
+		expiryDateFrom?: Date;
+		expiryDateTo?: Date;
+		expiringWithinDays?: number;
+		sortBy?: SerialNoServiceContractExpirySortBy;
+		sortDirection?: "asc" | "desc";
+	}
+
+	export interface ListSerialNosInput {
+		skip?: number;
+		take?: number;
+		search?: string;
+		itemId?: string;
+		warehouseId?: string;
+		deliveryNoteId?: string;
+		company?: string;
+		status?: SerialNoStatus;
+		includeDisabled?: boolean;
+		sortBy?: SerialNoSortBy;
+		sortDirection?: "asc" | "desc";
+	}
+
+	export interface CreateSerialNoInput {
+		serialNo: string;
+		itemId: string;
+		company: string;
+		status?: SerialNoStatus;
+		currentWarehouseId?: string | null;
+		purchaseReceiptId?: string | null;
+		deliveryNoteId?: string | null;
+		stockEntryId?: string | null;
+		pickListId?: string | null;
+		workOrder?: string | null;
+		purchaseDate?: Date | null;
+		warrantyExpiryDate?: Date | null;
+		serviceContractExpiryDate?: Date | null;
+		maintenanceStatus?: string | null;
+		notes?: string | null;
+		isDisabled?: boolean;
+	}
+
+	export interface UpdateSerialNoInput {
+		id: string;
+		serialNo?: string;
+		itemId?: string;
+		company?: string;
+		status?: SerialNoStatus;
+		currentWarehouseId?: string | null;
+		purchaseReceiptId?: string | null;
+		deliveryNoteId?: string | null;
+		stockEntryId?: string | null;
+		pickListId?: string | null;
+		workOrder?: string | null;
+		purchaseDate?: Date | null;
+		warrantyExpiryDate?: Date | null;
+		serviceContractExpiryDate?: Date | null;
+		maintenanceStatus?: string | null;
+		notes?: string | null;
+		isDisabled?: boolean;
+	}
+
+	export const listSerialNoServiceContractExpirySchema = z
+		.object({
+			skip: z.number().int().min(0).optional(),
+			take: z.number().int().min(1).max(250).optional(),
+			search: z.string().max(255).trim().optional(),
+			itemId: z.string().cuid().optional(),
+			warehouseId: z.string().cuid().optional(),
+			company: z.string().max(255).trim().optional(),
+			status: serialNoStatusSchema.optional(),
+			includeDisabled: z.boolean().optional(),
+			expiryState: serialNoServiceContractExpiryStateSchema.optional(),
+			expiryDateFrom: z.coerce.date().optional(),
+			expiryDateTo: z.coerce.date().optional(),
+			expiringWithinDays: z.number().int().min(0).max(3650).optional(),
+			sortBy: serialNoServiceContractExpirySortBySchema.optional(),
+			sortDirection: z.enum(["asc", "desc"]).optional(),
+		})
+		.superRefine((value, ctx) => {
+			if (
+				value.expiryDateFrom &&
+				value.expiryDateTo &&
+				value.expiryDateTo < value.expiryDateFrom
+			) {
+				ctx.addIssue({
+					code: z.ZodIssueCode.custom,
+					message: "Expiry end date must be on or after the start date",
+					path: ["expiryDateTo"],
+				});
+			}
+		})
+		.optional();
+
+	export const listSerialNoWarrantyExpirySchema = z
+		.object({
+			skip: z.number().int().min(0).optional(),
+			take: z.number().int().min(1).max(250).optional(),
+			search: z.string().max(255).trim().optional(),
+			itemId: z.string().cuid().optional(),
+			warehouseId: z.string().cuid().optional(),
+			company: z.string().max(255).trim().optional(),
+			status: serialNoStatusSchema.optional(),
+			includeDisabled: z.boolean().optional(),
+			expiryState: serialNoWarrantyExpiryStateSchema.optional(),
+			expiryDateFrom: z.coerce.date().optional(),
+			expiryDateTo: z.coerce.date().optional(),
+			expiringWithinDays: z.number().int().min(0).max(3650).optional(),
+			sortBy: serialNoWarrantyExpirySortBySchema.optional(),
+			sortDirection: z.enum(["asc", "desc"]).optional(),
+		})
+		.superRefine((value, ctx) => {
+			if (
+				value.expiryDateFrom &&
+				value.expiryDateTo &&
+				value.expiryDateTo < value.expiryDateFrom
+			) {
+				ctx.addIssue({
+					code: z.ZodIssueCode.custom,
+					message: "Expiry end date must be on or after the start date",
+					path: ["expiryDateTo"],
+				});
+			}
+		})
+		.optional();
+
+	export const listSerialNoStatusSchema = z
+		.object({
+			skip: z.number().int().min(0).optional(),
+			take: z.number().int().min(1).max(250).optional(),
+			search: z.string().max(255).trim().optional(),
+			itemId: z.string().cuid().optional(),
+			warehouseId: z.string().cuid().optional(),
+			company: z.string().max(255).trim().optional(),
+			status: serialNoStatusSchema.optional(),
+			includeDisabled: z.boolean().optional(),
+			sortBy: serialNoStatusSortBySchema.optional(),
+			sortDirection: z.enum(["asc", "desc"]).optional(),
+		})
+		.optional();
+
+	export const listSerialNosSchema = z
+		.object({
+			skip: z.number().int().min(0).optional(),
+			take: z.number().int().min(1).max(250).optional(),
+			search: z.string().max(255).trim().optional(),
+			itemId: z.string().cuid().optional(),
+			warehouseId: z.string().cuid().optional(),
+			deliveryNoteId: z.string().cuid().optional(),
+			company: z.string().max(255).trim().optional(),
+			status: serialNoStatusSchema.optional(),
+			includeDisabled: z.boolean().optional(),
+			sortBy: serialNoSortBySchema.optional(),
+			sortDirection: z.enum(["asc", "desc"]).optional(),
+		})
+		.optional();
+
+	const serialNoInputFields = {
+		serialNo: z
+			.string()
+			.min(1, "Serial number is required")
+			.max(120)
+			.trim()
+			.toUpperCase(),
+		itemId: z.string().cuid("Item is required"),
+		company: z.string().min(1, "Company is required").max(255).trim(),
+		status: serialNoStatusSchema.default("DRAFT"),
+		currentWarehouseId: z.string().cuid().optional().nullable(),
+		purchaseReceiptId: z.string().min(1).optional().nullable(),
+		deliveryNoteId: z.string().min(1).optional().nullable(),
+		stockEntryId: z.string().min(1).optional().nullable(),
+		pickListId: z.string().min(1).optional().nullable(),
+		workOrder: z.string().max(255).trim().optional().nullable(),
+		purchaseDate: z.coerce.date().optional().nullable(),
+		warrantyExpiryDate: z.coerce.date().optional().nullable(),
+		serviceContractExpiryDate: z.coerce.date().optional().nullable(),
+		maintenanceStatus: z.string().max(255).trim().optional().nullable(),
+		notes: z
+			.string()
+			.max(65_535, "Notes must be 65,535 characters or fewer")
+			.optional()
+			.nullable(),
+		isDisabled: z.boolean().default(false),
+	} satisfies z.ZodRawShape;
+
+	const validateSerialNoDateOrder = (
+		value: {
+			purchaseDate?: Date | null;
+			warrantyExpiryDate?: Date | null;
+			serviceContractExpiryDate?: Date | null;
+		},
+		ctx: z.RefinementCtx,
+	) => {
+		if (
+			value.purchaseDate &&
+			value.warrantyExpiryDate &&
+			value.warrantyExpiryDate < value.purchaseDate
+		) {
+			ctx.addIssue({
+				code: z.ZodIssueCode.custom,
+				message: "Warranty expiry must be on or after the purchase date",
+				path: ["warrantyExpiryDate"],
+			});
+		}
+
+		if (
+			value.purchaseDate &&
+			value.serviceContractExpiryDate &&
+			value.serviceContractExpiryDate < value.purchaseDate
+		) {
+			ctx.addIssue({
+				code: z.ZodIssueCode.custom,
+				message:
+					"Service contract expiry must be on or after the purchase date",
+				path: ["serviceContractExpiryDate"],
+			});
+		}
+	};
+
+	export const createSerialNoSchema = z
+		.object(serialNoInputFields)
+		.superRefine((value, ctx) => {
+			validateSerialNoDateOrder(value, ctx);
+		});
+
+	export const updateSerialNoSchema = z
+		.object({
+			id: z.string().cuid(),
+			serialNo: serialNoInputFields.serialNo.optional(),
+			itemId: serialNoInputFields.itemId.optional(),
+			company: serialNoInputFields.company.optional(),
+			status: serialNoStatusSchema.optional(),
+			currentWarehouseId: serialNoInputFields.currentWarehouseId,
+			purchaseReceiptId: serialNoInputFields.purchaseReceiptId,
+			deliveryNoteId: serialNoInputFields.deliveryNoteId,
+			stockEntryId: serialNoInputFields.stockEntryId,
+			pickListId: serialNoInputFields.pickListId,
+			workOrder: serialNoInputFields.workOrder,
+			purchaseDate: serialNoInputFields.purchaseDate,
+			warrantyExpiryDate: serialNoInputFields.warrantyExpiryDate,
+			serviceContractExpiryDate: serialNoInputFields.serviceContractExpiryDate,
+			maintenanceStatus: serialNoInputFields.maintenanceStatus,
+			notes: serialNoInputFields.notes,
+			isDisabled: z.boolean().optional(),
+		})
+		.superRefine((value, ctx) => {
+			validateSerialNoDateOrder(value, ctx);
+		});
+
+	export const installationNoteStatusSchema = z.enum([
+		"DRAFT",
+		"IN_PROGRESS",
+		"COMPLETED",
+		"CANCELLED",
+	]);
+
+	export type InstallationNoteStatus = z.infer<
+		typeof installationNoteStatusSchema
+	>;
+
+	export const installationNoteSortBySchema = z.enum([
+		"updatedAt",
+		"createdAt",
+		"series",
+		"installationDate",
+		"customer",
+		"status",
+		"company",
+	]);
+
+	export type InstallationNoteSortBy = z.infer<
+		typeof installationNoteSortBySchema
+	>;
+
+	export interface InstallationNoteItem {
+		id: string;
+		installationNoteId: string;
+		itemId: string;
+		itemCode: string;
+		itemName: string;
+		serialNoId?: string | null;
+		serialNo?: string | null;
+		description?: string | null;
+		installedQty: number;
+	}
+
+	export interface InstallationNote {
+		id: string;
+		series: string;
+		seriesPattern: string;
+		installationDate: Date;
+		installationTime?: string | null;
+		customer: string;
+		customerName?: string | null;
+		customerAddress?: string | null;
+		contactPerson?: string | null;
+		territory: string;
+		customerGroup?: string | null;
+		company: string;
+		status: InstallationNoteStatus;
+		deliveryNoteId?: string | null;
+		deliveryNoteSeries?: string | null;
+		remarks?: string | null;
+		items: InstallationNoteItem[];
+		createdAt: Date;
+		updatedAt: Date;
+	}
+
+	export interface InstallationNoteListResult {
+		items: InstallationNote[];
+		totalCount: number;
+	}
+
+	export interface ListInstallationNotesInput {
+		skip?: number;
+		take?: number;
+		search?: string;
+		status?: InstallationNoteStatus;
+		company?: string;
+		deliveryNoteId?: string;
+		sortBy?: InstallationNoteSortBy;
+		sortDirection?: "asc" | "desc";
+	}
+
+	export interface CreateInstallationNoteItemInput {
+		itemId: string;
+		serialNoId?: string | null;
+		description?: string | null;
+		installedQty: number;
+	}
+
+	export interface CreateInstallationNoteInput {
+		seriesPattern?: string;
+		installationDate?: Date;
+		installationTime?: string | null;
+		customer: string;
+		customerName?: string | null;
+		customerAddress?: string | null;
+		contactPerson?: string | null;
+		territory?: string;
+		customerGroup?: string | null;
+		company: string;
+		status?: InstallationNoteStatus;
+		deliveryNoteId?: string | null;
+		remarks?: string | null;
+		items: CreateInstallationNoteItemInput[];
+	}
+
+	export interface UpdateInstallationNoteItemInput {
+		id?: string;
+		itemId: string;
+		serialNoId?: string | null;
+		description?: string | null;
+		installedQty: number;
+	}
+
+	export interface UpdateInstallationNoteInput {
+		id: string;
+		installationDate?: Date;
+		installationTime?: string | null;
+		customer?: string;
+		customerName?: string | null;
+		customerAddress?: string | null;
+		contactPerson?: string | null;
+		territory?: string;
+		customerGroup?: string | null;
+		company?: string;
+		status?: InstallationNoteStatus;
+		deliveryNoteId?: string | null;
+		remarks?: string | null;
+		items?: UpdateInstallationNoteItemInput[];
+	}
+
+	export const listInstallationNotesSchema = z
+		.object({
+			skip: z.number().int().min(0).optional(),
+			take: z.number().int().min(1).max(250).optional(),
+			search: z.string().max(255).trim().optional(),
+			status: installationNoteStatusSchema.optional(),
+			company: z.string().max(255).trim().optional(),
+			deliveryNoteId: z.string().min(1).optional(),
+			sortBy: installationNoteSortBySchema.optional(),
+			sortDirection: z.enum(["asc", "desc"]).optional(),
+		})
+		.optional();
+
+	const installationNoteItemFields = {
+		itemId: z.string().cuid("Item is required"),
+		serialNoId: z.string().cuid().optional().nullable(),
+		description: z
+			.string()
+			.max(65_535, "Description must be 65,535 characters or fewer")
+			.optional()
+			.nullable(),
+		installedQty: z
+			.number()
+			.positive("Installed quantity must be greater than zero"),
+	} satisfies z.ZodRawShape;
+
+	export const createInstallationNoteItemSchema = z.object(
+		installationNoteItemFields,
+	);
+
+	export const updateInstallationNoteItemSchema = z.object({
+		id: z.string().cuid().optional(),
+		...installationNoteItemFields,
+	});
+
+	const installationNoteFields = {
+		seriesPattern: z.string().max(50).trim().optional(),
+		installationDate: z.coerce.date().optional(),
+		installationTime: z.string().max(8).trim().optional().nullable(),
+		customer: z.string().min(1, "Customer is required").max(255).trim(),
+		customerName: z.string().max(255).trim().optional().nullable(),
+		customerAddress: z.string().max(255).trim().optional().nullable(),
+		contactPerson: z.string().max(255).trim().optional().nullable(),
+		territory: z
+			.string()
+			.min(1, "Territory is required")
+			.max(255)
+			.trim()
+			.default("All Territories"),
+		customerGroup: z.string().max(255).trim().optional().nullable(),
+		company: z.string().min(1, "Company is required").max(255).trim(),
+		status: installationNoteStatusSchema.default("DRAFT"),
+		deliveryNoteId: z.string().min(1).optional().nullable(),
+		remarks: z
+			.string()
+			.max(65_535, "Remarks must be 65,535 characters or fewer")
+			.optional()
+			.nullable(),
+	} satisfies z.ZodRawShape;
+
+	export const createInstallationNoteSchema = z.object({
+		...installationNoteFields,
+		items: z
+			.array(createInstallationNoteItemSchema)
+			.min(1, "At least one installation item is required"),
+	});
+
+	export const updateInstallationNoteSchema = z.object({
+		id: z.string().cuid(),
+		installationDate: installationNoteFields.installationDate,
+		installationTime: installationNoteFields.installationTime,
+		customer: installationNoteFields.customer.optional(),
+		customerName: installationNoteFields.customerName,
+		customerAddress: installationNoteFields.customerAddress,
+		contactPerson: installationNoteFields.contactPerson,
+		territory: installationNoteFields.territory.optional(),
+		customerGroup: installationNoteFields.customerGroup,
+		company: installationNoteFields.company.optional(),
+		status: installationNoteStatusSchema.optional(),
+		deliveryNoteId: installationNoteFields.deliveryNoteId,
+		remarks: installationNoteFields.remarks,
+		items: z.array(updateInstallationNoteItemSchema).min(1).optional(),
+	});
 
 	export const ITEM_VARIANT_COPY_FIELD_KEYS = [
 		"description",

@@ -26,6 +26,21 @@ type ItemsChangedEvent = {
 	data: Inventory.Item | { id: string };
 };
 
+type SerialNosChangedEvent = {
+	type: "created" | "updated" | "deleted";
+	data: Inventory.SerialNo | { id: string };
+};
+
+type BatchesChangedEvent = {
+	type: "created" | "updated" | "deleted";
+	data: Inventory.Batch | { id: string };
+};
+
+type InstallationNotesChangedEvent = {
+	type: "created" | "updated" | "deleted";
+	data: Inventory.InstallationNote | { id: string };
+};
+
 function createListItemsProcedure(inventoryService: InventoryService) {
 	return protectedProcedure.query(async () => {
 		return inventoryService.findAll();
@@ -53,6 +68,182 @@ function createListWarehousesProcedure(inventoryService: InventoryService) {
 		.input(Inventory.listWarehousesSchema)
 		.query(async ({ input }) => {
 			return inventoryService.findWarehouses(input);
+		});
+}
+
+function createListSerialNosProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(Inventory.listSerialNosSchema)
+		.query(async ({ input }) => {
+			return inventoryService.findSerialNos(input);
+		});
+}
+
+function createListSerialNoServiceContractExpiryProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure
+		.input(Inventory.listSerialNoServiceContractExpirySchema)
+		.query(async ({ input }) => {
+			return inventoryService.findSerialNoServiceContractExpiry(input);
+		});
+}
+
+function createListSerialNoWarrantyExpiryProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure
+		.input(Inventory.listSerialNoWarrantyExpirySchema)
+		.query(async ({ input }) => {
+			return inventoryService.findSerialNoWarrantyExpiry(input);
+		});
+}
+
+function createListSerialNoStatusProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(Inventory.listSerialNoStatusSchema)
+		.query(async ({ input }) => {
+			return inventoryService.findSerialNoStatus(input);
+		});
+}
+
+function createListBatchesProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(Inventory.listBatchesSchema)
+		.query(async ({ input }) => {
+			return inventoryService.findBatches(input);
+		});
+}
+
+function createGetBatchByIdProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(z.object({ id: z.string().cuid() }))
+		.query(async ({ input }) => {
+			return inventoryService.findBatchById(input.id);
+		});
+}
+
+function createCreateBatchProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(Inventory.createBatchSchema)
+		.mutation(async ({ input }) => {
+			const result = await inventoryService.createBatch(input);
+			void inventoryEvents.emit("batchCreated", result);
+			return result;
+		});
+}
+
+function createUpdateBatchProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(Inventory.updateBatchSchema)
+		.mutation(async ({ input }) => {
+			const result = await inventoryService.updateBatch(input);
+			void inventoryEvents.emit("batchUpdated", result);
+			return result;
+		});
+}
+
+function createDeleteBatchProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(z.object({ id: z.string().cuid() }))
+		.mutation(async ({ input }) => {
+			const result = await inventoryService.deleteBatch(input.id);
+			void inventoryEvents.emit("batchDeleted", { id: input.id });
+			return result;
+		});
+}
+
+function createGetSerialNoByIdProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(z.object({ id: z.string().cuid() }))
+		.query(async ({ input }) => {
+			return inventoryService.findSerialNoById(input.id);
+		});
+}
+
+function createCreateSerialNoProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(Inventory.createSerialNoSchema)
+		.mutation(async ({ input }) => {
+			const result = await inventoryService.createSerialNo(input);
+			void inventoryEvents.emit("serialNoCreated", result);
+			return result;
+		});
+}
+
+function createUpdateSerialNoProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(Inventory.updateSerialNoSchema)
+		.mutation(async ({ input }) => {
+			const result = await inventoryService.updateSerialNo(input);
+			void inventoryEvents.emit("serialNoUpdated", result);
+			return result;
+		});
+}
+
+function createDeleteSerialNoProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(z.object({ id: z.string().cuid() }))
+		.mutation(async ({ input }) => {
+			const result = await inventoryService.deleteSerialNo(input.id);
+			void inventoryEvents.emit("serialNoDeleted", { id: input.id });
+			return result;
+		});
+}
+
+function createListInstallationNotesProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure
+		.input(Inventory.listInstallationNotesSchema)
+		.query(async ({ input }) => {
+			return inventoryService.findInstallationNotes(input);
+		});
+}
+
+function createGetInstallationNoteByIdProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure
+		.input(z.object({ id: z.string().cuid() }))
+		.query(async ({ input }) => {
+			return inventoryService.findInstallationNoteById(input.id);
+		});
+}
+
+function createCreateInstallationNoteProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure
+		.input(Inventory.createInstallationNoteSchema)
+		.mutation(async ({ input }) => {
+			const result = await inventoryService.createInstallationNote(input);
+			void inventoryEvents.emit("installationNoteCreated", result);
+			return result;
+		});
+}
+
+function createUpdateInstallationNoteProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure
+		.input(Inventory.updateInstallationNoteSchema)
+		.mutation(async ({ input }) => {
+			const result = await inventoryService.updateInstallationNote(input);
+			void inventoryEvents.emit("installationNoteUpdated", result);
+			return result;
+		});
+}
+
+function createDeleteInstallationNoteProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure
+		.input(z.object({ id: z.string().cuid() }))
+		.mutation(async ({ input }) => {
+			const result = await inventoryService.deleteInstallationNote(input.id);
+			void inventoryEvents.emit("installationNoteDeleted", { id: input.id });
+			return result;
 		});
 }
 
@@ -599,6 +790,80 @@ const onItemsChangedProcedure = protectedProcedure.subscription(() => {
 		};
 	});
 });
+
+const onSerialNosChangedProcedure = protectedProcedure.subscription(() => {
+	return observable<SerialNosChangedEvent>((emit) => {
+		const onCreated = (data: Inventory.SerialNo) => {
+			emit.next({ type: "created", data });
+		};
+		const onUpdated = (data: Inventory.SerialNo) => {
+			emit.next({ type: "updated", data });
+		};
+		const onDeleted = (data: { id: string }) => {
+			emit.next({ type: "deleted", data });
+		};
+
+		inventoryEvents.on("serialNoCreated", onCreated);
+		inventoryEvents.on("serialNoUpdated", onUpdated);
+		inventoryEvents.on("serialNoDeleted", onDeleted);
+
+		return () => {
+			inventoryEvents.off("serialNoCreated", onCreated);
+			inventoryEvents.off("serialNoUpdated", onUpdated);
+			inventoryEvents.off("serialNoDeleted", onDeleted);
+		};
+	});
+});
+
+const onBatchesChangedProcedure = protectedProcedure.subscription(() => {
+	return observable<BatchesChangedEvent>((emit) => {
+		const onCreated = (data: Inventory.Batch) => {
+			emit.next({ type: "created", data });
+		};
+		const onUpdated = (data: Inventory.Batch) => {
+			emit.next({ type: "updated", data });
+		};
+		const onDeleted = (data: { id: string }) => {
+			emit.next({ type: "deleted", data });
+		};
+
+		inventoryEvents.on("batchCreated", onCreated);
+		inventoryEvents.on("batchUpdated", onUpdated);
+		inventoryEvents.on("batchDeleted", onDeleted);
+
+		return () => {
+			inventoryEvents.off("batchCreated", onCreated);
+			inventoryEvents.off("batchUpdated", onUpdated);
+			inventoryEvents.off("batchDeleted", onDeleted);
+		};
+	});
+});
+
+const onInstallationNotesChangedProcedure = protectedProcedure.subscription(
+	() => {
+		return observable<InstallationNotesChangedEvent>((emit) => {
+			const onCreated = (data: Inventory.InstallationNote) => {
+				emit.next({ type: "created", data });
+			};
+			const onUpdated = (data: Inventory.InstallationNote) => {
+				emit.next({ type: "updated", data });
+			};
+			const onDeleted = (data: { id: string }) => {
+				emit.next({ type: "deleted", data });
+			};
+
+			inventoryEvents.on("installationNoteCreated", onCreated);
+			inventoryEvents.on("installationNoteUpdated", onUpdated);
+			inventoryEvents.on("installationNoteDeleted", onDeleted);
+
+			return () => {
+				inventoryEvents.off("installationNoteCreated", onCreated);
+				inventoryEvents.off("installationNoteUpdated", onUpdated);
+				inventoryEvents.off("installationNoteDeleted", onDeleted);
+			};
+		});
+	},
+);
 
 // ─── Material Request Procedures ────────────────────────────────────────────
 
@@ -1198,6 +1463,38 @@ type InventoryRouterInput = {
 	listItemGroups: ReturnType<typeof createListItemGroupsProcedure>;
 	listUnitsOfMeasure: ReturnType<typeof createListUnitsOfMeasureProcedure>;
 	listWarehouses: ReturnType<typeof createListWarehousesProcedure>;
+	listBatches: ReturnType<typeof createListBatchesProcedure>;
+	getBatchById: ReturnType<typeof createGetBatchByIdProcedure>;
+	createBatch: ReturnType<typeof createCreateBatchProcedure>;
+	updateBatch: ReturnType<typeof createUpdateBatchProcedure>;
+	deleteBatch: ReturnType<typeof createDeleteBatchProcedure>;
+	listSerialNos: ReturnType<typeof createListSerialNosProcedure>;
+	listSerialNoServiceContractExpiry: ReturnType<
+		typeof createListSerialNoServiceContractExpiryProcedure
+	>;
+	listSerialNoWarrantyExpiry: ReturnType<
+		typeof createListSerialNoWarrantyExpiryProcedure
+	>;
+	listSerialNoStatus: ReturnType<typeof createListSerialNoStatusProcedure>;
+	getSerialNoById: ReturnType<typeof createGetSerialNoByIdProcedure>;
+	createSerialNo: ReturnType<typeof createCreateSerialNoProcedure>;
+	updateSerialNo: ReturnType<typeof createUpdateSerialNoProcedure>;
+	deleteSerialNo: ReturnType<typeof createDeleteSerialNoProcedure>;
+	listInstallationNotes: ReturnType<
+		typeof createListInstallationNotesProcedure
+	>;
+	getInstallationNoteById: ReturnType<
+		typeof createGetInstallationNoteByIdProcedure
+	>;
+	createInstallationNote: ReturnType<
+		typeof createCreateInstallationNoteProcedure
+	>;
+	updateInstallationNote: ReturnType<
+		typeof createUpdateInstallationNoteProcedure
+	>;
+	deleteInstallationNote: ReturnType<
+		typeof createDeleteInstallationNoteProcedure
+	>;
 	getWarehouseById: ReturnType<typeof createGetWarehouseByIdProcedure>;
 	createWarehouse: ReturnType<typeof createCreateWarehouseProcedure>;
 	updateWarehouse: ReturnType<typeof createUpdateWarehouseProcedure>;
@@ -1274,6 +1571,9 @@ type InventoryRouterInput = {
 	onItemUpdated: typeof onItemUpdatedProcedure;
 	onItemDeleted: typeof onItemDeletedProcedure;
 	onItemsChanged: typeof onItemsChangedProcedure;
+	onBatchesChanged: typeof onBatchesChangedProcedure;
+	onSerialNosChanged: typeof onSerialNosChangedProcedure;
+	onInstallationNotesChanged: typeof onInstallationNotesChangedProcedure;
 	listMaterialRequests: ReturnType<typeof createListMaterialRequestsProcedure>;
 	getMaterialRequestById: ReturnType<
 		typeof createGetMaterialRequestByIdProcedure
@@ -1370,6 +1670,31 @@ function createInventoryRouterRecord(
 		listItemGroups: createListItemGroupsProcedure(inventoryService),
 		listUnitsOfMeasure: createListUnitsOfMeasureProcedure(inventoryService),
 		listWarehouses: createListWarehousesProcedure(inventoryService),
+		listBatches: createListBatchesProcedure(inventoryService),
+		getBatchById: createGetBatchByIdProcedure(inventoryService),
+		createBatch: createCreateBatchProcedure(inventoryService),
+		updateBatch: createUpdateBatchProcedure(inventoryService),
+		deleteBatch: createDeleteBatchProcedure(inventoryService),
+		listSerialNos: createListSerialNosProcedure(inventoryService),
+		listSerialNoServiceContractExpiry:
+			createListSerialNoServiceContractExpiryProcedure(inventoryService),
+		listSerialNoWarrantyExpiry:
+			createListSerialNoWarrantyExpiryProcedure(inventoryService),
+		listSerialNoStatus: createListSerialNoStatusProcedure(inventoryService),
+		getSerialNoById: createGetSerialNoByIdProcedure(inventoryService),
+		createSerialNo: createCreateSerialNoProcedure(inventoryService),
+		updateSerialNo: createUpdateSerialNoProcedure(inventoryService),
+		deleteSerialNo: createDeleteSerialNoProcedure(inventoryService),
+		listInstallationNotes:
+			createListInstallationNotesProcedure(inventoryService),
+		getInstallationNoteById:
+			createGetInstallationNoteByIdProcedure(inventoryService),
+		createInstallationNote:
+			createCreateInstallationNoteProcedure(inventoryService),
+		updateInstallationNote:
+			createUpdateInstallationNoteProcedure(inventoryService),
+		deleteInstallationNote:
+			createDeleteInstallationNoteProcedure(inventoryService),
 		getWarehouseById: createGetWarehouseByIdProcedure(inventoryService),
 		createWarehouse: createCreateWarehouseProcedure(inventoryService),
 		updateWarehouse: createUpdateWarehouseProcedure(inventoryService),
@@ -1435,6 +1760,9 @@ function createInventoryRouterRecord(
 		onItemUpdated: onItemUpdatedProcedure,
 		onItemDeleted: onItemDeletedProcedure,
 		onItemsChanged: onItemsChangedProcedure,
+		onBatchesChanged: onBatchesChangedProcedure,
+		onSerialNosChanged: onSerialNosChangedProcedure,
+		onInstallationNotesChanged: onInstallationNotesChangedProcedure,
 		listMaterialRequests: createListMaterialRequestsProcedure(inventoryService),
 		getMaterialRequestById:
 			createGetMaterialRequestByIdProcedure(inventoryService),

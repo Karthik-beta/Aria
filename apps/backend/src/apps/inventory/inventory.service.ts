@@ -11,10 +11,13 @@ import { Prisma } from "../../generated/prisma/client";
 // biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
 import { PrismaService } from "../../shared/prisma.service";
 import {
+	type InventoryBatch,
 	itemAlternativeInclude,
+	toInventoryBatch,
 	toInventoryBrand,
 	toInventoryDeliveryNote,
 	toInventoryDeliveryTrip,
+	toInventoryInstallationNote,
 	toInventoryItem,
 	toInventoryItemAlternative,
 	toInventoryItemAttribute,
@@ -25,6 +28,7 @@ import {
 	toInventoryPickList,
 	toInventoryProductBundle,
 	toInventoryPurchaseReceipt,
+	toInventorySerialNo,
 	toInventoryShippingRule,
 	toInventoryStockEntry,
 	toInventoryStockSettings,
@@ -100,6 +104,22 @@ const removeUndefined = <T extends Record<string, unknown>>(obj: T) =>
 	Object.fromEntries(
 		Object.entries(obj).filter(([, value]) => value !== undefined),
 	) as Partial<T>;
+
+const MILLISECONDS_PER_DAY = 1000 * 60 * 60 * 24;
+
+const startOfUtcDay = (value: Date) =>
+	new Date(
+		Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate()),
+	);
+
+const addUtcDays = (value: Date, days: number) =>
+	new Date(value.getTime() + days * MILLISECONDS_PER_DAY);
+
+const diffUtcDays = (from: Date, to: Date) =>
+	Math.round(
+		(startOfUtcDay(to).getTime() - startOfUtcDay(from).getTime()) /
+			MILLISECONDS_PER_DAY,
+	);
 
 const brandSelect = {
 	id: true,
@@ -232,6 +252,162 @@ const itemVariantSettingsSelect = {
 
 const DEFAULT_STOCK_AGEING_BREAKS = [30, 60, 90] as const;
 
+const serialNoInclude = {
+	item: {
+		select: {
+			id: true,
+			code: true,
+			name: true,
+		},
+	},
+	currentWarehouse: {
+		select: {
+			id: true,
+			name: true,
+		},
+	},
+	purchaseReceipt: {
+		select: {
+			id: true,
+			series: true,
+		},
+	},
+	deliveryNote: {
+		select: {
+			id: true,
+			series: true,
+		},
+	},
+	stockEntry: {
+		select: {
+			id: true,
+			series: true,
+		},
+	},
+	pickList: {
+		select: {
+			id: true,
+			series: true,
+		},
+	},
+	history: {
+		include: {
+			warehouse: {
+				select: {
+					id: true,
+					name: true,
+				},
+			},
+		},
+		orderBy: {
+			createdAt: "desc" as const,
+		},
+	},
+} as const satisfies Prisma.SerialNoInclude;
+
+const batchInclude = {
+	item: {
+		select: {
+			id: true,
+			code: true,
+			name: true,
+		},
+	},
+	currentWarehouse: {
+		select: {
+			id: true,
+			name: true,
+		},
+	},
+	purchaseReceipt: {
+		select: {
+			id: true,
+			series: true,
+		},
+	},
+	deliveryNote: {
+		select: {
+			id: true,
+			series: true,
+		},
+	},
+	stockEntry: {
+		select: {
+			id: true,
+			series: true,
+		},
+	},
+} as const;
+
+const installationNoteInclude = {
+	deliveryNote: {
+		select: {
+			id: true,
+			series: true,
+		},
+	},
+	items: {
+		include: {
+			item: {
+				select: {
+					id: true,
+					code: true,
+					name: true,
+				},
+			},
+			serialNo: {
+				select: {
+					id: true,
+					serialNo: true,
+				},
+			},
+		},
+		orderBy: {
+			id: "asc" as const,
+		},
+	},
+} as const satisfies Prisma.InstallationNoteInclude;
+
+type BatchDelegate = {
+	findMany: (args: Record<string, unknown>) => Promise<unknown[]>;
+	findUnique: (args: Record<string, unknown>) => Promise<unknown | null>;
+	create: (args: Record<string, unknown>) => Promise<unknown>;
+	update: (args: Record<string, unknown>) => Promise<unknown>;
+	delete: (args: Record<string, unknown>) => Promise<unknown>;
+	count: (args?: Record<string, unknown>) => Promise<number>;
+};
+
+type BatchCapablePrisma = PrismaService & {
+	batch: BatchDelegate;
+};
+
+type BatchCapableTransactionClient = Prisma.TransactionClient & {
+	batch: BatchDelegate;
+};
+
+const SERIAL_NO_ALLOWED_STATUS_TRANSITIONS: Record<
+	Inventory.SerialNoStatus,
+	readonly Inventory.SerialNoStatus[]
+> = {
+	DRAFT: ["AVAILABLE", "SCRAPPED", "DISPOSED"],
+	AVAILABLE: ["DELIVERED", "INSTALLED", "RETURNED", "SCRAPPED", "DISPOSED"],
+	DELIVERED: ["INSTALLED", "RETURNED", "SCRAPPED", "DISPOSED"],
+	INSTALLED: ["RETURNED", "SCRAPPED", "DISPOSED"],
+	RETURNED: ["AVAILABLE", "SCRAPPED", "DISPOSED"],
+	SCRAPPED: [],
+	DISPOSED: [],
+};
+
+const INSTALLATION_NOTE_ALLOWED_STATUS_TRANSITIONS: Record<
+	Inventory.InstallationNoteStatus,
+	readonly Inventory.InstallationNoteStatus[]
+> = {
+	DRAFT: ["IN_PROGRESS", "COMPLETED", "CANCELLED"],
+	IN_PROGRESS: ["COMPLETED", "CANCELLED"],
+	COMPLETED: [],
+	CANCELLED: [],
+};
+
 function parseStockAgeingBucketRanges(
 	rawRanges?: string,
 ): StockAgeingBucketRange[] {
@@ -272,6 +448,21 @@ function parseStockAgeingBucketRanges(
 			maxAge: null,
 		},
 	];
+}
+
+function normalizeOptionalText(
+	value?: string | null,
+): string | null | undefined {
+	if (value === undefined) {
+		return undefined;
+	}
+
+	if (value === null) {
+		return null;
+	}
+
+	const trimmed = value.trim();
+	return trimmed.length > 0 ? trimmed : null;
 }
 
 type ProductBundleItemInput = {
@@ -336,6 +527,10 @@ export class InventoryService {
 	private readonly logger = new Logger(InventoryService.name);
 
 	constructor(private readonly prisma: PrismaService) {}
+
+	private get batchModel(): BatchDelegate {
+		return (this.prisma as BatchCapablePrisma).batch;
+	}
 
 	/**
 	 * Get all inventory items
@@ -829,6 +1024,1968 @@ export class InventoryService {
 		});
 
 		return warehouse ? toInventoryWarehouse(warehouse) : null;
+	}
+
+	private getBatchOrderBy(
+		sortBy: Inventory.BatchSortBy = "updatedAt",
+		sortDirection: Prisma.SortOrder = "desc",
+	): Record<string, unknown>[] {
+		switch (sortBy) {
+			case "createdAt":
+				return [{ createdAt: sortDirection }, { batchId: "asc" }];
+			case "batchId":
+				return [{ batchId: sortDirection }, { updatedAt: "desc" }];
+			case "itemCode":
+				return [{ item: { code: sortDirection } }, { batchId: "asc" }];
+			case "warehouse":
+				return [
+					{ currentWarehouse: { name: sortDirection } },
+					{ batchId: "asc" },
+				];
+			case "expiryDate":
+				return [{ expiryDate: sortDirection }, { batchId: "asc" }];
+			case "quantity":
+				return [{ quantity: sortDirection }, { batchId: "asc" }];
+			case "company":
+				return [{ company: sortDirection }, { batchId: "asc" }];
+			default:
+				return [{ updatedAt: sortDirection }, { batchId: "asc" }];
+		}
+	}
+
+	private getSerialNoOrderBy(
+		sortBy: Inventory.SerialNoSortBy = "updatedAt",
+		sortDirection: Prisma.SortOrder = "desc",
+	): Prisma.SerialNoOrderByWithRelationInput[] {
+		switch (sortBy) {
+			case "createdAt":
+				return [{ createdAt: sortDirection }, { serialNo: "asc" }];
+			case "serialNo":
+				return [{ serialNo: sortDirection }, { updatedAt: "desc" }];
+			case "itemCode":
+				return [{ item: { code: sortDirection } }, { serialNo: "asc" }];
+			case "warehouse":
+				return [
+					{ currentWarehouse: { name: sortDirection } },
+					{ serialNo: "asc" },
+				];
+			case "status":
+				return [{ status: sortDirection }, { serialNo: "asc" }];
+			case "company":
+				return [{ company: sortDirection }, { serialNo: "asc" }];
+			default:
+				return [{ updatedAt: sortDirection }, { serialNo: "asc" }];
+		}
+	}
+
+	private getSerialNoServiceContractExpiryOrderBy(
+		sortBy: Inventory.SerialNoServiceContractExpirySortBy = "serviceContractExpiryDate",
+		sortDirection: Prisma.SortOrder = "asc",
+	): Prisma.SerialNoOrderByWithRelationInput[] {
+		switch (sortBy) {
+			case "updatedAt":
+				return [{ updatedAt: sortDirection }, { serialNo: "asc" }];
+			case "serialNo":
+				return [{ serialNo: sortDirection }, { updatedAt: "desc" }];
+			case "itemCode":
+				return [{ item: { code: sortDirection } }, { serialNo: "asc" }];
+			case "warehouse":
+				return [
+					{ currentWarehouse: { name: sortDirection } },
+					{ serialNo: "asc" },
+				];
+			case "status":
+				return [{ status: sortDirection }, { serialNo: "asc" }];
+			case "company":
+				return [{ company: sortDirection }, { serialNo: "asc" }];
+			default:
+				return [
+					{ serviceContractExpiryDate: sortDirection },
+					{ serialNo: "asc" },
+				];
+		}
+	}
+
+	private getSerialNoWarrantyExpiryOrderBy(
+		sortBy: Inventory.SerialNoWarrantyExpirySortBy = "warrantyExpiryDate",
+		sortDirection: Prisma.SortOrder = "asc",
+	): Prisma.SerialNoOrderByWithRelationInput[] {
+		switch (sortBy) {
+			case "updatedAt":
+				return [{ updatedAt: sortDirection }, { serialNo: "asc" }];
+			case "serialNo":
+				return [{ serialNo: sortDirection }, { updatedAt: "desc" }];
+			case "itemCode":
+				return [{ item: { code: sortDirection } }, { serialNo: "asc" }];
+			case "warehouse":
+				return [
+					{ currentWarehouse: { name: sortDirection } },
+					{ serialNo: "asc" },
+				];
+			case "status":
+				return [{ status: sortDirection }, { serialNo: "asc" }];
+			case "company":
+				return [{ company: sortDirection }, { serialNo: "asc" }];
+			default:
+				return [{ warrantyExpiryDate: sortDirection }, { serialNo: "asc" }];
+		}
+	}
+
+	private getSerialNoStatusOrderBy(
+		sortBy: Inventory.SerialNoStatusSortBy = "updatedAt",
+		sortDirection: Prisma.SortOrder = "desc",
+	): Prisma.SerialNoOrderByWithRelationInput[] {
+		switch (sortBy) {
+			case "createdAt":
+				return [{ createdAt: sortDirection }, { serialNo: "asc" }];
+			case "serialNo":
+				return [{ serialNo: sortDirection }, { updatedAt: "desc" }];
+			case "itemCode":
+				return [{ item: { code: sortDirection } }, { serialNo: "asc" }];
+			case "warehouse":
+				return [
+					{ currentWarehouse: { name: sortDirection } },
+					{ serialNo: "asc" },
+				];
+			case "status":
+				return [{ status: sortDirection }, { serialNo: "asc" }];
+			case "company":
+				return [{ company: sortDirection }, { serialNo: "asc" }];
+			default:
+				return [{ updatedAt: sortDirection }, { serialNo: "asc" }];
+		}
+	}
+
+	private getSerialNoCurrentStatusChangedAt(
+		serialNo: Inventory.SerialNo,
+	): Date {
+		const matchingHistoryEntry =
+			serialNo.history.find((entry) => entry.toStatus === serialNo.status) ??
+			serialNo.history.find((entry) => entry.eventType === "CREATED");
+
+		return matchingHistoryEntry?.createdAt ?? serialNo.updatedAt;
+	}
+
+	private assertSerialNoStatusTransition(
+		fromStatus: Inventory.SerialNoStatus,
+		toStatus: Inventory.SerialNoStatus,
+	): void {
+		if (fromStatus === toStatus) {
+			return;
+		}
+
+		const allowedTransitions = SERIAL_NO_ALLOWED_STATUS_TRANSITIONS[fromStatus];
+		if (!allowedTransitions.includes(toStatus)) {
+			throw new BadRequestException(
+				`Cannot change serial number status from ${fromStatus} to ${toStatus}`,
+			);
+		}
+	}
+
+	private getInstallationNoteOrderBy(
+		sortBy: Inventory.InstallationNoteSortBy = "updatedAt",
+		sortDirection: Prisma.SortOrder = "desc",
+	): Prisma.InstallationNoteOrderByWithRelationInput[] {
+		switch (sortBy) {
+			case "createdAt":
+				return [{ createdAt: sortDirection }, { series: "asc" }];
+			case "series":
+				return [{ series: sortDirection }, { updatedAt: "desc" }];
+			case "installationDate":
+				return [{ installationDate: sortDirection }, { series: "asc" }];
+			case "customer":
+				return [{ customer: sortDirection }, { series: "asc" }];
+			case "status":
+				return [{ status: sortDirection }, { series: "asc" }];
+			case "company":
+				return [{ company: sortDirection }, { series: "asc" }];
+			default:
+				return [{ updatedAt: sortDirection }, { series: "asc" }];
+		}
+	}
+
+	private assertInstallationNoteStatusTransition(
+		fromStatus: Inventory.InstallationNoteStatus,
+		toStatus: Inventory.InstallationNoteStatus,
+	): void {
+		if (fromStatus === toStatus) {
+			return;
+		}
+
+		const allowedTransitions =
+			INSTALLATION_NOTE_ALLOWED_STATUS_TRANSITIONS[fromStatus];
+		if (!allowedTransitions.includes(toStatus)) {
+			throw new BadRequestException(
+				`Cannot change installation note status from ${fromStatus} to ${toStatus}`,
+			);
+		}
+	}
+
+	private buildSerialNoTransactionLabel(input: {
+		purchaseReceiptSeries?: string | null;
+		deliveryNoteSeries?: string | null;
+		stockEntrySeries?: string | null;
+		pickListSeries?: string | null;
+		installationNoteSeries?: string | null;
+	}): string | null {
+		if (input.purchaseReceiptSeries) {
+			return `Purchase Receipt ${input.purchaseReceiptSeries}`;
+		}
+		if (input.deliveryNoteSeries) {
+			return `Delivery Note ${input.deliveryNoteSeries}`;
+		}
+		if (input.stockEntrySeries) {
+			return `Stock Entry ${input.stockEntrySeries}`;
+		}
+		if (input.pickListSeries) {
+			return `Pick List ${input.pickListSeries}`;
+		}
+		if (input.installationNoteSeries) {
+			return `Installation Note ${input.installationNoteSeries}`;
+		}
+
+		return null;
+	}
+
+	private async validateBatchRelationships(
+		tx: BatchCapableTransactionClient,
+		input: Pick<
+			Inventory.CreateBatchInput,
+			| "itemId"
+			| "company"
+			| "currentWarehouseId"
+			| "purchaseReceiptId"
+			| "deliveryNoteId"
+			| "stockEntryId"
+			| "quantity"
+		>,
+	): Promise<{
+		item: { id: string; code: string; name: string };
+		currentWarehouse?: {
+			id: string;
+			name: string;
+			company: string;
+			disabled: boolean;
+		} | null;
+		purchaseReceipt?: { id: string; series: string; company: string } | null;
+		deliveryNote?: { id: string; series: string; company: string } | null;
+		stockEntry?: { id: string; series: string; company: string } | null;
+	}> {
+		const item = await tx.inventoryItem.findUnique({
+			where: { id: input.itemId },
+			select: {
+				id: true,
+				code: true,
+				name: true,
+				hasBatchNo: true,
+				disabled: true,
+			},
+		});
+
+		if (!item) {
+			throw new NotFoundException(`Item with ID ${input.itemId} not found`);
+		}
+
+		if (!item.hasBatchNo) {
+			throw new BadRequestException(
+				`Item ${item.code} is not configured to track batches`,
+			);
+		}
+
+		if (item.disabled) {
+			throw new BadRequestException(
+				`Item ${item.code} cannot be used because it is disabled`,
+			);
+		}
+
+		let currentWarehouse:
+			| { id: string; name: string; company: string; disabled: boolean }
+			| null
+			| undefined;
+		if (input.currentWarehouseId) {
+			currentWarehouse = await tx.warehouse.findUnique({
+				where: { id: input.currentWarehouseId },
+				select: {
+					id: true,
+					name: true,
+					company: true,
+					disabled: true,
+				},
+			});
+
+			if (!currentWarehouse) {
+				throw new NotFoundException(
+					`Warehouse with ID ${input.currentWarehouseId} not found`,
+				);
+			}
+
+			if (currentWarehouse.disabled) {
+				throw new BadRequestException(
+					`Warehouse ${currentWarehouse.name} cannot be used because it is disabled`,
+				);
+			}
+
+			if (currentWarehouse.company !== input.company) {
+				throw new BadRequestException(
+					"Warehouse company must match the batch company",
+				);
+			}
+		}
+
+		let purchaseReceipt:
+			| { id: string; series: string; company: string }
+			| null
+			| undefined;
+		if (input.purchaseReceiptId) {
+			const receipt = await tx.purchaseReceipt.findUnique({
+				where: { id: input.purchaseReceiptId },
+				select: {
+					id: true,
+					series: true,
+					company: true,
+					items: {
+						where: { itemCode: item.code },
+						select: { id: true },
+						take: 1,
+					},
+				},
+			});
+
+			if (!receipt) {
+				throw new NotFoundException(
+					`Purchase receipt with ID ${input.purchaseReceiptId} not found`,
+				);
+			}
+
+			if (receipt.company !== input.company) {
+				throw new BadRequestException(
+					"Purchase receipt company must match the batch company",
+				);
+			}
+
+			if (receipt.items.length === 0) {
+				throw new BadRequestException(
+					`Purchase receipt ${receipt.series} does not contain item ${item.code}`,
+				);
+			}
+
+			purchaseReceipt = {
+				id: receipt.id,
+				series: receipt.series,
+				company: receipt.company,
+			};
+		}
+
+		let deliveryNote:
+			| { id: string; series: string; company: string }
+			| null
+			| undefined;
+		if (input.deliveryNoteId) {
+			const note = await tx.deliveryNote.findUnique({
+				where: { id: input.deliveryNoteId },
+				select: {
+					id: true,
+					series: true,
+					company: true,
+					items: {
+						where: { itemCode: item.code },
+						select: { id: true },
+						take: 1,
+					},
+				},
+			});
+
+			if (!note) {
+				throw new NotFoundException(
+					`Delivery note with ID ${input.deliveryNoteId} not found`,
+				);
+			}
+
+			if (note.company !== input.company) {
+				throw new BadRequestException(
+					"Delivery note company must match the batch company",
+				);
+			}
+
+			if (note.items.length === 0) {
+				throw new BadRequestException(
+					`Delivery note ${note.series} does not contain item ${item.code}`,
+				);
+			}
+
+			deliveryNote = {
+				id: note.id,
+				series: note.series,
+				company: note.company,
+			};
+		}
+
+		let stockEntry:
+			| { id: string; series: string; company: string }
+			| null
+			| undefined;
+		if (input.stockEntryId) {
+			const entry = await tx.stockEntry.findUnique({
+				where: { id: input.stockEntryId },
+				select: {
+					id: true,
+					series: true,
+					company: true,
+					items: {
+						where: { itemCode: item.code },
+						select: { id: true },
+						take: 1,
+					},
+				},
+			});
+
+			if (!entry) {
+				throw new NotFoundException(
+					`Stock entry with ID ${input.stockEntryId} not found`,
+				);
+			}
+
+			if (entry.company !== input.company) {
+				throw new BadRequestException(
+					"Stock entry company must match the batch company",
+				);
+			}
+
+			if (entry.items.length === 0) {
+				throw new BadRequestException(
+					`Stock entry ${entry.series} does not contain item ${item.code}`,
+				);
+			}
+
+			stockEntry = {
+				id: entry.id,
+				series: entry.series,
+				company: entry.company,
+			};
+		}
+
+		if ((input.quantity ?? 0) > 0 && !currentWarehouse) {
+			throw new BadRequestException(
+				"A current warehouse is required when the batch quantity is greater than zero",
+			);
+		}
+
+		return {
+			item: { id: item.id, code: item.code, name: item.name },
+			currentWarehouse: currentWarehouse
+				? {
+						id: currentWarehouse.id,
+						name: currentWarehouse.name,
+						company: currentWarehouse.company,
+						disabled: currentWarehouse.disabled,
+					}
+				: null,
+			purchaseReceipt,
+			deliveryNote,
+			stockEntry,
+		};
+	}
+
+	private async validateSerialNoRelationships(
+		tx: Prisma.TransactionClient,
+		input: Pick<
+			Inventory.CreateSerialNoInput,
+			| "itemId"
+			| "company"
+			| "currentWarehouseId"
+			| "purchaseReceiptId"
+			| "deliveryNoteId"
+			| "stockEntryId"
+			| "pickListId"
+			| "status"
+		>,
+	): Promise<{
+		item: { id: string; code: string; name: string };
+		currentWarehouse?: {
+			id: string;
+			name: string;
+			company: string;
+			disabled: boolean;
+		} | null;
+		purchaseReceipt?: { id: string; series: string; company: string } | null;
+		deliveryNote?: { id: string; series: string; company: string } | null;
+		stockEntry?: { id: string; series: string; company: string } | null;
+		pickList?: { id: string; series: string; company: string } | null;
+	}> {
+		const item = await tx.inventoryItem.findUnique({
+			where: { id: input.itemId },
+			select: {
+				id: true,
+				code: true,
+				name: true,
+				hasSerialNo: true,
+				disabled: true,
+			},
+		});
+
+		if (!item) {
+			throw new NotFoundException(`Item with ID ${input.itemId} not found`);
+		}
+
+		if (!item.hasSerialNo) {
+			throw new BadRequestException(
+				`Item ${item.code} is not configured to track serial numbers`,
+			);
+		}
+
+		if (item.disabled) {
+			throw new BadRequestException(
+				`Item ${item.code} cannot be used because it is disabled`,
+			);
+		}
+
+		let currentWarehouse:
+			| { id: string; name: string; company: string; disabled: boolean }
+			| null
+			| undefined;
+		if (input.currentWarehouseId) {
+			currentWarehouse = await tx.warehouse.findUnique({
+				where: { id: input.currentWarehouseId },
+				select: {
+					id: true,
+					name: true,
+					company: true,
+					disabled: true,
+				},
+			});
+
+			if (!currentWarehouse) {
+				throw new NotFoundException(
+					`Warehouse with ID ${input.currentWarehouseId} not found`,
+				);
+			}
+
+			if (currentWarehouse.disabled) {
+				throw new BadRequestException(
+					`Warehouse ${currentWarehouse.name} cannot be used because it is disabled`,
+				);
+			}
+
+			if (currentWarehouse.company !== input.company) {
+				throw new BadRequestException(
+					"Warehouse company must match the serial number company",
+				);
+			}
+		}
+
+		let purchaseReceipt:
+			| { id: string; series: string; company: string }
+			| null
+			| undefined;
+		if (input.purchaseReceiptId) {
+			const receipt = await tx.purchaseReceipt.findUnique({
+				where: { id: input.purchaseReceiptId },
+				select: {
+					id: true,
+					series: true,
+					company: true,
+					items: {
+						where: {
+							itemCode: item.code,
+						},
+						select: {
+							id: true,
+						},
+						take: 1,
+					},
+				},
+			});
+
+			if (!receipt) {
+				throw new NotFoundException(
+					`Purchase receipt with ID ${input.purchaseReceiptId} not found`,
+				);
+			}
+
+			if (receipt.company !== input.company) {
+				throw new BadRequestException(
+					"Purchase receipt company must match the serial number company",
+				);
+			}
+
+			if (receipt.items.length === 0) {
+				throw new BadRequestException(
+					`Purchase receipt ${receipt.series} does not contain item ${item.code}`,
+				);
+			}
+
+			purchaseReceipt = {
+				id: receipt.id,
+				series: receipt.series,
+				company: receipt.company,
+			};
+		}
+
+		let deliveryNote:
+			| { id: string; series: string; company: string }
+			| null
+			| undefined;
+		if (input.deliveryNoteId) {
+			const note = await tx.deliveryNote.findUnique({
+				where: { id: input.deliveryNoteId },
+				select: {
+					id: true,
+					series: true,
+					company: true,
+					items: {
+						where: {
+							itemCode: item.code,
+						},
+						select: {
+							id: true,
+						},
+						take: 1,
+					},
+				},
+			});
+
+			if (!note) {
+				throw new NotFoundException(
+					`Delivery note with ID ${input.deliveryNoteId} not found`,
+				);
+			}
+
+			if (note.company !== input.company) {
+				throw new BadRequestException(
+					"Delivery note company must match the serial number company",
+				);
+			}
+
+			if (note.items.length === 0) {
+				throw new BadRequestException(
+					`Delivery note ${note.series} does not contain item ${item.code}`,
+				);
+			}
+
+			deliveryNote = {
+				id: note.id,
+				series: note.series,
+				company: note.company,
+			};
+		}
+
+		let stockEntry:
+			| { id: string; series: string; company: string }
+			| null
+			| undefined;
+		if (input.stockEntryId) {
+			const entry = await tx.stockEntry.findUnique({
+				where: { id: input.stockEntryId },
+				select: {
+					id: true,
+					series: true,
+					company: true,
+					items: {
+						where: {
+							itemCode: item.code,
+						},
+						select: {
+							id: true,
+						},
+						take: 1,
+					},
+				},
+			});
+
+			if (!entry) {
+				throw new NotFoundException(
+					`Stock entry with ID ${input.stockEntryId} not found`,
+				);
+			}
+
+			if (entry.company !== input.company) {
+				throw new BadRequestException(
+					"Stock entry company must match the serial number company",
+				);
+			}
+
+			if (entry.items.length === 0) {
+				throw new BadRequestException(
+					`Stock entry ${entry.series} does not contain item ${item.code}`,
+				);
+			}
+
+			stockEntry = {
+				id: entry.id,
+				series: entry.series,
+				company: entry.company,
+			};
+		}
+
+		let pickList:
+			| { id: string; series: string; company: string }
+			| null
+			| undefined;
+		if (input.pickListId) {
+			const list = await tx.pickList.findUnique({
+				where: { id: input.pickListId },
+				select: {
+					id: true,
+					series: true,
+					company: true,
+					items: {
+						where: {
+							item: item.code,
+						},
+						select: {
+							id: true,
+						},
+						take: 1,
+					},
+				},
+			});
+
+			if (!list) {
+				throw new NotFoundException(
+					`Pick list with ID ${input.pickListId} not found`,
+				);
+			}
+
+			if (list.company !== input.company) {
+				throw new BadRequestException(
+					"Pick list company must match the serial number company",
+				);
+			}
+
+			if (list.items.length === 0) {
+				throw new BadRequestException(
+					`Pick list ${list.series} does not contain item ${item.code}`,
+				);
+			}
+
+			pickList = {
+				id: list.id,
+				series: list.series,
+				company: list.company,
+			};
+		}
+
+		const effectiveStatus = input.status ?? "DRAFT";
+		if (
+			(effectiveStatus === "AVAILABLE" || effectiveStatus === "RETURNED") &&
+			!currentWarehouse
+		) {
+			throw new BadRequestException(
+				"Available or returned serial numbers must have a current warehouse",
+			);
+		}
+
+		return {
+			item: { id: item.id, code: item.code, name: item.name },
+			currentWarehouse: currentWarehouse
+				? {
+						id: currentWarehouse.id,
+						name: currentWarehouse.name,
+						company: currentWarehouse.company,
+						disabled: currentWarehouse.disabled,
+					}
+				: null,
+			purchaseReceipt,
+			deliveryNote,
+			stockEntry,
+			pickList,
+		};
+	}
+
+	/**
+	 * Get batches with bounded filters and pagination.
+	 */
+	async findBatches(
+		params?: Inventory.ListBatchesInput,
+	): Promise<Inventory.BatchListResult> {
+		const rawSkip = params?.skip ?? 0;
+		const rawTake = params?.take ?? LIST_QUERY_TAKE_MAX;
+		const skip = rawSkip < 0 ? 0 : rawSkip;
+		const take =
+			rawTake <= 0
+				? 1
+				: rawTake > LIST_QUERY_TAKE_MAX
+					? LIST_QUERY_TAKE_MAX
+					: rawTake;
+		const search = params?.search?.trim();
+		const company = params?.company?.trim();
+		const includeDisabled = params?.includeDisabled ?? false;
+		const sortDirection: Prisma.SortOrder =
+			params?.sortDirection === "asc" ? "asc" : "desc";
+
+		const now = new Date();
+		const whereClauses: Record<string, unknown>[] = [];
+
+		if (search) {
+			whereClauses.push({
+				OR: [
+					{ batchId: { contains: search, mode: "insensitive" } },
+					{ company: { contains: search, mode: "insensitive" } },
+					{ description: { contains: search, mode: "insensitive" } },
+					{ item: { code: { contains: search, mode: "insensitive" } } },
+					{ item: { name: { contains: search, mode: "insensitive" } } },
+					{
+						currentWarehouse: {
+							name: { contains: search, mode: "insensitive" },
+						},
+					},
+				],
+			});
+		}
+
+		if (params?.itemId) {
+			whereClauses.push({ itemId: params.itemId });
+		}
+
+		if (params?.warehouseId) {
+			whereClauses.push({ currentWarehouseId: params.warehouseId });
+		}
+
+		if (company) {
+			whereClauses.push({
+				company: {
+					contains: company,
+					mode: "insensitive",
+				},
+			});
+		}
+
+		if (!includeDisabled) {
+			whereClauses.push({ isDisabled: false });
+		}
+
+		switch (params?.status) {
+			case "ACTIVE":
+				whereClauses.push({
+					isDisabled: false,
+					quantity: { gt: 0 },
+					OR: [{ expiryDate: null }, { expiryDate: { gte: now } }],
+				});
+				break;
+			case "EMPTY":
+				whereClauses.push({ isDisabled: false, quantity: { lte: 0 } });
+				break;
+			case "EXPIRED":
+				whereClauses.push({
+					isDisabled: false,
+					expiryDate: { lt: now },
+				});
+				break;
+			case "DISABLED":
+				whereClauses.push({ isDisabled: true });
+				break;
+			default:
+				break;
+		}
+
+		const where: Record<string, unknown> | undefined =
+			whereClauses.length === 0
+				? undefined
+				: whereClauses.length === 1
+					? whereClauses[0]
+					: { AND: whereClauses };
+
+		const [items, totalCount] = await Promise.all([
+			this.batchModel.findMany({
+				where,
+				include: batchInclude,
+				orderBy: this.getBatchOrderBy(params?.sortBy, sortDirection),
+				skip,
+				take,
+			}),
+			this.batchModel.count({ where }),
+		]);
+
+		return {
+			items: (items as InventoryBatch[]).map(toInventoryBatch),
+			totalCount,
+		};
+	}
+
+	async findBatchById(id: string): Promise<Inventory.Batch | null> {
+		const batch = await this.batchModel.findUnique({
+			where: { id },
+			include: batchInclude,
+		});
+
+		return batch ? toInventoryBatch(batch as InventoryBatch) : null;
+	}
+
+	async createBatch(
+		data: z.infer<typeof Inventory.createBatchSchema>,
+	): Promise<Inventory.Batch> {
+		try {
+			const created = await this.prisma.$transaction(async (rawTx) => {
+				const tx = rawTx as BatchCapableTransactionClient;
+
+				await this.validateBatchRelationships(tx, {
+					itemId: data.itemId,
+					company: data.company,
+					currentWarehouseId: data.currentWarehouseId ?? null,
+					purchaseReceiptId: data.purchaseReceiptId ?? null,
+					deliveryNoteId: data.deliveryNoteId ?? null,
+					stockEntryId: data.stockEntryId ?? null,
+					quantity: data.quantity ?? 0,
+				});
+
+				return tx.batch.create({
+					data: {
+						batchId: data.batchId,
+						itemId: data.itemId,
+						company: data.company,
+						currentWarehouseId: data.currentWarehouseId ?? null,
+						purchaseReceiptId: data.purchaseReceiptId ?? null,
+						deliveryNoteId: data.deliveryNoteId ?? null,
+						stockEntryId: data.stockEntryId ?? null,
+						useBatchWiseValuation: data.useBatchWiseValuation ?? false,
+						manufacturingDate: data.manufacturingDate ?? null,
+						expiryDate: data.expiryDate ?? null,
+						description: normalizeOptionalText(data.description),
+						quantity: data.quantity ?? 0,
+						isDisabled: data.isDisabled ?? false,
+					},
+					include: batchInclude,
+				});
+			});
+
+			return toInventoryBatch(created as InventoryBatch);
+		} catch (error) {
+			if (
+				error instanceof Prisma.PrismaClientKnownRequestError &&
+				error.code === "P2002"
+			) {
+				throw new ConflictException(`Batch ${data.batchId} already exists`);
+			}
+
+			throw error;
+		}
+	}
+
+	async updateBatch(
+		data: z.infer<typeof Inventory.updateBatchSchema>,
+	): Promise<Inventory.Batch> {
+		const existing = (await this.batchModel.findUnique({
+			where: { id: data.id },
+			select: {
+				id: true,
+				batchId: true,
+				itemId: true,
+				company: true,
+				currentWarehouseId: true,
+				purchaseReceiptId: true,
+				deliveryNoteId: true,
+				stockEntryId: true,
+				useBatchWiseValuation: true,
+				manufacturingDate: true,
+				expiryDate: true,
+				description: true,
+				quantity: true,
+				isDisabled: true,
+			},
+		})) as {
+			id: string;
+			batchId: string;
+			itemId: string;
+			company: string;
+			currentWarehouseId: string | null;
+			purchaseReceiptId: string | null;
+			deliveryNoteId: string | null;
+			stockEntryId: string | null;
+			useBatchWiseValuation: boolean;
+			manufacturingDate: Date | null;
+			expiryDate: Date | null;
+			description: string | null;
+			quantity: number;
+			isDisabled: boolean;
+		} | null;
+
+		if (!existing) {
+			throw new NotFoundException(`Batch with ID ${data.id} not found`);
+		}
+
+		const nextQuantity = data.quantity ?? existing.quantity;
+		const nextWarehouseId =
+			data.currentWarehouseId !== undefined
+				? data.currentWarehouseId
+				: existing.currentWarehouseId;
+		const itemChanged =
+			data.itemId !== undefined && data.itemId !== existing.itemId;
+		const warehouseChanged =
+			data.currentWarehouseId !== undefined &&
+			data.currentWarehouseId !== existing.currentWarehouseId;
+
+		if (existing.quantity > 0 && (itemChanged || warehouseChanged)) {
+			throw new BadRequestException(
+				"Item and warehouse cannot be changed while the batch still has quantity on hand",
+			);
+		}
+
+		try {
+			const updated = await this.prisma.$transaction(async (rawTx) => {
+				const tx = rawTx as BatchCapableTransactionClient;
+
+				await this.validateBatchRelationships(tx, {
+					itemId: data.itemId ?? existing.itemId,
+					company: data.company ?? existing.company,
+					currentWarehouseId: nextWarehouseId,
+					purchaseReceiptId:
+						data.purchaseReceiptId !== undefined
+							? data.purchaseReceiptId
+							: existing.purchaseReceiptId,
+					deliveryNoteId:
+						data.deliveryNoteId !== undefined
+							? data.deliveryNoteId
+							: existing.deliveryNoteId,
+					stockEntryId:
+						data.stockEntryId !== undefined
+							? data.stockEntryId
+							: existing.stockEntryId,
+					quantity: nextQuantity,
+				});
+
+				return tx.batch.update({
+					where: { id: data.id },
+					data: {
+						...(data.batchId !== undefined && { batchId: data.batchId }),
+						...(data.itemId !== undefined && { itemId: data.itemId }),
+						...(data.company !== undefined && { company: data.company }),
+						...(data.currentWarehouseId !== undefined && {
+							currentWarehouseId: data.currentWarehouseId,
+						}),
+						...(data.purchaseReceiptId !== undefined && {
+							purchaseReceiptId: data.purchaseReceiptId,
+						}),
+						...(data.deliveryNoteId !== undefined && {
+							deliveryNoteId: data.deliveryNoteId,
+						}),
+						...(data.stockEntryId !== undefined && {
+							stockEntryId: data.stockEntryId,
+						}),
+						...(data.useBatchWiseValuation !== undefined && {
+							useBatchWiseValuation: data.useBatchWiseValuation,
+						}),
+						...(data.manufacturingDate !== undefined && {
+							manufacturingDate: data.manufacturingDate,
+						}),
+						...(data.expiryDate !== undefined && {
+							expiryDate: data.expiryDate,
+						}),
+						...(data.description !== undefined && {
+							description: normalizeOptionalText(data.description),
+						}),
+						...(data.quantity !== undefined && { quantity: data.quantity }),
+						...(data.isDisabled !== undefined && {
+							isDisabled: data.isDisabled,
+						}),
+					},
+					include: batchInclude,
+				});
+			});
+
+			return toInventoryBatch(updated as InventoryBatch);
+		} catch (error) {
+			if (
+				error instanceof Prisma.PrismaClientKnownRequestError &&
+				error.code === "P2002"
+			) {
+				throw new ConflictException(
+					`Batch ${data.batchId ?? existing.batchId} already exists`,
+				);
+			}
+
+			throw error;
+		}
+	}
+
+	async deleteBatch(id: string): Promise<{ success: boolean; id: string }> {
+		const existing = (await this.batchModel.findUnique({
+			where: { id },
+			select: {
+				id: true,
+				quantity: true,
+				purchaseReceiptId: true,
+				deliveryNoteId: true,
+				stockEntryId: true,
+			},
+		})) as {
+			id: string;
+			quantity: number;
+			purchaseReceiptId: string | null;
+			deliveryNoteId: string | null;
+			stockEntryId: string | null;
+		} | null;
+
+		if (!existing) {
+			throw new NotFoundException(`Batch with ID ${id} not found`);
+		}
+
+		if (existing.quantity > 0) {
+			throw new BadRequestException(
+				"Batch cannot be deleted because stock still exists for it",
+			);
+		}
+
+		if (
+			existing.purchaseReceiptId ||
+			existing.deliveryNoteId ||
+			existing.stockEntryId
+		) {
+			throw new BadRequestException(
+				"Batch cannot be deleted because it is linked to inventory transactions",
+			);
+		}
+
+		await this.batchModel.delete({
+			where: { id },
+		});
+
+		return { success: true, id };
+	}
+
+	/**
+	 * Get serial numbers with bounded filters and pagination.
+	 */
+	async findSerialNos(
+		params?: Inventory.ListSerialNosInput,
+	): Promise<Inventory.SerialNoListResult> {
+		const rawSkip = params?.skip ?? 0;
+		const rawTake = params?.take ?? LIST_QUERY_TAKE_MAX;
+		const skip = rawSkip < 0 ? 0 : rawSkip;
+		const take =
+			rawTake <= 0
+				? 1
+				: rawTake > LIST_QUERY_TAKE_MAX
+					? LIST_QUERY_TAKE_MAX
+					: rawTake;
+		const search = params?.search?.trim();
+		const company = params?.company?.trim();
+		const includeDisabled = params?.includeDisabled ?? false;
+		const sortDirection: Prisma.SortOrder =
+			params?.sortDirection === "asc" ? "asc" : "desc";
+
+		const whereClauses: Prisma.SerialNoWhereInput[] = [];
+
+		if (search) {
+			whereClauses.push({
+				OR: [
+					{ serialNo: { contains: search, mode: "insensitive" } },
+					{ company: { contains: search, mode: "insensitive" } },
+					{ notes: { contains: search, mode: "insensitive" } },
+					{ maintenanceStatus: { contains: search, mode: "insensitive" } },
+					{ workOrder: { contains: search, mode: "insensitive" } },
+					{ item: { code: { contains: search, mode: "insensitive" } } },
+					{ item: { name: { contains: search, mode: "insensitive" } } },
+					{
+						currentWarehouse: {
+							name: { contains: search, mode: "insensitive" },
+						},
+					},
+				],
+			});
+		}
+
+		if (params?.itemId) {
+			whereClauses.push({ itemId: params.itemId });
+		}
+
+		if (params?.warehouseId) {
+			whereClauses.push({ currentWarehouseId: params.warehouseId });
+		}
+
+		if (params?.deliveryNoteId) {
+			whereClauses.push({ deliveryNoteId: params.deliveryNoteId });
+		}
+
+		if (company) {
+			whereClauses.push({
+				company: {
+					contains: company,
+					mode: "insensitive",
+				},
+			});
+		}
+
+		if (params?.status) {
+			whereClauses.push({ status: params.status });
+		}
+
+		if (!includeDisabled) {
+			whereClauses.push({ isDisabled: false });
+		}
+
+		const where: Prisma.SerialNoWhereInput | undefined =
+			whereClauses.length === 0
+				? undefined
+				: whereClauses.length === 1
+					? whereClauses[0]
+					: { AND: whereClauses };
+
+		const [items, totalCount] = await this.prisma.$transaction([
+			this.prisma.serialNo.findMany({
+				where,
+				include: serialNoInclude,
+				orderBy: this.getSerialNoOrderBy(params?.sortBy, sortDirection),
+				skip,
+				take,
+			}),
+			this.prisma.serialNo.count({ where }),
+		]);
+
+		return {
+			items: items.map(toInventorySerialNo),
+			totalCount,
+		};
+	}
+
+	async findSerialNoStatus(
+		params?: Inventory.ListSerialNoStatusInput,
+	): Promise<Inventory.SerialNoStatusListResult> {
+		const rawSkip = params?.skip ?? 0;
+		const rawTake = params?.take ?? LIST_QUERY_TAKE_MAX;
+		const skip = rawSkip < 0 ? 0 : rawSkip;
+		const take =
+			rawTake <= 0
+				? 1
+				: rawTake > LIST_QUERY_TAKE_MAX
+					? LIST_QUERY_TAKE_MAX
+					: rawTake;
+		const search = params?.search?.trim();
+		const company = params?.company?.trim();
+		const includeDisabled = params?.includeDisabled ?? false;
+		const sortDirection: Prisma.SortOrder =
+			params?.sortDirection === "asc" ? "asc" : "desc";
+		const today = startOfUtcDay(new Date());
+
+		const whereClauses: Prisma.SerialNoWhereInput[] = [];
+
+		if (search) {
+			whereClauses.push({
+				OR: [
+					{ serialNo: { contains: search, mode: "insensitive" } },
+					{ company: { contains: search, mode: "insensitive" } },
+					{ notes: { contains: search, mode: "insensitive" } },
+					{ maintenanceStatus: { contains: search, mode: "insensitive" } },
+					{ workOrder: { contains: search, mode: "insensitive" } },
+					{ item: { code: { contains: search, mode: "insensitive" } } },
+					{ item: { name: { contains: search, mode: "insensitive" } } },
+					{
+						currentWarehouse: {
+							name: { contains: search, mode: "insensitive" },
+						},
+					},
+				],
+			});
+		}
+
+		if (params?.itemId) {
+			whereClauses.push({ itemId: params.itemId });
+		}
+
+		if (params?.warehouseId) {
+			whereClauses.push({ currentWarehouseId: params.warehouseId });
+		}
+
+		if (company) {
+			whereClauses.push({
+				company: {
+					contains: company,
+					mode: "insensitive",
+				},
+			});
+		}
+
+		if (params?.status) {
+			whereClauses.push({ status: params.status });
+		}
+
+		if (!includeDisabled) {
+			whereClauses.push({ isDisabled: false });
+		}
+
+		const where: Prisma.SerialNoWhereInput | undefined =
+			whereClauses.length === 0
+				? undefined
+				: whereClauses.length === 1
+					? whereClauses[0]
+					: { AND: whereClauses };
+
+		const [items, totalCount] = await this.prisma.$transaction([
+			this.prisma.serialNo.findMany({
+				where,
+				include: serialNoInclude,
+				orderBy: this.getSerialNoStatusOrderBy(params?.sortBy, sortDirection),
+				skip,
+				take,
+			}),
+			this.prisma.serialNo.count({ where }),
+		]);
+
+		return {
+			items: items.map((serialNo) => {
+				const base = toInventorySerialNo(serialNo);
+				const lastStatusChangedAt =
+					this.getSerialNoCurrentStatusChangedAt(base);
+
+				return {
+					...base,
+					lastStatusChangedAt,
+					daysInCurrentStatus: diffUtcDays(lastStatusChangedAt, today),
+				};
+			}),
+			totalCount,
+		};
+	}
+
+	async findSerialNoServiceContractExpiry(
+		params?: Inventory.ListSerialNoServiceContractExpiryInput,
+	): Promise<Inventory.SerialNoServiceContractExpiryListResult> {
+		const rawSkip = params?.skip ?? 0;
+		const rawTake = params?.take ?? LIST_QUERY_TAKE_MAX;
+		const skip = rawSkip < 0 ? 0 : rawSkip;
+		const take =
+			rawTake <= 0
+				? 1
+				: rawTake > LIST_QUERY_TAKE_MAX
+					? LIST_QUERY_TAKE_MAX
+					: rawTake;
+		const search = params?.search?.trim();
+		const company = params?.company?.trim();
+		const includeDisabled = params?.includeDisabled ?? false;
+		const sortDirection: Prisma.SortOrder =
+			params?.sortDirection === "desc" ? "desc" : "asc";
+		const today = startOfUtcDay(new Date());
+		const expiringWithinDays = params?.expiringWithinDays ?? 30;
+		const dueSoonThreshold = addUtcDays(today, expiringWithinDays);
+
+		const whereClauses: Prisma.SerialNoWhereInput[] = [
+			{ serviceContractExpiryDate: { not: null } },
+		];
+
+		if (search) {
+			whereClauses.push({
+				OR: [
+					{ serialNo: { contains: search, mode: "insensitive" } },
+					{ company: { contains: search, mode: "insensitive" } },
+					{ notes: { contains: search, mode: "insensitive" } },
+					{ maintenanceStatus: { contains: search, mode: "insensitive" } },
+					{ workOrder: { contains: search, mode: "insensitive" } },
+					{ item: { code: { contains: search, mode: "insensitive" } } },
+					{ item: { name: { contains: search, mode: "insensitive" } } },
+					{
+						currentWarehouse: {
+							name: { contains: search, mode: "insensitive" },
+						},
+					},
+				],
+			});
+		}
+
+		if (params?.itemId) {
+			whereClauses.push({ itemId: params.itemId });
+		}
+
+		if (params?.warehouseId) {
+			whereClauses.push({ currentWarehouseId: params.warehouseId });
+		}
+
+		if (company) {
+			whereClauses.push({
+				company: {
+					contains: company,
+					mode: "insensitive",
+				},
+			});
+		}
+
+		if (params?.status) {
+			whereClauses.push({ status: params.status });
+		}
+
+		if (!includeDisabled) {
+			whereClauses.push({ isDisabled: false });
+		}
+
+		if (params?.expiryDateFrom || params?.expiryDateTo) {
+			whereClauses.push({
+				serviceContractExpiryDate: {
+					...(params.expiryDateFrom
+						? { gte: startOfUtcDay(params.expiryDateFrom) }
+						: {}),
+					...(params.expiryDateTo
+						? { lte: addUtcDays(startOfUtcDay(params.expiryDateTo), 1) }
+						: {}),
+				},
+			});
+		}
+
+		if (params?.expiryState) {
+			switch (params.expiryState) {
+				case "EXPIRED":
+					whereClauses.push({
+						serviceContractExpiryDate: { lt: today },
+					});
+					break;
+				case "DUE_SOON":
+					whereClauses.push({
+						serviceContractExpiryDate: {
+							gte: today,
+							lte: dueSoonThreshold,
+						},
+					});
+					break;
+				case "ACTIVE":
+					whereClauses.push({
+						serviceContractExpiryDate: { gt: dueSoonThreshold },
+					});
+					break;
+			}
+		}
+
+		const where: Prisma.SerialNoWhereInput =
+			whereClauses.length === 1 ? whereClauses[0] : { AND: whereClauses };
+
+		const [items, totalCount] = await this.prisma.$transaction([
+			this.prisma.serialNo.findMany({
+				where,
+				include: serialNoInclude,
+				orderBy: this.getSerialNoServiceContractExpiryOrderBy(
+					params?.sortBy,
+					sortDirection,
+				),
+				skip,
+				take,
+			}),
+			this.prisma.serialNo.count({ where }),
+		]);
+
+		const reportItems: Inventory.SerialNoServiceContractExpiryRow[] = [];
+
+		for (const serialNo of items) {
+			if (!serialNo.serviceContractExpiryDate) {
+				continue;
+			}
+
+			const expiryDate = startOfUtcDay(serialNo.serviceContractExpiryDate);
+			const expiryState: Inventory.SerialNoServiceContractExpiryState =
+				expiryDate < today
+					? "EXPIRED"
+					: expiryDate <= dueSoonThreshold
+						? "DUE_SOON"
+						: "ACTIVE";
+
+			const base = toInventorySerialNo(serialNo);
+
+			reportItems.push({
+				id: base.id,
+				serialNo: base.serialNo,
+				itemId: base.itemId,
+				itemCode: base.itemCode,
+				itemName: base.itemName,
+				company: base.company,
+				status: base.status,
+				currentWarehouseId: base.currentWarehouseId,
+				currentWarehouseName: base.currentWarehouseName,
+				purchaseReceiptId: base.purchaseReceiptId,
+				purchaseReceiptSeries: base.purchaseReceiptSeries,
+				deliveryNoteId: base.deliveryNoteId,
+				deliveryNoteSeries: base.deliveryNoteSeries,
+				stockEntryId: base.stockEntryId,
+				stockEntrySeries: base.stockEntrySeries,
+				pickListId: base.pickListId,
+				pickListSeries: base.pickListSeries,
+				workOrder: base.workOrder,
+				purchaseDate: base.purchaseDate,
+				serviceContractExpiryDate: serialNo.serviceContractExpiryDate,
+				daysUntilExpiry: diffUtcDays(today, expiryDate),
+				expiryState,
+				maintenanceStatus: base.maintenanceStatus,
+				notes: base.notes,
+				isDisabled: base.isDisabled,
+				createdAt: base.createdAt,
+				updatedAt: base.updatedAt,
+			});
+		}
+
+		return {
+			items: reportItems,
+			totalCount,
+		};
+	}
+
+	async findSerialNoWarrantyExpiry(
+		params?: Inventory.ListSerialNoWarrantyExpiryInput,
+	): Promise<Inventory.SerialNoWarrantyExpiryListResult> {
+		const rawSkip = params?.skip ?? 0;
+		const rawTake = params?.take ?? LIST_QUERY_TAKE_MAX;
+		const skip = rawSkip < 0 ? 0 : rawSkip;
+		const take =
+			rawTake <= 0
+				? 1
+				: rawTake > LIST_QUERY_TAKE_MAX
+					? LIST_QUERY_TAKE_MAX
+					: rawTake;
+		const search = params?.search?.trim();
+		const company = params?.company?.trim();
+		const includeDisabled = params?.includeDisabled ?? false;
+		const sortDirection: Prisma.SortOrder =
+			params?.sortDirection === "desc" ? "desc" : "asc";
+		const today = startOfUtcDay(new Date());
+		const expiringWithinDays = params?.expiringWithinDays ?? 30;
+		const dueSoonThreshold = addUtcDays(today, expiringWithinDays);
+
+		const whereClauses: Prisma.SerialNoWhereInput[] = [
+			{ warrantyExpiryDate: { not: null } },
+		];
+
+		if (search) {
+			whereClauses.push({
+				OR: [
+					{ serialNo: { contains: search, mode: "insensitive" } },
+					{ company: { contains: search, mode: "insensitive" } },
+					{ notes: { contains: search, mode: "insensitive" } },
+					{ maintenanceStatus: { contains: search, mode: "insensitive" } },
+					{ workOrder: { contains: search, mode: "insensitive" } },
+					{ item: { code: { contains: search, mode: "insensitive" } } },
+					{ item: { name: { contains: search, mode: "insensitive" } } },
+					{
+						currentWarehouse: {
+							name: { contains: search, mode: "insensitive" },
+						},
+					},
+				],
+			});
+		}
+
+		if (params?.itemId) {
+			whereClauses.push({ itemId: params.itemId });
+		}
+
+		if (params?.warehouseId) {
+			whereClauses.push({ currentWarehouseId: params.warehouseId });
+		}
+
+		if (company) {
+			whereClauses.push({
+				company: {
+					contains: company,
+					mode: "insensitive",
+				},
+			});
+		}
+
+		if (params?.status) {
+			whereClauses.push({ status: params.status });
+		}
+
+		if (!includeDisabled) {
+			whereClauses.push({ isDisabled: false });
+		}
+
+		if (params?.expiryDateFrom || params?.expiryDateTo) {
+			whereClauses.push({
+				warrantyExpiryDate: {
+					...(params.expiryDateFrom
+						? { gte: startOfUtcDay(params.expiryDateFrom) }
+						: {}),
+					...(params.expiryDateTo
+						? { lte: addUtcDays(startOfUtcDay(params.expiryDateTo), 1) }
+						: {}),
+				},
+			});
+		}
+
+		if (params?.expiryState) {
+			switch (params.expiryState) {
+				case "EXPIRED":
+					whereClauses.push({
+						warrantyExpiryDate: { lt: today },
+					});
+					break;
+				case "DUE_SOON":
+					whereClauses.push({
+						warrantyExpiryDate: {
+							gte: today,
+							lte: dueSoonThreshold,
+						},
+					});
+					break;
+				case "ACTIVE":
+					whereClauses.push({
+						warrantyExpiryDate: { gt: dueSoonThreshold },
+					});
+					break;
+			}
+		}
+
+		const where: Prisma.SerialNoWhereInput =
+			whereClauses.length === 1 ? whereClauses[0] : { AND: whereClauses };
+
+		const [items, totalCount] = await this.prisma.$transaction([
+			this.prisma.serialNo.findMany({
+				where,
+				include: serialNoInclude,
+				orderBy: this.getSerialNoWarrantyExpiryOrderBy(
+					params?.sortBy,
+					sortDirection,
+				),
+				skip,
+				take,
+			}),
+			this.prisma.serialNo.count({ where }),
+		]);
+
+		const reportItems: Inventory.SerialNoWarrantyExpiryRow[] = [];
+
+		for (const serialNo of items) {
+			if (!serialNo.warrantyExpiryDate) {
+				continue;
+			}
+
+			const expiryDate = startOfUtcDay(serialNo.warrantyExpiryDate);
+			const expiryState: Inventory.SerialNoWarrantyExpiryState =
+				expiryDate < today
+					? "EXPIRED"
+					: expiryDate <= dueSoonThreshold
+						? "DUE_SOON"
+						: "ACTIVE";
+
+			const base = toInventorySerialNo(serialNo);
+
+			reportItems.push({
+				id: base.id,
+				serialNo: base.serialNo,
+				itemId: base.itemId,
+				itemCode: base.itemCode,
+				itemName: base.itemName,
+				company: base.company,
+				status: base.status,
+				currentWarehouseId: base.currentWarehouseId,
+				currentWarehouseName: base.currentWarehouseName,
+				purchaseReceiptId: base.purchaseReceiptId,
+				purchaseReceiptSeries: base.purchaseReceiptSeries,
+				deliveryNoteId: base.deliveryNoteId,
+				deliveryNoteSeries: base.deliveryNoteSeries,
+				stockEntryId: base.stockEntryId,
+				stockEntrySeries: base.stockEntrySeries,
+				pickListId: base.pickListId,
+				pickListSeries: base.pickListSeries,
+				workOrder: base.workOrder,
+				purchaseDate: base.purchaseDate,
+				warrantyExpiryDate: serialNo.warrantyExpiryDate,
+				daysUntilExpiry: diffUtcDays(today, expiryDate),
+				expiryState,
+				maintenanceStatus: base.maintenanceStatus,
+				notes: base.notes,
+				isDisabled: base.isDisabled,
+				createdAt: base.createdAt,
+				updatedAt: base.updatedAt,
+			});
+		}
+
+		return {
+			items: reportItems,
+			totalCount,
+		};
+	}
+
+	async findSerialNoById(id: string): Promise<Inventory.SerialNo | null> {
+		const serialNo = await this.prisma.serialNo.findUnique({
+			where: { id },
+			include: serialNoInclude,
+		});
+
+		return serialNo ? toInventorySerialNo(serialNo) : null;
+	}
+
+	async createSerialNo(
+		data: z.infer<typeof Inventory.createSerialNoSchema>,
+	): Promise<Inventory.SerialNo> {
+		try {
+			const created = await this.prisma.$transaction(async (tx) => {
+				const relations = await this.validateSerialNoRelationships(tx, {
+					itemId: data.itemId,
+					company: data.company,
+					status: data.status ?? "DRAFT",
+					currentWarehouseId: data.currentWarehouseId ?? null,
+					purchaseReceiptId: data.purchaseReceiptId ?? null,
+					deliveryNoteId: data.deliveryNoteId ?? null,
+					stockEntryId: data.stockEntryId ?? null,
+					pickListId: data.pickListId ?? null,
+				});
+
+				const createdSerialNo = await tx.serialNo.create({
+					data: {
+						serialNo: data.serialNo,
+						itemId: data.itemId,
+						company: data.company,
+						status: data.status ?? "DRAFT",
+						currentWarehouseId: data.currentWarehouseId ?? null,
+						purchaseReceiptId: data.purchaseReceiptId ?? null,
+						deliveryNoteId: data.deliveryNoteId ?? null,
+						stockEntryId: data.stockEntryId ?? null,
+						pickListId: data.pickListId ?? null,
+						workOrder: normalizeOptionalText(data.workOrder),
+						purchaseDate: data.purchaseDate ?? null,
+						warrantyExpiryDate: data.warrantyExpiryDate ?? null,
+						serviceContractExpiryDate: data.serviceContractExpiryDate ?? null,
+						maintenanceStatus: normalizeOptionalText(data.maintenanceStatus),
+						notes: normalizeOptionalText(data.notes),
+						isDisabled: data.isDisabled ?? false,
+						history: {
+							create: {
+								eventType: "CREATED",
+								toStatus: data.status ?? "DRAFT",
+								warehouseId: data.currentWarehouseId ?? null,
+								transactionLabel: this.buildSerialNoTransactionLabel({
+									purchaseReceiptSeries: relations.purchaseReceipt?.series,
+									deliveryNoteSeries: relations.deliveryNote?.series,
+									stockEntrySeries: relations.stockEntry?.series,
+									pickListSeries: relations.pickList?.series,
+								}),
+								notes: normalizeOptionalText(data.notes) ?? null,
+							},
+						},
+					},
+					include: serialNoInclude,
+				});
+
+				return createdSerialNo;
+			});
+
+			return toInventorySerialNo(created);
+		} catch (error) {
+			if (
+				error instanceof Prisma.PrismaClientKnownRequestError &&
+				error.code === "P2002"
+			) {
+				throw new ConflictException(
+					`Serial number ${data.serialNo} already exists`,
+				);
+			}
+
+			throw error;
+		}
+	}
+
+	async updateSerialNo(
+		data: z.infer<typeof Inventory.updateSerialNoSchema>,
+	): Promise<Inventory.SerialNo> {
+		const existing = await this.prisma.serialNo.findUnique({
+			where: { id: data.id },
+			select: {
+				id: true,
+				serialNo: true,
+				itemId: true,
+				company: true,
+				status: true,
+				currentWarehouseId: true,
+				purchaseReceiptId: true,
+				deliveryNoteId: true,
+				stockEntryId: true,
+				pickListId: true,
+				workOrder: true,
+				purchaseDate: true,
+				warrantyExpiryDate: true,
+				serviceContractExpiryDate: true,
+				maintenanceStatus: true,
+				notes: true,
+				isDisabled: true,
+			},
+		});
+
+		if (!existing) {
+			throw new NotFoundException(`Serial number with ID ${data.id} not found`);
+		}
+
+		const nextStatus =
+			data.status ?? (existing.status as Inventory.SerialNoStatus);
+		this.assertSerialNoStatusTransition(
+			existing.status as Inventory.SerialNoStatus,
+			nextStatus,
+		);
+
+		try {
+			const updated = await this.prisma.$transaction(async (tx) => {
+				const nextCompany = data.company ?? existing.company;
+				const relations = await this.validateSerialNoRelationships(tx, {
+					itemId: data.itemId ?? existing.itemId,
+					company: nextCompany,
+					status: nextStatus,
+					currentWarehouseId:
+						data.currentWarehouseId !== undefined
+							? data.currentWarehouseId
+							: existing.currentWarehouseId,
+					purchaseReceiptId:
+						data.purchaseReceiptId !== undefined
+							? data.purchaseReceiptId
+							: existing.purchaseReceiptId,
+					deliveryNoteId:
+						data.deliveryNoteId !== undefined
+							? data.deliveryNoteId
+							: existing.deliveryNoteId,
+					stockEntryId:
+						data.stockEntryId !== undefined
+							? data.stockEntryId
+							: existing.stockEntryId,
+					pickListId:
+						data.pickListId !== undefined
+							? data.pickListId
+							: existing.pickListId,
+				});
+
+				const linksChanged =
+					(data.purchaseReceiptId !== undefined &&
+						data.purchaseReceiptId !== existing.purchaseReceiptId) ||
+					(data.deliveryNoteId !== undefined &&
+						data.deliveryNoteId !== existing.deliveryNoteId) ||
+					(data.stockEntryId !== undefined &&
+						data.stockEntryId !== existing.stockEntryId) ||
+					(data.pickListId !== undefined &&
+						data.pickListId !== existing.pickListId);
+				const warehouseChanged =
+					data.currentWarehouseId !== undefined &&
+					data.currentWarehouseId !== existing.currentWarehouseId;
+				const statusChanged =
+					data.status !== undefined && data.status !== existing.status;
+
+				const eventType:
+					| "UPDATED"
+					| "STATUS_CHANGED"
+					| "WAREHOUSE_CHANGED"
+					| "LINKS_CHANGED" = statusChanged
+					? "STATUS_CHANGED"
+					: warehouseChanged
+						? "WAREHOUSE_CHANGED"
+						: linksChanged
+							? "LINKS_CHANGED"
+							: "UPDATED";
+
+				const nextSerialNo = await tx.serialNo.update({
+					where: { id: data.id },
+					data: {
+						...(data.serialNo !== undefined && { serialNo: data.serialNo }),
+						...(data.itemId !== undefined && { itemId: data.itemId }),
+						...(data.company !== undefined && { company: data.company }),
+						...(data.status !== undefined && { status: data.status }),
+						...(data.currentWarehouseId !== undefined && {
+							currentWarehouseId: data.currentWarehouseId,
+						}),
+						...(data.purchaseReceiptId !== undefined && {
+							purchaseReceiptId: data.purchaseReceiptId,
+						}),
+						...(data.deliveryNoteId !== undefined && {
+							deliveryNoteId: data.deliveryNoteId,
+						}),
+						...(data.stockEntryId !== undefined && {
+							stockEntryId: data.stockEntryId,
+						}),
+						...(data.pickListId !== undefined && {
+							pickListId: data.pickListId,
+						}),
+						...(data.workOrder !== undefined && {
+							workOrder: normalizeOptionalText(data.workOrder),
+						}),
+						...(data.purchaseDate !== undefined && {
+							purchaseDate: data.purchaseDate,
+						}),
+						...(data.warrantyExpiryDate !== undefined && {
+							warrantyExpiryDate: data.warrantyExpiryDate,
+						}),
+						...(data.serviceContractExpiryDate !== undefined && {
+							serviceContractExpiryDate: data.serviceContractExpiryDate,
+						}),
+						...(data.maintenanceStatus !== undefined && {
+							maintenanceStatus: normalizeOptionalText(data.maintenanceStatus),
+						}),
+						...(data.notes !== undefined && {
+							notes: normalizeOptionalText(data.notes),
+						}),
+						...(data.isDisabled !== undefined && {
+							isDisabled: data.isDisabled,
+						}),
+						history: {
+							create: {
+								eventType,
+								fromStatus: existing.status,
+								toStatus: nextStatus,
+								warehouseId:
+									data.currentWarehouseId !== undefined
+										? data.currentWarehouseId
+										: existing.currentWarehouseId,
+								transactionLabel: this.buildSerialNoTransactionLabel({
+									purchaseReceiptSeries:
+										relations.purchaseReceipt?.series ?? null,
+									deliveryNoteSeries: relations.deliveryNote?.series ?? null,
+									stockEntrySeries: relations.stockEntry?.series ?? null,
+									pickListSeries: relations.pickList?.series ?? null,
+								}),
+								notes:
+									normalizeOptionalText(
+										data.notes !== undefined ? data.notes : existing.notes,
+									) ?? null,
+							},
+						},
+					},
+					include: serialNoInclude,
+				});
+
+				return nextSerialNo;
+			});
+
+			return toInventorySerialNo(updated);
+		} catch (error) {
+			if (
+				error instanceof Prisma.PrismaClientKnownRequestError &&
+				error.code === "P2002"
+			) {
+				throw new ConflictException(
+					`Serial number ${data.serialNo ?? existing.serialNo} already exists`,
+				);
+			}
+
+			throw error;
+		}
+	}
+
+	async deleteSerialNo(id: string): Promise<{ success: boolean; id: string }> {
+		const existing = await this.prisma.serialNo.findUnique({
+			where: { id },
+			select: {
+				id: true,
+				status: true,
+				purchaseReceiptId: true,
+				deliveryNoteId: true,
+				stockEntryId: true,
+				pickListId: true,
+			},
+		});
+
+		if (!existing) {
+			throw new NotFoundException(`Serial number with ID ${id} not found`);
+		}
+
+		if (
+			existing.purchaseReceiptId ||
+			existing.deliveryNoteId ||
+			existing.stockEntryId ||
+			existing.pickListId
+		) {
+			throw new BadRequestException(
+				"Serial number cannot be deleted because it is linked to inventory transactions",
+			);
+		}
+
+		if (!["DRAFT", "AVAILABLE"].includes(existing.status)) {
+			throw new BadRequestException(
+				"Only draft or available serial numbers can be deleted",
+			);
+		}
+
+		await this.prisma.serialNo.delete({
+			where: { id },
+		});
+
+		return { success: true, id };
 	}
 
 	/**
@@ -3464,6 +5621,715 @@ export class InventoryService {
 			}
 			throw error;
 		}
+	}
+
+	// ============================================================================
+	// Installation Note Methods
+	// ============================================================================
+
+	private normalizeInstallationNoteSeriesPattern(
+		seriesPattern?: string | null,
+	): string {
+		const raw = seriesPattern?.trim();
+		if (!raw) {
+			return "MAT-INS-.YYYY.-";
+		}
+		return raw;
+	}
+
+	private resolveInstallationNoteSeriesPrefix(
+		seriesPattern: string,
+		date: Date,
+	): string {
+		const year = String(date.getFullYear());
+		let prefix = seriesPattern
+			.replace(/\.YYYY\./g, year)
+			.replace(/YYYY/g, year)
+			.replace(/\./g, "")
+			.replace(/--+/g, "-")
+			.trim();
+
+		if (!prefix.endsWith("-")) {
+			prefix = `${prefix}-`;
+		}
+
+		return prefix;
+	}
+
+	private async generateInstallationNoteSeries(
+		date: Date,
+		seriesPattern?: string | null,
+	): Promise<string> {
+		const normalizedPattern =
+			this.normalizeInstallationNoteSeriesPattern(seriesPattern);
+		const prefix = this.resolveInstallationNoteSeriesPrefix(
+			normalizedPattern,
+			date,
+		);
+
+		const lastNote = await this.prisma.installationNote.findFirst({
+			where: {
+				series: { startsWith: prefix },
+			},
+			orderBy: { series: "desc" },
+			select: { series: true },
+		});
+
+		let nextNumber = 1;
+		if (lastNote) {
+			const numStr = lastNote.series.slice(prefix.length);
+			const num = parseInt(numStr, 10);
+			if (!Number.isNaN(num)) {
+				nextNumber = num + 1;
+			}
+		}
+
+		return `${prefix}${String(nextNumber).padStart(5, "0")}`;
+	}
+
+	private async validateInstallationNoteInput(
+		tx: Prisma.TransactionClient,
+		input: {
+			company: string;
+			customer: string;
+			deliveryNoteId?: string | null;
+			status: Inventory.InstallationNoteStatus;
+			items: Array<{
+				itemId: string;
+				serialNoId?: string | null;
+				installedQty: number;
+			}>;
+		},
+	): Promise<{
+		deliveryNote: { id: string; series: string } | null;
+		serialsById: Map<
+			string,
+			{
+				id: string;
+				serialNo: string;
+				itemId: string;
+				company: string;
+				status: Inventory.SerialNoStatus;
+				deliveryNoteId: string | null;
+				isDisabled: boolean;
+			}
+		>;
+	}> {
+		const itemIds = [...new Set(input.items.map((item) => item.itemId))];
+		const serialIds = [
+			...new Set(
+				input.items
+					.map((item) => item.serialNoId)
+					.filter((value): value is string => Boolean(value)),
+			),
+		];
+		const rawSerialIds = input.items
+			.map((item) => item.serialNoId)
+			.filter((value): value is string => Boolean(value));
+
+		if (serialIds.length !== rawSerialIds.length) {
+			throw new BadRequestException(
+				"Each serial number can only appear once on an installation note",
+			);
+		}
+
+		const [items, serials, deliveryNote] = await Promise.all([
+			tx.inventoryItem.findMany({
+				where: { id: { in: itemIds } },
+				select: {
+					id: true,
+					code: true,
+					name: true,
+					hasSerialNo: true,
+					disabled: true,
+				},
+			}),
+			serialIds.length === 0
+				? Promise.resolve([])
+				: tx.serialNo.findMany({
+						where: { id: { in: serialIds } },
+						select: {
+							id: true,
+							serialNo: true,
+							itemId: true,
+							company: true,
+							status: true,
+							deliveryNoteId: true,
+							isDisabled: true,
+						},
+					}),
+			input.deliveryNoteId
+				? tx.deliveryNote.findUnique({
+						where: { id: input.deliveryNoteId },
+						select: {
+							id: true,
+							series: true,
+							customer: true,
+							company: true,
+						},
+					})
+				: Promise.resolve(null),
+		]);
+
+		const itemsById = new Map(items.map((item) => [item.id, item]));
+		const serialsById = new Map(
+			serials.map((serial) => [
+				serial.id,
+				{
+					...serial,
+					status: serial.status as Inventory.SerialNoStatus,
+				},
+			]),
+		);
+
+		if (itemsById.size !== itemIds.length) {
+			const missingItemId = itemIds.find((itemId) => !itemsById.has(itemId));
+			throw new BadRequestException(
+				`Item with ID ${missingItemId ?? "unknown"} was not found`,
+			);
+		}
+
+		if (serialsById.size !== serialIds.length) {
+			const missingSerialId = serialIds.find(
+				(serialId) => !serialsById.has(serialId),
+			);
+			throw new BadRequestException(
+				`Serial number with ID ${missingSerialId ?? "unknown"} was not found`,
+			);
+		}
+
+		if (input.deliveryNoteId && !deliveryNote) {
+			throw new BadRequestException(
+				`Delivery note with ID ${input.deliveryNoteId} was not found`,
+			);
+		}
+
+		if (
+			deliveryNote &&
+			(deliveryNote.company !== input.company ||
+				deliveryNote.customer !== input.customer)
+		) {
+			throw new BadRequestException(
+				"Delivery note company and customer must match the installation note",
+			);
+		}
+
+		for (const row of input.items) {
+			const item = itemsById.get(row.itemId);
+			if (!item) {
+				continue;
+			}
+
+			if (item.disabled) {
+				throw new BadRequestException(
+					`Item ${item.code} is disabled and cannot be installed`,
+				);
+			}
+
+			if (item.hasSerialNo) {
+				if (!row.serialNoId) {
+					throw new BadRequestException(
+						`Item ${item.code} requires a serial number`,
+					);
+				}
+				if (row.installedQty !== 1) {
+					throw new BadRequestException(
+						`Serialized item ${item.code} must have an installed quantity of 1`,
+					);
+				}
+			}
+
+			if (!row.serialNoId) {
+				continue;
+			}
+
+			const serial = serialsById.get(row.serialNoId);
+			if (!serial) {
+				continue;
+			}
+
+			if (serial.isDisabled) {
+				throw new BadRequestException(
+					`Serial number ${serial.serialNo} is disabled and cannot be installed`,
+				);
+			}
+
+			if (serial.itemId !== row.itemId) {
+				throw new BadRequestException(
+					`Serial number ${serial.serialNo} does not belong to item ${item.code}`,
+				);
+			}
+
+			if (serial.company !== input.company) {
+				throw new BadRequestException(
+					`Serial number ${serial.serialNo} belongs to a different company`,
+				);
+			}
+
+			if (
+				input.deliveryNoteId &&
+				serial.deliveryNoteId !== input.deliveryNoteId
+			) {
+				throw new BadRequestException(
+					`Serial number ${serial.serialNo} is not linked to the selected delivery note`,
+				);
+			}
+
+			if (input.status === "COMPLETED") {
+				this.assertSerialNoStatusTransition(serial.status, "INSTALLED");
+			}
+		}
+
+		return {
+			deliveryNote: deliveryNote
+				? { id: deliveryNote.id, series: deliveryNote.series }
+				: null,
+			serialsById,
+		};
+	}
+
+	private async applyInstallationNoteSerialUpdates(
+		tx: Prisma.TransactionClient,
+		input: {
+			series: string;
+			remarks?: string | null;
+			rows: Array<{ serialNoId?: string | null }>;
+			serialsById: Map<
+				string,
+				{
+					id: string;
+					status: Inventory.SerialNoStatus;
+				}
+			>;
+		},
+	): Promise<void> {
+		for (const row of input.rows) {
+			if (!row.serialNoId) {
+				continue;
+			}
+
+			const serial = input.serialsById.get(row.serialNoId);
+			if (!serial) {
+				continue;
+			}
+
+			await tx.serialNo.update({
+				where: { id: row.serialNoId },
+				data: {
+					status: "INSTALLED",
+					history: {
+						create: {
+							eventType: "STATUS_CHANGED",
+							fromStatus: serial.status,
+							toStatus: "INSTALLED",
+							warehouseId: null,
+							transactionLabel: this.buildSerialNoTransactionLabel({
+								installationNoteSeries: input.series,
+							}),
+							notes: normalizeOptionalText(input.remarks) ?? null,
+						},
+					},
+				},
+			});
+		}
+	}
+
+	async findInstallationNotes(
+		params?: Inventory.ListInstallationNotesInput,
+	): Promise<Inventory.InstallationNoteListResult> {
+		const rawSkip = params?.skip ?? 0;
+		const rawTake = params?.take ?? LIST_QUERY_TAKE_MAX;
+		const search = params?.search?.trim();
+		const company = params?.company?.trim();
+		const sortDirection = params?.sortDirection ?? "desc";
+
+		const skip = rawSkip < 0 ? 0 : rawSkip;
+		const take =
+			rawTake <= 0
+				? 1
+				: rawTake > LIST_QUERY_TAKE_MAX
+					? LIST_QUERY_TAKE_MAX
+					: rawTake;
+
+		const whereClauses: Prisma.InstallationNoteWhereInput[] = [];
+
+		if (search) {
+			whereClauses.push({
+				OR: [
+					{ series: { contains: search, mode: "insensitive" } },
+					{ customer: { contains: search, mode: "insensitive" } },
+					{ customerName: { contains: search, mode: "insensitive" } },
+					{ remarks: { contains: search, mode: "insensitive" } },
+					{
+						items: {
+							some: {
+								item: {
+									is: { code: { contains: search, mode: "insensitive" } },
+								},
+							},
+						},
+					},
+					{
+						items: {
+							some: {
+								serialNo: {
+									is: {
+										serialNo: { contains: search, mode: "insensitive" },
+									},
+								},
+							},
+						},
+					},
+				],
+			});
+		}
+
+		if (params?.status) {
+			whereClauses.push({ status: params.status });
+		}
+
+		if (company) {
+			whereClauses.push({
+				company: { contains: company, mode: "insensitive" },
+			});
+		}
+
+		if (params?.deliveryNoteId) {
+			whereClauses.push({ deliveryNoteId: params.deliveryNoteId });
+		}
+
+		const where =
+			whereClauses.length === 0
+				? undefined
+				: whereClauses.length === 1
+					? whereClauses[0]
+					: { AND: whereClauses };
+
+		const [items, totalCount] = await this.prisma.$transaction([
+			this.prisma.installationNote.findMany({
+				where,
+				include: installationNoteInclude,
+				orderBy: this.getInstallationNoteOrderBy(params?.sortBy, sortDirection),
+				skip,
+				take,
+			}),
+			this.prisma.installationNote.count({ where }),
+		]);
+
+		return {
+			items: items.map(toInventoryInstallationNote),
+			totalCount,
+		};
+	}
+
+	async findInstallationNoteById(
+		id: string,
+	): Promise<Inventory.InstallationNote | null> {
+		const note = await this.prisma.installationNote.findUnique({
+			where: { id },
+			include: installationNoteInclude,
+		});
+
+		return note ? toInventoryInstallationNote(note) : null;
+	}
+
+	async createInstallationNote(
+		data: Inventory.CreateInstallationNoteInput,
+	): Promise<Inventory.InstallationNote> {
+		const installationDate = data.installationDate ?? new Date();
+		const seriesPattern = this.normalizeInstallationNoteSeriesPattern(
+			data.seriesPattern,
+		);
+		const status = data.status ?? "DRAFT";
+
+		for (let attempt = 0; attempt < 3; attempt++) {
+			const series = await this.generateInstallationNoteSeries(
+				installationDate,
+				seriesPattern,
+			);
+
+			try {
+				const created = await this.prisma.$transaction(async (tx) => {
+					const validated = await this.validateInstallationNoteInput(tx, {
+						company: data.company,
+						customer: data.customer,
+						deliveryNoteId: data.deliveryNoteId ?? null,
+						status,
+						items: data.items,
+					});
+
+					const createdNote = await tx.installationNote.create({
+						data: {
+							series,
+							seriesPattern,
+							installationDate,
+							installationTime: data.installationTime
+								? this.normalizePostingTime(
+										data.installationTime,
+										installationDate,
+									)
+								: null,
+							customer: data.customer,
+							customerName: normalizeOptionalText(data.customerName),
+							customerAddress: normalizeOptionalText(data.customerAddress),
+							contactPerson: normalizeOptionalText(data.contactPerson),
+							territory: data.territory?.trim() || "All Territories",
+							customerGroup: normalizeOptionalText(data.customerGroup),
+							company: data.company,
+							status,
+							deliveryNoteId: data.deliveryNoteId ?? null,
+							remarks: normalizeOptionalText(data.remarks),
+							items: {
+								create: data.items.map((item) => ({
+									itemId: item.itemId,
+									serialNoId: item.serialNoId ?? null,
+									description: normalizeOptionalText(item.description),
+									installedQty: item.installedQty,
+								})),
+							},
+						},
+						include: installationNoteInclude,
+					});
+
+					if (status === "COMPLETED") {
+						await this.applyInstallationNoteSerialUpdates(tx, {
+							series,
+							remarks: data.remarks,
+							rows: data.items,
+							serialsById: validated.serialsById,
+						});
+					}
+
+					return createdNote;
+				});
+
+				return toInventoryInstallationNote(created);
+			} catch (error) {
+				const isSeriesConflict =
+					error instanceof Prisma.PrismaClientKnownRequestError &&
+					error.code === "P2002";
+				if (isSeriesConflict && attempt < 2) {
+					await new Promise((resolve) =>
+						setTimeout(resolve, this.computeBackoffMs(attempt)),
+					);
+					continue;
+				}
+				throw error;
+			}
+		}
+
+		throw new Error("Failed to allocate a unique installation note series");
+	}
+
+	async updateInstallationNote(
+		data: Inventory.UpdateInstallationNoteInput,
+	): Promise<Inventory.InstallationNote> {
+		const existing = await this.prisma.installationNote.findUnique({
+			where: { id: data.id },
+			include: {
+				items: true,
+			},
+		});
+
+		if (!existing) {
+			throw new NotFoundException(
+				`Installation note with ID ${data.id} not found`,
+			);
+		}
+
+		if (existing.status === "COMPLETED" || existing.status === "CANCELLED") {
+			throw new BadRequestException(
+				"Completed or cancelled installation notes cannot be modified",
+			);
+		}
+
+		const nextStatus =
+			data.status ?? (existing.status as Inventory.InstallationNoteStatus);
+		this.assertInstallationNoteStatusTransition(
+			existing.status as Inventory.InstallationNoteStatus,
+			nextStatus,
+		);
+
+		const nextItems =
+			data.items ??
+			existing.items.map((item) => ({
+				id: item.id,
+				itemId: item.itemId,
+				serialNoId: item.serialNoId,
+				description: item.description,
+				installedQty: item.installedQty,
+			}));
+
+		const updated = await this.prisma.$transaction(async (tx) => {
+			const validated = await this.validateInstallationNoteInput(tx, {
+				company: data.company ?? existing.company,
+				customer: data.customer ?? existing.customer,
+				deliveryNoteId:
+					data.deliveryNoteId !== undefined
+						? data.deliveryNoteId
+						: existing.deliveryNoteId,
+				status: nextStatus,
+				items: nextItems.map((item) => ({
+					itemId: item.itemId,
+					serialNoId: item.serialNoId ?? null,
+					installedQty: item.installedQty,
+				})),
+			});
+
+			await tx.installationNote.update({
+				where: { id: data.id },
+				data: {
+					...(data.installationDate !== undefined && {
+						installationDate: data.installationDate,
+					}),
+					...(data.installationTime !== undefined && {
+						installationTime: data.installationTime
+							? this.normalizePostingTime(
+									data.installationTime,
+									data.installationDate ?? existing.installationDate,
+								)
+							: null,
+					}),
+					...(data.customer !== undefined && { customer: data.customer }),
+					...(data.customerName !== undefined && {
+						customerName: normalizeOptionalText(data.customerName),
+					}),
+					...(data.customerAddress !== undefined && {
+						customerAddress: normalizeOptionalText(data.customerAddress),
+					}),
+					...(data.contactPerson !== undefined && {
+						contactPerson: normalizeOptionalText(data.contactPerson),
+					}),
+					...(data.territory !== undefined && { territory: data.territory }),
+					...(data.customerGroup !== undefined && {
+						customerGroup: normalizeOptionalText(data.customerGroup),
+					}),
+					...(data.company !== undefined && { company: data.company }),
+					...(data.status !== undefined && { status: data.status }),
+					...(data.deliveryNoteId !== undefined && {
+						deliveryNoteId: data.deliveryNoteId,
+					}),
+					...(data.remarks !== undefined && {
+						remarks: normalizeOptionalText(data.remarks),
+					}),
+				},
+			});
+
+			if (data.items !== undefined) {
+				const keptIds = data.items
+					.filter((item): item is typeof item & { id: string } =>
+						Boolean(item.id),
+					)
+					.map((item) => item.id);
+
+				if (keptIds.length > 0) {
+					const ownedItems = await tx.installationNoteItem.findMany({
+						where: {
+							id: { in: keptIds },
+							installationNoteId: data.id,
+						},
+						select: { id: true },
+					});
+					const ownedIds = new Set(ownedItems.map((item) => item.id));
+					const foreignItemId = keptIds.find((itemId) => !ownedIds.has(itemId));
+					if (foreignItemId) {
+						throw new BadRequestException(
+							`Installation note item with ID ${foreignItemId} does not belong to installation note ${data.id}`,
+						);
+					}
+				}
+
+				if (keptIds.length === 0) {
+					await tx.installationNoteItem.deleteMany({
+						where: { installationNoteId: data.id },
+					});
+				} else {
+					await tx.installationNoteItem.deleteMany({
+						where: {
+							installationNoteId: data.id,
+							id: { notIn: keptIds },
+						},
+					});
+				}
+
+				for (const item of data.items) {
+					if (item.id) {
+						await tx.installationNoteItem.update({
+							where: { id: item.id },
+							data: {
+								itemId: item.itemId,
+								serialNoId: item.serialNoId ?? null,
+								description: normalizeOptionalText(item.description),
+								installedQty: item.installedQty,
+							},
+						});
+						continue;
+					}
+
+					await tx.installationNoteItem.create({
+						data: {
+							installationNoteId: data.id,
+							itemId: item.itemId,
+							serialNoId: item.serialNoId ?? null,
+							description: normalizeOptionalText(item.description),
+							installedQty: item.installedQty,
+						},
+					});
+				}
+			}
+
+			if (nextStatus === "COMPLETED") {
+				await this.applyInstallationNoteSerialUpdates(tx, {
+					series: existing.series,
+					remarks: data.remarks !== undefined ? data.remarks : existing.remarks,
+					rows: nextItems,
+					serialsById: validated.serialsById,
+				});
+			}
+
+			const note = await tx.installationNote.findUnique({
+				where: { id: data.id },
+				include: installationNoteInclude,
+			});
+
+			if (!note) {
+				throw new NotFoundException(
+					`Installation note with ID ${data.id} not found`,
+				);
+			}
+
+			return note;
+		});
+
+		return toInventoryInstallationNote(updated);
+	}
+
+	async deleteInstallationNote(
+		id: string,
+	): Promise<{ success: boolean; id: string }> {
+		const existing = await this.prisma.installationNote.findUnique({
+			where: { id },
+			select: {
+				id: true,
+				status: true,
+			},
+		});
+
+		if (!existing) {
+			throw new NotFoundException(`Installation note with ID ${id} not found`);
+		}
+
+		if (existing.status !== "DRAFT") {
+			throw new BadRequestException(
+				"Only draft installation notes can be deleted",
+			);
+		}
+
+		await this.prisma.installationNote.delete({
+			where: { id },
+		});
+
+		return { success: true, id };
 	}
 
 	// ============================================================================
