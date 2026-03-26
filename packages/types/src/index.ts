@@ -466,6 +466,75 @@ export namespace Inventory {
 		totalCount: number;
 	}
 
+	export const serialNoServiceContractExpiryStateSchema = z.enum([
+		"EXPIRED",
+		"DUE_SOON",
+		"ACTIVE",
+	]);
+
+	export type SerialNoServiceContractExpiryState = z.infer<
+		typeof serialNoServiceContractExpiryStateSchema
+	>;
+
+	export const serialNoServiceContractExpirySortBySchema = z.enum([
+		"serviceContractExpiryDate",
+		"updatedAt",
+		"serialNo",
+		"itemCode",
+		"warehouse",
+		"status",
+		"company",
+	]);
+
+	export type SerialNoServiceContractExpirySortBy = z.infer<
+		typeof serialNoServiceContractExpirySortBySchema
+	>;
+
+	export interface SerialNoServiceContractExpiryRow
+		extends SerialNoLinkSummary {
+		id: string;
+		serialNo: string;
+		itemId: string;
+		itemCode: string;
+		itemName: string;
+		company: string;
+		status: SerialNoStatus;
+		currentWarehouseId?: string | null;
+		currentWarehouseName?: string | null;
+		workOrder?: string | null;
+		purchaseDate?: Date | null;
+		serviceContractExpiryDate: Date;
+		daysUntilExpiry: number;
+		expiryState: SerialNoServiceContractExpiryState;
+		maintenanceStatus?: string | null;
+		notes?: string | null;
+		isDisabled: boolean;
+		createdAt: Date;
+		updatedAt: Date;
+	}
+
+	export interface SerialNoServiceContractExpiryListResult {
+		items: SerialNoServiceContractExpiryRow[];
+		totalCount: number;
+	}
+
+	export interface ListSerialNoServiceContractExpiryInput {
+		skip?: number;
+		take?: number;
+		search?: string;
+		itemId?: string;
+		warehouseId?: string;
+		company?: string;
+		status?: SerialNoStatus;
+		includeDisabled?: boolean;
+		expiryState?: SerialNoServiceContractExpiryState;
+		expiryDateFrom?: Date;
+		expiryDateTo?: Date;
+		expiringWithinDays?: number;
+		sortBy?: SerialNoServiceContractExpirySortBy;
+		sortDirection?: "asc" | "desc";
+	}
+
 	export interface ListSerialNosInput {
 		skip?: number;
 		take?: number;
@@ -518,6 +587,38 @@ export namespace Inventory {
 		notes?: string | null;
 		isDisabled?: boolean;
 	}
+
+	export const listSerialNoServiceContractExpirySchema = z
+		.object({
+			skip: z.number().int().min(0).optional(),
+			take: z.number().int().min(1).max(250).optional(),
+			search: z.string().max(255).trim().optional(),
+			itemId: z.string().cuid().optional(),
+			warehouseId: z.string().cuid().optional(),
+			company: z.string().max(255).trim().optional(),
+			status: serialNoStatusSchema.optional(),
+			includeDisabled: z.boolean().optional(),
+			expiryState: serialNoServiceContractExpiryStateSchema.optional(),
+			expiryDateFrom: z.coerce.date().optional(),
+			expiryDateTo: z.coerce.date().optional(),
+			expiringWithinDays: z.number().int().min(0).max(3650).optional(),
+			sortBy: serialNoServiceContractExpirySortBySchema.optional(),
+			sortDirection: z.enum(["asc", "desc"]).optional(),
+		})
+		.superRefine((value, ctx) => {
+			if (
+				value.expiryDateFrom &&
+				value.expiryDateTo &&
+				value.expiryDateTo < value.expiryDateFrom
+			) {
+				ctx.addIssue({
+					code: z.ZodIssueCode.custom,
+					message: "Expiry end date must be on or after the start date",
+					path: ["expiryDateTo"],
+				});
+			}
+		})
+		.optional();
 
 	export const listSerialNosSchema = z
 		.object({

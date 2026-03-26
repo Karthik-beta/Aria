@@ -1,6 +1,6 @@
 You are working on the branch: "feat/inventory-serial-no-and-batch".
 
-Current page: "Installation Note"
+Current page: "Serial No Service Contract Expiry"
 
 Valid page values:
 - Serial No
@@ -427,7 +427,7 @@ The final implementation must:
 - include proper backend, frontend, validation, and tests
 - keep frontend page-specific files inside `apps/frontend/src/app/inventory/serial-no-and-batch`
 - avoid dead code, destructive updates, unsafe typing, stale data issues, and missing critical infrastructure wiring
-- pass targeted validation only (only run full monorepo validation after the targeted checks are clean):
+- pass targeted validation only (only run 'bun run validation:local' after the targeted checks are clean):
   - run `bun run typecheck` and ensure zero errors
   - run `bun run lint` (and `bun run lint:fix` if needed) and ensure zero errors
   - run `bun run test` and ensure all relevant tests pass

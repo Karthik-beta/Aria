@@ -5178,6 +5178,79 @@ describe("InventoryService", () => {
 			);
 		});
 
+		it("should list service contract expiry rows with derived states", async () => {
+			const today = new Date();
+			today.setUTCHours(0, 0, 0, 0);
+			const expiredDate = new Date(today);
+			expiredDate.setUTCDate(expiredDate.getUTCDate() - 5);
+			const dueSoonDate = new Date(today);
+			dueSoonDate.setUTCDate(dueSoonDate.getUTCDate() + 10);
+
+			mockPrisma.serialNo.findMany.mockResolvedValue([
+				{
+					...mockSerialNo,
+					id: "serial-expired",
+					serialNo: "SN-EXPIRED",
+					serviceContractExpiryDate: expiredDate,
+				},
+				{
+					...mockSerialNo,
+					id: "serial-due-soon",
+					serialNo: "SN-DUE-SOON",
+					serviceContractExpiryDate: dueSoonDate,
+				},
+			]);
+			mockPrisma.serialNo.count.mockResolvedValue(2);
+
+			const result = await service.findSerialNoServiceContractExpiry({
+				status: "AVAILABLE",
+				expiringWithinDays: 30,
+				take: 20,
+			});
+
+			expect(result.totalCount).toBe(2);
+			expect(result.items[0]?.expiryState).toBe("EXPIRED");
+			expect(result.items[1]?.expiryState).toBe("DUE_SOON");
+			expect(mockPrisma.serialNo.findMany).toHaveBeenCalledWith(
+				expect.objectContaining({
+					skip: 0,
+					take: 20,
+					where: expect.objectContaining({
+						AND: expect.arrayContaining([
+							expect.objectContaining({
+								serviceContractExpiryDate: { not: null },
+							}),
+							expect.objectContaining({ status: "AVAILABLE" }),
+						]),
+					}),
+				}),
+			);
+		});
+
+		it("should apply expiry-state windows for service contract expiry rows", async () => {
+			mockPrisma.serialNo.findMany.mockResolvedValue([]);
+			mockPrisma.serialNo.count.mockResolvedValue(0);
+
+			await service.findSerialNoServiceContractExpiry({
+				expiryState: "ACTIVE",
+				expiringWithinDays: 15,
+			});
+
+			expect(mockPrisma.serialNo.findMany).toHaveBeenCalledWith(
+				expect.objectContaining({
+					where: expect.objectContaining({
+						AND: expect.arrayContaining([
+							expect.objectContaining({
+								serviceContractExpiryDate: expect.objectContaining({
+									gt: expect.any(Date),
+								}),
+							}),
+						]),
+					}),
+				}),
+			);
+		});
+
 		it("should create a serial number when the item supports serial tracking", async () => {
 			mockPrisma.inventoryItem.findUnique.mockResolvedValue({
 				id: mockItem.id,
