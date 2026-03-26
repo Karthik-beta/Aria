@@ -1410,6 +1410,16 @@ type InventoryRouterInput = {
 		output: Inventory.StockBalanceRow[];
 		meta: object;
 	}>;
+	getQuickStockBalance: TRPCQueryProcedure<{
+		input: {
+			warehouse: string;
+			date: unknown;
+			itemCode?: string | undefined;
+			barcode?: string | undefined;
+		};
+		output: Inventory.QuickStockBalanceResult;
+		meta: object;
+	}>;
 	listStockProjectedQty: TRPCQueryProcedure<{
 		input:
 			| {

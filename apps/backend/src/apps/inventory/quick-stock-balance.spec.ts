@@ -1,7 +1,4 @@
-import {
-	BadRequestException,
-	NotFoundException,
-} from "@nestjs/common";
+import { BadRequestException, NotFoundException } from "@nestjs/common";
 import type { PrismaService } from "../../shared/prisma.service";
 import { InventoryService } from "./inventory.service";
 
@@ -68,7 +65,11 @@ function buildMockPrisma() {
 		itemGroup: { findMany: jest.fn() },
 		itemGroupDefault: { count: jest.fn() },
 		itemReorder: { count: jest.fn() },
-		stockSettings: { findUnique: jest.fn(), upsert: jest.fn(), count: jest.fn() },
+		stockSettings: {
+			findUnique: jest.fn(),
+			upsert: jest.fn(),
+			count: jest.fn(),
+		},
 		itemVariantSettings: {
 			findUnique: jest.fn(),
 			findUniqueOrThrow: jest.fn(),
@@ -348,7 +349,11 @@ describe("InventoryService.getQuickStockBalance", () => {
 		jest.clearAllMocks();
 		mockPrisma = buildMockPrisma();
 		mockPrisma.$transaction.mockImplementation(
-			(input: ((tx: typeof mockPrisma) => unknown) | readonly Promise<unknown>[]) => {
+			(
+				input:
+					| ((tx: typeof mockPrisma) => unknown)
+					| readonly Promise<unknown>[],
+			) => {
 				if (typeof input === "function") {
 					return input(mockPrisma);
 				}
@@ -460,8 +465,8 @@ describe("InventoryService.getQuickStockBalance", () => {
 			// Both items are returned by the query (filtering happens in buildStockLedgerRows)
 			mockPrisma.inventoryItem.findFirst.mockResolvedValue(MOCK_ITEM);
 			mockPrisma.stockEntryItem.findMany.mockResolvedValue([
-				MOCK_STOCK_ENTRY_ITEM,  // Stores - GH  → 10 in
-				otherWarehouseItem,     // Finished Goods - GH → excluded for "Stores - GH"
+				MOCK_STOCK_ENTRY_ITEM, // Stores - GH  → 10 in
+				otherWarehouseItem, // Finished Goods - GH → excluded for "Stores - GH"
 			]);
 
 			const result = await service.getQuickStockBalance({

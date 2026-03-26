@@ -2044,8 +2044,7 @@ function createInventoryRouterRecord(
 		onStockEntriesChanged: onStockEntriesChangedProcedure,
 		listStockLedger: createListStockLedgerProcedure(inventoryService),
 		listStockBalance: createListStockBalanceProcedure(inventoryService),
-		getQuickStockBalance:
-			createGetQuickStockBalanceProcedure(inventoryService),
+		getQuickStockBalance: createGetQuickStockBalanceProcedure(inventoryService),
 		listStockProjectedQty:
 			createListStockProjectedQtyProcedure(inventoryService),
 		listStockSummary: createListStockSummaryProcedure(inventoryService),
