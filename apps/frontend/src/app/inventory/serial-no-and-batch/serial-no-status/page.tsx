@@ -391,16 +391,18 @@ export default function SerialNoStatusPage() {
 
 	if (queryError) {
 		return (
-			<ErrorState
-				error={queryError}
-				title="Unable to load serial number status report"
-				onRetry={() => void refetch()}
-			/>
+			<div className="flex flex-col gap-6 px-4 py-6 md:px-6">
+				<ErrorState
+					error={queryError}
+					title="Unable to load serial number status report"
+					onRetry={() => void refetch()}
+				/>
+			</div>
 		);
 	}
 
 	return (
-		<div className="container mx-auto space-y-6 py-6">
+		<div className="flex flex-col gap-6 px-4 py-6 md:px-6">
 			<SerialNoStatusRealtimeSubscription onData={handleRealtimeData} />
 
 			<div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">

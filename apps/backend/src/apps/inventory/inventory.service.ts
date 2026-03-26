@@ -1106,6 +1106,31 @@ export class InventoryService {
 		}
 	}
 
+	private getSerialNoWarrantyExpiryOrderBy(
+		sortBy: Inventory.SerialNoWarrantyExpirySortBy = "warrantyExpiryDate",
+		sortDirection: Prisma.SortOrder = "asc",
+	): Prisma.SerialNoOrderByWithRelationInput[] {
+		switch (sortBy) {
+			case "updatedAt":
+				return [{ updatedAt: sortDirection }, { serialNo: "asc" }];
+			case "serialNo":
+				return [{ serialNo: sortDirection }, { updatedAt: "desc" }];
+			case "itemCode":
+				return [{ item: { code: sortDirection } }, { serialNo: "asc" }];
+			case "warehouse":
+				return [
+					{ currentWarehouse: { name: sortDirection } },
+					{ serialNo: "asc" },
+				];
+			case "status":
+				return [{ status: sortDirection }, { serialNo: "asc" }];
+			case "company":
+				return [{ company: sortDirection }, { serialNo: "asc" }];
+			default:
+				return [{ warrantyExpiryDate: sortDirection }, { serialNo: "asc" }];
+		}
+	}
+
 	private getSerialNoStatusOrderBy(
 		sortBy: Inventory.SerialNoStatusSortBy = "updatedAt",
 		sortDirection: Prisma.SortOrder = "desc",
@@ -2471,6 +2496,182 @@ export class InventoryService {
 				workOrder: base.workOrder,
 				purchaseDate: base.purchaseDate,
 				serviceContractExpiryDate: serialNo.serviceContractExpiryDate,
+				daysUntilExpiry: diffUtcDays(today, expiryDate),
+				expiryState,
+				maintenanceStatus: base.maintenanceStatus,
+				notes: base.notes,
+				isDisabled: base.isDisabled,
+				createdAt: base.createdAt,
+				updatedAt: base.updatedAt,
+			});
+		}
+
+		return {
+			items: reportItems,
+			totalCount,
+		};
+	}
+
+	async findSerialNoWarrantyExpiry(
+		params?: Inventory.ListSerialNoWarrantyExpiryInput,
+	): Promise<Inventory.SerialNoWarrantyExpiryListResult> {
+		const rawSkip = params?.skip ?? 0;
+		const rawTake = params?.take ?? LIST_QUERY_TAKE_MAX;
+		const skip = rawSkip < 0 ? 0 : rawSkip;
+		const take =
+			rawTake <= 0
+				? 1
+				: rawTake > LIST_QUERY_TAKE_MAX
+					? LIST_QUERY_TAKE_MAX
+					: rawTake;
+		const search = params?.search?.trim();
+		const company = params?.company?.trim();
+		const includeDisabled = params?.includeDisabled ?? false;
+		const sortDirection: Prisma.SortOrder =
+			params?.sortDirection === "desc" ? "desc" : "asc";
+		const today = startOfUtcDay(new Date());
+		const expiringWithinDays = params?.expiringWithinDays ?? 30;
+		const dueSoonThreshold = addUtcDays(today, expiringWithinDays);
+
+		const whereClauses: Prisma.SerialNoWhereInput[] = [
+			{ warrantyExpiryDate: { not: null } },
+		];
+
+		if (search) {
+			whereClauses.push({
+				OR: [
+					{ serialNo: { contains: search, mode: "insensitive" } },
+					{ company: { contains: search, mode: "insensitive" } },
+					{ notes: { contains: search, mode: "insensitive" } },
+					{ maintenanceStatus: { contains: search, mode: "insensitive" } },
+					{ workOrder: { contains: search, mode: "insensitive" } },
+					{ item: { code: { contains: search, mode: "insensitive" } } },
+					{ item: { name: { contains: search, mode: "insensitive" } } },
+					{
+						currentWarehouse: {
+							name: { contains: search, mode: "insensitive" },
+						},
+					},
+				],
+			});
+		}
+
+		if (params?.itemId) {
+			whereClauses.push({ itemId: params.itemId });
+		}
+
+		if (params?.warehouseId) {
+			whereClauses.push({ currentWarehouseId: params.warehouseId });
+		}
+
+		if (company) {
+			whereClauses.push({
+				company: {
+					contains: company,
+					mode: "insensitive",
+				},
+			});
+		}
+
+		if (params?.status) {
+			whereClauses.push({ status: params.status });
+		}
+
+		if (!includeDisabled) {
+			whereClauses.push({ isDisabled: false });
+		}
+
+		if (params?.expiryDateFrom || params?.expiryDateTo) {
+			whereClauses.push({
+				warrantyExpiryDate: {
+					...(params.expiryDateFrom
+						? { gte: startOfUtcDay(params.expiryDateFrom) }
+						: {}),
+					...(params.expiryDateTo
+						? { lte: addUtcDays(startOfUtcDay(params.expiryDateTo), 1) }
+						: {}),
+				},
+			});
+		}
+
+		if (params?.expiryState) {
+			switch (params.expiryState) {
+				case "EXPIRED":
+					whereClauses.push({
+						warrantyExpiryDate: { lt: today },
+					});
+					break;
+				case "DUE_SOON":
+					whereClauses.push({
+						warrantyExpiryDate: {
+							gte: today,
+							lte: dueSoonThreshold,
+						},
+					});
+					break;
+				case "ACTIVE":
+					whereClauses.push({
+						warrantyExpiryDate: { gt: dueSoonThreshold },
+					});
+					break;
+			}
+		}
+
+		const where: Prisma.SerialNoWhereInput =
+			whereClauses.length === 1 ? whereClauses[0] : { AND: whereClauses };
+
+		const [items, totalCount] = await this.prisma.$transaction([
+			this.prisma.serialNo.findMany({
+				where,
+				include: serialNoInclude,
+				orderBy: this.getSerialNoWarrantyExpiryOrderBy(
+					params?.sortBy,
+					sortDirection,
+				),
+				skip,
+				take,
+			}),
+			this.prisma.serialNo.count({ where }),
+		]);
+
+		const reportItems: Inventory.SerialNoWarrantyExpiryRow[] = [];
+
+		for (const serialNo of items) {
+			if (!serialNo.warrantyExpiryDate) {
+				continue;
+			}
+
+			const expiryDate = startOfUtcDay(serialNo.warrantyExpiryDate);
+			const expiryState: Inventory.SerialNoWarrantyExpiryState =
+				expiryDate < today
+					? "EXPIRED"
+					: expiryDate <= dueSoonThreshold
+						? "DUE_SOON"
+						: "ACTIVE";
+
+			const base = toInventorySerialNo(serialNo);
+
+			reportItems.push({
+				id: base.id,
+				serialNo: base.serialNo,
+				itemId: base.itemId,
+				itemCode: base.itemCode,
+				itemName: base.itemName,
+				company: base.company,
+				status: base.status,
+				currentWarehouseId: base.currentWarehouseId,
+				currentWarehouseName: base.currentWarehouseName,
+				purchaseReceiptId: base.purchaseReceiptId,
+				purchaseReceiptSeries: base.purchaseReceiptSeries,
+				deliveryNoteId: base.deliveryNoteId,
+				deliveryNoteSeries: base.deliveryNoteSeries,
+				stockEntryId: base.stockEntryId,
+				stockEntrySeries: base.stockEntrySeries,
+				pickListId: base.pickListId,
+				pickListSeries: base.pickListSeries,
+				workOrder: base.workOrder,
+				purchaseDate: base.purchaseDate,
+				warrantyExpiryDate: serialNo.warrantyExpiryDate,
 				daysUntilExpiry: diffUtcDays(today, expiryDate),
 				expiryState,
 				maintenanceStatus: base.maintenanceStatus,

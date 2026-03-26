@@ -393,16 +393,18 @@ export default function SerialNoPage() {
 
 	if (queryError) {
 		return (
-			<ErrorState
-				error={queryError}
-				title="Unable to load serial numbers"
-				onRetry={() => void refetch()}
-			/>
+			<div className="flex flex-col gap-6 px-4 py-6 md:px-6">
+				<ErrorState
+					error={queryError}
+					title="Unable to load serial numbers"
+					onRetry={() => void refetch()}
+				/>
+			</div>
 		);
 	}
 
 	return (
-		<div className="space-y-4">
+		<div className="flex flex-col gap-6 px-4 py-6 md:px-6">
 			<SerialNoRealtimeSubscription onData={handleRealtimeData} />
 
 			<div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">

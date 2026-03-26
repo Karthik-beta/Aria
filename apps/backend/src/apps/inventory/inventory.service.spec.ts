@@ -5251,6 +5251,163 @@ describe("InventoryService", () => {
 			);
 		});
 
+		it("should list warranty expiry rows with derived states", async () => {
+			const today = new Date();
+			today.setUTCHours(0, 0, 0, 0);
+			const expiredDate = new Date(today);
+			expiredDate.setUTCDate(expiredDate.getUTCDate() - 5);
+			const dueSoonDate = new Date(today);
+			dueSoonDate.setUTCDate(dueSoonDate.getUTCDate() + 10);
+
+			mockPrisma.serialNo.findMany.mockResolvedValue([
+				{
+					...mockSerialNo,
+					id: "serial-warranty-expired",
+					serialNo: "SN-WE-1",
+					warrantyExpiryDate: expiredDate,
+					serviceContractExpiryDate: null,
+				},
+				{
+					...mockSerialNo,
+					id: "serial-warranty-due-soon",
+					serialNo: "SN-WD-1",
+					warrantyExpiryDate: dueSoonDate,
+					serviceContractExpiryDate: null,
+				},
+			]);
+			mockPrisma.serialNo.count.mockResolvedValue(2);
+
+			const result = await service.findSerialNoWarrantyExpiry({
+				status: "AVAILABLE",
+				expiringWithinDays: 30,
+				take: 20,
+			});
+
+			expect(result.totalCount).toBe(2);
+			expect(result.items[0]?.expiryState).toBe("EXPIRED");
+			expect(result.items[1]?.expiryState).toBe("DUE_SOON");
+			expect(mockPrisma.serialNo.findMany).toHaveBeenCalledWith(
+				expect.objectContaining({
+					skip: 0,
+					take: 20,
+					where: expect.objectContaining({
+						AND: expect.arrayContaining([
+							expect.objectContaining({
+								warrantyExpiryDate: { not: null },
+							}),
+							expect.objectContaining({ status: "AVAILABLE" }),
+						]),
+					}),
+				}),
+			);
+		});
+
+		it("should apply expiry-state windows for warranty expiry rows", async () => {
+			mockPrisma.serialNo.findMany.mockResolvedValue([]);
+			mockPrisma.serialNo.count.mockResolvedValue(0);
+
+			await service.findSerialNoWarrantyExpiry({
+				expiryState: "ACTIVE",
+				expiringWithinDays: 15,
+			});
+
+			expect(mockPrisma.serialNo.findMany).toHaveBeenCalledWith(
+				expect.objectContaining({
+					where: expect.objectContaining({
+						AND: expect.arrayContaining([
+							expect.objectContaining({
+								warrantyExpiryDate: expect.objectContaining({
+									gt: expect.any(Date),
+								}),
+							}),
+						]),
+					}),
+				}),
+			);
+		});
+
+		it("should filter warranty expiry by EXPIRED state", async () => {
+			mockPrisma.serialNo.findMany.mockResolvedValue([]);
+			mockPrisma.serialNo.count.mockResolvedValue(0);
+
+			await service.findSerialNoWarrantyExpiry({
+				expiryState: "EXPIRED",
+				expiringWithinDays: 30,
+			});
+
+			expect(mockPrisma.serialNo.findMany).toHaveBeenCalledWith(
+				expect.objectContaining({
+					where: expect.objectContaining({
+						AND: expect.arrayContaining([
+							expect.objectContaining({
+								warrantyExpiryDate: expect.objectContaining({
+									lt: expect.any(Date),
+								}),
+							}),
+						]),
+					}),
+				}),
+			);
+		});
+
+		it("should apply date range filter for warranty expiry", async () => {
+			mockPrisma.serialNo.findMany.mockResolvedValue([]);
+			mockPrisma.serialNo.count.mockResolvedValue(0);
+
+			await service.findSerialNoWarrantyExpiry({
+				expiryDateFrom: new Date("2026-04-01T00:00:00.000Z"),
+				expiryDateTo: new Date("2026-04-30T00:00:00.000Z"),
+			});
+
+			expect(mockPrisma.serialNo.findMany).toHaveBeenCalledWith(
+				expect.objectContaining({
+					where: expect.objectContaining({
+						AND: expect.arrayContaining([
+							expect.objectContaining({
+								warrantyExpiryDate: expect.objectContaining({
+									gte: expect.any(Date),
+									lte: expect.any(Date),
+								}),
+							}),
+						]),
+					}),
+				}),
+			);
+		});
+
+		it("should exclude disabled serial numbers from warranty expiry by default", async () => {
+			mockPrisma.serialNo.findMany.mockResolvedValue([]);
+			mockPrisma.serialNo.count.mockResolvedValue(0);
+
+			await service.findSerialNoWarrantyExpiry();
+
+			expect(mockPrisma.serialNo.findMany).toHaveBeenCalledWith(
+				expect.objectContaining({
+					where: expect.objectContaining({
+						AND: expect.arrayContaining([
+							expect.objectContaining({ isDisabled: false }),
+						]),
+					}),
+				}),
+			);
+		});
+
+		it("should skip serial nos without warrantyExpiryDate even when in result set", async () => {
+			mockPrisma.serialNo.findMany.mockResolvedValue([
+				{
+					...mockSerialNo,
+					warrantyExpiryDate: null,
+					serviceContractExpiryDate: null,
+				},
+			]);
+			mockPrisma.serialNo.count.mockResolvedValue(1);
+
+			const result = await service.findSerialNoWarrantyExpiry();
+
+			expect(result.items).toHaveLength(0);
+			expect(result.totalCount).toBe(1);
+		});
+
 		it("should list serial number status rows with derived status ageing", async () => {
 			const statusChangedAt = new Date("2026-03-24T00:00:00.000Z");
 

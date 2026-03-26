@@ -324,16 +324,18 @@ export default function SerialNoServiceContractExpiryPage() {
 
 	if (queryError) {
 		return (
-			<ErrorState
-				error={queryError}
-				title="Unable to load service contract expiry report"
-				onRetry={() => void refetch()}
-			/>
+			<div className="flex flex-col gap-6 px-4 py-6 md:px-6">
+				<ErrorState
+					error={queryError}
+					title="Unable to load service contract expiry report"
+					onRetry={() => void refetch()}
+				/>
+			</div>
 		);
 	}
 
 	return (
-		<div className="container mx-auto space-y-6 py-6">
+		<div className="flex flex-col gap-6 px-4 py-6 md:px-6">
 			<SerialNoServiceContractExpiryRealtimeSubscription
 				onData={handleRealtimeData}
 			/>

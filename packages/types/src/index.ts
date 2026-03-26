@@ -518,6 +518,74 @@ export namespace Inventory {
 		totalCount: number;
 	}
 
+	export const serialNoWarrantyExpiryStateSchema = z.enum([
+		"EXPIRED",
+		"DUE_SOON",
+		"ACTIVE",
+	]);
+
+	export type SerialNoWarrantyExpiryState = z.infer<
+		typeof serialNoWarrantyExpiryStateSchema
+	>;
+
+	export const serialNoWarrantyExpirySortBySchema = z.enum([
+		"warrantyExpiryDate",
+		"updatedAt",
+		"serialNo",
+		"itemCode",
+		"warehouse",
+		"status",
+		"company",
+	]);
+
+	export type SerialNoWarrantyExpirySortBy = z.infer<
+		typeof serialNoWarrantyExpirySortBySchema
+	>;
+
+	export interface SerialNoWarrantyExpiryRow extends SerialNoLinkSummary {
+		id: string;
+		serialNo: string;
+		itemId: string;
+		itemCode: string;
+		itemName: string;
+		company: string;
+		status: SerialNoStatus;
+		currentWarehouseId?: string | null;
+		currentWarehouseName?: string | null;
+		workOrder?: string | null;
+		purchaseDate?: Date | null;
+		warrantyExpiryDate: Date;
+		daysUntilExpiry: number;
+		expiryState: SerialNoWarrantyExpiryState;
+		maintenanceStatus?: string | null;
+		notes?: string | null;
+		isDisabled: boolean;
+		createdAt: Date;
+		updatedAt: Date;
+	}
+
+	export interface SerialNoWarrantyExpiryListResult {
+		items: SerialNoWarrantyExpiryRow[];
+		totalCount: number;
+	}
+
+	export interface ListSerialNoWarrantyExpiryInput {
+		skip?: number;
+		take?: number;
+		search?: string;
+		itemId?: string;
+		warehouseId?: string;
+		company?: string;
+		status?: SerialNoStatus;
+		includeDisabled?: boolean;
+		expiryState?: SerialNoWarrantyExpiryState;
+		expiryDateFrom?: Date;
+		expiryDateTo?: Date;
+		expiringWithinDays?: number;
+		sortBy?: SerialNoWarrantyExpirySortBy;
+		sortDirection?: "asc" | "desc";
+	}
+
 	export const serialNoStatusSortBySchema = z.enum([
 		"updatedAt",
 		"createdAt",
@@ -656,6 +724,38 @@ export namespace Inventory {
 			expiryDateTo: z.coerce.date().optional(),
 			expiringWithinDays: z.number().int().min(0).max(3650).optional(),
 			sortBy: serialNoServiceContractExpirySortBySchema.optional(),
+			sortDirection: z.enum(["asc", "desc"]).optional(),
+		})
+		.superRefine((value, ctx) => {
+			if (
+				value.expiryDateFrom &&
+				value.expiryDateTo &&
+				value.expiryDateTo < value.expiryDateFrom
+			) {
+				ctx.addIssue({
+					code: z.ZodIssueCode.custom,
+					message: "Expiry end date must be on or after the start date",
+					path: ["expiryDateTo"],
+				});
+			}
+		})
+		.optional();
+
+	export const listSerialNoWarrantyExpirySchema = z
+		.object({
+			skip: z.number().int().min(0).optional(),
+			take: z.number().int().min(1).max(250).optional(),
+			search: z.string().max(255).trim().optional(),
+			itemId: z.string().cuid().optional(),
+			warehouseId: z.string().cuid().optional(),
+			company: z.string().max(255).trim().optional(),
+			status: serialNoStatusSchema.optional(),
+			includeDisabled: z.boolean().optional(),
+			expiryState: serialNoWarrantyExpiryStateSchema.optional(),
+			expiryDateFrom: z.coerce.date().optional(),
+			expiryDateTo: z.coerce.date().optional(),
+			expiringWithinDays: z.number().int().min(0).max(3650).optional(),
+			sortBy: serialNoWarrantyExpirySortBySchema.optional(),
 			sortDirection: z.enum(["asc", "desc"]).optional(),
 		})
 		.superRefine((value, ctx) => {
