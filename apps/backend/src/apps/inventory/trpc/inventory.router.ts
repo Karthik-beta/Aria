@@ -1536,6 +1536,140 @@ function createDeleteManyPackingSlipsProcedure(
 		});
 }
 
+// ─── QI Parameter Group Procedures ───────────────────────────────────────────
+
+function createListQiParameterGroupsProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure.query(async () => {
+		return inventoryService.findAllQiParameterGroups();
+	});
+}
+
+function createCreateQiParameterGroupProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure
+		.input(Inventory.createQiParameterGroupSchema)
+		.mutation(async ({ input }) => {
+			return inventoryService.createQiParameterGroup(input);
+		});
+}
+
+function createUpdateQiParameterGroupProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure
+		.input(Inventory.updateQiParameterGroupSchema)
+		.mutation(async ({ input }) => {
+			return inventoryService.updateQiParameterGroup(input);
+		});
+}
+
+function createDeleteQiParameterGroupProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure
+		.input(z.object({ id: z.string().min(1) }))
+		.mutation(async ({ input }) => {
+			return inventoryService.deleteQiParameterGroup(input.id);
+		});
+}
+
+// ─── QI Parameter Procedures ─────────────────────────────────────────────────
+
+function createListQiParametersProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(Inventory.listQiParametersSchema)
+		.query(async ({ input }) => {
+			return inventoryService.findAllQiParameters(input);
+		});
+}
+
+function createGetQiParameterByIdProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(z.object({ id: z.string().min(1) }))
+		.query(async ({ input }) => {
+			return inventoryService.findQiParameterById(input.id);
+		});
+}
+
+function createCreateQiParameterProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(Inventory.createQiParameterSchema)
+		.mutation(async ({ input }) => {
+			return inventoryService.createQiParameter(input);
+		});
+}
+
+function createUpdateQiParameterProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(Inventory.updateQiParameterSchema)
+		.mutation(async ({ input }) => {
+			return inventoryService.updateQiParameter(input);
+		});
+}
+
+function createDeleteQiParameterProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(z.object({ id: z.string().min(1) }))
+		.mutation(async ({ input }) => {
+			return inventoryService.deleteQiParameter(input.id);
+		});
+}
+
+// ─── QI Template Procedures ───────────────────────────────────────────────────
+
+function createListQiTemplatesProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(Inventory.listQiTemplatesSchema)
+		.query(async ({ input }) => {
+			return inventoryService.findAllQiTemplates(input);
+		});
+}
+
+function createGetQiTemplateByIdProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(z.object({ id: z.string().min(1) }))
+		.query(async ({ input }) => {
+			return inventoryService.findQiTemplateById(input.id);
+		});
+}
+
+function createCreateQiTemplateProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(Inventory.createQiTemplateSchema)
+		.mutation(async ({ input }) => {
+			return inventoryService.createQiTemplate(input);
+		});
+}
+
+function createUpdateQiTemplateProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(Inventory.updateQiTemplateSchema)
+		.mutation(async ({ input }) => {
+			return inventoryService.updateQiTemplate(input);
+		});
+}
+
+function createDeleteQiTemplateProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(z.object({ id: z.string().min(1) }))
+		.mutation(async ({ input }) => {
+			return inventoryService.deleteQiTemplate(input.id);
+		});
+}
+
+function createDeleteManyQiTemplatesProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure
+		.input(Inventory.bulkDeleteQiTemplatesSchema)
+		.mutation(async ({ input }) => {
+			return inventoryService.deleteManyQiTemplates(input.ids);
+		});
+}
+
 type InventoryRouterInput = {
 	listItems: ReturnType<typeof createListItemsProcedure>;
 	listItemGroups: ReturnType<typeof createListItemGroupsProcedure>;
@@ -1741,6 +1875,31 @@ type InventoryRouterInput = {
 	deleteManyPackingSlips: ReturnType<
 		typeof createDeleteManyPackingSlipsProcedure
 	>;
+	listQiParameterGroups: ReturnType<
+		typeof createListQiParameterGroupsProcedure
+	>;
+	createQiParameterGroup: ReturnType<
+		typeof createCreateQiParameterGroupProcedure
+	>;
+	updateQiParameterGroup: ReturnType<
+		typeof createUpdateQiParameterGroupProcedure
+	>;
+	deleteQiParameterGroup: ReturnType<
+		typeof createDeleteQiParameterGroupProcedure
+	>;
+	listQiParameters: ReturnType<typeof createListQiParametersProcedure>;
+	getQiParameterById: ReturnType<typeof createGetQiParameterByIdProcedure>;
+	createQiParameter: ReturnType<typeof createCreateQiParameterProcedure>;
+	updateQiParameter: ReturnType<typeof createUpdateQiParameterProcedure>;
+	deleteQiParameter: ReturnType<typeof createDeleteQiParameterProcedure>;
+	listQiTemplates: ReturnType<typeof createListQiTemplatesProcedure>;
+	getQiTemplateById: ReturnType<typeof createGetQiTemplateByIdProcedure>;
+	createQiTemplate: ReturnType<typeof createCreateQiTemplateProcedure>;
+	updateQiTemplate: ReturnType<typeof createUpdateQiTemplateProcedure>;
+	deleteQiTemplate: ReturnType<typeof createDeleteQiTemplateProcedure>;
+	deleteManyQiTemplates: ReturnType<
+		typeof createDeleteManyQiTemplatesProcedure
+	>;
 };
 
 type InventoryRouterRoot = (typeof accountRouter)["_def"]["_config"]["$types"];
@@ -1925,6 +2084,26 @@ function createInventoryRouterRecord(
 		deletePackingSlip: createDeletePackingSlipProcedure(inventoryService),
 		deleteManyPackingSlips:
 			createDeleteManyPackingSlipsProcedure(inventoryService),
+		listQiParameterGroups:
+			createListQiParameterGroupsProcedure(inventoryService),
+		createQiParameterGroup:
+			createCreateQiParameterGroupProcedure(inventoryService),
+		updateQiParameterGroup:
+			createUpdateQiParameterGroupProcedure(inventoryService),
+		deleteQiParameterGroup:
+			createDeleteQiParameterGroupProcedure(inventoryService),
+		listQiParameters: createListQiParametersProcedure(inventoryService),
+		getQiParameterById: createGetQiParameterByIdProcedure(inventoryService),
+		createQiParameter: createCreateQiParameterProcedure(inventoryService),
+		updateQiParameter: createUpdateQiParameterProcedure(inventoryService),
+		deleteQiParameter: createDeleteQiParameterProcedure(inventoryService),
+		listQiTemplates: createListQiTemplatesProcedure(inventoryService),
+		getQiTemplateById: createGetQiTemplateByIdProcedure(inventoryService),
+		createQiTemplate: createCreateQiTemplateProcedure(inventoryService),
+		updateQiTemplate: createUpdateQiTemplateProcedure(inventoryService),
+		deleteQiTemplate: createDeleteQiTemplateProcedure(inventoryService),
+		deleteManyQiTemplates:
+			createDeleteManyQiTemplatesProcedure(inventoryService),
 	};
 }
 

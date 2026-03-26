@@ -1326,3 +1326,67 @@ export function toInventoryPackingSlip(
 		updatedAt: ps.updatedAt,
 	};
 }
+// ─── Quality Inspection Types & Mappers ───────────────────────────────────────
+
+export type InventoryQiParameterGroup = Prisma.QiParameterGroupGetPayload<{
+	select: { id: true; name: true; createdAt: true; updatedAt: true };
+}>;
+
+export type InventoryQiParameter = Prisma.QiParameterGetPayload<{
+	include: { group: true };
+}>;
+
+export type InventoryQiTemplate = Prisma.QiTemplateGetPayload<{
+	include: { items: { include: { parameter: { include: { group: true } } } } };
+}>;
+
+export function toInventoryQiParameterGroup(
+	g: InventoryQiParameterGroup,
+): Inventory.QiParameterGroup {
+	return {
+		id: g.id,
+		name: g.name,
+		createdAt: g.createdAt,
+		updatedAt: g.updatedAt,
+	};
+}
+
+export function toInventoryQiParameter(
+	p: InventoryQiParameter,
+): Inventory.QiParameter {
+	return {
+		id: p.id,
+		parameter: p.parameter,
+		description: p.description,
+		groupId: p.groupId,
+		groupName: p.group?.name ?? null,
+		createdAt: p.createdAt,
+		updatedAt: p.updatedAt,
+	};
+}
+
+export function toInventoryQiTemplate(
+	t: InventoryQiTemplate,
+): Inventory.QiTemplate {
+	return {
+		id: t.id,
+		name: t.name,
+		items: t.items.map((item) => ({
+			id: item.id,
+			templateId: item.templateId,
+			parameterId: item.parameterId,
+			parameterName: item.parameter.parameter,
+			parameterGroupId: item.parameter.groupId,
+			parameterGroupName: item.parameter.group?.name ?? null,
+			sortOrder: item.sortOrder,
+			numeric: item.numeric,
+			formulaBased: item.formulaBased,
+			value: item.value,
+			minValue: item.minValue,
+			maxValue: item.maxValue,
+			acceptanceFormula: item.acceptanceFormula,
+		})),
+		createdAt: t.createdAt,
+		updatedAt: t.updatedAt,
+	};
+}

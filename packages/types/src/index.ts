@@ -4269,6 +4269,177 @@ export namespace Inventory {
 	export const bulkDeleteDeliveryTripsSchema = z.object({
 		ids: z.array(z.string().min(1)).min(1),
 	});
+
+	// ============================================================================
+	// Quality Inspection Types & Schemas
+	// ============================================================================
+
+	export interface QiParameterGroup {
+		id: string;
+		name: string;
+		createdAt: Date;
+		updatedAt: Date;
+	}
+
+	export interface QiParameter {
+		id: string;
+		parameter: string;
+		description: string | null;
+		groupId: string | null;
+		groupName: string | null;
+		createdAt: Date;
+		updatedAt: Date;
+	}
+
+	/** Acceptance criteria mode for a template item. */
+	export type QiAcceptanceMode = "NUMERIC" | "VALUE" | "FORMULA";
+
+	export interface QiTemplateItem {
+		id: string;
+		templateId: string;
+		parameterId: string;
+		parameterName: string;
+		parameterGroupId: string | null;
+		parameterGroupName: string | null;
+		sortOrder: number;
+		numeric: boolean;
+		formulaBased: boolean;
+		value: string | null;
+		minValue: number | null;
+		maxValue: number | null;
+		acceptanceFormula: string | null;
+	}
+
+	export interface QiTemplate {
+		id: string;
+		name: string;
+		items: QiTemplateItem[];
+		createdAt: Date;
+		updatedAt: Date;
+	}
+
+	// ── Parameter Group schemas ──────────────────────────────────────────────────
+
+	export const createQiParameterGroupSchema = z.object({
+		name: z
+			.string()
+			.min(1, "Group name is required")
+			.max(255, "Group name must be at most 255 characters"),
+	});
+
+	export const updateQiParameterGroupSchema = z.object({
+		id: z.string().min(1),
+		name: z
+			.string()
+			.min(1, "Group name is required")
+			.max(255, "Group name must be at most 255 characters"),
+	});
+
+	// ── Parameter schemas ────────────────────────────────────────────────────────
+
+	export const createQiParameterSchema = z.object({
+		parameter: z
+			.string()
+			.min(1, "Parameter name is required")
+			.max(255, "Parameter name must be at most 255 characters"),
+		description: z.string().optional().nullable(),
+		groupId: z.string().optional().nullable(),
+	});
+
+	export const updateQiParameterSchema = z.object({
+		id: z.string().min(1),
+		parameter: z.string().min(1).max(255).optional(),
+		description: z.string().optional().nullable(),
+		groupId: z.string().optional().nullable(),
+	});
+
+	export const listQiParametersSchema = z
+		.object({
+			search: z.string().max(255).optional(),
+			groupId: z.string().optional(),
+		})
+		.optional();
+
+	// ── Template item schema ─────────────────────────────────────────────────────
+
+	export const createQiTemplateItemSchema = z
+		.object({
+			parameterId: z.string().min(1, "Parameter is required"),
+			sortOrder: z.number().int().min(0).optional().default(0),
+			numeric: z.boolean().default(true),
+			formulaBased: z.boolean().default(false),
+			value: z.string().max(500).optional().nullable(),
+			minValue: z.number().optional().nullable(),
+			maxValue: z.number().optional().nullable(),
+			acceptanceFormula: z.string().optional().nullable(),
+		})
+		.superRefine((data, ctx) => {
+			if (data.formulaBased) return; // formula mode — no further checks
+			if (data.numeric) {
+				if (data.minValue == null && data.maxValue == null) {
+					ctx.addIssue({
+						code: z.ZodIssueCode.custom,
+						message: "Numeric parameters require at least a min or max value",
+						path: ["minValue"],
+					});
+				}
+			}
+		});
+
+	export const updateQiTemplateItemSchema = z
+		.object({
+			id: z.string().optional(), // present when updating an existing item
+			parameterId: z.string().min(1, "Parameter is required"),
+			sortOrder: z.number().int().min(0).optional().default(0),
+			numeric: z.boolean().default(true),
+			formulaBased: z.boolean().default(false),
+			value: z.string().max(500).optional().nullable(),
+			minValue: z.number().optional().nullable(),
+			maxValue: z.number().optional().nullable(),
+			acceptanceFormula: z.string().optional().nullable(),
+		})
+		.superRefine((data, ctx) => {
+			if (data.formulaBased) return;
+			if (data.numeric) {
+				if (data.minValue == null && data.maxValue == null) {
+					ctx.addIssue({
+						code: z.ZodIssueCode.custom,
+						message: "Numeric parameters require at least a min or max value",
+						path: ["minValue"],
+					});
+				}
+			}
+		});
+
+	// ── Template schemas ─────────────────────────────────────────────────────────
+
+	export const createQiTemplateSchema = z.object({
+		name: z
+			.string()
+			.min(1, "Template name is required")
+			.max(255, "Template name must be at most 255 characters"),
+		items: z
+			.array(createQiTemplateItemSchema)
+			.min(1, "At least one parameter is required"),
+	});
+
+	export const updateQiTemplateSchema = z.object({
+		id: z.string().min(1),
+		name: z.string().min(1).max(255).optional(),
+		items: z.array(updateQiTemplateItemSchema).min(1).optional(),
+	});
+
+	export const listQiTemplatesSchema = z
+		.object({
+			search: z.string().max(255).optional(),
+			skip: z.number().int().min(0).optional(),
+			take: z.number().int().min(1).max(250).optional(),
+		})
+		.optional();
+
+	export const bulkDeleteQiTemplatesSchema = z.object({
+		ids: z.array(z.string().min(1)).min(1),
+	});
 }
 
 // ============================================================================

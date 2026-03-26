@@ -212,6 +212,18 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
 	get stockSettings() {
 		return this.client.stockSettings;
 	}
+	get qiParameterGroup() {
+		return this.client.qiParameterGroup;
+	}
+	get qiParameter() {
+		return this.client.qiParameter;
+	}
+	get qiTemplate() {
+		return this.client.qiTemplate;
+	}
+	get qiTemplateItem() {
+		return this.client.qiTemplateItem;
+	}
 
 	// ═══════════════════════════════════════════════════════════════════════════
 	// Transaction Support

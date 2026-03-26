@@ -313,7 +313,7 @@ export default function ProductBundleListPage() {
 					enableColumnReordering
 					primaryAction={
 						<Link
-							href="/inventory/product-bundle/form"
+							href="/inventory/items-catalogue/product-bundle/form"
 							className={cn(buttonVariants({ variant: "default", size: "sm" }))}
 						>
 							<Plus className="mr-2 h-4 w-4" />

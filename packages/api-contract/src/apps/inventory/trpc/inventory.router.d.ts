@@ -2112,6 +2112,116 @@ type InventoryRouterInput = {
 		output: { success: boolean; count: number; ids: string[] };
 		meta: object;
 	}>;
+	listQiParameterGroups: TRPCQueryProcedure<{
+		input: void;
+		output: Inventory.QiParameterGroup[];
+		meta: object;
+	}>;
+	createQiParameterGroup: TRPCMutationProcedure<{
+		input: { name: string };
+		output: Inventory.QiParameterGroup;
+		meta: object;
+	}>;
+	updateQiParameterGroup: TRPCMutationProcedure<{
+		input: { id: string; name: string };
+		output: Inventory.QiParameterGroup;
+		meta: object;
+	}>;
+	deleteQiParameterGroup: TRPCMutationProcedure<{
+		input: { id: string };
+		output: { success: boolean; id: string };
+		meta: object;
+	}>;
+	listQiParameters: TRPCQueryProcedure<{
+		input?: { search?: string; groupId?: string } | undefined;
+		output: Inventory.QiParameter[];
+		meta: object;
+	}>;
+	getQiParameterById: TRPCQueryProcedure<{
+		input: { id: string };
+		output: Inventory.QiParameter | null;
+		meta: object;
+	}>;
+	createQiParameter: TRPCMutationProcedure<{
+		input: {
+			parameter: string;
+			description?: string | null;
+			groupId?: string | null;
+		};
+		output: Inventory.QiParameter;
+		meta: object;
+	}>;
+	updateQiParameter: TRPCMutationProcedure<{
+		input: {
+			id: string;
+			parameter?: string;
+			description?: string | null;
+			groupId?: string | null;
+		};
+		output: Inventory.QiParameter;
+		meta: object;
+	}>;
+	deleteQiParameter: TRPCMutationProcedure<{
+		input: { id: string };
+		output: { success: boolean; id: string };
+		meta: object;
+	}>;
+	listQiTemplates: TRPCQueryProcedure<{
+		input?: { search?: string; skip?: number; take?: number } | undefined;
+		output: Inventory.QiTemplate[];
+		meta: object;
+	}>;
+	getQiTemplateById: TRPCQueryProcedure<{
+		input: { id: string };
+		output: Inventory.QiTemplate | null;
+		meta: object;
+	}>;
+	createQiTemplate: TRPCMutationProcedure<{
+		input: {
+			name: string;
+			items: Array<{
+				parameterId: string;
+				sortOrder?: number;
+				numeric?: boolean;
+				formulaBased?: boolean;
+				value?: string | null;
+				minValue?: number | null;
+				maxValue?: number | null;
+				acceptanceFormula?: string | null;
+			}>;
+		};
+		output: Inventory.QiTemplate;
+		meta: object;
+	}>;
+	updateQiTemplate: TRPCMutationProcedure<{
+		input: {
+			id: string;
+			name?: string;
+			items?: Array<{
+				id?: string;
+				parameterId: string;
+				sortOrder?: number;
+				numeric?: boolean;
+				formulaBased?: boolean;
+				value?: string | null;
+				minValue?: number | null;
+				maxValue?: number | null;
+				acceptanceFormula?: string | null;
+			}>;
+		};
+		output: Inventory.QiTemplate;
+		meta: object;
+	}>;
+	deleteQiTemplate: TRPCMutationProcedure<{
+		input: { id: string };
+		output: { success: boolean; id: string };
+		meta: object;
+	}>;
+	deleteManyQiTemplates: TRPCMutationProcedure<{
+		input: { ids: string[] };
+		output: { success: boolean; count: number; ids: string[] };
+		meta: object;
+	}>;
 };
 
 type InventoryRouterRoot = (typeof accountRouter)["_def"]["_config"]["$types"];

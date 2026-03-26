@@ -1279,3 +1279,59 @@ model PackingSlipItem {
   @@index([deliveryNoteItemId])
   @@map("packing_slip_items")
 }
+
+// ─── Quality Inspection ───────────────────────────────────────────────────────
+
+model QiParameterGroup {
+  id         String        @id @default(cuid())
+  name       String        @unique @db.VarChar(255)
+  parameters QiParameter[]
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  @@map("qi_parameter_groups")
+}
+
+model QiParameter {
+  id            String             @id @default(cuid())
+  parameter     String             @unique @db.VarChar(255)
+  description   String?
+  groupId       String?
+  group         QiParameterGroup?  @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  templateItems QiTemplateItem[]
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  @@index([groupId])
+  @@map("qi_parameters")
+}
+
+model QiTemplate {
+  id        String           @id @default(cuid())
+  name      String           @unique @db.VarChar(255)
+  items     QiTemplateItem[]
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  @@map("qi_templates")
+}
+
+model QiTemplateItem {
+  id                String      @id @default(cuid())
+  templateId        String
+  parameterId       String
+  sortOrder         Int         @default(0)
+  numeric           Boolean     @default(true)
+  formulaBased      Boolean     @default(false)
+  value             String?     @db.VarChar(500)
+  minValue          Float?
+  maxValue          Float?
+  acceptanceFormula String?
+  template          QiTemplate  @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  parameter         QiParameter @relation(fields: [parameterId], references: [id])
+
+  @@unique([templateId, parameterId])
+  @@index([templateId])
+  @@index([parameterId])
+  @@map("qi_template_items")
+}

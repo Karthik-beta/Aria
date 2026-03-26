@@ -192,7 +192,7 @@ export const inventoryNavItems: NavItem[] = [
 			},
 			{
 				title: "Quality Inspection Template",
-				url: "/inventory/quality-inspection-template",
+				url: "/inventory/inventory-tools/quality-inspection-template",
 			},
 			{
 				title: "Quick Stock Balance",
