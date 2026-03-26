@@ -1106,6 +1106,41 @@ export class InventoryService {
 		}
 	}
 
+	private getSerialNoStatusOrderBy(
+		sortBy: Inventory.SerialNoStatusSortBy = "updatedAt",
+		sortDirection: Prisma.SortOrder = "desc",
+	): Prisma.SerialNoOrderByWithRelationInput[] {
+		switch (sortBy) {
+			case "createdAt":
+				return [{ createdAt: sortDirection }, { serialNo: "asc" }];
+			case "serialNo":
+				return [{ serialNo: sortDirection }, { updatedAt: "desc" }];
+			case "itemCode":
+				return [{ item: { code: sortDirection } }, { serialNo: "asc" }];
+			case "warehouse":
+				return [
+					{ currentWarehouse: { name: sortDirection } },
+					{ serialNo: "asc" },
+				];
+			case "status":
+				return [{ status: sortDirection }, { serialNo: "asc" }];
+			case "company":
+				return [{ company: sortDirection }, { serialNo: "asc" }];
+			default:
+				return [{ updatedAt: sortDirection }, { serialNo: "asc" }];
+		}
+	}
+
+	private getSerialNoCurrentStatusChangedAt(
+		serialNo: Inventory.SerialNo,
+	): Date {
+		const matchingHistoryEntry =
+			serialNo.history.find((entry) => entry.toStatus === serialNo.status) ??
+			serialNo.history.find((entry) => entry.eventType === "CREATED");
+
+		return matchingHistoryEntry?.createdAt ?? serialNo.updatedAt;
+	}
+
 	private assertSerialNoStatusTransition(
 		fromStatus: Inventory.SerialNoStatus,
 		toStatus: Inventory.SerialNoStatus,
@@ -2173,6 +2208,105 @@ export class InventoryService {
 
 		return {
 			items: items.map(toInventorySerialNo),
+			totalCount,
+		};
+	}
+
+	async findSerialNoStatus(
+		params?: Inventory.ListSerialNoStatusInput,
+	): Promise<Inventory.SerialNoStatusListResult> {
+		const rawSkip = params?.skip ?? 0;
+		const rawTake = params?.take ?? LIST_QUERY_TAKE_MAX;
+		const skip = rawSkip < 0 ? 0 : rawSkip;
+		const take =
+			rawTake <= 0
+				? 1
+				: rawTake > LIST_QUERY_TAKE_MAX
+					? LIST_QUERY_TAKE_MAX
+					: rawTake;
+		const search = params?.search?.trim();
+		const company = params?.company?.trim();
+		const includeDisabled = params?.includeDisabled ?? false;
+		const sortDirection: Prisma.SortOrder =
+			params?.sortDirection === "asc" ? "asc" : "desc";
+		const today = startOfUtcDay(new Date());
+
+		const whereClauses: Prisma.SerialNoWhereInput[] = [];
+
+		if (search) {
+			whereClauses.push({
+				OR: [
+					{ serialNo: { contains: search, mode: "insensitive" } },
+					{ company: { contains: search, mode: "insensitive" } },
+					{ notes: { contains: search, mode: "insensitive" } },
+					{ maintenanceStatus: { contains: search, mode: "insensitive" } },
+					{ workOrder: { contains: search, mode: "insensitive" } },
+					{ item: { code: { contains: search, mode: "insensitive" } } },
+					{ item: { name: { contains: search, mode: "insensitive" } } },
+					{
+						currentWarehouse: {
+							name: { contains: search, mode: "insensitive" },
+						},
+					},
+				],
+			});
+		}
+
+		if (params?.itemId) {
+			whereClauses.push({ itemId: params.itemId });
+		}
+
+		if (params?.warehouseId) {
+			whereClauses.push({ currentWarehouseId: params.warehouseId });
+		}
+
+		if (company) {
+			whereClauses.push({
+				company: {
+					contains: company,
+					mode: "insensitive",
+				},
+			});
+		}
+
+		if (params?.status) {
+			whereClauses.push({ status: params.status });
+		}
+
+		if (!includeDisabled) {
+			whereClauses.push({ isDisabled: false });
+		}
+
+		const where: Prisma.SerialNoWhereInput | undefined =
+			whereClauses.length === 0
+				? undefined
+				: whereClauses.length === 1
+					? whereClauses[0]
+					: { AND: whereClauses };
+
+		const [items, totalCount] = await this.prisma.$transaction([
+			this.prisma.serialNo.findMany({
+				where,
+				include: serialNoInclude,
+				orderBy: this.getSerialNoStatusOrderBy(params?.sortBy, sortDirection),
+				skip,
+				take,
+			}),
+			this.prisma.serialNo.count({ where }),
+		]);
+
+		return {
+			items: items.map((serialNo) => {
+				const base = toInventorySerialNo(serialNo);
+				const lastStatusChangedAt =
+					this.getSerialNoCurrentStatusChangedAt(base);
+
+				return {
+					...base,
+					lastStatusChangedAt,
+					daysInCurrentStatus: diffUtcDays(lastStatusChangedAt, today),
+				};
+			}),
 			totalCount,
 		};
 	}

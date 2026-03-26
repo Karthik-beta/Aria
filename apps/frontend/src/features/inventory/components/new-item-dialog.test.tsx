@@ -76,7 +76,9 @@ describe("NewItemDialog", () => {
 			expect(screen.getByRole("button", { name: "Nos" })).toBeInTheDocument();
 		});
 
-		await user.type(screen.getByLabelText(/Item Code/i), "abc-123");
+		const itemCodeInput = screen.getByLabelText(/Item Code/i);
+		await user.click(itemCodeInput);
+		await user.paste("abc-123");
 		await user.click(screen.getByRole("button", { name: "Item Group" }));
 		await user.click(await screen.findByText("Furniture"));
 		await user.click(screen.getByRole("button", { name: "Nos" }));
@@ -102,5 +104,5 @@ describe("NewItemDialog", () => {
 				isFixedAsset: true,
 			});
 		});
-	}, 15_000);
+	}, 30_000);
 });

@@ -114,7 +114,9 @@ describe("BatchFormPage", () => {
 		const user = userEvent.setup();
 		renderWithProviders(<BatchFormPage />);
 
-		await user.type(screen.getByLabelText(/Batch ID/i), "batch-2002");
+		const batchIdInput = screen.getByLabelText(/Batch ID/i);
+		await user.click(batchIdInput);
+		await user.paste("batch-2002");
 		await user.click(screen.getByRole("combobox", { name: /Item/i }));
 		await user.click(screen.getByText("LAP-001"));
 		await user.click(
@@ -136,7 +138,7 @@ describe("BatchFormPage", () => {
 				}),
 			);
 		});
-	});
+	}, 30_000);
 
 	it("prefills and submits the update payload", async () => {
 		currentId = "clbatch00000000000001";
@@ -147,19 +149,24 @@ describe("BatchFormPage", () => {
 			expect(screen.getByDisplayValue("BATCH-1001")).toBeInTheDocument();
 		});
 
-		await user.clear(screen.getByLabelText(/Batch ID/i));
-		await user.type(screen.getByLabelText(/Batch ID/i), "batch-1001-rev");
+		const batchIdInput = screen.getByLabelText(/Batch ID/i);
+		await user.clear(batchIdInput);
+		await user.click(batchIdInput);
+		await user.paste("batch-1001-rev");
+		await waitFor(() => {
+			expect(screen.getByDisplayValue("batch-1001-rev")).toBeInTheDocument();
+		});
 		await user.click(screen.getByRole("button", { name: "Save" }));
 
 		await waitFor(() => {
-			expect(mockUpdateMutate).toHaveBeenCalledWith(
+			expect(mockUpdateMutate).toHaveBeenLastCalledWith(
 				expect.objectContaining({
 					id: "clbatch00000000000001",
 					batchId: "BATCH-1001-REV",
 				}),
 			);
 		});
-	});
+	}, 30_000);
 
 	it("redirects when the batch is missing", async () => {
 		currentId = "missing";

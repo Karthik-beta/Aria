@@ -5251,6 +5251,61 @@ describe("InventoryService", () => {
 			);
 		});
 
+		it("should list serial number status rows with derived status ageing", async () => {
+			const statusChangedAt = new Date("2026-03-24T00:00:00.000Z");
+
+			mockPrisma.serialNo.findMany.mockResolvedValue([
+				{
+					...mockSerialNo,
+					history: [
+						{
+							...mockSerialNo.history[0],
+							id: "serial-history-2",
+							eventType: "STATUS_CHANGED",
+							fromStatus: "DRAFT",
+							toStatus: "AVAILABLE",
+							createdAt: statusChangedAt,
+						},
+					],
+				},
+			]);
+			mockPrisma.serialNo.count.mockResolvedValue(1);
+
+			const result = await service.findSerialNoStatus({
+				status: "AVAILABLE",
+				take: 20,
+			});
+
+			expect(result.totalCount).toBe(1);
+			expect(result.items[0]?.status).toBe("AVAILABLE");
+			expect(result.items[0]?.lastStatusChangedAt).toEqual(statusChangedAt);
+			expect(result.items[0]?.daysInCurrentStatus).toBeGreaterThanOrEqual(0);
+			expect(mockPrisma.serialNo.findMany).toHaveBeenCalledWith(
+				expect.objectContaining({
+					skip: 0,
+					take: 20,
+					where: expect.objectContaining({
+						AND: expect.arrayContaining([
+							expect.objectContaining({ status: "AVAILABLE" }),
+						]),
+					}),
+				}),
+			);
+		});
+
+		it("should list serial number status rows without disabled records by default", async () => {
+			mockPrisma.serialNo.findMany.mockResolvedValue([]);
+			mockPrisma.serialNo.count.mockResolvedValue(0);
+
+			await service.findSerialNoStatus();
+
+			expect(mockPrisma.serialNo.findMany).toHaveBeenCalledWith(
+				expect.objectContaining({
+					where: expect.objectContaining({ isDisabled: false }),
+				}),
+			);
+		});
+
 		it("should create a serial number when the item supports serial tracking", async () => {
 			mockPrisma.inventoryItem.findUnique.mockResolvedValue({
 				id: mockItem.id,

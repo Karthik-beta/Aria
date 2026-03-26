@@ -1,6 +1,6 @@
 You are working on the branch: "feat/inventory-serial-no-and-batch".
 
-Current page: "Serial No Service Contract Expiry"
+Current page: "Serial No Warranty Expiry"
 
 Valid page values:
 - Serial No

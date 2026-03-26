@@ -892,6 +892,40 @@ type InventoryRouterInput = {
 		output: Inventory.SerialNoServiceContractExpiryListResult;
 		meta: object;
 	}>;
+	listSerialNoStatus: TRPCQueryProcedure<{
+		input:
+			| {
+					skip?: number | undefined;
+					take?: number | undefined;
+					search?: string | undefined;
+					itemId?: string | undefined;
+					warehouseId?: string | undefined;
+					company?: string | undefined;
+					status?:
+						| "DRAFT"
+						| "AVAILABLE"
+						| "DELIVERED"
+						| "INSTALLED"
+						| "RETURNED"
+						| "SCRAPPED"
+						| "DISPOSED"
+						| undefined;
+					includeDisabled?: boolean | undefined;
+					sortBy?:
+						| "updatedAt"
+						| "createdAt"
+						| "serialNo"
+						| "itemCode"
+						| "warehouse"
+						| "status"
+						| "company"
+						| undefined;
+					sortDirection?: "asc" | "desc" | undefined;
+			  }
+			| undefined;
+		output: Inventory.SerialNoStatusListResult;
+		meta: object;
+	}>;
 	getSerialNoById: TRPCQueryProcedure<{
 		input: { id: string };
 		output: Inventory.SerialNo | null;

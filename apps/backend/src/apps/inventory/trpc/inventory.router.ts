@@ -89,6 +89,14 @@ function createListSerialNoServiceContractExpiryProcedure(
 		});
 }
 
+function createListSerialNoStatusProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(Inventory.listSerialNoStatusSchema)
+		.query(async ({ input }) => {
+			return inventoryService.findSerialNoStatus(input);
+		});
+}
+
 function createListBatchesProcedure(inventoryService: InventoryService) {
 	return protectedProcedure
 		.input(Inventory.listBatchesSchema)
@@ -1454,6 +1462,7 @@ type InventoryRouterInput = {
 	listSerialNoServiceContractExpiry: ReturnType<
 		typeof createListSerialNoServiceContractExpiryProcedure
 	>;
+	listSerialNoStatus: ReturnType<typeof createListSerialNoStatusProcedure>;
 	getSerialNoById: ReturnType<typeof createGetSerialNoByIdProcedure>;
 	createSerialNo: ReturnType<typeof createCreateSerialNoProcedure>;
 	updateSerialNo: ReturnType<typeof createUpdateSerialNoProcedure>;
@@ -1656,6 +1665,7 @@ function createInventoryRouterRecord(
 		listSerialNos: createListSerialNosProcedure(inventoryService),
 		listSerialNoServiceContractExpiry:
 			createListSerialNoServiceContractExpiryProcedure(inventoryService),
+		listSerialNoStatus: createListSerialNoStatusProcedure(inventoryService),
 		getSerialNoById: createGetSerialNoByIdProcedure(inventoryService),
 		createSerialNo: createCreateSerialNoProcedure(inventoryService),
 		updateSerialNo: createUpdateSerialNoProcedure(inventoryService),

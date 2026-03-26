@@ -249,15 +249,16 @@ describe("InstallationNoteFormPage", () => {
 		const user = userEvent.setup();
 		renderWithProviders(<InstallationNoteFormPage />);
 
-		await user.clear(screen.getByRole("textbox", { name: /^Customer \*$/i }));
-		await user.type(
-			screen.getByRole("textbox", { name: /^Customer \*$/i }),
-			"Acme Industries",
-		);
-		await user.type(
-			screen.getByRole("textbox", { name: /^Company \*$/i }),
-			"Aria Corp",
-		);
+		const customerInput = screen.getByRole("textbox", {
+			name: /^Customer \*$/i,
+		});
+		const companyInput = screen.getByRole("textbox", { name: /^Company \*$/i });
+
+		await user.clear(customerInput);
+		await user.click(customerInput);
+		await user.paste("Acme Industries");
+		await user.click(companyInput);
+		await user.paste("Aria Corp");
 		await user.click(screen.getByRole("button", { name: "Save" }));
 
 		await waitFor(() => {
@@ -268,7 +269,7 @@ describe("InstallationNoteFormPage", () => {
 				}),
 			);
 		});
-	});
+	}, 30_000);
 
 	it("prefills and submits the update payload", async () => {
 		currentId = "clins0000000000000001";

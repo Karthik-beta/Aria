@@ -172,7 +172,7 @@ export const inventoryNavItems: NavItem[] = [
 			},
 			{
 				title: "Serial No Status",
-				url: "/inventory/serial-no-status",
+				url: "/inventory/serial-no-and-batch/serial-no-status",
 			},
 			{
 				title: "Serial No Warranty Expiry",

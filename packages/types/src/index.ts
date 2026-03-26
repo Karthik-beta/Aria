@@ -518,6 +518,59 @@ export namespace Inventory {
 		totalCount: number;
 	}
 
+	export const serialNoStatusSortBySchema = z.enum([
+		"updatedAt",
+		"createdAt",
+		"serialNo",
+		"itemCode",
+		"warehouse",
+		"status",
+		"company",
+	]);
+
+	export type SerialNoStatusSortBy = z.infer<typeof serialNoStatusSortBySchema>;
+
+	export interface SerialNoStatusRow extends SerialNoLinkSummary {
+		id: string;
+		serialNo: string;
+		itemId: string;
+		itemCode: string;
+		itemName: string;
+		company: string;
+		status: SerialNoStatus;
+		currentWarehouseId?: string | null;
+		currentWarehouseName?: string | null;
+		workOrder?: string | null;
+		purchaseDate?: Date | null;
+		warrantyExpiryDate?: Date | null;
+		serviceContractExpiryDate?: Date | null;
+		lastStatusChangedAt: Date;
+		daysInCurrentStatus: number;
+		maintenanceStatus?: string | null;
+		notes?: string | null;
+		isDisabled: boolean;
+		createdAt: Date;
+		updatedAt: Date;
+	}
+
+	export interface SerialNoStatusListResult {
+		items: SerialNoStatusRow[];
+		totalCount: number;
+	}
+
+	export interface ListSerialNoStatusInput {
+		skip?: number;
+		take?: number;
+		search?: string;
+		itemId?: string;
+		warehouseId?: string;
+		company?: string;
+		status?: SerialNoStatus;
+		includeDisabled?: boolean;
+		sortBy?: SerialNoStatusSortBy;
+		sortDirection?: "asc" | "desc";
+	}
+
 	export interface ListSerialNoServiceContractExpiryInput {
 		skip?: number;
 		take?: number;
@@ -617,6 +670,21 @@ export namespace Inventory {
 					path: ["expiryDateTo"],
 				});
 			}
+		})
+		.optional();
+
+	export const listSerialNoStatusSchema = z
+		.object({
+			skip: z.number().int().min(0).optional(),
+			take: z.number().int().min(1).max(250).optional(),
+			search: z.string().max(255).trim().optional(),
+			itemId: z.string().cuid().optional(),
+			warehouseId: z.string().cuid().optional(),
+			company: z.string().max(255).trim().optional(),
+			status: serialNoStatusSchema.optional(),
+			includeDisabled: z.boolean().optional(),
+			sortBy: serialNoStatusSortBySchema.optional(),
+			sortDirection: z.enum(["asc", "desc"]).optional(),
 		})
 		.optional();
 
