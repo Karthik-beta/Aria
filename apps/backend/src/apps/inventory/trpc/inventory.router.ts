@@ -36,6 +36,11 @@ type BatchesChangedEvent = {
 	data: Inventory.Batch | { id: string };
 };
 
+type InstallationNotesChangedEvent = {
+	type: "created" | "updated" | "deleted";
+	data: Inventory.InstallationNote | { id: string };
+};
+
 function createListItemsProcedure(inventoryService: InventoryService) {
 	return protectedProcedure.query(async () => {
 		return inventoryService.findAll();
@@ -154,6 +159,62 @@ function createDeleteSerialNoProcedure(inventoryService: InventoryService) {
 		.mutation(async ({ input }) => {
 			const result = await inventoryService.deleteSerialNo(input.id);
 			void inventoryEvents.emit("serialNoDeleted", { id: input.id });
+			return result;
+		});
+}
+
+function createListInstallationNotesProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure
+		.input(Inventory.listInstallationNotesSchema)
+		.query(async ({ input }) => {
+			return inventoryService.findInstallationNotes(input);
+		});
+}
+
+function createGetInstallationNoteByIdProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure
+		.input(z.object({ id: z.string().cuid() }))
+		.query(async ({ input }) => {
+			return inventoryService.findInstallationNoteById(input.id);
+		});
+}
+
+function createCreateInstallationNoteProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure
+		.input(Inventory.createInstallationNoteSchema)
+		.mutation(async ({ input }) => {
+			const result = await inventoryService.createInstallationNote(input);
+			void inventoryEvents.emit("installationNoteCreated", result);
+			return result;
+		});
+}
+
+function createUpdateInstallationNoteProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure
+		.input(Inventory.updateInstallationNoteSchema)
+		.mutation(async ({ input }) => {
+			const result = await inventoryService.updateInstallationNote(input);
+			void inventoryEvents.emit("installationNoteUpdated", result);
+			return result;
+		});
+}
+
+function createDeleteInstallationNoteProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure
+		.input(z.object({ id: z.string().cuid() }))
+		.mutation(async ({ input }) => {
+			const result = await inventoryService.deleteInstallationNote(input.id);
+			void inventoryEvents.emit("installationNoteDeleted", { id: input.id });
 			return result;
 		});
 }
@@ -749,6 +810,32 @@ const onBatchesChangedProcedure = protectedProcedure.subscription(() => {
 		};
 	});
 });
+
+const onInstallationNotesChangedProcedure = protectedProcedure.subscription(
+	() => {
+		return observable<InstallationNotesChangedEvent>((emit) => {
+			const onCreated = (data: Inventory.InstallationNote) => {
+				emit.next({ type: "created", data });
+			};
+			const onUpdated = (data: Inventory.InstallationNote) => {
+				emit.next({ type: "updated", data });
+			};
+			const onDeleted = (data: { id: string }) => {
+				emit.next({ type: "deleted", data });
+			};
+
+			inventoryEvents.on("installationNoteCreated", onCreated);
+			inventoryEvents.on("installationNoteUpdated", onUpdated);
+			inventoryEvents.on("installationNoteDeleted", onDeleted);
+
+			return () => {
+				inventoryEvents.off("installationNoteCreated", onCreated);
+				inventoryEvents.off("installationNoteUpdated", onUpdated);
+				inventoryEvents.off("installationNoteDeleted", onDeleted);
+			};
+		});
+	},
+);
 
 // ─── Material Request Procedures ────────────────────────────────────────────
 
@@ -1358,6 +1445,21 @@ type InventoryRouterInput = {
 	createSerialNo: ReturnType<typeof createCreateSerialNoProcedure>;
 	updateSerialNo: ReturnType<typeof createUpdateSerialNoProcedure>;
 	deleteSerialNo: ReturnType<typeof createDeleteSerialNoProcedure>;
+	listInstallationNotes: ReturnType<
+		typeof createListInstallationNotesProcedure
+	>;
+	getInstallationNoteById: ReturnType<
+		typeof createGetInstallationNoteByIdProcedure
+	>;
+	createInstallationNote: ReturnType<
+		typeof createCreateInstallationNoteProcedure
+	>;
+	updateInstallationNote: ReturnType<
+		typeof createUpdateInstallationNoteProcedure
+	>;
+	deleteInstallationNote: ReturnType<
+		typeof createDeleteInstallationNoteProcedure
+	>;
 	getWarehouseById: ReturnType<typeof createGetWarehouseByIdProcedure>;
 	createWarehouse: ReturnType<typeof createCreateWarehouseProcedure>;
 	updateWarehouse: ReturnType<typeof createUpdateWarehouseProcedure>;
@@ -1436,6 +1538,7 @@ type InventoryRouterInput = {
 	onItemsChanged: typeof onItemsChangedProcedure;
 	onBatchesChanged: typeof onBatchesChangedProcedure;
 	onSerialNosChanged: typeof onSerialNosChangedProcedure;
+	onInstallationNotesChanged: typeof onInstallationNotesChangedProcedure;
 	listMaterialRequests: ReturnType<typeof createListMaterialRequestsProcedure>;
 	getMaterialRequestById: ReturnType<
 		typeof createGetMaterialRequestByIdProcedure
@@ -1542,6 +1645,16 @@ function createInventoryRouterRecord(
 		createSerialNo: createCreateSerialNoProcedure(inventoryService),
 		updateSerialNo: createUpdateSerialNoProcedure(inventoryService),
 		deleteSerialNo: createDeleteSerialNoProcedure(inventoryService),
+		listInstallationNotes:
+			createListInstallationNotesProcedure(inventoryService),
+		getInstallationNoteById:
+			createGetInstallationNoteByIdProcedure(inventoryService),
+		createInstallationNote:
+			createCreateInstallationNoteProcedure(inventoryService),
+		updateInstallationNote:
+			createUpdateInstallationNoteProcedure(inventoryService),
+		deleteInstallationNote:
+			createDeleteInstallationNoteProcedure(inventoryService),
 		getWarehouseById: createGetWarehouseByIdProcedure(inventoryService),
 		createWarehouse: createCreateWarehouseProcedure(inventoryService),
 		updateWarehouse: createUpdateWarehouseProcedure(inventoryService),
@@ -1609,6 +1722,7 @@ function createInventoryRouterRecord(
 		onItemsChanged: onItemsChangedProcedure,
 		onBatchesChanged: onBatchesChangedProcedure,
 		onSerialNosChanged: onSerialNosChangedProcedure,
+		onInstallationNotesChanged: onInstallationNotesChangedProcedure,
 		listMaterialRequests: createListMaterialRequestsProcedure(inventoryService),
 		getMaterialRequestById:
 			createGetMaterialRequestByIdProcedure(inventoryService),

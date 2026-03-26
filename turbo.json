@@ -164,8 +164,12 @@
 			"outputs": []
 		},
 		"test": {
-			"dependsOn": ["^build"],
+			"dependsOn": ["^build", "prisma:generate"],
 			"outputs": []
+		},
+		"prisma:generate": {
+			"outputs": ["src/generated/prisma/**"],
+			"cache": true
 		},
 		"package": {
 			"dependsOn": ["build"],

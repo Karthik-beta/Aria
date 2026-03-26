@@ -1,4 +1,4 @@
-import { z } from "zod";
+import * as z from "zod";
 
 // ============================================================================
 // API Response Contracts
@@ -472,6 +472,7 @@ export namespace Inventory {
 		search?: string;
 		itemId?: string;
 		warehouseId?: string;
+		deliveryNoteId?: string;
 		company?: string;
 		status?: SerialNoStatus;
 		includeDisabled?: boolean;
@@ -525,6 +526,7 @@ export namespace Inventory {
 			search: z.string().max(255).trim().optional(),
 			itemId: z.string().cuid().optional(),
 			warehouseId: z.string().cuid().optional(),
+			deliveryNoteId: z.string().cuid().optional(),
 			company: z.string().max(255).trim().optional(),
 			status: serialNoStatusSchema.optional(),
 			includeDisabled: z.boolean().optional(),
@@ -624,6 +626,214 @@ export namespace Inventory {
 		.superRefine((value, ctx) => {
 			validateSerialNoDateOrder(value, ctx);
 		});
+
+	export const installationNoteStatusSchema = z.enum([
+		"DRAFT",
+		"IN_PROGRESS",
+		"COMPLETED",
+		"CANCELLED",
+	]);
+
+	export type InstallationNoteStatus = z.infer<
+		typeof installationNoteStatusSchema
+	>;
+
+	export const installationNoteSortBySchema = z.enum([
+		"updatedAt",
+		"createdAt",
+		"series",
+		"installationDate",
+		"customer",
+		"status",
+		"company",
+	]);
+
+	export type InstallationNoteSortBy = z.infer<
+		typeof installationNoteSortBySchema
+	>;
+
+	export interface InstallationNoteItem {
+		id: string;
+		installationNoteId: string;
+		itemId: string;
+		itemCode: string;
+		itemName: string;
+		serialNoId?: string | null;
+		serialNo?: string | null;
+		description?: string | null;
+		installedQty: number;
+	}
+
+	export interface InstallationNote {
+		id: string;
+		series: string;
+		seriesPattern: string;
+		installationDate: Date;
+		installationTime?: string | null;
+		customer: string;
+		customerName?: string | null;
+		customerAddress?: string | null;
+		contactPerson?: string | null;
+		territory: string;
+		customerGroup?: string | null;
+		company: string;
+		status: InstallationNoteStatus;
+		deliveryNoteId?: string | null;
+		deliveryNoteSeries?: string | null;
+		remarks?: string | null;
+		items: InstallationNoteItem[];
+		createdAt: Date;
+		updatedAt: Date;
+	}
+
+	export interface InstallationNoteListResult {
+		items: InstallationNote[];
+		totalCount: number;
+	}
+
+	export interface ListInstallationNotesInput {
+		skip?: number;
+		take?: number;
+		search?: string;
+		status?: InstallationNoteStatus;
+		company?: string;
+		deliveryNoteId?: string;
+		sortBy?: InstallationNoteSortBy;
+		sortDirection?: "asc" | "desc";
+	}
+
+	export interface CreateInstallationNoteItemInput {
+		itemId: string;
+		serialNoId?: string | null;
+		description?: string | null;
+		installedQty: number;
+	}
+
+	export interface CreateInstallationNoteInput {
+		seriesPattern?: string;
+		installationDate?: Date;
+		installationTime?: string | null;
+		customer: string;
+		customerName?: string | null;
+		customerAddress?: string | null;
+		contactPerson?: string | null;
+		territory?: string;
+		customerGroup?: string | null;
+		company: string;
+		status?: InstallationNoteStatus;
+		deliveryNoteId?: string | null;
+		remarks?: string | null;
+		items: CreateInstallationNoteItemInput[];
+	}
+
+	export interface UpdateInstallationNoteItemInput {
+		id?: string;
+		itemId: string;
+		serialNoId?: string | null;
+		description?: string | null;
+		installedQty: number;
+	}
+
+	export interface UpdateInstallationNoteInput {
+		id: string;
+		installationDate?: Date;
+		installationTime?: string | null;
+		customer?: string;
+		customerName?: string | null;
+		customerAddress?: string | null;
+		contactPerson?: string | null;
+		territory?: string;
+		customerGroup?: string | null;
+		company?: string;
+		status?: InstallationNoteStatus;
+		deliveryNoteId?: string | null;
+		remarks?: string | null;
+		items?: UpdateInstallationNoteItemInput[];
+	}
+
+	export const listInstallationNotesSchema = z
+		.object({
+			skip: z.number().int().min(0).optional(),
+			take: z.number().int().min(1).max(250).optional(),
+			search: z.string().max(255).trim().optional(),
+			status: installationNoteStatusSchema.optional(),
+			company: z.string().max(255).trim().optional(),
+			deliveryNoteId: z.string().min(1).optional(),
+			sortBy: installationNoteSortBySchema.optional(),
+			sortDirection: z.enum(["asc", "desc"]).optional(),
+		})
+		.optional();
+
+	const installationNoteItemFields = {
+		itemId: z.string().cuid("Item is required"),
+		serialNoId: z.string().cuid().optional().nullable(),
+		description: z
+			.string()
+			.max(65_535, "Description must be 65,535 characters or fewer")
+			.optional()
+			.nullable(),
+		installedQty: z
+			.number()
+			.positive("Installed quantity must be greater than zero"),
+	} satisfies z.ZodRawShape;
+
+	export const createInstallationNoteItemSchema = z.object(
+		installationNoteItemFields,
+	);
+
+	export const updateInstallationNoteItemSchema = z.object({
+		id: z.string().cuid().optional(),
+		...installationNoteItemFields,
+	});
+
+	const installationNoteFields = {
+		seriesPattern: z.string().max(50).trim().optional(),
+		installationDate: z.coerce.date().optional(),
+		installationTime: z.string().max(8).trim().optional().nullable(),
+		customer: z.string().min(1, "Customer is required").max(255).trim(),
+		customerName: z.string().max(255).trim().optional().nullable(),
+		customerAddress: z.string().max(255).trim().optional().nullable(),
+		contactPerson: z.string().max(255).trim().optional().nullable(),
+		territory: z
+			.string()
+			.min(1, "Territory is required")
+			.max(255)
+			.trim()
+			.default("All Territories"),
+		customerGroup: z.string().max(255).trim().optional().nullable(),
+		company: z.string().min(1, "Company is required").max(255).trim(),
+		status: installationNoteStatusSchema.default("DRAFT"),
+		deliveryNoteId: z.string().min(1).optional().nullable(),
+		remarks: z
+			.string()
+			.max(65_535, "Remarks must be 65,535 characters or fewer")
+			.optional()
+			.nullable(),
+	} satisfies z.ZodRawShape;
+
+	export const createInstallationNoteSchema = z.object({
+		...installationNoteFields,
+		items: z
+			.array(createInstallationNoteItemSchema)
+			.min(1, "At least one installation item is required"),
+	});
+
+	export const updateInstallationNoteSchema = z.object({
+		id: z.string().cuid(),
+		installationDate: installationNoteFields.installationDate,
+		installationTime: installationNoteFields.installationTime,
+		customer: installationNoteFields.customer.optional(),
+		customerName: installationNoteFields.customerName,
+		customerAddress: installationNoteFields.customerAddress,
+		contactPerson: installationNoteFields.contactPerson,
+		territory: installationNoteFields.territory.optional(),
+		customerGroup: installationNoteFields.customerGroup,
+		company: installationNoteFields.company.optional(),
+		status: installationNoteStatusSchema.optional(),
+		deliveryNoteId: installationNoteFields.deliveryNoteId,
+		remarks: installationNoteFields.remarks,
+		items: z.array(updateInstallationNoteItemSchema).min(1).optional(),
+	});
 
 	export const ITEM_VARIANT_COPY_FIELD_KEYS = [
 		"description",

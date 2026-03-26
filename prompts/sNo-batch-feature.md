@@ -1,6 +1,6 @@
 You are working on the branch: "feat/inventory-serial-no-and-batch".
 
-Current page: "Batch"
+Current page: "Installation Note"
 
 Valid page values:
 - Serial No

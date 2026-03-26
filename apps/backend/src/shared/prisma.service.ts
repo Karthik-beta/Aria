@@ -170,6 +170,12 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
 	get deliveryNoteItem() {
 		return this.client.deliveryNoteItem;
 	}
+	get installationNote() {
+		return this.client.installationNote;
+	}
+	get installationNoteItem() {
+		return this.client.installationNoteItem;
+	}
 	get purchaseReceipt() {
 		return this.client.purchaseReceipt;
 	}

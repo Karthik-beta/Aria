@@ -189,6 +189,46 @@ describe("InventoryService", () => {
 		stockEntry: null,
 	};
 
+	const mockInstallationNote = {
+		id: "clinstallationnote00001",
+		series: "MAT-INS-2026-00001",
+		seriesPattern: "MAT-INS-.YYYY.-",
+		installationDate: new Date("2026-03-26T00:00:00.000Z"),
+		installationTime: "10:30:00",
+		customer: "Acme Industries",
+		customerName: "Acme Industries",
+		customerAddress: "Dubai",
+		contactPerson: "John",
+		territory: "All Territories",
+		customerGroup: "Corporate",
+		company: "Aria Corp",
+		status: "DRAFT" as const,
+		deliveryNoteId: null as string | null,
+		remarks: "Ready to install",
+		deliveryNote: null,
+		items: [
+			{
+				id: "clinstallationrow0001",
+				installationNoteId: "clinstallationnote00001",
+				itemId: mockItem.id,
+				serialNoId: mockSerialNo.id,
+				description: "Onsite setup",
+				installedQty: 1,
+				item: {
+					id: mockItem.id,
+					code: mockItem.code,
+					name: mockItem.name,
+				},
+				serialNo: {
+					id: mockSerialNo.id,
+					serialNo: mockSerialNo.serialNo,
+				},
+			},
+		],
+		createdAt: new Date("2026-03-26T00:00:00.000Z"),
+		updatedAt: new Date("2026-03-26T01:00:00.000Z"),
+	};
+
 	const mockStockSettingsInput = {
 		itemNamingBy: "ITEM_CODE" as const,
 		defaultWarehouse: null,
@@ -406,6 +446,21 @@ describe("InventoryService", () => {
 			update: jest.fn(),
 			delete: jest.fn(),
 			count: jest.fn(),
+		},
+		installationNote: {
+			findMany: jest.fn(),
+			findFirst: jest.fn(),
+			findUnique: jest.fn(),
+			create: jest.fn(),
+			update: jest.fn(),
+			delete: jest.fn(),
+			count: jest.fn(),
+		},
+		installationNoteItem: {
+			findMany: jest.fn(),
+			deleteMany: jest.fn(),
+			update: jest.fn(),
+			create: jest.fn(),
 		},
 		itemGroupDefault: {
 			count: jest.fn(),
@@ -5307,6 +5362,119 @@ describe("InventoryService", () => {
 			await expect(service.deleteBatch(mockBatch.id)).rejects.toThrow(
 				BadRequestException,
 			);
+		});
+	});
+
+	describe("installation notes", () => {
+		it("should list installation notes with bounded filters", async () => {
+			mockPrisma.installationNote.findMany.mockResolvedValue([
+				mockInstallationNote,
+			]);
+			mockPrisma.installationNote.count.mockResolvedValue(1);
+
+			const result = await service.findInstallationNotes({
+				search: "Acme",
+				status: "DRAFT",
+				take: 25,
+			});
+
+			expect(result.totalCount).toBe(1);
+			expect(result.items[0]?.series).toBe("MAT-INS-2026-00001");
+			expect(mockPrisma.installationNote.findMany).toHaveBeenCalledWith(
+				expect.objectContaining({
+					skip: 0,
+					take: 25,
+				}),
+			);
+		});
+
+		it("should create an installation note and install linked serials", async () => {
+			mockPrisma.installationNote.findFirst.mockResolvedValue(null);
+			mockPrisma.inventoryItem.findMany.mockResolvedValue([
+				{
+					id: mockItem.id,
+					code: mockItem.code,
+					name: mockItem.name,
+					hasSerialNo: true,
+					disabled: false,
+				},
+			]);
+			mockPrisma.serialNo.findMany.mockResolvedValue([
+				{
+					id: mockSerialNo.id,
+					serialNo: mockSerialNo.serialNo,
+					itemId: mockItem.id,
+					company: "Aria Corp",
+					status: "DELIVERED",
+					deliveryNoteId: null,
+					isDisabled: false,
+				},
+			]);
+			mockPrisma.installationNote.create.mockResolvedValue(
+				mockInstallationNote,
+			);
+			mockPrisma.serialNo.update.mockResolvedValue(mockSerialNo);
+
+			const result = await service.createInstallationNote({
+				customer: "Acme Industries",
+				company: "Aria Corp",
+				status: "COMPLETED",
+				items: [
+					{
+						itemId: mockItem.id,
+						serialNoId: mockSerialNo.id,
+						description: "Onsite setup",
+						installedQty: 1,
+					},
+				],
+			});
+
+			expect(result.series).toBe("MAT-INS-2026-00001");
+			expect(mockPrisma.serialNo.update).toHaveBeenCalledWith(
+				expect.objectContaining({
+					where: { id: mockSerialNo.id },
+					data: expect.objectContaining({
+						status: "INSTALLED",
+					}),
+				}),
+			);
+		});
+
+		it("should reject completed installation notes without required serial numbers", async () => {
+			mockPrisma.inventoryItem.findMany.mockResolvedValue([
+				{
+					id: mockItem.id,
+					code: mockItem.code,
+					name: mockItem.name,
+					hasSerialNo: true,
+					disabled: false,
+				},
+			]);
+
+			await expect(
+				service.createInstallationNote({
+					customer: "Acme Industries",
+					company: "Aria Corp",
+					status: "COMPLETED",
+					items: [
+						{
+							itemId: mockItem.id,
+							installedQty: 1,
+						},
+					],
+				}),
+			).rejects.toThrow(BadRequestException);
+		});
+
+		it("should prevent deleting non-draft installation notes", async () => {
+			mockPrisma.installationNote.findUnique.mockResolvedValue({
+				id: mockInstallationNote.id,
+				status: "COMPLETED",
+			});
+
+			await expect(
+				service.deleteInstallationNote(mockInstallationNote.id),
+			).rejects.toThrow(BadRequestException);
 		});
 	});
 });

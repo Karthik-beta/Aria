@@ -1,5 +1,5 @@
 import { Inventory } from "@aria/types";
-import { z } from "zod";
+import * as z from "zod";
 
 export const serialNoFormSchema = z.object({
 	serialNo: z.string().min(1, "Serial number is required").max(120).trim(),

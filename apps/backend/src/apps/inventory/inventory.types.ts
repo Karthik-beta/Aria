@@ -252,6 +252,40 @@ export type InventorySerialNo = Prisma.SerialNoGetPayload<{
 }>;
 
 /**
+ * Prisma model type for InstallationNote with header links and row relations.
+ */
+export type InventoryInstallationNote = Prisma.InstallationNoteGetPayload<{
+	include: {
+		deliveryNote: {
+			select: {
+				id: true;
+				series: true;
+			};
+		};
+		items: {
+			include: {
+				item: {
+					select: {
+						id: true;
+						code: true;
+						name: true;
+					};
+				};
+				serialNo: {
+					select: {
+						id: true;
+						serialNo: true;
+					};
+				};
+			};
+			orderBy: {
+				id: "asc";
+			};
+		};
+	};
+}>;
+
+/**
  * Prisma model type for singleton StockSettings.
  */
 export type InventoryStockSettings = Prisma.StockSettingsGetPayload<{
@@ -658,6 +692,45 @@ export function toInventorySerialNo(
 			notes: entry.notes,
 			createdAt: entry.createdAt,
 		})),
+	};
+}
+
+/**
+ * Converts a Prisma InstallationNote with relations to Inventory.InstallationNote.
+ */
+export function toInventoryInstallationNote(
+	prismaNote: InventoryInstallationNote,
+): Inventory.InstallationNote {
+	return {
+		id: prismaNote.id,
+		series: prismaNote.series,
+		seriesPattern: prismaNote.seriesPattern,
+		installationDate: prismaNote.installationDate,
+		installationTime: prismaNote.installationTime,
+		customer: prismaNote.customer,
+		customerName: prismaNote.customerName,
+		customerAddress: prismaNote.customerAddress,
+		contactPerson: prismaNote.contactPerson,
+		territory: prismaNote.territory,
+		customerGroup: prismaNote.customerGroup,
+		company: prismaNote.company,
+		status: prismaNote.status as Inventory.InstallationNoteStatus,
+		deliveryNoteId: prismaNote.deliveryNoteId,
+		deliveryNoteSeries: prismaNote.deliveryNote?.series ?? null,
+		remarks: prismaNote.remarks,
+		items: prismaNote.items.map((item) => ({
+			id: item.id,
+			installationNoteId: item.installationNoteId,
+			itemId: item.itemId,
+			itemCode: item.item.code,
+			itemName: item.item.name,
+			serialNoId: item.serialNoId,
+			serialNo: item.serialNo?.serialNo ?? null,
+			description: item.description,
+			installedQty: item.installedQty,
+		})),
+		createdAt: prismaNote.createdAt,
+		updatedAt: prismaNote.updatedAt,
 	};
 }
 

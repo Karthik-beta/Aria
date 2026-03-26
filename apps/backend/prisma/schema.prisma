@@ -82,6 +82,7 @@ model InventoryItem {
   defaultUnitOfMeasureId String?
   defaultUnitOfMeasure   UnitOfMeasurement? @relation(fields: [defaultUnitOfMeasureId], references: [id])
   batches                Batch[]
+  installationNoteItems  InstallationNoteItem[]
   serialNos              SerialNo[]
 
   quantity  Int      @default(0)
@@ -811,9 +812,10 @@ model DeliveryNote {
   // Additional Info
   project                  String?            @db.VarChar(255)
 
-  items     DeliveryNoteItem[]
-  batches   Batch[]
-  serialNos SerialNo[]
+  items             DeliveryNoteItem[]
+  batches           Batch[]
+  installationNotes InstallationNote[]
+  serialNos         SerialNo[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -849,6 +851,60 @@ enum DeliveryNoteStatus {
   RETURN_ISSUED
   CANCELLED
   CLOSED
+}
+
+model InstallationNote {
+  id               String                 @id @default(cuid())
+  series           String                 @unique @db.VarChar(50)
+  seriesPattern    String                 @default("MAT-INS-.YYYY.-") @db.VarChar(50)
+  installationDate DateTime               @default(now())
+  installationTime String?                @db.VarChar(8)
+  customer         String                 @db.VarChar(255)
+  customerName     String?                @db.VarChar(255)
+  customerAddress  String?                @db.VarChar(255)
+  contactPerson    String?                @db.VarChar(255)
+  territory        String                 @default("All Territories") @db.VarChar(255)
+  customerGroup    String?                @db.VarChar(255)
+  company          String                 @db.VarChar(255)
+  status           InstallationNoteStatus @default(DRAFT)
+  deliveryNoteId   String?
+  remarks          String?                @db.Text
+  deliveryNote     DeliveryNote?          @relation(fields: [deliveryNoteId], references: [id])
+  items            InstallationNoteItem[]
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+
+  @@index([installationDate])
+  @@index([status])
+  @@index([customer])
+  @@index([company])
+  @@index([deliveryNoteId])
+  @@map("installation_notes")
+}
+
+model InstallationNoteItem {
+  id                 String           @id @default(cuid())
+  installationNoteId String
+  itemId             String
+  serialNoId         String?
+  description        String?
+  installedQty       Float            @default(1)
+  installationNote   InstallationNote @relation(fields: [installationNoteId], references: [id], onDelete: Cascade)
+  item               InventoryItem    @relation(fields: [itemId], references: [id])
+  serialNo           SerialNo?        @relation(fields: [serialNoId], references: [id])
+
+  @@index([installationNoteId])
+  @@index([itemId])
+  @@index([serialNoId])
+  @@unique([installationNoteId, serialNoId])
+  @@map("installation_note_items")
+}
+
+enum InstallationNoteStatus {
+  DRAFT
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
 }
 
 model PurchaseReceipt {
@@ -1090,6 +1146,7 @@ model SerialNo {
   stockEntry                  StockEntry?    @relation(fields: [stockEntryId], references: [id])
   pickList                    PickList?      @relation(fields: [pickListId], references: [id])
   history                     SerialNoHistory[]
+  installationNoteItems       InstallationNoteItem[]
 
   @@index([itemId])
   @@index([company])

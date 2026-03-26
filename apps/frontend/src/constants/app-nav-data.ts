@@ -164,7 +164,7 @@ export const inventoryNavItems: NavItem[] = [
 			},
 			{
 				title: "Installation Note",
-				url: "/inventory/installation-notes",
+				url: "/inventory/serial-no-and-batch/installation-note",
 			},
 			{
 				title: "Serial No Service Contract Expiry",

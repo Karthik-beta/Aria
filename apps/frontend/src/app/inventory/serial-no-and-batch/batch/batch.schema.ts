@@ -1,5 +1,5 @@
 import { Inventory } from "@aria/types";
-import { z } from "zod";
+import * as z from "zod";
 
 export const batchFormSchema = z.object({
 	batchId: z.string().min(1, "Batch ID is required").max(120).trim(),
