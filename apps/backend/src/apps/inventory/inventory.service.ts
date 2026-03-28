@@ -44,6 +44,11 @@ import {
 	buildStockAgeingRows,
 	type StockAgeingBucketRange,
 } from "./stock-ageing-report";
+import {
+	buildStockAnalyticsRows,
+	getPeriodDateRanges as getPeriodDateRangesForService,
+	type StockAnalyticsSourceEntry,
+} from "./stock-analytics-report";
 import { buildStockBalanceRows } from "./stock-balance-report";
 import { buildStockLedgerRows } from "./stock-ledger-report";
 import {
@@ -8501,6 +8506,212 @@ export class InventoryService {
 				};
 			})
 			.slice(skip, skip + take);
+	}
+
+	/**
+	 * Build the Stock Analytics report — period-by-period running stock
+	 * balances for all matching items.
+	 *
+	 * The query fetches all submitted StockEntryItems up to `toDate` so that
+	 * running balances are accurate even when `fromDate` is mid-history.
+	 */
+	async findStockAnalytics(
+		params: Inventory.ListStockAnalyticsInput,
+	): Promise<Inventory.StockAnalyticsResult> {
+		const company = params.company?.trim();
+		const warehouse = params.warehouse?.trim();
+		const itemCode = params.itemCode?.trim();
+		const itemGroup = params.itemGroup?.trim();
+		const brand = params.brand?.trim();
+		const { fromDate, toDate, frequency, valueQuantity } = params;
+
+		if (fromDate > toDate) {
+			throw new BadRequestException(
+				"'From Date' must not be later than 'To Date'.",
+			);
+		}
+
+		// Resolve item codes for item group / brand filters
+		let filteredItemCodes: string[] | undefined;
+
+		if (itemGroup || brand) {
+			const matchingItems = await this.prisma.item.findMany({
+				where: {
+					...(itemGroup
+						? {
+								itemGroup: {
+									groupName: {
+										contains: itemGroup,
+										mode: "insensitive",
+									},
+								},
+							}
+						: {}),
+					...(brand
+						? {
+								brand: {
+									name: {
+										contains: brand,
+										mode: "insensitive",
+									},
+								},
+							}
+						: {}),
+				},
+				select: { code: true },
+			});
+
+			filteredItemCodes = matchingItems.map((i) => i.code);
+
+			if (filteredItemCodes.length === 0) {
+				const periods = getPeriodDateRangesForService(
+					fromDate,
+					toDate,
+					frequency,
+				);
+				return { periods, rows: [] };
+			}
+		}
+
+		// Build item code filter for direct itemCode param
+		const whereClauses: Prisma.StockEntryItemWhereInput[] = [
+			{
+				stockEntry: {
+					status: "SUBMITTED",
+					postingDate: { lte: toDate },
+					...(company
+						? { company: { contains: company, mode: "insensitive" } }
+						: {}),
+				},
+			},
+		];
+
+		if (itemCode) {
+			whereClauses.push({
+				itemCode: { contains: itemCode, mode: "insensitive" },
+			});
+		}
+
+		if (filteredItemCodes) {
+			whereClauses.push({ itemCode: { in: filteredItemCodes } });
+		}
+
+		if (warehouse) {
+			whereClauses.push({
+				OR: [
+					{ sourceWarehouse: { equals: warehouse, mode: "insensitive" } },
+					{ targetWarehouse: { equals: warehouse, mode: "insensitive" } },
+					{
+						stockEntry: {
+							defaultSourceWarehouse: {
+								equals: warehouse,
+								mode: "insensitive",
+							},
+						},
+					},
+					{
+						stockEntry: {
+							defaultTargetWarehouse: {
+								equals: warehouse,
+								mode: "insensitive",
+							},
+						},
+					},
+				],
+			});
+		}
+
+		const stockItems = await this.prisma.stockEntryItem.findMany({
+			where:
+				whereClauses.length === 1 ? whereClauses[0] : { AND: whereClauses },
+			include: { stockEntry: true },
+			orderBy: [
+				{ stockEntry: { postingDate: "asc" } },
+				{ stockEntry: { createdAt: "asc" } },
+				{ id: "asc" },
+			],
+		});
+
+		if (stockItems.length === 0) {
+			const periods = getPeriodDateRangesForService(
+				fromDate,
+				toDate,
+				frequency,
+			);
+			return { periods, rows: [] };
+		}
+
+		// Map raw stock items to source entries using buildStockLedgerRows
+		const ledgerRows = buildStockLedgerRows(stockItems, { warehouse });
+
+		const sourceEntries: StockAnalyticsSourceEntry[] = ledgerRows.map(
+			(row) => ({
+				company: row.company,
+				itemCode: row.itemCode,
+				warehouse: row.warehouse,
+				postingDate: row.postingDate,
+				qtyChange: row.qtyIn - row.qtyOut,
+				valueChange:
+					row.qtyIn > 0
+						? row.basicAmount
+						: row.qtyOut > 0
+							? -row.basicAmount
+							: 0,
+			}),
+		);
+
+		// Build item metadata map
+		const itemCodes = [...new Set(sourceEntries.map((e) => e.itemCode))];
+		const [inventoryItems, itemMeta] = await Promise.all([
+			this.prisma.inventoryItem.findMany({
+				where: { code: { in: itemCodes } },
+				include: {
+					defaultUnitOfMeasure: { select: { name: true } },
+					itemGroup: { select: { groupName: true } },
+				},
+			}),
+			this.prisma.item.findMany({
+				where: { code: { in: itemCodes } },
+				select: {
+					code: true,
+					brand: { select: { name: true } },
+				},
+			}),
+		]);
+
+		const inventoryItemsByCode = new Map(
+			inventoryItems.map((item) => [item.code, item] as const),
+		);
+		const brandByCode = new Map(
+			itemMeta.map((item) => [item.code, item.brand?.name ?? null] as const),
+		);
+
+		const metaMap = new Map<
+			string,
+			{
+				itemName?: string | null;
+				itemGroup?: string | null;
+				brand?: string | null;
+				unitOfMeasure?: string | null;
+			}
+		>();
+
+		for (const code of itemCodes) {
+			const inv = inventoryItemsByCode.get(code);
+			metaMap.set(code, {
+				itemName: inv?.name ?? null,
+				itemGroup: inv?.itemGroup?.groupName ?? null,
+				brand: brandByCode.get(code) ?? null,
+				unitOfMeasure: inv?.defaultUnitOfMeasure?.name ?? null,
+			});
+		}
+
+		return buildStockAnalyticsRows(sourceEntries, metaMap, {
+			fromDate,
+			toDate,
+			frequency,
+			valueQuantity,
+		});
 	}
 
 	// ============================================================================

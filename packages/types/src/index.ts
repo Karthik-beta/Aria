@@ -3098,6 +3098,81 @@ export namespace Inventory {
 	}
 
 	// ============================================================================
+	// Stock Analytics Report Types & Schemas
+	// ============================================================================
+
+	/** Temporal grouping granularity for the Stock Analytics report. */
+	export type StockAnalyticsRangeFrequency =
+		| "Weekly"
+		| "Monthly"
+		| "Quarterly"
+		| "Yearly";
+
+	/** Whether the chart/table should show stock quantity or stock value. */
+	export type StockAnalyticsValueQuantity = "Quantity" | "Value";
+
+	/** One time bucket produced by the Stock Analytics report. */
+	export interface StockAnalyticsPeriod {
+		/** ISO date string for the first day of the bucket (inclusive). */
+		from: Date;
+		/** ISO date string for the last day of the bucket (inclusive). */
+		to: Date;
+		/** Human-readable label, e.g. "Jan 2024", "Q1 2024", "Week 5 2024". */
+		label: string;
+		/** Snake-cased key used as the column accessor (e.g. "jan_2024"). */
+		key: string;
+	}
+
+	/**
+	 * One row in the Stock Analytics report.
+	 * `periodValues` maps a period key (from `StockAnalyticsPeriod.key`) to the
+	 * cumulative running balance (qty or value) at the end of that period.
+	 * A `null` value means the period is in the future relative to today and no
+	 * data should be displayed.
+	 */
+	export interface StockAnalyticsRow {
+		/** Item code — unique row identifier. */
+		id: string;
+		itemCode: string;
+		itemName?: string | null;
+		itemGroup?: string | null;
+		brand?: string | null;
+		unitOfMeasure?: string | null;
+		/** period key → running balance (null = future period, no data). */
+		periodValues: Record<string, number | null>;
+	}
+
+	/** Full response from the Stock Analytics report endpoint. */
+	export interface StockAnalyticsResult {
+		periods: StockAnalyticsPeriod[];
+		rows: StockAnalyticsRow[];
+	}
+
+	export interface ListStockAnalyticsInput {
+		fromDate: Date;
+		toDate: Date;
+		frequency: StockAnalyticsRangeFrequency;
+		valueQuantity: StockAnalyticsValueQuantity;
+		company?: string;
+		warehouse?: string;
+		itemCode?: string;
+		itemGroup?: string;
+		brand?: string;
+	}
+
+	export const listStockAnalyticsSchema = z.object({
+		fromDate: z.coerce.date(),
+		toDate: z.coerce.date(),
+		frequency: z.enum(["Weekly", "Monthly", "Quarterly", "Yearly"]),
+		valueQuantity: z.enum(["Quantity", "Value"]),
+		company: z.string().max(255).optional(),
+		warehouse: z.string().max(255).optional(),
+		itemCode: z.string().max(100).optional(),
+		itemGroup: z.string().max(255).optional(),
+		brand: z.string().max(255).optional(),
+	});
+
+	// ============================================================================
 	// Delivery Note Types & Schemas
 	// ============================================================================
 

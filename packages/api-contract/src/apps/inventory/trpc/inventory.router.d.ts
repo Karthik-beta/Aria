@@ -1515,6 +1515,21 @@ type InventoryRouterInput = {
 		output: Inventory.WarehouseWiseStockBalanceRow[];
 		meta: object;
 	}>;
+	listStockAnalytics: TRPCQueryProcedure<{
+		input: {
+			fromDate: unknown;
+			toDate: unknown;
+			frequency: "Weekly" | "Monthly" | "Quarterly" | "Yearly";
+			valueQuantity: "Quantity" | "Value";
+			company?: string | undefined;
+			warehouse?: string | undefined;
+			itemCode?: string | undefined;
+			itemGroup?: string | undefined;
+			brand?: string | undefined;
+		};
+		output: Inventory.StockAnalyticsResult;
+		meta: object;
+	}>;
 	listDeliveryNotes: TRPCQueryProcedure<{
 		input: void;
 		output: Inventory.DeliveryNote[];
