@@ -11,6 +11,11 @@ import { Prisma } from "../../generated/prisma/client";
 // biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
 import { PrismaService } from "../../shared/prisma.service";
 import {
+	buildDeliveryNoteTrendsPeriods,
+	buildDeliveryNoteTrendsRows,
+	type DeliveryNoteTrendsSourceEntry,
+} from "./delivery-note-trends-report";
+import {
 	type InventoryBatch,
 	itemAlternativeInclude,
 	toInventoryBatch,
@@ -6372,6 +6377,140 @@ export class InventoryService {
 		}
 
 		return `${prefix}${String(nextNumber).padStart(5, "0")}`;
+	}
+
+	/**
+	 * Compute the Delivery Note Trends report.
+	 *
+	 * Groups submitted delivery note items by a chosen dimension (Item, Item
+	 * Group, Customer, or Project) and aggregates qty / amount per time period
+	 * within the given date range.
+	 */
+	async findDeliveryNoteTrends(
+		params: Inventory.ListDeliveryNoteTrendsInput,
+	): Promise<Inventory.DeliveryNoteTrendsResult> {
+		const company = params.company.trim();
+		const customer = params.customer?.trim();
+		const itemCode = params.itemCode?.trim();
+		const warehouse = params.warehouse?.trim();
+		const { fromDate, toDate, period, basedOn } = params;
+
+		if (fromDate > toDate) {
+			throw new BadRequestException(
+				"'From Date' must not be later than 'To Date'.",
+			);
+		}
+
+		const periods = buildDeliveryNoteTrendsPeriods(fromDate, toDate, period);
+
+		// Statuses that represent submitted (non-draft, non-cancelled) delivery notes
+		const submittedStatuses: Prisma.EnumDeliveryNoteStatusFilter = {
+			in: ["TO_BILL", "COMPLETED", "RETURN_ISSUED", "CLOSED"],
+		};
+
+		// Build base delivery note where clause
+		const noteWhere: Prisma.DeliveryNoteWhereInput = {
+			status: submittedStatuses,
+			company: { contains: company, mode: "insensitive" },
+			postingDate: { gte: fromDate, lte: toDate },
+			...(customer
+				? { customer: { contains: customer, mode: "insensitive" } }
+				: {}),
+		};
+
+		// Build item where clause
+		const itemWhere: Prisma.DeliveryNoteItemWhereInput = {};
+		if (itemCode) {
+			itemWhere.itemCode = { contains: itemCode, mode: "insensitive" };
+		}
+		if (warehouse) {
+			itemWhere.warehouse = { contains: warehouse, mode: "insensitive" };
+		}
+
+		// For Item Group dimension, pre-resolve item codes belonging to matching groups
+		let itemCodesByGroup: Map<string, string> | undefined;
+
+		if (basedOn === "Item Group") {
+			const items = await this.prisma.item.findMany({
+				select: {
+					code: true,
+					itemGroup: { select: { groupName: true } },
+				},
+			});
+			itemCodesByGroup = new Map<string, string>();
+			for (const item of items) {
+				if (item.itemGroup?.groupName) {
+					itemCodesByGroup.set(item.code, item.itemGroup.groupName);
+				}
+			}
+		}
+
+		// Query delivery notes with items
+		const notes = await this.prisma.deliveryNote.findMany({
+			where: noteWhere,
+			select: {
+				postingDate: true,
+				customer: true,
+				project: true,
+				items: {
+					where: Object.keys(itemWhere).length > 0 ? itemWhere : undefined,
+					select: {
+						itemCode: true,
+						itemName: true,
+						quantity: true,
+						amount: true,
+					},
+				},
+			},
+		});
+
+		// Flatten into source entries
+		const entries: DeliveryNoteTrendsSourceEntry[] = [];
+
+		for (const note of notes) {
+			for (const item of note.items) {
+				let dimensionKey: string;
+				let dimensionLabel: string | null | undefined;
+
+				switch (basedOn) {
+					case "Item": {
+						dimensionKey = item.itemCode;
+						dimensionLabel = item.itemName;
+						break;
+					}
+					case "Item Group": {
+						const group = itemCodesByGroup?.get(item.itemCode);
+						if (!group) continue; // skip items with no group
+						dimensionKey = group;
+						dimensionLabel = null;
+						break;
+					}
+					case "Customer": {
+						dimensionKey = note.customer;
+						dimensionLabel = null;
+						break;
+					}
+					case "Project": {
+						if (!note.project) continue; // skip notes without a project
+						dimensionKey = note.project;
+						dimensionLabel = null;
+						break;
+					}
+					default:
+						continue;
+				}
+
+				entries.push({
+					postingDate: note.postingDate,
+					quantity: item.quantity,
+					amount: item.amount,
+					dimensionKey,
+					dimensionLabel,
+				});
+			}
+		}
+
+		return buildDeliveryNoteTrendsRows(entries, periods);
 	}
 
 	/**

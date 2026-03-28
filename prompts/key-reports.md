@@ -1,6 +1,6 @@
 You are working inside the Aria ERP monorepo.
 
-CURRENT_WORKING_PAGE = "Stock Analytics"
+CURRENT_WORKING_PAGE = "Delivery Note Trends"
 
 Important: `CURRENT_WORKING_PAGE` is the single source of truth for this task. Do not require me to edit the page name anywhere else.
 

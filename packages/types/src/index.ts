@@ -3173,6 +3173,90 @@ export namespace Inventory {
 	});
 
 	// ============================================================================
+	// Delivery Note Trends Report Types & Schemas
+	// ============================================================================
+
+	/** Temporal grouping granularity for the Delivery Note Trends report. */
+	export type DeliveryNoteTrendsPeriodFrequency =
+		| "Monthly"
+		| "Quarterly"
+		| "Half-Yearly"
+		| "Yearly";
+
+	/** The dimension used to group delivery note items in the trends report. */
+	export type DeliveryNoteTrendsBasedOn =
+		| "Item"
+		| "Item Group"
+		| "Customer"
+		| "Project";
+
+	/** One time bucket in the Delivery Note Trends report. */
+	export interface DeliveryNoteTrendsPeriod {
+		/** Inclusive start date of the bucket. */
+		from: Date;
+		/** Inclusive end date of the bucket. */
+		to: Date;
+		/** Human-readable label, e.g. "Jan 2024", "Jan–Mar 2024". */
+		label: string;
+		/** Snake-cased key used as the column accessor, e.g. "jan_2024". */
+		key: string;
+	}
+
+	/**
+	 * One row in the Delivery Note Trends report.
+	 * Represents a single grouping-dimension value (item, customer, etc.)
+	 * with aggregated qty and amount per period.
+	 */
+	export interface DeliveryNoteTrendsRow {
+		/** Unique row identifier (slugified dimension key). */
+		id: string;
+		/** Primary group key (item code, customer, project, item group name). */
+		dimensionKey: string;
+		/** Optional secondary label (e.g. item name for Item dimension). */
+		dimensionLabel?: string | null;
+		/** Aggregated delivered quantity per period key. */
+		periodQty: Record<string, number>;
+		/** Aggregated delivered amount per period key. */
+		periodAmount: Record<string, number>;
+		/** Sum of qty across all periods. */
+		totalQty: number;
+		/** Sum of amount across all periods. */
+		totalAmount: number;
+	}
+
+	/** Full response from the Delivery Note Trends endpoint. */
+	export interface DeliveryNoteTrendsResult {
+		periods: DeliveryNoteTrendsPeriod[];
+		rows: DeliveryNoteTrendsRow[];
+		/** Grand total qty across all rows and periods. */
+		totalQty: number;
+		/** Grand total amount across all rows and periods. */
+		totalAmount: number;
+	}
+
+	export interface ListDeliveryNoteTrendsInput {
+		fromDate: Date;
+		toDate: Date;
+		period: DeliveryNoteTrendsPeriodFrequency;
+		basedOn: DeliveryNoteTrendsBasedOn;
+		company: string;
+		customer?: string;
+		itemCode?: string;
+		warehouse?: string;
+	}
+
+	export const listDeliveryNoteTrendsSchema = z.object({
+		fromDate: z.coerce.date(),
+		toDate: z.coerce.date(),
+		period: z.enum(["Monthly", "Quarterly", "Half-Yearly", "Yearly"]),
+		basedOn: z.enum(["Item", "Item Group", "Customer", "Project"]),
+		company: z.string().min(1).max(255),
+		customer: z.string().max(255).optional(),
+		itemCode: z.string().max(100).optional(),
+		warehouse: z.string().max(255).optional(),
+	});
+
+	// ============================================================================
 	// Delivery Note Types & Schemas
 	// ============================================================================
 

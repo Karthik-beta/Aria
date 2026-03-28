@@ -1530,6 +1530,20 @@ type InventoryRouterInput = {
 		output: Inventory.StockAnalyticsResult;
 		meta: object;
 	}>;
+	listDeliveryNoteTrends: TRPCQueryProcedure<{
+		input: {
+			fromDate: unknown;
+			toDate: unknown;
+			period: "Monthly" | "Quarterly" | "Half-Yearly" | "Yearly";
+			basedOn: "Item" | "Item Group" | "Customer" | "Project";
+			company: string;
+			customer?: string | undefined;
+			itemCode?: string | undefined;
+			warehouse?: string | undefined;
+		};
+		output: Inventory.DeliveryNoteTrendsResult;
+		meta: object;
+	}>;
 	listDeliveryNotes: TRPCQueryProcedure<{
 		input: void;
 		output: Inventory.DeliveryNote[];
