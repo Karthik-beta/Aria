@@ -1,12 +1,6 @@
 import "@testing-library/jest-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import {
-	fireEvent,
-	renderWithProviders,
-	screen,
-	userEvent,
-	waitFor,
-} from "@/test/utils";
+import { fireEvent, renderWithProviders, screen, waitFor } from "@/test/utils";
 import StockLedgerPage from "./page";
 
 const { mockInvalidate, mockUseQuery, mockUseSubscription } = vi.hoisted(
@@ -110,21 +104,19 @@ describe("StockLedgerPage", () => {
 	});
 
 	it("resets active filters", async () => {
-		const user = userEvent.setup();
 		renderWithProviders(<StockLedgerPage />);
 
-		const warehouseInput = screen.getByLabelText("Filter by warehouse");
-		fireEvent.change(warehouseInput, {
+		fireEvent.change(screen.getByLabelText("Filter by warehouse"), {
 			target: { value: "Stores - GH" },
 		});
 
 		const resetButton = screen.getByRole("button", { name: "Reset filters" });
 		expect(resetButton).toBeEnabled();
 
-		await user.click(resetButton);
+		fireEvent.click(resetButton);
 
 		await waitFor(() => {
-			expect(warehouseInput).toHaveValue("");
+			expect(screen.getByLabelText("Filter by warehouse")).toHaveValue("");
 		});
 	});
 });

@@ -11,6 +11,7 @@
 		"lint": "bun x turbo run lint",
 		"lint:fix": "bun x turbo run lint:fix",
 		"lint:staged": "biome check --staged --write --files-ignore-unknown=true --no-errors-on-unmatched",
+		"test:e2e": "bun x turbo run test:e2e --continue",
 		"typecheck": "bun x turbo run typecheck",
 		"test": "bun x turbo run test",
 		"prepare": "husky",

@@ -167,6 +167,9 @@
 			"dependsOn": ["^build", "prisma:generate"],
 			"outputs": []
 		},
+		"test:e2e": {
+			"cache": false
+		},
 		"prisma:generate": {
 			"outputs": ["src/generated/prisma/**"],
 			"cache": true

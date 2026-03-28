@@ -84,14 +84,6 @@ vi.mock("@hookform/resolvers/zod", () => ({
 	}),
 }));
 
-vi.mock("@aria/types", () => ({
-	Inventory: {
-		updateQiTemplateItemSchema: { _def: {}, parse: (v: unknown) => v },
-		createQiParameterSchema: { _def: {} },
-		updateQiTemplateSchema: { _def: {} },
-	},
-}));
-
 vi.mock("@/lib/trpc", () => ({
 	trpc: {
 		useUtils: () => ({

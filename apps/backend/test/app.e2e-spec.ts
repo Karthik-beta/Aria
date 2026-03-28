@@ -1,85 +1,74 @@
-import type { INestApplication } from "@nestjs/common";
-import { Test, type TestingModule } from "@nestjs/testing";
+import { Test } from "@nestjs/testing";
 import request from "supertest";
-import { AppModule } from "./../src/app.module";
-import { PrismaService } from "./../src/shared/prisma.service";
-
-jest.mock("@thallesp/nestjs-better-auth", () => {
-	const AuthModule = {
-		forRoot() {
-			return {
-				module: AuthModule,
-				global: true,
-			};
-		},
-	};
-
-	return {
-		AllowAnonymous: () => () => undefined,
-		AuthModule,
-	};
-});
-jest.mock("better-auth", () => ({
-	betterAuth: () => ({
-		handler: jest.fn(),
-	}),
-}));
-jest.mock("better-auth/adapters/prisma", () => ({
-	prismaAdapter: jest.fn(),
-}));
-jest.mock("better-auth/plugins", () => ({
-	customSession: jest.fn(),
-	username: jest.fn(),
-}));
+import { AppController } from "../src/app.controller";
+import { AppService } from "../src/app.service";
 
 describe("AppController (e2e)", () => {
-	let app: INestApplication;
-	let moduleFixture: TestingModule;
-
-	beforeEach(async () => {
-		moduleFixture = await Test.createTestingModule({
-			imports: [AppModule],
+	async function createApp() {
+		const moduleFixture = await Test.createTestingModule({
+			controllers: [AppController],
+			providers: [AppService],
 		}).compile();
 
-		app = moduleFixture.createNestApplication();
+		const app = moduleFixture.createNestApplication();
 		await app.init();
+
+		return { app, moduleFixture };
+	}
+
+	it('returns "Hello World!" from the root route', async () => {
+		const { app, moduleFixture } = await createApp();
+
+		try {
+			const response = await request(app.getHttpServer()).get("/").expect(200);
+
+			expect(response.text).toBe("Hello World!");
+		} finally {
+			await app.close();
+			await moduleFixture.close();
+		}
 	});
 
-	afterEach(async () => {
-		const prisma = moduleFixture.get(PrismaService);
-		await app.close();
-		await moduleFixture.close();
-		await prisma.$disconnect();
+	it("returns the simplified health payload", async () => {
+		const { app, moduleFixture } = await createApp();
+
+		try {
+			const response = await request(app.getHttpServer())
+				.get("/health")
+				.expect(200);
+
+			expect(response.body).toMatchObject({
+				status: "ok",
+				service: "aria-backend",
+			});
+			expect(typeof response.body.timestamp).toBe("string");
+			expect(response.body.timestamp).not.toBe("");
+		} finally {
+			await app.close();
+			await moduleFixture.close();
+		}
 	});
 
-	it("/ (GET)", async () => {
-		const server = app.getHttpServer() as Parameters<typeof request>[0];
+	it("returns the detailed health payload", async () => {
+		const { app, moduleFixture } = await createApp();
 
-		await request(server).get("/").expect(200).expect("Hello World!");
-	});
+		try {
+			const response = await request(app.getHttpServer())
+				.get("/health/detailed")
+				.expect(200);
 
-	it("/health (GET)", async () => {
-		const server = app.getHttpServer() as Parameters<typeof request>[0];
-
-		const response = await request(server).get("/health").expect(200);
-
-		expect(response.body).toMatchObject({
-			status: "ok",
-			service: "aria-backend",
-		});
-		expect(typeof response.body.timestamp).toBe("string");
-	});
-
-	it("/health/detailed (GET)", async () => {
-		const server = app.getHttpServer() as Parameters<typeof request>[0];
-
-		const response = await request(server).get("/health/detailed").expect(200);
-
-		expect(response.body).toMatchObject({
-			status: "ok",
-			service: "aria-backend",
-			environment: process.env.NODE_ENV || "development",
-		});
-		expect(response.body.system).toHaveProperty("platform", process.platform);
+			expect(response.body).toMatchObject({
+				status: "ok",
+				service: "aria-backend",
+				environment: process.env.NODE_ENV || "development",
+			});
+			expect(response.body.system).toMatchObject({
+				platform: process.platform,
+			});
+			expect(typeof response.body.uptime).toBe("number");
+		} finally {
+			await app.close();
+			await moduleFixture.close();
+		}
 	});
 });

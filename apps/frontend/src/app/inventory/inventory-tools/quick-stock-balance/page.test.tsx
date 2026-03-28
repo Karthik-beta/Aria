@@ -234,7 +234,14 @@ describe("QuickStockBalancePage", () => {
 		await user.type(screen.getByLabelText(/item code/i), "ITEM-001");
 
 		await waitFor(() => {
-			expect(screen.getByText(/item not found/i)).toBeInTheDocument();
+			expect(
+				screen.getByRole("heading", {
+					name: /could not load stock balance/i,
+				}),
+			).toBeInTheDocument();
+			expect(
+				screen.getByText(/item not found/i, { selector: "p" }),
+			).toBeInTheDocument();
 		});
 	});
 });

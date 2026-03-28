@@ -97,4 +97,18 @@ const nextConfig: NextConfig = {
 	poweredByHeader: false,
 };
 
-export default withSentryConfig(nextConfig);
+const sentryAuthToken = process.env.SENTRY_AUTH_TOKEN?.trim();
+const sentryOrg = process.env.SENTRY_ORG?.trim();
+const sentryProject = process.env.SENTRY_PROJECT?.trim();
+const hasSentryReleaseCredentials = Boolean(
+	sentryAuthToken && sentryOrg && sentryProject,
+);
+
+export default hasSentryReleaseCredentials
+	? withSentryConfig(nextConfig, {
+			authToken: sentryAuthToken,
+			org: sentryOrg,
+			project: sentryProject,
+			silent: true,
+		})
+	: nextConfig;
