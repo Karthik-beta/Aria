@@ -3173,6 +3173,116 @@ export namespace Inventory {
 	});
 
 	// ============================================================================
+	// Sales Order Analysis Report Types & Schemas
+	// ============================================================================
+
+	/** Valid statuses for a Sales Order in the analysis report. */
+	export type SalesOrderAnalysisStatus =
+		| "TO_DELIVER_AND_BILL"
+		| "TO_DELIVER"
+		| "TO_BILL"
+		| "COMPLETED"
+		| "CLOSED";
+
+	/** One row in the Sales Order Analysis report (item-level or SO-level when grouped). */
+	export interface SalesOrderAnalysisRow {
+		/** Sales Order series identifier, e.g. "SAL-ORD-2024-0001". */
+		salesOrder: string;
+		/** Sales Order internal id. */
+		salesOrderId: string;
+		/** Transaction (order) date as ISO string. */
+		date: string;
+		/** Expected delivery date for this item line as ISO string. */
+		deliveryDate: string;
+		/** Current Sales Order status. */
+		status: SalesOrderAnalysisStatus;
+		/** Customer name. */
+		customer: string;
+		/** Item code (null when grouped by SO). */
+		itemCode: string | null;
+		/** Item short description (null when grouped by SO). */
+		description: string | null;
+		/** Ordered quantity. */
+		qty: number;
+		/** Quantity delivered so far. */
+		deliveredQty: number;
+		/** Quantity still to be delivered (qty − deliveredQty). */
+		pendingQty: number;
+		/** Quantity invoiced. */
+		billedQty: number;
+		/** Quantity still to be invoiced (qty − billedQty). */
+		qtyToBill: number;
+		/** Order line amount in base currency. */
+		amount: number;
+		/** Amount that has been invoiced (base currency). */
+		billedAmount: number;
+		/** Amount not yet invoiced (amount − billedAmount). */
+		pendingAmount: number;
+		/** Value of quantity already delivered (deliveredQty × baseRate). */
+		deliveredQtyAmount: number;
+		/**
+		 * Delay in calendar days beyond the expected delivery date.
+		 * Zero for completed / fully-billed orders; negative values clamped to 0.
+		 */
+		delayDays: number;
+		/**
+		 * Elapsed time in seconds from SO date to latest delivery.
+		 * Zero if no delivery has been made yet.
+		 */
+		timeTakenToDeliverSeconds: number;
+		/** Warehouse (null when grouped by SO). */
+		warehouse: string | null;
+		/** Company name. */
+		company: string;
+	}
+
+	/** Summary totals for the chart on the Sales Order Analysis page. */
+	export interface SalesOrderAnalysisSummary {
+		/** Total pending (un-billed) amount across all rows. */
+		totalPendingAmount: number;
+		/** Total billed amount across all rows. */
+		totalBilledAmount: number;
+	}
+
+	/** Full response from the Sales Order Analysis endpoint. */
+	export interface SalesOrderAnalysisResult {
+		rows: SalesOrderAnalysisRow[];
+		summary: SalesOrderAnalysisSummary;
+	}
+
+	export const listSalesOrderAnalysisSchema = z.object({
+		company: z.string().min(1).max(255),
+		fromDate: z.coerce.date(),
+		toDate: z.coerce.date(),
+		/** Optional list of specific SO series IDs to filter by. */
+		salesOrders: z.array(z.string().min(1)).optional(),
+		/** Subset of statuses to include (all non-Stopped/On-Hold if omitted). */
+		status: z
+			.array(
+				z.enum([
+					"TO_DELIVER_AND_BILL",
+					"TO_DELIVER",
+					"TO_BILL",
+					"COMPLETED",
+					"CLOSED",
+				]),
+			)
+			.optional(),
+		warehouse: z.string().max(255).optional(),
+		groupBySalesOrder: z.boolean().optional(),
+	});
+
+	export interface ListSalesOrderAnalysisInput {
+		company: string;
+		fromDate: Date;
+		toDate: Date;
+		salesOrders?: string[];
+		status?: SalesOrderAnalysisStatus[];
+		warehouse?: string;
+		groupBySalesOrder?: boolean;
+	}
+
+	// ============================================================================
 	// Purchase Receipt Trends Report Types & Schemas
 	// ============================================================================
 

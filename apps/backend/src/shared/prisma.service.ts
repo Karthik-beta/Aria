@@ -185,6 +185,12 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
 	get purchaseReceiptTax() {
 		return this.client.purchaseReceiptTax;
 	}
+	get salesOrder() {
+		return this.client.salesOrder;
+	}
+	get salesOrderItem() {
+		return this.client.salesOrderItem;
+	}
 	get pickList() {
 		return this.client.pickList;
 	}

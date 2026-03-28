@@ -1,6 +1,6 @@
 You are working inside the Aria ERP monorepo.
 
-CURRENT_WORKING_PAGE = "Purchase Receipt Trends"
+CURRENT_WORKING_PAGE = "Sales Order Analysis"
 
 Important: `CURRENT_WORKING_PAGE` is the single source of truth for this task. Do not require me to edit the page name anywhere else.
 

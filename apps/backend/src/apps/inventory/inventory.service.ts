@@ -51,6 +51,10 @@ import {
 	type PurchaseReceiptTrendsSourceEntry,
 } from "./purchase-receipt-trends-report";
 import {
+	buildSalesOrderAnalysisRows,
+	computeSalesOrderAnalysisSummary,
+} from "./sales-order-analysis-report";
+import {
 	buildStockAgeingRows,
 	type StockAgeingBucketRange,
 } from "./stock-ageing-report";
@@ -9182,6 +9186,108 @@ export class InventoryService {
 		}
 
 		return buildPurchaseReceiptTrendsRows(entries, periods);
+	}
+
+	// ---------------------------------------------------------------------------
+	// Sales Order Analysis
+	// ---------------------------------------------------------------------------
+
+	/**
+	 * Return all Sales Order line items (or SO-grouped rows) within the given
+	 * date range, with delay and billing completion metrics.
+	 *
+	 * @remarks
+	 * - Excludes DRAFT orders.
+	 * - Delay is clamped to 0 for COMPLETED / TO_BILL orders.
+	 * - timeTakenToDeliverSeconds is 0 unless a delivery has been recorded.
+	 * - When groupBySalesOrder is true, numeric fields are summed per SO and
+	 *   item-level fields (itemCode, warehouse, description) are set to null.
+	 */
+	async findSalesOrderAnalysis(
+		params: Inventory.ListSalesOrderAnalysisInput,
+	): Promise<Inventory.SalesOrderAnalysisResult> {
+		const company = params.company.trim();
+		const warehouse = params.warehouse?.trim();
+		const { fromDate, toDate, groupBySalesOrder } = params;
+
+		if (fromDate > toDate) {
+			throw new BadRequestException(
+				"'From Date' must not be later than 'To Date'.",
+			);
+		}
+
+		const statusFilter: Prisma.EnumSalesOrderStatusFilter = params.status
+			?.length
+			? { in: params.status }
+			: {
+					in: [
+						"TO_DELIVER_AND_BILL",
+						"TO_DELIVER",
+						"TO_BILL",
+						"COMPLETED",
+						"CLOSED",
+					],
+				};
+
+		const soWhere: Prisma.SalesOrderWhereInput = {
+			company: { contains: company, mode: "insensitive" },
+			transactionDate: { gte: fromDate, lte: toDate },
+			status: statusFilter,
+			...(params.salesOrders?.length
+				? { series: { in: params.salesOrders } }
+				: {}),
+		};
+
+		const itemWhere: Prisma.SalesOrderItemWhereInput = warehouse
+			? { warehouse: { contains: warehouse, mode: "insensitive" } }
+			: {};
+
+		const orders = await this.prisma.salesOrder.findMany({
+			where: soWhere,
+			orderBy: [{ transactionDate: "asc" }, { series: "asc" }],
+			select: {
+				id: true,
+				series: true,
+				transactionDate: true,
+				customer: true,
+				company: true,
+				status: true,
+				conversionRate: true,
+				items: {
+					where: Object.keys(itemWhere).length > 0 ? itemWhere : undefined,
+					orderBy: { itemCode: "asc" },
+					select: {
+						id: true,
+						itemCode: true,
+						itemName: true,
+						description: true,
+						deliveryDate: true,
+						qty: true,
+						deliveredQty: true,
+						billedQty: true,
+						baseRate: true,
+						amount: true,
+						baseAmount: true,
+						billedAmount: true,
+						warehouse: true,
+						lastDeliveryDate: true,
+					},
+				},
+			},
+		});
+
+		const today = new Date();
+		today.setUTCHours(0, 0, 0, 0);
+
+		const rows = buildSalesOrderAnalysisRows(
+			orders,
+			today,
+			groupBySalesOrder ?? false,
+		);
+
+		const summary = computeSalesOrderAnalysisSummary(rows);
+
+		return { rows, summary };
 	}
 
 	/**

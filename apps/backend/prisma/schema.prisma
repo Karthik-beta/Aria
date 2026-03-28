@@ -1335,3 +1335,62 @@ model QiTemplateItem {
   @@index([parameterId])
   @@map("qi_template_items")
 }
+
+// ─── Sales Orders ─────────────────────────────────────────────────────────────
+
+model SalesOrder {
+  id             String            @id @default(cuid())
+  series         String            @unique @db.VarChar(50)
+  transactionDate DateTime         @default(now())
+  customer        String           @db.VarChar(255)
+  company         String           @db.VarChar(255)
+  status          SalesOrderStatus @default(DRAFT)
+  /// Base-currency conversion rate (1.0 for INR orders)
+  conversionRate  Float            @default(1)
+  items           SalesOrderItem[]
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  @@index([status])
+  @@index([transactionDate])
+  @@index([customer])
+  @@index([company])
+  @@map("sales_orders")
+}
+
+model SalesOrderItem {
+  id               String      @id @default(cuid())
+  salesOrderId     String
+  itemCode         String      @db.VarChar(100)
+  itemName         String?     @db.VarChar(255)
+  description      String?
+  deliveryDate     DateTime
+  qty              Float       @default(0)
+  deliveredQty     Float       @default(0)
+  billedQty        Float       @default(0)
+  rate             Float       @default(0)
+  baseRate         Float       @default(0)
+  /// Order line total in the SO currency
+  amount           Float       @default(0)
+  /// Order line total in company base currency
+  baseAmount       Float       @default(0)
+  /// Cumulative billed amount in company base currency (denormalised from invoices)
+  billedAmount     Float       @default(0)
+  warehouse        String?     @db.VarChar(255)
+  /// Date of the latest delivery against this line; used to compute time-taken-to-deliver
+  lastDeliveryDate DateTime?
+  salesOrder       SalesOrder  @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+
+  @@index([salesOrderId])
+  @@index([itemCode])
+  @@map("sales_order_items")
+}
+
+enum SalesOrderStatus {
+  DRAFT
+  TO_DELIVER_AND_BILL
+  TO_DELIVER
+  TO_BILL
+  COMPLETED
+  CLOSED
+}
