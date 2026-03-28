@@ -1147,6 +1147,16 @@ function createListDeliveryNoteTrendsProcedure(
 		});
 }
 
+function createListPurchaseReceiptTrendsProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure
+		.input(Inventory.listPurchaseReceiptTrendsSchema)
+		.query(async ({ input }) => {
+			return inventoryService.findPurchaseReceiptTrends(input);
+		});
+}
+
 // ─── Delivery Note Procedures ────────────────────────────────────────────────
 
 type DeliveryNotesChangedEvent = {
@@ -1856,6 +1866,9 @@ type InventoryRouterInput = {
 	listDeliveryNoteTrends: ReturnType<
 		typeof createListDeliveryNoteTrendsProcedure
 	>;
+	listPurchaseReceiptTrends: ReturnType<
+		typeof createListPurchaseReceiptTrendsProcedure
+	>;
 	listDeliveryNotes: ReturnType<typeof createListDeliveryNotesProcedure>;
 	getDeliveryNoteById: ReturnType<typeof createGetDeliveryNoteByIdProcedure>;
 	createDeliveryNote: ReturnType<typeof createCreateDeliveryNoteProcedure>;
@@ -2077,6 +2090,8 @@ function createInventoryRouterRecord(
 		listStockAnalytics: createListStockAnalyticsProcedure(inventoryService),
 		listDeliveryNoteTrends:
 			createListDeliveryNoteTrendsProcedure(inventoryService),
+		listPurchaseReceiptTrends:
+			createListPurchaseReceiptTrendsProcedure(inventoryService),
 		listDeliveryNotes: createListDeliveryNotesProcedure(inventoryService),
 		getDeliveryNoteById: createGetDeliveryNoteByIdProcedure(inventoryService),
 		createDeliveryNote: createCreateDeliveryNoteProcedure(inventoryService),

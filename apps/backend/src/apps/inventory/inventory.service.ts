@@ -46,6 +46,11 @@ import {
 } from "./inventory.types";
 import { buildItemPriceStockRows } from "./item-price-stock-report";
 import {
+	buildPurchaseReceiptTrendsPeriods,
+	buildPurchaseReceiptTrendsRows,
+	type PurchaseReceiptTrendsSourceEntry,
+} from "./purchase-receipt-trends-report";
+import {
 	buildStockAgeingRows,
 	type StockAgeingBucketRange,
 } from "./stock-ageing-report";
@@ -9052,6 +9057,131 @@ export class InventoryService {
 		}
 
 		return `${prefix}${String(nextNumber).padStart(5, "0")}`;
+	}
+
+	/**
+	 * Aggregate purchase receipt item data into period/dimension trend rows.
+	 *
+	 * @param params - Filter input from the frontend
+	 * @returns Period buckets + aggregated dimension rows + grand totals
+	 */
+	async findPurchaseReceiptTrends(
+		params: Inventory.ListPurchaseReceiptTrendsInput,
+	): Promise<Inventory.PurchaseReceiptTrendsResult> {
+		const company = params.company.trim();
+		const supplier = params.supplier?.trim();
+		const itemCode = params.itemCode?.trim();
+		const warehouse = params.warehouse?.trim();
+		const { fromDate, toDate, period, basedOn } = params;
+
+		if (fromDate > toDate) {
+			throw new BadRequestException(
+				"'From Date' must not be later than 'To Date'.",
+			);
+		}
+
+		const periods = buildPurchaseReceiptTrendsPeriods(fromDate, toDate, period);
+
+		// Statuses that represent submitted (non-draft, non-cancelled) purchase receipts
+		const submittedStatuses: Prisma.EnumPurchaseReceiptStatusFilter = {
+			in: ["PARTLY_BILLED", "TO_BILL", "COMPLETED", "RETURN_ISSUED", "CLOSED"],
+		};
+
+		const receiptWhere: Prisma.PurchaseReceiptWhereInput = {
+			status: submittedStatuses,
+			company: { contains: company, mode: "insensitive" },
+			postingDate: { gte: fromDate, lte: toDate },
+			...(supplier
+				? { supplier: { contains: supplier, mode: "insensitive" } }
+				: {}),
+		};
+
+		const itemWhere: Prisma.PurchaseReceiptItemWhereInput = {};
+		if (itemCode) {
+			itemWhere.itemCode = { contains: itemCode, mode: "insensitive" };
+		}
+		if (warehouse) {
+			itemWhere.acceptedWarehouse = {
+				contains: warehouse,
+				mode: "insensitive",
+			};
+		}
+
+		// For Item Group dimension, pre-resolve item codes → group name
+		let itemCodeToGroup: Map<string, string> | undefined;
+
+		if (basedOn === "Item Group") {
+			const items = await this.prisma.item.findMany({
+				select: {
+					code: true,
+					itemGroup: { select: { groupName: true } },
+				},
+			});
+			itemCodeToGroup = new Map<string, string>();
+			for (const item of items) {
+				if (item.itemGroup?.groupName) {
+					itemCodeToGroup.set(item.code, item.itemGroup.groupName);
+				}
+			}
+		}
+
+		const receipts = await this.prisma.purchaseReceipt.findMany({
+			where: receiptWhere,
+			select: {
+				postingDate: true,
+				supplier: true,
+				items: {
+					where: Object.keys(itemWhere).length > 0 ? itemWhere : undefined,
+					select: {
+						itemCode: true,
+						itemName: true,
+						acceptedQuantity: true,
+						amount: true,
+					},
+				},
+			},
+		});
+
+		const entries: PurchaseReceiptTrendsSourceEntry[] = [];
+
+		for (const receipt of receipts) {
+			for (const item of receipt.items) {
+				let dimensionKey: string;
+				let dimensionLabel: string | null | undefined;
+
+				switch (basedOn) {
+					case "Item": {
+						dimensionKey = item.itemCode;
+						dimensionLabel = item.itemName;
+						break;
+					}
+					case "Item Group": {
+						const group = itemCodeToGroup?.get(item.itemCode);
+						if (!group) continue; // skip items with no group
+						dimensionKey = group;
+						dimensionLabel = null;
+						break;
+					}
+					case "Supplier": {
+						dimensionKey = receipt.supplier;
+						dimensionLabel = null;
+						break;
+					}
+					default:
+						continue;
+				}
+
+				entries.push({
+					postingDate: receipt.postingDate,
+					quantity: item.acceptedQuantity,
+					amount: item.amount,
+					dimensionKey,
+					dimensionLabel,
+				});
+			}
+		}
+
+		return buildPurchaseReceiptTrendsRows(entries, periods);
 	}
 
 	/**

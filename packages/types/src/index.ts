@@ -3173,6 +3173,86 @@ export namespace Inventory {
 	});
 
 	// ============================================================================
+	// Purchase Receipt Trends Report Types & Schemas
+	// ============================================================================
+
+	/** Temporal grouping granularity for the Purchase Receipt Trends report. */
+	export type PurchaseReceiptTrendsPeriodFrequency =
+		| "Monthly"
+		| "Quarterly"
+		| "Half-Yearly"
+		| "Yearly";
+
+	/** The dimension used to group purchase receipt items in the trends report. */
+	export type PurchaseReceiptTrendsBasedOn = "Item" | "Item Group" | "Supplier";
+
+	/** One time bucket in the Purchase Receipt Trends report. */
+	export interface PurchaseReceiptTrendsPeriod {
+		/** Inclusive start date of the bucket. */
+		from: Date;
+		/** Inclusive end date of the bucket. */
+		to: Date;
+		/** Human-readable label, e.g. "Jan 2024", "Jan–Mar 2024". */
+		label: string;
+		/** Snake-cased key used as the column accessor, e.g. "jan_2024". */
+		key: string;
+	}
+
+	/**
+	 * One row in the Purchase Receipt Trends report.
+	 * Represents a single grouping-dimension value (item, supplier, etc.)
+	 * with aggregated accepted qty and amount per period.
+	 */
+	export interface PurchaseReceiptTrendsRow {
+		/** Unique row identifier (slugified dimension key). */
+		id: string;
+		/** Primary group key (item code, supplier, item group name). */
+		dimensionKey: string;
+		/** Optional secondary label (e.g. item name for Item dimension). */
+		dimensionLabel?: string | null;
+		/** Aggregated accepted quantity per period key. */
+		periodQty: Record<string, number>;
+		/** Aggregated received amount per period key. */
+		periodAmount: Record<string, number>;
+		/** Sum of accepted qty across all periods. */
+		totalQty: number;
+		/** Sum of amount across all periods. */
+		totalAmount: number;
+	}
+
+	/** Full response from the Purchase Receipt Trends endpoint. */
+	export interface PurchaseReceiptTrendsResult {
+		periods: PurchaseReceiptTrendsPeriod[];
+		rows: PurchaseReceiptTrendsRow[];
+		/** Grand total accepted qty across all rows and periods. */
+		totalQty: number;
+		/** Grand total amount across all rows and periods. */
+		totalAmount: number;
+	}
+
+	export interface ListPurchaseReceiptTrendsInput {
+		fromDate: Date;
+		toDate: Date;
+		period: PurchaseReceiptTrendsPeriodFrequency;
+		basedOn: PurchaseReceiptTrendsBasedOn;
+		company: string;
+		supplier?: string;
+		itemCode?: string;
+		warehouse?: string;
+	}
+
+	export const listPurchaseReceiptTrendsSchema = z.object({
+		fromDate: z.coerce.date(),
+		toDate: z.coerce.date(),
+		period: z.enum(["Monthly", "Quarterly", "Half-Yearly", "Yearly"]),
+		basedOn: z.enum(["Item", "Item Group", "Supplier"]),
+		company: z.string().min(1).max(255),
+		supplier: z.string().max(255).optional(),
+		itemCode: z.string().max(100).optional(),
+		warehouse: z.string().max(255).optional(),
+	});
+
+	// ============================================================================
 	// Delivery Note Trends Report Types & Schemas
 	// ============================================================================
 

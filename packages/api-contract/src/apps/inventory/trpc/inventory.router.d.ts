@@ -1544,6 +1544,20 @@ type InventoryRouterInput = {
 		output: Inventory.DeliveryNoteTrendsResult;
 		meta: object;
 	}>;
+	listPurchaseReceiptTrends: TRPCQueryProcedure<{
+		input: {
+			fromDate: unknown;
+			toDate: unknown;
+			period: "Monthly" | "Quarterly" | "Half-Yearly" | "Yearly";
+			basedOn: "Item" | "Item Group" | "Supplier";
+			company: string;
+			supplier?: string | undefined;
+			itemCode?: string | undefined;
+			warehouse?: string | undefined;
+		};
+		output: Inventory.PurchaseReceiptTrendsResult;
+		meta: object;
+	}>;
 	listDeliveryNotes: TRPCQueryProcedure<{
 		input: void;
 		output: Inventory.DeliveryNote[];
