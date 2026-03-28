@@ -30,7 +30,7 @@ apps/frontend/
 │   ├── lib/
 │   ├── hooks/
 │   └── types/
-├── tests/
+├── e2e/
 └── playwright.config.ts
 ```
 
@@ -40,7 +40,7 @@ apps/frontend/
 - **`lib/`**: Contains utility functions and configurations.
 - **`hooks/`**: Contains custom React hooks.
 - **`types/`**: Contains TypeScript type definitions.
-- **`tests/`**: Contains E2E tests.
+- **`e2e/`**: Contains E2E tests.
 
 ## Modules
 
@@ -93,12 +93,12 @@ The frontend has a comprehensive testing setup, with Playwright for E2E tests an
 
 ### E2E Tests
 
-E2E tests are located in the `tests/` directory. They use Playwright to simulate user interactions with the application.
+E2E tests are located in the `e2e/` directory. They use Playwright to simulate user interactions with the application.
 
 To run the E2E tests:
 
 ```bash
-pnpm test:e2e
+bun run test:e2e
 ```
 
 ### Unit Tests
@@ -108,7 +108,7 @@ Unit tests are located next to the code they are testing. They use Vitest and Re
 To run the unit tests:
 
 ```bash
-pnpm test
+bun test
 ```
 
 ## Best Practices

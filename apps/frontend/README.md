@@ -149,8 +149,7 @@ bun test:watch
 
 ### End-to-End Testing (Playwright)
 
-- ✅ **Cross-browser testing** (Chromium, Firefox, WebKit)
-- ✅ **Mobile emulation** (Pixel 5, iPhone 12)
+- ✅ **Chromium-based browser coverage**
 - ✅ **Auto-wait** for reliable tests
 - ✅ **Visual debugging** with trace viewer
 - ✅ **CI/CD ready** with GitHub Actions
@@ -158,6 +157,9 @@ bun test:watch
 ```bash
 # Run E2E tests
 bun test:e2e
+
+# Run the monorepo E2E suite from the repository root
+bun run test:e2e
 
 # Run in UI mode (interactive)
 bun test:e2e:ui
@@ -177,8 +179,8 @@ bun test:e2e:report
 
 **Documentation:**
 
-- [`E2E_TESTING.md`](./E2E_TESTING.md) - Complete E2E testing guide
-- [`PLAYWRIGHT_QUICK_REF.md`](./PLAYWRIGHT_QUICK_REF.md) - Quick reference
+- [`e2e/`](./e2e) - Playwright specs for auth and workspace navigation
+- [`playwright.config.ts`](./playwright.config.ts) - Playwright runner configuration
 
 ## App Switcher
 

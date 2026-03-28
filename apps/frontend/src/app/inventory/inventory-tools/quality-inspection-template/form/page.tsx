@@ -26,7 +26,7 @@ import * as React from "react";
 import { Suspense, useEffect, useRef } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { toast } from "sonner";
-import { z } from "zod";
+import * as z from "zod";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,

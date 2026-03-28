@@ -113,21 +113,19 @@ describe("StockBalancePage", () => {
 	});
 
 	it("resets active filters", async () => {
-		const user = userEvent.setup();
 		renderWithProviders(<StockBalancePage />);
 
-		const warehouseInput = screen.getByLabelText("Filter by warehouse");
-		fireEvent.change(warehouseInput, {
+		fireEvent.change(screen.getByLabelText("Filter by warehouse"), {
 			target: { value: "Stores - GH" },
 		});
 
 		const resetButton = screen.getByRole("button", { name: "Reset filters" });
 		expect(resetButton).toBeEnabled();
 
-		await user.click(resetButton);
+		fireEvent.click(resetButton);
 
 		await waitFor(() => {
-			expect(warehouseInput).toHaveValue("");
+			expect(screen.getByLabelText("Filter by warehouse")).toHaveValue("");
 		});
 	});
 });

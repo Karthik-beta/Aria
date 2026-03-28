@@ -124,16 +124,16 @@ describe("SerialNoPage", () => {
 	});
 
 	it("submits delete from the row actions menu", async () => {
-		const user = userEvent.setup();
+		const user = userEvent.setup({ pointerEventsCheck: 0 });
 		renderWithProviders(<SerialNoPage />);
 
 		await user.click(
 			screen.getByRole("button", { name: /Open actions for SN-1001/i }),
 		);
 		await user.click(
-			screen.getByRole("menuitem", { name: /Delete Serial No/i }),
+			await screen.findByRole("menuitem", { name: /Delete Serial No/i }),
 		);
-		await user.click(screen.getByRole("button", { name: /Continue/i }));
+		await user.click(await screen.findByRole("button", { name: /Continue/i }));
 
 		await waitFor(() => {
 			expect(mockDeleteMutate).toHaveBeenCalledWith({ id: "serial-1" });

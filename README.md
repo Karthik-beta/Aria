@@ -51,6 +51,7 @@ See [Getting Started Guide](./docs/getting-started.md) for detailed instructions
 | `bun format`  | Format code with Biome     |
 | `bun run lint` | Run Biome lint/format checks via Turbo |
 | `bun run test` | Run all tests             |
+| `bun run test:e2e` | Run the monorepo E2E suite |
 | `bun run typecheck` | Run all TypeScript checks |
 | `bun run build` | Build all applications    |
 | `bun package` | Build deployment package  |
@@ -103,6 +104,7 @@ We welcome contributions! Please read our [Contributing Guide](./CONTRIBUTING.md
 - [ ] `bun format` passes
 - [ ] `bun run lint` passes
 - [ ] `bun run test` passes
+- [ ] `bun run test:e2e` passes
 - [ ] `bun run typecheck` passes
 - [ ] `bun run build` succeeds
 - [ ] Documentation updated

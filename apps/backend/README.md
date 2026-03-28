@@ -119,13 +119,13 @@ bun --filter backend test:cov
 
 ### End-to-End (E2E) Tests
 
-E2E tests check complete workflows (like logging in and creating a record):
+E2E tests exercise the HTTP and authorization surface without requiring the full production stack:
 
 ```bash
 bun --filter backend test:e2e
 ```
 
-**Test files**: Place unit tests next to the code as `*.spec.ts`, and E2E tests in the `test/` folder.
+**Test files**: Place unit tests next to the code as `*.spec.ts`, and E2E tests in the `test/` folder with the `.e2e-spec.ts` suffix.
 
 ## 🔒 Type Safety & Shared Code
 
@@ -179,7 +179,6 @@ This ensures consistency across the entire application!
 
 ### Tests Failing?
 
-- Ensure your database is running (if using one)
 - Check that you've mocked external dependencies
 - Look at the error message—it usually tells you what's wrong!
 
@@ -194,7 +193,8 @@ This ensures consistency across the entire application!
 
 ### New to Testing?
 
-- [Jest Documentation](https://jestjs.io/docs/getting-started) - Testing framework we use
+- [Jest Documentation](https://jestjs.io/docs/getting-started) - Test runner used by backend E2E specs
+- [Supertest Documentation](https://github.com/ladjs/supertest) - HTTP assertion library used by backend E2E specs
 - [Testing NestJS Applications](https://docs.nestjs.com/fundamentals/testing) - NestJS-specific testing guide
 
 ## 🎯 Development Workflow
