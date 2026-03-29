@@ -1503,6 +1503,13 @@ type InventoryRouterInput = {
 		output: Inventory.ItemwiseRecommendedReorderLevelRow[];
 		meta: object;
 	}>;
+	listItemVariantDetails: TRPCQueryProcedure<{
+		input: {
+			itemCode: string;
+		};
+		output: Inventory.ItemVariantDetailsResult;
+		meta: object;
+	}>;
 	listStockSummary: TRPCQueryProcedure<{
 		input:
 			| {

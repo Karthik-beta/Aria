@@ -51,6 +51,11 @@ model InventoryItem {
   allowAlternateItem Boolean @default(false)
   hasVariants        Boolean @default(false)
 
+  // Variant parent-child link (self-referencing)
+  templateItemId String?
+  templateItem   InventoryItem?  @relation("ItemVariants", fields: [templateItemId], references: [id], onDelete: SetNull)
+  variants       InventoryItem[] @relation("ItemVariants")
+
   // Stock and pricing
   openingStock        Int    @default(0)
   valuationRate       Float?
@@ -88,6 +93,7 @@ model InventoryItem {
   batches                Batch[]
   installationNoteItems  InstallationNoteItem[]
   serialNos              SerialNo[]
+  itemAttributes         InventoryItemAttribute[]
 
   quantity  Int      @default(0)
   createdAt DateTime @default(now())
@@ -95,6 +101,7 @@ model InventoryItem {
 
   @@index([code])
   @@index([name])
+  @@index([templateItemId])
   @@index([createdAt])
   @@map("inventory_items")
 }
@@ -124,6 +131,19 @@ model ItemReorder {
   @@map("item_reorder_settings")
 }
 
+model InventoryItemAttribute {
+  id             String        @id @default(cuid())
+  itemId         String
+  attributeId    String
+  attributeValue String        @db.VarChar(255)
+  item           InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  attribute      ItemAttribute @relation(fields: [attributeId], references: [id], onDelete: Cascade)
+
+  @@unique([itemId, attributeId])
+  @@index([itemId])
+  @@index([attributeId])
+  @@map("inventory_item_attributes")
+}
 
 
 model ItemGroup {
@@ -274,6 +294,7 @@ model ItemAttribute {
   disabled        Boolean              @default(false)
   numericValues   Boolean              @default(false)
   attributeValues ItemAttributeValue[]
+  inventoryItemAttributes InventoryItemAttribute[]
   createdAt       DateTime             @default(now())
   updatedAt       DateTime             @updatedAt
 

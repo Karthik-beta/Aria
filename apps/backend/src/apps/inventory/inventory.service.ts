@@ -58,6 +58,7 @@ import {
 	type ItemPricesSourceItem,
 } from "./item-prices-report";
 import { buildItemShortageRows } from "./item-shortage-report";
+import { buildItemVariantDetailsResult } from "./item-variant-details-report";
 import { buildItemwiseRecommendedReorderLevelRows } from "./itemwise-recommended-reorder-level-report";
 import {
 	buildPurchaseOrderAnalysisRows,
@@ -12111,6 +12112,113 @@ export class InventoryService {
 			consumedByItem,
 			deliveredByItem,
 			numberOfDays,
+		);
+	}
+
+	// =========================================================================
+	// Item Variant Details Report
+	// =========================================================================
+
+	async findItemVariantDetails(
+		params: Inventory.ListItemVariantDetailsInput,
+	): Promise<Inventory.ItemVariantDetailsResult> {
+		const itemCode = params.itemCode.trim();
+
+		// 1. Verify the template item exists and has variants
+		const templateItem = await this.prisma.inventoryItem.findFirst({
+			where: { code: itemCode, hasVariants: true, disabled: false },
+			select: { id: true, code: true },
+		});
+
+		if (!templateItem) {
+			return { attributeNames: [], rows: [] };
+		}
+
+		// 2. Fetch all non-disabled variant items of the template
+		const variants = await this.prisma.inventoryItem.findMany({
+			where: {
+				templateItemId: templateItem.id,
+				disabled: false,
+			},
+			select: {
+				id: true,
+				code: true,
+				name: true,
+				quantity: true,
+				standardSellingRate: true,
+			},
+		});
+
+		if (variants.length === 0) {
+			return { attributeNames: [], rows: [] };
+		}
+
+		const variantIds = variants.map((v) => v.id);
+		const variantCodes = variants.map((v) => v.code);
+
+		// 3. Fetch attribute values for each variant
+		const variantAttrRows = await this.prisma.inventoryItemAttribute.findMany({
+			where: { itemId: { in: variantIds } },
+			select: {
+				itemId: true,
+				attributeValue: true,
+				attribute: { select: { name: true } },
+			},
+		});
+
+		const variantAttributes = variantAttrRows.map(
+			(row: {
+				itemId: string;
+				attributeValue: string;
+				attribute: { name: string };
+			}) => ({
+				itemId: row.itemId,
+				attributeName: row.attribute.name,
+				attributeValue: row.attributeValue,
+			}),
+		);
+
+		// 4. Average buying price from purchase receipt items
+		const buyingPriceRows = await this.prisma.purchaseReceiptItem.groupBy({
+			by: ["itemCode"],
+			where: {
+				itemCode: { in: variantCodes },
+				purchaseReceipt: { status: { notIn: ["DRAFT", "CANCELLED"] } },
+			},
+			_avg: { rate: true },
+		});
+
+		const avgBuyingPriceMap = new Map<string, number>();
+		for (const row of buyingPriceRows) {
+			avgBuyingPriceMap.set(row.itemCode, row._avg.rate ?? 0);
+		}
+
+		// 5. Open sales orders count (qty - deliveredQty for non-completed orders)
+		const openOrderRows = await this.prisma.salesOrderItem.groupBy({
+			by: ["itemCode"],
+			where: {
+				itemCode: { in: variantCodes },
+				salesOrder: {
+					status: { notIn: ["DRAFT", "COMPLETED", "CLOSED"] },
+				},
+			},
+			_sum: { qty: true, deliveredQty: true },
+		});
+
+		const openOrdersMap = new Map<string, number>();
+		for (const row of openOrderRows) {
+			const sumQty = row._sum?.qty ?? 0;
+			const sumDeliveredQty = row._sum?.deliveredQty ?? 0;
+			const remaining = sumQty - sumDeliveredQty;
+			openOrdersMap.set(row.itemCode, Math.max(0, remaining));
+		}
+
+		// 6. Build result
+		return buildItemVariantDetailsResult(
+			variants,
+			variantAttributes,
+			avgBuyingPriceMap,
+			openOrdersMap,
 		);
 	}
 }

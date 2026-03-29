@@ -5228,6 +5228,50 @@ export namespace Inventory {
 		itemGroup?: string;
 		brand?: string;
 	}
+
+	// ============================================================================
+	// Item Variant Details Report Types & Schemas
+	// ============================================================================
+
+	/** One row in the Item Variant Details report. Each variant is one row. */
+	export interface ItemVariantDetailsRow {
+		/** Variant item ID (CUID) */
+		id: string;
+		/** Variant item code */
+		variantCode: string;
+		/** Variant item name */
+		variantName: string;
+		/**
+		 * Dynamic attribute values keyed by attribute name.
+		 * E.g. { "Color": "Red", "Size": "Large" }
+		 */
+		attributes: Record<string, string>;
+		/** Average buying price from purchase receipts */
+		avgBuyingPriceListRate: number;
+		/** Average selling price (standardSellingRate) */
+		avgSellingPriceListRate: number;
+		/** Current stock quantity */
+		currentStock: number;
+		/** Open (non-completed, non-cancelled) sales order item qty */
+		openOrders: number;
+	}
+
+	/** Result of the item variant details query, including attribute names for column headers. */
+	export interface ItemVariantDetailsResult {
+		/** Ordered list of attribute names used as dynamic columns */
+		attributeNames: string[];
+		/** Report rows */
+		rows: ItemVariantDetailsRow[];
+	}
+
+	export const listItemVariantDetailsSchema = z.object({
+		/** The template item code (must have hasVariants=true) */
+		itemCode: z.string().min(1).max(100).trim(),
+	});
+
+	export interface ListItemVariantDetailsInput {
+		itemCode: string;
+	}
 }
 
 // ============================================================================

@@ -1153,6 +1153,16 @@ function createListItemwiseRecommendedReorderLevelProcedure(
 		});
 }
 
+function createListItemVariantDetailsProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure
+		.input(Inventory.listItemVariantDetailsSchema)
+		.query(async ({ input }) => {
+			return inventoryService.findItemVariantDetails(input);
+		});
+}
+
 function createListStockSummaryProcedure(inventoryService: InventoryService) {
 	return protectedProcedure
 		.input(Inventory.listStockSummarySchema)
@@ -1946,6 +1956,9 @@ type InventoryRouterInput = {
 	listItemwiseRecommendedReorderLevel: ReturnType<
 		typeof createListItemwiseRecommendedReorderLevelProcedure
 	>;
+	listItemVariantDetails: ReturnType<
+		typeof createListItemVariantDetailsProcedure
+	>;
 	listStockSummary: ReturnType<typeof createListStockSummaryProcedure>;
 	listStockAgeing: ReturnType<typeof createListStockAgeingProcedure>;
 	listItemPriceStock: ReturnType<typeof createListItemPriceStockProcedure>;
@@ -2187,6 +2200,8 @@ function createInventoryRouterRecord(
 		listItemPrices: createListItemPricesProcedure(inventoryService),
 		listItemwiseRecommendedReorderLevel:
 			createListItemwiseRecommendedReorderLevelProcedure(inventoryService),
+		listItemVariantDetails:
+			createListItemVariantDetailsProcedure(inventoryService),
 		listStockSummary: createListStockSummaryProcedure(inventoryService),
 		listStockAgeing: createListStockAgeingProcedure(inventoryService),
 		listItemPriceStock: createListItemPriceStockProcedure(inventoryService),
