@@ -46,6 +46,10 @@ import {
 } from "./inventory.types";
 import { buildItemPriceStockRows } from "./item-price-stock-report";
 import {
+	buildPurchaseOrderAnalysisRows,
+	computePurchaseOrderAnalysisSummary,
+} from "./purchase-order-analysis-report";
+import {
 	buildPurchaseReceiptTrendsPeriods,
 	buildPurchaseReceiptTrendsRows,
 	type PurchaseReceiptTrendsSourceEntry,
@@ -9286,6 +9290,98 @@ export class InventoryService {
 		);
 
 		const summary = computeSalesOrderAnalysisSummary(rows);
+
+		return { rows, summary };
+	}
+
+	/**
+	 * Run the Purchase Order Analysis report.
+	 *
+	 * @remarks
+	 * - Excludes DRAFT, STOPPED, and ON_HOLD orders by default.
+	 * - When groupByPurchaseOrder is true, numeric fields are summed per PO and
+	 *   item-level fields (itemCode, project, warehouse) are set to null.
+	 */
+	async findPurchaseOrderAnalysis(
+		params: Inventory.ListPurchaseOrderAnalysisInput,
+	): Promise<Inventory.PurchaseOrderAnalysisResult> {
+		const company = params.company.trim();
+		const project = params.project?.trim();
+		const { fromDate, toDate, groupByPurchaseOrder } = params;
+
+		if (fromDate > toDate) {
+			throw new BadRequestException(
+				"'From Date' must not be later than 'To Date'.",
+			);
+		}
+
+		const statusFilter: Prisma.EnumPurchaseOrderStatusFilter = params.status
+			?.length
+			? { in: params.status }
+			: {
+					in: [
+						"TO_PAY",
+						"TO_BILL",
+						"TO_RECEIVE",
+						"TO_RECEIVE_AND_BILL",
+						"COMPLETED",
+						"CLOSED",
+					],
+				};
+
+		const poWhere: Prisma.PurchaseOrderWhereInput = {
+			company: { contains: company, mode: "insensitive" },
+			transactionDate: { gte: fromDate, lte: toDate },
+			status: statusFilter,
+			...(params.purchaseOrders?.length
+				? { series: { in: params.purchaseOrders } }
+				: {}),
+		};
+
+		const itemWhere: Prisma.PurchaseOrderItemWhereInput = project
+			? { project: { contains: project, mode: "insensitive" } }
+			: {};
+
+		const orders = await this.prisma.purchaseOrder.findMany({
+			where: poWhere,
+			orderBy: [{ transactionDate: "asc" }, { series: "asc" }],
+			select: {
+				id: true,
+				series: true,
+				transactionDate: true,
+				supplier: true,
+				company: true,
+				status: true,
+				conversionRate: true,
+				items: {
+					where: Object.keys(itemWhere).length > 0 ? itemWhere : undefined,
+					orderBy: { itemCode: "asc" },
+					select: {
+						id: true,
+						itemCode: true,
+						itemName: true,
+						requiredDate: true,
+						qty: true,
+						receivedQty: true,
+						billedQty: true,
+						baseRate: true,
+						amount: true,
+						baseAmount: true,
+						billedAmount: true,
+						receivedQtyAmount: true,
+						warehouse: true,
+						project: true,
+					},
+				},
+			},
+		});
+
+		const rows = buildPurchaseOrderAnalysisRows(
+			orders,
+			groupByPurchaseOrder ?? false,
+		);
+
+		const summary = computePurchaseOrderAnalysisSummary(rows);
 
 		return { rows, summary };
 	}

@@ -1579,6 +1579,28 @@ type InventoryRouterInput = {
 		output: Inventory.SalesOrderAnalysisResult;
 		meta: object;
 	}>;
+	listPurchaseOrderAnalysis: TRPCQueryProcedure<{
+		input: {
+			company: string;
+			fromDate: unknown;
+			toDate: unknown;
+			purchaseOrders?: string[] | undefined;
+			status?:
+				| (
+						| "TO_PAY"
+						| "TO_BILL"
+						| "TO_RECEIVE"
+						| "TO_RECEIVE_AND_BILL"
+						| "COMPLETED"
+						| "CLOSED"
+				  )[]
+				| undefined;
+			project?: string | undefined;
+			groupByPurchaseOrder?: boolean | undefined;
+		};
+		output: Inventory.PurchaseOrderAnalysisResult;
+		meta: object;
+	}>;
 	listDeliveryNotes: TRPCQueryProcedure<{
 		input: void;
 		output: Inventory.DeliveryNote[];

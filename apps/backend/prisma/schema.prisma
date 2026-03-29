@@ -1394,3 +1394,71 @@ enum SalesOrderStatus {
   COMPLETED
   CLOSED
 }
+
+// ─── Purchase Order ───────────────────────────────────────────────────────────
+
+model PurchaseOrder {
+  id              String              @id @default(cuid())
+  series          String              @unique @db.VarChar(50)
+  transactionDate DateTime            @default(now())
+  supplier        String              @db.VarChar(255)
+  company         String              @db.VarChar(255)
+  status          PurchaseOrderStatus @default(DRAFT)
+  /// Base-currency conversion rate (1.0 for INR orders)
+  conversionRate  Float               @default(1)
+  /// Default receiving warehouse set at the header level
+  setWarehouse    String?             @db.VarChar(255)
+  items           PurchaseOrderItem[]
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  @@index([status])
+  @@index([transactionDate])
+  @@index([supplier])
+  @@index([company])
+  @@map("purchase_orders")
+}
+
+model PurchaseOrderItem {
+  id               String        @id @default(cuid())
+  purchaseOrderId  String
+  itemCode         String        @db.VarChar(100)
+  itemName         String?       @db.VarChar(255)
+  description      String?
+  /// Required / schedule date for this line (item-level)
+  requiredDate     DateTime
+  qty              Float         @default(0)
+  receivedQty      Float         @default(0)
+  billedQty        Float         @default(0)
+  rate             Float         @default(0)
+  baseRate         Float         @default(0)
+  /// Order line total in the PO currency
+  amount           Float         @default(0)
+  /// Order line total in company base currency
+  baseAmount       Float         @default(0)
+  /// Cumulative billed amount in company base currency (denormalised from invoices)
+  billedAmount     Float         @default(0)
+  /// Value of quantity already received (denormalised from purchase receipts)
+  receivedQtyAmount Float        @default(0)
+  warehouse        String?       @db.VarChar(255)
+  project          String?       @db.VarChar(255)
+  /// Date of the latest receipt against this line
+  lastReceiptDate  DateTime?
+  purchaseOrder    PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+
+  @@index([purchaseOrderId])
+  @@index([itemCode])
+  @@map("purchase_order_items")
+}
+
+enum PurchaseOrderStatus {
+  DRAFT
+  TO_PAY
+  TO_BILL
+  TO_RECEIVE
+  TO_RECEIVE_AND_BILL
+  COMPLETED
+  CLOSED
+  STOPPED
+  ON_HOLD
+}

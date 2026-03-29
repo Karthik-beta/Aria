@@ -3283,6 +3283,108 @@ export namespace Inventory {
 	}
 
 	// ============================================================================
+	// Purchase Order Analysis Report Types & Schemas
+	// ============================================================================
+
+	/** Valid statuses for a Purchase Order in the analysis report. */
+	export type PurchaseOrderAnalysisStatus =
+		| "TO_PAY"
+		| "TO_BILL"
+		| "TO_RECEIVE"
+		| "TO_RECEIVE_AND_BILL"
+		| "COMPLETED"
+		| "CLOSED";
+
+	/** One row in the Purchase Order Analysis report (item-level or PO-level when grouped). */
+	export interface PurchaseOrderAnalysisRow {
+		/** Purchase Order series identifier, e.g. "PUR-ORD-2024-0001". */
+		purchaseOrder: string;
+		/** Purchase Order internal id. */
+		purchaseOrderId: string;
+		/** Transaction (order) date as ISO string. */
+		date: string;
+		/** Required / schedule date for this item line as ISO string. */
+		requiredDate: string;
+		/** Current Purchase Order status. */
+		status: PurchaseOrderAnalysisStatus;
+		/** Supplier name. */
+		supplier: string;
+		/** Project associated with this line (null when grouped by PO). */
+		project: string | null;
+		/** Item code (null when grouped by PO). */
+		itemCode: string | null;
+		/** Ordered quantity. */
+		qty: number;
+		/** Quantity received so far. */
+		receivedQty: number;
+		/** Quantity still to be received (qty − receivedQty). */
+		pendingQty: number;
+		/** Quantity invoiced. */
+		billedQty: number;
+		/** Quantity still to be invoiced (qty − billedQty). */
+		qtyToBill: number;
+		/** Order line amount in base currency. */
+		amount: number;
+		/** Amount that has been invoiced (base currency). */
+		billedAmount: number;
+		/** Amount not yet invoiced (amount − billedAmount). */
+		pendingAmount: number;
+		/** Value of quantity already received (denormalised from purchase receipts). */
+		receivedQtyAmount: number;
+		/** Warehouse (null when grouped by PO). */
+		warehouse: string | null;
+		/** Company name. */
+		company: string;
+	}
+
+	/** Summary totals for the chart on the Purchase Order Analysis page. */
+	export interface PurchaseOrderAnalysisSummary {
+		/** Total pending (un-billed) amount across all rows. */
+		totalPendingAmount: number;
+		/** Total billed amount across all rows. */
+		totalBilledAmount: number;
+	}
+
+	/** Full response from the Purchase Order Analysis endpoint. */
+	export interface PurchaseOrderAnalysisResult {
+		rows: PurchaseOrderAnalysisRow[];
+		summary: PurchaseOrderAnalysisSummary;
+	}
+
+	export const listPurchaseOrderAnalysisSchema = z.object({
+		company: z.string().min(1).max(255),
+		fromDate: z.coerce.date(),
+		toDate: z.coerce.date(),
+		/** Optional list of specific PO series IDs to filter by. */
+		purchaseOrders: z.array(z.string().min(1)).optional(),
+		/** Subset of statuses to include (all non-Stopped/On-Hold/Draft if omitted). */
+		status: z
+			.array(
+				z.enum([
+					"TO_PAY",
+					"TO_BILL",
+					"TO_RECEIVE",
+					"TO_RECEIVE_AND_BILL",
+					"COMPLETED",
+					"CLOSED",
+				]),
+			)
+			.optional(),
+		project: z.string().max(255).optional(),
+		groupByPurchaseOrder: z.boolean().optional(),
+	});
+
+	export interface ListPurchaseOrderAnalysisInput {
+		company: string;
+		fromDate: Date;
+		toDate: Date;
+		purchaseOrders?: string[];
+		status?: PurchaseOrderAnalysisStatus[];
+		project?: string;
+		groupByPurchaseOrder?: boolean;
+	}
+
+	// ============================================================================
 	// Purchase Receipt Trends Report Types & Schemas
 	// ============================================================================
 
