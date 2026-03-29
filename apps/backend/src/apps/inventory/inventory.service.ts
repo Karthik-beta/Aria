@@ -11,6 +11,10 @@ import { Prisma } from "../../generated/prisma/client";
 // biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
 import { PrismaService } from "../../shared/prisma.service";
 import {
+	type BatchWiseBalanceSourceBatch,
+	buildBatchWiseBalanceRows,
+} from "./batch-wise-balance-report";
+import {
 	buildDeliveryNoteTrendsPeriods,
 	buildDeliveryNoteTrendsRows,
 	type DeliveryNoteTrendsSourceEntry,
@@ -8402,6 +8406,96 @@ export class InventoryService {
 		const projected = await this.collectStockProjectedQtyRows({ company });
 
 		return buildItemShortageRows(projected);
+	}
+	/**
+	 * Get batch-wise balance history rows.
+	 *
+	 * Queries all non-disabled `Batch` records matching the given filters and
+	 * classifies each batch as either opening (received before `fromDate`) or
+	 * incoming (received within the date window). Balance qty reflects the
+	 * current on-hand quantity stored on the batch record.
+	 */
+	async findBatchWiseBalanceHistory(
+		params: Inventory.ListBatchWiseBalanceInput,
+	): Promise<Inventory.BatchWiseBalanceRow[]> {
+		const company = params.company.trim();
+		const fromDate = params.fromDate;
+		const toDate = params.toDate;
+		const itemCode = params.itemCode?.trim();
+		const warehouse = params.warehouse?.trim();
+		const batchNo = params.batchNo?.trim();
+
+		if (fromDate > toDate) {
+			throw new BadRequestException(
+				"'From Date' must not be later than 'To Date'.",
+			);
+		}
+
+		const batches = (await this.batchModel.findMany({
+			where: {
+				company: { contains: company, mode: "insensitive" },
+				isDisabled: false,
+				...(itemCode
+					? {
+							item: {
+								code: {
+									contains: itemCode,
+									mode: "insensitive",
+								},
+							},
+						}
+					: {}),
+				...(warehouse
+					? {
+							currentWarehouse: {
+								name: {
+									contains: warehouse,
+									mode: "insensitive",
+								},
+							},
+						}
+					: {}),
+				...(batchNo
+					? {
+							batchId: {
+								contains: batchNo,
+								mode: "insensitive",
+							},
+						}
+					: {}),
+			},
+			select: {
+				id: true,
+				batchId: true,
+				company: true,
+				quantity: true,
+				manufacturingDate: true,
+				expiryDate: true,
+				item: {
+					select: {
+						code: true,
+						name: true,
+						description: true,
+						valuationRate: true,
+						defaultUnitOfMeasure: {
+							select: { name: true },
+						},
+					},
+				},
+				currentWarehouse: {
+					select: { name: true },
+				},
+				purchaseReceipt: {
+					select: { postingDate: true },
+				},
+				stockEntry: {
+					select: { postingDate: true },
+				},
+			},
+			orderBy: [{ item: { code: "asc" } }, { batchId: "asc" }],
+		})) as BatchWiseBalanceSourceBatch[];
+
+		return buildBatchWiseBalanceRows(batches, { fromDate, toDate });
 	}
 
 	/**

@@ -4968,6 +4968,57 @@ export namespace Inventory {
 	export const bulkDeleteQiTemplatesSchema = z.object({
 		ids: z.array(z.string().min(1)).min(1),
 	});
+
+	// ============================================================================
+	// Batch-Wise Balance History Report Types & Schemas
+	// ============================================================================
+
+	/**
+	 * One row in the Batch-Wise Balance History report.
+	 *
+	 * Represents the inventory position of a single batch for a given item
+	 * and warehouse. `openingQty` reflects the batch balance carried into the
+	 * period (received before `fromDate`); `inQty` reflects batches received
+	 * during the period. `outQty` is always 0 in Aria (per-period issue
+	 * tracking requires an SLE-style ledger that is not yet part of the data
+	 * model). `balanceQty` is the authoritative current on-hand quantity.
+	 */
+	export interface BatchWiseBalanceRow {
+		id: string;
+		company: string;
+		itemCode: string;
+		itemName: string | null;
+		description: string | null;
+		warehouse: string | null;
+		batchNo: string;
+		openingQty: number;
+		inQty: number;
+		outQty: number;
+		balanceQty: number;
+		valuationRate: number;
+		balanceValue: number;
+		unitOfMeasure: string | null;
+		manufacturingDate: string | null;
+		expiryDate: string | null;
+	}
+
+	export const listBatchWiseBalanceSchema = z.object({
+		company: z.string().min(1, "Company is required").max(255).trim(),
+		fromDate: z.coerce.date(),
+		toDate: z.coerce.date(),
+		itemCode: z.string().max(100).trim().optional(),
+		warehouse: z.string().max(255).trim().optional(),
+		batchNo: z.string().max(120).trim().optional(),
+	});
+
+	export interface ListBatchWiseBalanceInput {
+		company: string;
+		fromDate: Date;
+		toDate: Date;
+		itemCode?: string;
+		warehouse?: string;
+		batchNo?: string;
+	}
 }
 
 // ============================================================================
