@@ -1095,6 +1095,26 @@ function createListStockProjectedQtyProcedure(
 		});
 }
 
+function createListItemShortageReportProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure
+		.input(Inventory.listItemShortageSchema)
+		.query(async ({ input }) => {
+			return inventoryService.findItemShortageReport(input);
+		});
+}
+
+function createListBatchWiseBalanceProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure
+		.input(Inventory.listBatchWiseBalanceSchema)
+		.query(async ({ input }) => {
+			return inventoryService.findBatchWiseBalanceHistory(input);
+		});
+}
+
 function createListStockSummaryProcedure(inventoryService: InventoryService) {
 	return protectedProcedure
 		.input(Inventory.listStockSummarySchema)
@@ -1134,6 +1154,46 @@ function createListStockAnalyticsProcedure(inventoryService: InventoryService) {
 		.input(Inventory.listStockAnalyticsSchema)
 		.query(async ({ input }) => {
 			return inventoryService.findStockAnalytics(input);
+		});
+}
+
+function createListDeliveryNoteTrendsProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure
+		.input(Inventory.listDeliveryNoteTrendsSchema)
+		.query(async ({ input }) => {
+			return inventoryService.findDeliveryNoteTrends(input);
+		});
+}
+
+function createListPurchaseReceiptTrendsProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure
+		.input(Inventory.listPurchaseReceiptTrendsSchema)
+		.query(async ({ input }) => {
+			return inventoryService.findPurchaseReceiptTrends(input);
+		});
+}
+
+function createListSalesOrderAnalysisProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure
+		.input(Inventory.listSalesOrderAnalysisSchema)
+		.query(async ({ input }) => {
+			return inventoryService.findSalesOrderAnalysis(input);
+		});
+}
+
+function createListPurchaseOrderAnalysisProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure
+		.input(Inventory.listPurchaseOrderAnalysisSchema)
+		.query(async ({ input }) => {
+			return inventoryService.findPurchaseOrderAnalysis(input);
 		});
 }
 
@@ -1836,6 +1896,10 @@ type InventoryRouterInput = {
 	listStockProjectedQty: ReturnType<
 		typeof createListStockProjectedQtyProcedure
 	>;
+	listItemShortageReport: ReturnType<
+		typeof createListItemShortageReportProcedure
+	>;
+	listBatchWiseBalance: ReturnType<typeof createListBatchWiseBalanceProcedure>;
 	listStockSummary: ReturnType<typeof createListStockSummaryProcedure>;
 	listStockAgeing: ReturnType<typeof createListStockAgeingProcedure>;
 	listItemPriceStock: ReturnType<typeof createListItemPriceStockProcedure>;
@@ -1843,6 +1907,18 @@ type InventoryRouterInput = {
 		typeof createListWarehouseWiseStockBalanceProcedure
 	>;
 	listStockAnalytics: ReturnType<typeof createListStockAnalyticsProcedure>;
+	listDeliveryNoteTrends: ReturnType<
+		typeof createListDeliveryNoteTrendsProcedure
+	>;
+	listPurchaseReceiptTrends: ReturnType<
+		typeof createListPurchaseReceiptTrendsProcedure
+	>;
+	listSalesOrderAnalysis: ReturnType<
+		typeof createListSalesOrderAnalysisProcedure
+	>;
+	listPurchaseOrderAnalysis: ReturnType<
+		typeof createListPurchaseOrderAnalysisProcedure
+	>;
 	listDeliveryNotes: ReturnType<typeof createListDeliveryNotesProcedure>;
 	getDeliveryNoteById: ReturnType<typeof createGetDeliveryNoteByIdProcedure>;
 	createDeliveryNote: ReturnType<typeof createCreateDeliveryNoteProcedure>;
@@ -2056,12 +2132,23 @@ function createInventoryRouterRecord(
 		getQuickStockBalance: createGetQuickStockBalanceProcedure(inventoryService),
 		listStockProjectedQty:
 			createListStockProjectedQtyProcedure(inventoryService),
+		listItemShortageReport:
+			createListItemShortageReportProcedure(inventoryService),
+		listBatchWiseBalance: createListBatchWiseBalanceProcedure(inventoryService),
 		listStockSummary: createListStockSummaryProcedure(inventoryService),
 		listStockAgeing: createListStockAgeingProcedure(inventoryService),
 		listItemPriceStock: createListItemPriceStockProcedure(inventoryService),
 		listWarehouseWiseStockBalance:
 			createListWarehouseWiseStockBalanceProcedure(inventoryService),
 		listStockAnalytics: createListStockAnalyticsProcedure(inventoryService),
+		listDeliveryNoteTrends:
+			createListDeliveryNoteTrendsProcedure(inventoryService),
+		listPurchaseReceiptTrends:
+			createListPurchaseReceiptTrendsProcedure(inventoryService),
+		listSalesOrderAnalysis:
+			createListSalesOrderAnalysisProcedure(inventoryService),
+		listPurchaseOrderAnalysis:
+			createListPurchaseOrderAnalysisProcedure(inventoryService),
 		listDeliveryNotes: createListDeliveryNotesProcedure(inventoryService),
 		getDeliveryNoteById: createGetDeliveryNoteByIdProcedure(inventoryService),
 		createDeliveryNote: createCreateDeliveryNoteProcedure(inventoryService),

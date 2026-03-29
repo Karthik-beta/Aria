@@ -3173,6 +3173,414 @@ export namespace Inventory {
 	});
 
 	// ============================================================================
+	// Sales Order Analysis Report Types & Schemas
+	// ============================================================================
+
+	/** Valid statuses for a Sales Order in the analysis report. */
+	export type SalesOrderAnalysisStatus =
+		| "TO_DELIVER_AND_BILL"
+		| "TO_DELIVER"
+		| "TO_BILL"
+		| "COMPLETED"
+		| "CLOSED";
+
+	/** One row in the Sales Order Analysis report (item-level or SO-level when grouped). */
+	export interface SalesOrderAnalysisRow {
+		/** Sales Order series identifier, e.g. "SAL-ORD-2024-0001". */
+		salesOrder: string;
+		/** Sales Order internal id. */
+		salesOrderId: string;
+		/** Transaction (order) date as ISO string. */
+		date: string;
+		/** Expected delivery date for this item line as ISO string. */
+		deliveryDate: string;
+		/** Current Sales Order status. */
+		status: SalesOrderAnalysisStatus;
+		/** Customer name. */
+		customer: string;
+		/** Item code (null when grouped by SO). */
+		itemCode: string | null;
+		/** Item short description (null when grouped by SO). */
+		description: string | null;
+		/** Ordered quantity. */
+		qty: number;
+		/** Quantity delivered so far. */
+		deliveredQty: number;
+		/** Quantity still to be delivered (qty − deliveredQty). */
+		pendingQty: number;
+		/** Quantity invoiced. */
+		billedQty: number;
+		/** Quantity still to be invoiced (qty − billedQty). */
+		qtyToBill: number;
+		/** Order line amount in base currency. */
+		amount: number;
+		/** Amount that has been invoiced (base currency). */
+		billedAmount: number;
+		/** Amount not yet invoiced (amount − billedAmount). */
+		pendingAmount: number;
+		/** Value of quantity already delivered (deliveredQty × baseRate). */
+		deliveredQtyAmount: number;
+		/**
+		 * Delay in calendar days beyond the expected delivery date.
+		 * Zero for completed / fully-billed orders; negative values clamped to 0.
+		 */
+		delayDays: number;
+		/**
+		 * Elapsed time in seconds from SO date to latest delivery.
+		 * Zero if no delivery has been made yet.
+		 */
+		timeTakenToDeliverSeconds: number;
+		/** Warehouse (null when grouped by SO). */
+		warehouse: string | null;
+		/** Company name. */
+		company: string;
+	}
+
+	/** Summary totals for the chart on the Sales Order Analysis page. */
+	export interface SalesOrderAnalysisSummary {
+		/** Total pending (un-billed) amount across all rows. */
+		totalPendingAmount: number;
+		/** Total billed amount across all rows. */
+		totalBilledAmount: number;
+	}
+
+	/** Full response from the Sales Order Analysis endpoint. */
+	export interface SalesOrderAnalysisResult {
+		rows: SalesOrderAnalysisRow[];
+		summary: SalesOrderAnalysisSummary;
+	}
+
+	export const listSalesOrderAnalysisSchema = z.object({
+		company: z.string().min(1).max(255),
+		fromDate: z.coerce.date(),
+		toDate: z.coerce.date(),
+		/** Optional list of specific SO series IDs to filter by. */
+		salesOrders: z.array(z.string().min(1)).optional(),
+		/** Subset of statuses to include (all non-Stopped/On-Hold if omitted). */
+		status: z
+			.array(
+				z.enum([
+					"TO_DELIVER_AND_BILL",
+					"TO_DELIVER",
+					"TO_BILL",
+					"COMPLETED",
+					"CLOSED",
+				]),
+			)
+			.optional(),
+		warehouse: z.string().max(255).optional(),
+		groupBySalesOrder: z.boolean().optional(),
+	});
+
+	export interface ListSalesOrderAnalysisInput {
+		company: string;
+		fromDate: Date;
+		toDate: Date;
+		salesOrders?: string[];
+		status?: SalesOrderAnalysisStatus[];
+		warehouse?: string;
+		groupBySalesOrder?: boolean;
+	}
+
+	// ============================================================================
+	// Purchase Order Analysis Report Types & Schemas
+	// ============================================================================
+
+	/** Valid statuses for a Purchase Order in the analysis report. */
+	export type PurchaseOrderAnalysisStatus =
+		| "TO_PAY"
+		| "TO_BILL"
+		| "TO_RECEIVE"
+		| "TO_RECEIVE_AND_BILL"
+		| "COMPLETED"
+		| "CLOSED";
+
+	/** One row in the Purchase Order Analysis report (item-level or PO-level when grouped). */
+	export interface PurchaseOrderAnalysisRow {
+		/** Purchase Order series identifier, e.g. "PUR-ORD-2024-0001". */
+		purchaseOrder: string;
+		/** Purchase Order internal id. */
+		purchaseOrderId: string;
+		/** Transaction (order) date as ISO string. */
+		date: string;
+		/** Required / schedule date for this item line as ISO string. */
+		requiredDate: string;
+		/** Current Purchase Order status. */
+		status: PurchaseOrderAnalysisStatus;
+		/** Supplier name. */
+		supplier: string;
+		/** Project associated with this line (null when grouped by PO). */
+		project: string | null;
+		/** Item code (null when grouped by PO). */
+		itemCode: string | null;
+		/** Ordered quantity. */
+		qty: number;
+		/** Quantity received so far. */
+		receivedQty: number;
+		/** Quantity still to be received (qty − receivedQty). */
+		pendingQty: number;
+		/** Quantity invoiced. */
+		billedQty: number;
+		/** Quantity still to be invoiced (qty − billedQty). */
+		qtyToBill: number;
+		/** Order line amount in base currency. */
+		amount: number;
+		/** Amount that has been invoiced (base currency). */
+		billedAmount: number;
+		/** Amount not yet invoiced (amount − billedAmount). */
+		pendingAmount: number;
+		/** Value of quantity already received (denormalised from purchase receipts). */
+		receivedQtyAmount: number;
+		/** Warehouse (null when grouped by PO). */
+		warehouse: string | null;
+		/** Company name. */
+		company: string;
+	}
+
+	/** Summary totals for the chart on the Purchase Order Analysis page. */
+	export interface PurchaseOrderAnalysisSummary {
+		/** Total pending (un-billed) amount across all rows. */
+		totalPendingAmount: number;
+		/** Total billed amount across all rows. */
+		totalBilledAmount: number;
+	}
+
+	/** Full response from the Purchase Order Analysis endpoint. */
+	export interface PurchaseOrderAnalysisResult {
+		rows: PurchaseOrderAnalysisRow[];
+		summary: PurchaseOrderAnalysisSummary;
+	}
+
+	export const listPurchaseOrderAnalysisSchema = z.object({
+		company: z.string().min(1).max(255),
+		fromDate: z.coerce.date(),
+		toDate: z.coerce.date(),
+		/** Optional list of specific PO series IDs to filter by. */
+		purchaseOrders: z.array(z.string().min(1)).optional(),
+		/** Subset of statuses to include (all non-Stopped/On-Hold/Draft if omitted). */
+		status: z
+			.array(
+				z.enum([
+					"TO_PAY",
+					"TO_BILL",
+					"TO_RECEIVE",
+					"TO_RECEIVE_AND_BILL",
+					"COMPLETED",
+					"CLOSED",
+				]),
+			)
+			.optional(),
+		project: z.string().max(255).optional(),
+		groupByPurchaseOrder: z.boolean().optional(),
+	});
+
+	export interface ListPurchaseOrderAnalysisInput {
+		company: string;
+		fromDate: Date;
+		toDate: Date;
+		purchaseOrders?: string[];
+		status?: PurchaseOrderAnalysisStatus[];
+		project?: string;
+		groupByPurchaseOrder?: boolean;
+	}
+
+	// ============================================================================
+	// Item Shortage Report Types & Schemas
+	// ============================================================================
+
+	/**
+	 * One row in the Item Shortage Report.
+	 *
+	 * Only items whose projectedQty is strictly negative are included in results.
+	 */
+	export interface ItemShortageRow {
+		id: string;
+		company: string;
+		warehouse: string;
+		itemCode: string;
+		itemName?: string | null;
+		description?: string | null;
+		actualQty: number;
+		orderedQty: number;
+		plannedQty: number;
+		requestedQty: number;
+		reservedQty: number;
+		reservedQtyForProduction: number;
+		projectedQty: number;
+	}
+
+	export const listItemShortageSchema = z
+		.object({
+			company: z.string().max(255).optional(),
+			warehouses: z.array(z.string().max(255)).optional(),
+		})
+		.optional();
+
+	export interface ListItemShortageInput {
+		company?: string;
+		warehouses?: string[];
+	}
+
+	// ============================================================================
+	export type PurchaseReceiptTrendsPeriodFrequency =
+		| "Monthly"
+		| "Quarterly"
+		| "Half-Yearly"
+		| "Yearly";
+
+	export type PurchaseReceiptTrendsBasedOn = "Item" | "Item Group" | "Supplier";
+
+	/** One time bucket in the Purchase Receipt Trends report. */
+	export interface PurchaseReceiptTrendsPeriod {
+		/** Inclusive start date of the bucket. */
+		from: Date;
+		/** Inclusive end date of the bucket. */
+		to: Date;
+		/** Human-readable label, e.g. "Jan 2024", "Jan–Mar 2024". */
+		label: string;
+		/** Snake-cased key used as the column accessor, e.g. "jan_2024". */
+		key: string;
+	}
+
+	/**
+	 * One row in the Purchase Receipt Trends report.
+	 * Represents a single grouping-dimension value (item, supplier, etc.)
+	 * with aggregated accepted qty and amount per period.
+	 */
+	export interface PurchaseReceiptTrendsRow {
+		/** Unique row identifier (slugified dimension key). */
+		id: string;
+		/** Primary group key (item code, supplier, item group name). */
+		dimensionKey: string;
+		/** Optional secondary label (e.g. item name for Item dimension). */
+		dimensionLabel?: string | null;
+		/** Aggregated accepted quantity per period key. */
+		periodQty: Record<string, number>;
+		/** Aggregated received amount per period key. */
+		periodAmount: Record<string, number>;
+		/** Sum of accepted qty across all periods. */
+		totalQty: number;
+		/** Sum of amount across all periods. */
+		totalAmount: number;
+	}
+
+	/** Full response from the Purchase Receipt Trends endpoint. */
+	export interface PurchaseReceiptTrendsResult {
+		periods: PurchaseReceiptTrendsPeriod[];
+		rows: PurchaseReceiptTrendsRow[];
+		/** Grand total accepted qty across all rows and periods. */
+		totalQty: number;
+		/** Grand total amount across all rows and periods. */
+		totalAmount: number;
+	}
+
+	export interface ListPurchaseReceiptTrendsInput {
+		fromDate: Date;
+		toDate: Date;
+		period: PurchaseReceiptTrendsPeriodFrequency;
+		basedOn: PurchaseReceiptTrendsBasedOn;
+		company: string;
+		supplier?: string;
+		itemCode?: string;
+		warehouse?: string;
+	}
+
+	export const listPurchaseReceiptTrendsSchema = z.object({
+		fromDate: z.coerce.date(),
+		toDate: z.coerce.date(),
+		period: z.enum(["Monthly", "Quarterly", "Half-Yearly", "Yearly"]),
+		basedOn: z.enum(["Item", "Item Group", "Supplier"]),
+		company: z.string().min(1).max(255),
+		supplier: z.string().max(255).optional(),
+		itemCode: z.string().max(100).optional(),
+		warehouse: z.string().max(255).optional(),
+	});
+
+	// ============================================================================
+	// Delivery Note Trends Report Types & Schemas
+	// ============================================================================
+
+	/** Temporal grouping granularity for the Delivery Note Trends report. */
+	export type DeliveryNoteTrendsPeriodFrequency =
+		| "Monthly"
+		| "Quarterly"
+		| "Half-Yearly"
+		| "Yearly";
+
+	/** The dimension used to group delivery note items in the trends report. */
+	export type DeliveryNoteTrendsBasedOn =
+		| "Item"
+		| "Item Group"
+		| "Customer"
+		| "Project";
+
+	/** One time bucket in the Delivery Note Trends report. */
+	export interface DeliveryNoteTrendsPeriod {
+		/** Inclusive start date of the bucket. */
+		from: Date;
+		/** Inclusive end date of the bucket. */
+		to: Date;
+		/** Human-readable label, e.g. "Jan 2024", "Jan–Mar 2024". */
+		label: string;
+		/** Snake-cased key used as the column accessor, e.g. "jan_2024". */
+		key: string;
+	}
+
+	/**
+	 * One row in the Delivery Note Trends report.
+	 * Represents a single grouping-dimension value (item, customer, etc.)
+	 * with aggregated qty and amount per period.
+	 */
+	export interface DeliveryNoteTrendsRow {
+		/** Unique row identifier (slugified dimension key). */
+		id: string;
+		/** Primary group key (item code, customer, project, item group name). */
+		dimensionKey: string;
+		/** Optional secondary label (e.g. item name for Item dimension). */
+		dimensionLabel?: string | null;
+		/** Aggregated delivered quantity per period key. */
+		periodQty: Record<string, number>;
+		/** Aggregated delivered amount per period key. */
+		periodAmount: Record<string, number>;
+		/** Sum of qty across all periods. */
+		totalQty: number;
+		/** Sum of amount across all periods. */
+		totalAmount: number;
+	}
+
+	/** Full response from the Delivery Note Trends endpoint. */
+	export interface DeliveryNoteTrendsResult {
+		periods: DeliveryNoteTrendsPeriod[];
+		rows: DeliveryNoteTrendsRow[];
+		/** Grand total qty across all rows and periods. */
+		totalQty: number;
+		/** Grand total amount across all rows and periods. */
+		totalAmount: number;
+	}
+
+	export interface ListDeliveryNoteTrendsInput {
+		fromDate: Date;
+		toDate: Date;
+		period: DeliveryNoteTrendsPeriodFrequency;
+		basedOn: DeliveryNoteTrendsBasedOn;
+		company: string;
+		customer?: string;
+		itemCode?: string;
+		warehouse?: string;
+	}
+
+	export const listDeliveryNoteTrendsSchema = z.object({
+		fromDate: z.coerce.date(),
+		toDate: z.coerce.date(),
+		period: z.enum(["Monthly", "Quarterly", "Half-Yearly", "Yearly"]),
+		basedOn: z.enum(["Item", "Item Group", "Customer", "Project"]),
+		company: z.string().min(1).max(255),
+		customer: z.string().max(255).optional(),
+		itemCode: z.string().max(100).optional(),
+		warehouse: z.string().max(255).optional(),
+	});
+
+	// ============================================================================
 	// Delivery Note Types & Schemas
 	// ============================================================================
 
@@ -4560,6 +4968,57 @@ export namespace Inventory {
 	export const bulkDeleteQiTemplatesSchema = z.object({
 		ids: z.array(z.string().min(1)).min(1),
 	});
+
+	// ============================================================================
+	// Batch-Wise Balance History Report Types & Schemas
+	// ============================================================================
+
+	/**
+	 * One row in the Batch-Wise Balance History report.
+	 *
+	 * Represents the inventory position of a single batch for a given item
+	 * and warehouse. `openingQty` reflects the batch balance carried into the
+	 * period (received before `fromDate`); `inQty` reflects batches received
+	 * during the period. `outQty` is always 0 in Aria (per-period issue
+	 * tracking requires an SLE-style ledger that is not yet part of the data
+	 * model). `balanceQty` is the authoritative current on-hand quantity.
+	 */
+	export interface BatchWiseBalanceRow {
+		id: string;
+		company: string;
+		itemCode: string;
+		itemName: string | null;
+		description: string | null;
+		warehouse: string | null;
+		batchNo: string;
+		openingQty: number;
+		inQty: number;
+		outQty: number;
+		balanceQty: number;
+		valuationRate: number;
+		balanceValue: number;
+		unitOfMeasure: string | null;
+		manufacturingDate: string | null;
+		expiryDate: string | null;
+	}
+
+	export const listBatchWiseBalanceSchema = z.object({
+		company: z.string().min(1, "Company is required").max(255).trim(),
+		fromDate: z.coerce.date(),
+		toDate: z.coerce.date(),
+		itemCode: z.string().max(100).trim().optional(),
+		warehouse: z.string().max(255).trim().optional(),
+		batchNo: z.string().max(120).trim().optional(),
+	});
+
+	export interface ListBatchWiseBalanceInput {
+		company: string;
+		fromDate: Date;
+		toDate: Date;
+		itemCode?: string;
+		warehouse?: string;
+		batchNo?: string;
+	}
 }
 
 // ============================================================================

@@ -1437,6 +1437,28 @@ type InventoryRouterInput = {
 		output: Inventory.StockProjectedQtyRow[];
 		meta: object;
 	}>;
+	listItemShortageReport: TRPCQueryProcedure<{
+		input:
+			| {
+					company?: string | undefined;
+					warehouses?: string[] | undefined;
+			  }
+			| undefined;
+		output: Inventory.ItemShortageRow[];
+		meta: object;
+	}>;
+	listBatchWiseBalance: TRPCQueryProcedure<{
+		input: {
+			company: string;
+			fromDate: unknown;
+			toDate: unknown;
+			itemCode?: string | undefined;
+			warehouse?: string | undefined;
+			batchNo?: string | undefined;
+		};
+		output: Inventory.BatchWiseBalanceRow[];
+		meta: object;
+	}>;
 	listStockSummary: TRPCQueryProcedure<{
 		input:
 			| {
@@ -1528,6 +1550,77 @@ type InventoryRouterInput = {
 			brand?: string | undefined;
 		};
 		output: Inventory.StockAnalyticsResult;
+		meta: object;
+	}>;
+	listDeliveryNoteTrends: TRPCQueryProcedure<{
+		input: {
+			fromDate: unknown;
+			toDate: unknown;
+			period: "Monthly" | "Quarterly" | "Half-Yearly" | "Yearly";
+			basedOn: "Item" | "Item Group" | "Customer" | "Project";
+			company: string;
+			customer?: string | undefined;
+			itemCode?: string | undefined;
+			warehouse?: string | undefined;
+		};
+		output: Inventory.DeliveryNoteTrendsResult;
+		meta: object;
+	}>;
+	listPurchaseReceiptTrends: TRPCQueryProcedure<{
+		input: {
+			fromDate: unknown;
+			toDate: unknown;
+			period: "Monthly" | "Quarterly" | "Half-Yearly" | "Yearly";
+			basedOn: "Item" | "Item Group" | "Supplier";
+			company: string;
+			supplier?: string | undefined;
+			itemCode?: string | undefined;
+			warehouse?: string | undefined;
+		};
+		output: Inventory.PurchaseReceiptTrendsResult;
+		meta: object;
+	}>;
+	listSalesOrderAnalysis: TRPCQueryProcedure<{
+		input: {
+			company: string;
+			fromDate: unknown;
+			toDate: unknown;
+			salesOrders?: string[] | undefined;
+			status?:
+				| (
+						| "TO_DELIVER_AND_BILL"
+						| "TO_DELIVER"
+						| "TO_BILL"
+						| "COMPLETED"
+						| "CLOSED"
+				  )[]
+				| undefined;
+			warehouse?: string | undefined;
+			groupBySalesOrder?: boolean | undefined;
+		};
+		output: Inventory.SalesOrderAnalysisResult;
+		meta: object;
+	}>;
+	listPurchaseOrderAnalysis: TRPCQueryProcedure<{
+		input: {
+			company: string;
+			fromDate: unknown;
+			toDate: unknown;
+			purchaseOrders?: string[] | undefined;
+			status?:
+				| (
+						| "TO_PAY"
+						| "TO_BILL"
+						| "TO_RECEIVE"
+						| "TO_RECEIVE_AND_BILL"
+						| "COMPLETED"
+						| "CLOSED"
+				  )[]
+				| undefined;
+			project?: string | undefined;
+			groupByPurchaseOrder?: boolean | undefined;
+		};
+		output: Inventory.PurchaseOrderAnalysisResult;
 		meta: object;
 	}>;
 	listDeliveryNotes: TRPCQueryProcedure<{

@@ -11,6 +11,15 @@ import { Prisma } from "../../generated/prisma/client";
 // biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
 import { PrismaService } from "../../shared/prisma.service";
 import {
+	type BatchWiseBalanceSourceBatch,
+	buildBatchWiseBalanceRows,
+} from "./batch-wise-balance-report";
+import {
+	buildDeliveryNoteTrendsPeriods,
+	buildDeliveryNoteTrendsRows,
+	type DeliveryNoteTrendsSourceEntry,
+} from "./delivery-note-trends-report";
+import {
 	type InventoryBatch,
 	itemAlternativeInclude,
 	toInventoryBatch,
@@ -40,6 +49,20 @@ import {
 	toInventoryWarehouse,
 } from "./inventory.types";
 import { buildItemPriceStockRows } from "./item-price-stock-report";
+import { buildItemShortageRows } from "./item-shortage-report";
+import {
+	buildPurchaseOrderAnalysisRows,
+	computePurchaseOrderAnalysisSummary,
+} from "./purchase-order-analysis-report";
+import {
+	buildPurchaseReceiptTrendsPeriods,
+	buildPurchaseReceiptTrendsRows,
+	type PurchaseReceiptTrendsSourceEntry,
+} from "./purchase-receipt-trends-report";
+import {
+	buildSalesOrderAnalysisRows,
+	computeSalesOrderAnalysisSummary,
+} from "./sales-order-analysis-report";
 import {
 	buildStockAgeingRows,
 	type StockAgeingBucketRange,
@@ -6375,6 +6398,140 @@ export class InventoryService {
 	}
 
 	/**
+	 * Compute the Delivery Note Trends report.
+	 *
+	 * Groups submitted delivery note items by a chosen dimension (Item, Item
+	 * Group, Customer, or Project) and aggregates qty / amount per time period
+	 * within the given date range.
+	 */
+	async findDeliveryNoteTrends(
+		params: Inventory.ListDeliveryNoteTrendsInput,
+	): Promise<Inventory.DeliveryNoteTrendsResult> {
+		const company = params.company.trim();
+		const customer = params.customer?.trim();
+		const itemCode = params.itemCode?.trim();
+		const warehouse = params.warehouse?.trim();
+		const { fromDate, toDate, period, basedOn } = params;
+
+		if (fromDate > toDate) {
+			throw new BadRequestException(
+				"'From Date' must not be later than 'To Date'.",
+			);
+		}
+
+		const periods = buildDeliveryNoteTrendsPeriods(fromDate, toDate, period);
+
+		// Statuses that represent submitted (non-draft, non-cancelled) delivery notes
+		const submittedStatuses: Prisma.EnumDeliveryNoteStatusFilter = {
+			in: ["TO_BILL", "COMPLETED", "RETURN_ISSUED", "CLOSED"],
+		};
+
+		// Build base delivery note where clause
+		const noteWhere: Prisma.DeliveryNoteWhereInput = {
+			status: submittedStatuses,
+			company: { contains: company, mode: "insensitive" },
+			postingDate: { gte: fromDate, lte: toDate },
+			...(customer
+				? { customer: { contains: customer, mode: "insensitive" } }
+				: {}),
+		};
+
+		// Build item where clause
+		const itemWhere: Prisma.DeliveryNoteItemWhereInput = {};
+		if (itemCode) {
+			itemWhere.itemCode = { contains: itemCode, mode: "insensitive" };
+		}
+		if (warehouse) {
+			itemWhere.warehouse = { contains: warehouse, mode: "insensitive" };
+		}
+
+		// For Item Group dimension, pre-resolve item codes belonging to matching groups
+		let itemCodesByGroup: Map<string, string> | undefined;
+
+		if (basedOn === "Item Group") {
+			const items = await this.prisma.item.findMany({
+				select: {
+					code: true,
+					itemGroup: { select: { groupName: true } },
+				},
+			});
+			itemCodesByGroup = new Map<string, string>();
+			for (const item of items) {
+				if (item.itemGroup?.groupName) {
+					itemCodesByGroup.set(item.code, item.itemGroup.groupName);
+				}
+			}
+		}
+
+		// Query delivery notes with items
+		const notes = await this.prisma.deliveryNote.findMany({
+			where: noteWhere,
+			select: {
+				postingDate: true,
+				customer: true,
+				project: true,
+				items: {
+					where: Object.keys(itemWhere).length > 0 ? itemWhere : undefined,
+					select: {
+						itemCode: true,
+						itemName: true,
+						quantity: true,
+						amount: true,
+					},
+				},
+			},
+		});
+
+		// Flatten into source entries
+		const entries: DeliveryNoteTrendsSourceEntry[] = [];
+
+		for (const note of notes) {
+			for (const item of note.items) {
+				let dimensionKey: string;
+				let dimensionLabel: string | null | undefined;
+
+				switch (basedOn) {
+					case "Item": {
+						dimensionKey = item.itemCode;
+						dimensionLabel = item.itemName;
+						break;
+					}
+					case "Item Group": {
+						const group = itemCodesByGroup?.get(item.itemCode);
+						if (!group) continue; // skip items with no group
+						dimensionKey = group;
+						dimensionLabel = null;
+						break;
+					}
+					case "Customer": {
+						dimensionKey = note.customer;
+						dimensionLabel = null;
+						break;
+					}
+					case "Project": {
+						if (!note.project) continue; // skip notes without a project
+						dimensionKey = note.project;
+						dimensionLabel = null;
+						break;
+					}
+					default:
+						continue;
+				}
+
+				entries.push({
+					postingDate: note.postingDate,
+					quantity: item.quantity,
+					amount: item.amount,
+					dimensionKey,
+					dimensionLabel,
+				});
+			}
+		}
+
+		return buildDeliveryNoteTrendsRows(entries, periods);
+	}
+
+	/**
 	 * Get delivery notes with pagination support.
 	 * Defaults to the 250 most recent records when no params are provided.
 	 */
@@ -8216,6 +8373,132 @@ export class InventoryService {
 	}
 
 	/**
+	 * Get items with negative projected quantity, indicating an active shortage.
+	 *
+	 * Results are sorted by projectedQty ascending so the most critical shortages
+	 * appear first, mirroring ERPNext's Item Shortage Report behavior.
+	 */
+	async findItemShortageReport(
+		params?: Inventory.ListItemShortageInput,
+	): Promise<Inventory.ItemShortageRow[]> {
+		const company = params?.company?.trim();
+		const warehouses = params?.warehouses?.map((w) => w.trim()).filter(Boolean);
+
+		if (warehouses && warehouses.length > 0) {
+			const rowMap = new Map<string, Inventory.ItemShortageRow>();
+
+			for (const warehouse of warehouses) {
+				const projected = await this.collectStockProjectedQtyRows({
+					company,
+					warehouse,
+				});
+				const filtered = buildItemShortageRows(projected);
+				for (const row of filtered) {
+					rowMap.set(row.id, row);
+				}
+			}
+
+			return [...rowMap.values()].sort(
+				(a, b) => a.projectedQty - b.projectedQty,
+			);
+		}
+
+		const projected = await this.collectStockProjectedQtyRows({ company });
+
+		return buildItemShortageRows(projected);
+	}
+	/**
+	 * Get batch-wise balance history rows.
+	 *
+	 * Queries all non-disabled `Batch` records matching the given filters and
+	 * classifies each batch as either opening (received before `fromDate`) or
+	 * incoming (received within the date window). Balance qty reflects the
+	 * current on-hand quantity stored on the batch record.
+	 */
+	async findBatchWiseBalanceHistory(
+		params: Inventory.ListBatchWiseBalanceInput,
+	): Promise<Inventory.BatchWiseBalanceRow[]> {
+		const company = params.company.trim();
+		const fromDate = params.fromDate;
+		const toDate = params.toDate;
+		const itemCode = params.itemCode?.trim();
+		const warehouse = params.warehouse?.trim();
+		const batchNo = params.batchNo?.trim();
+
+		if (fromDate > toDate) {
+			throw new BadRequestException(
+				"'From Date' must not be later than 'To Date'.",
+			);
+		}
+
+		const batches = (await this.batchModel.findMany({
+			where: {
+				company: { contains: company, mode: "insensitive" },
+				isDisabled: false,
+				...(itemCode
+					? {
+							item: {
+								code: {
+									contains: itemCode,
+									mode: "insensitive",
+								},
+							},
+						}
+					: {}),
+				...(warehouse
+					? {
+							currentWarehouse: {
+								name: {
+									contains: warehouse,
+									mode: "insensitive",
+								},
+							},
+						}
+					: {}),
+				...(batchNo
+					? {
+							batchId: {
+								contains: batchNo,
+								mode: "insensitive",
+							},
+						}
+					: {}),
+			},
+			select: {
+				id: true,
+				batchId: true,
+				company: true,
+				quantity: true,
+				manufacturingDate: true,
+				expiryDate: true,
+				item: {
+					select: {
+						code: true,
+						name: true,
+						description: true,
+						valuationRate: true,
+						defaultUnitOfMeasure: {
+							select: { name: true },
+						},
+					},
+				},
+				currentWarehouse: {
+					select: { name: true },
+				},
+				purchaseReceipt: {
+					select: { postingDate: true },
+				},
+				stockEntry: {
+					select: { postingDate: true },
+				},
+			},
+			orderBy: [{ item: { code: "asc" } }, { batchId: "asc" }],
+		})) as BatchWiseBalanceSourceBatch[];
+
+		return buildBatchWiseBalanceRows(batches, { fromDate, toDate });
+	}
+
+	/**
 	 * Get stock summary rows for operational triage, ordered by a selected metric.
 	 */
 	async findStockSummary(params?: Inventory.ListStockSummaryInput) {
@@ -8913,6 +9196,325 @@ export class InventoryService {
 		}
 
 		return `${prefix}${String(nextNumber).padStart(5, "0")}`;
+	}
+
+	/**
+	 * Aggregate purchase receipt item data into period/dimension trend rows.
+	 *
+	 * @param params - Filter input from the frontend
+	 * @returns Period buckets + aggregated dimension rows + grand totals
+	 */
+	async findPurchaseReceiptTrends(
+		params: Inventory.ListPurchaseReceiptTrendsInput,
+	): Promise<Inventory.PurchaseReceiptTrendsResult> {
+		const company = params.company.trim();
+		const supplier = params.supplier?.trim();
+		const itemCode = params.itemCode?.trim();
+		const warehouse = params.warehouse?.trim();
+		const { fromDate, toDate, period, basedOn } = params;
+
+		if (fromDate > toDate) {
+			throw new BadRequestException(
+				"'From Date' must not be later than 'To Date'.",
+			);
+		}
+
+		const periods = buildPurchaseReceiptTrendsPeriods(fromDate, toDate, period);
+
+		// Statuses that represent submitted (non-draft, non-cancelled) purchase receipts
+		const submittedStatuses: Prisma.EnumPurchaseReceiptStatusFilter = {
+			in: ["PARTLY_BILLED", "TO_BILL", "COMPLETED", "RETURN_ISSUED", "CLOSED"],
+		};
+
+		const receiptWhere: Prisma.PurchaseReceiptWhereInput = {
+			status: submittedStatuses,
+			company: { contains: company, mode: "insensitive" },
+			postingDate: { gte: fromDate, lte: toDate },
+			...(supplier
+				? { supplier: { contains: supplier, mode: "insensitive" } }
+				: {}),
+		};
+
+		const itemWhere: Prisma.PurchaseReceiptItemWhereInput = {};
+		if (itemCode) {
+			itemWhere.itemCode = { contains: itemCode, mode: "insensitive" };
+		}
+		if (warehouse) {
+			itemWhere.acceptedWarehouse = {
+				contains: warehouse,
+				mode: "insensitive",
+			};
+		}
+
+		// For Item Group dimension, pre-resolve item codes → group name
+		let itemCodeToGroup: Map<string, string> | undefined;
+
+		if (basedOn === "Item Group") {
+			const items = await this.prisma.item.findMany({
+				select: {
+					code: true,
+					itemGroup: { select: { groupName: true } },
+				},
+			});
+			itemCodeToGroup = new Map<string, string>();
+			for (const item of items) {
+				if (item.itemGroup?.groupName) {
+					itemCodeToGroup.set(item.code, item.itemGroup.groupName);
+				}
+			}
+		}
+
+		const receipts = await this.prisma.purchaseReceipt.findMany({
+			where: receiptWhere,
+			select: {
+				postingDate: true,
+				supplier: true,
+				items: {
+					where: Object.keys(itemWhere).length > 0 ? itemWhere : undefined,
+					select: {
+						itemCode: true,
+						itemName: true,
+						acceptedQuantity: true,
+						amount: true,
+					},
+				},
+			},
+		});
+
+		const entries: PurchaseReceiptTrendsSourceEntry[] = [];
+
+		for (const receipt of receipts) {
+			for (const item of receipt.items) {
+				let dimensionKey: string;
+				let dimensionLabel: string | null | undefined;
+
+				switch (basedOn) {
+					case "Item": {
+						dimensionKey = item.itemCode;
+						dimensionLabel = item.itemName;
+						break;
+					}
+					case "Item Group": {
+						const group = itemCodeToGroup?.get(item.itemCode);
+						if (!group) continue; // skip items with no group
+						dimensionKey = group;
+						dimensionLabel = null;
+						break;
+					}
+					case "Supplier": {
+						dimensionKey = receipt.supplier;
+						dimensionLabel = null;
+						break;
+					}
+					default:
+						continue;
+				}
+
+				entries.push({
+					postingDate: receipt.postingDate,
+					quantity: item.acceptedQuantity,
+					amount: item.amount,
+					dimensionKey,
+					dimensionLabel,
+				});
+			}
+		}
+
+		return buildPurchaseReceiptTrendsRows(entries, periods);
+	}
+
+	// ---------------------------------------------------------------------------
+	// Sales Order Analysis
+	// ---------------------------------------------------------------------------
+
+	/**
+	 * Return all Sales Order line items (or SO-grouped rows) within the given
+	 * date range, with delay and billing completion metrics.
+	 *
+	 * @remarks
+	 * - Excludes DRAFT orders.
+	 * - Delay is clamped to 0 for COMPLETED / TO_BILL orders.
+	 * - timeTakenToDeliverSeconds is 0 unless a delivery has been recorded.
+	 * - When groupBySalesOrder is true, numeric fields are summed per SO and
+	 *   item-level fields (itemCode, warehouse, description) are set to null.
+	 */
+	async findSalesOrderAnalysis(
+		params: Inventory.ListSalesOrderAnalysisInput,
+	): Promise<Inventory.SalesOrderAnalysisResult> {
+		const company = params.company.trim();
+		const warehouse = params.warehouse?.trim();
+		const { fromDate, toDate, groupBySalesOrder } = params;
+
+		if (fromDate > toDate) {
+			throw new BadRequestException(
+				"'From Date' must not be later than 'To Date'.",
+			);
+		}
+
+		const statusFilter: Prisma.EnumSalesOrderStatusFilter = params.status
+			?.length
+			? { in: params.status }
+			: {
+					in: [
+						"TO_DELIVER_AND_BILL",
+						"TO_DELIVER",
+						"TO_BILL",
+						"COMPLETED",
+						"CLOSED",
+					],
+				};
+
+		const soWhere: Prisma.SalesOrderWhereInput = {
+			company: { contains: company, mode: "insensitive" },
+			transactionDate: { gte: fromDate, lte: toDate },
+			status: statusFilter,
+			...(params.salesOrders?.length
+				? { series: { in: params.salesOrders } }
+				: {}),
+		};
+
+		const itemWhere: Prisma.SalesOrderItemWhereInput = warehouse
+			? { warehouse: { contains: warehouse, mode: "insensitive" } }
+			: {};
+
+		const orders = await this.prisma.salesOrder.findMany({
+			where: soWhere,
+			orderBy: [{ transactionDate: "asc" }, { series: "asc" }],
+			select: {
+				id: true,
+				series: true,
+				transactionDate: true,
+				customer: true,
+				company: true,
+				status: true,
+				conversionRate: true,
+				items: {
+					where: Object.keys(itemWhere).length > 0 ? itemWhere : undefined,
+					orderBy: { itemCode: "asc" },
+					select: {
+						id: true,
+						itemCode: true,
+						itemName: true,
+						description: true,
+						deliveryDate: true,
+						qty: true,
+						deliveredQty: true,
+						billedQty: true,
+						baseRate: true,
+						amount: true,
+						baseAmount: true,
+						billedAmount: true,
+						warehouse: true,
+						lastDeliveryDate: true,
+					},
+				},
+			},
+		});
+
+		const today = new Date();
+		today.setUTCHours(0, 0, 0, 0);
+
+		const rows = buildSalesOrderAnalysisRows(
+			orders,
+			today,
+			groupBySalesOrder ?? false,
+		);
+
+		const summary = computeSalesOrderAnalysisSummary(rows);
+
+		return { rows, summary };
+	}
+
+	/**
+	 * Run the Purchase Order Analysis report.
+	 *
+	 * @remarks
+	 * - Excludes DRAFT, STOPPED, and ON_HOLD orders by default.
+	 * - When groupByPurchaseOrder is true, numeric fields are summed per PO and
+	 *   item-level fields (itemCode, project, warehouse) are set to null.
+	 */
+	async findPurchaseOrderAnalysis(
+		params: Inventory.ListPurchaseOrderAnalysisInput,
+	): Promise<Inventory.PurchaseOrderAnalysisResult> {
+		const company = params.company.trim();
+		const project = params.project?.trim();
+		const { fromDate, toDate, groupByPurchaseOrder } = params;
+
+		if (fromDate > toDate) {
+			throw new BadRequestException(
+				"'From Date' must not be later than 'To Date'.",
+			);
+		}
+
+		const statusFilter: Prisma.EnumPurchaseOrderStatusFilter = params.status
+			?.length
+			? { in: params.status }
+			: {
+					in: [
+						"TO_PAY",
+						"TO_BILL",
+						"TO_RECEIVE",
+						"TO_RECEIVE_AND_BILL",
+						"COMPLETED",
+						"CLOSED",
+					],
+				};
+
+		const poWhere: Prisma.PurchaseOrderWhereInput = {
+			company: { contains: company, mode: "insensitive" },
+			transactionDate: { gte: fromDate, lte: toDate },
+			status: statusFilter,
+			...(params.purchaseOrders?.length
+				? { series: { in: params.purchaseOrders } }
+				: {}),
+		};
+
+		const itemWhere: Prisma.PurchaseOrderItemWhereInput = project
+			? { project: { contains: project, mode: "insensitive" } }
+			: {};
+
+		const orders = await this.prisma.purchaseOrder.findMany({
+			where: poWhere,
+			orderBy: [{ transactionDate: "asc" }, { series: "asc" }],
+			select: {
+				id: true,
+				series: true,
+				transactionDate: true,
+				supplier: true,
+				company: true,
+				status: true,
+				conversionRate: true,
+				items: {
+					where: Object.keys(itemWhere).length > 0 ? itemWhere : undefined,
+					orderBy: { itemCode: "asc" },
+					select: {
+						id: true,
+						itemCode: true,
+						itemName: true,
+						requiredDate: true,
+						qty: true,
+						receivedQty: true,
+						billedQty: true,
+						baseRate: true,
+						amount: true,
+						baseAmount: true,
+						billedAmount: true,
+						receivedQtyAmount: true,
+						warehouse: true,
+						project: true,
+					},
+				},
+			},
+		});
+
+		const rows = buildPurchaseOrderAnalysisRows(
+			orders,
+			groupByPurchaseOrder ?? false,
+		);
+
+		const summary = computePurchaseOrderAnalysisSummary(rows);
+
+		return { rows, summary };
 	}
 
 	/**
