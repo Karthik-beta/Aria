@@ -1437,6 +1437,16 @@ type InventoryRouterInput = {
 		output: Inventory.StockProjectedQtyRow[];
 		meta: object;
 	}>;
+	listItemShortageReport: TRPCQueryProcedure<{
+		input:
+			| {
+					company?: string | undefined;
+					warehouses?: string[] | undefined;
+			  }
+			| undefined;
+		output: Inventory.ItemShortageRow[];
+		meta: object;
+	}>;
 	listStockSummary: TRPCQueryProcedure<{
 		input:
 			| {

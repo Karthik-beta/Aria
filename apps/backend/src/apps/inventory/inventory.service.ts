@@ -45,6 +45,7 @@ import {
 	toInventoryWarehouse,
 } from "./inventory.types";
 import { buildItemPriceStockRows } from "./item-price-stock-report";
+import { buildItemShortageRows } from "./item-shortage-report";
 import {
 	buildPurchaseOrderAnalysisRows,
 	computePurchaseOrderAnalysisSummary,
@@ -8365,6 +8366,42 @@ export class InventoryService {
 		const projectedRows = await this.collectStockProjectedQtyRows(params);
 
 		return projectedRows.slice(skip, skip + take);
+	}
+
+	/**
+	 * Get items with negative projected quantity, indicating an active shortage.
+	 *
+	 * Results are sorted by projectedQty ascending so the most critical shortages
+	 * appear first, mirroring ERPNext's Item Shortage Report behavior.
+	 */
+	async findItemShortageReport(
+		params?: Inventory.ListItemShortageInput,
+	): Promise<Inventory.ItemShortageRow[]> {
+		const company = params?.company?.trim();
+		const warehouses = params?.warehouses?.map((w) => w.trim()).filter(Boolean);
+
+		if (warehouses && warehouses.length > 0) {
+			const rowMap = new Map<string, Inventory.ItemShortageRow>();
+
+			for (const warehouse of warehouses) {
+				const projected = await this.collectStockProjectedQtyRows({
+					company,
+					warehouse,
+				});
+				const filtered = buildItemShortageRows(projected);
+				for (const row of filtered) {
+					rowMap.set(row.id, row);
+				}
+			}
+
+			return [...rowMap.values()].sort(
+				(a, b) => a.projectedQty - b.projectedQty,
+			);
+		}
+
+		const projected = await this.collectStockProjectedQtyRows({ company });
+
+		return buildItemShortageRows(projected);
 	}
 
 	/**

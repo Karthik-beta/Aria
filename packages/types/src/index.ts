@@ -3385,17 +3385,49 @@ export namespace Inventory {
 	}
 
 	// ============================================================================
-	// Purchase Receipt Trends Report Types & Schemas
+	// Item Shortage Report Types & Schemas
 	// ============================================================================
 
-	/** Temporal grouping granularity for the Purchase Receipt Trends report. */
+	/**
+	 * One row in the Item Shortage Report.
+	 *
+	 * Only items whose projectedQty is strictly negative are included in results.
+	 */
+	export interface ItemShortageRow {
+		id: string;
+		company: string;
+		warehouse: string;
+		itemCode: string;
+		itemName?: string | null;
+		description?: string | null;
+		actualQty: number;
+		orderedQty: number;
+		plannedQty: number;
+		requestedQty: number;
+		reservedQty: number;
+		reservedQtyForProduction: number;
+		projectedQty: number;
+	}
+
+	export const listItemShortageSchema = z
+		.object({
+			company: z.string().max(255).optional(),
+			warehouses: z.array(z.string().max(255)).optional(),
+		})
+		.optional();
+
+	export interface ListItemShortageInput {
+		company?: string;
+		warehouses?: string[];
+	}
+
+	// ============================================================================
 	export type PurchaseReceiptTrendsPeriodFrequency =
 		| "Monthly"
 		| "Quarterly"
 		| "Half-Yearly"
 		| "Yearly";
 
-	/** The dimension used to group purchase receipt items in the trends report. */
 	export type PurchaseReceiptTrendsBasedOn = "Item" | "Item Group" | "Supplier";
 
 	/** One time bucket in the Purchase Receipt Trends report. */
