@@ -7,10 +7,10 @@ import ItemPricesPage from "./page";
 // Mock state (module-level so vi.mock closure captures by reference)
 // ---------------------------------------------------------------------------
 
-let mockQueryData: unknown = undefined;
+let mockQueryData: unknown;
 let mockQueryIsLoading = false;
 let mockQueryError: Error | null = null;
-let capturedQueryInput: unknown = undefined;
+let capturedQueryInput: unknown;
 
 function resetMockState() {
 	mockQueryData = undefined;
