@@ -1105,6 +1105,16 @@ function createListItemShortageReportProcedure(
 		});
 }
 
+function createListRequestedItemsToBeTransferredProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure
+		.input(Inventory.listRequestedItemsToBeTransferredSchema)
+		.query(async ({ input }) => {
+			return inventoryService.findRequestedItemsToBeTransferred(input);
+		});
+}
+
 function createListBatchWiseBalanceProcedure(
 	inventoryService: InventoryService,
 ) {
@@ -1899,6 +1909,9 @@ type InventoryRouterInput = {
 	listItemShortageReport: ReturnType<
 		typeof createListItemShortageReportProcedure
 	>;
+	listRequestedItemsToBeTransferred: ReturnType<
+		typeof createListRequestedItemsToBeTransferredProcedure
+	>;
 	listBatchWiseBalance: ReturnType<typeof createListBatchWiseBalanceProcedure>;
 	listStockSummary: ReturnType<typeof createListStockSummaryProcedure>;
 	listStockAgeing: ReturnType<typeof createListStockAgeingProcedure>;
@@ -2134,6 +2147,8 @@ function createInventoryRouterRecord(
 			createListStockProjectedQtyProcedure(inventoryService),
 		listItemShortageReport:
 			createListItemShortageReportProcedure(inventoryService),
+		listRequestedItemsToBeTransferred:
+			createListRequestedItemsToBeTransferredProcedure(inventoryService),
 		listBatchWiseBalance: createListBatchWiseBalanceProcedure(inventoryService),
 		listStockSummary: createListStockSummaryProcedure(inventoryService),
 		listStockAgeing: createListStockAgeingProcedure(inventoryService),

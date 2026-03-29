@@ -1447,6 +1447,19 @@ type InventoryRouterInput = {
 		output: Inventory.ItemShortageRow[];
 		meta: object;
 	}>;
+	listRequestedItemsToBeTransferred: TRPCQueryProcedure<{
+		input:
+			| {
+					company?: string | undefined;
+					materialRequest?: string | undefined;
+					itemCode?: string | undefined;
+					targetWarehouse?: string | undefined;
+					purpose?: "MATERIAL_TRANSFER" | "MATERIAL_ISSUE" | undefined;
+			  }
+			| undefined;
+		output: Inventory.RequestedItemsToBeTransferredResult;
+		meta: object;
+	}>;
 	listBatchWiseBalance: TRPCQueryProcedure<{
 		input: {
 			company: string;

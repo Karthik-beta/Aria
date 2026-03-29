@@ -3422,6 +3422,68 @@ export namespace Inventory {
 	}
 
 	// ============================================================================
+	// Requested Items To Be Transferred Report Types & Schemas
+	// ============================================================================
+
+	export type RequestedItemsToBeTransferredPurpose =
+		| "MATERIAL_TRANSFER"
+		| "MATERIAL_ISSUE";
+
+	/** One row in the Requested Items To Be Transferred report. */
+	export interface RequestedItemsToBeTransferredRow {
+		id: string;
+		materialRequestId: string;
+		materialRequest: string;
+		date: Date;
+		purpose: RequestedItemsToBeTransferredPurpose;
+		status: MaterialRequestStatus;
+		itemCode: string;
+		itemName?: string | null;
+		description?: string | null;
+		company: string;
+		targetWarehouse?: string | null;
+		requiredBy?: Date | null;
+		unitOfMeasure?: string | null;
+		qty: number;
+		transferredQty: number;
+		qtyToTransfer: number;
+	}
+
+	/** Aggregate totals used by the Requested Items To Be Transferred page. */
+	export interface RequestedItemsToBeTransferredSummary {
+		requestCount: number;
+		rowCount: number;
+		totalQty: number;
+		totalTransferredQty: number;
+		totalQtyToTransfer: number;
+		transferRowCount: number;
+		issueRowCount: number;
+	}
+
+	export interface RequestedItemsToBeTransferredResult {
+		rows: RequestedItemsToBeTransferredRow[];
+		summary: RequestedItemsToBeTransferredSummary;
+	}
+
+	export const listRequestedItemsToBeTransferredSchema = z
+		.object({
+			company: z.string().max(255).optional(),
+			materialRequest: z.string().max(50).optional(),
+			itemCode: z.string().max(100).optional(),
+			targetWarehouse: z.string().max(255).optional(),
+			purpose: z.enum(["MATERIAL_TRANSFER", "MATERIAL_ISSUE"]).optional(),
+		})
+		.optional();
+
+	export interface ListRequestedItemsToBeTransferredInput {
+		company?: string;
+		materialRequest?: string;
+		itemCode?: string;
+		targetWarehouse?: string;
+		purpose?: RequestedItemsToBeTransferredPurpose;
+	}
+
+	// ============================================================================
 	export type PurchaseReceiptTrendsPeriodFrequency =
 		| "Monthly"
 		| "Quarterly"

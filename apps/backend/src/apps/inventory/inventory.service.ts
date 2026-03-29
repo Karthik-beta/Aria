@@ -60,6 +60,10 @@ import {
 	type PurchaseReceiptTrendsSourceEntry,
 } from "./purchase-receipt-trends-report";
 import {
+	buildRequestedItemsToBeTransferredRows,
+	summarizeRequestedItemsToBeTransferredRows,
+} from "./requested-items-to-be-transferred-report";
+import {
 	buildSalesOrderAnalysisRows,
 	computeSalesOrderAnalysisSummary,
 } from "./sales-order-analysis-report";
@@ -8406,6 +8410,143 @@ export class InventoryService {
 		const projected = await this.collectStockProjectedQtyRows({ company });
 
 		return buildItemShortageRows(projected);
+	}
+
+	/**
+	 * Get material-request lines still awaiting stock transfer or material issue.
+	 *
+	 * Mirrors ERPNext's Requested Items To Be Transferred report by listing
+	 * non-draft, non-cancelled Material Requests of purpose Material Transfer or
+	 * Material Issue where orderedQty remains below requested quantity.
+	 */
+	async findRequestedItemsToBeTransferred(
+		params?: Inventory.ListRequestedItemsToBeTransferredInput,
+	): Promise<Inventory.RequestedItemsToBeTransferredResult> {
+		const company = params?.company?.trim();
+		const materialRequest = params?.materialRequest?.trim();
+		const itemCode = params?.itemCode?.trim();
+		const targetWarehouse = params?.targetWarehouse?.trim();
+		const purpose = params?.purpose;
+
+		const materialRequests = await this.prisma.materialRequest.findMany({
+			where: {
+				purpose: purpose
+					? purpose
+					: {
+							in: ["MATERIAL_TRANSFER", "MATERIAL_ISSUE"],
+						},
+				status: {
+					notIn: ["DRAFT", "CANCELLED"],
+				},
+				...(company
+					? {
+							company: {
+								contains: company,
+								mode: "insensitive",
+							},
+						}
+					: {}),
+				...(materialRequest
+					? {
+							series: {
+								contains: materialRequest,
+								mode: "insensitive",
+							},
+						}
+					: {}),
+			},
+			include: { items: true },
+			orderBy: [{ transactionDate: "asc" }, { series: "asc" }],
+		});
+
+		const itemCodes = [
+			...new Set(
+				materialRequests.flatMap((request) =>
+					request.items.map((item) => item.itemCode),
+				),
+			),
+		];
+
+		const inventoryItems =
+			itemCodes.length > 0
+				? await this.prisma.inventoryItem.findMany({
+						where: {
+							code: {
+								in: itemCodes,
+							},
+						},
+						select: {
+							code: true,
+							name: true,
+							description: true,
+						},
+					})
+				: [];
+
+		const itemMetadata = new Map(
+			inventoryItems.map(
+				(item) =>
+					[
+						item.code,
+						{
+							name: item.name,
+							description: item.description,
+						},
+					] as const,
+			),
+		);
+
+		const sourceRows = materialRequests.flatMap((request) =>
+			request.items
+				.map((item) => {
+					const resolvedTargetWarehouse =
+						item.targetWarehouse ?? request.targetWarehouse ?? null;
+
+					if (
+						itemCode &&
+						!item.itemCode.toLowerCase().includes(itemCode.toLowerCase())
+					) {
+						return null;
+					}
+
+					if (
+						targetWarehouse &&
+						!(resolvedTargetWarehouse ?? "")
+							.toLowerCase()
+							.includes(targetWarehouse.toLowerCase())
+					) {
+						return null;
+					}
+
+					const metadata = itemMetadata.get(item.itemCode);
+
+					return {
+						id: item.id,
+						materialRequestId: request.id,
+						materialRequest: request.series,
+						date: request.transactionDate,
+						purpose: request.purpose,
+						status: request.status,
+						itemCode: item.itemCode,
+						itemName: item.itemName ?? metadata?.name ?? null,
+						description: metadata?.description ?? null,
+						company: request.company,
+						targetWarehouse: resolvedTargetWarehouse,
+						requiredBy: item.requiredBy ?? request.requiredBy ?? null,
+						unitOfMeasure: item.unitOfMeasure ?? null,
+						qty: item.quantity,
+						transferredQty: item.orderedQty,
+					};
+				})
+				.filter((row): row is NonNullable<typeof row> => row != null),
+		);
+
+		const rows = buildRequestedItemsToBeTransferredRows(sourceRows);
+
+		return {
+			rows,
+			summary: summarizeRequestedItemsToBeTransferredRows(rows),
+		};
 	}
 	/**
 	 * Get batch-wise balance history rows.
