@@ -72,6 +72,10 @@ model InventoryItem {
   valuationMethod            String?   @db.VarChar(50)
   defaultMaterialRequestType String?   @db.VarChar(50)
 
+  // Reorder / Procurement
+  safetyStock                Float     @default(0)
+  leadTimeDays               Int       @default(0)
+
   // Serial Nos and Batches
   hasBatchNo  Boolean @default(false)
   hasSerialNo Boolean @default(false)

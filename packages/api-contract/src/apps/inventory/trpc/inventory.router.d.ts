@@ -1493,6 +1493,16 @@ type InventoryRouterInput = {
 		output: Inventory.ItemPricesRow[];
 		meta: object;
 	}>;
+	listItemwiseRecommendedReorderLevel: TRPCQueryProcedure<{
+		input: {
+			fromDate: unknown;
+			toDate: unknown;
+			itemGroup?: string | undefined;
+			brand?: string | undefined;
+		};
+		output: Inventory.ItemwiseRecommendedReorderLevelRow[];
+		meta: object;
+	}>;
 	listStockSummary: TRPCQueryProcedure<{
 		input:
 			| {

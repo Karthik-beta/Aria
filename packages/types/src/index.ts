@@ -1476,6 +1476,10 @@ export namespace Inventory {
 		valuationMethod?: string | null;
 		/** Default material request type */
 		defaultMaterialRequestType?: string | null;
+		/** Safety stock level */
+		safetyStock: number;
+		/** Procurement lead time in days */
+		leadTimeDays: number;
 		/** Whether batches are tracked */
 		hasBatchNo: boolean;
 		/** Whether serial numbers are tracked */
@@ -1523,6 +1527,8 @@ export namespace Inventory {
 		allowNegativeStock?: boolean;
 		valuationMethod?: string;
 		defaultMaterialRequestType?: string;
+		safetyStock?: number;
+		leadTimeDays?: number;
 		hasBatchNo?: boolean;
 		hasSerialNo?: boolean;
 		barcodes?: ItemBarcode[];
@@ -1559,6 +1565,8 @@ export namespace Inventory {
 		allowNegativeStock?: boolean;
 		valuationMethod?: string;
 		defaultMaterialRequestType?: string;
+		safetyStock?: number;
+		leadTimeDays?: number;
 		hasBatchNo?: boolean;
 		hasSerialNo?: boolean;
 		barcodes?: ItemBarcode[];
@@ -1791,6 +1799,8 @@ export namespace Inventory {
 		allowNegativeStock: z.boolean().default(false),
 		valuationMethod: z.string().max(50).optional(),
 		defaultMaterialRequestType: z.string().max(50).optional(),
+		safetyStock: z.number().min(0).default(0),
+		leadTimeDays: z.number().int().min(0).default(0),
 		hasBatchNo: z.boolean().default(false),
 		hasSerialNo: z.boolean().default(false),
 		barcodes: z
@@ -1844,6 +1854,8 @@ export namespace Inventory {
 		allowNegativeStock: z.boolean().optional(),
 		valuationMethod: z.string().max(50).optional(),
 		defaultMaterialRequestType: z.string().max(50).optional(),
+		safetyStock: z.number().min(0).optional(),
+		leadTimeDays: z.number().int().min(0).optional(),
 		hasBatchNo: z.boolean().optional(),
 		hasSerialNo: z.boolean().optional(),
 		barcodes: z
@@ -5178,6 +5190,41 @@ export namespace Inventory {
 	export interface ListItemPricesInput {
 		itemsFilter?: ItemPricesItemsFilter;
 		itemCode?: string;
+		itemGroup?: string;
+		brand?: string;
+	}
+
+	// ============================================================================
+	// Itemwise Recommended Reorder Level Report Types & Schemas
+	// ============================================================================
+
+	/** One row in the Itemwise Recommended Reorder Level report. */
+	export interface ItemwiseRecommendedReorderLevelRow {
+		id: string;
+		itemCode: string;
+		itemName: string;
+		itemGroup?: string | null;
+		brand?: string | null;
+		description?: string | null;
+		safetyStock: number;
+		leadTimeDays: number;
+		consumed: number;
+		delivered: number;
+		totalOutgoing: number;
+		avgDailyOutgoing: number;
+		reorderLevel: number;
+	}
+
+	export const listItemwiseRecommendedReorderLevelSchema = z.object({
+		fromDate: z.coerce.date(),
+		toDate: z.coerce.date(),
+		itemGroup: z.string().max(255).trim().optional(),
+		brand: z.string().max(255).trim().optional(),
+	});
+
+	export interface ListItemwiseRecommendedReorderLevelInput {
+		fromDate: Date;
+		toDate: Date;
 		itemGroup?: string;
 		brand?: string;
 	}

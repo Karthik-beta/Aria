@@ -58,6 +58,7 @@ import {
 	type ItemPricesSourceItem,
 } from "./item-prices-report";
 import { buildItemShortageRows } from "./item-shortage-report";
+import { buildItemwiseRecommendedReorderLevelRows } from "./itemwise-recommended-reorder-level-report";
 import {
 	buildPurchaseOrderAnalysisRows,
 	computePurchaseOrderAnalysisSummary,
@@ -11951,5 +11952,165 @@ export class InventoryService {
 			where: { id: { in: uniqueIds } },
 		});
 		return { success: true, count: result.count, ids: uniqueIds };
+	}
+
+	// ============================================================================
+	// Itemwise Recommended Reorder Level Report
+	// ============================================================================
+
+	async findItemwiseRecommendedReorderLevel(
+		params: Inventory.ListItemwiseRecommendedReorderLevelInput,
+	): Promise<Inventory.ItemwiseRecommendedReorderLevelRow[]> {
+		const fromDate = params.fromDate;
+		const toDate = params.toDate;
+		const itemGroup = params.itemGroup?.trim();
+		const brand = params.brand?.trim();
+
+		if (fromDate > toDate) {
+			throw new BadRequestException("From Date must be before To Date");
+		}
+
+		const numberOfDays =
+			Math.floor(
+				(toDate.getTime() - fromDate.getTime()) / (1000 * 60 * 60 * 24),
+			) + 1;
+
+		// -------------------------------------------------------------------
+		// 1. Resolve item codes filtered by brand / item group (via Item catalog)
+		// -------------------------------------------------------------------
+		let filteredItemCodes: string[] | undefined;
+
+		if (itemGroup || brand) {
+			const matchingCatalogItems = await this.prisma.item.findMany({
+				where: {
+					...(itemGroup
+						? {
+								itemGroup: {
+									groupName: {
+										contains: itemGroup,
+										mode: "insensitive" as const,
+									},
+								},
+							}
+						: {}),
+					...(brand
+						? {
+								brand: {
+									name: {
+										contains: brand,
+										mode: "insensitive" as const,
+									},
+								},
+							}
+						: {}),
+				},
+				select: { code: true, brand: { select: { name: true } } },
+			});
+
+			filteredItemCodes = matchingCatalogItems.map((i) => i.code);
+			if (filteredItemCodes.length === 0) return [];
+		}
+
+		// -------------------------------------------------------------------
+		// 2. Load active stock items
+		// -------------------------------------------------------------------
+		const inventoryItems = await this.prisma.inventoryItem.findMany({
+			where: {
+				maintainStock: true,
+				disabled: false,
+				...(filteredItemCodes ? { code: { in: filteredItemCodes } } : {}),
+			},
+			select: {
+				code: true,
+				name: true,
+				description: true,
+				safetyStock: true,
+				leadTimeDays: true,
+				itemGroup: { select: { groupName: true } },
+			},
+		});
+
+		if (inventoryItems.length === 0) return [];
+
+		// Build a brand-lookup map from the catalog Item model
+		const allCodes = inventoryItems.map((i) => i.code);
+
+		const catalogItems = await this.prisma.item.findMany({
+			where: { code: { in: allCodes } },
+			select: { code: true, brand: { select: { name: true } } },
+		});
+		const brandByCode = new Map<string, string | null>();
+		for (const ci of catalogItems) {
+			brandByCode.set(ci.code, ci.brand?.name ?? null);
+		}
+
+		const itemSources = inventoryItems.map((item) => ({
+			code: item.code,
+			name: item.name,
+			description: item.description,
+			safetyStock: item.safetyStock,
+			leadTimeDays: item.leadTimeDays,
+			itemGroupName: item.itemGroup?.groupName ?? null,
+			brandName: brandByCode.get(item.code) ?? null,
+		}));
+
+		// -------------------------------------------------------------------
+		// 3. Calculate consumed quantities from stock entries
+		//    Exclude: MATERIAL_TRANSFER, MATERIAL_TRANSFER_FOR_MANUFACTURE,
+		//             SEND_TO_SUBCONTRACTOR, MATERIAL_RECEIPT
+		//    Only items leaving stock (sourceWarehouse is set).
+		// -------------------------------------------------------------------
+		const consumedEntries = await this.prisma.stockEntryItem.groupBy({
+			by: ["itemCode"],
+			where: {
+				sourceWarehouse: { not: null },
+				itemCode: { in: allCodes },
+				stockEntry: {
+					status: "SUBMITTED",
+					postingDate: { gte: fromDate, lte: toDate },
+					stockEntryType: {
+						in: ["MATERIAL_ISSUE", "MANUFACTURE", "REPACK"],
+					},
+				},
+			},
+			_sum: { qty: true },
+		});
+
+		const consumedByItem = new Map<string, number>();
+		for (const entry of consumedEntries) {
+			consumedByItem.set(entry.itemCode, entry._sum.qty ?? 0);
+		}
+
+		// -------------------------------------------------------------------
+		// 4. Calculate delivered quantities from delivery notes
+		//    Only submitted (non-draft, non-cancelled, non-return) notes.
+		// -------------------------------------------------------------------
+		const deliveredEntries = await this.prisma.deliveryNoteItem.groupBy({
+			by: ["itemCode"],
+			where: {
+				itemCode: { in: allCodes },
+				deliveryNote: {
+					status: { notIn: ["DRAFT", "CANCELLED"] },
+					isReturn: false,
+					postingDate: { gte: fromDate, lte: toDate },
+				},
+			},
+			_sum: { quantity: true },
+		});
+
+		const deliveredByItem = new Map<string, number>();
+		for (const entry of deliveredEntries) {
+			deliveredByItem.set(entry.itemCode, entry._sum.quantity ?? 0);
+		}
+
+		// -------------------------------------------------------------------
+		// 5. Build report rows
+		// -------------------------------------------------------------------
+		return buildItemwiseRecommendedReorderLevelRows(
+			itemSources,
+			consumedByItem,
+			deliveredByItem,
+			numberOfDays,
+		);
 	}
 }
