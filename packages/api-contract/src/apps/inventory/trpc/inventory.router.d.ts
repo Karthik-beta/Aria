@@ -1481,6 +1481,18 @@ type InventoryRouterInput = {
 		output: Inventory.BatchItemExpiryRow[];
 		meta: object;
 	}>;
+	listItemPrices: TRPCQueryProcedure<{
+		input:
+			| {
+					itemsFilter?: "enabled" | "disabled" | "all" | undefined;
+					itemCode?: string | undefined;
+					itemGroup?: string | undefined;
+					brand?: string | undefined;
+			  }
+			| undefined;
+		output: Inventory.ItemPricesRow[];
+		meta: object;
+	}>;
 	listStockSummary: TRPCQueryProcedure<{
 		input:
 			| {

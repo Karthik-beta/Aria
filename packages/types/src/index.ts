@@ -5126,6 +5126,61 @@ export namespace Inventory {
 		toDate: Date;
 		itemCode?: string;
 	}
+
+	// ---------------------------------------------------------------------------
+	// Item Prices report
+	// ---------------------------------------------------------------------------
+
+	/**
+	 * A single row in the Item Prices report.
+	 *
+	 * Shows each item's current pricing information including valuation rate,
+	 * standard selling rate, and last purchase rate derived from purchase receipts.
+	 */
+	export interface ItemPricesRow {
+		/** Unique row identifier (item code). */
+		id: string;
+		/** Item code. */
+		itemCode: string;
+		/** Human-readable item name. */
+		itemName: string | null;
+		/** Item group name. */
+		itemGroupName: string | null;
+		/** Brand name. */
+		brandName: string | null;
+		/** Item description. */
+		description: string | null;
+		/** Default stock unit of measure. */
+		stockUom: string | null;
+		/** Last purchase rate (base rate from most recent purchase receipt). Null if no purchase history. */
+		lastPurchaseRate: number | null;
+		/** Current valuation rate from the inventory item. 0 if not set. */
+		valuationRate: number;
+		/** Standard selling rate from the inventory item. 0 if not set. */
+		standardSellingRate: number;
+	}
+
+	/**
+	 * Controls which items are included based on their enabled/disabled status.
+	 */
+	export type ItemPricesItemsFilter = "enabled" | "disabled" | "all";
+
+	export const listItemPricesSchema = z.object({
+		itemsFilter: z
+			.enum(["enabled", "disabled", "all"])
+			.optional()
+			.default("enabled"),
+		itemCode: z.string().max(100).trim().optional(),
+		itemGroup: z.string().max(255).trim().optional(),
+		brand: z.string().max(255).trim().optional(),
+	});
+
+	export interface ListItemPricesInput {
+		itemsFilter?: ItemPricesItemsFilter;
+		itemCode?: string;
+		itemGroup?: string;
+		brand?: string;
+	}
 }
 
 // ============================================================================
@@ -5137,9 +5192,9 @@ export namespace Inventory {
  * Simple, flat structure for easy understanding
  */
 export interface Product {
-	/** Unique product identifier */
+	/** Unique numeric identifier */
 	id: number;
-	/** Product name/title */
+	/** Product name */
 	name: string;
 	/** Product description */
 	description: string;

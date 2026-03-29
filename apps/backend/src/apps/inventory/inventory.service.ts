@@ -53,6 +53,10 @@ import {
 	toInventoryWarehouse,
 } from "./inventory.types";
 import { buildItemPriceStockRows } from "./item-price-stock-report";
+import {
+	buildItemPricesRows,
+	type ItemPricesSourceItem,
+} from "./item-prices-report";
 import { buildItemShortageRows } from "./item-shortage-report";
 import {
 	buildPurchaseOrderAnalysisRows,
@@ -8699,6 +8703,95 @@ export class InventoryService {
 		})) as BatchItemExpirySourceBatch[];
 
 		return buildBatchItemExpiryRows(batches);
+	}
+
+	/**
+	 * Get item prices rows showing each item's valuation rate, selling rate, and
+	 * last purchase rate, filtered by enabled/disabled status and optional
+	 * item code, group, and brand searches.
+	 */
+	async findItemPrices(
+		params?: Inventory.ListItemPricesInput,
+	): Promise<Inventory.ItemPricesRow[]> {
+		const itemsFilter = params?.itemsFilter ?? "enabled";
+		const itemCode = params?.itemCode?.trim();
+		const itemGroup = params?.itemGroup?.trim();
+		const brand = params?.brand?.trim();
+
+		const disabledFilter =
+			itemsFilter === "enabled"
+				? false
+				: itemsFilter === "disabled"
+					? true
+					: undefined;
+
+		const items = (await this.prisma.item.findMany({
+			where: {
+				...(disabledFilter !== undefined ? { disabled: disabledFilter } : {}),
+				...(itemCode
+					? { code: { contains: itemCode, mode: "insensitive" } }
+					: {}),
+				...(itemGroup
+					? {
+							itemGroup: {
+								is: { groupName: { contains: itemGroup, mode: "insensitive" } },
+							},
+						}
+					: {}),
+				...(brand
+					? {
+							brand: {
+								name: { contains: brand, mode: "insensitive" },
+							},
+						}
+					: {}),
+			},
+			select: {
+				code: true,
+				name: true,
+				description: true,
+				disabled: true,
+				itemGroup: { select: { groupName: true } },
+				brand: { select: { name: true } },
+				defaultUnitOfMeasure: { select: { name: true } },
+				valuationRate: true,
+				standardSellingRate: true,
+			},
+		})) as ItemPricesSourceItem[];
+
+		if (items.length === 0) {
+			return [];
+		}
+
+		const itemCodes = items.map((item) => item.code);
+
+		// Derive the last purchase rate from the most-recent purchase receipt item
+		// per item code, ordered by the receipt's posting date descending.
+		const lastPurchaseRows = await this.prisma.purchaseReceiptItem.findMany({
+			where: {
+				itemCode: { in: itemCodes },
+				purchaseReceipt: { status: { notIn: ["DRAFT", "CANCELLED"] } },
+			},
+			select: {
+				itemCode: true,
+				rate: true,
+				purchaseReceipt: { select: { postingDate: true } },
+			},
+			orderBy: [
+				{ purchaseReceipt: { postingDate: "desc" } },
+				{ itemCode: "asc" },
+			],
+		});
+
+		// Keep only the most recent rate per item code.
+		const lastPurchaseRateByCode = new Map<string, number>();
+		for (const row of lastPurchaseRows) {
+			if (!lastPurchaseRateByCode.has(row.itemCode)) {
+				lastPurchaseRateByCode.set(row.itemCode, row.rate);
+			}
+		}
+
+		return buildItemPricesRows(items, lastPurchaseRateByCode);
 	}
 
 	/**

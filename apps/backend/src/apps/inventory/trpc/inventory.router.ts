@@ -1135,6 +1135,14 @@ function createListBatchItemExpiryProcedure(
 		});
 }
 
+function createListItemPricesProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(Inventory.listItemPricesSchema)
+		.query(async ({ input }) => {
+			return inventoryService.findItemPrices(input);
+		});
+}
+
 function createListStockSummaryProcedure(inventoryService: InventoryService) {
 	return protectedProcedure
 		.input(Inventory.listStockSummarySchema)
@@ -1924,6 +1932,7 @@ type InventoryRouterInput = {
 	>;
 	listBatchWiseBalance: ReturnType<typeof createListBatchWiseBalanceProcedure>;
 	listBatchItemExpiry: ReturnType<typeof createListBatchItemExpiryProcedure>;
+	listItemPrices: ReturnType<typeof createListItemPricesProcedure>;
 	listStockSummary: ReturnType<typeof createListStockSummaryProcedure>;
 	listStockAgeing: ReturnType<typeof createListStockAgeingProcedure>;
 	listItemPriceStock: ReturnType<typeof createListItemPriceStockProcedure>;
@@ -2162,6 +2171,7 @@ function createInventoryRouterRecord(
 			createListRequestedItemsToBeTransferredProcedure(inventoryService),
 		listBatchWiseBalance: createListBatchWiseBalanceProcedure(inventoryService),
 		listBatchItemExpiry: createListBatchItemExpiryProcedure(inventoryService),
+		listItemPrices: createListItemPricesProcedure(inventoryService),
 		listStockSummary: createListStockSummaryProcedure(inventoryService),
 		listStockAgeing: createListStockAgeingProcedure(inventoryService),
 		listItemPriceStock: createListItemPriceStockProcedure(inventoryService),
