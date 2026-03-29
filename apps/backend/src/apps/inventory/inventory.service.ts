@@ -11,6 +11,10 @@ import { Prisma } from "../../generated/prisma/client";
 // biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
 import { PrismaService } from "../../shared/prisma.service";
 import {
+	type BatchItemExpirySourceBatch,
+	buildBatchItemExpiryRows,
+} from "./batch-item-expiry-report";
+import {
 	type BatchWiseBalanceSourceBatch,
 	buildBatchWiseBalanceRows,
 } from "./batch-wise-balance-report";
@@ -8637,6 +8641,64 @@ export class InventoryService {
 		})) as BatchWiseBalanceSourceBatch[];
 
 		return buildBatchWiseBalanceRows(batches, { fromDate, toDate });
+	}
+
+	/**
+	 * Get batch item expiry status rows.
+	 *
+	 * Returns all active (non-disabled, qty > 0) batches whose record was
+	 * created within [fromDate, toDate], optionally filtered by item code.
+	 * Rows are ordered by creation date ascending then batch id.
+	 */
+	async findBatchItemExpiry(
+		params: Inventory.ListBatchItemExpiryInput,
+	): Promise<Inventory.BatchItemExpiryRow[]> {
+		const fromDate = params.fromDate;
+		const toDate = params.toDate;
+		const itemCode = params.itemCode?.trim();
+
+		if (fromDate > toDate) {
+			throw new BadRequestException(
+				"'From Date' must not be later than 'To Date'.",
+			);
+		}
+
+		const batches = (await this.batchModel.findMany({
+			where: {
+				isDisabled: false,
+				quantity: { gt: 0 },
+				createdAt: {
+					gte: fromDate,
+					lte: toDate,
+				},
+				...(itemCode
+					? {
+							item: {
+								code: { contains: itemCode, mode: "insensitive" },
+							},
+						}
+					: {}),
+			},
+			select: {
+				id: true,
+				batchId: true,
+				quantity: true,
+				expiryDate: true,
+				createdAt: true,
+				item: {
+					select: {
+						code: true,
+						name: true,
+						defaultUnitOfMeasure: {
+							select: { name: true },
+						},
+					},
+				},
+			},
+			orderBy: [{ createdAt: "asc" }, { batchId: "asc" }],
+		})) as BatchItemExpirySourceBatch[];
+
+		return buildBatchItemExpiryRows(batches);
 	}
 
 	/**

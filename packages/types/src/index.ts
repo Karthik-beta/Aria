@@ -5081,6 +5081,51 @@ export namespace Inventory {
 		warehouse?: string;
 		batchNo?: string;
 	}
+
+	// ---------------------------------------------------------------------------
+	// Batch Item Expiry Status report
+	// ---------------------------------------------------------------------------
+
+	/**
+	 * A single row in the Batch Item Expiry Status report.
+	 *
+	 * Reports active batches (non-disabled, qty > 0) created within a date
+	 * range, showing their expiry dates and days-to-expiry relative to the
+	 * query execution date.
+	 */
+	export interface BatchItemExpiryRow {
+		/** Internal batch record id. */
+		id: string;
+		/** Item code. */
+		itemCode: string;
+		/** Human-readable item name. */
+		itemName: string | null;
+		/** Batch identifier / lot number. */
+		batchNo: string;
+		/** Default stock unit of measure for the item. */
+		stockUom: string | null;
+		/** Current on-hand quantity for this batch. */
+		quantity: number;
+		/** Expiry date as ISO-8601 date string (YYYY-MM-DD), or null if not set. */
+		expiresOn: string | null;
+		/**
+		 * Days remaining until expiry at the time the report was run.
+		 * 0 means the batch has already expired.  null means no expiry date.
+		 */
+		expiryInDays: number | null;
+	}
+
+	export const listBatchItemExpirySchema = z.object({
+		fromDate: z.coerce.date(),
+		toDate: z.coerce.date(),
+		itemCode: z.string().max(100).trim().optional(),
+	});
+
+	export interface ListBatchItemExpiryInput {
+		fromDate: Date;
+		toDate: Date;
+		itemCode?: string;
+	}
 }
 
 // ============================================================================

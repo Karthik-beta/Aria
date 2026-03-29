@@ -1472,6 +1472,15 @@ type InventoryRouterInput = {
 		output: Inventory.BatchWiseBalanceRow[];
 		meta: object;
 	}>;
+	listBatchItemExpiry: TRPCQueryProcedure<{
+		input: {
+			fromDate: unknown;
+			toDate: unknown;
+			itemCode?: string | undefined;
+		};
+		output: Inventory.BatchItemExpiryRow[];
+		meta: object;
+	}>;
 	listStockSummary: TRPCQueryProcedure<{
 		input:
 			| {
