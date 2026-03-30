@@ -790,6 +790,7 @@ export class InventoryService {
 	async findAllPackingSlips(params?: {
 		deliveryNoteId?: string;
 		status?: Inventory.PackingSlipStatus;
+		search?: string;
 		skip?: number;
 		take?: number;
 	}): Promise<Inventory.PackingSlip[]> {

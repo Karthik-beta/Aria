@@ -1665,6 +1665,11 @@ const onDeliveryTripsChangedProcedure = protectedProcedure.subscription(() => {
 
 // ─── Packing Slip Procedures ──────────────────────────────────────────────────
 
+type PackingSlipsChangedEvent = {
+	type: "created" | "updated" | "deleted";
+	data: Inventory.PackingSlip | { id: string };
+};
+
 function createListPackingSlipsProcedure(inventoryService: InventoryService) {
 	return protectedProcedure
 		.input(Inventory.listPackingSlipsSchema)
@@ -1695,7 +1700,9 @@ function createCreatePackingSlipProcedure(inventoryService: InventoryService) {
 	return protectedProcedure
 		.input(Inventory.createPackingSlipSchema)
 		.mutation(async ({ input }) => {
-			return inventoryService.createPackingSlip(input);
+			const result = await inventoryService.createPackingSlip(input);
+			void inventoryEvents.emit("packingSlipCreated", result);
+			return result;
 		});
 }
 
@@ -1703,7 +1710,9 @@ function createUpdatePackingSlipProcedure(inventoryService: InventoryService) {
 	return protectedProcedure
 		.input(Inventory.updatePackingSlipSchema)
 		.mutation(async ({ input }) => {
-			return inventoryService.updatePackingSlip(input);
+			const result = await inventoryService.updatePackingSlip(input);
+			void inventoryEvents.emit("packingSlipUpdated", result);
+			return result;
 		});
 }
 
@@ -1711,7 +1720,9 @@ function createSubmitPackingSlipProcedure(inventoryService: InventoryService) {
 	return protectedProcedure
 		.input(z.object({ id: z.string().min(1) }))
 		.mutation(async ({ input }) => {
-			return inventoryService.submitPackingSlip(input.id);
+			const result = await inventoryService.submitPackingSlip(input.id);
+			void inventoryEvents.emit("packingSlipUpdated", result);
+			return result;
 		});
 }
 
@@ -1719,7 +1730,9 @@ function createCancelPackingSlipProcedure(inventoryService: InventoryService) {
 	return protectedProcedure
 		.input(z.object({ id: z.string().min(1) }))
 		.mutation(async ({ input }) => {
-			return inventoryService.cancelPackingSlip(input.id);
+			const result = await inventoryService.cancelPackingSlip(input.id);
+			void inventoryEvents.emit("packingSlipUpdated", result);
+			return result;
 		});
 }
 
@@ -1727,7 +1740,9 @@ function createDeletePackingSlipProcedure(inventoryService: InventoryService) {
 	return protectedProcedure
 		.input(z.object({ id: z.string().min(1) }))
 		.mutation(async ({ input }) => {
-			return inventoryService.deletePackingSlip(input.id);
+			const result = await inventoryService.deletePackingSlip(input.id);
+			void inventoryEvents.emit("packingSlipDeleted", { id: input.id });
+			return result;
 		});
 }
 
@@ -1737,9 +1752,37 @@ function createDeleteManyPackingSlipsProcedure(
 	return protectedProcedure
 		.input(Inventory.bulkDeletePackingSlipsSchema)
 		.mutation(async ({ input }) => {
-			return inventoryService.deleteManyPackingSlips(input.ids);
+			const result = await inventoryService.deleteManyPackingSlips(input.ids);
+			for (const id of result.ids) {
+				inventoryEvents.emit("packingSlipDeleted", { id });
+			}
+			return result;
 		});
 }
+
+const onPackingSlipsChangedProcedure = protectedProcedure.subscription(() => {
+	return observable<PackingSlipsChangedEvent>((emit) => {
+		const onCreated = (data: Inventory.PackingSlip) => {
+			emit.next({ type: "created", data });
+		};
+		const onUpdated = (data: Inventory.PackingSlip) => {
+			emit.next({ type: "updated", data });
+		};
+		const onDeleted = (data: { id: string }) => {
+			emit.next({ type: "deleted", data });
+		};
+
+		inventoryEvents.on("packingSlipCreated", onCreated);
+		inventoryEvents.on("packingSlipUpdated", onUpdated);
+		inventoryEvents.on("packingSlipDeleted", onDeleted);
+
+		return () => {
+			inventoryEvents.off("packingSlipCreated", onCreated);
+			inventoryEvents.off("packingSlipUpdated", onUpdated);
+			inventoryEvents.off("packingSlipDeleted", onDeleted);
+		};
+	});
+});
 
 // ─── QI Parameter Group Procedures ───────────────────────────────────────────
 
@@ -2117,6 +2160,7 @@ type InventoryRouterInput = {
 	deleteManyPackingSlips: ReturnType<
 		typeof createDeleteManyPackingSlipsProcedure
 	>;
+	onPackingSlipsChanged: typeof onPackingSlipsChangedProcedure;
 	listQiParameterGroups: ReturnType<
 		typeof createListQiParameterGroupsProcedure
 	>;
@@ -2353,6 +2397,7 @@ function createInventoryRouterRecord(
 		deletePackingSlip: createDeletePackingSlipProcedure(inventoryService),
 		deleteManyPackingSlips:
 			createDeleteManyPackingSlipsProcedure(inventoryService),
+		onPackingSlipsChanged: onPackingSlipsChangedProcedure,
 		listQiParameterGroups:
 			createListQiParameterGroupsProcedure(inventoryService),
 		createQiParameterGroup:

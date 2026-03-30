@@ -489,6 +489,14 @@ function QualityInspectionTemplateFormContent() {
 			{ enabled: isEditMode, refetchOnWindowFocus: false },
 		);
 
+	// Fetch all parameters so we can resolve names in create mode too
+	const { data: allParameters = [] } = trpc.inventory.listQiParameters.useQuery(
+		undefined,
+		{
+			staleTime: 60_000,
+		},
+	);
+
 	useEffect(() => {
 		if (!isEditMode || !template) return;
 		form.reset({
@@ -699,10 +707,18 @@ function QualityInspectionTemplateFormContent() {
 										const templateItemInfo = template?.items.find(
 											(ti) => ti.parameterId === field.parameterId,
 										);
+										// Fall back to the full parameters list (works in create mode too)
+										const paramInfo = allParameters.find(
+											(p) => p.id === field.parameterId,
+										);
 										const paramName =
-											templateItemInfo?.parameterName ?? field.parameterId;
+											templateItemInfo?.parameterName ??
+											paramInfo?.parameter ??
+											field.parameterId;
 										const groupName =
-											templateItemInfo?.parameterGroupName ?? null;
+											templateItemInfo?.parameterGroupName ??
+											paramInfo?.groupName ??
+											null;
 
 										return (
 											<TableRow key={field.id}>

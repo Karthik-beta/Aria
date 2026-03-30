@@ -4289,6 +4289,7 @@ export namespace Inventory {
 		.object({
 			deliveryNoteId: z.string().optional(),
 			status: packingSlipStatusSchema.optional(),
+			search: z.string().max(255).optional(),
 			skip: z.number().int().min(0).optional(),
 			take: z.number().int().min(1).max(250).optional(),
 		})

@@ -1306,10 +1306,12 @@ export class DeliverySubService {
 
 	/**
 	 * Calculate the net weight and UOM for a packing slip from its items.
+	 * Net weight is computed as `SUM(item.netWeight × item.qty)` (matching
+	 * ERPNext's `calculate_net_total_pkg` logic).
 	 * Throws if items use different UOMs.
 	 */
 	private computePackingSlipWeights(
-		items: { netWeight: number; weightUom?: string | null }[],
+		items: { netWeight: number; qty: number; weightUom?: string | null }[],
 		grossWeightPkg?: number,
 	): {
 		netWeightPkg: number;
@@ -1328,7 +1330,7 @@ export class DeliverySubService {
 		}
 
 		const netWeightPkg = items.reduce(
-			(sum, item) => sum + (item.netWeight ?? 0),
+			(sum, item) => sum + (item.netWeight ?? 0) * (item.qty ?? 0),
 			0,
 		);
 
@@ -1453,6 +1455,7 @@ export class DeliverySubService {
 	async findAllPackingSlips(params?: {
 		deliveryNoteId?: string;
 		status?: Inventory.PackingSlipStatus;
+		search?: string;
 		skip?: number;
 		take?: number;
 	}): Promise<Inventory.PackingSlip[]> {
@@ -1468,6 +1471,11 @@ export class DeliverySubService {
 					? { deliveryNoteId: params.deliveryNoteId }
 					: {}),
 				...(params?.status ? { status: params.status } : {}),
+				...(params?.search
+					? {
+							series: { contains: params.search, mode: "insensitive" as const },
+						}
+					: {}),
 			},
 			include: { items: true },
 			orderBy: { createdAt: "desc" },
@@ -1522,9 +1530,29 @@ export class DeliverySubService {
 		await this.validateCaseNos(data.deliveryNoteId, fromCaseNo, toCaseNo);
 		await this.validatePackingSlipItemQtys(data.items);
 
+		// Auto-fill missing weight / UOM from Item master (ERPNext: set_missing_values)
+		const uniqueCodes = [...new Set(data.items.map((i) => i.itemCode))];
+		const itemMasters = await this.prisma.inventoryItem.findMany({
+			where: { code: { in: uniqueCodes } },
+			select: { code: true, weightPerUnit: true, weightUom: true },
+		});
+		const masterByCode = new Map(itemMasters.map((m) => [m.code, m]));
+		const enrichedItems = data.items.map((i) => {
+			const master = masterByCode.get(i.itemCode);
+			return {
+				...i,
+				netWeight:
+					i.netWeight != null && i.netWeight !== 0
+						? i.netWeight
+						: (master?.weightPerUnit ?? 0),
+				weightUom: i.weightUom ?? master?.weightUom ?? null,
+			};
+		});
+
 		const weights = this.computePackingSlipWeights(
-			data.items.map((i) => ({
-				netWeight: i.netWeight ?? 0,
+			enrichedItems.map((i) => ({
+				netWeight: i.netWeight,
+				qty: i.qty,
 				weightUom: i.weightUom,
 			})),
 			data.grossWeightPkg,
@@ -1546,13 +1574,13 @@ export class DeliverySubService {
 						grossWeightUom: data.grossWeightUom ?? weights.grossWeightUom,
 						letterHead: data.letterHead,
 						items: {
-							create: data.items.map((item) => ({
+							create: enrichedItems.map((item) => ({
 								deliveryNoteItemId: item.deliveryNoteItemId,
 								itemCode: item.itemCode,
 								itemName: item.itemName,
 								description: item.description,
 								qty: item.qty,
-								netWeight: item.netWeight ?? 0,
+								netWeight: item.netWeight,
 								weightUom: item.weightUom,
 								batchNo: item.batchNo,
 							})),
@@ -1612,9 +1640,36 @@ export class DeliverySubService {
 			await this.validatePackingSlipItemQtys(data.items, existing.id);
 		}
 
-		const itemsForWeight = (data.items ?? existing.items).map(
-			(i: { netWeight?: number | null; weightUom?: string | null }) => ({
+		// Auto-fill missing weight / UOM from Item master when new items are provided
+		let enrichedUpdateItems: typeof data.items | undefined;
+		if (data.items) {
+			const uniqueCodes = [...new Set(data.items.map((i) => i.itemCode))];
+			const itemMasters = await this.prisma.inventoryItem.findMany({
+				where: { code: { in: uniqueCodes } },
+				select: { code: true, weightPerUnit: true, weightUom: true },
+			});
+			const masterByCode = new Map(itemMasters.map((m) => [m.code, m]));
+			enrichedUpdateItems = data.items.map((i) => {
+				const master = masterByCode.get(i.itemCode);
+				return {
+					...i,
+					netWeight:
+						i.netWeight != null && i.netWeight !== 0
+							? i.netWeight
+							: (master?.weightPerUnit ?? 0),
+					weightUom: i.weightUom ?? master?.weightUom ?? null,
+				};
+			});
+		}
+
+		const itemsForWeight = (enrichedUpdateItems ?? existing.items).map(
+			(i: {
+				netWeight?: number | null;
+				qty?: number | null;
+				weightUom?: string | null;
+			}) => ({
 				netWeight: i.netWeight ?? 0,
+				qty: i.qty ?? 0,
 				weightUom: i.weightUom,
 			}),
 		);
@@ -1624,7 +1679,7 @@ export class DeliverySubService {
 		);
 
 		const updated = await this.prisma.$transaction(async (tx) => {
-			if (data.items) {
+			if (enrichedUpdateItems) {
 				await tx.packingSlipItem.deleteMany({
 					where: { packingSlipId: existing.id },
 				});
@@ -1643,15 +1698,15 @@ export class DeliverySubService {
 							? data.grossWeightUom
 							: weights.grossWeightUom,
 					...(data.letterHead !== undefined && { letterHead: data.letterHead }),
-					...(data.items && {
+					...(enrichedUpdateItems && {
 						items: {
-							create: data.items.map((item) => ({
+							create: enrichedUpdateItems.map((item) => ({
 								deliveryNoteItemId: item.deliveryNoteItemId,
 								itemCode: item.itemCode,
 								itemName: item.itemName,
 								description: item.description,
 								qty: item.qty,
-								netWeight: item.netWeight ?? 0,
+								netWeight: item.netWeight,
 								weightUom: item.weightUom,
 								batchNo: item.batchNo,
 							})),
