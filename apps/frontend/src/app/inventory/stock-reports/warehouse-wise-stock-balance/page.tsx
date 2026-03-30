@@ -46,6 +46,7 @@ import {
 	WAREHOUSE_WISE_GROUP_BY_OPTIONS,
 	WAREHOUSE_WISE_GROUP_METRIC_OPTIONS,
 	WAREHOUSE_WISE_STOCK_BALANCE_CURRENCY_OPTIONS,
+	WAREHOUSE_WISE_STOCK_BALANCE_STATUS_OPTIONS,
 	WAREHOUSE_WISE_STOCK_SORT_OPTIONS,
 	type WarehouseWiseDisplayRow,
 	type WarehouseWiseFilterField,
@@ -54,6 +55,7 @@ import {
 	type WarehouseWiseGroupByField,
 	type WarehouseWiseGroupMetric,
 	type WarehouseWiseStockBalanceCurrency,
+	type WarehouseWiseStockBalanceStatus,
 	type WarehouseWiseStockSortBy,
 } from "./warehouse-wise-stock-balance.utils";
 
@@ -70,6 +72,7 @@ type FilterState = {
 	company: string;
 	dateFrom: string;
 	dateTo: string;
+	status: WarehouseWiseStockBalanceStatus;
 	currency: WarehouseWiseStockBalanceCurrency;
 	sortBy: WarehouseWiseStockSortBy;
 };
@@ -82,6 +85,7 @@ const INITIAL_FILTERS: FilterState = {
 	company: "",
 	dateFrom: "",
 	dateTo: "",
+	status: "SUBMITTED",
 	currency: "INR",
 	sortBy: "LAST_UPDATED_ON",
 };
@@ -145,7 +149,7 @@ export default function WarehouseWiseStockBalancePage() {
 
 		return {
 			take: 250,
-			status: "SUBMITTED" as const,
+			status: filters.status,
 			itemCode: itemCode || undefined,
 			warehouse: warehouse || undefined,
 			voucherNo: voucherNo || undefined,
@@ -162,6 +166,7 @@ export default function WarehouseWiseStockBalancePage() {
 		filters.dateFrom,
 		filters.dateTo,
 		filters.itemCode,
+		filters.status,
 		filters.voucherNo,
 		filters.warehouse,
 	]);
@@ -515,6 +520,23 @@ export default function WarehouseWiseStockBalancePage() {
 						onChange={(event) => updateFilter("dateTo", event.target.value)}
 						aria-label="Filter to date"
 					/>
+					<Select
+						value={filters.status}
+						onValueChange={(value) =>
+							updateFilter("status", value as WarehouseWiseStockBalanceStatus)
+						}
+					>
+						<SelectTrigger aria-label="Filter by status">
+							<SelectValue placeholder="Status" />
+						</SelectTrigger>
+						<SelectContent>
+							{WAREHOUSE_WISE_STOCK_BALANCE_STATUS_OPTIONS.map((option) => (
+								<SelectItem key={option.value} value={option.value}>
+									{option.label}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
 				</div>
 
 				<div className="mt-4 flex flex-wrap items-center gap-2">

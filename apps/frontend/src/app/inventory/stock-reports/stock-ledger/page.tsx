@@ -32,8 +32,11 @@ import {
 	getStockLedgerMovementBadgeClass,
 	getStockLedgerStatusBadgeClass,
 	STOCK_LEDGER_CURRENCY_OPTIONS,
+	STOCK_LEDGER_STATUS_OPTIONS,
+	STOCK_LEDGER_TYPE_OPTIONS,
 	type StockLedgerCurrency,
 	type StockLedgerStatus,
+	type StockLedgerType,
 } from "./stock-ledger.utils";
 
 type StockLedgerSubscriptionEvent = {
@@ -65,6 +68,8 @@ type FilterState = {
 	brand: string;
 	voucherNo: string;
 	project: string;
+	status: StockLedgerStatus | "";
+	stockEntryType: StockLedgerType | "";
 	includeUom: UomDisplayPreference;
 	currency: StockLedgerCurrency;
 	segregateSerialBatchBundle: boolean;
@@ -80,6 +85,8 @@ const INITIAL_FILTERS: FilterState = {
 	brand: "",
 	voucherNo: "",
 	project: "",
+	status: "",
+	stockEntryType: "",
 	includeUom: "INCLUDE",
 	currency: "INR",
 	segregateSerialBatchBundle: false,
@@ -155,6 +162,8 @@ export default function StockLedgerPage() {
 			brand: brand || undefined,
 			voucherNo: voucherNo || undefined,
 			project: project || undefined,
+			status: filters.status || undefined,
+			stockEntryType: filters.stockEntryType || undefined,
 			dateFrom: filters.dateFrom
 				? new Date(`${filters.dateFrom}T00:00:00.000Z`)
 				: undefined,
@@ -172,6 +181,8 @@ export default function StockLedgerPage() {
 		filters.brand,
 		filters.voucherNo,
 		filters.project,
+		filters.status,
+		filters.stockEntryType,
 	]);
 
 	const {
@@ -660,11 +671,48 @@ export default function StockLedgerPage() {
 						placeholder="Item Group"
 						aria-label="Filter by item group"
 					/>
-					<Input
-						placeholder="Batch No"
-						aria-label="Filter by batch number"
-						disabled
-					/>
+					<Select
+						value={filters.status}
+						onValueChange={(value) =>
+							updateFilter(
+								"status",
+								value === "ALL" ? "" : (value as StockLedgerStatus),
+							)
+						}
+					>
+						<SelectTrigger aria-label="Filter by status">
+							<SelectValue placeholder="Status" />
+						</SelectTrigger>
+						<SelectContent>
+							<SelectItem value="ALL">All Statuses</SelectItem>
+							{STOCK_LEDGER_STATUS_OPTIONS.map((option) => (
+								<SelectItem key={option.value} value={option.value}>
+									{option.label}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
+					<Select
+						value={filters.stockEntryType}
+						onValueChange={(value) =>
+							updateFilter(
+								"stockEntryType",
+								value === "ALL" ? "" : (value as StockLedgerType),
+							)
+						}
+					>
+						<SelectTrigger aria-label="Filter by stock entry type">
+							<SelectValue placeholder="Entry Type" />
+						</SelectTrigger>
+						<SelectContent>
+							<SelectItem value="ALL">All Types</SelectItem>
+							{STOCK_LEDGER_TYPE_OPTIONS.map((option) => (
+								<SelectItem key={option.value} value={option.value}>
+									{option.label}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
 					<Input
 						value={filters.brand}
 						onChange={(event) => updateFilter("brand", event.target.value)}

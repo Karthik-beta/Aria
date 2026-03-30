@@ -71,4 +71,42 @@ describe("buildStockProjectedQtyRows", () => {
 			rows.map((row) => row.projectedQty).sort((left, right) => left - right),
 		).toEqual([2, 3, 4]);
 	});
+
+	it("returns empty array for empty input", () => {
+		expect(buildStockProjectedQtyRows([])).toHaveLength(0);
+	});
+
+	it("calculates negative projected qty when reserved exceeds available", () => {
+		const rows = buildStockProjectedQtyRows([
+			createProjectedQtyRow({
+				actualQty: 5,
+				reservedQty: 20,
+				reorderLevel: 10,
+			}),
+		]);
+
+		expect(rows).toHaveLength(1);
+		expect(rows[0]).toMatchObject({
+			projectedQty: -15,
+			shortageQty: 25,
+		});
+	});
+
+	it("preserves the latest activity date across source rows", () => {
+		const rows = buildStockProjectedQtyRows([
+			createProjectedQtyRow({
+				actualQty: 1,
+				lastActivityDate: new Date("2026-01-01T00:00:00.000Z"),
+			}),
+			createProjectedQtyRow({
+				actualQty: 2,
+				lastActivityDate: new Date("2026-06-15T00:00:00.000Z"),
+			}),
+		]);
+
+		expect(rows).toHaveLength(1);
+		expect(rows[0]?.lastActivityDate).toEqual(
+			new Date("2026-06-15T00:00:00.000Z"),
+		);
+	});
 });

@@ -77,4 +77,38 @@ describe("buildStockSummaryRows", () => {
 		expect(rows.map((row) => row.itemCode)).toEqual(["ITEM-001", "ITEM-002"]);
 		expect(rows.map((row) => row.primaryMetricValue)).toEqual([3, 9]);
 	});
+
+	it("classifies LOW health when projected qty is below reorder level but positive", () => {
+		const rows = buildStockSummaryRows([
+			createStockSummaryRow({
+				actualQty: 5,
+				projectedQty: 5,
+				shortageQty: 5,
+				reorderLevel: 10,
+			}),
+		]);
+
+		expect(rows[0]).toMatchObject({
+			stockHealth: "LOW",
+		});
+	});
+
+	it("classifies HEALTHY when projected qty is adequate", () => {
+		const rows = buildStockSummaryRows([
+			createStockSummaryRow({
+				actualQty: 10,
+				projectedQty: 10,
+				shortageQty: 0,
+				reorderLevel: 10,
+			}),
+		]);
+
+		expect(rows[0]).toMatchObject({
+			stockHealth: "HEALTHY",
+		});
+	});
+
+	it("returns empty array for empty input", () => {
+		expect(buildStockSummaryRows([])).toHaveLength(0);
+	});
 });
