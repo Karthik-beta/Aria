@@ -1105,6 +1105,36 @@ function createListItemShortageReportProcedure(
 		});
 }
 
+function createListRequestedItemsToBeTransferredProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure
+		.input(Inventory.listRequestedItemsToBeTransferredSchema)
+		.query(async ({ input }) => {
+			return inventoryService.findRequestedItemsToBeTransferred(input);
+		});
+}
+
+function createListSubcontractedRawMaterialsProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure
+		.input(Inventory.listSubcontractedRawMaterialsSchema)
+		.query(async ({ input }) => {
+			return inventoryService.findSubcontractedRawMaterials(input);
+		});
+}
+
+function createListSubcontractedItemToBeReceivedProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure
+		.input(Inventory.listSubcontractedItemToBeReceivedSchema)
+		.query(async ({ input }) => {
+			return inventoryService.findSubcontractedItemToBeReceived(input);
+		});
+}
+
 function createListBatchWiseBalanceProcedure(
 	inventoryService: InventoryService,
 ) {
@@ -1112,6 +1142,44 @@ function createListBatchWiseBalanceProcedure(
 		.input(Inventory.listBatchWiseBalanceSchema)
 		.query(async ({ input }) => {
 			return inventoryService.findBatchWiseBalanceHistory(input);
+		});
+}
+
+function createListBatchItemExpiryProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure
+		.input(Inventory.listBatchItemExpirySchema)
+		.query(async ({ input }) => {
+			return inventoryService.findBatchItemExpiry(input);
+		});
+}
+
+function createListItemPricesProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(Inventory.listItemPricesSchema)
+		.query(async ({ input }) => {
+			return inventoryService.findItemPrices(input);
+		});
+}
+
+function createListItemwiseRecommendedReorderLevelProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure
+		.input(Inventory.listItemwiseRecommendedReorderLevelSchema)
+		.query(async ({ input }) => {
+			return inventoryService.findItemwiseRecommendedReorderLevel(input);
+		});
+}
+
+function createListItemVariantDetailsProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure
+		.input(Inventory.listItemVariantDetailsSchema)
+		.query(async ({ input }) => {
+			return inventoryService.findItemVariantDetails(input);
 		});
 }
 
@@ -1899,7 +1967,24 @@ type InventoryRouterInput = {
 	listItemShortageReport: ReturnType<
 		typeof createListItemShortageReportProcedure
 	>;
+	listRequestedItemsToBeTransferred: ReturnType<
+		typeof createListRequestedItemsToBeTransferredProcedure
+	>;
+	listSubcontractedRawMaterials: ReturnType<
+		typeof createListSubcontractedRawMaterialsProcedure
+	>;
+	listSubcontractedItemToBeReceived: ReturnType<
+		typeof createListSubcontractedItemToBeReceivedProcedure
+	>;
 	listBatchWiseBalance: ReturnType<typeof createListBatchWiseBalanceProcedure>;
+	listBatchItemExpiry: ReturnType<typeof createListBatchItemExpiryProcedure>;
+	listItemPrices: ReturnType<typeof createListItemPricesProcedure>;
+	listItemwiseRecommendedReorderLevel: ReturnType<
+		typeof createListItemwiseRecommendedReorderLevelProcedure
+	>;
+	listItemVariantDetails: ReturnType<
+		typeof createListItemVariantDetailsProcedure
+	>;
 	listStockSummary: ReturnType<typeof createListStockSummaryProcedure>;
 	listStockAgeing: ReturnType<typeof createListStockAgeingProcedure>;
 	listItemPriceStock: ReturnType<typeof createListItemPriceStockProcedure>;
@@ -2134,7 +2219,19 @@ function createInventoryRouterRecord(
 			createListStockProjectedQtyProcedure(inventoryService),
 		listItemShortageReport:
 			createListItemShortageReportProcedure(inventoryService),
+		listRequestedItemsToBeTransferred:
+			createListRequestedItemsToBeTransferredProcedure(inventoryService),
+		listSubcontractedRawMaterials:
+			createListSubcontractedRawMaterialsProcedure(inventoryService),
+		listSubcontractedItemToBeReceived:
+			createListSubcontractedItemToBeReceivedProcedure(inventoryService),
 		listBatchWiseBalance: createListBatchWiseBalanceProcedure(inventoryService),
+		listBatchItemExpiry: createListBatchItemExpiryProcedure(inventoryService),
+		listItemPrices: createListItemPricesProcedure(inventoryService),
+		listItemwiseRecommendedReorderLevel:
+			createListItemwiseRecommendedReorderLevelProcedure(inventoryService),
+		listItemVariantDetails:
+			createListItemVariantDetailsProcedure(inventoryService),
 		listStockSummary: createListStockSummaryProcedure(inventoryService),
 		listStockAgeing: createListStockAgeingProcedure(inventoryService),
 		listItemPriceStock: createListItemPriceStockProcedure(inventoryService),

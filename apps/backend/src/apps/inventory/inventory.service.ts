@@ -11,6 +11,10 @@ import { Prisma } from "../../generated/prisma/client";
 // biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
 import { PrismaService } from "../../shared/prisma.service";
 import {
+	type BatchItemExpirySourceBatch,
+	buildBatchItemExpiryRows,
+} from "./batch-item-expiry-report";
+import {
 	type BatchWiseBalanceSourceBatch,
 	buildBatchWiseBalanceRows,
 } from "./batch-wise-balance-report";
@@ -49,7 +53,13 @@ import {
 	toInventoryWarehouse,
 } from "./inventory.types";
 import { buildItemPriceStockRows } from "./item-price-stock-report";
+import {
+	buildItemPricesRows,
+	type ItemPricesSourceItem,
+} from "./item-prices-report";
 import { buildItemShortageRows } from "./item-shortage-report";
+import { buildItemVariantDetailsResult } from "./item-variant-details-report";
+import { buildItemwiseRecommendedReorderLevelRows } from "./itemwise-recommended-reorder-level-report";
 import {
 	buildPurchaseOrderAnalysisRows,
 	computePurchaseOrderAnalysisSummary,
@@ -59,6 +69,10 @@ import {
 	buildPurchaseReceiptTrendsRows,
 	type PurchaseReceiptTrendsSourceEntry,
 } from "./purchase-receipt-trends-report";
+import {
+	buildRequestedItemsToBeTransferredRows,
+	summarizeRequestedItemsToBeTransferredRows,
+} from "./requested-items-to-be-transferred-report";
 import {
 	buildSalesOrderAnalysisRows,
 	computeSalesOrderAnalysisSummary,
@@ -79,6 +93,14 @@ import {
 	type StockProjectedQtySourceRow,
 } from "./stock-projected-qty-report";
 import { buildStockSummaryRows } from "./stock-summary-report";
+import {
+	buildSubcontractedItemReceivedRows,
+	summarizeSubcontractedItemReceivedRows,
+} from "./subcontracted-item-received-report";
+import {
+	buildSubcontractedRawMaterialsRows,
+	summarizeSubcontractedRawMaterialsRows,
+} from "./subcontracted-raw-materials-report";
 import {
 	loadUomSeedEntriesFromCsv,
 	normalizeUomName,
@@ -8407,6 +8429,143 @@ export class InventoryService {
 
 		return buildItemShortageRows(projected);
 	}
+
+	/**
+	 * Get material-request lines still awaiting stock transfer or material issue.
+	 *
+	 * Mirrors ERPNext's Requested Items To Be Transferred report by listing
+	 * non-draft, non-cancelled Material Requests of purpose Material Transfer or
+	 * Material Issue where orderedQty remains below requested quantity.
+	 */
+	async findRequestedItemsToBeTransferred(
+		params?: Inventory.ListRequestedItemsToBeTransferredInput,
+	): Promise<Inventory.RequestedItemsToBeTransferredResult> {
+		const company = params?.company?.trim();
+		const materialRequest = params?.materialRequest?.trim();
+		const itemCode = params?.itemCode?.trim();
+		const targetWarehouse = params?.targetWarehouse?.trim();
+		const purpose = params?.purpose;
+
+		const materialRequests = await this.prisma.materialRequest.findMany({
+			where: {
+				purpose: purpose
+					? purpose
+					: {
+							in: ["MATERIAL_TRANSFER", "MATERIAL_ISSUE"],
+						},
+				status: {
+					notIn: ["DRAFT", "CANCELLED"],
+				},
+				...(company
+					? {
+							company: {
+								contains: company,
+								mode: "insensitive",
+							},
+						}
+					: {}),
+				...(materialRequest
+					? {
+							series: {
+								contains: materialRequest,
+								mode: "insensitive",
+							},
+						}
+					: {}),
+			},
+			include: { items: true },
+			orderBy: [{ transactionDate: "asc" }, { series: "asc" }],
+		});
+
+		const itemCodes = [
+			...new Set(
+				materialRequests.flatMap((request) =>
+					request.items.map((item) => item.itemCode),
+				),
+			),
+		];
+
+		const inventoryItems =
+			itemCodes.length > 0
+				? await this.prisma.inventoryItem.findMany({
+						where: {
+							code: {
+								in: itemCodes,
+							},
+						},
+						select: {
+							code: true,
+							name: true,
+							description: true,
+						},
+					})
+				: [];
+
+		const itemMetadata = new Map(
+			inventoryItems.map(
+				(item) =>
+					[
+						item.code,
+						{
+							name: item.name,
+							description: item.description,
+						},
+					] as const,
+			),
+		);
+
+		const sourceRows = materialRequests.flatMap((request) =>
+			request.items
+				.map((item) => {
+					const resolvedTargetWarehouse =
+						item.targetWarehouse ?? request.targetWarehouse ?? null;
+
+					if (
+						itemCode &&
+						!item.itemCode.toLowerCase().includes(itemCode.toLowerCase())
+					) {
+						return null;
+					}
+
+					if (
+						targetWarehouse &&
+						!(resolvedTargetWarehouse ?? "")
+							.toLowerCase()
+							.includes(targetWarehouse.toLowerCase())
+					) {
+						return null;
+					}
+
+					const metadata = itemMetadata.get(item.itemCode);
+
+					return {
+						id: item.id,
+						materialRequestId: request.id,
+						materialRequest: request.series,
+						date: request.transactionDate,
+						purpose: request.purpose,
+						status: request.status,
+						itemCode: item.itemCode,
+						itemName: item.itemName ?? metadata?.name ?? null,
+						description: metadata?.description ?? null,
+						company: request.company,
+						targetWarehouse: resolvedTargetWarehouse,
+						requiredBy: item.requiredBy ?? request.requiredBy ?? null,
+						unitOfMeasure: item.unitOfMeasure ?? null,
+						qty: item.quantity,
+						transferredQty: item.orderedQty,
+					};
+				})
+				.filter((row): row is NonNullable<typeof row> => row != null),
+		);
+
+		const rows = buildRequestedItemsToBeTransferredRows(sourceRows);
+
+		return {
+			rows,
+			summary: summarizeRequestedItemsToBeTransferredRows(rows),
+		};
+	}
 	/**
 	 * Get batch-wise balance history rows.
 	 *
@@ -8496,6 +8655,153 @@ export class InventoryService {
 		})) as BatchWiseBalanceSourceBatch[];
 
 		return buildBatchWiseBalanceRows(batches, { fromDate, toDate });
+	}
+
+	/**
+	 * Get batch item expiry status rows.
+	 *
+	 * Returns all active (non-disabled, qty > 0) batches whose record was
+	 * created within [fromDate, toDate], optionally filtered by item code.
+	 * Rows are ordered by creation date ascending then batch id.
+	 */
+	async findBatchItemExpiry(
+		params: Inventory.ListBatchItemExpiryInput,
+	): Promise<Inventory.BatchItemExpiryRow[]> {
+		const fromDate = params.fromDate;
+		const toDate = params.toDate;
+		const itemCode = params.itemCode?.trim();
+
+		if (fromDate > toDate) {
+			throw new BadRequestException(
+				"'From Date' must not be later than 'To Date'.",
+			);
+		}
+
+		const batches = (await this.batchModel.findMany({
+			where: {
+				isDisabled: false,
+				quantity: { gt: 0 },
+				createdAt: {
+					gte: fromDate,
+					lte: toDate,
+				},
+				...(itemCode
+					? {
+							item: {
+								code: { contains: itemCode, mode: "insensitive" },
+							},
+						}
+					: {}),
+			},
+			select: {
+				id: true,
+				batchId: true,
+				quantity: true,
+				expiryDate: true,
+				createdAt: true,
+				item: {
+					select: {
+						code: true,
+						name: true,
+						defaultUnitOfMeasure: {
+							select: { name: true },
+						},
+					},
+				},
+			},
+			orderBy: [{ createdAt: "asc" }, { batchId: "asc" }],
+		})) as BatchItemExpirySourceBatch[];
+
+		return buildBatchItemExpiryRows(batches);
+	}
+
+	/**
+	 * Get item prices rows showing each item's valuation rate, selling rate, and
+	 * last purchase rate, filtered by enabled/disabled status and optional
+	 * item code, group, and brand searches.
+	 */
+	async findItemPrices(
+		params?: Inventory.ListItemPricesInput,
+	): Promise<Inventory.ItemPricesRow[]> {
+		const itemsFilter = params?.itemsFilter ?? "enabled";
+		const itemCode = params?.itemCode?.trim();
+		const itemGroup = params?.itemGroup?.trim();
+		const brand = params?.brand?.trim();
+
+		const disabledFilter =
+			itemsFilter === "enabled"
+				? false
+				: itemsFilter === "disabled"
+					? true
+					: undefined;
+
+		const items = (await this.prisma.item.findMany({
+			where: {
+				...(disabledFilter !== undefined ? { disabled: disabledFilter } : {}),
+				...(itemCode
+					? { code: { contains: itemCode, mode: "insensitive" } }
+					: {}),
+				...(itemGroup
+					? {
+							itemGroup: {
+								is: { groupName: { contains: itemGroup, mode: "insensitive" } },
+							},
+						}
+					: {}),
+				...(brand
+					? {
+							brand: {
+								name: { contains: brand, mode: "insensitive" },
+							},
+						}
+					: {}),
+			},
+			select: {
+				code: true,
+				name: true,
+				description: true,
+				disabled: true,
+				itemGroup: { select: { groupName: true } },
+				brand: { select: { name: true } },
+				defaultUnitOfMeasure: { select: { name: true } },
+				valuationRate: true,
+				standardSellingRate: true,
+			},
+		})) as ItemPricesSourceItem[];
+
+		if (items.length === 0) {
+			return [];
+		}
+
+		const itemCodes = items.map((item) => item.code);
+
+		// Derive the last purchase rate from the most-recent purchase receipt item
+		// per item code, ordered by the receipt's posting date descending.
+		const lastPurchaseRows = await this.prisma.purchaseReceiptItem.findMany({
+			where: {
+				itemCode: { in: itemCodes },
+				purchaseReceipt: { status: { notIn: ["DRAFT", "CANCELLED"] } },
+			},
+			select: {
+				itemCode: true,
+				rate: true,
+				purchaseReceipt: { select: { postingDate: true } },
+			},
+			orderBy: [
+				{ purchaseReceipt: { postingDate: "desc" } },
+				{ itemCode: "asc" },
+			],
+		});
+
+		// Keep only the most recent rate per item code.
+		const lastPurchaseRateByCode = new Map<string, number>();
+		for (const row of lastPurchaseRows) {
+			if (!lastPurchaseRateByCode.has(row.itemCode)) {
+				lastPurchaseRateByCode.set(row.itemCode, row.rate);
+			}
+		}
+
+		return buildItemPricesRows(items, lastPurchaseRateByCode);
 	}
 
 	/**
@@ -11655,5 +11961,444 @@ export class InventoryService {
 			where: { id: { in: uniqueIds } },
 		});
 		return { success: true, count: result.count, ids: uniqueIds };
+	}
+
+	// ============================================================================
+	// Itemwise Recommended Reorder Level Report
+	// ============================================================================
+
+	async findItemwiseRecommendedReorderLevel(
+		params: Inventory.ListItemwiseRecommendedReorderLevelInput,
+	): Promise<Inventory.ItemwiseRecommendedReorderLevelRow[]> {
+		const fromDate = params.fromDate;
+		const toDate = params.toDate;
+		const itemGroup = params.itemGroup?.trim();
+		const brand = params.brand?.trim();
+
+		if (fromDate > toDate) {
+			throw new BadRequestException("From Date must be before To Date");
+		}
+
+		const numberOfDays =
+			Math.floor(
+				(toDate.getTime() - fromDate.getTime()) / (1000 * 60 * 60 * 24),
+			) + 1;
+
+		// -------------------------------------------------------------------
+		// 1. Resolve item codes filtered by brand / item group (via Item catalog)
+		// -------------------------------------------------------------------
+		let filteredItemCodes: string[] | undefined;
+
+		if (itemGroup || brand) {
+			const matchingCatalogItems = await this.prisma.item.findMany({
+				where: {
+					...(itemGroup
+						? {
+								itemGroup: {
+									groupName: {
+										contains: itemGroup,
+										mode: "insensitive" as const,
+									},
+								},
+							}
+						: {}),
+					...(brand
+						? {
+								brand: {
+									name: {
+										contains: brand,
+										mode: "insensitive" as const,
+									},
+								},
+							}
+						: {}),
+				},
+				select: { code: true, brand: { select: { name: true } } },
+			});
+
+			filteredItemCodes = matchingCatalogItems.map((i) => i.code);
+			if (filteredItemCodes.length === 0) return [];
+		}
+
+		// -------------------------------------------------------------------
+		// 2. Load active stock items
+		// -------------------------------------------------------------------
+		const inventoryItems = await this.prisma.inventoryItem.findMany({
+			where: {
+				maintainStock: true,
+				disabled: false,
+				...(filteredItemCodes ? { code: { in: filteredItemCodes } } : {}),
+			},
+			select: {
+				code: true,
+				name: true,
+				description: true,
+				safetyStock: true,
+				leadTimeDays: true,
+				itemGroup: { select: { groupName: true } },
+			},
+		});
+
+		if (inventoryItems.length === 0) return [];
+
+		// Build a brand-lookup map from the catalog Item model
+		const allCodes = inventoryItems.map((i) => i.code);
+
+		const catalogItems = await this.prisma.item.findMany({
+			where: { code: { in: allCodes } },
+			select: { code: true, brand: { select: { name: true } } },
+		});
+		const brandByCode = new Map<string, string | null>();
+		for (const ci of catalogItems) {
+			brandByCode.set(ci.code, ci.brand?.name ?? null);
+		}
+
+		const itemSources = inventoryItems.map((item) => ({
+			code: item.code,
+			name: item.name,
+			description: item.description,
+			safetyStock: item.safetyStock,
+			leadTimeDays: item.leadTimeDays,
+			itemGroupName: item.itemGroup?.groupName ?? null,
+			brandName: brandByCode.get(item.code) ?? null,
+		}));
+
+		// -------------------------------------------------------------------
+		// 3. Calculate consumed quantities from stock entries
+		//    Exclude: MATERIAL_TRANSFER, MATERIAL_TRANSFER_FOR_MANUFACTURE,
+		//             SEND_TO_SUBCONTRACTOR, MATERIAL_RECEIPT
+		//    Only items leaving stock (sourceWarehouse is set).
+		// -------------------------------------------------------------------
+		const consumedEntries = await this.prisma.stockEntryItem.groupBy({
+			by: ["itemCode"],
+			where: {
+				sourceWarehouse: { not: null },
+				itemCode: { in: allCodes },
+				stockEntry: {
+					status: "SUBMITTED",
+					postingDate: { gte: fromDate, lte: toDate },
+					stockEntryType: {
+						in: ["MATERIAL_ISSUE", "MANUFACTURE", "REPACK"],
+					},
+				},
+			},
+			_sum: { qty: true },
+		});
+
+		const consumedByItem = new Map<string, number>();
+		for (const entry of consumedEntries) {
+			consumedByItem.set(entry.itemCode, entry._sum.qty ?? 0);
+		}
+
+		// -------------------------------------------------------------------
+		// 4. Calculate delivered quantities from delivery notes
+		//    Only submitted (non-draft, non-cancelled, non-return) notes.
+		// -------------------------------------------------------------------
+		const deliveredEntries = await this.prisma.deliveryNoteItem.groupBy({
+			by: ["itemCode"],
+			where: {
+				itemCode: { in: allCodes },
+				deliveryNote: {
+					status: { notIn: ["DRAFT", "CANCELLED"] },
+					isReturn: false,
+					postingDate: { gte: fromDate, lte: toDate },
+				},
+			},
+			_sum: { quantity: true },
+		});
+
+		const deliveredByItem = new Map<string, number>();
+		for (const entry of deliveredEntries) {
+			deliveredByItem.set(entry.itemCode, entry._sum.quantity ?? 0);
+		}
+
+		// -------------------------------------------------------------------
+		// 5. Build report rows
+		// -------------------------------------------------------------------
+		return buildItemwiseRecommendedReorderLevelRows(
+			itemSources,
+			consumedByItem,
+			deliveredByItem,
+			numberOfDays,
+		);
+	}
+
+	// =========================================================================
+	// Item Variant Details Report
+	// =========================================================================
+
+	async findItemVariantDetails(
+		params: Inventory.ListItemVariantDetailsInput,
+	): Promise<Inventory.ItemVariantDetailsResult> {
+		const itemCode = params.itemCode.trim();
+
+		// 1. Verify the template item exists and has variants
+		const templateItem = await this.prisma.inventoryItem.findFirst({
+			where: { code: itemCode, hasVariants: true, disabled: false },
+			select: { id: true, code: true },
+		});
+
+		if (!templateItem) {
+			return { attributeNames: [], rows: [] };
+		}
+
+		// 2. Fetch all non-disabled variant items of the template
+		const variants = await this.prisma.inventoryItem.findMany({
+			where: {
+				templateItemId: templateItem.id,
+				disabled: false,
+			},
+			select: {
+				id: true,
+				code: true,
+				name: true,
+				quantity: true,
+				standardSellingRate: true,
+			},
+		});
+
+		if (variants.length === 0) {
+			return { attributeNames: [], rows: [] };
+		}
+
+		const variantIds = variants.map((v) => v.id);
+		const variantCodes = variants.map((v) => v.code);
+
+		// 3. Fetch attribute values for each variant
+		const variantAttrRows = await this.prisma.inventoryItemAttribute.findMany({
+			where: { itemId: { in: variantIds } },
+			select: {
+				itemId: true,
+				attributeValue: true,
+				attribute: { select: { name: true } },
+			},
+		});
+
+		const variantAttributes = variantAttrRows.map(
+			(row: {
+				itemId: string;
+				attributeValue: string;
+				attribute: { name: string };
+			}) => ({
+				itemId: row.itemId,
+				attributeName: row.attribute.name,
+				attributeValue: row.attributeValue,
+			}),
+		);
+
+		// 4. Average buying price from purchase receipt items
+		const buyingPriceRows = await this.prisma.purchaseReceiptItem.groupBy({
+			by: ["itemCode"],
+			where: {
+				itemCode: { in: variantCodes },
+				purchaseReceipt: { status: { notIn: ["DRAFT", "CANCELLED"] } },
+			},
+			_avg: { rate: true },
+		});
+
+		const avgBuyingPriceMap = new Map<string, number>();
+		for (const row of buyingPriceRows) {
+			avgBuyingPriceMap.set(row.itemCode, row._avg.rate ?? 0);
+		}
+
+		// 5. Open sales orders count (qty - deliveredQty for non-completed orders)
+		const openOrderRows = await this.prisma.salesOrderItem.groupBy({
+			by: ["itemCode"],
+			where: {
+				itemCode: { in: variantCodes },
+				salesOrder: {
+					status: { notIn: ["DRAFT", "COMPLETED", "CLOSED"] },
+				},
+			},
+			_sum: { qty: true, deliveredQty: true },
+		});
+
+		const openOrdersMap = new Map<string, number>();
+		for (const row of openOrderRows) {
+			const sumQty = row._sum?.qty ?? 0;
+			const sumDeliveredQty = row._sum?.deliveredQty ?? 0;
+			const remaining = sumQty - sumDeliveredQty;
+			openOrdersMap.set(row.itemCode, Math.max(0, remaining));
+		}
+
+		// 6. Build result
+		return buildItemVariantDetailsResult(
+			variants,
+			variantAttributes,
+			avgBuyingPriceMap,
+			openOrdersMap,
+		);
+	}
+
+	async findSubcontractedRawMaterials(
+		params: Inventory.ListSubcontractedRawMaterialsInput,
+	): Promise<Inventory.SubcontractedRawMaterialsResult> {
+		const supplier = params.supplier.trim();
+		const fromDate = new Date(params.fromDate);
+		const toDate = new Date(params.toDate);
+		const company = params.company?.trim();
+		const rmItemCode = params.rmItemCode?.trim();
+
+		if (fromDate >= toDate) {
+			return {
+				rows: [],
+				summary: {
+					orderCount: 0,
+					rowCount: 0,
+					totalRequiredQty: 0,
+					totalTransferredQty: 0,
+					totalReturnedQty: 0,
+					totalPendingQty: 0,
+				},
+			};
+		}
+
+		const orders = await this.prisma.subcontractingOrder.findMany({
+			where: {
+				supplier: {
+					contains: supplier,
+					mode: "insensitive",
+				},
+				transactionDate: {
+					gte: fromDate,
+					lte: toDate,
+				},
+				status: {
+					notIn: ["DRAFT", "CANCELLED"],
+				},
+				percentReceived: {
+					lt: 100,
+				},
+				...(company
+					? {
+							company: {
+								contains: company,
+								mode: "insensitive",
+							},
+						}
+					: {}),
+			},
+			include: { suppliedItems: true },
+			orderBy: [{ transactionDate: "asc" }, { series: "asc" }],
+		});
+
+		const sourceRows = orders.flatMap((order) =>
+			order.suppliedItems
+				.filter((item) => {
+					if (
+						rmItemCode &&
+						!item.rmItemCode.toLowerCase().includes(rmItemCode.toLowerCase())
+					) {
+						return false;
+					}
+					return true;
+				})
+				.map((item) => ({
+					id: item.id,
+					subcontractingOrderId: order.id,
+					subcontractOrder: order.series,
+					date: order.transactionDate,
+					supplier: order.supplier,
+					status: order.status as Inventory.SubcontractingOrderStatus,
+					percentReceived: order.percentReceived,
+					rmItemCode: item.rmItemCode,
+					rmItemName: item.rmItemName,
+					requiredQty: item.requiredQty,
+					suppliedQty: item.suppliedQty,
+					returnedQty: item.returnedQty,
+				})),
+		);
+
+		const rows = buildSubcontractedRawMaterialsRows(sourceRows);
+
+		return {
+			rows,
+			summary: summarizeSubcontractedRawMaterialsRows(rows),
+		};
+	}
+
+	async findSubcontractedItemToBeReceived(
+		params: Inventory.ListSubcontractedItemToBeReceivedInput,
+	): Promise<Inventory.SubcontractedItemToBeReceivedResult> {
+		const supplier = params.supplier.trim();
+		const fromDate = new Date(params.fromDate);
+		const toDate = new Date(params.toDate);
+		const company = params.company?.trim();
+		const fgItemCode = params.fgItemCode?.trim();
+
+		if (fromDate >= toDate) {
+			return {
+				rows: [],
+				summary: {
+					orderCount: 0,
+					rowCount: 0,
+					totalRequiredQty: 0,
+					totalReceivedQty: 0,
+					totalPendingQty: 0,
+				},
+			};
+		}
+
+		const orders = await this.prisma.subcontractingOrder.findMany({
+			where: {
+				supplier: {
+					contains: supplier,
+					mode: "insensitive",
+				},
+				transactionDate: {
+					gte: fromDate,
+					lte: toDate,
+				},
+				status: {
+					notIn: ["DRAFT", "CANCELLED"],
+				},
+				percentReceived: {
+					lt: 100,
+				},
+				...(company
+					? {
+							company: {
+								contains: company,
+								mode: "insensitive",
+							},
+						}
+					: {}),
+			},
+			include: { items: true },
+			orderBy: [{ transactionDate: "asc" }, { series: "asc" }],
+		});
+
+		const sourceRows = orders.flatMap((order) =>
+			order.items
+				.filter((item) => {
+					if (
+						fgItemCode &&
+						!item.itemCode.toLowerCase().includes(fgItemCode.toLowerCase())
+					) {
+						return false;
+					}
+					return true;
+				})
+				.map((item) => ({
+					id: item.id,
+					subcontractingOrderId: order.id,
+					subcontractOrder: order.series,
+					date: order.transactionDate,
+					supplier: order.supplier,
+					status: order.status as Inventory.SubcontractingOrderStatus,
+					percentReceived: order.percentReceived,
+					fgItemCode: item.itemCode,
+					itemName: item.itemName,
+					qty: item.qty,
+					receivedQty: item.receivedQty,
+				})),
+		);
+
+		const rows = buildSubcontractedItemReceivedRows(sourceRows);
+
+		return {
+			rows,
+			summary: summarizeSubcontractedItemReceivedRows(rows),
+		};
 	}
 }

@@ -51,6 +51,11 @@ model InventoryItem {
   allowAlternateItem Boolean @default(false)
   hasVariants        Boolean @default(false)
 
+  // Variant parent-child link (self-referencing)
+  templateItemId String?
+  templateItem   InventoryItem?  @relation("ItemVariants", fields: [templateItemId], references: [id], onDelete: SetNull)
+  variants       InventoryItem[] @relation("ItemVariants")
+
   // Stock and pricing
   openingStock        Int    @default(0)
   valuationRate       Float?
@@ -72,6 +77,10 @@ model InventoryItem {
   valuationMethod            String?   @db.VarChar(50)
   defaultMaterialRequestType String?   @db.VarChar(50)
 
+  // Reorder / Procurement
+  safetyStock                Float     @default(0)
+  leadTimeDays               Int       @default(0)
+
   // Serial Nos and Batches
   hasBatchNo  Boolean @default(false)
   hasSerialNo Boolean @default(false)
@@ -84,6 +93,7 @@ model InventoryItem {
   batches                Batch[]
   installationNoteItems  InstallationNoteItem[]
   serialNos              SerialNo[]
+  itemAttributes         InventoryItemAttribute[]
 
   quantity  Int      @default(0)
   createdAt DateTime @default(now())
@@ -91,6 +101,7 @@ model InventoryItem {
 
   @@index([code])
   @@index([name])
+  @@index([templateItemId])
   @@index([createdAt])
   @@map("inventory_items")
 }
@@ -120,6 +131,19 @@ model ItemReorder {
   @@map("item_reorder_settings")
 }
 
+model InventoryItemAttribute {
+  id             String        @id @default(cuid())
+  itemId         String
+  attributeId    String
+  attributeValue String        @db.VarChar(255)
+  item           InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  attribute      ItemAttribute @relation(fields: [attributeId], references: [id], onDelete: Cascade)
+
+  @@unique([itemId, attributeId])
+  @@index([itemId])
+  @@index([attributeId])
+  @@map("inventory_item_attributes")
+}
 
 
 model ItemGroup {
@@ -270,6 +294,7 @@ model ItemAttribute {
   disabled        Boolean              @default(false)
   numericValues   Boolean              @default(false)
   attributeValues ItemAttributeValue[]
+  inventoryItemAttributes InventoryItemAttribute[]
   createdAt       DateTime             @default(now())
   updatedAt       DateTime             @updatedAt
 
@@ -1461,4 +1486,72 @@ enum PurchaseOrderStatus {
   CLOSED
   STOPPED
   ON_HOLD
+}
+
+// ─── Subcontracting Order ─────────────────────────────────────────────────────
+
+model SubcontractingOrder {
+  id              String                              @id @default(cuid())
+  series          String                              @unique @db.VarChar(50)
+  transactionDate DateTime                            @default(now())
+  supplier        String                              @db.VarChar(255)
+  company         String                              @db.VarChar(255)
+  status          SubcontractingOrderStatus           @default(DRAFT)
+  /// Percentage of finished goods received back from the subcontractor (0–100)
+  percentReceived Float                               @default(0)
+  suppliedItems   SubcontractingOrderSuppliedItem[]
+  items           SubcontractingOrderItem[]
+  createdAt       DateTime                            @default(now())
+  updatedAt       DateTime                            @updatedAt
+
+  @@index([status])
+  @@index([transactionDate])
+  @@index([supplier])
+  @@index([company])
+  @@map("subcontracting_orders")
+}
+
+/// Raw material line that must be transferred to the subcontractor.
+model SubcontractingOrderSuppliedItem {
+  id                    String              @id @default(cuid())
+  subcontractingOrderId String
+  rmItemCode            String              @db.VarChar(100)
+  rmItemName            String?             @db.VarChar(255)
+  /// Total raw material quantity expected by the subcontractor
+  requiredQty           Float               @default(0)
+  /// Cumulative quantity already sent to the subcontractor
+  suppliedQty           Float               @default(0)
+  /// Cumulative quantity returned by the subcontractor
+  returnedQty           Float               @default(0)
+  subcontractingOrder   SubcontractingOrder @relation(fields: [subcontractingOrderId], references: [id], onDelete: Cascade)
+
+  @@index([subcontractingOrderId])
+  @@index([rmItemCode])
+  @@map("subcontracting_order_supplied_items")
+}
+
+/// Finished goods line item on a subcontracting order.
+model SubcontractingOrderItem {
+  id                    String              @id @default(cuid())
+  subcontractingOrderId String
+  itemCode              String              @db.VarChar(100)
+  itemName              String?             @db.VarChar(255)
+  /// Total finished goods quantity ordered from the subcontractor
+  qty                   Float               @default(0)
+  /// Cumulative quantity received back from the subcontractor
+  receivedQty           Float               @default(0)
+  subcontractingOrder   SubcontractingOrder @relation(fields: [subcontractingOrderId], references: [id], onDelete: Cascade)
+
+  @@index([subcontractingOrderId])
+  @@index([itemCode])
+  @@map("subcontracting_order_items")
+}
+
+enum SubcontractingOrderStatus {
+  DRAFT
+  OPEN
+  PARTIALLY_RECEIVED
+  COMPLETED
+  CLOSED
+  CANCELLED
 }

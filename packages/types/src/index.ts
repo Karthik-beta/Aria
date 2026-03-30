@@ -1476,6 +1476,10 @@ export namespace Inventory {
 		valuationMethod?: string | null;
 		/** Default material request type */
 		defaultMaterialRequestType?: string | null;
+		/** Safety stock level */
+		safetyStock: number;
+		/** Procurement lead time in days */
+		leadTimeDays: number;
 		/** Whether batches are tracked */
 		hasBatchNo: boolean;
 		/** Whether serial numbers are tracked */
@@ -1523,6 +1527,8 @@ export namespace Inventory {
 		allowNegativeStock?: boolean;
 		valuationMethod?: string;
 		defaultMaterialRequestType?: string;
+		safetyStock?: number;
+		leadTimeDays?: number;
 		hasBatchNo?: boolean;
 		hasSerialNo?: boolean;
 		barcodes?: ItemBarcode[];
@@ -1559,6 +1565,8 @@ export namespace Inventory {
 		allowNegativeStock?: boolean;
 		valuationMethod?: string;
 		defaultMaterialRequestType?: string;
+		safetyStock?: number;
+		leadTimeDays?: number;
 		hasBatchNo?: boolean;
 		hasSerialNo?: boolean;
 		barcodes?: ItemBarcode[];
@@ -1791,6 +1799,8 @@ export namespace Inventory {
 		allowNegativeStock: z.boolean().default(false),
 		valuationMethod: z.string().max(50).optional(),
 		defaultMaterialRequestType: z.string().max(50).optional(),
+		safetyStock: z.number().min(0).default(0),
+		leadTimeDays: z.number().int().min(0).default(0),
 		hasBatchNo: z.boolean().default(false),
 		hasSerialNo: z.boolean().default(false),
 		barcodes: z
@@ -1844,6 +1854,8 @@ export namespace Inventory {
 		allowNegativeStock: z.boolean().optional(),
 		valuationMethod: z.string().max(50).optional(),
 		defaultMaterialRequestType: z.string().max(50).optional(),
+		safetyStock: z.number().min(0).optional(),
+		leadTimeDays: z.number().int().min(0).optional(),
 		hasBatchNo: z.boolean().optional(),
 		hasSerialNo: z.boolean().optional(),
 		barcodes: z
@@ -3419,6 +3431,68 @@ export namespace Inventory {
 	export interface ListItemShortageInput {
 		company?: string;
 		warehouses?: string[];
+	}
+
+	// ============================================================================
+	// Requested Items To Be Transferred Report Types & Schemas
+	// ============================================================================
+
+	export type RequestedItemsToBeTransferredPurpose =
+		| "MATERIAL_TRANSFER"
+		| "MATERIAL_ISSUE";
+
+	/** One row in the Requested Items To Be Transferred report. */
+	export interface RequestedItemsToBeTransferredRow {
+		id: string;
+		materialRequestId: string;
+		materialRequest: string;
+		date: Date;
+		purpose: RequestedItemsToBeTransferredPurpose;
+		status: MaterialRequestStatus;
+		itemCode: string;
+		itemName?: string | null;
+		description?: string | null;
+		company: string;
+		targetWarehouse?: string | null;
+		requiredBy?: Date | null;
+		unitOfMeasure?: string | null;
+		qty: number;
+		transferredQty: number;
+		qtyToTransfer: number;
+	}
+
+	/** Aggregate totals used by the Requested Items To Be Transferred page. */
+	export interface RequestedItemsToBeTransferredSummary {
+		requestCount: number;
+		rowCount: number;
+		totalQty: number;
+		totalTransferredQty: number;
+		totalQtyToTransfer: number;
+		transferRowCount: number;
+		issueRowCount: number;
+	}
+
+	export interface RequestedItemsToBeTransferredResult {
+		rows: RequestedItemsToBeTransferredRow[];
+		summary: RequestedItemsToBeTransferredSummary;
+	}
+
+	export const listRequestedItemsToBeTransferredSchema = z
+		.object({
+			company: z.string().max(255).optional(),
+			materialRequest: z.string().max(50).optional(),
+			itemCode: z.string().max(100).optional(),
+			targetWarehouse: z.string().max(255).optional(),
+			purpose: z.enum(["MATERIAL_TRANSFER", "MATERIAL_ISSUE"]).optional(),
+		})
+		.optional();
+
+	export interface ListRequestedItemsToBeTransferredInput {
+		company?: string;
+		materialRequest?: string;
+		itemCode?: string;
+		targetWarehouse?: string;
+		purpose?: RequestedItemsToBeTransferredPurpose;
 	}
 
 	// ============================================================================
@@ -5019,6 +5093,287 @@ export namespace Inventory {
 		warehouse?: string;
 		batchNo?: string;
 	}
+
+	// ---------------------------------------------------------------------------
+	// Batch Item Expiry Status report
+	// ---------------------------------------------------------------------------
+
+	/**
+	 * A single row in the Batch Item Expiry Status report.
+	 *
+	 * Reports active batches (non-disabled, qty > 0) created within a date
+	 * range, showing their expiry dates and days-to-expiry relative to the
+	 * query execution date.
+	 */
+	export interface BatchItemExpiryRow {
+		/** Internal batch record id. */
+		id: string;
+		/** Item code. */
+		itemCode: string;
+		/** Human-readable item name. */
+		itemName: string | null;
+		/** Batch identifier / lot number. */
+		batchNo: string;
+		/** Default stock unit of measure for the item. */
+		stockUom: string | null;
+		/** Current on-hand quantity for this batch. */
+		quantity: number;
+		/** Expiry date as ISO-8601 date string (YYYY-MM-DD), or null if not set. */
+		expiresOn: string | null;
+		/**
+		 * Days remaining until expiry at the time the report was run.
+		 * 0 means the batch has already expired.  null means no expiry date.
+		 */
+		expiryInDays: number | null;
+	}
+
+	export const listBatchItemExpirySchema = z.object({
+		fromDate: z.coerce.date(),
+		toDate: z.coerce.date(),
+		itemCode: z.string().max(100).trim().optional(),
+	});
+
+	export interface ListBatchItemExpiryInput {
+		fromDate: Date;
+		toDate: Date;
+		itemCode?: string;
+	}
+
+	// ---------------------------------------------------------------------------
+	// Item Prices report
+	// ---------------------------------------------------------------------------
+
+	/**
+	 * A single row in the Item Prices report.
+	 *
+	 * Shows each item's current pricing information including valuation rate,
+	 * standard selling rate, and last purchase rate derived from purchase receipts.
+	 */
+	export interface ItemPricesRow {
+		/** Unique row identifier (item code). */
+		id: string;
+		/** Item code. */
+		itemCode: string;
+		/** Human-readable item name. */
+		itemName: string | null;
+		/** Item group name. */
+		itemGroupName: string | null;
+		/** Brand name. */
+		brandName: string | null;
+		/** Item description. */
+		description: string | null;
+		/** Default stock unit of measure. */
+		stockUom: string | null;
+		/** Last purchase rate (base rate from most recent purchase receipt). Null if no purchase history. */
+		lastPurchaseRate: number | null;
+		/** Current valuation rate from the inventory item. 0 if not set. */
+		valuationRate: number;
+		/** Standard selling rate from the inventory item. 0 if not set. */
+		standardSellingRate: number;
+	}
+
+	/**
+	 * Controls which items are included based on their enabled/disabled status.
+	 */
+	export type ItemPricesItemsFilter = "enabled" | "disabled" | "all";
+
+	export const listItemPricesSchema = z.object({
+		itemsFilter: z
+			.enum(["enabled", "disabled", "all"])
+			.optional()
+			.default("enabled"),
+		itemCode: z.string().max(100).trim().optional(),
+		itemGroup: z.string().max(255).trim().optional(),
+		brand: z.string().max(255).trim().optional(),
+	});
+
+	export interface ListItemPricesInput {
+		itemsFilter?: ItemPricesItemsFilter;
+		itemCode?: string;
+		itemGroup?: string;
+		brand?: string;
+	}
+
+	// ============================================================================
+	// Itemwise Recommended Reorder Level Report Types & Schemas
+	// ============================================================================
+
+	/** One row in the Itemwise Recommended Reorder Level report. */
+	export interface ItemwiseRecommendedReorderLevelRow {
+		id: string;
+		itemCode: string;
+		itemName: string;
+		itemGroup?: string | null;
+		brand?: string | null;
+		description?: string | null;
+		safetyStock: number;
+		leadTimeDays: number;
+		consumed: number;
+		delivered: number;
+		totalOutgoing: number;
+		avgDailyOutgoing: number;
+		reorderLevel: number;
+	}
+
+	export const listItemwiseRecommendedReorderLevelSchema = z.object({
+		fromDate: z.coerce.date(),
+		toDate: z.coerce.date(),
+		itemGroup: z.string().max(255).trim().optional(),
+		brand: z.string().max(255).trim().optional(),
+	});
+
+	export interface ListItemwiseRecommendedReorderLevelInput {
+		fromDate: Date;
+		toDate: Date;
+		itemGroup?: string;
+		brand?: string;
+	}
+
+	// ============================================================================
+	// Item Variant Details Report Types & Schemas
+	// ============================================================================
+
+	/** One row in the Item Variant Details report. Each variant is one row. */
+	export interface ItemVariantDetailsRow {
+		/** Variant item ID (CUID) */
+		id: string;
+		/** Variant item code */
+		variantCode: string;
+		/** Variant item name */
+		variantName: string;
+		/**
+		 * Dynamic attribute values keyed by attribute name.
+		 * E.g. { "Color": "Red", "Size": "Large" }
+		 */
+		attributes: Record<string, string>;
+		/** Average buying price from purchase receipts */
+		avgBuyingPriceListRate: number;
+		/** Average selling price (standardSellingRate) */
+		avgSellingPriceListRate: number;
+		/** Current stock quantity */
+		currentStock: number;
+		/** Open (non-completed, non-cancelled) sales order item qty */
+		openOrders: number;
+	}
+
+	/** Result of the item variant details query, including attribute names for column headers. */
+	export interface ItemVariantDetailsResult {
+		/** Ordered list of attribute names used as dynamic columns */
+		attributeNames: string[];
+		/** Report rows */
+		rows: ItemVariantDetailsRow[];
+	}
+
+	export const listItemVariantDetailsSchema = z.object({
+		/** The template item code (must have hasVariants=true) */
+		itemCode: z.string().min(1).max(100).trim(),
+	});
+
+	export interface ListItemVariantDetailsInput {
+		itemCode: string;
+	}
+
+	// ============================================================================
+	// Subcontracted Raw Materials To Be Transferred Report Types & Schemas
+	// ============================================================================
+
+	export type SubcontractingOrderStatus =
+		| "DRAFT"
+		| "OPEN"
+		| "PARTIALLY_RECEIVED"
+		| "COMPLETED"
+		| "CLOSED"
+		| "CANCELLED";
+
+	/** One row in the Subcontracted Raw Materials To Be Transferred report. */
+	export interface SubcontractedRawMaterialsRow {
+		id: string;
+		subcontractingOrderId: string;
+		subcontractOrder: string;
+		date: Date;
+		supplier: string;
+		rmItemCode: string;
+		rmItemName?: string | null;
+		requiredQty: number;
+		transferredQty: number;
+		returnedQty: number;
+		pendingQty: number;
+	}
+
+	/** Aggregate totals for the Subcontracted Raw Materials To Be Transferred page. */
+	export interface SubcontractedRawMaterialsSummary {
+		orderCount: number;
+		rowCount: number;
+		totalRequiredQty: number;
+		totalTransferredQty: number;
+		totalReturnedQty: number;
+		totalPendingQty: number;
+	}
+
+	export interface SubcontractedRawMaterialsResult {
+		rows: SubcontractedRawMaterialsRow[];
+		summary: SubcontractedRawMaterialsSummary;
+	}
+
+	export const listSubcontractedRawMaterialsSchema = z.object({
+		supplier: z.string().min(1).max(255).trim(),
+		fromDate: z.coerce.date(),
+		toDate: z.coerce.date(),
+		company: z.string().max(255).optional(),
+		rmItemCode: z.string().max(100).optional(),
+	});
+
+	export interface ListSubcontractedRawMaterialsInput {
+		supplier: string;
+		fromDate: Date;
+		toDate: Date;
+		company?: string;
+		rmItemCode?: string;
+	}
+
+	/** One row in the Subcontracted Item To Be Received report. */
+	export interface SubcontractedItemToBeReceivedRow {
+		id: string;
+		subcontractingOrderId: string;
+		subcontractOrder: string;
+		date: Date;
+		supplier: string;
+		fgItemCode: string;
+		itemName: string | null;
+		requiredQty: number;
+		receivedQty: number;
+		pendingQty: number;
+	}
+
+	/** Aggregate totals for the Subcontracted Item To Be Received report. */
+	export interface SubcontractedItemToBeReceivedSummary {
+		orderCount: number;
+		rowCount: number;
+		totalRequiredQty: number;
+		totalReceivedQty: number;
+		totalPendingQty: number;
+	}
+
+	export interface SubcontractedItemToBeReceivedResult {
+		rows: SubcontractedItemToBeReceivedRow[];
+		summary: SubcontractedItemToBeReceivedSummary;
+	}
+
+	export const listSubcontractedItemToBeReceivedSchema = z.object({
+		supplier: z.string().min(1).max(255).trim(),
+		fromDate: z.coerce.date(),
+		toDate: z.coerce.date(),
+		company: z.string().max(255).optional(),
+		fgItemCode: z.string().max(100).optional(),
+	});
+
+	export interface ListSubcontractedItemToBeReceivedInput {
+		supplier: string;
+		fromDate: Date;
+		toDate: Date;
+		company?: string;
+		fgItemCode?: string;
+	}
 }
 
 // ============================================================================
@@ -5030,9 +5385,9 @@ export namespace Inventory {
  * Simple, flat structure for easy understanding
  */
 export interface Product {
-	/** Unique product identifier */
+	/** Unique numeric identifier */
 	id: number;
-	/** Product name/title */
+	/** Product name */
 	name: string;
 	/** Product description */
 	description: string;

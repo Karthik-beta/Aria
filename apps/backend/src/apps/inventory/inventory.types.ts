@@ -449,6 +449,8 @@ export function toInventoryItem(prismaItem: InventoryItem): Inventory.Item {
 		allowNegativeStock: prismaItem.allowNegativeStock,
 		valuationMethod: prismaItem.valuationMethod,
 		defaultMaterialRequestType: prismaItem.defaultMaterialRequestType,
+		safetyStock: prismaItem.safetyStock,
+		leadTimeDays: prismaItem.leadTimeDays,
 
 		// Serial Nos and Batches
 		hasBatchNo: prismaItem.hasBatchNo,

@@ -1447,6 +1447,41 @@ type InventoryRouterInput = {
 		output: Inventory.ItemShortageRow[];
 		meta: object;
 	}>;
+	listRequestedItemsToBeTransferred: TRPCQueryProcedure<{
+		input:
+			| {
+					company?: string | undefined;
+					materialRequest?: string | undefined;
+					itemCode?: string | undefined;
+					targetWarehouse?: string | undefined;
+					purpose?: "MATERIAL_TRANSFER" | "MATERIAL_ISSUE" | undefined;
+			  }
+			| undefined;
+		output: Inventory.RequestedItemsToBeTransferredResult;
+		meta: object;
+	}>;
+	listSubcontractedRawMaterials: TRPCQueryProcedure<{
+		input: {
+			supplier: string;
+			fromDate: unknown;
+			toDate: unknown;
+			company?: string | undefined;
+			rmItemCode?: string | undefined;
+		};
+		output: Inventory.SubcontractedRawMaterialsResult;
+		meta: object;
+	}>;
+	listSubcontractedItemToBeReceived: TRPCQueryProcedure<{
+		input: {
+			supplier: string;
+			fromDate: unknown;
+			toDate: unknown;
+			company?: string | undefined;
+			fgItemCode?: string | undefined;
+		};
+		output: Inventory.SubcontractedItemToBeReceivedResult;
+		meta: object;
+	}>;
 	listBatchWiseBalance: TRPCQueryProcedure<{
 		input: {
 			company: string;
@@ -1457,6 +1492,44 @@ type InventoryRouterInput = {
 			batchNo?: string | undefined;
 		};
 		output: Inventory.BatchWiseBalanceRow[];
+		meta: object;
+	}>;
+	listBatchItemExpiry: TRPCQueryProcedure<{
+		input: {
+			fromDate: unknown;
+			toDate: unknown;
+			itemCode?: string | undefined;
+		};
+		output: Inventory.BatchItemExpiryRow[];
+		meta: object;
+	}>;
+	listItemPrices: TRPCQueryProcedure<{
+		input:
+			| {
+					itemsFilter?: "enabled" | "disabled" | "all" | undefined;
+					itemCode?: string | undefined;
+					itemGroup?: string | undefined;
+					brand?: string | undefined;
+			  }
+			| undefined;
+		output: Inventory.ItemPricesRow[];
+		meta: object;
+	}>;
+	listItemwiseRecommendedReorderLevel: TRPCQueryProcedure<{
+		input: {
+			fromDate: unknown;
+			toDate: unknown;
+			itemGroup?: string | undefined;
+			brand?: string | undefined;
+		};
+		output: Inventory.ItemwiseRecommendedReorderLevelRow[];
+		meta: object;
+	}>;
+	listItemVariantDetails: TRPCQueryProcedure<{
+		input: {
+			itemCode: string;
+		};
+		output: Inventory.ItemVariantDetailsResult;
 		meta: object;
 	}>;
 	listStockSummary: TRPCQueryProcedure<{
