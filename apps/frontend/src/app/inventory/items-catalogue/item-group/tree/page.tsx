@@ -132,14 +132,6 @@ const TreeItem = ({
 							<Button
 								variant="secondary"
 								size="sm"
-								className="h-6.5 px-3 text-[11px] bg-muted/60 hover:bg-muted border-none rounded-[4px] font-medium text-foreground/80 transition-all"
-								onClick={(e) => e.stopPropagation()}
-							>
-								Rename
-							</Button>
-							<Button
-								variant="secondary"
-								size="sm"
 								className="h-6.5 px-3 text-[11px] bg-muted/60 hover:bg-muted border-none rounded-[4px] font-medium text-destructive hover:bg-destructive/10 transition-all"
 								onClick={(e) => {
 									e.stopPropagation();

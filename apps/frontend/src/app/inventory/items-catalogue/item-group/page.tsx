@@ -182,12 +182,11 @@ export default function ItemGroupsPage() {
 				enableSorting: false,
 			},
 
-			// ID column (as per screenshot, containing group name)
+			// Item Group Name column (primary identifier with link)
 			{
 				accessorKey: "groupName",
-				id: "id-col",
 				header: ({ column }) => (
-					<DataTableColumnHeader column={column} title="ID" />
+					<DataTableColumnHeader column={column} title="Item Group Name" />
 				),
 				cell: ({ row }) => (
 					<Link
@@ -196,24 +195,6 @@ export default function ItemGroupsPage() {
 					>
 						{row.original.groupName}
 					</Link>
-				),
-				meta: {
-					label: "ID",
-					searchable: true,
-					exportable: true,
-				},
-			},
-
-			// Item Group Name column
-			{
-				accessorKey: "groupName",
-				header: ({ column }) => (
-					<DataTableColumnHeader column={column} title="Item Group Name" />
-				),
-				cell: ({ row }) => (
-					<span className="text-muted-foreground">
-						{row.original.groupName}
-					</span>
 				),
 				meta: {
 					label: "Item Group Name",
@@ -357,7 +338,7 @@ export default function ItemGroupsPage() {
 		data: groups,
 		columns,
 		initialPageSize: 25,
-		initialSorting: [{ id: "id-col", desc: false }],
+		initialSorting: [{ id: "groupName", desc: false }],
 		enableRowSelection: true,
 		enableMultiRowSelection: true,
 		enableGlobalFilter: true,

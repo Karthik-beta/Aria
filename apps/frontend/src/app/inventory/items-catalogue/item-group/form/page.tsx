@@ -2,6 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
+	ArrowLeft,
 	ChevronDown,
 	List,
 	Loader2,
@@ -16,7 +17,14 @@ import { Controller, useFieldArray, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import * as z from "zod";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
+import {
+	Card,
+	CardContent,
+	CardDescription,
+	CardHeader,
+	CardTitle,
+} from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
 	Command,
@@ -38,18 +46,6 @@ import { getToastMessage } from "@/lib/errors";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
 
-// Extend the base schema to include the UI-only 'taxes' field if needed,
-// or just use the base schema if we were strictly following backend.
-// Since the screenshot shows Taxes, we'll mock the schema for it to allow the form to render it,
-// but we'll strip it before submission if the backend doesn't support it.
-const taxSchema = z.object({
-	itemTaxTemplate: z.string().min(1, "Required"),
-	taxCategory: z.string().optional(),
-	validFrom: z.string().optional(),
-	minimumNetRate: z.number().optional(),
-	maximumNetRate: z.number().optional(),
-});
-
 const formSchema = z.object({
 	groupName: z.string().min(1, "Group name is required").max(255).trim(),
 	parentId: z.string().cuid().nullable().optional(),
@@ -63,7 +59,6 @@ const formSchema = z.object({
 			}),
 		)
 		.optional(),
-	taxes: z.array(taxSchema).optional(),
 });
 
 type FormInput = z.infer<typeof formSchema>;
@@ -103,7 +98,6 @@ function ItemGroupFormContent() {
 			parentId: isEditMode ? null : initialParentId,
 			isGroup: false,
 			defaults: [],
-			taxes: [],
 		},
 	});
 
@@ -114,15 +108,6 @@ function ItemGroupFormContent() {
 	} = useFieldArray({
 		control: form.control,
 		name: "defaults",
-	});
-
-	const {
-		fields: taxFields,
-		append: appendTax,
-		remove: removeTax,
-	} = useFieldArray({
-		control: form.control,
-		name: "taxes",
 	});
 
 	// Watch for changes
@@ -148,7 +133,6 @@ function ItemGroupFormContent() {
 				parentId: itemGroup.parentId ?? null, // Normalize undefined from the backend to null for the form.
 				isGroup: itemGroup.isGroup,
 				defaults: itemGroup.defaults || [],
-				taxes: [], // Backend doesn't seem to return taxes yet
 			});
 			setHasUnsavedChanges(false);
 			setIsInitialized(true);
@@ -179,13 +163,10 @@ function ItemGroupFormContent() {
 	});
 
 	const onSubmit = (data: FormInput) => {
-		// Strip taxes as it's not in the backend schema yet
-		const { taxes, ...submissionData } = data;
-
 		if (isEditMode && groupId) {
-			updateMutation.mutate({ id: groupId, ...submissionData });
+			updateMutation.mutate({ id: groupId, ...data });
 		} else {
-			createMutation.mutate(submissionData);
+			createMutation.mutate(data);
 		}
 	};
 
@@ -200,6 +181,31 @@ function ItemGroupFormContent() {
 		return (
 			<div className="flex min-h-screen items-center justify-center">
 				<Loader2 className="h-8 w-8 animate-spin text-primary" />
+			</div>
+		);
+	}
+
+	if (isEditMode && !isFetchingItemGroups && !itemGroup) {
+		return (
+			<div className="flex min-h-screen items-center justify-center">
+				<Card className="w-full max-w-md">
+					<CardHeader>
+						<CardTitle>Item Group Not Found</CardTitle>
+						<CardDescription>
+							The item group you are looking for does not exist or has been
+							deleted.
+						</CardDescription>
+					</CardHeader>
+					<CardContent>
+						<Link
+							href="/inventory/items-catalogue/item-group"
+							className={buttonVariants({ variant: "outline" })}
+						>
+							<ArrowLeft className="mr-2 h-4 w-4" />
+							Back to Item Groups
+						</Link>
+					</CardContent>
+				</Card>
 			</div>
 		);
 	}
@@ -257,8 +263,16 @@ function ItemGroupFormContent() {
 							</Label>
 							<Input
 								{...form.register("groupName")}
-								className="h-10 bg-gray-50/50"
+								className={cn(
+									"h-10 bg-gray-50/50",
+									form.formState.errors.groupName && "border-red-500",
+								)}
 							/>
+							{form.formState.errors.groupName && (
+								<p className="text-xs text-red-500">
+									{form.formState.errors.groupName.message}
+								</p>
+							)}
 						</div>
 
 						<div className="space-y-1.5">
@@ -459,138 +473,6 @@ function ItemGroupFormContent() {
 										company: "",
 										defaultWarehouse: "",
 										defaultPriceList: "",
-									})
-								}
-							>
-								Add Row
-							</Button>
-						</div>
-					</section>
-
-					{/* Tax Section */}
-					<section className="space-y-4">
-						<h2 className="text-base font-semibold text-gray-900">Item Tax</h2>
-
-						<div className="space-y-2">
-							<Label className="text-xs font-medium text-gray-500">Taxes</Label>
-							<div className="rounded border overflow-hidden">
-								<table className="w-full text-xs text-left">
-									<thead className="bg-[#f8f9fa] border-b uppercase text-[10px] tracking-wider text-gray-500">
-										<tr>
-											<th className="px-4 py-2 w-10">
-												<Checkbox className="h-3 w-3 rounded" />
-											</th>
-											<th className="px-4 py-2 w-16">No.</th>
-											<th className="px-4 py-2">
-												Item Tax Template{" "}
-												<span className="text-red-500">*</span>
-											</th>
-											<th className="px-4 py-2">Tax Category</th>
-											<th className="px-4 py-2">Valid From</th>
-											<th className="px-4 py-2">Minimum Net Rate</th>
-											<th className="px-4 py-2">Maximum Net Rate</th>
-											<th className="px-4 py-2 w-10 text-right">
-												<Settings className="ml-auto h-3 w-3" />
-											</th>
-										</tr>
-									</thead>
-									<tbody className="bg-white">
-										{taxFields.length === 0 ? (
-											<tr>
-												<td colSpan={8} className="p-12 text-center">
-													<div className="flex flex-col items-center gap-2 opacity-40">
-														<List className="h-8 w-8 text-gray-300" />
-														<span className="text-[11px] text-gray-500">
-															No Data
-														</span>
-													</div>
-												</td>
-											</tr>
-										) : (
-											taxFields.map((field, index) => (
-												<tr
-													key={field.id}
-													className="border-b last:border-0 hover:bg-gray-50/50"
-												>
-													<td className="px-4 py-2">
-														<Checkbox className="h-3 w-3 rounded" />
-													</td>
-													<td className="px-4 py-2 text-gray-500">
-														{index + 1}
-													</td>
-													<td className="px-4 py-2">
-														<Input
-															{...form.register(
-																`taxes.${index}.itemTaxTemplate`,
-															)}
-															className="h-7 text-xs border-transparent hover:border-input focus:border-input bg-transparent"
-														/>
-													</td>
-													<td className="px-4 py-2">
-														<Input
-															{...form.register(`taxes.${index}.taxCategory`)}
-															className="h-7 text-xs border-transparent hover:border-input focus:border-input bg-transparent"
-														/>
-													</td>
-													<td className="px-4 py-2">
-														<Input
-															type="date"
-															{...form.register(`taxes.${index}.validFrom`)}
-															className="h-7 text-xs border-transparent hover:border-input focus:border-input bg-transparent"
-														/>
-													</td>
-													<td className="px-4 py-2">
-														<Input
-															type="number"
-															{...form.register(
-																`taxes.${index}.minimumNetRate`,
-																{
-																	valueAsNumber: true,
-																},
-															)}
-															className="h-7 text-xs border-transparent hover:border-input focus:border-input bg-transparent"
-														/>
-													</td>
-													<td className="px-4 py-2">
-														<Input
-															type="number"
-															{...form.register(
-																`taxes.${index}.maximumNetRate`,
-																{
-																	valueAsNumber: true,
-																},
-															)}
-															className="h-7 text-xs border-transparent hover:border-input focus:border-input bg-transparent"
-														/>
-													</td>
-													<td className="px-4 py-2 text-right">
-														<Button
-															variant="ghost"
-															size="icon"
-															className="h-6 w-6 text-gray-400 hover:text-red-500"
-															onClick={() => removeTax(index)}
-														>
-															<Trash2 className="h-3 w-3" />
-														</Button>
-													</td>
-												</tr>
-											))
-										)}
-									</tbody>
-								</table>
-							</div>
-							<Button
-								type="button"
-								variant="outline"
-								size="sm"
-								className="h-7 px-3 text-xs bg-gray-50 hover:bg-gray-100 border-gray-200 text-gray-600 shadow-sm"
-								onClick={() =>
-									appendTax({
-										itemTaxTemplate: "",
-										taxCategory: "",
-										validFrom: "",
-										minimumNetRate: 0,
-										maximumNetRate: 0,
 									})
 								}
 							>

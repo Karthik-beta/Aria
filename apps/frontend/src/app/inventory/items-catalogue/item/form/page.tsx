@@ -3,32 +3,29 @@
 import { Inventory } from "@aria/types";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
-	AlignCenter,
-	Bold,
+	ArrowLeft,
 	ChevronDown,
-	Code,
-	Image as ImageIcon,
-	Italic,
-	Link2,
 	List,
-	ListOrdered,
 	Loader2,
 	MoreHorizontal,
-	Quote,
 	Settings,
-	Strikethrough,
-	Table as TableIcon,
 	Trash2,
-	Type,
-	Underline,
 } from "lucide-react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState, useTransition } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import type { z } from "zod";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
+import {
+	Card,
+	CardContent,
+	CardDescription,
+	CardHeader,
+	CardTitle,
+} from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
 	Collapsible,
@@ -80,7 +77,6 @@ function ItemFormContent() {
 	const [hasUnsavedChanges, setHasUnsavedChanges] = useState(!isEditMode);
 	const [isInitialized, setIsInitialized] = useState(!isEditMode);
 	const [descriptionOpen, setDescriptionOpen] = useState(true);
-	const [unitsOpen, setUnitsOpen] = useState(false);
 
 	// Combobox states
 	const [itemGroupOpen, setItemGroupOpen] = useState(false);
@@ -279,6 +275,32 @@ function ItemFormContent() {
 		);
 	}
 
+	// Item not found state in edit mode
+	if (isEditMode && !isFetchingItem && !item) {
+		return (
+			<div className="container mx-auto py-6">
+				<Card>
+					<CardHeader>
+						<CardTitle>Item Not Found</CardTitle>
+						<CardDescription>
+							The inventory item you&apos;re trying to edit doesn&apos;t exist
+							or has been deleted.
+						</CardDescription>
+					</CardHeader>
+					<CardContent>
+						<Link
+							href="/inventory/items-catalogue/item"
+							className={cn(buttonVariants({ variant: "default" }))}
+						>
+							<ArrowLeft className="mr-2 h-4 w-4" />
+							Back to Inventory
+						</Link>
+					</CardContent>
+				</Card>
+			</div>
+		);
+	}
+
 	return (
 		<div className="flex min-h-screen flex-col bg-[#f8f9fa]">
 			{/* Main Content Area */}
@@ -349,13 +371,35 @@ function ItemFormContent() {
 										<Label className="text-xs font-medium text-gray-500">
 											Item Code <span className="text-red-500">*</span>
 										</Label>
-										<Input {...form.register("code")} className="h-10" />
+										<Input
+											{...form.register("code")}
+											className={cn(
+												"h-10",
+												form.formState.errors.code && "border-red-500",
+											)}
+										/>
+										{form.formState.errors.code && (
+											<p className="text-xs text-red-500">
+												{form.formState.errors.code.message}
+											</p>
+										)}
 									</div>
 									<div className="space-y-1.5">
 										<Label className="text-xs font-medium text-gray-500">
-											Item Name
+											Item Name <span className="text-red-500">*</span>
 										</Label>
-										<Input {...form.register("name")} className="h-10" />
+										<Input
+											{...form.register("name")}
+											className={cn(
+												"h-10",
+												form.formState.errors.name && "border-red-500",
+											)}
+										/>
+										{form.formState.errors.name && (
+											<p className="text-xs text-red-500">
+												{form.formState.errors.name.message}
+											</p>
+										)}
 									</div>
 									<div className="space-y-1.5">
 										<Label className="text-xs font-medium text-gray-500">
@@ -645,126 +689,14 @@ function ItemFormContent() {
 										</div>
 									</CollapsibleTrigger>
 									<CollapsibleContent className="px-8 pb-8 pt-2">
-										{/* Rich Text Editor Mockup */}
-										<div className="rounded border bg-[#fcfcfc] overflow-hidden">
-											<div className="flex flex-wrap items-center gap-0.5 border-b bg-white p-1">
-												<Button variant="ghost" size="icon" className="h-7 w-7">
-													<Type className="h-3.5 w-3.5" />
-												</Button>
-												<div className="h-4 w-[1px] bg-gray-200 mx-1" />
-												<Button variant="ghost" size="icon" className="h-7 w-7">
-													<Bold className="h-3.5 w-3.5" />
-												</Button>
-												<Button variant="ghost" size="icon" className="h-7 w-7">
-													<Italic className="h-3.5 w-3.5" />
-												</Button>
-												<Button variant="ghost" size="icon" className="h-7 w-7">
-													<Underline className="h-3.5 w-3.5" />
-												</Button>
-												<Button variant="ghost" size="icon" className="h-7 w-7">
-													<Strikethrough className="h-3.5 w-3.5" />
-												</Button>
-												<div className="h-4 w-[1px] bg-gray-200 mx-1" />
-												<Button variant="ghost" size="icon" className="h-7 w-7">
-													<AlignCenter className="h-3.5 w-3.5" />
-												</Button>
-												<Button variant="ghost" size="icon" className="h-7 w-7">
-													<List className="h-3.5 w-3.5" />
-												</Button>
-												<Button variant="ghost" size="icon" className="h-7 w-7">
-													<ListOrdered className="h-3.5 w-3.5" />
-												</Button>
-												<div className="h-4 w-[1px] bg-gray-200 mx-1" />
-												<Button variant="ghost" size="icon" className="h-7 w-7">
-													<Link2 className="h-3.5 w-3.5" />
-												</Button>
-												<Button variant="ghost" size="icon" className="h-7 w-7">
-													<ImageIcon className="h-3.5 w-3.5" />
-												</Button>
-												<div className="h-4 w-[1px] bg-gray-200 mx-1" />
-												<Button variant="ghost" size="icon" className="h-7 w-7">
-													<Quote className="h-3.5 w-3.5" />
-												</Button>
-												<Button variant="ghost" size="icon" className="h-7 w-7">
-													<Code className="h-3.5 w-3.5" />
-												</Button>
-												<Button variant="ghost" size="icon" className="h-7 w-7">
-													<TableIcon className="h-3.5 w-3.5" />
-												</Button>
-											</div>
-											<textarea
-												className="w-full min-h-[160px] p-4 bg-transparent outline-none text-sm resize-none"
-												placeholder="Enter detailed description..."
-												value={form.watch("description")}
-												onChange={(e) =>
-													form.setValue("description", e.target.value)
-												}
-											/>
-										</div>
-									</CollapsibleContent>
-								</Collapsible>
-							</div>
-
-							<div className="border-t">
-								<Collapsible open={unitsOpen} onOpenChange={setUnitsOpen}>
-									<CollapsibleTrigger asChild>
-										<div className="flex h-12 cursor-pointer items-center px-8 hover:bg-gray-50">
-											<span className="text-sm font-semibold text-gray-900">
-												Units of Measure
-											</span>
-											<ChevronDown
-												className={cn(
-													"ml-1 h-4 w-4 text-gray-400 transition-transform",
-													unitsOpen && "rotate-180",
-												)}
-											/>
-										</div>
-									</CollapsibleTrigger>
-									<CollapsibleContent className="px-8 pb-8 pt-4">
-										<div className="space-y-4">
-											<div className="text-[13px] text-gray-600 mb-2">UOMs</div>
-											<div className="text-[11px] text-gray-500 mb-4">
-												Will also apply for variants
-											</div>
-
-											<div className="rounded border overflow-hidden">
-												<table className="w-full text-xs text-left">
-													<thead className="bg-[#f8f9fa] border-b uppercase text-[10px] tracking-wider text-gray-500">
-														<tr>
-															<th className="px-4 py-2 w-10">
-																<Checkbox className="h-3 w-3 rounded" />
-															</th>
-															<th className="px-4 py-2 w-16">No.</th>
-															<th className="px-4 py-2">UOM</th>
-															<th className="px-4 py-2">Conversion Factor</th>
-															<th className="px-4 py-2 w-10">
-																<Settings className="h-3 w-3" />
-															</th>
-														</tr>
-													</thead>
-													<tbody>
-														<tr>
-															<td
-																colSpan={5}
-																className="p-12 text-center bg-white"
-															>
-																<div className="flex flex-col items-center gap-2 opacity-50">
-																	<List className="h-6 w-6" />
-																	<span className="text-[11px]">No Data</span>
-																</div>
-															</td>
-														</tr>
-													</tbody>
-												</table>
-											</div>
-											<Button
-												variant="outline"
-												size="sm"
-												className="h-8 px-4 text-xs font-medium border-gray-300 hover:bg-gray-50"
-											>
-												Add Row
-											</Button>
-										</div>
+										<textarea
+											className="w-full min-h-[160px] p-4 rounded border bg-[#fcfcfc] outline-none text-sm resize-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+											placeholder="Enter detailed description..."
+											value={form.watch("description")}
+											onChange={(e) =>
+												form.setValue("description", e.target.value)
+											}
+										/>
 									</CollapsibleContent>
 								</Collapsible>
 							</div>
