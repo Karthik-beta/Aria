@@ -1125,6 +1125,16 @@ function createListSubcontractedRawMaterialsProcedure(
 		});
 }
 
+function createListSubcontractedItemToBeReceivedProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure
+		.input(Inventory.listSubcontractedItemToBeReceivedSchema)
+		.query(async ({ input }) => {
+			return inventoryService.findSubcontractedItemToBeReceived(input);
+		});
+}
+
 function createListBatchWiseBalanceProcedure(
 	inventoryService: InventoryService,
 ) {
@@ -1963,6 +1973,9 @@ type InventoryRouterInput = {
 	listSubcontractedRawMaterials: ReturnType<
 		typeof createListSubcontractedRawMaterialsProcedure
 	>;
+	listSubcontractedItemToBeReceived: ReturnType<
+		typeof createListSubcontractedItemToBeReceivedProcedure
+	>;
 	listBatchWiseBalance: ReturnType<typeof createListBatchWiseBalanceProcedure>;
 	listBatchItemExpiry: ReturnType<typeof createListBatchItemExpiryProcedure>;
 	listItemPrices: ReturnType<typeof createListItemPricesProcedure>;
@@ -2210,6 +2223,8 @@ function createInventoryRouterRecord(
 			createListRequestedItemsToBeTransferredProcedure(inventoryService),
 		listSubcontractedRawMaterials:
 			createListSubcontractedRawMaterialsProcedure(inventoryService),
+		listSubcontractedItemToBeReceived:
+			createListSubcontractedItemToBeReceivedProcedure(inventoryService),
 		listBatchWiseBalance: createListBatchWiseBalanceProcedure(inventoryService),
 		listBatchItemExpiry: createListBatchItemExpiryProcedure(inventoryService),
 		listItemPrices: createListItemPricesProcedure(inventoryService),

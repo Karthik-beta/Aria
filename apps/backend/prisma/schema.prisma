@@ -1500,6 +1500,7 @@ model SubcontractingOrder {
   /// Percentage of finished goods received back from the subcontractor (0–100)
   percentReceived Float                               @default(0)
   suppliedItems   SubcontractingOrderSuppliedItem[]
+  items           SubcontractingOrderItem[]
   createdAt       DateTime                            @default(now())
   updatedAt       DateTime                            @updatedAt
 
@@ -1527,6 +1528,23 @@ model SubcontractingOrderSuppliedItem {
   @@index([subcontractingOrderId])
   @@index([rmItemCode])
   @@map("subcontracting_order_supplied_items")
+}
+
+/// Finished goods line item on a subcontracting order.
+model SubcontractingOrderItem {
+  id                    String              @id @default(cuid())
+  subcontractingOrderId String
+  itemCode              String              @db.VarChar(100)
+  itemName              String?             @db.VarChar(255)
+  /// Total finished goods quantity ordered from the subcontractor
+  qty                   Float               @default(0)
+  /// Cumulative quantity received back from the subcontractor
+  receivedQty           Float               @default(0)
+  subcontractingOrder   SubcontractingOrder @relation(fields: [subcontractingOrderId], references: [id], onDelete: Cascade)
+
+  @@index([subcontractingOrderId])
+  @@index([itemCode])
+  @@map("subcontracting_order_items")
 }
 
 enum SubcontractingOrderStatus {

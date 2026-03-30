@@ -245,6 +245,9 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
 	get subcontractingOrderSuppliedItem() {
 		return this.client.subcontractingOrderSuppliedItem;
 	}
+	get subcontractingOrderItem() {
+		return this.client.subcontractingOrderItem;
+	}
 
 	// ═══════════════════════════════════════════════════════════════════════════
 	// Transaction Support

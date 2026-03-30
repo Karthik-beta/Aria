@@ -5330,6 +5330,50 @@ export namespace Inventory {
 		company?: string;
 		rmItemCode?: string;
 	}
+
+	/** One row in the Subcontracted Item To Be Received report. */
+	export interface SubcontractedItemToBeReceivedRow {
+		id: string;
+		subcontractingOrderId: string;
+		subcontractOrder: string;
+		date: Date;
+		supplier: string;
+		fgItemCode: string;
+		itemName: string | null;
+		requiredQty: number;
+		receivedQty: number;
+		pendingQty: number;
+	}
+
+	/** Aggregate totals for the Subcontracted Item To Be Received report. */
+	export interface SubcontractedItemToBeReceivedSummary {
+		orderCount: number;
+		rowCount: number;
+		totalRequiredQty: number;
+		totalReceivedQty: number;
+		totalPendingQty: number;
+	}
+
+	export interface SubcontractedItemToBeReceivedResult {
+		rows: SubcontractedItemToBeReceivedRow[];
+		summary: SubcontractedItemToBeReceivedSummary;
+	}
+
+	export const listSubcontractedItemToBeReceivedSchema = z.object({
+		supplier: z.string().min(1).max(255).trim(),
+		fromDate: z.coerce.date(),
+		toDate: z.coerce.date(),
+		company: z.string().max(255).optional(),
+		fgItemCode: z.string().max(100).optional(),
+	});
+
+	export interface ListSubcontractedItemToBeReceivedInput {
+		supplier: string;
+		fromDate: Date;
+		toDate: Date;
+		company?: string;
+		fgItemCode?: string;
+	}
 }
 
 // ============================================================================
