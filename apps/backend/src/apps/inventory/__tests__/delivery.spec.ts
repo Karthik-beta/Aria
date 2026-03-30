@@ -144,16 +144,16 @@ describe("InventoryService > Delivery", () => {
 			});
 		});
 
-		it("should return success: false when record not found (P2025)", async () => {
+		it("should throw NotFoundException when record not found (P2025)", async () => {
 			const notFoundError = new Prisma.PrismaClientKnownRequestError(
 				"Record not found",
 				{ code: "P2025", clientVersion: "5.0.0" },
 			);
 			mockPrisma.deliveryNote.delete.mockRejectedValue(notFoundError);
 
-			const result = await service.deleteDeliveryNote("nonexistent");
-
-			expect(result).toEqual({ success: false, id: "nonexistent" });
+			await expect(service.deleteDeliveryNote("nonexistent")).rejects.toThrow(
+				NotFoundException,
+			);
 		});
 	});
 

@@ -206,12 +206,14 @@ export class DeliverySubService {
 	}
 
 	/**
-	 * Get delivery notes with pagination support.
+	 * Get delivery notes with bounded pagination, optional status filter, and search.
 	 * Defaults to the 250 most recent records when no params are provided.
 	 */
 	async findAllDeliveryNotes(params?: {
 		skip?: number;
 		take?: number;
+		search?: string;
+		status?: Inventory.DeliveryNoteStatus;
 	}): Promise<Inventory.DeliveryNote[]> {
 		const rawSkip = params?.skip ?? 0;
 		const rawTake = params?.take ?? LIST_QUERY_TAKE_MAX;
@@ -224,7 +226,20 @@ export class DeliverySubService {
 					? LIST_QUERY_TAKE_MAX
 					: rawTake;
 
+		const where: Record<string, unknown> = {};
+		if (params?.status) {
+			where.status = params.status;
+		}
+		if (params?.search) {
+			where.OR = [
+				{ series: { contains: params.search, mode: "insensitive" } },
+				{ customer: { contains: params.search, mode: "insensitive" } },
+				{ company: { contains: params.search, mode: "insensitive" } },
+			];
+		}
+
 		const notes = await this.prisma.deliveryNote.findMany({
+			where,
 			orderBy: { createdAt: "desc" },
 			include: { items: true },
 			skip,
@@ -610,7 +625,7 @@ export class DeliverySubService {
 				error instanceof Prisma.PrismaClientKnownRequestError &&
 				error.code === "P2025"
 			) {
-				return { success: false, id };
+				throw new NotFoundException(`Delivery note with ID ${id} not found`);
 			}
 			throw error;
 		}
@@ -976,22 +991,21 @@ export class DeliverySubService {
 		const year = date.getFullYear();
 		const prefix = `MAT-DT-${year}-`;
 
-		const trips = await this.prisma.deliveryTrip.findMany({
+		const lastTrip = await this.prisma.deliveryTrip.findFirst({
 			where: { series: { startsWith: prefix } },
-			orderBy: { createdAt: "desc" },
+			orderBy: { series: "desc" },
 			select: { series: true },
 		});
 
-		let maxNumber = 0;
-		for (const trip of trips) {
-			const numStr = trip.series.slice(prefix.length);
+		let nextNumber = 1;
+		if (lastTrip) {
+			const numStr = lastTrip.series.slice(prefix.length);
 			const num = parseInt(numStr, 10);
-			if (!Number.isNaN(num) && num > maxNumber) {
-				maxNumber = num;
+			if (!Number.isNaN(num)) {
+				nextNumber = num + 1;
 			}
 		}
 
-		const nextNumber = maxNumber + 1;
 		return `${prefix}${String(nextNumber).padStart(5, "0")}`;
 	}
 

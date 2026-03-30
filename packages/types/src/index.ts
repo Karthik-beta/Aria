@@ -2298,6 +2298,25 @@ export namespace Inventory {
 		| "RECEIVED"
 		| "CANCELLED";
 
+	export const materialRequestStatusSchema = z.enum([
+		"DRAFT",
+		"PENDING",
+		"APPROVED",
+		"ORDERED",
+		"PARTIALLY_ORDERED",
+		"PARTIALLY_RECEIVED",
+		"RECEIVED",
+		"CANCELLED",
+	]);
+
+	export const materialRequestPurposeSchema = z.enum([
+		"PURCHASE",
+		"MANUFACTURE",
+		"MATERIAL_TRANSFER",
+		"MATERIAL_ISSUE",
+		"CUSTOMER_PROVIDED",
+	]);
+
 	export interface MaterialRequestItem {
 		id: string;
 		materialRequestId: string;
@@ -2463,6 +2482,20 @@ export namespace Inventory {
 		ids: z.array(z.string().min(1)).min(1),
 	});
 
+	export const listMaterialRequestsSchema = z
+		.object({
+			skip: z.number().int().min(0).optional(),
+			take: z.number().int().min(1).max(250).optional(),
+			search: z.string().max(255).optional(),
+			status: materialRequestStatusSchema.optional(),
+			purpose: materialRequestPurposeSchema.optional(),
+		})
+		.optional();
+
+	export type ListMaterialRequestsInput = z.infer<
+		typeof listMaterialRequestsSchema
+	>;
+
 	// ============================================================================
 	// Stock Entry Types & Schemas
 	// ============================================================================
@@ -2477,6 +2510,22 @@ export namespace Inventory {
 		| "SEND_TO_SUBCONTRACTOR";
 
 	export type StockEntryStatus = "DRAFT" | "SUBMITTED" | "CANCELLED";
+
+	export const stockEntryStatusSchema = z.enum([
+		"DRAFT",
+		"SUBMITTED",
+		"CANCELLED",
+	]);
+
+	export const stockEntryTypeSchema = z.enum([
+		"MATERIAL_RECEIPT",
+		"MATERIAL_ISSUE",
+		"MATERIAL_TRANSFER",
+		"MATERIAL_TRANSFER_FOR_MANUFACTURE",
+		"MANUFACTURE",
+		"REPACK",
+		"SEND_TO_SUBCONTRACTOR",
+	]);
 
 	export interface StockEntryItem {
 		id: string;
@@ -2652,6 +2701,18 @@ export namespace Inventory {
 	export const bulkDeleteStockEntriesSchema = z.object({
 		ids: z.array(z.string().min(1)).min(1),
 	});
+
+	export const listStockEntriesSchema = z
+		.object({
+			skip: z.number().int().min(0).optional(),
+			take: z.number().int().min(1).max(250).optional(),
+			search: z.string().max(255).optional(),
+			status: stockEntryStatusSchema.optional(),
+			stockEntryType: stockEntryTypeSchema.optional(),
+		})
+		.optional();
+
+	export type ListStockEntriesInput = z.infer<typeof listStockEntriesSchema>;
 
 	// ============================================================================
 	// Stock Ledger Report Types & Schemas
@@ -3666,6 +3727,15 @@ export namespace Inventory {
 		| "CANCELLED"
 		| "CLOSED";
 
+	export const deliveryNoteStatusSchema = z.enum([
+		"DRAFT",
+		"TO_BILL",
+		"COMPLETED",
+		"RETURN_ISSUED",
+		"CANCELLED",
+		"CLOSED",
+	]);
+
 	export interface DeliveryNoteItem {
 		id: string;
 		deliveryNoteId: string;
@@ -4011,6 +4081,17 @@ export namespace Inventory {
 	export const bulkDeleteDeliveryNotesSchema = z.object({
 		ids: z.array(z.string().min(1)).min(1),
 	});
+
+	export const listDeliveryNotesSchema = z
+		.object({
+			skip: z.number().int().min(0).optional(),
+			take: z.number().int().min(1).max(250).optional(),
+			search: z.string().max(255).optional(),
+			status: deliveryNoteStatusSchema.optional(),
+		})
+		.optional();
+
+	export type ListDeliveryNotesInput = z.infer<typeof listDeliveryNotesSchema>;
 
 	// ============================================================================
 	// Packing Slip Types & Schemas

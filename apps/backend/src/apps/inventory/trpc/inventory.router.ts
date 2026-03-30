@@ -885,9 +885,11 @@ type MaterialRequestsChangedEvent = {
 function createListMaterialRequestsProcedure(
 	inventoryService: InventoryService,
 ) {
-	return protectedProcedure.query(async () => {
-		return inventoryService.findAllMaterialRequests();
-	});
+	return protectedProcedure
+		.input(Inventory.listMaterialRequestsSchema)
+		.query(async ({ input }) => {
+			return inventoryService.findAllMaterialRequests(input);
+		});
 }
 
 function createGetMaterialRequestByIdProcedure(
@@ -988,9 +990,11 @@ type StockEntriesChangedEvent = {
 };
 
 function createListStockEntriesProcedure(inventoryService: InventoryService) {
-	return protectedProcedure.query(async () => {
-		return inventoryService.findAllStockEntries();
-	});
+	return protectedProcedure
+		.input(Inventory.listStockEntriesSchema)
+		.query(async ({ input }) => {
+			return inventoryService.findAllStockEntries(input);
+		});
 }
 
 function createGetStockEntryByIdProcedure(inventoryService: InventoryService) {
@@ -1283,9 +1287,11 @@ type DeliveryNotesChangedEvent = {
 };
 
 function createListDeliveryNotesProcedure(inventoryService: InventoryService) {
-	return protectedProcedure.query(async () => {
-		return inventoryService.findAllDeliveryNotes();
-	});
+	return protectedProcedure
+		.input(Inventory.listDeliveryNotesSchema)
+		.query(async ({ input }) => {
+			return inventoryService.findAllDeliveryNotes(input);
+		});
 }
 
 function createGetDeliveryNoteByIdProcedure(
@@ -1394,7 +1400,9 @@ function createCreatePurchaseReceiptProcedure(
 	return protectedProcedure
 		.input(Inventory.createPurchaseReceiptSchema)
 		.mutation(async ({ input }) => {
-			return inventoryService.createPurchaseReceipt(input);
+			const result = await inventoryService.createPurchaseReceipt(input);
+			void inventoryEvents.emit("purchaseReceiptCreated", result);
+			return result;
 		});
 }
 
@@ -1404,7 +1412,9 @@ function createUpdatePurchaseReceiptProcedure(
 	return protectedProcedure
 		.input(Inventory.updatePurchaseReceiptSchema)
 		.mutation(async ({ input }) => {
-			return inventoryService.updatePurchaseReceipt(input);
+			const result = await inventoryService.updatePurchaseReceipt(input);
+			void inventoryEvents.emit("purchaseReceiptUpdated", result);
+			return result;
 		});
 }
 
@@ -1414,7 +1424,9 @@ function createDeletePurchaseReceiptProcedure(
 	return protectedProcedure
 		.input(z.object({ id: z.string().min(1) }))
 		.mutation(async ({ input }) => {
-			return inventoryService.deletePurchaseReceipt(input.id);
+			const result = await inventoryService.deletePurchaseReceipt(input.id);
+			void inventoryEvents.emit("purchaseReceiptDeleted", { id: input.id });
+			return result;
 		});
 }
 
@@ -1424,9 +1436,46 @@ function createDeleteManyPurchaseReceiptsProcedure(
 	return protectedProcedure
 		.input(Inventory.bulkDeletePurchaseReceiptsSchema)
 		.mutation(async ({ input }) => {
-			return inventoryService.deleteManyPurchaseReceipts(input.ids);
+			const result = await inventoryService.deleteManyPurchaseReceipts(
+				input.ids,
+			);
+			for (const id of result.ids) {
+				void inventoryEvents.emit("purchaseReceiptDeleted", { id });
+			}
+			return result;
 		});
 }
+
+type PurchaseReceiptsChangedEvent = {
+	type: "created" | "updated" | "deleted";
+	data: Inventory.PurchaseReceipt | { id: string };
+};
+
+const onPurchaseReceiptsChangedProcedure = protectedProcedure.subscription(
+	() => {
+		return observable<PurchaseReceiptsChangedEvent>((emit) => {
+			const onCreated = (data: Inventory.PurchaseReceipt) => {
+				emit.next({ type: "created", data });
+			};
+			const onUpdated = (data: Inventory.PurchaseReceipt) => {
+				emit.next({ type: "updated", data });
+			};
+			const onDeleted = (data: { id: string }) => {
+				emit.next({ type: "deleted", data });
+			};
+
+			inventoryEvents.on("purchaseReceiptCreated", onCreated);
+			inventoryEvents.on("purchaseReceiptUpdated", onUpdated);
+			inventoryEvents.on("purchaseReceiptDeleted", onDeleted);
+
+			return () => {
+				inventoryEvents.off("purchaseReceiptCreated", onCreated);
+				inventoryEvents.off("purchaseReceiptUpdated", onUpdated);
+				inventoryEvents.off("purchaseReceiptDeleted", onDeleted);
+			};
+		});
+	},
+);
 
 // ─── Pick List Procedures ────────────────────────────────────────────────────
 
@@ -2040,6 +2089,7 @@ type InventoryRouterInput = {
 	deleteManyPurchaseReceipts: ReturnType<
 		typeof createDeleteManyPurchaseReceiptsProcedure
 	>;
+	onPurchaseReceiptsChanged: typeof onPurchaseReceiptsChangedProcedure;
 	listPickLists: ReturnType<typeof createListPickListsProcedure>;
 	getPickListById: ReturnType<typeof createGetPickListByIdProcedure>;
 	createPickList: ReturnType<typeof createCreatePickListProcedure>;
@@ -2277,6 +2327,7 @@ function createInventoryRouterRecord(
 			createDeletePurchaseReceiptProcedure(inventoryService),
 		deleteManyPurchaseReceipts:
 			createDeleteManyPurchaseReceiptsProcedure(inventoryService),
+		onPurchaseReceiptsChanged: onPurchaseReceiptsChangedProcedure,
 		listPickLists: createListPickListsProcedure(inventoryService),
 		getPickListById: createGetPickListByIdProcedure(inventoryService),
 		createPickList: createCreatePickListProcedure(inventoryService),

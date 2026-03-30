@@ -16,6 +16,7 @@ import {
 	toInventoryMaterialRequest,
 	toInventoryStockEntry,
 } from "../inventory.types";
+import { LIST_QUERY_TAKE_MAX } from "./inventory-shared";
 
 export class StockTransactionSubService {
 	private readonly logger = new Logger(StockTransactionSubService.name);
@@ -55,13 +56,46 @@ export class StockTransactionSubService {
 	}
 
 	/**
-	 * Get all material requests
+	 * Get material requests with bounded pagination, optional status/purpose filter, and search.
 	 */
-	async findAllMaterialRequests(): Promise<Inventory.MaterialRequest[]> {
+	async findAllMaterialRequests(params?: {
+		skip?: number;
+		take?: number;
+		search?: string;
+		status?: Inventory.MaterialRequestStatus;
+		purpose?: Inventory.MaterialRequestPurpose;
+	}): Promise<Inventory.MaterialRequest[]> {
+		const rawSkip = params?.skip ?? 0;
+		const rawTake = params?.take ?? LIST_QUERY_TAKE_MAX;
+
+		const skip = rawSkip < 0 ? 0 : rawSkip;
+		const take =
+			rawTake <= 0
+				? 1
+				: rawTake > LIST_QUERY_TAKE_MAX
+					? LIST_QUERY_TAKE_MAX
+					: rawTake;
+
+		const where: Record<string, unknown> = {};
+		if (params?.status) {
+			where.status = params.status;
+		}
+		if (params?.purpose) {
+			where.purpose = params.purpose;
+		}
+		if (params?.search) {
+			where.OR = [
+				{ series: { contains: params.search, mode: "insensitive" } },
+				{ company: { contains: params.search, mode: "insensitive" } },
+			];
+		}
+
 		const requests = await this.prisma.materialRequest.findMany({
+			where,
 			orderBy: { createdAt: "desc" },
 			include: { items: true },
-			take: 250,
+			skip,
+			take,
 		});
 		return requests.map(toInventoryMaterialRequest);
 	}
@@ -332,13 +366,46 @@ export class StockTransactionSubService {
 	}
 
 	/**
-	 * Get all stock entries (bounded to 250 most recent).
+	 * Get stock entries with bounded pagination, optional status/type filter, and search.
 	 */
-	async findAllStockEntries(): Promise<Inventory.StockEntry[]> {
+	async findAllStockEntries(params?: {
+		skip?: number;
+		take?: number;
+		search?: string;
+		status?: Inventory.StockEntryStatus;
+		stockEntryType?: Inventory.StockEntryType;
+	}): Promise<Inventory.StockEntry[]> {
+		const rawSkip = params?.skip ?? 0;
+		const rawTake = params?.take ?? LIST_QUERY_TAKE_MAX;
+
+		const skip = rawSkip < 0 ? 0 : rawSkip;
+		const take =
+			rawTake <= 0
+				? 1
+				: rawTake > LIST_QUERY_TAKE_MAX
+					? LIST_QUERY_TAKE_MAX
+					: rawTake;
+
+		const where: Record<string, unknown> = {};
+		if (params?.status) {
+			where.status = params.status;
+		}
+		if (params?.stockEntryType) {
+			where.stockEntryType = params.stockEntryType;
+		}
+		if (params?.search) {
+			where.OR = [
+				{ series: { contains: params.search, mode: "insensitive" } },
+				{ company: { contains: params.search, mode: "insensitive" } },
+			];
+		}
+
 		const entries = await this.prisma.stockEntry.findMany({
+			where,
 			orderBy: { createdAt: "desc" },
 			include: { items: true },
-			take: 250,
+			skip,
+			take,
 		});
 		return entries.map(toInventoryStockEntry);
 	}
