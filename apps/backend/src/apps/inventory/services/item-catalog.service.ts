@@ -484,6 +484,34 @@ export class ItemCatalogSubService {
 	}
 
 	/**
+	 * Get a single product bundle by id
+	 */
+	async findProductBundleById(
+		id: string,
+	): Promise<Inventory.ProductBundle | null> {
+		const bundle = await this.prisma.productBundle.findUnique({
+			where: { id },
+			include: {
+				parentItem: {
+					select: { id: true, name: true },
+				},
+				bundleItems: {
+					include: {
+						item: {
+							select: { id: true, name: true },
+						},
+						unitOfMeasurement: {
+							select: { id: true, name: true },
+						},
+					},
+				},
+			},
+		});
+
+		return bundle ? toInventoryProductBundle(bundle) : null;
+	}
+
+	/**
 	 * Create a product bundle
 	 */
 	async createProductBundle(

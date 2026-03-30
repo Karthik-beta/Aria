@@ -459,6 +459,16 @@ function createListProductBundlesProcedure(inventoryService: InventoryService) {
 	});
 }
 
+function createGetProductBundleByIdProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure
+		.input(z.object({ id: z.string().min(1) }))
+		.query(async ({ input }) => {
+			return inventoryService.findProductBundleById(input.id);
+		});
+}
+
 function createCreateProductBundleProcedure(
 	inventoryService: InventoryService,
 ) {
@@ -1881,6 +1891,7 @@ type InventoryRouterInput = {
 	deleteItemAttribute: ReturnType<typeof createDeleteItemAttributeProcedure>;
 	listBundleItems: ReturnType<typeof createListBundleItemsProcedure>;
 	listProductBundles: ReturnType<typeof createListProductBundlesProcedure>;
+	getProductBundleById: ReturnType<typeof createGetProductBundleByIdProcedure>;
 	createProductBundle: ReturnType<typeof createCreateProductBundleProcedure>;
 	updateProductBundle: ReturnType<typeof createUpdateProductBundleProcedure>;
 	deleteProductBundle: ReturnType<typeof createDeleteProductBundleProcedure>;
@@ -2150,6 +2161,7 @@ function createInventoryRouterRecord(
 		deleteItemAttribute: createDeleteItemAttributeProcedure(inventoryService),
 		listBundleItems: createListBundleItemsProcedure(inventoryService),
 		listProductBundles: createListProductBundlesProcedure(inventoryService),
+		getProductBundleById: createGetProductBundleByIdProcedure(inventoryService),
 		createProductBundle: createCreateProductBundleProcedure(inventoryService),
 		updateProductBundle: createUpdateProductBundleProcedure(inventoryService),
 		deleteProductBundle: createDeleteProductBundleProcedure(inventoryService),

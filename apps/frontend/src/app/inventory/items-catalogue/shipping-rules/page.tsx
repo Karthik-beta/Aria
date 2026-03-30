@@ -153,7 +153,7 @@ export default function ShippingRulesPage() {
 				),
 				cell: ({ row }) => (
 					<Link
-						href={`/inventory/shipping-rules/form?id=${row.original.id}`}
+						href={`/inventory/items-catalogue/shipping-rules/form?id=${row.original.id}`}
 						className="font-medium text-primary hover:underline"
 					>
 						{row.original.shippingRuleLabel}
@@ -240,7 +240,7 @@ export default function ShippingRulesPage() {
 							<DropdownMenuSeparator />
 							<DropdownMenuItem asChild>
 								<Link
-									href={`/inventory/shipping-rules/form?id=${row.original.id}`}
+									href={`/inventory/items-catalogue/shipping-rules/form?id=${row.original.id}`}
 								>
 									<Edit className="mr-2 h-4 w-4" />
 									Edit Shipping Rule

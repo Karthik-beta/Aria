@@ -4,6 +4,16 @@ import ProductBundleListPage from "./page";
 
 vi.mock("@/lib/trpc", () => ({
 	trpc: {
+		useUtils: () => ({
+			inventory: {
+				listProductBundles: {
+					cancel: vi.fn().mockResolvedValue(undefined),
+					getData: vi.fn().mockReturnValue([]),
+					setData: vi.fn(),
+					invalidate: vi.fn().mockResolvedValue(undefined),
+				},
+			},
+		}),
 		inventory: {
 			listProductBundles: {
 				useQuery: () => ({
@@ -21,6 +31,12 @@ vi.mock("@/lib/trpc", () => ({
 					],
 					isLoading: false,
 					refetch: vi.fn(),
+				}),
+			},
+			deleteProductBundle: {
+				useMutation: () => ({
+					isPending: false,
+					mutate: vi.fn(),
 				}),
 			},
 		},

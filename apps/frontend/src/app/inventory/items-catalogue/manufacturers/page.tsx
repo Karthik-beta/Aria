@@ -271,7 +271,7 @@ export default function ItemManufacturersPage() {
 				),
 				cell: ({ row }) => (
 					<Link
-						href={`/inventory/manufacturers/form?id=${row.original.id}`}
+						href={`/inventory/items-catalogue/manufacturers/form?id=${row.original.id}`}
 						className="font-medium text-primary hover:underline"
 					>
 						{row.original.itemCode}

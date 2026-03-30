@@ -278,6 +278,12 @@ export class InventoryService {
 		return await this.items.findAllProductBundles();
 	}
 
+	async findProductBundleById(
+		id: string,
+	): Promise<Inventory.ProductBundle | null> {
+		return await this.items.findProductBundleById(id);
+	}
+
 	async createProductBundle(
 		data: z.infer<typeof Inventory.createProductBundleSchema>,
 	): Promise<Inventory.ProductBundle> {

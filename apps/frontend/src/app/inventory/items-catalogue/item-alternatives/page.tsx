@@ -152,7 +152,7 @@ export default function ItemAlternativesPage() {
 				),
 				cell: ({ row }) => (
 					<Link
-						href={`/inventory/item-alternatives/form?id=${row.original.id}`}
+						href={`/inventory/items-catalogue/item-alternatives/form?id=${row.original.id}`}
 						className="font-medium text-primary hover:underline"
 					>
 						{row.original.itemCode}
@@ -250,7 +250,7 @@ export default function ItemAlternativesPage() {
 							<DropdownMenuSeparator />
 							<DropdownMenuItem asChild>
 								<Link
-									href={`/inventory/item-alternatives/form?id=${row.original.id}`}
+									href={`/inventory/items-catalogue/item-alternatives/form?id=${row.original.id}`}
 								>
 									<Edit className="mr-2 h-4 w-4" />
 									Edit Item Alternative
@@ -333,7 +333,7 @@ export default function ItemAlternativesPage() {
 					enableColumnReordering
 					primaryAction={
 						<Link
-							href="/inventory/item-alternatives/form"
+							href="/inventory/items-catalogue/item-alternatives/form"
 							className={cn(buttonVariants({ variant: "default", size: "sm" }))}
 						>
 							<Plus className="mr-2 h-4 w-4" />

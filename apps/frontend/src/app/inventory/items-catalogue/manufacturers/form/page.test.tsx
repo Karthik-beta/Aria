@@ -186,7 +186,9 @@ describe("ItemManufacturerFormPage", () => {
 		renderWithProviders(<ItemManufacturerFormPage />);
 
 		await waitFor(() => {
-			expect(mockPush).toHaveBeenCalledWith("/inventory/manufacturers");
+			expect(mockPush).toHaveBeenCalledWith(
+				"/inventory/items-catalogue/manufacturers",
+			);
 		});
 	});
 });

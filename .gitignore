@@ -158,3 +158,6 @@ evals/agent-results.json
 
 # ERPNext
 .erpnext
+
+# Prompt
+.prompts

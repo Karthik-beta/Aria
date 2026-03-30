@@ -1,10 +1,16 @@
 "use client";
 
-import type { Inventory } from "@aria/types";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Loader2, Plus, Trash2 } from "lucide-react";
-import { useRouter } from "next/navigation";
-import { useEffect, useMemo } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import {
+	Suspense,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+	useTransition,
+} from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import * as z from "zod";
@@ -32,8 +38,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { getToastMessage } from "@/lib/errors";
 import { trpc } from "@/lib/trpc";
 
-type ProductBundleFormValues = Inventory.CreateProductBundleInput;
-
 const productBundleFormSchema = z.object({
 	parentItemId: z.string().min(1, "Parent item is required"),
 	description: z.string().optional(),
@@ -41,6 +45,7 @@ const productBundleFormSchema = z.object({
 	bundleItems: z
 		.array(
 			z.object({
+				id: z.string().optional(),
 				itemId: z.string().min(1, "Item is required"),
 				quantity: z.number().int().min(1, "Quantity must be at least 1"),
 				description: z.string().optional(),
@@ -50,13 +55,37 @@ const productBundleFormSchema = z.object({
 		.min(1, "At least one bundle item is required"),
 });
 
-export default function NewProductBundlePage() {
+type ProductBundleFormValues = z.input<typeof productBundleFormSchema>;
+
+export default function ProductBundleFormPage() {
+	return (
+		<Suspense fallback={<ProductBundleFormFallback />}>
+			<ProductBundleFormContent />
+		</Suspense>
+	);
+}
+
+function ProductBundleFormContent() {
 	const router = useRouter();
+	const searchParams = useSearchParams();
+	const id = searchParams.get("id");
+	const isEditMode = Boolean(id);
+	const [isPending, startTransition] = useTransition();
+	const [isInitialized, setIsInitialized] = useState(!isEditMode);
+	const [hasUnsavedChanges, setHasUnsavedChanges] = useState(!isEditMode);
+	const hasHandledMissingBundleRef = useRef(false);
+	const utils = trpc.useUtils();
+
 	const { data: selectableItems = [] } =
 		trpc.inventory.listBundleItems.useQuery();
 	const { data: unitsOfMeasure = [] } =
 		trpc.inventory.listUnitsOfMeasure.useQuery();
-	const utils = trpc.useUtils();
+
+	const { data: productBundle, isLoading: isFetchingBundle } =
+		trpc.inventory.getProductBundleById.useQuery(
+			{ id: id ?? "" },
+			{ enabled: isEditMode },
+		);
 
 	const form = useForm<ProductBundleFormValues>({
 		resolver: zodResolver(productBundleFormSchema),
@@ -80,37 +109,54 @@ export default function NewProductBundlePage() {
 		name: "bundleItems",
 	});
 
-	const createBundleMutation = trpc.inventory.createProductBundle.useMutation({
-		onSuccess: async () => {
-			toast.success("Product bundle created successfully");
-			await utils.inventory.listProductBundles.invalidate();
-			router.push("/inventory/product-bundle");
-		},
-		onError: (error) => {
-			toast.error(getToastMessage(error, "create"));
-		},
-	});
-
-	const onSubmit = (values: ProductBundleFormValues) => {
-		createBundleMutation.mutate({
-			...values,
-			description: values.description?.trim() || undefined,
-			bundleItems: values.bundleItems.map((item) => ({
-				...item,
-				description: item.description?.trim() || undefined,
-				unitOfMeasurementId: item.unitOfMeasurementId || undefined,
-			})),
-		});
-	};
-
-	const isSubmitting = createBundleMutation.isPending;
-	const itemMap = useMemo(
-		() => new Map(selectableItems.map((item) => [item.id, item])),
-		[selectableItems],
-	);
-
+	// Watch for unsaved changes after initialization
 	useEffect(() => {
-		if (selectableItems.length === 0) return;
+		if (!isInitialized) return;
+		const subscription = form.watch(() => {
+			setHasUnsavedChanges(true);
+		});
+		return () => subscription.unsubscribe();
+	}, [form, isInitialized]);
+
+	// Populate form in edit mode
+	useEffect(() => {
+		if (isEditMode && productBundle) {
+			form.reset({
+				parentItemId: productBundle.parentItemId,
+				description: productBundle.description ?? "",
+				disabled: productBundle.disabled,
+				bundleItems: productBundle.bundleItems.map((item) => ({
+					id: item.id,
+					itemId: item.itemId,
+					quantity: item.quantity,
+					description: item.description ?? "",
+					unitOfMeasurementId: item.unitOfMeasurementId ?? undefined,
+				})),
+			});
+			setHasUnsavedChanges(false);
+			setIsInitialized(true);
+		}
+	}, [form, isEditMode, productBundle]);
+
+	// Handle missing bundle in edit mode
+	useEffect(() => {
+		if (
+			isEditMode &&
+			!isFetchingBundle &&
+			!productBundle &&
+			!hasHandledMissingBundleRef.current
+		) {
+			hasHandledMissingBundleRef.current = true;
+			toast.error("Product bundle not found");
+			startTransition(() => {
+				router.push("/inventory/items-catalogue/product-bundle");
+			});
+		}
+	}, [isEditMode, isFetchingBundle, router, productBundle]);
+
+	// Auto-select items in create mode
+	useEffect(() => {
+		if (isEditMode || selectableItems.length === 0) return;
 
 		const currentParent = form.getValues("parentItemId");
 		if (!currentParent) {
@@ -133,16 +179,84 @@ export default function NewProductBundlePage() {
 				);
 			}
 		}
-	}, [form, selectableItems]);
+	}, [form, isEditMode, selectableItems]);
+
+	const createBundleMutation = trpc.inventory.createProductBundle.useMutation({
+		onSuccess: async () => {
+			toast.success("Product bundle created successfully");
+			setHasUnsavedChanges(false);
+			await utils.inventory.listProductBundles.invalidate();
+			startTransition(() => {
+				router.push("/inventory/items-catalogue/product-bundle");
+			});
+		},
+		onError: (error) => {
+			toast.error(getToastMessage(error, "create"));
+		},
+	});
+
+	const updateBundleMutation = trpc.inventory.updateProductBundle.useMutation({
+		onSuccess: async () => {
+			toast.success("Product bundle updated successfully");
+			setHasUnsavedChanges(false);
+			await utils.inventory.listProductBundles.invalidate();
+			startTransition(() => {
+				router.push("/inventory/items-catalogue/product-bundle");
+			});
+		},
+		onError: (error) => {
+			toast.error(getToastMessage(error, "update"));
+		},
+	});
+
+	const onSubmit = (values: ProductBundleFormValues) => {
+		const bundleItems = values.bundleItems.map((item) => ({
+			...item,
+			description: item.description?.trim() || undefined,
+			unitOfMeasurementId: item.unitOfMeasurementId || undefined,
+		}));
+
+		if (isEditMode && id) {
+			updateBundleMutation.mutate({
+				id,
+				parentItemId: values.parentItemId,
+				description: values.description?.trim() || undefined,
+				disabled: values.disabled,
+				bundleItems,
+			});
+			return;
+		}
+
+		createBundleMutation.mutate({
+			parentItemId: values.parentItemId,
+			description: values.description?.trim() || undefined,
+			disabled: values.disabled,
+			bundleItems,
+		});
+	};
+
+	const isSubmitting =
+		createBundleMutation.isPending ||
+		updateBundleMutation.isPending ||
+		isPending;
+
+	const itemMap = useMemo(
+		() => new Map(selectableItems.map((item) => [item.id, item])),
+		[selectableItems],
+	);
+
+	if (isEditMode && isFetchingBundle) {
+		return <ProductBundleFormFallback />;
+	}
 
 	return (
 		<div className="flex min-h-screen flex-col bg-[#f8f9fa] px-4 py-4 md:px-6">
 			<div className="mb-4 flex items-center justify-between">
 				<div className="flex items-center gap-3">
 					<h1 className="text-3xl font-bold tracking-tight">
-						New Product Bundle
+						{isEditMode ? "Edit Product Bundle" : "New Product Bundle"}
 					</h1>
-					{form.formState.isDirty && (
+					{hasUnsavedChanges && (
 						<Badge className="border-none bg-[#fff3e0] text-[#fb8c00] hover:bg-[#fff3e0]">
 							Not Saved
 						</Badge>
@@ -396,6 +510,14 @@ export default function NewProductBundlePage() {
 					</p>
 				</div>
 			</div>
+		</div>
+	);
+}
+
+function ProductBundleFormFallback() {
+	return (
+		<div className="flex min-h-screen items-center justify-center">
+			<Loader2 className="h-8 w-8 animate-spin text-primary" />
 		</div>
 	);
 }

@@ -368,6 +368,13 @@ type InventoryRouterInput = {
 		output: Inventory.ProductBundle[];
 		meta: object;
 	}>;
+	getProductBundleById: TRPCQueryProcedure<{
+		input: {
+			id: string;
+		};
+		output: Inventory.ProductBundle | null;
+		meta: object;
+	}>;
 	createProductBundle: TRPCMutationProcedure<{
 		input: {
 			parentItemId: string;

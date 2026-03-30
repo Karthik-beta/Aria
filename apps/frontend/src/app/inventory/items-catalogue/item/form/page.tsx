@@ -701,13 +701,6 @@ function ItemFormContent() {
 												}
 											/>
 										</div>
-
-										<div className="flex flex-col py-6 space-y-2">
-											<Label className="text-xs font-medium text-gray-500">
-												Brand
-											</Label>
-											<Input className="h-10 max-w-sm" placeholder="" />
-										</div>
 									</CollapsibleContent>
 								</Collapsible>
 							</div>
