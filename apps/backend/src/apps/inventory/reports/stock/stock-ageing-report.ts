@@ -1,5 +1,5 @@
 import type { Inventory } from "@aria/types";
-import type { Prisma } from "../../generated/prisma/client";
+import type { Prisma } from "../../../../generated/prisma/client";
 
 export type StockAgeingReportItem = Prisma.StockEntryItemGetPayload<{
 	include: {
