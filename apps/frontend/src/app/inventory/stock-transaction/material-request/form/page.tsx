@@ -31,6 +31,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { getToastMessage } from "@/lib/errors";
 import { trpc } from "@/lib/trpc";
+import { toDateInputValue } from "../material-request.utils";
 
 type MaterialRequestFormValues = Omit<
 	z.input<typeof Inventory.createMaterialRequestSchema>,
@@ -40,19 +41,6 @@ type MaterialRequestFormValues = Omit<
 		z.input<typeof Inventory.createMaterialRequestItemSchema> & { id?: string }
 	>;
 };
-
-/**
- * Formats a Date (or tRPC-serialised date string) to yyyy-MM-dd for `<input type="date">`.
- *
- * @param date - A `Date` object, an ISO string, `undefined`, or `null`.
- * @returns An `"YYYY-MM-DD"` string, or `""` when the input is falsy or invalid.
- */
-function toDateInputValue(date: Date | string | undefined | null): string {
-	if (!date) return "";
-	const d = date instanceof Date ? date : new Date(date);
-	if (Number.isNaN(d.getTime())) return "";
-	return d.toISOString().split("T")[0] ?? "";
-}
 
 /**
  * MaterialRequestFormPage — wraps the form content in a `Suspense` boundary so

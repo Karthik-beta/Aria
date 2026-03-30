@@ -25,71 +25,28 @@ import { DataTableColumnHeader } from "@/components/ui/table/data-table-column-h
 import { getToastMessage } from "@/lib/errors";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
-
-/**
- * Returns a human-readable age string relative to now, capped at years.
- *
- * @param date - The reference date to measure from.
- * @returns `"Today"`, `"<n> d"`, `"<n> m"`, or `"<n> y"`.
- */
-function getRelativeAge(date: Date): string {
-	const now = new Date();
-	const diffMs = now.getTime() - date.getTime();
-	const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-	const diffMonths = Math.floor(diffDays / 30);
-	const diffYears = Math.floor(diffDays / 365);
-
-	if (diffYears >= 1) return `${diffYears} y`;
-	if (diffMonths >= 1) return `${diffMonths} m`;
-	if (diffDays >= 1) return `${diffDays} d`;
-	return "Today";
-}
+import type { DeliveryNoteStatus } from "./delivery-note.utils";
+import {
+	DELIVERY_NOTE_STATUS_OPTIONS,
+	formatDeliveryNoteStatus,
+	formatRelativeAge,
+	getDeliveryNoteStatusBadgeClass,
+} from "./delivery-note.utils";
 
 /**
  * Renders a coloured pill badge for a `DeliveryNoteStatus` value.
  *
  * Pure display component — no side-effects or client-only APIs.
  */
-function StatusBadge({
-	status,
-}: {
-	status:
-		| "DRAFT"
-		| "TO_BILL"
-		| "COMPLETED"
-		| "RETURN_ISSUED"
-		| "CANCELLED"
-		| "CLOSED";
-}) {
-	const variants: Record<typeof status, string> = {
-		DRAFT: "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300",
-		TO_BILL: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
-		COMPLETED:
-			"bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300",
-		RETURN_ISSUED:
-			"bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300",
-		CANCELLED: "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300",
-		CLOSED:
-			"bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300",
-	};
-
-	const labels: Record<typeof status, string> = {
-		DRAFT: "Draft",
-		TO_BILL: "To Bill",
-		COMPLETED: "Completed",
-		RETURN_ISSUED: "Return Issued",
-		CANCELLED: "Cancelled",
-		CLOSED: "Closed",
-	};
-
+function StatusBadge({ status }: { status: DeliveryNoteStatus }) {
 	return (
 		<span
 			className={cn(
 				"inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium",
-				variants[status],
+				getDeliveryNoteStatusBadgeClass(status),
 			)}
 		>
-			{labels[status]}
+			{formatDeliveryNoteStatus(status)}
 		</span>
 	);
 }
@@ -239,14 +196,7 @@ export default function DeliveryNoteListPage() {
 				meta: {
 					label: "Status",
 					variant: "multiSelect",
-					options: [
-						{ label: "Draft", value: "DRAFT" },
-						{ label: "To Bill", value: "TO_BILL" },
-						{ label: "Completed", value: "COMPLETED" },
-						{ label: "Return Issued", value: "RETURN_ISSUED" },
-						{ label: "Cancelled", value: "CANCELLED" },
-						{ label: "Closed", value: "CLOSED" },
-					],
+					options: DELIVERY_NOTE_STATUS_OPTIONS,
 					exportable: true,
 				},
 				enableColumnFilter: true,
@@ -308,7 +258,7 @@ export default function DeliveryNoteListPage() {
 				header: () => <span className="text-muted-foreground"></span>,
 				cell: ({ row }) => (
 					<span className="text-sm text-muted-foreground">
-						{getRelativeAge(row.original.updatedAt)}
+						{formatRelativeAge(row.original.updatedAt)}
 					</span>
 				),
 				meta: {

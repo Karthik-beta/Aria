@@ -25,104 +25,30 @@ import { DataTableColumnHeader } from "@/components/ui/table/data-table-column-h
 import { getToastMessage } from "@/lib/errors";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
-
-/**
- * Returns a human-readable age string relative to now, capped at years.
- *
- * @param date - The reference date to measure from.
- * @returns `"Today"`, `"<n> d"`, `"<n> m"`, or `"<n> y"`.
- */
-function getRelativeAge(date: Date): string {
-	const now = new Date();
-	const diffMs = now.getTime() - date.getTime();
-	const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-	const diffMonths = Math.floor(diffDays / 30);
-	const diffYears = Math.floor(diffDays / 365);
-
-	if (diffYears >= 1) return `${diffYears} y`;
-	if (diffMonths >= 1) return `${diffMonths} m`;
-	if (diffDays >= 1) return `${diffDays} d`;
-	return "Today";
-}
-/**
- * Maps a `MaterialRequestPurpose` value to its display label.
- *
- * @param purpose - The raw enum constant from the backend.
- * @returns A human-readable string, e.g. `"Material Transfer"`.
- */ function formatPurpose(
-	purpose:
-		| "PURCHASE"
-		| "MANUFACTURE"
-		| "MATERIAL_TRANSFER"
-		| "MATERIAL_ISSUE"
-		| "CUSTOMER_PROVIDED",
-): string {
-	switch (purpose) {
-		case "PURCHASE":
-			return "Purchase";
-		case "MANUFACTURE":
-			return "Manufacture";
-		case "MATERIAL_TRANSFER":
-			return "Material Transfer";
-		case "MATERIAL_ISSUE":
-			return "Material Issue";
-		case "CUSTOMER_PROVIDED":
-			return "Customer Provided";
-	}
-}
+import type { MaterialRequestStatus } from "./material-request.utils";
+import {
+	formatMaterialRequestPurpose,
+	formatRelativeAge,
+	getMaterialRequestStatusBadgeClass,
+	MATERIAL_REQUEST_PURPOSE_OPTIONS,
+	MATERIAL_REQUEST_STATUS_OPTIONS,
+} from "./material-request.utils";
 
 /**
  * Renders a coloured pill badge for a `MaterialRequestStatus` value.
  *
  * Pure display component — no side-effects or client-only APIs.
  */
-function StatusBadge({
-	status,
-}: {
-	status:
-		| "DRAFT"
-		| "PENDING"
-		| "APPROVED"
-		| "ORDERED"
-		| "PARTIALLY_ORDERED"
-		| "PARTIALLY_RECEIVED"
-		| "RECEIVED"
-		| "CANCELLED";
-}) {
-	const variants: Record<typeof status, string> = {
-		DRAFT: "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300",
-		PENDING:
-			"bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300",
-		APPROVED: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
-		ORDERED: "bg-sky-100 text-sky-700 dark:bg-sky-900 dark:text-sky-300",
-		PARTIALLY_ORDERED:
-			"bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300",
-		PARTIALLY_RECEIVED:
-			"bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300",
-		RECEIVED:
-			"bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300",
-		CANCELLED: "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300",
-	};
-
-	const labels: Record<typeof status, string> = {
-		DRAFT: "Draft",
-		PENDING: "Pending",
-		APPROVED: "Approved",
-		ORDERED: "Ordered",
-		PARTIALLY_ORDERED: "Partially Ordered",
-		PARTIALLY_RECEIVED: "Partially Received",
-		RECEIVED: "Received",
-		CANCELLED: "Cancelled",
-	};
-
+function StatusBadge({ status }: { status: MaterialRequestStatus }) {
 	return (
 		<span
 			className={cn(
 				"inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium",
-				variants[status],
+				getMaterialRequestStatusBadgeClass(status),
 			)}
 		>
-			{labels[status]}
+			{MATERIAL_REQUEST_STATUS_OPTIONS.find((o) => o.value === status)?.label ??
+				status}
 		</span>
 	);
 }
@@ -262,19 +188,13 @@ export default function MaterialRequestListPage() {
 				),
 				cell: ({ row }) => (
 					<span className="text-sm text-muted-foreground">
-						{formatPurpose(row.original.purpose)}
+						{formatMaterialRequestPurpose(row.original.purpose)}
 					</span>
 				),
 				meta: {
 					label: "Purpose",
 					variant: "multiSelect",
-					options: [
-						{ label: "Purchase", value: "PURCHASE" },
-						{ label: "Manufacture", value: "MANUFACTURE" },
-						{ label: "Material Transfer", value: "MATERIAL_TRANSFER" },
-						{ label: "Material Issue", value: "MATERIAL_ISSUE" },
-						{ label: "Customer Provided", value: "CUSTOMER_PROVIDED" },
-					],
+					options: MATERIAL_REQUEST_PURPOSE_OPTIONS,
 					exportable: true,
 				},
 				enableColumnFilter: true,
@@ -292,16 +212,7 @@ export default function MaterialRequestListPage() {
 				meta: {
 					label: "Status",
 					variant: "multiSelect",
-					options: [
-						{ label: "Draft", value: "DRAFT" },
-						{ label: "Pending", value: "PENDING" },
-						{ label: "Approved", value: "APPROVED" },
-						{ label: "Ordered", value: "ORDERED" },
-						{ label: "Partially Ordered", value: "PARTIALLY_ORDERED" },
-						{ label: "Partially Received", value: "PARTIALLY_RECEIVED" },
-						{ label: "Received", value: "RECEIVED" },
-						{ label: "Cancelled", value: "CANCELLED" },
-					],
+					options: MATERIAL_REQUEST_STATUS_OPTIONS,
 					exportable: true,
 				},
 				enableColumnFilter: true,
@@ -367,7 +278,7 @@ export default function MaterialRequestListPage() {
 				header: () => <span className="text-muted-foreground"></span>,
 				cell: ({ row }) => (
 					<span className="text-sm text-muted-foreground">
-						{getRelativeAge(row.original.updatedAt)}
+						{formatRelativeAge(row.original.updatedAt)}
 					</span>
 				),
 				meta: {
