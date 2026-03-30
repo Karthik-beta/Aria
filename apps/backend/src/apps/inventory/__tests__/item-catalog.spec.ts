@@ -489,6 +489,9 @@ describe("InventoryService > Item Catalog", () => {
 				name: mockItemAttribute.name,
 				disabled: mockItemAttribute.disabled,
 				numericValues: mockItemAttribute.numericValues,
+				fromRange: 0,
+				toRange: 0,
+				increment: 0,
 			});
 			expect(result[0].attributeValues).toHaveLength(1);
 			expect(result[0].attributeValues[0]).toMatchObject({
@@ -537,6 +540,9 @@ describe("InventoryService > Item Catalog", () => {
 				name: "Colour",
 				disabled: false,
 				numericValues: false,
+				fromRange: 0,
+				toRange: 0,
+				increment: 0,
 				attributeValues: [{ attributeValue: "Red", abbreviation: "R" }],
 			});
 
@@ -559,6 +565,44 @@ describe("InventoryService > Item Catalog", () => {
 			);
 		});
 
+		it("should create a numeric item attribute with range fields", async () => {
+			const numericMock = {
+				...mockItemAttribute,
+				numericValues: true,
+				fromRange: 1,
+				toRange: 100,
+				increment: 5,
+				attributeValues: [],
+			};
+			mockPrisma.itemAttribute.create.mockResolvedValue(numericMock);
+
+			const result = await service.createItemAttribute({
+				name: "Diameter",
+				disabled: false,
+				numericValues: true,
+				fromRange: 1,
+				toRange: 100,
+				increment: 5,
+				attributeValues: [],
+			});
+
+			expect(result.numericValues).toBe(true);
+			expect(result.fromRange).toBe(1);
+			expect(result.toRange).toBe(100);
+			expect(result.increment).toBe(5);
+			expect(mockPrisma.itemAttribute.create).toHaveBeenCalledWith(
+				expect.objectContaining({
+					data: expect.objectContaining({
+						name: "Diameter",
+						numericValues: true,
+						fromRange: 1,
+						toRange: 100,
+						increment: 5,
+					}),
+				}),
+			);
+		});
+
 		it("should throw ConflictException on duplicate name (P2002)", async () => {
 			const error = new Prisma.PrismaClientKnownRequestError(
 				"Unique constraint failed",
@@ -571,6 +615,9 @@ describe("InventoryService > Item Catalog", () => {
 					name: "Colour",
 					disabled: false,
 					numericValues: false,
+					fromRange: 0,
+					toRange: 0,
+					increment: 0,
 					attributeValues: [],
 				}),
 			).rejects.toThrow(ConflictException);

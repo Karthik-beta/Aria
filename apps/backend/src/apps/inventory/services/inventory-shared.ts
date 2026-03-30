@@ -97,6 +97,9 @@ export const itemAttributeSelect = {
 	name: true,
 	disabled: true,
 	numericValues: true,
+	fromRange: true,
+	toRange: true,
+	increment: true,
 	createdAt: true,
 	updatedAt: true,
 	attributeValues: {

@@ -158,7 +158,7 @@ export default function UnitOfMeasurePage() {
 				),
 				cell: ({ row }) => (
 					<Link
-						href={`/inventory/uom/form?id=${row.original.id}`}
+						href={`/inventory/inventory-settings/uom/form?id=${row.original.id}`}
 						className="font-medium text-primary hover:underline"
 					>
 						{row.original.name}
@@ -268,7 +268,9 @@ export default function UnitOfMeasurePage() {
 							<DropdownMenuLabel>Actions</DropdownMenuLabel>
 							<DropdownMenuSeparator />
 							<DropdownMenuItem asChild>
-								<Link href={`/inventory/uom/form?id=${row.original.id}`}>
+								<Link
+									href={`/inventory/inventory-settings/uom/form?id=${row.original.id}`}
+								>
 									<Edit className="mr-2 h-4 w-4" />
 									Edit UOM
 								</Link>

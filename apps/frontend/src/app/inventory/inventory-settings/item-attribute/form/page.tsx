@@ -30,12 +30,34 @@ const attributeValueRowSchema = z.object({
 	abbreviation: z.string().min(1, "Abbreviation is required").max(50).trim(),
 });
 
-const itemAttributeFormSchema = z.object({
-	name: z.string().min(1, "Attribute Name is required").max(255).trim(),
-	disabled: z.boolean(),
-	numericValues: z.boolean(),
-	attributeValues: z.array(attributeValueRowSchema),
-});
+const itemAttributeFormSchema = z
+	.object({
+		name: z.string().min(1, "Attribute Name is required").max(255).trim(),
+		disabled: z.boolean(),
+		numericValues: z.boolean(),
+		fromRange: z.number(),
+		toRange: z.number(),
+		increment: z.number(),
+		attributeValues: z.array(attributeValueRowSchema),
+	})
+	.superRefine((data, ctx) => {
+		if (data.numericValues) {
+			if (data.fromRange >= data.toRange) {
+				ctx.addIssue({
+					code: z.ZodIssueCode.custom,
+					message: "From Range must be less than To Range",
+					path: ["fromRange"],
+				});
+			}
+			if (data.increment <= 0) {
+				ctx.addIssue({
+					code: z.ZodIssueCode.custom,
+					message: "Increment must be greater than 0",
+					path: ["increment"],
+				});
+			}
+		}
+	});
 
 type ItemAttributeFormValues = z.infer<typeof itemAttributeFormSchema>;
 
@@ -79,6 +101,9 @@ function ItemAttributeFormContent() {
 			name: queryName,
 			disabled: false,
 			numericValues: false,
+			fromRange: 0,
+			toRange: 0,
+			increment: 0,
 			attributeValues: [],
 		},
 	});
@@ -112,6 +137,9 @@ function ItemAttributeFormContent() {
 			name: attribute.name,
 			disabled: attribute.disabled,
 			numericValues: attribute.numericValues,
+			fromRange: attribute.fromRange,
+			toRange: attribute.toRange,
+			increment: attribute.increment,
 			attributeValues: attribute.attributeValues.map((v) => ({
 				id: v.id,
 				attributeValue: v.attributeValue,
@@ -184,6 +212,9 @@ function ItemAttributeFormContent() {
 				name: values.name.trim(),
 				disabled: values.disabled,
 				numericValues: values.numericValues,
+				fromRange: values.fromRange,
+				toRange: values.toRange,
+				increment: values.increment,
 				attributeValues: normalizedValues,
 			});
 
@@ -202,6 +233,9 @@ function ItemAttributeFormContent() {
 			name: values.name.trim(),
 			disabled: values.disabled,
 			numericValues: values.numericValues,
+			fromRange: values.fromRange,
+			toRange: values.toRange,
+			increment: values.increment,
 			attributeValues: normalizedValues,
 		});
 
@@ -306,106 +340,182 @@ function ItemAttributeFormContent() {
 				</div>
 			</div>
 
-			{/* ---- Attribute Values child table ---- */}
-			<div className="rounded-xl border bg-background">
-				<div className="px-5 py-4 border-b flex items-center justify-between">
-					<h2 className="text-base font-semibold">Attribute Values</h2>
-					<Button
-						type="button"
-						variant="outline"
-						size="sm"
-						onClick={() => append({ attributeValue: "", abbreviation: "" })}
-					>
-						<Plus className="mr-1 h-4 w-4" />
-						Add Row
-					</Button>
-				</div>
+			{/* ---- Numeric Range fields (visible when numericValues is true) ---- */}
+			{form.watch("numericValues") && (
+				<div className="rounded-xl border bg-background mb-4">
+					<div className="px-5 py-4 border-b">
+						<h2 className="text-base font-semibold">Numeric Range</h2>
+					</div>
+					<div className="space-y-6 px-5 py-5">
+						<div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
+							{/* From Range */}
+							<div className="space-y-2">
+								<Label htmlFor="fromRange">
+									From Range <span className="text-destructive">*</span>
+								</Label>
+								<Input
+									id="fromRange"
+									type="number"
+									step="any"
+									placeholder="0"
+									{...form.register("fromRange", { valueAsNumber: true })}
+								/>
+								{form.formState.errors.fromRange && (
+									<p className="text-xs text-destructive">
+										{form.formState.errors.fromRange.message}
+									</p>
+								)}
+							</div>
 
-				<div className="overflow-x-auto">
-					<table className="w-full text-sm">
-						<thead>
-							<tr className="border-b bg-muted/50">
-								<th className="w-12 px-4 py-3 text-left font-medium text-muted-foreground">
-									No.
-								</th>
-								<th className="px-4 py-3 text-left font-medium text-muted-foreground">
-									Attribute Value <span className="text-destructive">*</span>
-								</th>
-								<th className="w-48 px-4 py-3 text-left font-medium text-muted-foreground">
-									Abbreviation <span className="text-destructive">*</span>
-								</th>
-								<th className="w-12 px-4 py-3" />
-							</tr>
-						</thead>
-						<tbody>
-							{fields.length === 0 && (
-								<tr>
-									<td
-										colSpan={4}
-										className="px-4 py-8 text-center text-sm text-muted-foreground"
-									>
-										No attribute values added yet. Click &ldquo;Add Row&rdquo;
-										to add one.
-									</td>
-								</tr>
-							)}
-							{fields.map((field, index) => (
-								<tr key={field.id} className="border-b last:border-0">
-									<td className="px-4 py-2 text-muted-foreground">
-										{index + 1}
-									</td>
-									<td className="px-4 py-2">
-										<Input
-											placeholder="e.g. Red"
-											{...form.register(
-												`attributeValues.${index}.attributeValue`,
-											)}
-										/>
-										{form.formState.errors.attributeValues?.[index]
-											?.attributeValue && (
-											<p className="mt-1 text-xs text-destructive">
-												{
-													form.formState.errors.attributeValues[index]
-														?.attributeValue?.message
-												}
-											</p>
-										)}
-									</td>
-									<td className="px-4 py-2">
-										<Input
-											placeholder="e.g. R"
-											{...form.register(
-												`attributeValues.${index}.abbreviation`,
-											)}
-										/>
-										{form.formState.errors.attributeValues?.[index]
-											?.abbreviation && (
-											<p className="mt-1 text-xs text-destructive">
-												{
-													form.formState.errors.attributeValues[index]
-														?.abbreviation?.message
-												}
-											</p>
-										)}
-									</td>
-									<td className="px-4 py-2">
-										<Button
-											type="button"
-											variant="ghost"
-											size="icon"
-											className="h-8 w-8 text-muted-foreground hover:text-destructive"
-											onClick={() => remove(index)}
-											aria-label={`Remove row ${index + 1}`}
-										>
-											<Trash2 className="h-4 w-4" />
-										</Button>
-									</td>
-								</tr>
-							))}
-						</tbody>
-					</table>
+							{/* To Range */}
+							<div className="space-y-2">
+								<Label htmlFor="toRange">
+									To Range <span className="text-destructive">*</span>
+								</Label>
+								<Input
+									id="toRange"
+									type="number"
+									step="any"
+									placeholder="0"
+									{...form.register("toRange", { valueAsNumber: true })}
+								/>
+								{form.formState.errors.toRange && (
+									<p className="text-xs text-destructive">
+										{form.formState.errors.toRange.message}
+									</p>
+								)}
+							</div>
+
+							{/* Increment */}
+							<div className="space-y-2">
+								<Label htmlFor="increment">
+									Increment <span className="text-destructive">*</span>
+								</Label>
+								<Input
+									id="increment"
+									type="number"
+									step="any"
+									placeholder="0"
+									{...form.register("increment", { valueAsNumber: true })}
+								/>
+								{form.formState.errors.increment && (
+									<p className="text-xs text-destructive">
+										{form.formState.errors.increment.message}
+									</p>
+								)}
+							</div>
+						</div>
+						{form.formState.errors.root && (
+							<p className="text-xs text-destructive">
+								{form.formState.errors.root.message}
+							</p>
+						)}
+					</div>
 				</div>
-			</div>
+			)}
+
+			{/* ---- Attribute Values child table (hidden when numericValues is true) ---- */}
+			{!form.watch("numericValues") && (
+				<div className="rounded-xl border bg-background">
+					<div className="px-5 py-4 border-b flex items-center justify-between">
+						<h2 className="text-base font-semibold">Attribute Values</h2>
+						<Button
+							type="button"
+							variant="outline"
+							size="sm"
+							onClick={() => append({ attributeValue: "", abbreviation: "" })}
+						>
+							<Plus className="mr-1 h-4 w-4" />
+							Add Row
+						</Button>
+					</div>
+
+					<div className="overflow-x-auto">
+						<table className="w-full text-sm">
+							<thead>
+								<tr className="border-b bg-muted/50">
+									<th className="w-12 px-4 py-3 text-left font-medium text-muted-foreground">
+										No.
+									</th>
+									<th className="px-4 py-3 text-left font-medium text-muted-foreground">
+										Attribute Value <span className="text-destructive">*</span>
+									</th>
+									<th className="w-48 px-4 py-3 text-left font-medium text-muted-foreground">
+										Abbreviation <span className="text-destructive">*</span>
+									</th>
+									<th className="w-12 px-4 py-3" />
+								</tr>
+							</thead>
+							<tbody>
+								{fields.length === 0 && (
+									<tr>
+										<td
+											colSpan={4}
+											className="px-4 py-8 text-center text-sm text-muted-foreground"
+										>
+											No attribute values added yet. Click &ldquo;Add Row&rdquo;
+											to add one.
+										</td>
+									</tr>
+								)}
+								{fields.map((field, index) => (
+									<tr key={field.id} className="border-b last:border-0">
+										<td className="px-4 py-2 text-muted-foreground">
+											{index + 1}
+										</td>
+										<td className="px-4 py-2">
+											<Input
+												placeholder="e.g. Red"
+												{...form.register(
+													`attributeValues.${index}.attributeValue`,
+												)}
+											/>
+											{form.formState.errors.attributeValues?.[index]
+												?.attributeValue && (
+												<p className="mt-1 text-xs text-destructive">
+													{
+														form.formState.errors.attributeValues[index]
+															?.attributeValue?.message
+													}
+												</p>
+											)}
+										</td>
+										<td className="px-4 py-2">
+											<Input
+												placeholder="e.g. R"
+												{...form.register(
+													`attributeValues.${index}.abbreviation`,
+												)}
+											/>
+											{form.formState.errors.attributeValues?.[index]
+												?.abbreviation && (
+												<p className="mt-1 text-xs text-destructive">
+													{
+														form.formState.errors.attributeValues[index]
+															?.abbreviation?.message
+													}
+												</p>
+											)}
+										</td>
+										<td className="px-4 py-2">
+											<Button
+												type="button"
+												variant="ghost"
+												size="icon"
+												className="h-8 w-8 text-muted-foreground hover:text-destructive"
+												onClick={() => remove(index)}
+												aria-label={`Remove row ${index + 1}`}
+											>
+												<Trash2 className="h-4 w-4" />
+											</Button>
+										</td>
+									</tr>
+								))}
+							</tbody>
+						</table>
+					</div>
+				</div>
+			)}
 		</div>
 	);
 }

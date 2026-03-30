@@ -2037,6 +2037,12 @@ export namespace Inventory {
 		 * rather than discrete text values.
 		 */
 		numericValues: boolean;
+		/** Start of numeric range (used when numericValues is true) */
+		fromRange: number;
+		/** End of numeric range (used when numericValues is true) */
+		toRange: number;
+		/** Step increment for numeric range (used when numericValues is true) */
+		increment: number;
 		/** Ordered list of allowed values for this attribute */
 		attributeValues: ItemAttributeValue[];
 		/** When this attribute was created */
@@ -2062,24 +2068,76 @@ export namespace Inventory {
 	/**
 	 * Validation schema for creating an item attribute.
 	 */
-	export const createItemAttributeSchema = z.object({
-		name: z.string().min(1, "Attribute name is required").max(255).trim(),
-		disabled: z.boolean().default(false),
-		numericValues: z.boolean().default(false),
-		attributeValues: z.array(itemAttributeValueInputSchema).default([]),
-	});
+	export const createItemAttributeSchema = z
+		.object({
+			name: z.string().min(1, "Attribute name is required").max(255).trim(),
+			disabled: z.boolean().default(false),
+			numericValues: z.boolean().default(false),
+			fromRange: z.number().default(0),
+			toRange: z.number().default(0),
+			increment: z.number().default(0),
+			attributeValues: z.array(itemAttributeValueInputSchema).default([]),
+		})
+		.superRefine((data, ctx) => {
+			if (data.numericValues) {
+				if (data.fromRange >= data.toRange) {
+					ctx.addIssue({
+						code: z.ZodIssueCode.custom,
+						message:
+							"From Range must be less than To Range for numeric attributes",
+						path: ["fromRange"],
+					});
+				}
+				if (data.increment <= 0) {
+					ctx.addIssue({
+						code: z.ZodIssueCode.custom,
+						message: "Increment must be greater than 0 for numeric attributes",
+						path: ["increment"],
+					});
+				}
+			}
+		});
 
 	/**
 	 * Validation schema for updating an item attribute.
 	 */
-	export const updateItemAttributeSchema = z.object({
-		id: z.string().cuid(),
-		name: z.string().min(1).max(255).trim().optional(),
-		disabled: z.boolean().optional(),
-		numericValues: z.boolean().optional(),
-		/** When provided, fully replaces the attribute values list using a safe upsert strategy */
-		attributeValues: z.array(itemAttributeValueInputSchema).optional(),
-	});
+	export const updateItemAttributeSchema = z
+		.object({
+			id: z.string().cuid(),
+			name: z.string().min(1).max(255).trim().optional(),
+			disabled: z.boolean().optional(),
+			numericValues: z.boolean().optional(),
+			fromRange: z.number().optional(),
+			toRange: z.number().optional(),
+			increment: z.number().optional(),
+			/** When provided, fully replaces the attribute values list using a safe upsert strategy */
+			attributeValues: z.array(itemAttributeValueInputSchema).optional(),
+		})
+		.superRefine((data, ctx) => {
+			if (
+				data.numericValues &&
+				data.fromRange !== undefined &&
+				data.toRange !== undefined
+			) {
+				if (data.fromRange >= data.toRange) {
+					ctx.addIssue({
+						code: z.ZodIssueCode.custom,
+						message:
+							"From Range must be less than To Range for numeric attributes",
+						path: ["fromRange"],
+					});
+				}
+			}
+			if (data.numericValues && data.increment !== undefined) {
+				if (data.increment <= 0) {
+					ctx.addIssue({
+						code: z.ZodIssueCode.custom,
+						message: "Increment must be greater than 0 for numeric attributes",
+						path: ["increment"],
+					});
+				}
+			}
+		});
 
 	const stockItemNamingBySchema = z.enum(["ITEM_CODE", "NAMING_SERIES"]);
 	const stockValuationMethodSchema = z.enum(["FIFO", "MOVING_AVERAGE"]);

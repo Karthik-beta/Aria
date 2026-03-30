@@ -292,6 +292,9 @@ export class ItemCatalogSubService {
 					name: data.name,
 					disabled: data.disabled,
 					numericValues: data.numericValues,
+					fromRange: data.fromRange ?? 0,
+					toRange: data.toRange ?? 0,
+					increment: data.increment ?? 0,
 					attributeValues: {
 						create: data.attributeValues.map((v, index) => ({
 							attributeValue: v.attributeValue,
@@ -330,6 +333,22 @@ export class ItemCatalogSubService {
 	): Promise<Inventory.ItemAttribute> {
 		const { id, attributeValues, ...rest } = data;
 
+		// Extract numeric range fields separately so they don't go through removeUndefined
+		// which would drop explicit zero values
+		const numericRangeFields: Record<string, number | undefined> = {};
+		if (rest.fromRange !== undefined)
+			numericRangeFields.fromRange = rest.fromRange;
+		if (rest.toRange !== undefined) numericRangeFields.toRange = rest.toRange;
+		if (rest.increment !== undefined)
+			numericRangeFields.increment = rest.increment;
+
+		const {
+			fromRange: _fr,
+			toRange: _tr,
+			increment: _inc,
+			...scalarRest
+		} = rest;
+
 		// Verify the record exists first so we get a clean 404 instead of a Prisma error.
 		const existing = await this.prisma.itemAttribute.findUnique({
 			where: { id },
@@ -344,7 +363,7 @@ export class ItemCatalogSubService {
 				// Scalar field updates
 				await tx.itemAttribute.update({
 					where: { id },
-					data: removeUndefined(rest),
+					data: { ...removeUndefined(scalarRest), ...numericRangeFields },
 				});
 
 				if (attributeValues !== undefined) {
