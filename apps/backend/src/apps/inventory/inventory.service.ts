@@ -94,6 +94,10 @@ import {
 } from "./stock-projected-qty-report";
 import { buildStockSummaryRows } from "./stock-summary-report";
 import {
+	buildSubcontractedRawMaterialsRows,
+	summarizeSubcontractedRawMaterialsRows,
+} from "./subcontracted-raw-materials-report";
+import {
 	loadUomSeedEntriesFromCsv,
 	normalizeUomName,
 	type UomSeedEntry,
@@ -12220,5 +12224,92 @@ export class InventoryService {
 			avgBuyingPriceMap,
 			openOrdersMap,
 		);
+	}
+
+	async findSubcontractedRawMaterials(
+		params: Inventory.ListSubcontractedRawMaterialsInput,
+	): Promise<Inventory.SubcontractedRawMaterialsResult> {
+		const supplier = params.supplier.trim();
+		const fromDate = new Date(params.fromDate);
+		const toDate = new Date(params.toDate);
+		const company = params.company?.trim();
+		const rmItemCode = params.rmItemCode?.trim();
+
+		if (fromDate >= toDate) {
+			return {
+				rows: [],
+				summary: {
+					orderCount: 0,
+					rowCount: 0,
+					totalRequiredQty: 0,
+					totalTransferredQty: 0,
+					totalReturnedQty: 0,
+					totalPendingQty: 0,
+				},
+			};
+		}
+
+		const orders = await this.prisma.subcontractingOrder.findMany({
+			where: {
+				supplier: {
+					contains: supplier,
+					mode: "insensitive",
+				},
+				transactionDate: {
+					gte: fromDate,
+					lte: toDate,
+				},
+				status: {
+					notIn: ["DRAFT", "CANCELLED"],
+				},
+				percentReceived: {
+					lt: 100,
+				},
+				...(company
+					? {
+							company: {
+								contains: company,
+								mode: "insensitive",
+							},
+						}
+					: {}),
+			},
+			include: { suppliedItems: true },
+			orderBy: [{ transactionDate: "asc" }, { series: "asc" }],
+		});
+
+		const sourceRows = orders.flatMap((order) =>
+			order.suppliedItems
+				.filter((item) => {
+					if (
+						rmItemCode &&
+						!item.rmItemCode.toLowerCase().includes(rmItemCode.toLowerCase())
+					) {
+						return false;
+					}
+					return true;
+				})
+				.map((item) => ({
+					id: item.id,
+					subcontractingOrderId: order.id,
+					subcontractOrder: order.series,
+					date: order.transactionDate,
+					supplier: order.supplier,
+					status: order.status as Inventory.SubcontractingOrderStatus,
+					percentReceived: order.percentReceived,
+					rmItemCode: item.rmItemCode,
+					rmItemName: item.rmItemName,
+					requiredQty: item.requiredQty,
+					suppliedQty: item.suppliedQty,
+					returnedQty: item.returnedQty,
+				})),
+		);
+
+		const rows = buildSubcontractedRawMaterialsRows(sourceRows);
+
+		return {
+			rows,
+			summary: summarizeSubcontractedRawMaterialsRows(rows),
+		};
 	}
 }

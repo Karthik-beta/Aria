@@ -5272,6 +5272,64 @@ export namespace Inventory {
 	export interface ListItemVariantDetailsInput {
 		itemCode: string;
 	}
+
+	// ============================================================================
+	// Subcontracted Raw Materials To Be Transferred Report Types & Schemas
+	// ============================================================================
+
+	export type SubcontractingOrderStatus =
+		| "DRAFT"
+		| "OPEN"
+		| "PARTIALLY_RECEIVED"
+		| "COMPLETED"
+		| "CLOSED"
+		| "CANCELLED";
+
+	/** One row in the Subcontracted Raw Materials To Be Transferred report. */
+	export interface SubcontractedRawMaterialsRow {
+		id: string;
+		subcontractingOrderId: string;
+		subcontractOrder: string;
+		date: Date;
+		supplier: string;
+		rmItemCode: string;
+		rmItemName?: string | null;
+		requiredQty: number;
+		transferredQty: number;
+		returnedQty: number;
+		pendingQty: number;
+	}
+
+	/** Aggregate totals for the Subcontracted Raw Materials To Be Transferred page. */
+	export interface SubcontractedRawMaterialsSummary {
+		orderCount: number;
+		rowCount: number;
+		totalRequiredQty: number;
+		totalTransferredQty: number;
+		totalReturnedQty: number;
+		totalPendingQty: number;
+	}
+
+	export interface SubcontractedRawMaterialsResult {
+		rows: SubcontractedRawMaterialsRow[];
+		summary: SubcontractedRawMaterialsSummary;
+	}
+
+	export const listSubcontractedRawMaterialsSchema = z.object({
+		supplier: z.string().min(1).max(255).trim(),
+		fromDate: z.coerce.date(),
+		toDate: z.coerce.date(),
+		company: z.string().max(255).optional(),
+		rmItemCode: z.string().max(100).optional(),
+	});
+
+	export interface ListSubcontractedRawMaterialsInput {
+		supplier: string;
+		fromDate: Date;
+		toDate: Date;
+		company?: string;
+		rmItemCode?: string;
+	}
 }
 
 // ============================================================================

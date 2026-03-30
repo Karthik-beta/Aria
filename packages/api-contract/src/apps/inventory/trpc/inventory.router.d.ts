@@ -1460,6 +1460,17 @@ type InventoryRouterInput = {
 		output: Inventory.RequestedItemsToBeTransferredResult;
 		meta: object;
 	}>;
+	listSubcontractedRawMaterials: TRPCQueryProcedure<{
+		input: {
+			supplier: string;
+			fromDate: unknown;
+			toDate: unknown;
+			company?: string | undefined;
+			rmItemCode?: string | undefined;
+		};
+		output: Inventory.SubcontractedRawMaterialsResult;
+		meta: object;
+	}>;
 	listBatchWiseBalance: TRPCQueryProcedure<{
 		input: {
 			company: string;

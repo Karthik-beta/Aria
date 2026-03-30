@@ -239,6 +239,12 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
 	get qiTemplateItem() {
 		return this.client.qiTemplateItem;
 	}
+	get subcontractingOrder() {
+		return this.client.subcontractingOrder;
+	}
+	get subcontractingOrderSuppliedItem() {
+		return this.client.subcontractingOrderSuppliedItem;
+	}
 
 	// ═══════════════════════════════════════════════════════════════════════════
 	// Transaction Support

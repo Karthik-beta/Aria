@@ -1487,3 +1487,53 @@ enum PurchaseOrderStatus {
   STOPPED
   ON_HOLD
 }
+
+// ─── Subcontracting Order ─────────────────────────────────────────────────────
+
+model SubcontractingOrder {
+  id              String                              @id @default(cuid())
+  series          String                              @unique @db.VarChar(50)
+  transactionDate DateTime                            @default(now())
+  supplier        String                              @db.VarChar(255)
+  company         String                              @db.VarChar(255)
+  status          SubcontractingOrderStatus           @default(DRAFT)
+  /// Percentage of finished goods received back from the subcontractor (0–100)
+  percentReceived Float                               @default(0)
+  suppliedItems   SubcontractingOrderSuppliedItem[]
+  createdAt       DateTime                            @default(now())
+  updatedAt       DateTime                            @updatedAt
+
+  @@index([status])
+  @@index([transactionDate])
+  @@index([supplier])
+  @@index([company])
+  @@map("subcontracting_orders")
+}
+
+/// Raw material line that must be transferred to the subcontractor.
+model SubcontractingOrderSuppliedItem {
+  id                    String              @id @default(cuid())
+  subcontractingOrderId String
+  rmItemCode            String              @db.VarChar(100)
+  rmItemName            String?             @db.VarChar(255)
+  /// Total raw material quantity expected by the subcontractor
+  requiredQty           Float               @default(0)
+  /// Cumulative quantity already sent to the subcontractor
+  suppliedQty           Float               @default(0)
+  /// Cumulative quantity returned by the subcontractor
+  returnedQty           Float               @default(0)
+  subcontractingOrder   SubcontractingOrder @relation(fields: [subcontractingOrderId], references: [id], onDelete: Cascade)
+
+  @@index([subcontractingOrderId])
+  @@index([rmItemCode])
+  @@map("subcontracting_order_supplied_items")
+}
+
+enum SubcontractingOrderStatus {
+  DRAFT
+  OPEN
+  PARTIALLY_RECEIVED
+  COMPLETED
+  CLOSED
+  CANCELLED
+}
