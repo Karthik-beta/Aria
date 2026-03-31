@@ -1,14 +1,22 @@
 # Aria ERP
 
+[![CI](https://github.com/Karthik-beta/Aria/actions/workflows/ci.yml/badge.svg)](https://github.com/Karthik-beta/Aria/actions/workflows/ci.yml)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Bun](https://img.shields.io/badge/Bun-1.3.x-f9f1e1?logo=bun&logoColor=black)](https://bun.sh/)
+[![NestJS](https://img.shields.io/badge/NestJS-11-E0234E?logo=nestjs&logoColor=white)](https://nestjs.com/)
+[![Next.js](https://img.shields.io/badge/Next.js-15-000000?logo=next.js&logoColor=white)](https://nextjs.org/)
+
 > Modern, modular B2B ERP suite built with TypeScript, NestJS, and Next.js
 
 Aria ERP is a full-stack monorepo providing enterprise resource planning capabilities through specialized modules for asset management, customer relations, human resources, and inventory control.
+
+> **Proprietary Software** — This repository contains confidential intellectual property of Pivotr. See [LICENSE](./LICENSE) for details.
 
 ## Quick Links
 
 - **[Getting Started](./docs/01-getting-started/README.md)** — Setup guide for new developers
 - **[Documentation Hub](./docs/README.md)** — Complete documentation index
-- **[Contributing](./docs/06-contributing/README.md)** — How to contribute
+- **[Contributing](./CONTRIBUTING.md)** — How to contribute
 - **[Deployment Guide](./docs/05-deployment/README.md)** — Production deployment
 
 ## Architecture
@@ -95,7 +103,7 @@ See the [Getting Started Guide](./docs/01-getting-started/README.md) for detaile
 
 ## Contributing
 
-We welcome contributions! Please read our [Contributing Guide](./docs/06-contributing/README.md) before submitting pull requests.
+All team members should read the [Contributing Guide](./CONTRIBUTING.md) before submitting pull requests.
 
 **Quick checklist before PR:**
 
@@ -106,6 +114,14 @@ We welcome contributions! Please read our [Contributing Guide](./docs/06-contrib
 - [ ] `bun run build` succeeds
 - [ ] Documentation updated
 
+## Resources
+
+- **[Contributing Guide](./CONTRIBUTING.md)** — Internal development workflow and code standards
+- **[Security Policy](./SECURITY.md)** — Vulnerability reporting and security practices
+- **[Changelog](./CHANGELOG.md)** — Release history and notable changes
+
 ## License
 
-MIT License — see [LICENSE](./LICENSE) file for details.
+Proprietary — All rights reserved. See [LICENSE](./LICENSE) for details.
+
+Copyright (c) 2024-present Pivotr
