@@ -268,7 +268,7 @@ export const inventoryNavItems: NavItem[] = [
 			},
 			{
 				title: "Subcontracted Item To Be Received",
-				url: "/inventory/reports/subcontracted-item-received",
+				url: "/inventory/reports/subcontracted-items-received",
 			},
 		],
 	},
