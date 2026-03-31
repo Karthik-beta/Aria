@@ -74,6 +74,7 @@ function UnitOfMeasureFormContent() {
 
 	useEffect(() => {
 		if (!isEditMode || !uom) return;
+		if (form.formState.isDirty) return; // Don't overwrite user edits on refetch
 
 		form.reset({
 			name: uom.name,

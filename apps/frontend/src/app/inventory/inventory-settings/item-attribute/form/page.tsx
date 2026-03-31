@@ -132,6 +132,7 @@ function ItemAttributeFormContent() {
 	// ---- Populate form when editing ----
 	useEffect(() => {
 		if (!isEditMode || !attribute) return;
+		if (form.formState.isDirty) return; // Don't overwrite user edits on refetch
 
 		form.reset({
 			name: attribute.name,

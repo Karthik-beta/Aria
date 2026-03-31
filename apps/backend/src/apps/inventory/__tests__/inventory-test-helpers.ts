@@ -614,10 +614,12 @@ export function createMockPrisma() {
 			update: jest.fn(),
 			delete: jest.fn(),
 			deleteMany: jest.fn(),
+			count: jest.fn(),
 		},
 		item: {
 			findMany: jest.fn(),
 			findUnique: jest.fn(),
+			count: jest.fn(),
 		},
 		productBundle: {
 			findMany: jest.fn(),
@@ -846,6 +848,12 @@ export function createMockPrisma() {
 			deleteMany: jest.fn(),
 			update: jest.fn(),
 			create: jest.fn(),
+		},
+		inventoryItemAttribute: {
+			count: jest.fn(),
+		},
+		productBundleItem: {
+			count: jest.fn(),
 		},
 		$transaction: jest.fn(),
 	};

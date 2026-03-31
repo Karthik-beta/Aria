@@ -232,18 +232,27 @@ export class ItemCatalogSubService {
 	 * Delete a brand
 	 */
 	async deleteBrand(id: string): Promise<{ success: boolean; id: string }> {
-		try {
-			await this.prisma.brand.delete({ where: { id } });
-			return { success: true, id };
-		} catch (error) {
-			if (
-				error instanceof Prisma.PrismaClientKnownRequestError &&
-				error.code === "P2025"
-			) {
-				throw new NotFoundException(`Brand with ID ${id} not found`);
-			}
-			throw error;
+		const existing = await this.prisma.brand.findUnique({
+			where: { id },
+			select: { id: true, name: true },
+		});
+
+		if (!existing) {
+			throw new NotFoundException(`Brand with ID ${id} not found`);
 		}
+
+		const itemCount = await this.prisma.item.count({
+			where: { brandId: id },
+		});
+
+		if (itemCount > 0) {
+			throw new BadRequestException(
+				`Brand "${existing.name}" cannot be deleted because it is referenced by ${itemCount} item(s)`,
+			);
+		}
+
+		await this.prisma.brand.delete({ where: { id } });
+		return { success: true, id };
 	}
 
 	// ============================================================================
@@ -436,18 +445,27 @@ export class ItemCatalogSubService {
 	async deleteItemAttribute(
 		id: string,
 	): Promise<{ success: boolean; id: string }> {
-		try {
-			await this.prisma.itemAttribute.delete({ where: { id } });
-			return { success: true, id };
-		} catch (error) {
-			if (
-				error instanceof Prisma.PrismaClientKnownRequestError &&
-				error.code === "P2025"
-			) {
-				throw new NotFoundException(`Item Attribute with ID ${id} not found`);
-			}
-			throw error;
+		const existing = await this.prisma.itemAttribute.findUnique({
+			where: { id },
+			select: { id: true, name: true },
+		});
+
+		if (!existing) {
+			throw new NotFoundException(`Item Attribute with ID ${id} not found`);
 		}
+
+		const usageCount = await this.prisma.inventoryItemAttribute.count({
+			where: { attributeId: id },
+		});
+
+		if (usageCount > 0) {
+			throw new BadRequestException(
+				`Item Attribute "${existing.name}" cannot be deleted because it is used by ${usageCount} item(s)`,
+			);
+		}
+
+		await this.prisma.itemAttribute.delete({ where: { id } });
+		return { success: true, id };
 	}
 
 	/**

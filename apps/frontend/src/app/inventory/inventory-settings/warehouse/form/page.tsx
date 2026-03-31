@@ -90,6 +90,7 @@ function WarehouseFormContent() {
 
 	useEffect(() => {
 		if (!isEditMode || !warehouse) return;
+		if (form.formState.isDirty) return; // Don't overwrite user edits on refetch
 
 		form.reset({
 			name: warehouse.name,

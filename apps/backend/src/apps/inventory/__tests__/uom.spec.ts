@@ -228,6 +228,12 @@ describe("InventoryService > Unit of Measure", () => {
 
 	describe("deleteUnitOfMeasure", () => {
 		it("should delete a unit of measure", async () => {
+			mockPrisma.unitOfMeasurement.findUnique.mockResolvedValue(
+				mockUnitOfMeasure,
+			);
+			mockPrisma.item.count.mockResolvedValue(0);
+			mockPrisma.inventoryItem.count.mockResolvedValue(0);
+			mockPrisma.productBundleItem.count.mockResolvedValue(0);
 			mockPrisma.unitOfMeasurement.delete.mockResolvedValue(mockUnitOfMeasure);
 
 			const result = await service.deleteUnitOfMeasure(mockUnitOfMeasure.id);
@@ -242,14 +248,7 @@ describe("InventoryService > Unit of Measure", () => {
 		});
 
 		it("should throw NotFoundException when a unit of measure does not exist", async () => {
-			const error = new Prisma.PrismaClientKnownRequestError(
-				"Record not found",
-				{
-					code: "P2025",
-					clientVersion: "5.0.0",
-				},
-			);
-			mockPrisma.unitOfMeasurement.delete.mockRejectedValue(error);
+			mockPrisma.unitOfMeasurement.findUnique.mockResolvedValue(null);
 
 			await expect(service.deleteUnitOfMeasure("missing-uom")).rejects.toThrow(
 				NotFoundException,

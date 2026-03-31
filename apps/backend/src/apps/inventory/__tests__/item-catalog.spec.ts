@@ -714,6 +714,8 @@ describe("InventoryService > Item Catalog", () => {
 
 	describe("deleteItemAttribute", () => {
 		it("should delete an item attribute by id", async () => {
+			mockPrisma.itemAttribute.findUnique.mockResolvedValue(mockItemAttribute);
+			mockPrisma.inventoryItemAttribute.count.mockResolvedValue(0);
 			mockPrisma.itemAttribute.delete.mockResolvedValue(mockItemAttribute);
 
 			const result = await service.deleteItemAttribute(mockItemAttribute.id);
@@ -728,15 +730,20 @@ describe("InventoryService > Item Catalog", () => {
 		});
 
 		it("should throw NotFoundException when item attribute does not exist", async () => {
-			const error = new Prisma.PrismaClientKnownRequestError(
-				"Record not found",
-				{ code: "P2025", clientVersion: "5.0.0" },
-			);
-			mockPrisma.itemAttribute.delete.mockRejectedValue(error);
+			mockPrisma.itemAttribute.findUnique.mockResolvedValue(null);
 
 			await expect(service.deleteItemAttribute("missing-id")).rejects.toThrow(
 				NotFoundException,
 			);
+		});
+
+		it("should throw BadRequestException when item attribute is in use", async () => {
+			mockPrisma.itemAttribute.findUnique.mockResolvedValue(mockItemAttribute);
+			mockPrisma.inventoryItemAttribute.count.mockResolvedValue(3);
+
+			await expect(
+				service.deleteItemAttribute(mockItemAttribute.id),
+			).rejects.toThrow(BadRequestException);
 		});
 	});
 
