@@ -226,7 +226,7 @@ describe("SalesOrderAnalysisPage", () => {
 		fireEvent.change(companyInput, { target: { value: "Test Corp" } });
 
 		await waitFor(() => {
-			expect(screen.queryByText("Sales Order Analysis")).toBeInTheDocument();
+			expect(screen.getByText("Connection Problem")).toBeInTheDocument();
 		});
 	});
 

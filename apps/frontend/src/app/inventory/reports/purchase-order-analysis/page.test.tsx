@@ -231,6 +231,24 @@ describe("PurchaseOrderAnalysisPage", () => {
 		});
 	});
 
+	it("shows error state on query failure", async () => {
+		mockUseQuery.mockReturnValue({
+			data: undefined,
+			isLoading: false,
+			error: new Error("Database connection failed"),
+			refetch: vi.fn(),
+		});
+
+		renderWithProviders(<PurchaseOrderAnalysisPage />);
+
+		const companyInput = screen.getByPlaceholderText("Company *");
+		fireEvent.change(companyInput, { target: { value: "Test Corp" } });
+
+		await waitFor(() => {
+			expect(screen.getByText("Connection Problem")).toBeInTheDocument();
+		});
+	});
+
 	it("renders status checkboxes for all six statuses", () => {
 		renderWithProviders(<PurchaseOrderAnalysisPage />);
 
