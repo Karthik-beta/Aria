@@ -128,23 +128,21 @@ const TreeItem = ({
 						</Button>
 					)}
 					{!isRoot && (
-						<>
-							<Button
-								variant="secondary"
-								size="sm"
-								className="h-6.5 px-3 text-[11px] bg-muted/60 hover:bg-muted border-none rounded-[4px] font-medium text-destructive hover:bg-destructive/10 transition-all"
-								onClick={(e) => {
-									e.stopPropagation();
-									if (
-										confirm("Are you sure you want to delete this item group?")
-									) {
-										onDelete?.(node.id);
-									}
-								}}
-							>
-								Delete
-							</Button>
-						</>
+						<Button
+							variant="secondary"
+							size="sm"
+							className="h-6.5 px-3 text-[11px] bg-muted/60 hover:bg-muted border-none rounded-[4px] font-medium text-destructive hover:bg-destructive/10 transition-all"
+							onClick={(e) => {
+								e.stopPropagation();
+								if (
+									confirm("Are you sure you want to delete this item group?")
+								) {
+									onDelete?.(node.id);
+								}
+							}}
+						>
+							Delete
+						</Button>
 					)}
 				</div>
 			</div>

@@ -295,7 +295,7 @@ describe("PackingSlipFormPage", () => {
 		});
 	});
 
-	it("adds an item row when Add Row is clicked", async () => {
+	it("shows items tab with empty state text", async () => {
 		const user = userEvent.setup();
 		renderWithProviders(<PackingSlipFormPage />);
 
@@ -306,13 +306,5 @@ describe("PackingSlipFormPage", () => {
 		expect(
 			screen.getByText(/Enter a Delivery Note above/i),
 		).toBeInTheDocument();
-
-		// Click Add Row
-		await user.click(screen.getByRole("button", { name: /Add Row/i }));
-
-		// Row should be added (empty state text disappears)
-		expect(
-			screen.queryByText(/Enter a Delivery Note above/i),
-		).not.toBeInTheDocument();
 	});
 });

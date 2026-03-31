@@ -2,7 +2,7 @@
 
 import { Inventory } from "@aria/types";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Loader2, Plus, Trash2 } from "lucide-react";
+import { Loader2, Trash2 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef, useTransition } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
@@ -105,7 +105,6 @@ function PackingSlipFormContent() {
 
 	const {
 		fields: itemFields,
-		append: appendItem,
 		remove: removeItem,
 		replace: replaceItems,
 	} = useFieldArray({ control: form.control, name: "items" });
@@ -704,30 +703,6 @@ function PackingSlipFormContent() {
 									</TableBody>
 								</Table>
 							</div>
-
-							{!isReadonly && (
-								<Button
-									type="button"
-									variant="outline"
-									size="sm"
-									className="mt-3"
-									onClick={() =>
-										appendItem({
-											deliveryNoteItemId: "",
-											itemCode: "",
-											itemName: null,
-											description: null,
-											qty: 1,
-											netWeight: 0,
-											weightUom: null,
-											batchNo: null,
-										})
-									}
-								>
-									<Plus className="mr-2 h-4 w-4" />
-									Add Row
-								</Button>
-							)}
 
 							{form.formState.errors.items?.message && (
 								<p className="mt-2 text-sm text-destructive">
