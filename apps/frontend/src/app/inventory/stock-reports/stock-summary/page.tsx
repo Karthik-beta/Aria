@@ -491,6 +491,8 @@ export default function StockSummaryPage() {
 			{queryError && !isLoading && (
 				<ErrorState
 					error={queryError}
+					operation="load"
+					title="Failed to load stock summary"
 					onRetry={() => {
 						void refetch();
 					}}
@@ -503,6 +505,7 @@ export default function StockSummaryPage() {
 					data={rows}
 					ariaLabel="Stock summary table"
 					enableGlobalSearch={false}
+					enableBulkActions={false}
 					enableExport
 					enableColumnResizing
 					enableVirtualization

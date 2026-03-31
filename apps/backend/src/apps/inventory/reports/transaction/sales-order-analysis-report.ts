@@ -203,6 +203,14 @@ export function buildSalesOrderAnalysisRows(
 					if (itemRow.delayDays > existing.delayDays) {
 						existing.delayDays = itemRow.delayDays;
 					}
+					// Longest time to deliver defines SO time-to-deliver
+					if (
+						itemRow.timeTakenToDeliverSeconds >
+						existing.timeTakenToDeliverSeconds
+					) {
+						existing.timeTakenToDeliverSeconds =
+							itemRow.timeTakenToDeliverSeconds;
+					}
 				}
 			}
 		}

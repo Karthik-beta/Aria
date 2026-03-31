@@ -8,7 +8,12 @@
  * @see {@link https://docs.erpnext.com/docs/user/manual/en/stock/uom | ERPNext UOM}
  */
 import type { Inventory } from "@aria/types";
-import { ConflictException, Logger, NotFoundException } from "@nestjs/common";
+import {
+	BadRequestException,
+	ConflictException,
+	Logger,
+	NotFoundException,
+} from "@nestjs/common";
 import type { z } from "zod";
 import { Prisma } from "../../../generated/prisma/client";
 import type { PrismaService } from "../../../shared/prisma.service";
@@ -227,17 +232,36 @@ export class UomSubService {
 	async deleteUnitOfMeasure(
 		id: string,
 	): Promise<{ success: boolean; id: string }> {
-		try {
-			await this.prisma.unitOfMeasurement.delete({ where: { id } });
-			return { success: true, id };
-		} catch (error) {
-			if (
-				error instanceof Prisma.PrismaClientKnownRequestError &&
-				error.code === "P2025"
-			) {
-				throw new NotFoundException(`Unit of measure with ID ${id} not found`);
-			}
-			throw error;
+		const existing = await this.prisma.unitOfMeasurement.findUnique({
+			where: { id },
+			select: { id: true, name: true },
+		});
+
+		if (!existing) {
+			throw new NotFoundException(`Unit of measure with ID ${id} not found`);
 		}
+
+		const [itemCount, inventoryItemCount, bundleItemCount] =
+			await this.prisma.$transaction([
+				this.prisma.item.count({
+					where: { defaultUnitOfMeasureId: id },
+				}),
+				this.prisma.inventoryItem.count({
+					where: { defaultUnitOfMeasureId: id },
+				}),
+				this.prisma.productBundleItem.count({
+					where: { UnitOfMeasurementId: id },
+				}),
+			]);
+
+		const totalReferences = itemCount + inventoryItemCount + bundleItemCount;
+		if (totalReferences > 0) {
+			throw new BadRequestException(
+				`Unit of measure "${existing.name}" cannot be deleted because it is referenced by ${totalReferences} record(s)`,
+			);
+		}
+
+		await this.prisma.unitOfMeasurement.delete({ where: { id } });
+		return { success: true, id };
 	}
 }

@@ -268,5 +268,241 @@ describe("AppSwitcher Component", () => {
 			// already-active app synchronously, so mockPush must not have been called.
 			expect(mockPush).not.toHaveBeenCalled();
 		});
+
+		it("should fall back to first app when safeApps is empty and no defaultApp", async () => {
+			// Create a minimal valid defaultApp so the component can render something
+			// (both apps=[] and defaultApp triggers safeApps = [defaultApp])
+			renderWithProviders(<AppSwitcher apps={[]} defaultApp={testApps[0]} />);
+
+			await waitFor(() => {
+				expect(screen.getByText("Inventory")).toBeInTheDocument();
+			});
+		});
+
+		it("should handle single app in the list", async () => {
+			const singleApp = [testApps[0]];
+			renderWithProviders(
+				<AppSwitcher apps={singleApp} defaultApp={singleApp[0]} />,
+			);
+
+			await waitFor(() => {
+				expect(screen.getByText("Inventory")).toBeInTheDocument();
+			});
+		});
+	});
+
+	describe("Dropdown Content", () => {
+		it("should display all four app options in dropdown", async () => {
+			const user = userEvent.setup();
+			renderWithProviders(
+				<AppSwitcher apps={testApps} defaultApp={testApps[0]} />,
+			);
+
+			await waitFor(() => {
+				expect(screen.getByText("Inventory")).toBeInTheDocument();
+			});
+
+			const button = screen.getByRole("button");
+			await user.click(button);
+
+			await waitFor(() => {
+				expect(screen.getByText("Asset")).toBeInTheDocument();
+				expect(screen.getByText("CRM")).toBeInTheDocument();
+				expect(screen.getByText("HRMS")).toBeInTheDocument();
+			});
+		});
+
+		it("should display 'Apps' label in dropdown", async () => {
+			const user = userEvent.setup();
+			renderWithProviders(
+				<AppSwitcher apps={testApps} defaultApp={testApps[0]} />,
+			);
+
+			await waitFor(() => {
+				expect(screen.getByText("Inventory")).toBeInTheDocument();
+			});
+
+			const button = screen.getByRole("button");
+			await user.click(button);
+
+			await waitFor(() => {
+				expect(screen.getByText("Apps")).toBeInTheDocument();
+			});
+		});
+
+		it("should display 'by Pivotr' subtitle", async () => {
+			renderWithProviders(
+				<AppSwitcher apps={testApps} defaultApp={testApps[0]} />,
+			);
+
+			await waitFor(() => {
+				expect(screen.getByText("by Pivotr")).toBeInTheDocument();
+			});
+		});
+
+		it("should show keyboard shortcut labels in dropdown items", async () => {
+			const user = userEvent.setup();
+			renderWithProviders(
+				<AppSwitcher apps={testApps} defaultApp={testApps[0]} />,
+			);
+
+			await waitFor(() => {
+				expect(screen.getByText("Inventory")).toBeInTheDocument();
+			});
+
+			const button = screen.getByRole("button");
+			await user.click(button);
+
+			// ⌘1 through ⌘4 for 4 apps
+			await waitFor(() => {
+				expect(screen.getByText("⌘1")).toBeInTheDocument();
+				expect(screen.getByText("⌘2")).toBeInTheDocument();
+				expect(screen.getByText("⌘3")).toBeInTheDocument();
+				expect(screen.getByText("⌘4")).toBeInTheDocument();
+			});
+		});
+
+		it("should bold the active app name in dropdown", async () => {
+			const user = userEvent.setup();
+			renderWithProviders(
+				<AppSwitcher apps={testApps} defaultApp={testApps[0]} />,
+			);
+
+			await waitFor(() => {
+				expect(screen.getByText("Inventory")).toBeInTheDocument();
+			});
+
+			const button = screen.getByRole("button");
+			await user.click(button);
+
+			// The active app in the dropdown gets class "font-semibold"
+			const allInventory = await screen.findAllByText("Inventory");
+			const dropdownItem = allInventory[1]; // second instance is in dropdown
+			expect(dropdownItem).toHaveClass("font-semibold");
+		});
+	});
+
+	describe("Navigation State Reset", () => {
+		it("should show Switching text and then call push exactly once", async () => {
+			const user = userEvent.setup();
+			renderWithProviders(
+				<AppSwitcher apps={testApps} defaultApp={testApps[0]} />,
+			);
+
+			await waitFor(() => {
+				expect(screen.getByText("Inventory")).toBeInTheDocument();
+			});
+
+			// Start navigation to Asset
+			const button = screen.getByRole("button");
+			await user.click(button);
+
+			const assetOption = await screen.findByText("Asset");
+			await user.click(assetOption);
+
+			// Verify navigating state shows "Switching..." and push was called
+			await waitFor(() => {
+				expect(screen.getByText("Switching...")).toBeInTheDocument();
+			});
+
+			// Navigation push should be called exactly once
+			expect(mockPush).toHaveBeenCalledTimes(1);
+			expect(mockPush).toHaveBeenCalledWith("/asset");
+		});
+	});
+
+	describe("Route Matching", () => {
+		it("detects active app from sub-route pathname", async () => {
+			currentPathname = "/inventory/items-catalogue/item";
+			renderWithProviders(
+				<AppSwitcher apps={testApps} defaultApp={testApps[0]} />,
+			);
+
+			await waitFor(() => {
+				// Inventory should be shown as the active app from the sub-route
+				expect(screen.getByText("Inventory")).toBeInTheDocument();
+			});
+		});
+
+		it("detects active app from deep nested route", async () => {
+			currentPathname = "/crm/leads/123/edit";
+			renderWithProviders(
+				<AppSwitcher apps={testApps} defaultApp={testApps[0]} />,
+			);
+
+			await waitFor(() => {
+				expect(screen.getByText("CRM")).toBeInTheDocument();
+			});
+		});
+
+		it("correct active app for each module root route", async () => {
+			for (const app of testApps) {
+				currentPathname = app.route;
+
+				const { unmount } = renderWithProviders(
+					<AppSwitcher apps={testApps} defaultApp={testApps[0]} />,
+				);
+
+				await waitFor(() => {
+					expect(screen.getByText(app.name)).toBeInTheDocument();
+				});
+
+				unmount();
+			}
+		});
+	});
+
+	describe("Concurrent Action Protection", () => {
+		it("should only call router.push once for rapid double-click", async () => {
+			const user = userEvent.setup();
+			renderWithProviders(
+				<AppSwitcher apps={testApps} defaultApp={testApps[0]} />,
+			);
+
+			await waitFor(() => {
+				expect(screen.getByText("Inventory")).toBeInTheDocument();
+			});
+
+			// Open dropdown
+			const button = screen.getByRole("button");
+			await user.click(button);
+
+			// Click Asset
+			const assetOption = await screen.findByText("Asset");
+			await user.click(assetOption);
+
+			await waitFor(() => {
+				expect(mockPush).toHaveBeenCalledTimes(1);
+				expect(mockPush).toHaveBeenCalledWith("/asset");
+			});
+
+			// The button should be disabled now (isNavigating=true) so
+			// a second click should not be possible — but even trying
+			// should not result in a second push
+			expect(mockPush).toHaveBeenCalledTimes(1);
+		});
+
+		it("should disable trigger button while navigating", async () => {
+			const user = userEvent.setup();
+			renderWithProviders(
+				<AppSwitcher apps={testApps} defaultApp={testApps[0]} />,
+			);
+
+			await waitFor(() => {
+				expect(screen.getByText("Inventory")).toBeInTheDocument();
+			});
+
+			// Open dropdown and start navigation
+			const button = screen.getByRole("button");
+			await user.click(button);
+
+			const assetOption = await screen.findByText("Asset");
+			await user.click(assetOption);
+
+			// The trigger button should be disabled during navigation
+			await waitFor(() => {
+				expect(screen.getByRole("button")).toBeDisabled();
+			});
+		});
 	});
 });

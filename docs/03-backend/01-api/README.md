@@ -1,203 +1,226 @@
-# Aria ERP API Documentation
+# tRPC API Documentation
 
-> RESTful API documentation for Aria ERP backend services
+> Type-safe API documentation for the Aria ERP backend
 
-**Version**: v1 (0.1.0)  
-**Base URL**: `http://localhost:3000/api/v1`  
-**Status**: 🚧 Under Development
+**Transport**: tRPC over HTTP and WebSocket  
+**Base URL**: `http://localhost:3001/trpc` (development)  
+**Authentication**: Session-based via better-auth cookies
 
 ## Overview
 
-Aria ERP provides a comprehensive RESTful API for all enterprise resource planning operations. This document describes the available endpoints, request/response formats, and authentication mechanisms.
+Aria ERP uses **tRPC** for all frontend-backend communication. tRPC provides end-to-end type safety — the frontend imports the `AppRouter` type from `@aria/api-contract` and gets full autocomplete and compile-time checking for all API calls.
+
+There is **no REST API**. All operations go through tRPC procedures.
 
 ## Authentication
 
-### JWT Authentication
+### Session-Based Auth (better-auth)
 
-All API endpoints require authentication using JSON Web Tokens (JWT).
+Authentication is handled by better-auth, which manages sessions via HTTP cookies. The auth endpoints are served at `/api/auth/*` (not through tRPC).
 
-**Login Endpoint:**
+**Login flow:**
 
-```http
-POST /api/v1/auth/login
-Content-Type: application/json
+1. POST to `/api/auth/sign-in/email` with credentials
+2. better-auth sets a session cookie
+3. All subsequent tRPC calls include the cookie automatically
+4. The `isAuthenticated` middleware validates the session
 
-{
-  "username": "admin",
-  "password": "password"
-}
+### Procedure Types
+
+- **`publicProcedure`** — No authentication required
+- **`protectedProcedure`** — Requires valid session; injects `user` and `session` into context
+
+## Router Structure
+
+The `AppRouter` is composed of four sub-routers:
+
+```
+AppRouter
+├── inventory.*        # Inventory module (CRUD + reports + real-time)
+├── admin.*            # User/role/permission management + audit
+├── authorization.*    # User authorization data queries
+└── account.*          # Account self-service
 ```
 
-**Response:**
+## Inventory Router
 
-```json
-{
-  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "token_type": "Bearer",
-  "expires_in": 604800
-}
+The inventory router is the largest, covering all inventory management operations. Key procedure groups:
+
+### Item Catalog
+
+| Procedure | Type | Description |
+|-----------|------|-------------|
+| `inventory.listItems` | Query | List items with pagination, search, filters |
+| `inventory.getItem` | Query | Get item by ID |
+| `inventory.createItem` | Mutation | Create a new inventory item |
+| `inventory.updateItem` | Mutation | Update item fields |
+| `inventory.deleteItem` | Mutation | Delete an item |
+| `inventory.listItemGroups` | Query | List item groups (hierarchical) |
+| `inventory.createItemGroup` | Mutation | Create item group |
+| `inventory.listBrands` | Query | List brands |
+| `inventory.createBrand` | Mutation | Create brand |
+
+### Warehouses
+
+| Procedure | Type | Description |
+|-----------|------|-------------|
+| `inventory.listWarehouses` | Query | List warehouses with filters |
+| `inventory.getWarehouse` | Query | Get warehouse by ID |
+| `inventory.createWarehouse` | Mutation | Create warehouse |
+| `inventory.updateWarehouse` | Mutation | Update warehouse |
+| `inventory.deleteWarehouse` | Mutation | Delete warehouse |
+
+### Units of Measure
+
+| Procedure | Type | Description |
+|-----------|------|-------------|
+| `inventory.listUom` | Query | List units of measure |
+| `inventory.createUom` | Mutation | Create UOM |
+| `inventory.listUomConversions` | Query | List UOM conversion factors |
+| `inventory.createUomConversion` | Mutation | Create conversion factor |
+
+### Stock Transactions
+
+| Procedure | Type | Description |
+|-----------|------|-------------|
+| `inventory.listStockEntries` | Query | List stock entries |
+| `inventory.createStockEntry` | Mutation | Create stock entry (receipt/issue/transfer) |
+| `inventory.getStockLedger` | Query | Get stock ledger entries |
+| `inventory.stockReconciliation` | Mutation | Reconcile stock quantities |
+
+### Batch & Serial Numbers
+
+| Procedure | Type | Description |
+|-----------|------|-------------|
+| `inventory.listBatches` | Query | List batches |
+| `inventory.createBatch` | Mutation | Create batch |
+| `inventory.listSerialNos` | Query | List serial numbers |
+| `inventory.createSerialNo` | Mutation | Create serial number |
+
+### Purchase Receipts
+
+| Procedure | Type | Description |
+|-----------|------|-------------|
+| `inventory.listPurchaseReceipts` | Query | List purchase receipts |
+| `inventory.createPurchaseReceipt` | Mutation | Create purchase receipt with items |
+| `inventory.submitPurchaseReceipt` | Mutation | Submit (finalize) a purchase receipt |
+
+### Delivery Notes
+
+| Procedure | Type | Description |
+|-----------|------|-------------|
+| `inventory.listDeliveryNotes` | Query | List delivery notes |
+| `inventory.createDeliveryNote` | Mutation | Create delivery note |
+| `inventory.submitDeliveryNote` | Mutation | Submit delivery note |
+
+### Reports
+
+| Procedure | Type | Description |
+|-----------|------|-------------|
+| `inventory.stockBalance` | Query | Current stock balance per warehouse |
+| `inventory.stockProjectedQty` | Query | Projected stock quantities |
+| `inventory.stockAgeing` | Query | Stock ageing analysis |
+| `inventory.itemShortageReport` | Query | Items below reorder level |
+
+### Settings
+
+| Procedure | Type | Description |
+|-----------|------|-------------|
+| `inventory.getSettings` | Query | Get inventory settings |
+| `inventory.updateSettings` | Mutation | Update inventory settings |
+| `inventory.getStockSettings` | Query | Get stock settings |
+| `inventory.updateStockSettings` | Mutation | Update stock settings |
+
+### Real-Time Subscriptions
+
+| Procedure | Type | Description |
+|-----------|------|-------------|
+| `inventory.onStockUpdate` | Subscription | Real-time stock level changes |
+
+## Admin Router
+
+Permission-gated endpoints for system administration.
+
+### User Management
+
+| Procedure | Type | Description |
+|-----------|------|-------------|
+| `admin.listUsers` | Query | List users with pagination and search |
+| `admin.createUser` | Mutation | Create new user |
+| `admin.updateUser` | Mutation | Update user details |
+| `admin.disableUser` | Mutation | Disable user account |
+| `admin.enableUser` | Mutation | Enable user account |
+| `admin.assignRole` | Mutation | Assign role to user |
+| `admin.revokeRole` | Mutation | Remove role from user |
+
+### Role Management
+
+| Procedure | Type | Description |
+|-----------|------|-------------|
+| `admin.listRoles` | Query | List all roles |
+| `admin.createRole` | Mutation | Create new role |
+| `admin.updateRole` | Mutation | Update role |
+| `admin.deleteRole` | Mutation | Delete role (system roles protected) |
+| `admin.assignPermissionToRole` | Mutation | Assign permission to role |
+| `admin.removePermissionFromRole` | Mutation | Remove permission from role |
+
+### Permissions & Audit
+
+| Procedure | Type | Description |
+|-----------|------|-------------|
+| `admin.listPermissions` | Query | List all permissions |
+| `admin.getAuditLogs` | Query | Get audit log entries |
+
+## Authorization Router
+
+| Procedure | Type | Description |
+|-----------|------|-------------|
+| `authorization.getUserAuthorization` | Query | Get current user's roles, permissions, app access, supervised apps |
+
+## Account Router
+
+| Procedure | Type | Description |
+|-----------|------|-------------|
+| `account.markPasswordUpdated` | Mutation | Mark that user has changed their password |
+
+## Contract Verification
+
+The `@aria/api-contract` package defines the expected `AppRouter` type. The backend uses compile-time `AssertContractCompatibility` checks to ensure the runtime implementation matches:
+
+```typescript
+// apps/backend/src/trpc/app-router.ts
+type AssertContractCompatibility = [
+  ContractAppRouter extends RuntimeAppRouter ? true : false,
+  RuntimeAppRouter extends ContractAppRouter ? true : false,
+];
 ```
 
-**Using the Token:**
+Any mismatch between the contract and implementation causes a TypeScript compilation error.
 
-```http
-GET /api/v1/users
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+## Frontend Usage
+
+```typescript
+// Frontend creates a type-safe tRPC client
+import type { AppRouter } from '@aria/api-contract';
+
+// All procedure calls are fully typed
+const items = await trpc.inventory.listItems.query({ page: 1, pageSize: 20 });
+const item = await trpc.inventory.createItem.mutate({ name: 'Widget', code: 'WDG-001' });
 ```
 
-## Common Headers
+## Input Validation
 
-```http
-Content-Type: application/json
-Authorization: Bearer {token}
-Accept: application/json
+All tRPC procedures validate input using **Zod** schemas defined in `@aria/types`:
+
+```typescript
+import { listWarehousesSchema } from '@aria/types';
+
+// In router definition
+.input(listWarehousesSchema)
+.query(async ({ input, ctx }) => {
+  // input is fully typed and validated
+})
 ```
-
-## Response Format
-
-All API responses follow a consistent format:
-
-**Success Response:**
-
-```json
-{
-  "success": true,
-  "data": {
-    // Response data
-  },
-  "meta": {
-    "timestamp": "2025-10-05T12:00:00Z",
-    "version": "v1"
-  }
-}
-```
-
-**Error Response:**
-
-```json
-{
-  "success": false,
-  "error": {
-    "code": "ERROR_CODE",
-    "message": "Human-readable error message",
-    "details": []
-  },
-  "meta": {
-    "timestamp": "2025-10-05T12:00:00Z",
-    "version": "v1"
-  }
-}
-```
-
-## Status Codes
-
-| Code | Description                                           |
-| ---- | ----------------------------------------------------- |
-| 200  | OK - Request succeeded                                |
-| 201  | Created - Resource created successfully               |
-| 204  | No Content - Request succeeded with no response body  |
-| 400  | Bad Request - Invalid request parameters              |
-| 401  | Unauthorized - Authentication required                |
-| 403  | Forbidden - Insufficient permissions                  |
-| 404  | Not Found - Resource not found                        |
-| 422  | Unprocessable Entity - Validation failed              |
-| 429  | Too Many Requests - Rate limit exceeded               |
-| 500  | Internal Server Error - Server error                  |
-| 503  | Service Unavailable - Service temporarily unavailable |
-
-## API Modules
-
-### 🔐 Authentication
-
-Base: `/api/v1/auth`
-
-- `POST /login` - Authenticate user
-- `POST /logout` - Invalidate token
-- `POST /refresh` - Refresh access token
-- `POST /register` - Register new user (admin only)
-- `GET /me` - Get current user profile
-
-### 👤 Users
-
-Base: `/api/v1/users`
-
-- `GET /users` - List all users
-- `GET /users/:id` - Get user by ID
-- `POST /users` - Create new user
-- `PUT /users/:id` - Update user
-- `DELETE /users/:id` - Delete user
-- `GET /users/:id/roles` - Get user roles
-- `PUT /users/:id/roles` - Update user roles
-
-### 📦 Assets
-
-Base: `/api/v1/assets`
-
-- `GET /assets` - List all assets
-- `GET /assets/:id` - Get asset details
-- `POST /assets` - Create new asset
-- `PUT /assets/:id` - Update asset
-- `DELETE /assets/:id` - Delete asset
-- `GET /assets/:id/history` - Get asset history
-- `POST /assets/:id/maintenance` - Schedule maintenance
-
-### 👥 CRM
-
-Base: `/api/v1/crm`
-
-- `GET /customers` - List customers
-- `GET /customers/:id` - Get customer details
-- `POST /customers` - Create customer
-- `PUT /customers/:id` - Update customer
-- `DELETE /customers/:id` - Delete customer
-- `GET /leads` - List leads
-- `POST /leads` - Create lead
-- `PUT /leads/:id/convert` - Convert lead to customer
-
-### 👔 HRMS
-
-Base: `/api/v1/hrms`
-
-- `GET /employees` - List employees
-- `GET /employees/:id` - Get employee details
-- `POST /employees` - Create employee
-- `PUT /employees/:id` - Update employee
-- `DELETE /employees/:id` - Delete employee
-- `GET /attendance` - Get attendance records
-- `POST /attendance` - Mark attendance
-- `GET /leaves` - List leave requests
-- `POST /leaves` - Submit leave request
-
-### 📊 Inventory
-
-Base: `/api/v1/inventory`
-
-- `GET /items` - List inventory items
-- `GET /items/:id` - Get item details
-- `POST /items` - Create item
-- `PUT /items/:id` - Update item
-- `DELETE /items/:id` - Delete item
-- `GET /stock` - Get stock levels
-- `POST /stock/adjust` - Adjust stock quantity
-- `GET /warehouses` - List warehouses
-
-## Pagination
-
-List endpoints support pagination using query parameters:
-
-```http
-GET /api/v1/users?page=1&limit=20
-```
-
-**Parameters:**
-
-- `page` (number, default: 1) - Page number
-- `limit` (number, default: 20, max: 100) - Items per page
-
-**Response includes pagination metadata:**
-
-```json
-{
   "success": true,
   "data": [...],
   "meta": {

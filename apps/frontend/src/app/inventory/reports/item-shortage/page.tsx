@@ -111,6 +111,17 @@ const columns: ColumnDef<ItemShortageRow>[] = [
 		),
 	},
 	{
+		accessorKey: "requestedQty",
+		header: ({ column }) => (
+			<DataTableColumnHeader column={column} title="Requested Qty" />
+		),
+		cell: ({ row }) => (
+			<span className="tabular-nums">
+				{formatQty(row.original.requestedQty)}
+			</span>
+		),
+	},
+	{
 		accessorKey: "reservedQty",
 		header: ({ column }) => (
 			<DataTableColumnHeader column={column} title="Reserved Qty" />

@@ -122,7 +122,7 @@ function ShippingRuleFormContent() {
 			hasHandledMissingRuleRef.current = true;
 			toast.error("Shipping rule not found");
 			startTransition(() => {
-				router.push("/inventory/shipping-rules");
+				router.push("/inventory/items-catalogue/shipping-rules");
 			});
 		}
 	}, [isEditMode, isFetchingRule, router, shippingRule]);
@@ -133,7 +133,7 @@ function ShippingRuleFormContent() {
 			setHasUnsavedChanges(false);
 			await utils.inventory.listShippingRules.invalidate();
 			startTransition(() => {
-				router.push("/inventory/shipping-rules");
+				router.push("/inventory/items-catalogue/shipping-rules");
 			});
 		},
 		onError: (error) => {
@@ -147,7 +147,7 @@ function ShippingRuleFormContent() {
 			setHasUnsavedChanges(false);
 			await utils.inventory.listShippingRules.invalidate();
 			startTransition(() => {
-				router.push("/inventory/shipping-rules");
+				router.push("/inventory/items-catalogue/shipping-rules");
 			});
 		},
 		onError: (error) => {

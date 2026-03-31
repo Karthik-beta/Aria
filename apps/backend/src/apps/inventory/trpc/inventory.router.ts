@@ -459,6 +459,16 @@ function createListProductBundlesProcedure(inventoryService: InventoryService) {
 	});
 }
 
+function createGetProductBundleByIdProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure
+		.input(z.object({ id: z.string().min(1) }))
+		.query(async ({ input }) => {
+			return inventoryService.findProductBundleById(input.id);
+		});
+}
+
 function createCreateProductBundleProcedure(
 	inventoryService: InventoryService,
 ) {
@@ -875,9 +885,11 @@ type MaterialRequestsChangedEvent = {
 function createListMaterialRequestsProcedure(
 	inventoryService: InventoryService,
 ) {
-	return protectedProcedure.query(async () => {
-		return inventoryService.findAllMaterialRequests();
-	});
+	return protectedProcedure
+		.input(Inventory.listMaterialRequestsSchema)
+		.query(async ({ input }) => {
+			return inventoryService.findAllMaterialRequests(input);
+		});
 }
 
 function createGetMaterialRequestByIdProcedure(
@@ -978,9 +990,11 @@ type StockEntriesChangedEvent = {
 };
 
 function createListStockEntriesProcedure(inventoryService: InventoryService) {
-	return protectedProcedure.query(async () => {
-		return inventoryService.findAllStockEntries();
-	});
+	return protectedProcedure
+		.input(Inventory.listStockEntriesSchema)
+		.query(async ({ input }) => {
+			return inventoryService.findAllStockEntries(input);
+		});
 }
 
 function createGetStockEntryByIdProcedure(inventoryService: InventoryService) {
@@ -1273,9 +1287,11 @@ type DeliveryNotesChangedEvent = {
 };
 
 function createListDeliveryNotesProcedure(inventoryService: InventoryService) {
-	return protectedProcedure.query(async () => {
-		return inventoryService.findAllDeliveryNotes();
-	});
+	return protectedProcedure
+		.input(Inventory.listDeliveryNotesSchema)
+		.query(async ({ input }) => {
+			return inventoryService.findAllDeliveryNotes(input);
+		});
 }
 
 function createGetDeliveryNoteByIdProcedure(
@@ -1384,7 +1400,9 @@ function createCreatePurchaseReceiptProcedure(
 	return protectedProcedure
 		.input(Inventory.createPurchaseReceiptSchema)
 		.mutation(async ({ input }) => {
-			return inventoryService.createPurchaseReceipt(input);
+			const result = await inventoryService.createPurchaseReceipt(input);
+			void inventoryEvents.emit("purchaseReceiptCreated", result);
+			return result;
 		});
 }
 
@@ -1394,7 +1412,9 @@ function createUpdatePurchaseReceiptProcedure(
 	return protectedProcedure
 		.input(Inventory.updatePurchaseReceiptSchema)
 		.mutation(async ({ input }) => {
-			return inventoryService.updatePurchaseReceipt(input);
+			const result = await inventoryService.updatePurchaseReceipt(input);
+			void inventoryEvents.emit("purchaseReceiptUpdated", result);
+			return result;
 		});
 }
 
@@ -1404,7 +1424,9 @@ function createDeletePurchaseReceiptProcedure(
 	return protectedProcedure
 		.input(z.object({ id: z.string().min(1) }))
 		.mutation(async ({ input }) => {
-			return inventoryService.deletePurchaseReceipt(input.id);
+			const result = await inventoryService.deletePurchaseReceipt(input.id);
+			void inventoryEvents.emit("purchaseReceiptDeleted", { id: input.id });
+			return result;
 		});
 }
 
@@ -1414,9 +1436,46 @@ function createDeleteManyPurchaseReceiptsProcedure(
 	return protectedProcedure
 		.input(Inventory.bulkDeletePurchaseReceiptsSchema)
 		.mutation(async ({ input }) => {
-			return inventoryService.deleteManyPurchaseReceipts(input.ids);
+			const result = await inventoryService.deleteManyPurchaseReceipts(
+				input.ids,
+			);
+			for (const id of result.ids) {
+				void inventoryEvents.emit("purchaseReceiptDeleted", { id });
+			}
+			return result;
 		});
 }
+
+type PurchaseReceiptsChangedEvent = {
+	type: "created" | "updated" | "deleted";
+	data: Inventory.PurchaseReceipt | { id: string };
+};
+
+const onPurchaseReceiptsChangedProcedure = protectedProcedure.subscription(
+	() => {
+		return observable<PurchaseReceiptsChangedEvent>((emit) => {
+			const onCreated = (data: Inventory.PurchaseReceipt) => {
+				emit.next({ type: "created", data });
+			};
+			const onUpdated = (data: Inventory.PurchaseReceipt) => {
+				emit.next({ type: "updated", data });
+			};
+			const onDeleted = (data: { id: string }) => {
+				emit.next({ type: "deleted", data });
+			};
+
+			inventoryEvents.on("purchaseReceiptCreated", onCreated);
+			inventoryEvents.on("purchaseReceiptUpdated", onUpdated);
+			inventoryEvents.on("purchaseReceiptDeleted", onDeleted);
+
+			return () => {
+				inventoryEvents.off("purchaseReceiptCreated", onCreated);
+				inventoryEvents.off("purchaseReceiptUpdated", onUpdated);
+				inventoryEvents.off("purchaseReceiptDeleted", onDeleted);
+			};
+		});
+	},
+);
 
 // ─── Pick List Procedures ────────────────────────────────────────────────────
 
@@ -1606,6 +1665,11 @@ const onDeliveryTripsChangedProcedure = protectedProcedure.subscription(() => {
 
 // ─── Packing Slip Procedures ──────────────────────────────────────────────────
 
+type PackingSlipsChangedEvent = {
+	type: "created" | "updated" | "deleted";
+	data: Inventory.PackingSlip | { id: string };
+};
+
 function createListPackingSlipsProcedure(inventoryService: InventoryService) {
 	return protectedProcedure
 		.input(Inventory.listPackingSlipsSchema)
@@ -1636,7 +1700,9 @@ function createCreatePackingSlipProcedure(inventoryService: InventoryService) {
 	return protectedProcedure
 		.input(Inventory.createPackingSlipSchema)
 		.mutation(async ({ input }) => {
-			return inventoryService.createPackingSlip(input);
+			const result = await inventoryService.createPackingSlip(input);
+			void inventoryEvents.emit("packingSlipCreated", result);
+			return result;
 		});
 }
 
@@ -1644,7 +1710,9 @@ function createUpdatePackingSlipProcedure(inventoryService: InventoryService) {
 	return protectedProcedure
 		.input(Inventory.updatePackingSlipSchema)
 		.mutation(async ({ input }) => {
-			return inventoryService.updatePackingSlip(input);
+			const result = await inventoryService.updatePackingSlip(input);
+			void inventoryEvents.emit("packingSlipUpdated", result);
+			return result;
 		});
 }
 
@@ -1652,7 +1720,9 @@ function createSubmitPackingSlipProcedure(inventoryService: InventoryService) {
 	return protectedProcedure
 		.input(z.object({ id: z.string().min(1) }))
 		.mutation(async ({ input }) => {
-			return inventoryService.submitPackingSlip(input.id);
+			const result = await inventoryService.submitPackingSlip(input.id);
+			void inventoryEvents.emit("packingSlipUpdated", result);
+			return result;
 		});
 }
 
@@ -1660,7 +1730,9 @@ function createCancelPackingSlipProcedure(inventoryService: InventoryService) {
 	return protectedProcedure
 		.input(z.object({ id: z.string().min(1) }))
 		.mutation(async ({ input }) => {
-			return inventoryService.cancelPackingSlip(input.id);
+			const result = await inventoryService.cancelPackingSlip(input.id);
+			void inventoryEvents.emit("packingSlipUpdated", result);
+			return result;
 		});
 }
 
@@ -1668,7 +1740,9 @@ function createDeletePackingSlipProcedure(inventoryService: InventoryService) {
 	return protectedProcedure
 		.input(z.object({ id: z.string().min(1) }))
 		.mutation(async ({ input }) => {
-			return inventoryService.deletePackingSlip(input.id);
+			const result = await inventoryService.deletePackingSlip(input.id);
+			void inventoryEvents.emit("packingSlipDeleted", { id: input.id });
+			return result;
 		});
 }
 
@@ -1678,9 +1752,37 @@ function createDeleteManyPackingSlipsProcedure(
 	return protectedProcedure
 		.input(Inventory.bulkDeletePackingSlipsSchema)
 		.mutation(async ({ input }) => {
-			return inventoryService.deleteManyPackingSlips(input.ids);
+			const result = await inventoryService.deleteManyPackingSlips(input.ids);
+			for (const id of result.ids) {
+				inventoryEvents.emit("packingSlipDeleted", { id });
+			}
+			return result;
 		});
 }
+
+const onPackingSlipsChangedProcedure = protectedProcedure.subscription(() => {
+	return observable<PackingSlipsChangedEvent>((emit) => {
+		const onCreated = (data: Inventory.PackingSlip) => {
+			emit.next({ type: "created", data });
+		};
+		const onUpdated = (data: Inventory.PackingSlip) => {
+			emit.next({ type: "updated", data });
+		};
+		const onDeleted = (data: { id: string }) => {
+			emit.next({ type: "deleted", data });
+		};
+
+		inventoryEvents.on("packingSlipCreated", onCreated);
+		inventoryEvents.on("packingSlipUpdated", onUpdated);
+		inventoryEvents.on("packingSlipDeleted", onDeleted);
+
+		return () => {
+			inventoryEvents.off("packingSlipCreated", onCreated);
+			inventoryEvents.off("packingSlipUpdated", onUpdated);
+			inventoryEvents.off("packingSlipDeleted", onDeleted);
+		};
+	});
+});
 
 // ─── QI Parameter Group Procedures ───────────────────────────────────────────
 
@@ -1881,6 +1983,7 @@ type InventoryRouterInput = {
 	deleteItemAttribute: ReturnType<typeof createDeleteItemAttributeProcedure>;
 	listBundleItems: ReturnType<typeof createListBundleItemsProcedure>;
 	listProductBundles: ReturnType<typeof createListProductBundlesProcedure>;
+	getProductBundleById: ReturnType<typeof createGetProductBundleByIdProcedure>;
 	createProductBundle: ReturnType<typeof createCreateProductBundleProcedure>;
 	updateProductBundle: ReturnType<typeof createUpdateProductBundleProcedure>;
 	deleteProductBundle: ReturnType<typeof createDeleteProductBundleProcedure>;
@@ -2029,6 +2132,7 @@ type InventoryRouterInput = {
 	deleteManyPurchaseReceipts: ReturnType<
 		typeof createDeleteManyPurchaseReceiptsProcedure
 	>;
+	onPurchaseReceiptsChanged: typeof onPurchaseReceiptsChangedProcedure;
 	listPickLists: ReturnType<typeof createListPickListsProcedure>;
 	getPickListById: ReturnType<typeof createGetPickListByIdProcedure>;
 	createPickList: ReturnType<typeof createCreatePickListProcedure>;
@@ -2056,6 +2160,7 @@ type InventoryRouterInput = {
 	deleteManyPackingSlips: ReturnType<
 		typeof createDeleteManyPackingSlipsProcedure
 	>;
+	onPackingSlipsChanged: typeof onPackingSlipsChangedProcedure;
 	listQiParameterGroups: ReturnType<
 		typeof createListQiParameterGroupsProcedure
 	>;
@@ -2150,6 +2255,7 @@ function createInventoryRouterRecord(
 		deleteItemAttribute: createDeleteItemAttributeProcedure(inventoryService),
 		listBundleItems: createListBundleItemsProcedure(inventoryService),
 		listProductBundles: createListProductBundlesProcedure(inventoryService),
+		getProductBundleById: createGetProductBundleByIdProcedure(inventoryService),
 		createProductBundle: createCreateProductBundleProcedure(inventoryService),
 		updateProductBundle: createUpdateProductBundleProcedure(inventoryService),
 		deleteProductBundle: createDeleteProductBundleProcedure(inventoryService),
@@ -2265,6 +2371,7 @@ function createInventoryRouterRecord(
 			createDeletePurchaseReceiptProcedure(inventoryService),
 		deleteManyPurchaseReceipts:
 			createDeleteManyPurchaseReceiptsProcedure(inventoryService),
+		onPurchaseReceiptsChanged: onPurchaseReceiptsChangedProcedure,
 		listPickLists: createListPickListsProcedure(inventoryService),
 		getPickListById: createGetPickListByIdProcedure(inventoryService),
 		createPickList: createCreatePickListProcedure(inventoryService),
@@ -2290,6 +2397,7 @@ function createInventoryRouterRecord(
 		deletePackingSlip: createDeletePackingSlipProcedure(inventoryService),
 		deleteManyPackingSlips:
 			createDeleteManyPackingSlipsProcedure(inventoryService),
+		onPackingSlipsChanged: onPackingSlipsChangedProcedure,
 		listQiParameterGroups:
 			createListQiParameterGroupsProcedure(inventoryService),
 		createQiParameterGroup:

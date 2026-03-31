@@ -74,6 +74,7 @@ function UnitOfMeasureFormContent() {
 
 	useEffect(() => {
 		if (!isEditMode || !uom) return;
+		if (form.formState.isDirty) return; // Don't overwrite user edits on refetch
 
 		form.reset({
 			name: uom.name,
@@ -94,7 +95,7 @@ function UnitOfMeasureFormContent() {
 			hasHandledMissingUomRef.current = true;
 			toast.error("Unit of measure not found");
 			startTransition(() => {
-				router.push("/inventory/uom");
+				router.push("/inventory/inventory-settings/uom");
 			});
 		}
 	}, [isEditMode, isFetchingUom, router, uom]);
@@ -105,7 +106,7 @@ function UnitOfMeasureFormContent() {
 			setHasUnsavedChanges(false);
 			await utils.inventory.listUnitsOfMeasure.invalidate();
 			startTransition(() => {
-				router.push("/inventory/uom");
+				router.push("/inventory/inventory-settings/uom");
 			});
 		},
 		onError: (error) => {
@@ -122,7 +123,7 @@ function UnitOfMeasureFormContent() {
 				await utils.inventory.getUnitOfMeasureById.invalidate({ id });
 			}
 			startTransition(() => {
-				router.push("/inventory/uom");
+				router.push("/inventory/inventory-settings/uom");
 			});
 		},
 		onError: (error) => {

@@ -14,6 +14,7 @@ vi.mock("next/navigation", () => ({
 		pathname: "/",
 		query: {},
 	}),
+	useSearchParams: () => new URLSearchParams(),
 }));
 
 vi.mock("@/lib/trpc", () => ({
@@ -21,6 +22,9 @@ vi.mock("@/lib/trpc", () => ({
 		useUtils: () => ({
 			inventory: {
 				listProductBundles: {
+					invalidate: vi.fn().mockResolvedValue(undefined),
+				},
+				getProductBundleById: {
 					invalidate: vi.fn().mockResolvedValue(undefined),
 				},
 			},
@@ -49,10 +53,22 @@ vi.mock("@/lib/trpc", () => ({
 					data: [{ id: "clh1234567890abcde123458", name: "Nos" }],
 				}),
 			},
+			getProductBundleById: {
+				useQuery: () => ({
+					data: null,
+					isFetching: false,
+				}),
+			},
 			createProductBundle: {
 				useMutation: () => ({
 					isPending: false,
 					mutate: mockMutate,
+				}),
+			},
+			updateProductBundle: {
+				useMutation: () => ({
+					isPending: false,
+					mutate: vi.fn(),
 				}),
 			},
 		},

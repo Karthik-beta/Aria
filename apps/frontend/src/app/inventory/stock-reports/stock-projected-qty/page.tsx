@@ -573,6 +573,7 @@ export default function StockProjectedQtyPage() {
 					enableVirtualization
 					enableColumnResizing
 					enableBulkActions={false}
+					enableGlobalSearch={false}
 					ariaLabel="Stock projected quantity table"
 				/>
 			)}

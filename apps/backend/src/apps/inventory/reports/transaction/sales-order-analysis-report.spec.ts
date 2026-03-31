@@ -310,6 +310,32 @@ describe("buildSalesOrderAnalysisRows (grouped)", () => {
 		const [row] = buildSalesOrderAnalysisRows([order], TODAY, true);
 		expect(row.delayDays).toBe(5);
 	});
+
+	it("keeps the maximum timeTakenToDeliverSeconds across items", () => {
+		const order = makeOrder({
+			status: "COMPLETED",
+			transactionDate: new Date("2024-05-01T00:00:00.000Z"),
+			items: [
+				makeItem({
+					lastDeliveryDate: new Date("2024-05-10T00:00:00.000Z"),
+				}),
+				makeItem({
+					lastDeliveryDate: new Date("2024-05-20T00:00:00.000Z"),
+				}),
+			],
+		});
+		const [row] = buildSalesOrderAnalysisRows([order], TODAY, true);
+		// Item 2 has a longer delivery time (20 days vs 10 days)
+		expect(row.timeTakenToDeliverSeconds).toBeGreaterThan(0);
+		// 20 days = 1,728,000 seconds
+		expect(row.timeTakenToDeliverSeconds).toBe(
+			Math.round(
+				(new Date("2024-05-20T00:00:00.000Z").getTime() -
+					new Date("2024-05-01T00:00:00.000Z").getTime()) /
+					1000,
+			),
+		);
+	});
 });
 
 // ---------------------------------------------------------------------------

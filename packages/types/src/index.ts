@@ -2037,6 +2037,12 @@ export namespace Inventory {
 		 * rather than discrete text values.
 		 */
 		numericValues: boolean;
+		/** Start of numeric range (used when numericValues is true) */
+		fromRange: number;
+		/** End of numeric range (used when numericValues is true) */
+		toRange: number;
+		/** Step increment for numeric range (used when numericValues is true) */
+		increment: number;
 		/** Ordered list of allowed values for this attribute */
 		attributeValues: ItemAttributeValue[];
 		/** When this attribute was created */
@@ -2062,24 +2068,76 @@ export namespace Inventory {
 	/**
 	 * Validation schema for creating an item attribute.
 	 */
-	export const createItemAttributeSchema = z.object({
-		name: z.string().min(1, "Attribute name is required").max(255).trim(),
-		disabled: z.boolean().default(false),
-		numericValues: z.boolean().default(false),
-		attributeValues: z.array(itemAttributeValueInputSchema).default([]),
-	});
+	export const createItemAttributeSchema = z
+		.object({
+			name: z.string().min(1, "Attribute name is required").max(255).trim(),
+			disabled: z.boolean().default(false),
+			numericValues: z.boolean().default(false),
+			fromRange: z.number().default(0),
+			toRange: z.number().default(0),
+			increment: z.number().default(0),
+			attributeValues: z.array(itemAttributeValueInputSchema).default([]),
+		})
+		.superRefine((data, ctx) => {
+			if (data.numericValues) {
+				if (data.fromRange >= data.toRange) {
+					ctx.addIssue({
+						code: z.ZodIssueCode.custom,
+						message:
+							"From Range must be less than To Range for numeric attributes",
+						path: ["fromRange"],
+					});
+				}
+				if (data.increment <= 0) {
+					ctx.addIssue({
+						code: z.ZodIssueCode.custom,
+						message: "Increment must be greater than 0 for numeric attributes",
+						path: ["increment"],
+					});
+				}
+			}
+		});
 
 	/**
 	 * Validation schema for updating an item attribute.
 	 */
-	export const updateItemAttributeSchema = z.object({
-		id: z.string().cuid(),
-		name: z.string().min(1).max(255).trim().optional(),
-		disabled: z.boolean().optional(),
-		numericValues: z.boolean().optional(),
-		/** When provided, fully replaces the attribute values list using a safe upsert strategy */
-		attributeValues: z.array(itemAttributeValueInputSchema).optional(),
-	});
+	export const updateItemAttributeSchema = z
+		.object({
+			id: z.string().cuid(),
+			name: z.string().min(1).max(255).trim().optional(),
+			disabled: z.boolean().optional(),
+			numericValues: z.boolean().optional(),
+			fromRange: z.number().optional(),
+			toRange: z.number().optional(),
+			increment: z.number().optional(),
+			/** When provided, fully replaces the attribute values list using a safe upsert strategy */
+			attributeValues: z.array(itemAttributeValueInputSchema).optional(),
+		})
+		.superRefine((data, ctx) => {
+			if (
+				data.numericValues &&
+				data.fromRange !== undefined &&
+				data.toRange !== undefined
+			) {
+				if (data.fromRange >= data.toRange) {
+					ctx.addIssue({
+						code: z.ZodIssueCode.custom,
+						message:
+							"From Range must be less than To Range for numeric attributes",
+						path: ["fromRange"],
+					});
+				}
+			}
+			if (data.numericValues && data.increment !== undefined) {
+				if (data.increment <= 0) {
+					ctx.addIssue({
+						code: z.ZodIssueCode.custom,
+						message: "Increment must be greater than 0 for numeric attributes",
+						path: ["increment"],
+					});
+				}
+			}
+		});
 
 	const stockItemNamingBySchema = z.enum(["ITEM_CODE", "NAMING_SERIES"]);
 	const stockValuationMethodSchema = z.enum(["FIFO", "MOVING_AVERAGE"]);
@@ -2298,6 +2356,25 @@ export namespace Inventory {
 		| "RECEIVED"
 		| "CANCELLED";
 
+	export const materialRequestStatusSchema = z.enum([
+		"DRAFT",
+		"PENDING",
+		"APPROVED",
+		"ORDERED",
+		"PARTIALLY_ORDERED",
+		"PARTIALLY_RECEIVED",
+		"RECEIVED",
+		"CANCELLED",
+	]);
+
+	export const materialRequestPurposeSchema = z.enum([
+		"PURCHASE",
+		"MANUFACTURE",
+		"MATERIAL_TRANSFER",
+		"MATERIAL_ISSUE",
+		"CUSTOMER_PROVIDED",
+	]);
+
 	export interface MaterialRequestItem {
 		id: string;
 		materialRequestId: string;
@@ -2463,6 +2540,20 @@ export namespace Inventory {
 		ids: z.array(z.string().min(1)).min(1),
 	});
 
+	export const listMaterialRequestsSchema = z
+		.object({
+			skip: z.number().int().min(0).optional(),
+			take: z.number().int().min(1).max(250).optional(),
+			search: z.string().max(255).optional(),
+			status: materialRequestStatusSchema.optional(),
+			purpose: materialRequestPurposeSchema.optional(),
+		})
+		.optional();
+
+	export type ListMaterialRequestsInput = z.infer<
+		typeof listMaterialRequestsSchema
+	>;
+
 	// ============================================================================
 	// Stock Entry Types & Schemas
 	// ============================================================================
@@ -2477,6 +2568,22 @@ export namespace Inventory {
 		| "SEND_TO_SUBCONTRACTOR";
 
 	export type StockEntryStatus = "DRAFT" | "SUBMITTED" | "CANCELLED";
+
+	export const stockEntryStatusSchema = z.enum([
+		"DRAFT",
+		"SUBMITTED",
+		"CANCELLED",
+	]);
+
+	export const stockEntryTypeSchema = z.enum([
+		"MATERIAL_RECEIPT",
+		"MATERIAL_ISSUE",
+		"MATERIAL_TRANSFER",
+		"MATERIAL_TRANSFER_FOR_MANUFACTURE",
+		"MANUFACTURE",
+		"REPACK",
+		"SEND_TO_SUBCONTRACTOR",
+	]);
 
 	export interface StockEntryItem {
 		id: string;
@@ -2652,6 +2759,18 @@ export namespace Inventory {
 	export const bulkDeleteStockEntriesSchema = z.object({
 		ids: z.array(z.string().min(1)).min(1),
 	});
+
+	export const listStockEntriesSchema = z
+		.object({
+			skip: z.number().int().min(0).optional(),
+			take: z.number().int().min(1).max(250).optional(),
+			search: z.string().max(255).optional(),
+			status: stockEntryStatusSchema.optional(),
+			stockEntryType: stockEntryTypeSchema.optional(),
+		})
+		.optional();
+
+	export type ListStockEntriesInput = z.infer<typeof listStockEntriesSchema>;
 
 	// ============================================================================
 	// Stock Ledger Report Types & Schemas
@@ -3666,6 +3785,15 @@ export namespace Inventory {
 		| "CANCELLED"
 		| "CLOSED";
 
+	export const deliveryNoteStatusSchema = z.enum([
+		"DRAFT",
+		"TO_BILL",
+		"COMPLETED",
+		"RETURN_ISSUED",
+		"CANCELLED",
+		"CLOSED",
+	]);
+
 	export interface DeliveryNoteItem {
 		id: string;
 		deliveryNoteId: string;
@@ -4012,6 +4140,17 @@ export namespace Inventory {
 		ids: z.array(z.string().min(1)).min(1),
 	});
 
+	export const listDeliveryNotesSchema = z
+		.object({
+			skip: z.number().int().min(0).optional(),
+			take: z.number().int().min(1).max(250).optional(),
+			search: z.string().max(255).optional(),
+			status: deliveryNoteStatusSchema.optional(),
+		})
+		.optional();
+
+	export type ListDeliveryNotesInput = z.infer<typeof listDeliveryNotesSchema>;
+
 	// ============================================================================
 	// Packing Slip Types & Schemas
 	// ============================================================================
@@ -4150,6 +4289,7 @@ export namespace Inventory {
 		.object({
 			deliveryNoteId: z.string().optional(),
 			status: packingSlipStatusSchema.optional(),
+			search: z.string().max(255).optional(),
 			skip: z.number().int().min(0).optional(),
 			take: z.number().int().min(1).max(250).optional(),
 		})

@@ -1,6 +1,16 @@
 import type { Inventory } from "@aria/types";
 
 export type WarehouseWiseStockBalanceCurrency = "INR" | "AED" | "USD" | "EUR";
+export type WarehouseWiseStockBalanceStatus = Inventory.StockEntryStatus;
+
+export const WAREHOUSE_WISE_STOCK_BALANCE_STATUS_OPTIONS: Array<{
+	label: string;
+	value: WarehouseWiseStockBalanceStatus;
+}> = [
+	{ label: "Draft", value: "DRAFT" },
+	{ label: "Submitted", value: "SUBMITTED" },
+	{ label: "Cancelled", value: "CANCELLED" },
+];
 
 export const WAREHOUSE_WISE_STOCK_BALANCE_CURRENCY_OPTIONS: Array<{
 	label: string;

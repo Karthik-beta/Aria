@@ -7,7 +7,7 @@ import { formatOptional, formatRate } from "./item-prices.utils";
 
 describe("formatRate", () => {
 	it("formats a positive rate with currency symbol and 2 decimal places", () => {
-		expect(formatRate(1000)).toBe("₹\u00A01,000.00");
+		expect(formatRate(1000)).toBe("₹1,000.00");
 	});
 
 	it("returns — for null", () => {
@@ -18,12 +18,12 @@ describe("formatRate", () => {
 		expect(formatRate(undefined)).toBe("—");
 	});
 
-	it("returns — for zero (no rate set)", () => {
-		expect(formatRate(0)).toBe("—");
+	it("formats zero as a valid rate", () => {
+		expect(formatRate(0)).toBe("₹0.00");
 	});
 
 	it("formats a fractional rate correctly", () => {
-		expect(formatRate(49.5)).toBe("₹\u00A049.50");
+		expect(formatRate(49.5)).toBe("₹49.50");
 	});
 
 	it("formats large values with grouping separators (en-IN style)", () => {

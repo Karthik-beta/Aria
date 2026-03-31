@@ -170,7 +170,7 @@ RUN chmod +x /app/docker-entrypoint.sh && \
 USER nestjs
 
 # Healthcheck and port
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+HEALTHCHECK --interval=15s --timeout=10s --start-period=120s --retries=10 \
     CMD curl -fsS http://localhost:3001/health || exit 1
 EXPOSE 3001
 

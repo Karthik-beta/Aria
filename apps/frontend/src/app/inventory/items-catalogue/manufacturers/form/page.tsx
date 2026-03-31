@@ -111,7 +111,7 @@ function ItemManufacturerFormContent() {
 			hasHandledMissingManufacturerRef.current = true;
 			toast.error("Item manufacturer not found");
 			startTransition(() => {
-				router.push("/inventory/manufacturers");
+				router.push("/inventory/items-catalogue/manufacturers");
 			});
 		}
 	}, [isEditMode, isFetchingItemManufacturer, itemManufacturer, router]);
@@ -133,7 +133,7 @@ function ItemManufacturerFormContent() {
 			toast.success("Item manufacturer created successfully");
 			await utils.inventory.listItemManufacturers.invalidate();
 			startTransition(() => {
-				router.push("/inventory/manufacturers");
+				router.push("/inventory/items-catalogue/manufacturers");
 			});
 		},
 		onError: (error) => {
@@ -149,7 +149,7 @@ function ItemManufacturerFormContent() {
 				await utils.inventory.getItemManufacturerById.invalidate({ id });
 			}
 			startTransition(() => {
-				router.push("/inventory/manufacturers");
+				router.push("/inventory/items-catalogue/manufacturers");
 			});
 		},
 		onError: (error) => {

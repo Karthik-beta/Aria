@@ -381,6 +381,7 @@ export default function ItemPriceStockPage() {
 					enableVirtualization
 					enableColumnResizing
 					enableBulkActions={false}
+					enableGlobalSearch={false}
 					ariaLabel="Item price stock table"
 				/>
 			)}

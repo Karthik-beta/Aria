@@ -60,6 +60,11 @@ export function toDateTimeLocalInputValue(
 	if (!date) return "";
 	const parsed = date instanceof Date ? date : new Date(date);
 	if (Number.isNaN(parsed.getTime())) return "";
-	// format as "YYYY-MM-DDTHH:mm" for datetime-local input
-	return parsed.toISOString().slice(0, 16);
+	// format as "YYYY-MM-DDTHH:mm" for datetime-local input using local time
+	const year = parsed.getFullYear();
+	const month = String(parsed.getMonth() + 1).padStart(2, "0");
+	const day = String(parsed.getDate()).padStart(2, "0");
+	const hours = String(parsed.getHours()).padStart(2, "0");
+	const minutes = String(parsed.getMinutes()).padStart(2, "0");
+	return `${year}-${month}-${day}T${hours}:${minutes}`;
 }

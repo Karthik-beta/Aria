@@ -3,19 +3,23 @@
 import type { ColumnDef } from "@tanstack/react-table";
 import {
 	CheckCircle2,
+	Edit,
 	Eye,
 	Heart,
 	MessageCircle,
 	MoreHorizontal,
 	Plus,
+	Trash,
 	XCircle,
 } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
+import { toast } from "sonner";
 import {
 	AdvancedDataTable,
 	useAdvancedDataTable,
 } from "@/components/advanced-data-table";
+import { AlertModal } from "@/components/modal/alert-modal";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -28,6 +32,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ErrorState } from "@/components/ui/error-display";
 import { DataTableColumnHeader } from "@/components/ui/table/data-table-column-header";
+import { getToastMessage } from "@/lib/errors";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
 
@@ -45,6 +50,12 @@ function getRelativeAge(date: Date): string {
 }
 
 export default function ProductBundleListPage() {
+	const utils = trpc.useUtils();
+	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
+	const [bundleToDelete, setBundleToDelete] = React.useState<string | null>(
+		null,
+	);
+
 	const {
 		data: rawBundles = [],
 		isLoading,
@@ -55,6 +66,38 @@ export default function ProductBundleListPage() {
 		retry: 2,
 		staleTime: Infinity,
 	});
+
+	const deleteMutation = trpc.inventory.deleteProductBundle.useMutation({
+		onMutate: async ({ id }) => {
+			await utils.inventory.listProductBundles.cancel();
+			const previous = utils.inventory.listProductBundles.getData();
+			utils.inventory.listProductBundles.setData(undefined, (old) => {
+				if (!old) return old;
+				return old.filter((row) => row.id !== id);
+			});
+			return { previous };
+		},
+		onSuccess: () => {
+			toast.success("Product bundle deleted successfully");
+			setIsDeleteDialogOpen(false);
+			setBundleToDelete(null);
+		},
+		onError: (error, _vars, context) => {
+			if (context?.previous) {
+				utils.inventory.listProductBundles.setData(undefined, context.previous);
+			}
+			toast.error(getToastMessage(error, "delete"));
+		},
+		onSettled: () => {
+			void utils.inventory.listProductBundles.invalidate();
+		},
+	});
+
+	const confirmDelete = React.useCallback(() => {
+		if (bundleToDelete) {
+			deleteMutation.mutate({ id: bundleToDelete });
+		}
+	}, [deleteMutation, bundleToDelete]);
 
 	type ProductBundleRow = Omit<
 		(typeof rawBundles)[number],
@@ -243,11 +286,30 @@ export default function ProductBundleListPage() {
 							<DropdownMenuSeparator />
 							<DropdownMenuItem asChild>
 								<Link
+									href={`/inventory/items-catalogue/product-bundle/form?id=${row.original.id}`}
+								>
+									<Edit className="mr-2 h-4 w-4" />
+									Edit Product Bundle
+								</Link>
+							</DropdownMenuItem>
+							<DropdownMenuItem asChild>
+								<Link
 									href={`/inventory/items-catalogue/item/${row.original.parentItemId}`}
 								>
 									<Eye className="mr-2 h-4 w-4" />
 									View Parent Item
 								</Link>
+							</DropdownMenuItem>
+							<DropdownMenuSeparator />
+							<DropdownMenuItem
+								onClick={() => {
+									setBundleToDelete(row.original.id);
+									setIsDeleteDialogOpen(true);
+								}}
+								className="text-destructive focus:text-destructive"
+							>
+								<Trash className="mr-2 h-4 w-4" />
+								Delete Product Bundle
 							</DropdownMenuItem>
 						</DropdownMenuContent>
 					</DropdownMenu>
@@ -276,53 +338,68 @@ export default function ProductBundleListPage() {
 	});
 
 	return (
-		<div className="container mx-auto py-6 space-y-6">
-			<div className="flex items-center justify-between">
-				<div>
-					<h1 className="text-3xl font-bold tracking-tight">Product Bundles</h1>
-					<p className="text-muted-foreground">
-						Manage bundled products and parent item associations
-					</p>
+		<>
+			<AlertModal
+				isOpen={isDeleteDialogOpen}
+				onClose={() => {
+					setIsDeleteDialogOpen(false);
+					setBundleToDelete(null);
+				}}
+				onConfirm={confirmDelete}
+				loading={deleteMutation.isPending}
+			/>
+			<div className="container mx-auto py-6 space-y-6">
+				<div className="flex items-center justify-between">
+					<div>
+						<h1 className="text-3xl font-bold tracking-tight">
+							Product Bundles
+						</h1>
+						<p className="text-muted-foreground">
+							Manage bundled products and parent item associations
+						</p>
+					</div>
 				</div>
+
+				{isLoading && (
+					<div className="flex items-center justify-center py-12">
+						<div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+					</div>
+				)}
+
+				{queryError && !isLoading && (
+					<ErrorState
+						error={queryError}
+						operation="load"
+						title="Failed to load product bundles"
+						onRetry={() => void refetch()}
+					/>
+				)}
+
+				{!isLoading && !queryError && (
+					<AdvancedDataTable
+						table={table}
+						data={bundles}
+						enableGlobalSearch
+						enableExport
+						enableBulkActions={false}
+						enableVirtualization
+						enableColumnResizing
+						enableColumnReordering
+						primaryAction={
+							<Link
+								href="/inventory/items-catalogue/product-bundle/form"
+								className={cn(
+									buttonVariants({ variant: "default", size: "sm" }),
+								)}
+							>
+								<Plus className="mr-2 h-4 w-4" />
+								Add Product Bundle
+							</Link>
+						}
+						ariaLabel="Product bundles table"
+					/>
+				)}
 			</div>
-
-			{isLoading && (
-				<div className="flex items-center justify-center py-12">
-					<div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-				</div>
-			)}
-
-			{queryError && !isLoading && (
-				<ErrorState
-					error={queryError}
-					operation="load"
-					title="Failed to load product bundles"
-					onRetry={() => void refetch()}
-				/>
-			)}
-
-			{!isLoading && !queryError && (
-				<AdvancedDataTable
-					table={table}
-					data={bundles}
-					enableGlobalSearch
-					enableExport
-					enableBulkActions={false}
-					enableVirtualization
-					enableColumnResizing
-					enableColumnReordering
-					primaryAction={
-						<Link
-							href="/inventory/items-catalogue/product-bundle/form"
-							className={cn(buttonVariants({ variant: "default", size: "sm" }))}
-						>
-							<Plus className="mr-2 h-4 w-4" />
-							Add Product Bundle
-						</Link>
-					}
-					ariaLabel="Product bundles table"
-				/>
-			)}
-		</div>
+		</>
 	);
 }

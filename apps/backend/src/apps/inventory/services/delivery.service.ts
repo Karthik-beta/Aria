@@ -206,12 +206,14 @@ export class DeliverySubService {
 	}
 
 	/**
-	 * Get delivery notes with pagination support.
+	 * Get delivery notes with bounded pagination, optional status filter, and search.
 	 * Defaults to the 250 most recent records when no params are provided.
 	 */
 	async findAllDeliveryNotes(params?: {
 		skip?: number;
 		take?: number;
+		search?: string;
+		status?: Inventory.DeliveryNoteStatus;
 	}): Promise<Inventory.DeliveryNote[]> {
 		const rawSkip = params?.skip ?? 0;
 		const rawTake = params?.take ?? LIST_QUERY_TAKE_MAX;
@@ -224,7 +226,20 @@ export class DeliverySubService {
 					? LIST_QUERY_TAKE_MAX
 					: rawTake;
 
+		const where: Record<string, unknown> = {};
+		if (params?.status) {
+			where.status = params.status;
+		}
+		if (params?.search) {
+			where.OR = [
+				{ series: { contains: params.search, mode: "insensitive" } },
+				{ customer: { contains: params.search, mode: "insensitive" } },
+				{ company: { contains: params.search, mode: "insensitive" } },
+			];
+		}
+
 		const notes = await this.prisma.deliveryNote.findMany({
+			where,
 			orderBy: { createdAt: "desc" },
 			include: { items: true },
 			skip,
@@ -610,7 +625,7 @@ export class DeliverySubService {
 				error instanceof Prisma.PrismaClientKnownRequestError &&
 				error.code === "P2025"
 			) {
-				return { success: false, id };
+				throw new NotFoundException(`Delivery note with ID ${id} not found`);
 			}
 			throw error;
 		}
@@ -976,22 +991,21 @@ export class DeliverySubService {
 		const year = date.getFullYear();
 		const prefix = `MAT-DT-${year}-`;
 
-		const trips = await this.prisma.deliveryTrip.findMany({
+		const lastTrip = await this.prisma.deliveryTrip.findFirst({
 			where: { series: { startsWith: prefix } },
-			orderBy: { createdAt: "desc" },
+			orderBy: { series: "desc" },
 			select: { series: true },
 		});
 
-		let maxNumber = 0;
-		for (const trip of trips) {
-			const numStr = trip.series.slice(prefix.length);
+		let nextNumber = 1;
+		if (lastTrip) {
+			const numStr = lastTrip.series.slice(prefix.length);
 			const num = parseInt(numStr, 10);
-			if (!Number.isNaN(num) && num > maxNumber) {
-				maxNumber = num;
+			if (!Number.isNaN(num)) {
+				nextNumber = num + 1;
 			}
 		}
 
-		const nextNumber = maxNumber + 1;
 		return `${prefix}${String(nextNumber).padStart(5, "0")}`;
 	}
 
@@ -1292,10 +1306,12 @@ export class DeliverySubService {
 
 	/**
 	 * Calculate the net weight and UOM for a packing slip from its items.
+	 * Net weight is computed as `SUM(item.netWeight × item.qty)` (matching
+	 * ERPNext's `calculate_net_total_pkg` logic).
 	 * Throws if items use different UOMs.
 	 */
 	private computePackingSlipWeights(
-		items: { netWeight: number; weightUom?: string | null }[],
+		items: { netWeight: number; qty: number; weightUom?: string | null }[],
 		grossWeightPkg?: number,
 	): {
 		netWeightPkg: number;
@@ -1314,7 +1330,7 @@ export class DeliverySubService {
 		}
 
 		const netWeightPkg = items.reduce(
-			(sum, item) => sum + (item.netWeight ?? 0),
+			(sum, item) => sum + (item.netWeight ?? 0) * (item.qty ?? 0),
 			0,
 		);
 
@@ -1439,6 +1455,7 @@ export class DeliverySubService {
 	async findAllPackingSlips(params?: {
 		deliveryNoteId?: string;
 		status?: Inventory.PackingSlipStatus;
+		search?: string;
 		skip?: number;
 		take?: number;
 	}): Promise<Inventory.PackingSlip[]> {
@@ -1454,6 +1471,11 @@ export class DeliverySubService {
 					? { deliveryNoteId: params.deliveryNoteId }
 					: {}),
 				...(params?.status ? { status: params.status } : {}),
+				...(params?.search
+					? {
+							series: { contains: params.search, mode: "insensitive" as const },
+						}
+					: {}),
 			},
 			include: { items: true },
 			orderBy: { createdAt: "desc" },
@@ -1508,9 +1530,29 @@ export class DeliverySubService {
 		await this.validateCaseNos(data.deliveryNoteId, fromCaseNo, toCaseNo);
 		await this.validatePackingSlipItemQtys(data.items);
 
+		// Auto-fill missing weight / UOM from Item master (ERPNext: set_missing_values)
+		const uniqueCodes = [...new Set(data.items.map((i) => i.itemCode))];
+		const itemMasters = await this.prisma.inventoryItem.findMany({
+			where: { code: { in: uniqueCodes } },
+			select: { code: true, weightPerUnit: true, weightUom: true },
+		});
+		const masterByCode = new Map(itemMasters.map((m) => [m.code, m]));
+		const enrichedItems = data.items.map((i) => {
+			const master = masterByCode.get(i.itemCode);
+			return {
+				...i,
+				netWeight:
+					i.netWeight != null && i.netWeight !== 0
+						? i.netWeight
+						: (master?.weightPerUnit ?? 0),
+				weightUom: i.weightUom ?? master?.weightUom ?? null,
+			};
+		});
+
 		const weights = this.computePackingSlipWeights(
-			data.items.map((i) => ({
-				netWeight: i.netWeight ?? 0,
+			enrichedItems.map((i) => ({
+				netWeight: i.netWeight,
+				qty: i.qty,
 				weightUom: i.weightUom,
 			})),
 			data.grossWeightPkg,
@@ -1532,13 +1574,13 @@ export class DeliverySubService {
 						grossWeightUom: data.grossWeightUom ?? weights.grossWeightUom,
 						letterHead: data.letterHead,
 						items: {
-							create: data.items.map((item) => ({
+							create: enrichedItems.map((item) => ({
 								deliveryNoteItemId: item.deliveryNoteItemId,
 								itemCode: item.itemCode,
 								itemName: item.itemName,
 								description: item.description,
 								qty: item.qty,
-								netWeight: item.netWeight ?? 0,
+								netWeight: item.netWeight,
 								weightUom: item.weightUom,
 								batchNo: item.batchNo,
 							})),
@@ -1598,9 +1640,36 @@ export class DeliverySubService {
 			await this.validatePackingSlipItemQtys(data.items, existing.id);
 		}
 
-		const itemsForWeight = (data.items ?? existing.items).map(
-			(i: { netWeight?: number | null; weightUom?: string | null }) => ({
+		// Auto-fill missing weight / UOM from Item master when new items are provided
+		let enrichedUpdateItems: typeof data.items | undefined;
+		if (data.items) {
+			const uniqueCodes = [...new Set(data.items.map((i) => i.itemCode))];
+			const itemMasters = await this.prisma.inventoryItem.findMany({
+				where: { code: { in: uniqueCodes } },
+				select: { code: true, weightPerUnit: true, weightUom: true },
+			});
+			const masterByCode = new Map(itemMasters.map((m) => [m.code, m]));
+			enrichedUpdateItems = data.items.map((i) => {
+				const master = masterByCode.get(i.itemCode);
+				return {
+					...i,
+					netWeight:
+						i.netWeight != null && i.netWeight !== 0
+							? i.netWeight
+							: (master?.weightPerUnit ?? 0),
+					weightUom: i.weightUom ?? master?.weightUom ?? null,
+				};
+			});
+		}
+
+		const itemsForWeight = (enrichedUpdateItems ?? existing.items).map(
+			(i: {
+				netWeight?: number | null;
+				qty?: number | null;
+				weightUom?: string | null;
+			}) => ({
 				netWeight: i.netWeight ?? 0,
+				qty: i.qty ?? 0,
 				weightUom: i.weightUom,
 			}),
 		);
@@ -1610,7 +1679,7 @@ export class DeliverySubService {
 		);
 
 		const updated = await this.prisma.$transaction(async (tx) => {
-			if (data.items) {
+			if (enrichedUpdateItems) {
 				await tx.packingSlipItem.deleteMany({
 					where: { packingSlipId: existing.id },
 				});
@@ -1629,15 +1698,15 @@ export class DeliverySubService {
 							? data.grossWeightUom
 							: weights.grossWeightUom,
 					...(data.letterHead !== undefined && { letterHead: data.letterHead }),
-					...(data.items && {
+					...(enrichedUpdateItems && {
 						items: {
-							create: data.items.map((item) => ({
+							create: enrichedUpdateItems.map((item) => ({
 								deliveryNoteItemId: item.deliveryNoteItemId,
 								itemCode: item.itemCode,
 								itemName: item.itemName,
 								description: item.description,
 								qty: item.qty,
-								netWeight: item.netWeight ?? 0,
+								netWeight: item.netWeight,
 								weightUom: item.weightUom,
 								batchNo: item.batchNo,
 							})),

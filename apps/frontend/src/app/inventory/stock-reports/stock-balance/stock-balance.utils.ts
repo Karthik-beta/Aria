@@ -67,3 +67,14 @@ export function formatOptionalText(value?: string | null): string {
 }
 
 export type StockBalanceRow = Inventory.StockBalanceRow;
+
+export type StockBalanceStatus = Inventory.StockEntryStatus;
+
+export const STOCK_BALANCE_STATUS_OPTIONS: Array<{
+	label: string;
+	value: StockBalanceStatus;
+}> = [
+	{ label: "Draft", value: "DRAFT" },
+	{ label: "Submitted", value: "SUBMITTED" },
+	{ label: "Cancelled", value: "CANCELLED" },
+];

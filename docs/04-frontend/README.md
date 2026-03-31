@@ -1,18 +1,23 @@
 # Frontend Documentation
 
-This document provides a comprehensive overview of the Aria ERP frontend, built with Next.js, tRPC, and shadcn/ui.
+Overview of the Aria ERP frontend, built with Next.js, tRPC, and shadcn/ui.
 
 ## Overview
 
-The frontend is a single Next.js application that contains all the different modules of the ERP, each in its own route group.
+The frontend is a single Next.js application using the App Router with route groups for each ERP module. It communicates with the backend exclusively through tRPC.
 
 ## Tech Stack
 
-- **Framework**: Next.js
-- **Language**: TypeScript
-- **API**: tRPC
-- **UI**: shadcn/ui, Radix UI, Tailwind CSS
-- **Testing**: Playwright for E2E tests, Vitest for unit tests
+| Concern | Technology |
+|---------|-----------|
+| Framework | Next.js (App Router, Turbopack) |
+| Language | TypeScript (strict mode) |
+| API Client | tRPC + TanStack Query |
+| UI Components | shadcn/ui + Radix UI |
+| Styling | Tailwind CSS 4 + PostCSS |
+| Unit Testing | Vitest + React Testing Library |
+| E2E Testing | Playwright |
+| Linting | Biome |
 
 ## Project Structure
 
@@ -20,121 +25,133 @@ The frontend is a single Next.js application that contains all the different mod
 apps/frontend/
 ├── src/
 │   ├── app/
-│   │   ├── (auth)/
-│   │   ├── asset/
-│   │   ├── crm/
-│   │   ├── hrms/
-│   │   └── inventory/
-│   ├── components/
-│   ├── features/
-│   ├── lib/
-│   ├── hooks/
-│   └── types/
-├── e2e/
-└── playwright.config.ts
+│   │   ├── layout.tsx        # Root layout (AuthGuard + TRPCProvider)
+│   │   ├── page.tsx          # Landing page
+│   │   ├── admin/            # Admin console (users, roles, audit)
+│   │   ├── asset/            # Asset management module
+│   │   ├── auth/             # Authentication pages
+│   │   ├── crm/              # CRM module
+│   │   ├── hrms/             # HRMS module
+│   │   └── inventory/        # Inventory module
+│   ├── components/           # Shared UI components (shadcn/ui)
+│   │   └── ui/               # shadcn/ui primitives
+│   ├── features/             # Feature-specific components
+│   ├── lib/                  # Utilities, tRPC client, auth helpers
+│   ├── hooks/                # Custom React hooks
+│   └── types/                # Frontend-specific type definitions
+├── e2e/                      # Playwright E2E tests
+├── test/                     # Vitest test setup
+├── public/                   # Static assets
+├── vitest.config.ts          # Vitest configuration
+└── playwright.config.ts      # Playwright configuration
 ```
 
-- **`app/`**: Contains all the routes of the application, organized by module.
-- **`components/`**: Contains shared UI components.
-- **`features/`**: Contains components that are specific to a feature.
-- **`lib/`**: Contains utility functions and configurations.
-- **`hooks/`**: Contains custom React hooks.
-- **`types/`**: Contains TypeScript type definitions.
-- **`e2e/`**: Contains E2E tests.
+## Modules (Route Groups)
 
-## Modules
+The frontend is organized into modules, each as a route group under `src/app/`:
 
-The frontend is organized into modules, each in its own route group.
+| Module | Path | Description |
+|--------|------|-------------|
+| Admin | `/admin` | User management, roles & permissions, audit logs |
+| Asset | `/asset` | Asset management and tracking |
+| CRM | `/crm` | Customer relationship management |
+| HRMS | `/hrms` | Human resources and payroll |
+| Inventory | `/inventory` | Inventory control, warehousing, stock transactions |
+| Auth | `/auth` | Sign-in, sign-up pages |
 
-- **Asset Management**: `/asset`
-- **CRM**: `/crm`
-- **HRMS**: `/hrms`
-- **Inventory**: `/inventory`
+Each module has its own layout and pages within the route group.
 
-Each module has its own layout and pages.
+## tRPC Integration
 
-## API
+The frontend communicates with the backend through tRPC, importing the `AppRouter` type from `@aria/api-contract`.
 
-The frontend communicates with the backend using tRPC. This allows for type-safe API calls without the need for code generation.
+### Client Setup
 
-### tRPC Setup
+The tRPC client and providers are set up in `src/lib/`:
 
-The tRPC setup is located in `src/lib/trpc`.
+- **Client creation** — Creates the tRPC client pointing at the backend
+- **Provider** — Wraps the app with tRPC + TanStack Query providers
 
-- **`client.ts`**: Creates the tRPC client and React hooks.
-- **`provider.tsx`**: Wraps the application with the tRPC and TanStack Query providers.
+### Usage
 
-### Using tRPC
+```typescript
+// Queries (data fetching)
+const { data } = trpc.inventory.listItems.useQuery({ page: 1, pageSize: 20 });
 
-- **Queries**: Use the `useQuery` hook to fetch data.
-- **Mutations**: Use the `useMutation` hook to create, update, or delete data.
-- **Subscriptions**: Use the `useSubscription` hook to listen for real-time updates.
+// Mutations (create/update/delete)
+const createItem = trpc.inventory.createItem.useMutation();
+await createItem.mutateAsync({ name: 'Widget', code: 'WDG-001' });
 
-## UI
+// Subscriptions (real-time via WebSocket)
+trpc.inventory.onStockUpdate.useSubscription(undefined, {
+  onData: (update) => { /* handle real-time stock update */ }
+});
+```
 
-The UI is built with shadcn/ui, a collection of reusable components built with Radix UI and Tailwind CSS.
+## UI Components
 
-### Shared UI Package
+UI components are built with **shadcn/ui** (Radix UI primitives + Tailwind CSS). Components live within the frontend app at `src/components/ui/`.
 
-All shadcn/ui components are centralized in the `packages/ui` directory and exported as the `@aria/ui` package.
-
-### Adding New Components
-
-New components can be added to the `@aria/ui` package using the shadcn/ui CLI.
+### Adding New shadcn/ui Components
 
 ```bash
-cd packages/ui
-pnpx shadcn@latest add <component-name>
+cd apps/frontend
+bunx --bun shadcn@latest add <component-name>
 ```
+
+This generates the component in `src/components/ui/`.
+
+### Conventions
+
+- Use the `cn()` utility for conditional Tailwind classes
+- Prefer shadcn/ui components over custom implementations
+- Icons from `lucide-react`
 
 ## Testing
 
-The frontend has a comprehensive testing setup, with Playwright for E2E tests and Vitest for unit tests.
+### E2E Tests (Playwright)
 
-### E2E Tests
-
-E2E tests are located in the `e2e/` directory. They use Playwright to simulate user interactions with the application.
-
-To run the E2E tests:
+E2E tests are in the `e2e/` directory. They simulate user interactions:
 
 ```bash
+# Run E2E tests
 bun run test:e2e
+
+# Run with UI mode
+bunx playwright test --ui
+
+# Run specific test
+bunx playwright test e2e/inventory.spec.ts
 ```
 
-### Unit Tests
+### Unit Tests (Vitest)
 
-Unit tests are located next to the code they are testing. They use Vitest and React Testing Library to test individual components and hooks.
-
-To run the unit tests:
+Unit tests are co-located with source or in the `test/` directory:
 
 ```bash
-bun test
+# Run unit tests
+bun --filter frontend test
+
+# Run in watch mode
+bun --filter frontend test -- --watch
 ```
 
 ## Best Practices
 
 ### Next.js
 
-- **Use the App Router** for all new pages.
-- **Use Server Components by default**. Only use Client Components when necessary.
-- **Organize files by feature**.
-- **Use a scalable folder structure**.
+- **Server Components by default** — Only add `'use client'` when hooks or browser APIs are needed
+- **App Router** for all routes — No Pages Router
+- **Turbopack** for development builds — Do not eject or configure webpack
 
 ### tRPC
 
-- **Use Zod** to validate input data.
-- **Keep routers modular**.
-- **Use context** to pass data between middleware and procedures.
+- **Use Zod schemas** from `@aria/types` for input validation
+- **TanStack Query** handles caching and refetching automatically
+- **Optimistic updates** for better UX on mutations
 
-### UI
+### Styling
 
-- **Use the shared UI package** for all UI components.
-- **Don't create custom UI components** when a shadcn/ui component is available.
-- **Use the `cn()` utility** for conditional classes.
-
-### Testing
-
-- **Write E2E tests** for all critical user flows.
-- **Write unit tests** for complex components and hooks.
-- **Use user-facing locators** in E2E tests.
-- **Test user behavior, not implementation details**.
+- **Tailwind CSS 4** with PostCSS
+- **Dark mode** supported via CSS variables and theme toggling
+- **Responsive design** with mobile-first approach

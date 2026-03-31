@@ -232,18 +232,27 @@ export class ItemCatalogSubService {
 	 * Delete a brand
 	 */
 	async deleteBrand(id: string): Promise<{ success: boolean; id: string }> {
-		try {
-			await this.prisma.brand.delete({ where: { id } });
-			return { success: true, id };
-		} catch (error) {
-			if (
-				error instanceof Prisma.PrismaClientKnownRequestError &&
-				error.code === "P2025"
-			) {
-				throw new NotFoundException(`Brand with ID ${id} not found`);
-			}
-			throw error;
+		const existing = await this.prisma.brand.findUnique({
+			where: { id },
+			select: { id: true, name: true },
+		});
+
+		if (!existing) {
+			throw new NotFoundException(`Brand with ID ${id} not found`);
 		}
+
+		const itemCount = await this.prisma.item.count({
+			where: { brandId: id },
+		});
+
+		if (itemCount > 0) {
+			throw new BadRequestException(
+				`Brand "${existing.name}" cannot be deleted because it is referenced by ${itemCount} item(s)`,
+			);
+		}
+
+		await this.prisma.brand.delete({ where: { id } });
+		return { success: true, id };
 	}
 
 	// ============================================================================
@@ -292,6 +301,9 @@ export class ItemCatalogSubService {
 					name: data.name,
 					disabled: data.disabled,
 					numericValues: data.numericValues,
+					fromRange: data.fromRange ?? 0,
+					toRange: data.toRange ?? 0,
+					increment: data.increment ?? 0,
 					attributeValues: {
 						create: data.attributeValues.map((v, index) => ({
 							attributeValue: v.attributeValue,
@@ -330,6 +342,22 @@ export class ItemCatalogSubService {
 	): Promise<Inventory.ItemAttribute> {
 		const { id, attributeValues, ...rest } = data;
 
+		// Extract numeric range fields separately so they don't go through removeUndefined
+		// which would drop explicit zero values
+		const numericRangeFields: Record<string, number | undefined> = {};
+		if (rest.fromRange !== undefined)
+			numericRangeFields.fromRange = rest.fromRange;
+		if (rest.toRange !== undefined) numericRangeFields.toRange = rest.toRange;
+		if (rest.increment !== undefined)
+			numericRangeFields.increment = rest.increment;
+
+		const {
+			fromRange: _fr,
+			toRange: _tr,
+			increment: _inc,
+			...scalarRest
+		} = rest;
+
 		// Verify the record exists first so we get a clean 404 instead of a Prisma error.
 		const existing = await this.prisma.itemAttribute.findUnique({
 			where: { id },
@@ -344,7 +372,7 @@ export class ItemCatalogSubService {
 				// Scalar field updates
 				await tx.itemAttribute.update({
 					where: { id },
-					data: removeUndefined(rest),
+					data: { ...removeUndefined(scalarRest), ...numericRangeFields },
 				});
 
 				if (attributeValues !== undefined) {
@@ -417,18 +445,27 @@ export class ItemCatalogSubService {
 	async deleteItemAttribute(
 		id: string,
 	): Promise<{ success: boolean; id: string }> {
-		try {
-			await this.prisma.itemAttribute.delete({ where: { id } });
-			return { success: true, id };
-		} catch (error) {
-			if (
-				error instanceof Prisma.PrismaClientKnownRequestError &&
-				error.code === "P2025"
-			) {
-				throw new NotFoundException(`Item Attribute with ID ${id} not found`);
-			}
-			throw error;
+		const existing = await this.prisma.itemAttribute.findUnique({
+			where: { id },
+			select: { id: true, name: true },
+		});
+
+		if (!existing) {
+			throw new NotFoundException(`Item Attribute with ID ${id} not found`);
 		}
+
+		const usageCount = await this.prisma.inventoryItemAttribute.count({
+			where: { attributeId: id },
+		});
+
+		if (usageCount > 0) {
+			throw new BadRequestException(
+				`Item Attribute "${existing.name}" cannot be deleted because it is used by ${usageCount} item(s)`,
+			);
+		}
+
+		await this.prisma.itemAttribute.delete({ where: { id } });
+		return { success: true, id };
 	}
 
 	/**
@@ -481,6 +518,34 @@ export class ItemCatalogSubService {
 		});
 
 		return bundles.map(toInventoryProductBundle);
+	}
+
+	/**
+	 * Get a single product bundle by id
+	 */
+	async findProductBundleById(
+		id: string,
+	): Promise<Inventory.ProductBundle | null> {
+		const bundle = await this.prisma.productBundle.findUnique({
+			where: { id },
+			include: {
+				parentItem: {
+					select: { id: true, name: true },
+				},
+				bundleItems: {
+					include: {
+						item: {
+							select: { id: true, name: true },
+						},
+						unitOfMeasurement: {
+							select: { id: true, name: true },
+						},
+					},
+				},
+			},
+		});
+
+		return bundle ? toInventoryProductBundle(bundle) : null;
 	}
 
 	/**

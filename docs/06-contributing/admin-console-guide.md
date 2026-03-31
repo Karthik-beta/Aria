@@ -150,7 +150,7 @@ apps/frontend/src/app/admin/
 Run the admin console:
 
 ```bash
-pnpm --filter frontend dev
+bun --filter frontend dev
 ```
 
 Navigate to `/admin` (requires `system:user.read` permission)

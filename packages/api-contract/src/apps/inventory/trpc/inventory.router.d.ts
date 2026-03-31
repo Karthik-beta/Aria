@@ -44,6 +44,11 @@ type DeliveryTripsChangedEvent = {
 	data: Inventory.DeliveryTrip | { id: string };
 };
 
+type PurchaseReceiptsChangedEvent = {
+	type: "created" | "updated" | "deleted";
+	data: Inventory.PurchaseReceipt | { id: string };
+};
+
 type SerialNosChangedEvent = {
 	type: "created" | "updated" | "deleted";
 	data: Inventory.SerialNo | { id: string };
@@ -366,6 +371,13 @@ type InventoryRouterInput = {
 	listProductBundles: TRPCQueryProcedure<{
 		input: void;
 		output: Inventory.ProductBundle[];
+		meta: object;
+	}>;
+	getProductBundleById: TRPCQueryProcedure<{
+		input: {
+			id: string;
+		};
+		output: Inventory.ProductBundle | null;
 		meta: object;
 	}>;
 	createProductBundle: TRPCMutationProcedure<{
@@ -1138,7 +1150,30 @@ type InventoryRouterInput = {
 		meta: object;
 	}>;
 	listMaterialRequests: TRPCQueryProcedure<{
-		input: void;
+		input:
+			| {
+					skip?: number | undefined;
+					take?: number | undefined;
+					search?: string | undefined;
+					status?:
+						| "DRAFT"
+						| "PENDING"
+						| "APPROVED"
+						| "ORDERED"
+						| "PARTIALLY_ORDERED"
+						| "PARTIALLY_RECEIVED"
+						| "RECEIVED"
+						| "CANCELLED"
+						| undefined;
+					purpose?:
+						| "PURCHASE"
+						| "MANUFACTURE"
+						| "MATERIAL_TRANSFER"
+						| "MATERIAL_ISSUE"
+						| "CUSTOMER_PROVIDED"
+						| undefined;
+			  }
+			| undefined;
 		output: Inventory.MaterialRequest[];
 		meta: object;
 	}>;
@@ -1248,7 +1283,23 @@ type InventoryRouterInput = {
 		meta: object;
 	}>;
 	listStockEntries: TRPCQueryProcedure<{
-		input: void;
+		input:
+			| {
+					skip?: number | undefined;
+					take?: number | undefined;
+					search?: string | undefined;
+					status?: "DRAFT" | "SUBMITTED" | "CANCELLED" | undefined;
+					stockEntryType?:
+						| "MATERIAL_RECEIPT"
+						| "MATERIAL_ISSUE"
+						| "MATERIAL_TRANSFER"
+						| "MATERIAL_TRANSFER_FOR_MANUFACTURE"
+						| "MANUFACTURE"
+						| "REPACK"
+						| "SEND_TO_SUBCONTRACTOR"
+						| undefined;
+			  }
+			| undefined;
 		output: Inventory.StockEntry[];
 		meta: object;
 	}>;
@@ -1697,7 +1748,21 @@ type InventoryRouterInput = {
 		meta: object;
 	}>;
 	listDeliveryNotes: TRPCQueryProcedure<{
-		input: void;
+		input:
+			| {
+					skip?: number | undefined;
+					take?: number | undefined;
+					search?: string | undefined;
+					status?:
+						| "DRAFT"
+						| "TO_BILL"
+						| "COMPLETED"
+						| "RETURN_ISSUED"
+						| "CANCELLED"
+						| "CLOSED"
+						| undefined;
+			  }
+			| undefined;
 		output: Inventory.DeliveryNote[];
 		meta: object;
 	}>;
@@ -2031,6 +2096,11 @@ type InventoryRouterInput = {
 			count: number;
 			ids: string[];
 		};
+		meta: object;
+	}>;
+	onPurchaseReceiptsChanged: LegacyObservableSubscriptionProcedure<{
+		input: void;
+		output: PurchaseReceiptsChangedEvent;
 		meta: object;
 	}>;
 	listPickLists: TRPCQueryProcedure<{

@@ -84,6 +84,9 @@ export type InventoryItemAttribute = Prisma.ItemAttributeGetPayload<{
 		name: true;
 		disabled: true;
 		numericValues: true;
+		fromRange: true;
+		toRange: true;
+		increment: true;
 		createdAt: true;
 		updatedAt: true;
 		attributeValues: {
@@ -549,6 +552,9 @@ export function toInventoryItemAttribute(
 		name: prismaAttr.name,
 		disabled: prismaAttr.disabled,
 		numericValues: prismaAttr.numericValues,
+		fromRange: prismaAttr.fromRange,
+		toRange: prismaAttr.toRange,
+		increment: prismaAttr.increment,
 		attributeValues: prismaAttr.attributeValues.map((v) => ({
 			id: v.id,
 			attributeId: v.attributeId,

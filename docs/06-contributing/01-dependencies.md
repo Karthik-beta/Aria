@@ -1,125 +1,76 @@
 # Dependency Management Guide
 
-## Current Status
+## Key Dependencies
 
-### Package Updates (October 18, 2025)
+### Root Workspace
 
-All packages have been updated to their latest stable versions with the following considerations:
+| Package | Version | Purpose |
+| --- | --- | --- |
+| `@biomejs/biome` | ^2.4.6 | Linting & formatting |
+| `turbo` | ^2.8.20 | Monorepo build orchestration |
+| `prisma` | ^7.2.0 | Database toolkit (CLI) |
+| `husky` | ^9.1.7 | Git hooks |
 
-#### ✅ Successfully Updated
+### Backend (`apps/backend`)
 
-- **Next.js**: 15.5.4 → 15.5.6
-- **React**: 19.1.0 → 19.2.0
-- **React DOM**: 19.1.0 → 19.2.0
-- **TypeScript**: 5.9.3 (standardized across workspace)
-- **ESLint**: 9.38.0 (with updated plugins)
-- **Sentry**: 9.46.0 → 10.20.0
-- **Motion**: 11.18.2 → 12.23.24
-- **Lucide Icons**: 0.476.0 → 0.546.0
-- And 20+ more packages...
+| Package | Version | Purpose |
+| --- | --- | --- |
+| `@nestjs/common` | ^11.1.10 | NestJS framework |
+| `@trpc/server` | ^11.8.1 | tRPC server |
+| `@prisma/client` | ^7.5.0 | Database client |
+| `@prisma/adapter-pg` | ^7.4.2 | PostgreSQL adapter for Prisma |
+| `better-auth` | ^1.5.4 | Authentication |
+| `zod` | ^4.3.6 | Runtime validation |
+| `express` | ^5.2.1 | HTTP server |
+| `ws` | ^8.18.3 | WebSocket |
+| `typescript` | ^5.9.3 | TypeScript compiler |
+| `jest` | ^29.7.0 | Testing framework |
 
-See full update list in git history.
+### Frontend (`apps/frontend`)
 
-#### ⚠️ Intentionally Held Back
+| Package | Version | Purpose |
+| --- | --- | --- |
+| `next` | ^16.2.0 | React meta-framework |
+| `react` | ^19.2.4 | UI library |
+| `@trpc/react-query` | ^11.8.1 | tRPC React client |
+| `@tanstack/react-query` | ^5.90.12 | Server state management |
+| `@tanstack/react-table` | ^8.21.3 | Table component |
+| `@sentry/nextjs` | ^10.45.0 | Error monitoring |
+| `tailwindcss` | ^4.1.18 | CSS framework |
+| `recharts` | ^3.6.0 | Charts |
+| `zod` | ^4.3.6 | Runtime validation |
+| `zustand` | ^5.0.9 | Client state management |
+| `motion` | ^12.23.26 | Animations |
+| `vitest` | ^4.0.18 | Unit testing |
+| `@playwright/test` | ^1.57.0 | E2E testing |
+| `typescript` | 5.9.3 | TypeScript compiler |
 
-**recharts**: Kept at v2.15.4 (v3.3.0 available)
+### Shared Packages
 
-**Reason:** shadcn-ui chart components are not yet compatible with recharts v3.
+All internal packages use `workspace:*` protocol:
 
-**Tracking:** https://github.com/shadcn-ui/ui/issues/7669
-
-**Status:** Issue is labeled "roadmap" and assigned to shadcn. Active discussion ongoing.
-
-**Action:** Monitor the issue. Once shadcn releases recharts v3 support, we can upgrade.
-
-**Impact:** No functional impact. v2.15.4 is stable and well-tested.
+- `@aria/types` — Shared TypeScript types and Zod schemas
+- `@aria/utils` — Pure utility functions
+- `@aria/api-contract` — Type-only tRPC contract layer
+- `@aria/tsconfig` — Shared TypeScript configurations
 
 ## Peer Dependencies
 
 ### Known Warnings (Safe to Ignore)
 
-#### 1. kbar → react-virtual peer dependency
+**kbar → react-virtual peer dependency:**
 
 ```
 kbar 0.1.0-beta.48
 └─┬ react-virtual 2.10.4
-  └── ✕ unmet peer react@"^16.6.3 || ^17.0.0": found 19.2.0
+  └── ✕ unmet peer react@"^16.6.3 || ^17.0.0": found 19.2.x
 ```
 
-**Status:** ✅ Safe - React 19 is backward compatible
-**Impact:** None - library works correctly
-**Action:** None needed until kbar updates
+Safe — React 19 is backward compatible. No action needed until kbar updates.
 
-## Type Safety Strategy
+### React Types Override
 
-### Philosophy: Beginner-Friendly Strictness
-
-We balance type safety with developer experience:
-
-✅ **What we do:**
-
-- Use clear, simple types with JSDoc comments
-- Provide helpful inline documentation
-- Extract complex types into named types
-- Use Zod for runtime validation
-- Namespace related types for organization
-
-❌ **What we avoid:**
-
-- Overly complex generic types
-- Deep type inference chains
-- `any` type (use `unknown` if needed)
-- Inline complex type intersections
-- Magic type transformations
-
-### Examples
-
-#### ❌ Complex (hard for beginners)
-
-```typescript
-function getData<T extends Record<string, unknown>>(): Promise<ApiResponse<T>> {
-  // Complex generics are confusing
-}
-```
-
-#### ✅ Simple (beginner-friendly)
-
-```typescript
-/**
- * Fetches product data from the API
- * Returns a list of products wrapped in our standard response
- */
-function getProducts(): Promise<ApiResponse<Product[]>> {
-  // Clear return type, easy to understand
-}
-```
-
-#### ❌ Inline complex types
-
-```typescript
-function handleData({
-  active,
-  payload,
-}: React.ComponentProps<typeof SomeLib.Component> &
-  React.ComponentProps<'div'> & { extra?: boolean }) {
-  // Type is hard to read
-}
-```
-
-#### ✅ Named types with docs
-
-```typescript
-/** Props for the DataHandler component */
-type DataHandlerProps = React.ComponentProps<typeof SomeLib.Component> &
-  React.ComponentProps<'div'> & {
-    /** Show extra information */
-    extra?: boolean;
-  };
-
-function handleData(props: DataHandlerProps) {
-  // Much clearer!
-}
-```
+The frontend `package.json` includes an `overrides` section to pin `@types/react` and `@types/react-dom` to `19.2.2` for compatibility.
 
 ## Updating Dependencies
 
@@ -128,41 +79,37 @@ function handleData(props: DataHandlerProps) {
 1. **Check for updates:**
 
    ```bash
-   bun outdated -r
+   bun outdated
    ```
 
-2. **Update to latest:**
+2. **Update packages:**
 
    ```bash
-   bun update -r --latest
+   bun update --latest
    ```
 
-3. **Review changes:**
-   - Check for breaking changes in CHANGELOG files
+3. **Validate after updating:**
+
+   ```bash
+   bun run lint
+   bun run test
+   bun run typecheck
+   bun run build
+   ```
+
+4. **Review changes:**
+   - Check for breaking changes in changelogs
    - Review peer dependency warnings
-   - Test critical paths
-
-4. **Fix breaking changes:**
-   - Update code to match new APIs
-   - Run `bun build` to catch type errors
-   - Run `bun lint` to catch code issues
-
-5. **Test thoroughly:**
-   ```bash
-   bun build
-   bun test
-   bun lint
-   ```
+   - Test critical user flows
 
 ### Breaking Change Checklist
 
 When a major version update occurs:
 
-- [ ] Read the package's CHANGELOG/migration guide
-- [ ] Check shadcn-ui components if UI library updated
-- [ ] Test in development mode first
-- [ ] Run full test suite
-- [ ] Check for type errors
+- [ ] Read the package's migration guide
+- [ ] Check shadcn/ui components if a UI library updated
+- [ ] Run full validation suite
+- [ ] Test in development mode
 - [ ] Review console warnings
 - [ ] Test critical user flows manually
 
@@ -170,56 +117,29 @@ When a major version update occurs:
 
 ### Issue: Type errors after update
 
-**Solution:**
-
-1. Check if types package needs updating
-2. Rebuild types: `bun --filter @aria/types build`
+1. Check if `@types/*` packages need updating
+2. Shared packages use JIT — no rebuild needed
 3. Clear cache: `rm -rf node_modules/.cache`
 
 ### Issue: Peer dependency warnings
 
-**Solution:**
-
-1. Check if warning is safe (usually is)
-2. If needed, add to `bun.overrides` in root package.json
-3. Document why in this file
+1. Check if the warning is safe (usually is)
+2. If needed, add to `overrides` in the relevant `package.json`
+3. Document the override in this file
 
 ### Issue: Build fails after update
 
-**Solution:**
-
 1. Check for breaking changes in updated packages
 2. Search GitHub issues for migration guides
-3. Revert problematic update, fix incrementally
-4. Update in smaller chunks if needed
+3. Revert the problematic update and fix incrementally
 
-## Monitoring Strategy
+## Cleanup Notes
 
-### Weekly
-
-- Check `bun outdated -r` for security updates
-- Review dependabot alerts
-
-### Monthly
-
-- Review major version updates available
-- Plan upgrade strategy for breaking changes
-- Update documentation
-
-### Before Release
-
-- Ensure all dependencies are on stable versions
-- Run full test suite
-- Check bundle size hasn't increased significantly
+The frontend `devDependencies` still contains unused ESLint packages (`@eslint/eslintrc`, `@eslint/js`) left over from the migration to Biome. These have no effect (no ESLint config files exist) but can be safely removed.
 
 ## Resources
 
-- [bun Workspace Guide](https://bun.io/workspaces)
-- [React 19 Breaking Changes](https://react.dev/blog/2024/04/25/react-19)
-- [Next.js 16 Upgrade Guide](https://nextjs.org/docs/app/building-your-application/upgrading/version-16)
+- [Bun Documentation](https://bun.sh/docs)
+- [React 19 Release Notes](https://react.dev/blog/2024/04/25/react-19)
+- [Next.js Upgrade Guide](https://nextjs.org/docs/app/building-your-application/upgrading)
 - [TypeScript Release Notes](https://www.typescriptlang.org/docs/handbook/release-notes/overview.html)
-
----
-
-**Last Updated:** October 18, 2025  
-**Maintainer:** Development Team

@@ -96,7 +96,7 @@ function ItemAlternativeFormContent() {
 			hasHandledMissingAlternativeRef.current = true;
 			toast.error("Item alternative not found");
 			startTransition(() => {
-				router.push("/inventory/item-alternatives");
+				router.push("/inventory/items-catalogue/item-alternatives");
 			});
 		}
 	}, [isEditMode, isFetchingAlternative, itemAlternative, router]);
@@ -140,7 +140,7 @@ function ItemAlternativeFormContent() {
 			setHasUnsavedChanges(false);
 			await utils.inventory.listItemAlternatives.invalidate();
 			startTransition(() => {
-				router.push("/inventory/item-alternatives");
+				router.push("/inventory/items-catalogue/item-alternatives");
 			});
 		},
 		onError: (error) => {
@@ -157,7 +157,7 @@ function ItemAlternativeFormContent() {
 				await utils.inventory.getItemAlternativeById.invalidate({ id });
 			}
 			startTransition(() => {
-				router.push("/inventory/item-alternatives");
+				router.push("/inventory/items-catalogue/item-alternatives");
 			});
 		},
 		onError: (error) => {

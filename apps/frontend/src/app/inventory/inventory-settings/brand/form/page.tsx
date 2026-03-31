@@ -72,6 +72,7 @@ function BrandFormContent() {
 
 	useEffect(() => {
 		if (!isEditMode || !brand) return;
+		if (form.formState.isDirty) return; // Don't overwrite user edits on refetch
 
 		form.reset({
 			name: brand.name,

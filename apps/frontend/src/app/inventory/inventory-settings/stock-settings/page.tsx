@@ -153,7 +153,7 @@ export default function StockSettingsPage() {
 	}, [rawUnitsOfMeasure, selectedDefaultStockUom]);
 
 	React.useEffect(() => {
-		if (!settings) {
+		if (!settings || form.formState.isDirty) {
 			return;
 		}
 
@@ -357,6 +357,8 @@ export default function StockSettingsPage() {
 											id="overDeliveryReceiptAllowancePercent"
 											type="number"
 											step="0.01"
+											min={0}
+											max={100}
 											{...form.register("overDeliveryReceiptAllowancePercent", {
 												valueAsNumber: true,
 											})}
@@ -375,6 +377,8 @@ export default function StockSettingsPage() {
 											id="overTransferAllowancePercent"
 											type="number"
 											step="0.01"
+											min={0}
+											max={100}
 											{...form.register("overTransferAllowancePercent", {
 												valueAsNumber: true,
 											})}
@@ -393,6 +397,8 @@ export default function StockSettingsPage() {
 											id="overPickingAllowancePercent"
 											type="number"
 											step="0.01"
+											min={0}
+											max={100}
 											{...form.register("overPickingAllowancePercent", {
 												valueAsNumber: true,
 											})}
@@ -640,6 +646,8 @@ export default function StockSettingsPage() {
 								<Input
 									id="freezeStocksOlderThanDays"
 									type="number"
+									min={0}
+									max={3650}
 									{...form.register("freezeStocksOlderThanDays", {
 										valueAsNumber: true,
 									})}

@@ -170,7 +170,9 @@ describe("ShippingRuleFormPage", () => {
 		renderWithProviders(<ShippingRuleFormPage />);
 
 		await waitFor(() => {
-			expect(mockPush).toHaveBeenCalledWith("/inventory/shipping-rules");
+			expect(mockPush).toHaveBeenCalledWith(
+				"/inventory/items-catalogue/shipping-rules",
+			);
 		});
 	});
 });

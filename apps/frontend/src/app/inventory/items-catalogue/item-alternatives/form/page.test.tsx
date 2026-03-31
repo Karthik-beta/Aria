@@ -189,7 +189,9 @@ describe("ItemAlternativeFormPage", () => {
 		renderWithProviders(<ItemAlternativeFormPage />);
 
 		await waitFor(() => {
-			expect(mockPush).toHaveBeenCalledWith("/inventory/item-alternatives");
+			expect(mockPush).toHaveBeenCalledWith(
+				"/inventory/items-catalogue/item-alternatives",
+			);
 		});
 	});
 });

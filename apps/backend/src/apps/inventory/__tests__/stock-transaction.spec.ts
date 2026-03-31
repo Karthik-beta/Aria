@@ -25,14 +25,16 @@ describe("InventoryService > Stock Transaction", () => {
 		it("should return all material requests ordered by createdAt desc", async () => {
 			mockPrisma.materialRequest.findMany.mockResolvedValue([mockMR]);
 
-			const result = await service.findAllMaterialRequests();
+			const result = await service.findAllMaterialRequests({});
 
 			expect(result).toHaveLength(1);
 			expect(result[0]?.id).toBe(mockMR.id);
 			expect(result[0]?.series).toBe(mockMR.series);
 			expect(mockPrisma.materialRequest.findMany).toHaveBeenCalledWith({
+				where: {},
 				orderBy: { createdAt: "desc" },
 				include: { items: true },
+				skip: 0,
 				take: 250,
 			});
 		});
@@ -40,7 +42,7 @@ describe("InventoryService > Stock Transaction", () => {
 		it("should return an empty array when no requests exist", async () => {
 			mockPrisma.materialRequest.findMany.mockResolvedValue([]);
 
-			const result = await service.findAllMaterialRequests();
+			const result = await service.findAllMaterialRequests({});
 
 			expect(result).toEqual([]);
 		});
@@ -290,14 +292,16 @@ describe("InventoryService > Stock Transaction", () => {
 		it("should return all stock entries ordered by createdAt desc", async () => {
 			mockPrisma.stockEntry.findMany.mockResolvedValue([mockStockEntry]);
 
-			const result = await service.findAllStockEntries();
+			const result = await service.findAllStockEntries({});
 
 			expect(result).toHaveLength(1);
 			expect(result[0]?.id).toBe(mockStockEntry.id);
 			expect(result[0]?.series).toBe(mockStockEntry.series);
 			expect(mockPrisma.stockEntry.findMany).toHaveBeenCalledWith({
+				where: {},
 				orderBy: { createdAt: "desc" },
 				include: { items: true },
+				skip: 0,
 				take: 250,
 			});
 		});
@@ -305,7 +309,7 @@ describe("InventoryService > Stock Transaction", () => {
 		it("should return an empty array when no entries exist", async () => {
 			mockPrisma.stockEntry.findMany.mockResolvedValue([]);
 
-			const result = await service.findAllStockEntries();
+			const result = await service.findAllStockEntries({});
 
 			expect(result).toEqual([]);
 		});

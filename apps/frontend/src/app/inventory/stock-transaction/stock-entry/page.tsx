@@ -25,91 +25,30 @@ import { DataTableColumnHeader } from "@/components/ui/table/data-table-column-h
 import { getToastMessage } from "@/lib/errors";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
-
-/**
- * Returns a human-readable age string relative to now, capped at years.
- *
- * @param date - The reference date to measure from.
- * @returns `"Today"`, `"<n> d"`, `"<n> m"`, or `"<n> y"`.
- */
-function getRelativeAge(date: Date): string {
-	const now = new Date();
-	const diffMs = now.getTime() - date.getTime();
-	const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-	const diffMonths = Math.floor(diffDays / 30);
-	const diffYears = Math.floor(diffDays / 365);
-
-	if (diffYears >= 1) return `${diffYears} y`;
-	if (diffMonths >= 1) return `${diffMonths} m`;
-	if (diffDays >= 1) return `${diffDays} d`;
-	return "Today";
-}
-
-/**
- * Maps a `StockEntryType` value to its display label.
- *
- * @param type - The raw enum constant from the backend.
- * @returns A human-readable string, e.g. `"Material Receipt"`.
- */
-function formatStockEntryType(
-	type:
-		| "MATERIAL_RECEIPT"
-		| "MATERIAL_ISSUE"
-		| "MATERIAL_TRANSFER"
-		| "MATERIAL_TRANSFER_FOR_MANUFACTURE"
-		| "MANUFACTURE"
-		| "REPACK"
-		| "SEND_TO_SUBCONTRACTOR",
-): string {
-	switch (type) {
-		case "MATERIAL_RECEIPT":
-			return "Material Receipt";
-		case "MATERIAL_ISSUE":
-			return "Material Issue";
-		case "MATERIAL_TRANSFER":
-			return "Material Transfer";
-		case "MATERIAL_TRANSFER_FOR_MANUFACTURE":
-			return "Material Transfer for Manufacture";
-		case "MANUFACTURE":
-			return "Manufacture";
-		case "REPACK":
-			return "Repack";
-		case "SEND_TO_SUBCONTRACTOR":
-			return "Send to Subcontractor";
-	}
-}
+import type { StockEntryStatus } from "./stock-entry.utils";
+import {
+	formatRelativeAge,
+	formatStockEntryType,
+	getStockEntryStatusBadgeClass,
+	STOCK_ENTRY_STATUS_OPTIONS,
+	STOCK_ENTRY_TYPE_OPTIONS,
+} from "./stock-entry.utils";
 
 /**
  * Renders a coloured pill badge for a `StockEntryStatus` value.
  *
  * Pure display component — no side-effects or client-only APIs.
  */
-function StatusBadge({
-	status,
-}: {
-	status: "DRAFT" | "SUBMITTED" | "CANCELLED";
-}) {
-	const variants: Record<typeof status, string> = {
-		DRAFT: "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300",
-		SUBMITTED:
-			"bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300",
-		CANCELLED: "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300",
-	};
-
-	const labels: Record<typeof status, string> = {
-		DRAFT: "Draft",
-		SUBMITTED: "Submitted",
-		CANCELLED: "Cancelled",
-	};
-
+function StatusBadge({ status }: { status: StockEntryStatus }) {
 	return (
 		<span
 			className={cn(
 				"inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium",
-				variants[status],
+				getStockEntryStatusBadgeClass(status),
 			)}
 		>
-			{labels[status]}
+			{STOCK_ENTRY_STATUS_OPTIONS.find((o) => o.value === status)?.label ??
+				status}
 		</span>
 	);
 }
@@ -248,21 +187,7 @@ export default function StockEntryListPage() {
 				meta: {
 					label: "Stock Entry Type",
 					variant: "multiSelect",
-					options: [
-						{ label: "Material Receipt", value: "MATERIAL_RECEIPT" },
-						{ label: "Material Issue", value: "MATERIAL_ISSUE" },
-						{ label: "Material Transfer", value: "MATERIAL_TRANSFER" },
-						{
-							label: "Material Transfer for Manufacture",
-							value: "MATERIAL_TRANSFER_FOR_MANUFACTURE",
-						},
-						{ label: "Manufacture", value: "MANUFACTURE" },
-						{ label: "Repack", value: "REPACK" },
-						{
-							label: "Send to Subcontractor",
-							value: "SEND_TO_SUBCONTRACTOR",
-						},
-					],
+					options: STOCK_ENTRY_TYPE_OPTIONS,
 					exportable: true,
 				},
 				enableColumnFilter: true,
@@ -280,11 +205,7 @@ export default function StockEntryListPage() {
 				meta: {
 					label: "Status",
 					variant: "multiSelect",
-					options: [
-						{ label: "Draft", value: "DRAFT" },
-						{ label: "Submitted", value: "SUBMITTED" },
-						{ label: "Cancelled", value: "CANCELLED" },
-					],
+					options: STOCK_ENTRY_STATUS_OPTIONS,
 					exportable: true,
 				},
 				enableColumnFilter: true,
@@ -348,7 +269,7 @@ export default function StockEntryListPage() {
 				header: () => <span className="text-muted-foreground"></span>,
 				cell: ({ row }) => (
 					<span className="text-sm text-muted-foreground">
-						{getRelativeAge(row.original.updatedAt)}
+						{formatRelativeAge(row.original.updatedAt)}
 					</span>
 				),
 				meta: {

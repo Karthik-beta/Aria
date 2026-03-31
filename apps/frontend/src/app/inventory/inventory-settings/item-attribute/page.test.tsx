@@ -52,6 +52,9 @@ vi.mock("@/lib/trpc", () => ({
 							name: "Colour",
 							disabled: false,
 							numericValues: false,
+							fromRange: 0,
+							toRange: 0,
+							increment: 0,
 							attributeValues: [
 								{
 									id: "clh123iav001",

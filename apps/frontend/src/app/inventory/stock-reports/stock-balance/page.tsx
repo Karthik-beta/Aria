@@ -26,8 +26,10 @@ import {
 	formatStockBalanceCurrency,
 	formatStockBalanceQuantity,
 	STOCK_BALANCE_CURRENCY_OPTIONS,
+	STOCK_BALANCE_STATUS_OPTIONS,
 	type StockBalanceCurrency,
 	type StockBalanceRow,
+	type StockBalanceStatus,
 } from "./stock-balance.utils";
 
 type StockBalanceSubscriptionEvent = {
@@ -46,6 +48,7 @@ type FilterState = {
 	warehouse: string;
 	brand: string;
 	project: string;
+	status: StockBalanceStatus;
 	includeUom: UomDisplayPreference;
 	currency: StockBalanceCurrency;
 	includeZeroStockItems: boolean;
@@ -60,6 +63,7 @@ const INITIAL_FILTERS: FilterState = {
 	warehouse: "",
 	brand: "",
 	project: "",
+	status: "SUBMITTED",
 	includeUom: "INCLUDE",
 	currency: "INR",
 	includeZeroStockItems: false,
@@ -104,7 +108,7 @@ export default function StockBalancePage() {
 
 		return {
 			take: 250,
-			status: "SUBMITTED" as const,
+			status: filters.status,
 			company: company || undefined,
 			warehouse: warehouse || undefined,
 			itemCode: itemCode || undefined,
@@ -128,6 +132,7 @@ export default function StockBalancePage() {
 		filters.itemCode,
 		filters.itemGroup,
 		filters.project,
+		filters.status,
 		filters.warehouse,
 	]);
 
@@ -467,6 +472,23 @@ export default function StockBalancePage() {
 						aria-label="Filter by project"
 					/>
 					<Select
+						value={filters.status}
+						onValueChange={(value) =>
+							updateFilter("status", value as StockBalanceStatus)
+						}
+					>
+						<SelectTrigger aria-label="Filter by status">
+							<SelectValue placeholder="Status" />
+						</SelectTrigger>
+						<SelectContent>
+							{STOCK_BALANCE_STATUS_OPTIONS.map((option) => (
+								<SelectItem key={option.value} value={option.value}>
+									{option.label}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
+					<Select
 						value={filters.includeUom}
 						onValueChange={(value) =>
 							updateFilter("includeUom", value as UomDisplayPreference)
@@ -545,6 +567,7 @@ export default function StockBalancePage() {
 					enableVirtualization
 					enableColumnResizing
 					enableBulkActions={false}
+					enableGlobalSearch={false}
 					ariaLabel="Stock balance table"
 				/>
 			)}

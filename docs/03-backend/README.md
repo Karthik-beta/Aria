@@ -1,122 +1,183 @@
 # Backend Documentation
 
-This document provides a comprehensive overview of the Aria ERP backend, built with NestJS, Prisma, and tRPC.
+Overview of the Aria ERP backend, built with NestJS 11, tRPC, Prisma 7, and better-auth.
 
 ## Overview
 
-The backend is a monolithic application responsible for:
+The backend is a monolithic NestJS application responsible for:
 
-- Business logic
-- Database access
-- API for the frontend
+- Business logic and domain services
+- tRPC API endpoints for the frontend
+- Database access via Prisma 7 (PrismaPg adapter)
+- Authentication via better-auth (session-based)
+- RBAC/ABAC authorization
 
 ## Tech Stack
 
-- **Framework**: NestJS
-- **Language**: TypeScript
-- **API**: tRPC
-- **ORM**: Prisma
-- **Database**: PostgreSQL
+| Concern | Technology |
+|---------|-----------|
+| Framework | NestJS 11 |
+| Language | TypeScript (strict mode) |
+| API | tRPC (type-safe RPC) |
+| ORM | Prisma 7 (PrismaPg adapter) |
+| Database | PostgreSQL |
+| Authentication | better-auth (email+password, username) |
+| Authorization | Custom RBAC + ABAC |
+| Testing | Jest |
+| Linting | Biome |
 
 ## Project Structure
 
 ```
 apps/backend/
 ├── src/
-│   ├── modules/          # Feature modules (users, products, etc.)
-│   ├── common/           # Shared pipes, guards, interceptors
-│   ├── app.module.ts     # Root module
-│   └── main.ts           # Application entry point
+│   ├── apps/                  # Feature modules
+│   │   └── inventory/         # Inventory management module
+│   │       ├── services/      # Domain services (batch, delivery, warehouse, etc.)
+│   │       ├── trpc/          # Inventory tRPC router
+│   │       ├── reports/       # Report services (item, stock, transaction)
+│   │       ├── __tests__/     # Unit tests
+│   │       ├── inventory.module.ts
+│   │       ├── inventory.service.ts  # Facade delegating to sub-services
+│   │       └── inventory.types.ts
+│   ├── auth/                  # better-auth integration
+│   │   ├── auth.config.ts     # Auth configuration (plugins, session, cookies)
+│   │   ├── auth.module.ts     # Global auth module
+│   │   └── auth.service.ts    # Default admin user creation on startup
+│   ├── authorization/         # Permission / policy system
+│   │   ├── policy.service.ts  # User policy resolution and caching
+│   │   ├── role.service.ts    # Role CRUD
+│   │   ├── permission.service.ts # Permission CRUD + wildcard matching
+│   │   ├── scope.service.ts   # App / team / hierarchy scoping
+│   │   └── audit.service.ts   # Audit logging
+│   ├── trpc/                  # tRPC assembly layer
+│   │   ├── app-router.ts      # Top-level router (inventory + admin + auth + account)
+│   │   ├── trpc.ts            # tRPC init, middleware, protected/public procedures
+│   │   ├── trpc.context.ts    # Request context (Prisma + req/res)
+│   │   ├── trpc.service.ts    # NestJS service wiring DI → tRPC
+│   │   ├── trpc.module.ts     # NestJS module
+│   │   └── routers/           # Admin, authorization, account routers
+│   ├── shared/                # Shared services (PrismaService, etc.)
+│   └── generated/             # Prisma-generated client (gitignored)
+│       └── prisma/
 ├── prisma/
-│   ├── schema.prisma     # Database schema
-│   └── migrations/       # Database migrations
-└── test/                 # Integration tests
+│   ├── schema.prisma          # Database schema (Prisma v7)
+│   ├── prisma.config.ts       # Prisma config (datasource URL resolution)
+│   ├── migrations/            # Database migrations
+│   ├── seed-authorization.ts  # Seeds roles, permissions, default apps
+│   ├── seeds/                 # Additional seed scripts
+│   └── demo-data/             # Demo data system (CLI + orchestrator)
+└── test/                      # Integration tests
 ```
 
-## Modules
+## Feature Modules
 
-The backend is organized into modules, each responsible for a specific feature.
+Feature modules live in `src/apps/<domain>`. Currently implemented:
 
-- **`AuthModule`**: Handles authentication and authorization.
-- **`UsersModule`**: Manages users.
-- **`InventoryModule`**: Manages inventory items.
-- ...and so on.
+### Inventory Module (`src/apps/inventory/`)
 
-Each module typically contains:
+The inventory module follows a **service-per-domain** pattern:
 
-- A **controller** to handle incoming requests.
-- A **service** to handle business logic.
-- A **module file** to tie everything together.
+| Service | Responsibility |
+|---------|---------------|
+| `item-catalog.service.ts` | Items, item groups, brands, attributes |
+| `warehouse.service.ts` | Warehouses and bin locations |
+| `uom.service.ts` | Units of measure + conversion factors |
+| `batch.service.ts` | Batch tracking |
+| `serial-no.service.ts` | Serial number tracking |
+| `stock-transaction.service.ts` | Stock entries, reconciliation, ledger |
+| `purchase-receipt.service.ts` | Purchase receipts |
+| `delivery.service.ts` | Delivery notes |
+| `installation-note.service.ts` | Installation notes |
+| `settings.service.ts` | Inventory settings + stock settings |
+| `report.service.ts` | Inventory reports (item, stock, transaction) |
+| `quality-inspection.service.ts` | Quality inspections |
+
+The `InventoryService` acts as a facade, delegating to sub-services. The `inventory.router.ts` file exposes all procedures through a single tRPC router.
 
 ## API
 
-The backend exposes a tRPC API. tRPC allows for type-safe API calls from the frontend, without the need for code generation.
+The backend exposes a **tRPC** API — not REST. tRPC provides end-to-end type safety between frontend and backend without code generation.
 
-### tRPC Setup
+See [tRPC API Documentation](./01-api/README.md) for details on routers and procedures.
 
-The tRPC setup is located in `src/trpc`.
+## Authentication
 
-- **`trpc.ts`**: Defines the tRPC instance and procedures.
-- **`trpc.context.ts`**: Defines the context for tRPC procedures.
-- **`trpc.service.ts`**: The main tRPC router, which combines all other routers.
-- **`trpc.module.ts`**: The NestJS module for tRPC.
+Authentication uses **better-auth** with:
 
-### Adding a new tRPC router
+- Email + password authentication
+- Username plugin (3–20 characters)
+- Custom session enrichment (`mustChangePassword`, `passwordChangedAt`)
+- Secure cookies in production
+- `BETTER_AUTH_SECRET` required in production (ephemeral key in dev)
+- Default admin user created on startup via env vars
 
-1.  Create a new router in the module's directory (e.g., `src/modules/users/users.router.ts`).
-2.  Define the router's procedures.
-3.  Add the router to the main tRPC router in `src/trpc/trpc.service.ts`.
+See [Authentication Documentation](../02-architecture/01-authentication/README.md).
+
+## Authorization
+
+Custom RBAC + ABAC system with:
+
+- **Roles**: super_admin, admin, manager, user, viewer (+ custom roles)
+- **Permissions**: System, app, and entity-level scopes with wildcard matching
+- **Policy caching**: 60-second TTL
+- **Audit logging**: All authorization changes are logged
+
+See [Authorization Documentation](../02-architecture/02-authorization/README.md).
 
 ## Database
 
-The backend uses Prisma to interact with the PostgreSQL database.
+The backend uses **Prisma 7** with the **PrismaPg** adapter for PostgreSQL.
 
-### Schema
+See [Prisma Documentation](./02-prisma/README.md) for schema management and migrations.
 
-The database schema is defined in `prisma/schema.prisma`. This file is the single source of truth for the database schema.
+### Key Prisma v7 Changes
 
-### Migrations
+- Provider: `prisma-client` (not `prisma-client-js`)
+- Required `output` field in generator
+- Module format: `cjs` (for NestJS compatibility)
+- Datasource URL configured in `prisma.config.ts` (not in schema)
 
-Database migrations are managed with `prisma migrate`.
+## Demo Data
 
-- **Development**: Use `prisma migrate dev` to create and apply migrations.
-- **Production**: Use `prisma migrate deploy` to apply existing migrations.
+The demo data system in `prisma/demo-data/` provides realistic test data for the Inventory module:
 
-Migrations are automatically run when the backend starts in a production environment.
+```bash
+cd apps/backend
 
-### Seeding
+# Seed demo data (small/medium/large scale)
+bun x tsx prisma/demo-data/cli.ts seed --scale medium
 
-The database can be seeded with initial data using the `prisma/seed.ts` file.
+# Check demo data status
+bun x tsx prisma/demo-data/cli.ts status
+
+# Clean demo data
+bun x tsx prisma/demo-data/cli.ts clean
+```
+
+Business context: **Pivotr Electronics Pvt Ltd** — a Bangalore-based SME manufacturing electronic components.
+
+## Testing
+
+Tests use Jest with NestJS testing utilities:
+
+```bash
+# Run all backend tests
+bun --filter backend test
+
+# Run specific test file
+bun --filter backend test -- inventory-test-file.spec.ts
+
+# Run with coverage
+bun --filter backend test -- --coverage
+```
+
+Tests are co-located with source in `__tests__/` directories, using `.spec.ts` suffix.
 
 ## Production Build
-
-To create a production build of the backend, run:
 
 ```bash
 bun --filter backend build
 ```
 
-This will create a `dist` directory with the compiled JavaScript code.
-
-## Best Practices
-
-### NestJS
-
-- **Use the NestJS CLI** to generate new modules, controllers, and services.
-- **Keep controllers thin**. They should only be responsible for handling requests and returning responses.
-- **Put business logic in services**.
-- **Use DTOs** (Data Transfer Objects) to validate incoming data.
-- **Use dependency injection** to manage dependencies between services.
-
-### Prisma
-
-- **Treat `schema.prisma` as the single source of truth** for the database schema.
-- **Always use migrations** to make changes to the database schema.
-- **Use the Prisma Client** for all database queries.
-- **Use transactions** for operations that need to be atomic.
-
-### tRPC
-
-- **Use Zod** to validate input data.
-- **Keep routers modular** by splitting them into multiple files.
-- **Use context** to pass data between middleware and procedures.
+This creates a `dist` directory with compiled JavaScript.

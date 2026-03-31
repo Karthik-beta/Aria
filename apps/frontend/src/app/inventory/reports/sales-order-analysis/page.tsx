@@ -312,6 +312,20 @@ export default function SalesOrderAnalysisPage() {
 				meta: { label: "Amount", exportable: true },
 			},
 			{
+				accessorKey: "deliveredQtyAmount",
+				header: ({ column }) => (
+					<DataTableColumnHeader column={column} title="Delivered Amount" />
+				),
+				cell: ({ row }) => (
+					<span
+						className={`tabular-nums text-sm ${getDeliveredClass(row.original.deliveredQtyAmount)}`}
+					>
+						{formatAmount(row.original.deliveredQtyAmount)}
+					</span>
+				),
+				meta: { label: "Delivered Amount", exportable: true },
+			},
+			{
 				accessorKey: "billedAmount",
 				header: ({ column }) => (
 					<DataTableColumnHeader column={column} title="Billed Amount" />

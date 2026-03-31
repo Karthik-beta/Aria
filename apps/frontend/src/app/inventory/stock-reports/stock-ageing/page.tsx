@@ -26,6 +26,7 @@ import {
 	formatCompactDate,
 	formatOptionalText,
 	formatStockAgeingBucketLabel,
+	formatStockAgeingCurrency,
 	formatStockAgeingHealth,
 	formatStockAgeingQuantity,
 	getBucketQuantity,
@@ -461,7 +462,7 @@ export default function StockAgeingPage() {
 				<div className="rounded-lg border bg-background p-4">
 					<div className="text-sm text-muted-foreground">Stock Value</div>
 					<div className="mt-2 text-2xl font-semibold">
-						{formatStockAgeingQuantity(totals.totalValue)}
+						{formatStockAgeingCurrency(totals.totalValue)}
 					</div>
 				</div>
 				<div className="rounded-lg border bg-background p-4">
@@ -604,6 +605,8 @@ export default function StockAgeingPage() {
 			{queryError && !isLoading && (
 				<ErrorState
 					error={queryError}
+					operation="load"
+					title="Failed to load stock ageing"
 					onRetry={() => {
 						void refetch();
 					}}
@@ -616,6 +619,7 @@ export default function StockAgeingPage() {
 					data={rows}
 					ariaLabel="Stock ageing table"
 					enableGlobalSearch={false}
+					enableBulkActions={false}
 					enableExport
 					enableColumnResizing
 					enableVirtualization

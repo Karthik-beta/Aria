@@ -1852,33 +1852,77 @@ export class ReportSubService {
 
 		const itemCodes = items.map((item) => item.code);
 
-		// Derive the last purchase rate from the most-recent purchase receipt item
-		// per item code, ordered by the receipt's posting date descending.
-		const lastPurchaseRows = await this.prisma.purchaseReceiptItem.findMany({
+		// Derive the last purchase rate from purchase receipts and purchase orders
+		// (mirrors ERPNext which considers PO, PR, and PI as sources).
+
+		// 1. Most-recent purchase receipt items
+		const lastPurchaseReceiptRows =
+			await this.prisma.purchaseReceiptItem.findMany({
+				where: {
+					itemCode: { in: itemCodes },
+					purchaseReceipt: { status: { notIn: ["DRAFT", "CANCELLED"] } },
+				},
+				select: {
+					itemCode: true,
+					rate: true,
+					purchaseReceipt: { select: { postingDate: true } },
+				},
+				orderBy: [
+					{ purchaseReceipt: { postingDate: "desc" } },
+					{ itemCode: "asc" },
+				],
+			});
+
+		// 2. Most-recent purchase order items
+		const lastPurchaseOrderRows = await this.prisma.purchaseOrderItem.findMany({
 			where: {
 				itemCode: { in: itemCodes },
-				purchaseReceipt: { status: { notIn: ["DRAFT", "CANCELLED"] } },
+				purchaseOrder: { status: { notIn: ["DRAFT", "STOPPED", "CLOSED"] } },
 			},
 			select: {
 				itemCode: true,
-				rate: true,
-				purchaseReceipt: { select: { postingDate: true } },
+				baseRate: true,
+				purchaseOrder: { select: { transactionDate: true } },
 			},
 			orderBy: [
-				{ purchaseReceipt: { postingDate: "desc" } },
+				{ purchaseOrder: { transactionDate: "desc" } },
 				{ itemCode: "asc" },
 			],
 		});
 
-		// Keep only the most recent rate per item code.
-		const lastPurchaseRateByCode = new Map<string, number>();
-		for (const row of lastPurchaseRows) {
+		// Merge: for each item, keep the rate from whichever source has the more
+		// recent date (purchase receipt postingDate vs purchase order transactionDate).
+		const lastPurchaseRateByCode = new Map<
+			string,
+			{ rate: number; date: Date }
+		>();
+
+		for (const row of lastPurchaseReceiptRows) {
 			if (!lastPurchaseRateByCode.has(row.itemCode)) {
-				lastPurchaseRateByCode.set(row.itemCode, row.rate);
+				lastPurchaseRateByCode.set(row.itemCode, {
+					rate: row.rate,
+					date: row.purchaseReceipt.postingDate,
+				});
 			}
 		}
 
-		return buildItemPricesRows(items, lastPurchaseRateByCode);
+		for (const row of lastPurchaseOrderRows) {
+			const existing = lastPurchaseRateByCode.get(row.itemCode);
+			const poDate = row.purchaseOrder.transactionDate;
+			if (!existing || poDate > existing.date) {
+				lastPurchaseRateByCode.set(row.itemCode, {
+					rate: row.baseRate,
+					date: poDate,
+				});
+			}
+		}
+
+		const rateMap = new Map<string, number>();
+		for (const [code, entry] of lastPurchaseRateByCode) {
+			rateMap.set(code, entry.rate);
+		}
+
+		return buildItemPricesRows(items, rateMap);
 	}
 
 	/**
@@ -2618,24 +2662,27 @@ export class ReportSubService {
 			avgBuyingPriceMap.set(row.itemCode, row._avg.rate ?? 0);
 		}
 
-		// 5. Open sales orders count (qty - deliveredQty for non-completed orders)
-		const openOrderRows = await this.prisma.salesOrderItem.groupBy({
-			by: ["itemCode"],
+		// 5. Open sales orders count (number of distinct orders per variant)
+		const openOrderItems = await this.prisma.salesOrderItem.findMany({
 			where: {
 				itemCode: { in: variantCodes },
 				salesOrder: {
 					status: { notIn: ["DRAFT", "COMPLETED", "CLOSED"] },
 				},
 			},
-			_sum: { qty: true, deliveredQty: true },
+			select: {
+				itemCode: true,
+				salesOrderId: true,
+			},
+			distinct: ["itemCode", "salesOrderId"],
 		});
 
 		const openOrdersMap = new Map<string, number>();
-		for (const row of openOrderRows) {
-			const sumQty = row._sum?.qty ?? 0;
-			const sumDeliveredQty = row._sum?.deliveredQty ?? 0;
-			const remaining = sumQty - sumDeliveredQty;
-			openOrdersMap.set(row.itemCode, Math.max(0, remaining));
+		for (const row of openOrderItems) {
+			openOrdersMap.set(
+				row.itemCode,
+				(openOrdersMap.get(row.itemCode) ?? 0) + 1,
+			);
 		}
 
 		// 6. Build result

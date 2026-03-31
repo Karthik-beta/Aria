@@ -156,7 +156,9 @@ describe("UnitOfMeasureFormPage", () => {
 		renderWithProviders(<UnitOfMeasureFormPage />);
 
 		await waitFor(() => {
-			expect(mockPush).toHaveBeenCalledWith("/inventory/uom");
+			expect(mockPush).toHaveBeenCalledWith(
+				"/inventory/inventory-settings/uom",
+			);
 		});
 	});
 });

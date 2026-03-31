@@ -1,7 +1,14 @@
 "use client";
 
 import type { ColumnDef } from "@tanstack/react-table";
-import { Edit, MoreHorizontal, Plus, Trash, XCircle } from "lucide-react";
+import {
+	CheckCircle2,
+	Edit,
+	MoreHorizontal,
+	Plus,
+	Trash,
+	XCircle,
+} from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
 import { toast } from "sonner";
@@ -84,6 +91,11 @@ export default function PackingSlipPage() {
 	const utils = trpc.useUtils();
 	const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false);
 	const [slipToDelete, setSlipToDelete] = React.useState<string | null>(null);
+	const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = React.useState(false);
+	const [submitDialogOpen, setSubmitDialogOpen] = React.useState(false);
+	const [slipToSubmit, setSlipToSubmit] = React.useState<string | null>(null);
+	const [cancelDialogOpen, setCancelDialogOpen] = React.useState(false);
+	const [slipToCancel, setSlipToCancel] = React.useState<string | null>(null);
 
 	const {
 		data: rawSlips = [],
@@ -123,6 +135,8 @@ export default function PackingSlipPage() {
 	const submitMutation = trpc.inventory.submitPackingSlip.useMutation({
 		onSuccess: () => {
 			toast.success("Packing slip submitted");
+			setSubmitDialogOpen(false);
+			setSlipToSubmit(null);
 			void utils.inventory.listPackingSlips.invalidate();
 		},
 		onError: (err) => toast.error(getToastMessage(err, "submit")),
@@ -131,14 +145,34 @@ export default function PackingSlipPage() {
 	const cancelMutation = trpc.inventory.cancelPackingSlip.useMutation({
 		onSuccess: () => {
 			toast.success("Packing slip cancelled");
+			setCancelDialogOpen(false);
+			setSlipToCancel(null);
 			void utils.inventory.listPackingSlips.invalidate();
 		},
 		onError: (err) => toast.error(getToastMessage(err, "cancel")),
 	});
 
+	const bulkDeleteMutation = trpc.inventory.deleteManyPackingSlips.useMutation({
+		onSuccess: ({ count }) => {
+			toast.success(`${count} packing slip${count === 1 ? "" : "s"} deleted`);
+			setBulkDeleteDialogOpen(false);
+			table.resetRowSelection();
+			void utils.inventory.listPackingSlips.invalidate();
+		},
+		onError: (err) => toast.error(getToastMessage(err, "delete")),
+	});
+
 	const confirmDelete = React.useCallback(() => {
 		if (slipToDelete) deleteMutation.mutate({ id: slipToDelete });
 	}, [deleteMutation, slipToDelete]);
+
+	const confirmSubmit = React.useCallback(() => {
+		if (slipToSubmit) submitMutation.mutate({ id: slipToSubmit });
+	}, [submitMutation, slipToSubmit]);
+
+	const confirmCancel = React.useCallback(() => {
+		if (slipToCancel) cancelMutation.mutate({ id: slipToCancel });
+	}, [cancelMutation, slipToCancel]);
 
 	const columns = React.useMemo<ColumnDef<PackingSlipRow>[]>(
 		() => [
@@ -293,15 +327,21 @@ export default function PackingSlipPage() {
 							</DropdownMenuItem>
 							{row.original.status === "DRAFT" && (
 								<DropdownMenuItem
-									onClick={() => submitMutation.mutate({ id: row.original.id })}
+									onClick={() => {
+										setSlipToSubmit(row.original.id);
+										setSubmitDialogOpen(true);
+									}}
 								>
-									<Plus className="mr-2 h-4 w-4" />
+									<CheckCircle2 className="mr-2 h-4 w-4" />
 									Submit
 								</DropdownMenuItem>
 							)}
 							{row.original.status === "SUBMITTED" && (
 								<DropdownMenuItem
-									onClick={() => cancelMutation.mutate({ id: row.original.id })}
+									onClick={() => {
+										setSlipToCancel(row.original.id);
+										setCancelDialogOpen(true);
+									}}
 								>
 									<XCircle className="mr-2 h-4 w-4" />
 									Cancel
@@ -330,7 +370,7 @@ export default function PackingSlipPage() {
 				enableGlobalFilter: false,
 			},
 		],
-		[cancelMutation, submitMutation],
+		[],
 	);
 
 	const handleReload = React.useCallback(async () => {
@@ -348,6 +388,10 @@ export default function PackingSlipPage() {
 		onReload: handleReload,
 	});
 
+	const selectedIds = table
+		.getSelectedRowModel()
+		.rows.map((r) => r.original.id);
+
 	return (
 		<div className="container mx-auto py-6 space-y-6">
 			<div className="flex items-center justify-between">
@@ -357,6 +401,16 @@ export default function PackingSlipPage() {
 						Generate packing slips for packages to be delivered
 					</p>
 				</div>
+				{selectedIds.length > 0 && (
+					<Button
+						variant="destructive"
+						size="sm"
+						onClick={() => setBulkDeleteDialogOpen(true)}
+					>
+						<Trash className="mr-2 h-4 w-4" />
+						Delete ({selectedIds.length})
+					</Button>
+				)}
 			</div>
 
 			{isLoading && (
@@ -405,6 +459,33 @@ export default function PackingSlipPage() {
 				}}
 				onConfirm={confirmDelete}
 				loading={deleteMutation.isPending}
+			/>
+
+			<AlertModal
+				isOpen={submitDialogOpen}
+				onClose={() => {
+					setSubmitDialogOpen(false);
+					setSlipToSubmit(null);
+				}}
+				onConfirm={confirmSubmit}
+				loading={submitMutation.isPending}
+			/>
+
+			<AlertModal
+				isOpen={cancelDialogOpen}
+				onClose={() => {
+					setCancelDialogOpen(false);
+					setSlipToCancel(null);
+				}}
+				onConfirm={confirmCancel}
+				loading={cancelMutation.isPending}
+			/>
+
+			<AlertModal
+				isOpen={bulkDeleteDialogOpen}
+				onClose={() => setBulkDeleteDialogOpen(false)}
+				onConfirm={() => bulkDeleteMutation.mutate({ ids: selectedIds })}
+				loading={bulkDeleteMutation.isPending}
 			/>
 		</div>
 	);

@@ -17,6 +17,7 @@ import {
 	ChevronDown,
 	ChevronUp,
 	Loader2,
+	Pencil,
 	Plus,
 	Trash2,
 } from "lucide-react";
@@ -489,6 +490,14 @@ function QualityInspectionTemplateFormContent() {
 			{ enabled: isEditMode, refetchOnWindowFocus: false },
 		);
 
+	// Fetch all parameters so we can resolve names in create mode too
+	const { data: allParameters = [] } = trpc.inventory.listQiParameters.useQuery(
+		undefined,
+		{
+			staleTime: 60_000,
+		},
+	);
+
 	useEffect(() => {
 		if (!isEditMode || !template) return;
 		form.reset({
@@ -699,10 +708,18 @@ function QualityInspectionTemplateFormContent() {
 										const templateItemInfo = template?.items.find(
 											(ti) => ti.parameterId === field.parameterId,
 										);
+										// Fall back to the full parameters list (works in create mode too)
+										const paramInfo = allParameters.find(
+											(p) => p.id === field.parameterId,
+										);
 										const paramName =
-											templateItemInfo?.parameterName ?? field.parameterId;
+											templateItemInfo?.parameterName ??
+											paramInfo?.parameter ??
+											field.parameterId;
 										const groupName =
-											templateItemInfo?.parameterGroupName ?? null;
+											templateItemInfo?.parameterGroupName ??
+											paramInfo?.groupName ??
+											null;
 
 										return (
 											<TableRow key={field.id}>
@@ -748,22 +765,10 @@ function QualityInspectionTemplateFormContent() {
 															onClick={() => openEditDialog(index)}
 															aria-label="Edit"
 														>
-															<span className="sr-only">Edit</span>
-															<svg
-																xmlns="http://www.w3.org/2000/svg"
-																width="14"
-																height="14"
-																viewBox="0 0 24 24"
-																fill="none"
-																stroke="currentColor"
-																strokeWidth="2"
-																strokeLinecap="round"
-																strokeLinejoin="round"
+															<Pencil
+																className="h-3.5 w-3.5"
 																aria-hidden="true"
-															>
-																<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-																<path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-															</svg>
+															/>
 														</Button>
 														<Button
 															type="button"

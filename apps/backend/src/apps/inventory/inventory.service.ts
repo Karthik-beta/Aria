@@ -278,6 +278,12 @@ export class InventoryService {
 		return await this.items.findAllProductBundles();
 	}
 
+	async findProductBundleById(
+		id: string,
+	): Promise<Inventory.ProductBundle | null> {
+		return await this.items.findProductBundleById(id);
+	}
+
 	async createProductBundle(
 		data: z.infer<typeof Inventory.createProductBundleSchema>,
 	): Promise<Inventory.ProductBundle> {
@@ -421,8 +427,14 @@ export class InventoryService {
 		return await this.items.deleteMany(ids);
 	}
 
-	async findAllMaterialRequests(): Promise<Inventory.MaterialRequest[]> {
-		return await this.stockTx.findAllMaterialRequests();
+	async findAllMaterialRequests(params?: {
+		skip?: number;
+		take?: number;
+		search?: string;
+		status?: Inventory.MaterialRequestStatus;
+		purpose?: Inventory.MaterialRequestPurpose;
+	}): Promise<Inventory.MaterialRequest[]> {
+		return await this.stockTx.findAllMaterialRequests(params);
 	}
 
 	async findMaterialRequestById(
@@ -455,8 +467,14 @@ export class InventoryService {
 		return await this.stockTx.deleteManyMaterialRequests(ids);
 	}
 
-	async findAllStockEntries(): Promise<Inventory.StockEntry[]> {
-		return await this.stockTx.findAllStockEntries();
+	async findAllStockEntries(params?: {
+		skip?: number;
+		take?: number;
+		search?: string;
+		status?: Inventory.StockEntryStatus;
+		stockEntryType?: Inventory.StockEntryType;
+	}): Promise<Inventory.StockEntry[]> {
+		return await this.stockTx.findAllStockEntries(params);
 	}
 
 	async findStockEntryById(id: string): Promise<Inventory.StockEntry | null> {
@@ -526,6 +544,8 @@ export class InventoryService {
 	async findAllDeliveryNotes(params?: {
 		skip?: number;
 		take?: number;
+		search?: string;
+		status?: Inventory.DeliveryNoteStatus;
 	}): Promise<Inventory.DeliveryNote[]> {
 		return await this.delivery.findAllDeliveryNotes(params);
 	}
@@ -770,6 +790,7 @@ export class InventoryService {
 	async findAllPackingSlips(params?: {
 		deliveryNoteId?: string;
 		status?: Inventory.PackingSlipStatus;
+		search?: string;
 		skip?: number;
 		take?: number;
 	}): Promise<Inventory.PackingSlip[]> {

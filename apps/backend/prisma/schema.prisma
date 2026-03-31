@@ -293,6 +293,9 @@ model ItemAttribute {
   name            String               @db.VarChar(255)
   disabled        Boolean              @default(false)
   numericValues   Boolean              @default(false)
+  fromRange       Float                @default(0)
+  toRange         Float                @default(0)
+  increment       Float                @default(0)
   attributeValues ItemAttributeValue[]
   inventoryItemAttributes InventoryItemAttribute[]
   createdAt       DateTime             @default(now())

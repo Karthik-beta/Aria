@@ -1,132 +1,110 @@
 # Project Documentation
 
-This document provides a comprehensive overview of the Aria ERP project, including its roadmap, changelog, security policies, and development philosophy.
-
 ## Overview
 
-Aria ERP is a modern, modular B2B ERP suite built with TypeScript, NestJS, and Next.js. It is designed to be a full-stack monorepo providing enterprise resource planning capabilities through specialized modules for asset management, customer relations, human resources, and inventory control.
+Aria ERP is a modern, modular B2B ERP suite built with TypeScript. It uses a Bun + Turborepo monorepo hosting a NestJS backend and a single Next.js 16 frontend with route groups for each business domain (asset, CRM, HRMS, inventory). Communication between frontend and backend is via tRPC with type-safe contracts.
 
-## Roadmap
+## Current State
 
-The following is a high-level overview of the project's roadmap.
+### What's Implemented
 
-### v0.2.0 - Reliability & Security (Q1 2026)
+| Area | Status | Details |
+| --- | --- | --- |
+| **Monorepo** | ✅ | Bun workspaces + Turborepo 2.8 |
+| **Backend API** | ✅ | NestJS 11 + tRPC 11 |
+| **Frontend** | ✅ | Next.js 16 (App Router, Turbopack) |
+| **Database** | ✅ | PostgreSQL + Prisma 7 (PrismaPg adapter) |
+| **Authentication** | ✅ | better-auth (email/password, session-based) |
+| **Authorization** | ✅ | Custom RBAC (roles, permissions, apps) |
+| **Inventory Module** | ✅ | Full CRUD — items, warehouses, stock, UoM, categories, brands, suppliers, purchase/sales/transfer orders, reports |
+| **Admin Console** | ✅ | User/role/permission management, audit logs |
+| **Monitoring** | ✅ | Prometheus + Grafana + cAdvisor + Node Exporter |
+| **Deployment** | ✅ | Docker Compose + Caddy v2 reverse proxy |
+| **CI/CD** | ✅ | GitHub Actions (lint, test, typecheck, build) |
+| **Demo Data** | ✅ | 8 seed files (Pivotr Electronics business context) |
+| **Linting/Formatting** | ✅ | Biome 2.4 |
+| **Testing** | ✅ | Jest (backend), Vitest (frontend), Playwright (E2E) |
 
-- **Database & Persistence**: PostgreSQL integration with Prisma ORM, database schema design, migration system, connection pooling, and database replication.
-- **Authentication & Authorization**: JWT-based authentication, RBAC, MFA, session management, API key management, and OAuth2 integration.
-- **Security Enhancements**: Code signing, security headers and CSP, rate limiting, input validation, audit logging, and security scanning in CI/CD.
-- **Reliability Features**: Circuit breaker, retry mechanisms, health check endpoints, graceful shutdown, resource monitoring, and automated backup system.
-- **Testing**: Comprehensive E2E test suite, integration test coverage >80%, performance benchmarking, load testing, and API contract testing.
+### Planned / In Progress
 
-### v0.3.0 - Core Business Features (Q2 2026)
+- **Asset Management Module** — Registration, lifecycle tracking, maintenance scheduling, depreciation
+- **CRM Module** — Customer database, lead tracking, sales pipeline, communication history
+- **HRMS Module** — Employee management, attendance, leave, payroll
+- **Advanced Inventory** — Barcode/QR support, multi-warehouse transfers, stock alerts
+- **Report Generation** — PDF/Excel export, dashboard analytics
+- **Real-Time Updates** — tRPC WebSocket subscriptions for live data
+- **Mobile Support** — Responsive design improvements, PWA considerations
 
-- **Asset Management Module**: Asset registration and tracking, lifecycle management, maintenance scheduling, depreciation calculations, and reports.
-- **CRM Module**: Customer database, contact management, lead tracking, sales pipeline, communication history, and email integration.
-- **HRMS Module**: Employee information management, attendance tracking, leave management, payroll processing, performance reviews, and employee self-service portal.
-- **Inventory Module**: Stock management, warehouse management, purchase orders, sales orders, stock alerts, and barcode/QR code support.
-- **Shared Features**: Dashboard and analytics, report generation, export to PDF/Excel, advanced search and filtering, and notification system.
+## Tech Stack
 
-### v0.4.0 - Integration & Extensibility (Q3 2026)
-
-- **Integration Platform**: REST API versioning, GraphQL API, webhook system, real-time updates, and event-driven architecture.
-- **Third-Party Integrations**: Email services, SMS providers, payment gateways, cloud storage, and accounting software.
-- **Plugin System**: Plugin architecture, marketplace, custom module development guide, and API for third-party developers.
-- **Developer Experience**: API documentation portal, SDK/client libraries, Postman collections, and code generation tools.
-
-### v0.5.0 - Mobile & Advanced Features (Q4 2026)
-
-- **Mobile Applications**: React Native mobile app framework, iOS and Android applications, offline mode support, push notifications, and biometric authentication.
-- **Advanced Features**: AI-powered insights, machine learning for forecasting, advanced analytics and BI, custom workflow engine, and document management system.
-- **Performance & Scalability**: Redis caching layer, database query optimization, CDN integration, horizontal scaling support, and load balancer integration.
-
-### v1.0.0 - Production Release (Q1 2027)
-
-- **Stability & Polish**: Performance tuning, security hardening, comprehensive documentation, migration guides, and user training materials.
-- **Enterprise Features**: Multi-tenancy support, white-labeling, custom branding, advanced reporting, and compliance features.
-- **Support & Community**: Commercial support options, professional services, community forum, and partner program.
+| Layer | Technology |
+| --- | --- |
+| Runtime | Bun 1.3.x |
+| Build Orchestration | Turborepo 2.8 |
+| Backend Framework | NestJS 11 |
+| API Layer | tRPC 11 |
+| Frontend Framework | Next.js 16 (App Router) |
+| UI | React 19, Tailwind CSS 4, shadcn/ui, Radix UI |
+| Database | PostgreSQL 18, Prisma 7 |
+| Authentication | better-auth |
+| Validation | Zod 4 |
+| State Management | Zustand, TanStack React Query |
+| Linting/Formatting | Biome 2.4 |
+| Testing | Jest, Vitest, Playwright |
+| Monitoring | Prometheus, Grafana |
+| Reverse Proxy | Caddy v2 |
+| Containerization | Docker Compose |
 
 ## Changelog
 
 ### [Unreleased]
 
-- Documentation consolidation and optimization
-- Comprehensive documentation structure in `docs/` directory
-- Enterprise-level project files (CHANGELOG, LICENSE, CODE_OF_CONDUCT, etc.)
+- Complete documentation overhaul
+- Demo data system (Pivotr Electronics Pvt Ltd — 8 seed files)
+- Inventory module coverage for all CRUD operations and reports
 
 ### [0.1.0] - 2025-10-05
 
-- Initial monorepo structure with pnpm workspaces and Turborepo
-- NestJS 11 backend API service
-- Single Next.js 16 frontend application with route groups
-- Shared packages for types, utils, and configs
-- Cross-platform deployment toolkit with Docker Compose
-- Caddy reverse proxy with path-based routing
-- Automated backup and restore scripts
-- Health monitoring and log rotation
+- Initial monorepo structure with Bun workspaces and Turborepo
+- NestJS backend API service with tRPC
+- Single Next.js frontend with route groups
+- Shared packages (`@aria/types`, `@aria/utils`, `@aria/api-contract`, `@aria/tsconfig`)
+- PostgreSQL integration with Prisma
+- better-auth authentication system
+- RBAC authorization system
+- Docker Compose deployment with Caddy reverse proxy
+- Monitoring stack (Prometheus, Grafana, cAdvisor, Node Exporter)
+- GitHub Actions CI pipeline
 - Development and deployment documentation
-- CI/CD pipeline with GitHub Actions
 
 ## Security
 
-Security is a top priority for the Aria ERP project. The following are some of the security best practices that are followed.
-
-### Certificate Management
-
-- **Development**: Use self-signed certificates included in the repo.
-- **Production**: Use Let's Encrypt or commercial CA certificates.
-
 ### Secrets Management
 
-- **Never commit secrets to Git**.
-- Use environment variables at runtime.
-- Use Docker secrets or external secrets managers for production.
+- Never commit secrets to Git
+- Use environment variables at runtime
+- Use Docker secrets or external secrets managers for production
 
 ### Container Security
 
-- Use official base images.
-- Use multi-stage builds to minimize attack surface.
-- Run as a non-root user.
-- Scan images for vulnerabilities.
+- Official base images with multi-stage builds
+- Non-root container users
+- Regular vulnerability scanning
 
 ### Network Security
 
-- Use HTTPS-only.
-- Enable HSTS headers.
-- Configure security headers (CSP, X-Frame-Options).
-- Implement rate limiting.
-
-For more details, see the [Security Policy](./SECURITY.md).
+- HTTPS via Caddy (automatic TLS in production)
+- Security headers (HSTS, CSP, X-Frame-Options)
+- Rate limiting on API endpoints
 
 ## Development Philosophy
 
-Aria follows a **four-agent philosophy** to maintain code quality.
+Aria follows a **multi-agent philosophy** to maintain code quality. See [AGENTS.md](../../AGENTS.md) for full details.
 
-### 1. Simplicity Advocate
-
-- Use framework CLI generators.
-- Avoid custom configuration unless necessary.
-- Centralize shared config in packages.
-- Follow framework conventions first.
-
-### 2. Type Safety Guardian
-
-- All types defined in `@aria/types`.
-- Strict TypeScript mode enabled.
-- No `any` types allowed.
-- Consistent type usage across apps.
-
-### 3. Automation Steward
-
-- All tasks exposed via `package.json` scripts.
-- Turborepo caching configured.
-- CI mirrors local development exactly.
-- Environment reproducibility.
-
-### 4. Quality Sentinel
-
-- Tests accompany features.
-- Coverage expectations maintained.
-- Accessibility standards enforced.
-- Code reviews required.
-
-For more details, see the [Development Agents](./AGENTS.md) documentation.
+1. **Simplicity Advocate** — Use framework CLIs, avoid custom configs, centralize in shared packages
+2. **Type Safety Guardian** — All types in `@aria/types`, strict TypeScript, no `any`
+3. **Automation Steward** — Scripts via `package.json`, Turborepo caching, CI mirrors local dev
+4. **Quality Sentinel** — Tests accompany features, coverage maintained, accessibility enforced
+5. **Documentation Scribe** — TSDoc for public APIs, concise inline comments
+6. **Code Cleaner** — Remove dead code, resolve lint issues, safe refactors
+7. **Official Docs Enforcer** — Always reference authoritative docs before implementing
