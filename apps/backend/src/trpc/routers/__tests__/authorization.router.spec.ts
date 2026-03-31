@@ -1,3 +1,4 @@
+import { logger } from "@aria/utils";
 import { auth } from "../../../auth/auth.config";
 import type { PrismaService } from "../../../shared/prisma.service";
 import type {
@@ -56,6 +57,7 @@ const createCaller = () => {
 describe("authorizationRouter", () => {
 	beforeEach(() => {
 		jest.clearAllMocks();
+		jest.spyOn(logger, "error").mockImplementation(() => {});
 		Object.defineProperty(auth.api, "getSession", {
 			value: getSessionMock,
 			configurable: true,
@@ -128,5 +130,10 @@ describe("authorizationRouter", () => {
 			supervisedApps: [],
 			isActive: false,
 		});
+
+		expect(logger.error).toHaveBeenCalledWith(
+			"[Authorization] Error fetching user authorization:",
+			expect.any(Error),
+		);
 	});
 });
