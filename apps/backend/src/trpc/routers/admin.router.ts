@@ -684,6 +684,14 @@ export function createAdminRouter(deps: AdminRouterDependencies) {
 				const actorUserId = getActorUserId(ctx);
 				await requirePermission(actorUserId, "system:user.manage");
 
+				// Prevent self-disable
+				if (input.userId === actorUserId) {
+					throw new TRPCError({
+						code: "BAD_REQUEST",
+						message: "Cannot disable your own account",
+					});
+				}
+
 				const user = await ctx.prisma.user.update({
 					where: { id: input.userId },
 					data: { isActive: false },
@@ -832,6 +840,17 @@ export function createAdminRouter(deps: AdminRouterDependencies) {
 				// Check permission - use system:role.manage which exists in seed data
 				// Users with system:* (super_admin) will match this via wildcard
 				await requirePermission(actorUserId, "system:role.manage");
+
+				// Prevent revoking own admin/super_admin role
+				if (
+					input.userId === actorUserId &&
+					(input.roleKey === "super_admin" || input.roleKey === "admin")
+				) {
+					throw new TRPCError({
+						code: "BAD_REQUEST",
+						message: "Cannot revoke your own admin role",
+					});
+				}
 
 				const role = await deps.roleService.getRoleByKey(input.roleKey);
 				if (!role) {
@@ -1014,7 +1033,17 @@ export function createAdminRouter(deps: AdminRouterDependencies) {
 			.mutation(async ({ ctx, input }) => {
 				const actorUserId = getActorUserId(ctx);
 				await requirePermission(actorUserId, "system:role.manage");
-				return deps.roleService.createRole(input);
+				const role = await deps.roleService.createRole(input);
+
+				await deps.auditService.log({
+					actorUserId,
+					action: "role.created",
+					subjectType: "role",
+					subjectId: role.key,
+					metadata: { key: role.key, name: role.name, level: role.level },
+				});
+
+				return role;
 			}),
 
 		/**
@@ -1033,7 +1062,17 @@ export function createAdminRouter(deps: AdminRouterDependencies) {
 				const actorUserId = getActorUserId(ctx);
 				await requirePermission(actorUserId, "system:role.manage");
 				const { roleKey, ...updates } = input;
-				return deps.roleService.updateRole(roleKey, updates);
+				const role = await deps.roleService.updateRole(roleKey, updates);
+
+				await deps.auditService.log({
+					actorUserId,
+					action: "role.updated",
+					subjectType: "role",
+					subjectId: roleKey,
+					metadata: { changes: updates },
+				});
+
+				return role;
 			}),
 
 		/**
@@ -1045,6 +1084,14 @@ export function createAdminRouter(deps: AdminRouterDependencies) {
 				const actorUserId = getActorUserId(ctx);
 				await requirePermission(actorUserId, "system:role.manage");
 				await deps.roleService.deleteRole(input.roleKey);
+
+				await deps.auditService.log({
+					actorUserId,
+					action: "role.deleted",
+					subjectType: "role",
+					subjectId: input.roleKey,
+				});
+
 				return { success: true };
 			}),
 
@@ -1065,6 +1112,18 @@ export function createAdminRouter(deps: AdminRouterDependencies) {
 					input.roleKey,
 					input.permissionKey,
 				);
+
+				await deps.auditService.log({
+					actorUserId,
+					action: "permission.assigned_to_role",
+					subjectType: "role_permission",
+					subjectId: input.roleKey,
+					metadata: {
+						roleKey: input.roleKey,
+						permissionKey: input.permissionKey,
+					},
+				});
+
 				return { success: true };
 			}),
 
@@ -1085,6 +1144,18 @@ export function createAdminRouter(deps: AdminRouterDependencies) {
 					input.roleKey,
 					input.permissionKey,
 				);
+
+				await deps.auditService.log({
+					actorUserId,
+					action: "permission.removed_from_role",
+					subjectType: "role_permission",
+					subjectId: input.roleKey,
+					metadata: {
+						roleKey: input.roleKey,
+						permissionKey: input.permissionKey,
+					},
+				});
+
 				return { success: true };
 			}),
 
@@ -1201,7 +1272,7 @@ export function createAdminRouter(deps: AdminRouterDependencies) {
 					actorId: z.string().optional(),
 					userId: z.string().optional(),
 					action: z.string().optional(),
-					limit: z.number().min(1).max(100).default(50),
+					limit: z.number().min(1).max(500).default(50),
 				}),
 			)
 			.query(async ({ ctx, input }) => {

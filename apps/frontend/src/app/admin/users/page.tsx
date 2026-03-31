@@ -57,6 +57,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { usePermission } from "@/hooks/use-auth";
 import { useDebounce } from "@/hooks/use-debounce";
 import { trpc } from "@/lib/trpc/client";
 
@@ -152,6 +153,7 @@ export default function UsersPage() {
 	const [mode, setMode] = useState<"view" | "create" | "edit">("view");
 	const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 	const [userToDelete, setUserToDelete] = useState<User | null>(null);
+	const canManageUsers = usePermission("system:user.manage");
 
 	const { data, isLoading, refetch } = trpc.admin.listUsers.useQuery({
 		page: 1,
@@ -217,12 +219,15 @@ export default function UsersPage() {
 	const defaultAppKey =
 		provisioningContext?.defaultAppKey ?? manageableAppOptions[0]?.value;
 	const canProvisionUsers = manageableAppOptions.length > 0;
-	const createButtonDisabled = provisioningContextLoading || !canProvisionUsers;
+	const createButtonDisabled =
+		provisioningContextLoading || !canProvisionUsers || !canManageUsers;
 	const createUserDisabledReason = provisioningContextLoading
 		? "Loading your provisioning scopes..."
-		: !canProvisionUsers
-			? "You do not have permission to create users."
-			: undefined;
+		: !canManageUsers
+			? "You do not have permission to manage users."
+			: !canProvisionUsers
+				? "You do not have permission to create users."
+				: undefined;
 
 	const disableUserMutation = trpc.admin.disableUser.useMutation({
 		onSuccess: () => refetch(),
@@ -584,6 +589,7 @@ export default function UsersPage() {
 							canSendPasswordReset={canSendPasswordReset}
 							onSendPasswordReset={handlePasswordResetRequest}
 							passwordResetPending={sendPasswordResetMutation.isPending}
+							canManageUsers={canManageUsers}
 						/>
 					) : (
 						<div className="flex items-center justify-center h-full text-muted-foreground">
@@ -653,6 +659,7 @@ function UserDetailsPanel({
 	canSendPasswordReset,
 	onSendPasswordReset,
 	passwordResetPending,
+	canManageUsers,
 }: {
 	user: User;
 	onEdit: () => void;
@@ -665,6 +672,7 @@ function UserDetailsPanel({
 	canSendPasswordReset: boolean;
 	onSendPasswordReset: (appKey?: string) => void;
 	passwordResetPending: boolean;
+	canManageUsers: boolean;
 }) {
 	const passwordChangedAtLabel = user.passwordChangedAt
 		? new Date(user.passwordChangedAt).toLocaleString()
@@ -701,25 +709,29 @@ function UserDetailsPanel({
 						<p className="text-muted-foreground mt-1">{user.email}</p>
 					</div>
 					<div className="flex gap-2">
-						{user.isActive ? (
-							<Button variant="outline" size="sm" onClick={onDisable}>
-								<Ban className="mr-2 h-4 w-4" />
-								Disable
-							</Button>
-						) : (
-							<Button variant="outline" size="sm" onClick={onEnable}>
-								<CheckCircle className="mr-2 h-4 w-4" />
-								Enable
-							</Button>
+						{canManageUsers && (
+							<>
+								{user.isActive ? (
+									<Button variant="outline" size="sm" onClick={onDisable}>
+										<Ban className="mr-2 h-4 w-4" />
+										Disable
+									</Button>
+								) : (
+									<Button variant="outline" size="sm" onClick={onEnable}>
+										<CheckCircle className="mr-2 h-4 w-4" />
+										Enable
+									</Button>
+								)}
+								<Button variant="outline" size="sm" onClick={onEdit}>
+									<Edit className="mr-2 h-4 w-4" />
+									Edit
+								</Button>
+								<Button variant="destructive" size="sm" onClick={onDelete}>
+									<Trash2 className="mr-2 h-4 w-4" />
+									Delete
+								</Button>
+							</>
 						)}
-						<Button variant="outline" size="sm" onClick={onEdit}>
-							<Edit className="mr-2 h-4 w-4" />
-							Edit
-						</Button>
-						<Button variant="destructive" size="sm" onClick={onDelete}>
-							<Trash2 className="mr-2 h-4 w-4" />
-							Delete
-						</Button>
 					</div>
 				</div>
 			</div>

@@ -270,9 +270,29 @@ export class AuthService implements OnModuleInit {
 				description: "Create, update, disable, and delete users globally",
 			},
 			{
+				key: "system:user.read",
+				name: "System: Read Users",
+				description: "View user accounts, profiles, and role assignments",
+			},
+			{
 				key: "system:role.manage",
 				name: "System: Manage Roles",
 				description: "Create, update, and delete roles and permissions",
+			},
+			{
+				key: "system:role.read",
+				name: "System: Read Roles",
+				description: "View roles and their permission assignments",
+			},
+			{
+				key: "system:permission.read",
+				name: "System: Read Permissions",
+				description: "View available permissions and their details",
+			},
+			{
+				key: "system:permission.manage",
+				name: "System: Manage Permissions",
+				description: "Create, update, and delete permissions",
 			},
 			{
 				key: "system:config.manage",
@@ -350,6 +370,46 @@ export class AuthService implements OnModuleInit {
 		this.logger.log(
 			`[Seed] ${systemPermissions.length} permissions mapped to super_admin role`,
 		);
+
+		// Assign read-level system permissions to admin role
+		const adminRole = await this.prisma.role.findUnique({
+			where: { key: "admin" },
+		});
+
+		if (adminRole) {
+			const adminPermissionKeys = [
+				"system:user.read",
+				"system:user.manage",
+				"system:role.read",
+				"system:role.manage",
+				"system:permission.read",
+				"system:audit.read",
+			];
+
+			const adminPermissions = await this.prisma.permission.findMany({
+				where: { key: { in: adminPermissionKeys } },
+			});
+
+			for (const permission of adminPermissions) {
+				await this.prisma.rolePermission.upsert({
+					where: {
+						roleId_permissionId: {
+							roleId: adminRole.id,
+							permissionId: permission.id,
+						},
+					},
+					update: {},
+					create: {
+						roleId: adminRole.id,
+						permissionId: permission.id,
+					},
+				});
+			}
+
+			this.logger.log(
+				`[Seed] ${adminPermissions.length} permissions mapped to admin role`,
+			);
+		}
 	}
 
 	/**

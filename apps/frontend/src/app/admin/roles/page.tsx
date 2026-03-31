@@ -3,6 +3,7 @@
 import { logger } from "@aria/utils";
 import { Edit, Lock, MoreVertical, Plus, Shield, Trash2 } from "lucide-react";
 import { useState } from "react";
+import { toast } from "sonner";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -46,6 +47,7 @@ import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { usePermission } from "@/hooks/use-auth";
 import { trpc } from "@/lib/trpc/client";
 
 type Role = {
@@ -80,6 +82,7 @@ export default function RolesPage() {
 	const [deleteRoleOpen, setDeleteRoleOpen] = useState(false);
 	const [managePermissionsOpen, setManagePermissionsOpen] = useState(false);
 	const [selectedRole, setSelectedRole] = useState<Role | null>(null);
+	const canManageRoles = usePermission("system:role.manage");
 
 	const openEditDialog = (role: Role) => {
 		setSelectedRole(role);
@@ -90,6 +93,18 @@ export default function RolesPage() {
 		setSelectedRole(role);
 		setDeleteRoleOpen(true);
 	};
+
+	const deleteRoleMutation = trpc.admin.deleteRole.useMutation({
+		onSuccess: () => {
+			toast.success("Role deleted successfully");
+			refetch();
+			setDeleteRoleOpen(false);
+			setSelectedRole(null);
+		},
+		onError: (error) => {
+			toast.error(error.message || "Failed to delete role");
+		},
+	});
 
 	const openPermissionsDialog = (role: Role) => {
 		setSelectedRole(role);
@@ -118,28 +133,30 @@ export default function RolesPage() {
 						Manage roles and their permission assignments
 					</p>
 				</div>
-				<Dialog open={createRoleOpen} onOpenChange={setCreateRoleOpen}>
-					<DialogTrigger asChild>
-						<Button>
-							<Plus className="mr-2 h-4 w-4" />
-							Create Role
-						</Button>
-					</DialogTrigger>
-					<DialogContent className="sm:max-w-[500px]">
-						<DialogHeader>
-							<DialogTitle>Create New Role</DialogTitle>
-							<DialogDescription>
-								Define a new role with name and description
-							</DialogDescription>
-						</DialogHeader>
-						<CreateRoleForm
-							onSuccess={() => {
-								refetch();
-								setCreateRoleOpen(false);
-							}}
-						/>
-					</DialogContent>
-				</Dialog>
+				{canManageRoles && (
+					<Dialog open={createRoleOpen} onOpenChange={setCreateRoleOpen}>
+						<DialogTrigger asChild>
+							<Button>
+								<Plus className="mr-2 h-4 w-4" />
+								Create Role
+							</Button>
+						</DialogTrigger>
+						<DialogContent className="sm:max-w-[500px]">
+							<DialogHeader>
+								<DialogTitle>Create New Role</DialogTitle>
+								<DialogDescription>
+									Define a new role with name and description
+								</DialogDescription>
+							</DialogHeader>
+							<CreateRoleForm
+								onSuccess={() => {
+									refetch();
+									setCreateRoleOpen(false);
+								}}
+							/>
+						</DialogContent>
+					</Dialog>
+				)}
 			</div>
 
 			<Tabs defaultValue="roles">
@@ -180,27 +197,31 @@ export default function RolesPage() {
 												<DropdownMenuContent align="end">
 													<DropdownMenuLabel>Actions</DropdownMenuLabel>
 													<DropdownMenuSeparator />
-													<DropdownMenuItem
-														onClick={() => openPermissionsDialog(role)}
-													>
-														<Shield className="mr-2 h-4 w-4" />
-														Manage Permissions
-													</DropdownMenuItem>
-													<DropdownMenuItem
-														onClick={() => openEditDialog(role)}
-														disabled={role.isSystem}
-													>
-														<Edit className="mr-2 h-4 w-4" />
-														Edit Role
-													</DropdownMenuItem>
-													<DropdownMenuItem
-														onClick={() => openDeleteDialog(role)}
-														disabled={role.isSystem}
-														className="text-destructive"
-													>
-														<Trash2 className="mr-2 h-4 w-4" />
-														Delete Role
-													</DropdownMenuItem>
+													{canManageRoles && (
+														<>
+															<DropdownMenuItem
+																onClick={() => openPermissionsDialog(role)}
+															>
+																<Shield className="mr-2 h-4 w-4" />
+																Manage Permissions
+															</DropdownMenuItem>
+															<DropdownMenuItem
+																onClick={() => openEditDialog(role)}
+																disabled={role.isSystem}
+															>
+																<Edit className="mr-2 h-4 w-4" />
+																Edit Role
+															</DropdownMenuItem>
+															<DropdownMenuItem
+																onClick={() => openDeleteDialog(role)}
+																disabled={role.isSystem}
+																className="text-destructive"
+															>
+																<Trash2 className="mr-2 h-4 w-4" />
+																Delete Role
+															</DropdownMenuItem>
+														</>
+													)}
 												</DropdownMenuContent>
 											</DropdownMenu>
 										</div>
@@ -240,14 +261,16 @@ export default function RolesPage() {
 									</div>
 								</CardContent>
 								<CardFooter>
-									<Button
-										variant="outline"
-										className="w-full"
-										onClick={() => openPermissionsDialog(role)}
-									>
-										<Shield className="mr-2 h-4 w-4" />
-										Manage Permissions
-									</Button>
+									{canManageRoles && (
+										<Button
+											variant="outline"
+											className="w-full"
+											onClick={() => openPermissionsDialog(role)}
+										>
+											<Shield className="mr-2 h-4 w-4" />
+											Manage Permissions
+										</Button>
+									)}
 								</CardFooter>
 							</Card>
 						))}
@@ -334,12 +357,15 @@ export default function RolesPage() {
 						<AlertDialogCancel>Cancel</AlertDialogCancel>
 						<AlertDialogAction
 							onClick={() => {
-								// TODO: Implement delete role mutation
+								if (selectedRole) {
+									deleteRoleMutation.mutate({ roleKey: selectedRole.key });
+								}
 								setDeleteRoleOpen(false);
 							}}
 							className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+							disabled={deleteRoleMutation.isPending}
 						>
-							Delete Role
+							{deleteRoleMutation.isPending ? "Deleting..." : "Delete Role"}
 						</AlertDialogAction>
 					</AlertDialogFooter>
 				</AlertDialogContent>
@@ -403,11 +429,15 @@ function CreateRoleForm({ onSuccess }: { onSuccess: () => void }) {
 
 	const createRoleMutation = trpc.admin.createRole.useMutation({
 		onSuccess: () => {
+			toast.success("Role created successfully");
 			onSuccess();
 			setKey("");
 			setName("");
 			setDescription("");
 			setLevel("1");
+		},
+		onError: (error) => {
+			toast.error(error.message || "Failed to create role");
 		},
 	});
 
@@ -500,7 +530,11 @@ function EditRoleForm({
 
 	const updateRoleMutation = trpc.admin.updateRole.useMutation({
 		onSuccess: () => {
+			toast.success("Role updated successfully");
 			onSuccess();
+		},
+		onError: (error) => {
+			toast.error(error.message || "Failed to update role");
 		},
 	});
 
@@ -634,9 +668,11 @@ function ManagePermissionsForm({
 				});
 			}
 
+			toast.success("Permissions updated successfully");
 			onSuccess();
 		} catch (error) {
 			logger.error("Error updating permissions:", error);
+			toast.error("Failed to update permissions");
 		}
 	};
 

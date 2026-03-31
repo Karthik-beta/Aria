@@ -74,6 +74,33 @@ export default function AuditPage() {
 
 	const uniqueActions = Array.from(new Set(logs.map((log) => log.action)));
 
+	const exportToCsv = () => {
+		if (!filteredLogs || filteredLogs.length === 0) return;
+		const headers = ["Timestamp", "Action", "Actor", "Subject", "Metadata"];
+		const rows = filteredLogs.map((log) => [
+			format(new Date(log.createdAt), "yyyy-MM-dd HH:mm:ss"),
+			log.action,
+			log.actorUserId || "System",
+			log.subjectId || "",
+			log.metadata && typeof log.metadata === "object"
+				? JSON.stringify(log.metadata)
+				: "",
+		]);
+		const csvContent = [
+			headers.join(","),
+			...rows.map((row) =>
+				row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","),
+			),
+		].join("\n");
+		const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+		const url = URL.createObjectURL(blob);
+		const link = document.createElement("a");
+		link.href = url;
+		link.download = `audit-logs-${format(new Date(), "yyyy-MM-dd")}.csv`;
+		link.click();
+		URL.revokeObjectURL(url);
+	};
+
 	return (
 		<div className="space-y-6">
 			<div className="flex items-center justify-between">
@@ -91,7 +118,11 @@ export default function AuditPage() {
 						<Filter className="mr-2 h-4 w-4" />
 						{showFilters ? "Hide Filters" : "Show Filters"}
 					</Button>
-					<Button variant="outline">
+					<Button
+						variant="outline"
+						onClick={exportToCsv}
+						disabled={filteredLogs.length === 0}
+					>
 						<Download className="mr-2 h-4 w-4" />
 						Export
 					</Button>
