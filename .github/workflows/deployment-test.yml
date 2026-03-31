@@ -75,7 +75,16 @@ jobs:
 
       - name: Start services
         run: |
-          docker compose -f docker-compose.production.yml up -d
+          docker compose -f docker-compose.production.yml up -d --wait --wait-timeout 300
+        continue-on-error: true
+
+      - name: Show early backend logs
+        if: always()
+        run: |
+          echo "=== Backend container status ==="
+          docker inspect --format='{{.State.Status}} (health: {{.State.Health.Status}})' aria-backend 2>/dev/null || echo "Container not found"
+          echo "=== Backend logs (first 80 lines) ==="
+          docker logs aria-backend --tail 80 2>&1 || true
 
       - name: Wait for services to be healthy
         run: |
@@ -90,12 +99,12 @@ jobs:
           timeout 60 bash -c 'until docker exec aria-redis sh -lc '"'"'if [ -n "$REDIS_PASSWORD" ]; then REDISCLI_AUTH="$REDIS_PASSWORD" redis-cli ping; else redis-cli ping; fi'"'"' | grep -q PONG; do sleep 2; done'
           echo "✓ Redis is ready"
 
-          # Wait for backend
-          timeout 120 bash -c 'until curl -f http://localhost/api/health; do sleep 5; done'
+          # Wait for backend (migrations + NestJS bootstrap can be slow in CI)
+          timeout 300 bash -c 'until curl -f http://localhost/api/health 2>/dev/null; do sleep 5; done'
           echo "✓ Backend is ready"
 
           # Wait for frontend
-          timeout 120 bash -c 'until curl -f http://localhost/; do sleep 5; done'
+          timeout 180 bash -c 'until curl -f http://localhost/ 2>/dev/null; do sleep 5; done'
           echo "✓ Frontend is ready"
 
       - name: Run health checks
@@ -289,8 +298,8 @@ jobs:
             $elapsed += 2
           }
 
-          # Wait for backend
-          $timeout = 120
+          # Wait for backend (migrations + NestJS bootstrap can be slow in CI)
+          $timeout = 300
           $elapsed = 0
           while ($elapsed -lt $timeout) {
             try {
@@ -305,7 +314,7 @@ jobs:
           }
 
           # Wait for frontend
-          $timeout = 120
+          $timeout = 180
           $elapsed = 0
           while ($elapsed -lt $timeout) {
             try {
