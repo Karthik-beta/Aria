@@ -861,6 +861,7 @@ export default function WarehouseWiseStockBalancePage() {
 			{queryError && !isLoading ? (
 				<ErrorState
 					error={queryError}
+					operation="load"
 					title="Failed to load warehouse wise stock balance"
 					onRetry={() => void refetch()}
 				/>

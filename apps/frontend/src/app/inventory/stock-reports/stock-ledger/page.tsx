@@ -807,6 +807,7 @@ export default function StockLedgerPage() {
 					enableVirtualization
 					enableColumnResizing
 					enableBulkActions={false}
+					enableGlobalSearch={false}
 					ariaLabel="Stock ledger table"
 				/>
 			)}

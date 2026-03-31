@@ -567,6 +567,7 @@ export default function StockBalancePage() {
 					enableVirtualization
 					enableColumnResizing
 					enableBulkActions={false}
+					enableGlobalSearch={false}
 					ariaLabel="Stock balance table"
 				/>
 			)}
