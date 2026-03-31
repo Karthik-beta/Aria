@@ -1,3 +1,4 @@
+import type { Row } from "@tanstack/react-table";
 import { describe, expect, it } from "vitest";
 import {
 	getBulkEditableFields,
@@ -9,7 +10,7 @@ const rows = [
 		id: "row-1",
 		original: { id: "1" },
 	},
-] as const;
+] as unknown as Row<{ id: string }>[];
 
 describe("bulk-edit-utils", () => {
 	describe("normalizeBulkEditRequest", () => {

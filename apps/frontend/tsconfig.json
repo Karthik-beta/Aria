@@ -28,8 +28,6 @@
 		"dist",
 		"coverage",
 		"playwright-report",
-		"test-results",
-		"src/**/*.test.ts",
-		"src/**/*.spec.ts"
+		"test-results"
 	]
 }

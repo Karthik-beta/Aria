@@ -759,6 +759,7 @@ export function createMockPrisma() {
 			update: jest.fn(),
 			create: jest.fn(),
 			count: jest.fn(),
+			groupBy: jest.fn(),
 		},
 		deliveryNote: {
 			findMany: jest.fn(),
@@ -777,6 +778,7 @@ export function createMockPrisma() {
 			update: jest.fn(),
 			create: jest.fn(),
 			count: jest.fn(),
+			groupBy: jest.fn(),
 		},
 		purchaseReceipt: {
 			findMany: jest.fn(),
