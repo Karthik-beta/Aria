@@ -14,7 +14,7 @@ export type ItemwiseRecommendedReorderLevelRow =
 /** Start of the current fiscal year (1 Jan by default). */
 export function getDefaultFromDate(): string {
 	const d = new Date();
-	d.setMonth(0, 1);
+	d.setUTCMonth(0, 1);
 	return d.toISOString().slice(0, 10);
 }
 

@@ -15,12 +15,13 @@ export function getDefaultToDate(): string {
 	return new Date().toISOString().slice(0, 10);
 }
 
+const QTY_FORMATTER = new Intl.NumberFormat("en-IN", {
+	minimumFractionDigits: 0,
+	maximumFractionDigits: 3,
+});
+
 export function formatQty(value: number): string {
-	const rounded = Number.parseFloat(value.toFixed(3));
-	return rounded.toLocaleString(undefined, {
-		minimumFractionDigits: 0,
-		maximumFractionDigits: 3,
-	});
+	return QTY_FORMATTER.format(value);
 }
 
 export function formatDate(value: Date | string | null | undefined): string {
@@ -33,10 +34,10 @@ export function formatDate(value: Date | string | null | undefined): string {
 		return "—";
 	}
 
-	return date.toLocaleDateString(undefined, {
-		year: "numeric",
-		month: "short",
+	return date.toLocaleDateString("en-IN", {
 		day: "2-digit",
+		month: "short",
+		year: "numeric",
 	});
 }
 

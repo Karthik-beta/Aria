@@ -39,6 +39,7 @@ const columns: ColumnDef<ItemPricesRow>[] = [
 		cell: ({ row }) => (
 			<span className="font-medium">{row.original.itemCode}</span>
 		),
+		meta: { label: "Item", exportable: true },
 	},
 	{
 		accessorKey: "itemName",
@@ -46,6 +47,7 @@ const columns: ColumnDef<ItemPricesRow>[] = [
 			<DataTableColumnHeader column={column} title="Item Name" />
 		),
 		cell: ({ row }) => formatOptional(row.original.itemName),
+		meta: { label: "Item Name", exportable: true },
 	},
 	{
 		accessorKey: "itemGroupName",
@@ -53,6 +55,7 @@ const columns: ColumnDef<ItemPricesRow>[] = [
 			<DataTableColumnHeader column={column} title="Item Group" />
 		),
 		cell: ({ row }) => formatOptional(row.original.itemGroupName),
+		meta: { label: "Item Group", exportable: true },
 	},
 	{
 		accessorKey: "brandName",
@@ -60,6 +63,7 @@ const columns: ColumnDef<ItemPricesRow>[] = [
 			<DataTableColumnHeader column={column} title="Brand" />
 		),
 		cell: ({ row }) => formatOptional(row.original.brandName),
+		meta: { label: "Brand", exportable: true },
 	},
 	{
 		accessorKey: "description",
@@ -71,6 +75,7 @@ const columns: ColumnDef<ItemPricesRow>[] = [
 				{formatOptional(row.original.description)}
 			</span>
 		),
+		meta: { label: "Description", exportable: true },
 	},
 	{
 		accessorKey: "stockUom",
@@ -78,6 +83,7 @@ const columns: ColumnDef<ItemPricesRow>[] = [
 			<DataTableColumnHeader column={column} title="UOM" />
 		),
 		cell: ({ row }) => formatOptional(row.original.stockUom),
+		meta: { label: "UOM", exportable: true },
 	},
 	{
 		accessorKey: "lastPurchaseRate",
@@ -94,6 +100,7 @@ const columns: ColumnDef<ItemPricesRow>[] = [
 			const b = rowB.original.lastPurchaseRate ?? -1;
 			return a - b;
 		},
+		meta: { label: "Last Purchase Rate", exportable: true },
 	},
 	{
 		accessorKey: "valuationRate",
@@ -105,6 +112,9 @@ const columns: ColumnDef<ItemPricesRow>[] = [
 				{formatRate(row.original.valuationRate)}
 			</span>
 		),
+		sortingFn: (rowA, rowB) =>
+			rowA.original.valuationRate - rowB.original.valuationRate,
+		meta: { label: "Valuation Rate", exportable: true },
 	},
 	{
 		accessorKey: "standardSellingRate",
@@ -116,6 +126,9 @@ const columns: ColumnDef<ItemPricesRow>[] = [
 				{formatRate(row.original.standardSellingRate)}
 			</span>
 		),
+		sortingFn: (rowA, rowB) =>
+			rowA.original.standardSellingRate - rowB.original.standardSellingRate,
+		meta: { label: "Selling Rate", exportable: true },
 	},
 ];
 

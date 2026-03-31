@@ -126,6 +126,7 @@ const columns: ColumnDef<RequestedItemsToBeTransferredRow>[] = [
 				{row.original.materialRequest}
 			</Link>
 		),
+		meta: { label: "Material Request", exportable: true },
 	},
 	{
 		accessorKey: "date",
@@ -135,6 +136,7 @@ const columns: ColumnDef<RequestedItemsToBeTransferredRow>[] = [
 		cell: ({ row }) => formatDate(row.original.date),
 		sortingFn: (left, right) =>
 			left.original.date.getTime() - right.original.date.getTime(),
+		meta: { label: "Date", exportable: true },
 	},
 	{
 		accessorKey: "purpose",
@@ -142,6 +144,7 @@ const columns: ColumnDef<RequestedItemsToBeTransferredRow>[] = [
 			<DataTableColumnHeader column={column} title="Purpose" />
 		),
 		cell: ({ row }) => <PurposeBadge purpose={row.original.purpose} />,
+		meta: { label: "Purpose", exportable: true },
 	},
 	{
 		accessorKey: "status",
@@ -149,12 +152,14 @@ const columns: ColumnDef<RequestedItemsToBeTransferredRow>[] = [
 			<DataTableColumnHeader column={column} title="Status" />
 		),
 		cell: ({ row }) => <StatusBadge status={row.original.status} />,
+		meta: { label: "Status", exportable: true },
 	},
 	{
 		accessorKey: "itemCode",
 		header: ({ column }) => (
 			<DataTableColumnHeader column={column} title="Item Code" />
 		),
+		meta: { label: "Item Code", exportable: true },
 	},
 	{
 		accessorKey: "itemName",
@@ -162,6 +167,7 @@ const columns: ColumnDef<RequestedItemsToBeTransferredRow>[] = [
 			<DataTableColumnHeader column={column} title="Item Name" />
 		),
 		cell: ({ row }) => row.original.itemName ?? "—",
+		meta: { label: "Item Name", exportable: true },
 	},
 	{
 		accessorKey: "description",
@@ -169,6 +175,7 @@ const columns: ColumnDef<RequestedItemsToBeTransferredRow>[] = [
 			<DataTableColumnHeader column={column} title="Description" />
 		),
 		cell: ({ row }) => row.original.description ?? "—",
+		meta: { label: "Description", exportable: true },
 	},
 	{
 		accessorKey: "targetWarehouse",
@@ -176,6 +183,7 @@ const columns: ColumnDef<RequestedItemsToBeTransferredRow>[] = [
 			<DataTableColumnHeader column={column} title="Target Warehouse" />
 		),
 		cell: ({ row }) => row.original.targetWarehouse ?? "—",
+		meta: { label: "Target Warehouse", exportable: true },
 	},
 	{
 		accessorKey: "qty",
@@ -185,6 +193,7 @@ const columns: ColumnDef<RequestedItemsToBeTransferredRow>[] = [
 		cell: ({ row }) => (
 			<span className="tabular-nums">{formatQty(row.original.qty)}</span>
 		),
+		meta: { label: "Requested Qty", exportable: true },
 	},
 	{
 		accessorKey: "transferredQty",
@@ -196,6 +205,7 @@ const columns: ColumnDef<RequestedItemsToBeTransferredRow>[] = [
 				{formatQty(row.original.transferredQty)}
 			</span>
 		),
+		meta: { label: "Transferred Qty", exportable: true },
 	},
 	{
 		accessorKey: "qtyToTransfer",
@@ -207,12 +217,14 @@ const columns: ColumnDef<RequestedItemsToBeTransferredRow>[] = [
 				{formatQty(row.original.qtyToTransfer)}
 			</span>
 		),
+		meta: { label: "Qty To Transfer", exportable: true },
 	},
 	{
 		accessorKey: "company",
 		header: ({ column }) => (
 			<DataTableColumnHeader column={column} title="Company" />
 		),
+		meta: { label: "Company", exportable: true },
 	},
 ];
 

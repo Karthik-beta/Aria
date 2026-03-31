@@ -18,8 +18,8 @@ describe("formatRate", () => {
 		expect(formatRate(undefined)).toBe("—");
 	});
 
-	it("returns dash for zero", () => {
-		expect(formatRate(0)).toBe("—");
+	it("formats zero as a valid rate", () => {
+		expect(formatRate(0)).toBe("₹0.00");
 	});
 
 	it("formats a positive value with Indian grouping", () => {

@@ -98,6 +98,7 @@ const columns: ColumnDef<BatchItemExpiryRow>[] = [
 		cell: ({ row }) => (
 			<span className="font-medium">{row.original.itemCode}</span>
 		),
+		meta: { label: "Item", exportable: true },
 	},
 	{
 		accessorKey: "itemName",
@@ -105,6 +106,7 @@ const columns: ColumnDef<BatchItemExpiryRow>[] = [
 			<DataTableColumnHeader column={column} title="Item Name" />
 		),
 		cell: ({ row }) => formatOptional(row.original.itemName),
+		meta: { label: "Item Name", exportable: true },
 	},
 	{
 		accessorKey: "batchNo",
@@ -114,6 +116,7 @@ const columns: ColumnDef<BatchItemExpiryRow>[] = [
 		cell: ({ row }) => (
 			<span className="font-medium">{row.original.batchNo}</span>
 		),
+		meta: { label: "Batch", exportable: true },
 	},
 	{
 		accessorKey: "stockUom",
@@ -121,6 +124,7 @@ const columns: ColumnDef<BatchItemExpiryRow>[] = [
 			<DataTableColumnHeader column={column} title="Stock UOM" />
 		),
 		cell: ({ row }) => formatOptional(row.original.stockUom),
+		meta: { label: "Stock UOM", exportable: true },
 	},
 	{
 		accessorKey: "quantity",
@@ -130,6 +134,7 @@ const columns: ColumnDef<BatchItemExpiryRow>[] = [
 		cell: ({ row }) => (
 			<span className="tabular-nums">{formatQty(row.original.quantity)}</span>
 		),
+		meta: { label: "Quantity", exportable: true },
 	},
 	{
 		accessorKey: "expiresOn",
@@ -137,6 +142,7 @@ const columns: ColumnDef<BatchItemExpiryRow>[] = [
 			<DataTableColumnHeader column={column} title="Expires On" />
 		),
 		cell: ({ row }) => formatDate(row.original.expiresOn),
+		meta: { label: "Expires On", exportable: true },
 	},
 	{
 		accessorKey: "expiryInDays",
@@ -160,6 +166,7 @@ const columns: ColumnDef<BatchItemExpiryRow>[] = [
 			const b = rowB.original.expiryInDays ?? Number.POSITIVE_INFINITY;
 			return a - b;
 		},
+		meta: { label: "Expiry (In Days)", exportable: true },
 	},
 ];
 
@@ -258,6 +265,7 @@ export default function BatchItemExpiryStatusPage() {
 						onChange={(e) => updateFilter("toDate", e.target.value)}
 						className="h-9 w-40"
 						aria-label="To date"
+						aria-describedby={validationError ? "filter-error" : undefined}
 					/>
 				</div>
 
