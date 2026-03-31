@@ -4,12 +4,12 @@ Technical overview of the Aria ERP system design, architecture, and development 
 
 ## System Overview
 
-Aria ERP is a modular, type-safe B2B ERP suite built as a bun + Turborepo monorepo. The system comprises:
+Aria ERP is a modular, type-safe B2B ERP suite built as a Bun + Turborepo monorepo. The system comprises:
 
-- **1 Backend API** - NestJS 11 service
-- **1 Frontend Application** - Next.js 16 App Router with route groups
-- **Shared Packages** - Common types, utilities, and configurations
-- **Deployment Toolkit** - Cross-platform Docker-based installer
+- **1 Backend API** — NestJS 11 service with tRPC endpoints
+- **1 Frontend Application** — Next.js App Router with route groups
+- **Shared Packages** — API contract, types, utilities, and TypeScript configs
+- **Deployment Toolkit** — Docker Compose with Caddy reverse proxy and monitoring
 
 ## Architecture Diagram
 
@@ -20,58 +20,77 @@ Aria ERP is a modular, type-safe B2B ERP suite built as a bun + Turborepo monore
              │ HTTPS
              ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                    Caddy (Reverse Proxy)                     │
+│              Caddy v2 (Reverse Proxy, HTTP/3)               │
 │                    Path-Based Routing                        │
-└─┬────────────┬────────────┬──────────┬────────────────┬──────┘
-  │            │            │          │                │
-  │/asset      │/crm        │/hrms     │/inventory      │/api
-  │            │            │          │                │
-  └────────────┴────────────┴──────────┴────────────────┘
-                       │
-                       ▼
-            ┌────────────────────┐
-            │ Frontend (Next.js) │
-            │  Route Groups      │
-            └──────────┬─────────┘
-                       │
-                       ▼
-            ┌────────────────────┐
-            │ Backend (NestJS)   │
-            └──────────┬─────────┘
-                       │
-                       ▼
-            ┌────────────────────┐
-            │   PostgreSQL       │
-            └────────────────────┘
+└──────┬──────────────────────────────────────────┬───────────┘
+       │ /api/*, /trpc/*, /trpc-ws                │ everything else
+       ▼                                          ▼
+┌────────────────────┐                 ┌────────────────────┐
+│ Backend (NestJS)   │                 │ Frontend (Next.js) │
+│ Port 3001          │                 │ Port 3000          │
+│                    │                 │ Route Groups:      │
+│ ┌────────────────┐ │                 │  /admin            │
+│ │ tRPC Routers   │ │                 │  /asset            │
+│ │  • inventory   │ │  ◄── tRPC ──►  │  /crm              │
+│ │  • admin       │ │                 │  /hrms             │
+│ │  • authorization│ │                │  /inventory        │
+│ │  • account     │ │                 └────────────────────┘
+│ └────────┬───────┘ │
+│          │         │
+│ ┌────────▼───────┐ │
+│ │ better-auth    │ │
+│ │ (sessions)     │ │
+│ └────────┬───────┘ │
+│          │         │
+│ ┌────────▼───────┐ │
+│ │ Prisma 7       │ │
+│ │ (PrismaPg)     │ │
+│ └────────┬───────┘ │
+└──────────┼─────────┘
+           │
+    ┌──────▼───────┐      ┌──────────────┐
+    │ PostgreSQL   │      │ Redis        │
+    │ Port 5432    │      │ Port 6379    │
+    └──────────────┘      └──────────────┘
 ```
 
 ## Technology Stack
 
 ### Backend
 
-- **Framework**: NestJS 11
-- **Runtime**: Node.js 20/22
-- **Language**: TypeScript (strict mode)
-- **API**: tRPC
-- **Database**: PostgreSQL with Prisma ORM
-- **Testing**: Jest (unit + e2e)
+| Concern | Technology |
+|---------|-----------|
+| Framework | NestJS 11 |
+| Runtime | Node.js 20/22 |
+| Language | TypeScript (strict mode) |
+| API | tRPC |
+| Database | PostgreSQL with Prisma 7 ORM (PrismaPg adapter) |
+| Authentication | better-auth (email+password, username plugin) |
+| Authorization | Custom RBAC + ABAC system |
+| Testing | Jest (unit + integration) |
 
 ### Frontend
 
-- **Framework**: Next.js 16 (App Router)
-- **UI Library**: React 18+
-- **Styling**: Tailwind CSS 4 with PostCSS
-- **Build Tool**: Turbopack (default Next.js)
-- **Language**: TypeScript (strict mode)
+| Concern | Technology |
+|---------|-----------|
+| Framework | Next.js (App Router, Turbopack) |
+| UI Library | React |
+| Styling | Tailwind CSS 4 with PostCSS |
+| UI Components | shadcn/ui + Radix UI |
+| API Client | tRPC + TanStack Query |
+| Testing | Vitest (unit), Playwright (E2E) |
 
 ### Shared Infrastructure
 
-- **Package Manager**: bun 1.3.x
-- **Build Orchestration**: Turborepo
-- **Code Quality**: ESLint (flat config) + Prettier
-- **Type System**: TypeScript 5.x
-- **Reverse Proxy**: Caddy v3.5
-- **Containerization**: Docker + Docker Compose
+| Concern | Technology |
+|---------|-----------|
+| Package Manager | Bun 1.3.x |
+| Build Orchestration | Turborepo |
+| Code Quality | Biome (linting + formatting) |
+| Type System | TypeScript 5.x |
+| Reverse Proxy | Caddy v2 |
+| Containerization | Docker + Docker Compose |
+| Monitoring | Prometheus + Grafana + cAdvisor |
 
 ## Monorepo Structure
 
@@ -79,83 +98,109 @@ Aria ERP is a modular, type-safe B2B ERP suite built as a bun + Turborepo monore
 
 #### Backend (`apps/backend/`)
 
-NestJS API server providing tRPC endpoints for all frontend applications.
+NestJS API server providing tRPC endpoints for the frontend application.
 
 **Key Directories:**
 
 ```
 apps/backend/
 ├── src/
-│   ├── modules/          # Feature modules (users, products, etc.)
-│   ├── common/           # Shared pipes, guards, interceptors
-│   ├── app.module.ts     # Root module
-│   └── main.ts           # Application entry point
+│   ├── apps/             # Feature modules
+│   │   └── inventory/    # Inventory module (services, router, tests)
+│   ├── auth/             # better-auth configuration and service
+│   ├── authorization/    # RBAC/ABAC policy, role, permission services
+│   ├── trpc/             # tRPC router assembly and context
+│   │   ├── app-router.ts # Top-level router (inventory + admin + auth + account)
+│   │   ├── trpc.ts       # tRPC init, middleware, procedures
+│   │   ├── trpc.context.ts # Request context with Prisma
+│   │   └── routers/      # Admin, authorization, account routers
+│   ├── shared/           # Shared services (PrismaService, etc.)
+│   └── generated/        # Prisma-generated client
+├── prisma/
+│   ├── schema.prisma     # Database schema (Prisma v7)
+│   ├── migrations/       # Database migrations
+│   ├── seed-authorization.ts # Seed roles, permissions, apps
+│   ├── seeds/            # Additional seed scripts
+│   └── demo-data/        # Demo data system (CLI + orchestrator)
 └── test/                 # Integration tests
 ```
 
 **Principles:**
 
-- Use `nest g` CLI for scaffolding
-- Keep controllers thin, logic in services
-- Feature modules in `src/modules/<domain>`
-- Cross-cutting concerns in `src/common/`
+- Feature modules live in `src/apps/<domain>`
+- Each module has dedicated services in a `services/` directory
+- A single tRPC router per module exposes all procedures
+- Cross-cutting concerns (auth, authorization) are at the top level
 
-#### Frontends (`apps/frontend/`)
+#### Frontend (`apps/frontend/`)
 
-Single Next.js 16 application using App Router with route groups:
+Single Next.js application using App Router with route groups:
 
-- **Asset** - `/asset` route group - Asset management and tracking
-- **CRM** - `/crm` route group - Customer relationship management
-- **HRMS** - `/hrms` route group - Human resources and payroll
-- **Inventory** - Inventory control and warehousing
+| Route Group | Path | Description |
+|-------------|------|-------------|
+| Admin | `/admin` | User, role, permission management + audit logs |
+| Asset | `/asset` | Asset management and tracking |
+| CRM | `/crm` | Customer relationship management |
+| HRMS | `/hrms` | Human resources and payroll |
+| Inventory | `/inventory` | Inventory control and warehousing |
 
-**Structure (example: asset):**
+**Structure:**
 
 ```
-apps/frontend/asset/
+apps/frontend/
 ├── src/
 │   ├── app/              # App Router pages
-│   │   ├── layout.tsx    # Root layout
-│   │   └── page.tsx      # Home page
-│   └── components/       # React components
-├── public/               # Static assets
-└── next.config.ts        # Next.js configuration
+│   │   ├── layout.tsx    # Root layout (AuthGuard + TRPCProvider)
+│   │   ├── admin/        # Admin console
+│   │   ├── asset/        # Asset module
+│   │   ├── crm/          # CRM module
+│   │   ├── hrms/         # HRMS module
+│   │   ├── inventory/    # Inventory module
+│   │   └── auth/         # Authentication pages
+│   ├── components/       # Shared UI components (shadcn/ui)
+│   ├── features/         # Feature-specific components
+│   ├── lib/              # Utilities and tRPC client setup
+│   └── hooks/            # Custom React hooks
+├── e2e/                  # Playwright E2E tests
+└── test/                 # Vitest unit tests
 ```
 
 **Principles:**
 
 - Server Components by default
 - Client Components only when needed (`'use client'`)
-- Use app-specific path aliases (`@asset/*`)
-- Share nothing between frontends directly
+- shadcn/ui components live within the frontend app (no separate UI package)
+- tRPC client provides type-safe API calls via TanStack Query
 
 ### Shared Packages (`packages/`)
 
+#### @aria/api-contract
+
+**Type-only tRPC contract layer.** This package exports the `AppRouter` type and context types that both backend and frontend consume. The backend verifies its implementation satisfies the contract at compile time.
+
+```typescript
+// packages/api-contract/src/index.ts
+export type { AppRouter } from "./trpc/app-router";
+export type { TrpcContextType, TrpcPrismaClient } from "./trpc/trpc.context";
+```
+
+The backend uses `AssertContractCompatibility` type-level checks to ensure the runtime router matches the contract.
+
 #### @aria/types
 
-Central repository for all TypeScript type definitions shared across backend and frontends.
+Central repository for shared TypeScript type definitions and Zod schemas.
 
 ```typescript
 // packages/types/src/index.ts
-export interface User {
-  id: string;
-  name: string;
-  email: string;
-}
+export interface Pagination { page: number; pageSize: number; }
+export interface ApiResponse<T> { data: T; pagination?: Pagination; }
 
 export namespace Inventory {
-  export interface Item {
-    id: string;
-    sku: string;
-    quantity: number;
-  }
+  export interface ItemGroup { /* ... */ }
+  export interface Brand { /* ... */ }
+  export interface UnitOfMeasure { /* ... */ }
+  // + Zod schemas for validation
 }
-```
-
-**Usage:**
-
-```typescript
-import { User, Inventory } from '@aria/types';
 ```
 
 #### @aria/utils
@@ -164,53 +209,19 @@ Pure, deterministic utility functions with no side effects.
 
 ```typescript
 // packages/utils/src/index.ts
-export function formatCurrency(amount: number, currency = 'USD'): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency,
-  }).format(amount);
-}
+export const paginate = (items: unknown[], { page, pageSize }: Pagination) => { /* ... */ };
+export { logger } from "./logger";
 ```
-
-**Rules:**
-
-- ✅ Pure functions only
-- ✅ No I/O operations
-- ✅ No network calls
-- ✅ Deterministic outputs
 
 #### @aria/tsconfig
 
-Shared TypeScript compiler configurations.
+Shared TypeScript compiler configurations:
 
-```
-packages/config-typescript/
-├── base.json          # Base config for packages
-├── nest.json          # NestJS-specific config
-└── next.json          # Next.js-specific config
-```
-
-**Usage in apps:**
-
-```json
-{
-  "extends": "@aria/tsconfig/nest.json",
-  "compilerOptions": {
-    "outDir": "./dist"
-  }
-}
-```
-
-#### @aria/eslint-config
-
-Flat config ESLint presets with Prettier integration.
-
-```
-packages/config-eslint/
-├── base.js           # Base rules
-├── nest.js           # NestJS-specific rules
-└── next.js           # Next.js-specific rules
-```
+| Config | Used By |
+|--------|---------|
+| `base.json` | Shared packages |
+| `nest.json` | Backend |
+| `next.json` | Frontend |
 
 ## Just-in-Time (JIT) Internal Packages
 
@@ -219,71 +230,46 @@ Shared packages follow Turborepo's recommended JIT pattern:
 - **No manual build required** — packages export source TypeScript files directly
 - **Instant hot reload** — changes to shared packages reflect immediately in consuming apps
 - **Consuming apps handle transpilation** — Next.js uses `transpilePackages`, NestJS uses tsc
-- **Type checking only** — run `pnpm --filter @aria/types check-types` for validation
+- **Type checking only** — run `bun --filter @aria/types check-types` for validation
 
 ## Data Flow
 
 ### Frontend → Backend Communication
 
 ```
-┌─────────────┐
-│   Frontend  │
-│  (Next.js)  │
-└──────┬──────┘
-       │ tRPC
-       │
-       ▼
-┌─────────────┐
-│   tRPC Router │ ← Validates with Zod
-│  (NestJS)   │
-└──────┬──────┘
-       │
-       ▼
-┌─────────────┐
-│   Service   │ ← Business logic
-└──────┬──────┘
-       │
-       ▼
-┌─────────────┐
-│   Prisma    │ ← Database access
-└──────┬──────┘
-       │
-       ▼
-┌─────────────┐
-│  PostgreSQL │
-└─────────────┘
+Frontend (Next.js)
+    │
+    │ tRPC (HTTP or WebSocket)
+    ▼
+tRPC Router (NestJS)  ← Validates input with Zod
+    │
+    ▼
+Service Layer         ← Business logic
+    │
+    ▼
+Prisma 7 (PrismaPg)  ← Database access
+    │
+    ▼
+PostgreSQL
 ```
 
-### Type Sharing
+### Type Safety Chain
 
-```typescript
-// 1. Define in @aria/types
-export interface CreateUserDto {
-  name: string;
-  email: string;
-}
+The `@aria/api-contract` package ensures end-to-end type safety:
 
-// 2. Import in backend
-import { CreateUserDto } from '@aria/types';
+1. **Backend** defines tRPC routers with Zod input/output schemas
+2. **Contract** package exports the `AppRouter` type
+3. **Frontend** imports `AppRouter` to create type-safe tRPC client
+4. Any router change that breaks the contract causes a compile-time error on both sides
 
-@Controller('users')
-export class UsersController {
-  @Post()
-  create(@Body() dto: CreateUserDto) {
-    return this.usersService.create(dto);
-  }
-}
+### Authentication Flow
 
-// 3. Import in frontend
-import { CreateUserDto } from '@aria/types';
-
-const user: CreateUserDto = {
-  name: 'John',
-  email: 'john@example.com',
-};
-
-await trpc.createUser.mutate(user);
-```
+1. User submits credentials to the frontend auth page
+2. Frontend calls better-auth API on the backend (`/api/auth/*`)
+3. better-auth validates credentials and creates a session cookie
+4. Subsequent tRPC calls include the session cookie
+5. tRPC `isAuthenticated` middleware validates the session via better-auth
+6. Authenticated context (user + session) is passed to procedures
 
 ## Deployment Architecture
 
@@ -294,54 +280,41 @@ await trpc.createUser.mutate(user);
 │         Docker Host (Linux/Windows)          │
 ├──────────────────────────────────────────────┤
 │                                              │
-│  ┌────────────────────────────────────────┐ │
-│  │  Caddy (Reverse Proxy)               │ │
-│  │  - SSL termination (Let's Encrypt)     │ │
-│  │  - Path-based routing                  │ │
-│  │  - Security headers                    │ │
-│  └──────┬─────────────────────────────────┘ │
+│  ┌────────────────────────────────────────┐  │
+│  │  Caddy v2 (Reverse Proxy)             │  │
+│  │  - Auto HTTPS (local certs)            │  │
+│  │  - HTTP/3 enabled                      │  │
+│  │  - Security headers                    │  │
+│  └──────┬─────────────┬──────────────────┘  │
+│         │             │                      │
+│   /api, /trpc    everything else             │
+│         │             │                      │
+│  ┌──────▼──────┐ ┌────▼─────────┐           │
+│  │ Backend     │ │ Frontend     │           │
+│  │ (3001)      │ │ (3000)       │           │
+│  └──────┬──────┘ └──────────────┘           │
 │         │                                    │
-│  ┌──────┴──────────┐    Docker Network      │
-│  │                 │    (Internal)          │
-│  ├─────────────────┤                        │
-│  │ Backend (3000)  ├──┐                     │
-│  ├─────────────────┤  │                     │
-│  │ Asset (3001)    │  │                     │
-│  ├─────────────────┤  │                     │
-│  │ CRM (3002)      │  │                     │
-│  ├─────────────────┤  │                     │
-│  │ HRMS (3003)     │  │                     │
-│  ├─────────────────┤  │                     │
-│  │ Inventory(3004) │  │                     │
-│  └─────────────────┘  │                     │
-│                       │                     │
-│  ┌────────────────────┴──┐                  │
-│  │  PostgreSQL (5432)    │                  │
-│  │  - Data persistence   │                  │
-│  │  - Volume mounted     │                  │
-│  └───────────────────────┘                  │
+│  ┌──────▼──────┐ ┌──────────────┐           │
+│  │ PostgreSQL  │ │ Redis        │           │
+│  │ (5432)      │ │ (6379)       │           │
+│  └─────────────┘ └──────────────┘           │
+│                                              │
+│  ┌─────────────────────────────────────┐    │
+│  │ Monitoring                          │    │
+│  │  Prometheus (9090)                  │    │
+│  │  Grafana (3000)                     │    │
+│  │  cAdvisor (8080)                    │    │
+│  │  Node Exporter (9100)              │    │
+│  └─────────────────────────────────────┘    │
 └──────────────────────────────────────────────┘
 ```
 
-### Path-Based Routing
+### Path-Based Routing (Caddy)
 
-| URL Path      | Service          | Port |
-| ------------- | ---------------- | ---- |
-| `/`           | Asset Management | 3001 |
-| `/crm/`       | CRM              | 3002 |
-| `/hrms/`      | HRMS             | 3003 |
-| `/inventory/` | Inventory        | 3004 |
-| `/api/`       | Backend API      | 3000 |
-
-### Resource Allocation
-
-**Default Limits:**
-
-- **Caddy**: 0.5 CPU, 512MB RAM
-- **Backend**: 1 CPU, 1GB RAM
-- **Each Frontend**: 0.5 CPU, 512MB RAM
-- **PostgreSQL**: 2 CPU, 2GB RAM
-
-**Scaling for ~200 concurrent users:**
-
-- Total: 4.5 CPU cores, 5.5GB RAM
+| URL Path  | Destination | Description |
+|-----------|-------------|-------------|
+| `/health` | Caddy direct | Health check (responds 200) |
+| `/api/*`  | backend:3001 | better-auth and API endpoints |
+| `/trpc/*` | backend:3001 | tRPC HTTP requests |
+| `/trpc-ws` | backend:3001 | tRPC WebSocket (real-time) |
+| `/*`      | frontend:3000 | Next.js (all other routes) |

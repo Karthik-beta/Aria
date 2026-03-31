@@ -1,136 +1,165 @@
 # Deployment Documentation
 
-This document provides a comprehensive overview of the Aria ERP deployment process, built with Docker and Caddy.
+Overview of the Aria ERP deployment process using Docker Compose, Caddy, and monitoring services.
 
 ## Overview
 
-The deployment process is designed to be simple, reliable, and cross-platform. It uses Docker Compose to orchestrate the different services of the application, and Caddy as a reverse proxy.
+The deployment uses Docker Compose to orchestrate all services, with Caddy v2 as the reverse proxy providing automatic HTTPS, path-based routing, and security headers.
 
 ## Tech Stack
 
-- **Containerization**: Docker
-- **Orchestration**: Docker Compose
-- **Reverse Proxy**: Caddy
-- **Database**: PostgreSQL
-- **Cache**: Redis
+| Concern | Technology |
+|---------|-----------|
+| Containerization | Docker |
+| Orchestration | Docker Compose |
+| Reverse Proxy | Caddy v2 (HTTP/3, auto HTTPS) |
+| Database | PostgreSQL 18 |
+| Cache | Redis 7 |
+| Monitoring | Prometheus + Grafana + cAdvisor + Node Exporter |
+
+## Service Topology
+
+The production deployment (`docker-compose.production.yml`) includes these services:
+
+| Service | Image | Internal Port | Description |
+|---------|-------|---------------|-------------|
+| `caddy` | caddy:2.10.2-alpine | 80, 443 | Reverse proxy with auto HTTPS |
+| `frontend` | aria-frontend | 3000 | Next.js application |
+| `backend` | aria-backend | 3001 | NestJS API server |
+| `postgres` | postgres:18-alpine | 5432 | PostgreSQL database |
+| `redis` | redis:7-alpine | 6379 | Redis cache |
+| `prometheus` | prom/prometheus | 9090 | Metrics collection |
+| `grafana` | grafana/grafana | 3000 | Monitoring dashboards |
+| `cadvisor` | gcr.io/cadvisor/cadvisor | 8080 | Container metrics |
+| `node-exporter` | prom/node-exporter | 9100 | Host metrics |
+
+All services communicate on a single `aria-network` bridge network.
 
 ## Project Structure
 
 ```
 deployment/
 ├── caddy/
-│   ├── Caddyfile.development
-│   └── Caddyfile.production
+│   ├── Caddyfile.development     # Dev reverse proxy config
+│   └── Caddyfile.production      # Production reverse proxy config
+├── monitoring/
+│   ├── grafana/                  # Grafana provisioning
+│   └── prometheus/               # Prometheus config
 ├── scripts/
-│   ├── install-linux.sh
-│   └── install-windows.ps1
+│   ├── install-linux.sh          # Linux installer
+│   └── install-windows.ps1      # Windows installer
 ├── ssl/
-│   ├── generate-certs.ps1
-│   └── generate-certs.sh
+│   ├── generate-certs.sh        # SSL cert generation (Linux)
+│   └── generate-certs.ps1       # SSL cert generation (Windows)
 ├── systemd/
-│   └── aria-erp.service
+│   └── aria-erp.service          # Linux systemd service
 ├── tests/
-│   ├── health-check.ps1
-│   └── health-check.sh
+│   ├── health-check.sh          # Health check (Linux)
+│   └── health-check.ps1         # Health check (Windows)
 └── windows/
-    └── aria-erp.xml
+    └── aria-erp.xml              # Windows service config
 ```
 
-- **`caddy/`**: Contains the Caddy configuration files for development and production.
-- **`scripts/`**: Contains the installation scripts for Linux and Windows.
-- **`ssl/`**: Contains scripts to generate SSL certificates for development.
-- **`systemd/`**: Contains the systemd service file for Linux.
-- **`tests/`**: Contains health check scripts for Linux and Windows.
-- **`windows/`**: Contains the Windows service configuration file.
+## Caddy Routing
 
-## Installation
+Caddy routes requests based on URL path:
 
-The installation process is automated with scripts for Linux and Windows.
+| Path | Destination | Description |
+|------|-------------|-------------|
+| `/health` | Direct 200 | Health check endpoint |
+| `/api/*` | backend:3001 | better-auth and API endpoints |
+| `/trpc/*` | backend:3001 | tRPC HTTP requests |
+| `/trpc-ws` | backend:3001 | tRPC WebSocket (real-time) |
+| `/*` | frontend:3000 | Next.js (all other routes) |
+
+Features: HTTP/3 support, security headers (X-Content-Type-Options, X-Frame-Options, X-XSS-Protection), automatic local certificates, SSR streaming support.
+
+## Quick Start
+
+### Production Deployment
+
+```bash
+# Deploy all services
+docker compose -f docker-compose.production.yml up -d --build
+
+# Check service health
+bash deployment/tests/health-check.sh
+
+# View logs
+docker compose -f docker-compose.production.yml logs -f backend
+```
+
+### Development Deployment
+
+```bash
+docker compose -f docker-compose.development.yml up -d
+```
+
+## Required Environment Variables
+
+Set these in a `.env` file at the project root:
+
+| Variable | Description |
+|----------|-------------|
+| `POSTGRES_PASSWORD` | PostgreSQL password |
+| `REDIS_PASSWORD` | Redis password (optional) |
+| `BETTER_AUTH_SECRET` | Auth session signing secret |
+| `DOMAIN` | Domain name or IP for Caddy |
+| `DEFAULT_ADMIN_USERNAME` | Initial admin username |
+| `DEFAULT_ADMIN_PASSWORD` | Initial admin password |
+| `DEFAULT_ADMIN_EMAIL` | Initial admin email |
+
+## Installation Scripts
 
 ### Linux
 
-Run the `install-linux.sh` script as root. This will:
+```bash
+sudo bash deployment/scripts/install-linux.sh
+```
 
-1.  Install Docker and Docker Compose if they are not already installed.
-2.  Create the necessary directories.
-3.  Generate SSL certificates for development.
-4.  Create a `.env` file from the template.
-5.  Build the Docker images.
-6.  Create a systemd service to manage the application.
-7.  Start the application.
+Installs Docker, creates directories, generates SSL certs, builds images, creates a systemd service, and starts the application.
 
 ### Windows
 
-Run the `install-windows.ps1` script as an administrator. This will:
+```powershell
+.\deployment\scripts\install-windows.ps1
+```
 
-1.  Check if Docker Desktop is installed.
-2.  Create the necessary directories.
-3.  Generate SSL certificates for development.
-4.  Create a `.env` file from the template.
-5.  Build the Docker images.
-6.  Create a Windows service to manage the application.
-7.  Start the application.
+Checks Docker Desktop, creates directories, generates SSL certs, builds images, creates a Windows service, and starts the application.
 
-## Configuration
+## Database
 
-The application is configured using environment variables in a `.env` file. The installation scripts create a `.env` file from the `.env.production.template` file.
+PostgreSQL is configured with production-tuned settings:
 
-### Required Environment Variables
+- `max_connections=200`
+- `shared_buffers=256MB`
+- Health checks on startup
+- Data persisted to `postgres-data` volume
 
-- `POSTGRES_PASSWORD`: The password for the PostgreSQL database.
-- `REDIS_PASSWORD`: The password for the Redis cache.
-- `JWT_SECRET`: The secret for signing JWTs.
-- `DOMAIN`: The domain name or IP address of the server.
+Migrations run automatically on backend startup via `docker-entrypoint.sh`.
 
-## Services
+## Monitoring
 
-The application is composed of the following services:
+The monitoring stack provides observability:
 
-- **`caddy`**: The Caddy reverse proxy.
-- **`frontend`**: The Next.js frontend.
-- **`backend`**: The NestJS backend.
-- **`postgres`**: The PostgreSQL database.
-- **`redis`**: The Redis cache.
-
-These services are defined in the `docker-compose.production.yml` file.
-
-## SSL Certificates
-
-For development, SSL certificates are generated automatically by the installation scripts. For production, it is recommended to use a trusted certificate authority like Let's Encrypt. Caddy can automatically obtain and renew certificates from Let's Encrypt.
-
-## Health Checks
-
-The `tests/` directory contains health check scripts for Linux and Windows. These scripts check the status of the different services and provide a summary of the application's health.
+- **Prometheus** (port 9090) — Metrics collection from all services
+- **Grafana** (port 3000 internally) — Dashboards and visualization
+- **cAdvisor** (port 8080) — Container resource usage
+- **Node Exporter** (port 9100) — Host system metrics
 
 ## Troubleshooting
 
 ### Container Issues
 
-- **Container won't start**: Check the container's logs for errors.
-- **Container keeps restarting**: Check the container's health check.
+- **Container won't start**: `docker compose -f docker-compose.production.yml logs <service>`
+- **Container keeps restarting**: Check health check and dependencies
 
 ### Network Issues
 
-- **Cannot access application**: Check the firewall settings.
-- **Internal service communication failing**: Check the Docker network.
+- **Cannot access application**: Verify Caddy is running and ports 80/443 are open
+- **Internal communication failing**: Check Docker network with `docker network inspect aria-network`
 
 ### Database Issues
 
-- **Database connection failed**: Check the database credentials in the `.env` file.
-- **Database performance issues**: Check the database logs for slow queries.
-
-## Best Practices
-
-### Docker
-
-- **Use multi-stage builds** to create small and secure images.
-- **Run containers as a non-root user**.
-- **Use a `.dockerignore` file** to exclude unnecessary files from the build context.
-- **Scan images for vulnerabilities**.
-
-### Caddy
-
-- **Use persistent volumes** for TLS certificates.
-- **Enable logging** to facilitate debugging.
-- **Secure the Caddyfile** by restricting file permissions.
-- **Use separate site blocks** for different sites.
+- **Connection failed**: Verify `DATABASE_URL` and PostgreSQL container health
+- **Migration failed**: Check backend logs and see [Prisma docs](./03-backend/02-prisma/README.md)

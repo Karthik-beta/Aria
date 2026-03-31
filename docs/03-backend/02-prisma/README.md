@@ -1,10 +1,29 @@
-# Prisma Migrations - Quick Reference
+# Prisma & Database — Quick Reference
 
-## TL;DR
+## Overview
 
-Database migrations now run **automatically** on container startup. No manual intervention needed.
+Aria uses **Prisma 7** with the **PrismaPg** adapter for PostgreSQL. Key differences from earlier Prisma versions:
+
+- Provider: `prisma-client` (not `prisma-client-js`)
+- Required `output` field in generator block
+- Module format: `cjs` (for NestJS compatibility)
+- Datasource URL configured in `prisma.config.ts` (not in `schema.prisma`)
+
+## Schema Location
+
+```
+apps/backend/prisma/
+├── schema.prisma              # Database schema definition
+├── prisma.config.ts           # Datasource configuration
+├── migrations/                # Migration files
+├── seed-authorization.ts      # Seeds roles, permissions, apps
+├── seeds/                     # Additional seed scripts
+└── demo-data/                 # Demo data CLI + orchestrator
+```
 
 ## Production Deployment
+
+Migrations run **automatically** on container startup via `docker-entrypoint.sh`.
 
 ```bash
 # 1. Commit your migration files
@@ -18,35 +37,67 @@ docker compose -f docker-compose.production.yml up -d --build backend
 docker logs aria-backend | grep "migrate"
 ```
 
-## Development - Creating New Migrations
+## Development — Creating New Migrations
 
-### Method 1: Inside Container (Recommended)
-
-```bash
-# 1. Modify schema.prisma
-# 2. Create migration
-docker exec -it aria-dev-backend sh -c "cd /app/apps/backend && npx prisma migrate dev --name your_feature_name"
-```
-
-### Method 2: Local (Requires local DB)
+### Recommended: Local with Bun
 
 ```bash
 cd apps/backend
-npx prisma migrate dev --name your_feature_name
+
+# 1. Modify schema.prisma
+# 2. Create and apply migration
+bun x --bun prisma migrate dev --name your_feature_name
+```
+
+### Inside Container
+
+```bash
+docker exec -it aria-dev-backend sh -c "cd /app/apps/backend && bun x --bun prisma migrate dev --name your_feature_name"
 ```
 
 ## Common Commands
 
 ```bash
-# View migration status
-docker exec aria-backend npx prisma migrate status
+cd apps/backend
 
-# View migrations history (database)
-docker exec aria-postgres psql -U aria -d aria -c "SELECT * FROM _prisma_migrations;"
+# View migration status
+bun x --bun prisma migrate status
 
 # Generate Prisma Client (after schema changes)
-docker exec aria-backend npx prisma generate
+bun x --bun prisma generate
+
+# Reset database (WARNING: deletes all data)
+bun x --bun prisma migrate reset
+
+# Apply migrations without creating new ones (production)
+bun x --bun prisma migrate deploy
+
+# Open Prisma Studio (visual database browser)
+bun x --bun prisma studio
+
+# Seed authorization data
+bun x tsx prisma/seed-authorization.ts
+
+# Seed demo data
+bun x tsx prisma/demo-data/cli.ts seed --scale medium
 ```
+
+## Schema Configuration (Prisma v7)
+
+```prisma
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+  // URL is configured in prisma.config.ts, not here
+}
+```
+
+The datasource URL is resolved in `prisma.config.ts`, which reads from `DATABASE_URL` environment variable.
 
 ## Troubleshooting
 
@@ -60,7 +111,7 @@ docker logs aria-backend --tail 50
 docker exec -it aria-postgres psql -U aria -d aria
 
 # 3. Mark migration as applied (if schema is correct)
-docker exec aria-backend npx prisma migrate resolve --applied <migration_name>
+docker exec aria-backend bun x --bun prisma migrate resolve --applied <migration_name>
 
 # 4. Restart container
 docker compose -f docker-compose.production.yml restart backend
@@ -69,26 +120,14 @@ docker compose -f docker-compose.production.yml restart backend
 ### Need to Reset Development Database
 
 ```bash
+cd apps/backend
 # WARNING: Deletes all data!
-docker exec aria-dev-backend sh -c "cd /app/apps/backend && npx prisma migrate reset"
-```
-
-## File Structure
-
-```
-apps/backend/prisma/
-├── schema.prisma              # Your schema definition
-├── migrations/
-│   ├── migration_lock.toml    # Provider lock (don't edit)
-│   ├── 0_init/
-│   │   └── migration.sql      # Baseline migration
-│   └── 20251024_add_feature/
-│       └── migration.sql      # Your new migration
+bun x --bun prisma migrate reset
 ```
 
 ## When to Create Migrations
 
-✅ **DO create migrations for**:
+**DO create migrations for:**
 
 - Adding/removing tables
 - Adding/removing columns
@@ -96,10 +135,10 @@ apps/backend/prisma/
 - Adding/removing indexes
 - Adding/removing constraints
 
-❌ **DON'T need migrations for**:
+**DON'T need migrations for:**
 
 - Changing TypeScript types only
-- Adding JSDoc comments
+- Adding comments to schema
 - Renaming Prisma Client properties (use `@map()`)
 
 ## Best Practices
@@ -109,10 +148,6 @@ apps/backend/prisma/
 3. **Use descriptive names**: `add_user_roles` not `migration_1`
 4. **One logical change per migration** (makes rollback easier)
 5. **Review generated SQL** before committing
-
-## Documentation
-
-Full guide: [`apps/backend/PRISMA_MIGRATIONS.md`](../apps/backend/PRISMA_MIGRATIONS.md)
 
 ---
 
