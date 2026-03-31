@@ -188,6 +188,7 @@ export async function seedTransactions(
 				),
 				totalAmount: totalAmt,
 				taxesAndChargesAdded: gst,
+				totalTaxesAndCharges: gst,
 				grandTotal: totalAmt + gst,
 				currency: config.currency,
 				items: { create: itemsData },
@@ -381,6 +382,7 @@ export async function seedTransactions(
 
 	for (let i = 0; i < dnCount; i++) {
 		const customer = pick(CUSTOMERS);
+		const [custName, custCity = "Bengaluru"] = customer.split(", ");
 		const lineItems = pickN(stockItems, randomInt(2, 4));
 		const series = nextSeries("MAT-DN", dnC, year);
 
@@ -419,7 +421,7 @@ export async function seedTransactions(
 				totalQuantity: totalQty,
 				totalAmount: totalAmt,
 				grandTotal: totalAmt,
-				shippingAddress: `${customer.split(",")[0]}, Bengaluru`,
+				shippingAddress: `${custName}, ${custCity}`,
 				companyAddress:
 					"Pivotr Electronics, Peenya Industrial Area, Bengaluru 560058",
 				items: { create: itemsData },
@@ -720,6 +722,7 @@ export async function seedTransactions(
 
 	for (let i = 0; i < instCount; i++) {
 		const customer = pick(CUSTOMERS);
+		const [custName, custCity = "Bengaluru"] = customer.split(", ");
 		const series = nextSeries("MAT-INS", inC, year);
 		const dnId =
 			deliveryNoteIds.length > 0
@@ -747,9 +750,9 @@ export async function seedTransactions(
 				series,
 				installationDate: instDates[i],
 				installationTime: `${zeroPad(9 + (i % 8), 2)}:${zeroPad((i * 15) % 60, 2)}:00`,
-				customer: customer.split(",")[0],
+				customer: custName,
 				customerName: customer,
-				customerAddress: `${customer}, Bengaluru, Karnataka`,
+				customerAddress: `${custName}, ${custCity}, India`,
 				territory: "South India",
 				company: config.company,
 				status: i < instCount - 1 ? "COMPLETED" : "IN_PROGRESS",
@@ -812,13 +815,17 @@ export async function seedTransactions(
 					],
 				},
 				suppliedItems: {
-					create: rawItems.map((rm) => ({
-						rmItemCode: rm.code,
-						rmItemName: rm.name,
-						requiredQty: fgQty * randomInt(5, 20),
-						suppliedQty: i < scoCount - 1 ? fgQty * randomInt(5, 20) : 0,
-						returnedQty: 0,
-					})),
+					create: rawItems.map((rm) => {
+						const rmMultiplier = randomInt(5, 20);
+						const reqQty = fgQty * rmMultiplier;
+						return {
+							rmItemCode: rm.code,
+							rmItemName: rm.name,
+							requiredQty: reqQty,
+							suppliedQty: i < scoCount - 1 ? reqQty : 0,
+							returnedQty: 0,
+						};
+					}),
 				},
 			},
 		});
