@@ -212,6 +212,9 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
 	get serialNoHistory() {
 		return this.client.serialNoHistory;
 	}
+	get batch() {
+		return this.client.batch;
+	}
 	get deliveryTrip() {
 		return this.client.deliveryTrip;
 	}

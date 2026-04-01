@@ -1918,7 +1918,14 @@ function createDeleteManyQiTemplatesProcedure(
 		});
 }
 
+function createGetDashboardDataProcedure(inventoryService: InventoryService) {
+	return protectedProcedure.query(async () => {
+		return inventoryService.getDashboardData();
+	});
+}
+
 type InventoryRouterInput = {
+	getDashboardData: ReturnType<typeof createGetDashboardDataProcedure>;
 	listItems: ReturnType<typeof createListItemsProcedure>;
 	listItemGroups: ReturnType<typeof createListItemGroupsProcedure>;
 	listUnitsOfMeasure: ReturnType<typeof createListUnitsOfMeasureProcedure>;
@@ -2200,6 +2207,7 @@ function createInventoryRouterRecord(
 	inventoryService: InventoryService,
 ): InventoryRouterInput {
 	return {
+		getDashboardData: createGetDashboardDataProcedure(inventoryService),
 		listItems: createListItemsProcedure(inventoryService),
 		listItemGroups: createListItemGroupsProcedure(inventoryService),
 		listUnitsOfMeasure: createListUnitsOfMeasureProcedure(inventoryService),
