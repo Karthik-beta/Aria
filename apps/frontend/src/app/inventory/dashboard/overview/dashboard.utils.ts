@@ -174,7 +174,8 @@ export function getStockValueInsight(
 			subtext: `${totalItems} item${totalItems === 1 ? "" : "s"} in catalogue`,
 		};
 	}
-	const avgPerUnit = Math.round((totalStockValue / totalStockQuantity) * 100) / 100;
+	const avgPerUnit =
+		Math.round((totalStockValue / totalStockQuantity) * 100) / 100;
 	return {
 		text: `~${formatCompactCurrency(avgPerUnit)} avg per unit`,
 		subtext: `Across ${totalItems} active item type${totalItems === 1 ? "" : "s"}`,
