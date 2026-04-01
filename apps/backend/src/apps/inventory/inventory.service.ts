@@ -11,7 +11,8 @@
 import type { Inventory } from "@aria/types";
 import { Injectable } from "@nestjs/common";
 import type { z } from "zod";
-import type { PrismaService } from "../../shared/prisma.service";
+// biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
+import { PrismaService } from "../../shared/prisma.service";
 import { BatchSubService } from "./services/batch.service";
 import { DeliverySubService } from "./services/delivery.service";
 import { InstallationNoteSubService } from "./services/installation-note.service";
