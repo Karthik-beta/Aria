@@ -557,7 +557,7 @@ export default function StockAgeingPage() {
 					</div>
 					<ChartContainer
 						config={chartConfig}
-						className="h-[320px] w-full min-w-0"
+						className="h-[320px] w-full min-w-0 min-h-[320px]"
 					>
 						<BarChart data={chartData}>
 							<CartesianGrid vertical={false} />

@@ -475,46 +475,56 @@ export default function PurchaseReceiptTrendsPage() {
 							values by total received amount.
 						</p>
 					</div>
-					<ResponsiveContainer width="100%" height={300}>
-						<BarChart
-							data={barChartData}
-							layout="vertical"
-							margin={{ left: 8, right: 16, top: 4, bottom: 4 }}
+					<div className="h-[300px] w-full min-w-0 min-h-[300px]">
+						<ResponsiveContainer
+							width="100%"
+							height="100%"
+							minWidth={0}
+							minHeight={300}
 						>
-							<CartesianGrid strokeDasharray="3 3" horizontal={false} />
-							<XAxis
-								type="number"
-								tickFormatter={(v: number) =>
-									`₹${new Intl.NumberFormat("en-IN", {
-										notation: "compact",
-										maximumFractionDigits: 1,
-									}).format(v)}`
-								}
-								tick={{ fontSize: 11 }}
-							/>
-							<YAxis
-								dataKey="label"
-								type="category"
-								width={160}
-								tick={{ fontSize: 11 }}
-							/>
-							<Tooltip
-								formatter={(value) => [
-									formatAmount(Number(value ?? 0)),
-									"Amount",
-								]}
-							/>
-							{barChartData.map((_, i) => (
-								<Bar
-									key={`bar_${i.toString()}`}
-									dataKey="amount"
-									fill={getSeriesColor(i)}
-								>
-									<Cell key={`cell_${i.toString()}`} fill={getSeriesColor(i)} />
-								</Bar>
-							))}
-						</BarChart>
-					</ResponsiveContainer>
+							<BarChart
+								data={barChartData}
+								layout="vertical"
+								margin={{ left: 8, right: 16, top: 4, bottom: 4 }}
+							>
+								<CartesianGrid strokeDasharray="3 3" horizontal={false} />
+								<XAxis
+									type="number"
+									tickFormatter={(v: number) =>
+										`₹${new Intl.NumberFormat("en-IN", {
+											notation: "compact",
+											maximumFractionDigits: 1,
+										}).format(v)}`
+									}
+									tick={{ fontSize: 11 }}
+								/>
+								<YAxis
+									dataKey="label"
+									type="category"
+									width={160}
+									tick={{ fontSize: 11 }}
+								/>
+								<Tooltip
+									formatter={(value) => [
+										formatAmount(Number(value ?? 0)),
+										"Amount",
+									]}
+								/>
+								{barChartData.map((_, i) => (
+									<Bar
+										key={`bar_${i.toString()}`}
+										dataKey="amount"
+										fill={getSeriesColor(i)}
+									>
+										<Cell
+											key={`cell_${i.toString()}`}
+											fill={getSeriesColor(i)}
+										/>
+									</Bar>
+								))}
+							</BarChart>
+						</ResponsiveContainer>
+					</div>
 				</section>
 			) : null}
 

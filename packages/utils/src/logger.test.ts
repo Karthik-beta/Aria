@@ -10,37 +10,29 @@ describe("logger", () => {
 		debug: mock((..._: unknown[]) => {}),
 	};
 	const originals = {
-		// biome-ignore lint/suspicious/noConsole: testing logger which wraps console
+		// biome-ignore lint/suspicious/noConsole: preserving original console methods for restoration in this logger test
 		info: console.info,
-		// biome-ignore lint/suspicious/noConsole: testing logger which wraps console
+		// biome-ignore lint/suspicious/noConsole: preserving original console methods for restoration in this logger test
 		warn: console.warn,
-		// biome-ignore lint/suspicious/noConsole: testing logger which wraps console
+		// biome-ignore lint/suspicious/noConsole: preserving original console methods for restoration in this logger test
 		error: console.error,
-		// biome-ignore lint/suspicious/noConsole: testing logger which wraps console
+		// biome-ignore lint/suspicious/noConsole: preserving original console methods for restoration in this logger test
 		debug: console.debug,
 	};
 
 	beforeEach(() => {
 		// Replace console methods with spies (safe: restored in afterEach)
-		// biome-ignore lint/suspicious/noConsole: testing logger which wraps console
 		console.info = spies.info;
-		// biome-ignore lint/suspicious/noConsole: testing logger which wraps console
 		console.warn = spies.warn;
-		// biome-ignore lint/suspicious/noConsole: testing logger which wraps console
 		console.error = spies.error;
-		// biome-ignore lint/suspicious/noConsole: testing logger which wraps console
 		console.debug = spies.debug;
 	});
 
 	afterEach(() => {
 		// Always restore — even if a test throws
-		// biome-ignore lint/suspicious/noConsole: testing logger which wraps console
 		console.info = originals.info;
-		// biome-ignore lint/suspicious/noConsole: testing logger which wraps console
 		console.warn = originals.warn;
-		// biome-ignore lint/suspicious/noConsole: testing logger which wraps console
 		console.error = originals.error;
-		// biome-ignore lint/suspicious/noConsole: testing logger which wraps console
 		console.debug = originals.debug;
 		process.env.NODE_ENV = originalEnv;
 		for (const spy of Object.values(spies)) spy.mockClear();

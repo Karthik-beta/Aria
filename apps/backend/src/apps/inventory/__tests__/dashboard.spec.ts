@@ -7,7 +7,7 @@ import { DashboardSubService } from "../services/dashboard.service";
  * Creates a minimal mock of PrismaService for DashboardSubService tests.
  *
  * Key design decisions:
- * - $queryRawUnsafe uses SQL-content dispatch to avoid call-order fragility
+ * - $queryRaw uses SQL-content dispatch to avoid call-order fragility
  *   (getKpis and getLowStockItems run in parallel so order is non-deterministic).
  * - stockEntry.findMany defaults to [] via mockResolvedValue to handle both
  *   the getStockMovements call and the getRecentActivity call safely.
@@ -15,9 +15,11 @@ import { DashboardSubService } from "../services/dashboard.service";
  */
 function createDashboardMockPrisma() {
 	const client = {
-		$queryRawUnsafe: jest.fn((sql: string) => {
+		$queryRaw: jest.fn((query: TemplateStringsArray | string) => {
+			const sql = Array.isArray(query) ? query.join("") : query;
+
 			if (sql.includes("COUNT(*)::bigint")) {
-				// Low-stock count fallback
+				// Low-stock count query
 				return Promise.resolve([{ count: BigInt(0) }]);
 			}
 			if (sql.includes("COALESCE(SUM")) {
@@ -86,21 +88,26 @@ describe("DashboardSubService › getKpis", () => {
 	});
 
 	it("returns correct KPI values from Prisma aggregations", async () => {
-		mp.inventoryItem.count
-			.mockResolvedValueOnce(100) // totalItems
-			.mockResolvedValue(8); // lowStockCount (field comparison succeeds)
+		mp.inventoryItem.count.mockResolvedValueOnce(100);
 		mp.warehouse.count.mockResolvedValue(5);
 		mp.materialRequest.count.mockResolvedValue(12);
 		mp.inventoryItem.aggregate.mockResolvedValue({
 			_sum: { quantity: 2500 },
 			_count: 100,
 		});
-		mp.client.$queryRawUnsafe.mockImplementation((sql: string) => {
-			if (sql.includes("COALESCE(SUM")) {
-				return Promise.resolve([{ total: 3_750_000 }]);
-			}
-			return Promise.resolve([]);
-		});
+		mp.client.$queryRaw.mockImplementation(
+			(query: TemplateStringsArray | string) => {
+				const sql = Array.isArray(query) ? query.join("") : query;
+
+				if (sql.includes("COALESCE(SUM")) {
+					return Promise.resolve([{ total: 3_750_000 }]);
+				}
+				if (sql.includes("COUNT(*)::bigint")) {
+					return Promise.resolve([{ count: BigInt(8) }]);
+				}
+				return Promise.resolve([]);
+			},
+		);
 
 		const result = await service.getDashboardData();
 
@@ -114,22 +121,24 @@ describe("DashboardSubService › getKpis", () => {
 		});
 	});
 
-	it("falls back to raw COUNT query when Prisma field-comparison throws", async () => {
-		mp.inventoryItem.count
-			.mockResolvedValueOnce(50) // totalItems
-			.mockRejectedValue(new Error("invalid expression")); // lowStockCount fails
+	it("uses the raw COUNT query for low-stock items", async () => {
+		mp.inventoryItem.count.mockResolvedValueOnce(50);
 		mp.warehouse.count.mockResolvedValue(2);
 		mp.materialRequest.count.mockResolvedValue(0);
 		mp.inventoryItem.aggregate.mockResolvedValue({
 			_sum: { quantity: 100 },
 			_count: 50,
 		});
-		mp.client.$queryRawUnsafe.mockImplementation((sql: string) => {
-			if (sql.includes("COUNT(*)::bigint")) {
-				return Promise.resolve([{ count: BigInt(7) }]);
-			}
-			return Promise.resolve([{ total: 0 }]);
-		});
+		mp.client.$queryRaw.mockImplementation(
+			(query: TemplateStringsArray | string) => {
+				const sql = Array.isArray(query) ? query.join("") : query;
+
+				if (sql.includes("COUNT(*)::bigint")) {
+					return Promise.resolve([{ count: BigInt(7) }]);
+				}
+				return Promise.resolve([{ total: 0 }]);
+			},
+		);
 
 		const result = await service.getDashboardData();
 
@@ -144,7 +153,7 @@ describe("DashboardSubService › getKpis", () => {
 			_sum: { quantity: null },
 			_count: 0,
 		});
-		mp.client.$queryRawUnsafe.mockImplementation(() =>
+		mp.client.$queryRaw.mockImplementation(() =>
 			Promise.resolve([{ total: null, count: BigInt(0) }]),
 		);
 
@@ -715,8 +724,10 @@ describe("DashboardSubService › getLowStockItems", () => {
 	it("maps raw SQL rows to DashboardLowStockItem shape", async () => {
 		// Cast to jest.Mock to allow returning a 3rd shape (low-stock rows)
 		// that the factory's inferred type doesn't include.
-		(mp.client.$queryRawUnsafe as jest.Mock).mockImplementation(
-			(sql: string) => {
+		(mp.client.$queryRaw as jest.Mock).mockImplementation(
+			(query: TemplateStringsArray | string) => {
+				const sql = Array.isArray(query) ? query.join("") : query;
+
 				if (sql.includes("COALESCE(SUM")) {
 					return Promise.resolve([{ total: 0 }]);
 				}

@@ -404,7 +404,7 @@ function StockMovementChart({
 			<CardContent className="px-2 pt-4 sm:px-6 sm:pt-6">
 				<ChartContainer
 					config={movementChartConfig}
-					className="aspect-auto h-[300px] w-full"
+					className="aspect-auto h-[300px] w-full min-w-0 min-h-[300px]"
 				>
 					<AreaChart data={data} margin={{ left: 12, right: 12 }}>
 						<defs>
@@ -523,7 +523,7 @@ function WarehouseStockChart({
 			<CardContent className="px-2 pt-4 sm:px-6 sm:pt-6">
 				<ChartContainer
 					config={warehouseChartConfig}
-					className="aspect-auto h-[300px] w-full"
+					className="aspect-auto h-[300px] w-full min-w-0 min-h-[300px]"
 				>
 					<BarChart
 						data={chartData}
@@ -603,7 +603,7 @@ function ItemGroupDistributionChart({
 			<CardContent className="px-2 pt-4 sm:px-6 sm:pt-6">
 				<ChartContainer
 					config={chartConfig}
-					className="mx-auto aspect-square h-[300px]"
+					className="mx-auto aspect-square h-[300px] w-full min-w-0 min-h-[300px]"
 				>
 					<PieChart>
 						<ChartTooltip
@@ -710,7 +710,7 @@ function StockEntryBreakdownChart({
 			<CardContent className="px-2 pt-4 sm:px-6 sm:pt-6">
 				<ChartContainer
 					config={chartConfig}
-					className="mx-auto aspect-square h-[300px]"
+					className="mx-auto aspect-square h-[300px] w-full min-w-0 min-h-[300px]"
 				>
 					<PieChart>
 						<ChartTooltip
@@ -827,7 +827,7 @@ function TopMovingItemsChart({
 			<CardContent className="px-2 pt-4 sm:px-6 sm:pt-6">
 				<ChartContainer
 					config={topMovingConfig}
-					className="aspect-auto h-[300px] w-full"
+					className="aspect-auto h-[300px] w-full min-w-0 min-h-[300px]"
 				>
 					<BarChart data={chartData}>
 						<defs>

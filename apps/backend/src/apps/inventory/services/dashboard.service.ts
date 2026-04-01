@@ -64,7 +64,7 @@ export class DashboardSubService {
 			totalItems,
 			activeWarehouses,
 			pendingMaterialRequests,
-			lowStockCount,
+			lowStockCountResult,
 			stockAggregation,
 		] = await Promise.all([
 			this.prisma.inventoryItem.count({
@@ -76,26 +76,16 @@ export class DashboardSubService {
 			this.prisma.materialRequest.count({
 				where: { status: { in: ["PENDING", "APPROVED", "PARTIALLY_ORDERED"] } },
 			}),
-			this.prisma.inventoryItem
-				.count({
-					where: {
-						disabled: false,
-						maintainStock: true,
-						safetyStock: { gt: 0 },
-						quantity: {
-							lt: this.prisma.inventoryItem.fields?.safetyStock as never,
-						},
-					},
-				})
-				.catch(() =>
-					// Prisma doesn't support field-vs-field comparison in WHERE, so
-					// we use a raw query fallback.
-					this.prisma.client
-						.$queryRawUnsafe<[{ count: bigint }]>(
-							`SELECT COUNT(*)::bigint AS count FROM "inventory_items" WHERE "disabled" = false AND "maintainStock" = true AND "safetyStock" > 0 AND "quantity" < "safetyStock"`,
-						)
-						.then((rows: [{ count: bigint }]) => Number(rows[0]?.count ?? 0)),
-				),
+			// Prisma field references require matching scalar types. Since quantity is
+			// Int and safetyStock is Float, use a raw query for this KPI.
+			this.prisma.client.$queryRaw<
+				[{ count: bigint }]
+			>`SELECT COUNT(*)::bigint AS count
+				 FROM "inventory_items"
+				 WHERE "disabled" = false
+				   AND "maintainStock" = true
+				   AND "safetyStock" > 0
+				   AND "quantity" < "safetyStock"`,
 			this.prisma.inventoryItem.aggregate({
 				where: { disabled: false, maintainStock: true },
 				_sum: { quantity: true },
@@ -104,17 +94,18 @@ export class DashboardSubService {
 		]);
 
 		// Compute total stock value as SUM(quantity * valuationRate)
-		const stockValueResult = await this.prisma.client.$queryRawUnsafe<
+		const stockValueResult = await this.prisma.client.$queryRaw<
 			[{ total: number | null }]
-		>(
-			`SELECT COALESCE(SUM("quantity" * COALESCE("valuationRate", 0)), 0)::float AS total FROM "inventory_items" WHERE "disabled" = false AND "maintainStock" = true`,
-		);
+		>`SELECT COALESCE(SUM("quantity" * COALESCE("valuationRate", 0)), 0)::float AS total
+		  FROM "inventory_items"
+		  WHERE "disabled" = false
+		    AND "maintainStock" = true`;
 
 		return {
 			totalItems,
 			activeWarehouses,
 			pendingMaterialRequests,
-			lowStockItemCount: typeof lowStockCount === "number" ? lowStockCount : 0,
+			lowStockItemCount: Number(lowStockCountResult[0]?.count ?? 0),
 			totalStockValue: stockValueResult[0]?.total ?? 0,
 			totalStockQuantity: stockAggregation._sum.quantity ?? 0,
 		};
@@ -342,23 +333,21 @@ export class DashboardSubService {
 	}
 
 	private async getLowStockItems(): Promise<Inventory.DashboardLowStockItem[]> {
-		const items = await this.prisma.client.$queryRawUnsafe<
+		const items = await this.prisma.client.$queryRaw<
 			Array<{
 				code: string;
 				name: string;
 				quantity: number;
 				safetyStock: number;
 			}>
-		>(
-			`SELECT "code", "name", "quantity", "safetyStock"
-			 FROM "inventory_items"
-			 WHERE "disabled" = false
-			   AND "maintainStock" = true
-			   AND "safetyStock" > 0
-			   AND "quantity" < "safetyStock"
-			 ORDER BY ("safetyStock" - "quantity") DESC
-			 LIMIT 15`,
-		);
+		>`SELECT "code", "name", "quantity", "safetyStock"
+		  FROM "inventory_items"
+		  WHERE "disabled" = false
+		    AND "maintainStock" = true
+		    AND "safetyStock" > 0
+		    AND "quantity" < "safetyStock"
+		  ORDER BY ("safetyStock" - "quantity") DESC
+		  LIMIT 15`;
 
 		return items.map((item) => ({
 			itemCode: item.code,

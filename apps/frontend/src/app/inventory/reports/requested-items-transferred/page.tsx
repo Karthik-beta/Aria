@@ -505,45 +505,52 @@ export default function RequestedItemsToBeTransferredPage() {
 								</CardTitle>
 							</CardHeader>
 							<CardContent>
-								<ResponsiveContainer width="100%" height={260}>
-									<BarChart
-										data={chartData}
-										margin={{ top: 4, right: 12, left: 0, bottom: 4 }}
+								<div className="h-[260px] w-full min-w-0 min-h-[260px]">
+									<ResponsiveContainer
+										width="100%"
+										height="100%"
+										minWidth={0}
+										minHeight={260}
 									>
-										<CartesianGrid strokeDasharray="3 3" vertical={false} />
-										<XAxis
-											dataKey="label"
-											tickLine={false}
-											axisLine={false}
-											tick={{ fontSize: 11 }}
-										/>
-										<YAxis
-											tickLine={false}
-											axisLine={false}
-											tickFormatter={formatQty}
-											tick={{ fontSize: 11 }}
-										/>
-										<Tooltip
-											formatter={(value) => [
-												formatQty(Number(value ?? 0)),
-												"Qty To Transfer",
-											]}
-											labelFormatter={(label, payload) => {
-												const item = payload?.[0]?.payload as
-													| { requestCount?: number }
-													| undefined;
-												return item?.requestCount != null
-													? `${label} · ${item.requestCount} request${item.requestCount === 1 ? "" : "s"}`
-													: String(label);
-											}}
-										/>
-										<Bar
-											dataKey="qtyToTransfer"
-											fill="hsl(var(--chart-2))"
-											radius={[6, 6, 0, 0]}
-										/>
-									</BarChart>
-								</ResponsiveContainer>
+										<BarChart
+											data={chartData}
+											margin={{ top: 4, right: 12, left: 0, bottom: 4 }}
+										>
+											<CartesianGrid strokeDasharray="3 3" vertical={false} />
+											<XAxis
+												dataKey="label"
+												tickLine={false}
+												axisLine={false}
+												tick={{ fontSize: 11 }}
+											/>
+											<YAxis
+												tickLine={false}
+												axisLine={false}
+												tickFormatter={formatQty}
+												tick={{ fontSize: 11 }}
+											/>
+											<Tooltip
+												formatter={(value) => [
+													formatQty(Number(value ?? 0)),
+													"Qty To Transfer",
+												]}
+												labelFormatter={(label, payload) => {
+													const item = payload?.[0]?.payload as
+														| { requestCount?: number }
+														| undefined;
+													return item?.requestCount != null
+														? `${label} · ${item.requestCount} request${item.requestCount === 1 ? "" : "s"}`
+														: String(label);
+												}}
+											/>
+											<Bar
+												dataKey="qtyToTransfer"
+												fill="hsl(var(--chart-2))"
+												radius={[6, 6, 0, 0]}
+											/>
+										</BarChart>
+									</ResponsiveContainer>
+								</div>
 							</CardContent>
 						</Card>
 						<Card>
