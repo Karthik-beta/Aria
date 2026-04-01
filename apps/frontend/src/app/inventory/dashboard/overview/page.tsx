@@ -14,7 +14,7 @@ import {
 	IconTruckDelivery,
 } from "@tabler/icons-react";
 import Link from "next/link";
-import * as React from "react";
+import type * as React from "react";
 import {
 	Area,
 	AreaChart,
@@ -61,6 +61,26 @@ import {
 	getExpiryUrgency,
 } from "./dashboard.utils";
 
+const DASHBOARD_GRID_CLASS =
+	"grid grid-cols-1 gap-4 md:grid-cols-2 lg:auto-rows-[minmax(12rem,auto)] lg:grid-cols-12 lg:grid-flow-row-dense";
+const CARD_SURFACE_CLASS =
+	"h-full border-border/70 bg-card/95 shadow-sm supports-[backdrop-filter]:backdrop-blur";
+
+function hasSeriesData<T extends object>(data: T[], keys: Array<keyof T>) {
+	return data.some((row) =>
+		keys.some((key) => {
+			const value = (row as Record<PropertyKey, unknown>)[key as PropertyKey];
+			return Math.abs(Number(value ?? 0)) > 0;
+		}),
+	);
+}
+
+function truncateLabel(label: string, maxLength: number) {
+	return label.length > maxLength
+		? `${label.slice(0, Math.max(maxLength - 1, 1))}…`
+		: label;
+}
+
 // ── Realtime Subscriptions ────────────────────────────────────────────
 
 function DashboardSubscriptions({ onEvent }: { onEvent: () => void }) {
@@ -79,33 +99,165 @@ function DashboardSubscriptions({ onEvent }: { onEvent: () => void }) {
 	return null;
 }
 
-// ── Skeleton Components ───────────────────────────────────────────────
+// ── Empty / Skeleton States ───────────────────────────────────────────
 
-function KpiSkeleton() {
+function FooterLink({
+	href,
+	children,
+}: {
+	href: string;
+	children: React.ReactNode;
+}) {
 	return (
-		<Card className="@container/card">
+		<Link
+			href={href}
+			className="text-muted-foreground hover:text-foreground text-xs transition-colors"
+		>
+			{children}
+		</Link>
+	);
+}
+
+function CenteredCardState({
+	icon: Icon,
+	title,
+	description,
+}: {
+	icon: React.ComponentType<{ className?: string }>;
+	title: string;
+	description?: string;
+}) {
+	return (
+		<div className="flex flex-1 flex-col items-center justify-center gap-2 py-6 text-center">
+			<Icon className="text-muted-foreground size-8" />
+			<p className="text-sm font-medium">{title}</p>
+			{description ? (
+				<p className="text-muted-foreground max-w-xs text-xs">{description}</p>
+			) : null}
+		</div>
+	);
+}
+
+function CartesianChartEmptyState({
+	title,
+	description,
+}: {
+	title: string;
+	description: string;
+}) {
+	return (
+		<div className="border-border/60 bg-muted/20 flex h-full min-h-[15rem] flex-col justify-between rounded-xl border border-dashed p-4">
+			<div className="relative h-28 overflow-hidden rounded-lg bg-background/80">
+				<div className="absolute inset-0 grid grid-rows-4">
+					{["grid-1", "grid-2", "grid-3", "grid-4"].map((line) => (
+						<div
+							key={line}
+							className="border-border/50 border-b last:border-b-0"
+						/>
+					))}
+				</div>
+				<div className="absolute inset-x-3 bottom-3 flex items-end justify-between gap-2">
+					{["h-10", "h-14", "h-8", "h-16", "h-12", "h-9"].map((height) => (
+						<div
+							key={height}
+							className={cn(
+								"from-muted-foreground/20 to-muted-foreground/5 w-full rounded-t-md bg-gradient-to-t",
+								height,
+							)}
+						/>
+					))}
+				</div>
+			</div>
+			<div className="space-y-1 pt-4 text-center">
+				<p className="text-sm font-medium">{title}</p>
+				<p className="text-muted-foreground text-xs">{description}</p>
+			</div>
+		</div>
+	);
+}
+
+function DonutChartEmptyState({
+	title,
+	description,
+}: {
+	title: string;
+	description: string;
+}) {
+	return (
+		<div className="border-border/60 bg-muted/20 flex h-full min-h-[15rem] flex-col items-center justify-center gap-5 rounded-xl border border-dashed p-4">
+			<div className="relative flex size-40 items-center justify-center rounded-full border-[18px] border-muted-foreground/10">
+				<div className="flex size-20 items-center justify-center rounded-full border border-border/70 bg-background/90">
+					<span className="text-muted-foreground text-xs font-medium">
+						No data
+					</span>
+				</div>
+				<div className="absolute inset-0 rotate-[-32deg] rounded-full border-t-[18px] border-t-muted-foreground/20" />
+			</div>
+			<div className="space-y-1 text-center">
+				<p className="text-sm font-medium">{title}</p>
+				<p className="text-muted-foreground max-w-xs text-xs">{description}</p>
+			</div>
+		</div>
+	);
+}
+
+function KpiSkeleton({ className }: { className?: string }) {
+	return (
+		<Card className={cn(CARD_SURFACE_CLASS, "min-h-[9.75rem]", className)}>
 			<CardHeader>
-				<Skeleton className="h-4 w-24" />
-				<Skeleton className="mt-2 h-8 w-32" />
+				<Skeleton className="h-4 w-28" />
+				<Skeleton className="mt-2 h-10 w-32" />
 			</CardHeader>
-			<CardFooter>
-				<Skeleton className="h-4 w-48" />
+			<CardFooter className="mt-auto">
+				<Skeleton className="h-4 w-40" />
 			</CardFooter>
 		</Card>
 	);
 }
 
-function ChartSkeleton({ height = "h-[300px]" }: { height?: string }) {
+function TileSkeleton({
+	className,
+	heightClassName = "min-h-[18rem]",
+}: {
+	className?: string;
+	heightClassName?: string;
+}) {
 	return (
-		<Card>
+		<Card className={cn(CARD_SURFACE_CLASS, heightClassName, className)}>
 			<CardHeader>
-				<Skeleton className="h-5 w-48" />
-				<Skeleton className="mt-1 h-4 w-64" />
+				<Skeleton className="h-5 w-44" />
+				<Skeleton className="mt-1 h-4 w-56" />
 			</CardHeader>
-			<CardContent>
-				<Skeleton className={cn("w-full rounded-md", height)} />
+			<CardContent className="flex flex-1">
+				<Skeleton className="h-full min-h-[12rem] w-full rounded-xl" />
 			</CardContent>
 		</Card>
+	);
+}
+
+function DashboardSkeletonGrid() {
+	return (
+		<>
+			<KpiSkeleton className="lg:col-span-3" />
+			<KpiSkeleton className="lg:col-span-3" />
+			<KpiSkeleton className="lg:col-span-3" />
+			<KpiSkeleton className="lg:col-span-3" />
+			<TileSkeleton
+				className="lg:col-span-8 lg:row-span-2"
+				heightClassName="min-h-[28rem]"
+			/>
+			<TileSkeleton className="lg:col-span-4" />
+			<TileSkeleton className="lg:col-span-4" />
+			<TileSkeleton className="lg:col-span-8" />
+			<TileSkeleton
+				className="lg:col-span-4 lg:row-span-2"
+				heightClassName="min-h-[28rem]"
+			/>
+			<TileSkeleton className="lg:col-span-4" />
+			<TileSkeleton className="lg:col-span-4" />
+			<TileSkeleton className="lg:col-span-6" />
+			<TileSkeleton className="lg:col-span-6" />
+		</>
 	);
 }
 
@@ -120,9 +272,9 @@ export default function OverviewPage() {
 			staleTime: 30_000,
 		});
 
-	const handleRealtimeEvent = React.useCallback(() => {
+	const handleRealtimeEvent = () => {
 		void utils.inventory.getDashboardData.invalidate();
-	}, [utils]);
+	};
 
 	if (error) {
 		return (
@@ -145,10 +297,9 @@ export default function OverviewPage() {
 		<PageContainer>
 			<DashboardSubscriptions onEvent={handleRealtimeEvent} />
 
-			<div className="flex flex-1 flex-col gap-4">
-				{/* Header */}
-				<div className="flex items-center justify-between">
-					<div>
+			<div className="flex flex-1 flex-col gap-6">
+				<div className="flex flex-wrap items-start justify-between gap-4">
+					<div className="space-y-1">
 						<h2 className="text-2xl font-bold tracking-tight">
 							Inventory Dashboard
 						</h2>
@@ -169,88 +320,47 @@ export default function OverviewPage() {
 					</Button>
 				</div>
 
-				{/* KPI Cards */}
-				{isLoading ? (
-					<div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
-						{(
-							[
-								"total-value",
-								"active-items",
-								"low-stock",
-								"pending-mr",
-							] as const
-						).map((id) => (
-							<KpiSkeleton key={id} />
-						))}
-					</div>
-				) : data ? (
-					<KpiCards kpis={data.kpis} />
-				) : null}
-
-				{/* Row 1: Stock Movement + Warehouse Distribution */}
-				<div className="grid grid-cols-1 gap-4 lg:grid-cols-7">
-					<div className="lg:col-span-4">
-						{isLoading ? (
-							<ChartSkeleton />
-						) : data ? (
-							<StockMovementChart data={data.stockMovements} />
-						) : null}
-					</div>
-					<div className="lg:col-span-3">
-						{isLoading ? (
-							<ChartSkeleton />
-						) : data ? (
-							<WarehouseStockChart data={data.warehouseStock} />
-						) : null}
-					</div>
-				</div>
-
-				{/* Row 2: Item Group Distribution + Stock Entry Breakdown */}
-				<div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-					{isLoading ? (
+				<div className={DASHBOARD_GRID_CLASS}>
+					{isLoading ? <DashboardSkeletonGrid /> : null}
+					{!isLoading && data ? (
 						<>
-							<ChartSkeleton />
-							<ChartSkeleton />
-						</>
-					) : data ? (
-						<>
-							<ItemGroupDistributionChart data={data.itemGroupDistribution} />
-							<StockEntryBreakdownChart data={data.stockEntryTypeBreakdown} />
-						</>
-					) : null}
-				</div>
-
-				{/* Row 3: Top Moving Items + Recent Activity */}
-				<div className="grid grid-cols-1 gap-4 lg:grid-cols-7">
-					<div className="lg:col-span-4">
-						{isLoading ? (
-							<ChartSkeleton />
-						) : data ? (
-							<TopMovingItemsChart data={data.topMovingItems} />
-						) : null}
-					</div>
-					<div className="lg:col-span-3">
-						{isLoading ? (
-							<ChartSkeleton height="h-[380px]" />
-						) : data ? (
-							<RecentActivityFeed data={data.recentActivity} />
-						) : null}
-					</div>
-				</div>
-
-				{/* Row 4: Low Stock Alerts + Batch Expiry + Delivery Status */}
-				<div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-					{isLoading ? (
-						<>
-							<ChartSkeleton height="h-[280px]" />
-							<ChartSkeleton height="h-[280px]" />
-							<ChartSkeleton height="h-[280px]" />
-						</>
-					) : data ? (
-						<>
-							<LowStockAlerts data={data.lowStockItems} />
-							<BatchExpiryTracker data={data.batchExpiry} />
-							<DeliveryStatusCard data={data.deliveryStatus} />
+							<KpiCards kpis={data.kpis} />
+							<StockMovementChart
+								className="lg:col-span-8 lg:row-span-2"
+								data={data.stockMovements}
+							/>
+							<WarehouseStockChart
+								className="lg:col-span-4"
+								data={data.warehouseStock}
+							/>
+							<ItemGroupDistributionChart
+								className="lg:col-span-4"
+								data={data.itemGroupDistribution}
+							/>
+							<TopMovingItemsChart
+								className="lg:col-span-8"
+								data={data.topMovingItems}
+							/>
+							<RecentActivityFeed
+								className="lg:col-span-4 lg:row-span-2"
+								data={data.recentActivity}
+							/>
+							<StockEntryBreakdownChart
+								className="lg:col-span-4"
+								data={data.stockEntryTypeBreakdown}
+							/>
+							<LowStockAlerts
+								className="lg:col-span-4"
+								data={data.lowStockItems}
+							/>
+							<BatchExpiryTracker
+								className="lg:col-span-6"
+								data={data.batchExpiry}
+							/>
+							<DeliveryStatusCard
+								className="lg:col-span-6"
+								data={data.deliveryStatus}
+							/>
 						</>
 					) : null}
 				</div>
@@ -263,77 +373,58 @@ export default function OverviewPage() {
 
 function KpiCards({ kpis }: { kpis: Inventory.DashboardKpi }) {
 	return (
-		<div className="*:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card dark:*:data-[slot=card]:bg-card grid grid-cols-1 gap-4 *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:shadow-xs md:grid-cols-2 lg:grid-cols-4">
-			<Card className="@container/card">
-				<CardHeader>
-					<CardDescription>Total Stock Value</CardDescription>
-					<CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
-						{formatCompactCurrency(kpis.totalStockValue)}
-					</CardTitle>
-					<CardAction>
-						<Badge variant="outline" className="text-xs">
-							<IconPackage className="size-3" />
-							{formatQuantity(kpis.totalStockQuantity)} units
+		<>
+			<KpiCard
+				className="lg:col-span-3"
+				title="Total Stock Value"
+				value={formatCompactCurrency(kpis.totalStockValue)}
+				footer={`Across ${kpis.totalItems} active items`}
+				action={
+					<Badge variant="outline" className="text-xs">
+						<IconPackage className="size-3" />
+						{formatQuantity(kpis.totalStockQuantity)} units
+					</Badge>
+				}
+			/>
+			<KpiCard
+				className="lg:col-span-3"
+				title="Active Items"
+				value={formatQuantity(kpis.totalItems)}
+				footer="Stock tracked across all locations"
+				action={
+					<Badge variant="outline" className="text-xs">
+						<IconBuildingWarehouse className="size-3" />
+						{kpis.activeWarehouses} warehouses
+					</Badge>
+				}
+			/>
+			<KpiCard
+				className="lg:col-span-3"
+				title="Low Stock Alerts"
+				value={formatQuantity(kpis.lowStockItemCount)}
+				footer="Items below safety stock level"
+				action={
+					kpis.lowStockItemCount > 0 ? (
+						<Badge variant="destructive" className="text-xs">
+							<IconAlertTriangle className="size-3" />
+							Attention
 						</Badge>
-					</CardAction>
-				</CardHeader>
-				<CardFooter className="flex-col items-start gap-1 text-sm">
-					<div className="text-muted-foreground">
-						Across {kpis.totalItems} active items
-					</div>
-				</CardFooter>
-			</Card>
-
-			<Card className="@container/card">
-				<CardHeader>
-					<CardDescription>Active Items</CardDescription>
-					<CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
-						{formatQuantity(kpis.totalItems)}
-					</CardTitle>
-					<CardAction>
-						<Badge variant="outline" className="text-xs">
-							<IconBuildingWarehouse className="size-3" />
-							{kpis.activeWarehouses} warehouses
+					) : (
+						<Badge
+							variant="outline"
+							className="text-xs text-green-600 dark:text-green-400"
+						>
+							All Clear
 						</Badge>
-					</CardAction>
-				</CardHeader>
-				<CardFooter className="flex-col items-start gap-1 text-sm">
-					<div className="text-muted-foreground">
-						Stock tracked across all locations
-					</div>
-				</CardFooter>
-			</Card>
-
-			<Card className="@container/card">
-				<CardHeader>
-					<CardDescription>Low Stock Alerts</CardDescription>
-					<CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
-						{kpis.lowStockItemCount}
-					</CardTitle>
-					<CardAction>
-						{kpis.lowStockItemCount > 0 ? (
-							<Badge variant="destructive" className="text-xs">
-								<IconAlertTriangle className="size-3" />
-								Attention
-							</Badge>
-						) : (
-							<Badge
-								variant="outline"
-								className="text-xs text-green-600 dark:text-green-400"
-							>
-								All Clear
-							</Badge>
-						)}
-					</CardAction>
-				</CardHeader>
-				<CardFooter className="flex-col items-start gap-1 text-sm">
-					<div className="text-muted-foreground">
-						Items below safety stock level
-					</div>
-				</CardFooter>
-			</Card>
-
-			<Card className="@container/card">
+					)
+				}
+			/>
+			<Card
+				className={cn(
+					CARD_SURFACE_CLASS,
+					"@container/card min-h-[9.75rem] bg-gradient-to-b from-background to-muted/20 lg:col-span-3",
+				)}
+			>
 				<CardHeader>
 					<CardDescription>Pending Material Requests</CardDescription>
 					<CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
@@ -346,16 +437,48 @@ function KpiCards({ kpis }: { kpis: Inventory.DashboardKpi }) {
 						</Badge>
 					</CardAction>
 				</CardHeader>
-				<CardFooter className="flex-col items-start gap-1 text-sm">
-					<Link
-						href="/inventory/stock-transaction/material-request"
-						className="text-muted-foreground hover:text-foreground transition-colors"
-					>
+				<CardFooter className="mt-auto">
+					<FooterLink href="/inventory/stock-transaction/material-request">
 						View all requests →
-					</Link>
+					</FooterLink>
 				</CardFooter>
 			</Card>
-		</div>
+		</>
+	);
+}
+
+function KpiCard({
+	className,
+	title,
+	value,
+	footer,
+	action,
+}: {
+	className?: string;
+	title: string;
+	value: string;
+	footer: string;
+	action?: React.ReactNode;
+}) {
+	return (
+		<Card
+			className={cn(
+				CARD_SURFACE_CLASS,
+				"@container/card min-h-[9.75rem] bg-gradient-to-b from-background to-muted/20",
+				className,
+			)}
+		>
+			<CardHeader>
+				<CardDescription>{title}</CardDescription>
+				<CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
+					{value}
+				</CardTitle>
+				{action ? <CardAction>{action}</CardAction> : null}
+			</CardHeader>
+			<CardFooter className="mt-auto">
+				<div className="text-muted-foreground text-sm">{footer}</div>
+			</CardFooter>
+		</Card>
 	);
 }
 
@@ -373,104 +496,125 @@ const movementChartConfig = {
 } satisfies ChartConfig;
 
 function StockMovementChart({
+	className,
 	data,
 }: {
+	className?: string;
 	data: Inventory.DashboardStockMovement[];
 }) {
-	if (data.length === 0) {
-		return (
-			<Card>
-				<CardHeader>
-					<CardTitle>Stock Movements</CardTitle>
-					<CardDescription>Last 30 days</CardDescription>
-				</CardHeader>
-				<CardContent className="flex h-[300px] items-center justify-center">
-					<p className="text-muted-foreground text-sm">
-						No stock movement data available
-					</p>
-				</CardContent>
-			</Card>
-		);
-	}
+	const hasMovementData = hasSeriesData(data, ["inbound", "outbound"]);
 
 	return (
-		<Card>
+		<Card className={cn(CARD_SURFACE_CLASS, "min-h-[28rem]", className)}>
 			<CardHeader>
 				<CardTitle>Stock Movements</CardTitle>
 				<CardDescription>
 					Inbound vs outbound quantity over the last 30 days
 				</CardDescription>
 			</CardHeader>
-			<CardContent className="px-2 pt-4 sm:px-6 sm:pt-6">
-				<ChartContainer
-					config={movementChartConfig}
-					className="aspect-auto h-[300px] w-full min-w-0 min-h-[300px]"
-				>
-					<AreaChart data={data} margin={{ left: 12, right: 12 }}>
-						<defs>
-							<linearGradient id="dashFillInbound" x1="0" y1="0" x2="0" y2="1">
-								<stop
-									offset="5%"
-									stopColor="var(--color-inbound)"
-									stopOpacity={0.8}
-								/>
-								<stop
-									offset="95%"
-									stopColor="var(--color-inbound)"
-									stopOpacity={0.05}
-								/>
-							</linearGradient>
-							<linearGradient id="dashFillOutbound" x1="0" y1="0" x2="0" y2="1">
-								<stop
-									offset="5%"
-									stopColor="var(--color-outbound)"
-									stopOpacity={0.8}
-								/>
-								<stop
-									offset="95%"
-									stopColor="var(--color-outbound)"
-									stopOpacity={0.05}
-								/>
-							</linearGradient>
-						</defs>
-						<CartesianGrid vertical={false} />
-						<XAxis
-							dataKey="date"
-							tickLine={false}
-							axisLine={false}
-							tickMargin={8}
-							minTickGap={32}
-							tickFormatter={formatShortDate}
-						/>
-						<YAxis
-							tickLine={false}
-							axisLine={false}
-							tickFormatter={(v) => formatQuantity(v)}
-							width={50}
-						/>
-						<ChartTooltip
-							cursor={false}
-							content={<ChartTooltipContent indicator="dot" />}
-						/>
-						<Area
-							dataKey="inbound"
-							type="monotone"
-							fill="url(#dashFillInbound)"
-							stroke="var(--color-inbound)"
-							strokeWidth={2}
-						/>
-						<Area
-							dataKey="outbound"
-							type="monotone"
-							fill="url(#dashFillOutbound)"
-							stroke="var(--color-outbound)"
-							strokeWidth={2}
-						/>
-					</AreaChart>
-				</ChartContainer>
+			<CardContent className="flex flex-1 px-2 pb-2 pt-4 sm:px-6 sm:pt-6">
+				{hasMovementData ? (
+					<ChartContainer
+						config={movementChartConfig}
+						className="aspect-auto h-full min-h-[20rem] w-full min-w-0"
+					>
+						<AreaChart
+							data={data}
+							margin={{ top: 8, right: 8, bottom: 0, left: 0 }}
+						>
+							<defs>
+								<linearGradient
+									id="dashFillInbound"
+									x1="0"
+									y1="0"
+									x2="0"
+									y2="1"
+								>
+									<stop
+										offset="5%"
+										stopColor="var(--color-inbound)"
+										stopOpacity={0.7}
+									/>
+									<stop
+										offset="95%"
+										stopColor="var(--color-inbound)"
+										stopOpacity={0.05}
+									/>
+								</linearGradient>
+								<linearGradient
+									id="dashFillOutbound"
+									x1="0"
+									y1="0"
+									x2="0"
+									y2="1"
+								>
+									<stop
+										offset="5%"
+										stopColor="var(--color-outbound)"
+										stopOpacity={0.7}
+									/>
+									<stop
+										offset="95%"
+										stopColor="var(--color-outbound)"
+										stopOpacity={0.05}
+									/>
+								</linearGradient>
+							</defs>
+							<CartesianGrid vertical={false} />
+							<XAxis
+								dataKey="date"
+								tickLine={false}
+								axisLine={false}
+								tickMargin={8}
+								minTickGap={28}
+								tickFormatter={formatShortDate}
+							/>
+							<YAxis
+								tickLine={false}
+								axisLine={false}
+								tickFormatter={(value) => formatQuantity(value)}
+								width="auto"
+							/>
+							<ChartTooltip
+								cursor={false}
+								content={
+									<ChartTooltipContent
+										indicator="dot"
+										labelFormatter={(label) =>
+											typeof label === "string"
+												? formatShortDate(label)
+												: String(label ?? "")
+										}
+									/>
+								}
+							/>
+							<Area
+								dataKey="inbound"
+								type="monotone"
+								fill="url(#dashFillInbound)"
+								stroke="var(--color-inbound)"
+								strokeWidth={2}
+							/>
+							<Area
+								dataKey="outbound"
+								type="monotone"
+								fill="url(#dashFillOutbound)"
+								stroke="var(--color-outbound)"
+								strokeWidth={2}
+							/>
+						</AreaChart>
+					</ChartContainer>
+				) : (
+					<CartesianChartEmptyState
+						title="No committed stock movement yet"
+						description="Inbound and outbound trends will appear here as receipts, entries, and deliveries are posted."
+					/>
+				)}
 			</CardContent>
-			<CardFooter className="text-muted-foreground text-sm">
-				Tracking all stock entries, purchase receipts, and delivery notes
+			<CardFooter className="mt-auto">
+				<div className="text-muted-foreground text-sm">
+					Tracking all stock entries, purchase receipts, and delivery notes
+				</div>
 			</CardFooter>
 		</Card>
 	);
@@ -486,73 +630,74 @@ const warehouseChartConfig = {
 } satisfies ChartConfig;
 
 function WarehouseStockChart({
+	className,
 	data,
 }: {
+	className?: string;
 	data: Inventory.DashboardWarehouseStock[];
 }) {
-	if (data.length === 0) {
-		return (
-			<Card className="h-full">
-				<CardHeader>
-					<CardTitle>Warehouse Distribution</CardTitle>
-					<CardDescription>Stock by location</CardDescription>
-				</CardHeader>
-				<CardContent className="flex h-[300px] items-center justify-center">
-					<p className="text-muted-foreground text-sm">No warehouse data</p>
-				</CardContent>
-			</Card>
-		);
-	}
-
-	const chartData = data.map((d) => ({
-		...d,
-		warehouse:
-			d.warehouse.length > 20 ? `${d.warehouse.slice(0, 18)}…` : d.warehouse,
-		fullName: d.warehouse,
-	}));
+	const hasWarehouseData = hasSeriesData(data, ["totalQty"]);
 
 	return (
-		<Card className="h-full">
+		<Card className={cn(CARD_SURFACE_CLASS, "min-h-[18rem]", className)}>
 			<CardHeader>
 				<CardTitle>Warehouse Distribution</CardTitle>
 				<CardDescription>
 					Stock quantity across {data.length} warehouse
-					{data.length > 1 ? "s" : ""}
+					{data.length === 1 ? "" : "s"}
 				</CardDescription>
 			</CardHeader>
-			<CardContent className="px-2 pt-4 sm:px-6 sm:pt-6">
-				<ChartContainer
-					config={warehouseChartConfig}
-					className="aspect-auto h-[300px] w-full min-w-0 min-h-[300px]"
-				>
-					<BarChart
-						data={chartData}
-						layout="vertical"
-						margin={{ left: 8, right: 12 }}
+			<CardContent className="flex flex-1 px-2 pb-2 pt-4 sm:px-6 sm:pt-6">
+				{hasWarehouseData ? (
+					<ChartContainer
+						config={warehouseChartConfig}
+						className="aspect-auto h-full min-h-[15rem] w-full min-w-0"
 					>
-						<CartesianGrid horizontal={false} />
-						<YAxis
-							dataKey="warehouse"
-							type="category"
-							tickLine={false}
-							axisLine={false}
-							width={140}
-							tick={{ fontSize: 12 }}
-						/>
-						<XAxis
-							type="number"
-							tickLine={false}
-							axisLine={false}
-							tickFormatter={(v) => formatQuantity(v)}
-						/>
-						<ChartTooltip cursor={false} content={<ChartTooltipContent />} />
-						<Bar
-							dataKey="totalQty"
-							fill="var(--color-totalQty)"
-							radius={[0, 4, 4, 0]}
-						/>
-					</BarChart>
-				</ChartContainer>
+						<BarChart
+							data={data}
+							layout="vertical"
+							margin={{ top: 8, right: 8, bottom: 0, left: -24 }}
+						>
+							<CartesianGrid horizontal={false} />
+							<YAxis
+								dataKey="warehouse"
+								type="category"
+								tickLine={false}
+								axisLine={false}
+								width="auto"
+								tick={{ fontSize: 12 }}
+								tickFormatter={(value: string) => truncateLabel(value, 18)}
+							/>
+							<XAxis
+								type="number"
+								tickLine={false}
+								axisLine={false}
+								tickFormatter={(value) => formatQuantity(value)}
+							/>
+							<ChartTooltip
+								cursor={false}
+								content={
+									<ChartTooltipContent
+										labelFormatter={(label) =>
+											typeof label === "string" ? label : "Warehouse"
+										}
+										formatter={(value) => formatQuantity(Number(value ?? 0))}
+									/>
+								}
+							/>
+							<Bar
+								dataKey="totalQty"
+								fill="var(--color-totalQty)"
+								radius={[0, 6, 6, 0]}
+							/>
+						</BarChart>
+					</ChartContainer>
+				) : (
+					<CartesianChartEmptyState
+						title="No warehouse stock to compare"
+						description="Warehouse balances will appear here once committed stock is distributed across active locations."
+					/>
+				)}
 			</CardContent>
 		</Card>
 	);
@@ -561,106 +706,116 @@ function WarehouseStockChart({
 // ── Item Group Distribution Donut ─────────────────────────────────────
 
 function ItemGroupDistributionChart({
+	className,
 	data,
 }: {
+	className?: string;
 	data: Inventory.DashboardItemGroupDistribution[];
 }) {
-	const totalValue = React.useMemo(
-		() => data.reduce((sum, d) => sum + d.value, 0),
-		[data],
-	);
-
-	const chartConfig = React.useMemo(() => {
-		const config: ChartConfig = { value: { label: "Stock Value" } };
-		for (const [i, d] of data.entries()) {
-			config[d.group] = { label: d.group, color: getChartColor(i) };
-		}
-		return config;
-	}, [data]);
-
-	if (data.length === 0) {
-		return (
-			<Card>
-				<CardHeader>
-					<CardTitle>Stock Value by Category</CardTitle>
-					<CardDescription>Item group distribution</CardDescription>
-				</CardHeader>
-				<CardContent className="flex h-[300px] items-center justify-center">
-					<p className="text-muted-foreground text-sm">No category data</p>
-				</CardContent>
-			</Card>
-		);
+	const totalValue = data.reduce((sum, item) => sum + item.value, 0);
+	const hasCategoryValue = hasSeriesData(data, ["value"]);
+	const chartConfig: ChartConfig = { value: { label: "Stock Value" } };
+	for (const [index, item] of data.entries()) {
+		chartConfig[item.group] = {
+			label: item.group,
+			color: getChartColor(index),
+		};
 	}
 
 	return (
-		<Card>
+		<Card className={cn(CARD_SURFACE_CLASS, "min-h-[18rem]", className)}>
 			<CardHeader>
 				<CardTitle>Stock Value by Category</CardTitle>
 				<CardDescription>
-					{formatCompactCurrency(totalValue)} across {data.length} categories
+					{formatCompactCurrency(totalValue)} across {data.length}{" "}
+					{data.length === 1 ? "category" : "categories"}
 				</CardDescription>
 			</CardHeader>
-			<CardContent className="px-2 pt-4 sm:px-6 sm:pt-6">
-				<ChartContainer
-					config={chartConfig}
-					className="mx-auto aspect-square h-[300px] w-full min-w-0 min-h-[300px]"
-				>
-					<PieChart>
-						<ChartTooltip
-							cursor={false}
-							content={
-								<ChartTooltipContent
-									hideLabel
-									formatter={(value) => formatCurrency(value as number)}
-								/>
-							}
-						/>
-						<Pie
-							data={data.map((d, i) => ({
-								...d,
-								name: d.group,
-								fill: getChartColor(i),
-							}))}
-							dataKey="value"
-							nameKey="group"
-							innerRadius={70}
-							strokeWidth={2}
-							stroke="var(--background)"
-						>
-							<Label
-								content={({ viewBox }) => {
-									if (viewBox && "cx" in viewBox && "cy" in viewBox) {
-										return (
-											<text
-												x={viewBox.cx}
-												y={viewBox.cy}
-												textAnchor="middle"
-												dominantBaseline="middle"
-											>
-												<tspan
+			<CardContent className="flex flex-1 items-center justify-center px-4 pb-0 pt-0 sm:px-6">
+				{data.length > 0 && hasCategoryValue ? (
+					<ChartContainer
+						config={chartConfig}
+						className="mx-auto aspect-auto h-[15rem] w-full max-w-[20rem] min-w-0"
+					>
+						<PieChart>
+							<ChartTooltip
+								cursor={false}
+								content={
+									<ChartTooltipContent
+										hideLabel
+										formatter={(value) => formatCurrency(Number(value ?? 0))}
+									/>
+								}
+							/>
+							<Pie
+								data={data.map((item, index) => ({
+									...item,
+									name: item.group,
+									fill: getChartColor(index),
+								}))}
+								dataKey="value"
+								nameKey="group"
+								innerRadius={58}
+								outerRadius={88}
+								paddingAngle={2}
+								strokeWidth={2}
+								stroke="var(--background)"
+							>
+								<Label
+									content={({ viewBox }) => {
+										if (viewBox && "cx" in viewBox && "cy" in viewBox) {
+											return (
+												<text
 													x={viewBox.cx}
 													y={viewBox.cy}
-													className="fill-foreground text-2xl font-bold"
+													textAnchor="middle"
+													dominantBaseline="middle"
 												>
-													{formatCompactCurrency(totalValue)}
-												</tspan>
-												<tspan
-													x={viewBox.cx}
-													y={(viewBox.cy ?? 0) + 22}
-													className="fill-muted-foreground text-xs"
-												>
-													Total Value
-												</tspan>
-											</text>
-										);
-									}
-									return null;
-								}}
-							/>
-						</Pie>
-					</PieChart>
-				</ChartContainer>
+													<tspan
+														x={viewBox.cx}
+														y={viewBox.cy}
+														className="fill-foreground text-xl font-bold"
+													>
+														{formatCompactCurrency(totalValue)}
+													</tspan>
+													<tspan
+														x={viewBox.cx}
+														y={(viewBox.cy ?? 0) + 20}
+														className="fill-muted-foreground text-[11px]"
+													>
+														Total Value
+													</tspan>
+												</text>
+											);
+										}
+										return null;
+									}}
+								/>
+							</Pie>
+						</PieChart>
+					</ChartContainer>
+				) : (
+					<DonutChartEmptyState
+						title="No stock value recorded yet"
+						description="Categories are ready. Value distribution will populate as committed stock is available for tracked items."
+					/>
+				)}
 			</CardContent>
+			{data.length > 0 ? (
+				<CardFooter className="mt-auto flex flex-wrap gap-3 pt-0">
+					{data.slice(0, 5).map((item, index) => (
+						<div key={item.group} className="flex items-center gap-1.5 text-xs">
+							<span
+								className="inline-block size-2.5 rounded-full"
+								style={{ backgroundColor: getChartColor(index) }}
+							/>
+							<span className="text-muted-foreground">
+								{truncateLabel(item.group, 20)}
+							</span>
+						</div>
+					))}
+				</CardFooter>
+			) : null}
 		</Card>
 	);
 }
@@ -668,117 +823,111 @@ function ItemGroupDistributionChart({
 // ── Stock Entry Type Breakdown Pie ────────────────────────────────────
 
 function StockEntryBreakdownChart({
+	className,
 	data,
 }: {
+	className?: string;
 	data: Inventory.DashboardStockEntryTypeBreakdown[];
 }) {
-	const chartConfig = React.useMemo(() => {
-		const config: ChartConfig = { count: { label: "Entries" } };
-		for (const [i, d] of data.entries()) {
-			config[d.type] = {
-				label: formatStockEntryType(d.type),
-				color: getChartColor(i),
-			};
-		}
-		return config;
-	}, [data]);
-
-	const totalEntries = data.reduce((s, d) => s + d.count, 0);
-
-	if (data.length === 0) {
-		return (
-			<Card>
-				<CardHeader>
-					<CardTitle>Stock Entry Breakdown</CardTitle>
-					<CardDescription>By transaction type</CardDescription>
-				</CardHeader>
-				<CardContent className="flex h-[300px] items-center justify-center">
-					<p className="text-muted-foreground text-sm">No stock entries</p>
-				</CardContent>
-			</Card>
-		);
+	const totalEntries = data.reduce((sum, item) => sum + item.count, 0);
+	const hasBreakdownData = hasSeriesData(data, ["count"]);
+	const chartConfig: ChartConfig = { count: { label: "Entries" } };
+	for (const [index, item] of data.entries()) {
+		chartConfig[item.type] = {
+			label: formatStockEntryType(item.type),
+			color: getChartColor(index),
+		};
 	}
 
 	return (
-		<Card>
+		<Card className={cn(CARD_SURFACE_CLASS, "min-h-[18rem]", className)}>
 			<CardHeader>
 				<CardTitle>Stock Entry Breakdown</CardTitle>
 				<CardDescription>
 					{totalEntries} total entries across {data.length} types
 				</CardDescription>
 			</CardHeader>
-			<CardContent className="px-2 pt-4 sm:px-6 sm:pt-6">
-				<ChartContainer
-					config={chartConfig}
-					className="mx-auto aspect-square h-[300px] w-full min-w-0 min-h-[300px]"
-				>
-					<PieChart>
-						<ChartTooltip
-							cursor={false}
-							content={<ChartTooltipContent hideLabel />}
-						/>
-						<Pie
-							data={data.map((d, i) => ({
-								name: formatStockEntryType(d.type),
-								value: d.count,
-								totalQty: d.totalQty,
-								fill: getChartColor(i),
-							}))}
-							dataKey="value"
-							nameKey="name"
-							innerRadius={70}
-							strokeWidth={2}
-							stroke="var(--background)"
-						>
-							<Label
-								content={({ viewBox }) => {
-									if (viewBox && "cx" in viewBox && "cy" in viewBox) {
-										return (
-											<text
-												x={viewBox.cx}
-												y={viewBox.cy}
-												textAnchor="middle"
-												dominantBaseline="middle"
-											>
-												<tspan
+			<CardContent className="flex flex-1 items-center justify-center px-4 pb-0 pt-0 sm:px-6">
+				{data.length > 0 && hasBreakdownData ? (
+					<ChartContainer
+						config={chartConfig}
+						className="mx-auto aspect-auto h-[15rem] w-full max-w-[20rem] min-w-0"
+					>
+						<PieChart>
+							<ChartTooltip
+								cursor={false}
+								content={<ChartTooltipContent hideLabel />}
+							/>
+							<Pie
+								data={data.map((item, index) => ({
+									name: formatStockEntryType(item.type),
+									value: item.count,
+									totalQty: item.totalQty,
+									fill: getChartColor(index),
+								}))}
+								dataKey="value"
+								nameKey="name"
+								innerRadius={58}
+								outerRadius={88}
+								paddingAngle={2}
+								strokeWidth={2}
+								stroke="var(--background)"
+							>
+								<Label
+									content={({ viewBox }) => {
+										if (viewBox && "cx" in viewBox && "cy" in viewBox) {
+											return (
+												<text
 													x={viewBox.cx}
 													y={viewBox.cy}
-													className="fill-foreground text-2xl font-bold"
+													textAnchor="middle"
+													dominantBaseline="middle"
 												>
-													{totalEntries}
-												</tspan>
-												<tspan
-													x={viewBox.cx}
-													y={(viewBox.cy ?? 0) + 22}
-													className="fill-muted-foreground text-xs"
-												>
-													Entries
-												</tspan>
-											</text>
-										);
-									}
-									return null;
-								}}
-							/>
-						</Pie>
-					</PieChart>
-				</ChartContainer>
+													<tspan
+														x={viewBox.cx}
+														y={viewBox.cy}
+														className="fill-foreground text-xl font-bold"
+													>
+														{totalEntries}
+													</tspan>
+													<tspan
+														x={viewBox.cx}
+														y={(viewBox.cy ?? 0) + 20}
+														className="fill-muted-foreground text-[11px]"
+													>
+														Entries
+													</tspan>
+												</text>
+											);
+										}
+										return null;
+									}}
+								/>
+							</Pie>
+						</PieChart>
+					</ChartContainer>
+				) : (
+					<DonutChartEmptyState
+						title="No submitted stock entries yet"
+						description="Entry type mix will appear here once committed stock entries begin flowing through the ledger."
+					/>
+				)}
 			</CardContent>
-			<CardFooter>
-				<div className="flex flex-wrap gap-3 text-xs">
-					{data.map((d, i) => (
-						<div key={d.type} className="flex items-center gap-1.5">
+			{data.length > 0 ? (
+				<CardFooter className="mt-auto flex flex-wrap gap-3 pt-0">
+					{data.map((item, index) => (
+						<div key={item.type} className="flex items-center gap-1.5 text-xs">
 							<span
 								className="inline-block size-2.5 rounded-full"
-								style={{ backgroundColor: getChartColor(i) }}
+								style={{ backgroundColor: getChartColor(index) }}
 							/>
 							<span className="text-muted-foreground">
-								{formatStockEntryType(d.type)} ({d.count})
+								{formatStockEntryType(item.type)} ({item.count})
 							</span>
 						</div>
 					))}
-				</div>
-			</CardFooter>
+				</CardFooter>
+			) : null}
 		</Card>
 	);
 }
@@ -793,87 +942,96 @@ const topMovingConfig = {
 } satisfies ChartConfig;
 
 function TopMovingItemsChart({
+	className,
 	data,
 }: {
+	className?: string;
 	data: Inventory.DashboardTopMovingItem[];
 }) {
-	if (data.length === 0) {
-		return (
-			<Card>
-				<CardHeader>
-					<CardTitle>Top Moving Items</CardTitle>
-					<CardDescription>Last 30 days</CardDescription>
-				</CardHeader>
-				<CardContent className="flex h-[300px] items-center justify-center">
-					<p className="text-muted-foreground text-sm">No movement data</p>
-				</CardContent>
-			</Card>
-		);
-	}
-
-	const chartData = data.map((d) => ({
-		...d,
-		label: d.itemCode.length > 16 ? `${d.itemCode.slice(0, 14)}…` : d.itemCode,
-	}));
+	const hasMovingData = hasSeriesData(data, ["totalQty"]);
 
 	return (
-		<Card>
+		<Card className={cn(CARD_SURFACE_CLASS, "min-h-[18rem]", className)}>
 			<CardHeader>
 				<CardTitle>Top Moving Items</CardTitle>
 				<CardDescription>
 					Highest-volume items in the last 30 days by quantity
 				</CardDescription>
 			</CardHeader>
-			<CardContent className="px-2 pt-4 sm:px-6 sm:pt-6">
-				<ChartContainer
-					config={topMovingConfig}
-					className="aspect-auto h-[300px] w-full min-w-0 min-h-[300px]"
-				>
-					<BarChart data={chartData}>
-						<defs>
-							<linearGradient id="dashTopMoving" x1="0" y1="0" x2="0" y2="1">
-								<stop
-									offset="5%"
-									stopColor="var(--color-totalQty)"
-									stopOpacity={1}
-								/>
-								<stop
-									offset="95%"
-									stopColor="var(--color-totalQty)"
-									stopOpacity={0.6}
-								/>
-							</linearGradient>
-						</defs>
-						<CartesianGrid vertical={false} />
-						<XAxis
-							dataKey="label"
-							tickLine={false}
-							tickMargin={8}
-							axisLine={false}
-							tick={{ fontSize: 11 }}
-							interval={0}
-							angle={-35}
-							textAnchor="end"
-							height={60}
-						/>
-						<YAxis
-							tickLine={false}
-							axisLine={false}
-							tickFormatter={(v) => formatQuantity(v)}
-							width={50}
-						/>
-						<ChartTooltip cursor={false} content={<ChartTooltipContent />} />
-						<Bar
-							dataKey="totalQty"
-							fill="url(#dashTopMoving)"
-							radius={[4, 4, 0, 0]}
-						/>
-					</BarChart>
-				</ChartContainer>
+			<CardContent className="flex flex-1 px-2 pb-2 pt-4 sm:px-6 sm:pt-6">
+				{hasMovingData ? (
+					<ChartContainer
+						config={topMovingConfig}
+						className="aspect-auto h-full min-h-[15rem] w-full min-w-0"
+					>
+						<BarChart
+							data={data}
+							margin={{ top: 8, right: 8, bottom: 12, left: 0 }}
+						>
+							<defs>
+								<linearGradient id="dashTopMoving" x1="0" y1="0" x2="0" y2="1">
+									<stop
+										offset="5%"
+										stopColor="var(--color-totalQty)"
+										stopOpacity={0.95}
+									/>
+									<stop
+										offset="95%"
+										stopColor="var(--color-totalQty)"
+										stopOpacity={0.55}
+									/>
+								</linearGradient>
+							</defs>
+							<CartesianGrid vertical={false} />
+							<XAxis
+								dataKey="itemCode"
+								tickLine={false}
+								tickMargin={8}
+								axisLine={false}
+								tick={{ fontSize: 11 }}
+								interval={0}
+								angle={-30}
+								textAnchor="end"
+								height={56}
+								tickFormatter={(value: string) => truncateLabel(value, 14)}
+							/>
+							<YAxis
+								tickLine={false}
+								axisLine={false}
+								tickFormatter={(value) => formatQuantity(value)}
+								width="auto"
+							/>
+							<ChartTooltip
+								cursor={false}
+								content={
+									<ChartTooltipContent
+										labelFormatter={(label) =>
+											typeof label === "string" ? label : "Item"
+										}
+										formatter={(value) => formatQuantity(Number(value ?? 0))}
+									/>
+								}
+							/>
+							<Bar
+								dataKey="totalQty"
+								fill="url(#dashTopMoving)"
+								radius={[6, 6, 0, 0]}
+							/>
+						</BarChart>
+					</ChartContainer>
+				) : (
+					<CartesianChartEmptyState
+						title="No fast movers yet"
+						description="This view highlights the most active items once committed movement begins over the selected period."
+					/>
+				)}
 			</CardContent>
-			<CardFooter className="text-muted-foreground text-sm">
-				{data.length} items shown ·{" "}
-				{data.reduce((s, d) => s + d.transactionCount, 0)} total transactions
+			<CardFooter className="mt-auto">
+				<div className="text-muted-foreground text-sm">
+					{data.length} items shown ·{" "}
+					{data.reduce((sum, item) => sum + item.transactionCount, 0)} total
+					transactions
+				</div>
 			</CardFooter>
 		</Card>
 	);
@@ -882,23 +1040,21 @@ function TopMovingItemsChart({
 // ── Recent Activity Feed ──────────────────────────────────────────────
 
 function RecentActivityFeed({
+	className,
 	data,
 }: {
+	className?: string;
 	data: Inventory.DashboardRecentActivity[];
 }) {
 	return (
-		<Card className="h-full">
+		<Card className={cn(CARD_SURFACE_CLASS, "min-h-[28rem]", className)}>
 			<CardHeader>
 				<CardTitle>Recent Stock Activity</CardTitle>
 				<CardDescription>Latest stock entry transactions</CardDescription>
 			</CardHeader>
-			<CardContent>
-				{data.length === 0 ? (
-					<p className="text-muted-foreground py-8 text-center text-sm">
-						No recent activity
-					</p>
-				) : (
-					<div className="space-y-4">
+			<CardContent className="flex flex-1 flex-col">
+				{data.length > 0 ? (
+					<div className="flex flex-1 flex-col gap-4">
 						{data.map((entry) => (
 							<div key={entry.id} className="flex items-start gap-3">
 								<div className="bg-muted flex size-8 shrink-0 items-center justify-center rounded-full">
@@ -931,15 +1087,18 @@ function RecentActivityFeed({
 							</div>
 						))}
 					</div>
+				) : (
+					<CenteredCardState
+						icon={IconBox}
+						title="No recent stock activity"
+						description="Submitted stock entries will appear here as soon as inventory operations are posted."
+					/>
 				)}
 			</CardContent>
-			<CardFooter>
-				<Link
-					href="/inventory/stock-transaction/stock-entry"
-					className="text-muted-foreground hover:text-foreground text-xs transition-colors"
-				>
+			<CardFooter className="mt-auto">
+				<FooterLink href="/inventory/stock-transaction/stock-entry">
 					View all stock entries →
-				</Link>
+				</FooterLink>
 			</CardFooter>
 		</Card>
 	);
@@ -947,32 +1106,31 @@ function RecentActivityFeed({
 
 // ── Low Stock Alerts ──────────────────────────────────────────────────
 
-function LowStockAlerts({ data }: { data: Inventory.DashboardLowStockItem[] }) {
+function LowStockAlerts({
+	className,
+	data,
+}: {
+	className?: string;
+	data: Inventory.DashboardLowStockItem[];
+}) {
 	return (
-		<Card>
+		<Card className={cn(CARD_SURFACE_CLASS, "min-h-[18rem]", className)}>
 			<CardHeader>
 				<CardTitle className="flex items-center gap-2">
 					<IconAlertTriangle className="text-destructive size-4" />
 					Low Stock Alerts
 				</CardTitle>
 				<CardDescription>
-					{data.length} item{data.length !== 1 ? "s" : ""} below safety stock
+					{data.length} item{data.length === 1 ? "" : "s"} below safety stock
 				</CardDescription>
 			</CardHeader>
-			<CardContent>
-				{data.length === 0 ? (
-					<div className="flex flex-col items-center gap-2 py-8">
-						<IconPackage className="text-muted-foreground size-8" />
-						<p className="text-muted-foreground text-sm">
-							All items above safety stock
-						</p>
-					</div>
-				) : (
-					<div className="space-y-3">
+			<CardContent className="flex flex-1 flex-col">
+				{data.length > 0 ? (
+					<div className="flex flex-1 flex-col gap-3">
 						{data.slice(0, 6).map((item) => (
 							<div
 								key={item.itemCode}
-								className="flex items-center justify-between gap-2"
+								className="flex items-center justify-between gap-3"
 							>
 								<div className="min-w-0 flex-1">
 									<p className="truncate text-sm font-medium">
@@ -996,18 +1154,19 @@ function LowStockAlerts({ data }: { data: Inventory.DashboardLowStockItem[] }) {
 							</div>
 						))}
 					</div>
+				) : (
+					<CenteredCardState
+						icon={IconPackage}
+						title="All items are above safety stock"
+						description="This panel will surface the most urgent shortages once committed balances drop below reorder thresholds."
+					/>
 				)}
 			</CardContent>
-			{data.length > 0 && (
-				<CardFooter>
-					<Link
-						href="/inventory/stock-reports/stock-summary"
-						className="text-muted-foreground hover:text-foreground text-xs transition-colors"
-					>
-						View stock summary →
-					</Link>
-				</CardFooter>
-			)}
+			<CardFooter className="mt-auto">
+				<FooterLink href="/inventory/stock-reports/stock-summary">
+					View stock summary →
+				</FooterLink>
+			</CardFooter>
 		</Card>
 	);
 }
@@ -1015,38 +1174,34 @@ function LowStockAlerts({ data }: { data: Inventory.DashboardLowStockItem[] }) {
 // ── Batch Expiry Tracker ──────────────────────────────────────────────
 
 function BatchExpiryTracker({
+	className,
 	data,
 }: {
+	className?: string;
 	data: Inventory.DashboardBatchExpiry[];
 }) {
 	return (
-		<Card>
+		<Card className={cn(CARD_SURFACE_CLASS, "min-h-[17rem]", className)}>
 			<CardHeader>
 				<CardTitle className="flex items-center gap-2">
 					<IconClock className="text-amber-500 size-4" />
 					Batch Expiry Tracker
 				</CardTitle>
 				<CardDescription>
-					{data.length} batch{data.length !== 1 ? "es" : ""} expiring within 90
+					{data.length} batch{data.length === 1 ? "" : "es"} expiring within 90
 					days
 				</CardDescription>
 			</CardHeader>
-			<CardContent>
-				{data.length === 0 ? (
-					<div className="flex flex-col items-center gap-2 py-8">
-						<IconClock className="text-muted-foreground size-8" />
-						<p className="text-muted-foreground text-sm">
-							No batches expiring soon
-						</p>
-					</div>
-				) : (
-					<div className="space-y-3">
+			<CardContent className="flex flex-1 flex-col">
+				{data.length > 0 ? (
+					<div className="flex flex-1 flex-col justify-center gap-3">
 						{data.slice(0, 6).map((batch) => {
 							const urgency = getExpiryUrgency(batch.daysUntilExpiry);
+
 							return (
 								<div
 									key={batch.batchId}
-									className="flex items-center justify-between gap-2"
+									className="flex items-center justify-between gap-3"
 								>
 									<div className="min-w-0 flex-1">
 										<p className="truncate text-sm font-medium">
@@ -1073,18 +1228,19 @@ function BatchExpiryTracker({
 							);
 						})}
 					</div>
+				) : (
+					<CenteredCardState
+						icon={IconClock}
+						title="No batches expiring soon"
+						description="Upcoming batch expiries within the next 90 days will appear here for proactive action."
+					/>
 				)}
 			</CardContent>
-			{data.length > 0 && (
-				<CardFooter>
-					<Link
-						href="/inventory/serial-no-and-batch/batch"
-						className="text-muted-foreground hover:text-foreground text-xs transition-colors"
-					>
-						View all batches →
-					</Link>
-				</CardFooter>
-			)}
+			<CardFooter className="mt-auto">
+				<FooterLink href="/inventory/serial-no-and-batch/batch">
+					View all batches →
+				</FooterLink>
+			</CardFooter>
 		</Card>
 	);
 }
@@ -1092,15 +1248,17 @@ function BatchExpiryTracker({
 // ── Delivery Status Card ──────────────────────────────────────────────
 
 function DeliveryStatusCard({
+	className,
 	data,
 }: {
+	className?: string;
 	data: Inventory.DashboardDeliveryStatus[];
 }) {
-	const totalDeliveries = data.reduce((s, d) => s + d.count, 0);
-	const totalAmount = data.reduce((s, d) => s + d.totalAmount, 0);
+	const totalDeliveries = data.reduce((sum, item) => sum + item.count, 0);
+	const totalAmount = data.reduce((sum, item) => sum + item.totalAmount, 0);
 
 	return (
-		<Card>
+		<Card className={cn(CARD_SURFACE_CLASS, "min-h-[17rem]", className)}>
 			<CardHeader>
 				<CardTitle className="flex items-center gap-2">
 					<IconTruckDelivery className="size-4" />
@@ -1111,37 +1269,31 @@ function DeliveryStatusCard({
 					{formatCompactCurrency(totalAmount)}
 				</CardDescription>
 			</CardHeader>
-			<CardContent>
-				{data.length === 0 ? (
-					<div className="flex flex-col items-center gap-2 py-8">
-						<IconTruckDelivery className="text-muted-foreground size-8" />
-						<p className="text-muted-foreground text-sm">
-							No delivery notes yet
-						</p>
-					</div>
-				) : (
-					<div className="space-y-3">
-						{data.map((d) => {
-							const pct =
+			<CardContent className="flex flex-1 flex-col">
+				{data.length > 0 ? (
+					<div className="flex flex-1 flex-col justify-center gap-4">
+						{data.map((item) => {
+							const percent =
 								totalDeliveries > 0
-									? Math.round((d.count / totalDeliveries) * 100)
+									? Math.round((item.count / totalDeliveries) * 100)
 									: 0;
+
 							return (
-								<div key={d.status}>
+								<div key={item.status}>
 									<div className="mb-1 flex items-center justify-between">
 										<span className="text-sm font-medium">
-											{formatDeliveryStatus(d.status)}
+											{formatDeliveryStatus(item.status)}
 										</span>
 										<span className="text-muted-foreground text-xs tabular-nums">
-											{d.count} ({pct}%)
+											{item.count} ({percent}%)
 										</span>
 									</div>
 									<div className="bg-muted h-2 overflow-hidden rounded-full">
 										<div
 											className="h-full rounded-full transition-all"
 											style={{
-												width: `${pct}%`,
-												backgroundColor: getDeliveryStatusColor(d.status),
+												width: `${percent}%`,
+												backgroundColor: getDeliveryStatusColor(item.status),
 											}}
 										/>
 									</div>
@@ -1149,18 +1301,19 @@ function DeliveryStatusCard({
 							);
 						})}
 					</div>
+				) : (
+					<CenteredCardState
+						icon={IconTruckDelivery}
+						title="No delivery notes yet"
+						description="Status progression appears here once delivery notes begin moving through the fulfilment flow."
+					/>
 				)}
 			</CardContent>
-			{data.length > 0 && (
-				<CardFooter>
-					<Link
-						href="/inventory/stock-transaction/delivery-note"
-						className="text-muted-foreground hover:text-foreground text-xs transition-colors"
-					>
-						View delivery notes →
-					</Link>
-				</CardFooter>
-			)}
+			<CardFooter className="mt-auto">
+				<FooterLink href="/inventory/stock-transaction/delivery-note">
+					View delivery notes →
+				</FooterLink>
+			</CardFooter>
 		</Card>
 	);
 }

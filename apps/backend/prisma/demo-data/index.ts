@@ -15,8 +15,10 @@ export {
 export { type MasterIds, seedMasterData } from "./seed-master.js";
 export { seedTransactions } from "./seed-transactions.js";
 
+import { reconcileInventoryItemQuantities } from "../../src/apps/inventory/services/stock-snapshot.js";
 import type { PrismaClient } from "../../src/generated/prisma/client.js";
 import type { DemoConfig } from "./config.js";
+import { ITEMS } from "./data.js";
 import { seedMasterData } from "./seed-master.js";
 import { seedTransactions } from "./seed-transactions.js";
 
@@ -29,4 +31,10 @@ export async function seedAll(
 ): Promise<void> {
 	const ids = await seedMasterData(prisma, config);
 	await seedTransactions(prisma, config, ids);
+	await reconcileInventoryItemQuantities(prisma, {
+		company: config.company,
+		itemCodes: ITEMS.filter((item) => item.maintainStock).map(
+			(item) => item.code,
+		),
+	});
 }

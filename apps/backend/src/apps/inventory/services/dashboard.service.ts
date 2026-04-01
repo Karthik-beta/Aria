@@ -9,6 +9,15 @@
  */
 import type { Inventory } from "@aria/types";
 import type { PrismaService } from "../../../shared/prisma.service";
+import { buildCommittedStockSnapshot } from "./stock-snapshot";
+
+interface DashboardStockItem {
+	code: string;
+	name: string;
+	safetyStock: number | null;
+	valuationRate: number | null;
+	itemGroup: { groupName: string } | null;
+}
 
 export class DashboardSubService {
 	constructor(private readonly prisma: PrismaService) {}
@@ -21,29 +30,50 @@ export class DashboardSubService {
 		const ninetyDaysFromNow = new Date(now);
 		ninetyDaysFromNow.setDate(ninetyDaysFromNow.getDate() + 90);
 
+		const stockItems = await this.getStockItems();
+		const trackedItemCodes = stockItems.map((item) => item.code);
+
 		const [
-			kpis,
+			totalItems,
+			activeWarehouses,
+			pendingMaterialRequests,
+			stockSnapshot,
 			stockMovements,
 			warehouseStock,
-			itemGroupDistribution,
 			recentActivity,
-			lowStockItems,
 			batchExpiry,
 			deliveryStatus,
 			topMovingItems,
 			stockEntryTypeBreakdown,
 		] = await Promise.all([
-			this.getKpis(),
+			this.prisma.inventoryItem.count({
+				where: { disabled: false },
+			}),
+			this.prisma.warehouse.count({
+				where: { disabled: false, isGroupWarehouse: false },
+			}),
+			this.prisma.materialRequest.count({
+				where: { status: { in: ["PENDING", "APPROVED", "PARTIALLY_ORDERED"] } },
+			}),
+			buildCommittedStockSnapshot(this.prisma, {
+				itemCodes: trackedItemCodes,
+			}),
 			this.getStockMovements(thirtyDaysAgo, now),
 			this.getWarehouseStock(),
-			this.getItemGroupDistribution(),
 			this.getRecentActivity(),
-			this.getLowStockItems(),
 			this.getBatchExpiry(now, ninetyDaysFromNow),
 			this.getDeliveryStatus(),
 			this.getTopMovingItems(thirtyDaysAgo, now),
 			this.getStockEntryTypeBreakdown(),
 		]);
+		const { kpis, itemGroupDistribution, lowStockItems } =
+			this.buildStockInsights({
+				totalItems,
+				activeWarehouses,
+				pendingMaterialRequests,
+				stockItems,
+				stockSnapshot,
+			});
 
 		return {
 			kpis,
@@ -59,55 +89,89 @@ export class DashboardSubService {
 		};
 	}
 
-	private async getKpis(): Promise<Inventory.DashboardKpi> {
-		const [
-			totalItems,
-			activeWarehouses,
-			pendingMaterialRequests,
-			lowStockCountResult,
-			stockAggregation,
-		] = await Promise.all([
-			this.prisma.inventoryItem.count({
-				where: { disabled: false },
-			}),
-			this.prisma.warehouse.count({
-				where: { disabled: false, isGroupWarehouse: false },
-			}),
-			this.prisma.materialRequest.count({
-				where: { status: { in: ["PENDING", "APPROVED", "PARTIALLY_ORDERED"] } },
-			}),
-			// Prisma field references require matching scalar types. Since quantity is
-			// Int and safetyStock is Float, use a raw query for this KPI.
-			this.prisma.client.$queryRaw<
-				[{ count: bigint }]
-			>`SELECT COUNT(*)::bigint AS count
-				 FROM "inventory_items"
-				 WHERE "disabled" = false
-				   AND "maintainStock" = true
-				   AND "safetyStock" > 0
-				   AND "quantity" < "safetyStock"`,
-			this.prisma.inventoryItem.aggregate({
-				where: { disabled: false, maintainStock: true },
-				_sum: { quantity: true },
-				_count: true,
-			}),
-		]);
+	private async getStockItems(): Promise<DashboardStockItem[]> {
+		return this.prisma.inventoryItem.findMany({
+			where: { disabled: false, maintainStock: true },
+			select: {
+				code: true,
+				name: true,
+				safetyStock: true,
+				valuationRate: true,
+				itemGroup: { select: { groupName: true } },
+			},
+		});
+	}
 
-		// Compute total stock value as SUM(quantity * valuationRate)
-		const stockValueResult = await this.prisma.client.$queryRaw<
-			[{ total: number | null }]
-		>`SELECT COALESCE(SUM("quantity" * COALESCE("valuationRate", 0)), 0)::float AS total
-		  FROM "inventory_items"
-		  WHERE "disabled" = false
-		    AND "maintainStock" = true`;
+	private buildStockInsights({
+		totalItems,
+		activeWarehouses,
+		pendingMaterialRequests,
+		stockItems,
+		stockSnapshot,
+	}: {
+		totalItems: number;
+		activeWarehouses: number;
+		pendingMaterialRequests: number;
+		stockItems: DashboardStockItem[];
+		stockSnapshot: Map<string, number>;
+	}): {
+		kpis: Inventory.DashboardKpi;
+		itemGroupDistribution: Inventory.DashboardItemGroupDistribution[];
+		lowStockItems: Inventory.DashboardLowStockItem[];
+	} {
+		let totalStockQuantity = 0;
+		let totalStockValue = 0;
+		const lowStockItems: Inventory.DashboardLowStockItem[] = [];
+		const groupMap = new Map<string, { value: number; itemCount: number }>();
+
+		for (const item of stockItems) {
+			const currentQty = stockSnapshot.get(item.code) ?? 0;
+			const safetyStock = item.safetyStock ?? 0;
+			const stockValue = currentQty * (item.valuationRate ?? 0);
+			const groupName = item.itemGroup?.groupName ?? "Uncategorised";
+			const existingGroup = groupMap.get(groupName) ?? {
+				value: 0,
+				itemCount: 0,
+			};
+
+			totalStockQuantity += currentQty;
+			totalStockValue += stockValue;
+			existingGroup.value += stockValue;
+			existingGroup.itemCount += 1;
+			groupMap.set(groupName, existingGroup);
+
+			if (safetyStock > 0 && currentQty < safetyStock) {
+				lowStockItems.push({
+					itemCode: item.code,
+					itemName: item.name,
+					currentQty: Math.round(currentQty),
+					safetyStock,
+					deficit: Math.round(safetyStock - currentQty),
+					warehouse: "All Warehouses",
+				});
+			}
+		}
 
 		return {
-			totalItems,
-			activeWarehouses,
-			pendingMaterialRequests,
-			lowStockItemCount: Number(lowStockCountResult[0]?.count ?? 0),
-			totalStockValue: stockValueResult[0]?.total ?? 0,
-			totalStockQuantity: stockAggregation._sum.quantity ?? 0,
+			kpis: {
+				totalItems,
+				activeWarehouses,
+				pendingMaterialRequests,
+				lowStockItemCount: lowStockItems.length,
+				totalStockValue: Math.round(totalStockValue),
+				totalStockQuantity: Math.round(totalStockQuantity),
+			},
+			itemGroupDistribution: Array.from(groupMap.entries())
+				.map(([group, data]) => ({
+					group,
+					value: Math.round(data.value),
+					itemCount: data.itemCount,
+				}))
+				.sort((a, b) => b.value - a.value)
+				.slice(0, 10),
+			lowStockItems: lowStockItems
+				.sort((a, b) => b.deficit - a.deficit)
+				.slice(0, 15),
 		};
 	}
 
@@ -256,41 +320,6 @@ export class DashboardSubService {
 			.slice(0, 10);
 	}
 
-	private async getItemGroupDistribution(): Promise<
-		Inventory.DashboardItemGroupDistribution[]
-	> {
-		const items = await this.prisma.inventoryItem.findMany({
-			where: { disabled: false, maintainStock: true },
-			select: {
-				quantity: true,
-				valuationRate: true,
-				itemGroup: { select: { groupName: true } },
-			},
-		});
-
-		const groupMap = new Map<string, { value: number; itemCount: number }>();
-
-		for (const item of items) {
-			const groupName = item.itemGroup?.groupName ?? "Uncategorised";
-			const existing = groupMap.get(groupName) ?? {
-				value: 0,
-				itemCount: 0,
-			};
-			existing.value += item.quantity * (item.valuationRate ?? 0);
-			existing.itemCount += 1;
-			groupMap.set(groupName, existing);
-		}
-
-		return Array.from(groupMap.entries())
-			.map(([group, data]) => ({
-				group,
-				value: Math.round(data.value),
-				itemCount: data.itemCount,
-			}))
-			.sort((a, b) => b.value - a.value)
-			.slice(0, 10);
-	}
-
 	private async getRecentActivity(): Promise<
 		Inventory.DashboardRecentActivity[]
 	> {
@@ -330,33 +359,6 @@ export class DashboardSubService {
 				postingDate: entry.postingDate.toISOString(),
 			};
 		});
-	}
-
-	private async getLowStockItems(): Promise<Inventory.DashboardLowStockItem[]> {
-		const items = await this.prisma.client.$queryRaw<
-			Array<{
-				code: string;
-				name: string;
-				quantity: number;
-				safetyStock: number;
-			}>
-		>`SELECT "code", "name", "quantity", "safetyStock"
-		  FROM "inventory_items"
-		  WHERE "disabled" = false
-		    AND "maintainStock" = true
-		    AND "safetyStock" > 0
-		    AND "quantity" < "safetyStock"
-		  ORDER BY ("safetyStock" - "quantity") DESC
-		  LIMIT 15`;
-
-		return items.map((item) => ({
-			itemCode: item.code,
-			itemName: item.name,
-			currentQty: item.quantity,
-			safetyStock: item.safetyStock,
-			deficit: item.safetyStock - item.quantity,
-			warehouse: "All Warehouses",
-		}));
 	}
 
 	private async getBatchExpiry(

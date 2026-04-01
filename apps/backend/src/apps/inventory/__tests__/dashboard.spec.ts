@@ -7,38 +7,23 @@ import { DashboardSubService } from "../services/dashboard.service";
  * Creates a minimal mock of PrismaService for DashboardSubService tests.
  *
  * Key design decisions:
- * - $queryRaw uses SQL-content dispatch to avoid call-order fragility
- *   (getKpis and getLowStockItems run in parallel so order is non-deterministic).
  * - stockEntry.findMany defaults to [] via mockResolvedValue to handle both
  *   the getStockMovements call and the getRecentActivity call safely.
- * - stockEntryItem includes aggregate for getStockEntryTypeBreakdown.
+ * - stockEntryItem includes findMany for committed stock snapshot reads and
+ *   aggregate/groupBy for chart summaries.
  */
 function createDashboardMockPrisma() {
-	const client = {
-		$queryRaw: jest.fn((query: TemplateStringsArray | string) => {
-			const sql = Array.isArray(query) ? query.join("") : query;
-
-			if (sql.includes("COUNT(*)::bigint")) {
-				// Low-stock count query
-				return Promise.resolve([{ count: BigInt(0) }]);
-			}
-			if (sql.includes("COALESCE(SUM")) {
-				// Total stock value
-				return Promise.resolve([{ total: 0 }]);
-			}
-			// Low-stock items list query
-			return Promise.resolve([]);
-		}),
-	};
-
 	return {
-		client,
+		client: {
+			$queryRaw: jest.fn().mockResolvedValue([]),
+		},
 		inventoryItem: {
 			count: jest.fn().mockResolvedValue(0),
 			aggregate: jest
 				.fn()
 				.mockResolvedValue({ _sum: { quantity: 0 }, _count: 0 }),
 			findMany: jest.fn().mockResolvedValue([]),
+			update: jest.fn().mockResolvedValue(undefined),
 		},
 		warehouse: {
 			count: jest.fn().mockResolvedValue(0),
@@ -52,6 +37,7 @@ function createDashboardMockPrisma() {
 			groupBy: jest.fn().mockResolvedValue([]),
 		},
 		stockEntryItem: {
+			findMany: jest.fn().mockResolvedValue([]),
 			groupBy: jest.fn().mockResolvedValue([]),
 			aggregate: jest.fn().mockResolvedValue({ _sum: { qty: 0 } }),
 		},
@@ -59,7 +45,13 @@ function createDashboardMockPrisma() {
 			findMany: jest.fn().mockResolvedValue([]),
 			groupBy: jest.fn().mockResolvedValue([]),
 		},
+		deliveryNoteItem: {
+			findMany: jest.fn().mockResolvedValue([]),
+		},
 		purchaseReceipt: {
+			findMany: jest.fn().mockResolvedValue([]),
+		},
+		purchaseReceiptItem: {
 			findMany: jest.fn().mockResolvedValue([]),
 		},
 		batch: {
@@ -87,27 +79,41 @@ describe("DashboardSubService › getKpis", () => {
 		service = createService(mp);
 	});
 
-	it("returns correct KPI values from Prisma aggregations", async () => {
-		mp.inventoryItem.count.mockResolvedValueOnce(100);
+	it("returns correct KPI values from committed stock snapshot data", async () => {
+		mp.inventoryItem.count.mockResolvedValue(100);
 		mp.warehouse.count.mockResolvedValue(5);
 		mp.materialRequest.count.mockResolvedValue(12);
-		mp.inventoryItem.aggregate.mockResolvedValue({
-			_sum: { quantity: 2500 },
-			_count: 100,
-		});
-		mp.client.$queryRaw.mockImplementation(
-			(query: TemplateStringsArray | string) => {
-				const sql = Array.isArray(query) ? query.join("") : query;
-
-				if (sql.includes("COALESCE(SUM")) {
-					return Promise.resolve([{ total: 3_750_000 }]);
-				}
-				if (sql.includes("COUNT(*)::bigint")) {
-					return Promise.resolve([{ count: BigInt(8) }]);
-				}
-				return Promise.resolve([]);
+		mp.inventoryItem.findMany.mockResolvedValue([
+			{
+				code: "ITEM-A",
+				name: "Alpha",
+				safetyStock: 10,
+				valuationRate: 200,
+				itemGroup: { groupName: "Electronics" },
 			},
-		);
+			{
+				code: "ITEM-B",
+				name: "Beta",
+				safetyStock: 50,
+				valuationRate: 500,
+				itemGroup: { groupName: "Hardware" },
+			},
+			{
+				code: "ITEM-C",
+				name: "Gamma",
+				safetyStock: 0,
+				valuationRate: 100,
+				itemGroup: { groupName: "Hardware" },
+			},
+		]);
+		mp.purchaseReceiptItem.findMany.mockResolvedValue([
+			{ itemCode: "ITEM-A", acceptedQuantity: 30 },
+			{ itemCode: "ITEM-B", acceptedQuantity: 20 },
+			{ itemCode: "ITEM-C", acceptedQuantity: 25 },
+		]);
+		mp.deliveryNoteItem.findMany.mockResolvedValue([
+			{ itemCode: "ITEM-C", quantity: 5 },
+		]);
 
 		const result = await service.getDashboardData();
 
@@ -115,47 +121,50 @@ describe("DashboardSubService › getKpis", () => {
 			totalItems: 100,
 			activeWarehouses: 5,
 			pendingMaterialRequests: 12,
-			lowStockItemCount: 8,
-			totalStockValue: 3_750_000,
-			totalStockQuantity: 2500,
+			lowStockItemCount: 1,
+			totalStockValue: 18_000,
+			totalStockQuantity: 70,
 		});
 	});
 
-	it("uses the raw COUNT query for low-stock items", async () => {
-		mp.inventoryItem.count.mockResolvedValueOnce(50);
-		mp.warehouse.count.mockResolvedValue(2);
-		mp.materialRequest.count.mockResolvedValue(0);
-		mp.inventoryItem.aggregate.mockResolvedValue({
-			_sum: { quantity: 100 },
-			_count: 50,
-		});
-		mp.client.$queryRaw.mockImplementation(
-			(query: TemplateStringsArray | string) => {
-				const sql = Array.isArray(query) ? query.join("") : query;
-
-				if (sql.includes("COUNT(*)::bigint")) {
-					return Promise.resolve([{ count: BigInt(7) }]);
-				}
-				return Promise.resolve([{ total: 0 }]);
+	it("derives low stock counts from the committed movement snapshot", async () => {
+		mp.inventoryItem.findMany.mockResolvedValue([
+			{
+				code: "LOW-001",
+				name: "Critical Part",
+				safetyStock: 20,
+				valuationRate: 125,
+				itemGroup: { groupName: "Electronics" },
 			},
-		);
+		]);
+		mp.purchaseReceiptItem.findMany.mockResolvedValue([
+			{ itemCode: "LOW-001", acceptedQuantity: 10 },
+		]);
+		mp.deliveryNoteItem.findMany.mockResolvedValue([
+			{ itemCode: "LOW-001", quantity: 3 },
+		]);
 
 		const result = await service.getDashboardData();
 
-		expect(result.kpis.lowStockItemCount).toBe(7);
+		expect(result.kpis.lowStockItemCount).toBe(1);
+		expect(result.lowStockItems[0]).toMatchObject({
+			itemCode: "LOW-001",
+			currentQty: 7,
+			safetyStock: 20,
+			deficit: 13,
+		});
 	});
 
-	it("returns zero for totalStockValue when raw query returns null", async () => {
-		mp.inventoryItem.count.mockResolvedValue(0);
-		mp.warehouse.count.mockResolvedValue(0);
-		mp.materialRequest.count.mockResolvedValue(0);
-		mp.inventoryItem.aggregate.mockResolvedValue({
-			_sum: { quantity: null },
-			_count: 0,
-		});
-		mp.client.$queryRaw.mockImplementation(() =>
-			Promise.resolve([{ total: null, count: BigInt(0) }]),
-		);
+	it("returns zero stock totals when no committed movements exist", async () => {
+		mp.inventoryItem.findMany.mockResolvedValue([
+			{
+				code: "ITEM-EMPTY",
+				name: "No Movement Item",
+				safetyStock: 0,
+				valuationRate: 999,
+				itemGroup: { groupName: "Raw" },
+			},
+		]);
 
 		const result = await service.getDashboardData();
 
@@ -323,20 +332,31 @@ describe("DashboardSubService › getItemGroupDistribution", () => {
 	it("computes stock value per item group sorted by value descending", async () => {
 		mp.inventoryItem.findMany.mockResolvedValue([
 			{
-				quantity: 10,
+				code: "ELEC-001",
+				name: "Electronics A",
+				safetyStock: 0,
 				valuationRate: 1000,
 				itemGroup: { groupName: "Electronics" },
 			},
 			{
-				quantity: 5,
+				code: "FURN-001",
+				name: "Furniture A",
+				safetyStock: 0,
 				valuationRate: 500,
 				itemGroup: { groupName: "Furniture" },
 			},
 			{
-				quantity: 2,
+				code: "ELEC-002",
+				name: "Electronics B",
+				safetyStock: 0,
 				valuationRate: 2000,
 				itemGroup: { groupName: "Electronics" },
 			},
+		]);
+		mp.purchaseReceiptItem.findMany.mockResolvedValue([
+			{ itemCode: "ELEC-001", acceptedQuantity: 10 },
+			{ itemCode: "FURN-001", acceptedQuantity: 5 },
+			{ itemCode: "ELEC-002", acceptedQuantity: 2 },
 		]);
 
 		const result = await service.getDashboardData();
@@ -357,7 +377,16 @@ describe("DashboardSubService › getItemGroupDistribution", () => {
 
 	it("labels items with null itemGroup as 'Uncategorised'", async () => {
 		mp.inventoryItem.findMany.mockResolvedValue([
-			{ quantity: 3, valuationRate: 100, itemGroup: null },
+			{
+				code: "UNCAT-001",
+				name: "Loose Part",
+				safetyStock: 0,
+				valuationRate: 100,
+				itemGroup: null,
+			},
+		]);
+		mp.purchaseReceiptItem.findMany.mockResolvedValue([
+			{ itemCode: "UNCAT-001", acceptedQuantity: 3 },
 		]);
 
 		const result = await service.getDashboardData();
@@ -367,12 +396,41 @@ describe("DashboardSubService › getItemGroupDistribution", () => {
 
 	it("treats null valuationRate as 0", async () => {
 		mp.inventoryItem.findMany.mockResolvedValue([
-			{ quantity: 10, valuationRate: null, itemGroup: { groupName: "Misc" } },
+			{
+				code: "MISC-001",
+				name: "Misc Part",
+				safetyStock: 0,
+				valuationRate: null,
+				itemGroup: { groupName: "Misc" },
+			},
+		]);
+		mp.purchaseReceiptItem.findMany.mockResolvedValue([
+			{ itemCode: "MISC-001", acceptedQuantity: 10 },
 		]);
 
 		const result = await service.getDashboardData();
 
 		expect(result.itemGroupDistribution[0]?.value).toBe(0);
+	});
+
+	it("keeps zero-value categories so the frontend can render an empty chart shell", async () => {
+		mp.inventoryItem.findMany.mockResolvedValue([
+			{
+				code: "ZERO-001",
+				name: "Zero Stock",
+				safetyStock: 0,
+				valuationRate: 100,
+				itemGroup: { groupName: "Dormant Category" },
+			},
+		]);
+
+		const result = await service.getDashboardData();
+
+		expect(result.itemGroupDistribution).toContainEqual({
+			group: "Dormant Category",
+			value: 0,
+			itemCount: 1,
+		});
 	});
 });
 
@@ -721,30 +779,19 @@ describe("DashboardSubService › getLowStockItems", () => {
 		service = createService(mp);
 	});
 
-	it("maps raw SQL rows to DashboardLowStockItem shape", async () => {
-		// Cast to jest.Mock to allow returning a 3rd shape (low-stock rows)
-		// that the factory's inferred type doesn't include.
-		(mp.client.$queryRaw as jest.Mock).mockImplementation(
-			(query: TemplateStringsArray | string) => {
-				const sql = Array.isArray(query) ? query.join("") : query;
-
-				if (sql.includes("COALESCE(SUM")) {
-					return Promise.resolve([{ total: 0 }]);
-				}
-				if (sql.includes("COUNT(*)::bigint")) {
-					return Promise.resolve([{ count: BigInt(0) }]);
-				}
-				// Low-stock items query
-				return Promise.resolve([
-					{
-						code: "LOW-001",
-						name: "Critical Part",
-						quantity: 5,
-						safetyStock: 20,
-					},
-				]);
+	it("maps movement-backed low stock records to DashboardLowStockItem shape", async () => {
+		mp.inventoryItem.findMany.mockResolvedValue([
+			{
+				code: "LOW-001",
+				name: "Critical Part",
+				safetyStock: 20,
+				valuationRate: 50,
+				itemGroup: { groupName: "Components" },
 			},
-		);
+		]);
+		mp.purchaseReceiptItem.findMany.mockResolvedValue([
+			{ itemCode: "LOW-001", acceptedQuantity: 5 },
+		]);
 
 		const result = await service.getDashboardData();
 
@@ -760,7 +807,19 @@ describe("DashboardSubService › getLowStockItems", () => {
 	});
 
 	it("returns empty array when no items are below safety stock", async () => {
-		// Default mock implementation returns [] for the items query
+		mp.inventoryItem.findMany.mockResolvedValue([
+			{
+				code: "OK-001",
+				name: "Healthy Part",
+				safetyStock: 10,
+				valuationRate: 75,
+				itemGroup: { groupName: "Components" },
+			},
+		]);
+		mp.purchaseReceiptItem.findMany.mockResolvedValue([
+			{ itemCode: "OK-001", acceptedQuantity: 25 },
+		]);
+
 		const result = await service.getDashboardData();
 
 		expect(result.lowStockItems).toEqual([]);
@@ -796,13 +855,21 @@ describe("DashboardSubService › getDashboardData (shape)", () => {
 
 	it("kpis has all required numeric fields", async () => {
 		const mp = createDashboardMockPrisma();
-		mp.inventoryItem.count.mockResolvedValueOnce(25).mockResolvedValue(3);
+		mp.inventoryItem.count.mockResolvedValue(25);
 		mp.warehouse.count.mockResolvedValue(4);
 		mp.materialRequest.count.mockResolvedValue(7);
-		mp.inventoryItem.aggregate.mockResolvedValue({
-			_sum: { quantity: 500 },
-			_count: 25,
-		});
+		mp.inventoryItem.findMany.mockResolvedValue([
+			{
+				code: "SHAPE-001",
+				name: "Shape Item",
+				safetyStock: 0,
+				valuationRate: 10,
+				itemGroup: { groupName: "Shape Group" },
+			},
+		]);
+		mp.purchaseReceiptItem.findMany.mockResolvedValue([
+			{ itemCode: "SHAPE-001", acceptedQuantity: 50 },
+		]);
 
 		const service = createService(mp);
 		const result = await service.getDashboardData();
