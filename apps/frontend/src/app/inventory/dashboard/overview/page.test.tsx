@@ -177,6 +177,62 @@ describe("OverviewPage", () => {
 		}
 	});
 
+	it("renders warning insight callouts when stock health needs attention", () => {
+		// createDashboardData has lowStockItemCount=3 (of 38) and pendingMaterialRequests=1
+		renderWithProviders(<OverviewPage />);
+
+		// Low stock: Math.round(3 / 38 * 100) = 8% of items need reorder
+		expect(screen.getByText("8% of items need reorder")).toBeInTheDocument();
+		expect(
+			screen.getByText("Below safety stock threshold"),
+		).toBeInTheDocument();
+
+		// Pending requests: 1 request awaiting action
+		expect(screen.getByText("1 request awaiting action")).toBeInTheDocument();
+		// Card 4 always shows the footer link (not the subtext)
+		expect(screen.getByText("View all requests →")).toBeInTheDocument();
+	});
+
+	it("renders positive insight callouts when stock health is clear", () => {
+		mockUseQuery.mockReturnValue({
+			data: {
+				...createDashboardData(),
+				kpis: {
+					totalItems: 38,
+					activeWarehouses: 8,
+					pendingMaterialRequests: 0,
+					lowStockItemCount: 0,
+					totalStockValue: 375000,
+					totalStockQuantity: 2400,
+				},
+			},
+			isLoading: false,
+			error: null,
+			refetch: mockRefetch,
+		});
+
+		renderWithProviders(<OverviewPage />);
+
+		expect(
+			screen.getByText("All items within safe limits"),
+		).toBeInTheDocument();
+		expect(screen.getByText("No reorder action needed")).toBeInTheDocument();
+
+		expect(screen.getByText("Procurement up to date")).toBeInTheDocument();
+		// Card 4 shows FooterLink as the second footer line
+		expect(screen.getByText("View all requests →")).toBeInTheDocument();
+	});
+
+	it("renders per-warehouse and avg-value insights from real kpi data", () => {
+		renderWithProviders(<OverviewPage />);
+
+		// Active Items: Math.round(38 / 8) = 5 items per warehouse
+		expect(screen.getByText("~5 items per warehouse")).toBeInTheDocument();
+		expect(
+			screen.getByText("Tracking 8 storage locations"),
+		).toBeInTheDocument();
+	});
+
 	it("renders chart empty states when data is empty or all zero", () => {
 		mockUseQuery.mockReturnValue({
 			data: {

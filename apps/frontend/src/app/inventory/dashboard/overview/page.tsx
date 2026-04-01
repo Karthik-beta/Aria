@@ -7,10 +7,12 @@ import {
 	IconArrowUp,
 	IconBox,
 	IconBuildingWarehouse,
+	IconCircleCheck,
 	IconClock,
 	IconFileInvoice,
 	IconPackage,
 	IconRefresh,
+	IconTrendingDown,
 	IconTruckDelivery,
 } from "@tabler/icons-react";
 import Link from "next/link";
@@ -56,9 +58,13 @@ import {
 	formatRelativeDate,
 	formatShortDate,
 	formatStockEntryType,
+	getActiveItemsInsight,
 	getChartColor,
 	getDeliveryStatusColor,
 	getExpiryUrgency,
+	getLowStockInsight,
+	getPendingRequestsInsight,
+	getStockValueInsight,
 } from "./dashboard.utils";
 
 const DASHBOARD_GRID_CLASS =
@@ -111,7 +117,7 @@ function FooterLink({
 	return (
 		<Link
 			href={href}
-			className="text-muted-foreground hover:text-foreground text-xs transition-colors"
+			className="text-muted-foreground hover:text-foreground transition-colors"
 		>
 			{children}
 		</Link>
@@ -242,21 +248,15 @@ function DashboardSkeletonGrid() {
 			<KpiSkeleton className="lg:col-span-3" />
 			<KpiSkeleton className="lg:col-span-3" />
 			<KpiSkeleton className="lg:col-span-3" />
-			<TileSkeleton
-				className="lg:col-span-8 lg:row-span-2"
-				heightClassName="min-h-[28rem]"
-			/>
+			<TileSkeleton className="lg:col-span-8" />
 			<TileSkeleton className="lg:col-span-4" />
 			<TileSkeleton className="lg:col-span-4" />
 			<TileSkeleton className="lg:col-span-8" />
-			<TileSkeleton
-				className="lg:col-span-4 lg:row-span-2"
-				heightClassName="min-h-[28rem]"
-			/>
 			<TileSkeleton className="lg:col-span-4" />
 			<TileSkeleton className="lg:col-span-4" />
-			<TileSkeleton className="lg:col-span-6" />
-			<TileSkeleton className="lg:col-span-6" />
+			<TileSkeleton className="lg:col-span-4 lg:row-span-2" />
+			<TileSkeleton className="lg:col-span-4" />
+			<TileSkeleton className="lg:col-span-4" />
 		</>
 	);
 }
@@ -326,7 +326,7 @@ export default function OverviewPage() {
 						<>
 							<KpiCards kpis={data.kpis} />
 							<StockMovementChart
-								className="lg:col-span-8 lg:row-span-2"
+								className="lg:col-span-8"
 								data={data.stockMovements}
 							/>
 							<WarehouseStockChart
@@ -341,10 +341,6 @@ export default function OverviewPage() {
 								className="lg:col-span-8"
 								data={data.topMovingItems}
 							/>
-							<RecentActivityFeed
-								className="lg:col-span-4 lg:row-span-2"
-								data={data.recentActivity}
-							/>
 							<StockEntryBreakdownChart
 								className="lg:col-span-4"
 								data={data.stockEntryTypeBreakdown}
@@ -353,12 +349,16 @@ export default function OverviewPage() {
 								className="lg:col-span-4"
 								data={data.lowStockItems}
 							/>
+							<RecentActivityFeed
+								className="lg:col-span-4 lg:row-span-2"
+								data={data.recentActivity}
+							/>
 							<BatchExpiryTracker
-								className="lg:col-span-6"
+								className="lg:col-span-4"
 								data={data.batchExpiry}
 							/>
 							<DeliveryStatusCard
-								className="lg:col-span-6"
+								className="lg:col-span-4"
 								data={data.deliveryStatus}
 							/>
 						</>
@@ -372,13 +372,33 @@ export default function OverviewPage() {
 // ── KPI Cards ─────────────────────────────────────────────────────────
 
 function KpiCards({ kpis }: { kpis: Inventory.DashboardKpi }) {
+	const stockValueInsight = getStockValueInsight(
+		kpis.totalStockValue,
+		kpis.totalStockQuantity,
+		kpis.totalItems,
+	);
+	const activeItemsInsight = getActiveItemsInsight(
+		kpis.totalItems,
+		kpis.activeWarehouses,
+	);
+	const lowStockInsight = getLowStockInsight(
+		kpis.lowStockItemCount,
+		kpis.totalItems,
+	);
+	const pendingRequestsInsight = getPendingRequestsInsight(
+		kpis.pendingMaterialRequests,
+	);
+
 	return (
 		<>
 			<KpiCard
 				className="lg:col-span-3"
 				title="Total Stock Value"
 				value={formatCompactCurrency(kpis.totalStockValue)}
-				footer={`Across ${kpis.totalItems} active items`}
+				insightText={stockValueInsight.text}
+				insightSubtext={stockValueInsight.subtext}
+				insightColorClass={stockValueInsight.colorClass}
+				insightIcon={IconPackage}
 				action={
 					<Badge variant="outline" className="text-xs">
 						<IconPackage className="size-3" />
@@ -390,7 +410,10 @@ function KpiCards({ kpis }: { kpis: Inventory.DashboardKpi }) {
 				className="lg:col-span-3"
 				title="Active Items"
 				value={formatQuantity(kpis.totalItems)}
-				footer="Stock tracked across all locations"
+				insightText={activeItemsInsight.text}
+				insightSubtext={activeItemsInsight.subtext}
+				insightColorClass={activeItemsInsight.colorClass}
+				insightIcon={IconBuildingWarehouse}
 				action={
 					<Badge variant="outline" className="text-xs">
 						<IconBuildingWarehouse className="size-3" />
@@ -402,7 +425,12 @@ function KpiCards({ kpis }: { kpis: Inventory.DashboardKpi }) {
 				className="lg:col-span-3"
 				title="Low Stock Alerts"
 				value={formatQuantity(kpis.lowStockItemCount)}
-				footer="Items below safety stock level"
+				insightText={lowStockInsight.text}
+				insightSubtext={lowStockInsight.subtext}
+				insightColorClass={lowStockInsight.colorClass}
+				insightIcon={
+					kpis.lowStockItemCount === 0 ? IconCircleCheck : IconTrendingDown
+				}
 				action={
 					kpis.lowStockItemCount > 0 ? (
 						<Badge variant="destructive" className="text-xs">
@@ -437,7 +465,20 @@ function KpiCards({ kpis }: { kpis: Inventory.DashboardKpi }) {
 						</Badge>
 					</CardAction>
 				</CardHeader>
-				<CardFooter className="mt-auto">
+				<CardFooter className="flex-col items-start gap-1.5 text-sm">
+					<div
+						className={cn(
+							"line-clamp-1 flex items-center gap-2 font-medium",
+							pendingRequestsInsight.colorClass,
+						)}
+					>
+						{kpis.pendingMaterialRequests === 0 ? (
+							<IconCircleCheck className="size-4 shrink-0" />
+						) : (
+							<IconFileInvoice className="size-4 shrink-0" />
+						)}
+						{pendingRequestsInsight.text}
+					</div>
 					<FooterLink href="/inventory/stock-transaction/material-request">
 						View all requests →
 					</FooterLink>
@@ -451,13 +492,19 @@ function KpiCard({
 	className,
 	title,
 	value,
-	footer,
+	insightText,
+	insightSubtext,
+	insightIcon: InsightIcon,
+	insightColorClass,
 	action,
 }: {
 	className?: string;
 	title: string;
 	value: string;
-	footer: string;
+	insightText: string;
+	insightSubtext: string;
+	insightIcon: React.ComponentType<{ className?: string }>;
+	insightColorClass?: string;
 	action?: React.ReactNode;
 }) {
 	return (
@@ -475,8 +522,17 @@ function KpiCard({
 				</CardTitle>
 				{action ? <CardAction>{action}</CardAction> : null}
 			</CardHeader>
-			<CardFooter className="mt-auto">
-				<div className="text-muted-foreground text-sm">{footer}</div>
+			<CardFooter className="flex-col items-start gap-1.5 text-sm">
+				<div
+					className={cn(
+						"line-clamp-1 flex items-center gap-2 font-medium",
+						insightColorClass,
+					)}
+				>
+					<InsightIcon className="size-4 shrink-0" />
+					{insightText}
+				</div>
+				<div className="text-muted-foreground">{insightSubtext}</div>
 			</CardFooter>
 		</Card>
 	);
@@ -505,7 +561,7 @@ function StockMovementChart({
 	const hasMovementData = hasSeriesData(data, ["inbound", "outbound"]);
 
 	return (
-		<Card className={cn(CARD_SURFACE_CLASS, "min-h-[28rem]", className)}>
+		<Card className={cn(CARD_SURFACE_CLASS, className)}>
 			<CardHeader>
 				<CardTitle>Stock Movements</CardTitle>
 				<CardDescription>
@@ -516,7 +572,7 @@ function StockMovementChart({
 				{hasMovementData ? (
 					<ChartContainer
 						config={movementChartConfig}
-						className="aspect-auto h-full min-h-[20rem] w-full min-w-0"
+						className="aspect-auto h-full w-full min-w-0"
 					>
 						<AreaChart
 							data={data}
@@ -1047,7 +1103,7 @@ function RecentActivityFeed({
 	data: Inventory.DashboardRecentActivity[];
 }) {
 	return (
-		<Card className={cn(CARD_SURFACE_CLASS, "min-h-[28rem]", className)}>
+		<Card className={cn(CARD_SURFACE_CLASS, className)}>
 			<CardHeader>
 				<CardTitle>Recent Stock Activity</CardTitle>
 				<CardDescription>Latest stock entry transactions</CardDescription>

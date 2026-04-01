@@ -148,3 +148,88 @@ export const CHART_COLORS = [
 export function getChartColor(index: number): string {
 	return CHART_COLORS[index % CHART_COLORS.length];
 }
+
+// ── KPI Insight Callouts ──────────────────────────────────────────────
+
+export interface InsightResult {
+	text: string;
+	subtext: string;
+	colorClass?: string;
+}
+
+export function getStockValueInsight(
+	totalStockValue: number,
+	totalStockQuantity: number,
+	totalItems: number,
+): InsightResult {
+	if (totalItems === 0) {
+		return {
+			text: "No items in catalogue yet",
+			subtext: "Add items to begin tracking value",
+		};
+	}
+	if (totalStockQuantity <= 0) {
+		return {
+			text: "No committed stock yet",
+			subtext: `${totalItems} item${totalItems === 1 ? "" : "s"} in catalogue`,
+		};
+	}
+	const avgPerUnit = Math.round((totalStockValue / totalStockQuantity) * 100) / 100;
+	return {
+		text: `~${formatCompactCurrency(avgPerUnit)} avg per unit`,
+		subtext: `Across ${totalItems} active item type${totalItems === 1 ? "" : "s"}`,
+	};
+}
+
+export function getActiveItemsInsight(
+	totalItems: number,
+	activeWarehouses: number,
+): InsightResult {
+	if (activeWarehouses === 0) {
+		return {
+			text: "No warehouses configured",
+			subtext: "Set up warehouses to track stock",
+		};
+	}
+	const perWarehouse = Math.round(totalItems / activeWarehouses);
+	return {
+		text: `~${perWarehouse} item${perWarehouse === 1 ? "" : "s"} per warehouse`,
+		subtext: `Tracking ${activeWarehouses} storage location${activeWarehouses === 1 ? "" : "s"}`,
+	};
+}
+
+export function getLowStockInsight(
+	lowStockItemCount: number,
+	totalItems: number,
+): InsightResult {
+	if (lowStockItemCount === 0) {
+		return {
+			text: "All items within safe limits",
+			subtext: "No reorder action needed",
+			colorClass: "text-green-600 dark:text-green-400",
+		};
+	}
+	const pct =
+		totalItems > 0 ? Math.round((lowStockItemCount / totalItems) * 100) : 100;
+	return {
+		text: `${pct}% of items need reorder`,
+		subtext: "Below safety stock threshold",
+		colorClass: "text-destructive",
+	};
+}
+
+export function getPendingRequestsInsight(
+	pendingMaterialRequests: number,
+): InsightResult {
+	if (pendingMaterialRequests === 0) {
+		return {
+			text: "Procurement up to date",
+			subtext: "No open material requests",
+			colorClass: "text-green-600 dark:text-green-400",
+		};
+	}
+	return {
+		text: `${pendingMaterialRequests} request${pendingMaterialRequests === 1 ? "" : "s"} awaiting action`,
+		subtext: "Check material request queue",
+	};
+}
