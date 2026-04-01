@@ -121,7 +121,7 @@ apps/backend/
 │   ├── migrations/       # Database migrations
 │   ├── seed-authorization.ts # Seed roles, permissions, apps
 │   ├── seeds/            # Additional seed scripts
-│   └── demo-data/        # Demo data system (CLI + orchestrator)
+│   └── demo-data/        # Demo data system (CLI + orchestrator + README)
 └── test/                 # Integration tests
 ```
 

@@ -83,13 +83,13 @@ async function run() {
 		}
 
 		default:
-			logger.info(
-				"Usage: bun prisma/demo-data/cli.ts <command> [options]\n\n" +
-					"Commands:\n" +
-					"  load   [--scale=small|medium|large]  Seed demo data\n" +
-					"  clean                                Remove all demo data\n" +
-					"  status                               Show record counts\n",
-			);
+				logger.info(
+					"Usage: bun prisma/demo-data/cli.ts <command> [options]\n\n" +
+						"Commands:\n" +
+						"  load   [--scale=small|medium|large]  Load demo data\n" +
+						"  clean                                Remove all demo data\n" +
+						"  status                               Show record counts\n",
+				);
 			process.exit(command ? 1 : 0);
 	}
 }

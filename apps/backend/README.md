@@ -45,6 +45,19 @@ The server will start at `http://localhost:3000` with hot-reload enabled (change
 - Safety: preload is idempotent and **insert-only** by case-insensitive name. Existing rows are not updated or deleted.
 - Update workflow: edit `uom.csv`, keep headers as `"UOM Name","Enabled","Must be Whole Number"`, and restart backend to preload newly added names.
 
+## 📦 Demo Data Loader
+
+- Canonical file path: `apps/backend/prisma/demo-data/README.md`
+- Load the inventory demo dataset:
+  `bun prisma/demo-data/cli.ts load --scale=medium`
+- Inspect the demo dataset:
+  `bun prisma/demo-data/cli.ts status`
+- Remove the demo dataset:
+  `bun prisma/demo-data/cli.ts clean`
+
+This loader creates the Pivotr Electronics sample inventory story used for
+demos, QA, and training.
+
 ## 📁 Project Structure
 
 ```

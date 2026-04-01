@@ -130,7 +130,7 @@ bun x --bun prisma migrate dev --name your_migration_name
 bun x --bun prisma migrate deploy
 ```
 
-### How do I seed demo data?
+### How do I load demo data?
 
 ```bash
 cd apps/backend
@@ -138,8 +138,8 @@ cd apps/backend
 # Seed authorization (roles, permissions, apps)
 bun x tsx prisma/seed-authorization.ts
 
-# Seed inventory demo data
-bun x tsx prisma/demo-data/cli.ts seed --scale medium
+# Load inventory demo data
+bun prisma/demo-data/cli.ts load --scale=medium
 ```
 
 ## TypeScript

@@ -89,6 +89,9 @@ bun x --bun prisma migrate dev
 # Seed authorization data (roles, permissions, default apps)
 bun x tsx prisma/seed-authorization.ts
 
+# Load inventory demo data (optional)
+bun prisma/demo-data/cli.ts load --scale=medium
+
 # Return to root
 cd ../..
 ```
@@ -190,8 +193,8 @@ bun x --bun prisma generate
 # Reset database (WARNING: deletes all data)
 bun x --bun prisma migrate reset
 
-# Seed demo data
-bun x tsx prisma/demo-data/cli.ts seed --scale medium
+# Load inventory demo data
+bun prisma/demo-data/cli.ts load --scale=medium
 ```
 
 ### Working with Shared Packages
