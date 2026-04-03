@@ -154,7 +154,12 @@ bun test:watch
 - ✅ **Visual debugging** with trace viewer
 - ✅ **CI/CD ready** with GitHub Actions
 
+Install the Playwright browsers from `apps/frontend` so the browser revision stays aligned with the workspace's pinned `@playwright/test` version:
+
 ```bash
+# Install Playwright browsers and OS dependencies
+bun run test:e2e:install
+
 # Run E2E tests
 bun test:e2e
 

@@ -64,7 +64,8 @@ jobs:
         run: bun run typecheck
 
       - name: Install Playwright browsers
-        run: bunx playwright install --with-deps chromium
+        working-directory: apps/frontend
+        run: bun run test:e2e:install
 
       - name: Test E2E
         run: bun run test:e2e
