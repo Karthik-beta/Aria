@@ -291,15 +291,15 @@ export const assetNavItems: NavItem[] = [
 		items: [
 			{
 				title: "Asset",
-				url: "/asset/asset",
+				url: "/asset/asset_sub_module/asset",
 			},
 			{
 				title: "Location",
-				url: "/asset/location",
+				url: "/asset/asset_sub_module/location",
 			},
 			{
 				title: "Asset Category",
-				url: "/asset/asset-category",
+				url: "/asset/asset_sub_module/asset-category",
 			},
 		],
 	},

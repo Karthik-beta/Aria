@@ -1558,3 +1558,128 @@ enum SubcontractingOrderStatus {
   CLOSED
   CANCELLED
 }
+
+// ============================================================================
+// Asset Management
+// ============================================================================
+
+model Location {
+  id               String     @id @default(cuid())
+  name             String     @unique @db.VarChar(255)
+  parentLocationId String?
+  parentLocation   Location?  @relation("LocationHierarchy", fields: [parentLocationId], references: [id])
+  childLocations   Location[] @relation("LocationHierarchy")
+  isGroup          Boolean    @default(false)
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+  assets           Asset[]
+
+  @@index([name])
+  @@index([parentLocationId])
+  @@map("locations")
+}
+
+model AssetCategory {
+  id                         String              @id @default(cuid())
+  name                       String              @unique @db.VarChar(255)
+  depreciationMethod         DepreciationMethod?
+  totalNumberOfDepreciations Int?
+  frequencyOfDepreciation    Int?
+  nonDepreciableCategory     Boolean             @default(false)
+  enableCwipAccounting       Boolean             @default(false)
+  createdAt                  DateTime            @default(now())
+  updatedAt                  DateTime            @updatedAt
+  assets                     Asset[]
+
+  @@index([name])
+  @@map("asset_categories")
+}
+
+model Asset {
+  id                                 String              @id @default(cuid())
+  series                             String              @unique @db.VarChar(50)
+  assetName                          String              @db.VarChar(255)
+  itemCode                           String              @db.VarChar(100)
+  assetCategoryId                    String?
+  assetCategory                      AssetCategory?      @relation(fields: [assetCategoryId], references: [id])
+  company                            String              @db.VarChar(255)
+  locationId                         String?
+  location                           Location?           @relation(fields: [locationId], references: [id])
+  custodian                          String?             @db.VarChar(255)
+  department                         String?             @db.VarChar(255)
+  purchaseDate                       DateTime
+  availableForUseDate                DateTime?
+  disposalDate                       DateTime?
+  netPurchaseAmount                  Decimal             @default(0) @db.Decimal(18, 6)
+  assetQuantity                      Int                 @default(1)
+  calculateDepreciation              Boolean             @default(false)
+  openingAccumulatedDepreciation     Decimal             @default(0) @db.Decimal(18, 6)
+  openingNumberOfBookedDepreciations Int                 @default(0)
+  isFullyDepreciated                 Boolean             @default(false)
+  valueAfterDepreciation             Decimal             @default(0) @db.Decimal(18, 6)
+  maintenanceRequired                Boolean             @default(false)
+  assetOwner                         AssetOwner          @default(COMPANY)
+  assetOwnerCompany                  String?             @db.VarChar(255)
+  supplier                           String?             @db.VarChar(255)
+  customer                           String?             @db.VarChar(255)
+  policyNumber                       String?             @db.VarChar(100)
+  insurer                            String?             @db.VarChar(255)
+  insuredValue                       Decimal?            @db.Decimal(18, 6)
+  insuranceStartDate                 DateTime?
+  insuranceEndDate                   DateTime?
+  depreciationMethod                 DepreciationMethod?
+  totalNumberOfDepreciations         Int?
+  frequencyOfDepreciation            Int?
+  purchaseReceipt                    String?             @db.VarChar(100)
+  purchaseInvoice                    String?             @db.VarChar(100)
+  status                             AssetStatus         @default(DRAFT)
+  activities                         AssetActivity[]
+  createdAt                          DateTime            @default(now())
+  updatedAt                          DateTime            @updatedAt
+
+  @@index([series])
+  @@index([status])
+  @@index([itemCode])
+  @@index([company])
+  @@index([locationId])
+  @@index([assetCategoryId])
+  @@index([purchaseDate])
+  @@map("assets")
+}
+
+model AssetActivity {
+  id        String   @id @default(cuid())
+  assetId   String
+  asset     Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  activity  String   @db.VarChar(500)
+  createdAt DateTime @default(now())
+
+  @@index([assetId])
+  @@index([createdAt])
+  @@map("asset_activities")
+}
+
+enum AssetStatus {
+  DRAFT
+  SUBMITTED
+  CANCELLED
+  PARTIALLY_DEPRECIATED
+  FULLY_DEPRECIATED
+  SOLD
+  SCRAPPED
+  IN_MAINTENANCE
+  OUT_OF_ORDER
+}
+
+enum AssetOwner {
+  COMPANY
+  SUPPLIER
+  CUSTOMER
+}
+
+enum DepreciationMethod {
+  STRAIGHT_LINE
+  DOUBLE_DECLINING_BALANCE
+  WRITTEN_DOWN_VALUE
+  MANUAL
+}

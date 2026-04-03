@@ -1,0 +1,203 @@
+import { EventEmitter } from "node:events";
+import { Asset } from "@aria/types";
+import { Injectable } from "@nestjs/common";
+import { observable } from "@trpc/server/observable";
+import { z } from "zod";
+import { protectedProcedure, router } from "../../../trpc/trpc";
+// biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
+import { AssetService } from "../asset.service";
+
+// Global event emitter for real-time asset subscriptions
+const assetEvents = new EventEmitter({ captureRejections: true });
+assetEvents.setMaxListeners(50);
+
+type AssetsChangedEvent = {
+	type: "created" | "updated" | "deleted";
+	data: Asset.AssetItem | { id: string };
+};
+
+type LocationsChangedEvent = {
+	type: "created" | "updated" | "deleted";
+	data: Asset.Location | { id: string };
+};
+
+type AssetCategoriesChangedEvent = {
+	type: "created" | "updated" | "deleted";
+	data: Asset.AssetCategory | { id: string };
+};
+
+@Injectable()
+export class AssetRouter {
+	constructor(private readonly assetService: AssetService) {}
+
+	getRouter() {
+		const svc = this.assetService;
+
+		return router({
+			// ── Asset CRUD ────────────────────────────────────────────────────
+			listAssets: protectedProcedure
+				.input(Asset.listAssetsSchema)
+				.query(async ({ input }) => svc.findAllAssets(input)),
+
+			getAssetById: protectedProcedure
+				.input(z.object({ id: z.string().cuid() }))
+				.query(async ({ input }) => svc.findAssetById(input.id)),
+
+			createAsset: protectedProcedure
+				.input(Asset.createAssetSchema)
+				.mutation(async ({ input }) => {
+					const asset = await svc.createAsset(input);
+					assetEvents.emit("assetsChanged", {
+						type: "created",
+						data: asset,
+					} satisfies AssetsChangedEvent);
+					return asset;
+				}),
+
+			updateAsset: protectedProcedure
+				.input(Asset.updateAssetSchema)
+				.mutation(async ({ input }) => {
+					const asset = await svc.updateAsset(input);
+					assetEvents.emit("assetsChanged", {
+						type: "updated",
+						data: asset,
+					} satisfies AssetsChangedEvent);
+					return asset;
+				}),
+
+			deleteAsset: protectedProcedure
+				.input(z.object({ id: z.string().cuid() }))
+				.mutation(async ({ input }) => {
+					const result = await svc.deleteAsset(input.id);
+					assetEvents.emit("assetsChanged", {
+						type: "deleted",
+						data: { id: input.id },
+					} satisfies AssetsChangedEvent);
+					return result;
+				}),
+
+			deleteManyAssets: protectedProcedure
+				.input(Asset.bulkDeleteAssetsSchema)
+				.mutation(async ({ input }) => {
+					const result = await svc.deleteManyAssets(input.ids);
+					for (const id of input.ids) {
+						assetEvents.emit("assetsChanged", {
+							type: "deleted",
+							data: { id },
+						} satisfies AssetsChangedEvent);
+					}
+					return result;
+				}),
+
+			// ── Location CRUD ─────────────────────────────────────────────────
+			listLocations: protectedProcedure
+				.input(Asset.listLocationsSchema)
+				.query(async ({ input }) => svc.findAllLocations(input)),
+
+			getLocationById: protectedProcedure
+				.input(z.object({ id: z.string().cuid() }))
+				.query(async ({ input }) => svc.findLocationById(input.id)),
+
+			createLocation: protectedProcedure
+				.input(Asset.createLocationSchema)
+				.mutation(async ({ input }) => {
+					const loc = await svc.createLocation(input);
+					assetEvents.emit("locationsChanged", {
+						type: "created",
+						data: loc,
+					} satisfies LocationsChangedEvent);
+					return loc;
+				}),
+
+			updateLocation: protectedProcedure
+				.input(Asset.updateLocationSchema)
+				.mutation(async ({ input }) => {
+					const loc = await svc.updateLocation(input);
+					assetEvents.emit("locationsChanged", {
+						type: "updated",
+						data: loc,
+					} satisfies LocationsChangedEvent);
+					return loc;
+				}),
+
+			deleteLocation: protectedProcedure
+				.input(z.object({ id: z.string().cuid() }))
+				.mutation(async ({ input }) => {
+					const result = await svc.deleteLocation(input.id);
+					assetEvents.emit("locationsChanged", {
+						type: "deleted",
+						data: { id: input.id },
+					} satisfies LocationsChangedEvent);
+					return result;
+				}),
+
+			// ── Asset Category CRUD ───────────────────────────────────────────
+			listAssetCategories: protectedProcedure
+				.input(Asset.listAssetCategoriesSchema)
+				.query(async ({ input }) => svc.findAllAssetCategories(input)),
+
+			getAssetCategoryById: protectedProcedure
+				.input(z.object({ id: z.string().cuid() }))
+				.query(async ({ input }) => svc.findAssetCategoryById(input.id)),
+
+			createAssetCategory: protectedProcedure
+				.input(Asset.createAssetCategorySchema)
+				.mutation(async ({ input }) => {
+					const cat = await svc.createAssetCategory(input);
+					assetEvents.emit("assetCategoriesChanged", {
+						type: "created",
+						data: cat,
+					} satisfies AssetCategoriesChangedEvent);
+					return cat;
+				}),
+
+			updateAssetCategory: protectedProcedure
+				.input(Asset.updateAssetCategorySchema)
+				.mutation(async ({ input }) => {
+					const cat = await svc.updateAssetCategory(input);
+					assetEvents.emit("assetCategoriesChanged", {
+						type: "updated",
+						data: cat,
+					} satisfies AssetCategoriesChangedEvent);
+					return cat;
+				}),
+
+			deleteAssetCategory: protectedProcedure
+				.input(z.object({ id: z.string().cuid() }))
+				.mutation(async ({ input }) => {
+					const result = await svc.deleteAssetCategory(input.id);
+					assetEvents.emit("assetCategoriesChanged", {
+						type: "deleted",
+						data: { id: input.id },
+					} satisfies AssetCategoriesChangedEvent);
+					return result;
+				}),
+
+			// ── Subscriptions ─────────────────────────────────────────────────
+			onAssetsChanged: protectedProcedure.subscription(() =>
+				observable<AssetsChangedEvent>((emit) => {
+					const handler = (event: AssetsChangedEvent) => emit.next(event);
+					assetEvents.on("assetsChanged", handler);
+					return () => assetEvents.off("assetsChanged", handler);
+				}),
+			),
+
+			onLocationsChanged: protectedProcedure.subscription(() =>
+				observable<LocationsChangedEvent>((emit) => {
+					const handler = (event: LocationsChangedEvent) => emit.next(event);
+					assetEvents.on("locationsChanged", handler);
+					return () => assetEvents.off("locationsChanged", handler);
+				}),
+			),
+
+			onAssetCategoriesChanged: protectedProcedure.subscription(() =>
+				observable<AssetCategoriesChangedEvent>((emit) => {
+					const handler = (event: AssetCategoriesChangedEvent) =>
+						emit.next(event);
+					assetEvents.on("assetCategoriesChanged", handler);
+					return () => assetEvents.off("assetCategoriesChanged", handler);
+				}),
+			),
+		});
+	}
+}
