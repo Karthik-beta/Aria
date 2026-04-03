@@ -66,7 +66,7 @@ apps/backend/
 │   ├── migrations/            # Database migrations
 │   ├── seed-authorization.ts  # Seeds roles, permissions, default apps
 │   ├── seeds/                 # Additional seed scripts
-│   └── demo-data/             # Demo data system (CLI + orchestrator)
+│   └── demo-data/             # Demo data system (CLI + orchestrator + README)
 └── test/                      # Integration tests
 ```
 
@@ -140,19 +140,22 @@ See [Prisma Documentation](./02-prisma/README.md) for schema management and migr
 
 ## Demo Data
 
-The demo data system in `prisma/demo-data/` provides realistic test data for the Inventory module:
+The demo data system in `prisma/demo-data/` provides realistic test data for
+the Inventory module. See
+[apps/backend/prisma/demo-data/README.md](../../apps/backend/prisma/demo-data/README.md)
+for the full command reference and configuration guide.
 
 ```bash
 cd apps/backend
 
-# Seed demo data (small/medium/large scale)
-bun x tsx prisma/demo-data/cli.ts seed --scale medium
+# Load demo data (small/medium/large scale)
+bun prisma/demo-data/cli.ts load --scale=medium
 
 # Check demo data status
-bun x tsx prisma/demo-data/cli.ts status
+bun prisma/demo-data/cli.ts status
 
 # Clean demo data
-bun x tsx prisma/demo-data/cli.ts clean
+bun prisma/demo-data/cli.ts clean
 ```
 
 Business context: **Pivotr Electronics Pvt Ltd** — a Bangalore-based SME manufacturing electronic components.

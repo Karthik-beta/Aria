@@ -2483,6 +2483,11 @@ type InventoryRouterInput = {
 		output: { success: boolean; count: number; ids: string[] };
 		meta: object;
 	}>;
+	getDashboardData: TRPCQueryProcedure<{
+		input: void;
+		output: Inventory.DashboardData;
+		meta: object;
+	}>;
 };
 
 type InventoryRouterRoot = (typeof accountRouter)["_def"]["_config"]["$types"];

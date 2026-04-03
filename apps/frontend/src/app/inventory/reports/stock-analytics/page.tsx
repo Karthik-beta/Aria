@@ -497,52 +497,59 @@ export default function StockAnalyticsPage() {
 							balance per period for selected items.
 						</p>
 					</div>
-					<ResponsiveContainer width="100%" height={320}>
-						<LineChart
-							data={chartData}
-							margin={{ top: 4, right: 20, left: 8, bottom: 4 }}
+					<div className="h-[320px] w-full min-w-0 min-h-[320px]">
+						<ResponsiveContainer
+							width="100%"
+							height="100%"
+							minWidth={0}
+							minHeight={320}
 						>
-							<CartesianGrid strokeDasharray="3 3" vertical={false} />
-							<XAxis
-								dataKey="label"
-								tickLine={false}
-								axisLine={false}
-								tick={{ fontSize: 12 }}
-								interval="preserveStartEnd"
-							/>
-							<YAxis
-								tickLine={false}
-								axisLine={false}
-								tick={{ fontSize: 12 }}
-								tickFormatter={(v: number) =>
-									filters.valueQuantity === "Value"
-										? `₹${Math.round(v / 1000)}k`
-										: String(Math.round(v))
-								}
-								width={60}
-							/>
-							<Tooltip
-								formatter={(value, name) => [
-									formatPeriodValue(value as number, filters.valueQuantity),
-									name,
-								]}
-								labelStyle={{ fontWeight: 600 }}
-							/>
-							<Legend />
-							{selectedRows.map((row, index) => (
-								<Line
-									key={row.itemCode}
-									type="monotone"
-									dataKey={row.itemCode}
-									name={row.itemName ?? row.itemCode}
-									stroke={getSeriesColor(index)}
-									strokeWidth={2}
-									dot={false}
-									connectNulls={false}
+							<LineChart
+								data={chartData}
+								margin={{ top: 4, right: 20, left: 8, bottom: 4 }}
+							>
+								<CartesianGrid strokeDasharray="3 3" vertical={false} />
+								<XAxis
+									dataKey="label"
+									tickLine={false}
+									axisLine={false}
+									tick={{ fontSize: 12 }}
+									interval="preserveStartEnd"
 								/>
-							))}
-						</LineChart>
-					</ResponsiveContainer>
+								<YAxis
+									tickLine={false}
+									axisLine={false}
+									tick={{ fontSize: 12 }}
+									tickFormatter={(v: number) =>
+										filters.valueQuantity === "Value"
+											? `₹${Math.round(v / 1000)}k`
+											: String(Math.round(v))
+									}
+									width={60}
+								/>
+								<Tooltip
+									formatter={(value, name) => [
+										formatPeriodValue(value as number, filters.valueQuantity),
+										name,
+									]}
+									labelStyle={{ fontWeight: 600 }}
+								/>
+								<Legend />
+								{selectedRows.map((row, index) => (
+									<Line
+										key={row.itemCode}
+										type="monotone"
+										dataKey={row.itemCode}
+										name={row.itemName ?? row.itemCode}
+										stroke={getSeriesColor(index)}
+										strokeWidth={2}
+										dot={false}
+										connectNulls={false}
+									/>
+								))}
+							</LineChart>
+						</ResponsiveContainer>
+					</div>
 				</section>
 			) : null}
 

@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 // ── Mocks ────────────────────────────────────────────────────────────────────
@@ -36,6 +36,8 @@ describe("AuthGuard", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		vi.unstubAllEnvs();
+		vi.stubEnv("NODE_ENV", "test");
+		vi.stubEnv("NEXT_PUBLIC_DEV_AUTH_BYPASS", "false");
 		mockPathname = "/";
 	});
 
@@ -133,7 +135,7 @@ describe("AuthGuard", () => {
 		expect(screen.getByText("Dashboard")).toBeInTheDocument();
 	});
 
-	it("redirects to sign-in when session has an error", () => {
+	it("redirects to sign-in when session has an error", async () => {
 		useSessionMock.mockReturnValue({
 			data: null,
 			isPending: false,
@@ -147,10 +149,12 @@ describe("AuthGuard", () => {
 			</AuthGuard>,
 		);
 
-		expect(pushMock).toHaveBeenCalledWith("/auth/sign-in");
+		await waitFor(() => {
+			expect(pushMock).toHaveBeenCalledWith("/auth/sign-in");
+		});
 	});
 
-	it("redirects to change-password when user mustChangePassword", () => {
+	it("redirects to change-password when user mustChangePassword", async () => {
 		useSessionMock.mockReturnValue({
 			data: {
 				user: { id: "u1", mustChangePassword: true },
@@ -167,6 +171,8 @@ describe("AuthGuard", () => {
 			</AuthGuard>,
 		);
 
-		expect(pushMock).toHaveBeenCalledWith("/auth/change-password");
+		await waitFor(() => {
+			expect(pushMock).toHaveBeenCalledWith("/auth/change-password");
+		});
 	});
 });

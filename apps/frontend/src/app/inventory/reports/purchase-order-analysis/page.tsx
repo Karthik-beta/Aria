@@ -580,63 +580,73 @@ export default function PurchaseOrderAnalysisPage() {
 						</p>
 					</div>
 					<div className="flex flex-col items-center gap-6 md:flex-row md:items-start">
-						<ResponsiveContainer width="100%" height={260}>
-							<PieChart>
-								<Pie
-									data={donutData}
-									dataKey="value"
-									nameKey="name"
-									innerRadius={70}
-									outerRadius={110}
-									strokeWidth={2}
-									stroke="var(--background)"
-								>
-									{donutData.map((entry, index) => (
-										<Cell
-											key={`cell_${entry.name}`}
-											fill={getChartColor(index)}
-										/>
-									))}
-									<Label
-										content={({ viewBox }) => {
-											if (viewBox && "cx" in viewBox && "cy" in viewBox) {
-												const total = totalBilled + totalPending;
-												return (
-													<text
-														x={viewBox.cx}
-														y={viewBox.cy}
-														textAnchor="middle"
-														dominantBaseline="middle"
-													>
-														<tspan
+						<div className="h-[260px] w-full min-w-0 min-h-[260px]">
+							<ResponsiveContainer
+								width="100%"
+								height="100%"
+								minWidth={0}
+								minHeight={260}
+							>
+								<PieChart>
+									<Pie
+										data={donutData}
+										dataKey="value"
+										nameKey="name"
+										innerRadius={70}
+										outerRadius={110}
+										strokeWidth={2}
+										stroke="var(--background)"
+									>
+										{donutData.map((entry, index) => (
+											<Cell
+												key={`cell_${entry.name}`}
+												fill={getChartColor(index)}
+											/>
+										))}
+										<Label
+											content={({ viewBox }) => {
+												if (viewBox && "cx" in viewBox && "cy" in viewBox) {
+													const total = totalBilled + totalPending;
+													return (
+														<text
 															x={viewBox.cx}
 															y={viewBox.cy}
-															className="fill-foreground text-2xl font-bold"
+															textAnchor="middle"
+															dominantBaseline="middle"
 														>
-															{`₹${new Intl.NumberFormat("en-IN", {
-																notation: "compact",
-																maximumFractionDigits: 1,
-															}).format(total)}`}
-														</tspan>
-														<tspan
-															x={viewBox.cx}
-															y={(viewBox.cy ?? 0) + 22}
-															className="fill-muted-foreground text-sm"
-														>
-															Total
-														</tspan>
-													</text>
-												);
-											}
-											return null;
-										}}
+															<tspan
+																x={viewBox.cx}
+																y={viewBox.cy}
+																className="fill-foreground text-2xl font-bold"
+															>
+																{`₹${new Intl.NumberFormat("en-IN", {
+																	notation: "compact",
+																	maximumFractionDigits: 1,
+																}).format(total)}`}
+															</tspan>
+															<tspan
+																x={viewBox.cx}
+																y={(viewBox.cy ?? 0) + 22}
+																className="fill-muted-foreground text-sm"
+															>
+																Total
+															</tspan>
+														</text>
+													);
+												}
+												return null;
+											}}
+										/>
+									</Pie>
+									<Tooltip
+										formatter={(value) => [
+											formatAmount(Number(value ?? 0)),
+											"",
+										]}
 									/>
-								</Pie>
-								<Tooltip
-									formatter={(value) => [formatAmount(Number(value ?? 0)), ""]}
-								/>
-							</PieChart>
-						</ResponsiveContainer>
+								</PieChart>
+							</ResponsiveContainer>
+						</div>
 						<div className="flex min-w-[180px] flex-col gap-3 pt-4">
 							{donutData.map((entry, index) => (
 								<div key={entry.name} className="flex items-center gap-2">

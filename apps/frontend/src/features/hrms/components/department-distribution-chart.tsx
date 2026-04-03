@@ -81,7 +81,7 @@ export function DepartmentDistributionChart() {
 			<CardContent className="flex-1 pb-0">
 				<ChartContainer
 					config={chartConfig}
-					className="mx-auto aspect-square max-h-[250px]"
+					className="mx-auto aspect-square h-[250px] w-full min-w-0 min-h-[250px]"
 				>
 					<PieChart>
 						<defs>

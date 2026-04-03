@@ -14,6 +14,7 @@ import type { z } from "zod";
 // biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
 import { PrismaService } from "../../shared/prisma.service";
 import { BatchSubService } from "./services/batch.service";
+import { DashboardSubService } from "./services/dashboard.service";
 import { DeliverySubService } from "./services/delivery.service";
 import { InstallationNoteSubService } from "./services/installation-note.service";
 import { ItemCatalogSubService } from "./services/item-catalog.service";
@@ -31,6 +32,7 @@ import type { UomSeedEntry } from "./uom-seed";
 export class InventoryService {
 	private readonly warehouse: WarehouseSubService;
 	private readonly batch: BatchSubService;
+	private readonly dashboard: DashboardSubService;
 	private readonly serialNo: SerialNoSubService;
 	private readonly installationNote: InstallationNoteSubService;
 	private readonly settings: SettingsSubService;
@@ -45,6 +47,7 @@ export class InventoryService {
 	constructor(readonly prisma: PrismaService) {
 		this.warehouse = new WarehouseSubService(prisma);
 		this.batch = new BatchSubService(prisma);
+		this.dashboard = new DashboardSubService(prisma);
 		this.serialNo = new SerialNoSubService(prisma);
 		this.installationNote = new InstallationNoteSubService(prisma);
 		this.settings = new SettingsSubService(prisma);
@@ -971,5 +974,9 @@ export class InventoryService {
 		params: Inventory.ListSubcontractedItemToBeReceivedInput,
 	): Promise<Inventory.SubcontractedItemToBeReceivedResult> {
 		return await this.reports.findSubcontractedItemToBeReceived(params);
+	}
+
+	async getDashboardData(): Promise<Inventory.DashboardData> {
+		return await this.dashboard.getDashboardData();
 	}
 }

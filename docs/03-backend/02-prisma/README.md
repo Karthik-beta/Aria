@@ -18,7 +18,7 @@ apps/backend/prisma/
 ├── migrations/                # Migration files
 ├── seed-authorization.ts      # Seeds roles, permissions, apps
 ├── seeds/                     # Additional seed scripts
-└── demo-data/                 # Demo data CLI + orchestrator
+└── demo-data/                 # Demo data CLI + orchestrator + README
 ```
 
 ## Production Deployment
@@ -78,9 +78,12 @@ bun x --bun prisma studio
 # Seed authorization data
 bun x tsx prisma/seed-authorization.ts
 
-# Seed demo data
-bun x tsx prisma/demo-data/cli.ts seed --scale medium
+# Load inventory demo data
+bun prisma/demo-data/cli.ts load --scale=medium
 ```
+
+For the full demo-data guide, see
+[apps/backend/prisma/demo-data/README.md](../../../apps/backend/prisma/demo-data/README.md).
 
 ## Schema Configuration (Prisma v7)
 

@@ -5514,6 +5514,99 @@ export namespace Inventory {
 		company?: string;
 		fgItemCode?: string;
 	}
+
+	// ────────────────────────────────────────────────────────────────
+	// Dashboard
+	// ────────────────────────────────────────────────────────────────
+
+	export interface DashboardKpi {
+		totalItems: number;
+		activeWarehouses: number;
+		pendingMaterialRequests: number;
+		lowStockItemCount: number;
+		totalStockValue: number;
+		totalStockQuantity: number;
+	}
+
+	export interface DashboardStockMovement {
+		date: string;
+		inbound: number;
+		outbound: number;
+	}
+
+	export interface DashboardWarehouseStock {
+		warehouse: string;
+		itemCount: number;
+		totalQty: number;
+	}
+
+	export interface DashboardItemGroupDistribution {
+		group: string;
+		value: number;
+		itemCount: number;
+	}
+
+	export interface DashboardRecentActivity {
+		id: string;
+		series: string;
+		type: string;
+		itemCode: string;
+		itemName: string | null;
+		qty: number;
+		warehouse: string | null;
+		postingDate: string;
+	}
+
+	export interface DashboardLowStockItem {
+		itemCode: string;
+		itemName: string;
+		currentQty: number;
+		safetyStock: number;
+		deficit: number;
+		warehouse: string;
+	}
+
+	export interface DashboardBatchExpiry {
+		batchId: string;
+		itemCode: string;
+		itemName: string;
+		warehouse: string | null;
+		quantity: number;
+		expiryDate: string;
+		daysUntilExpiry: number;
+	}
+
+	export interface DashboardDeliveryStatus {
+		status: string;
+		count: number;
+		totalAmount: number;
+	}
+
+	export interface DashboardTopMovingItem {
+		itemCode: string;
+		itemName: string | null;
+		totalQty: number;
+		transactionCount: number;
+	}
+
+	export interface DashboardStockEntryTypeBreakdown {
+		type: string;
+		count: number;
+		totalQty: number;
+	}
+
+	export interface DashboardData {
+		kpis: DashboardKpi;
+		stockMovements: DashboardStockMovement[];
+		warehouseStock: DashboardWarehouseStock[];
+		itemGroupDistribution: DashboardItemGroupDistribution[];
+		recentActivity: DashboardRecentActivity[];
+		lowStockItems: DashboardLowStockItem[];
+		batchExpiry: DashboardBatchExpiry[];
+		deliveryStatus: DashboardDeliveryStatus[];
+		topMovingItems: DashboardTopMovingItem[];
+		stockEntryTypeBreakdown: DashboardStockEntryTypeBreakdown[];
+	}
 }
 
 // ============================================================================

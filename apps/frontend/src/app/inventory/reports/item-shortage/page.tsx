@@ -304,43 +304,50 @@ export default function ItemShortageReportPage() {
 							<p className="text-sm font-medium mb-3">
 								Top {Math.min(chartData.length, 10)} Most Critical Items
 							</p>
-							<ResponsiveContainer width="100%" height={200}>
-								<BarChart
-									data={chartData}
-									margin={{ top: 4, right: 8, bottom: 4, left: 8 }}
+							<div className="h-[200px] w-full min-w-0 min-h-[200px]">
+								<ResponsiveContainer
+									width="100%"
+									height="100%"
+									minWidth={0}
+									minHeight={200}
 								>
-									<CartesianGrid vertical={false} strokeDasharray="3 3" />
-									<XAxis
-										dataKey="label"
-										tickLine={false}
-										axisLine={false}
-										tick={{ fontSize: 11 }}
-										interval={0}
-										angle={-25}
-										textAnchor="end"
-										height={48}
-									/>
-									<YAxis
-										tickLine={false}
-										axisLine={false}
-										tick={{ fontSize: 11 }}
-										tickFormatter={formatQty}
-									/>
-									<Tooltip
-										formatter={(value) => [
-											formatQty(-(value as number)),
-											"Projected Qty",
-										]}
-										labelStyle={{ fontWeight: 600 }}
-									/>
-									<Bar
-										dataKey="shortfall"
-										fill="var(--destructive)"
-										radius={[4, 4, 0, 0]}
-										name="Shortfall"
-									/>
-								</BarChart>
-							</ResponsiveContainer>
+									<BarChart
+										data={chartData}
+										margin={{ top: 4, right: 8, bottom: 4, left: 8 }}
+									>
+										<CartesianGrid vertical={false} strokeDasharray="3 3" />
+										<XAxis
+											dataKey="label"
+											tickLine={false}
+											axisLine={false}
+											tick={{ fontSize: 11 }}
+											interval={0}
+											angle={-25}
+											textAnchor="end"
+											height={48}
+										/>
+										<YAxis
+											tickLine={false}
+											axisLine={false}
+											tick={{ fontSize: 11 }}
+											tickFormatter={formatQty}
+										/>
+										<Tooltip
+											formatter={(value) => [
+												formatQty(-(value as number)),
+												"Projected Qty",
+											]}
+											labelStyle={{ fontWeight: 600 }}
+										/>
+										<Bar
+											dataKey="shortfall"
+											fill="var(--destructive)"
+											radius={[4, 4, 0, 0]}
+											name="Shortfall"
+										/>
+									</BarChart>
+								</ResponsiveContainer>
+							</div>
 						</div>
 
 						{/* Data table */}

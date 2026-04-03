@@ -161,3 +161,6 @@ evals/agent-results.json
 
 # Prompt
 .prompts
+
+# Others 
+.kilo
