@@ -26,6 +26,11 @@ type AssetCategoriesChangedEvent = {
 	data: Asset.AssetCategory | { id: string };
 };
 
+type MaintenanceTeamsChangedEvent = {
+	type: "created" | "updated" | "deleted";
+	data: Asset.AssetMaintenanceTeam | { id: string };
+};
+
 @Injectable()
 export class AssetRouter {
 	constructor(private readonly assetService: AssetService) {}
@@ -196,6 +201,70 @@ export class AssetRouter {
 						emit.next(event);
 					assetEvents.on("assetCategoriesChanged", handler);
 					return () => assetEvents.off("assetCategoriesChanged", handler);
+				}),
+			),
+
+			// ── Asset Maintenance Team CRUD ───────────────────────────────────
+			listMaintenanceTeams: protectedProcedure
+				.input(Asset.listMaintenanceTeamsSchema)
+				.query(async ({ input }) => svc.findAllMaintenanceTeams(input)),
+
+			getMaintenanceTeamById: protectedProcedure
+				.input(z.object({ id: z.string().cuid() }))
+				.query(async ({ input }) => svc.findMaintenanceTeamById(input.id)),
+
+			createMaintenanceTeam: protectedProcedure
+				.input(Asset.createMaintenanceTeamSchema)
+				.mutation(async ({ input }) => {
+					const team = await svc.createMaintenanceTeam(input);
+					assetEvents.emit("maintenanceTeamsChanged", {
+						type: "created",
+						data: team,
+					} satisfies MaintenanceTeamsChangedEvent);
+					return team;
+				}),
+
+			updateMaintenanceTeam: protectedProcedure
+				.input(Asset.updateMaintenanceTeamSchema)
+				.mutation(async ({ input }) => {
+					const team = await svc.updateMaintenanceTeam(input);
+					assetEvents.emit("maintenanceTeamsChanged", {
+						type: "updated",
+						data: team,
+					} satisfies MaintenanceTeamsChangedEvent);
+					return team;
+				}),
+
+			deleteMaintenanceTeam: protectedProcedure
+				.input(z.object({ id: z.string().cuid() }))
+				.mutation(async ({ input }) => {
+					const result = await svc.deleteMaintenanceTeam(input.id);
+					assetEvents.emit("maintenanceTeamsChanged", {
+						type: "deleted",
+						data: { id: input.id },
+					} satisfies MaintenanceTeamsChangedEvent);
+					return result;
+				}),
+
+			deleteManyMaintenanceTeams: protectedProcedure
+				.input(Asset.bulkDeleteMaintenanceTeamsSchema)
+				.mutation(async ({ input }) => {
+					const result = await svc.deleteManyMaintenanceTeams(input.ids);
+					for (const id of input.ids) {
+						assetEvents.emit("maintenanceTeamsChanged", {
+							type: "deleted",
+							data: { id },
+						} satisfies MaintenanceTeamsChangedEvent);
+					}
+					return result;
+				}),
+
+			onMaintenanceTeamsChanged: protectedProcedure.subscription(() =>
+				observable<MaintenanceTeamsChangedEvent>((emit) => {
+					const handler = (event: MaintenanceTeamsChangedEvent) =>
+						emit.next(event);
+					assetEvents.on("maintenanceTeamsChanged", handler);
+					return () => assetEvents.off("maintenanceTeamsChanged", handler);
 				}),
 			),
 		});

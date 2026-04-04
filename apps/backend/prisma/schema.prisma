@@ -1659,6 +1659,35 @@ model AssetActivity {
   @@map("asset_activities")
 }
 
+model AssetMaintenanceTeam {
+  id                     String                       @id @default(cuid())
+  name                   String                       @unique @db.VarChar(255)
+  maintenanceManager     String?                      @db.VarChar(255)
+  maintenanceManagerName String?                      @db.VarChar(255)
+  company                String                       @db.VarChar(255)
+  members                AssetMaintenanceTeamMember[]
+  createdAt              DateTime                     @default(now())
+  updatedAt              DateTime                     @updatedAt
+
+  @@index([name])
+  @@index([company])
+  @@map("asset_maintenance_teams")
+}
+
+model AssetMaintenanceTeamMember {
+  id              String               @id @default(cuid())
+  teamId          String
+  team            AssetMaintenanceTeam @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  teamMember      String               @db.VarChar(255)
+  fullName        String               @db.VarChar(255)
+  maintenanceRole String               @db.VarChar(100)
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  @@index([teamId])
+  @@map("asset_maintenance_team_members")
+}
+
 enum AssetStatus {
   DRAFT
   SUBMITTED

@@ -311,7 +311,7 @@ export const assetNavItems: NavItem[] = [
 		items: [
 			{
 				title: "Asset Maintenance Team",
-				url: "/asset/maintenance-team",
+				url: "/asset/asset-maintenance/maintenance-team",
 			},
 			{
 				title: "Asset Maintenance",

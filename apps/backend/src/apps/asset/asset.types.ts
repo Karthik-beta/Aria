@@ -134,3 +134,36 @@ export function toAsset(raw: PrismaAsset): Asset.AssetItem {
 		updatedAt: raw.updatedAt,
 	};
 }
+
+/**
+ * Prisma model type for AssetMaintenanceTeam with members relation included.
+ */
+export type PrismaMaintenanceTeam = Prisma.AssetMaintenanceTeamGetPayload<{
+	include: { members: { orderBy: { createdAt: "asc" } } };
+}>;
+
+/**
+ * Maps a Prisma AssetMaintenanceTeam record to the Asset.AssetMaintenanceTeam domain type.
+ */
+export function toMaintenanceTeam(
+	raw: PrismaMaintenanceTeam,
+): Asset.AssetMaintenanceTeam {
+	return {
+		id: raw.id,
+		name: raw.name,
+		maintenanceManager: raw.maintenanceManager ?? null,
+		maintenanceManagerName: raw.maintenanceManagerName ?? null,
+		company: raw.company,
+		members: raw.members.map((m) => ({
+			id: m.id,
+			teamId: m.teamId,
+			teamMember: m.teamMember,
+			fullName: m.fullName,
+			maintenanceRole: m.maintenanceRole,
+			createdAt: m.createdAt,
+			updatedAt: m.updatedAt,
+		})),
+		createdAt: raw.createdAt,
+		updatedAt: raw.updatedAt,
+	};
+}

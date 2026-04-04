@@ -265,6 +265,12 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
 	get assetActivity() {
 		return this.client.assetActivity;
 	}
+	get assetMaintenanceTeam() {
+		return this.client.assetMaintenanceTeam;
+	}
+	get assetMaintenanceTeamMember() {
+		return this.client.assetMaintenanceTeamMember;
+	}
 
 	// ═══════════════════════════════════════════════════════════════════════════
 	// Transaction Support

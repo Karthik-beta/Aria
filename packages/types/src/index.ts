@@ -5996,6 +5996,117 @@ export namespace Asset {
 	export const bulkDeleteAssetsSchema = z.object({
 		ids: z.array(z.string().cuid()).min(1),
 	});
+
+	// ── Asset Maintenance Team ────────────────────────────────────────────────
+
+	export interface AssetMaintenanceTeamMember {
+		id: string;
+		teamId: string;
+		teamMember: string;
+		fullName: string;
+		maintenanceRole: string;
+		createdAt: Date;
+		updatedAt: Date;
+	}
+
+	export interface AssetMaintenanceTeam {
+		id: string;
+		name: string;
+		maintenanceManager: string | null;
+		maintenanceManagerName: string | null;
+		company: string;
+		members: AssetMaintenanceTeamMember[];
+		createdAt: Date;
+		updatedAt: Date;
+	}
+
+	export interface AssetMaintenanceTeamListResult {
+		items: AssetMaintenanceTeam[];
+		totalCount: number;
+	}
+
+	export interface CreateAssetMaintenanceTeamInput {
+		name: string;
+		maintenanceManager?: string | null;
+		maintenanceManagerName?: string | null;
+		company: string;
+		members: Array<{
+			teamMember: string;
+			fullName: string;
+			maintenanceRole: string;
+		}>;
+	}
+
+	export interface UpdateAssetMaintenanceTeamInput {
+		id: string;
+		name?: string;
+		maintenanceManager?: string | null;
+		maintenanceManagerName?: string | null;
+		company?: string;
+		members?: Array<{
+			id?: string;
+			teamMember: string;
+			fullName: string;
+			maintenanceRole: string;
+		}>;
+	}
+
+	export const listMaintenanceTeamsSchema = z
+		.object({
+			skip: z.number().int().min(0).optional(),
+			take: z.number().int().min(1).max(250).optional(),
+			search: z.string().max(255).trim().optional(),
+			company: z.string().max(255).trim().optional(),
+		})
+		.optional();
+	export type ListMaintenanceTeamsInput = z.infer<
+		typeof listMaintenanceTeamsSchema
+	>;
+
+	const maintenanceTeamMemberInputFields = {
+		teamMember: z.string().min(1, "Team member is required").max(255).trim(),
+		fullName: z.string().min(1, "Full name is required").max(255).trim(),
+		maintenanceRole: z
+			.string()
+			.min(1, "Maintenance role is required")
+			.max(100)
+			.trim(),
+	} satisfies z.ZodRawShape;
+
+	const maintenanceTeamInputFields = {
+		name: z.string().min(1, "Team name is required").max(255).trim(),
+		maintenanceManager: z.string().max(255).trim().optional().nullable(),
+		maintenanceManagerName: z.string().max(255).trim().optional().nullable(),
+		company: z.string().min(1, "Company is required").max(255).trim(),
+		members: z
+			.array(z.object(maintenanceTeamMemberInputFields))
+			.min(1, "At least one team member is required"),
+	} satisfies z.ZodRawShape;
+
+	export const createMaintenanceTeamSchema = z.object(
+		maintenanceTeamInputFields,
+	);
+
+	export const updateMaintenanceTeamSchema = z.object({
+		id: z.string().cuid(),
+		name: maintenanceTeamInputFields.name.optional(),
+		maintenanceManager: maintenanceTeamInputFields.maintenanceManager,
+		maintenanceManagerName: maintenanceTeamInputFields.maintenanceManagerName,
+		company: maintenanceTeamInputFields.company.optional(),
+		members: z
+			.array(
+				z.object({
+					id: z.string().cuid().optional(),
+					...maintenanceTeamMemberInputFields,
+				}),
+			)
+			.min(1, "At least one team member is required")
+			.optional(),
+	});
+
+	export const bulkDeleteMaintenanceTeamsSchema = z.object({
+		ids: z.array(z.string().cuid()).min(1),
+	});
 }
 
 // ============================================================================

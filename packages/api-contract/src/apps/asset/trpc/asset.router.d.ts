@@ -241,6 +241,77 @@ type AssetRouterInput = {
 		output: AssetCategoriesChangedEvent;
 		meta: object;
 	}>;
+
+	// ── Asset Maintenance Team CRUD ──────────────────────────────────────────
+	listMaintenanceTeams: TRPCQueryProcedure<{
+		input:
+			| {
+					skip?: number | undefined;
+					take?: number | undefined;
+					search?: string | undefined;
+					company?: string | undefined;
+			  }
+			| undefined;
+		output: Asset.AssetMaintenanceTeamListResult;
+		meta: object;
+	}>;
+	getMaintenanceTeamById: TRPCQueryProcedure<{
+		input: { id: string };
+		output: Asset.AssetMaintenanceTeam | null;
+		meta: object;
+	}>;
+	createMaintenanceTeam: TRPCMutationProcedure<{
+		input: {
+			name: string;
+			maintenanceManager?: string | null | undefined;
+			maintenanceManagerName?: string | null | undefined;
+			company: string;
+			members: Array<{
+				teamMember: string;
+				fullName: string;
+				maintenanceRole: string;
+			}>;
+		};
+		output: Asset.AssetMaintenanceTeam;
+		meta: object;
+	}>;
+	updateMaintenanceTeam: TRPCMutationProcedure<{
+		input: {
+			id: string;
+			name?: string | undefined;
+			maintenanceManager?: string | null | undefined;
+			maintenanceManagerName?: string | null | undefined;
+			company?: string | undefined;
+			members?:
+				| Array<{
+						id?: string | undefined;
+						teamMember: string;
+						fullName: string;
+						maintenanceRole: string;
+				  }>
+				| undefined;
+		};
+		output: Asset.AssetMaintenanceTeam;
+		meta: object;
+	}>;
+	deleteMaintenanceTeam: TRPCMutationProcedure<{
+		input: { id: string };
+		output: { success: boolean; id: string };
+		meta: object;
+	}>;
+	deleteManyMaintenanceTeams: TRPCMutationProcedure<{
+		input: { ids: string[] };
+		output: { success: boolean; count: number; ids: string[] };
+		meta: object;
+	}>;
+	onMaintenanceTeamsChanged: LegacyObservableSubscriptionProcedure<{
+		input: void;
+		output: {
+			type: "created" | "updated" | "deleted";
+			data: Asset.AssetMaintenanceTeam | { id: string };
+		};
+		meta: object;
+	}>;
 };
 
 type AssetRouterRoot = (typeof accountRouter)["_def"]["_config"]["$types"];
