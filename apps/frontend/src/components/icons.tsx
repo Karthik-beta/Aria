@@ -27,7 +27,6 @@ import {
 	IconLogin,
 	IconMobiledata,
 	IconMoon,
-	IconPackage,
 	IconPhoto,
 	IconPizza,
 	IconPlus,

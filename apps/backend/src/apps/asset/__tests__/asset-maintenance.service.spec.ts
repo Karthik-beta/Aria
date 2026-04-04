@@ -15,6 +15,7 @@ function createMockPrisma() {
 		},
 		assetMaintenanceTask: {
 			create: jest.fn(),
+			update: jest.fn(),
 		},
 		assetMaintenanceLog: {
 			create: jest.fn(),
@@ -88,6 +89,7 @@ function createMockPrisma() {
 			findUnique: jest.fn(),
 			create: jest.fn(),
 			update: jest.fn(),
+			count: jest.fn(),
 		},
 		$transaction: jest.fn().mockImplementation(async (fn) => fn(mockTx)),
 		_mockTx: mockTx,
@@ -546,5 +548,232 @@ describe("AssetService > AssetMaintenance", () => {
 				where: { id: { in: ["maint-001"] } },
 			});
 		});
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Fixtures for log list/cancel tests
+// ---------------------------------------------------------------------------
+
+const mockLogWithContext = {
+	id: "log-001",
+	maintenanceId: "maint-001",
+	taskId: "task-001",
+	maintenanceStatus: "PLANNED",
+	completionDate: null,
+	actionsPerformed: null,
+	hasCertificate: false,
+	certificateAttachment: null,
+	modifiedBy: null,
+	createdAt: new Date("2026-01-01"),
+	updatedAt: new Date("2026-01-01"),
+	maintenance: {
+		id: "maint-001",
+		assetId: "asset-001",
+		company: "ACME Corp",
+		asset: { id: "asset-001", assetName: "Hydraulic Pump A" },
+	},
+	task: {
+		id: "task-001",
+		maintenanceTask: "Lubrication Check",
+		maintenanceType: "PREVENTIVE_MAINTENANCE",
+		periodicity: "MONTHLY",
+		assignToName: "John Doe",
+		nextDueDate: new Date("2026-02-01"),
+	},
+};
+
+// ---------------------------------------------------------------------------
+// Tests for findAllAssetMaintenanceLogs
+// ---------------------------------------------------------------------------
+
+describe("AssetService > findAllAssetMaintenanceLogs", () => {
+	let service: ReturnType<typeof createTestContext>["service"];
+	let mockPrisma: ReturnType<typeof createTestContext>["mockPrisma"];
+
+	beforeEach(() => {
+		jest.clearAllMocks();
+		({ service, mockPrisma } = createTestContext());
+	});
+
+	it("returns items and totalCount", async () => {
+		mockPrisma.assetMaintenanceLog.findMany.mockResolvedValue([
+			mockLogWithContext,
+		]);
+		mockPrisma.assetMaintenanceLog.count.mockResolvedValue(1);
+
+		const result = await service.findAllAssetMaintenanceLogs({});
+
+		expect(result.totalCount).toBe(1);
+		expect(result.items).toHaveLength(1);
+		expect(result.items[0]).toMatchObject({
+			id: "log-001",
+			assetName: "Hydraulic Pump A",
+			maintenanceTask: "Lubrication Check",
+			maintenanceStatus: "PLANNED",
+		});
+	});
+
+	it("returns empty list when no records exist", async () => {
+		mockPrisma.assetMaintenanceLog.findMany.mockResolvedValue([]);
+		mockPrisma.assetMaintenanceLog.count.mockResolvedValue(0);
+
+		const result = await service.findAllAssetMaintenanceLogs({});
+
+		expect(result.totalCount).toBe(0);
+		expect(result.items).toHaveLength(0);
+	});
+
+	it("applies search filter", async () => {
+		mockPrisma.assetMaintenanceLog.findMany.mockResolvedValue([]);
+		mockPrisma.assetMaintenanceLog.count.mockResolvedValue(0);
+
+		await service.findAllAssetMaintenanceLogs({ search: "pump" });
+
+		expect(mockPrisma.assetMaintenanceLog.findMany).toHaveBeenCalledWith(
+			expect.objectContaining({
+				where: expect.objectContaining({
+					OR: expect.arrayContaining([
+						expect.objectContaining({
+							maintenance: expect.objectContaining({
+								asset: expect.objectContaining({
+									assetName: expect.objectContaining({
+										contains: "pump",
+									}),
+								}),
+							}),
+						}),
+					]),
+				}),
+			}),
+		);
+	});
+
+	it("applies status filter", async () => {
+		mockPrisma.assetMaintenanceLog.findMany.mockResolvedValue([]);
+		mockPrisma.assetMaintenanceLog.count.mockResolvedValue(0);
+
+		await service.findAllAssetMaintenanceLogs({ status: "PLANNED" });
+
+		expect(mockPrisma.assetMaintenanceLog.findMany).toHaveBeenCalledWith(
+			expect.objectContaining({
+				where: expect.objectContaining({
+					maintenanceStatus: "PLANNED",
+				}),
+			}),
+		);
+	});
+
+	it("clamps take to LIST_TAKE_MAX (250)", async () => {
+		mockPrisma.assetMaintenanceLog.findMany.mockResolvedValue([]);
+		mockPrisma.assetMaintenanceLog.count.mockResolvedValue(0);
+
+		await service.findAllAssetMaintenanceLogs({ take: 9999 });
+
+		expect(mockPrisma.assetMaintenanceLog.findMany).toHaveBeenCalledWith(
+			expect.objectContaining({ take: 250 }),
+		);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Tests for cancelAssetMaintenanceLog
+// ---------------------------------------------------------------------------
+
+describe("AssetService > cancelAssetMaintenanceLog", () => {
+	let service: ReturnType<typeof createTestContext>["service"];
+	let mockPrisma: ReturnType<typeof createTestContext>["mockPrisma"];
+	let mockTx: ReturnType<typeof createTestContext>["mockTx"];
+
+	beforeEach(() => {
+		jest.clearAllMocks();
+		({ service, mockPrisma, mockTx } = createTestContext());
+	});
+
+	it("throws NotFoundException when log does not exist", async () => {
+		mockPrisma.assetMaintenanceLog.findUnique.mockResolvedValue(null);
+
+		await expect(
+			service.cancelAssetMaintenanceLog({ logId: "missing-log" }),
+		).rejects.toThrow(NotFoundException);
+	});
+
+	it("throws BadRequestException for COMPLETED log", async () => {
+		mockPrisma.assetMaintenanceLog.findUnique.mockResolvedValue({
+			id: "log-001",
+			taskId: "task-001",
+			maintenanceStatus: "COMPLETED",
+		});
+
+		await expect(
+			service.cancelAssetMaintenanceLog({ logId: "log-001" }),
+		).rejects.toThrow(BadRequestException);
+	});
+
+	it("throws BadRequestException for already CANCELLED log", async () => {
+		mockPrisma.assetMaintenanceLog.findUnique.mockResolvedValue({
+			id: "log-001",
+			taskId: "task-001",
+			maintenanceStatus: "CANCELLED",
+		});
+
+		await expect(
+			service.cancelAssetMaintenanceLog({ logId: "log-001" }),
+		).rejects.toThrow(BadRequestException);
+	});
+
+	it("successfully cancels a PLANNED log", async () => {
+		mockPrisma.assetMaintenanceLog.findUnique.mockResolvedValue({
+			id: "log-001",
+			taskId: "task-001",
+			maintenanceStatus: "PLANNED",
+		});
+
+		const cancelledLog = {
+			...mockLog,
+			maintenanceStatus: "CANCELLED",
+		};
+		mockTx.assetMaintenanceLog.update.mockResolvedValue(cancelledLog);
+		mockTx.assetMaintenanceTask.update.mockResolvedValue({});
+
+		const result = await service.cancelAssetMaintenanceLog({
+			logId: "log-001",
+		});
+
+		expect(mockTx.assetMaintenanceLog.update).toHaveBeenCalledWith(
+			expect.objectContaining({
+				where: { id: "log-001" },
+				data: { maintenanceStatus: "CANCELLED" },
+			}),
+		);
+		expect(mockTx.assetMaintenanceTask.update).toHaveBeenCalledWith(
+			expect.objectContaining({
+				where: { id: "task-001" },
+				data: { maintenanceStatus: "CANCELLED" },
+			}),
+		);
+		expect(result.maintenanceStatus).toBe("CANCELLED");
+	});
+
+	it("successfully cancels an OVERDUE log", async () => {
+		mockPrisma.assetMaintenanceLog.findUnique.mockResolvedValue({
+			id: "log-002",
+			taskId: "task-001",
+			maintenanceStatus: "OVERDUE",
+		});
+
+		const cancelledLog = {
+			...mockLog,
+			id: "log-002",
+			maintenanceStatus: "CANCELLED",
+		};
+		mockTx.assetMaintenanceLog.update.mockResolvedValue(cancelledLog);
+		mockTx.assetMaintenanceTask.update.mockResolvedValue({});
+
+		const result = await service.cancelAssetMaintenanceLog({
+			logId: "log-002",
+		});
+
+		expect(result.maintenanceStatus).toBe("CANCELLED");
 	});
 });

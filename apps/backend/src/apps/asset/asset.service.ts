@@ -24,6 +24,7 @@ import {
 	toAssetLocation,
 	toAssetMaintenance,
 	toAssetMaintenanceLog,
+	toAssetMaintenanceLogListItem,
 	toMaintenanceTeam,
 } from "./asset.types";
 
@@ -982,6 +983,126 @@ export class AssetService {
 			orderBy: { createdAt: "desc" },
 		});
 		return logs.map(toAssetMaintenanceLog);
+	}
+
+	private readonly logWithContextInclude = {
+		maintenance: {
+			select: {
+				id: true,
+				assetId: true,
+				company: true,
+				asset: { select: { id: true, assetName: true } },
+			},
+		},
+		task: {
+			select: {
+				id: true,
+				maintenanceTask: true,
+				maintenanceType: true,
+				periodicity: true,
+				assignToName: true,
+				nextDueDate: true,
+			},
+		},
+	} as const;
+
+	async findAllAssetMaintenanceLogs(
+		params?: Asset.ListAssetMaintenanceLogsInput,
+	): Promise<Asset.AssetMaintenanceLogListResult> {
+		const skip = Math.max(params?.skip ?? 0, 0);
+		const take = Math.min(
+			Math.max(params?.take ?? LIST_TAKE_MAX, 1),
+			LIST_TAKE_MAX,
+		);
+
+		const where: Record<string, unknown> = {};
+		if (params?.maintenanceId) where.maintenanceId = params.maintenanceId;
+		if (params?.status) where.maintenanceStatus = params.status;
+		if (params?.search) {
+			where.OR = [
+				{
+					maintenance: {
+						asset: {
+							assetName: {
+								contains: params.search,
+								mode: "insensitive",
+							},
+						},
+					},
+				},
+				{
+					task: {
+						maintenanceTask: {
+							contains: params.search,
+							mode: "insensitive",
+						},
+					},
+				},
+				{
+					maintenance: {
+						company: {
+							contains: params.search,
+							mode: "insensitive",
+						},
+					},
+				},
+			];
+		}
+
+		const [items, totalCount] = await Promise.all([
+			this.prisma.assetMaintenanceLog.findMany({
+				where,
+				include: this.logWithContextInclude,
+				orderBy: { createdAt: "desc" },
+				skip,
+				take,
+			}),
+			this.prisma.assetMaintenanceLog.count({ where }),
+		]);
+
+		return {
+			items: items.map(toAssetMaintenanceLogListItem),
+			totalCount,
+		};
+	}
+
+	async cancelAssetMaintenanceLog(
+		input: Asset.CancelAssetMaintenanceLogInput,
+	): Promise<Asset.AssetMaintenanceLogItem> {
+		const log = await this.prisma.assetMaintenanceLog.findUnique({
+			where: { id: input.logId },
+			select: {
+				id: true,
+				taskId: true,
+				maintenanceStatus: true,
+			},
+		});
+		if (!log)
+			throw new NotFoundException(`Maintenance log ${input.logId} not found`);
+		if (log.maintenanceStatus === "COMPLETED") {
+			throw new BadRequestException(
+				"Cannot cancel a completed maintenance log",
+			);
+		}
+		if (log.maintenanceStatus === "CANCELLED") {
+			throw new BadRequestException("Maintenance log is already cancelled");
+		}
+
+		const updated = await this.prisma.$transaction(async (tx) => {
+			const cancelled = await tx.assetMaintenanceLog.update({
+				where: { id: input.logId },
+				data: { maintenanceStatus: "CANCELLED" },
+			});
+
+			await tx.assetMaintenanceTask.update({
+				where: { id: log.taskId },
+				data: { maintenanceStatus: "CANCELLED" },
+			});
+
+			return cancelled;
+		});
+
+		return toAssetMaintenanceLog(updated);
 	}
 
 	async createAssetMaintenance(

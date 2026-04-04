@@ -343,6 +343,24 @@ type AssetRouterInput = {
 		output: Asset.AssetMaintenanceLogItem[];
 		meta: object;
 	}>;
+	listAssetMaintenanceLogs: TRPCQueryProcedure<{
+		input:
+			| {
+					skip?: number | undefined;
+					take?: number | undefined;
+					maintenanceId?: string | undefined;
+					status?: Asset.AssetMaintenanceLogStatus | undefined;
+					search?: string | undefined;
+			  }
+			| undefined;
+		output: Asset.AssetMaintenanceLogListResult;
+		meta: object;
+	}>;
+	cancelAssetMaintenanceLog: TRPCMutationProcedure<{
+		input: { logId: string };
+		output: Asset.AssetMaintenanceLogItem;
+		meta: object;
+	}>;
 	createAssetMaintenance: TRPCMutationProcedure<{
 		input: {
 			assetId: string;

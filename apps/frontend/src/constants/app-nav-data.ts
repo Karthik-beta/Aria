@@ -315,11 +315,11 @@ export const assetNavItems: NavItem[] = [
 			},
 			{
 				title: "Asset Maintenance",
-				url: "/asset/maintenance",
+				url: "/asset/asset-maintenance",
 			},
 			{
 				title: "Asset Maintenance Log",
-				url: "/asset/maintenance-log",
+				url: "/asset/asset-maintenance/log",
 			},
 			{
 				title: "Asset Value Adjustment",

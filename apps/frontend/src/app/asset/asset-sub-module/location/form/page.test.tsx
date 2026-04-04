@@ -92,7 +92,10 @@ vi.mock("@/lib/trpc", () => ({
 				}),
 			},
 			createLocation: {
-				useMutation: ({ onSuccess, onError }: Record<string, unknown>) => ({
+				useMutation: ({
+					onSuccess,
+					onError: _onError,
+				}: Record<string, unknown>) => ({
 					isPending: false,
 					mutate: (vars: unknown) => {
 						mockCreateMutate(vars);
@@ -102,7 +105,10 @@ vi.mock("@/lib/trpc", () => ({
 				}),
 			},
 			updateLocation: {
-				useMutation: ({ onSuccess, onError }: Record<string, unknown>) => ({
+				useMutation: ({
+					onSuccess,
+					onError: _onError,
+				}: Record<string, unknown>) => ({
 					isPending: false,
 					mutate: (vars: unknown) => {
 						mockUpdateMutate(vars);

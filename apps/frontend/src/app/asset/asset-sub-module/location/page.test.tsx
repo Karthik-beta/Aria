@@ -58,7 +58,7 @@ vi.mock("@/lib/trpc", () => ({
 				useMutation: ({
 					onSuccess,
 					onMutate,
-					onError,
+					onError: _onError,
 					onSettled,
 				}: Record<string, unknown>) => ({
 					isPending: false,

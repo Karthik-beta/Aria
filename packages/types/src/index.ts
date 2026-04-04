@@ -6279,6 +6279,57 @@ export namespace Asset {
 	export type CompleteAssetMaintenanceLogInput = z.infer<
 		typeof completeAssetMaintenanceLogSchema
 	>;
+
+	/**
+	 * Enriched maintenance log item for list display — includes denormalized
+	 * asset, task, and maintenance context to avoid N+1 queries.
+	 */
+	export interface AssetMaintenanceLogListItem {
+		id: string;
+		maintenanceId: string;
+		taskId: string;
+		/** Asset name from the parent maintenance record's asset. */
+		assetName: string;
+		assetId: string;
+		company: string;
+		/** Task name (maintenanceTask field). */
+		maintenanceTask: string;
+		maintenanceType: AssetMaintenanceTaskType | null;
+		periodicity: AssetMaintenancePeriodicity;
+		assignToName: string | null;
+		/** The task's current nextDueDate — relevant for PLANNED/OVERDUE logs. */
+		taskDueDate: Date | null;
+		maintenanceStatus: AssetMaintenanceLogStatus;
+		completionDate: Date | null;
+		actionsPerformed: string | null;
+		hasCertificate: boolean;
+		certificateAttachment: string | null;
+		createdAt: Date;
+		updatedAt: Date;
+	}
+
+	export interface AssetMaintenanceLogListResult {
+		items: AssetMaintenanceLogListItem[];
+		totalCount: number;
+	}
+
+	export const listAssetMaintenanceLogsSchema = z.object({
+		skip: z.number().int().min(0).optional(),
+		take: z.number().int().min(1).max(250).optional(),
+		maintenanceId: z.string().cuid().optional(),
+		status: assetMaintenanceLogStatusSchema.optional(),
+		search: z.string().trim().optional(),
+	});
+	export type ListAssetMaintenanceLogsInput = z.infer<
+		typeof listAssetMaintenanceLogsSchema
+	>;
+
+	export const cancelAssetMaintenanceLogSchema = z.object({
+		logId: z.string().cuid(),
+	});
+	export type CancelAssetMaintenanceLogInput = z.infer<
+		typeof cancelAssetMaintenanceLogSchema
+	>;
 }
 
 // ============================================================================

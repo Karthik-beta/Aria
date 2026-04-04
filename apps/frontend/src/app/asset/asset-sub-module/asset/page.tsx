@@ -11,15 +11,7 @@
 
 import type { Asset } from "@aria/types";
 import type { ColumnDef, Row } from "@tanstack/react-table";
-import {
-	CheckCircle2,
-	Edit,
-	Eye,
-	MoreHorizontal,
-	Package,
-	Trash,
-	XCircle,
-} from "lucide-react";
+import { Edit, Eye, MoreHorizontal, Trash } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
 import { toast } from "sonner";

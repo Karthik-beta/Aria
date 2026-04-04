@@ -256,3 +256,62 @@ export function toAssetMaintenanceLog(
 		updatedAt: raw.updatedAt,
 	};
 }
+
+/**
+ * Prisma model type for AssetMaintenanceLog with full relational context
+ * needed for list display (asset name, task name, etc.).
+ */
+export type PrismaAssetMaintenanceLogWithContext =
+	Prisma.AssetMaintenanceLogGetPayload<{
+		include: {
+			maintenance: {
+				select: {
+					id: true;
+					assetId: true;
+					company: true;
+					asset: { select: { id: true; assetName: true } };
+				};
+			};
+			task: {
+				select: {
+					id: true;
+					maintenanceTask: true;
+					maintenanceType: true;
+					periodicity: true;
+					assignToName: true;
+					nextDueDate: true;
+				};
+			};
+		};
+	}>;
+
+/**
+ * Maps a Prisma AssetMaintenanceLog with context to the
+ * Asset.AssetMaintenanceLogListItem domain type used for standalone list views.
+ */
+export function toAssetMaintenanceLogListItem(
+	raw: PrismaAssetMaintenanceLogWithContext,
+): Asset.AssetMaintenanceLogListItem {
+	return {
+		id: raw.id,
+		maintenanceId: raw.maintenanceId,
+		taskId: raw.taskId,
+		assetId: raw.maintenance.assetId,
+		assetName: raw.maintenance.asset.assetName,
+		company: raw.maintenance.company,
+		maintenanceTask: raw.task.maintenanceTask,
+		maintenanceType:
+			(raw.task.maintenanceType as Asset.AssetMaintenanceTaskType | null) ??
+			null,
+		periodicity: raw.task.periodicity as Asset.AssetMaintenancePeriodicity,
+		assignToName: raw.task.assignToName ?? null,
+		taskDueDate: raw.task.nextDueDate ?? null,
+		maintenanceStatus: raw.maintenanceStatus as Asset.AssetMaintenanceLogStatus,
+		completionDate: raw.completionDate ?? null,
+		actionsPerformed: raw.actionsPerformed ?? null,
+		hasCertificate: raw.hasCertificate,
+		certificateAttachment: raw.certificateAttachment ?? null,
+		createdAt: raw.createdAt,
+		updatedAt: raw.updatedAt,
+	};
+}

@@ -294,6 +294,21 @@ export class AssetRouter {
 					svc.findAssetMaintenanceLogs(input.maintenanceId),
 				),
 
+			listAssetMaintenanceLogs: protectedProcedure
+				.input(Asset.listAssetMaintenanceLogsSchema.optional())
+				.query(async ({ input }) => svc.findAllAssetMaintenanceLogs(input)),
+
+			cancelAssetMaintenanceLog: protectedProcedure
+				.input(Asset.cancelAssetMaintenanceLogSchema)
+				.mutation(async ({ input }) => {
+					const log = await svc.cancelAssetMaintenanceLog(input);
+					assetEvents.emit("assetMaintenancesChanged", {
+						type: "log_completed",
+						data: { id: input.logId },
+					} satisfies AssetMaintenancesChangedEvent);
+					return log;
+				}),
+
 			createAssetMaintenance: protectedProcedure
 				.input(Asset.createAssetMaintenanceSchema)
 				.mutation(async ({ input }) => {
