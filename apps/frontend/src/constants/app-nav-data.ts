@@ -277,7 +277,7 @@ export const inventoryNavItems: NavItem[] = [
 export const assetNavItems: NavItem[] = [
 	{
 		title: "Dashboard",
-		url: "/asset/dashboard",
+		url: "/asset/dashboard/overview",
 		icon: "dashboard",
 		isActive: false,
 		shortcut: ["d", "d"],
@@ -286,27 +286,27 @@ export const assetNavItems: NavItem[] = [
 	{
 		title: "Assets",
 		url: "#",
-		icon: "dashboard",
+		icon: "assets",
 		isActive: false,
 		items: [
 			{
 				title: "Asset",
-				url: "/asset/asset_sub_module/asset",
+				url: "/asset/asset-sub-module/asset",
 			},
 			{
 				title: "Location",
-				url: "/asset/asset_sub_module/location",
+				url: "/asset/asset-sub-module/location",
 			},
 			{
 				title: "Asset Category",
-				url: "/asset/asset_sub_module/asset-category",
+				url: "/asset/asset-sub-module/asset-category",
 			},
 		],
 	},
 	{
 		title: "Maintenance",
 		url: "#",
-		icon: "dashboard",
+		icon: "tools",
 		isActive: false,
 		items: [
 			{

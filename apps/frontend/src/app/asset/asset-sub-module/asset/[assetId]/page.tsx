@@ -92,7 +92,7 @@ export default function AssetDetailPage() {
 			void utils.asset.listAssets.invalidate();
 			toast.success("Asset deleted successfully");
 			startTransition(() => {
-				router.push("/asset/asset_sub_module/asset");
+				router.push("/asset/asset-sub-module/asset");
 			});
 		},
 		onError: (error) => {
@@ -128,7 +128,7 @@ export default function AssetDetailPage() {
 							deleted.
 						</CardDescription>
 						<Link
-							href="/asset/asset_sub_module/asset"
+							href="/asset/asset-sub-module/asset"
 							className={buttonVariants({ variant: "outline" })}
 						>
 							<ArrowLeft className="mr-2 h-4 w-4" />
@@ -157,7 +157,7 @@ export default function AssetDetailPage() {
 				<div className="flex items-center justify-between gap-4">
 					<div className="flex items-center gap-4">
 						<Link
-							href="/asset/asset_sub_module/asset"
+							href="/asset/asset-sub-module/asset"
 							className={cn(
 								buttonVariants({ variant: "outline", size: "icon" }),
 							)}
@@ -176,7 +176,7 @@ export default function AssetDetailPage() {
 							{formatStatus(asset.status)}
 						</Badge>
 						<Link
-							href={`/asset/asset_sub_module/asset/form?id=${asset.id}`}
+							href={`/asset/asset-sub-module/asset/form?id=${asset.id}`}
 							className={buttonVariants({ variant: "outline", size: "sm" })}
 						>
 							<Edit className="mr-2 h-4 w-4" />

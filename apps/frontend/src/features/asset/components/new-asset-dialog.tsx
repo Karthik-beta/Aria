@@ -103,8 +103,8 @@ export function NewAssetDialog() {
 		if (selectedLocationId) params.set("locationId", selectedLocationId);
 		const query = params.toString();
 		return query
-			? `/asset/asset_sub_module/asset/form?${query}`
-			: "/asset/asset_sub_module/asset/form";
+			? `/asset/asset-sub-module/asset/form?${query}`
+			: "/asset/asset-sub-module/asset/form";
 	}, [assetName, company, selectedCategoryId, selectedLocationId]);
 
 	const createMutation = trpc.asset.createAsset.useMutation({

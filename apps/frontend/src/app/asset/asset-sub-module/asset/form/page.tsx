@@ -146,7 +146,7 @@ export default function AssetFormPage() {
 			void utils.asset.listAssets.invalidate();
 			toast.success(`Asset "${newAsset.assetName}" created`);
 			startTransition(() =>
-				router.push(`/asset/asset_sub_module/asset/${newAsset.id}`),
+				router.push(`/asset/asset-sub-module/asset/${newAsset.id}`),
 			);
 		},
 		onError: (error) => toast.error(getToastMessage(error, "create")),
@@ -157,7 +157,7 @@ export default function AssetFormPage() {
 			void utils.asset.listAssets.invalidate();
 			toast.success("Asset updated");
 			startTransition(() =>
-				router.push(`/asset/asset_sub_module/asset/${updated.id}`),
+				router.push(`/asset/asset-sub-module/asset/${updated.id}`),
 			);
 		},
 		onError: (error) => toast.error(getToastMessage(error, "update")),
