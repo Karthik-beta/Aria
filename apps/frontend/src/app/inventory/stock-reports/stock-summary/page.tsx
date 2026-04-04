@@ -366,7 +366,7 @@ export default function StockSummaryPage() {
 	);
 
 	return (
-		<div className="container mx-auto space-y-6 py-6">
+		<div className="flex flex-1 flex-col gap-6 p-4 md:px-6">
 			<StockSummaryRealtimeSubscriptions
 				onData={() => {
 					void utils.inventory.listStockSummary.invalidate(listQueryInput);

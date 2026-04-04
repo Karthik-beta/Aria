@@ -267,7 +267,7 @@ export default function ItemPriceStockPage() {
 	);
 
 	return (
-		<div className="container mx-auto space-y-6 py-6">
+		<div className="flex flex-1 flex-col gap-6 p-4 md:px-6">
 			<ItemPriceStockRealtimeSubscriptions
 				onData={() => {
 					void utils.inventory.listItemPriceStock.invalidate(listQueryInput);

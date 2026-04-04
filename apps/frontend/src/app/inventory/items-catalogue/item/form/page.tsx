@@ -278,7 +278,7 @@ function ItemFormContent() {
 	// Item not found state in edit mode
 	if (isEditMode && !isFetchingItem && !item) {
 		return (
-			<div className="container mx-auto py-6">
+			<div className="flex flex-1 flex-col p-4 md:px-6">
 				<Card>
 					<CardHeader>
 						<CardTitle>Item Not Found</CardTitle>

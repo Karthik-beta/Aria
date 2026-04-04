@@ -193,7 +193,7 @@ export default function StockSettingsPage() {
 
 	if (queryError) {
 		return (
-			<div className="container mx-auto py-6">
+			<div className="flex flex-1 flex-col p-4 md:px-6">
 				<ErrorState
 					error={queryError}
 					operation="load"
