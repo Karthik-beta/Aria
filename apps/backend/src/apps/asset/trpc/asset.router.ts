@@ -31,6 +31,11 @@ type MaintenanceTeamsChangedEvent = {
 	data: Asset.AssetMaintenanceTeam | { id: string };
 };
 
+type AssetMaintenancesChangedEvent = {
+	type: "created" | "updated" | "deleted" | "log_completed";
+	data: Asset.AssetMaintenanceRecord | { id: string };
+};
+
 @Injectable()
 export class AssetRouter {
 	constructor(private readonly assetService: AssetService) {}
@@ -265,6 +270,93 @@ export class AssetRouter {
 						emit.next(event);
 					assetEvents.on("maintenanceTeamsChanged", handler);
 					return () => assetEvents.off("maintenanceTeamsChanged", handler);
+				}),
+			),
+
+			// ── Asset Maintenance CRUD ─────────────────────────────────────────
+			listAssetMaintenances: protectedProcedure
+				.input(Asset.listAssetMaintenancesSchema)
+				.query(async ({ input }) => svc.findAllAssetMaintenances(input)),
+
+			getAssetMaintenanceById: protectedProcedure
+				.input(z.object({ id: z.string().cuid() }))
+				.query(async ({ input }) => svc.findAssetMaintenanceById(input.id)),
+
+			getAssetMaintenanceByAssetId: protectedProcedure
+				.input(z.object({ assetId: z.string().cuid() }))
+				.query(async ({ input }) =>
+					svc.findAssetMaintenanceByAssetId(input.assetId),
+				),
+
+			getAssetMaintenanceLogs: protectedProcedure
+				.input(z.object({ maintenanceId: z.string().cuid() }))
+				.query(async ({ input }) =>
+					svc.findAssetMaintenanceLogs(input.maintenanceId),
+				),
+
+			createAssetMaintenance: protectedProcedure
+				.input(Asset.createAssetMaintenanceSchema)
+				.mutation(async ({ input }) => {
+					const record = await svc.createAssetMaintenance(input);
+					assetEvents.emit("assetMaintenancesChanged", {
+						type: "created",
+						data: record,
+					} satisfies AssetMaintenancesChangedEvent);
+					return record;
+				}),
+
+			updateAssetMaintenance: protectedProcedure
+				.input(Asset.updateAssetMaintenanceSchema)
+				.mutation(async ({ input }) => {
+					const record = await svc.updateAssetMaintenance(input);
+					assetEvents.emit("assetMaintenancesChanged", {
+						type: "updated",
+						data: record,
+					} satisfies AssetMaintenancesChangedEvent);
+					return record;
+				}),
+
+			deleteAssetMaintenance: protectedProcedure
+				.input(z.object({ id: z.string().cuid() }))
+				.mutation(async ({ input }) => {
+					const result = await svc.deleteAssetMaintenance(input.id);
+					assetEvents.emit("assetMaintenancesChanged", {
+						type: "deleted",
+						data: { id: input.id },
+					} satisfies AssetMaintenancesChangedEvent);
+					return result;
+				}),
+
+			deleteManyAssetMaintenances: protectedProcedure
+				.input(Asset.bulkDeleteAssetMaintenancesSchema)
+				.mutation(async ({ input }) => {
+					const result = await svc.deleteManyAssetMaintenances(input.ids);
+					for (const id of input.ids) {
+						assetEvents.emit("assetMaintenancesChanged", {
+							type: "deleted",
+							data: { id },
+						} satisfies AssetMaintenancesChangedEvent);
+					}
+					return result;
+				}),
+
+			completeAssetMaintenanceLog: protectedProcedure
+				.input(Asset.completeAssetMaintenanceLogSchema)
+				.mutation(async ({ input }) => {
+					const log = await svc.completeAssetMaintenanceLog(input);
+					assetEvents.emit("assetMaintenancesChanged", {
+						type: "log_completed",
+						data: { id: input.logId },
+					} satisfies AssetMaintenancesChangedEvent);
+					return log;
+				}),
+
+			onAssetMaintenancesChanged: protectedProcedure.subscription(() =>
+				observable<AssetMaintenancesChangedEvent>((emit) => {
+					const handler = (event: AssetMaintenancesChangedEvent) =>
+						emit.next(event);
+					assetEvents.on("assetMaintenancesChanged", handler);
+					return () => assetEvents.off("assetMaintenancesChanged", handler);
 				}),
 			),
 		});

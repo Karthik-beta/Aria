@@ -1634,6 +1634,7 @@ model Asset {
   purchaseInvoice                    String?             @db.VarChar(100)
   status                             AssetStatus         @default(DRAFT)
   activities                         AssetActivity[]
+  maintenance                        AssetMaintenance?
   createdAt                          DateTime            @default(now())
   updatedAt                          DateTime            @updatedAt
 
@@ -1666,6 +1667,7 @@ model AssetMaintenanceTeam {
   maintenanceManagerName String?                      @db.VarChar(255)
   company                String                       @db.VarChar(255)
   members                AssetMaintenanceTeamMember[]
+  maintenances           AssetMaintenance[]
   createdAt              DateTime                     @default(now())
   updatedAt              DateTime                     @updatedAt
 
@@ -1686,6 +1688,71 @@ model AssetMaintenanceTeamMember {
 
   @@index([teamId])
   @@map("asset_maintenance_team_members")
+}
+
+model AssetMaintenance {
+  id                     String                  @id @default(cuid())
+  assetId                String                  @unique
+  asset                  Asset                   @relation(fields: [assetId], references: [id])
+  company                String                  @db.VarChar(255)
+  maintenanceTeamId      String
+  maintenanceTeam        AssetMaintenanceTeam    @relation(fields: [maintenanceTeamId], references: [id])
+  maintenanceManager     String?                 @db.VarChar(255)
+  maintenanceManagerName String?                 @db.VarChar(255)
+  tasks                  AssetMaintenanceTask[]
+  logs                   AssetMaintenanceLog[]
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+
+  @@index([maintenanceTeamId])
+  @@index([company])
+  @@map("asset_maintenances")
+}
+
+model AssetMaintenanceTask {
+  id                  String                    @id @default(cuid())
+  maintenanceId       String
+  maintenance         AssetMaintenance          @relation(fields: [maintenanceId], references: [id], onDelete: Cascade)
+  maintenanceTask     String                    @db.VarChar(255)
+  maintenanceType     AssetMaintenanceTaskType?
+  maintenanceStatus   AssetMaintenanceStatus    @default(PLANNED)
+  startDate           DateTime
+  periodicity         AssetMaintenancePeriodicity
+  endDate             DateTime?
+  certificateRequired Boolean                   @default(false)
+  assignTo            String?                   @db.VarChar(255)
+  assignToName        String?                   @db.VarChar(255)
+  nextDueDate         DateTime?
+  lastCompletionDate  DateTime?
+  description         String?                   @db.Text
+  logs                AssetMaintenanceLog[]
+  createdAt           DateTime                  @default(now())
+  updatedAt           DateTime                  @updatedAt
+
+  @@index([maintenanceId])
+  @@index([maintenanceStatus])
+  @@index([nextDueDate])
+  @@map("asset_maintenance_tasks")
+}
+
+model AssetMaintenanceLog {
+  id                    String                      @id @default(cuid())
+  maintenanceId         String
+  maintenance           AssetMaintenance            @relation(fields: [maintenanceId], references: [id], onDelete: Cascade)
+  taskId                String
+  task                  AssetMaintenanceTask        @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  maintenanceStatus     AssetMaintenanceLogStatus   @default(PLANNED)
+  completionDate        DateTime?
+  actionsPerformed      String?                     @db.Text
+  hasCertificate        Boolean                     @default(false)
+  certificateAttachment String?                     @db.VarChar(500)
+  createdAt             DateTime                    @default(now())
+  updatedAt             DateTime                    @updatedAt
+
+  @@index([maintenanceId])
+  @@index([taskId])
+  @@index([maintenanceStatus])
+  @@map("asset_maintenance_logs")
 }
 
 enum AssetStatus {
@@ -1711,4 +1778,33 @@ enum DepreciationMethod {
   DOUBLE_DECLINING_BALANCE
   WRITTEN_DOWN_VALUE
   MANUAL
+}
+
+enum AssetMaintenanceStatus {
+  PLANNED
+  OVERDUE
+  CANCELLED
+}
+
+enum AssetMaintenanceLogStatus {
+  PLANNED
+  COMPLETED
+  CANCELLED
+  OVERDUE
+}
+
+enum AssetMaintenanceTaskType {
+  PREVENTIVE_MAINTENANCE
+  CALIBRATION
+}
+
+enum AssetMaintenancePeriodicity {
+  DAILY
+  WEEKLY
+  MONTHLY
+  QUARTERLY
+  HALF_YEARLY
+  YEARLY
+  TWO_YEARLY
+  THREE_YEARLY
 }

@@ -6107,6 +6107,178 @@ export namespace Asset {
 	export const bulkDeleteMaintenanceTeamsSchema = z.object({
 		ids: z.array(z.string().cuid()).min(1),
 	});
+
+	// ── Asset Maintenance ────────────────────────────────────────────────
+
+	export const assetMaintenanceStatusSchema = z.enum([
+		"PLANNED",
+		"OVERDUE",
+		"CANCELLED",
+	]);
+	export type AssetMaintenanceStatus = z.infer<
+		typeof assetMaintenanceStatusSchema
+	>;
+
+	export const assetMaintenanceLogStatusSchema = z.enum([
+		"PLANNED",
+		"COMPLETED",
+		"CANCELLED",
+		"OVERDUE",
+	]);
+	export type AssetMaintenanceLogStatus = z.infer<
+		typeof assetMaintenanceLogStatusSchema
+	>;
+
+	export const assetMaintenanceTaskTypeSchema = z.enum([
+		"PREVENTIVE_MAINTENANCE",
+		"CALIBRATION",
+	]);
+	export type AssetMaintenanceTaskType = z.infer<
+		typeof assetMaintenanceTaskTypeSchema
+	>;
+
+	export const assetMaintenancePeriodicitySchema = z.enum([
+		"DAILY",
+		"WEEKLY",
+		"MONTHLY",
+		"QUARTERLY",
+		"HALF_YEARLY",
+		"YEARLY",
+		"TWO_YEARLY",
+		"THREE_YEARLY",
+	]);
+	export type AssetMaintenancePeriodicity = z.infer<
+		typeof assetMaintenancePeriodicitySchema
+	>;
+
+	export interface AssetMaintenanceTaskItem {
+		id: string;
+		maintenanceId: string;
+		maintenanceTask: string;
+		maintenanceType: AssetMaintenanceTaskType | null;
+		maintenanceStatus: AssetMaintenanceStatus;
+		startDate: Date;
+		periodicity: AssetMaintenancePeriodicity;
+		endDate: Date | null;
+		certificateRequired: boolean;
+		assignTo: string | null;
+		assignToName: string | null;
+		nextDueDate: Date | null;
+		lastCompletionDate: Date | null;
+		description: string | null;
+		createdAt: Date;
+		updatedAt: Date;
+	}
+
+	export interface AssetMaintenanceLogItem {
+		id: string;
+		maintenanceId: string;
+		taskId: string;
+		maintenanceStatus: AssetMaintenanceLogStatus;
+		completionDate: Date | null;
+		actionsPerformed: string | null;
+		hasCertificate: boolean;
+		certificateAttachment: string | null;
+		createdAt: Date;
+		updatedAt: Date;
+	}
+
+	export interface AssetMaintenanceRecord {
+		id: string;
+		assetId: string;
+		assetName: string;
+		assetCategoryName: string | null;
+		itemCode: string | null;
+		company: string;
+		maintenanceTeamId: string;
+		maintenanceTeamName: string;
+		maintenanceManager: string | null;
+		maintenanceManagerName: string | null;
+		tasks: AssetMaintenanceTaskItem[];
+		createdAt: Date;
+		updatedAt: Date;
+	}
+
+	export interface AssetMaintenanceListResult {
+		items: AssetMaintenanceRecord[];
+		totalCount: number;
+	}
+
+	export const listAssetMaintenancesSchema = z.object({
+		skip: z.number().int().min(0).optional(),
+		take: z.number().int().min(1).max(250).optional(),
+		search: z.string().trim().optional(),
+		company: z.string().trim().optional(),
+		maintenanceTeamId: z.string().cuid().optional(),
+		status: assetMaintenanceStatusSchema.optional(),
+	});
+	export type ListAssetMaintenancesInput = z.infer<
+		typeof listAssetMaintenancesSchema
+	>;
+
+	const assetMaintenanceTaskInputFields = {
+		maintenanceTask: z.string().min(1, "Task name is required").max(255).trim(),
+		maintenanceType: assetMaintenanceTaskTypeSchema.nullable().optional(),
+		maintenanceStatus: assetMaintenanceStatusSchema.default("PLANNED"),
+		startDate: z.coerce.date(),
+		periodicity: assetMaintenancePeriodicitySchema,
+		endDate: z.coerce.date().nullable().optional(),
+		certificateRequired: z.boolean().default(false),
+		assignTo: z.string().max(255).trim().nullable().optional(),
+		assignToName: z.string().max(255).trim().nullable().optional(),
+		nextDueDate: z.coerce.date().nullable().optional(),
+		lastCompletionDate: z.coerce.date().nullable().optional(),
+		description: z.string().trim().nullable().optional(),
+	};
+
+	export const createAssetMaintenanceSchema = z.object({
+		assetId: z.string().cuid(),
+		company: z.string().min(1, "Company is required").max(255).trim(),
+		maintenanceTeamId: z.string().cuid(),
+		maintenanceManager: z.string().max(255).trim().nullable().optional(),
+		maintenanceManagerName: z.string().max(255).trim().nullable().optional(),
+		tasks: z
+			.array(z.object(assetMaintenanceTaskInputFields))
+			.min(1, "At least one maintenance task is required"),
+	});
+	export type CreateAssetMaintenanceInput = z.infer<
+		typeof createAssetMaintenanceSchema
+	>;
+
+	export const updateAssetMaintenanceSchema = z.object({
+		id: z.string().cuid(),
+		company: z.string().min(1).max(255).trim().optional(),
+		maintenanceTeamId: z.string().cuid().optional(),
+		maintenanceManager: z.string().max(255).trim().nullable().optional(),
+		maintenanceManagerName: z.string().max(255).trim().nullable().optional(),
+		tasks: z
+			.array(
+				z.object({
+					id: z.string().cuid().optional(),
+					...assetMaintenanceTaskInputFields,
+				}),
+			)
+			.min(1, "At least one maintenance task is required")
+			.optional(),
+	});
+	export type UpdateAssetMaintenanceInput = z.infer<
+		typeof updateAssetMaintenanceSchema
+	>;
+
+	export const bulkDeleteAssetMaintenancesSchema = z.object({
+		ids: z.array(z.string().cuid()).min(1),
+	});
+
+	export const completeAssetMaintenanceLogSchema = z.object({
+		logId: z.string().cuid(),
+		completionDate: z.coerce.date(),
+		actionsPerformed: z.string().trim().nullable().optional(),
+		hasCertificate: z.boolean().default(false),
+		certificateAttachment: z.string().max(500).trim().nullable().optional(),
+	});
+	export type CompleteAssetMaintenanceLogInput = z.infer<
+		typeof completeAssetMaintenanceLogSchema
+	>;
 }
 
 // ============================================================================

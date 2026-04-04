@@ -167,3 +167,92 @@ export function toMaintenanceTeam(
 		updatedAt: raw.updatedAt,
 	};
 }
+
+// ============================================================================
+// Asset Maintenance Mappers
+// ============================================================================
+
+/**
+ * Prisma model type for AssetMaintenance with all relations included.
+ */
+export type PrismaAssetMaintenance = Prisma.AssetMaintenanceGetPayload<{
+	include: {
+		asset: {
+			select: {
+				assetName: true;
+				itemCode: true;
+				assetCategory: { select: { name: true } };
+			};
+		};
+		maintenanceTeam: { select: { name: true } };
+		tasks: { orderBy: { createdAt: "asc" } };
+	};
+}>;
+
+/**
+ * Prisma model type for AssetMaintenanceLog (scalar fields).
+ */
+export type PrismaAssetMaintenanceLog = Prisma.AssetMaintenanceLogGetPayload<
+	Record<string, never>
+>;
+
+/**
+ * Maps a Prisma AssetMaintenance record to the Asset.AssetMaintenanceRecord domain type.
+ */
+export function toAssetMaintenance(
+	raw: PrismaAssetMaintenance,
+): Asset.AssetMaintenanceRecord {
+	return {
+		id: raw.id,
+		assetId: raw.assetId,
+		assetName: raw.asset.assetName,
+		assetCategoryName: raw.asset.assetCategory?.name ?? null,
+		itemCode: raw.asset.itemCode ?? null,
+		company: raw.company,
+		maintenanceTeamId: raw.maintenanceTeamId,
+		maintenanceTeamName: raw.maintenanceTeam.name,
+		maintenanceManager: raw.maintenanceManager ?? null,
+		maintenanceManagerName: raw.maintenanceManagerName ?? null,
+		tasks: raw.tasks.map((t) => ({
+			id: t.id,
+			maintenanceId: t.maintenanceId,
+			maintenanceTask: t.maintenanceTask,
+			maintenanceType:
+				(t.maintenanceType as Asset.AssetMaintenanceTaskType | null) ?? null,
+			maintenanceStatus: t.maintenanceStatus as Asset.AssetMaintenanceStatus,
+			startDate: t.startDate,
+			periodicity: t.periodicity as Asset.AssetMaintenancePeriodicity,
+			endDate: t.endDate ?? null,
+			certificateRequired: t.certificateRequired,
+			assignTo: t.assignTo ?? null,
+			assignToName: t.assignToName ?? null,
+			nextDueDate: t.nextDueDate ?? null,
+			lastCompletionDate: t.lastCompletionDate ?? null,
+			description: t.description ?? null,
+			createdAt: t.createdAt,
+			updatedAt: t.updatedAt,
+		})),
+		createdAt: raw.createdAt,
+		updatedAt: raw.updatedAt,
+	};
+}
+
+/**
+ * Maps a Prisma AssetMaintenanceLog record to the Asset.AssetMaintenanceLogItem domain type.
+ */
+export function toAssetMaintenanceLog(
+	raw: PrismaAssetMaintenanceLog,
+): Asset.AssetMaintenanceLogItem {
+	return {
+		id: raw.id,
+		maintenanceId: raw.maintenanceId,
+		taskId: raw.taskId,
+		maintenanceStatus: raw.maintenanceStatus as Asset.AssetMaintenanceLogStatus,
+		completionDate: raw.completionDate ?? null,
+		actionsPerformed: raw.actionsPerformed ?? null,
+		hasCertificate: raw.hasCertificate,
+		certificateAttachment: raw.certificateAttachment ?? null,
+		createdAt: raw.createdAt,
+		updatedAt: raw.updatedAt,
+	};
+}

@@ -312,6 +312,119 @@ type AssetRouterInput = {
 		};
 		meta: object;
 	}>;
+
+	// ── Asset Maintenance CRUD ───────────────────────────────────────────────
+	listAssetMaintenances: TRPCQueryProcedure<{
+		input:
+			| {
+					skip?: number | undefined;
+					take?: number | undefined;
+					search?: string | undefined;
+					company?: string | undefined;
+					maintenanceTeamId?: string | undefined;
+					status?: Asset.AssetMaintenanceStatus | undefined;
+			  }
+			| undefined;
+		output: Asset.AssetMaintenanceListResult;
+		meta: object;
+	}>;
+	getAssetMaintenanceById: TRPCQueryProcedure<{
+		input: { id: string };
+		output: Asset.AssetMaintenanceRecord | null;
+		meta: object;
+	}>;
+	getAssetMaintenanceByAssetId: TRPCQueryProcedure<{
+		input: { assetId: string };
+		output: Asset.AssetMaintenanceRecord | null;
+		meta: object;
+	}>;
+	getAssetMaintenanceLogs: TRPCQueryProcedure<{
+		input: { maintenanceId: string };
+		output: Asset.AssetMaintenanceLogItem[];
+		meta: object;
+	}>;
+	createAssetMaintenance: TRPCMutationProcedure<{
+		input: {
+			assetId: string;
+			company: string;
+			maintenanceTeamId: string;
+			maintenanceManager?: string | null | undefined;
+			maintenanceManagerName?: string | null | undefined;
+			tasks: Array<{
+				maintenanceTask: string;
+				maintenanceType?: Asset.AssetMaintenanceTaskType | null | undefined;
+				maintenanceStatus?: Asset.AssetMaintenanceStatus | undefined;
+				startDate: unknown;
+				periodicity: Asset.AssetMaintenancePeriodicity;
+				endDate?: unknown;
+				certificateRequired?: boolean | undefined;
+				assignTo?: string | null | undefined;
+				assignToName?: string | null | undefined;
+				nextDueDate?: unknown;
+				lastCompletionDate?: unknown;
+				description?: string | null | undefined;
+			}>;
+		};
+		output: Asset.AssetMaintenanceRecord;
+		meta: object;
+	}>;
+	updateAssetMaintenance: TRPCMutationProcedure<{
+		input: {
+			id: string;
+			company?: string | undefined;
+			maintenanceTeamId?: string | undefined;
+			maintenanceManager?: string | null | undefined;
+			maintenanceManagerName?: string | null | undefined;
+			tasks?:
+				| Array<{
+						id?: string | undefined;
+						maintenanceTask: string;
+						maintenanceType?: Asset.AssetMaintenanceTaskType | null | undefined;
+						maintenanceStatus?: Asset.AssetMaintenanceStatus | undefined;
+						startDate: unknown;
+						periodicity: Asset.AssetMaintenancePeriodicity;
+						endDate?: unknown;
+						certificateRequired?: boolean | undefined;
+						assignTo?: string | null | undefined;
+						assignToName?: string | null | undefined;
+						nextDueDate?: unknown;
+						lastCompletionDate?: unknown;
+						description?: string | null | undefined;
+				  }>
+				| undefined;
+		};
+		output: Asset.AssetMaintenanceRecord;
+		meta: object;
+	}>;
+	deleteAssetMaintenance: TRPCMutationProcedure<{
+		input: { id: string };
+		output: { success: boolean; id: string };
+		meta: object;
+	}>;
+	deleteManyAssetMaintenances: TRPCMutationProcedure<{
+		input: { ids: string[] };
+		output: { success: boolean; count: number; ids: string[] };
+		meta: object;
+	}>;
+	completeAssetMaintenanceLog: TRPCMutationProcedure<{
+		input: {
+			logId: string;
+			completionDate: unknown;
+			actionsPerformed?: string | null | undefined;
+			hasCertificate?: boolean | undefined;
+			certificateAttachment?: string | null | undefined;
+		};
+		output: Asset.AssetMaintenanceLogItem;
+		meta: object;
+	}>;
+	onAssetMaintenancesChanged: LegacyObservableSubscriptionProcedure<{
+		input: void;
+		output: {
+			type: "created" | "updated" | "deleted" | "log_completed";
+			data: Asset.AssetMaintenanceRecord | { id: string };
+		};
+		meta: object;
+	}>;
 };
 
 type AssetRouterRoot = (typeof accountRouter)["_def"]["_config"]["$types"];
