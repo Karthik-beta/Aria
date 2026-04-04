@@ -6330,6 +6330,260 @@ export namespace Asset {
 	export type CancelAssetMaintenanceLogInput = z.infer<
 		typeof cancelAssetMaintenanceLogSchema
 	>;
+
+	// ── Asset Value Adjustment ───────────────────────────────────────────────
+
+	export const assetValueAdjustmentStatusSchema = z.enum([
+		"DRAFT",
+		"SUBMITTED",
+		"CANCELLED",
+	]);
+	export type AssetValueAdjustmentStatus = z.infer<
+		typeof assetValueAdjustmentStatusSchema
+	>;
+
+	export const assetValueAdjustmentDirectionSchema = z.enum([
+		"INCREASE",
+		"DECREASE",
+	]);
+	export type AssetValueAdjustmentDirection = z.infer<
+		typeof assetValueAdjustmentDirectionSchema
+	>;
+
+	export const assetRevaluationEntryStatusSchema = z.enum([
+		"POSTED",
+		"REVERSED",
+	]);
+	export type AssetRevaluationEntryStatus = z.infer<
+		typeof assetRevaluationEntryStatusSchema
+	>;
+
+	export const assetRevaluationLineTypeSchema = z.enum(["DEBIT", "CREDIT"]);
+	export type AssetRevaluationLineType = z.infer<
+		typeof assetRevaluationLineTypeSchema
+	>;
+
+	export const assetDepreciationScheduleStatusSchema = z.enum([
+		"ACTIVE",
+		"CANCELLED",
+	]);
+	export type AssetDepreciationScheduleStatus = z.infer<
+		typeof assetDepreciationScheduleStatusSchema
+	>;
+
+	export interface AssetRevaluationEntryLine {
+		id: string;
+		lineType: AssetRevaluationLineType;
+		account: string;
+		debitAmount: number;
+		creditAmount: number;
+		costCenter: string | null;
+		createdAt: Date;
+		updatedAt: Date;
+	}
+
+	export interface AssetRevaluationEntry {
+		id: string;
+		series: string;
+		adjustmentId: string;
+		assetId: string;
+		company: string;
+		postingDate: Date;
+		remarks: string;
+		status: AssetRevaluationEntryStatus;
+		reversedAt: Date | null;
+		lines: AssetRevaluationEntryLine[];
+		createdAt: Date;
+		updatedAt: Date;
+	}
+
+	export interface AssetDepreciationScheduleEntry {
+		id: string;
+		sequence: number;
+		scheduleDate: Date;
+		depreciationAmount: number;
+		accumulatedDepreciationAmount: number;
+		bookValueAfterDepreciation: number;
+		createdAt: Date;
+		updatedAt: Date;
+	}
+
+	export interface AssetDepreciationSchedule {
+		id: string;
+		adjustmentId: string;
+		assetId: string;
+		previousScheduleId: string | null;
+		revisionNumber: number;
+		status: AssetDepreciationScheduleStatus;
+		startDate: Date;
+		depreciationMethod: DepreciationMethod | null;
+		totalNumberOfDepreciations: number;
+		frequencyOfDepreciation: number;
+		bookedDepreciations: number;
+		remainingDepreciations: number;
+		openingAccumulatedDepreciation: number;
+		baseAssetValue: number;
+		notes: string | null;
+		entries: AssetDepreciationScheduleEntry[];
+		createdAt: Date;
+		updatedAt: Date;
+	}
+
+	export interface AssetDepreciationSchedulePreviewEntry {
+		sequence: number;
+		scheduleDate: Date;
+		depreciationAmount: number;
+		accumulatedDepreciationAmount: number;
+		bookValueAfterDepreciation: number;
+	}
+
+	export interface AssetDepreciationSchedulePreview {
+		depreciationMethod: DepreciationMethod | null;
+		totalNumberOfDepreciations: number;
+		frequencyOfDepreciation: number;
+		bookedDepreciations: number;
+		remainingDepreciations: number;
+		entries: AssetDepreciationSchedulePreviewEntry[];
+	}
+
+	export interface AssetValueAdjustmentPreview {
+		assetId: string;
+		assetSeries: string;
+		assetName: string;
+		assetCategoryName: string | null;
+		company: string;
+		adjustmentDate: Date;
+		currentAssetValue: number;
+		newAssetValue: number;
+		differenceAmount: number;
+		direction: AssetValueAdjustmentDirection;
+		fixedAssetAccount: string;
+		resultingStatus: AssetStatus;
+		resultingIsFullyDepreciated: boolean;
+		validationMessages: string[];
+		depreciationSchedule: AssetDepreciationSchedulePreview | null;
+	}
+
+	export interface AssetValueAdjustmentItem {
+		id: string;
+		series: string;
+		assetId: string;
+		assetSeries: string;
+		assetName: string;
+		assetCategoryName: string | null;
+		company: string;
+		adjustmentDate: Date;
+		currentAssetValue: number;
+		newAssetValue: number;
+		differenceAmount: number;
+		differenceAccount: string;
+		fixedAssetAccount: string;
+		costCenter: string | null;
+		notes: string | null;
+		status: AssetValueAdjustmentStatus;
+		direction: AssetValueAdjustmentDirection;
+		previousAssetStatus: AssetStatus;
+		previousIsFullyDepreciated: boolean;
+		submittedAt: Date | null;
+		cancelledAt: Date | null;
+		revaluationEntry: AssetRevaluationEntry | null;
+		depreciationSchedule: AssetDepreciationSchedule | null;
+		createdAt: Date;
+		updatedAt: Date;
+	}
+
+	export interface AssetValueAdjustmentListResult {
+		items: AssetValueAdjustmentItem[];
+		totalCount: number;
+	}
+
+	export const listAssetValueAdjustmentsSchema = z.object({
+		skip: z.number().int().min(0).optional(),
+		take: z.number().int().min(1).max(250).optional(),
+		search: z.string().trim().optional(),
+		status: assetValueAdjustmentStatusSchema.optional(),
+		assetId: z.string().cuid().optional(),
+		company: z.string().trim().optional(),
+		direction: assetValueAdjustmentDirectionSchema.optional(),
+	});
+	export type ListAssetValueAdjustmentsInput = z.infer<
+		typeof listAssetValueAdjustmentsSchema
+	>;
+
+	export const getAssetValueAdjustmentSchema = z.object({
+		id: z.string().cuid(),
+	});
+	export type GetAssetValueAdjustmentInput = z.infer<
+		typeof getAssetValueAdjustmentSchema
+	>;
+
+	export const previewAssetValueAdjustmentSchema = z.object({
+		assetId: z.string().cuid(),
+		adjustmentDate: z.coerce.date(),
+		newAssetValue: z.number().finite().min(0),
+	});
+	export type PreviewAssetValueAdjustmentInput = z.infer<
+		typeof previewAssetValueAdjustmentSchema
+	>;
+
+	export const createAssetValueAdjustmentSchema = z.object({
+		assetId: z.string().cuid(),
+		adjustmentDate: z.coerce.date(),
+		newAssetValue: z.number().finite().min(0),
+		differenceAccount: z.string().trim().min(1).max(255),
+		costCenter: z.string().trim().max(255).nullable().optional(),
+		notes: z.string().trim().max(5000).nullable().optional(),
+	});
+	export type CreateAssetValueAdjustmentInput = z.infer<
+		typeof createAssetValueAdjustmentSchema
+	>;
+
+	export const updateAssetValueAdjustmentSchema = z
+		.object({
+			id: z.string().cuid(),
+			assetId: z.string().cuid().optional(),
+			adjustmentDate: z.coerce.date().optional(),
+			newAssetValue: z.number().finite().min(0).optional(),
+			differenceAccount: z.string().trim().min(1).max(255).optional(),
+			costCenter: z.string().trim().max(255).nullable().optional(),
+			notes: z.string().trim().max(5000).nullable().optional(),
+		})
+		.refine(
+			(input) =>
+				input.assetId !== undefined ||
+				input.adjustmentDate !== undefined ||
+				input.newAssetValue !== undefined ||
+				input.differenceAccount !== undefined ||
+				input.costCenter !== undefined ||
+				input.notes !== undefined,
+			{
+				message: "At least one field must be updated.",
+			},
+		);
+	export type UpdateAssetValueAdjustmentInput = z.infer<
+		typeof updateAssetValueAdjustmentSchema
+	>;
+
+	export const submitAssetValueAdjustmentSchema = z.object({
+		id: z.string().cuid(),
+	});
+	export type SubmitAssetValueAdjustmentInput = z.infer<
+		typeof submitAssetValueAdjustmentSchema
+	>;
+
+	export const cancelAssetValueAdjustmentSchema = z.object({
+		id: z.string().cuid(),
+	});
+	export type CancelAssetValueAdjustmentInput = z.infer<
+		typeof cancelAssetValueAdjustmentSchema
+	>;
+
+	export const deleteAssetValueAdjustmentSchema = z.object({
+		id: z.string().cuid(),
+	});
+	export type DeleteAssetValueAdjustmentInput = z.infer<
+		typeof deleteAssetValueAdjustmentSchema
+	>;
 }
 
 // ============================================================================

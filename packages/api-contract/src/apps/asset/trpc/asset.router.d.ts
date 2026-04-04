@@ -24,6 +24,11 @@ type AssetCategoriesChangedEvent = {
 	data: Asset.AssetCategory | { id: string };
 };
 
+type AssetValueAdjustmentsChangedEvent = {
+	type: "created" | "updated" | "submitted" | "cancelled" | "deleted";
+	data: Asset.AssetValueAdjustmentItem | { id: string };
+};
+
 type AssetRouterInput = {
 	// ── Asset CRUD ──────────────────────────────────────────────────────────
 	listAssets: TRPCQueryProcedure<{
@@ -133,6 +138,75 @@ type AssetRouterInput = {
 		output: { success: boolean; count: number; ids: string[] };
 		meta: object;
 	}>;
+	listAssetValueAdjustments: TRPCQueryProcedure<{
+		input:
+			| {
+					skip?: number | undefined;
+					take?: number | undefined;
+					search?: string | undefined;
+					status?: Asset.AssetValueAdjustmentStatus | undefined;
+					assetId?: string | undefined;
+					company?: string | undefined;
+					direction?: Asset.AssetValueAdjustmentDirection | undefined;
+			  }
+			| undefined;
+		output: Asset.AssetValueAdjustmentListResult;
+		meta: object;
+	}>;
+	getAssetValueAdjustmentById: TRPCQueryProcedure<{
+		input: { id: string };
+		output: Asset.AssetValueAdjustmentItem | null;
+		meta: object;
+	}>;
+	previewAssetValueAdjustment: TRPCQueryProcedure<{
+		input: {
+			assetId: string;
+			adjustmentDate: unknown;
+			newAssetValue: number;
+		};
+		output: Asset.AssetValueAdjustmentPreview;
+		meta: object;
+	}>;
+	createAssetValueAdjustment: TRPCMutationProcedure<{
+		input: {
+			assetId: string;
+			adjustmentDate: unknown;
+			newAssetValue: number;
+			differenceAccount: string;
+			costCenter?: string | null | undefined;
+			notes?: string | null | undefined;
+		};
+		output: Asset.AssetValueAdjustmentItem;
+		meta: object;
+	}>;
+	updateAssetValueAdjustment: TRPCMutationProcedure<{
+		input: {
+			id: string;
+			assetId?: string | undefined;
+			adjustmentDate?: unknown;
+			newAssetValue?: number | undefined;
+			differenceAccount?: string | undefined;
+			costCenter?: string | null | undefined;
+			notes?: string | null | undefined;
+		};
+		output: Asset.AssetValueAdjustmentItem;
+		meta: object;
+	}>;
+	submitAssetValueAdjustment: TRPCMutationProcedure<{
+		input: { id: string };
+		output: Asset.AssetValueAdjustmentItem;
+		meta: object;
+	}>;
+	cancelAssetValueAdjustment: TRPCMutationProcedure<{
+		input: { id: string };
+		output: Asset.AssetValueAdjustmentItem;
+		meta: object;
+	}>;
+	deleteAssetValueAdjustment: TRPCMutationProcedure<{
+		input: { id: string };
+		output: { success: boolean; id: string };
+		meta: object;
+	}>;
 
 	// ── Location CRUD ────────────────────────────────────────────────────────
 	listLocations: TRPCQueryProcedure<{
@@ -239,6 +313,11 @@ type AssetRouterInput = {
 	onAssetCategoriesChanged: LegacyObservableSubscriptionProcedure<{
 		input: void;
 		output: AssetCategoriesChangedEvent;
+		meta: object;
+	}>;
+	onAssetValueAdjustmentsChanged: LegacyObservableSubscriptionProcedure<{
+		input: void;
+		output: AssetValueAdjustmentsChangedEvent;
 		meta: object;
 	}>;
 

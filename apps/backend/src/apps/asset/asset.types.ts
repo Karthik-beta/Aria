@@ -136,6 +136,163 @@ export function toAsset(raw: PrismaAsset): Asset.AssetItem {
 }
 
 /**
+ * Prisma model type for AssetRevaluationEntry with ordered lines.
+ */
+export type PrismaAssetRevaluationEntry =
+	Prisma.AssetRevaluationEntryGetPayload<{
+		include: {
+			lines: { orderBy: { createdAt: "asc" } };
+		};
+	}>;
+
+/**
+ * Prisma model type for AssetDepreciationSchedule with ordered entries.
+ */
+export type PrismaAssetDepreciationSchedule =
+	Prisma.AssetDepreciationScheduleGetPayload<{
+		include: {
+			entries: { orderBy: { sequence: "asc" } };
+		};
+	}>;
+
+/**
+ * Prisma model type for AssetValueAdjustment with nested asset, entry, and schedule.
+ */
+export type PrismaAssetValueAdjustment = Prisma.AssetValueAdjustmentGetPayload<{
+	include: {
+		asset: {
+			select: {
+				id: true;
+				series: true;
+				assetName: true;
+				assetCategory: { select: { name: true } };
+			};
+		};
+		revaluationEntry: {
+			include: {
+				lines: { orderBy: { createdAt: "asc" } };
+			};
+		};
+		depreciationSchedule: {
+			include: {
+				entries: { orderBy: { sequence: "asc" } };
+			};
+		};
+	};
+}>;
+
+export function toAssetRevaluationEntryLine(
+	raw: PrismaAssetRevaluationEntry["lines"][number],
+): Asset.AssetRevaluationEntryLine {
+	return {
+		id: raw.id,
+		lineType: raw.lineType as Asset.AssetRevaluationLineType,
+		account: raw.account,
+		debitAmount: Number(raw.debitAmount),
+		creditAmount: Number(raw.creditAmount),
+		costCenter: raw.costCenter ?? null,
+		createdAt: raw.createdAt,
+		updatedAt: raw.updatedAt,
+	};
+}
+
+export function toAssetRevaluationEntry(
+	raw: PrismaAssetRevaluationEntry,
+): Asset.AssetRevaluationEntry {
+	return {
+		id: raw.id,
+		series: raw.series,
+		adjustmentId: raw.adjustmentId,
+		assetId: raw.assetId,
+		company: raw.company,
+		postingDate: raw.postingDate,
+		remarks: raw.remarks,
+		status: raw.status as Asset.AssetRevaluationEntryStatus,
+		reversedAt: raw.reversedAt ?? null,
+		lines: raw.lines.map(toAssetRevaluationEntryLine),
+		createdAt: raw.createdAt,
+		updatedAt: raw.updatedAt,
+	};
+}
+
+export function toAssetDepreciationScheduleEntry(
+	raw: PrismaAssetDepreciationSchedule["entries"][number],
+): Asset.AssetDepreciationScheduleEntry {
+	return {
+		id: raw.id,
+		sequence: raw.sequence,
+		scheduleDate: raw.scheduleDate,
+		depreciationAmount: Number(raw.depreciationAmount),
+		accumulatedDepreciationAmount: Number(raw.accumulatedDepreciationAmount),
+		bookValueAfterDepreciation: Number(raw.bookValueAfterDepreciation),
+		createdAt: raw.createdAt,
+		updatedAt: raw.updatedAt,
+	};
+}
+
+export function toAssetDepreciationSchedule(
+	raw: PrismaAssetDepreciationSchedule,
+): Asset.AssetDepreciationSchedule {
+	return {
+		id: raw.id,
+		adjustmentId: raw.adjustmentId,
+		assetId: raw.assetId,
+		previousScheduleId: raw.previousScheduleId ?? null,
+		revisionNumber: raw.revisionNumber,
+		status: raw.status as Asset.AssetDepreciationScheduleStatus,
+		startDate: raw.startDate,
+		depreciationMethod:
+			(raw.depreciationMethod as Asset.DepreciationMethod | null) ?? null,
+		totalNumberOfDepreciations: raw.totalNumberOfDepreciations,
+		frequencyOfDepreciation: raw.frequencyOfDepreciation,
+		bookedDepreciations: raw.bookedDepreciations,
+		remainingDepreciations: raw.remainingDepreciations,
+		openingAccumulatedDepreciation: Number(raw.openingAccumulatedDepreciation),
+		baseAssetValue: Number(raw.baseAssetValue),
+		notes: raw.notes ?? null,
+		entries: raw.entries.map(toAssetDepreciationScheduleEntry),
+		createdAt: raw.createdAt,
+		updatedAt: raw.updatedAt,
+	};
+}
+
+export function toAssetValueAdjustment(
+	raw: PrismaAssetValueAdjustment,
+): Asset.AssetValueAdjustmentItem {
+	return {
+		id: raw.id,
+		series: raw.series,
+		assetId: raw.assetId,
+		assetSeries: raw.asset.series,
+		assetName: raw.asset.assetName,
+		assetCategoryName: raw.asset.assetCategory?.name ?? null,
+		company: raw.companySnapshot,
+		adjustmentDate: raw.adjustmentDate,
+		currentAssetValue: Number(raw.currentAssetValue),
+		newAssetValue: Number(raw.newAssetValue),
+		differenceAmount: Number(raw.differenceAmount),
+		differenceAccount: raw.differenceAccount,
+		fixedAssetAccount: raw.fixedAssetAccount,
+		costCenter: raw.costCenter ?? null,
+		notes: raw.notes ?? null,
+		status: raw.status as Asset.AssetValueAdjustmentStatus,
+		direction: raw.direction as Asset.AssetValueAdjustmentDirection,
+		previousAssetStatus: raw.previousAssetStatus as Asset.AssetStatus,
+		previousIsFullyDepreciated: raw.previousIsFullyDepreciated,
+		submittedAt: raw.submittedAt ?? null,
+		cancelledAt: raw.cancelledAt ?? null,
+		revaluationEntry: raw.revaluationEntry
+			? toAssetRevaluationEntry(raw.revaluationEntry)
+			: null,
+		depreciationSchedule: raw.depreciationSchedule
+			? toAssetDepreciationSchedule(raw.depreciationSchedule)
+			: null,
+		createdAt: raw.createdAt,
+		updatedAt: raw.updatedAt,
+	};
+}
+
+/**
  * Prisma model type for AssetMaintenanceTeam with members relation included.
  */
 export type PrismaMaintenanceTeam = Prisma.AssetMaintenanceTeamGetPayload<{

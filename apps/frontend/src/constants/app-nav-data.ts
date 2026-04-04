@@ -323,7 +323,7 @@ export const assetNavItems: NavItem[] = [
 			},
 			{
 				title: "Asset Value Adjustment",
-				url: "/asset/value-adjustment",
+				url: "/asset/asset-maintenance/value-adjustment",
 			},
 		],
 	},

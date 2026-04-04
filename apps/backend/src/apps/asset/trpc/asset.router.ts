@@ -26,6 +26,11 @@ type AssetCategoriesChangedEvent = {
 	data: Asset.AssetCategory | { id: string };
 };
 
+type AssetValueAdjustmentsChangedEvent = {
+	type: "created" | "updated" | "submitted" | "cancelled" | "deleted";
+	data: Asset.AssetValueAdjustmentItem | { id: string };
+};
+
 type MaintenanceTeamsChangedEvent = {
 	type: "created" | "updated" | "deleted";
 	data: Asset.AssetMaintenanceTeam | { id: string };
@@ -96,6 +101,96 @@ export class AssetRouter {
 							data: { id },
 						} satisfies AssetsChangedEvent);
 					}
+					return result;
+				}),
+
+			// ── Asset Value Adjustment ───────────────────────────────────────
+			listAssetValueAdjustments: protectedProcedure
+				.input(Asset.listAssetValueAdjustmentsSchema.optional())
+				.query(async ({ input }) => svc.findAllAssetValueAdjustments(input)),
+
+			getAssetValueAdjustmentById: protectedProcedure
+				.input(Asset.getAssetValueAdjustmentSchema)
+				.query(async ({ input }) => svc.findAssetValueAdjustmentById(input.id)),
+
+			previewAssetValueAdjustment: protectedProcedure
+				.input(Asset.previewAssetValueAdjustmentSchema)
+				.query(async ({ input }) => svc.previewAssetValueAdjustment(input)),
+
+			createAssetValueAdjustment: protectedProcedure
+				.input(Asset.createAssetValueAdjustmentSchema)
+				.mutation(async ({ input }) => {
+					const adjustment = await svc.createAssetValueAdjustment(input);
+					assetEvents.emit("assetValueAdjustmentsChanged", {
+						type: "created",
+						data: adjustment,
+					} satisfies AssetValueAdjustmentsChangedEvent);
+					return adjustment;
+				}),
+
+			updateAssetValueAdjustment: protectedProcedure
+				.input(Asset.updateAssetValueAdjustmentSchema)
+				.mutation(async ({ input }) => {
+					const adjustment = await svc.updateAssetValueAdjustment(input);
+					assetEvents.emit("assetValueAdjustmentsChanged", {
+						type: "updated",
+						data: adjustment,
+					} satisfies AssetValueAdjustmentsChangedEvent);
+					return adjustment;
+				}),
+
+			submitAssetValueAdjustment: protectedProcedure
+				.input(Asset.submitAssetValueAdjustmentSchema)
+				.mutation(async ({ input }) => {
+					const adjustment = await svc.submitAssetValueAdjustment(input);
+					assetEvents.emit("assetValueAdjustmentsChanged", {
+						type: "submitted",
+						data: adjustment,
+					} satisfies AssetValueAdjustmentsChangedEvent);
+					assetEvents.emit("assetsChanged", {
+						type: "updated",
+						data: await svc.findAssetById(adjustment.assetId).then((asset) => {
+							if (!asset) {
+								throw new Error(
+									`Asset ${adjustment.assetId} not found after submitting adjustment`,
+								);
+							}
+							return asset;
+						}),
+					} satisfies AssetsChangedEvent);
+					return adjustment;
+				}),
+
+			cancelAssetValueAdjustment: protectedProcedure
+				.input(Asset.cancelAssetValueAdjustmentSchema)
+				.mutation(async ({ input }) => {
+					const adjustment = await svc.cancelAssetValueAdjustment(input);
+					assetEvents.emit("assetValueAdjustmentsChanged", {
+						type: "cancelled",
+						data: adjustment,
+					} satisfies AssetValueAdjustmentsChangedEvent);
+					assetEvents.emit("assetsChanged", {
+						type: "updated",
+						data: await svc.findAssetById(adjustment.assetId).then((asset) => {
+							if (!asset) {
+								throw new Error(
+									`Asset ${adjustment.assetId} not found after cancelling adjustment`,
+								);
+							}
+							return asset;
+						}),
+					} satisfies AssetsChangedEvent);
+					return adjustment;
+				}),
+
+			deleteAssetValueAdjustment: protectedProcedure
+				.input(Asset.deleteAssetValueAdjustmentSchema)
+				.mutation(async ({ input }) => {
+					const result = await svc.deleteAssetValueAdjustment(input.id);
+					assetEvents.emit("assetValueAdjustmentsChanged", {
+						type: "deleted",
+						data: { id: input.id },
+					} satisfies AssetValueAdjustmentsChangedEvent);
 					return result;
 				}),
 
@@ -206,6 +301,15 @@ export class AssetRouter {
 						emit.next(event);
 					assetEvents.on("assetCategoriesChanged", handler);
 					return () => assetEvents.off("assetCategoriesChanged", handler);
+				}),
+			),
+
+			onAssetValueAdjustmentsChanged: protectedProcedure.subscription(() =>
+				observable<AssetValueAdjustmentsChangedEvent>((emit) => {
+					const handler = (event: AssetValueAdjustmentsChangedEvent) =>
+						emit.next(event);
+					assetEvents.on("assetValueAdjustmentsChanged", handler);
+					return () => assetEvents.off("assetValueAdjustmentsChanged", handler);
 				}),
 			),
 

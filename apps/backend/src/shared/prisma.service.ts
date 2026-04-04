@@ -280,6 +280,21 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
 	get assetMaintenanceLog() {
 		return this.client.assetMaintenanceLog;
 	}
+	get assetValueAdjustment() {
+		return this.client.assetValueAdjustment;
+	}
+	get assetRevaluationEntry() {
+		return this.client.assetRevaluationEntry;
+	}
+	get assetRevaluationEntryLine() {
+		return this.client.assetRevaluationEntryLine;
+	}
+	get assetDepreciationSchedule() {
+		return this.client.assetDepreciationSchedule;
+	}
+	get assetDepreciationScheduleEntry() {
+		return this.client.assetDepreciationScheduleEntry;
+	}
 
 	// ═══════════════════════════════════════════════════════════════════════════
 	// Transaction Support
