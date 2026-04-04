@@ -13,13 +13,14 @@ export type PrismaAsset = Prisma.AssetGetPayload<{
 }>;
 
 /**
- * Prisma model type for Location (scalar fields only).
+ * Prisma model type for Location (with optional parent name).
  */
 export type PrismaLocation = Prisma.LocationGetPayload<{
 	select: {
 		id: true;
 		name: true;
 		parentLocationId: true;
+		parentLocation: { select: { name: true } };
 		isGroup: true;
 		createdAt: true;
 		updatedAt: true;
@@ -51,15 +52,13 @@ export function toAssetLocation(loc: PrismaLocation): Asset.Location {
 		id: loc.id,
 		name: loc.name,
 		parentLocationId: loc.parentLocationId ?? null,
+		parentLocationName: loc.parentLocation?.name ?? null,
 		isGroup: loc.isGroup,
 		createdAt: loc.createdAt,
 		updatedAt: loc.updatedAt,
 	};
 }
 
-/**
- * Maps a Prisma AssetCategory record to the Asset.AssetCategory domain type.
- */
 export function toAssetCategory(cat: PrismaAssetCategory): Asset.AssetCategory {
 	return {
 		id: cat.id,

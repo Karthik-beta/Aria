@@ -29,8 +29,17 @@ import {
 	useAdvancedDataTable,
 } from "@/components/advanced-data-table";
 import { AlertModal } from "@/components/modal/alert-modal";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuLabel,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { ErrorState } from "@/components/ui/error-display";
 import { DataTableColumnHeader } from "@/components/ui/table/data-table-column-header";
 import { NewAssetDialog } from "@/features/asset/components/new-asset-dialog";
@@ -59,6 +68,18 @@ function AssetRealtimeSubscription({
 
 	return null;
 }
+
+const STATUS_BADGE_CLASS: Record<string, string> = {
+	DRAFT: "bg-gray-100 text-gray-700",
+	SUBMITTED: "bg-blue-100 text-blue-700",
+	CANCELLED: "bg-red-100 text-red-700",
+	PARTIALLY_DEPRECIATED: "bg-amber-100 text-amber-700",
+	FULLY_DEPRECIATED: "bg-orange-100 text-orange-700",
+	SOLD: "bg-purple-100 text-purple-700",
+	SCRAPPED: "bg-zinc-100 text-zinc-700",
+	IN_MAINTENANCE: "bg-yellow-100 text-yellow-800",
+	OUT_OF_ORDER: "bg-red-200 text-red-800",
+};
 
 function formatStatus(status: string): string {
 	return status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
@@ -264,7 +285,7 @@ export default function AssetListPage() {
 				),
 				cell: ({ row }) => (
 					<Link
-						href={`/asset/asset_sub_module/asset/${row.original.id}`}
+						href={`/asset/asset-sub-module/asset/${row.original.id}`}
 						className="font-medium text-primary hover:underline"
 					>
 						{row.getValue("assetName")}
@@ -289,67 +310,25 @@ export default function AssetListPage() {
 				),
 				cell: ({ row }) => {
 					const status = row.original.status;
-					const statusDisplay = formatStatus(status);
-					const statusColor =
-						status === "DRAFT"
-							? "text-muted-foreground"
-							: status === "SUBMITTED"
-								? "text-blue-600"
-								: status === "CANCELLED"
-									? "text-red-600"
-									: status === "SOLD"
-										? "text-purple-600"
-										: status === "SCRAPPED"
-											? "text-zinc-600"
-											: status === "IN_MAINTENANCE"
-												? "text-yellow-600"
-												: status === "OUT_OF_ORDER"
-													? "text-red-700"
-													: "text-primary";
-
+					const badgeClass =
+						STATUS_BADGE_CLASS[status] ?? "bg-gray-100 text-gray-700";
 					return (
-						<span className={`${statusColor} text-sm font-medium`}>
-							{statusDisplay}
-						</span>
+						<Badge className={`${badgeClass} border-0 text-xs font-medium`}>
+							{formatStatus(status)}
+						</Badge>
 					);
 				},
 				meta: {
 					label: "Status",
 					variant: "multiSelect",
-					options: [
-						{ label: "Draft", value: "DRAFT", icon: Package },
-						{ label: "Submitted", value: "SUBMITTED", icon: CheckCircle2 },
-						{ label: "Cancelled", value: "CANCELLED", icon: XCircle },
-						{
-							label: "Partially Depreciated",
-							value: "PARTIALLY_DEPRECIATED",
-							icon: Package,
-						},
-						{
-							label: "Fully Depreciated",
-							value: "FULLY_DEPRECIATED",
-							icon: Package,
-						},
-						{ label: "Sold", value: "SOLD", icon: CheckCircle2 },
-						{ label: "Scrapped", value: "SCRAPPED", icon: XCircle },
-						{
-							label: "In Maintenance",
-							value: "IN_MAINTENANCE",
-							icon: Package,
-						},
-						{
-							label: "Out Of Order",
-							value: "OUT_OF_ORDER",
-							icon: XCircle,
-						},
-					],
+					options: Object.keys(STATUS_BADGE_CLASS).map((s) => ({
+						label: formatStatus(s),
+						value: s,
+					})),
 					exportable: true,
 				},
 				enableSorting: true,
 				enableColumnFilter: true,
-				filterFn: (row, _id, value) => {
-					return value.includes(row.original.status);
-				},
 			},
 			{
 				id: "assetCategoryName",
@@ -413,78 +392,6 @@ export default function AssetListPage() {
 				size: 50,
 			},
 			{
-				id: "counts",
-				header: () => (
-					<div className="text-right text-muted-foreground text-sm">
-						{assets.length} of {assets.length}
-					</div>
-				),
-				cell: () => (
-					<div className="flex items-center justify-end gap-2 text-muted-foreground text-sm">
-						<span className="flex items-center gap-1">
-							<svg
-								className="h-4 w-4"
-								fill="none"
-								viewBox="0 0 24 24"
-								stroke="currentColor"
-								strokeWidth={1.5}
-							>
-								<title>Comments count</title>
-								<path
-									strokeLinecap="round"
-									strokeLinejoin="round"
-									d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z"
-								/>
-							</svg>
-							0
-						</span>
-						<span>·</span>
-					</div>
-				),
-				enableSorting: false,
-				enableHiding: false,
-				enableResizing: false,
-				enableColumnFilter: false,
-				enableGlobalFilter: false,
-				size: 80,
-			},
-			{
-				id: "counts",
-				header: () => (
-					<div className="text-right text-muted-foreground text-sm">
-						{assets.length} of {assets.length}
-					</div>
-				),
-				cell: () => (
-					<div className="flex items-center justify-end gap-2 text-muted-foreground text-sm">
-						<span className="flex items-center gap-1">
-							<svg
-								className="h-4 w-4"
-								fill="none"
-								viewBox="0 0 24 24"
-								stroke="currentColor"
-								strokeWidth={1.5}
-							>
-								<title>Comments count</title>
-								<path
-									strokeLinecap="round"
-									strokeLinejoin="round"
-									d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z"
-								/>
-							</svg>
-							0
-						</span>
-						<span>·</span>
-					</div>
-				),
-				enableSorting: false,
-				enableHiding: false,
-				enableResizing: false,
-				enableColumnFilter: false,
-				enableGlobalFilter: false,
-				size: 80,
-			},
-			{
 				id: "actions",
 				header: "",
 				cell: ({ row }) => {
@@ -508,7 +415,7 @@ export default function AssetListPage() {
 								</DropdownMenuItem>
 								<DropdownMenuItem asChild>
 									<Link
-										href={`/asset/asset_sub_module/asset/form?id=${asset.id}`}
+										href={`/asset/asset-sub-module/asset/form?id=${asset.id}`}
 									>
 										<Edit className="mr-2 h-4 w-4" />
 										Edit Asset
@@ -533,7 +440,7 @@ export default function AssetListPage() {
 				enableGlobalFilter: false,
 			},
 		],
-		[handleDelete, getRelativeAge, assets.length],
+		[handleDelete, getRelativeAge],
 	);
 
 	const handleBulkDelete = React.useCallback(

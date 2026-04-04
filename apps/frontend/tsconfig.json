@@ -2,7 +2,6 @@
 	"extends": "@aria/tsconfig/next.json",
 	"compilerOptions": {
 		"noEmit": true,
-		"baseUrl": ".",
 		"plugins": [
 			{
 				"name": "next"

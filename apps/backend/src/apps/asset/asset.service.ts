@@ -377,9 +377,20 @@ export class AssetService {
 			where.name = { contains: params.search, mode: "insensitive" };
 		}
 
+		const locationSelect = {
+			id: true,
+			name: true,
+			parentLocationId: true,
+			parentLocation: { select: { name: true } },
+			isGroup: true,
+			createdAt: true,
+			updatedAt: true,
+		} as const;
+
 		const [items, totalCount] = await Promise.all([
 			this.prisma.location.findMany({
 				where,
+				select: locationSelect,
 				orderBy: { name: "asc" },
 				skip,
 				take,
@@ -391,7 +402,18 @@ export class AssetService {
 	}
 
 	async findLocationById(id: string): Promise<Asset.Location | null> {
-		const loc = await this.prisma.location.findUnique({ where: { id } });
+		const loc = await this.prisma.location.findUnique({
+			where: { id },
+			select: {
+				id: true,
+				name: true,
+				parentLocationId: true,
+				parentLocation: { select: { name: true } },
+				isGroup: true,
+				createdAt: true,
+				updatedAt: true,
+			},
+		});
 		return loc ? toAssetLocation(loc) : null;
 	}
 
@@ -408,12 +430,23 @@ export class AssetService {
 			);
 		}
 
+		const locationSelectFields = {
+			id: true,
+			name: true,
+			parentLocationId: true,
+			parentLocation: { select: { name: true } },
+			isGroup: true,
+			createdAt: true,
+			updatedAt: true,
+		} as const;
+
 		const loc = await this.prisma.location.create({
 			data: {
 				name: input.name,
 				parentLocationId: input.parentLocationId ?? null,
 				isGroup: input.isGroup ?? false,
 			},
+			select: locationSelectFields,
 		});
 		return toAssetLocation(loc);
 	}
@@ -436,6 +469,15 @@ export class AssetService {
 					parentLocationId: input.parentLocationId,
 				}),
 				...(input.isGroup !== undefined && { isGroup: input.isGroup }),
+			},
+			select: {
+				id: true,
+				name: true,
+				parentLocationId: true,
+				parentLocation: { select: { name: true } },
+				isGroup: true,
+				createdAt: true,
+				updatedAt: true,
 			},
 		});
 		return toAssetLocation(loc);

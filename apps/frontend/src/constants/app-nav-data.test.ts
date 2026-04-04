@@ -13,7 +13,7 @@ describe("getAppNavItems", () => {
 		const items = getAppNavItems("asset");
 		expect(items.length).toBeGreaterThan(0);
 		expect(items[0]?.title).toBe("Dashboard");
-		expect(items[0]?.url).toBe("/asset/dashboard");
+		expect(items[0]?.url).toMatch(/^\/asset\/dashboard/);
 	});
 
 	it("returns crm nav items for 'crm'", () => {

@@ -5650,6 +5650,7 @@ export namespace Asset {
 		id: string;
 		name: string;
 		parentLocationId?: string | null;
+		parentLocationName?: string | null;
 		isGroup: boolean;
 		createdAt: Date;
 		updatedAt: Date;
