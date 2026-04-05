@@ -31,6 +31,7 @@ import {
 	toMaintenanceTeam,
 } from "./asset.types";
 import { buildAssetDepreciationLedgerResult } from "./asset-depreciation-ledger-report";
+import { buildAssetDepreciationsAndBalancesResult } from "./asset-depreciations-and-balances-report";
 import {
 	buildDepreciationSchedulePreview,
 	buildRevaluationEntryLines,
@@ -1037,6 +1038,164 @@ export class AssetService {
 									(adjustment.depreciationSchedule
 										.depreciationMethod as Asset.DepreciationMethod | null) ??
 									null,
+								openingAccumulatedDepreciation: Number(
+									adjustment.depreciationSchedule
+										.openingAccumulatedDepreciation,
+								),
+								entries: adjustment.depreciationSchedule.entries.map(
+									(entry) => ({
+										id: entry.id,
+										sequence: entry.sequence,
+										scheduleDate: entry.scheduleDate,
+										depreciationAmount: Number(entry.depreciationAmount),
+										accumulatedDepreciationAmount: Number(
+											entry.accumulatedDepreciationAmount,
+										),
+										bookValueAfterDepreciation: Number(
+											entry.bookValueAfterDepreciation,
+										),
+									}),
+								),
+							}
+						: null,
+				})),
+			})),
+		});
+	}
+
+	async findAssetDepreciationsAndBalances(
+		input: Asset.ListAssetDepreciationsAndBalancesInput,
+	): Promise<Asset.AssetDepreciationsAndBalancesResult> {
+		const fromDate = new Date(input.fromDate);
+		fromDate.setHours(0, 0, 0, 0);
+
+		const toDate = new Date(input.toDate);
+		toDate.setHours(23, 59, 59, 999);
+
+		const assetWhere: Prisma.AssetWhereInput = {
+			purchaseDate: {
+				lte: toDate,
+			},
+		};
+
+		if (input.company) {
+			assetWhere.company = {
+				contains: input.company,
+				mode: "insensitive",
+			};
+		}
+
+		if (input.asset) {
+			assetWhere.OR = [
+				{
+					series: {
+						contains: input.asset,
+						mode: "insensitive",
+					},
+				},
+				{
+					assetName: {
+						contains: input.asset,
+						mode: "insensitive",
+					},
+				},
+			];
+		}
+
+		if (input.assetCategory) {
+			assetWhere.assetCategory = {
+				is: {
+					name: {
+						contains: input.assetCategory,
+						mode: "insensitive",
+					},
+				},
+			};
+		}
+
+		const assets = await this.prisma.asset.findMany({
+			where: assetWhere,
+			select: {
+				id: true,
+				series: true,
+				assetName: true,
+				company: true,
+				purchaseDate: true,
+				disposalDate: true,
+				netPurchaseAmount: true,
+				openingAccumulatedDepreciation: true,
+				status: true,
+				assetCategory: {
+					select: {
+						id: true,
+						name: true,
+					},
+				},
+				valueAdjustments: {
+					where: {
+						status: "SUBMITTED",
+						adjustmentDate: { lte: toDate },
+					},
+					orderBy: [{ adjustmentDate: "asc" }, { createdAt: "asc" }],
+					select: {
+						id: true,
+						adjustmentDate: true,
+						differenceAmount: true,
+						depreciationSchedule: {
+							select: {
+								id: true,
+								revisionNumber: true,
+								startDate: true,
+								openingAccumulatedDepreciation: true,
+								entries: {
+									orderBy: { sequence: "asc" },
+									select: {
+										id: true,
+										sequence: true,
+										scheduleDate: true,
+										depreciationAmount: true,
+										accumulatedDepreciationAmount: true,
+										bookValueAfterDepreciation: true,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		});
+
+		return buildAssetDepreciationsAndBalancesResult({
+			fromDate,
+			toDate,
+			groupBy: input.groupBy,
+			assets: assets.map((asset) => ({
+				id: asset.id,
+				series: asset.series,
+				assetName: asset.assetName,
+				company: asset.company,
+				purchaseDate: asset.purchaseDate,
+				disposalDate: asset.disposalDate ?? null,
+				netPurchaseAmount: Number(asset.netPurchaseAmount ?? 0),
+				openingAccumulatedDepreciation: Number(
+					asset.openingAccumulatedDepreciation ?? 0,
+				),
+				status: asset.status as Asset.AssetStatus,
+				assetCategory: asset.assetCategory
+					? {
+							id: asset.assetCategory.id,
+							name: asset.assetCategory.name,
+						}
+					: null,
+				adjustments: asset.valueAdjustments.map((adjustment) => ({
+					id: adjustment.id,
+					adjustmentDate: adjustment.adjustmentDate,
+					differenceAmount: Number(adjustment.differenceAmount),
+					schedule: adjustment.depreciationSchedule
+						? {
+								id: adjustment.depreciationSchedule.id,
+								revisionNumber: adjustment.depreciationSchedule.revisionNumber,
+								startDate: adjustment.depreciationSchedule.startDate,
 								openingAccumulatedDepreciation: Number(
 									adjustment.depreciationSchedule
 										.openingAccumulatedDepreciation,

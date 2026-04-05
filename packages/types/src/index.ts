@@ -6624,6 +6624,73 @@ export namespace Asset {
 		summary: AssetDepreciationLedgerSummary;
 	}
 
+	export const assetDepreciationsAndBalancesGroupBySchema = z.enum([
+		"ASSET_CATEGORY",
+		"ASSET",
+	]);
+	export type AssetDepreciationsAndBalancesGroupBy = z.infer<
+		typeof assetDepreciationsAndBalancesGroupBySchema
+	>;
+
+	export interface AssetDepreciationsAndBalancesRow {
+		groupingKey: string;
+		groupingLabel: string;
+		company: string;
+		assetCount: number;
+		assetId: string | null;
+		assetSeries: string | null;
+		assetName: string | null;
+		assetCategoryId: string | null;
+		assetCategoryName: string | null;
+		valueAsOnFromDate: number;
+		valueOfNewPurchase: number;
+		valueOfSoldAsset: number;
+		valueOfScrappedAsset: number;
+		valueOfCapitalizedAsset: number;
+		valueAdjustmentDuringPeriod: number;
+		valueAsOnToDate: number;
+		accumulatedDepreciationAsOnFromDate: number;
+		depreciationAmountDuringPeriod: number;
+		depreciationEliminatedDuringPeriod: number;
+		accumulatedDepreciationAsOnToDate: number;
+		depreciationEliminatedViaReversal: number;
+		netAssetValueAsOnFromDate: number;
+		netAssetValueAsOnToDate: number;
+	}
+
+	export interface AssetDepreciationsAndBalancesSummary {
+		matchedAssetCount: number;
+		rowCount: number;
+		totalValueAsOnFromDate: number;
+		totalValueAsOnToDate: number;
+		totalNetAssetValueAsOnFromDate: number;
+		totalNetAssetValueAsOnToDate: number;
+		totalDepreciationAmountDuringPeriod: number;
+		totalValueAdjustmentDuringPeriod: number;
+	}
+
+	export interface AssetDepreciationsAndBalancesResult {
+		rows: AssetDepreciationsAndBalancesRow[];
+		summary: AssetDepreciationsAndBalancesSummary;
+	}
+
+	export const listAssetDepreciationsAndBalancesSchema = z
+		.object({
+			fromDate: z.coerce.date(),
+			toDate: z.coerce.date(),
+			company: z.string().trim().max(255).optional(),
+			groupBy: assetDepreciationsAndBalancesGroupBySchema,
+			asset: z.string().trim().max(255).optional(),
+			assetCategory: z.string().trim().max(255).optional(),
+		})
+		.refine((input) => input.fromDate <= input.toDate, {
+			message: "From date must be on or before to date.",
+			path: ["toDate"],
+		});
+	export type ListAssetDepreciationsAndBalancesInput = z.infer<
+		typeof listAssetDepreciationsAndBalancesSchema
+	>;
+
 	export const listAssetDepreciationLedgerSchema = z
 		.object({
 			fromDate: z.coerce.date(),

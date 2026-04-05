@@ -58,6 +58,12 @@ export class AssetRouter {
 				.input(Asset.listAssetDepreciationLedgerSchema)
 				.query(async ({ input }) => svc.findAssetDepreciationLedger(input)),
 
+			listAssetDepreciationsAndBalances: protectedProcedure
+				.input(Asset.listAssetDepreciationsAndBalancesSchema)
+				.query(async ({ input }) =>
+					svc.findAssetDepreciationsAndBalances(input),
+				),
+
 			getAssetById: protectedProcedure
 				.input(z.object({ id: z.string().cuid() }))
 				.query(async ({ input }) => svc.findAssetById(input.id)),

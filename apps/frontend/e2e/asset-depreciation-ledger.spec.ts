@@ -43,7 +43,7 @@ async function mockLedgerQuery(page: Page) {
 		async (route) => {
 			await route.fulfill({
 				contentType: "application/json",
-				body: JSON.stringify([{ result: { data: ledgerResponse } }]),
+				body: JSON.stringify({ result: { data: ledgerResponse } }),
 			});
 		},
 	);
