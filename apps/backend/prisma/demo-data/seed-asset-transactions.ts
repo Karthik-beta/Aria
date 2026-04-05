@@ -163,7 +163,6 @@ async function createAssetActivity(
 			assetId,
 			activity,
 			createdAt,
-			updatedAt: createdAt,
 		},
 	});
 }

@@ -337,9 +337,22 @@ export async function seedMasterData(
 		parentId: string | null,
 	) {
 		for (const w of defs) {
-			const wh = await prisma.warehouse.create({
-				data: {
+			const wh = await prisma.warehouse.upsert({
+				where: { name: w.name },
+				create: {
 					name: w.name,
+					disabled: false,
+					isGroupWarehouse: w.isGroup,
+					parentWarehouseId: parentId,
+					company: config.company,
+					warehouseType: w.warehouseType ?? null,
+					city: w.city ?? null,
+					state: w.state ?? null,
+					pin: w.pin ?? null,
+					addressLine1: w.addressLine1 ?? null,
+					isRejectedWarehouse: w.isRejected ?? false,
+				},
+				update: {
 					disabled: false,
 					isGroupWarehouse: w.isGroup,
 					parentWarehouseId: parentId,

@@ -101,6 +101,10 @@ export async function cleanDemoData(
 		prisma.pickList.deleteMany({ where: { company } }),
 	);
 
+	await del("InstallationNoteItem", () =>
+		prisma.installationNoteItem.deleteMany({}),
+	);
+
 	await del("SerialNoHistory", () =>
 		prisma.serialNoHistory.deleteMany({
 			where: { serialNo: { company } },
@@ -154,7 +158,8 @@ export async function cleanDemoData(
 	// Shipping rules
 	await del("ShippingRule", () => prisma.shippingRule.deleteMany({}));
 
-	// Product bundles, alternatives, manufacturers (cascade from Item)
+	// Product bundles and related children must be deleted in dependency order.
+	await del("ProductBundleItem", () => prisma.productBundleItem.deleteMany({}));
 	await del("ProductBundle", () => prisma.productBundle.deleteMany({}));
 
 	await del("ItemAlternate", () => prisma.itemAlternate.deleteMany({}));
@@ -163,7 +168,10 @@ export async function cleanDemoData(
 
 	await del("Item", () => prisma.item.deleteMany({}));
 
-	// Inventory items (barcodes, reorders, attributes cascade)
+	// Inventory items and their direct state must be deleted in dependency order.
+	// InventoryItem is not company-scoped, so remove all batches and serials first.
+	await del("Batch", () => prisma.batch.deleteMany({}));
+	await del("SerialNo", () => prisma.serialNo.deleteMany({}));
 	await del("InventoryItem", () => prisma.inventoryItem.deleteMany({}));
 
 	// Item attributes & values (cascade)

@@ -52,11 +52,11 @@ import {
 	type AssetMaintenanceFormValues,
 	assetMaintenanceFormSchema,
 	getAssetMaintenanceFormDefaults,
-} from "../asset-maintenance.schema";
+} from "../maintenance/asset-maintenance.schema";
 import {
 	toCreateAssetMaintenanceInput,
 	toUpdateAssetMaintenanceInput,
-} from "../asset-maintenance.utils";
+} from "../maintenance/asset-maintenance.utils";
 
 export default function AssetMaintenanceFormPage() {
 	return (

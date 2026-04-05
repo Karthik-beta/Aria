@@ -39,23 +39,40 @@ import { seedAssetTransactions } from "./seed-asset-transactions.js";
 import type { MasterIds } from "./seed-master.js";
 
 // ── Counters for series generation ────────────────────────────────
-const poCounter = 0;
-const prCounter = 0;
-const seCounter = 0;
-const soCounter = 0;
-const mrCounter = 0;
-const dnCounter = 0;
-const plCounter = 0;
-const psCounter = 0;
-const dtCounter = 0;
-const inCounter = 0;
 const batchCounter = 0;
 const serialCounter = 0;
-const scoCounter = 0;
 
 function nextSeries(prefix: string, counter: { val: number }, year: number) {
 	counter.val++;
 	return makeSeries(prefix, year, counter.val);
+}
+
+function parseSeriesSequence(series: string): number {
+	const match = series.match(/-(\d{4})$/);
+	return match ? Number(match[1]) : 0;
+}
+
+async function getSeriesStart(
+	prismaModel: {
+		findMany: (args: {
+			where: { series: { startsWith: string } };
+			select: { series: true };
+		}) => Promise<Array<{ series: string }>>;
+	},
+	prefix: string,
+	year: number,
+) {
+	const seriesList = await prismaModel.findMany({
+		where: { series: { startsWith: `${prefix}-${year}-` } },
+		select: { series: true },
+	});
+
+	let max = 0;
+	for (const item of seriesList) {
+		max = Math.max(max, parseSeriesSequence(item.series));
+	}
+
+	return max;
 }
 
 export async function seedTransactions(
@@ -64,19 +81,35 @@ export async function seedTransactions(
 	ids: MasterIds,
 ): Promise<void> {
 	const year = config.dateRange.from.getFullYear();
-	const poC = { val: poCounter };
-	const prC = { val: prCounter };
-	const seC = { val: seCounter };
-	const soC = { val: soCounter };
-	const mrC = { val: mrCounter };
-	const dnC = { val: dnCounter };
-	const plC = { val: plCounter };
-	const psC = { val: psCounter };
-	const dtC = { val: dtCounter };
-	const inC = { val: inCounter };
+	const poC = {
+		val: await getSeriesStart(prisma.purchaseOrder, "MAT-PO", year),
+	};
+	const prC = {
+		val: await getSeriesStart(prisma.purchaseReceipt, "MAT-PRE", year),
+	};
+	const seC = { val: await getSeriesStart(prisma.stockEntry, "MAT-STE", year) };
+	const soC = { val: await getSeriesStart(prisma.salesOrder, "MAT-SO", year) };
+	const mrC = {
+		val: await getSeriesStart(prisma.materialRequest, "MAT-MR", year),
+	};
+	const dnC = {
+		val: await getSeriesStart(prisma.deliveryNote, "MAT-DN", year),
+	};
+	const plC = { val: await getSeriesStart(prisma.pickList, "STO-PICK", year) };
+	const psC = {
+		val: await getSeriesStart(prisma.packingSlip, "MAT-PAC", year),
+	};
+	const dtC = {
+		val: await getSeriesStart(prisma.deliveryTrip, "MAT-DT", year),
+	};
+	const inC = {
+		val: await getSeriesStart(prisma.installationNote, "MAT-INS", year),
+	};
 	const bC = { val: batchCounter };
 	const snC = { val: serialCounter };
-	const scoC = { val: scoCounter };
+	const scoC = {
+		val: await getSeriesStart(prisma.subcontractingOrder, "MAT-SCO", year),
+	};
 
 	// warehouse names for re-use
 	const mainWh = "Peenya Main Warehouse";
