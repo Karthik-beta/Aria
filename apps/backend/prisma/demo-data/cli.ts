@@ -53,6 +53,10 @@ async function run() {
 					`${config.dateRange.to.toISOString().slice(0, 10)})`,
 			);
 			const start = Date.now();
+			logger.info("Cleaning existing demo data before loading...");
+			await cleanDemoData(prisma, config);
+			const cleanupElapsed = ((Date.now() - start) / 1000).toFixed(1);
+			logger.info(`Existing demo data cleaned in ${cleanupElapsed}s`);
 			await seedAll(prisma, config);
 			const elapsed = ((Date.now() - start) / 1000).toFixed(1);
 			logger.info(`Demo data loaded successfully in ${elapsed}s`);

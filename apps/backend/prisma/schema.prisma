@@ -1558,3 +1558,403 @@ enum SubcontractingOrderStatus {
   CLOSED
   CANCELLED
 }
+
+// ============================================================================
+// Asset Management
+// ============================================================================
+
+model Location {
+  id               String     @id @default(cuid())
+  name             String     @unique @db.VarChar(255)
+  parentLocationId String?
+  parentLocation   Location?  @relation("LocationHierarchy", fields: [parentLocationId], references: [id])
+  childLocations   Location[] @relation("LocationHierarchy")
+  isGroup          Boolean    @default(false)
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+  assets           Asset[]
+
+  @@index([name])
+  @@index([parentLocationId])
+  @@map("locations")
+}
+
+model AssetCategory {
+  id                         String              @id @default(cuid())
+  name                       String              @unique @db.VarChar(255)
+  depreciationMethod         DepreciationMethod?
+  totalNumberOfDepreciations Int?
+  frequencyOfDepreciation    Int?
+  nonDepreciableCategory     Boolean             @default(false)
+  enableCwipAccounting       Boolean             @default(false)
+  createdAt                  DateTime            @default(now())
+  updatedAt                  DateTime            @updatedAt
+  assets                     Asset[]
+
+  @@index([name])
+  @@map("asset_categories")
+}
+
+model Asset {
+  id                                 String              @id @default(cuid())
+  series                             String              @unique @db.VarChar(50)
+  assetName                          String              @db.VarChar(255)
+  itemCode                           String              @db.VarChar(100)
+  assetCategoryId                    String?
+  assetCategory                      AssetCategory?      @relation(fields: [assetCategoryId], references: [id])
+  company                            String              @db.VarChar(255)
+  locationId                         String?
+  location                           Location?           @relation(fields: [locationId], references: [id])
+  custodian                          String?             @db.VarChar(255)
+  department                         String?             @db.VarChar(255)
+  purchaseDate                       DateTime
+  availableForUseDate                DateTime?
+  disposalDate                       DateTime?
+  netPurchaseAmount                  Decimal             @default(0) @db.Decimal(18, 6)
+  assetQuantity                      Int                 @default(1)
+  calculateDepreciation              Boolean             @default(false)
+  openingAccumulatedDepreciation     Decimal             @default(0) @db.Decimal(18, 6)
+  openingNumberOfBookedDepreciations Int                 @default(0)
+  isFullyDepreciated                 Boolean             @default(false)
+  valueAfterDepreciation             Decimal             @default(0) @db.Decimal(18, 6)
+  maintenanceRequired                Boolean             @default(false)
+  assetOwner                         AssetOwner          @default(COMPANY)
+  assetOwnerCompany                  String?             @db.VarChar(255)
+  supplier                           String?             @db.VarChar(255)
+  customer                           String?             @db.VarChar(255)
+  policyNumber                       String?             @db.VarChar(100)
+  insurer                            String?             @db.VarChar(255)
+  insuredValue                       Decimal?            @db.Decimal(18, 6)
+  insuranceStartDate                 DateTime?
+  insuranceEndDate                   DateTime?
+  depreciationMethod                 DepreciationMethod?
+  totalNumberOfDepreciations         Int?
+  frequencyOfDepreciation            Int?
+  purchaseReceipt                    String?             @db.VarChar(100)
+  purchaseInvoice                    String?             @db.VarChar(100)
+  status                             AssetStatus         @default(DRAFT)
+  activities                         AssetActivity[]
+  maintenance                        AssetMaintenance?
+  valueAdjustments                   AssetValueAdjustment[]
+  revaluationEntries                 AssetRevaluationEntry[]
+  depreciationSchedules              AssetDepreciationSchedule[]
+  createdAt                          DateTime            @default(now())
+  updatedAt                          DateTime            @updatedAt
+
+  @@index([series])
+  @@index([status])
+  @@index([itemCode])
+  @@index([company])
+  @@index([locationId])
+  @@index([assetCategoryId])
+  @@index([purchaseDate])
+  @@map("assets")
+}
+
+model AssetActivity {
+  id        String   @id @default(cuid())
+  assetId   String
+  asset     Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  activity  String   @db.VarChar(500)
+  createdAt DateTime @default(now())
+
+  @@index([assetId])
+  @@index([createdAt])
+  @@map("asset_activities")
+}
+
+model AssetValueAdjustment {
+  id                     String                           @id @default(cuid())
+  series                 String                           @unique @db.VarChar(50)
+  assetId                String
+  asset                  Asset                            @relation(fields: [assetId], references: [id])
+  assetCategorySnapshot  String?                          @db.VarChar(255)
+  companySnapshot        String                           @db.VarChar(255)
+  adjustmentDate         DateTime
+  currentAssetValue      Decimal                          @db.Decimal(18, 6)
+  newAssetValue          Decimal                          @db.Decimal(18, 6)
+  differenceAmount       Decimal                          @db.Decimal(18, 6)
+  differenceAccount      String                           @db.VarChar(255)
+  fixedAssetAccount      String                           @db.VarChar(255)
+  costCenter             String?                          @db.VarChar(255)
+  notes                  String?                          @db.Text
+  status                 AssetValueAdjustmentStatus       @default(DRAFT)
+  direction              AssetValueAdjustmentDirection
+  previousAssetStatus    AssetStatus
+  previousIsFullyDepreciated Boolean                      @default(false)
+  submittedAt            DateTime?
+  cancelledAt            DateTime?
+  revaluationEntry       AssetRevaluationEntry?
+  depreciationSchedule   AssetDepreciationSchedule?
+  createdAt              DateTime                         @default(now())
+  updatedAt              DateTime                         @updatedAt
+
+  @@index([assetId])
+  @@index([status])
+  @@index([adjustmentDate])
+  @@index([companySnapshot])
+  @@map("asset_value_adjustments")
+}
+
+model AssetRevaluationEntry {
+  id            String                      @id @default(cuid())
+  series        String                      @unique @db.VarChar(50)
+  adjustmentId  String                      @unique
+  adjustment    AssetValueAdjustment        @relation(fields: [adjustmentId], references: [id], onDelete: Cascade)
+  assetId       String
+  asset         Asset                       @relation(fields: [assetId], references: [id])
+  company       String                      @db.VarChar(255)
+  postingDate   DateTime
+  remarks       String                      @db.VarChar(500)
+  status        AssetRevaluationEntryStatus @default(POSTED)
+  reversedAt    DateTime?
+  lines         AssetRevaluationEntryLine[]
+  createdAt     DateTime                    @default(now())
+  updatedAt     DateTime                    @updatedAt
+
+  @@index([assetId])
+  @@index([status])
+  @@index([postingDate])
+  @@map("asset_revaluation_entries")
+}
+
+model AssetRevaluationEntryLine {
+  id                 String                     @id @default(cuid())
+  revaluationEntryId String
+  revaluationEntry   AssetRevaluationEntry      @relation(fields: [revaluationEntryId], references: [id], onDelete: Cascade)
+  lineType           AssetRevaluationLineType
+  account            String                     @db.VarChar(255)
+  debitAmount        Decimal                    @default(0) @db.Decimal(18, 6)
+  creditAmount       Decimal                    @default(0) @db.Decimal(18, 6)
+  costCenter         String?                    @db.VarChar(255)
+  createdAt          DateTime                   @default(now())
+  updatedAt          DateTime                   @updatedAt
+
+  @@index([revaluationEntryId])
+  @@index([account])
+  @@map("asset_revaluation_entry_lines")
+}
+
+model AssetDepreciationSchedule {
+  id                          String                          @id @default(cuid())
+  adjustmentId                String                          @unique
+  adjustment                  AssetValueAdjustment            @relation(fields: [adjustmentId], references: [id], onDelete: Cascade)
+  assetId                     String
+  asset                       Asset                           @relation(fields: [assetId], references: [id])
+  previousScheduleId          String?
+  previousSchedule            AssetDepreciationSchedule?      @relation("AssetDepreciationScheduleChain", fields: [previousScheduleId], references: [id])
+  nextSchedules               AssetDepreciationSchedule[]     @relation("AssetDepreciationScheduleChain")
+  revisionNumber              Int
+  status                      AssetDepreciationScheduleStatus @default(ACTIVE)
+  startDate                   DateTime
+  depreciationMethod          DepreciationMethod?
+  totalNumberOfDepreciations  Int
+  frequencyOfDepreciation     Int
+  bookedDepreciations         Int
+  remainingDepreciations      Int
+  openingAccumulatedDepreciation Decimal                      @default(0) @db.Decimal(18, 6)
+  baseAssetValue              Decimal                         @db.Decimal(18, 6)
+  notes                       String?                         @db.Text
+  entries                     AssetDepreciationScheduleEntry[]
+  createdAt                   DateTime                        @default(now())
+  updatedAt                   DateTime                        @updatedAt
+
+  @@index([assetId])
+  @@index([status])
+  @@index([startDate])
+  @@index([previousScheduleId])
+  @@map("asset_depreciation_schedules")
+}
+
+model AssetDepreciationScheduleEntry {
+  id                            String                    @id @default(cuid())
+  scheduleId                    String
+  schedule                      AssetDepreciationSchedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  sequence                      Int
+  scheduleDate                  DateTime
+  depreciationAmount            Decimal                   @db.Decimal(18, 6)
+  accumulatedDepreciationAmount Decimal                   @db.Decimal(18, 6)
+  bookValueAfterDepreciation    Decimal                   @db.Decimal(18, 6)
+  createdAt                     DateTime                  @default(now())
+  updatedAt                     DateTime                  @updatedAt
+
+  @@unique([scheduleId, sequence])
+  @@index([scheduleId])
+  @@index([scheduleDate])
+  @@map("asset_depreciation_schedule_entries")
+}
+
+model AssetMaintenanceTeam {
+  id                     String                       @id @default(cuid())
+  name                   String                       @unique @db.VarChar(255)
+  maintenanceManager     String?                      @db.VarChar(255)
+  maintenanceManagerName String?                      @db.VarChar(255)
+  company                String                       @db.VarChar(255)
+  members                AssetMaintenanceTeamMember[]
+  maintenances           AssetMaintenance[]
+  createdAt              DateTime                     @default(now())
+  updatedAt              DateTime                     @updatedAt
+
+  @@index([name])
+  @@index([company])
+  @@map("asset_maintenance_teams")
+}
+
+model AssetMaintenanceTeamMember {
+  id              String               @id @default(cuid())
+  teamId          String
+  team            AssetMaintenanceTeam @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  teamMember      String               @db.VarChar(255)
+  fullName        String               @db.VarChar(255)
+  maintenanceRole String               @db.VarChar(100)
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  @@index([teamId])
+  @@map("asset_maintenance_team_members")
+}
+
+model AssetMaintenance {
+  id                     String                  @id @default(cuid())
+  assetId                String                  @unique
+  asset                  Asset                   @relation(fields: [assetId], references: [id])
+  company                String                  @db.VarChar(255)
+  maintenanceTeamId      String
+  maintenanceTeam        AssetMaintenanceTeam    @relation(fields: [maintenanceTeamId], references: [id])
+  maintenanceManager     String?                 @db.VarChar(255)
+  maintenanceManagerName String?                 @db.VarChar(255)
+  tasks                  AssetMaintenanceTask[]
+  logs                   AssetMaintenanceLog[]
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+
+  @@index([maintenanceTeamId])
+  @@index([company])
+  @@map("asset_maintenances")
+}
+
+model AssetMaintenanceTask {
+  id                  String                    @id @default(cuid())
+  maintenanceId       String
+  maintenance         AssetMaintenance          @relation(fields: [maintenanceId], references: [id], onDelete: Cascade)
+  maintenanceTask     String                    @db.VarChar(255)
+  maintenanceType     AssetMaintenanceTaskType?
+  maintenanceStatus   AssetMaintenanceStatus    @default(PLANNED)
+  startDate           DateTime
+  periodicity         AssetMaintenancePeriodicity
+  endDate             DateTime?
+  certificateRequired Boolean                   @default(false)
+  assignTo            String?                   @db.VarChar(255)
+  assignToName        String?                   @db.VarChar(255)
+  nextDueDate         DateTime?
+  lastCompletionDate  DateTime?
+  description         String?                   @db.Text
+  logs                AssetMaintenanceLog[]
+  createdAt           DateTime                  @default(now())
+  updatedAt           DateTime                  @updatedAt
+
+  @@index([maintenanceId])
+  @@index([maintenanceStatus])
+  @@index([nextDueDate])
+  @@map("asset_maintenance_tasks")
+}
+
+model AssetMaintenanceLog {
+  id                    String                      @id @default(cuid())
+  maintenanceId         String
+  maintenance           AssetMaintenance            @relation(fields: [maintenanceId], references: [id], onDelete: Cascade)
+  taskId                String
+  task                  AssetMaintenanceTask        @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  maintenanceStatus     AssetMaintenanceLogStatus   @default(PLANNED)
+  completionDate        DateTime?
+  actionsPerformed      String?                     @db.Text
+  hasCertificate        Boolean                     @default(false)
+  certificateAttachment String?                     @db.VarChar(500)
+  createdAt             DateTime                    @default(now())
+  updatedAt             DateTime                    @updatedAt
+
+  @@index([maintenanceId])
+  @@index([taskId])
+  @@index([maintenanceStatus])
+  @@map("asset_maintenance_logs")
+}
+
+enum AssetStatus {
+  DRAFT
+  SUBMITTED
+  CANCELLED
+  PARTIALLY_DEPRECIATED
+  FULLY_DEPRECIATED
+  SOLD
+  SCRAPPED
+  IN_MAINTENANCE
+  OUT_OF_ORDER
+}
+
+enum AssetOwner {
+  COMPANY
+  SUPPLIER
+  CUSTOMER
+}
+
+enum DepreciationMethod {
+  STRAIGHT_LINE
+  DOUBLE_DECLINING_BALANCE
+  WRITTEN_DOWN_VALUE
+  MANUAL
+}
+
+enum AssetMaintenanceStatus {
+  PLANNED
+  OVERDUE
+  CANCELLED
+}
+
+enum AssetMaintenanceLogStatus {
+  PLANNED
+  COMPLETED
+  CANCELLED
+  OVERDUE
+}
+
+enum AssetMaintenanceTaskType {
+  PREVENTIVE_MAINTENANCE
+  CALIBRATION
+}
+
+enum AssetMaintenancePeriodicity {
+  DAILY
+  WEEKLY
+  MONTHLY
+  QUARTERLY
+  HALF_YEARLY
+  YEARLY
+  TWO_YEARLY
+  THREE_YEARLY
+}
+
+enum AssetValueAdjustmentStatus {
+  DRAFT
+  SUBMITTED
+  CANCELLED
+}
+
+enum AssetValueAdjustmentDirection {
+  INCREASE
+  DECREASE
+}
+
+enum AssetRevaluationEntryStatus {
+  POSTED
+  REVERSED
+}
+
+enum AssetRevaluationLineType {
+  DEBIT
+  CREDIT
+}
+
+enum AssetDepreciationScheduleStatus {
+  ACTIVE
+  CANCELLED
+}

@@ -277,7 +277,7 @@ export const inventoryNavItems: NavItem[] = [
 export const assetNavItems: NavItem[] = [
 	{
 		title: "Dashboard",
-		url: "/asset/dashboard",
+		url: "/asset/dashboard/overview",
 		icon: "dashboard",
 		isActive: false,
 		shortcut: ["d", "d"],
@@ -286,44 +286,44 @@ export const assetNavItems: NavItem[] = [
 	{
 		title: "Assets",
 		url: "#",
-		icon: "dashboard",
+		icon: "assets",
 		isActive: false,
 		items: [
 			{
 				title: "Asset",
-				url: "/asset/asset",
+				url: "/asset/asset-sub-module/asset",
 			},
 			{
 				title: "Location",
-				url: "/asset/location",
+				url: "/asset/asset-sub-module/location",
 			},
 			{
 				title: "Asset Category",
-				url: "/asset/asset-category",
+				url: "/asset/asset-sub-module/asset-category",
 			},
 		],
 	},
 	{
 		title: "Maintenance",
 		url: "#",
-		icon: "dashboard",
+		icon: "tools",
 		isActive: false,
 		items: [
 			{
 				title: "Asset Maintenance Team",
-				url: "/asset/maintenance-team",
+				url: "/asset/asset-maintenance/maintenance-team",
 			},
 			{
 				title: "Asset Maintenance",
-				url: "/asset/maintenance",
+				url: "/asset/asset-maintenance/maintenance",
 			},
 			{
 				title: "Asset Maintenance Log",
-				url: "/asset/maintenance-log",
+				url: "/asset/asset-maintenance/log",
 			},
 			{
 				title: "Asset Value Adjustment",
-				url: "/asset/value-adjustment",
+				url: "/asset/asset-maintenance/value-adjustment",
 			},
 		],
 	},
@@ -344,18 +344,6 @@ export const assetNavItems: NavItem[] = [
 			{
 				title: "Asset Activity",
 				url: "/asset/reports/activity",
-			},
-		],
-	},
-	{
-		title: "Settings",
-		url: "#",
-		icon: "settings",
-		isActive: false,
-		items: [
-			{
-				title: "Asset Settings",
-				url: "/asset/settings",
 			},
 		],
 	},

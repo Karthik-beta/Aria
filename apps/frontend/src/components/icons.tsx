@@ -2,6 +2,7 @@ import {
 	IconAlertTriangle,
 	IconArrowRight,
 	IconBarcode,
+	IconBlocks,
 	IconBrandGithub,
 	IconBrandTwitter,
 	IconChartCovariate,
@@ -92,4 +93,6 @@ export const Icons = {
 	tools: IconTools,
 	analytics: IconChartCovariate,
 	otherReports: IconFileDescription,
+
+	assets: IconBlocks,
 };

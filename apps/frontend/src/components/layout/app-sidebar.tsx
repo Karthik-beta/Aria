@@ -243,6 +243,11 @@ export default function AppSidebar() {
 	useMediaQuery();
 	const { data: session } = useSession();
 	const { canAccessApp, isLoading: authLoading } = useAuth();
+	const [isHydrated, setIsHydrated] = React.useState(false);
+
+	React.useEffect(() => {
+		setIsHydrated(true);
+	}, []);
 
 	const accessibleApps = React.useMemo(() => {
 		if (authLoading) {
@@ -255,6 +260,10 @@ export default function AppSidebar() {
 
 	// Map auth session user shape to the local user shape expected by UserAvatarProfile
 	const user = React.useMemo(() => {
+		if (!isHydrated) {
+			return fallbackUser;
+		}
+
 		const su = session?.user;
 		if (!hasProperty(su, "name") && !hasProperty(su, "email"))
 			return fallbackUser;
@@ -300,7 +309,7 @@ export default function AppSidebar() {
 			emailAddresses: [{ emailAddress: getEmail() }],
 			imageUrl: getImageUrl(),
 		};
-	}, [session]);
+	}, [isHydrated, session]);
 
 	// Memoize active app calculation to avoid recalculation on every render
 	const activeApp = React.useMemo(

@@ -425,7 +425,7 @@ export default function WarehouseWiseStockBalancePage() {
 		totals.rows === 0 ? 0 : totals.incomingRate / totals.rows;
 
 	return (
-		<div className="container mx-auto space-y-6 py-6">
+		<div className="flex flex-1 flex-col gap-6 p-4 md:px-6">
 			<WarehouseWiseRealtimeSubscription
 				onData={() => {
 					void utils.inventory.listWarehouseWiseStockBalance.invalidate(

@@ -5610,6 +5610,1235 @@ export namespace Inventory {
 }
 
 // ============================================================================
+// Asset Domain Types & Schemas
+// ============================================================================
+
+/**
+ * Asset namespace — groups all asset-management-related types.
+ * Use: import { Asset } from '@aria/types'; then Asset.AssetItem, etc.
+ */
+export namespace Asset {
+	// ── Enums ────────────────────────────────────────────────────────────────
+
+	export const assetStatusSchema = z.enum([
+		"DRAFT",
+		"SUBMITTED",
+		"CANCELLED",
+		"PARTIALLY_DEPRECIATED",
+		"FULLY_DEPRECIATED",
+		"SOLD",
+		"SCRAPPED",
+		"IN_MAINTENANCE",
+		"OUT_OF_ORDER",
+	]);
+	export type AssetStatus = z.infer<typeof assetStatusSchema>;
+
+	export const assetOwnerSchema = z.enum(["COMPANY", "SUPPLIER", "CUSTOMER"]);
+	export type AssetOwner = z.infer<typeof assetOwnerSchema>;
+
+	export const depreciationMethodSchema = z.enum([
+		"STRAIGHT_LINE",
+		"DOUBLE_DECLINING_BALANCE",
+		"WRITTEN_DOWN_VALUE",
+		"MANUAL",
+	]);
+	export type DepreciationMethod = z.infer<typeof depreciationMethodSchema>;
+
+	// ── Interfaces ───────────────────────────────────────────────────────────
+
+	export interface Location {
+		id: string;
+		name: string;
+		parentLocationId?: string | null;
+		parentLocationName?: string | null;
+		isGroup: boolean;
+		createdAt: Date;
+		updatedAt: Date;
+	}
+
+	export interface AssetCategory {
+		id: string;
+		name: string;
+		depreciationMethod?: DepreciationMethod | null;
+		totalNumberOfDepreciations?: number | null;
+		frequencyOfDepreciation?: number | null;
+		nonDepreciableCategory: boolean;
+		enableCwipAccounting: boolean;
+		createdAt: Date;
+		updatedAt: Date;
+	}
+
+	export interface AssetActivity {
+		id: string;
+		assetId: string;
+		activity: string;
+		createdAt: Date;
+	}
+
+	export interface AssetItem {
+		id: string;
+		series: string;
+		assetName: string;
+		itemCode?: string | null;
+		assetCategoryId?: string | null;
+		assetCategoryName?: string | null;
+		company: string;
+		locationId?: string | null;
+		locationName?: string | null;
+		custodian?: string | null;
+		department?: string | null;
+		purchaseDate?: Date | null;
+		availableForUseDate?: Date | null;
+		disposalDate?: Date | null;
+		netPurchaseAmount?: number | null;
+		assetQuantity: number;
+		calculateDepreciation: boolean;
+		openingAccumulatedDepreciation?: number | null;
+		openingNumberOfBookedDepreciations?: number | null;
+		isFullyDepreciated: boolean;
+		valueAfterDepreciation?: number | null;
+		maintenanceRequired: boolean;
+		assetOwner: AssetOwner;
+		assetOwnerCompany?: string | null;
+		supplier?: string | null;
+		customer?: string | null;
+		policyNumber?: string | null;
+		insurer?: string | null;
+		insuredValue?: number | null;
+		insuranceStartDate?: Date | null;
+		insuranceEndDate?: Date | null;
+		depreciationMethod?: DepreciationMethod | null;
+		totalNumberOfDepreciations?: number | null;
+		frequencyOfDepreciation?: number | null;
+		purchaseReceipt?: string | null;
+		purchaseInvoice?: string | null;
+		status: AssetStatus;
+		activities: AssetActivity[];
+		createdAt: Date;
+		updatedAt: Date;
+	}
+
+	// ── List result wrappers ──────────────────────────────────────────────────
+
+	export interface AssetListResult {
+		items: AssetItem[];
+		totalCount: number;
+	}
+
+	export interface LocationListResult {
+		items: Location[];
+		totalCount: number;
+	}
+
+	export interface AssetCategoryListResult {
+		items: AssetCategory[];
+		totalCount: number;
+	}
+
+	// ── Create / update input interfaces ─────────────────────────────────────
+
+	export interface CreateLocationInput {
+		name: string;
+		parentLocationId?: string | null;
+		isGroup?: boolean;
+	}
+
+	export interface UpdateLocationInput {
+		id: string;
+		name?: string;
+		parentLocationId?: string | null;
+		isGroup?: boolean;
+	}
+
+	export interface CreateAssetCategoryInput {
+		name: string;
+		depreciationMethod?: DepreciationMethod | null;
+		totalNumberOfDepreciations?: number | null;
+		frequencyOfDepreciation?: number | null;
+		nonDepreciableCategory?: boolean;
+		enableCwipAccounting?: boolean;
+	}
+
+	export interface UpdateAssetCategoryInput {
+		id: string;
+		name?: string;
+		depreciationMethod?: DepreciationMethod | null;
+		totalNumberOfDepreciations?: number | null;
+		frequencyOfDepreciation?: number | null;
+		nonDepreciableCategory?: boolean;
+		enableCwipAccounting?: boolean;
+	}
+
+	export interface CreateAssetInput {
+		assetName: string;
+		itemCode?: string | null;
+		assetCategoryId?: string | null;
+		company: string;
+		locationId?: string | null;
+		custodian?: string | null;
+		department?: string | null;
+		purchaseDate?: Date | null;
+		availableForUseDate?: Date | null;
+		netPurchaseAmount?: number | null;
+		assetQuantity?: number;
+		calculateDepreciation?: boolean;
+		openingAccumulatedDepreciation?: number | null;
+		openingNumberOfBookedDepreciations?: number | null;
+		isFullyDepreciated?: boolean;
+		maintenanceRequired?: boolean;
+		assetOwner?: AssetOwner;
+		assetOwnerCompany?: string | null;
+		supplier?: string | null;
+		customer?: string | null;
+		policyNumber?: string | null;
+		insurer?: string | null;
+		insuredValue?: number | null;
+		insuranceStartDate?: Date | null;
+		insuranceEndDate?: Date | null;
+		depreciationMethod?: DepreciationMethod | null;
+		totalNumberOfDepreciations?: number | null;
+		frequencyOfDepreciation?: number | null;
+		purchaseReceipt?: string | null;
+		purchaseInvoice?: string | null;
+		status?: AssetStatus;
+	}
+
+	export interface UpdateAssetInput {
+		id: string;
+		assetName?: string;
+		itemCode?: string | null;
+		assetCategoryId?: string | null;
+		company?: string;
+		locationId?: string | null;
+		custodian?: string | null;
+		department?: string | null;
+		purchaseDate?: Date | null;
+		availableForUseDate?: Date | null;
+		disposalDate?: Date | null;
+		netPurchaseAmount?: number | null;
+		assetQuantity?: number;
+		calculateDepreciation?: boolean;
+		openingAccumulatedDepreciation?: number | null;
+		openingNumberOfBookedDepreciations?: number | null;
+		isFullyDepreciated?: boolean;
+		valueAfterDepreciation?: number | null;
+		maintenanceRequired?: boolean;
+		assetOwner?: AssetOwner;
+		assetOwnerCompany?: string | null;
+		supplier?: string | null;
+		customer?: string | null;
+		policyNumber?: string | null;
+		insurer?: string | null;
+		insuredValue?: number | null;
+		insuranceStartDate?: Date | null;
+		insuranceEndDate?: Date | null;
+		depreciationMethod?: DepreciationMethod | null;
+		totalNumberOfDepreciations?: number | null;
+		frequencyOfDepreciation?: number | null;
+		purchaseReceipt?: string | null;
+		purchaseInvoice?: string | null;
+		status?: AssetStatus;
+	}
+
+	// ── Zod schemas ───────────────────────────────────────────────────────────
+
+	export const listAssetsSchema = z
+		.object({
+			skip: z.number().int().min(0).optional(),
+			take: z.number().int().min(1).max(250).optional(),
+			search: z.string().max(255).trim().optional(),
+			status: assetStatusSchema.optional(),
+			assetCategoryId: z.string().cuid().optional(),
+			locationId: z.string().cuid().optional(),
+			company: z.string().max(255).trim().optional(),
+		})
+		.optional();
+	export type ListAssetsInput = z.infer<typeof listAssetsSchema>;
+
+	export const listLocationsSchema = z
+		.object({
+			skip: z.number().int().min(0).optional(),
+			take: z.number().int().min(1).max(250).optional(),
+			search: z.string().max(255).trim().optional(),
+			isGroup: z.boolean().optional(),
+		})
+		.optional();
+	export type ListLocationsInput = z.infer<typeof listLocationsSchema>;
+
+	export const listAssetCategoriesSchema = z
+		.object({
+			skip: z.number().int().min(0).optional(),
+			take: z.number().int().min(1).max(250).optional(),
+			search: z.string().max(255).trim().optional(),
+		})
+		.optional();
+	export type ListAssetCategoriesInput = z.infer<
+		typeof listAssetCategoriesSchema
+	>;
+
+	const assetInputFields = {
+		assetName: z.string().min(1, "Asset name is required").max(255).trim(),
+		itemCode: z.string().max(100).trim().optional().nullable(),
+		assetCategoryId: z.string().cuid().optional().nullable(),
+		company: z.string().min(1, "Company is required").max(255).trim(),
+		locationId: z.string().cuid().optional().nullable(),
+		custodian: z.string().max(255).trim().optional().nullable(),
+		department: z.string().max(255).trim().optional().nullable(),
+		purchaseDate: z.coerce.date().optional().nullable(),
+		availableForUseDate: z.coerce.date().optional().nullable(),
+		netPurchaseAmount: z.number().min(0).optional().nullable(),
+		assetQuantity: z.number().int().min(1).default(1),
+		calculateDepreciation: z.boolean().default(false),
+		openingAccumulatedDepreciation: z.number().min(0).optional().nullable(),
+		openingNumberOfBookedDepreciations: z
+			.number()
+			.int()
+			.min(0)
+			.optional()
+			.nullable(),
+		isFullyDepreciated: z.boolean().default(false),
+		maintenanceRequired: z.boolean().default(false),
+		assetOwner: assetOwnerSchema.default("COMPANY"),
+		assetOwnerCompany: z.string().max(255).trim().optional().nullable(),
+		supplier: z.string().max(255).trim().optional().nullable(),
+		customer: z.string().max(255).trim().optional().nullable(),
+		policyNumber: z.string().max(255).trim().optional().nullable(),
+		insurer: z.string().max(255).trim().optional().nullable(),
+		insuredValue: z.number().min(0).optional().nullable(),
+		insuranceStartDate: z.coerce.date().optional().nullable(),
+		insuranceEndDate: z.coerce.date().optional().nullable(),
+		depreciationMethod: depreciationMethodSchema.optional().nullable(),
+		totalNumberOfDepreciations: z.number().int().min(0).optional().nullable(),
+		frequencyOfDepreciation: z.number().int().min(0).optional().nullable(),
+		purchaseReceipt: z.string().max(255).trim().optional().nullable(),
+		purchaseInvoice: z.string().max(255).trim().optional().nullable(),
+		status: assetStatusSchema.default("DRAFT"),
+	} satisfies z.ZodRawShape;
+
+	export const createAssetSchema = z.object(assetInputFields);
+
+	export const updateAssetSchema = z.object({
+		id: z.string().cuid(),
+		assetName: assetInputFields.assetName.optional(),
+		itemCode: assetInputFields.itemCode,
+		assetCategoryId: assetInputFields.assetCategoryId,
+		company: assetInputFields.company.optional(),
+		locationId: assetInputFields.locationId,
+		custodian: assetInputFields.custodian,
+		department: assetInputFields.department,
+		purchaseDate: assetInputFields.purchaseDate,
+		availableForUseDate: assetInputFields.availableForUseDate,
+		disposalDate: z.coerce.date().optional().nullable(),
+		netPurchaseAmount: assetInputFields.netPurchaseAmount,
+		assetQuantity: z.number().int().min(1).optional(),
+		calculateDepreciation: z.boolean().optional(),
+		openingAccumulatedDepreciation:
+			assetInputFields.openingAccumulatedDepreciation,
+		openingNumberOfBookedDepreciations:
+			assetInputFields.openingNumberOfBookedDepreciations,
+		isFullyDepreciated: z.boolean().optional(),
+		valueAfterDepreciation: z.number().min(0).optional().nullable(),
+		maintenanceRequired: z.boolean().optional(),
+		assetOwner: assetOwnerSchema.optional(),
+		assetOwnerCompany: assetInputFields.assetOwnerCompany,
+		supplier: assetInputFields.supplier,
+		customer: assetInputFields.customer,
+		policyNumber: assetInputFields.policyNumber,
+		insurer: assetInputFields.insurer,
+		insuredValue: assetInputFields.insuredValue,
+		insuranceStartDate: assetInputFields.insuranceStartDate,
+		insuranceEndDate: assetInputFields.insuranceEndDate,
+		depreciationMethod: assetInputFields.depreciationMethod,
+		totalNumberOfDepreciations: assetInputFields.totalNumberOfDepreciations,
+		frequencyOfDepreciation: assetInputFields.frequencyOfDepreciation,
+		purchaseReceipt: assetInputFields.purchaseReceipt,
+		purchaseInvoice: assetInputFields.purchaseInvoice,
+		status: assetStatusSchema.optional(),
+	});
+
+	const locationInputFields = {
+		name: z.string().min(1, "Location name is required").max(255).trim(),
+		parentLocationId: z.string().cuid().optional().nullable(),
+		isGroup: z.boolean().default(false),
+	} satisfies z.ZodRawShape;
+
+	export const createLocationSchema = z.object(locationInputFields);
+
+	export const updateLocationSchema = z.object({
+		id: z.string().cuid(),
+		name: locationInputFields.name.optional(),
+		parentLocationId: locationInputFields.parentLocationId,
+		isGroup: z.boolean().optional(),
+	});
+
+	const assetCategoryInputFields = {
+		name: z.string().min(1, "Category name is required").max(255).trim(),
+		depreciationMethod: depreciationMethodSchema.optional().nullable(),
+		totalNumberOfDepreciations: z.number().int().min(0).optional().nullable(),
+		frequencyOfDepreciation: z.number().int().min(0).optional().nullable(),
+		nonDepreciableCategory: z.boolean().default(false),
+		enableCwipAccounting: z.boolean().default(false),
+	} satisfies z.ZodRawShape;
+
+	export const createAssetCategorySchema = z.object(assetCategoryInputFields);
+
+	export const updateAssetCategorySchema = z.object({
+		id: z.string().cuid(),
+		name: assetCategoryInputFields.name.optional(),
+		depreciationMethod: assetCategoryInputFields.depreciationMethod,
+		totalNumberOfDepreciations:
+			assetCategoryInputFields.totalNumberOfDepreciations,
+		frequencyOfDepreciation: assetCategoryInputFields.frequencyOfDepreciation,
+		nonDepreciableCategory: z.boolean().optional(),
+		enableCwipAccounting: z.boolean().optional(),
+	});
+
+	export const bulkDeleteAssetsSchema = z.object({
+		ids: z.array(z.string().cuid()).min(1),
+	});
+
+	// ── Asset Maintenance Team ────────────────────────────────────────────────
+
+	export interface AssetMaintenanceTeamMember {
+		id: string;
+		teamId: string;
+		teamMember: string;
+		fullName: string;
+		maintenanceRole: string;
+		createdAt: Date;
+		updatedAt: Date;
+	}
+
+	export interface AssetMaintenanceTeam {
+		id: string;
+		name: string;
+		maintenanceManager: string | null;
+		maintenanceManagerName: string | null;
+		company: string;
+		members: AssetMaintenanceTeamMember[];
+		createdAt: Date;
+		updatedAt: Date;
+	}
+
+	export interface AssetMaintenanceTeamListResult {
+		items: AssetMaintenanceTeam[];
+		totalCount: number;
+	}
+
+	export interface CreateAssetMaintenanceTeamInput {
+		name: string;
+		maintenanceManager?: string | null;
+		maintenanceManagerName?: string | null;
+		company: string;
+		members: Array<{
+			teamMember: string;
+			fullName: string;
+			maintenanceRole: string;
+		}>;
+	}
+
+	export interface UpdateAssetMaintenanceTeamInput {
+		id: string;
+		name?: string;
+		maintenanceManager?: string | null;
+		maintenanceManagerName?: string | null;
+		company?: string;
+		members?: Array<{
+			id?: string;
+			teamMember: string;
+			fullName: string;
+			maintenanceRole: string;
+		}>;
+	}
+
+	export const listMaintenanceTeamsSchema = z
+		.object({
+			skip: z.number().int().min(0).optional(),
+			take: z.number().int().min(1).max(250).optional(),
+			search: z.string().max(255).trim().optional(),
+			company: z.string().max(255).trim().optional(),
+		})
+		.optional();
+	export type ListMaintenanceTeamsInput = z.infer<
+		typeof listMaintenanceTeamsSchema
+	>;
+
+	const maintenanceTeamMemberInputFields = {
+		teamMember: z.string().min(1, "Team member is required").max(255).trim(),
+		fullName: z.string().min(1, "Full name is required").max(255).trim(),
+		maintenanceRole: z
+			.string()
+			.min(1, "Maintenance role is required")
+			.max(100)
+			.trim(),
+	} satisfies z.ZodRawShape;
+
+	const maintenanceTeamInputFields = {
+		name: z.string().min(1, "Team name is required").max(255).trim(),
+		maintenanceManager: z.string().max(255).trim().optional().nullable(),
+		maintenanceManagerName: z.string().max(255).trim().optional().nullable(),
+		company: z.string().min(1, "Company is required").max(255).trim(),
+		members: z
+			.array(z.object(maintenanceTeamMemberInputFields))
+			.min(1, "At least one team member is required"),
+	} satisfies z.ZodRawShape;
+
+	export const createMaintenanceTeamSchema = z.object(
+		maintenanceTeamInputFields,
+	);
+
+	export const updateMaintenanceTeamSchema = z.object({
+		id: z.string().cuid(),
+		name: maintenanceTeamInputFields.name.optional(),
+		maintenanceManager: maintenanceTeamInputFields.maintenanceManager,
+		maintenanceManagerName: maintenanceTeamInputFields.maintenanceManagerName,
+		company: maintenanceTeamInputFields.company.optional(),
+		members: z
+			.array(
+				z.object({
+					id: z.string().cuid().optional(),
+					...maintenanceTeamMemberInputFields,
+				}),
+			)
+			.min(1, "At least one team member is required")
+			.optional(),
+	});
+
+	export const bulkDeleteMaintenanceTeamsSchema = z.object({
+		ids: z.array(z.string().cuid()).min(1),
+	});
+
+	// ── Asset Maintenance ────────────────────────────────────────────────
+
+	export const assetMaintenanceStatusSchema = z.enum([
+		"PLANNED",
+		"OVERDUE",
+		"CANCELLED",
+	]);
+	export type AssetMaintenanceStatus = z.infer<
+		typeof assetMaintenanceStatusSchema
+	>;
+
+	export const assetMaintenanceLogStatusSchema = z.enum([
+		"PLANNED",
+		"COMPLETED",
+		"CANCELLED",
+		"OVERDUE",
+	]);
+	export type AssetMaintenanceLogStatus = z.infer<
+		typeof assetMaintenanceLogStatusSchema
+	>;
+
+	export const assetMaintenanceTaskTypeSchema = z.enum([
+		"PREVENTIVE_MAINTENANCE",
+		"CALIBRATION",
+	]);
+	export type AssetMaintenanceTaskType = z.infer<
+		typeof assetMaintenanceTaskTypeSchema
+	>;
+
+	export const assetMaintenancePeriodicitySchema = z.enum([
+		"DAILY",
+		"WEEKLY",
+		"MONTHLY",
+		"QUARTERLY",
+		"HALF_YEARLY",
+		"YEARLY",
+		"TWO_YEARLY",
+		"THREE_YEARLY",
+	]);
+	export type AssetMaintenancePeriodicity = z.infer<
+		typeof assetMaintenancePeriodicitySchema
+	>;
+
+	export interface AssetMaintenanceTaskItem {
+		id: string;
+		maintenanceId: string;
+		maintenanceTask: string;
+		maintenanceType: AssetMaintenanceTaskType | null;
+		maintenanceStatus: AssetMaintenanceStatus;
+		startDate: Date;
+		periodicity: AssetMaintenancePeriodicity;
+		endDate: Date | null;
+		certificateRequired: boolean;
+		assignTo: string | null;
+		assignToName: string | null;
+		nextDueDate: Date | null;
+		lastCompletionDate: Date | null;
+		description: string | null;
+		createdAt: Date;
+		updatedAt: Date;
+	}
+
+	export interface AssetMaintenanceLogItem {
+		id: string;
+		maintenanceId: string;
+		taskId: string;
+		maintenanceStatus: AssetMaintenanceLogStatus;
+		completionDate: Date | null;
+		actionsPerformed: string | null;
+		hasCertificate: boolean;
+		certificateAttachment: string | null;
+		createdAt: Date;
+		updatedAt: Date;
+	}
+
+	export interface AssetMaintenanceRecord {
+		id: string;
+		assetId: string;
+		assetName: string;
+		assetCategoryName: string | null;
+		itemCode: string | null;
+		company: string;
+		maintenanceTeamId: string;
+		maintenanceTeamName: string;
+		maintenanceManager: string | null;
+		maintenanceManagerName: string | null;
+		tasks: AssetMaintenanceTaskItem[];
+		createdAt: Date;
+		updatedAt: Date;
+	}
+
+	export interface AssetMaintenanceListResult {
+		items: AssetMaintenanceRecord[];
+		totalCount: number;
+	}
+
+	export const listAssetMaintenancesSchema = z.object({
+		skip: z.number().int().min(0).optional(),
+		take: z.number().int().min(1).max(250).optional(),
+		search: z.string().trim().optional(),
+		company: z.string().trim().optional(),
+		maintenanceTeamId: z.string().cuid().optional(),
+		status: assetMaintenanceStatusSchema.optional(),
+	});
+	export type ListAssetMaintenancesInput = z.infer<
+		typeof listAssetMaintenancesSchema
+	>;
+
+	const assetMaintenanceTaskInputFields = {
+		maintenanceTask: z.string().min(1, "Task name is required").max(255).trim(),
+		maintenanceType: assetMaintenanceTaskTypeSchema.nullable().optional(),
+		maintenanceStatus: assetMaintenanceStatusSchema.default("PLANNED"),
+		startDate: z.coerce.date(),
+		periodicity: assetMaintenancePeriodicitySchema,
+		endDate: z.coerce.date().nullable().optional(),
+		certificateRequired: z.boolean().default(false),
+		assignTo: z.string().max(255).trim().nullable().optional(),
+		assignToName: z.string().max(255).trim().nullable().optional(),
+		nextDueDate: z.coerce.date().nullable().optional(),
+		lastCompletionDate: z.coerce.date().nullable().optional(),
+		description: z.string().trim().nullable().optional(),
+	};
+
+	export const createAssetMaintenanceSchema = z.object({
+		assetId: z.string().cuid(),
+		company: z.string().min(1, "Company is required").max(255).trim(),
+		maintenanceTeamId: z.string().cuid(),
+		maintenanceManager: z.string().max(255).trim().nullable().optional(),
+		maintenanceManagerName: z.string().max(255).trim().nullable().optional(),
+		tasks: z
+			.array(z.object(assetMaintenanceTaskInputFields))
+			.min(1, "At least one maintenance task is required"),
+	});
+	export type CreateAssetMaintenanceInput = z.infer<
+		typeof createAssetMaintenanceSchema
+	>;
+
+	export const updateAssetMaintenanceSchema = z.object({
+		id: z.string().cuid(),
+		company: z.string().min(1).max(255).trim().optional(),
+		maintenanceTeamId: z.string().cuid().optional(),
+		maintenanceManager: z.string().max(255).trim().nullable().optional(),
+		maintenanceManagerName: z.string().max(255).trim().nullable().optional(),
+		tasks: z
+			.array(
+				z.object({
+					id: z.string().cuid().optional(),
+					...assetMaintenanceTaskInputFields,
+				}),
+			)
+			.min(1, "At least one maintenance task is required")
+			.optional(),
+	});
+	export type UpdateAssetMaintenanceInput = z.infer<
+		typeof updateAssetMaintenanceSchema
+	>;
+
+	export const bulkDeleteAssetMaintenancesSchema = z.object({
+		ids: z.array(z.string().cuid()).min(1),
+	});
+
+	export const completeAssetMaintenanceLogSchema = z.object({
+		logId: z.string().cuid(),
+		completionDate: z.coerce.date(),
+		actionsPerformed: z.string().trim().nullable().optional(),
+		hasCertificate: z.boolean().default(false),
+		certificateAttachment: z.string().max(500).trim().nullable().optional(),
+	});
+	export type CompleteAssetMaintenanceLogInput = z.infer<
+		typeof completeAssetMaintenanceLogSchema
+	>;
+
+	/**
+	 * Enriched maintenance log item for list display — includes denormalized
+	 * asset, task, and maintenance context to avoid N+1 queries.
+	 */
+	export interface AssetMaintenanceLogListItem {
+		id: string;
+		maintenanceId: string;
+		taskId: string;
+		/** Asset name from the parent maintenance record's asset. */
+		assetName: string;
+		assetId: string;
+		company: string;
+		/** Task name (maintenanceTask field). */
+		maintenanceTask: string;
+		maintenanceType: AssetMaintenanceTaskType | null;
+		periodicity: AssetMaintenancePeriodicity;
+		assignToName: string | null;
+		/** The task's current nextDueDate — relevant for PLANNED/OVERDUE logs. */
+		taskDueDate: Date | null;
+		maintenanceStatus: AssetMaintenanceLogStatus;
+		completionDate: Date | null;
+		actionsPerformed: string | null;
+		hasCertificate: boolean;
+		certificateAttachment: string | null;
+		createdAt: Date;
+		updatedAt: Date;
+	}
+
+	export interface AssetMaintenanceLogListResult {
+		items: AssetMaintenanceLogListItem[];
+		totalCount: number;
+	}
+
+	export const listAssetMaintenanceLogsSchema = z.object({
+		skip: z.number().int().min(0).optional(),
+		take: z.number().int().min(1).max(250).optional(),
+		maintenanceId: z.string().cuid().optional(),
+		status: assetMaintenanceLogStatusSchema.optional(),
+		search: z.string().trim().optional(),
+	});
+	export type ListAssetMaintenanceLogsInput = z.infer<
+		typeof listAssetMaintenanceLogsSchema
+	>;
+
+	export const cancelAssetMaintenanceLogSchema = z.object({
+		logId: z.string().cuid(),
+	});
+	export type CancelAssetMaintenanceLogInput = z.infer<
+		typeof cancelAssetMaintenanceLogSchema
+	>;
+
+	// ── Asset Value Adjustment ───────────────────────────────────────────────
+
+	export const assetValueAdjustmentStatusSchema = z.enum([
+		"DRAFT",
+		"SUBMITTED",
+		"CANCELLED",
+	]);
+	export type AssetValueAdjustmentStatus = z.infer<
+		typeof assetValueAdjustmentStatusSchema
+	>;
+
+	export const assetValueAdjustmentDirectionSchema = z.enum([
+		"INCREASE",
+		"DECREASE",
+	]);
+	export type AssetValueAdjustmentDirection = z.infer<
+		typeof assetValueAdjustmentDirectionSchema
+	>;
+
+	export const assetRevaluationEntryStatusSchema = z.enum([
+		"POSTED",
+		"REVERSED",
+	]);
+	export type AssetRevaluationEntryStatus = z.infer<
+		typeof assetRevaluationEntryStatusSchema
+	>;
+
+	export const assetRevaluationLineTypeSchema = z.enum(["DEBIT", "CREDIT"]);
+	export type AssetRevaluationLineType = z.infer<
+		typeof assetRevaluationLineTypeSchema
+	>;
+
+	export const assetDepreciationScheduleStatusSchema = z.enum([
+		"ACTIVE",
+		"CANCELLED",
+	]);
+	export type AssetDepreciationScheduleStatus = z.infer<
+		typeof assetDepreciationScheduleStatusSchema
+	>;
+
+	export interface AssetRevaluationEntryLine {
+		id: string;
+		lineType: AssetRevaluationLineType;
+		account: string;
+		debitAmount: number;
+		creditAmount: number;
+		costCenter: string | null;
+		createdAt: Date;
+		updatedAt: Date;
+	}
+
+	export interface AssetRevaluationEntry {
+		id: string;
+		series: string;
+		adjustmentId: string;
+		assetId: string;
+		company: string;
+		postingDate: Date;
+		remarks: string;
+		status: AssetRevaluationEntryStatus;
+		reversedAt: Date | null;
+		lines: AssetRevaluationEntryLine[];
+		createdAt: Date;
+		updatedAt: Date;
+	}
+
+	export interface AssetDepreciationScheduleEntry {
+		id: string;
+		sequence: number;
+		scheduleDate: Date;
+		depreciationAmount: number;
+		accumulatedDepreciationAmount: number;
+		bookValueAfterDepreciation: number;
+		createdAt: Date;
+		updatedAt: Date;
+	}
+
+	export interface AssetDepreciationSchedule {
+		id: string;
+		adjustmentId: string;
+		assetId: string;
+		previousScheduleId: string | null;
+		revisionNumber: number;
+		status: AssetDepreciationScheduleStatus;
+		startDate: Date;
+		depreciationMethod: DepreciationMethod | null;
+		totalNumberOfDepreciations: number;
+		frequencyOfDepreciation: number;
+		bookedDepreciations: number;
+		remainingDepreciations: number;
+		openingAccumulatedDepreciation: number;
+		baseAssetValue: number;
+		notes: string | null;
+		entries: AssetDepreciationScheduleEntry[];
+		createdAt: Date;
+		updatedAt: Date;
+	}
+
+	export interface AssetDepreciationSchedulePreviewEntry {
+		sequence: number;
+		scheduleDate: Date;
+		depreciationAmount: number;
+		accumulatedDepreciationAmount: number;
+		bookValueAfterDepreciation: number;
+	}
+
+	export interface AssetDepreciationSchedulePreview {
+		depreciationMethod: DepreciationMethod | null;
+		totalNumberOfDepreciations: number;
+		frequencyOfDepreciation: number;
+		bookedDepreciations: number;
+		remainingDepreciations: number;
+		entries: AssetDepreciationSchedulePreviewEntry[];
+	}
+
+	export interface AssetValueAdjustmentPreview {
+		assetId: string;
+		assetSeries: string;
+		assetName: string;
+		assetCategoryName: string | null;
+		company: string;
+		adjustmentDate: Date;
+		currentAssetValue: number;
+		newAssetValue: number;
+		differenceAmount: number;
+		direction: AssetValueAdjustmentDirection;
+		fixedAssetAccount: string;
+		resultingStatus: AssetStatus;
+		resultingIsFullyDepreciated: boolean;
+		validationMessages: string[];
+		depreciationSchedule: AssetDepreciationSchedulePreview | null;
+	}
+
+	export interface AssetValueAdjustmentItem {
+		id: string;
+		series: string;
+		assetId: string;
+		assetSeries: string;
+		assetName: string;
+		assetCategoryName: string | null;
+		company: string;
+		adjustmentDate: Date;
+		currentAssetValue: number;
+		newAssetValue: number;
+		differenceAmount: number;
+		differenceAccount: string;
+		fixedAssetAccount: string;
+		costCenter: string | null;
+		notes: string | null;
+		status: AssetValueAdjustmentStatus;
+		direction: AssetValueAdjustmentDirection;
+		previousAssetStatus: AssetStatus;
+		previousIsFullyDepreciated: boolean;
+		submittedAt: Date | null;
+		cancelledAt: Date | null;
+		revaluationEntry: AssetRevaluationEntry | null;
+		depreciationSchedule: AssetDepreciationSchedule | null;
+		createdAt: Date;
+		updatedAt: Date;
+	}
+
+	export interface AssetValueAdjustmentListResult {
+		items: AssetValueAdjustmentItem[];
+		totalCount: number;
+	}
+
+	export const listAssetValueAdjustmentsSchema = z.object({
+		skip: z.number().int().min(0).optional(),
+		take: z.number().int().min(1).max(250).optional(),
+		search: z.string().trim().optional(),
+		status: assetValueAdjustmentStatusSchema.optional(),
+		assetId: z.string().cuid().optional(),
+		company: z.string().trim().optional(),
+		direction: assetValueAdjustmentDirectionSchema.optional(),
+	});
+	export type ListAssetValueAdjustmentsInput = z.infer<
+		typeof listAssetValueAdjustmentsSchema
+	>;
+
+	export const getAssetValueAdjustmentSchema = z.object({
+		id: z.string().cuid(),
+	});
+	export type GetAssetValueAdjustmentInput = z.infer<
+		typeof getAssetValueAdjustmentSchema
+	>;
+
+	export const previewAssetValueAdjustmentSchema = z.object({
+		assetId: z.string().cuid(),
+		adjustmentDate: z.coerce.date(),
+		newAssetValue: z.number().finite().min(0),
+	});
+	export type PreviewAssetValueAdjustmentInput = z.infer<
+		typeof previewAssetValueAdjustmentSchema
+	>;
+
+	export const createAssetValueAdjustmentSchema = z.object({
+		assetId: z.string().cuid(),
+		adjustmentDate: z.coerce.date(),
+		newAssetValue: z.number().finite().min(0),
+		differenceAccount: z.string().trim().min(1).max(255),
+		costCenter: z.string().trim().max(255).nullable().optional(),
+		notes: z.string().trim().max(5000).nullable().optional(),
+	});
+	export type CreateAssetValueAdjustmentInput = z.infer<
+		typeof createAssetValueAdjustmentSchema
+	>;
+
+	export const updateAssetValueAdjustmentSchema = z
+		.object({
+			id: z.string().cuid(),
+			assetId: z.string().cuid().optional(),
+			adjustmentDate: z.coerce.date().optional(),
+			newAssetValue: z.number().finite().min(0).optional(),
+			differenceAccount: z.string().trim().min(1).max(255).optional(),
+			costCenter: z.string().trim().max(255).nullable().optional(),
+			notes: z.string().trim().max(5000).nullable().optional(),
+		})
+		.refine(
+			(input) =>
+				input.assetId !== undefined ||
+				input.adjustmentDate !== undefined ||
+				input.newAssetValue !== undefined ||
+				input.differenceAccount !== undefined ||
+				input.costCenter !== undefined ||
+				input.notes !== undefined,
+			{
+				message: "At least one field must be updated.",
+			},
+		);
+	export type UpdateAssetValueAdjustmentInput = z.infer<
+		typeof updateAssetValueAdjustmentSchema
+	>;
+
+	export const submitAssetValueAdjustmentSchema = z.object({
+		id: z.string().cuid(),
+	});
+	export type SubmitAssetValueAdjustmentInput = z.infer<
+		typeof submitAssetValueAdjustmentSchema
+	>;
+
+	export const cancelAssetValueAdjustmentSchema = z.object({
+		id: z.string().cuid(),
+	});
+	export type CancelAssetValueAdjustmentInput = z.infer<
+		typeof cancelAssetValueAdjustmentSchema
+	>;
+
+	export const deleteAssetValueAdjustmentSchema = z.object({
+		id: z.string().cuid(),
+	});
+	export type DeleteAssetValueAdjustmentInput = z.infer<
+		typeof deleteAssetValueAdjustmentSchema
+	>;
+
+	export interface AssetActivityReportRow {
+		activityId: string;
+		assetId: string;
+		assetSeries: string;
+		assetName: string;
+		assetCategoryId: string | null;
+		assetCategoryName: string | null;
+		company: string;
+		assetStatus: AssetStatus;
+		activity: string;
+		createdAt: Date;
+	}
+
+	export interface AssetActivityReportSummary {
+		rowCount: number;
+		distinctAssetCount: number;
+		firstActivityAt: Date | null;
+		lastActivityAt: Date | null;
+	}
+
+	export interface AssetActivityReportResult {
+		rows: AssetActivityReportRow[];
+		summary: AssetActivityReportSummary;
+	}
+
+	export const listAssetActivityReportSchema = z
+		.object({
+			fromDate: z.coerce.date(),
+			toDate: z.coerce.date(),
+			company: z.string().trim().max(255).optional(),
+			asset: z.string().trim().max(255).optional(),
+			assetCategory: z.string().trim().max(255).optional(),
+			activity: z.string().trim().max(500).optional(),
+		})
+		.refine((input) => input.fromDate <= input.toDate, {
+			message: "From date must be on or before to date.",
+			path: ["toDate"],
+		});
+	export type ListAssetActivityReportInput = z.infer<
+		typeof listAssetActivityReportSchema
+	>;
+
+	export interface AssetDepreciationLedgerRow {
+		assetId: string;
+		assetSeries: string;
+		assetName: string;
+		assetCategoryId: string | null;
+		assetCategoryName: string | null;
+		company: string;
+		purchaseDate: Date | null;
+		purchaseAmount: number | null;
+		depreciationDate: Date;
+		openingAccumulatedDepreciation: number;
+		depreciationAmount: number;
+		accumulatedDepreciationAmount: number;
+		valueAfterDepreciation: number;
+		adjustmentId: string;
+		adjustmentSeries: string;
+		adjustmentDate: Date;
+		revaluationEntrySeries: string | null;
+		scheduleId: string;
+		scheduleRevisionNumber: number;
+		costCenter: string | null;
+		depreciationMethod: DepreciationMethod | null;
+		assetStatus: AssetStatus;
+	}
+
+	export interface AssetDepreciationLedgerSummary {
+		matchedAssetCount: number;
+		assetsWithLedgerCount: number;
+		assetsWithoutLedgerCount: number;
+		rowCount: number;
+		totalDepreciationAmount: number;
+		closingValueTotal: number;
+	}
+
+	export interface AssetDepreciationLedgerResult {
+		rows: AssetDepreciationLedgerRow[];
+		summary: AssetDepreciationLedgerSummary;
+	}
+
+	export const assetDepreciationsAndBalancesGroupBySchema = z.enum([
+		"ASSET_CATEGORY",
+		"ASSET",
+	]);
+	export type AssetDepreciationsAndBalancesGroupBy = z.infer<
+		typeof assetDepreciationsAndBalancesGroupBySchema
+	>;
+
+	export interface AssetDepreciationsAndBalancesRow {
+		groupingKey: string;
+		groupingLabel: string;
+		company: string;
+		assetCount: number;
+		assetId: string | null;
+		assetSeries: string | null;
+		assetName: string | null;
+		assetCategoryId: string | null;
+		assetCategoryName: string | null;
+		valueAsOnFromDate: number;
+		valueOfNewPurchase: number;
+		valueOfSoldAsset: number;
+		valueOfScrappedAsset: number;
+		valueOfCapitalizedAsset: number;
+		valueAdjustmentDuringPeriod: number;
+		valueAsOnToDate: number;
+		accumulatedDepreciationAsOnFromDate: number;
+		depreciationAmountDuringPeriod: number;
+		depreciationEliminatedDuringPeriod: number;
+		accumulatedDepreciationAsOnToDate: number;
+		depreciationEliminatedViaReversal: number;
+		netAssetValueAsOnFromDate: number;
+		netAssetValueAsOnToDate: number;
+	}
+
+	export interface AssetDepreciationsAndBalancesSummary {
+		matchedAssetCount: number;
+		rowCount: number;
+		totalValueAsOnFromDate: number;
+		totalValueAsOnToDate: number;
+		totalNetAssetValueAsOnFromDate: number;
+		totalNetAssetValueAsOnToDate: number;
+		totalDepreciationAmountDuringPeriod: number;
+		totalValueAdjustmentDuringPeriod: number;
+	}
+
+	export interface AssetDepreciationsAndBalancesResult {
+		rows: AssetDepreciationsAndBalancesRow[];
+		summary: AssetDepreciationsAndBalancesSummary;
+	}
+
+	export const listAssetDepreciationsAndBalancesSchema = z
+		.object({
+			fromDate: z.coerce.date(),
+			toDate: z.coerce.date(),
+			company: z.string().trim().max(255).optional(),
+			groupBy: assetDepreciationsAndBalancesGroupBySchema,
+			asset: z.string().trim().max(255).optional(),
+			assetCategory: z.string().trim().max(255).optional(),
+		})
+		.refine((input) => input.fromDate <= input.toDate, {
+			message: "From date must be on or before to date.",
+			path: ["toDate"],
+		});
+	export type ListAssetDepreciationsAndBalancesInput = z.infer<
+		typeof listAssetDepreciationsAndBalancesSchema
+	>;
+
+	export const listAssetDepreciationLedgerSchema = z
+		.object({
+			fromDate: z.coerce.date(),
+			toDate: z.coerce.date(),
+			company: z.string().trim().max(255).optional(),
+			asset: z.string().trim().max(255).optional(),
+			assetCategory: z.string().trim().max(255).optional(),
+			costCenter: z.string().trim().max(255).optional(),
+		})
+		.refine((input) => input.fromDate <= input.toDate, {
+			message: "From date must be on or before to date.",
+			path: ["toDate"],
+		});
+	export type ListAssetDepreciationLedgerInput = z.infer<
+		typeof listAssetDepreciationLedgerSchema
+	>;
+
+	// ────────────────────────────────────────────────────────────────
+	// Dashboard
+	// ────────────────────────────────────────────────────────────────
+
+	export interface AssetDashboardKpi {
+		totalAssets: number;
+		activeAssets: number;
+		totalAssetValue: number;
+		totalPurchaseValue: number;
+		totalDepreciation: number;
+		maintenanceDueCount: number;
+		pendingAdjustments: number;
+		locationCount: number;
+	}
+
+	export interface AssetDashboardStatusDistribution {
+		status: string;
+		count: number;
+		value: number;
+	}
+
+	export interface AssetDashboardDepreciationTrend {
+		month: string;
+		amount: number;
+	}
+
+	export interface AssetDashboardCategoryValue {
+		category: string;
+		purchaseValue: number;
+		currentValue: number;
+		assetCount: number;
+	}
+
+	export interface AssetDashboardLocationDistribution {
+		location: string;
+		assetCount: number;
+		totalValue: number;
+	}
+
+	export interface AssetDashboardMaintenanceDue {
+		taskId: string;
+		assetName: string;
+		maintenanceTask: string;
+		maintenanceType: string | null;
+		assignToName: string | null;
+		nextDueDate: string;
+		daysUntilDue: number;
+		periodicity: string;
+	}
+
+	export interface AssetDashboardRecentActivity {
+		id: string;
+		assetId: string;
+		assetName: string;
+		assetSeries: string;
+		activity: string;
+		createdAt: string;
+	}
+
+	export interface AssetDashboardAdjustmentSummary {
+		status: string;
+		count: number;
+		totalAmount: number;
+	}
+
+	export interface AssetDashboardInsuranceExpiry {
+		assetId: string;
+		assetName: string;
+		insurer: string;
+		policyNumber: string;
+		insuredValue: number;
+		insuranceEndDate: string;
+		daysUntilExpiry: number;
+	}
+
+	export interface AssetDashboardData {
+		kpis: AssetDashboardKpi;
+		statusDistribution: AssetDashboardStatusDistribution[];
+		depreciationTrend: AssetDashboardDepreciationTrend[];
+		categoryValues: AssetDashboardCategoryValue[];
+		locationDistribution: AssetDashboardLocationDistribution[];
+		maintenanceDue: AssetDashboardMaintenanceDue[];
+		recentActivity: AssetDashboardRecentActivity[];
+		adjustmentSummary: AssetDashboardAdjustmentSummary[];
+		insuranceExpiry: AssetDashboardInsuranceExpiry[];
+	}
+}
+
+// ============================================================================
 // Product Domain Types
 // ============================================================================
 

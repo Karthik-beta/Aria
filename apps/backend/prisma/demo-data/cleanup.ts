@@ -8,7 +8,23 @@
  */
 
 import type { PrismaClient } from "../../src/generated/prisma/client.js";
+import { ASSET_CATEGORIES, ASSET_LOCATIONS } from "./asset-data.js";
 import type { DemoConfig } from "./config.js";
+
+const DEMO_ASSET_CATEGORY_NAMES = ASSET_CATEGORIES.map(
+	(category) => category.name,
+);
+
+function flattenAssetLocationNames(
+	locations: typeof ASSET_LOCATIONS,
+): string[] {
+	return locations.flatMap((location) => [
+		location.name,
+		...(location.children ? flattenAssetLocationNames(location.children) : []),
+	]);
+}
+
+const DEMO_ASSET_LOCATION_NAMES = flattenAssetLocationNames(ASSET_LOCATIONS);
 
 /**
  * Remove all demo data. Returns a summary of deleted record counts.
@@ -32,6 +48,40 @@ export async function cleanDemoData(
 		prisma.subcontractingOrder.deleteMany({ where: { company } }),
 	);
 
+	// ── Asset Management transaction-level ──────────────────────
+
+	await del("AssetMaintenance", () =>
+		prisma.assetMaintenance.deleteMany({ where: { company } }),
+	);
+
+	await del("AssetMaintenanceTeam", () =>
+		prisma.assetMaintenanceTeam.deleteMany({ where: { company } }),
+	);
+
+	await del("AssetValueAdjustment", () =>
+		prisma.assetValueAdjustment.deleteMany({
+			where: { companySnapshot: company },
+		}),
+	);
+
+	await del("AssetActivity", () =>
+		prisma.assetActivity.deleteMany({ where: { asset: { company } } }),
+	);
+
+	await del("Asset", () => prisma.asset.deleteMany({ where: { company } }));
+
+	await del("AssetCategory", () =>
+		prisma.assetCategory.deleteMany({
+			where: { name: { in: DEMO_ASSET_CATEGORY_NAMES } },
+		}),
+	);
+
+	await del("Location", () =>
+		prisma.location.deleteMany({
+			where: { name: { in: DEMO_ASSET_LOCATION_NAMES } },
+		}),
+	);
+
 	await del("InstallationNote", () =>
 		prisma.installationNote.deleteMany({ where: { company } }),
 	);
@@ -49,6 +99,10 @@ export async function cleanDemoData(
 
 	await del("PickList", () =>
 		prisma.pickList.deleteMany({ where: { company } }),
+	);
+
+	await del("InstallationNoteItem", () =>
+		prisma.installationNoteItem.deleteMany({}),
 	);
 
 	await del("SerialNoHistory", () =>
@@ -104,7 +158,8 @@ export async function cleanDemoData(
 	// Shipping rules
 	await del("ShippingRule", () => prisma.shippingRule.deleteMany({}));
 
-	// Product bundles, alternatives, manufacturers (cascade from Item)
+	// Product bundles and related children must be deleted in dependency order.
+	await del("ProductBundleItem", () => prisma.productBundleItem.deleteMany({}));
 	await del("ProductBundle", () => prisma.productBundle.deleteMany({}));
 
 	await del("ItemAlternate", () => prisma.itemAlternate.deleteMany({}));
@@ -113,7 +168,10 @@ export async function cleanDemoData(
 
 	await del("Item", () => prisma.item.deleteMany({}));
 
-	// Inventory items (barcodes, reorders, attributes cascade)
+	// Inventory items and their direct state must be deleted in dependency order.
+	// InventoryItem is not company-scoped, so remove all batches and serials first.
+	await del("Batch", () => prisma.batch.deleteMany({}));
+	await del("SerialNo", () => prisma.serialNo.deleteMany({}));
 	await del("InventoryItem", () => prisma.inventoryItem.deleteMany({}));
 
 	// Item attributes & values (cascade)
@@ -166,6 +224,16 @@ export async function getDemoStatus(
 		deliveryTrips,
 		installationNotes,
 		subcontractingOrders,
+		assetLocations,
+		assetCategories,
+		assets,
+		assetActivities,
+		assetValueAdjustments,
+		assetRevaluationEntries,
+		assetDepreciationSchedules,
+		assetMaintenanceTeams,
+		assetMaintenances,
+		assetMaintenanceLogs,
 	] = await Promise.all([
 		prisma.brand.count(),
 		prisma.itemGroup.count(),
@@ -185,6 +253,20 @@ export async function getDemoStatus(
 		prisma.deliveryTrip.count({ where: { company } }),
 		prisma.installationNote.count({ where: { company } }),
 		prisma.subcontractingOrder.count({ where: { company } }),
+		prisma.location.count({
+			where: { name: { in: DEMO_ASSET_LOCATION_NAMES } },
+		}),
+		prisma.assetCategory.count({
+			where: { name: { in: DEMO_ASSET_CATEGORY_NAMES } },
+		}),
+		prisma.asset.count({ where: { company } }),
+		prisma.assetActivity.count({ where: { asset: { company } } }),
+		prisma.assetValueAdjustment.count({ where: { companySnapshot: company } }),
+		prisma.assetRevaluationEntry.count({ where: { company } }),
+		prisma.assetDepreciationSchedule.count({ where: { asset: { company } } }),
+		prisma.assetMaintenanceTeam.count({ where: { company } }),
+		prisma.assetMaintenance.count({ where: { company } }),
+		prisma.assetMaintenanceLog.count({ where: { maintenance: { company } } }),
 	]);
 
 	return {
@@ -206,5 +288,15 @@ export async function getDemoStatus(
 		deliveryTrips,
 		installationNotes,
 		subcontractingOrders,
+		assetLocations,
+		assetCategories,
+		assets,
+		assetActivities,
+		assetValueAdjustments,
+		assetRevaluationEntries,
+		assetDepreciationSchedules,
+		assetMaintenanceTeams,
+		assetMaintenances,
+		assetMaintenanceLogs,
 	};
 }

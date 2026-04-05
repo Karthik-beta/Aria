@@ -252,6 +252,50 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
 		return this.client.subcontractingOrderItem;
 	}
 
+	// Asset Domain
+	get asset() {
+		return this.client.asset;
+	}
+	get location() {
+		return this.client.location;
+	}
+	get assetCategory() {
+		return this.client.assetCategory;
+	}
+	get assetActivity() {
+		return this.client.assetActivity;
+	}
+	get assetMaintenanceTeam() {
+		return this.client.assetMaintenanceTeam;
+	}
+	get assetMaintenanceTeamMember() {
+		return this.client.assetMaintenanceTeamMember;
+	}
+	get assetMaintenance() {
+		return this.client.assetMaintenance;
+	}
+	get assetMaintenanceTask() {
+		return this.client.assetMaintenanceTask;
+	}
+	get assetMaintenanceLog() {
+		return this.client.assetMaintenanceLog;
+	}
+	get assetValueAdjustment() {
+		return this.client.assetValueAdjustment;
+	}
+	get assetRevaluationEntry() {
+		return this.client.assetRevaluationEntry;
+	}
+	get assetRevaluationEntryLine() {
+		return this.client.assetRevaluationEntryLine;
+	}
+	get assetDepreciationSchedule() {
+		return this.client.assetDepreciationSchedule;
+	}
+	get assetDepreciationScheduleEntry() {
+		return this.client.assetDepreciationScheduleEntry;
+	}
+
 	// ═══════════════════════════════════════════════════════════════════════════
 	// Transaction Support
 	// ═══════════════════════════════════════════════════════════════════════════
