@@ -347,18 +347,6 @@ export const assetNavItems: NavItem[] = [
 			},
 		],
 	},
-	{
-		title: "Settings",
-		url: "#",
-		icon: "settings",
-		isActive: false,
-		items: [
-			{
-				title: "Asset Settings",
-				url: "/asset/settings",
-			},
-		],
-	},
 ];
 
 export const crmNavItems: NavItem[] = [
