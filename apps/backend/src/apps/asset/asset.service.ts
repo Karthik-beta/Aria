@@ -30,6 +30,7 @@ import {
 	toAssetValueAdjustment,
 	toMaintenanceTeam,
 } from "./asset.types";
+import { buildAssetActivityReportResult } from "./asset-activity-report";
 import { buildAssetDepreciationLedgerResult } from "./asset-depreciation-ledger-report";
 import { buildAssetDepreciationsAndBalancesResult } from "./asset-depreciations-and-balances-report";
 import {
@@ -878,6 +879,116 @@ export class AssetService {
 
 		await this.prisma.asset.deleteMany({ where: { id: { in: ids } } });
 		return { success: true, count: ids.length, ids };
+	}
+
+	async findAssetActivityReport(
+		input: Asset.ListAssetActivityReportInput,
+	): Promise<Asset.AssetActivityReportResult> {
+		const fromDate = new Date(input.fromDate);
+		fromDate.setHours(0, 0, 0, 0);
+
+		const toDate = new Date(input.toDate);
+		toDate.setHours(23, 59, 59, 999);
+
+		const where: Prisma.AssetActivityWhereInput = {
+			createdAt: {
+				gte: fromDate,
+				lte: toDate,
+			},
+		};
+
+		if (input.activity) {
+			where.activity = {
+				contains: input.activity,
+				mode: "insensitive",
+			};
+		}
+
+		const assetWhere: Prisma.AssetWhereInput = {};
+
+		if (input.company) {
+			assetWhere.company = {
+				contains: input.company,
+				mode: "insensitive",
+			};
+		}
+
+		if (input.asset) {
+			assetWhere.OR = [
+				{
+					series: {
+						contains: input.asset,
+						mode: "insensitive",
+					},
+				},
+				{
+					assetName: {
+						contains: input.asset,
+						mode: "insensitive",
+					},
+				},
+			];
+		}
+
+		if (input.assetCategory) {
+			assetWhere.assetCategory = {
+				is: {
+					name: {
+						contains: input.assetCategory,
+						mode: "insensitive",
+					},
+				},
+			};
+		}
+
+		if (Object.keys(assetWhere).length > 0) {
+			where.asset = { is: assetWhere };
+		}
+
+		const activities = await this.prisma.assetActivity.findMany({
+			where,
+			orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+			select: {
+				id: true,
+				assetId: true,
+				activity: true,
+				createdAt: true,
+				asset: {
+					select: {
+						id: true,
+						series: true,
+						assetName: true,
+						company: true,
+						status: true,
+						assetCategory: {
+							select: {
+								id: true,
+								name: true,
+							},
+						},
+					},
+				},
+			},
+		});
+
+		return buildAssetActivityReportResult({
+			activities: activities.map((activity) => ({
+				id: activity.id,
+				assetId: activity.assetId,
+				assetSeries: activity.asset.series,
+				assetName: activity.asset.assetName,
+				assetCategory: activity.asset.assetCategory
+					? {
+							id: activity.asset.assetCategory.id,
+							name: activity.asset.assetCategory.name,
+						}
+					: null,
+				company: activity.asset.company,
+				assetStatus: activity.asset.status as Asset.AssetStatus,
+				activity: activity.activity,
+				createdAt: activity.createdAt,
+			})),
+		});
 	}
 
 	async findAssetDepreciationLedger(

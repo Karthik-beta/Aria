@@ -5,7 +5,7 @@
  * Inventory Management module. Adjust these settings to tailor demo
  * scenarios for different audiences and presentation contexts.
  *
- * Business context: Pivotr Electronics Pvt Ltd — a Bangalore-based SME
+ * Business context: Pivotr Technologies Pvt Ltd — a Bangalore-based SME
  * manufacturing and distributing electronic components, modules, and
  * custom assemblies.
  */
@@ -66,7 +66,7 @@ export function getDefaultConfig(): DemoConfig {
 
 	return {
 		scale: "medium",
-		company: "Pivotr Electronics Pvt Ltd",
+		company: "Pivotr Technologies Pvt Ltd",
 		currency: "INR",
 		dateRange: {
 			from: sixMonthsAgo,

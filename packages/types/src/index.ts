@@ -6585,6 +6585,48 @@ export namespace Asset {
 		typeof deleteAssetValueAdjustmentSchema
 	>;
 
+	export interface AssetActivityReportRow {
+		activityId: string;
+		assetId: string;
+		assetSeries: string;
+		assetName: string;
+		assetCategoryId: string | null;
+		assetCategoryName: string | null;
+		company: string;
+		assetStatus: AssetStatus;
+		activity: string;
+		createdAt: Date;
+	}
+
+	export interface AssetActivityReportSummary {
+		rowCount: number;
+		distinctAssetCount: number;
+		firstActivityAt: Date | null;
+		lastActivityAt: Date | null;
+	}
+
+	export interface AssetActivityReportResult {
+		rows: AssetActivityReportRow[];
+		summary: AssetActivityReportSummary;
+	}
+
+	export const listAssetActivityReportSchema = z
+		.object({
+			fromDate: z.coerce.date(),
+			toDate: z.coerce.date(),
+			company: z.string().trim().max(255).optional(),
+			asset: z.string().trim().max(255).optional(),
+			assetCategory: z.string().trim().max(255).optional(),
+			activity: z.string().trim().max(500).optional(),
+		})
+		.refine((input) => input.fromDate <= input.toDate, {
+			message: "From date must be on or before to date.",
+			path: ["toDate"],
+		});
+	export type ListAssetActivityReportInput = z.infer<
+		typeof listAssetActivityReportSchema
+	>;
+
 	export interface AssetDepreciationLedgerRow {
 		assetId: string;
 		assetSeries: string;

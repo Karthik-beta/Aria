@@ -54,6 +54,10 @@ export class AssetRouter {
 				.input(Asset.listAssetsSchema)
 				.query(async ({ input }) => svc.findAllAssets(input)),
 
+			listAssetActivityReport: protectedProcedure
+				.input(Asset.listAssetActivityReportSchema)
+				.query(async ({ input }) => svc.findAssetActivityReport(input)),
+
 			listAssetDepreciationLedger: protectedProcedure
 				.input(Asset.listAssetDepreciationLedgerSchema)
 				.query(async ({ input }) => svc.findAssetDepreciationLedger(input)),

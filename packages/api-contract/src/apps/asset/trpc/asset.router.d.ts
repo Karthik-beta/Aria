@@ -165,6 +165,18 @@ type AssetRouterInput = {
 		output: Asset.AssetDepreciationLedgerResult;
 		meta: object;
 	}>;
+	listAssetActivityReport: TRPCQueryProcedure<{
+		input: {
+			fromDate: unknown;
+			toDate: unknown;
+			company?: string | undefined;
+			asset?: string | undefined;
+			assetCategory?: string | undefined;
+			activity?: string | undefined;
+		};
+		output: Asset.AssetActivityReportResult;
+		meta: object;
+	}>;
 	listAssetDepreciationsAndBalances: TRPCQueryProcedure<{
 		input: {
 			fromDate: unknown;
