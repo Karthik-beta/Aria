@@ -2,8 +2,8 @@
  * Demo Data Configuration
  *
  * Controls the shape, scale, and scope of generated demo data for the
- * Inventory Management module. Adjust these settings to tailor demo
- * scenarios for different audiences and presentation contexts.
+ * Inventory Management and Asset Management modules. Adjust these settings
+ * to tailor demo scenarios for different audiences and presentation contexts.
  *
  * Business context: Pivotr Technologies Pvt Ltd — a Bangalore-based SME
  * manufacturing and distributing electronic components, modules, and

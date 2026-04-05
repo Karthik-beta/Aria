@@ -35,6 +35,7 @@ import {
 	spreadDates,
 	zeroPad,
 } from "./helpers.js";
+import { seedAssetTransactions } from "./seed-asset-transactions.js";
 import type { MasterIds } from "./seed-master.js";
 
 // ── Counters for series generation ────────────────────────────────
@@ -830,4 +831,9 @@ export async function seedTransactions(
 			},
 		});
 	}
+
+	// ────────────────────────────────────────────────────────────
+	// 14. Asset Management Transaction Story
+	// ────────────────────────────────────────────────────────────
+	await seedAssetTransactions(prisma, config, ids);
 }

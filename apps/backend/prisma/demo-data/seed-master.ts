@@ -31,6 +31,7 @@ import {
 	type WarehouseDef,
 } from "./data.js";
 import { zeroPad } from "./helpers.js";
+import { seedAssetMasterData } from "./seed-asset-master.js";
 
 /** IDs collected during seeding, passed to transaction seeder */
 export interface MasterIds {
@@ -45,6 +46,10 @@ export interface MasterIds {
 	warehouseIds: Map<string, string>;
 	qiTemplateIds: Map<string, string>;
 	qiParameterIds: Map<string, string>;
+	assetLocationIds: Map<string, string>;
+	assetCategoryIds: Map<string, string>;
+	assetMaintenanceTeamIds: Map<string, string>;
+	assetIds: Map<string, string>;
 }
 
 export async function seedMasterData(
@@ -61,6 +66,10 @@ export async function seedMasterData(
 		warehouseIds: new Map(),
 		qiTemplateIds: new Map(),
 		qiParameterIds: new Map(),
+		assetLocationIds: new Map(),
+		assetCategoryIds: new Map(),
+		assetMaintenanceTeamIds: new Map(),
+		assetIds: new Map(),
 	};
 
 	// ── 1. Ensure UOMs exist and collect their IDs ────────────────
@@ -496,6 +505,9 @@ export async function seedMasterData(
 			allowRenameAttributeValue: true,
 		},
 	});
+
+	// ── 13. Asset Management Masters ───────────────────────────────
+	await seedAssetMasterData(prisma, config, ids);
 
 	return ids;
 }
