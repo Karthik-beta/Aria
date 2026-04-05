@@ -153,6 +153,18 @@ type AssetRouterInput = {
 		output: Asset.AssetValueAdjustmentListResult;
 		meta: object;
 	}>;
+	listAssetDepreciationLedger: TRPCQueryProcedure<{
+		input: {
+			fromDate: unknown;
+			toDate: unknown;
+			company?: string | undefined;
+			asset?: string | undefined;
+			assetCategory?: string | undefined;
+			costCenter?: string | undefined;
+		};
+		output: Asset.AssetDepreciationLedgerResult;
+		meta: object;
+	}>;
 	getAssetValueAdjustmentById: TRPCQueryProcedure<{
 		input: { id: string };
 		output: Asset.AssetValueAdjustmentItem | null;

@@ -30,6 +30,7 @@ import {
 	toAssetValueAdjustment,
 	toMaintenanceTeam,
 } from "./asset.types";
+import { buildAssetDepreciationLedgerResult } from "./asset-depreciation-ledger-report";
 import {
 	buildDepreciationSchedulePreview,
 	buildRevaluationEntryLines,
@@ -876,6 +877,189 @@ export class AssetService {
 
 		await this.prisma.asset.deleteMany({ where: { id: { in: ids } } });
 		return { success: true, count: ids.length, ids };
+	}
+
+	async findAssetDepreciationLedger(
+		input: Asset.ListAssetDepreciationLedgerInput,
+	): Promise<Asset.AssetDepreciationLedgerResult> {
+		const fromDate = new Date(input.fromDate);
+		fromDate.setHours(0, 0, 0, 0);
+
+		const toDate = new Date(input.toDate);
+		toDate.setHours(23, 59, 59, 999);
+
+		const assetWhere: Prisma.AssetWhereInput = {};
+
+		if (input.company) {
+			assetWhere.company = {
+				contains: input.company,
+				mode: "insensitive",
+			};
+		}
+
+		if (input.asset) {
+			assetWhere.OR = [
+				{
+					series: {
+						contains: input.asset,
+						mode: "insensitive",
+					},
+				},
+				{
+					assetName: {
+						contains: input.asset,
+						mode: "insensitive",
+					},
+				},
+			];
+		}
+
+		if (input.assetCategory) {
+			assetWhere.assetCategory = {
+				is: {
+					name: {
+						contains: input.assetCategory,
+						mode: "insensitive",
+					},
+				},
+			};
+		}
+
+		if (input.costCenter) {
+			assetWhere.valueAdjustments = {
+				some: {
+					status: "SUBMITTED",
+					adjustmentDate: { lte: toDate },
+					costCenter: {
+						contains: input.costCenter,
+						mode: "insensitive",
+					},
+				},
+			};
+		}
+
+		const assets = await this.prisma.asset.findMany({
+			where: assetWhere,
+			select: {
+				id: true,
+				series: true,
+				assetName: true,
+				company: true,
+				purchaseDate: true,
+				netPurchaseAmount: true,
+				status: true,
+				assetCategory: {
+					select: {
+						id: true,
+						name: true,
+					},
+				},
+				valueAdjustments: {
+					where: {
+						status: "SUBMITTED",
+						adjustmentDate: { lte: toDate },
+						...(input.costCenter
+							? {
+									costCenter: {
+										contains: input.costCenter,
+										mode: "insensitive" as const,
+									},
+								}
+							: {}),
+					},
+					orderBy: [{ adjustmentDate: "asc" }, { createdAt: "asc" }],
+					select: {
+						id: true,
+						series: true,
+						adjustmentDate: true,
+						costCenter: true,
+						revaluationEntry: {
+							select: {
+								series: true,
+							},
+						},
+						depreciationSchedule: {
+							select: {
+								id: true,
+								revisionNumber: true,
+								startDate: true,
+								depreciationMethod: true,
+								openingAccumulatedDepreciation: true,
+								entries: {
+									orderBy: { sequence: "asc" },
+									select: {
+										id: true,
+										sequence: true,
+										scheduleDate: true,
+										depreciationAmount: true,
+										accumulatedDepreciationAmount: true,
+										bookValueAfterDepreciation: true,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		});
+
+		return buildAssetDepreciationLedgerResult({
+			fromDate,
+			toDate,
+			assets: assets.map((asset) => ({
+				id: asset.id,
+				series: asset.series,
+				assetName: asset.assetName,
+				company: asset.company,
+				purchaseDate: asset.purchaseDate ?? null,
+				netPurchaseAmount: asset.netPurchaseAmount
+					? Number(asset.netPurchaseAmount)
+					: null,
+				status: asset.status as Asset.AssetStatus,
+				assetCategory: asset.assetCategory
+					? {
+							id: asset.assetCategory.id,
+							name: asset.assetCategory.name,
+						}
+					: null,
+				adjustments: asset.valueAdjustments.map((adjustment) => ({
+					id: adjustment.id,
+					series: adjustment.series,
+					adjustmentDate: adjustment.adjustmentDate,
+					costCenter: adjustment.costCenter ?? null,
+					revaluationEntrySeries: adjustment.revaluationEntry?.series ?? null,
+					schedule: adjustment.depreciationSchedule
+						? {
+								id: adjustment.depreciationSchedule.id,
+								revisionNumber: adjustment.depreciationSchedule.revisionNumber,
+								startDate: adjustment.depreciationSchedule.startDate,
+								depreciationMethod:
+									(adjustment.depreciationSchedule
+										.depreciationMethod as Asset.DepreciationMethod | null) ??
+									null,
+								openingAccumulatedDepreciation: Number(
+									adjustment.depreciationSchedule
+										.openingAccumulatedDepreciation,
+								),
+								entries: adjustment.depreciationSchedule.entries.map(
+									(entry) => ({
+										id: entry.id,
+										sequence: entry.sequence,
+										scheduleDate: entry.scheduleDate,
+										depreciationAmount: Number(entry.depreciationAmount),
+										accumulatedDepreciationAmount: Number(
+											entry.accumulatedDepreciationAmount,
+										),
+										bookValueAfterDepreciation: Number(
+											entry.bookValueAfterDepreciation,
+										),
+									}),
+								),
+							}
+						: null,
+				})),
+			})),
+		});
 	}
 
 	async findAllAssetValueAdjustments(

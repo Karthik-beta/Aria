@@ -6584,6 +6584,62 @@ export namespace Asset {
 	export type DeleteAssetValueAdjustmentInput = z.infer<
 		typeof deleteAssetValueAdjustmentSchema
 	>;
+
+	export interface AssetDepreciationLedgerRow {
+		assetId: string;
+		assetSeries: string;
+		assetName: string;
+		assetCategoryId: string | null;
+		assetCategoryName: string | null;
+		company: string;
+		purchaseDate: Date | null;
+		purchaseAmount: number | null;
+		depreciationDate: Date;
+		openingAccumulatedDepreciation: number;
+		depreciationAmount: number;
+		accumulatedDepreciationAmount: number;
+		valueAfterDepreciation: number;
+		adjustmentId: string;
+		adjustmentSeries: string;
+		adjustmentDate: Date;
+		revaluationEntrySeries: string | null;
+		scheduleId: string;
+		scheduleRevisionNumber: number;
+		costCenter: string | null;
+		depreciationMethod: DepreciationMethod | null;
+		assetStatus: AssetStatus;
+	}
+
+	export interface AssetDepreciationLedgerSummary {
+		matchedAssetCount: number;
+		assetsWithLedgerCount: number;
+		assetsWithoutLedgerCount: number;
+		rowCount: number;
+		totalDepreciationAmount: number;
+		closingValueTotal: number;
+	}
+
+	export interface AssetDepreciationLedgerResult {
+		rows: AssetDepreciationLedgerRow[];
+		summary: AssetDepreciationLedgerSummary;
+	}
+
+	export const listAssetDepreciationLedgerSchema = z
+		.object({
+			fromDate: z.coerce.date(),
+			toDate: z.coerce.date(),
+			company: z.string().trim().max(255).optional(),
+			asset: z.string().trim().max(255).optional(),
+			assetCategory: z.string().trim().max(255).optional(),
+			costCenter: z.string().trim().max(255).optional(),
+		})
+		.refine((input) => input.fromDate <= input.toDate, {
+			message: "From date must be on or before to date.",
+			path: ["toDate"],
+		});
+	export type ListAssetDepreciationLedgerInput = z.infer<
+		typeof listAssetDepreciationLedgerSchema
+	>;
 }
 
 // ============================================================================
