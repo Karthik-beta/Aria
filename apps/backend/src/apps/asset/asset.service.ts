@@ -31,6 +31,7 @@ import {
 	toMaintenanceTeam,
 } from "./asset.types";
 import { buildAssetActivityReportResult } from "./asset-activity-report";
+import { AssetDashboardSubService } from "./asset-dashboard.service";
 import { buildAssetDepreciationLedgerResult } from "./asset-depreciation-ledger-report";
 import { buildAssetDepreciationsAndBalancesResult } from "./asset-depreciations-and-balances-report";
 import {
@@ -109,7 +110,19 @@ export class AssetService {
 		},
 	} as const;
 
-	constructor(private readonly prisma: PrismaService) {}
+	private readonly dashboard: AssetDashboardSubService;
+
+	constructor(private readonly prisma: PrismaService) {
+		this.dashboard = new AssetDashboardSubService(prisma);
+	}
+
+	// ============================================================================
+	// Dashboard
+	// ============================================================================
+
+	async getDashboardData(): Promise<Asset.AssetDashboardData> {
+		return this.dashboard.getDashboardData();
+	}
 
 	// ============================================================================
 	// Series Generation

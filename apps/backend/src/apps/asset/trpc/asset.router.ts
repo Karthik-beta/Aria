@@ -292,6 +292,11 @@ export class AssetRouter {
 					return result;
 				}),
 
+			// ── Dashboard ─────────────────────────────────────────────────────
+			getDashboardData: protectedProcedure.query(async () =>
+				svc.getDashboardData(),
+			),
+
 			// ── Subscriptions ─────────────────────────────────────────────────
 			onAssetsChanged: protectedProcedure.subscription(() =>
 				observable<AssetsChangedEvent>((emit) => {

@@ -6749,6 +6749,93 @@ export namespace Asset {
 	export type ListAssetDepreciationLedgerInput = z.infer<
 		typeof listAssetDepreciationLedgerSchema
 	>;
+
+	// ────────────────────────────────────────────────────────────────
+	// Dashboard
+	// ────────────────────────────────────────────────────────────────
+
+	export interface AssetDashboardKpi {
+		totalAssets: number;
+		activeAssets: number;
+		totalAssetValue: number;
+		totalPurchaseValue: number;
+		totalDepreciation: number;
+		maintenanceDueCount: number;
+		pendingAdjustments: number;
+		locationCount: number;
+	}
+
+	export interface AssetDashboardStatusDistribution {
+		status: string;
+		count: number;
+		value: number;
+	}
+
+	export interface AssetDashboardDepreciationTrend {
+		month: string;
+		amount: number;
+	}
+
+	export interface AssetDashboardCategoryValue {
+		category: string;
+		purchaseValue: number;
+		currentValue: number;
+		assetCount: number;
+	}
+
+	export interface AssetDashboardLocationDistribution {
+		location: string;
+		assetCount: number;
+		totalValue: number;
+	}
+
+	export interface AssetDashboardMaintenanceDue {
+		taskId: string;
+		assetName: string;
+		maintenanceTask: string;
+		maintenanceType: string | null;
+		assignToName: string | null;
+		nextDueDate: string;
+		daysUntilDue: number;
+		periodicity: string;
+	}
+
+	export interface AssetDashboardRecentActivity {
+		id: string;
+		assetId: string;
+		assetName: string;
+		assetSeries: string;
+		activity: string;
+		createdAt: string;
+	}
+
+	export interface AssetDashboardAdjustmentSummary {
+		status: string;
+		count: number;
+		totalAmount: number;
+	}
+
+	export interface AssetDashboardInsuranceExpiry {
+		assetId: string;
+		assetName: string;
+		insurer: string;
+		policyNumber: string;
+		insuredValue: number;
+		insuranceEndDate: string;
+		daysUntilExpiry: number;
+	}
+
+	export interface AssetDashboardData {
+		kpis: AssetDashboardKpi;
+		statusDistribution: AssetDashboardStatusDistribution[];
+		depreciationTrend: AssetDashboardDepreciationTrend[];
+		categoryValues: AssetDashboardCategoryValue[];
+		locationDistribution: AssetDashboardLocationDistribution[];
+		maintenanceDue: AssetDashboardMaintenanceDue[];
+		recentActivity: AssetDashboardRecentActivity[];
+		adjustmentSummary: AssetDashboardAdjustmentSummary[];
+		insuranceExpiry: AssetDashboardInsuranceExpiry[];
+	}
 }
 
 // ============================================================================
