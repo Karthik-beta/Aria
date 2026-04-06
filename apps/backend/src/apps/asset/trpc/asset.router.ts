@@ -296,6 +296,15 @@ export class AssetRouter {
 			getDashboardData: protectedProcedure.query(async () =>
 				svc.getDashboardData(),
 			),
+			getDashboardOverviewData: protectedProcedure.query(async () =>
+				svc.getDashboardOverviewData(),
+			),
+			getDashboardTopChartsData: protectedProcedure.query(async () =>
+				svc.getDashboardTopChartsData(),
+			),
+			getDashboardBottomChartsData: protectedProcedure.query(async () =>
+				svc.getDashboardBottomChartsData(),
+			),
 
 			// ── Subscriptions ─────────────────────────────────────────────────
 			onAssetsChanged: protectedProcedure.subscription(() =>

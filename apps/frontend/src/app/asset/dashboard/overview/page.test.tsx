@@ -4,13 +4,29 @@ import { fireEvent, renderWithProviders, screen } from "@/test/utils";
 import { AssetOverviewCharts } from "./charts-island";
 import { AssetOverviewClient } from "./overview-client";
 
-const { mockInvalidate, mockRefetch, mockUseQuery, mockUseSubscription } =
-	vi.hoisted(() => ({
-		mockInvalidate: vi.fn().mockResolvedValue(undefined),
-		mockRefetch: vi.fn(),
-		mockUseQuery: vi.fn(),
-		mockUseSubscription: vi.fn(),
-	}));
+const {
+	mockInvalidateOverview,
+	mockInvalidateTopCharts,
+	mockInvalidateBottomCharts,
+	mockRefetchOverview,
+	mockRefetchTopCharts,
+	mockRefetchBottomCharts,
+	mockUseOverviewQuery,
+	mockUseTopChartsQuery,
+	mockUseBottomChartsQuery,
+	mockUseSubscription,
+} = vi.hoisted(() => ({
+	mockInvalidateOverview: vi.fn().mockResolvedValue(undefined),
+	mockInvalidateTopCharts: vi.fn().mockResolvedValue(undefined),
+	mockInvalidateBottomCharts: vi.fn().mockResolvedValue(undefined),
+	mockRefetchOverview: vi.fn(),
+	mockRefetchTopCharts: vi.fn(),
+	mockRefetchBottomCharts: vi.fn(),
+	mockUseOverviewQuery: vi.fn(),
+	mockUseTopChartsQuery: vi.fn(),
+	mockUseBottomChartsQuery: vi.fn(),
+	mockUseSubscription: vi.fn(),
+}));
 
 vi.mock("next/dynamic", () => ({
 	default: () => () => null,
@@ -47,14 +63,26 @@ vi.mock("@/lib/trpc", () => ({
 	trpc: {
 		useUtils: () => ({
 			asset: {
-				getDashboardData: {
-					invalidate: mockInvalidate,
+				getDashboardOverviewData: {
+					invalidate: mockInvalidateOverview,
+				},
+				getDashboardTopChartsData: {
+					invalidate: mockInvalidateTopCharts,
+				},
+				getDashboardBottomChartsData: {
+					invalidate: mockInvalidateBottomCharts,
 				},
 			},
 		}),
 		asset: {
-			getDashboardData: {
-				useQuery: mockUseQuery,
+			getDashboardOverviewData: {
+				useQuery: mockUseOverviewQuery,
+			},
+			getDashboardTopChartsData: {
+				useQuery: mockUseTopChartsQuery,
+			},
+			getDashboardBottomChartsData: {
+				useQuery: mockUseBottomChartsQuery,
 			},
 			onAssetsChanged: {
 				useSubscription: mockUseSubscription,
@@ -69,7 +97,7 @@ vi.mock("@/lib/trpc", () => ({
 	},
 }));
 
-function createDashboardData() {
+function createOverviewData() {
 	return {
 		kpis: {
 			totalAssets: 13,
@@ -81,45 +109,6 @@ function createDashboardData() {
 			pendingAdjustments: 1,
 			locationCount: 5,
 		},
-		statusDistribution: [
-			{ status: "SUBMITTED", count: 4, value: 400_000 },
-			{ status: "PARTIALLY_DEPRECIATED", count: 3, value: 350_000 },
-			{ status: "FULLY_DEPRECIATED", count: 2, value: 0 },
-			{ status: "IN_MAINTENANCE", count: 1, value: 100_000 },
-			{ status: "SOLD", count: 2, value: 0 },
-			{ status: "SCRAPPED", count: 1, value: 0 },
-		],
-		depreciationTrend: [
-			{ month: "2025-01", amount: 25_000 },
-			{ month: "2025-02", amount: 28_000 },
-			{ month: "2025-03", amount: 27_500 },
-		],
-		categoryValues: [
-			{
-				category: "SMT & PCB Assembly Equipment",
-				purchaseValue: 800_000,
-				currentValue: 500_000,
-				assetCount: 5,
-			},
-			{
-				category: "IT Infrastructure",
-				purchaseValue: 300_000,
-				currentValue: 200_000,
-				assetCount: 4,
-			},
-		],
-		locationDistribution: [
-			{
-				location: "Peenya Phase 2 - Building A",
-				assetCount: 6,
-				totalValue: 600_000,
-			},
-			{
-				location: "Electronic City - Tower B",
-				assetCount: 4,
-				totalValue: 250_000,
-			},
-		],
 		maintenanceDue: [
 			{
 				taskId: "task-1",
@@ -170,17 +159,88 @@ function createDashboardData() {
 	};
 }
 
+function createTopChartsData() {
+	return {
+		statusDistribution: [
+			{ status: "SUBMITTED", count: 4, value: 400_000 },
+			{ status: "PARTIALLY_DEPRECIATED", count: 3, value: 350_000 },
+			{ status: "FULLY_DEPRECIATED", count: 2, value: 0 },
+			{ status: "IN_MAINTENANCE", count: 1, value: 100_000 },
+			{ status: "SOLD", count: 2, value: 0 },
+			{ status: "SCRAPPED", count: 1, value: 0 },
+		],
+		depreciationTrend: [
+			{ month: "2025-01", amount: 25_000 },
+			{ month: "2025-02", amount: 28_000 },
+			{ month: "2025-03", amount: 27_500 },
+		],
+	};
+}
+
+function createBottomChartsData() {
+	return {
+		categoryValues: [
+			{
+				category: "SMT & PCB Assembly Equipment",
+				purchaseValue: 800_000,
+				currentValue: 500_000,
+				assetCount: 5,
+			},
+			{
+				category: "IT Infrastructure",
+				purchaseValue: 300_000,
+				currentValue: 200_000,
+				assetCount: 4,
+			},
+		],
+		locationDistribution: [
+			{
+				location: "Peenya Phase 2 - Building A",
+				assetCount: 6,
+				totalValue: 600_000,
+			},
+			{
+				location: "Electronic City - Tower B",
+				assetCount: 4,
+				totalValue: 250_000,
+			},
+		],
+	};
+}
+
 describe("OverviewPage", () => {
 	beforeEach(() => {
-		mockInvalidate.mockClear();
-		mockRefetch.mockClear();
+		mockInvalidateOverview.mockClear();
+		mockInvalidateTopCharts.mockClear();
+		mockInvalidateBottomCharts.mockClear();
+		mockRefetchOverview.mockClear();
+		mockRefetchTopCharts.mockClear();
+		mockRefetchBottomCharts.mockClear();
 		mockUseSubscription.mockClear();
-		mockUseQuery.mockReset();
-		mockUseQuery.mockReturnValue({
-			data: createDashboardData(),
+		mockUseOverviewQuery.mockReset();
+		mockUseTopChartsQuery.mockReset();
+		mockUseBottomChartsQuery.mockReset();
+
+		mockUseOverviewQuery.mockReturnValue({
+			data: createOverviewData(),
 			isLoading: false,
+			isFetching: false,
 			error: null,
-			refetch: mockRefetch,
+			refetch: mockRefetchOverview,
+		});
+		mockUseTopChartsQuery.mockReturnValue({
+			data: createTopChartsData(),
+			isLoading: false,
+			isFetching: false,
+			error: null,
+			refetch: mockRefetchTopCharts,
+		});
+		mockUseBottomChartsQuery.mockReturnValue({
+			data: createBottomChartsData(),
+			isLoading: false,
+			isFetching: false,
+			error: null,
+			refetch: mockRefetchBottomCharts,
 		});
 	});
 
@@ -207,30 +267,49 @@ describe("OverviewPage", () => {
 		}
 	});
 
+	it("keeps the shell visible while chart queries are still loading", () => {
+		mockUseTopChartsQuery.mockReturnValue({
+			data: undefined,
+			isLoading: true,
+			isFetching: true,
+			error: null,
+			refetch: mockRefetchTopCharts,
+		});
+		mockUseBottomChartsQuery.mockReturnValue({
+			data: undefined,
+			isLoading: true,
+			isFetching: true,
+			error: null,
+			refetch: mockRefetchBottomCharts,
+		});
+
+		renderWithProviders(
+			<AssetOverviewClient ChartsComponent={AssetOverviewCharts} />,
+		);
+
+		expect(screen.getByText("Asset Dashboard")).toBeInTheDocument();
+		expect(screen.getAllByText("Maintenance Due")[0]).toBeInTheDocument();
+		expect(screen.getAllByText("Insurance Expiry")[0]).toBeInTheDocument();
+		expect(screen.getAllByText("Value Adjustments")[0]).toBeInTheDocument();
+	});
+
 	it("renders KPI insight callouts from real kpi data", () => {
 		renderWithProviders(
 			<AssetOverviewClient ChartsComponent={AssetOverviewCharts} />,
 		);
 
-		// Asset value: 950_000 / 1_500_000 = 63% retained
 		expect(screen.getByText("63% value retained")).toBeInTheDocument();
 		expect(screen.getByText("Purchase cost ₹15.0L")).toBeInTheDocument();
-
-		// Active assets: 8 / 13 = 62% operational
 		expect(screen.getByText("62% operational")).toBeInTheDocument();
 		expect(screen.getByText("Across 5 locations")).toBeInTheDocument();
-
-		// Maintenance due: 2 tasks
 		expect(screen.getByText("2 tasks due now")).toBeInTheDocument();
-
-		// Pending adjustments: 1 draft
 		expect(screen.getByText("1 draft awaiting review")).toBeInTheDocument();
 	});
 
 	it("renders positive insight callouts when asset health is clear", () => {
-		mockUseQuery.mockReturnValue({
+		mockUseOverviewQuery.mockReturnValue({
 			data: {
-				...createDashboardData(),
+				...createOverviewData(),
 				kpis: {
 					totalAssets: 13,
 					activeAssets: 13,
@@ -243,8 +322,9 @@ describe("OverviewPage", () => {
 				},
 			},
 			isLoading: false,
+			isFetching: false,
 			error: null,
-			refetch: mockRefetch,
+			refetch: mockRefetchOverview,
 		});
 
 		renderWithProviders(
@@ -256,11 +336,31 @@ describe("OverviewPage", () => {
 	});
 
 	it("renders chart empty states when data arrays are empty or all zero", () => {
-		mockUseQuery.mockReturnValue({
+		mockUseOverviewQuery.mockReturnValue({
 			data: {
-				...createDashboardData(),
+				...createOverviewData(),
+				maintenanceDue: [],
+				recentActivity: [],
+				insuranceExpiry: [],
+				adjustmentSummary: [],
+			},
+			isLoading: false,
+			isFetching: false,
+			error: null,
+			refetch: mockRefetchOverview,
+		});
+		mockUseTopChartsQuery.mockReturnValue({
+			data: {
 				depreciationTrend: [{ month: "2025-01", amount: 0 }],
 				statusDistribution: [],
+			},
+			isLoading: false,
+			isFetching: false,
+			error: null,
+			refetch: mockRefetchTopCharts,
+		});
+		mockUseBottomChartsQuery.mockReturnValue({
+			data: {
 				categoryValues: [
 					{
 						category: "Test",
@@ -272,14 +372,11 @@ describe("OverviewPage", () => {
 				locationDistribution: [
 					{ location: "Test", assetCount: 0, totalValue: 0 },
 				],
-				maintenanceDue: [],
-				recentActivity: [],
-				insuranceExpiry: [],
-				adjustmentSummary: [],
 			},
 			isLoading: false,
+			isFetching: false,
 			error: null,
-			refetch: mockRefetch,
+			refetch: mockRefetchBottomCharts,
 		});
 
 		renderWithProviders(
@@ -296,12 +393,13 @@ describe("OverviewPage", () => {
 		expect(screen.getByText("No value adjustments yet")).toBeInTheDocument();
 	});
 
-	it("retries the query from the error state", () => {
-		mockUseQuery.mockReturnValue({
+	it("retries the overview query from the error state", () => {
+		mockUseOverviewQuery.mockReturnValue({
 			data: undefined,
 			isLoading: false,
+			isFetching: false,
 			error: new Error("Dashboard failed"),
-			refetch: mockRefetch,
+			refetch: mockRefetchOverview,
 		});
 
 		renderWithProviders(
@@ -310,24 +408,36 @@ describe("OverviewPage", () => {
 
 		fireEvent.click(screen.getByRole("button", { name: "Retry" }));
 
-		expect(mockRefetch).toHaveBeenCalledTimes(1);
+		expect(mockRefetchOverview).toHaveBeenCalledTimes(1);
 	});
 
-	it("refreshes manually and invalidates the dashboard on realtime events", async () => {
-		renderWithProviders(
-			<AssetOverviewClient ChartsComponent={AssetOverviewCharts} />,
-		);
+	it("refreshes manually and invalidates all dashboard queries on realtime events", async () => {
+		vi.useFakeTimers();
 
-		fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+		try {
+			renderWithProviders(
+				<AssetOverviewClient ChartsComponent={AssetOverviewCharts} />,
+			);
 
-		expect(mockRefetch).toHaveBeenCalledTimes(1);
-		expect(mockUseSubscription).toHaveBeenCalledTimes(3);
+			fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
 
-		const firstRealtimeHandler = mockUseSubscription.mock.calls[0]?.[1]?.onData;
-		expect(firstRealtimeHandler).toBeTypeOf("function");
+			expect(mockRefetchOverview).toHaveBeenCalledTimes(1);
+			expect(mockRefetchTopCharts).toHaveBeenCalledTimes(1);
+			expect(mockRefetchBottomCharts).toHaveBeenCalledTimes(1);
+			expect(mockUseSubscription).toHaveBeenCalledTimes(3);
 
-		await firstRealtimeHandler?.();
+			const firstRealtimeHandler =
+				mockUseSubscription.mock.calls[0]?.[1]?.onData;
+			expect(firstRealtimeHandler).toBeTypeOf("function");
 
-		expect(mockInvalidate).toHaveBeenCalledTimes(1);
+			await firstRealtimeHandler?.();
+			await vi.advanceTimersByTimeAsync(250);
+
+			expect(mockInvalidateOverview).toHaveBeenCalledTimes(1);
+			expect(mockInvalidateTopCharts).toHaveBeenCalledTimes(1);
+			expect(mockInvalidateBottomCharts).toHaveBeenCalledTimes(1);
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 });

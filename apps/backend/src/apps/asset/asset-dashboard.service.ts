@@ -28,26 +28,32 @@ export class AssetDashboardSubService {
 	constructor(private readonly prisma: PrismaService) {}
 
 	async getDashboardData(): Promise<Asset.AssetDashboardData> {
+		const overviewData = await this.getDashboardOverviewData();
+		const [topChartsData, bottomChartsData] = await Promise.all([
+			this.getDashboardTopChartsData(),
+			this.getDashboardBottomChartsData(),
+		]);
+
+		return {
+			...overviewData,
+			...topChartsData,
+			...bottomChartsData,
+		};
+	}
+
+	async getDashboardOverviewData(): Promise<Asset.AssetDashboardOverviewData> {
 		const now = new Date();
 		const ninetyDaysFromNow = new Date(now);
 		ninetyDaysFromNow.setDate(ninetyDaysFromNow.getDate() + 90);
 
 		const [
 			kpis,
-			statusDistribution,
-			depreciationTrend,
-			categoryValues,
-			locationDistribution,
 			maintenanceDue,
 			recentActivity,
 			adjustmentSummary,
 			insuranceExpiry,
 		] = await Promise.all([
 			this.getKpis(),
-			this.getStatusDistribution(),
-			this.getDepreciationTrend(),
-			this.getCategoryValues(),
-			this.getLocationDistribution(),
 			this.getMaintenanceDue(now, ninetyDaysFromNow),
 			this.getRecentActivity(),
 			this.getAdjustmentSummary(),
@@ -56,14 +62,34 @@ export class AssetDashboardSubService {
 
 		return {
 			kpis,
-			statusDistribution,
-			depreciationTrend,
-			categoryValues,
-			locationDistribution,
 			maintenanceDue,
 			recentActivity,
 			adjustmentSummary,
 			insuranceExpiry,
+		};
+	}
+
+	async getDashboardTopChartsData(): Promise<Asset.AssetDashboardTopChartsData> {
+		const [statusDistribution, depreciationTrend] = await Promise.all([
+			this.getStatusDistribution(),
+			this.getDepreciationTrend(),
+		]);
+
+		return {
+			statusDistribution,
+			depreciationTrend,
+		};
+	}
+
+	async getDashboardBottomChartsData(): Promise<Asset.AssetDashboardBottomChartsData> {
+		const [categoryValues, locationDistribution] = await Promise.all([
+			this.getCategoryValues(),
+			this.getLocationDistribution(),
+		]);
+
+		return {
+			categoryValues,
+			locationDistribution,
 		};
 	}
 

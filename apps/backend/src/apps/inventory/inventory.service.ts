@@ -979,4 +979,16 @@ export class InventoryService {
 	async getDashboardData(): Promise<Inventory.DashboardData> {
 		return await this.dashboard.getDashboardData();
 	}
+
+	async getDashboardOverviewData(): Promise<Inventory.DashboardOverviewData> {
+		return await this.dashboard.getDashboardOverviewData();
+	}
+
+	async getDashboardTopChartsData(): Promise<Inventory.DashboardTopChartsData> {
+		return await this.dashboard.getDashboardTopChartsData();
+	}
+
+	async getDashboardBottomChartsData(): Promise<Inventory.DashboardBottomChartsData> {
+		return await this.dashboard.getDashboardBottomChartsData();
+	}
 }

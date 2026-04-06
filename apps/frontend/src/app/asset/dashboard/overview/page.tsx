@@ -5,9 +5,10 @@ import { AssetOverviewClient } from "./overview-client";
 export const dynamic = "force-dynamic";
 
 export default async function OverviewPage() {
-	const initialData = await tryFetchServerTrpcQuery<Asset.AssetDashboardData>(
-		"asset.getDashboardData",
-	);
+	const initialData =
+		await tryFetchServerTrpcQuery<Asset.AssetDashboardOverviewData>(
+			"asset.getDashboardOverviewData",
+		);
 	const snapshotAt = Date.now();
 
 	return (

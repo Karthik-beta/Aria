@@ -90,6 +90,90 @@ export class DashboardSubService {
 		};
 	}
 
+	async getDashboardOverviewData(): Promise<Inventory.DashboardOverviewData> {
+		const now = new Date();
+		const ninetyDaysFromNow = new Date(now);
+		ninetyDaysFromNow.setDate(ninetyDaysFromNow.getDate() + 90);
+
+		const stockItems = await this.getStockItems();
+		const trackedItemCodes = stockItems.map((item) => item.code);
+
+		const [
+			totalItems,
+			activeWarehouses,
+			pendingMaterialRequests,
+			stockSnapshot,
+			recentActivity,
+			batchExpiry,
+			deliveryStatus,
+		] = await Promise.all([
+			this.prisma.inventoryItem.count({
+				where: { disabled: false },
+			}),
+			this.prisma.warehouse.count({
+				where: { disabled: false, isGroupWarehouse: false },
+			}),
+			this.prisma.materialRequest.count({
+				where: { status: { in: ["PENDING", "APPROVED", "PARTIALLY_ORDERED"] } },
+			}),
+			buildCommittedStockSnapshot(this.prisma, {
+				itemCodes: trackedItemCodes,
+			}),
+			this.getRecentActivity(),
+			this.getBatchExpiry(now, ninetyDaysFromNow),
+			this.getDeliveryStatus(),
+		]);
+		const { kpis, itemGroupDistribution, lowStockItems } =
+			this.buildStockInsights({
+				totalItems,
+				activeWarehouses,
+				pendingMaterialRequests,
+				stockItems,
+				stockSnapshot,
+			});
+
+		return {
+			kpis,
+			itemGroupDistribution,
+			recentActivity,
+			lowStockItems,
+			batchExpiry,
+			deliveryStatus,
+		};
+	}
+
+	async getDashboardTopChartsData(): Promise<Inventory.DashboardTopChartsData> {
+		const now = new Date();
+		const thirtyDaysAgo = new Date(now);
+		thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+		const [stockMovements, warehouseStock] = await Promise.all([
+			this.getStockMovements(thirtyDaysAgo, now),
+			this.getWarehouseStock(),
+		]);
+
+		return {
+			stockMovements,
+			warehouseStock,
+		};
+	}
+
+	async getDashboardBottomChartsData(): Promise<Inventory.DashboardBottomChartsData> {
+		const now = new Date();
+		const thirtyDaysAgo = new Date(now);
+		thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+		const [topMovingItems, stockEntryTypeBreakdown] = await Promise.all([
+			this.getTopMovingItems(thirtyDaysAgo, now),
+			this.getStockEntryTypeBreakdown(),
+		]);
+
+		return {
+			topMovingItems,
+			stockEntryTypeBreakdown,
+		};
+	}
+
 	private async getStockItems(): Promise<DashboardStockItem[]> {
 		return this.prisma.inventoryItem.findMany({
 			where: { disabled: false, maintainStock: true },

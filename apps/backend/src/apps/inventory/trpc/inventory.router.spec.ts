@@ -30,9 +30,37 @@ const mockDashboardData = {
 	stockEntryTypeBreakdown: [],
 };
 
+const mockDashboardOverviewData = {
+	kpis: mockDashboardData.kpis,
+	itemGroupDistribution: mockDashboardData.itemGroupDistribution,
+	recentActivity: mockDashboardData.recentActivity,
+	lowStockItems: mockDashboardData.lowStockItems,
+	batchExpiry: mockDashboardData.batchExpiry,
+	deliveryStatus: mockDashboardData.deliveryStatus,
+};
+
+const mockDashboardTopChartsData = {
+	stockMovements: mockDashboardData.stockMovements,
+	warehouseStock: mockDashboardData.warehouseStock,
+};
+
+const mockDashboardBottomChartsData = {
+	topMovingItems: mockDashboardData.topMovingItems,
+	stockEntryTypeBreakdown: mockDashboardData.stockEntryTypeBreakdown,
+};
+
 function createInventoryServiceMock() {
 	const base = {
 		getDashboardData: jest.fn().mockResolvedValue(mockDashboardData),
+		getDashboardOverviewData: jest
+			.fn()
+			.mockResolvedValue(mockDashboardOverviewData),
+		getDashboardTopChartsData: jest
+			.fn()
+			.mockResolvedValue(mockDashboardTopChartsData),
+		getDashboardBottomChartsData: jest
+			.fn()
+			.mockResolvedValue(mockDashboardBottomChartsData),
 	};
 
 	return new Proxy(base, {
@@ -61,7 +89,7 @@ const originalGetSessionDescriptor = Object.getOwnPropertyDescriptor(
 	"getSession",
 );
 
-describe("InventoryRouter › getDashboardData", () => {
+describe("InventoryRouter › dashboard queries", () => {
 	beforeEach(() => {
 		jest.clearAllMocks();
 		Object.defineProperty(auth.api, "getSession", {
@@ -118,5 +146,25 @@ describe("InventoryRouter › getDashboardData", () => {
 			topMovingItems: expect.any(Array),
 			stockEntryTypeBreakdown: expect.any(Array),
 		});
+	});
+
+	it("returns the split overview and chart contracts through the protected router", async () => {
+		const inventoryService = createInventoryServiceMock();
+		const caller = createCaller(inventoryService);
+
+		const [overviewData, topChartsData, bottomChartsData] = await Promise.all([
+			caller.getDashboardOverviewData(),
+			caller.getDashboardTopChartsData(),
+			caller.getDashboardBottomChartsData(),
+		]);
+
+		expect(inventoryService.getDashboardOverviewData).toHaveBeenCalledTimes(1);
+		expect(inventoryService.getDashboardTopChartsData).toHaveBeenCalledTimes(1);
+		expect(inventoryService.getDashboardBottomChartsData).toHaveBeenCalledTimes(
+			1,
+		);
+		expect(overviewData).toEqual(mockDashboardOverviewData);
+		expect(topChartsData).toEqual(mockDashboardTopChartsData);
+		expect(bottomChartsData).toEqual(mockDashboardBottomChartsData);
 	});
 });

@@ -4,13 +4,29 @@ import { fireEvent, renderWithProviders, screen } from "@/test/utils";
 import { InventoryOverviewCharts } from "./charts-island";
 import { InventoryOverviewClient } from "./overview-client";
 
-const { mockInvalidate, mockRefetch, mockUseQuery, mockUseSubscription } =
-	vi.hoisted(() => ({
-		mockInvalidate: vi.fn().mockResolvedValue(undefined),
-		mockRefetch: vi.fn(),
-		mockUseQuery: vi.fn(),
-		mockUseSubscription: vi.fn(),
-	}));
+const {
+	mockInvalidateOverview,
+	mockInvalidateTopCharts,
+	mockInvalidateBottomCharts,
+	mockRefetchOverview,
+	mockRefetchTopCharts,
+	mockRefetchBottomCharts,
+	mockUseOverviewQuery,
+	mockUseTopChartsQuery,
+	mockUseBottomChartsQuery,
+	mockUseSubscription,
+} = vi.hoisted(() => ({
+	mockInvalidateOverview: vi.fn().mockResolvedValue(undefined),
+	mockInvalidateTopCharts: vi.fn().mockResolvedValue(undefined),
+	mockInvalidateBottomCharts: vi.fn().mockResolvedValue(undefined),
+	mockRefetchOverview: vi.fn(),
+	mockRefetchTopCharts: vi.fn(),
+	mockRefetchBottomCharts: vi.fn(),
+	mockUseOverviewQuery: vi.fn(),
+	mockUseTopChartsQuery: vi.fn(),
+	mockUseBottomChartsQuery: vi.fn(),
+	mockUseSubscription: vi.fn(),
+}));
 
 vi.mock("next/dynamic", () => ({
 	default: () => () => null,
@@ -47,14 +63,26 @@ vi.mock("@/lib/trpc", () => ({
 	trpc: {
 		useUtils: () => ({
 			inventory: {
-				getDashboardData: {
-					invalidate: mockInvalidate,
+				getDashboardOverviewData: {
+					invalidate: mockInvalidateOverview,
+				},
+				getDashboardTopChartsData: {
+					invalidate: mockInvalidateTopCharts,
+				},
+				getDashboardBottomChartsData: {
+					invalidate: mockInvalidateBottomCharts,
 				},
 			},
 		}),
 		inventory: {
-			getDashboardData: {
-				useQuery: mockUseQuery,
+			getDashboardOverviewData: {
+				useQuery: mockUseOverviewQuery,
+			},
+			getDashboardTopChartsData: {
+				useQuery: mockUseTopChartsQuery,
+			},
+			getDashboardBottomChartsData: {
+				useQuery: mockUseBottomChartsQuery,
 			},
 			onStockEntriesChanged: {
 				useSubscription: mockUseSubscription,
@@ -72,7 +100,7 @@ vi.mock("@/lib/trpc", () => ({
 	},
 }));
 
-function createDashboardData() {
+function createOverviewData() {
 	return {
 		kpis: {
 			totalItems: 38,
@@ -82,14 +110,6 @@ function createDashboardData() {
 			totalStockValue: 375000,
 			totalStockQuantity: 2400,
 		},
-		stockMovements: [
-			{ date: "2026-03-01", inbound: 120, outbound: 20 },
-			{ date: "2026-03-02", inbound: 180, outbound: 75 },
-		],
-		warehouseStock: [
-			{ warehouse: "Peenya Main Warehouse", itemCount: 20, totalQty: 1800 },
-			{ warehouse: "Peenya Raw Material", itemCount: 12, totalQty: 850 },
-		],
 		itemGroupDistribution: [
 			{ group: "Electronic Components", value: 180000, itemCount: 12 },
 			{ group: "Raw Materials", value: 95000, itemCount: 9 },
@@ -131,6 +151,24 @@ function createDashboardData() {
 			{ status: "DRAFT", count: 1, totalAmount: 1000 },
 			{ status: "COMPLETED", count: 4, totalAmount: 25000 },
 		],
+	};
+}
+
+function createTopChartsData() {
+	return {
+		stockMovements: [
+			{ date: "2026-03-01", inbound: 120, outbound: 20 },
+			{ date: "2026-03-02", inbound: 180, outbound: 75 },
+		],
+		warehouseStock: [
+			{ warehouse: "Peenya Main Warehouse", itemCount: 20, totalQty: 1800 },
+			{ warehouse: "Peenya Raw Material", itemCount: 12, totalQty: 850 },
+		],
+	};
+}
+
+function createBottomChartsData() {
+	return {
 		topMovingItems: [
 			{
 				itemCode: "PCB-FR4-01",
@@ -148,15 +186,37 @@ function createDashboardData() {
 
 describe("OverviewPage", () => {
 	beforeEach(() => {
-		mockInvalidate.mockClear();
-		mockRefetch.mockClear();
+		mockInvalidateOverview.mockClear();
+		mockInvalidateTopCharts.mockClear();
+		mockInvalidateBottomCharts.mockClear();
+		mockRefetchOverview.mockClear();
+		mockRefetchTopCharts.mockClear();
+		mockRefetchBottomCharts.mockClear();
 		mockUseSubscription.mockClear();
-		mockUseQuery.mockReset();
-		mockUseQuery.mockReturnValue({
-			data: createDashboardData(),
+		mockUseOverviewQuery.mockReset();
+		mockUseTopChartsQuery.mockReset();
+		mockUseBottomChartsQuery.mockReset();
+
+		mockUseOverviewQuery.mockReturnValue({
+			data: createOverviewData(),
 			isLoading: false,
+			isFetching: false,
 			error: null,
-			refetch: mockRefetch,
+			refetch: mockRefetchOverview,
+		});
+		mockUseTopChartsQuery.mockReturnValue({
+			data: createTopChartsData(),
+			isLoading: false,
+			isFetching: false,
+			error: null,
+			refetch: mockRefetchTopCharts,
+		});
+		mockUseBottomChartsQuery.mockReturnValue({
+			data: createBottomChartsData(),
+			isLoading: false,
+			isFetching: false,
+			error: null,
+			refetch: mockRefetchBottomCharts,
 		});
 	});
 
@@ -184,28 +244,49 @@ describe("OverviewPage", () => {
 		}
 	});
 
-	it("renders warning insight callouts when stock health needs attention", () => {
-		// createDashboardData has lowStockItemCount=3 (of 38) and pendingMaterialRequests=1
+	it("keeps the shell visible while chart queries are still loading", () => {
+		mockUseTopChartsQuery.mockReturnValue({
+			data: undefined,
+			isLoading: true,
+			isFetching: true,
+			error: null,
+			refetch: mockRefetchTopCharts,
+		});
+		mockUseBottomChartsQuery.mockReturnValue({
+			data: undefined,
+			isLoading: true,
+			isFetching: true,
+			error: null,
+			refetch: mockRefetchBottomCharts,
+		});
+
 		renderWithProviders(
 			<InventoryOverviewClient ChartsComponent={InventoryOverviewCharts} />,
 		);
 
-		// Low stock: Math.round(3 / 38 * 100) = 8% of items need reorder
+		expect(screen.getByText("Inventory Dashboard")).toBeInTheDocument();
+		expect(screen.getAllByText("Low Stock Alerts")[0]).toBeInTheDocument();
+		expect(screen.getAllByText("Batch Expiry Tracker")[0]).toBeInTheDocument();
+		expect(screen.getAllByText("Delivery Status")[0]).toBeInTheDocument();
+	});
+
+	it("renders warning insight callouts when stock health needs attention", () => {
+		renderWithProviders(
+			<InventoryOverviewClient ChartsComponent={InventoryOverviewCharts} />,
+		);
+
 		expect(screen.getByText("8% of items need reorder")).toBeInTheDocument();
 		expect(
 			screen.getByText("Below safety stock threshold"),
 		).toBeInTheDocument();
-
-		// Pending requests: 1 request awaiting action
 		expect(screen.getByText("1 request awaiting action")).toBeInTheDocument();
-		// Card 4 always shows the footer link (not the subtext)
 		expect(screen.getByText("View all requests →")).toBeInTheDocument();
 	});
 
 	it("renders positive insight callouts when stock health is clear", () => {
-		mockUseQuery.mockReturnValue({
+		mockUseOverviewQuery.mockReturnValue({
 			data: {
-				...createDashboardData(),
+				...createOverviewData(),
 				kpis: {
 					totalItems: 38,
 					activeWarehouses: 8,
@@ -216,8 +297,9 @@ describe("OverviewPage", () => {
 				},
 			},
 			isLoading: false,
+			isFetching: false,
 			error: null,
-			refetch: mockRefetch,
+			refetch: mockRefetchOverview,
 		});
 
 		renderWithProviders(
@@ -228,9 +310,7 @@ describe("OverviewPage", () => {
 			screen.getByText("All items within safe limits"),
 		).toBeInTheDocument();
 		expect(screen.getByText("No reorder action needed")).toBeInTheDocument();
-
 		expect(screen.getByText("Procurement up to date")).toBeInTheDocument();
-		// Card 4 shows FooterLink as the second footer line
 		expect(screen.getByText("View all requests →")).toBeInTheDocument();
 	});
 
@@ -239,7 +319,6 @@ describe("OverviewPage", () => {
 			<InventoryOverviewClient ChartsComponent={InventoryOverviewCharts} />,
 		);
 
-		// Active Items: Math.round(38 / 8) = 5 items per warehouse
 		expect(screen.getByText("~5 items per warehouse")).toBeInTheDocument();
 		expect(
 			screen.getByText("Tracking 8 storage locations"),
@@ -247,9 +326,24 @@ describe("OverviewPage", () => {
 	});
 
 	it("renders chart empty states when data is empty or all zero", () => {
-		mockUseQuery.mockReturnValue({
+		mockUseOverviewQuery.mockReturnValue({
 			data: {
-				...createDashboardData(),
+				...createOverviewData(),
+				itemGroupDistribution: [
+					{ group: "Electronic Components", value: 0, itemCount: 10 },
+				],
+				recentActivity: [],
+				lowStockItems: [],
+				batchExpiry: [],
+				deliveryStatus: [],
+			},
+			isLoading: false,
+			isFetching: false,
+			error: null,
+			refetch: mockRefetchOverview,
+		});
+		mockUseTopChartsQuery.mockReturnValue({
+			data: {
 				stockMovements: [
 					{ date: "2026-03-01", inbound: 0, outbound: 0 },
 					{ date: "2026-03-02", inbound: 0, outbound: 0 },
@@ -257,19 +351,21 @@ describe("OverviewPage", () => {
 				warehouseStock: [
 					{ warehouse: "Peenya Main Warehouse", itemCount: 2, totalQty: 0 },
 				],
-				itemGroupDistribution: [
-					{ group: "Electronic Components", value: 0, itemCount: 10 },
-				],
-				topMovingItems: [],
-				stockEntryTypeBreakdown: [],
-				recentActivity: [],
-				lowStockItems: [],
-				batchExpiry: [],
-				deliveryStatus: [],
 			},
 			isLoading: false,
+			isFetching: false,
 			error: null,
-			refetch: mockRefetch,
+			refetch: mockRefetchTopCharts,
+		});
+		mockUseBottomChartsQuery.mockReturnValue({
+			data: {
+				topMovingItems: [],
+				stockEntryTypeBreakdown: [],
+			},
+			isLoading: false,
+			isFetching: false,
+			error: null,
+			refetch: mockRefetchBottomCharts,
 		});
 
 		renderWithProviders(
@@ -294,12 +390,13 @@ describe("OverviewPage", () => {
 		expect(screen.getByText("No delivery notes yet")).toBeInTheDocument();
 	});
 
-	it("retries the query from the error state", () => {
-		mockUseQuery.mockReturnValue({
+	it("retries the overview query from the error state", () => {
+		mockUseOverviewQuery.mockReturnValue({
 			data: undefined,
 			isLoading: false,
+			isFetching: false,
 			error: new Error("Dashboard failed"),
-			refetch: mockRefetch,
+			refetch: mockRefetchOverview,
 		});
 
 		renderWithProviders(
@@ -308,24 +405,36 @@ describe("OverviewPage", () => {
 
 		fireEvent.click(screen.getByRole("button", { name: "Retry" }));
 
-		expect(mockRefetch).toHaveBeenCalledTimes(1);
+		expect(mockRefetchOverview).toHaveBeenCalledTimes(1);
 	});
 
-	it("refreshes manually and invalidates the dashboard on realtime events", async () => {
-		renderWithProviders(
-			<InventoryOverviewClient ChartsComponent={InventoryOverviewCharts} />,
-		);
+	it("refreshes manually and invalidates all dashboard queries on realtime events", async () => {
+		vi.useFakeTimers();
 
-		fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+		try {
+			renderWithProviders(
+				<InventoryOverviewClient ChartsComponent={InventoryOverviewCharts} />,
+			);
 
-		expect(mockRefetch).toHaveBeenCalledTimes(1);
-		expect(mockUseSubscription).toHaveBeenCalledTimes(4);
+			fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
 
-		const firstRealtimeHandler = mockUseSubscription.mock.calls[0]?.[1]?.onData;
-		expect(firstRealtimeHandler).toBeTypeOf("function");
+			expect(mockRefetchOverview).toHaveBeenCalledTimes(1);
+			expect(mockRefetchTopCharts).toHaveBeenCalledTimes(1);
+			expect(mockRefetchBottomCharts).toHaveBeenCalledTimes(1);
+			expect(mockUseSubscription).toHaveBeenCalledTimes(4);
 
-		await firstRealtimeHandler?.();
+			const firstRealtimeHandler =
+				mockUseSubscription.mock.calls[0]?.[1]?.onData;
+			expect(firstRealtimeHandler).toBeTypeOf("function");
 
-		expect(mockInvalidate).toHaveBeenCalledTimes(1);
+			await firstRealtimeHandler?.();
+			await vi.advanceTimersByTimeAsync(250);
+
+			expect(mockInvalidateOverview).toHaveBeenCalledTimes(1);
+			expect(mockInvalidateTopCharts).toHaveBeenCalledTimes(1);
+			expect(mockInvalidateBottomCharts).toHaveBeenCalledTimes(1);
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 });

@@ -12,9 +12,8 @@ import {
 	IconTool,
 	IconTrendingDown,
 } from "@tabler/icons-react";
-import dynamic from "next/dynamic";
 import Link from "next/link";
-import type * as React from "react";
+import * as React from "react";
 import PageContainer from "@/components/layout/page-container";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -30,6 +29,8 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
+import type { AssetOverviewChartsProps } from "./charts-island";
+import { AssetOverviewChartsLazy } from "./charts-island.lazy";
 import {
 	formatAdjustmentStatus,
 	formatCompactCurrency,
@@ -49,21 +50,6 @@ const DASHBOARD_GRID_CLASS =
 const CARD_SURFACE_CLASS =
 	"h-full border-border/70 bg-card/95 shadow-sm supports-[backdrop-filter]:backdrop-blur";
 
-const AssetOverviewCharts = dynamic(
-	() => import("./charts-island").then((module) => module.AssetOverviewCharts),
-	{
-		ssr: false,
-		loading: () => (
-			<>
-				<TileSkeleton className="lg:col-span-8" />
-				<TileSkeleton className="lg:col-span-4" />
-				<TileSkeleton className="lg:col-span-4" />
-				<TileSkeleton className="lg:col-span-8" />
-			</>
-		),
-	},
-);
-
 // ── Realtime Subscriptions ────────────────────────────────────────────
 
 function DashboardSubscriptions({ onEvent }: { onEvent: () => void }) {
@@ -77,6 +63,32 @@ function DashboardSubscriptions({ onEvent }: { onEvent: () => void }) {
 		onData: onEvent,
 	});
 	return null;
+}
+
+function useDebouncedDashboardInvalidate(
+	invalidate: () => Promise<unknown>,
+	delayMs = 200,
+) {
+	const timeoutRef = React.useRef<number | null>(null);
+
+	React.useEffect(() => {
+		return () => {
+			if (timeoutRef.current !== null) {
+				window.clearTimeout(timeoutRef.current);
+			}
+		};
+	}, []);
+
+	return React.useCallback(() => {
+		if (timeoutRef.current !== null) {
+			window.clearTimeout(timeoutRef.current);
+		}
+
+		timeoutRef.current = window.setTimeout(() => {
+			timeoutRef.current = null;
+			void invalidate();
+		}, delayMs);
+	}, [delayMs, invalidate]);
 }
 
 // ── Empty / Skeleton States ───────────────────────────────────────────
@@ -176,29 +188,68 @@ function DashboardSkeletonGrid() {
 
 export function AssetOverviewClient({
 	initialData,
-	ChartsComponent = AssetOverviewCharts,
+	ChartsComponent = AssetOverviewChartsLazy,
 	snapshotAt,
 }: {
-	initialData?: Asset.AssetDashboardData;
-	ChartsComponent?: React.ComponentType<{ data: Asset.AssetDashboardData }>;
+	initialData?: Asset.AssetDashboardOverviewData;
+	ChartsComponent?: React.ComponentType<AssetOverviewChartsProps>;
 	snapshotAt?: number;
 }) {
 	const utils = trpc.useUtils();
-	const renderSnapshotAt = snapshotAt ?? Date.now();
+	const [renderSnapshotAt] = React.useState(() => snapshotAt ?? Date.now());
 
-	const { data, isLoading, error, refetch } =
-		trpc.asset.getDashboardData.useQuery(undefined, {
+	const overviewQuery = trpc.asset.getDashboardOverviewData.useQuery(
+		undefined,
+		{
 			refetchOnWindowFocus: false,
 			staleTime: 30_000,
 			initialData,
 			initialDataUpdatedAt: initialData ? renderSnapshotAt : undefined,
-		});
+		},
+	);
+	const topChartsQuery = trpc.asset.getDashboardTopChartsData.useQuery(
+		undefined,
+		{
+			refetchOnWindowFocus: false,
+			staleTime: 30_000,
+		},
+	);
+	const bottomChartsQuery = trpc.asset.getDashboardBottomChartsData.useQuery(
+		undefined,
+		{
+			refetchOnWindowFocus: false,
+			staleTime: 30_000,
+		},
+	);
 
-	const handleRealtimeEvent = () => {
-		void utils.asset.getDashboardData.invalidate();
-	};
+	const invalidateDashboardQueries = React.useCallback(async () => {
+		await Promise.all([
+			utils.asset.getDashboardOverviewData.invalidate(),
+			utils.asset.getDashboardTopChartsData.invalidate(),
+			utils.asset.getDashboardBottomChartsData.invalidate(),
+		]);
+	}, [utils]);
+	const handleRealtimeEvent = useDebouncedDashboardInvalidate(
+		invalidateDashboardQueries,
+	);
+	const handleRefresh = React.useCallback(() => {
+		void Promise.all([
+			overviewQuery.refetch(),
+			topChartsQuery.refetch(),
+			bottomChartsQuery.refetch(),
+		]);
+	}, [bottomChartsQuery, overviewQuery, topChartsQuery]);
 
-	if (error) {
+	const isRefreshing =
+		overviewQuery.isFetching ||
+		topChartsQuery.isFetching ||
+		bottomChartsQuery.isFetching;
+	const hasOverviewError = !overviewQuery.data && overviewQuery.error;
+	const hasTopChartsError = !topChartsQuery.data && !!topChartsQuery.error;
+	const hasBottomChartsError =
+		!bottomChartsQuery.data && !!bottomChartsQuery.error;
+
+	if (hasOverviewError) {
 		return (
 			<PageContainer>
 				<div className="flex flex-1 flex-col items-center justify-center gap-4 py-20">
@@ -206,7 +257,11 @@ export function AssetOverviewClient({
 					<p className="text-muted-foreground text-sm">
 						Failed to load dashboard data
 					</p>
-					<Button variant="outline" size="sm" onClick={() => refetch()}>
+					<Button
+						variant="outline"
+						size="sm"
+						onClick={() => overviewQuery.refetch()}
+					>
 						<IconRefresh className="mr-2 size-4" />
 						Retry
 					</Button>
@@ -217,7 +272,9 @@ export function AssetOverviewClient({
 
 	return (
 		<PageContainer>
-			<DashboardSubscriptions onEvent={handleRealtimeEvent} />
+			{overviewQuery.data ? (
+				<DashboardSubscriptions onEvent={handleRealtimeEvent} />
+			) : null}
 
 			<div className="flex flex-1 flex-col gap-6">
 				<div className="flex flex-wrap items-start justify-between gap-4">
@@ -232,38 +289,57 @@ export function AssetOverviewClient({
 					<Button
 						variant="outline"
 						size="sm"
-						onClick={() => refetch()}
-						disabled={isLoading}
+						onClick={handleRefresh}
+						disabled={isRefreshing}
 					>
 						<IconRefresh
-							className={cn("mr-2 size-4", isLoading && "animate-spin")}
+							className={cn("mr-2 size-4", isRefreshing && "animate-spin")}
 						/>
 						Refresh
 					</Button>
 				</div>
 
 				<div className={DASHBOARD_GRID_CLASS}>
-					{isLoading ? <DashboardSkeletonGrid /> : null}
-					{!isLoading && data ? (
+					{overviewQuery.isLoading && !overviewQuery.data ? (
+						<DashboardSkeletonGrid />
+					) : null}
+					{overviewQuery.data ? (
 						<>
-							<KpiCards kpis={data.kpis} />
-							<ChartsComponent data={data} />
+							<KpiCards kpis={overviewQuery.data.kpis} />
+							<ChartsComponent
+								topChartsData={topChartsQuery.data}
+								bottomChartsData={bottomChartsQuery.data}
+								isTopChartsLoading={
+									!topChartsQuery.data && topChartsQuery.isLoading
+								}
+								isBottomChartsLoading={
+									!bottomChartsQuery.data && bottomChartsQuery.isLoading
+								}
+								hasTopChartsError={hasTopChartsError}
+								hasBottomChartsError={hasBottomChartsError}
+								onRetryTopCharts={() => {
+									void topChartsQuery.refetch();
+								}}
+								onRetryBottomCharts={() => {
+									void bottomChartsQuery.refetch();
+								}}
+							/>
 							<MaintenanceDueList
 								className="lg:col-span-4"
-								data={data.maintenanceDue}
+								data={overviewQuery.data.maintenanceDue}
 							/>
 							<RecentActivityFeed
 								className="lg:col-span-4 lg:row-span-2"
-								data={data.recentActivity}
+								data={overviewQuery.data.recentActivity}
 								snapshotAt={renderSnapshotAt}
 							/>
 							<InsuranceExpiryTracker
 								className="lg:col-span-4"
-								data={data.insuranceExpiry}
+								data={overviewQuery.data.insuranceExpiry}
 							/>
 							<AdjustmentSummaryCard
 								className="lg:col-span-4"
-								data={data.adjustmentSummary}
+								data={overviewQuery.data.adjustmentSummary}
 							/>
 						</>
 					) : null}

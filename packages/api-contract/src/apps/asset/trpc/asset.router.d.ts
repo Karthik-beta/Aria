@@ -341,6 +341,21 @@ type AssetRouterInput = {
 		output: Asset.AssetDashboardData;
 		meta: object;
 	}>;
+	getDashboardOverviewData: TRPCQueryProcedure<{
+		input: void;
+		output: Asset.AssetDashboardOverviewData;
+		meta: object;
+	}>;
+	getDashboardTopChartsData: TRPCQueryProcedure<{
+		input: void;
+		output: Asset.AssetDashboardTopChartsData;
+		meta: object;
+	}>;
+	getDashboardBottomChartsData: TRPCQueryProcedure<{
+		input: void;
+		output: Asset.AssetDashboardBottomChartsData;
+		meta: object;
+	}>;
 
 	// ── Subscriptions ────────────────────────────────────────────────────────
 	onAssetsChanged: LegacyObservableSubscriptionProcedure<{

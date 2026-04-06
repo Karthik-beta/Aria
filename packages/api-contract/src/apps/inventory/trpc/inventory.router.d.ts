@@ -2488,6 +2488,21 @@ type InventoryRouterInput = {
 		output: Inventory.DashboardData;
 		meta: object;
 	}>;
+	getDashboardOverviewData: TRPCQueryProcedure<{
+		input: void;
+		output: Inventory.DashboardOverviewData;
+		meta: object;
+	}>;
+	getDashboardTopChartsData: TRPCQueryProcedure<{
+		input: void;
+		output: Inventory.DashboardTopChartsData;
+		meta: object;
+	}>;
+	getDashboardBottomChartsData: TRPCQueryProcedure<{
+		input: void;
+		output: Inventory.DashboardBottomChartsData;
+		meta: object;
+	}>;
 };
 
 type InventoryRouterRoot = (typeof accountRouter)["_def"]["_config"]["$types"];

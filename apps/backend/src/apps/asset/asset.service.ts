@@ -124,6 +124,18 @@ export class AssetService {
 		return this.dashboard.getDashboardData();
 	}
 
+	async getDashboardOverviewData(): Promise<Asset.AssetDashboardOverviewData> {
+		return this.dashboard.getDashboardOverviewData();
+	}
+
+	async getDashboardTopChartsData(): Promise<Asset.AssetDashboardTopChartsData> {
+		return this.dashboard.getDashboardTopChartsData();
+	}
+
+	async getDashboardBottomChartsData(): Promise<Asset.AssetDashboardBottomChartsData> {
+		return this.dashboard.getDashboardBottomChartsData();
+	}
+
 	// ============================================================================
 	// Series Generation
 	// ============================================================================

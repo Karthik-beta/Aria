@@ -5595,18 +5595,32 @@ export namespace Inventory {
 		totalQty: number;
 	}
 
-	export interface DashboardData {
+	/** Primary inventory dashboard data needed for the shell and non-chart cards. */
+	export interface DashboardOverviewData {
 		kpis: DashboardKpi;
-		stockMovements: DashboardStockMovement[];
-		warehouseStock: DashboardWarehouseStock[];
 		itemGroupDistribution: DashboardItemGroupDistribution[];
 		recentActivity: DashboardRecentActivity[];
 		lowStockItems: DashboardLowStockItem[];
 		batchExpiry: DashboardBatchExpiry[];
 		deliveryStatus: DashboardDeliveryStatus[];
+	}
+
+	/** Above-the-fold inventory charts that can load independently. */
+	export interface DashboardTopChartsData {
+		stockMovements: DashboardStockMovement[];
+		warehouseStock: DashboardWarehouseStock[];
+	}
+
+	/** Lower inventory charts that can load after the shell is visible. */
+	export interface DashboardBottomChartsData {
 		topMovingItems: DashboardTopMovingItem[];
 		stockEntryTypeBreakdown: DashboardStockEntryTypeBreakdown[];
 	}
+
+	export interface DashboardData
+		extends DashboardOverviewData,
+			DashboardTopChartsData,
+			DashboardBottomChartsData {}
 }
 
 // ============================================================================
@@ -6825,17 +6839,31 @@ export namespace Asset {
 		daysUntilExpiry: number;
 	}
 
-	export interface AssetDashboardData {
+	/** Primary asset dashboard data needed for the shell and operational lists. */
+	export interface AssetDashboardOverviewData {
 		kpis: AssetDashboardKpi;
-		statusDistribution: AssetDashboardStatusDistribution[];
-		depreciationTrend: AssetDashboardDepreciationTrend[];
-		categoryValues: AssetDashboardCategoryValue[];
-		locationDistribution: AssetDashboardLocationDistribution[];
 		maintenanceDue: AssetDashboardMaintenanceDue[];
 		recentActivity: AssetDashboardRecentActivity[];
 		adjustmentSummary: AssetDashboardAdjustmentSummary[];
 		insuranceExpiry: AssetDashboardInsuranceExpiry[];
 	}
+
+	/** Above-the-fold asset charts that can load independently. */
+	export interface AssetDashboardTopChartsData {
+		statusDistribution: AssetDashboardStatusDistribution[];
+		depreciationTrend: AssetDashboardDepreciationTrend[];
+	}
+
+	/** Lower asset charts that can load after the shell is visible. */
+	export interface AssetDashboardBottomChartsData {
+		categoryValues: AssetDashboardCategoryValue[];
+		locationDistribution: AssetDashboardLocationDistribution[];
+	}
+
+	export interface AssetDashboardData
+		extends AssetDashboardOverviewData,
+			AssetDashboardTopChartsData,
+			AssetDashboardBottomChartsData {}
 }
 
 // ============================================================================

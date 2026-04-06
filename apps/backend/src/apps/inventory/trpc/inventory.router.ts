@@ -1924,8 +1924,41 @@ function createGetDashboardDataProcedure(inventoryService: InventoryService) {
 	});
 }
 
+function createGetDashboardOverviewDataProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure.query(async () => {
+		return inventoryService.getDashboardOverviewData();
+	});
+}
+
+function createGetDashboardTopChartsDataProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure.query(async () => {
+		return inventoryService.getDashboardTopChartsData();
+	});
+}
+
+function createGetDashboardBottomChartsDataProcedure(
+	inventoryService: InventoryService,
+) {
+	return protectedProcedure.query(async () => {
+		return inventoryService.getDashboardBottomChartsData();
+	});
+}
+
 type InventoryRouterInput = {
 	getDashboardData: ReturnType<typeof createGetDashboardDataProcedure>;
+	getDashboardOverviewData: ReturnType<
+		typeof createGetDashboardOverviewDataProcedure
+	>;
+	getDashboardTopChartsData: ReturnType<
+		typeof createGetDashboardTopChartsDataProcedure
+	>;
+	getDashboardBottomChartsData: ReturnType<
+		typeof createGetDashboardBottomChartsDataProcedure
+	>;
 	listItems: ReturnType<typeof createListItemsProcedure>;
 	listItemGroups: ReturnType<typeof createListItemGroupsProcedure>;
 	listUnitsOfMeasure: ReturnType<typeof createListUnitsOfMeasureProcedure>;
@@ -2208,6 +2241,12 @@ function createInventoryRouterRecord(
 ): InventoryRouterInput {
 	return {
 		getDashboardData: createGetDashboardDataProcedure(inventoryService),
+		getDashboardOverviewData:
+			createGetDashboardOverviewDataProcedure(inventoryService),
+		getDashboardTopChartsData:
+			createGetDashboardTopChartsDataProcedure(inventoryService),
+		getDashboardBottomChartsData:
+			createGetDashboardBottomChartsDataProcedure(inventoryService),
 		listItems: createListItemsProcedure(inventoryService),
 		listItemGroups: createListItemGroupsProcedure(inventoryService),
 		listUnitsOfMeasure: createListUnitsOfMeasureProcedure(inventoryService),

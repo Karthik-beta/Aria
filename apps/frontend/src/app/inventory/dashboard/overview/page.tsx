@@ -5,9 +5,10 @@ import { InventoryOverviewClient } from "./overview-client";
 export const dynamic = "force-dynamic";
 
 export default async function OverviewPage() {
-	const initialData = await tryFetchServerTrpcQuery<Inventory.DashboardData>(
-		"inventory.getDashboardData",
-	);
+	const initialData =
+		await tryFetchServerTrpcQuery<Inventory.DashboardOverviewData>(
+			"inventory.getDashboardOverviewData",
+		);
 	const snapshotAt = Date.now();
 
 	return (
