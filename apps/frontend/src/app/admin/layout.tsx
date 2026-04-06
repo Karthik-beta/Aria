@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { AuthStateProvider } from "@/components/auth/auth-state-provider";
+import { requireProtectedAuthState } from "@/lib/auth/server";
 import AdminLayoutClient from "./admin-layout-client";
 
 export const metadata: Metadata = {
@@ -16,5 +18,13 @@ export default async function AdminLayout({
 }: {
 	children: React.ReactNode;
 }) {
-	return <AdminLayoutClient>{children}</AdminLayoutClient>;
+	const authState = await requireProtectedAuthState({
+		callbackUrl: "/admin",
+	});
+
+	return (
+		<AuthStateProvider value={authState}>
+			<AdminLayoutClient>{children}</AdminLayoutClient>
+		</AuthStateProvider>
+	);
 }

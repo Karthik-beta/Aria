@@ -1,5 +1,4 @@
 "use client";
-import { usePathname, useRouter } from "next/navigation";
 import * as React from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -7,7 +6,7 @@ import {
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { UserAvatarProfile } from "@/components/user-avatar-profile";
-import { useSession } from "@/lib/auth/client";
+import { useAuth } from "@/hooks/use-auth";
 import UserDropdownContent from "./user-dropdown-content";
 
 /**
@@ -21,10 +20,10 @@ function hasProperty<T extends string>(
 }
 
 export function UserNav() {
-	const { data: session } = useSession();
+	const { user: sessionUser } = useAuth();
 
 	const user = React.useMemo(() => {
-		const su = session?.user;
+		const su = sessionUser;
 
 		const fallback = {
 			fullName: "Inventory Admin",
@@ -75,14 +74,7 @@ export function UserNav() {
 			emailAddresses: [{ emailAddress: getEmail() }],
 			imageUrl: getImageUrl(),
 		};
-	}, [session]);
-	const _router = useRouter();
-	const pathname = usePathname();
-	const _prefix = React.useMemo(() => {
-		if (!pathname) return "";
-		const parts = pathname.split("/").filter(Boolean);
-		return parts.length > 0 ? `/${parts[0]}` : "";
-	}, [pathname]);
+	}, [sessionUser]);
 	const [isMounted, setIsMounted] = React.useState(false);
 
 	// Ensure component only renders after hydration to avoid ID mismatch

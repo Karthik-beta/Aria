@@ -2,7 +2,7 @@
 
 import { logger } from "@aria/utils";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { Icons } from "@/components/icons";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -20,9 +20,12 @@ import { Switch } from "@/components/ui/switch";
 import { authClient } from "@/lib/auth/client";
 import { trpc } from "@/lib/trpc";
 
-export function ChangePasswordForm() {
+export function ChangePasswordForm({
+	mustChangePassword,
+}: {
+	mustChangePassword: boolean;
+}) {
 	const router = useRouter();
-	const { data: session } = authClient.useSession();
 	const markPasswordUpdated = trpc.account.markPasswordUpdated.useMutation();
 
 	const [currentPassword, setCurrentPassword] = useState("");
@@ -32,15 +35,6 @@ export function ChangePasswordForm() {
 	const [showNewPassword, setShowNewPassword] = useState(false);
 	const [revokeOtherSessions, setRevokeOtherSessions] = useState(true);
 	const [isSubmitting, setIsSubmitting] = useState(false);
-
-	const mustChangePassword = useMemo(() => {
-		return Boolean(
-			session?.user &&
-				typeof session.user === "object" &&
-				"mustChangePassword" in session.user &&
-				(session.user as Record<string, unknown>).mustChangePassword,
-		);
-	}, [session]);
 
 	const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
 		event.preventDefault();

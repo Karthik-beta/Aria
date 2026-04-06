@@ -23,7 +23,10 @@ export default function DebugPage() {
 	useEffect(() => {
 		async function checkSession() {
 			try {
-				const response = await fetch("/api/auth/get-session", {
+				const baseUrl = (
+					process.env.NEXT_PUBLIC_API_URL || window.location.origin
+				).replace(/\/$/, "");
+				const response = await fetch(`${baseUrl}/api/auth/get-session`, {
 					method: "GET",
 					credentials: "include",
 					headers: {
@@ -156,7 +159,7 @@ export default function DebugPage() {
 				<h2 className="text-xl font-semibold mb-2">Remember:</h2>
 				<p>
 					Check your browser&apos;s Developer Console (F12) for additional
-					logging output from AuthGuard.
+					logging output from the Better Auth client and server session fetches.
 				</p>
 			</section>
 		</div>

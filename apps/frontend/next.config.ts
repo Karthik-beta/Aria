@@ -57,7 +57,7 @@ const nextConfig: NextConfig = {
 			},
 			{
 				source: "/asset/dashboard",
-				destination: "/crm/dashboard/overview",
+				destination: "/asset/dashboard/overview",
 				permanent: false,
 			},
 			{
@@ -67,7 +67,7 @@ const nextConfig: NextConfig = {
 			},
 			{
 				source: "/hrms/dashboard",
-				destination: "/crm/dashboard/overview",
+				destination: "/hrms/dashboard/overview",
 				permanent: false,
 			},
 			{

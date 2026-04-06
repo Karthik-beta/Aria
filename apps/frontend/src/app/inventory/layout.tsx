@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { AppAccessBoundary } from "@/components/auth/app-access-boundary";
-import { AuthorizationProvider } from "@/components/auth/authorization-provider";
+import { AuthStateProvider } from "@/components/auth/auth-state-provider";
 import KBar from "@/components/kbar";
 import AppSidebar from "@/components/layout/app-sidebar";
 import Header from "@/components/layout/header";
@@ -9,8 +9,9 @@ import Providers from "@/components/layout/providers";
 import ThemeProvider from "@/components/layout/ThemeToggle/theme-provider";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { Toaster } from "@/components/ui/sonner";
+import { AUTH_CONFIG } from "@/config/auth";
 import { getActiveThemeValue } from "@/lib/active-theme.server";
-import { getAuthorizationData } from "@/lib/auth/server";
+import { requireProtectedAuthState } from "@/lib/auth/server";
 import { SIDEBAR_COOKIE_NAME } from "@/lib/cookies";
 
 export const metadata: Metadata = {
@@ -32,7 +33,9 @@ export default async function InventoryLayout({
 	const sidebarCookie = cookieStore.get(SIDEBAR_COOKIE_NAME)?.value;
 	const defaultOpen = sidebarCookie === "true";
 	const activeThemeValue = await getActiveThemeValue();
-	const authorization = await getAuthorizationData();
+	const authState = await requireProtectedAuthState({
+		callbackUrl: AUTH_CONFIG.appRedirects.inventory,
+	});
 
 	return (
 		<ThemeProvider
@@ -43,7 +46,7 @@ export default async function InventoryLayout({
 			enableColorScheme
 		>
 			<Providers activeThemeValue={activeThemeValue}>
-				<AuthorizationProvider value={authorization}>
+				<AuthStateProvider value={authState}>
 					<Toaster />
 					<AppAccessBoundary appKey="inventory">
 						<KBar>
@@ -58,7 +61,7 @@ export default async function InventoryLayout({
 							</SidebarProvider>
 						</KBar>
 					</AppAccessBoundary>
-				</AuthorizationProvider>
+				</AuthStateProvider>
 			</Providers>
 		</ThemeProvider>
 	);

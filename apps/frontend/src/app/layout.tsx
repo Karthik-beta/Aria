@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from "next";
 import Script from "next/script";
-import { AuthGuard } from "@/components/auth/auth-guard";
 import { getActiveThemeValue } from "@/lib/active-theme.server";
 import { fontVariables } from "@/lib/font";
 import { TRPCProvider } from "@/lib/trpc";
@@ -77,9 +76,7 @@ export default async function RootLayout({
 				<Script id="theme-color-sync" strategy="beforeInteractive">
 					{themeColorSyncScript}
 				</Script>
-				<TRPCProvider>
-					<AuthGuard>{children}</AuthGuard>
-				</TRPCProvider>
+				<TRPCProvider>{children}</TRPCProvider>
 			</body>
 		</html>
 	);

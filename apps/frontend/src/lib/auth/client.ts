@@ -21,7 +21,7 @@ export const authClient = createAuthClient({
 	fetchOptions: {
 		credentials: "include", // Include cookies for cross-site requests
 		onError(context) {
-			// Silent error handling - AuthGuard will manage redirects
+			// Silent error handling - protected layouts handle redirects on the server
 			// Only log server errors in development
 			if (
 				process.env.NODE_ENV === "development" &&

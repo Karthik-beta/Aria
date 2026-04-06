@@ -24,20 +24,12 @@ let mockAuthLoading = false;
 
 vi.mock("@/hooks/use-auth", () => ({
 	useAuth: () => ({
+		user: {
+			name: "System Administrator",
+			email: "admin@aria.local",
+		},
 		canAccessApp: (key: string) => mockCanAccessApp(key),
 		isLoading: mockAuthLoading,
-	}),
-}));
-
-vi.mock("@/lib/auth/client", () => ({
-	useSession: () => ({
-		data: {
-			user: {
-				name: "System Administrator",
-				email: "admin@aria.local",
-			},
-		},
-		isPending: false,
 	}),
 }));
 

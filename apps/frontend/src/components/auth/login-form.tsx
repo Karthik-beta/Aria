@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { getAuthRedirectUrl } from "@/config/auth";
 import { authClient } from "@/lib/auth/client";
 
 /**
@@ -21,7 +22,7 @@ import { authClient } from "@/lib/auth/client";
  *
  * Uses better-auth with username plugin for authentication.
  */
-export function LoginForm() {
+export function LoginForm({ callbackUrl }: { callbackUrl?: string | null }) {
 	const [identifier, setIdentifier] = useState("");
 	const [password, setPassword] = useState("");
 	const [showPassword, setShowPassword] = useState(false);
@@ -73,8 +74,11 @@ export function LoginForm() {
 						"mustChangePassword" in user &&
 						(user as Record<string, unknown>).mustChangePassword,
 				);
+				const redirectTarget = getAuthRedirectUrl(callbackUrl ?? null);
 
-				router.push(mustChangePassword ? "/auth/change-password" : "/");
+				router.push(
+					mustChangePassword ? "/auth/change-password" : redirectTarget,
+				);
 				router.refresh();
 			}
 		} catch {

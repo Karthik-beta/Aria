@@ -36,7 +36,6 @@ import {
 } from "@/components/ui/sidebar";
 import { UserAvatarProfile } from "@/components/user-avatar-profile";
 import { useAuth } from "@/hooks/use-auth";
-import { useSession } from "@/lib/auth/client";
 import { getAppNavItems } from "../../constants/app-nav-data";
 import { useMediaQuery } from "../../hooks/use-media-query";
 import type { NavItem } from "../../types";
@@ -241,13 +240,7 @@ NavItemComponent.displayName = "NavItemComponent";
 export default function AppSidebar() {
 	const pathname = usePathname();
 	useMediaQuery();
-	const { data: session } = useSession();
-	const { canAccessApp, isLoading: authLoading } = useAuth();
-	const [isHydrated, setIsHydrated] = React.useState(false);
-
-	React.useEffect(() => {
-		setIsHydrated(true);
-	}, []);
+	const { canAccessApp, isLoading: authLoading, user: sessionUser } = useAuth();
 
 	const accessibleApps = React.useMemo(() => {
 		if (authLoading) {
@@ -260,11 +253,7 @@ export default function AppSidebar() {
 
 	// Map auth session user shape to the local user shape expected by UserAvatarProfile
 	const user = React.useMemo(() => {
-		if (!isHydrated) {
-			return fallbackUser;
-		}
-
-		const su = session?.user;
+		const su = sessionUser;
 		if (!hasProperty(su, "name") && !hasProperty(su, "email"))
 			return fallbackUser;
 
@@ -309,7 +298,7 @@ export default function AppSidebar() {
 			emailAddresses: [{ emailAddress: getEmail() }],
 			imageUrl: getImageUrl(),
 		};
-	}, [isHydrated, session]);
+	}, [sessionUser]);
 
 	// Memoize active app calculation to avoid recalculation on every render
 	const activeApp = React.useMemo(

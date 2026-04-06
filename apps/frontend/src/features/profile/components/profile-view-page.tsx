@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useSession } from "@/lib/auth/client";
+import { useAuth } from "@/hooks/use-auth";
 
 /**
  * Type guard to check if value has a specific property
@@ -14,10 +14,10 @@ function hasProperty<T extends string>(
 }
 
 export default function ProfileViewPage() {
-	const { data: session } = useSession();
+	const { user: sessionUser } = useAuth();
 
 	const profile = React.useMemo(() => {
-		const u = session?.user;
+		const u = sessionUser;
 
 		const fallback = {
 			name: "Admin",
@@ -68,7 +68,7 @@ export default function ProfileViewPage() {
 			role: getRole(),
 			phone: getPhone(),
 		};
-	}, [session]);
+	}, [sessionUser]);
 
 	return (
 		<div className="flex w-full flex-col gap-6 p-4">

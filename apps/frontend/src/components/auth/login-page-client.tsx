@@ -9,9 +9,13 @@ import { Icons } from "@/components/icons";
  * Revamped to a responsive split-screen layout:
  * - Left hero panel (visible ≥ lg) with brand, marketing points, and decorative
  * - Right panel hosts the actual <LoginForm /> card
- * Public auth pages still bypass AuthGuard (see AuthGuard notes).
+ * Public auth pages are intentionally left outside the protected layout flow.
  */
-export default function LoginPageClient() {
+export default function LoginPageClient({
+	callbackUrl,
+}: {
+	callbackUrl?: string | null;
+}) {
 	return (
 		<div className="min-h-screen flex flex-col lg:flex-row bg-background">
 			{/* Hero / Marketing Panel */}
@@ -57,7 +61,7 @@ export default function LoginPageClient() {
 			{/* Auth Panel */}
 			<main className="flex flex-1 items-center justify-center p-6 sm:p-10">
 				<div className="w-full max-w-md space-y-6">
-					<LoginForm />
+					<LoginForm callbackUrl={callbackUrl} />
 					<p className="text-center text-xs text-muted-foreground">
 						Authorized personnel only. All access attempts are logged.
 					</p>

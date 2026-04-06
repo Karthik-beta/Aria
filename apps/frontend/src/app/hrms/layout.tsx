@@ -1,9 +1,12 @@
 import type { Metadata } from "next";
 import { AppAccessBoundary } from "@/components/auth/app-access-boundary";
+import { AuthStateProvider } from "@/components/auth/auth-state-provider";
 import Providers from "@/components/layout/providers";
 import ThemeProvider from "@/components/layout/ThemeToggle/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
+import { AUTH_CONFIG } from "@/config/auth";
 import { getActiveThemeValue } from "@/lib/active-theme.server";
+import { requireProtectedAuthState } from "@/lib/auth/server";
 
 export const metadata: Metadata = {
 	title: "HRMS by Pivotr",
@@ -21,6 +24,9 @@ export default async function HRMSLayout({
 	children: React.ReactNode;
 }) {
 	const activeThemeValue = await getActiveThemeValue();
+	const authState = await requireProtectedAuthState({
+		callbackUrl: AUTH_CONFIG.appRedirects.hrms,
+	});
 
 	return (
 		<ThemeProvider
@@ -31,8 +37,10 @@ export default async function HRMSLayout({
 			enableColorScheme
 		>
 			<Providers activeThemeValue={activeThemeValue}>
-				<Toaster />
-				<AppAccessBoundary appKey="hrms">{children}</AppAccessBoundary>
+				<AuthStateProvider value={authState}>
+					<Toaster />
+					<AppAccessBoundary appKey="hrms">{children}</AppAccessBoundary>
+				</AuthStateProvider>
 			</Providers>
 		</ThemeProvider>
 	);

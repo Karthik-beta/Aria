@@ -1,143 +1,118 @@
 /**
  * Root HomePage Tests
  *
- * Tests the initial redirect logic that routes authenticated users
- * to their first accessible app based on priority and authorization.
+ * Tests the server-side redirect logic that routes authenticated users to
+ * their first accessible app based on priority and authorization.
  */
 
-import { render, screen, waitFor } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mockReplace = vi.fn();
-
-vi.mock("next/navigation", () => ({
-	useRouter: () => ({
-		replace: mockReplace,
-		push: vi.fn(),
-		prefetch: vi.fn(),
-		back: vi.fn(),
+const { mockRedirect, mockRequireProtectedAuthState } = vi.hoisted(() => ({
+	mockRedirect: vi.fn((url: string) => {
+		throw new Error(`NEXT_REDIRECT:${url}`);
 	}),
+	mockRequireProtectedAuthState: vi.fn(),
 }));
 
-// Default mock: unauthenticated
-interface MockAuthReturn {
-	apps: Record<string, unknown>;
-	isAuthenticated: boolean;
-	isLoading: boolean;
-	hasRole: (r: string) => boolean;
-	canAccessApp: (k: string) => boolean;
-}
+vi.mock("next/navigation", () => ({
+	redirect: mockRedirect,
+}));
 
-const defaultAuth: MockAuthReturn = {
-	apps: {},
-	isAuthenticated: false,
-	isLoading: false,
-	hasRole: () => false,
-	canAccessApp: () => false,
-};
-
-const mockAuth = vi.fn<() => MockAuthReturn>(() => ({ ...defaultAuth }));
-
-vi.mock("@/hooks/use-auth", () => ({
-	useAuth: () => mockAuth(),
+vi.mock("@/lib/auth/server", () => ({
+	requireProtectedAuthState: () => mockRequireProtectedAuthState(),
 }));
 
 import HomePage from "./page";
 
 describe("HomePage — app redirect logic", () => {
 	beforeEach(() => {
-		mockReplace.mockClear();
-		mockAuth.mockClear();
+		mockRedirect.mockClear();
+		mockRequireProtectedAuthState.mockReset();
 	});
 
-	afterEach(() => {
-		vi.restoreAllMocks();
-	});
+	it("redirects unauthenticated requests through the protected auth helper", async () => {
+		mockRequireProtectedAuthState.mockRejectedValue(
+			new Error("NEXT_REDIRECT:/auth/sign-in?callbackUrl=%2F"),
+		);
 
-	it("shows loading UI while auth is pending", () => {
-		mockAuth.mockReturnValue({ ...defaultAuth, isLoading: true });
-
-		render(<HomePage />);
-		expect(screen.getByText("Preparing your workspace...")).toBeInTheDocument();
-		expect(mockReplace).not.toHaveBeenCalled();
-	});
-
-	it("does not redirect when unauthenticated", () => {
-		mockAuth.mockReturnValue({ ...defaultAuth });
-
-		render(<HomePage />);
-		expect(mockReplace).not.toHaveBeenCalled();
+		await expect(HomePage()).rejects.toThrow(
+			"NEXT_REDIRECT:/auth/sign-in?callbackUrl=%2F",
+		);
+		expect(mockRedirect).not.toHaveBeenCalled();
 	});
 
 	it("redirects super_admin to /inventory (highest priority)", async () => {
-		mockAuth.mockReturnValue({
-			...defaultAuth,
-			apps: { inventory: { roles: ["admin"] } },
-			isAuthenticated: true,
-			hasRole: (r: string) => r === "super_admin",
-			canAccessApp: () => true,
+		mockRequireProtectedAuthState.mockResolvedValue({
+			authorization: {
+				roles: ["super_admin"],
+				permissions: ["system:*"],
+				apps: { inventory: { roles: ["admin"] } },
+				supervisedApps: [],
+				isActive: true,
+			},
 		});
 
-		render(<HomePage />);
-
-		await waitFor(() => {
-			expect(mockReplace).toHaveBeenCalledWith("/inventory");
-		});
+		await expect(HomePage()).rejects.toThrow("NEXT_REDIRECT:/inventory");
+		expect(mockRedirect).toHaveBeenCalledWith("/inventory");
 	});
 
 	it("redirects to first accessible app by APP_PRIORITY", async () => {
-		// User can only access crm and hrms — crm comes first in priority
-		mockAuth.mockReturnValue({
-			...defaultAuth,
-			apps: { crm: { roles: ["user"] }, hrms: { roles: ["user"] } },
-			isAuthenticated: true,
-			canAccessApp: (key: string) => key === "crm" || key === "hrms",
+		mockRequireProtectedAuthState.mockResolvedValue({
+			authorization: {
+				roles: ["user"],
+				permissions: [],
+				apps: { crm: { roles: ["user"] }, hrms: { roles: ["user"] } },
+				supervisedApps: [],
+				isActive: true,
+			},
 		});
 
-		render(<HomePage />);
-
-		await waitFor(() => {
-			expect(mockReplace).toHaveBeenCalledWith("/crm");
-		});
+		await expect(HomePage()).rejects.toThrow("NEXT_REDIRECT:/crm");
+		expect(mockRedirect).toHaveBeenCalledWith("/crm");
 	});
 
 	it("redirects to /asset when only asset is accessible", async () => {
-		mockAuth.mockReturnValue({
-			...defaultAuth,
-			apps: { asset: { roles: ["viewer"] } },
-			isAuthenticated: true,
-			canAccessApp: (key: string) => key === "asset",
+		mockRequireProtectedAuthState.mockResolvedValue({
+			authorization: {
+				roles: ["viewer"],
+				permissions: [],
+				apps: { asset: { roles: ["viewer"] } },
+				supervisedApps: [],
+				isActive: true,
+			},
 		});
 
-		render(<HomePage />);
-
-		await waitFor(() => {
-			expect(mockReplace).toHaveBeenCalledWith("/asset");
-		});
+		await expect(HomePage()).rejects.toThrow("NEXT_REDIRECT:/asset");
+		expect(mockRedirect).toHaveBeenCalledWith("/asset");
 	});
 
 	it("falls back to /inventory when authenticated but no apps match", async () => {
-		mockAuth.mockReturnValue({ ...defaultAuth, isAuthenticated: true });
-
-		render(<HomePage />);
-
-		await waitFor(() => {
-			expect(mockReplace).toHaveBeenCalledWith("/inventory");
+		mockRequireProtectedAuthState.mockResolvedValue({
+			authorization: {
+				roles: ["user"],
+				permissions: [],
+				apps: {},
+				supervisedApps: [],
+				isActive: true,
+			},
 		});
+
+		await expect(HomePage()).rejects.toThrow("NEXT_REDIRECT:/inventory");
+		expect(mockRedirect).toHaveBeenCalledWith("/inventory");
 	});
 
 	it("redirects to /hrms when only hrms is accessible (lowest priority)", async () => {
-		mockAuth.mockReturnValue({
-			...defaultAuth,
-			apps: { hrms: { roles: ["user"] } },
-			isAuthenticated: true,
-			canAccessApp: (key: string) => key === "hrms",
+		mockRequireProtectedAuthState.mockResolvedValue({
+			authorization: {
+				roles: ["user"],
+				permissions: [],
+				apps: { hrms: { roles: ["user"] } },
+				supervisedApps: [],
+				isActive: true,
+			},
 		});
 
-		render(<HomePage />);
-
-		await waitFor(() => {
-			expect(mockReplace).toHaveBeenCalledWith("/hrms");
-		});
+		await expect(HomePage()).rejects.toThrow("NEXT_REDIRECT:/hrms");
+		expect(mockRedirect).toHaveBeenCalledWith("/hrms");
 	});
 });

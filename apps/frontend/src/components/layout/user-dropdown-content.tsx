@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { UserAvatarProfile } from "@/components/user-avatar-profile";
 import { useAuth } from "@/hooks/use-auth";
-import { signOut, useSession } from "@/lib/auth/client";
+import { signOut } from "@/lib/auth/client";
 
 /**
  * Type guard to check if value has a specific property
@@ -37,13 +37,12 @@ type Props = {
 };
 
 export default function UserDropdownContent({ appRoute, className }: Props) {
-	const { data: session } = useSession();
-	const { roles } = useAuth();
+	const { isActive, roles, user: sessionUser, hasAnyRole } = useAuth();
 	const router = useRouter();
 	const pathname = usePathname();
 
 	const user = React.useMemo(() => {
-		const su = session?.user;
+		const su = sessionUser;
 
 		const fallback = {
 			fullName: "User",
@@ -94,7 +93,7 @@ export default function UserDropdownContent({ appRoute, className }: Props) {
 			emailAddresses: [{ emailAddress: getEmail() }],
 			imageUrl: getImageUrl(),
 		};
-	}, [session]);
+	}, [sessionUser]);
 
 	const prefix = React.useMemo(() => {
 		if (appRoute) return appRoute;
@@ -104,14 +103,14 @@ export default function UserDropdownContent({ appRoute, className }: Props) {
 	}, [appRoute, pathname]);
 
 	// Check if user has admin access based on roles from user authorization
-	const hasAdminAccess = React.useMemo(() => {
-		if (roles.length === 0) return false;
-
-		// Check if any role key contains 'admin' or 'super_admin'
-		return roles.some((roleKey) =>
-			["admin", "super_admin"].includes(roleKey.toLowerCase()),
-		);
-	}, [roles]);
+	const hasAdminAccess = React.useMemo(
+		() =>
+			isActive &&
+			roles.length > 0 &&
+			(hasAnyRole("admin", "super_admin") ||
+				roles.some((roleKey) => roleKey.toLowerCase().includes("admin"))),
+		[hasAnyRole, isActive, roles],
+	);
 
 	return (
 		<DropdownMenuContent

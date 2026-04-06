@@ -26,19 +26,36 @@ export const AUTH_CONFIG = {
 	},
 
 	// Default redirect if no app is specified
-	defaultRedirect: "/dashboard",
+	defaultRedirect: "/inventory/dashboard/overview",
 
 	// Public routes that don't require authentication
-	publicRoutes: ["/", "/auth/sign-in", "/auth/sign-up"],
+	publicRoutes: [
+		"/auth/sign-in",
+		"/auth/sign-up",
+		"/auth/forgot-password",
+		"/auth/reset-password",
+	],
 
 	// Protected route patterns
-	protectedPatterns: [
-		"/asset/dashboard",
-		"/crm/dashboard",
-		"/hrms/dashboard",
-		"/inventory/dashboard",
-	],
+	protectedPatterns: ["/", "/admin", "/asset", "/crm", "/hrms", "/inventory"],
 } as const;
+
+/**
+ * Normalize a callback URL so only in-app relative redirects are allowed.
+ */
+export function normalizeCallbackUrl(
+	callbackUrl: string | null,
+): string | null {
+	if (!callbackUrl) {
+		return null;
+	}
+
+	if (!callbackUrl.startsWith("/") || callbackUrl.startsWith("//")) {
+		return null;
+	}
+
+	return callbackUrl;
+}
 
 /**
  * Detect which app the user is trying to access from the callback URL
@@ -60,13 +77,15 @@ export function detectAppFromCallbackUrl(
  * Get the appropriate redirect URL based on the callback URL or app context
  */
 export function getAuthRedirectUrl(callbackUrl: string | null): string {
+	const normalizedCallbackUrl = normalizeCallbackUrl(callbackUrl);
+
 	// If callback URL is provided, use it
-	if (callbackUrl) {
-		return callbackUrl;
+	if (normalizedCallbackUrl) {
+		return normalizedCallbackUrl;
 	}
 
 	// Detect app from callback and return appropriate default
-	const app = detectAppFromCallbackUrl(callbackUrl);
+	const app = detectAppFromCallbackUrl(normalizedCallbackUrl);
 	if (app) {
 		return AUTH_CONFIG.appRedirects[app];
 	}
@@ -80,8 +99,9 @@ export function getAuthRedirectUrl(callbackUrl: string | null): string {
  */
 export function buildSignInUrl(callbackUrl?: string): string {
 	const url = AUTH_CONFIG.routes.signIn;
-	if (callbackUrl) {
-		return `${url}?callbackUrl=${encodeURIComponent(callbackUrl)}`;
+	const normalizedCallbackUrl = normalizeCallbackUrl(callbackUrl ?? null);
+	if (normalizedCallbackUrl) {
+		return `${url}?callbackUrl=${encodeURIComponent(normalizedCallbackUrl)}`;
 	}
 	return url;
 }
@@ -91,8 +111,9 @@ export function buildSignInUrl(callbackUrl?: string): string {
  */
 export function buildSignUpUrl(callbackUrl?: string): string {
 	const url = AUTH_CONFIG.routes.signUp;
-	if (callbackUrl) {
-		return `${url}?callbackUrl=${encodeURIComponent(callbackUrl)}`;
+	const normalizedCallbackUrl = normalizeCallbackUrl(callbackUrl ?? null);
+	if (normalizedCallbackUrl) {
+		return `${url}?callbackUrl=${encodeURIComponent(normalizedCallbackUrl)}`;
 	}
 	return url;
 }
