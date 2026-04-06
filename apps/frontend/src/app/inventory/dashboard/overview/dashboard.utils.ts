@@ -15,6 +15,12 @@ const QUANTITY_FMT = new Intl.NumberFormat("en-IN", {
 	maximumFractionDigits: 0,
 });
 
+const SHORT_MONTH_DAY_UTC = new Intl.DateTimeFormat("en-IN", {
+	day: "2-digit",
+	month: "short",
+	timeZone: "UTC",
+});
+
 export function formatCurrency(value: number): string {
 	return INR.format(value);
 }
@@ -34,10 +40,18 @@ export function formatCompact(value: number): string {
 	return COMPACT.format(value);
 }
 
-export function formatRelativeDate(date: Date | string): string {
+/**
+ * Formats a dashboard activity timestamp relative to a stable reference time.
+ *
+ * Passing a server snapshot time keeps the server-rendered HTML and hydrated
+ * client text identical, which avoids React hydration mismatches.
+ */
+export function formatRelativeDate(
+	date: Date | string,
+	referenceTime = Date.now(),
+): string {
 	const d = typeof date === "string" ? new Date(date) : date;
-	const now = new Date();
-	const diffMs = now.getTime() - d.getTime();
+	const diffMs = referenceTime - d.getTime();
 	const diffMins = Math.floor(diffMs / 60_000);
 	if (diffMins < 1) return "Just now";
 	if (diffMins < 60) return `${diffMins}m ago`;
@@ -45,12 +59,12 @@ export function formatRelativeDate(date: Date | string): string {
 	if (diffHrs < 24) return `${diffHrs}h ago`;
 	const diffDays = Math.floor(diffHrs / 24);
 	if (diffDays < 7) return `${diffDays}d ago`;
-	return d.toLocaleDateString("en-IN", { day: "2-digit", month: "short" });
+	return SHORT_MONTH_DAY_UTC.format(d);
 }
 
 export function formatShortDate(date: string): string {
 	const d = new Date(date);
-	return d.toLocaleDateString("en-IN", { day: "2-digit", month: "short" });
+	return SHORT_MONTH_DAY_UTC.format(d);
 }
 
 // ── Stock Entry Type Labels ───────────────────────────────────────────

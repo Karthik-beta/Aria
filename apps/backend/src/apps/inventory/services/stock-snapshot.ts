@@ -1,11 +1,9 @@
+import { Prisma } from "../../../generated/prisma/client";
 import type { PrismaService } from "../../../shared/prisma.service";
 
 type StockSnapshotQueryClient = Pick<
 	PrismaService,
-	| "inventoryItem"
-	| "purchaseReceiptItem"
-	| "stockEntryItem"
-	| "deliveryNoteItem"
+	"client" | "inventoryItem"
 > & {
 	inventoryItem: {
 		findMany: PrismaService["inventoryItem"]["findMany"];
@@ -42,84 +40,84 @@ export async function buildCommittedStockSnapshot(
 	options: StockSnapshotOptions = {},
 ): Promise<Map<string, number>> {
 	const itemCodes = resolveItemCodes(options.itemCodes);
-	const itemCodeFilter = itemCodes ? { itemCode: { in: itemCodes } } : {};
+	const purchaseReceiptItemFilter = itemCodes
+		? Prisma.sql`AND pri."itemCode" IN (${Prisma.join(itemCodes)})`
+		: Prisma.empty;
+	const stockEntryItemFilter = itemCodes
+		? Prisma.sql`AND sei."itemCode" IN (${Prisma.join(itemCodes)})`
+		: Prisma.empty;
+	const deliveryNoteItemFilter = itemCodes
+		? Prisma.sql`AND dni."itemCode" IN (${Prisma.join(itemCodes)})`
+		: Prisma.empty;
+	const purchaseReceiptCompanyFilter = options.company
+		? Prisma.sql`AND pr.company = ${options.company}`
+		: Prisma.empty;
+	const stockEntryCompanyFilter = options.company
+		? Prisma.sql`AND se.company = ${options.company}`
+		: Prisma.empty;
+	const deliveryNoteCompanyFilter = options.company
+		? Prisma.sql`AND dn.company = ${options.company}`
+		: Prisma.empty;
+	const snapshotRows = await prisma.client.$queryRaw<
+		Array<{ itemCode: string; quantity: number | null }>
+	>(Prisma.sql`
+		SELECT movement.item_code AS "itemCode", SUM(movement.quantity_delta) AS "quantity"
+		FROM (
+			SELECT pri."itemCode" AS item_code, SUM(pri."acceptedQuantity") AS quantity_delta
+			FROM purchase_receipt_items pri
+			INNER JOIN purchase_receipts pr ON pr.id = pri."purchaseReceiptId"
+			WHERE pr.status NOT IN ('DRAFT', 'CANCELLED')
+				AND pr."isReturn" = false
+				${purchaseReceiptCompanyFilter}
+				${purchaseReceiptItemFilter}
+			GROUP BY pri."itemCode"
 
-	const [purchaseReceiptItems, stockEntryItems, deliveryNoteItems] =
-		await Promise.all([
-			prisma.purchaseReceiptItem.findMany({
-				where: {
-					...itemCodeFilter,
-					purchaseReceipt: {
-						status: { notIn: ["DRAFT", "CANCELLED"] },
-						isReturn: false,
-						...(options.company ? { company: options.company } : {}),
-					},
-				},
-				select: {
-					itemCode: true,
-					acceptedQuantity: true,
-				},
-			}),
-			prisma.stockEntryItem.findMany({
-				where: {
-					...itemCodeFilter,
-					stockEntry: {
-						status: "SUBMITTED",
-						...(options.company ? { company: options.company } : {}),
-					},
-				},
-				select: {
-					itemCode: true,
-					qty: true,
-					sourceWarehouse: true,
-					targetWarehouse: true,
-					stockEntry: {
-						select: {
-							defaultSourceWarehouse: true,
-							defaultTargetWarehouse: true,
-						},
-					},
-				},
-			}),
-			prisma.deliveryNoteItem.findMany({
-				where: {
-					...itemCodeFilter,
-					deliveryNote: {
-						status: { notIn: ["DRAFT", "CANCELLED"] },
-						isReturn: false,
-						...(options.company ? { company: options.company } : {}),
-					},
-				},
-				select: {
-					itemCode: true,
-					quantity: true,
-				},
-			}),
-		]);
+			UNION ALL
+
+			SELECT
+				sei."itemCode" AS item_code,
+				SUM(
+					CASE
+						WHEN COALESCE(
+							sei."targetWarehouse",
+							se."defaultTargetWarehouse"
+						) IS NOT NULL THEN sei.qty
+						ELSE 0
+					END
+					-
+					CASE
+						WHEN COALESCE(
+							sei."sourceWarehouse",
+							se."defaultSourceWarehouse"
+						) IS NOT NULL THEN sei.qty
+						ELSE 0
+					END
+				) AS quantity_delta
+			FROM stock_entry_items sei
+			INNER JOIN stock_entries se ON se.id = sei."stockEntryId"
+			WHERE se.status = 'SUBMITTED'
+				${stockEntryCompanyFilter}
+				${stockEntryItemFilter}
+			GROUP BY sei."itemCode"
+
+			UNION ALL
+
+			SELECT dni."itemCode" AS item_code, -SUM(dni.quantity) AS quantity_delta
+			FROM delivery_note_items dni
+			INNER JOIN delivery_notes dn ON dn.id = dni."deliveryNoteId"
+			WHERE dn.status NOT IN ('DRAFT', 'CANCELLED')
+				AND dn."isReturn" = false
+				${deliveryNoteCompanyFilter}
+				${deliveryNoteItemFilter}
+			GROUP BY dni."itemCode"
+		) movement
+		GROUP BY movement.item_code
+	`);
 
 	const snapshot = new Map<string, number>();
 
-	for (const item of purchaseReceiptItems) {
-		addQuantity(snapshot, item.itemCode, item.acceptedQuantity);
-	}
-
-	for (const item of stockEntryItems) {
-		const sourceWarehouse =
-			item.sourceWarehouse ?? item.stockEntry.defaultSourceWarehouse;
-		const targetWarehouse =
-			item.targetWarehouse ?? item.stockEntry.defaultTargetWarehouse;
-
-		if (targetWarehouse) {
-			addQuantity(snapshot, item.itemCode, item.qty);
-		}
-
-		if (sourceWarehouse) {
-			addQuantity(snapshot, item.itemCode, -item.qty);
-		}
-	}
-
-	for (const item of deliveryNoteItems) {
-		addQuantity(snapshot, item.itemCode, -item.quantity);
+	for (const row of snapshotRows) {
+		addQuantity(snapshot, row.itemCode, Number(row.quantity ?? 0));
 	}
 
 	return snapshot;

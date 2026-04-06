@@ -106,13 +106,10 @@ describe("DashboardSubService › getKpis", () => {
 				itemGroup: { groupName: "Hardware" },
 			},
 		]);
-		mp.purchaseReceiptItem.findMany.mockResolvedValue([
-			{ itemCode: "ITEM-A", acceptedQuantity: 30 },
-			{ itemCode: "ITEM-B", acceptedQuantity: 20 },
-			{ itemCode: "ITEM-C", acceptedQuantity: 25 },
-		]);
-		mp.deliveryNoteItem.findMany.mockResolvedValue([
-			{ itemCode: "ITEM-C", quantity: 5 },
+		mp.client.$queryRaw.mockResolvedValueOnce([
+			{ itemCode: "ITEM-A", quantity: 30 },
+			{ itemCode: "ITEM-B", quantity: 20 },
+			{ itemCode: "ITEM-C", quantity: 20 },
 		]);
 
 		const result = await service.getDashboardData();
@@ -137,11 +134,8 @@ describe("DashboardSubService › getKpis", () => {
 				itemGroup: { groupName: "Electronics" },
 			},
 		]);
-		mp.purchaseReceiptItem.findMany.mockResolvedValue([
-			{ itemCode: "LOW-001", acceptedQuantity: 10 },
-		]);
-		mp.deliveryNoteItem.findMany.mockResolvedValue([
-			{ itemCode: "LOW-001", quantity: 3 },
+		mp.client.$queryRaw.mockResolvedValueOnce([
+			{ itemCode: "LOW-001", quantity: 7 },
 		]);
 
 		const result = await service.getDashboardData();
@@ -353,10 +347,10 @@ describe("DashboardSubService › getItemGroupDistribution", () => {
 				itemGroup: { groupName: "Electronics" },
 			},
 		]);
-		mp.purchaseReceiptItem.findMany.mockResolvedValue([
-			{ itemCode: "ELEC-001", acceptedQuantity: 10 },
-			{ itemCode: "FURN-001", acceptedQuantity: 5 },
-			{ itemCode: "ELEC-002", acceptedQuantity: 2 },
+		mp.client.$queryRaw.mockResolvedValueOnce([
+			{ itemCode: "ELEC-001", quantity: 10 },
+			{ itemCode: "FURN-001", quantity: 5 },
+			{ itemCode: "ELEC-002", quantity: 2 },
 		]);
 
 		const result = await service.getDashboardData();
@@ -385,8 +379,8 @@ describe("DashboardSubService › getItemGroupDistribution", () => {
 				itemGroup: null,
 			},
 		]);
-		mp.purchaseReceiptItem.findMany.mockResolvedValue([
-			{ itemCode: "UNCAT-001", acceptedQuantity: 3 },
+		mp.client.$queryRaw.mockResolvedValueOnce([
+			{ itemCode: "UNCAT-001", quantity: 3 },
 		]);
 
 		const result = await service.getDashboardData();
@@ -404,8 +398,8 @@ describe("DashboardSubService › getItemGroupDistribution", () => {
 				itemGroup: { groupName: "Misc" },
 			},
 		]);
-		mp.purchaseReceiptItem.findMany.mockResolvedValue([
-			{ itemCode: "MISC-001", acceptedQuantity: 10 },
+		mp.client.$queryRaw.mockResolvedValueOnce([
+			{ itemCode: "MISC-001", quantity: 10 },
 		]);
 
 		const result = await service.getDashboardData();
@@ -723,14 +717,10 @@ describe("DashboardSubService › getStockEntryTypeBreakdown", () => {
 	});
 
 	it("groups entries by type with count and aggregated qty, sorted by count desc", async () => {
-		mp.stockEntry.groupBy.mockResolvedValue([
-			{ stockEntryType: "MATERIAL_RECEIPT", _count: 42 },
-			{ stockEntryType: "MATERIAL_ISSUE", _count: 18 },
+		mp.client.$queryRaw.mockResolvedValueOnce([]).mockResolvedValueOnce([
+			{ type: "MATERIAL_RECEIPT", count: 42, totalQty: 840 },
+			{ type: "MATERIAL_ISSUE", count: 18, totalQty: 360 },
 		]);
-		// stockEntryItem.aggregate is called once per type
-		mp.stockEntryItem.aggregate
-			.mockResolvedValueOnce({ _sum: { qty: 840 } }) // MATERIAL_RECEIPT
-			.mockResolvedValueOnce({ _sum: { qty: 360 } }); // MATERIAL_ISSUE
 
 		const result = await service.getDashboardData();
 
@@ -749,10 +739,11 @@ describe("DashboardSubService › getStockEntryTypeBreakdown", () => {
 	});
 
 	it("handles null qty sum as 0", async () => {
-		mp.stockEntry.groupBy.mockResolvedValue([
-			{ stockEntryType: "MANUFACTURE", _count: 5 },
-		]);
-		mp.stockEntryItem.aggregate.mockResolvedValue({ _sum: { qty: null } });
+		mp.client.$queryRaw
+			.mockResolvedValueOnce([])
+			.mockResolvedValueOnce([
+				{ type: "MANUFACTURE", count: 5, totalQty: null },
+			]);
 
 		const result = await service.getDashboardData();
 
@@ -789,8 +780,8 @@ describe("DashboardSubService › getLowStockItems", () => {
 				itemGroup: { groupName: "Components" },
 			},
 		]);
-		mp.purchaseReceiptItem.findMany.mockResolvedValue([
-			{ itemCode: "LOW-001", acceptedQuantity: 5 },
+		mp.client.$queryRaw.mockResolvedValueOnce([
+			{ itemCode: "LOW-001", quantity: 5 },
 		]);
 
 		const result = await service.getDashboardData();
@@ -816,8 +807,8 @@ describe("DashboardSubService › getLowStockItems", () => {
 				itemGroup: { groupName: "Components" },
 			},
 		]);
-		mp.purchaseReceiptItem.findMany.mockResolvedValue([
-			{ itemCode: "OK-001", acceptedQuantity: 25 },
+		mp.client.$queryRaw.mockResolvedValueOnce([
+			{ itemCode: "OK-001", quantity: 25 },
 		]);
 
 		const result = await service.getDashboardData();
@@ -867,8 +858,8 @@ describe("DashboardSubService › getDashboardData (shape)", () => {
 				itemGroup: { groupName: "Shape Group" },
 			},
 		]);
-		mp.purchaseReceiptItem.findMany.mockResolvedValue([
-			{ itemCode: "SHAPE-001", acceptedQuantity: 50 },
+		mp.client.$queryRaw.mockResolvedValueOnce([
+			{ itemCode: "SHAPE-001", quantity: 50 },
 		]);
 
 		const service = createService(mp);

@@ -8,6 +8,7 @@
  * @module DashboardSubService
  */
 import type { Inventory } from "@aria/types";
+import { Prisma } from "../../../generated/prisma/client";
 import type { PrismaService } from "../../../shared/prisma.service";
 import { buildCommittedStockSnapshot } from "./stock-snapshot";
 
@@ -445,32 +446,28 @@ export class DashboardSubService {
 	private async getStockEntryTypeBreakdown(): Promise<
 		Inventory.DashboardStockEntryTypeBreakdown[]
 	> {
-		const types = await this.prisma.stockEntry.groupBy({
-			by: ["stockEntryType"],
-			where: { status: { not: "CANCELLED" } },
-			_count: true,
-		});
+		const rows = await this.prisma.client.$queryRaw<
+			Array<{
+				type: string;
+				count: number | bigint;
+				totalQty: number | null;
+			}>
+		>(Prisma.sql`
+			SELECT
+				se."stockEntryType" AS "type",
+				COUNT(DISTINCT se.id) AS "count",
+				COALESCE(SUM(sei.qty), 0) AS "totalQty"
+			FROM stock_entries se
+			LEFT JOIN stock_entry_items sei ON sei."stockEntryId" = se.id
+			WHERE se.status <> 'CANCELLED'
+			GROUP BY se."stockEntryType"
+			ORDER BY COUNT(DISTINCT se.id) DESC, se."stockEntryType" ASC
+		`);
 
-		// Get total qty per type
-		const withQty = await Promise.all(
-			types.map(async (t) => {
-				const agg = await this.prisma.stockEntryItem.aggregate({
-					where: {
-						stockEntry: {
-							stockEntryType: t.stockEntryType,
-							status: { not: "CANCELLED" },
-						},
-					},
-					_sum: { qty: true },
-				});
-				return {
-					type: t.stockEntryType,
-					count: t._count,
-					totalQty: Math.round(agg._sum.qty ?? 0),
-				};
-			}),
-		);
-
-		return withQty.sort((a, b) => b.count - a.count);
+		return rows.map((row) => ({
+			type: row.type,
+			count: Number(row.count),
+			totalQty: Math.round(Number(row.totalQty ?? 0)),
+		}));
 	}
 }

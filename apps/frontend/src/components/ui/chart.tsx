@@ -62,8 +62,11 @@ function ChartContainer({
 				{...props}
 			>
 				<ChartStyle id={chartId} config={config} />
-				{/* adding debounce will fix chart laggy behavior while animating */}
-				<RechartsPrimitive.ResponsiveContainer debounce={2000}>
+				{/* Seed a positive initial size so Recharts does not log its default -1 measurement. */}
+				<RechartsPrimitive.ResponsiveContainer
+					debounce={200}
+					initialDimension={{ width: 1, height: 1 }}
+				>
 					{children}
 				</RechartsPrimitive.ResponsiveContainer>
 			</div>

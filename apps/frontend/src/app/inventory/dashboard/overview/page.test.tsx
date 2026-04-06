@@ -1,7 +1,8 @@
 import "@testing-library/jest-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, renderWithProviders, screen } from "@/test/utils";
-import OverviewPage from "./page";
+import { InventoryOverviewCharts } from "./charts-island";
+import { InventoryOverviewClient } from "./overview-client";
 
 const { mockInvalidate, mockRefetch, mockUseQuery, mockUseSubscription } =
 	vi.hoisted(() => ({
@@ -10,6 +11,10 @@ const { mockInvalidate, mockRefetch, mockUseQuery, mockUseSubscription } =
 		mockUseQuery: vi.fn(),
 		mockUseSubscription: vi.fn(),
 	}));
+
+vi.mock("next/dynamic", () => ({
+	default: () => () => null,
+}));
 
 vi.mock("@/components/ui/chart", () => ({
 	ChartContainer: ({ children }: { children: React.ReactNode }) => (
@@ -156,7 +161,9 @@ describe("OverviewPage", () => {
 	});
 
 	it("renders every dashboard tile with populated data", () => {
-		renderWithProviders(<OverviewPage />);
+		renderWithProviders(
+			<InventoryOverviewClient ChartsComponent={InventoryOverviewCharts} />,
+		);
 
 		for (const label of [
 			"Inventory Dashboard",
@@ -179,7 +186,9 @@ describe("OverviewPage", () => {
 
 	it("renders warning insight callouts when stock health needs attention", () => {
 		// createDashboardData has lowStockItemCount=3 (of 38) and pendingMaterialRequests=1
-		renderWithProviders(<OverviewPage />);
+		renderWithProviders(
+			<InventoryOverviewClient ChartsComponent={InventoryOverviewCharts} />,
+		);
 
 		// Low stock: Math.round(3 / 38 * 100) = 8% of items need reorder
 		expect(screen.getByText("8% of items need reorder")).toBeInTheDocument();
@@ -211,7 +220,9 @@ describe("OverviewPage", () => {
 			refetch: mockRefetch,
 		});
 
-		renderWithProviders(<OverviewPage />);
+		renderWithProviders(
+			<InventoryOverviewClient ChartsComponent={InventoryOverviewCharts} />,
+		);
 
 		expect(
 			screen.getByText("All items within safe limits"),
@@ -224,7 +235,9 @@ describe("OverviewPage", () => {
 	});
 
 	it("renders per-warehouse and avg-value insights from real kpi data", () => {
-		renderWithProviders(<OverviewPage />);
+		renderWithProviders(
+			<InventoryOverviewClient ChartsComponent={InventoryOverviewCharts} />,
+		);
 
 		// Active Items: Math.round(38 / 8) = 5 items per warehouse
 		expect(screen.getByText("~5 items per warehouse")).toBeInTheDocument();
@@ -259,7 +272,9 @@ describe("OverviewPage", () => {
 			refetch: mockRefetch,
 		});
 
-		renderWithProviders(<OverviewPage />);
+		renderWithProviders(
+			<InventoryOverviewClient ChartsComponent={InventoryOverviewCharts} />,
+		);
 
 		expect(
 			screen.getByText("No committed stock movement yet"),
@@ -287,7 +302,9 @@ describe("OverviewPage", () => {
 			refetch: mockRefetch,
 		});
 
-		renderWithProviders(<OverviewPage />);
+		renderWithProviders(
+			<InventoryOverviewClient ChartsComponent={InventoryOverviewCharts} />,
+		);
 
 		fireEvent.click(screen.getByRole("button", { name: "Retry" }));
 
@@ -295,7 +312,9 @@ describe("OverviewPage", () => {
 	});
 
 	it("refreshes manually and invalidates the dashboard on realtime events", async () => {
-		renderWithProviders(<OverviewPage />);
+		renderWithProviders(
+			<InventoryOverviewClient ChartsComponent={InventoryOverviewCharts} />,
+		);
 
 		fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
 

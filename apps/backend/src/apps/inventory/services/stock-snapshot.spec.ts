@@ -5,18 +5,12 @@ import {
 
 function createSnapshotMockPrisma() {
 	return {
+		client: {
+			$queryRaw: jest.fn().mockResolvedValue([]),
+		},
 		inventoryItem: {
 			findMany: jest.fn().mockResolvedValue([]),
 			update: jest.fn().mockResolvedValue(undefined),
-		},
-		purchaseReceiptItem: {
-			findMany: jest.fn().mockResolvedValue([]),
-		},
-		stockEntryItem: {
-			findMany: jest.fn().mockResolvedValue([]),
-		},
-		deliveryNoteItem: {
-			findMany: jest.fn().mockResolvedValue([]),
 		},
 	};
 }
@@ -25,44 +19,9 @@ describe("buildCommittedStockSnapshot", () => {
 	it("aggregates committed purchase receipts, stock entries, and delivery notes", async () => {
 		const prisma = createSnapshotMockPrisma();
 
-		prisma.purchaseReceiptItem.findMany.mockResolvedValue([
-			{ itemCode: "ITEM-A", acceptedQuantity: 100 },
-			{ itemCode: "ITEM-B", acceptedQuantity: 50 },
-		]);
-		prisma.stockEntryItem.findMany.mockResolvedValue([
-			{
-				itemCode: "ITEM-A",
-				qty: 10,
-				sourceWarehouse: null,
-				targetWarehouse: "Main Warehouse",
-				stockEntry: {
-					defaultSourceWarehouse: null,
-					defaultTargetWarehouse: null,
-				},
-			},
-			{
-				itemCode: "ITEM-A",
-				qty: 4,
-				sourceWarehouse: "Main Warehouse",
-				targetWarehouse: null,
-				stockEntry: {
-					defaultSourceWarehouse: null,
-					defaultTargetWarehouse: null,
-				},
-			},
-			{
-				itemCode: "ITEM-B",
-				qty: 3,
-				sourceWarehouse: null,
-				targetWarehouse: null,
-				stockEntry: {
-					defaultSourceWarehouse: "Stores A",
-					defaultTargetWarehouse: "Stores B",
-				},
-			},
-		]);
-		prisma.deliveryNoteItem.findMany.mockResolvedValue([
-			{ itemCode: "ITEM-A", quantity: 20 },
+		prisma.client.$queryRaw.mockResolvedValue([
+			{ itemCode: "ITEM-A", quantity: 86 },
+			{ itemCode: "ITEM-B", quantity: 50 },
 		]);
 
 		const snapshot = await buildCommittedStockSnapshot(prisma as never);
@@ -81,55 +40,13 @@ describe("buildCommittedStockSnapshot", () => {
 			itemCodes: [" ITEM-001 ", "", "ITEM-002"],
 		});
 
-		expect(prisma.purchaseReceiptItem.findMany).toHaveBeenCalledWith({
-			where: {
-				itemCode: { in: ["ITEM-001", "ITEM-002"] },
-				purchaseReceipt: {
-					status: { notIn: ["DRAFT", "CANCELLED"] },
-					isReturn: false,
-					company: "Aria Corp",
-				},
-			},
-			select: {
-				itemCode: true,
-				acceptedQuantity: true,
-			},
-		});
-		expect(prisma.stockEntryItem.findMany).toHaveBeenCalledWith({
-			where: {
-				itemCode: { in: ["ITEM-001", "ITEM-002"] },
-				stockEntry: {
-					status: "SUBMITTED",
-					company: "Aria Corp",
-				},
-			},
-			select: {
-				itemCode: true,
-				qty: true,
-				sourceWarehouse: true,
-				targetWarehouse: true,
-				stockEntry: {
-					select: {
-						defaultSourceWarehouse: true,
-						defaultTargetWarehouse: true,
-					},
-				},
-			},
-		});
-		expect(prisma.deliveryNoteItem.findMany).toHaveBeenCalledWith({
-			where: {
-				itemCode: { in: ["ITEM-001", "ITEM-002"] },
-				deliveryNote: {
-					status: { notIn: ["DRAFT", "CANCELLED"] },
-					isReturn: false,
-					company: "Aria Corp",
-				},
-			},
-			select: {
-				itemCode: true,
-				quantity: true,
-			},
-		});
+		expect(prisma.client.$queryRaw).toHaveBeenCalledTimes(1);
+		const query = prisma.client.$queryRaw.mock.calls[0][0] as {
+			values?: unknown[];
+		};
+		expect(query.values).toEqual(
+			expect.arrayContaining(["Aria Corp", "ITEM-001", "ITEM-002"]),
+		);
 	});
 });
 
@@ -137,8 +54,8 @@ describe("reconcileInventoryItemQuantities", () => {
 	it("writes rounded committed stock quantities back to tracked items", async () => {
 		const prisma = createSnapshotMockPrisma();
 
-		prisma.purchaseReceiptItem.findMany.mockResolvedValue([
-			{ itemCode: "ITEM-A", acceptedQuantity: 12.6 },
+		prisma.client.$queryRaw.mockResolvedValue([
+			{ itemCode: "ITEM-A", quantity: 12.6 },
 		]);
 		prisma.inventoryItem.findMany.mockResolvedValue([
 			{ id: "item-1", code: "ITEM-A" },

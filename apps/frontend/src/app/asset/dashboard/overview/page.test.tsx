@@ -1,7 +1,8 @@
 import "@testing-library/jest-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, renderWithProviders, screen } from "@/test/utils";
-import OverviewPage from "./page";
+import { AssetOverviewCharts } from "./charts-island";
+import { AssetOverviewClient } from "./overview-client";
 
 const { mockInvalidate, mockRefetch, mockUseQuery, mockUseSubscription } =
 	vi.hoisted(() => ({
@@ -10,6 +11,10 @@ const { mockInvalidate, mockRefetch, mockUseQuery, mockUseSubscription } =
 		mockUseQuery: vi.fn(),
 		mockUseSubscription: vi.fn(),
 	}));
+
+vi.mock("next/dynamic", () => ({
+	default: () => () => null,
+}));
 
 vi.mock("@/components/ui/chart", () => ({
 	ChartContainer: ({ children }: { children: React.ReactNode }) => (
@@ -180,7 +185,9 @@ describe("OverviewPage", () => {
 	});
 
 	it("renders every dashboard tile with populated data", () => {
-		renderWithProviders(<OverviewPage />);
+		renderWithProviders(
+			<AssetOverviewClient ChartsComponent={AssetOverviewCharts} />,
+		);
 
 		for (const label of [
 			"Asset Dashboard",
@@ -201,7 +208,9 @@ describe("OverviewPage", () => {
 	});
 
 	it("renders KPI insight callouts from real kpi data", () => {
-		renderWithProviders(<OverviewPage />);
+		renderWithProviders(
+			<AssetOverviewClient ChartsComponent={AssetOverviewCharts} />,
+		);
 
 		// Asset value: 950_000 / 1_500_000 = 63% retained
 		expect(screen.getByText("63% value retained")).toBeInTheDocument();
@@ -238,7 +247,9 @@ describe("OverviewPage", () => {
 			refetch: mockRefetch,
 		});
 
-		renderWithProviders(<OverviewPage />);
+		renderWithProviders(
+			<AssetOverviewClient ChartsComponent={AssetOverviewCharts} />,
+		);
 
 		expect(screen.getByText("All maintenance up to date")).toBeInTheDocument();
 		expect(screen.getByText("No pending adjustments")).toBeInTheDocument();
@@ -271,7 +282,9 @@ describe("OverviewPage", () => {
 			refetch: mockRefetch,
 		});
 
-		renderWithProviders(<OverviewPage />);
+		renderWithProviders(
+			<AssetOverviewClient ChartsComponent={AssetOverviewCharts} />,
+		);
 
 		expect(screen.getByText("No depreciation data yet")).toBeInTheDocument();
 		expect(screen.getByText("No assets registered yet")).toBeInTheDocument();
@@ -291,7 +304,9 @@ describe("OverviewPage", () => {
 			refetch: mockRefetch,
 		});
 
-		renderWithProviders(<OverviewPage />);
+		renderWithProviders(
+			<AssetOverviewClient ChartsComponent={AssetOverviewCharts} />,
+		);
 
 		fireEvent.click(screen.getByRole("button", { name: "Retry" }));
 
@@ -299,7 +314,9 @@ describe("OverviewPage", () => {
 	});
 
 	it("refreshes manually and invalidates the dashboard on realtime events", async () => {
-		renderWithProviders(<OverviewPage />);
+		renderWithProviders(
+			<AssetOverviewClient ChartsComponent={AssetOverviewCharts} />,
+		);
 
 		fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
 

@@ -8,6 +8,7 @@
  * @module AssetDashboardSubService
  */
 import type { Asset } from "@aria/types";
+import { Prisma } from "../../generated/prisma/client";
 import type { PrismaService } from "../../shared/prisma.service";
 
 const ACTIVE_STATUSES: Asset.AssetStatus[] = [
@@ -145,111 +146,86 @@ export class AssetDashboardSubService {
 	private async getDepreciationTrend(): Promise<
 		Asset.AssetDashboardDepreciationTrend[]
 	> {
-		const entries = await this.prisma.assetDepreciationScheduleEntry.findMany({
-			where: {
-				schedule: { status: "ACTIVE" },
-			},
-			select: {
-				scheduleDate: true,
-				depreciationAmount: true,
-			},
-			orderBy: { scheduleDate: "asc" },
-		});
+		const rows = await this.prisma.client.$queryRaw<
+			Array<{ month: string; amount: number | null }>
+		>(Prisma.sql`
+			SELECT
+				TO_CHAR(DATE_TRUNC('month', adse."scheduleDate"), 'YYYY-MM') AS "month",
+				SUM(adse."depreciationAmount") AS "amount"
+			FROM asset_depreciation_schedule_entries adse
+			INNER JOIN asset_depreciation_schedules ads
+				ON ads.id = adse."scheduleId"
+			WHERE ads.status = 'ACTIVE'
+			GROUP BY DATE_TRUNC('month', adse."scheduleDate")
+			ORDER BY DATE_TRUNC('month', adse."scheduleDate") ASC
+		`);
 
-		const monthMap = new Map<string, number>();
-		for (const entry of entries) {
-			const monthKey = entry.scheduleDate.toISOString().slice(0, 7);
-			const existing = monthMap.get(monthKey) ?? 0;
-			monthMap.set(monthKey, existing + Number(entry.depreciationAmount));
-		}
-
-		return Array.from(monthMap.entries())
-			.sort(([a], [b]) => a.localeCompare(b))
-			.map(([month, amount]) => ({
-				month,
-				amount: Math.round(amount),
-			}));
+		return rows.map((row) => ({
+			month: row.month,
+			amount: Math.round(Number(row.amount ?? 0)),
+		}));
 	}
 
 	private async getCategoryValues(): Promise<
 		Asset.AssetDashboardCategoryValue[]
 	> {
-		const assets = await this.prisma.asset.findMany({
-			where: { status: { in: NON_DISPOSED_STATUSES } },
-			select: {
-				netPurchaseAmount: true,
-				valueAfterDepreciation: true,
-				assetCategory: { select: { name: true } },
-			},
-		});
+		const rows = await this.prisma.client.$queryRaw<
+			Array<{
+				category: string;
+				purchaseValue: number | null;
+				currentValue: number | null;
+				assetCount: number | bigint;
+			}>
+		>(Prisma.sql`
+			SELECT
+				COALESCE(ac.name, 'Uncategorised') AS "category",
+				SUM(a."netPurchaseAmount") AS "purchaseValue",
+				SUM(a."valueAfterDepreciation") AS "currentValue",
+				COUNT(*) AS "assetCount"
+			FROM assets a
+			LEFT JOIN asset_categories ac ON ac.id = a."assetCategoryId"
+			WHERE a.status IN (${Prisma.join(NON_DISPOSED_STATUSES)})
+			GROUP BY COALESCE(ac.name, 'Uncategorised')
+			ORDER BY SUM(a."valueAfterDepreciation") DESC
+			LIMIT 10
+		`);
 
-		const categoryMap = new Map<
-			string,
-			{ purchaseValue: number; currentValue: number; assetCount: number }
-		>();
-
-		for (const asset of assets) {
-			const category = asset.assetCategory?.name ?? "Uncategorised";
-			const existing = categoryMap.get(category) ?? {
-				purchaseValue: 0,
-				currentValue: 0,
-				assetCount: 0,
-			};
-			existing.purchaseValue += Number(asset.netPurchaseAmount);
-			existing.currentValue += Number(asset.valueAfterDepreciation);
-			existing.assetCount += 1;
-			categoryMap.set(category, existing);
-		}
-
-		return Array.from(categoryMap.entries())
-			.map(([category, data]) => ({
-				category,
-				purchaseValue: Math.round(data.purchaseValue),
-				currentValue: Math.round(data.currentValue),
-				assetCount: data.assetCount,
-			}))
-			.sort((a, b) => b.currentValue - a.currentValue)
-			.slice(0, 10);
+		return rows.map((row) => ({
+			category: row.category,
+			purchaseValue: Math.round(Number(row.purchaseValue ?? 0)),
+			currentValue: Math.round(Number(row.currentValue ?? 0)),
+			assetCount: Number(row.assetCount),
+		}));
 	}
 
 	private async getLocationDistribution(): Promise<
 		Asset.AssetDashboardLocationDistribution[]
 	> {
-		const assets = await this.prisma.asset.findMany({
-			where: {
-				status: { in: NON_DISPOSED_STATUSES },
-				locationId: { not: null },
-			},
-			select: {
-				valueAfterDepreciation: true,
-				location: { select: { name: true } },
-			},
-		});
+		const rows = await this.prisma.client.$queryRaw<
+			Array<{
+				location: string;
+				assetCount: number | bigint;
+				totalValue: number | null;
+			}>
+		>(Prisma.sql`
+			SELECT
+				COALESCE(l.name, 'Unassigned') AS "location",
+				COUNT(*) AS "assetCount",
+				SUM(a."valueAfterDepreciation") AS "totalValue"
+			FROM assets a
+			LEFT JOIN locations l ON l.id = a."locationId"
+			WHERE a.status IN (${Prisma.join(NON_DISPOSED_STATUSES)})
+				AND a."locationId" IS NOT NULL
+			GROUP BY COALESCE(l.name, 'Unassigned')
+			ORDER BY SUM(a."valueAfterDepreciation") DESC
+			LIMIT 10
+		`);
 
-		const locationMap = new Map<
-			string,
-			{ assetCount: number; totalValue: number }
-		>();
-
-		for (const asset of assets) {
-			const location = asset.location?.name ?? "Unassigned";
-			const existing = locationMap.get(location) ?? {
-				assetCount: 0,
-				totalValue: 0,
-			};
-			existing.assetCount += 1;
-			existing.totalValue += Number(asset.valueAfterDepreciation);
-			locationMap.set(location, existing);
-		}
-
-		return Array.from(locationMap.entries())
-			.map(([location, data]) => ({
-				location,
-				assetCount: data.assetCount,
-				totalValue: Math.round(data.totalValue),
-			}))
-			.sort((a, b) => b.totalValue - a.totalValue)
-			.slice(0, 10);
+		return rows.map((row) => ({
+			location: row.location,
+			assetCount: Number(row.assetCount),
+			totalValue: Math.round(Number(row.totalValue ?? 0)),
+		}));
 	}
 
 	private async getMaintenanceDue(

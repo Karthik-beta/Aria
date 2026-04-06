@@ -2,29 +2,9 @@
 
 import { logger } from "@aria/utils";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useAuthorizationContext } from "@/components/auth/authorization-provider";
+import type { AuthorizationData } from "@/lib/auth/authorization";
 import { useSession } from "@/lib/auth-client";
-
-/**
- * Extended session type with authorization data
- */
-export interface AuthorizedSession {
-	user: {
-		id: string;
-		email: string;
-		name: string;
-		isActive: boolean;
-		displayName?: string;
-	};
-	session: {
-		id: string;
-		expiresAt: Date;
-		roles?: string[];
-		apps?: Record<string, { roles: string[] }>;
-		permissions?: string[];
-		supervisedApps?: string[];
-		isActive?: boolean;
-	};
-}
 
 /**
  * Hook to access the current user's authorization context
@@ -33,18 +13,13 @@ export interface AuthorizedSession {
  */
 export function useAuth() {
 	const { data: session, isPending } = useSession();
-	const [authorizationData, setAuthorizationData] = useState<{
-		roles: string[];
-		permissions: string[];
-		apps: Record<string, { roles: string[] }>;
-		supervisedApps: string[];
-		isActive: boolean;
-	} | null>(null);
-
-	// Track if we're currently fetching to prevent duplicate requests
-	const isFetchingRef = useRef(false);
-	// Track the last user ID we fetched for to prevent redundant fetches
-	const lastFetchedUserIdRef = useRef<string | null>(null);
+	const serverAuthorization = useAuthorizationContext();
+	const hasServerAuthorization = serverAuthorization !== null;
+	const [authorizationData, setAuthorizationData] =
+		useState<AuthorizationData | null>(serverAuthorization);
+	const [authorizationStatus, setAuthorizationStatus] = useState<
+		"idle" | "loading" | "resolved"
+	>(hasServerAuthorization ? "resolved" : "idle");
 	const isMountedRef = useRef(false);
 
 	useEffect(() => {
@@ -59,46 +34,38 @@ export function useAuth() {
 		process.env.NODE_ENV === "development" &&
 		process.env.NEXT_PUBLIC_DEV_AUTH_BYPASS === "true";
 
-	/**
-	 * Fetch user's authorization data from backend when session changes
-	 *
-	 * Calls a Next.js API route that acts as a secure server-side proxy,
-	 * accessing httpOnly cookies and forwarding them to the backend tRPC endpoint.
-	 */
 	useEffect(() => {
+		if (hasServerAuthorization) {
+			setAuthorizationData(serverAuthorization);
+			setAuthorizationStatus("resolved");
+			return;
+		}
+
+		if (!session?.user?.id) {
+			setAuthorizationData(null);
+			setAuthorizationStatus("idle");
+			return;
+		}
+
 		const abortController = new AbortController();
+		setAuthorizationStatus("loading");
 
-		// In development bypass mode, use mock authorization data
 		if (isDevelopmentBypass) {
-			if (isMountedRef.current) {
-				setAuthorizationData({
-					roles: ["super_admin"],
-					permissions: ["system:*"],
-					apps: {
-						inventory: { roles: ["admin"] },
-						asset: { roles: ["admin"] },
-						crm: { roles: ["admin"] },
-						hrms: { roles: ["admin"] },
-					},
-					supervisedApps: ["inventory", "asset", "crm", "hrms"],
-					isActive: true,
-				});
-			}
+			setAuthorizationData({
+				roles: ["super_admin"],
+				permissions: ["system:*"],
+				apps: {
+					inventory: { roles: ["admin"] },
+					asset: { roles: ["admin"] },
+					crm: { roles: ["admin"] },
+					hrms: { roles: ["admin"] },
+				},
+				supervisedApps: ["inventory", "asset", "crm", "hrms"],
+				isActive: true,
+			});
+			setAuthorizationStatus("resolved");
 			return;
 		}
-
-		const userId = session?.user?.id;
-
-		// Skip if no user, already fetching, or already fetched for this user
-		if (
-			!userId ||
-			isFetchingRef.current ||
-			lastFetchedUserIdRef.current === userId
-		) {
-			return;
-		}
-
-		isFetchingRef.current = true;
 
 		fetch("/api/auth/authorization", {
 			signal: abortController.signal,
@@ -109,8 +76,7 @@ export function useAuth() {
 				}
 				return response.json();
 			})
-			.then((data) => {
-				lastFetchedUserIdRef.current = userId;
+			.then((data: AuthorizationData) => {
 				if (isMountedRef.current) {
 					setAuthorizationData(data);
 				}
@@ -123,13 +89,20 @@ export function useAuth() {
 				// Keep default empty authorization on error
 			})
 			.finally(() => {
-				isFetchingRef.current = false;
+				if (isMountedRef.current && !abortController.signal.aborted) {
+					setAuthorizationStatus("resolved");
+				}
 			});
 
 		return () => {
 			abortController.abort();
 		};
-	}, [session?.user?.id, isDevelopmentBypass]);
+	}, [
+		hasServerAuthorization,
+		isDevelopmentBypass,
+		serverAuthorization,
+		session?.user?.id,
+	]);
 
 	const authContext = useMemo(() => {
 		// Development bypass - return full access
@@ -180,12 +153,16 @@ export function useAuth() {
 			};
 		}
 
-		// Use authorization data from backend, fallback to session data
-		const roles = authorizationData?.roles ?? [];
-		const permissions = authorizationData?.permissions ?? [];
-		const apps = authorizationData?.apps ?? {};
-		const supervisedApps = authorizationData?.supervisedApps ?? [];
-		const isActive = authorizationData?.isActive ?? true;
+		const resolvedAuthorization = serverAuthorization ?? authorizationData;
+		const roles = resolvedAuthorization?.roles ?? [];
+		const permissions = resolvedAuthorization?.permissions ?? [];
+		const apps = resolvedAuthorization?.apps ?? {};
+		const supervisedApps = resolvedAuthorization?.supervisedApps ?? [];
+		const isActive = resolvedAuthorization?.isActive ?? true;
+		const authorizationPending =
+			!hasServerAuthorization &&
+			!isDevelopmentBypass &&
+			authorizationStatus !== "resolved";
 
 		/**
 		 * Check if user has a specific permission
@@ -278,9 +255,17 @@ export function useAuth() {
 			hasAnyRole,
 			canAccessApp,
 			isSupervisorOf,
-			isLoading: false,
+			isLoading: isPending || authorizationPending,
 		};
-	}, [session, isPending, authorizationData, isDevelopmentBypass]);
+	}, [
+		authorizationData,
+		authorizationStatus,
+		hasServerAuthorization,
+		isDevelopmentBypass,
+		isPending,
+		serverAuthorization,
+		session,
+	]);
 
 	return authContext;
 }

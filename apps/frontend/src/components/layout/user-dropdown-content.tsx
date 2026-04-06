@@ -17,8 +17,8 @@ import {
 	DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { UserAvatarProfile } from "@/components/user-avatar-profile";
+import { useAuth } from "@/hooks/use-auth";
 import { signOut, useSession } from "@/lib/auth/client";
-import { trpc } from "@/lib/trpc/client";
 
 /**
  * Type guard to check if value has a specific property
@@ -38,16 +38,9 @@ type Props = {
 
 export default function UserDropdownContent({ appRoute, className }: Props) {
 	const { data: session } = useSession();
+	const { roles } = useAuth();
 	const router = useRouter();
 	const pathname = usePathname();
-
-	// Fetch user authorization to check for admin roles
-	const { data: userAuth } = trpc.authorization.getUserAuthorization.useQuery(
-		undefined,
-		{
-			enabled: !!session?.user,
-		},
-	);
 
 	const user = React.useMemo(() => {
 		const su = session?.user;
@@ -112,13 +105,13 @@ export default function UserDropdownContent({ appRoute, className }: Props) {
 
 	// Check if user has admin access based on roles from user authorization
 	const hasAdminAccess = React.useMemo(() => {
-		if (!userAuth?.roles || userAuth.roles.length === 0) return false;
+		if (roles.length === 0) return false;
 
 		// Check if any role key contains 'admin' or 'super_admin'
-		return userAuth.roles.some((roleKey: string) =>
+		return roles.some((roleKey) =>
 			["admin", "super_admin"].includes(roleKey.toLowerCase()),
 		);
-	}, [userAuth]);
+	}, [roles]);
 
 	return (
 		<DropdownMenuContent

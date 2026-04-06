@@ -4,6 +4,8 @@ import {
 	formatAssetStatus,
 	formatCompactCurrency,
 	formatMonth,
+	formatRelativeDate,
+	formatShortDate,
 	getActiveAssetsInsight,
 	getAssetValueInsight,
 	getInsuranceUrgency,
@@ -73,6 +75,34 @@ describe("formatMonth", () => {
 		const result = formatMonth("2025-01");
 		expect(result).toMatch(/Jan/);
 		expect(result).toMatch(/25/);
+	});
+});
+
+// ── formatRelativeDate ───────────────────────────────────────────────
+
+describe("formatRelativeDate", () => {
+	it("uses the supplied reference time for relative labels", () => {
+		const referenceTime = Date.parse("2026-04-10T12:00:00.000Z");
+
+		expect(formatRelativeDate("2026-04-10T11:30:00.000Z", referenceTime)).toBe(
+			"30m ago",
+		);
+	});
+
+	it("formats older dates with a stable UTC calendar day", () => {
+		const referenceTime = Date.parse("2026-04-10T12:00:00.000Z");
+
+		expect(formatRelativeDate("2026-03-29T23:30:00.000Z", referenceTime)).toBe(
+			"29 Mar",
+		);
+	});
+});
+
+// ── formatShortDate ──────────────────────────────────────────────────
+
+describe("formatShortDate", () => {
+	it("formats chart dates with a stable UTC calendar day", () => {
+		expect(formatShortDate("2026-03-29T23:30:00.000Z")).toBe("29 Mar");
 	});
 });
 

@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+	formatRelativeDate,
+	formatShortDate,
 	getActiveItemsInsight,
 	getLowStockInsight,
 	getPendingRequestsInsight,
@@ -134,5 +136,33 @@ describe("getPendingRequestsInsight", () => {
 	it("returns plural 'requests' when count is > 1", () => {
 		const result = getPendingRequestsInsight(5);
 		expect(result.text).toBe("5 requests awaiting action");
+	});
+});
+
+// ── formatRelativeDate ───────────────────────────────────────────────
+
+describe("formatRelativeDate", () => {
+	it("uses the supplied reference time for relative labels", () => {
+		const referenceTime = Date.parse("2026-04-10T12:00:00.000Z");
+
+		expect(formatRelativeDate("2026-04-10T11:30:00.000Z", referenceTime)).toBe(
+			"30m ago",
+		);
+	});
+
+	it("formats older dates with a stable UTC calendar day", () => {
+		const referenceTime = Date.parse("2026-04-10T12:00:00.000Z");
+
+		expect(formatRelativeDate("2026-03-29T23:30:00.000Z", referenceTime)).toBe(
+			"29 Mar",
+		);
+	});
+});
+
+// ── formatShortDate ──────────────────────────────────────────────────
+
+describe("formatShortDate", () => {
+	it("formats chart dates with a stable UTC calendar day", () => {
+		expect(formatShortDate("2026-03-29T23:30:00.000Z")).toBe("29 Mar");
 	});
 });
