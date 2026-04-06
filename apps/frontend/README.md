@@ -1,27 +1,29 @@
 # Aria ERP - Combined Multi-Zone App
 
-This is the unified multi-zone Next.js application that consolidates all four Aria ERP modules:
+This is the unified multi-zone Next.js application that consolidates the core Aria ERP modules and the admin console:
 
+- **Admin Console** - `/admin` route
 - **Asset Management** - `/asset` route
 - **CRM** - `/crm` route
 - **HRMS** - `/hrms` route
 - **Inventory** - `/inventory` route
 
-## 🔐 Single Sign-On (SSO) Authentication
+## Authentication
 
-All apps share **centralized authentication** for a seamless experience:
+All zones share **centralized authentication**, but protected route groups now resolve the session and authorization on the server before rendering:
 
-- ✅ **Sign in once**, access all apps
-- ✅ **Shared session** across Asset, CRM, HRMS, and Inventory
-- ✅ **Automatic redirects** to original destination after login
-- ✅ **Centralized security** and session management
+- ✅ **Sign in once**, access all protected apps
+- ✅ **Shared session** across Asset, Admin, CRM, HRMS, and Inventory
+- ✅ **Server-hydrated auth state** for layout consumers
+- ✅ **Callback URLs** preserved through sign-in redirects
 
 **Auth Routes:**
 
 - `/auth/sign-in` - Unified sign-in for all apps
 - `/auth/sign-up` - Unified registration
+- `/auth/change-password` - Forced password change flow
 
-See [`SSO_AUTH_GUIDE.md`](./SSO_AUTH_GUIDE.md) for complete authentication documentation.
+See [`docs/frontend-auth-architecture.md`](../../docs/frontend-auth-architecture.md) for the current auth and layout flow.
 
 ## Architecture
 
@@ -29,6 +31,7 @@ This app uses **Next.js App Router** with route segments for multi-zone architec
 
 ```
 src/app/
+├── admin/            # Admin console
 ├── auth/              # Centralized SSO authentication
 │   ├── sign-in/
 │   └── sign-up/
@@ -48,8 +51,8 @@ src/app/
 │   ├── layout.tsx
 │   ├── page.tsx
 │   └── dashboard/
-├── layout.tsx         # Shared root layout
-└── page.tsx           # Root page (app selector)
+├── layout.tsx         # Shared root layout (TRPCProvider)
+└── page.tsx           # Root page (server redirect to the first accessible app)
 ```
 
 Each zone operates independently with its own routes, layouts, and components, while sharing:
@@ -87,6 +90,7 @@ bun --filter frontend start
 
 The app will be available at `http://localhost:3000` with routes:
 
+- `/admin` - Admin console
 - `/asset` - Asset management interface
 - `/crm` - Customer relationship management
 - `/hrms` - Human resources management
@@ -209,7 +213,7 @@ All existing component code from the separate apps (`asset`, `CRM`, `hrms`, `inv
 ## Next Steps
 
 1. Test all modules work correctly at their respective routes
-2. Customize the default redirect in `src/app/page.tsx` if needed
+2. Adjust the server redirect in `src/config/auth.ts` or `src/app/page.tsx` if you want a different default landing route
 3. Enhance the app switcher with user preferences or permissions
 4. Add zone-specific error boundaries if needed
 5. Configure Docker deployment with single service instead of four

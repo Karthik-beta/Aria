@@ -1,26 +1,29 @@
 # Authentication
 
-This document provides a comprehensive overview of the Aria ERP authentication system, built with better-auth.
+This document covers the Aria ERP authentication system built with better-auth and the server-first frontend layout flow that consumes it.
 
 ## Overview
 
-Aria ERP uses [better-auth](https://better-auth.com) for authentication with username/password login. Authentication is **only enabled in production environments** to simplify development workflows.
+Aria ERP uses [better-auth](https://better-auth.com) for username/password authentication. The backend owns session issuance, while protected frontend route groups resolve the session on the server and hydrate client components with a single auth snapshot. Development bypasses are opt-in and limited to local workflows.
 
 ## Architecture
 
 ### Backend (NestJS)
 
-- **better-auth** server with Prisma adapter
+- better-auth server with Prisma adapter
 - Username plugin for username-based authentication
+- Custom session metadata for password-state checks
 - PostgreSQL database for user storage
 - Automatic default admin user creation on deployment
 
 ### Frontend (Next.js)
 
-- **better-auth/react** client
-- Login page at `/auth/sign-in`
-- Auth guard protecting all routes in production
-- Session management with cookies
+- Sign-in and sign-up pages under `/auth`
+- `/auth/change-password` for forced password updates
+- Protected route groups (`/admin`, `/asset`, `/crm`, `/hrms`, `/inventory`) call `requireProtectedAuthState()` on the server
+- `AuthStateProvider` hydrates the resolved session and authorization data into client components
+- `useAuth()` reads from that hydrated context instead of fetching its own session
+- `proxy.ts` only performs optimistic cookie checks and preserves callback URLs
 
 ## Configuration
 
@@ -48,44 +51,46 @@ DEFAULT_ADMIN_NAME=Administrator
 
 ```bash
 NEXT_PUBLIC_API_URL=https://your-domain.com
-NODE_ENV=production
+NEXT_PUBLIC_DEV_AUTH_BYPASS=false
 ```
+
+`NEXT_PUBLIC_DEV_AUTH_BYPASS=true` enables a local development mock session. Keep it disabled in shared or production environments.
 
 ### Cross-Site Cookies
 
-To support cross-site authentication, the backend is configured to allow cross-site cookies.
+The backend configures Better Auth cookies for cross-site deployments, and the frontend sends credentials when it talks to the backend.
 
 **`apps/backend/src/auth/auth.config.ts`**
 
 ```typescript
 sessionCookie: {
   name: 'better-auth.session_token',
-  sameSite: 'none',    // Allow cross-site cookie setting
-  secure: true,        // Require HTTPS (security requirement for SameSite=None)
-  httpOnly: true,      // Prevent JavaScript access (XSS protection)
-  path: '/',           // Available to all routes
+  sameSite: 'none',
+  secure: true,
+  httpOnly: true,
+  path: '/',
 }
 ```
 
-The frontend tRPC client is configured to include credentials in cross-site requests.
+The frontend tRPC client includes credentials for API calls, and the server auth helper forwards the incoming cookie header to the backend's `/api/auth/get-session` endpoint.
 
 **`apps/frontend/src/lib/trpc/provider.tsx`**
 
 ```typescript
 const httpLink = httpBatchLink({
   url: httpUrl,
-  credentials: 'include', // Include cookies for cross-site requests
+  credentials: 'include',
 });
 ```
 
 ## Database Schema
 
-Better-auth requires four tables:
+Better Auth requires four tables:
 
 - **users** - User accounts
 - **sessions** - Active sessions
 - **accounts** - Authentication credentials
-- **verifications** - Email verification tokens (unused but required)
+- **verifications** - Email verification tokens
 
 These are defined in `apps/backend/prisma/schema.prisma`.
 
@@ -94,10 +99,10 @@ These are defined in `apps/backend/prisma/schema.prisma`.
 On first production deployment, a default admin user is automatically created:
 
 1. Service checks environment variables
-2. If credentials are set and user doesn't exist, creates:
-   - User record with username, email, name
+2. If credentials are set and the user does not exist, it creates:
+   - User record with username, email, and name
    - Account record with hashed password (bcrypt)
-3. Logs success or skips if user exists
+3. Logs success or skips if the user already exists
 
 **Security Note:** Change the default password immediately after first login.
 
@@ -105,22 +110,22 @@ On first production deployment, a default admin user is automatically created:
 
 ### Login Flow
 
-1. User navigates to application
-2. `AuthGuard` checks if in production
-3. If production and not authenticated, redirects to `/auth/sign-in`
-4. User enters username and password
-5. Better-auth validates credentials
-6. On success, session cookie is set
-7. User redirected to home page
+1. A user visits a protected route or the home page.
+2. The matching server layout calls `requireProtectedAuthState()`.
+3. If no session exists, the server redirects to `/auth/sign-in?callbackUrl=...`.
+4. If the account must change its password, the server redirects to `/auth/change-password`.
+5. The sign-in page submits credentials through better-auth.
+6. On success, the user is sent back to the original callback URL or the default app route.
 
 ### Development vs Production
 
-| Feature          | Development | Production                 |
-| ---------------- | ----------- | -------------------------- |
-| Auth Required    | ❌ No       | ✅ Yes                     |
-| Login Page       | Hidden      | Visible at `/auth/sign-in` |
-| Route Protection | Disabled    | Enabled                    |
-| Default User     | Not created | Auto-created               |
+| Feature | Development | Production |
+|---------|-------------|------------|
+| Auth Required | ✅ By default | ✅ |
+| Dev Bypass | Optional (`NEXT_PUBLIC_DEV_AUTH_BYPASS=true` on the frontend, `DISABLE_AUTH=true` on the backend) | ❌ |
+| Login Page | Visible | Visible |
+| Route Protection | Enabled | Enabled |
+| Cookies | Lax, non-secure | SameSite=None, Secure |
 
 ### Logout
 
@@ -132,8 +137,8 @@ await authClient.signOut();
 
 ## API Endpoints
 
-Better-auth provides these endpoints on the backend:
+Better Auth provides these endpoints on the backend:
 
 - `POST /api/auth/sign-in/username` - Login with username
 - `POST /api/auth/sign-out` - Logout
-- `GET /api/auth/session` - Get current session
+- `GET /api/auth/get-session` - Get current session

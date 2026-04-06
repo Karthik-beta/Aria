@@ -87,7 +87,8 @@ Role Definitions (initial seed)
 Policy Evaluation
 
 - Source of truth
-  - better-auth session.user contains user id and attached role keys and app scopes (via session enrichment).
+  - Better Auth session establishes identity and account state (`user.id`, `mustChangePassword`, `passwordChangedAt`).
+  - Authorization data is resolved from the backend authorization router (`authorization.getUserAuthorization`) using the authenticated user id.
   - DB-driven policy resolution on each request; cache with short TTL (e.g., 60s) keyed by session id + version.
 - Check order
   1. Account active (users.is_active)
@@ -107,7 +108,7 @@ Backend Architecture (NestJS)
   - @RequirePermissions(...keys) — entity/app/system permissions
   - @RequireRole(...roles) — specific roles
   - @AppScope(appKey) — enforce endpoint app context
-  - Guards chain: AuthGuard (better-auth) → ActiveUserGuard → AppScopeGuard → RolePermissionGuard → OwnershipGuard
+  - Guards chain: PublicRouteGuard → ActiveUserGuard → AppScopeGuard → RolePermissionGuard → OwnershipGuard
 - Services
   - PolicyService
     - resolveUserPolicy(userId, appKey): roles, permissions, scopes
@@ -127,10 +128,9 @@ Backend Architecture (NestJS)
 
 Session Enrichment (better-auth)
 
-- On sign-in, enrich session with:
-  - user: { id, username, email, displayName, isActive }
-  - roles: [roleKey]
-  - apps: { [appKey]: { roles: [roleKey], teams: [teamId] } }
+- On sign-in, enrich the Better Auth session with password-state metadata only:
+  - user: { id, username, email, displayName, mustChangePassword, passwordChangedAt }
+- Resolve roles, permissions, app access, and supervisor scope through the authorization router instead of copying policy into the session payload.
 - Use official better-auth session extensions pattern (documented hooks) to attach custom claims to session data and keep cookies httpOnly.
 
 Frontend Requirements (Next.js + shadcn)
@@ -150,7 +150,7 @@ Frontend Requirements (Next.js + shadcn)
   - Components: DataTable, Dialog, Drawer, Form, Badge, Tabs, Breadcrumb, AlertDialog, DropdownMenu, Toast
   - Accessibility: keyboard navigation, ARIA roles, focus states
 - Client AuthZ
-  - Hide/disable actions based on session-enriched roles/permissions
+  - Hide/disable actions based on server-hydrated auth state from the frontend snapshot
   - Optimistic UI with server reconciliation; do not trust client for enforcement
 
 Audit & Logging

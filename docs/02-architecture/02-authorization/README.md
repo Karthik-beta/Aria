@@ -13,19 +13,19 @@ The authorization system provides:
 - A supervisor model for delegated user creation
 - Comprehensive audit logging
 - Policy caching for performance
-- Session enrichment for client-side authorization
+- Server-hydrated authorization snapshots for client-side UI gating
 
 ## Architecture
 
 ### Authorization Flow
 
-The authorization flow is a server-side proxy pattern that securely fetches user authorization data while respecting Better Auth's httpOnly cookie security model.
+Protected frontend layouts resolve authorization on the server and hydrate one snapshot into client components.
 
-1.  A React component calls the `useAuth` hook.
-2.  The `useAuth` hook fetches the user's authorization data from a Next.js API route.
-3.  The API route forwards the request to the backend tRPC router, including the httpOnly session cookie.
-4.  The tRPC router authenticates the user, queries the database for roles and permissions, and returns the authorization data.
-5.  The `useAuth` hook stores the authorization data in its state, making it available to the component.
+1. A protected layout calls `requireProtectedAuthState()` from `apps/frontend/src/lib/auth/server.ts`.
+2. The server helper fetches the Better Auth session and, when a session exists, requests `authorization.getUserAuthorization` from the backend.
+3. The backend authorization router resolves roles, permissions, app access, supervised apps, and active status from the database.
+4. The layout wraps client components in `AuthStateProvider`.
+5. `useAuth()` and `protected-content.tsx` read the hydrated state for UI gating only. The backend remains the source of truth.
 
 ### Service Layer
 
@@ -57,7 +57,7 @@ The `users` table is also extended with `isActive`, `displayName`, `department`,
 
 ### Session Enrichment
 
-The `session` object from better-auth is enriched with the user's roles, permissions, and app access information. This is done in `src/auth/auth.config.ts`.
+The Better Auth custom session plugin only enriches the session with password-state metadata (`mustChangePassword`, `passwordChangedAt`). Roles, permissions, app access, and supervisor scope are resolved separately through the authorization router and should not be assumed to live on the session payload.
 
 ### tRPC Endpoints
 
@@ -67,16 +67,20 @@ The `src/trpc/routers/admin.router.ts` file defines tRPC endpoints for managing 
 
 ### Client-Side Hooks
 
-The `src/hooks/use-auth.ts` file provides a `useAuth` hook that gives components access to the user's authorization data.
+The `src/components/auth/auth-state-provider.tsx` file provides the server-resolved session and authorization state to client components.
+
+The `src/hooks/use-auth.ts` file reads from that hydrated state and gives components access to role, permission, and app helpers.
 
 ### UI Components
 
-The `src/components/auth/protected-content.tsx` file provides several components for controlling access to UI elements based on the user's roles and permissions:
+The `src/components/auth/protected-content.tsx` file provides several components for controlling access to UI elements based on the hydrated auth snapshot:
 
 - **`PermissionGate`**: Renders its children only if the user has a specific permission.
 - **`RoleGate`**: Renders its children only if the user has a specific role.
 - **`AppGate`**: Renders its children only if the user has access to a specific app.
 - **`AuthGate`**: Renders its children only if the user is authenticated.
+
+These gates are for UX only; server-side checks still enforce access.
 
 ## API Reference
 

@@ -25,8 +25,8 @@ The frontend is a single Next.js application using the App Router with route gro
 apps/frontend/
 ├── src/
 │   ├── app/
-│   │   ├── layout.tsx        # Root layout (AuthGuard + TRPCProvider)
-│   │   ├── page.tsx          # Landing page
+│   │   ├── layout.tsx        # Root layout (TRPCProvider)
+│   │   ├── page.tsx          # Server redirect to the first accessible app
 │   │   ├── admin/            # Admin console (users, roles, audit)
 │   │   ├── asset/            # Asset management module
 │   │   ├── auth/             # Authentication pages
@@ -60,6 +60,12 @@ The frontend is organized into modules, each as a route group under `src/app/`:
 | Auth | `/auth` | Sign-in, sign-up pages |
 
 Each module has its own layout and pages within the route group.
+
+## Authentication
+
+Protected route groups resolve auth on the server before rendering. Each zone layout calls `requireProtectedAuthState()`, wraps children in `AuthStateProvider`, and lets `useAuth()` read from the hydrated snapshot. The `proxy.ts` layer only preserves callback URLs and short-circuits obviously unauthenticated requests.
+
+See [Frontend Auth Architecture](../frontend-auth-architecture.md) for the full flow.
 
 ## tRPC Integration
 

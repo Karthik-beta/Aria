@@ -134,7 +134,7 @@ apps/backend/
 
 #### Frontend (`apps/frontend/`)
 
-Single Next.js application using App Router with route groups:
+Single Next.js application using App Router with route groups. Protected layouts resolve auth on the server and hydrate client components from a single auth snapshot:
 
 | Route Group | Path | Description |
 |-------------|------|-------------|
@@ -150,7 +150,7 @@ Single Next.js application using App Router with route groups:
 apps/frontend/
 ├── src/
 │   ├── app/              # App Router pages
-│   │   ├── layout.tsx    # Root layout (AuthGuard + TRPCProvider)
+│   │   ├── layout.tsx    # Root layout (TRPCProvider; auth resolved in route-group layouts)
 │   │   ├── admin/        # Admin console
 │   │   ├── asset/        # Asset module
 │   │   ├── crm/          # CRM module

@@ -14,8 +14,9 @@ Welcome to the Aria ERP documentation hub. This guide will help you find the rig
 ### Architecture & Design
 
 - **[Architecture Guide](./02-architecture/README.md)** — System design and technical overview
-- **[Authentication](./02-architecture/01-authentication/README.md)** — better-auth integration
-- **[Authorization](./02-architecture/02-authorization/README.md)** — RBAC/ABAC permission system
+- **[Authentication](./02-architecture/01-authentication/README.md)** — better-auth integration and server-protected layouts
+- **[Frontend Auth Architecture](./frontend-auth-architecture.md)** — server-first protected layouts and hydrated auth state
+- **[Authorization](./02-architecture/02-authorization/README.md)** — RBAC/ABAC permission system and UI gating
 - **[Development Agents](../AGENTS.md)** — Development philosophy and best practices
 
 ### Backend
