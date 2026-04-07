@@ -2,6 +2,7 @@
  * Centralized Authentication Configuration for SSO-style Auth
  *
  * This configuration enables Single Sign-On functionality across all Aria ERP apps:
+ * - Admin Console
  * - Asset Management
  * - CRM
  * - HRMS
@@ -19,6 +20,7 @@ export const AUTH_CONFIG = {
 
 	// App-specific default redirect paths after successful authentication
 	appRedirects: {
+		admin: "/admin",
 		asset: "/asset/dashboard/overview",
 		crm: "/crm/dashboard/overview",
 		hrms: "/hrms/dashboard/overview",
@@ -65,6 +67,7 @@ export function detectAppFromCallbackUrl(
 ): keyof typeof AUTH_CONFIG.appRedirects | null {
 	if (!callbackUrl) return null;
 
+	if (callbackUrl.includes("/admin")) return "admin";
 	if (callbackUrl.includes("/asset")) return "asset";
 	if (callbackUrl.includes("/crm")) return "crm";
 	if (callbackUrl.includes("/hrms")) return "hrms";

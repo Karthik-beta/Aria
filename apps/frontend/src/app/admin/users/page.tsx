@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import PageContainer from "@/components/layout/page-container";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
 	AlertDialog,
@@ -378,17 +379,14 @@ export default function UsersPage() {
 	}, [data?.users]);
 
 	return (
-		<div className="space-y-6">
-			<section className="rounded-3xl border bg-linear-to-r from-primary/10 via-primary/5 to-transparent px-6 py-5">
-				<div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-					<div>
-						<p className="text-xs font-semibold uppercase tracking-wide text-primary">
-							Admin · Users
-						</p>
-						<h1 className="mt-2 text-3xl font-bold tracking-tight">
+		<PageContainer scrollable={false}>
+			<div className="flex flex-1 flex-col gap-6">
+				<div className="flex flex-wrap items-start justify-between gap-4">
+					<div className="space-y-1">
+						<h2 className="text-3xl font-bold tracking-tight">
 							User directory & access
-						</h1>
-						<p className="mt-2 max-w-2xl text-sm text-muted-foreground">
+						</h2>
+						<p className="text-muted-foreground">
 							Monitor account health, enforce password policies, and create new
 							workspace accounts without leaving this view.
 						</p>
@@ -412,237 +410,247 @@ export default function UsersPage() {
 						</Button>
 					</div>
 				</div>
-			</section>
 
-			<div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-				{userStats.map((stat) => (
-					<Card
-						key={stat.label}
-						className="border-muted/60 bg-card/90 shadow-sm"
-					>
-						<CardHeader className="pb-2">
-							<p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-								{stat.label}
-							</p>
-						</CardHeader>
-						<CardContent className="pb-4">
-							<div className="text-3xl font-semibold tracking-tight">
-								{stat.value}
+				<div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+					{userStats.map((stat) => (
+						<Card
+							key={stat.label}
+							className="border-muted/60 bg-card/90 shadow-sm"
+						>
+							<CardHeader className="pb-2">
+								<p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+									{stat.label}
+								</p>
+							</CardHeader>
+							<CardContent className="pb-4">
+								<div className="text-3xl font-semibold tracking-tight">
+									{stat.value}
+								</div>
+								<p className="text-xs text-muted-foreground">{stat.helper}</p>
+							</CardContent>
+						</Card>
+					))}
+				</div>
+
+				<div className="grid min-h-0 flex-1 gap-6 xl:grid-cols-[24rem_minmax(0,1fr)]">
+					{/* Left Panel - User List */}
+					<div className="flex min-h-[28rem] min-w-0 flex-col rounded-lg border bg-card xl:min-h-0">
+						<div className="p-4 border-b">
+							<div className="flex items-center justify-between mb-4">
+								<h2 className="text-xl font-semibold">Users</h2>
+								<Button
+									size="sm"
+									onClick={handleCreateNew}
+									disabled={createButtonDisabled}
+									title={createUserDisabledReason}
+								>
+									<UserPlus className="mr-2 h-4 w-4" />
+									New User
+								</Button>
 							</div>
-							<p className="text-xs text-muted-foreground">{stat.helper}</p>
-						</CardContent>
-					</Card>
-				))}
-			</div>
+							<div className="relative">
+								<Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+								<Input
+									placeholder="Search users..."
+									value={search}
+									onChange={(e) => setSearch(e.target.value)}
+									className="pl-10"
+								/>
+							</div>
+						</div>
 
-			<div className="flex min-h-[calc(100vh-12rem)] gap-6">
-				{/* Left Panel - User List */}
-				<div className="w-96 flex flex-col border rounded-lg bg-card">
-					<div className="p-4 border-b">
-						<div className="flex items-center justify-between mb-4">
-							<h2 className="text-xl font-semibold">Users</h2>
-							<Button
-								size="sm"
-								onClick={handleCreateNew}
-								disabled={createButtonDisabled}
-								title={createUserDisabledReason}
-							>
-								<UserPlus className="mr-2 h-4 w-4" />
-								New User
-							</Button>
-						</div>
-						<div className="relative">
-							<Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-							<Input
-								placeholder="Search users..."
-								value={search}
-								onChange={(e) => setSearch(e.target.value)}
-								className="pl-10"
-							/>
-						</div>
+						<ScrollArea className="flex-1">
+							<div className="p-2">
+								{isLoading ? (
+									<div className="text-center py-8 text-muted-foreground">
+										Loading users...
+									</div>
+								) : filteredUsers.length === 0 ? (
+									<div className="text-center py-8 text-muted-foreground">
+										No users found
+									</div>
+								) : (
+									<div className="space-y-1">
+										{filteredUsers.map((user) => {
+											const accessSummary = summarizeAppAccess(
+												user,
+												getAppLabel,
+											);
+											const summaryBadges = accessSummary.slice(0, 2);
+
+											return (
+												<button
+													type="button"
+													key={user.id}
+													onClick={() => handleSelectUser(user)}
+													className={`w-full text-left p-3 rounded-md transition-colors ${
+														selectedUserId === user.id
+															? "bg-primary text-primary-foreground"
+															: "hover:bg-muted"
+													}`}
+												>
+													<div className="flex items-start justify-between gap-2">
+														<div className="flex-1 min-w-0">
+															<div className="font-medium truncate">
+																{user.name}
+															</div>
+															<div className="text-sm opacity-80 truncate">
+																{user.email}
+															</div>
+															{user.department && (
+																<div className="text-xs opacity-70 mt-1">
+																	{user.department}
+																</div>
+															)}
+															{summaryBadges.length > 0 && (
+																<div className="mt-2 flex flex-wrap gap-1">
+																	{summaryBadges.map((summary) => (
+																		<Badge
+																			key={`${user.id}-${summary.scopeKey}`}
+																			variant="secondary"
+																			className="text-[10px] font-semibold"
+																		>
+																			{summary.label}
+																			<span className="ml-1 uppercase tracking-wide">
+																				L{summary.highestLevel}
+																			</span>
+																		</Badge>
+																	))}
+																</div>
+															)}
+														</div>
+														<div className="flex flex-col items-end gap-1">
+															{user.isActive ? (
+																<Badge variant="outline" className="text-xs">
+																	Active
+																</Badge>
+															) : (
+																<Badge
+																	variant="destructive"
+																	className="text-xs"
+																>
+																	Disabled
+																</Badge>
+															)}
+															{user.userRoles.length > 0 && (
+																<Badge variant="secondary" className="text-xs">
+																	{user.userRoles.length} role
+																	{user.userRoles.length !== 1 ? "s" : ""}
+																</Badge>
+															)}
+														</div>
+													</div>
+												</button>
+											);
+										})}
+									</div>
+								)}
+							</div>
+						</ScrollArea>
 					</div>
 
-					<ScrollArea className="flex-1">
-						<div className="p-2">
-							{isLoading ? (
-								<div className="text-center py-8 text-muted-foreground">
-									Loading users...
-								</div>
-							) : filteredUsers.length === 0 ? (
-								<div className="text-center py-8 text-muted-foreground">
-									No users found
-								</div>
-							) : (
-								<div className="space-y-1">
-									{filteredUsers.map((user) => {
-										const accessSummary = summarizeAppAccess(user, getAppLabel);
-										const summaryBadges = accessSummary.slice(0, 2);
-
-										return (
-											<button
-												type="button"
-												key={user.id}
-												onClick={() => handleSelectUser(user)}
-												className={`w-full text-left p-3 rounded-md transition-colors ${
-													selectedUserId === user.id
-														? "bg-primary text-primary-foreground"
-														: "hover:bg-muted"
-												}`}
-											>
-												<div className="flex items-start justify-between gap-2">
-													<div className="flex-1 min-w-0">
-														<div className="font-medium truncate">
-															{user.name}
-														</div>
-														<div className="text-sm opacity-80 truncate">
-															{user.email}
-														</div>
-														{user.department && (
-															<div className="text-xs opacity-70 mt-1">
-																{user.department}
-															</div>
-														)}
-														{summaryBadges.length > 0 && (
-															<div className="mt-2 flex flex-wrap gap-1">
-																{summaryBadges.map((summary) => (
-																	<Badge
-																		key={`${user.id}-${summary.scopeKey}`}
-																		variant="secondary"
-																		className="text-[10px] font-semibold"
-																	>
-																		{summary.label}
-																		<span className="ml-1 uppercase tracking-wide">
-																			L{summary.highestLevel}
-																		</span>
-																	</Badge>
-																))}
-															</div>
-														)}
-													</div>
-													<div className="flex flex-col items-end gap-1">
-														{user.isActive ? (
-															<Badge variant="outline" className="text-xs">
-																Active
-															</Badge>
-														) : (
-															<Badge variant="destructive" className="text-xs">
-																Disabled
-															</Badge>
-														)}
-														{user.userRoles.length > 0 && (
-															<Badge variant="secondary" className="text-xs">
-																{user.userRoles.length} role
-																{user.userRoles.length !== 1 ? "s" : ""}
-															</Badge>
-														)}
-													</div>
-												</div>
-											</button>
-										);
-									})}
-								</div>
-							)}
-						</div>
-					</ScrollArea>
-				</div>
-
-				{/* Right Panel - User Details/Form */}
-				<div className="flex-1 border rounded-lg bg-card">
-					{mode === "create" ? (
-						<CreateUserPanel
-							roles={roles || []}
-							onSuccess={handleSaveSuccess}
-							onCancel={() => {
-								setMode("view");
-								setSelectedUserId(null);
-							}}
-							appOptions={manageableAppOptions}
-							initialAppKey={defaultAppKey}
-							isProvisioningEnabled={canProvisionUsers}
-							isContextLoading={provisioningContextLoading}
-						/>
-					) : selectedUser && mode === "edit" ? (
-						<EditUserPanel
-							user={selectedUser}
-							roles={roles || []}
-							onSuccess={handleSaveSuccess}
-							onCancel={handleCancelEdit}
-							onDelete={() => handleDeleteClick(selectedUser)}
-							appOptions={manageableAppOptions}
-							initialAppKey={defaultAppKey}
-							isContextLoading={provisioningContextLoading}
-						/>
-					) : selectedUser ? (
-						<UserDetailsPanel
-							user={selectedUser}
-							onEdit={handleEdit}
-							onDelete={() => handleDeleteClick(selectedUser)}
-							onDisable={() =>
-								disableUserMutation.mutate({ userId: selectedUser.id })
-							}
-							onEnable={() =>
-								enableUserMutation.mutate({ userId: selectedUser.id })
-							}
-							resolveAppLabel={getAppLabel}
-							passwordResetOptions={passwordResetOptions}
-							passwordResetReady={!provisioningContextLoading}
-							canSendPasswordReset={canSendPasswordReset}
-							onSendPasswordReset={handlePasswordResetRequest}
-							passwordResetPending={sendPasswordResetMutation.isPending}
-							canManageUsers={canManageUsers}
-						/>
-					) : (
-						<div className="flex items-center justify-center h-full text-muted-foreground">
-							<div className="text-center">
-								<Users className="h-16 w-16 mx-auto mb-4 opacity-50" />
-								<p className="text-lg font-medium">No user selected</p>
-								<p className="text-sm mt-1">
-									Select a user from the list or create a new one
-								</p>
-							</div>
-						</div>
-					)}
-				</div>
-
-				{/* Delete Confirmation Dialog */}
-				<AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-					<AlertDialogContent>
-						<AlertDialogHeader>
-							<AlertDialogTitle>Delete User</AlertDialogTitle>
-							<AlertDialogDescription>
-								Are you sure you want to delete user &ldquo;{userToDelete?.name}
-								&rdquo;? This action cannot be undone.
-							</AlertDialogDescription>
-						</AlertDialogHeader>
-						<AlertDialogFooter>
-							<AlertDialogCancel>Cancel</AlertDialogCancel>
-							<AlertDialogAction
-								onClick={async () => {
-									if (userToDelete) {
-										try {
-											await deleteUserMutation.mutateAsync({
-												userId: userToDelete.id,
-											});
-											toast.success("User deleted successfully");
-											setDeleteDialogOpen(false);
-											setUserToDelete(null);
-											setSelectedUserId(null);
-											setMode("view");
-											refetch();
-										} catch (_error) {
-											// Error handled by mutation callback
-										}
-									}
+					{/* Right Panel - User Details/Form */}
+					<div className="min-h-[28rem] min-w-0 rounded-lg border bg-card xl:min-h-0">
+						{mode === "create" ? (
+							<CreateUserPanel
+								roles={roles || []}
+								onSuccess={handleSaveSuccess}
+								onCancel={() => {
+									setMode("view");
+									setSelectedUserId(null);
 								}}
-								className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-							>
-								Delete
-							</AlertDialogAction>
-						</AlertDialogFooter>
-					</AlertDialogContent>
-				</AlertDialog>
+								appOptions={manageableAppOptions}
+								initialAppKey={defaultAppKey}
+								isProvisioningEnabled={canProvisionUsers}
+								isContextLoading={provisioningContextLoading}
+							/>
+						) : selectedUser && mode === "edit" ? (
+							<EditUserPanel
+								user={selectedUser}
+								roles={roles || []}
+								onSuccess={handleSaveSuccess}
+								onCancel={handleCancelEdit}
+								onDelete={() => handleDeleteClick(selectedUser)}
+								appOptions={manageableAppOptions}
+								initialAppKey={defaultAppKey}
+								isContextLoading={provisioningContextLoading}
+							/>
+						) : selectedUser ? (
+							<UserDetailsPanel
+								user={selectedUser}
+								onEdit={handleEdit}
+								onDelete={() => handleDeleteClick(selectedUser)}
+								onDisable={() =>
+									disableUserMutation.mutate({ userId: selectedUser.id })
+								}
+								onEnable={() =>
+									enableUserMutation.mutate({ userId: selectedUser.id })
+								}
+								resolveAppLabel={getAppLabel}
+								passwordResetOptions={passwordResetOptions}
+								passwordResetReady={!provisioningContextLoading}
+								canSendPasswordReset={canSendPasswordReset}
+								onSendPasswordReset={handlePasswordResetRequest}
+								passwordResetPending={sendPasswordResetMutation.isPending}
+								canManageUsers={canManageUsers}
+							/>
+						) : (
+							<div className="flex items-center justify-center h-full text-muted-foreground">
+								<div className="text-center">
+									<Users className="h-16 w-16 mx-auto mb-4 opacity-50" />
+									<p className="text-lg font-medium">No user selected</p>
+									<p className="text-sm mt-1">
+										Select a user from the list or create a new one
+									</p>
+								</div>
+							</div>
+						)}
+					</div>
+
+					{/* Delete Confirmation Dialog */}
+					<AlertDialog
+						open={deleteDialogOpen}
+						onOpenChange={setDeleteDialogOpen}
+					>
+						<AlertDialogContent>
+							<AlertDialogHeader>
+								<AlertDialogTitle>Delete User</AlertDialogTitle>
+								<AlertDialogDescription>
+									Are you sure you want to delete user &ldquo;
+									{userToDelete?.name}
+									&rdquo;? This action cannot be undone.
+								</AlertDialogDescription>
+							</AlertDialogHeader>
+							<AlertDialogFooter>
+								<AlertDialogCancel>Cancel</AlertDialogCancel>
+								<AlertDialogAction
+									onClick={async () => {
+										if (userToDelete) {
+											try {
+												await deleteUserMutation.mutateAsync({
+													userId: userToDelete.id,
+												});
+												toast.success("User deleted successfully");
+												setDeleteDialogOpen(false);
+												setUserToDelete(null);
+												setSelectedUserId(null);
+												setMode("view");
+												refetch();
+											} catch (_error) {
+												// Error handled by mutation callback
+											}
+										}
+									}}
+									className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+								>
+									Delete
+								</AlertDialogAction>
+							</AlertDialogFooter>
+						</AlertDialogContent>
+					</AlertDialog>
+				</div>
 			</div>
-		</div>
+		</PageContainer>
 	);
 }
 

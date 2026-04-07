@@ -36,8 +36,17 @@ type Props = {
 	className?: string;
 };
 
+const PROFILE_APP_ROUTES = ["/inventory", "/asset", "/crm", "/hrms"] as const;
+
 export default function UserDropdownContent({ appRoute, className }: Props) {
-	const { isActive, roles, user: sessionUser, hasAnyRole } = useAuth();
+	const {
+		canAccessApp,
+		hasAnyRole,
+		hasPermission,
+		isActive,
+		roles,
+		user: sessionUser,
+	} = useAuth();
 	const router = useRouter();
 	const pathname = usePathname();
 
@@ -102,14 +111,32 @@ export default function UserDropdownContent({ appRoute, className }: Props) {
 		return parts.length > 0 ? `/${parts[0]}` : "";
 	}, [appRoute, pathname]);
 
+	const defaultProfilePrefix = React.useMemo(
+		() =>
+			PROFILE_APP_ROUTES.find((route) => canAccessApp(route.slice(1))) ?? null,
+		[canAccessApp],
+	);
+
+	const profileRoute = React.useMemo(() => {
+		if (PROFILE_APP_ROUTES.some((route) => route === prefix)) {
+			return `${prefix}/dashboard/profile`;
+		}
+
+		if (defaultProfilePrefix) {
+			return `${defaultProfilePrefix}/dashboard/profile`;
+		}
+
+		return null;
+	}, [defaultProfilePrefix, prefix]);
+
 	// Check if user has admin access based on roles from user authorization
 	const hasAdminAccess = React.useMemo(
 		() =>
 			isActive &&
-			roles.length > 0 &&
-			(hasAnyRole("admin", "super_admin") ||
+			(hasPermission("system:user.read") ||
+				hasAnyRole("admin", "super_admin") ||
 				roles.some((roleKey) => roleKey.toLowerCase().includes("admin"))),
-		[hasAnyRole, isActive, roles],
+		[hasAnyRole, hasPermission, isActive, roles],
 	);
 
 	return (
@@ -131,12 +158,12 @@ export default function UserDropdownContent({ appRoute, className }: Props) {
 			<DropdownMenuSeparator />
 
 			<DropdownMenuGroup>
-				<DropdownMenuItem
-					onClick={() => router.push(`${prefix}/dashboard/profile`)}
-				>
-					<IconUserCircle className="mr-2 h-4 w-4" />
-					Profile
-				</DropdownMenuItem>
+				{profileRoute ? (
+					<DropdownMenuItem onClick={() => router.push(profileRoute)}>
+						<IconUserCircle className="mr-2 h-4 w-4" />
+						Profile
+					</DropdownMenuItem>
+				) : null}
 				<DropdownMenuItem onClick={() => router.push("/auth/change-password")}>
 					<IconKey className="mr-2 h-4 w-4" />
 					Change password

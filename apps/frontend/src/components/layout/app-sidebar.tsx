@@ -6,6 +6,7 @@ import {
 	IconChevronRight,
 	IconChevronsDown,
 	IconPhotoUp,
+	IconShield,
 	IconUsers,
 } from "@tabler/icons-react";
 import Link from "next/link";
@@ -52,13 +53,20 @@ const LONG_NAV_LABEL_THRESHOLD = 28;
 
 type WorkspaceApp = {
 	id: string;
-	key: "inventory" | "asset" | "crm" | "hrms";
+	key: "admin" | "inventory" | "asset" | "crm" | "hrms";
 	name: string;
 	logo: React.ComponentType<{ className?: string }>;
 	route: string;
 };
 
 const WORKSPACE_APPS: WorkspaceApp[] = [
+	{
+		id: "admin",
+		key: "admin",
+		name: "Admin",
+		logo: IconShield,
+		route: "/admin",
+	},
 	{
 		id: "inventory",
 		key: "inventory",
@@ -240,16 +248,35 @@ NavItemComponent.displayName = "NavItemComponent";
 export default function AppSidebar() {
 	const pathname = usePathname();
 	useMediaQuery();
-	const { canAccessApp, isLoading: authLoading, user: sessionUser } = useAuth();
+	const {
+		canAccessApp,
+		hasAnyRole,
+		hasPermission,
+		isActive,
+		isLoading: authLoading,
+		roles,
+		user: sessionUser,
+	} = useAuth();
+
+	const hasAdminAccess = React.useMemo(
+		() =>
+			isActive &&
+			(hasPermission("system:user.read") ||
+				hasAnyRole("admin", "super_admin") ||
+				roles.some((roleKey) => roleKey.toLowerCase().includes("admin"))),
+		[hasAnyRole, hasPermission, isActive, roles],
+	);
 
 	const accessibleApps = React.useMemo(() => {
 		if (authLoading) {
 			return WORKSPACE_APPS;
 		}
 
-		const allowed = WORKSPACE_APPS.filter((app) => canAccessApp(app.key));
+		const allowed = WORKSPACE_APPS.filter((app) =>
+			app.key === "admin" ? hasAdminAccess : canAccessApp(app.key),
+		);
 		return allowed.length > 0 ? allowed : WORKSPACE_APPS;
-	}, [authLoading, canAccessApp]);
+	}, [authLoading, canAccessApp, hasAdminAccess]);
 
 	// Map auth session user shape to the local user shape expected by UserAvatarProfile
 	const user = React.useMemo(() => {
