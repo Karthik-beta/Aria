@@ -623,10 +623,7 @@ export class InstallationNoteSubService {
 				);
 			}
 
-			if (
-				existing.status === "COMPLETED" ||
-				existing.status === "CANCELLED"
-			) {
+			if (existing.status === "COMPLETED" || existing.status === "CANCELLED") {
 				throw new BadRequestException(
 					"Completed or cancelled installation notes cannot be modified",
 				);

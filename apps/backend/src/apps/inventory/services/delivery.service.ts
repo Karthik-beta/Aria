@@ -1603,7 +1603,9 @@ export class DeliverySubService {
 			}
 
 			if (existing.status !== "DRAFT") {
-				throw new BadRequestException("Only Draft packing slips can be edited.");
+				throw new BadRequestException(
+					"Only Draft packing slips can be edited.",
+				);
 			}
 
 			const fromCaseNo = data.fromCaseNo ?? existing.fromCaseNo;
@@ -1873,7 +1875,9 @@ export class DeliverySubService {
 				select: { series: true, status: true },
 			});
 
-			const submitted = currentSlips.filter((slip) => slip.status === "SUBMITTED");
+			const submitted = currentSlips.filter(
+				(slip) => slip.status === "SUBMITTED",
+			);
 
 			if (submitted.length > 0) {
 				const series = submitted.map((slip) => slip.series).join(", ");
