@@ -9,6 +9,10 @@
  */
 import type { Inventory } from "@aria/types";
 import { Prisma } from "../../../generated/prisma/client";
+import type {
+	DeliveryNoteStatus,
+	PurchaseReceiptStatus,
+} from "../../../generated/prisma/enums";
 import type { PrismaService } from "../../../shared/prisma.service";
 import { buildCommittedStockSnapshot } from "./stock-snapshot";
 
@@ -19,6 +23,21 @@ interface DashboardStockItem {
 	valuationRate: number | null;
 	itemGroup: { groupName: string } | null;
 }
+
+const COMMITTED_DELIVERY_NOTE_STATUSES: DeliveryNoteStatus[] = [
+	"TO_BILL",
+	"COMPLETED",
+	"RETURN_ISSUED",
+	"CLOSED",
+];
+
+const COMMITTED_PURCHASE_RECEIPT_STATUSES: PurchaseReceiptStatus[] = [
+	"PARTLY_BILLED",
+	"TO_BILL",
+	"COMPLETED",
+	"RETURN_ISSUED",
+	"CLOSED",
+];
 
 export class DashboardSubService {
 	constructor(private readonly prisma: PrismaService) {}
@@ -267,7 +286,7 @@ export class DashboardSubService {
 		const entries = await this.prisma.stockEntry.findMany({
 			where: {
 				postingDate: { gte: from, lte: to },
-				status: { not: "CANCELLED" },
+				status: "SUBMITTED",
 			},
 			select: {
 				postingDate: true,
@@ -309,7 +328,7 @@ export class DashboardSubService {
 		const deliveryNotes = await this.prisma.deliveryNote.findMany({
 			where: {
 				postingDate: { gte: from, lte: to },
-				status: { not: "CANCELLED" },
+				status: { in: COMMITTED_DELIVERY_NOTE_STATUSES },
 				isReturn: false,
 			},
 			select: {
@@ -329,7 +348,7 @@ export class DashboardSubService {
 		const purchaseReceipts = await this.prisma.purchaseReceipt.findMany({
 			where: {
 				postingDate: { gte: from, lte: to },
-				status: { not: "CANCELLED" },
+				status: { in: COMMITTED_PURCHASE_RECEIPT_STATUSES },
 				isReturn: false,
 			},
 			select: {
@@ -409,7 +428,7 @@ export class DashboardSubService {
 		Inventory.DashboardRecentActivity[]
 	> {
 		const entries = await this.prisma.stockEntry.findMany({
-			where: { status: { not: "CANCELLED" } },
+			where: { status: "SUBMITTED" },
 			orderBy: { postingDate: "desc" },
 			take: 10,
 			select: {
@@ -510,7 +529,7 @@ export class DashboardSubService {
 			where: {
 				stockEntry: {
 					postingDate: { gte: from, lte: to },
-					status: { not: "CANCELLED" },
+					status: "SUBMITTED",
 				},
 			},
 			_sum: { qty: true },
@@ -543,7 +562,7 @@ export class DashboardSubService {
 				COALESCE(SUM(sei.qty), 0) AS "totalQty"
 			FROM stock_entries se
 			LEFT JOIN stock_entry_items sei ON sei."stockEntryId" = se.id
-			WHERE se.status <> 'CANCELLED'
+			WHERE se.status = 'SUBMITTED'
 			GROUP BY se."stockEntryType"
 			ORDER BY COUNT(DISTINCT se.id) DESC, se."stockEntryType" ASC
 		`);

@@ -341,6 +341,7 @@ function buildMockPrisma() {
 		client: {
 			$queryRaw: jest.fn(),
 		},
+		$queryRaw: jest.fn(),
 		$transaction: jest.fn(),
 	};
 }
@@ -369,6 +370,9 @@ describe("InventoryService — Packing Slip", () => {
 					: 1;
 			return [{ value: initialValue }];
 		});
+		mockPrisma.$queryRaw.mockImplementation((query: unknown) =>
+			mockPrisma.client.$queryRaw(query),
+		);
 		mockPrisma.$transaction.mockImplementation(
 			(
 				input:
@@ -665,6 +669,40 @@ describe("InventoryService — Packing Slip", () => {
 
 			const findCall = mockPrisma.packingSlip.findMany.mock.calls[0][0];
 			expect(findCall.where.series).toBeUndefined();
+		});
+	});
+
+	describe("packing slip lifecycle safety", () => {
+		it("rechecks slip status inside submit transaction before applying packed quantities", async () => {
+			mockPrisma.packingSlip.findUnique
+				.mockResolvedValueOnce({
+					deliveryNoteId: DELIVERY_NOTE_ID,
+				})
+				.mockResolvedValueOnce({
+					...CREATED_PS,
+					status: "SUBMITTED",
+				});
+
+			await expect(service.submitPackingSlip(CREATED_PS.id)).rejects.toThrow(
+				BadRequestException,
+			);
+			expect(mockPrisma.deliveryNoteItem.update).not.toHaveBeenCalled();
+		});
+
+		it("rechecks slip status inside delete transaction before removing the record", async () => {
+			mockPrisma.packingSlip.findUnique
+				.mockResolvedValueOnce({
+					deliveryNoteId: DELIVERY_NOTE_ID,
+				})
+				.mockResolvedValueOnce({
+					id: CREATED_PS.id,
+					status: "SUBMITTED",
+				});
+
+			await expect(service.deletePackingSlip(CREATED_PS.id)).rejects.toThrow(
+				BadRequestException,
+			);
+			expect(mockPrisma.packingSlip.delete).not.toHaveBeenCalled();
 		});
 	});
 });

@@ -828,6 +828,7 @@ export function createMockPrisma() {
 		client: {
 			$queryRaw: jest.fn(),
 		},
+		$queryRaw: jest.fn(),
 		deliveryTrip: {
 			findMany: jest.fn(),
 			findFirst: jest.fn(),
@@ -900,6 +901,9 @@ export function createTestContext() {
 
 		return [];
 	});
+	mockPrisma.$queryRaw.mockImplementation((query: unknown) =>
+		mockPrisma.client.$queryRaw(query),
+	);
 
 	mockPrisma.$transaction.mockImplementation(
 		(

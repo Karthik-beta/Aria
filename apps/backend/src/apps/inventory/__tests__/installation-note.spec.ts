@@ -118,6 +118,47 @@ describe("InventoryService > Installation Note", () => {
 			).rejects.toThrow(BadRequestException);
 		});
 
+		it("should reject completing an installation note with an already installed serial number", async () => {
+			mockPrisma.installationNote.findFirst.mockResolvedValue(null);
+			mockPrisma.inventoryItem.findMany.mockResolvedValue([
+				{
+					id: mockItem.id,
+					code: mockItem.code,
+					name: mockItem.name,
+					hasSerialNo: true,
+					disabled: false,
+				},
+			]);
+			mockPrisma.serialNo.findMany.mockResolvedValue([
+				{
+					id: mockSerialNo.id,
+					serialNo: mockSerialNo.serialNo,
+					itemId: mockItem.id,
+					company: "Aria Corp",
+					status: "INSTALLED",
+					deliveryNoteId: null,
+					isDisabled: false,
+				},
+			]);
+
+			await expect(
+				service.createInstallationNote({
+					customer: "Acme Industries",
+					company: "Aria Corp",
+					status: "COMPLETED",
+					items: [
+						{
+							itemId: mockItem.id,
+							serialNoId: mockSerialNo.id,
+							description: "Onsite setup",
+							installedQty: 1,
+						},
+					],
+				}),
+			).rejects.toThrow(BadRequestException);
+			expect(mockPrisma.serialNo.update).not.toHaveBeenCalled();
+		});
+
 		it("should prevent deleting non-draft installation notes", async () => {
 			mockPrisma.installationNote.findUnique.mockResolvedValue({
 				id: mockInstallationNote.id,

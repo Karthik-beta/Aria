@@ -10,7 +10,7 @@
  */
 import type { Inventory } from "@aria/types";
 import { BadRequestException, NotFoundException } from "@nestjs/common";
-import type { Prisma } from "../../../generated/prisma/client";
+import { Prisma } from "../../../generated/prisma/client";
 import {
 	allocateDocumentSeries,
 	getSeriesSeedValue,
@@ -29,6 +29,45 @@ import {
 
 export class InstallationNoteSubService {
 	constructor(private readonly prisma: PrismaService) {}
+
+	private async lockInstallationNoteRow(
+		tx: Prisma.TransactionClient,
+		installationNoteId: string,
+	): Promise<void> {
+		const rows = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+			SELECT id
+			FROM installation_notes
+			WHERE id = ${installationNoteId}
+			FOR UPDATE
+		`);
+
+		if (rows.length === 0) {
+			throw new NotFoundException(
+				`Installation note with ID ${installationNoteId} not found`,
+			);
+		}
+	}
+
+	private async lockSerialNoRows(
+		tx: Prisma.TransactionClient,
+		serialNoIds: Array<string | null | undefined>,
+	): Promise<void> {
+		const uniqueIds = [...new Set(serialNoIds.map((id) => id?.trim() ?? ""))]
+			.filter((id) => id.length > 0)
+			.sort();
+
+		if (uniqueIds.length === 0) {
+			return;
+		}
+
+		await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+			SELECT id
+			FROM serial_nos
+			WHERE id IN (${Prisma.join(uniqueIds)})
+			ORDER BY id
+			FOR UPDATE
+		`);
+	}
 
 	private getInstallationNoteOrderBy(
 		sortBy: Inventory.InstallationNoteSortBy = "updatedAt",
@@ -105,6 +144,7 @@ export class InstallationNoteSubService {
 	private async generateInstallationNoteSeries(
 		date: Date,
 		seriesPattern?: string | null,
+		client: Prisma.TransactionClient | PrismaService = this.prisma,
 	): Promise<string> {
 		const normalizedPattern =
 			this.normalizeInstallationNoteSeriesPattern(seriesPattern);
@@ -113,16 +153,16 @@ export class InstallationNoteSubService {
 			date,
 		);
 
-		const existingCounter = await this.prisma.documentSeriesCounter.findUnique({
+		const existingCounter = await client.documentSeriesCounter.findUnique({
 			where: { key: prefix },
 			select: { value: true },
 		});
 
 		if (existingCounter) {
-			return allocateDocumentSeries(this.prisma, prefix);
+			return allocateDocumentSeries(client, prefix);
 		}
 
-		const lastNote = await this.prisma.installationNote.findFirst({
+		const lastNote = await client.installationNote.findFirst({
 			where: {
 				series: { startsWith: prefix },
 			},
@@ -131,7 +171,7 @@ export class InstallationNoteSubService {
 		});
 
 		return allocateDocumentSeries(
-			this.prisma,
+			client,
 			prefix,
 			5,
 			getSeriesSeedValue(prefix, lastNote?.series),
@@ -327,6 +367,11 @@ export class InstallationNoteSubService {
 			}
 
 			if (input.status === "COMPLETED") {
+				if (serial.status === "INSTALLED") {
+					throw new BadRequestException(
+						`Serial number ${serial.serialNo} is already installed`,
+					);
+				}
 				assertSerialNoStatusTransition(serial.status, "INSTALLED");
 			}
 		}
@@ -493,12 +538,19 @@ export class InstallationNoteSubService {
 		);
 		const status = data.status ?? "DRAFT";
 
-		const series = await this.generateInstallationNoteSeries(
-			installationDate,
-			seriesPattern,
-		);
-
 		const created = await this.prisma.$transaction(async (tx) => {
+			if (status === "COMPLETED") {
+				await this.lockSerialNoRows(
+					tx,
+					data.items.map((item) => item.serialNoId),
+				);
+			}
+
+			const series = await this.generateInstallationNoteSeries(
+				installationDate,
+				seriesPattern,
+				tx,
+			);
 			const validated = await this.validateInstallationNoteInput(tx, {
 				company: data.company,
 				customer: data.customer,
@@ -555,43 +607,55 @@ export class InstallationNoteSubService {
 	async updateInstallationNote(
 		data: Inventory.UpdateInstallationNoteInput,
 	): Promise<Inventory.InstallationNote> {
-		const existing = await this.prisma.installationNote.findUnique({
-			where: { id: data.id },
-			include: {
-				items: true,
-			},
-		});
-
-		if (!existing) {
-			throw new NotFoundException(
-				`Installation note with ID ${data.id} not found`,
-			);
-		}
-
-		if (existing.status === "COMPLETED" || existing.status === "CANCELLED") {
-			throw new BadRequestException(
-				"Completed or cancelled installation notes cannot be modified",
-			);
-		}
-
-		const nextStatus =
-			data.status ?? (existing.status as Inventory.InstallationNoteStatus);
-		this.assertInstallationNoteStatusTransition(
-			existing.status as Inventory.InstallationNoteStatus,
-			nextStatus,
-		);
-
-		const nextItems =
-			data.items ??
-			existing.items.map((item) => ({
-				id: item.id,
-				itemId: item.itemId,
-				serialNoId: item.serialNoId,
-				description: item.description,
-				installedQty: item.installedQty,
-			}));
-
 		const updated = await this.prisma.$transaction(async (tx) => {
+			await this.lockInstallationNoteRow(tx, data.id);
+
+			const existing = await tx.installationNote.findUnique({
+				where: { id: data.id },
+				include: {
+					items: true,
+				},
+			});
+
+			if (!existing) {
+				throw new NotFoundException(
+					`Installation note with ID ${data.id} not found`,
+				);
+			}
+
+			if (
+				existing.status === "COMPLETED" ||
+				existing.status === "CANCELLED"
+			) {
+				throw new BadRequestException(
+					"Completed or cancelled installation notes cannot be modified",
+				);
+			}
+
+			const nextStatus =
+				data.status ?? (existing.status as Inventory.InstallationNoteStatus);
+			this.assertInstallationNoteStatusTransition(
+				existing.status as Inventory.InstallationNoteStatus,
+				nextStatus,
+			);
+
+			const nextItems =
+				data.items ??
+				existing.items.map((item) => ({
+					id: item.id,
+					itemId: item.itemId,
+					serialNoId: item.serialNoId,
+					description: item.description,
+					installedQty: item.installedQty,
+				}));
+
+			if (nextStatus === "COMPLETED") {
+				await this.lockSerialNoRows(
+					tx,
+					nextItems.map((item) => item.serialNoId),
+				);
+			}
+
 			const validated = await this.validateInstallationNoteInput(tx, {
 				company: data.company ?? existing.company,
 				customer: data.customer ?? existing.customer,

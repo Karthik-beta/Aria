@@ -3,9 +3,77 @@
 import type { AppRouter } from "@aria/api-contract";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
-import { createWSClient, httpBatchLink, splitLink, wsLink } from "@trpc/client";
+import {
+	createWSClient,
+	type WebSocketClientOptions,
+	httpBatchLink,
+	splitLink,
+	wsLink,
+} from "@trpc/client";
 import * as React from "react";
 import { trpc } from "./client";
+
+type QueryRecoveryClient = Pick<QueryClient, "refetchQueries">;
+
+const RECOVERY_THROTTLE_MS = 1_000;
+
+/**
+ * Builds browser event handlers that recover active queries after visibility,
+ * focus, or WebSocket reconnect transitions.
+ */
+export function createRealtimeRecoveryHandlers(
+	queryClient: QueryRecoveryClient,
+	getNow: () => number = () => Date.now(),
+) {
+	let hasOpenedSocket = false;
+	let lastRecoveryAt = 0;
+
+	const refetchActiveQueries = (force = false) => {
+		const now = getNow();
+
+		if (!force && now - lastRecoveryAt < RECOVERY_THROTTLE_MS) {
+			return;
+		}
+
+		lastRecoveryAt = now;
+		void queryClient.refetchQueries({ type: "active" });
+	};
+
+	return {
+		handleWindowFocus: () => {
+			refetchActiveQueries();
+		},
+		handleVisibilityChange: () => {
+			if (document.visibilityState === "visible") {
+				refetchActiveQueries();
+			}
+		},
+		handleWsOpen: () => {
+			if (!hasOpenedSocket) {
+				hasOpenedSocket = true;
+				return;
+			}
+
+			refetchActiveQueries(true);
+		},
+	};
+}
+
+function createWsClientOptions(
+	wsUrl: string,
+	queryClient: QueryRecoveryClient,
+): WebSocketClientOptions {
+	const recovery = createRealtimeRecoveryHandlers(queryClient);
+
+	return {
+		url: wsUrl,
+		lazy: {
+			enabled: true,
+			closeMs: 10_000,
+		},
+		onOpen: recovery.handleWsOpen,
+	};
+}
 
 /**
  * Create a new QueryClient instance
@@ -20,6 +88,7 @@ function makeQueryClient() {
 			queries: {
 				staleTime: 60 * 1000, // 1 minute
 				refetchOnWindowFocus: false,
+				refetchOnReconnect: true,
 			},
 		},
 	});
@@ -134,6 +203,28 @@ export function TRPCProvider({ children }: { children: React.ReactNode }) {
 	// Use official SSR-safe QueryClient pattern
 	const queryClient = getQueryClient();
 
+	React.useEffect(() => {
+		if (typeof window === "undefined") {
+			return;
+		}
+
+		const recovery = createRealtimeRecoveryHandlers(queryClient);
+
+		window.addEventListener("focus", recovery.handleWindowFocus);
+		document.addEventListener(
+			"visibilitychange",
+			recovery.handleVisibilityChange,
+		);
+
+		return () => {
+			window.removeEventListener("focus", recovery.handleWindowFocus);
+			document.removeEventListener(
+				"visibilitychange",
+				recovery.handleVisibilityChange,
+			);
+		};
+	}, [queryClient]);
+
 	/**
 	 * Initialize tRPC client once with stable configuration
 	 *
@@ -152,13 +243,7 @@ export function TRPCProvider({ children }: { children: React.ReactNode }) {
 		// SSR-safe: typeof window check happens inside wsLink
 		const wsClient =
 			typeof window !== "undefined"
-				? createWSClient({
-						url: wsUrl,
-						lazy: {
-							enabled: true,
-							closeMs: 10_000,
-						},
-					})
+				? createWSClient(createWsClientOptions(wsUrl, queryClient))
 				: null;
 
 		return trpc.createClient({
