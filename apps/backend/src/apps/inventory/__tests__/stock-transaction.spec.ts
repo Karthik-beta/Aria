@@ -107,25 +107,7 @@ describe("InventoryService > Stock Transaction", () => {
 			expect(callArgs.data.series).toBe("MAT-MR-2026-00004");
 		});
 
-		it("should retry once on a series uniqueness conflict and succeed", async () => {
-			const p2002 = new Prisma.PrismaClientKnownRequestError("Duplicate", {
-				code: "P2002",
-				clientVersion: "5.0.0",
-			});
-			mockPrisma.materialRequest.findFirst
-				.mockResolvedValueOnce(null)
-				.mockResolvedValueOnce(null);
-			mockPrisma.materialRequest.create
-				.mockRejectedValueOnce(p2002)
-				.mockResolvedValueOnce(mockMR);
-
-			const result = await service.createMaterialRequest(createInput);
-
-			expect(result.id).toBe(mockMR.id);
-			expect(mockPrisma.materialRequest.create).toHaveBeenCalledTimes(2);
-		});
-
-		it("should throw after 3 consecutive series conflicts (P2002)", async () => {
+		it("should surface persistence conflicts without retrying series allocation", async () => {
 			const p2002 = new Prisma.PrismaClientKnownRequestError("Duplicate", {
 				code: "P2002",
 				clientVersion: "5.0.0",
@@ -136,7 +118,8 @@ describe("InventoryService > Stock Transaction", () => {
 			await expect(
 				service.createMaterialRequest(createInput),
 			).rejects.toBeInstanceOf(Prisma.PrismaClientKnownRequestError);
-			expect(mockPrisma.materialRequest.create).toHaveBeenCalledTimes(3);
+			expect(mockPrisma.materialRequest.create).toHaveBeenCalledTimes(1);
+			expect(mockPrisma.client.$queryRaw).toHaveBeenCalledTimes(1);
 		});
 	});
 
@@ -374,25 +357,7 @@ describe("InventoryService > Stock Transaction", () => {
 			expect(callArgs.data.series).toBe("MAT-STE-2026-00004");
 		});
 
-		it("should retry once on a series uniqueness conflict and succeed", async () => {
-			const p2002 = new Prisma.PrismaClientKnownRequestError("Duplicate", {
-				code: "P2002",
-				clientVersion: "5.0.0",
-			});
-			mockPrisma.stockEntry.findFirst
-				.mockResolvedValueOnce(null)
-				.mockResolvedValueOnce(null);
-			mockPrisma.stockEntry.create
-				.mockRejectedValueOnce(p2002)
-				.mockResolvedValueOnce(mockStockEntry);
-
-			const result = await service.createStockEntry(createInput);
-
-			expect(result.id).toBe(mockStockEntry.id);
-			expect(mockPrisma.stockEntry.create).toHaveBeenCalledTimes(2);
-		});
-
-		it("should throw after 3 consecutive series conflicts (P2002)", async () => {
+		it("should surface persistence conflicts without retrying series allocation", async () => {
 			const p2002 = new Prisma.PrismaClientKnownRequestError("Duplicate", {
 				code: "P2002",
 				clientVersion: "5.0.0",
@@ -403,7 +368,8 @@ describe("InventoryService > Stock Transaction", () => {
 			await expect(
 				service.createStockEntry(createInput),
 			).rejects.toBeInstanceOf(Prisma.PrismaClientKnownRequestError);
-			expect(mockPrisma.stockEntry.create).toHaveBeenCalledTimes(3);
+			expect(mockPrisma.stockEntry.create).toHaveBeenCalledTimes(1);
+			expect(mockPrisma.client.$queryRaw).toHaveBeenCalledTimes(1);
 		});
 	});
 

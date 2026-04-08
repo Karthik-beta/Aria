@@ -18,6 +18,10 @@ import {
 	NotFoundException,
 } from "@nestjs/common";
 import type { Prisma } from "../../generated/prisma/client";
+import {
+	allocateDocumentSeries,
+	getSeriesSeedValue,
+} from "../../shared/document-series";
 // biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
 import { PrismaService } from "../../shared/prisma.service";
 import {
@@ -142,37 +146,32 @@ export class AssetService {
 
 	/**
 	 * Generates a unique asset series in format AST-YYYY-NNNNN.
-	 * Retries up to 3 times on conflict.
+	 * Uses a database-backed counter to stay safe under concurrent creates.
 	 */
 	private async generateAssetSeries(date: Date): Promise<string> {
 		const year = date.getFullYear();
 		const prefix = `AST-${year}-`;
+		const existingCounter = await this.prisma.documentSeriesCounter.findUnique({
+			where: { key: prefix },
+			select: { value: true },
+		});
 
-		for (let attempt = 0; attempt < 3; attempt++) {
-			const last = await this.prisma.asset.findFirst({
-				where: { series: { startsWith: prefix } },
-				orderBy: { series: "desc" },
-				select: { series: true },
-			});
-
-			let next = 1;
-			if (last) {
-				const num = parseInt(last.series.slice(prefix.length), 10);
-				if (!Number.isNaN(num)) next = num + 1;
-			}
-
-			const candidate = `${prefix}${String(next).padStart(5, "0")}`;
-
-			const exists = await this.prisma.asset.findUnique({
-				where: { series: candidate },
-				select: { id: true },
-			});
-
-			if (!exists) return candidate;
+		if (existingCounter) {
+			return allocateDocumentSeries(this.prisma, prefix);
 		}
 
-		// Fallback: timestamp suffix
-		return `${prefix}${Date.now()}`;
+		const last = await this.prisma.asset.findFirst({
+			where: { series: { startsWith: prefix } },
+			orderBy: { series: "desc" },
+			select: { series: true },
+		});
+
+		return allocateDocumentSeries(
+			this.prisma,
+			prefix,
+			5,
+			getSeriesSeedValue(prefix, last?.series),
+		);
 	}
 
 	private async generateAssetValueAdjustmentSeries(
@@ -180,30 +179,27 @@ export class AssetService {
 	): Promise<string> {
 		const year = date.getFullYear();
 		const prefix = `AVA-${year}-`;
+		const existingCounter = await this.prisma.documentSeriesCounter.findUnique({
+			where: { key: prefix },
+			select: { value: true },
+		});
 
-		for (let attempt = 0; attempt < 3; attempt += 1) {
-			const last = await this.prisma.assetValueAdjustment.findFirst({
-				where: { series: { startsWith: prefix } },
-				orderBy: { series: "desc" },
-				select: { series: true },
-			});
-
-			let next = 1;
-			if (last) {
-				const num = parseInt(last.series.slice(prefix.length), 10);
-				if (!Number.isNaN(num)) next = num + 1;
-			}
-
-			const candidate = `${prefix}${String(next).padStart(5, "0")}`;
-			const exists = await this.prisma.assetValueAdjustment.findUnique({
-				where: { series: candidate },
-				select: { id: true },
-			});
-
-			if (!exists) return candidate;
+		if (existingCounter) {
+			return allocateDocumentSeries(this.prisma, prefix);
 		}
 
-		return `${prefix}${Date.now()}`;
+		const last = await this.prisma.assetValueAdjustment.findFirst({
+			where: { series: { startsWith: prefix } },
+			orderBy: { series: "desc" },
+			select: { series: true },
+		});
+
+		return allocateDocumentSeries(
+			this.prisma,
+			prefix,
+			5,
+			getSeriesSeedValue(prefix, last?.series),
+		);
 	}
 
 	private async generateAssetRevaluationEntrySeries(
@@ -211,30 +207,27 @@ export class AssetService {
 	): Promise<string> {
 		const year = date.getFullYear();
 		const prefix = `JE-AVA-${year}-`;
+		const existingCounter = await this.prisma.documentSeriesCounter.findUnique({
+			where: { key: prefix },
+			select: { value: true },
+		});
 
-		for (let attempt = 0; attempt < 3; attempt += 1) {
-			const last = await this.prisma.assetRevaluationEntry.findFirst({
-				where: { series: { startsWith: prefix } },
-				orderBy: { series: "desc" },
-				select: { series: true },
-			});
-
-			let next = 1;
-			if (last) {
-				const num = parseInt(last.series.slice(prefix.length), 10);
-				if (!Number.isNaN(num)) next = num + 1;
-			}
-
-			const candidate = `${prefix}${String(next).padStart(5, "0")}`;
-			const exists = await this.prisma.assetRevaluationEntry.findUnique({
-				where: { series: candidate },
-				select: { id: true },
-			});
-
-			if (!exists) return candidate;
+		if (existingCounter) {
+			return allocateDocumentSeries(this.prisma, prefix);
 		}
 
-		return `${prefix}${Date.now()}`;
+		const last = await this.prisma.assetRevaluationEntry.findFirst({
+			where: { series: { startsWith: prefix } },
+			orderBy: { series: "desc" },
+			select: { series: true },
+		});
+
+		return allocateDocumentSeries(
+			this.prisma,
+			prefix,
+			5,
+			getSeriesSeedValue(prefix, last?.series),
+		);
 	}
 
 	private roundCurrency(value: number): number {

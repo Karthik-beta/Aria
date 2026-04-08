@@ -62,6 +62,9 @@ function buildMockPrisma() {
 		itemGroup: { findMany: jest.fn() },
 		itemGroupDefault: { count: jest.fn() },
 		itemReorder: { count: jest.fn() },
+		documentSeriesCounter: {
+			findUnique: jest.fn(),
+		},
 		stockSettings: {
 			findUnique: jest.fn(),
 			upsert: jest.fn(),
@@ -335,6 +338,9 @@ function buildMockPrisma() {
 			create: jest.fn(),
 			findMany: jest.fn(),
 		},
+		client: {
+			$queryRaw: jest.fn(),
+		},
 		$transaction: jest.fn(),
 	};
 }
@@ -348,6 +354,21 @@ describe("InventoryService — Packing Slip", () => {
 	beforeEach(() => {
 		jest.clearAllMocks();
 		mockPrisma = buildMockPrisma();
+		mockPrisma.documentSeriesCounter.findUnique.mockResolvedValue(null);
+		mockPrisma.client.$queryRaw.mockImplementation(async (query: unknown) => {
+			const values =
+				query &&
+				typeof query === "object" &&
+				"values" in query &&
+				Array.isArray(query.values)
+					? query.values
+					: [];
+			const initialValue =
+				typeof values[1] === "number" && Number.isFinite(values[1])
+					? values[1]
+					: 1;
+			return [{ value: initialValue }];
+		});
 		mockPrisma.$transaction.mockImplementation(
 			(
 				input:

@@ -41,10 +41,176 @@ type InstallationNotesChangedEvent = {
 	data: Inventory.InstallationNote | { id: string };
 };
 
+const inventoryChangeScopeSchema = z
+	.object({
+		company: z.string().max(255).optional(),
+		warehouse: z.string().max(255).optional(),
+		itemCode: z.string().max(100).optional(),
+	})
+	.optional();
+
+type InventoryChangeScopeFilter = z.infer<typeof inventoryChangeScopeSchema>;
+
+type InventoryChangeScope = {
+	id: string;
+	company?: string | null;
+	warehouses: string[];
+	itemCodes: string[];
+};
+
+function uniqueValues(values: Array<string | null | undefined>) {
+	return [
+		...new Set(
+			values
+				.map((value) => value?.trim())
+				.filter((value): value is string => Boolean(value)),
+		),
+	];
+}
+
+function normalizeFilterValue(value?: string | null) {
+	return value?.trim().toLowerCase() ?? "";
+}
+
+function matchesInventoryChangeScope(
+	scope: InventoryChangeScope,
+	filter?: InventoryChangeScopeFilter,
+) {
+	if (!filter) return true;
+
+	const companyFilter = normalizeFilterValue(filter.company);
+	if (
+		companyFilter &&
+		!(scope.company ?? "").toLowerCase().includes(companyFilter)
+	) {
+		return false;
+	}
+
+	const warehouseFilter = normalizeFilterValue(filter.warehouse);
+	if (
+		warehouseFilter &&
+		!scope.warehouses.some(
+			(warehouse) => warehouse.toLowerCase() === warehouseFilter,
+		)
+	) {
+		return false;
+	}
+
+	const itemCodeFilter = normalizeFilterValue(filter.itemCode);
+	if (
+		itemCodeFilter &&
+		!scope.itemCodes.some((itemCode) =>
+			itemCode.toLowerCase().includes(itemCodeFilter),
+		)
+	) {
+		return false;
+	}
+
+	return true;
+}
+
+function toMaterialRequestChangeScope(request: {
+	id: string;
+	company?: string | null;
+	targetWarehouse?: string | null;
+	items?: Array<{
+		targetWarehouse?: string | null;
+		itemCode?: string | null;
+	}>;
+}): InventoryChangeScope {
+	const itemRows = request.items ?? [];
+	return {
+		id: request.id,
+		company: request.company ?? null,
+		warehouses: uniqueValues(
+			itemRows.flatMap((item) => [
+				item.targetWarehouse,
+				request.targetWarehouse,
+			]),
+		),
+		itemCodes: uniqueValues(itemRows.map((item) => item.itemCode)),
+	};
+}
+
+function toStockEntryChangeScope(entry: {
+	id: string;
+	company?: string | null;
+	defaultSourceWarehouse?: string | null;
+	defaultTargetWarehouse?: string | null;
+	items?: Array<{
+		sourceWarehouse?: string | null;
+		targetWarehouse?: string | null;
+		itemCode?: string | null;
+	}>;
+}): InventoryChangeScope {
+	const itemRows = entry.items ?? [];
+	return {
+		id: entry.id,
+		company: entry.company ?? null,
+		warehouses: uniqueValues(
+			itemRows.flatMap((item) => [
+				item.sourceWarehouse,
+				item.targetWarehouse,
+				entry.defaultSourceWarehouse,
+				entry.defaultTargetWarehouse,
+			]),
+		),
+		itemCodes: uniqueValues(itemRows.map((item) => item.itemCode)),
+	};
+}
+
+function toDeliveryNoteChangeScope(note: {
+	id: string;
+	company?: string | null;
+	sourceWarehouse?: string | null;
+	items?: Array<{
+		warehouse?: string | null;
+		itemCode?: string | null;
+	}>;
+}): InventoryChangeScope {
+	const itemRows = note.items ?? [];
+	return {
+		id: note.id,
+		company: note.company ?? null,
+		warehouses: uniqueValues(
+			itemRows.flatMap((item) => [item.warehouse, note.sourceWarehouse]),
+		),
+		itemCodes: uniqueValues(itemRows.map((item) => item.itemCode)),
+	};
+}
+
+function toPickListChangeScope(pickList: {
+	id: string;
+	company?: string | null;
+	warehouse?: string | null;
+	items?: Array<{
+		warehouse?: string | null;
+		item?: string | null;
+	}>;
+}): InventoryChangeScope {
+	const itemRows = pickList.items ?? [];
+	return {
+		id: pickList.id,
+		company: pickList.company ?? null,
+		warehouses: uniqueValues(
+			itemRows.flatMap((item) => [item.warehouse, pickList.warehouse]),
+		),
+		itemCodes: uniqueValues(itemRows.map((item) => item.item)),
+	};
+}
+
 function createListItemsProcedure(inventoryService: InventoryService) {
 	return protectedProcedure.query(async () => {
 		return inventoryService.findAll();
 	});
+}
+
+function createListItemCatalogueProcedure(inventoryService: InventoryService) {
+	return protectedProcedure
+		.input(Inventory.listItemsSchema)
+		.query(async ({ input }) => {
+			return inventoryService.findPagedItems(input);
+		});
 }
 
 function createListItemGroupsProcedure(inventoryService: InventoryService) {
@@ -879,7 +1045,7 @@ const onInstallationNotesChangedProcedure = protectedProcedure.subscription(
 
 type MaterialRequestsChangedEvent = {
 	type: "created" | "updated" | "deleted";
-	data: Inventory.MaterialRequest | { id: string };
+	data: InventoryChangeScope;
 };
 
 function createListMaterialRequestsProcedure(
@@ -909,7 +1075,10 @@ function createCreateMaterialRequestProcedure(
 		.input(Inventory.createMaterialRequestSchema)
 		.mutation(async ({ input }) => {
 			const result = await inventoryService.createMaterialRequest(input);
-			void inventoryEvents.emit("materialRequestCreated", result);
+			void inventoryEvents.emit(
+				"materialRequestCreated",
+				toMaterialRequestChangeScope(result),
+			);
 			return result;
 		});
 }
@@ -921,7 +1090,10 @@ function createUpdateMaterialRequestProcedure(
 		.input(Inventory.updateMaterialRequestSchema)
 		.mutation(async ({ input }) => {
 			const result = await inventoryService.updateMaterialRequest(input);
-			void inventoryEvents.emit("materialRequestUpdated", result);
+			void inventoryEvents.emit(
+				"materialRequestUpdated",
+				toMaterialRequestChangeScope(result),
+			);
 			return result;
 		});
 }
@@ -932,8 +1104,14 @@ function createDeleteMaterialRequestProcedure(
 	return protectedProcedure
 		.input(z.object({ id: z.string().min(1) }))
 		.mutation(async ({ input }) => {
+			const existing = await inventoryService.findMaterialRequestById(input.id);
 			const result = await inventoryService.deleteMaterialRequest(input.id);
-			inventoryEvents.emit("materialRequestDeleted", { id: input.id });
+			inventoryEvents.emit(
+				"materialRequestDeleted",
+				existing
+					? toMaterialRequestChangeScope(existing)
+					: { id: input.id, company: null, warehouses: [], itemCodes: [] },
+			);
 			return result;
 		});
 }
@@ -944,29 +1122,46 @@ function createDeleteManyMaterialRequestsProcedure(
 	return protectedProcedure
 		.input(Inventory.bulkDeleteMaterialRequestsSchema)
 		.mutation(async ({ input }) => {
+			const existingRequests = (
+				await Promise.all(
+					input.ids.map((id) => inventoryService.findMaterialRequestById(id)),
+				)
+			).filter(
+				(request): request is Inventory.MaterialRequest => request != null,
+			);
 			const result = await inventoryService.deleteManyMaterialRequests(
 				input.ids,
 			);
-			for (const id of result.ids) {
-				inventoryEvents.emit("materialRequestDeleted", { id });
+			for (const request of existingRequests) {
+				inventoryEvents.emit(
+					"materialRequestDeleted",
+					toMaterialRequestChangeScope(request),
+				);
 			}
 			return result;
 		});
 }
 
-const onMaterialRequestsChangedProcedure = protectedProcedure.subscription(
-	() => {
+const onMaterialRequestsChangedProcedure = protectedProcedure
+	.input(inventoryChangeScopeSchema)
+	.subscription(({ input }) => {
 		return observable<MaterialRequestsChangedEvent>((emit) => {
-			const onCreated = (data: Inventory.MaterialRequest) => {
-				emit.next({ type: "created", data });
+			const onCreated = (data: InventoryChangeScope) => {
+				if (matchesInventoryChangeScope(data, input)) {
+					emit.next({ type: "created", data });
+				}
 			};
 
-			const onUpdated = (data: Inventory.MaterialRequest) => {
-				emit.next({ type: "updated", data });
+			const onUpdated = (data: InventoryChangeScope) => {
+				if (matchesInventoryChangeScope(data, input)) {
+					emit.next({ type: "updated", data });
+				}
 			};
 
-			const onDeleted = (data: { id: string }) => {
-				emit.next({ type: "deleted", data });
+			const onDeleted = (data: InventoryChangeScope) => {
+				if (matchesInventoryChangeScope(data, input)) {
+					emit.next({ type: "deleted", data });
+				}
 			};
 
 			inventoryEvents.on("materialRequestCreated", onCreated);
@@ -979,14 +1174,13 @@ const onMaterialRequestsChangedProcedure = protectedProcedure.subscription(
 				inventoryEvents.off("materialRequestDeleted", onDeleted);
 			};
 		});
-	},
-);
+	});
 
 // ─── Stock Entry Procedures ──────────────────────────────────────────────────
 
 type StockEntriesChangedEvent = {
 	type: "created" | "updated" | "deleted";
-	data: Inventory.StockEntry | { id: string };
+	data: InventoryChangeScope;
 };
 
 function createListStockEntriesProcedure(inventoryService: InventoryService) {
@@ -1010,7 +1204,10 @@ function createCreateStockEntryProcedure(inventoryService: InventoryService) {
 		.input(Inventory.createStockEntrySchema)
 		.mutation(async ({ input }) => {
 			const result = await inventoryService.createStockEntry(input);
-			void inventoryEvents.emit("stockEntryCreated", result);
+			void inventoryEvents.emit(
+				"stockEntryCreated",
+				toStockEntryChangeScope(result),
+			);
 			return result;
 		});
 }
@@ -1020,7 +1217,10 @@ function createUpdateStockEntryProcedure(inventoryService: InventoryService) {
 		.input(Inventory.updateStockEntrySchema)
 		.mutation(async ({ input }) => {
 			const result = await inventoryService.updateStockEntry(input);
-			void inventoryEvents.emit("stockEntryUpdated", result);
+			void inventoryEvents.emit(
+				"stockEntryUpdated",
+				toStockEntryChangeScope(result),
+			);
 			return result;
 		});
 }
@@ -1029,8 +1229,14 @@ function createDeleteStockEntryProcedure(inventoryService: InventoryService) {
 	return protectedProcedure
 		.input(z.object({ id: z.string().min(1) }))
 		.mutation(async ({ input }) => {
+			const existing = await inventoryService.findStockEntryById(input.id);
 			const result = await inventoryService.deleteStockEntry(input.id);
-			void inventoryEvents.emit("stockEntryDeleted", { id: input.id });
+			void inventoryEvents.emit(
+				"stockEntryDeleted",
+				existing
+					? toStockEntryChangeScope(existing)
+					: { id: input.id, company: null, warehouses: [], itemCodes: [] },
+			);
 			return result;
 		});
 }
@@ -1041,37 +1247,53 @@ function createDeleteManyStockEntriesProcedure(
 	return protectedProcedure
 		.input(Inventory.bulkDeleteStockEntriesSchema)
 		.mutation(async ({ input }) => {
+			const existingEntries = (
+				await Promise.all(
+					input.ids.map((id) => inventoryService.findStockEntryById(id)),
+				)
+			).filter((entry): entry is Inventory.StockEntry => entry != null);
 			const result = await inventoryService.deleteManyStockEntries(input.ids);
-			for (const id of result.ids) {
-				inventoryEvents.emit("stockEntryDeleted", { id });
+			for (const entry of existingEntries) {
+				inventoryEvents.emit(
+					"stockEntryDeleted",
+					toStockEntryChangeScope(entry),
+				);
 			}
 			return result;
 		});
 }
 
-const onStockEntriesChangedProcedure = protectedProcedure.subscription(() => {
-	return observable<StockEntriesChangedEvent>((emit) => {
-		const onCreated = (data: Inventory.StockEntry) => {
-			emit.next({ type: "created", data });
-		};
-		const onUpdated = (data: Inventory.StockEntry) => {
-			emit.next({ type: "updated", data });
-		};
-		const onDeleted = (data: { id: string }) => {
-			emit.next({ type: "deleted", data });
-		};
+const onStockEntriesChangedProcedure = protectedProcedure
+	.input(inventoryChangeScopeSchema)
+	.subscription(({ input }) => {
+		return observable<StockEntriesChangedEvent>((emit) => {
+			const onCreated = (data: InventoryChangeScope) => {
+				if (matchesInventoryChangeScope(data, input)) {
+					emit.next({ type: "created", data });
+				}
+			};
+			const onUpdated = (data: InventoryChangeScope) => {
+				if (matchesInventoryChangeScope(data, input)) {
+					emit.next({ type: "updated", data });
+				}
+			};
+			const onDeleted = (data: InventoryChangeScope) => {
+				if (matchesInventoryChangeScope(data, input)) {
+					emit.next({ type: "deleted", data });
+				}
+			};
 
-		inventoryEvents.on("stockEntryCreated", onCreated);
-		inventoryEvents.on("stockEntryUpdated", onUpdated);
-		inventoryEvents.on("stockEntryDeleted", onDeleted);
+			inventoryEvents.on("stockEntryCreated", onCreated);
+			inventoryEvents.on("stockEntryUpdated", onUpdated);
+			inventoryEvents.on("stockEntryDeleted", onDeleted);
 
-		return () => {
-			inventoryEvents.off("stockEntryCreated", onCreated);
-			inventoryEvents.off("stockEntryUpdated", onUpdated);
-			inventoryEvents.off("stockEntryDeleted", onDeleted);
-		};
+			return () => {
+				inventoryEvents.off("stockEntryCreated", onCreated);
+				inventoryEvents.off("stockEntryUpdated", onUpdated);
+				inventoryEvents.off("stockEntryDeleted", onDeleted);
+			};
+		});
 	});
-});
 
 function createListStockLedgerProcedure(inventoryService: InventoryService) {
 	return protectedProcedure
@@ -1283,7 +1505,7 @@ function createListPurchaseOrderAnalysisProcedure(
 
 type DeliveryNotesChangedEvent = {
 	type: "created" | "updated" | "deleted";
-	data: Inventory.DeliveryNote | { id: string };
+	data: InventoryChangeScope;
 };
 
 function createListDeliveryNotesProcedure(inventoryService: InventoryService) {
@@ -1309,7 +1531,10 @@ function createCreateDeliveryNoteProcedure(inventoryService: InventoryService) {
 		.input(Inventory.createDeliveryNoteSchema)
 		.mutation(async ({ input }) => {
 			const result = await inventoryService.createDeliveryNote(input);
-			void inventoryEvents.emit("deliveryNoteCreated", result);
+			void inventoryEvents.emit(
+				"deliveryNoteCreated",
+				toDeliveryNoteChangeScope(result),
+			);
 			return result;
 		});
 }
@@ -1319,7 +1544,10 @@ function createUpdateDeliveryNoteProcedure(inventoryService: InventoryService) {
 		.input(Inventory.updateDeliveryNoteSchema)
 		.mutation(async ({ input }) => {
 			const result = await inventoryService.updateDeliveryNote(input);
-			void inventoryEvents.emit("deliveryNoteUpdated", result);
+			void inventoryEvents.emit(
+				"deliveryNoteUpdated",
+				toDeliveryNoteChangeScope(result),
+			);
 			return result;
 		});
 }
@@ -1328,8 +1556,14 @@ function createDeleteDeliveryNoteProcedure(inventoryService: InventoryService) {
 	return protectedProcedure
 		.input(z.object({ id: z.string().min(1) }))
 		.mutation(async ({ input }) => {
+			const existing = await inventoryService.findDeliveryNoteById(input.id);
 			const result = await inventoryService.deleteDeliveryNote(input.id);
-			void inventoryEvents.emit("deliveryNoteDeleted", { id: input.id });
+			void inventoryEvents.emit(
+				"deliveryNoteDeleted",
+				existing
+					? toDeliveryNoteChangeScope(existing)
+					: { id: input.id, company: null, warehouses: [], itemCodes: [] },
+			);
 			return result;
 		});
 }
@@ -1340,37 +1574,53 @@ function createDeleteManyDeliveryNotesProcedure(
 	return protectedProcedure
 		.input(Inventory.bulkDeleteDeliveryNotesSchema)
 		.mutation(async ({ input }) => {
+			const existingNotes = (
+				await Promise.all(
+					input.ids.map((id) => inventoryService.findDeliveryNoteById(id)),
+				)
+			).filter((note): note is Inventory.DeliveryNote => note != null);
 			const result = await inventoryService.deleteManyDeliveryNotes(input.ids);
-			for (const id of result.ids) {
-				inventoryEvents.emit("deliveryNoteDeleted", { id });
+			for (const note of existingNotes) {
+				inventoryEvents.emit(
+					"deliveryNoteDeleted",
+					toDeliveryNoteChangeScope(note),
+				);
 			}
 			return result;
 		});
 }
 
-const onDeliveryNotesChangedProcedure = protectedProcedure.subscription(() => {
-	return observable<DeliveryNotesChangedEvent>((emit) => {
-		const onCreated = (data: Inventory.DeliveryNote) => {
-			emit.next({ type: "created", data });
-		};
-		const onUpdated = (data: Inventory.DeliveryNote) => {
-			emit.next({ type: "updated", data });
-		};
-		const onDeleted = (data: { id: string }) => {
-			emit.next({ type: "deleted", data });
-		};
+const onDeliveryNotesChangedProcedure = protectedProcedure
+	.input(inventoryChangeScopeSchema)
+	.subscription(({ input }) => {
+		return observable<DeliveryNotesChangedEvent>((emit) => {
+			const onCreated = (data: InventoryChangeScope) => {
+				if (matchesInventoryChangeScope(data, input)) {
+					emit.next({ type: "created", data });
+				}
+			};
+			const onUpdated = (data: InventoryChangeScope) => {
+				if (matchesInventoryChangeScope(data, input)) {
+					emit.next({ type: "updated", data });
+				}
+			};
+			const onDeleted = (data: InventoryChangeScope) => {
+				if (matchesInventoryChangeScope(data, input)) {
+					emit.next({ type: "deleted", data });
+				}
+			};
 
-		inventoryEvents.on("deliveryNoteCreated", onCreated);
-		inventoryEvents.on("deliveryNoteUpdated", onUpdated);
-		inventoryEvents.on("deliveryNoteDeleted", onDeleted);
+			inventoryEvents.on("deliveryNoteCreated", onCreated);
+			inventoryEvents.on("deliveryNoteUpdated", onUpdated);
+			inventoryEvents.on("deliveryNoteDeleted", onDeleted);
 
-		return () => {
-			inventoryEvents.off("deliveryNoteCreated", onCreated);
-			inventoryEvents.off("deliveryNoteUpdated", onUpdated);
-			inventoryEvents.off("deliveryNoteDeleted", onDeleted);
-		};
+			return () => {
+				inventoryEvents.off("deliveryNoteCreated", onCreated);
+				inventoryEvents.off("deliveryNoteUpdated", onUpdated);
+				inventoryEvents.off("deliveryNoteDeleted", onDeleted);
+			};
+		});
 	});
-});
 
 // ─── Purchase Receipt Procedures ─────────────────────────────────────────────
 
@@ -1481,7 +1731,7 @@ const onPurchaseReceiptsChangedProcedure = protectedProcedure.subscription(
 
 type PickListsChangedEvent = {
 	type: "created" | "updated" | "deleted";
-	data: Inventory.PickList | { id: string };
+	data: InventoryChangeScope;
 };
 
 function createListPickListsProcedure(inventoryService: InventoryService) {
@@ -1505,7 +1755,10 @@ function createCreatePickListProcedure(inventoryService: InventoryService) {
 		.input(Inventory.createPickListSchema)
 		.mutation(async ({ input }) => {
 			const result = await inventoryService.createPickList(input);
-			void inventoryEvents.emit("pickListCreated", result);
+			void inventoryEvents.emit(
+				"pickListCreated",
+				toPickListChangeScope(result),
+			);
 			return result;
 		});
 }
@@ -1515,7 +1768,10 @@ function createUpdatePickListProcedure(inventoryService: InventoryService) {
 		.input(Inventory.updatePickListSchema)
 		.mutation(async ({ input }) => {
 			const result = await inventoryService.updatePickList(input);
-			void inventoryEvents.emit("pickListUpdated", result);
+			void inventoryEvents.emit(
+				"pickListUpdated",
+				toPickListChangeScope(result),
+			);
 			return result;
 		});
 }
@@ -1524,8 +1780,14 @@ function createDeletePickListProcedure(inventoryService: InventoryService) {
 	return protectedProcedure
 		.input(z.object({ id: z.string().min(1) }))
 		.mutation(async ({ input }) => {
+			const existing = await inventoryService.findPickListById(input.id);
 			const result = await inventoryService.deletePickList(input.id);
-			void inventoryEvents.emit("pickListDeleted", { id: input.id });
+			void inventoryEvents.emit(
+				"pickListDeleted",
+				existing
+					? toPickListChangeScope(existing)
+					: { id: input.id, company: null, warehouses: [], itemCodes: [] },
+			);
 			return result;
 		});
 }
@@ -1536,37 +1798,53 @@ function createDeleteManyPickListsProcedure(
 	return protectedProcedure
 		.input(Inventory.bulkDeletePickListsSchema)
 		.mutation(async ({ input }) => {
+			const existingPickLists = (
+				await Promise.all(
+					input.ids.map((id) => inventoryService.findPickListById(id)),
+				)
+			).filter((pickList): pickList is Inventory.PickList => pickList != null);
 			const result = await inventoryService.deleteManyPickLists(input.ids);
-			for (const id of result.ids) {
-				void inventoryEvents.emit("pickListDeleted", { id });
+			for (const pickList of existingPickLists) {
+				void inventoryEvents.emit(
+					"pickListDeleted",
+					toPickListChangeScope(pickList),
+				);
 			}
 			return result;
 		});
 }
 
-const onPickListsChangedProcedure = protectedProcedure.subscription(() => {
-	return observable<PickListsChangedEvent>((emit) => {
-		const onCreated = (data: Inventory.PickList) => {
-			emit.next({ type: "created", data });
-		};
-		const onUpdated = (data: Inventory.PickList) => {
-			emit.next({ type: "updated", data });
-		};
-		const onDeleted = (data: { id: string }) => {
-			emit.next({ type: "deleted", data });
-		};
+const onPickListsChangedProcedure = protectedProcedure
+	.input(inventoryChangeScopeSchema)
+	.subscription(({ input }) => {
+		return observable<PickListsChangedEvent>((emit) => {
+			const onCreated = (data: InventoryChangeScope) => {
+				if (matchesInventoryChangeScope(data, input)) {
+					emit.next({ type: "created", data });
+				}
+			};
+			const onUpdated = (data: InventoryChangeScope) => {
+				if (matchesInventoryChangeScope(data, input)) {
+					emit.next({ type: "updated", data });
+				}
+			};
+			const onDeleted = (data: InventoryChangeScope) => {
+				if (matchesInventoryChangeScope(data, input)) {
+					emit.next({ type: "deleted", data });
+				}
+			};
 
-		inventoryEvents.on("pickListCreated", onCreated);
-		inventoryEvents.on("pickListUpdated", onUpdated);
-		inventoryEvents.on("pickListDeleted", onDeleted);
+			inventoryEvents.on("pickListCreated", onCreated);
+			inventoryEvents.on("pickListUpdated", onUpdated);
+			inventoryEvents.on("pickListDeleted", onDeleted);
 
-		return () => {
-			inventoryEvents.off("pickListCreated", onCreated);
-			inventoryEvents.off("pickListUpdated", onUpdated);
-			inventoryEvents.off("pickListDeleted", onDeleted);
-		};
+			return () => {
+				inventoryEvents.off("pickListCreated", onCreated);
+				inventoryEvents.off("pickListUpdated", onUpdated);
+				inventoryEvents.off("pickListDeleted", onDeleted);
+			};
+		});
 	});
-});
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Delivery Trip procedures
@@ -1960,6 +2238,7 @@ type InventoryRouterInput = {
 		typeof createGetDashboardBottomChartsDataProcedure
 	>;
 	listItems: ReturnType<typeof createListItemsProcedure>;
+	listItemCatalogue: ReturnType<typeof createListItemCatalogueProcedure>;
 	listItemGroups: ReturnType<typeof createListItemGroupsProcedure>;
 	listUnitsOfMeasure: ReturnType<typeof createListUnitsOfMeasureProcedure>;
 	listWarehouses: ReturnType<typeof createListWarehousesProcedure>;
@@ -2248,6 +2527,7 @@ function createInventoryRouterRecord(
 		getDashboardBottomChartsData:
 			createGetDashboardBottomChartsDataProcedure(inventoryService),
 		listItems: createListItemsProcedure(inventoryService),
+		listItemCatalogue: createListItemCatalogueProcedure(inventoryService),
 		listItemGroups: createListItemGroupsProcedure(inventoryService),
 		listUnitsOfMeasure: createListUnitsOfMeasureProcedure(inventoryService),
 		listWarehouses: createListWarehousesProcedure(inventoryService),

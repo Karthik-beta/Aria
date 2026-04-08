@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import {
 	Dialog,
 	DialogContent,
+	DialogDescription,
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
@@ -114,6 +115,9 @@ export function NewUomDialog() {
 			<DialogContent className="max-w-143.75 gap-0 overflow-hidden p-0">
 				<DialogHeader className="border-b px-5 py-4">
 					<DialogTitle>New UOM</DialogTitle>
+					<DialogDescription>
+						Create a new unit of measure for item quantities.
+					</DialogDescription>
 				</DialogHeader>
 
 				<form

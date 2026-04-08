@@ -67,26 +67,23 @@ describe("InventoryService > Purchase Receipt", () => {
 			expect(callArgs.data.grandTotal).toBe(525);
 		});
 
-		it("should retry once on a series uniqueness conflict and succeed", async () => {
+		it("should surface persistence conflicts without retrying series allocation", async () => {
 			const conflict = new Prisma.PrismaClientKnownRequestError("Duplicate", {
 				code: "P2002",
 				clientVersion: "5.0.0",
 			});
-			mockPrisma.purchaseReceipt.findFirst
-				.mockResolvedValueOnce(null)
-				.mockResolvedValueOnce(null);
-			mockPrisma.purchaseReceipt.create
-				.mockRejectedValueOnce(conflict)
-				.mockResolvedValueOnce(mockPurchaseReceipt);
+			mockPrisma.purchaseReceipt.findFirst.mockResolvedValue(null);
+			mockPrisma.purchaseReceipt.create.mockRejectedValue(conflict);
 
-			const result = await service.createPurchaseReceipt({
-				supplier: "ACME Supplies",
-				company: "Aria Corp",
-				items: [{ itemCode: "PRE-ITM-001", acceptedQuantity: 5, rate: 100 }],
-			});
-
-			expect(result.id).toBe(mockPurchaseReceipt.id);
-			expect(mockPrisma.purchaseReceipt.create).toHaveBeenCalledTimes(2);
+			await expect(
+				service.createPurchaseReceipt({
+					supplier: "ACME Supplies",
+					company: "Aria Corp",
+					items: [{ itemCode: "PRE-ITM-001", acceptedQuantity: 5, rate: 100 }],
+				}),
+			).rejects.toBeInstanceOf(Prisma.PrismaClientKnownRequestError);
+			expect(mockPrisma.purchaseReceipt.create).toHaveBeenCalledTimes(1);
+			expect(mockPrisma.client.$queryRaw).toHaveBeenCalledTimes(1);
 		});
 	});
 

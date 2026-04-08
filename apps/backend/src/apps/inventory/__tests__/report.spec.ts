@@ -1,9 +1,6 @@
 import {
 	BadRequestException,
 	createTestContext,
-	mockMR,
-	mockMRItem,
-	mockProjectedPickList,
 	mockStockEntry,
 	mockStockEntryItem,
 } from "./inventory-test-helpers";
@@ -18,6 +15,20 @@ describe("InventoryService > Report", () => {
 		service = ctx.service;
 		mockPrisma = ctx.mockPrisma;
 	});
+
+	function getRawSqlCall(index = 0) {
+		const query = mockPrisma.client.$queryRaw.mock.calls[index]?.[0] as
+			| {
+					strings?: string[];
+					values?: unknown[];
+			  }
+			| undefined;
+
+		return {
+			text: query?.strings?.join(" ") ?? "",
+			values: query?.values ?? [],
+		};
+	}
 
 	describe("findStockLedger", () => {
 		it("should return derived ledger rows for bounded stock entry items", async () => {
@@ -140,34 +151,22 @@ describe("InventoryService > Report", () => {
 
 	describe("findStockBalance", () => {
 		it("should aggregate opening, inward, outward, and closing balances", async () => {
-			mockPrisma.stockEntryItem.findMany.mockReset();
+			mockPrisma.client.$queryRaw.mockReset();
 			mockPrisma.item.findMany.mockReset();
-			mockPrisma.stockEntryItem.findMany.mockResolvedValue([
+			mockPrisma.client.$queryRaw.mockResolvedValue([
 				{
-					...mockStockEntryItem,
-					qty: 10,
-					basicAmount: 1000,
-					stockEntry: {
-						...mockStockEntry,
-						status: "SUBMITTED",
-						postingDate: new Date("2026-02-20T00:00:00.000Z"),
-						defaultTargetWarehouse: "Stores - GH",
-					},
-				},
-				{
-					...mockStockEntryItem,
-					qty: 3,
-					basicAmount: 300,
-					sourceWarehouse: "Stores - GH",
-					stockEntry: {
-						...mockStockEntry,
-						id: "clh123ste000002",
-						series: "MAT-STE-2026-00002",
-						stockEntryType: "MATERIAL_ISSUE",
-						status: "SUBMITTED",
-						postingDate: new Date("2026-03-05T00:00:00.000Z"),
-						defaultTargetWarehouse: null,
-					},
+					company: "Aria Corp",
+					itemCode: mockStockEntryItem.itemCode,
+					itemName: "Stock Test Item",
+					warehouse: "Stores - GH",
+					unitOfMeasure: "Nos",
+					openingQty: 10,
+					openingValue: 1000,
+					inQty: 0,
+					inValue: 0,
+					outQty: 3,
+					outValue: 300,
+					lastPostingDate: new Date("2026-03-05T00:00:00.000Z"),
 				},
 			]);
 			mockPrisma.item.findMany.mockResolvedValue([
@@ -200,20 +199,16 @@ describe("InventoryService > Report", () => {
 				valuationRate: 125,
 				balanceValue: 875,
 			});
-			expect(mockPrisma.stockEntryItem.findMany).toHaveBeenCalledWith(
-				expect.objectContaining({
-					include: { stockEntry: true },
-					where: expect.objectContaining({
-						stockEntry: expect.objectContaining({ status: "SUBMITTED" }),
-					}),
-				}),
+			expect(mockPrisma.client.$queryRaw).toHaveBeenCalledTimes(1);
+			expect(getRawSqlCall().text).toContain(
+				`GROUP BY company, "itemCode", warehouse`,
 			);
 		});
 
 		it("should map filters and preserve zero-balance rows only when requested", async () => {
-			mockPrisma.stockEntryItem.findMany.mockReset();
+			mockPrisma.client.$queryRaw.mockReset();
 			mockPrisma.item.findMany.mockReset();
-			mockPrisma.stockEntryItem.findMany.mockResolvedValue([]);
+			mockPrisma.client.$queryRaw.mockResolvedValue([]);
 			mockPrisma.item.findMany
 				.mockResolvedValueOnce([{ code: "ITEM-001" }])
 				.mockResolvedValueOnce([]);
@@ -233,29 +228,22 @@ describe("InventoryService > Report", () => {
 				includeZeroStockItems: true,
 			});
 
-			expect(mockPrisma.stockEntryItem.findMany).toHaveBeenCalledWith(
-				expect.objectContaining({
-					where: expect.objectContaining({
-						AND: expect.arrayContaining([
-							expect.objectContaining({
-								itemCode: expect.objectContaining({ contains: "ITEM" }),
-							}),
-							expect.objectContaining({
-								itemCode: expect.objectContaining({ in: ["ITEM-001"] }),
-							}),
-							expect.objectContaining({
-								stockEntry: expect.objectContaining({
-									company: expect.objectContaining({ contains: "Aria" }),
-									status: "DRAFT",
-									project: expect.objectContaining({ contains: "Project" }),
-									postingDate: expect.objectContaining({
-										lte: new Date("2026-03-31T00:00:00.000Z"),
-									}),
-								}),
-							}),
-						]),
-					}),
-				}),
+			const rawQuery = getRawSqlCall();
+			expect(rawQuery.text).toContain(`status =`);
+			expect(rawQuery.text).toContain(
+				`GROUP BY company, "itemCode", warehouse`,
+			);
+			expect(rawQuery.values).toEqual(
+				expect.arrayContaining([
+					"DRAFT",
+					"%Aria%",
+					"%ITEM%",
+					"ITEM-001",
+					"stores - gh",
+					"%Project%",
+					new Date("2026-03-31T00:00:00.000Z"),
+					"%nova%",
+				]),
 			);
 			expect(mockPrisma.item.findMany).toHaveBeenCalledWith(
 				expect.objectContaining({
@@ -283,22 +271,23 @@ describe("InventoryService > Report", () => {
 
 	describe("findWarehouseWiseStockBalance", () => {
 		it("should map stock movement rows into warehouse-wise balance rows", async () => {
-			mockPrisma.stockEntryItem.findMany.mockReset();
-			mockPrisma.stockEntryItem.findMany.mockResolvedValue([
+			mockPrisma.client.$queryRaw.mockReset();
+			mockPrisma.client.$queryRaw.mockResolvedValue([
 				{
-					...mockStockEntryItem,
-					id: "clh123ste_item01",
+					id: "clh123ste_item01:Stores - GH:IN",
+					stockEntryId: mockStockEntry.id,
+					stockEntryItemId: "clh123ste_item01",
 					itemCode: "STE-ITM-001",
 					itemName: "Stock Test Item",
-					qty: 4,
-					basicRate: 250,
-					basicAmount: 1000,
-					stockEntry: {
-						...mockStockEntry,
-						status: "SUBMITTED",
-						defaultTargetWarehouse: "Stores - GH",
-						postingDate: new Date("2026-03-22T00:00:00.000Z"),
-					},
+					company: "Aria Corp",
+					warehouse: "Stores - GH",
+					postingDate: new Date("2026-03-22T00:00:00.000Z"),
+					voucherNo: "MAT-STE-2026-00001",
+					qtyChange: 4,
+					incomingRate: 250,
+					movementType: "IN",
+					createdAt: new Date("2026-03-22T00:00:00.000Z"),
+					updatedAt: new Date("2026-03-22T00:00:00.000Z"),
 				},
 			]);
 
@@ -318,8 +307,8 @@ describe("InventoryService > Report", () => {
 		});
 
 		it("should map filters and bound pagination for warehouse-wise rows", async () => {
-			mockPrisma.stockEntryItem.findMany.mockReset();
-			mockPrisma.stockEntryItem.findMany.mockResolvedValue([]);
+			mockPrisma.client.$queryRaw.mockReset();
+			mockPrisma.client.$queryRaw.mockResolvedValue([]);
 
 			await service.findWarehouseWiseStockBalance({
 				take: 999,
@@ -334,27 +323,21 @@ describe("InventoryService > Report", () => {
 				dateTo: new Date("2026-03-31T00:00:00.000Z"),
 			});
 
-			expect(mockPrisma.stockEntryItem.findMany).toHaveBeenCalledWith(
-				expect.objectContaining({
-					where: expect.objectContaining({
-						AND: expect.arrayContaining([
-							expect.objectContaining({
-								itemCode: expect.objectContaining({ contains: "STE" }),
-							}),
-							expect.objectContaining({
-								stockEntry: expect.objectContaining({
-									status: "DRAFT",
-									company: expect.objectContaining({ contains: "Aria" }),
-									series: expect.objectContaining({ contains: "MAT-STE" }),
-									postingDate: expect.objectContaining({
-										gte: new Date("2026-03-01T00:00:00.000Z"),
-										lte: new Date("2026-03-31T00:00:00.000Z"),
-									}),
-								}),
-							}),
-						]),
-					}),
-				}),
+			const rawQuery = getRawSqlCall();
+			expect(rawQuery.text).toContain(`ORDER BY "postingDate" DESC`);
+			expect(rawQuery.values).toEqual(
+				expect.arrayContaining([
+					"DRAFT",
+					"%Aria%",
+					"%MAT-STE%",
+					"%STE%",
+					"stores - gh",
+					new Date("2026-03-01T00:00:00.000Z"),
+					new Date("2026-03-31T00:00:00.000Z"),
+					"%stock%",
+					0,
+					250,
+				]),
 			);
 		});
 
@@ -370,101 +353,26 @@ describe("InventoryService > Report", () => {
 
 	describe("findStockProjectedQty", () => {
 		it("should combine stock, request, and reservation buckets into projected quantities", async () => {
-			mockPrisma.stockEntryItem.findMany
-				.mockResolvedValueOnce([
-					{
-						...mockStockEntryItem,
-						qty: 11,
-						basicAmount: 1100,
-						stockEntry: {
-							...mockStockEntry,
-							status: "SUBMITTED",
-							defaultTargetWarehouse: "Stores - GH",
-						},
-					},
-				])
-				.mockResolvedValueOnce([])
-				.mockResolvedValueOnce([]);
-			mockPrisma.materialRequest.findMany.mockResolvedValue([
+			mockPrisma.client.$queryRaw.mockReset();
+			mockPrisma.client.$queryRaw.mockResolvedValue([
 				{
-					...mockMR,
-					status: "PARTIALLY_ORDERED",
 					company: "Aria Corp",
-					items: [
-						{
-							...mockMRItem,
-							itemCode: "STE-ITM-001",
-							quantity: 55,
-							orderedQty: 25,
-							receivedQty: 0,
-							targetWarehouse: "Stores - GH",
-						},
-					],
+					itemCode: "STE-ITM-001",
+					itemName: "Stock Test Item",
+					description: "Primary item",
+					warehouse: "Stores - GH",
+					unitOfMeasure: "Nos",
+					actualQty: 11,
+					plannedQty: 0,
+					requestedQty: 30,
+					orderedQty: 25,
+					reservedQty: 5,
+					reservedQtyForProduction: 4,
+					reservedQtyForSubcontracting: 0,
+					reservedQtyForProductionPlan: 0,
+					lastActivityDate: new Date("2026-03-22T00:00:00.000Z"),
 				},
 			]);
-			mockPrisma.deliveryNote.findMany.mockResolvedValue([
-				{
-					id: "clh123dn000001",
-					series: "MAT-DN-2026-00001",
-					postingDate: new Date("2026-03-22T00:00:00.000Z"),
-					customer: "Test Customer",
-					company: "Aria Corp",
-					status: "TO_BILL" as const,
-					isReturn: false,
-					currency: null,
-					priceList: null,
-					sourceWarehouse: "Stores - GH",
-					totalQuantity: 5,
-					totalAmount: 0,
-					grandTotal: 0,
-					roundingAdjustment: 0,
-					roundedTotal: 0,
-					additionalDiscountOn: null,
-					additionalDiscountPercent: null,
-					additionalDiscountAmount: null,
-					shippingAddress: null,
-					dispatchAddress: null,
-					companyAddress: null,
-					companyContact: null,
-					companyTRN: null,
-					terms: null,
-					termsContent: null,
-					transporter: null,
-					driverName: null,
-					driver: null,
-					transportReceiptDate: null,
-					transportReceiptNo: null,
-					vehicleNo: null,
-					customerPoNo: null,
-					customerPoDate: null,
-					salesPartner: null,
-					commissionRate: null,
-					letterHead: null,
-					printHeading: null,
-					printWithoutAmount: false,
-					groupSameItems: false,
-					permitNumber: null,
-					vatEmirate: null,
-					project: null,
-					items: [
-						{
-							id: "clh123dn_item01",
-							deliveryNoteId: "clh123dn000001",
-							itemCode: "STE-ITM-001",
-							itemName: "Stock Test Item",
-							description: null,
-							quantity: 5,
-							uom: "Nos",
-							rate: 0,
-							amount: 0,
-							warehouse: "Stores - GH",
-						},
-					],
-					createdAt: new Date("2026-03-22T00:00:00.000Z"),
-					updatedAt: new Date("2026-03-22T00:00:00.000Z"),
-				},
-			]);
-			mockPrisma.pickList.findMany.mockResolvedValue([mockProjectedPickList]);
 			mockPrisma.inventoryItem.findMany
 				.mockResolvedValueOnce([
 					{
@@ -537,48 +445,46 @@ describe("InventoryService > Report", () => {
 
 	describe("findStockSummary", () => {
 		it("should derive sorted stock summary rows from projected quantities", async () => {
-			mockPrisma.stockEntryItem.findMany.mockReset();
-			mockPrisma.materialRequest.findMany.mockReset();
-			mockPrisma.deliveryNote.findMany.mockReset();
-			mockPrisma.pickList.findMany.mockReset();
+			mockPrisma.client.$queryRaw.mockReset();
 			mockPrisma.inventoryItem.findMany.mockReset();
 			mockPrisma.item.findMany.mockReset();
 
-			mockPrisma.stockEntryItem.findMany
-				.mockResolvedValueOnce([
-					{
-						...mockStockEntryItem,
-						itemCode: "STE-ITM-001",
-						itemName: "Stock Test Item",
-						qty: 2,
-						basicAmount: 200,
-						stockEntry: {
-							...mockStockEntry,
-							status: "SUBMITTED",
-							defaultTargetWarehouse: "Stores - GH",
-						},
-					},
-					{
-						...mockStockEntryItem,
-						id: "clh123ste_item02",
-						itemCode: "STE-ITM-002",
-						itemName: "Stock Test Item 2",
-						qty: 9,
-						basicAmount: 900,
-						stockEntry: {
-							...mockStockEntry,
-							id: "clh123ste000002",
-							series: "MAT-STE-2026-00002",
-							status: "SUBMITTED",
-							defaultTargetWarehouse: "Stores - GH",
-						},
-					},
-				])
-				.mockResolvedValueOnce([])
-				.mockResolvedValueOnce([]);
-			mockPrisma.materialRequest.findMany.mockResolvedValue([]);
-			mockPrisma.deliveryNote.findMany.mockResolvedValue([]);
-			mockPrisma.pickList.findMany.mockResolvedValue([]);
+			mockPrisma.client.$queryRaw.mockResolvedValue([
+				{
+					company: "Aria Corp",
+					itemCode: "STE-ITM-001",
+					itemName: "Stock Test Item",
+					description: "Primary item",
+					warehouse: "Stores - GH",
+					unitOfMeasure: "Nos",
+					actualQty: 2,
+					plannedQty: 0,
+					requestedQty: 0,
+					orderedQty: 0,
+					reservedQty: 0,
+					reservedQtyForProduction: 0,
+					reservedQtyForSubcontracting: 0,
+					reservedQtyForProductionPlan: 0,
+					lastActivityDate: new Date("2026-03-22T00:00:00.000Z"),
+				},
+				{
+					company: "Aria Corp",
+					itemCode: "STE-ITM-002",
+					itemName: "Stock Test Item 2",
+					description: "Secondary item",
+					warehouse: "Stores - GH",
+					unitOfMeasure: "Nos",
+					actualQty: 9,
+					plannedQty: 0,
+					requestedQty: 0,
+					orderedQty: 0,
+					reservedQty: 0,
+					reservedQtyForProduction: 0,
+					reservedQtyForSubcontracting: 0,
+					reservedQtyForProductionPlan: 0,
+					lastActivityDate: new Date("2026-03-22T00:00:00.000Z"),
+				},
+			]);
 			mockPrisma.inventoryItem.findMany.mockResolvedValue([
 				{
 					id: "inv-item-001",
@@ -697,33 +603,29 @@ describe("InventoryService > Report", () => {
 
 	describe("findItemPriceStock", () => {
 		it("should combine stock availability with buying and selling rates", async () => {
-			mockPrisma.stockEntryItem.findMany.mockReset();
-			mockPrisma.materialRequest.findMany.mockReset();
-			mockPrisma.deliveryNote.findMany.mockReset();
-			mockPrisma.pickList.findMany.mockReset();
+			mockPrisma.client.$queryRaw.mockReset();
 			mockPrisma.inventoryItem.findMany.mockReset();
 			mockPrisma.item.findMany.mockReset();
 
-			mockPrisma.stockEntryItem.findMany
-				.mockResolvedValueOnce([
-					{
-						...mockStockEntryItem,
-						itemCode: "STE-ITM-001",
-						itemName: "Stock Test Item",
-						qty: 8,
-						basicAmount: 800,
-						stockEntry: {
-							...mockStockEntry,
-							status: "SUBMITTED",
-							defaultTargetWarehouse: "Stores - GH",
-						},
-					},
-				])
-				.mockResolvedValueOnce([])
-				.mockResolvedValueOnce([]);
-			mockPrisma.materialRequest.findMany.mockResolvedValue([]);
-			mockPrisma.deliveryNote.findMany.mockResolvedValue([]);
-			mockPrisma.pickList.findMany.mockResolvedValue([]);
+			mockPrisma.client.$queryRaw.mockResolvedValue([
+				{
+					company: "Aria Corp",
+					itemCode: "STE-ITM-001",
+					itemName: "Stock Test Item",
+					description: "Primary item",
+					warehouse: "Stores - GH",
+					unitOfMeasure: "Nos",
+					actualQty: 8,
+					plannedQty: 0,
+					requestedQty: 0,
+					orderedQty: 0,
+					reservedQty: 0,
+					reservedQtyForProduction: 0,
+					reservedQtyForSubcontracting: 0,
+					reservedQtyForProductionPlan: 0,
+					lastActivityDate: new Date("2026-03-22T00:00:00.000Z"),
+				},
+			]);
 			mockPrisma.inventoryItem.findMany
 				.mockResolvedValueOnce([
 					{
@@ -788,26 +690,15 @@ describe("InventoryService > Report", () => {
 		});
 
 		it("should map filters into movement query and bound pagination", async () => {
-			mockPrisma.stockEntryItem.findMany.mockReset();
-			mockPrisma.materialRequest.findMany.mockReset();
-			mockPrisma.deliveryNote.findMany.mockReset();
-			mockPrisma.pickList.findMany.mockReset();
+			mockPrisma.client.$queryRaw.mockReset();
 			mockPrisma.inventoryItem.findMany.mockReset();
 			mockPrisma.item.findMany.mockReset();
 
-			mockPrisma.stockEntryItem.findMany
-				.mockResolvedValueOnce([])
-				.mockResolvedValueOnce([])
-				.mockResolvedValueOnce([]);
-			mockPrisma.materialRequest.findMany.mockResolvedValue([]);
-			mockPrisma.deliveryNote.findMany.mockResolvedValue([]);
-			mockPrisma.pickList.findMany.mockResolvedValue([]);
 			mockPrisma.inventoryItem.findMany
-				.mockResolvedValueOnce([])
-				.mockResolvedValueOnce([]);
-			mockPrisma.item.findMany
 				.mockResolvedValueOnce([{ code: "STE-ITM-001" }])
 				.mockResolvedValueOnce([]);
+			mockPrisma.item.findMany.mockResolvedValueOnce([{ code: "STE-ITM-001" }]);
+			mockPrisma.client.$queryRaw.mockResolvedValue([]);
 
 			await service.findItemPriceStock({
 				take: 999,
@@ -821,25 +712,17 @@ describe("InventoryService > Report", () => {
 				includeZeroStockItems: true,
 			});
 
-			expect(mockPrisma.stockEntryItem.findMany).toHaveBeenCalledWith(
-				expect.objectContaining({
-					where: expect.objectContaining({
-						AND: expect.arrayContaining([
-							expect.objectContaining({
-								itemCode: expect.objectContaining({ contains: "STE" }),
-							}),
-							expect.objectContaining({
-								itemCode: expect.objectContaining({ in: ["STE-ITM-001"] }),
-							}),
-							expect.objectContaining({
-								stockEntry: expect.objectContaining({
-									status: "SUBMITTED",
-									company: expect.objectContaining({ contains: "Aria" }),
-								}),
-							}),
-						]),
-					}),
-				}),
+			const rawQuery = getRawSqlCall();
+			expect(rawQuery.text).toContain(`se.status = 'SUBMITTED'`);
+			expect(rawQuery.text).toContain(`dn.status IN ('DRAFT', 'TO_BILL')`);
+			expect(rawQuery.values).toEqual(
+				expect.arrayContaining([
+					"%Aria%",
+					"%STE%",
+					"STE-ITM-001",
+					"stores - gh",
+					"%nova%",
+				]),
 			);
 			expect(mockPrisma.item.findMany).toHaveBeenCalledWith(
 				expect.objectContaining({
@@ -855,47 +738,62 @@ describe("InventoryService > Report", () => {
 
 	describe("findStockAgeing", () => {
 		it("should derive FIFO stock ageing rows with bucket values and metadata", async () => {
-			mockPrisma.stockEntryItem.findMany.mockReset();
+			mockPrisma.client.$queryRaw.mockReset();
 			mockPrisma.inventoryItem.findMany.mockReset();
 			mockPrisma.item.findMany.mockReset();
 
-			mockPrisma.stockEntryItem.findMany.mockResolvedValue([
-				{
-					...mockStockEntryItem,
-					itemCode: "STE-ITM-001",
-					itemName: "Stock Test Item",
-					qty: 10,
-					basicRate: 100,
-					basicAmount: 1000,
-					stockEntry: {
-						...mockStockEntry,
+			mockPrisma.client.$queryRaw
+				.mockResolvedValueOnce([
+					{
+						id: "clh123ste_item01",
+						itemCode: "STE-ITM-001",
+						itemName: "Stock Test Item",
+						description: "Primary item",
+						qty: 10,
+						basicRate: 100,
+						basicAmount: 1000,
+						unitOfMeasure: "Nos",
+						sourceWarehouse: null,
+						targetWarehouse: "Stores - GH",
+						stockEntryId: mockStockEntry.id,
+						series: mockStockEntry.series,
+						company: "Aria Corp",
 						status: "SUBMITTED",
+						stockEntryType: "MATERIAL_RECEIPT",
 						postingDate: new Date("2026-01-01T00:00:00.000Z"),
+						defaultSourceWarehouse: null,
 						defaultTargetWarehouse: "Stores - GH",
+						project: null,
+						remarks: null,
+						createdAt: new Date("2026-01-01T00:00:00.000Z"),
+						updatedAt: new Date("2026-01-01T00:00:00.000Z"),
 					},
-				},
-				{
-					...mockStockEntryItem,
-					id: "clh123ste_item02",
-					itemCode: "STE-ITM-001",
-					itemName: "Stock Test Item",
-					sourceWarehouse: "Stores - GH",
-					targetWarehouse: null,
-					qty: 4,
-					basicRate: 100,
-					basicAmount: 400,
-					stockEntry: {
-						...mockStockEntry,
-						id: "clh123ste000002",
+					{
+						id: "clh123ste_item02",
+						itemCode: "STE-ITM-001",
+						itemName: "Stock Test Item",
+						description: "Primary item",
+						qty: 4,
+						basicRate: 100,
+						basicAmount: 400,
+						unitOfMeasure: "Nos",
+						sourceWarehouse: "Stores - GH",
+						targetWarehouse: null,
+						stockEntryId: "clh123ste000002",
 						series: "MAT-STE-2026-00002",
-						stockEntryType: "MATERIAL_ISSUE",
+						company: "Aria Corp",
 						status: "SUBMITTED",
+						stockEntryType: "MATERIAL_ISSUE",
 						postingDate: new Date("2026-01-20T00:00:00.000Z"),
 						defaultSourceWarehouse: "Stores - GH",
 						defaultTargetWarehouse: null,
+						project: null,
+						remarks: null,
+						createdAt: new Date("2026-01-20T00:00:00.000Z"),
+						updatedAt: new Date("2026-01-20T00:00:00.000Z"),
 					},
-				},
-			]);
+				])
+				.mockResolvedValueOnce([]);
 			mockPrisma.inventoryItem.findMany.mockResolvedValue([
 				{
 					id: "inv-item-001",
@@ -964,9 +862,9 @@ describe("InventoryService > Report", () => {
 		});
 
 		it("should map filters into the ageing movement query", async () => {
-			mockPrisma.stockEntryItem.findMany.mockReset();
+			mockPrisma.client.$queryRaw.mockReset();
 			mockPrisma.item.findMany.mockReset();
-			mockPrisma.stockEntryItem.findMany.mockResolvedValue([]);
+			mockPrisma.client.$queryRaw.mockResolvedValue([]);
 			mockPrisma.item.findMany.mockResolvedValue([{ code: "STE-ITM-001" }]);
 
 			await service.findStockAgeing({
@@ -979,29 +877,17 @@ describe("InventoryService > Report", () => {
 				asOfDate: new Date("2026-03-31T00:00:00.000Z"),
 			});
 
-			expect(mockPrisma.stockEntryItem.findMany).toHaveBeenCalledWith(
-				expect.objectContaining({
-					where: expect.objectContaining({
-						AND: expect.arrayContaining([
-							expect.objectContaining({
-								stockEntry: expect.objectContaining({
-									status: "SUBMITTED",
-									company: expect.objectContaining({ contains: "Aria" }),
-									postingDate: expect.objectContaining({
-										lte: new Date("2026-03-31T00:00:00.000Z"),
-									}),
-								}),
-							}),
-							expect.objectContaining({
-								itemCode: expect.objectContaining({ contains: "STE" }),
-							}),
-							expect.objectContaining({
-								itemCode: expect.objectContaining({ in: ["STE-ITM-001"] }),
-							}),
-						]),
-					}),
-					include: { stockEntry: true },
-				}),
+			const rawQuery = getRawSqlCall();
+			expect(rawQuery.text).toContain(`se.status = 'SUBMITTED'`);
+			expect(rawQuery.text).toContain(`LIMIT`);
+			expect(rawQuery.values).toEqual(
+				expect.arrayContaining([
+					new Date("2026-03-31T00:00:00.000Z"),
+					"%Aria%",
+					"%STE%",
+					"STE-ITM-001",
+					"stores - gh",
+				]),
 			);
 			expect(mockPrisma.item.findMany).toHaveBeenCalledWith(
 				expect.objectContaining({

@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import {
 	Dialog,
 	DialogContent,
+	DialogDescription,
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
@@ -116,6 +117,9 @@ export function NewBrandDialog() {
 			<DialogContent className="max-w-143.75 gap-0 overflow-hidden p-0">
 				<DialogHeader className="border-b px-5 py-4">
 					<DialogTitle>New Brand</DialogTitle>
+					<DialogDescription>
+						Create a brand used to classify inventory items.
+					</DialogDescription>
 				</DialogHeader>
 
 				<form

@@ -10,13 +10,16 @@
  */
 import type { Inventory } from "@aria/types";
 import { BadRequestException, NotFoundException } from "@nestjs/common";
-import { Prisma } from "../../../generated/prisma/client";
+import type { Prisma } from "../../../generated/prisma/client";
+import {
+	allocateDocumentSeries,
+	getSeriesSeedValue,
+} from "../../../shared/document-series";
 import type { PrismaService } from "../../../shared/prisma.service";
 import { toInventoryInstallationNote } from "../inventory.types";
 import {
 	assertSerialNoStatusTransition,
 	buildSerialNoTransactionLabel,
-	computeBackoffMs,
 	INSTALLATION_NOTE_ALLOWED_STATUS_TRANSITIONS,
 	installationNoteInclude,
 	LIST_QUERY_TAKE_MAX,
@@ -110,6 +113,15 @@ export class InstallationNoteSubService {
 			date,
 		);
 
+		const existingCounter = await this.prisma.documentSeriesCounter.findUnique({
+			where: { key: prefix },
+			select: { value: true },
+		});
+
+		if (existingCounter) {
+			return allocateDocumentSeries(this.prisma, prefix);
+		}
+
 		const lastNote = await this.prisma.installationNote.findFirst({
 			where: {
 				series: { startsWith: prefix },
@@ -118,16 +130,12 @@ export class InstallationNoteSubService {
 			select: { series: true },
 		});
 
-		let nextNumber = 1;
-		if (lastNote) {
-			const numStr = lastNote.series.slice(prefix.length);
-			const num = parseInt(numStr, 10);
-			if (!Number.isNaN(num)) {
-				nextNumber = num + 1;
-			}
-		}
-
-		return `${prefix}${String(nextNumber).padStart(5, "0")}`;
+		return allocateDocumentSeries(
+			this.prisma,
+			prefix,
+			5,
+			getSeriesSeedValue(prefix, lastNote?.series),
+		);
 	}
 
 	private async validateInstallationNoteInput(
@@ -485,80 +493,63 @@ export class InstallationNoteSubService {
 		);
 		const status = data.status ?? "DRAFT";
 
-		for (let attempt = 0; attempt < 3; attempt++) {
-			const series = await this.generateInstallationNoteSeries(
-				installationDate,
-				seriesPattern,
-			);
+		const series = await this.generateInstallationNoteSeries(
+			installationDate,
+			seriesPattern,
+		);
 
-			try {
-				const created = await this.prisma.$transaction(async (tx) => {
-					const validated = await this.validateInstallationNoteInput(tx, {
-						company: data.company,
-						customer: data.customer,
-						deliveryNoteId: data.deliveryNoteId ?? null,
-						status,
-						items: data.items,
-					});
+		const created = await this.prisma.$transaction(async (tx) => {
+			const validated = await this.validateInstallationNoteInput(tx, {
+				company: data.company,
+				customer: data.customer,
+				deliveryNoteId: data.deliveryNoteId ?? null,
+				status,
+				items: data.items,
+			});
 
-					const createdNote = await tx.installationNote.create({
-						data: {
-							series,
-							seriesPattern,
-							installationDate,
-							installationTime: data.installationTime
-								? normalizePostingTime(data.installationTime, installationDate)
-								: null,
-							customer: data.customer,
-							customerName: normalizeOptionalText(data.customerName),
-							customerAddress: normalizeOptionalText(data.customerAddress),
-							contactPerson: normalizeOptionalText(data.contactPerson),
-							territory: data.territory?.trim() || "All Territories",
-							customerGroup: normalizeOptionalText(data.customerGroup),
-							company: data.company,
-							status,
-							deliveryNoteId: data.deliveryNoteId ?? null,
-							remarks: normalizeOptionalText(data.remarks),
-							items: {
-								create: data.items.map((item) => ({
-									itemId: item.itemId,
-									serialNoId: item.serialNoId ?? null,
-									description: normalizeOptionalText(item.description),
-									installedQty: item.installedQty,
-								})),
-							},
-						},
-						include: installationNoteInclude,
-					});
+			const createdNote = await tx.installationNote.create({
+				data: {
+					series,
+					seriesPattern,
+					installationDate,
+					installationTime: data.installationTime
+						? normalizePostingTime(data.installationTime, installationDate)
+						: null,
+					customer: data.customer,
+					customerName: normalizeOptionalText(data.customerName),
+					customerAddress: normalizeOptionalText(data.customerAddress),
+					contactPerson: normalizeOptionalText(data.contactPerson),
+					territory: data.territory?.trim() || "All Territories",
+					customerGroup: normalizeOptionalText(data.customerGroup),
+					company: data.company,
+					status,
+					deliveryNoteId: data.deliveryNoteId ?? null,
+					remarks: normalizeOptionalText(data.remarks),
+					items: {
+						create: data.items.map((item) => ({
+							itemId: item.itemId,
+							serialNoId: item.serialNoId ?? null,
+							description: normalizeOptionalText(item.description),
+							installedQty: item.installedQty,
+						})),
+					},
+				},
+				include: installationNoteInclude,
+			});
 
-					if (status === "COMPLETED") {
-						await this.applyInstallationNoteSerialUpdates(tx, {
-							series,
-							remarks: data.remarks,
-							rows: data.items,
-							serialsById: validated.serialsById,
-						});
-					}
-
-					return createdNote;
+			if (status === "COMPLETED") {
+				await this.applyInstallationNoteSerialUpdates(tx, {
+					series,
+					remarks: data.remarks,
+					rows: data.items,
+					serialsById: validated.serialsById,
 				});
-
-				return toInventoryInstallationNote(created);
-			} catch (error) {
-				const isSeriesConflict =
-					error instanceof Prisma.PrismaClientKnownRequestError &&
-					error.code === "P2002";
-				if (isSeriesConflict && attempt < 2) {
-					await new Promise((resolve) =>
-						setTimeout(resolve, computeBackoffMs(attempt)),
-					);
-					continue;
-				}
-				throw error;
 			}
-		}
 
-		throw new Error("Failed to allocate a unique installation note series");
+			return createdNote;
+		});
+
+		return toInventoryInstallationNote(created);
 	}
 
 	async updateInstallationNote(

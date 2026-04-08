@@ -320,7 +320,7 @@ describe("InventoryService > Report (additional coverage)", () => {
 		});
 
 		it("should return empty rows with periods when no stock items found", async () => {
-			mockPrisma.stockEntryItem.findMany.mockResolvedValue([]);
+			mockPrisma.client.$queryRaw.mockResolvedValue([]);
 
 			const result = await service.findStockAnalytics({
 				fromDate: new Date("2026-01-01"),
@@ -350,7 +350,7 @@ describe("InventoryService > Report (additional coverage)", () => {
 		});
 
 		it("should filter stock entry items by company", async () => {
-			mockPrisma.stockEntryItem.findMany.mockResolvedValue([]);
+			mockPrisma.client.$queryRaw.mockResolvedValue([]);
 
 			await service.findStockAnalytics({
 				fromDate: new Date("2026-01-01"),
@@ -360,10 +360,16 @@ describe("InventoryService > Report (additional coverage)", () => {
 				company: "Aria Corp",
 			});
 
-			const call = mockPrisma.stockEntryItem.findMany.mock.calls[0][0];
-			// The where should include a company constraint on the stock entry
-			const whereStr = JSON.stringify(call.where);
-			expect(whereStr).toContain("Aria Corp");
+			const call = mockPrisma.client.$queryRaw.mock.calls[0]?.[0] as
+				| {
+						strings?: string[];
+						values?: unknown[];
+				  }
+				| undefined;
+			const text = call?.strings?.join(" ") ?? "";
+			const values = call?.values ?? [];
+			expect(text).toContain(`se.company`);
+			expect(values).toEqual(expect.arrayContaining(["%Aria Corp%"]));
 		});
 	});
 

@@ -41,17 +41,30 @@ import {
 
 type StockLedgerSubscriptionEvent = {
 	type: "created" | "updated" | "deleted";
-	data: Inventory.StockEntry | { id: string };
+	data: {
+		id: string;
+		company?: string | null;
+		warehouses: string[];
+		itemCodes: string[];
+	};
 };
 
 type UomDisplayPreference = "INCLUDE" | "HIDE";
 
 function StockLedgerRealtimeSubscription({
+	scope,
 	onData,
 }: {
+	scope:
+		| {
+				company?: string;
+				warehouse?: string;
+				itemCode?: string;
+		  }
+		| undefined;
 	onData?: (event: StockLedgerSubscriptionEvent) => void;
 }) {
-	trpc.inventory.onStockEntriesChanged.useSubscription(undefined, {
+	trpc.inventory.onStockEntriesChanged.useSubscription(scope, {
 		onData,
 	});
 
@@ -184,6 +197,15 @@ export default function StockLedgerPage() {
 		filters.status,
 		filters.stockEntryType,
 	]);
+
+	const realtimeScope = React.useMemo(
+		() => ({
+			company: listQueryInput.company,
+			warehouse: listQueryInput.warehouse,
+			itemCode: listQueryInput.itemCode,
+		}),
+		[listQueryInput.company, listQueryInput.itemCode, listQueryInput.warehouse],
+	);
 
 	const {
 		data: rawRows = [],
@@ -618,6 +640,7 @@ export default function StockLedgerPage() {
 	return (
 		<div className="flex flex-1 flex-col gap-6 p-4 md:px-6">
 			<StockLedgerRealtimeSubscription
+				scope={realtimeScope}
 				onData={() => {
 					void utils.inventory.listStockLedger.invalidate(listQueryInput);
 				}}

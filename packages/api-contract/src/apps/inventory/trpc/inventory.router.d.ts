@@ -19,24 +19,39 @@ type ItemsChangedEvent = {
 	data: Inventory.Item | { id: string };
 };
 
+type InventoryChangeScope = {
+	id: string;
+	company?: string | null;
+	warehouses: string[];
+	itemCodes: string[];
+};
+
+type InventoryChangeScopeFilter =
+	| {
+			company?: string | undefined;
+			warehouse?: string | undefined;
+			itemCode?: string | undefined;
+	  }
+	| undefined;
+
 type MaterialRequestsChangedEvent = {
 	type: "created" | "updated" | "deleted";
-	data: Inventory.MaterialRequest | { id: string };
+	data: InventoryChangeScope;
 };
 
 type StockEntriesChangedEvent = {
 	type: "created" | "updated" | "deleted";
-	data: Inventory.StockEntry | { id: string };
+	data: InventoryChangeScope;
 };
 
 type DeliveryNotesChangedEvent = {
 	type: "created" | "updated" | "deleted";
-	data: Inventory.DeliveryNote | { id: string };
+	data: InventoryChangeScope;
 };
 
 type PickListsChangedEvent = {
 	type: "created" | "updated" | "deleted";
-	data: Inventory.PickList | { id: string };
+	data: InventoryChangeScope;
 };
 
 type DeliveryTripsChangedEvent = {
@@ -68,6 +83,25 @@ type InventoryRouterInput = {
 	listItems: TRPCQueryProcedure<{
 		input: void;
 		output: Inventory.Item[];
+		meta: object;
+	}>;
+	listItemCatalogue: TRPCQueryProcedure<{
+		input:
+			| {
+					skip?: number | undefined;
+					take?: number | undefined;
+					search?: string | undefined;
+					sortBy?:
+						| "createdAt"
+						| "updatedAt"
+						| "name"
+						| "code"
+						| "itemGroupName"
+						| undefined;
+					sortDirection?: "asc" | "desc" | undefined;
+			  }
+			| undefined;
+		output: Inventory.ItemCatalogueListResult;
 		meta: object;
 	}>;
 	listItemGroups: TRPCQueryProcedure<{
@@ -1278,7 +1312,7 @@ type InventoryRouterInput = {
 		meta: object;
 	}>;
 	onMaterialRequestsChanged: LegacyObservableSubscriptionProcedure<{
-		input: void;
+		input: InventoryChangeScopeFilter;
 		output: MaterialRequestsChangedEvent;
 		meta: object;
 	}>;
@@ -1406,7 +1440,7 @@ type InventoryRouterInput = {
 		meta: object;
 	}>;
 	onStockEntriesChanged: LegacyObservableSubscriptionProcedure<{
-		input: void;
+		input: InventoryChangeScopeFilter;
 		output: StockEntriesChangedEvent;
 		meta: object;
 	}>;
@@ -1905,7 +1939,7 @@ type InventoryRouterInput = {
 		meta: object;
 	}>;
 	onDeliveryNotesChanged: LegacyObservableSubscriptionProcedure<{
-		input: void;
+		input: InventoryChangeScopeFilter;
 		output: DeliveryNotesChangedEvent;
 		meta: object;
 	}>;
@@ -2206,7 +2240,7 @@ type InventoryRouterInput = {
 		meta: object;
 	}>;
 	onPickListsChanged: LegacyObservableSubscriptionProcedure<{
-		input: void;
+		input: InventoryChangeScopeFilter;
 		output: PickListsChangedEvent;
 		meta: object;
 	}>;

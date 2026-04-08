@@ -1,5 +1,4 @@
 import {
-	ConflictException,
 	createTestContext,
 	mockDeliveryNote,
 	mockDeliveryNoteItem,
@@ -72,24 +71,23 @@ describe("InventoryService > Delivery", () => {
 			expect(mockPrisma.deliveryNote.create).toHaveBeenCalled();
 		});
 
-		it("should retry series generation on P2002 conflict", async () => {
+		it("should surface persistence conflicts without retrying series allocation", async () => {
 			const conflictError = new Prisma.PrismaClientKnownRequestError(
 				"Unique constraint",
 				{ code: "P2002", clientVersion: "5.0.0" },
 			);
 			mockPrisma.deliveryNote.findFirst.mockResolvedValue(null);
-			mockPrisma.deliveryNote.create
-				.mockRejectedValueOnce(conflictError)
-				.mockResolvedValueOnce(mockDeliveryNote);
+			mockPrisma.deliveryNote.create.mockRejectedValue(conflictError);
 
-			const result = await service.createDeliveryNote({
-				customer: "Test Customer",
-				company: "Aria Corp",
-				items: [{ itemCode: "DN-ITM-001", quantity: 5, rate: 200 }],
-			});
-
-			expect(result.id).toBe(mockDeliveryNote.id);
-			expect(mockPrisma.deliveryNote.create).toHaveBeenCalledTimes(2);
+			await expect(
+				service.createDeliveryNote({
+					customer: "Test Customer",
+					company: "Aria Corp",
+					items: [{ itemCode: "DN-ITM-001", quantity: 5, rate: 200 }],
+				}),
+			).rejects.toBeInstanceOf(Prisma.PrismaClientKnownRequestError);
+			expect(mockPrisma.deliveryNote.create).toHaveBeenCalledTimes(1);
+			expect(mockPrisma.client.$queryRaw).toHaveBeenCalledTimes(1);
 		});
 	});
 
@@ -114,7 +112,7 @@ describe("InventoryService > Delivery", () => {
 
 			const result = await service.updateDeliveryNote({
 				id: mockDeliveryNote.id,
-				customer: "Updated Customer",
+				customer: "Test Customer",
 				items: [
 					{
 						id: mockDeliveryNoteItem.id,
@@ -238,25 +236,7 @@ describe("InventoryService > Delivery", () => {
 			expect(callArgs.data.series).toMatch(/^STO-PICK-\d{4}-\d{5}$/);
 		});
 
-		it("should retry on a series uniqueness conflict and succeed", async () => {
-			const conflict = new Prisma.PrismaClientKnownRequestError("Duplicate", {
-				code: "P2002",
-				clientVersion: "5.0.0",
-			});
-			mockPrisma.pickList.findFirst
-				.mockResolvedValueOnce(null)
-				.mockResolvedValueOnce(null);
-			mockPrisma.pickList.create
-				.mockRejectedValueOnce(conflict)
-				.mockResolvedValueOnce(mockPickList);
-
-			const result = await service.createPickList({ company: "Aria Corp" });
-
-			expect(result.id).toBe(mockPickList.id);
-			expect(mockPrisma.pickList.create).toHaveBeenCalledTimes(2);
-		});
-
-		it("should throw ConflictException after 3 failed series attempts", async () => {
+		it("should surface persistence conflicts without retrying series allocation", async () => {
 			const conflict = new Prisma.PrismaClientKnownRequestError("Duplicate", {
 				code: "P2002",
 				clientVersion: "5.0.0",
@@ -266,8 +246,9 @@ describe("InventoryService > Delivery", () => {
 
 			await expect(
 				service.createPickList({ company: "Aria Corp" }),
-			).rejects.toThrow(ConflictException);
-			expect(mockPrisma.pickList.create).toHaveBeenCalledTimes(3);
+			).rejects.toBeInstanceOf(Prisma.PrismaClientKnownRequestError);
+			expect(mockPrisma.pickList.create).toHaveBeenCalledTimes(1);
+			expect(mockPrisma.client.$queryRaw).toHaveBeenCalledTimes(1);
 		});
 	});
 
@@ -395,26 +376,7 @@ describe("InventoryService > Delivery", () => {
 			expect(callArgs.data.series).toMatch(/^MAT-DT-\d{4}-\d{5}$/);
 		});
 
-		it("should retry on a series uniqueness conflict and succeed", async () => {
-			const conflict = new Prisma.PrismaClientKnownRequestError("Duplicate", {
-				code: "P2002",
-				clientVersion: "5.0.0",
-			});
-			mockPrisma.deliveryTrip.findMany.mockResolvedValue([]);
-			mockPrisma.deliveryTrip.findFirst
-				.mockResolvedValueOnce(null)
-				.mockResolvedValueOnce(null);
-			mockPrisma.deliveryTrip.create
-				.mockRejectedValueOnce(conflict)
-				.mockResolvedValueOnce(mockDeliveryTrip);
-
-			const result = await service.createDeliveryTrip({ company: "Aria Corp" });
-
-			expect(result.id).toBe(mockDeliveryTrip.id);
-			expect(mockPrisma.deliveryTrip.create).toHaveBeenCalledTimes(2);
-		});
-
-		it("should throw ConflictException after 3 failed series attempts", async () => {
+		it("should surface persistence conflicts without retrying series allocation", async () => {
 			const conflict = new Prisma.PrismaClientKnownRequestError("Duplicate", {
 				code: "P2002",
 				clientVersion: "5.0.0",
@@ -425,8 +387,9 @@ describe("InventoryService > Delivery", () => {
 
 			await expect(
 				service.createDeliveryTrip({ company: "Aria Corp" }),
-			).rejects.toThrow(ConflictException);
-			expect(mockPrisma.deliveryTrip.create).toHaveBeenCalledTimes(3);
+			).rejects.toBeInstanceOf(Prisma.PrismaClientKnownRequestError);
+			expect(mockPrisma.deliveryTrip.create).toHaveBeenCalledTimes(1);
+			expect(mockPrisma.client.$queryRaw).toHaveBeenCalledTimes(1);
 		});
 	});
 

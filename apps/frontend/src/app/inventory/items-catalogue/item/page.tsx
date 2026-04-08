@@ -10,16 +10,13 @@
 "use client";
 
 import type { Inventory } from "@aria/types";
-import type { ColumnDef, Row } from "@tanstack/react-table";
-import {
-	CheckCircle2,
-	Edit,
-	Eye,
-	MoreHorizontal,
-	Package,
-	Trash,
-	XCircle,
-} from "lucide-react";
+import type {
+	ColumnDef,
+	PaginationState,
+	Row,
+	SortingState,
+} from "@tanstack/react-table";
+import { Edit, Eye, MoreHorizontal, Trash } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
 import { toast } from "sonner";
@@ -50,6 +47,56 @@ type InventorySubscriptionEvent = {
 	data: Inventory.Item | { id: string };
 };
 
+type InventoryItemCatalogueRecord = Omit<
+	Inventory.ItemCatalogueListItem,
+	"createdAt" | "updatedAt"
+> & {
+	createdAt: string;
+	updatedAt: string;
+};
+
+type InventoryItemCatalogueQueryResult = {
+	items: InventoryItemCatalogueRecord[];
+	totalCount: number;
+};
+
+type InventoryItemRow = Omit<
+	Inventory.ItemCatalogueListItem,
+	"createdAt" | "updatedAt"
+> & {
+	createdAt: Date;
+	updatedAt: Date;
+};
+
+const ITEM_PAGE_SIZE = 25;
+const DEFAULT_SORTING: SortingState = [{ id: "updatedAt", desc: true }];
+
+function resolveCatalogueSort(
+	sorting: SortingState,
+): Pick<Inventory.ListItemsInput, "sortBy" | "sortDirection"> {
+	const activeSort = sorting[0];
+
+	if (!activeSort) {
+		return { sortBy: "updatedAt", sortDirection: "desc" };
+	}
+
+	const sortDirection = activeSort.desc ? "desc" : "asc";
+
+	switch (activeSort.id) {
+		case "name":
+		case "code":
+		case "itemGroupName":
+		case "createdAt":
+		case "updatedAt":
+			return {
+				sortBy: activeSort.id,
+				sortDirection,
+			};
+		default:
+			return { sortBy: "updatedAt", sortDirection: "desc" };
+	}
+}
+
 function InventoryRealtimeSubscription({
 	onStarted,
 	onData,
@@ -70,6 +117,29 @@ function InventoryRealtimeSubscription({
 
 export default function InventoryItemsPage() {
 	const utils = trpc.useUtils();
+	const [pagination, setPagination] = React.useState<PaginationState>({
+		pageIndex: 0,
+		pageSize: ITEM_PAGE_SIZE,
+	});
+	const [sorting, setSorting] = React.useState<SortingState>(DEFAULT_SORTING);
+	const [globalSearch, setGlobalSearch] = React.useState("");
+
+	const handlePaginationChange = React.useCallback(
+		(nextPagination: PaginationState) => {
+			setPagination(nextPagination);
+		},
+		[],
+	);
+
+	const handleSortingChange = React.useCallback((nextSorting: SortingState) => {
+		setSorting(nextSorting);
+		setPagination((current) => ({ ...current, pageIndex: 0 }));
+	}, []);
+
+	const handleGlobalFilterChange = React.useCallback((value: string) => {
+		setGlobalSearch(value);
+		setPagination((current) => ({ ...current, pageIndex: 0 }));
+	}, []);
 
 	// State for delete confirmation only
 	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
@@ -89,31 +159,41 @@ export default function InventoryItemsPage() {
 		handleDeleteRef.current?.(id);
 	}, []);
 
-	// Fetch all inventory items with optimized settings
-	// Following official TanStack Query v5 patterns to prevent state updates during mount
+	const queryInput = React.useMemo<Inventory.ListItemsInput>(
+		() => ({
+			skip: pagination.pageIndex * pagination.pageSize,
+			take: pagination.pageSize,
+			search: globalSearch.trim() || undefined,
+			...resolveCatalogueSort(sorting),
+		}),
+		[globalSearch, pagination.pageIndex, pagination.pageSize, sorting],
+	);
+
 	const {
-		data: rawItems = [],
+		data,
 		isLoading,
 		error: queryError,
-	} = trpc.inventory.listItems.useQuery(undefined, {
+		refetch,
+	} = trpc.inventory.listItemCatalogue.useQuery(queryInput, {
 		refetchOnWindowFocus: false,
-		refetchOnMount: false, // Official TanStack Query v5 pattern: prevent refetch on mount
 		retry: 2,
 		retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
-		staleTime: Infinity, // Official pattern: never stale since WebSocket updates cache
-		gcTime: 5 * 60 * 1000, // Keep in cache for 5 minutes (formerly cacheTime)
+		placeholderData: (
+			previous: InventoryItemCatalogueQueryResult | undefined,
+		) => previous,
 	});
 
-	// Transform dates from strings to Date objects - Memoized for performance
+	const totalCount = data?.totalCount ?? 0;
+	const pageCount = Math.max(1, Math.ceil(totalCount / pagination.pageSize));
+
 	const items = React.useMemo(
 		() =>
-			rawItems.map((item) => ({
+			(data?.items ?? []).map((item) => ({
 				...item,
 				createdAt: new Date(item.createdAt),
 				updatedAt: new Date(item.updatedAt),
-				endOfLife: item.endOfLife ? new Date(item.endOfLife) : null,
 			})),
-		[rawItems],
+		[data?.items],
 	);
 
 	// Real-time subscription for CRUD events
@@ -126,8 +206,7 @@ export default function InventoryItemsPage() {
 	// Following official tRPC pattern: no manual mount checks needed with React 18+
 	const handleSubscriptionData = React.useCallback(
 		(event: InventorySubscriptionEvent) => {
-			// Official pattern: Invalidate cache to trigger re-render
-			void utils.inventory.listItems.invalidate();
+			void utils.inventory.listItemCatalogue.invalidate(queryInput);
 
 			// Show appropriate toast notification
 			if (event.type === "created") {
@@ -138,7 +217,7 @@ export default function InventoryItemsPage() {
 				toast.info("Item removed from inventory");
 			}
 		},
-		[utils],
+		[queryInput, utils],
 	);
 
 	const handleSubscriptionError = React.useCallback((_error: unknown) => {
@@ -173,16 +252,26 @@ export default function InventoryItemsPage() {
 	const deleteMutation = trpc.inventory.deleteItem.useMutation({
 		onMutate: async (variables) => {
 			// Cancel outgoing refetches to avoid overwriting optimistic update
-			await utils.inventory.listItems.cancel();
+			await utils.inventory.listItemCatalogue.cancel(queryInput);
 
 			// Snapshot the previous value
-			const previousItems = utils.inventory.listItems.getData();
+			const previousItems =
+				utils.inventory.listItemCatalogue.getData(queryInput);
 
 			// Optimistically update the cache
-			utils.inventory.listItems.setData(undefined, (old) => {
-				if (!old) return old;
-				return old.filter((item) => item.id !== variables.id);
-			});
+			utils.inventory.listItemCatalogue.setData(
+				queryInput,
+				(old: InventoryItemCatalogueQueryResult | undefined) => {
+					if (!old) return old;
+					return {
+						...old,
+						items: old.items.filter(
+							(item: InventoryItemCatalogueRecord) => item.id !== variables.id,
+						),
+						totalCount: Math.max(0, old.totalCount - 1),
+					};
+				},
+			);
 
 			// Return context with snapshot for rollback
 			return { previousItems };
@@ -195,14 +284,16 @@ export default function InventoryItemsPage() {
 		onError: (error, _variables, context) => {
 			// Rollback on error
 			if (context?.previousItems) {
-				utils.inventory.listItems.setData(undefined, context.previousItems);
+				utils.inventory.listItemCatalogue.setData(
+					queryInput,
+					context.previousItems,
+				);
 			}
 			toast.error(getToastMessage(error, "delete"));
 		},
 		onSettled: () => {
-			// Always refetch after mutation to ensure data consistency
-			// Note: invalidate is safe to call even if unmounted (doesn't trigger UI updates)
-			utils.inventory.listItems.invalidate();
+			void utils.inventory.listItemCatalogue.invalidate(queryInput);
+			void utils.inventory.listItems.invalidate();
 		},
 	});
 
@@ -211,16 +302,27 @@ export default function InventoryItemsPage() {
 	const bulkDeleteMutation = trpc.inventory.deleteItems.useMutation({
 		onMutate: async (variables) => {
 			// Cancel outgoing refetches
-			await utils.inventory.listItems.cancel();
+			await utils.inventory.listItemCatalogue.cancel(queryInput);
 
 			// Snapshot the previous value
-			const previousItems = utils.inventory.listItems.getData();
+			const previousItems =
+				utils.inventory.listItemCatalogue.getData(queryInput);
 
 			// Optimistically remove selected items
-			utils.inventory.listItems.setData(undefined, (old) => {
-				if (!old) return old;
-				return old.filter((item) => !variables.ids.includes(item.id));
-			});
+			utils.inventory.listItemCatalogue.setData(
+				queryInput,
+				(old: InventoryItemCatalogueQueryResult | undefined) => {
+					if (!old) return old;
+					return {
+						...old,
+						items: old.items.filter(
+							(item: InventoryItemCatalogueRecord) =>
+								!variables.ids.includes(item.id),
+						),
+						totalCount: Math.max(0, old.totalCount - variables.ids.length),
+					};
+				},
+			);
 
 			return { previousItems };
 		},
@@ -230,13 +332,16 @@ export default function InventoryItemsPage() {
 		onError: (error, _variables, context) => {
 			// Rollback on error
 			if (context?.previousItems) {
-				utils.inventory.listItems.setData(undefined, context.previousItems);
+				utils.inventory.listItemCatalogue.setData(
+					queryInput,
+					context.previousItems,
+				);
 			}
 			toast.error(getToastMessage(error, "delete"));
 		},
 		onSettled: () => {
-			// Always refetch after mutation to ensure data consistency
-			utils.inventory.listItems.invalidate();
+			void utils.inventory.listItemCatalogue.invalidate(queryInput);
+			void utils.inventory.listItems.invalidate();
 		},
 	});
 
@@ -269,7 +374,7 @@ export default function InventoryItemsPage() {
 
 	// Column definitions - Completely stable, no external dependencies
 	// According to TanStack Table docs: columns should be wrapped in useMemo with empty deps
-	const columns = React.useMemo<ColumnDef<Inventory.Item>[]>(
+	const columns = React.useMemo<ColumnDef<InventoryItemRow>[]>(
 		() => [
 			// Selection column - uses table instance passed via context by TanStack Table
 			{
@@ -318,13 +423,10 @@ export default function InventoryItemsPage() {
 				),
 				meta: {
 					label: "Item Name",
-					placeholder: "Search items...",
-					variant: "text",
-					searchable: true,
 					exportable: true,
 				},
 				enableSorting: true,
-				enableColumnFilter: true,
+				enableColumnFilter: false,
 				enableGlobalFilter: true,
 			},
 
@@ -360,23 +462,10 @@ export default function InventoryItemsPage() {
 				},
 				meta: {
 					label: "Status",
-					variant: "multiSelect",
-					options: [
-						{ label: "Enabled", value: "Enabled", icon: CheckCircle2 },
-						{ label: "Template", value: "Template", icon: Package },
-						{ label: "Disabled", value: "Disabled", icon: XCircle },
-					],
 					exportable: true,
 				},
-				enableColumnFilter: true,
-				filterFn: (row, _id, value) => {
-					const status = row.original.disabled
-						? "Disabled"
-						: row.original.hasVariants
-							? "Template"
-							: "Enabled";
-					return value.includes(status);
-				},
+				enableColumnFilter: false,
+				enableGlobalFilter: false,
 			},
 
 			// Item Group column
@@ -395,13 +484,10 @@ export default function InventoryItemsPage() {
 				},
 				meta: {
 					label: "Item Group",
-					placeholder: "Search by group...",
-					variant: "text",
-					searchable: true,
 					exportable: true,
 				},
 				enableSorting: true,
-				enableColumnFilter: true,
+				enableColumnFilter: false,
 				enableGlobalFilter: true,
 			},
 
@@ -418,13 +504,10 @@ export default function InventoryItemsPage() {
 				),
 				meta: {
 					label: "Item Code",
-					placeholder: "Search by code...",
-					variant: "text",
-					searchable: true,
 					exportable: true,
 				},
 				enableSorting: true,
-				enableColumnFilter: true,
+				enableColumnFilter: false,
 				enableGlobalFilter: true,
 			},
 
@@ -441,26 +524,21 @@ export default function InventoryItemsPage() {
 				),
 				meta: {
 					label: "ID",
-					placeholder: "Search by ID...",
-					variant: "text",
-					searchable: true,
 					exportable: true,
 				},
-				enableSorting: true,
-				enableColumnFilter: true,
-				enableGlobalFilter: true,
+				enableSorting: false,
+				enableColumnFilter: false,
+				enableGlobalFilter: false,
 			},
 
 			// Age column (relative time since creation)
 			{
-				id: "age",
-				accessorFn: (row) => row.createdAt,
+				accessorKey: "createdAt",
 				header: () => <span className="text-muted-foreground"></span>,
 				cell: ({ row }) => {
-					const createdAt = new Date(row.original.createdAt);
 					return (
 						<span className="text-sm text-muted-foreground">
-							{getRelativeAge(createdAt)}
+							{getRelativeAge(row.original.createdAt)}
 						</span>
 					);
 				},
@@ -478,7 +556,7 @@ export default function InventoryItemsPage() {
 				id: "counts",
 				header: () => (
 					<div className="text-right text-muted-foreground text-sm">
-						{items.length} of {items.length}
+						{items.length} of {totalCount}
 					</div>
 				),
 				cell: () => (
@@ -562,12 +640,12 @@ export default function InventoryItemsPage() {
 				enableGlobalFilter: false,
 			},
 		],
-		[handleDelete, items.length, getRelativeAge], // Include handleDelete to satisfy react-hooks/exhaustive-deps
+		[handleDelete, items.length, totalCount, getRelativeAge],
 	);
 
 	// Bulk delete handler - Memoized separately to prevent recreating bulk actions
 	const handleBulkDelete = React.useCallback(
-		async (rows: readonly Row<Inventory.Item>[]) => {
+		async (rows: readonly Row<InventoryItemRow>[]) => {
 			const ids = rows.map((r) => r.original.id);
 
 			try {
@@ -580,7 +658,7 @@ export default function InventoryItemsPage() {
 	);
 
 	// Bulk actions - Memoized with stable handler reference
-	const bulkActions = React.useMemo<BulkAction<Inventory.Item>[]>(
+	const bulkActions = React.useMemo<BulkAction<InventoryItemRow>[]>(
 		() => [
 			{
 				label: "Delete Selected",
@@ -597,19 +675,23 @@ export default function InventoryItemsPage() {
 
 	// Reload handler - Memoized to prevent table re-initialization
 	const handleReload = React.useCallback(async () => {
-		// Trigger a network refetch of the items
-		await utils.inventory.listItems.refetch();
-	}, [utils]);
+		await refetch();
+	}, [refetch]);
 
-	// Table setup - Memoized to prevent unnecessary re-initialization
 	const { table } = useAdvancedDataTable({
 		data: items,
 		columns,
-		initialPageSize: 25,
-		initialSorting: [{ id: "age", desc: true }], // Sort by newest first
+		pageCount,
+		initialPageSize: ITEM_PAGE_SIZE,
+		initialSorting: DEFAULT_SORTING,
 		enableRowSelection: true,
 		enableMultiRowSelection: true,
 		enableGlobalFilter: true,
+		manualFiltering: true,
+		manualSorting: true,
+		onPaginationChange: handlePaginationChange,
+		onSortingChange: handleSortingChange,
+		onGlobalFilterChange: handleGlobalFilterChange,
 		onReload: handleReload,
 	});
 
@@ -655,7 +737,7 @@ export default function InventoryItemsPage() {
 						error={queryError}
 						operation="load"
 						title="Failed to load inventory items"
-						onRetry={() => utils.inventory.listItems.refetch()}
+						onRetry={() => void refetch()}
 					/>
 				)}
 
@@ -664,6 +746,7 @@ export default function InventoryItemsPage() {
 					<AdvancedDataTable
 						table={table}
 						data={items}
+						totalItems={totalCount}
 						enableGlobalSearch
 						enableExport
 						enableImport={false}

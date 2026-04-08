@@ -64,6 +64,12 @@ export class InventoryService {
 		return await this.items.findAll();
 	}
 
+	async findPagedItems(
+		params?: Inventory.ListItemsInput,
+	): Promise<Inventory.ItemCatalogueListResult> {
+		return await this.items.findPagedItems(params);
+	}
+
 	async findAllItemGroups(search?: string): Promise<Inventory.ItemGroup[]> {
 		return await this.items.findAllItemGroups(search);
 	}

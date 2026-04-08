@@ -19,6 +19,7 @@ import {
 import {
 	Dialog,
 	DialogContent,
+	DialogDescription,
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
@@ -221,6 +222,9 @@ export function NewItemDialog() {
 			<DialogContent className="max-w-[575px] gap-0 overflow-hidden p-0">
 				<DialogHeader className="border-b px-5 py-4">
 					<DialogTitle>New Item</DialogTitle>
+					<DialogDescription>
+						Quickly create a new inventory item with the required fields.
+					</DialogDescription>
 				</DialogHeader>
 
 				<form

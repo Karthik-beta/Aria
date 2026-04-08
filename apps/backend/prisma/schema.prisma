@@ -101,6 +101,7 @@ model InventoryItem {
 
   @@index([code])
   @@index([name])
+  @@index([maintainStock, disabled])
   @@index([templateItemId])
   @@index([createdAt])
   @@map("inventory_items")
@@ -128,7 +129,18 @@ model ItemReorder {
   item                InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
 
   @@index([itemId])
+  @@index([warehouse])
+  @@index([itemId, warehouse])
   @@map("item_reorder_settings")
+}
+
+model DocumentSeriesCounter {
+  key       String   @id @db.VarChar(160)
+  value     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("document_series_counters")
 }
 
 model InventoryItemAttribute {
@@ -660,6 +672,8 @@ model MaterialRequest {
   @@index([series])
   @@index([status])
   @@index([transactionDate])
+  @@index([company, status, transactionDate])
+  @@index([company, purpose, status, transactionDate])
   @@map("material_requests")
 }
 
@@ -677,6 +691,9 @@ model MaterialRequestItem {
   materialRequest   MaterialRequest @relation(fields: [materialRequestId], references: [id], onDelete: Cascade)
 
   @@index([materialRequestId])
+  @@index([itemCode])
+  @@index([targetWarehouse])
+  @@index([itemCode, materialRequestId])
   @@map("material_request_items")
 }
 
@@ -723,6 +740,8 @@ model StockEntry {
   @@index([series])
   @@index([status])
   @@index([postingDate])
+  @@index([company, status, postingDate, createdAt])
+  @@index([company, stockEntryType, status, postingDate])
   @@map("stock_entries")
 }
 
@@ -741,6 +760,12 @@ model StockEntryItem {
   stockEntry      StockEntry @relation(fields: [stockEntryId], references: [id], onDelete: Cascade)
 
   @@index([stockEntryId])
+  @@index([itemCode])
+  @@index([itemCode, stockEntryId])
+  @@index([sourceWarehouse])
+  @@index([sourceWarehouse, stockEntryId])
+  @@index([targetWarehouse])
+  @@index([targetWarehouse, stockEntryId])
   @@map("stock_entry_items")
 }
 
@@ -853,6 +878,8 @@ model DeliveryNote {
   @@index([status])
   @@index([postingDate])
   @@index([customer])
+  @@index([company, status, isReturn, postingDate])
+  @@index([company, customer, postingDate])
   @@map("delivery_notes")
 }
 
@@ -872,6 +899,10 @@ model DeliveryNoteItem {
   packingSlipItems PackingSlipItem[]
 
   @@index([deliveryNoteId])
+  @@index([itemCode])
+  @@index([itemCode, deliveryNoteId])
+  @@index([warehouse])
+  @@index([warehouse, deliveryNoteId])
   @@map("delivery_note_items")
 }
 
@@ -997,6 +1028,7 @@ model PurchaseReceipt {
   @@index([status])
   @@index([postingDate])
   @@index([supplier])
+  @@index([company, status, isReturn, postingDate])
   @@map("purchase_receipts")
 }
 
@@ -1016,6 +1048,10 @@ model PurchaseReceiptItem {
   purchaseReceipt  PurchaseReceipt @relation(fields: [purchaseReceiptId], references: [id], onDelete: Cascade)
 
   @@index([purchaseReceiptId])
+  @@index([itemCode])
+  @@index([itemCode, purchaseReceiptId])
+  @@index([acceptedWarehouse])
+  @@index([rejectedWarehouse])
   @@map("purchase_receipt_items")
 }
 
@@ -1080,6 +1116,8 @@ model PickList {
 
   @@index([series])
   @@index([status])
+  @@index([company, status, purpose, updatedAt])
+  @@index([company, warehouse])
   @@map("pick_lists")
 }
 
@@ -1094,6 +1132,10 @@ model PickListItem {
   pickList   PickList @relation(fields: [pickListId], references: [id], onDelete: Cascade)
 
   @@index([pickListId])
+  @@index([item])
+  @@index([item, pickListId])
+  @@index([warehouse])
+  @@index([warehouse, pickListId])
   @@map("pick_list_items")
 }
 

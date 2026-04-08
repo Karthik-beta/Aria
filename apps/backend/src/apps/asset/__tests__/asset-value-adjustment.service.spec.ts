@@ -52,6 +52,12 @@ function createMockPrisma() {
 		assetActivity: {
 			create: jest.fn(),
 		},
+		documentSeriesCounter: {
+			findUnique: jest.fn(),
+		},
+		client: {
+			$queryRaw: jest.fn(),
+		},
 		$transaction: jest.fn().mockImplementation(async (fn) => fn(mockTx)),
 		_mockTx: mockTx,
 	};
@@ -59,6 +65,21 @@ function createMockPrisma() {
 
 function createTestContext() {
 	const mockPrisma = createMockPrisma();
+	mockPrisma.documentSeriesCounter.findUnique.mockResolvedValue(null);
+	mockPrisma.client.$queryRaw.mockImplementation(async (query: unknown) => {
+		const values =
+			query &&
+			typeof query === "object" &&
+			"values" in query &&
+			Array.isArray(query.values)
+				? query.values
+				: [];
+		const initialValue =
+			typeof values[1] === "number" && Number.isFinite(values[1])
+				? values[1]
+				: 1;
+		return [{ value: initialValue }];
+	});
 	const service = new AssetService(mockPrisma as unknown as PrismaService);
 	return { service, mockPrisma, mockTx: mockPrisma._mockTx };
 }

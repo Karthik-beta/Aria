@@ -30,16 +30,32 @@ export class TrpcContext {
 	constructor(public readonly prisma: PrismaService) {}
 
 	/**
+	 * Create context from any request/response pair that exposes request headers.
+	 *
+	 * This is shared by both the Express adapter and the WebSocket adapter so
+	 * protected procedures can authenticate from the incoming handshake/request.
+	 */
+	createWithRequest(
+		req?: TrpcRequestLike,
+		res?: TrpcResponseLike,
+	): TrpcContextType {
+		return {
+			req,
+			res,
+			prisma: this.prisma satisfies TrpcPrismaClient,
+		};
+	}
+
+	/**
 	 * Create context for tRPC Express adapter
 	 *
 	 * @param opts - Express request and response objects from tRPC adapter
 	 * @returns Context object with req, res, and injected services
 	 */
 	create(opts: CreateExpressContextOptions): TrpcContextType {
-		return {
-			req: opts.req as unknown as TrpcRequestLike,
-			res: opts.res as unknown as TrpcResponseLike,
-			prisma: this.prisma satisfies TrpcPrismaClient,
-		};
+		return this.createWithRequest(
+			opts.req as unknown as TrpcRequestLike,
+			opts.res as unknown as TrpcResponseLike,
+		);
 	}
 }

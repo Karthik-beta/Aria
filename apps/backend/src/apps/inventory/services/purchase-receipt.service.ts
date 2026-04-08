@@ -9,13 +9,12 @@
  * @see {@link https://docs.erpnext.com/docs/user/manual/en/stock/purchase-receipt | ERPNext Purchase Receipt}
  */
 import type { Inventory } from "@aria/types";
-import {
-	BadRequestException,
-	ConflictException,
-	Logger,
-	NotFoundException,
-} from "@nestjs/common";
+import { BadRequestException, Logger, NotFoundException } from "@nestjs/common";
 import { Prisma } from "../../../generated/prisma/client";
+import {
+	allocateDocumentSeries,
+	getSeriesSeedValue,
+} from "../../../shared/document-series";
 import type { PrismaService } from "../../../shared/prisma.service";
 import { toInventoryPurchaseReceipt } from "../inventory.types";
 import {
@@ -31,11 +30,7 @@ import {
 	buildSalesOrderAnalysisRows,
 	computeSalesOrderAnalysisSummary,
 } from "../reports/transaction/sales-order-analysis-report";
-import {
-	computeBackoffMs,
-	LIST_QUERY_TAKE_MAX,
-	normalizePostingTime,
-} from "./inventory-shared";
+import { LIST_QUERY_TAKE_MAX, normalizePostingTime } from "./inventory-shared";
 
 export class PurchaseReceiptSubService {
 	private readonly logger = new Logger(PurchaseReceiptSubService.name);
@@ -209,6 +204,15 @@ export class PurchaseReceiptSubService {
 			date,
 		);
 
+		const existingCounter = await this.prisma.documentSeriesCounter.findUnique({
+			where: { key: prefix },
+			select: { value: true },
+		});
+
+		if (existingCounter) {
+			return allocateDocumentSeries(this.prisma, prefix);
+		}
+
 		const lastReceipt = await this.prisma.purchaseReceipt.findFirst({
 			where: {
 				series: { startsWith: prefix },
@@ -217,16 +221,12 @@ export class PurchaseReceiptSubService {
 			select: { series: true },
 		});
 
-		let nextNumber = 1;
-		if (lastReceipt) {
-			const numStr = lastReceipt.series.slice(prefix.length);
-			const num = parseInt(numStr, 10);
-			if (!Number.isNaN(num)) {
-				nextNumber = num + 1;
-			}
-		}
-
-		return `${prefix}${String(nextNumber).padStart(5, "0")}`;
+		return allocateDocumentSeries(
+			this.prisma,
+			prefix,
+			5,
+			getSeriesSeedValue(prefix, lastReceipt?.series),
+		);
 	}
 
 	/**
@@ -645,98 +645,81 @@ export class PurchaseReceiptSubService {
 			},
 		);
 
-		for (let attempt = 0; attempt < 3; attempt++) {
-			const series = await this.generatePurchaseReceiptSeries(
-				postingDate,
+		const series = await this.generatePurchaseReceiptSeries(
+			postingDate,
+			seriesPattern,
+		);
+		const created = await this.prisma.purchaseReceipt.create({
+			data: {
+				series,
 				seriesPattern,
-			);
-			try {
-				const created = await this.prisma.purchaseReceipt.create({
-					data: {
-						series,
-						seriesPattern,
-						postingDate,
-						postingTime,
-						editPostingDateTime: data.editPostingDateTime ?? false,
-						supplier: data.supplier,
-						company: data.company,
-						status: data.status ?? "DRAFT",
-						isReturn,
-						applyPutawayRule: data.applyPutawayRule ?? false,
-						supplierDeliveryNote: data.supplierDeliveryNote,
-						acceptedWarehouse: data.acceptedWarehouse,
-						rejectedWarehouse: data.rejectedWarehouse,
-						isSubcontracted: data.isSubcontracted ?? false,
-						currency: data.currency,
-						priceList: data.priceList,
-						disableRoundedTotal,
-						...computed.totals,
-						supplierAddress: data.supplierAddress,
-						contactPerson: data.contactPerson,
-						shippingAddressTemplate: data.shippingAddressTemplate,
-						companyTRN: data.companyTRN,
-						billingAddress: data.billingAddress,
-						terms: data.terms,
-						termsContent: data.termsContent,
-						letterHead: data.letterHead,
-						printHeading: data.printHeading,
-						groupSameItems: data.groupSameItems ?? false,
-						permitNumber: data.permitNumber,
-						recoverableStandardRatedExpenses:
-							data.recoverableStandardRatedExpenses ?? 0,
-						reverseChargeApplicable: data.reverseChargeApplicable ?? "N",
-						transporterName: data.transporterName,
-						vehicleNumber: data.vehicleNumber,
-						vehicleDate: data.vehicleDate,
-						instructions: data.instructions,
-						remarks: data.remarks,
-						isInternalSupplier: data.isInternalSupplier ?? false,
-						items: {
-							create: data.items.map((item, index) => ({
-								itemCode: item.itemCode,
-								itemName: item.itemName,
-								description: item.description,
-								acceptedQuantity: item.acceptedQuantity,
-								rejectedQuantity: item.rejectedQuantity ?? 0,
-								rate: item.rate ?? 0,
-								amount: computed.items[index]?.amount ?? 0,
-								uom: item.uom,
-								acceptedWarehouse: item.acceptedWarehouse,
-								rejectedWarehouse: item.rejectedWarehouse,
-							})),
-						},
-						taxes: {
-							create: (data.taxes ?? []).map((tax, index) => ({
-								type: tax.type,
-								accountHead: tax.accountHead,
-								taxRate: tax.taxRate ?? 0,
-								amount: computed.taxes[index]?.amount ?? 0,
-								total: computed.taxes[index]?.total ?? 0,
-							})),
-						},
-					},
-					include: {
-						items: true,
-						taxes: true,
-					},
-				});
+				postingDate,
+				postingTime,
+				editPostingDateTime: data.editPostingDateTime ?? false,
+				supplier: data.supplier,
+				company: data.company,
+				status: data.status ?? "DRAFT",
+				isReturn,
+				applyPutawayRule: data.applyPutawayRule ?? false,
+				supplierDeliveryNote: data.supplierDeliveryNote,
+				acceptedWarehouse: data.acceptedWarehouse,
+				rejectedWarehouse: data.rejectedWarehouse,
+				isSubcontracted: data.isSubcontracted ?? false,
+				currency: data.currency,
+				priceList: data.priceList,
+				disableRoundedTotal,
+				...computed.totals,
+				supplierAddress: data.supplierAddress,
+				contactPerson: data.contactPerson,
+				shippingAddressTemplate: data.shippingAddressTemplate,
+				companyTRN: data.companyTRN,
+				billingAddress: data.billingAddress,
+				terms: data.terms,
+				termsContent: data.termsContent,
+				letterHead: data.letterHead,
+				printHeading: data.printHeading,
+				groupSameItems: data.groupSameItems ?? false,
+				permitNumber: data.permitNumber,
+				recoverableStandardRatedExpenses:
+					data.recoverableStandardRatedExpenses ?? 0,
+				reverseChargeApplicable: data.reverseChargeApplicable ?? "N",
+				transporterName: data.transporterName,
+				vehicleNumber: data.vehicleNumber,
+				vehicleDate: data.vehicleDate,
+				instructions: data.instructions,
+				remarks: data.remarks,
+				isInternalSupplier: data.isInternalSupplier ?? false,
+				items: {
+					create: data.items.map((item, index) => ({
+						itemCode: item.itemCode,
+						itemName: item.itemName,
+						description: item.description,
+						acceptedQuantity: item.acceptedQuantity,
+						rejectedQuantity: item.rejectedQuantity ?? 0,
+						rate: item.rate ?? 0,
+						amount: computed.items[index]?.amount ?? 0,
+						uom: item.uom,
+						acceptedWarehouse: item.acceptedWarehouse,
+						rejectedWarehouse: item.rejectedWarehouse,
+					})),
+				},
+				taxes: {
+					create: (data.taxes ?? []).map((tax, index) => ({
+						type: tax.type,
+						accountHead: tax.accountHead,
+						taxRate: tax.taxRate ?? 0,
+						amount: computed.taxes[index]?.amount ?? 0,
+						total: computed.taxes[index]?.total ?? 0,
+					})),
+				},
+			},
+			include: {
+				items: true,
+				taxes: true,
+			},
+		});
 
-				return toInventoryPurchaseReceipt(created);
-			} catch (error) {
-				const isSeriesConflict =
-					error instanceof Prisma.PrismaClientKnownRequestError &&
-					error.code === "P2002";
-				if (isSeriesConflict && attempt < 2) {
-					await new Promise((resolve) =>
-						setTimeout(resolve, computeBackoffMs(attempt)),
-					);
-					continue;
-				}
-				throw error;
-			}
-		}
-
-		throw new ConflictException("Failed to allocate a unique series number");
+		return toInventoryPurchaseReceipt(created);
 	}
 
 	/**

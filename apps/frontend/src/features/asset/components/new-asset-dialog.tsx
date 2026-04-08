@@ -18,6 +18,7 @@ import {
 import {
 	Dialog,
 	DialogContent,
+	DialogDescription,
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
@@ -166,6 +167,9 @@ export function NewAssetDialog() {
 			<DialogContent className="max-w-[575px] gap-0 overflow-hidden p-0">
 				<DialogHeader className="border-b px-5 py-4">
 					<DialogTitle>New Asset</DialogTitle>
+					<DialogDescription>
+						Quickly add a new asset record to the system.
+					</DialogDescription>
 				</DialogHeader>
 
 				<form
