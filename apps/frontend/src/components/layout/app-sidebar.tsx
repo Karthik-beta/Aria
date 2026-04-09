@@ -382,7 +382,7 @@ export default function AppSidebar() {
 							{/* Reuse shared dropdown content so sidebar and top nav stay consistent */}
 							<UserDropdownContent
 								appRoute={activeApp.route}
-								className="w-(--radix-dropdown-menu-trigger-width) min-w-56 rounded-lg"
+								className="w-[var(--radix-dropdown-menu-trigger-width)] min-w-56 rounded-lg"
 							/>
 						</DropdownMenu>
 					</SidebarMenuItem>

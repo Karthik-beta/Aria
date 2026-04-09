@@ -388,6 +388,24 @@ describe("Authorization Guards", () => {
 			);
 		});
 
+		it("throws when no owner is provided", async () => {
+			policyService.resolveUserPolicy.mockResolvedValue({
+				userId: "user-1",
+				isActive: true,
+				roles: [],
+				permissions: [],
+				apps: [],
+				supervisedApps: [],
+			});
+
+			const guard = new OwnershipGuard(policyService, scopeService);
+			const context = createExecutionContext({ params: {} });
+
+			await expect(guard.canActivate(context)).rejects.toThrow(
+				ForbiddenException,
+			);
+		});
+
 		it("allows when user manages resource owner", async () => {
 			policyService.resolveUserPolicy.mockResolvedValue({
 				userId: "user-1",

@@ -40,6 +40,37 @@ function hasOwnStringValue(
 }
 
 /**
+ * Extract the first non-empty string value for any of the provided keys
+ * from the request (params, body, query). Returns a trimmed string or
+ * undefined when no matching string is found.
+ */
+function extractFirstString(
+	request: GuardRequest,
+	keys: string[],
+): string | undefined {
+	const sources = [request.params, request.body, request.query];
+
+	for (const source of sources) {
+		if (!source) {
+			continue;
+		}
+
+		for (const key of keys) {
+			if (!hasOwnStringValue(source, key)) {
+				continue;
+			}
+
+			const value = source[key];
+			if (value.trim().length > 0) {
+				return value.trim();
+			}
+		}
+	}
+
+	return undefined;
+}
+
+/**
  * Authorization Guards for NestJS
  *
  * Guard execution order (configured in providers):
@@ -235,18 +266,16 @@ export class RolePermissionGuard implements CanActivate {
 			throw new UnauthorizedException("No authenticated user found");
 		}
 
-		const teamId = this.extractFirstString(request, ["teamId", "team_id"]);
-		const resourceOwnerId = this.extractFirstString(request, [
+		const teamId = extractFirstString(request, ["teamId", "team_id"]);
+		const resourceOwnerId = extractFirstString(request, [
 			"ownerId",
 			"owner_id",
 			"userId",
 			"user_id",
 		]);
 		const resourceTeamId =
-			this.extractFirstString(request, [
-				"resourceTeamId",
-				"resource_team_id",
-			]) || teamId;
+			extractFirstString(request, ["resourceTeamId", "resource_team_id"]) ||
+			teamId;
 
 		// Check required roles
 		if (requiredRoles && requiredRoles.length > 0) {
@@ -289,30 +318,7 @@ export class RolePermissionGuard implements CanActivate {
 		return true;
 	}
 
-	private extractFirstString(
-		request: GuardRequest,
-		keys: string[],
-	): string | undefined {
-		const sources = [request.params, request.body, request.query];
-		for (const source of sources) {
-			if (!source) {
-				continue;
-			}
-
-			for (const key of keys) {
-				if (!hasOwnStringValue(source, key)) {
-					continue;
-				}
-
-				const value = source[key];
-				if (value.trim().length > 0) {
-					return value;
-				}
-			}
-		}
-
-		return undefined;
-	}
+	// extractFirstString is implemented at module scope and reused across guards
 }
 
 /**
@@ -344,16 +350,17 @@ export class OwnershipGuard implements CanActivate {
 			throw new UnauthorizedException("No authenticated user found");
 		}
 
-		// Extract resource owner from params or body
-		const resourceOwnerId =
-			request.params?.ownerId ||
-			request.body?.ownerId ||
-			request.query?.ownerId;
+		// Extract resource owner from params, body or query (trimmed)
+		const resourceOwnerId = extractFirstString(request, [
+			"ownerId",
+			"owner_id",
+			"userId",
+			"user_id",
+		]);
 
 		if (!resourceOwnerId) {
-			// If no owner specified, can't validate ownership
 			this.logger.warn("No resource owner ID provided for ownership check");
-			return true;
+			throw new ForbiddenException("Resource ownership could not be verified");
 		}
 
 		const policy = await this.policyService.resolveUserPolicy(String(user.id));
