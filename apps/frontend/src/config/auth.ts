@@ -42,6 +42,8 @@ export const AUTH_CONFIG = {
 	protectedPatterns: ["/", "/admin", "/asset", "/crm", "/hrms", "/inventory"],
 } as const;
 
+const CALLBACK_URL_BASE = "http://aria.local";
+
 /**
  * Normalize a callback URL so only in-app relative redirects are allowed.
  */
@@ -52,11 +54,28 @@ export function normalizeCallbackUrl(
 		return null;
 	}
 
-	if (!callbackUrl.startsWith("/") || callbackUrl.startsWith("//")) {
+	const trimmedCallbackUrl = callbackUrl.trim();
+
+	if (
+		trimmedCallbackUrl.length === 0 ||
+		!trimmedCallbackUrl.startsWith("/") ||
+		trimmedCallbackUrl.startsWith("//") ||
+		trimmedCallbackUrl.includes("\\")
+	) {
 		return null;
 	}
 
-	return callbackUrl;
+	try {
+		const normalizedUrl = new URL(trimmedCallbackUrl, CALLBACK_URL_BASE);
+
+		if (normalizedUrl.origin !== CALLBACK_URL_BASE) {
+			return null;
+		}
+
+		return `${normalizedUrl.pathname}${normalizedUrl.search}${normalizedUrl.hash}`;
+	} catch {
+		return null;
+	}
 }
 
 /**

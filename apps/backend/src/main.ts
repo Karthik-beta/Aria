@@ -9,6 +9,7 @@ import { config } from "dotenv";
 import { WebSocketServer } from "ws";
 import { AppModule } from "./app.module";
 import { auth } from "./auth/auth.config";
+import { assertValidDevelopmentAuthBypassConfiguration } from "./auth/development-bypass";
 import { TrpcContext } from "./trpc/trpc.context";
 import { TrpcService } from "./trpc/trpc.service";
 
@@ -78,6 +79,8 @@ try {
 }
 
 async function bootstrap() {
+	assertValidDevelopmentAuthBypassConfiguration();
+
 	/**
 	 * Disable body parser for Better Auth compatibility
 	 *
@@ -202,5 +205,8 @@ async function bootstrap() {
 		`tRPC WebSocket endpoint: ws://localhost:${process.env.PORT ?? 3001}/trpc-ws`,
 	);
 }
-void bootstrap();
-// Trigger build
+
+bootstrap().catch((error) => {
+	logger.error("[BOOTSTRAP] Failed to start backend:", error);
+	process.exitCode = 1;
+});

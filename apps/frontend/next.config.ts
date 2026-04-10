@@ -23,6 +23,7 @@ const nextConfig: NextConfig = {
 		},
 		reactRemoveProperties: !isDev,
 	},
+	// Keep server-only observability and Prisma dependencies external in the standalone server build.
 	serverExternalPackages: [
 		"import-in-the-middle",
 		"require-in-the-middle",

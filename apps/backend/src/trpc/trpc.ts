@@ -1,5 +1,6 @@
 import { initTRPC, TRPCError } from "@trpc/server";
 import { auth } from "../auth/auth.config";
+import { getDevelopmentAuthBypassState } from "../auth/development-bypass";
 import type { TrpcContextType } from "./trpc.context";
 
 /**
@@ -39,21 +40,17 @@ export type ProtectedContext = TrpcContextType & {
  * Middleware to verify user is authenticated
  */
 const isAuthenticated = t.middleware(async ({ ctx, next }) => {
-	if (
-		process.env.NODE_ENV === "production" &&
-		process.env.DISABLE_AUTH === "true"
-	) {
+	const bypassState = getDevelopmentAuthBypassState();
+
+	if (bypassState.error) {
 		throw new TRPCError({
 			code: "INTERNAL_SERVER_ERROR",
-			message: "DISABLE_AUTH cannot be used in production",
+			message: bypassState.error,
 		});
 	}
 
 	// Development bypass - Allow access without session if DISABLE_AUTH is set
-	if (
-		process.env.NODE_ENV === "development" &&
-		process.env.DISABLE_AUTH === "true"
-	) {
+	if (bypassState.enabled) {
 		// Attempt to find the default admin user for a more realistic development experience
 		// otherwise fallback to a generic mock user
 		return next({

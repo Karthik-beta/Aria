@@ -4,6 +4,10 @@ import {
 	usernameClient,
 } from "better-auth/client/plugins";
 import { createAuthClient } from "better-auth/react";
+import {
+	buildDevelopmentSession,
+	isDevelopmentAuthBypassEnabled,
+} from "./development-bypass";
 
 /**
  * Better Auth client for React
@@ -48,34 +52,10 @@ export const { signIn, signOut, signUp } = authClient;
 export const useSession: typeof authClient.useSession = () => {
 	const session = authClient.useSession();
 
-	const isDevelopmentBypass =
-		process.env.NODE_ENV === "development" &&
-		process.env.NEXT_PUBLIC_DEV_AUTH_BYPASS === "true";
-
-	if (isDevelopmentBypass && !session.data && !session.isPending) {
+	if (isDevelopmentAuthBypassEnabled() && !session.data && !session.isPending) {
 		return {
 			...session,
-			data: {
-				user: {
-					id: "dev-admin-id",
-					email: "admin@aria.local",
-					emailVerified: true,
-					name: "System Administrator",
-					createdAt: new Date(),
-					updatedAt: new Date(),
-					username: "admin",
-					displayUsername: "admin",
-					mustChangePassword: false,
-				},
-				session: {
-					id: "dev-session-id",
-					createdAt: new Date(),
-					updatedAt: new Date(),
-					userId: "dev-admin-id",
-					token: "dev-session-token",
-					expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 7),
-				},
-			} as (typeof session)["data"],
+			data: buildDevelopmentSession() as (typeof session)["data"],
 		};
 	}
 

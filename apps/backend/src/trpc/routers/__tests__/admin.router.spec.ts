@@ -80,6 +80,9 @@ const scopeServiceMock = {
 
 const getSessionMock = jest.fn();
 
+const originalNodeEnv = process.env.NODE_ENV;
+const originalDisableAuth = process.env.DISABLE_AUTH;
+
 const createSessionPayload = () => ({
 	user: {
 		id: "admin-user-1",
@@ -119,16 +122,35 @@ const createCaller = () => {
 	return adminRouter.createCaller(ctx);
 };
 
+function restoreEnvVar(
+	key: "NODE_ENV" | "DISABLE_AUTH",
+	value: string | undefined,
+) {
+	if (value === undefined) {
+		delete process.env[key];
+		return;
+	}
+
+	process.env[key] = value;
+}
+
 // ── Tests ──────────────────────────────────────────────────────────────────
 
 describe("admin.router", () => {
 	beforeEach(() => {
 		jest.clearAllMocks();
+		process.env.NODE_ENV = "test";
+		delete process.env.DISABLE_AUTH;
 		Object.defineProperty(auth.api, "getSession", {
 			value: getSessionMock,
 			configurable: true,
 		});
 		getSessionMock.mockReset();
+	});
+
+	afterAll(() => {
+		restoreEnvVar("NODE_ENV", originalNodeEnv);
+		restoreEnvVar("DISABLE_AUTH", originalDisableAuth);
 	});
 
 	// Helper to set up an authenticated admin session

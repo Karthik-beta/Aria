@@ -1,4 +1,5 @@
 import { Injectable, type OnModuleDestroy } from "@nestjs/common";
+import { getDevelopmentAuthBypassState } from "../auth/development-bypass";
 // biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
 import { PrismaService } from "../shared/prisma.service";
 // biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
@@ -42,6 +43,16 @@ export interface AuthContext {
 export interface AuthResult {
 	allowed: boolean;
 	reason?: string;
+}
+
+function isDevelopmentAuthBypassEnabled(): boolean {
+	const bypassState = getDevelopmentAuthBypassState();
+
+	if (bypassState.error) {
+		throw new Error(bypassState.error);
+	}
+
+	return bypassState.enabled;
 }
 
 /**
@@ -206,10 +217,7 @@ export class PolicyService implements OnModuleDestroy {
 		context?: AuthContext,
 	): Promise<AuthResult> {
 		// Development bypass
-		if (
-			process.env.NODE_ENV === "development" &&
-			process.env.DISABLE_AUTH === "true"
-		) {
+		if (isDevelopmentAuthBypassEnabled()) {
 			return { allowed: true };
 		}
 
@@ -349,10 +357,7 @@ export class PolicyService implements OnModuleDestroy {
 		appKey?: string,
 	): Promise<boolean> {
 		// Development bypass
-		if (
-			process.env.NODE_ENV === "development" &&
-			process.env.DISABLE_AUTH === "true"
-		) {
+		if (isDevelopmentAuthBypassEnabled()) {
 			return true;
 		}
 
@@ -386,10 +391,7 @@ export class PolicyService implements OnModuleDestroy {
 	 */
 	async getUserMaxRoleLevel(userId: string, appKey?: string): Promise<number> {
 		// Development bypass
-		if (
-			process.env.NODE_ENV === "development" &&
-			process.env.DISABLE_AUTH === "true"
-		) {
+		if (isDevelopmentAuthBypassEnabled()) {
 			return 100; // Super admin level
 		}
 

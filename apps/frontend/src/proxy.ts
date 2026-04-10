@@ -1,18 +1,12 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { buildSignInUrl, normalizeCallbackUrl } from "@/config/auth";
+import { isDevelopmentAuthBypassEnabled } from "@/lib/auth/development-bypass";
 
 const SESSION_COOKIE_NAMES = [
 	"better-auth.session_token",
 	"__Secure-better-auth.session_token",
 ];
-
-function isDevelopmentBypassEnabled() {
-	return (
-		process.env.NODE_ENV === "development" &&
-		process.env.NEXT_PUBLIC_DEV_AUTH_BYPASS === "true"
-	);
-}
 
 function hasSessionCookie(request: NextRequest) {
 	return SESSION_COOKIE_NAMES.some((cookieName) =>
@@ -23,9 +17,10 @@ function hasSessionCookie(request: NextRequest) {
 /**
  * Optimistic auth redirect for protected routes.
  *
- * Per Next.js and Better Auth guidance, this performs only a fast cookie check
- * and forwards the requested path so page/layout-level server checks can make
- * the final authorization decision.
+ * Per the Next.js App Router auth guidance, Proxy should stay lightweight:
+ * perform only a fast cookie-presence check here and let server layouts,
+ * pages, and route handlers make the final authentication and authorization
+ * decision through requireProtectedAuthState().
  */
 export function proxy(request: NextRequest) {
 	const callbackUrl = normalizeCallbackUrl(
@@ -37,7 +32,7 @@ export function proxy(request: NextRequest) {
 		requestHeaders.set("x-aria-callback-url", callbackUrl);
 	}
 
-	if (isDevelopmentBypassEnabled()) {
+	if (isDevelopmentAuthBypassEnabled()) {
 		return NextResponse.next({
 			request: {
 				headers: requestHeaders,

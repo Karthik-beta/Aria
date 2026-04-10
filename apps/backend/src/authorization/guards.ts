@@ -3,11 +3,13 @@ import {
 	type ExecutionContext,
 	ForbiddenException,
 	Injectable,
+	InternalServerErrorException,
 	Logger,
 	UnauthorizedException,
 } from "@nestjs/common";
 // biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
 import { Reflector } from "@nestjs/core";
+import { getDevelopmentAuthBypassState } from "../auth/development-bypass";
 import {
 	APP_SCOPE_KEY,
 	PUBLIC_ROUTE_KEY,
@@ -26,10 +28,13 @@ type GuardRequest = {
 };
 
 function isAuthBypassEnabled(): boolean {
-	return (
-		process.env.DISABLE_AUTH === "true" &&
-		process.env.NODE_ENV === "development"
-	);
+	const bypassState = getDevelopmentAuthBypassState();
+
+	if (bypassState.error) {
+		throw new InternalServerErrorException(bypassState.error);
+	}
+
+	return bypassState.enabled;
 }
 
 function hasOwnStringValue(
@@ -94,28 +99,17 @@ export class PublicRouteGuard implements CanActivate {
 	constructor(private reflector: Reflector) {}
 
 	canActivate(context: ExecutionContext): boolean {
+		const bypassEnabled = isAuthBypassEnabled();
 		const isPublic = this.reflector.getAllAndOverride<boolean>(
 			PUBLIC_ROUTE_KEY,
 			[context.getHandler(), context.getClass()],
 		);
 
-		if (isPublic || isAuthBypassEnabled()) {
+		if (isPublic || bypassEnabled) {
 			this.logger.debug(
 				"Skipping authorization check (Public route or Dev bypass)",
 			);
 			return true;
-		}
-
-		if (
-			process.env.NODE_ENV === "production" &&
-			process.env.DISABLE_AUTH === "true"
-		) {
-			this.logger.error(
-				"DISABLE_AUTH=true was ignored because authorization bypass is never allowed in production.",
-			);
-			throw new UnauthorizedException(
-				"Authentication bypass is not allowed in production",
-			);
 		}
 
 		// Not public, let other guards handle authorization
