@@ -2,6 +2,13 @@ import { describe, expect, it } from "vitest";
 import { getAppMetadata, getAppNavItems } from "./app-nav-data";
 
 describe("getAppNavItems", () => {
+	it("returns admin nav items for 'admin'", () => {
+		const items = getAppNavItems("admin");
+		expect(items.length).toBeGreaterThan(0);
+		expect(items[0]?.title).toBe("Administration");
+		expect(items[0]?.items?.[0]?.url).toBe("/admin");
+	});
+
 	it("returns inventory nav items for 'inventory'", () => {
 		const items = getAppNavItems("inventory");
 		expect(items.length).toBeGreaterThan(0);
@@ -45,7 +52,7 @@ describe("getAppNavItems", () => {
 	});
 
 	it("each app has distinct routes under its prefix", () => {
-		const appKeys = ["inventory", "asset", "crm", "hrms"] as const;
+		const appKeys = ["admin", "inventory", "asset", "crm", "hrms"] as const;
 		for (const key of appKeys) {
 			const items = getAppNavItems(key);
 			// All non-hash URLs should start with the app prefix
@@ -56,7 +63,9 @@ describe("getAppNavItems", () => {
 				// Check sub-items too
 				for (const sub of item.items ?? []) {
 					if (sub.url && sub.url !== "#" && sub.url !== "/") {
-						expect(sub.url).toMatch(new RegExp(`^/${key}/`));
+						const prefixPattern =
+							key === "admin" ? /^\/admin(?:\/|$)/ : new RegExp(`^/${key}/`);
+						expect(sub.url).toMatch(prefixPattern);
 					}
 				}
 			}
@@ -74,6 +83,11 @@ describe("getAppNavItems", () => {
 });
 
 describe("getAppMetadata", () => {
+	it("returns metadata for admin", () => {
+		const meta = getAppMetadata("admin");
+		expect(meta.label).toBe("Admin Console");
+	});
+
 	it("returns metadata for inventory", () => {
 		const meta = getAppMetadata("inventory");
 		expect(meta.label).toBe("Inventory Management");

@@ -41,6 +41,12 @@ export interface UseAdvancedDataTableProps<TData extends RowData> {
 	/** Total page count for server-side pagination (-1 for client-side) */
 	pageCount?: number;
 
+	/** Enable manual filtering for server-side search/filter flows */
+	manualFiltering?: boolean;
+
+	/** Enable manual sorting for server-side sort flows */
+	manualSorting?: boolean;
+
 	/** Initial page size */
 	initialPageSize?: number;
 
@@ -93,6 +99,8 @@ export function useAdvancedDataTable<TData extends RowData>({
 	data,
 	columns,
 	pageCount = -1,
+	manualFiltering = false,
+	manualSorting = false,
 	initialPageSize = 10,
 	initialSorting = [],
 	initialColumnVisibility = {},
@@ -309,6 +317,8 @@ export function useAdvancedDataTable<TData extends RowData>({
 		getFacetedUniqueValues: getFacetedUniqueValues(),
 		getFacetedMinMaxValues: getFacetedMinMaxValues(),
 		manualPagination: pageCount > 0,
+		manualFiltering,
+		manualSorting,
 		getRowId,
 		// Expose onReload in meta so consumers (toolbar) can call it
 		meta: {

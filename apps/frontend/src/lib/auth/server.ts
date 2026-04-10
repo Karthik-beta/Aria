@@ -8,6 +8,12 @@ import {
 	EMPTY_AUTHORIZATION_DATA,
 	isAuthorizationData,
 } from "@/lib/auth/authorization";
+import {
+	buildDevelopmentAuthorization,
+	buildDevelopmentSession,
+	getDevelopmentAuthBypassState,
+	isDevelopmentAuthBypassEnabled,
+} from "@/lib/auth/development-bypass";
 import type {
 	AuthSessionData,
 	AuthSessionRecord,
@@ -22,55 +28,6 @@ function getBackendUrl() {
 		"http://localhost:3001";
 
 	return baseUrl.replace(/\/$/, "");
-}
-
-function isDevelopmentBypassEnabled() {
-	return (
-		process.env.NODE_ENV === "development" &&
-		process.env.NEXT_PUBLIC_DEV_AUTH_BYPASS === "true"
-	);
-}
-
-function buildDevelopmentSession(): AuthSessionData {
-	const now = new Date();
-
-	return {
-		user: {
-			id: "dev-admin-id",
-			email: "admin@aria.local",
-			emailVerified: true,
-			name: "System Administrator",
-			createdAt: now,
-			updatedAt: now,
-			username: "admin",
-			displayUsername: "admin",
-			mustChangePassword: false,
-			passwordChangedAt: now,
-		},
-		session: {
-			id: "dev-session-id",
-			userId: "dev-admin-id",
-			createdAt: now,
-			updatedAt: now,
-			token: "dev-session-token",
-			expiresAt: new Date(now.getTime() + 1000 * 60 * 60 * 24 * 7),
-		},
-	};
-}
-
-function buildDevelopmentAuthorization(): AuthorizationData {
-	return {
-		roles: ["super_admin"],
-		permissions: ["system:*"],
-		apps: {
-			inventory: { roles: ["admin"] },
-			asset: { roles: ["admin"] },
-			crm: { roles: ["admin"] },
-			hrms: { roles: ["admin"] },
-		},
-		supervisedApps: ["inventory", "asset", "crm", "hrms"],
-		isActive: true,
-	};
 }
 
 function isAuthSessionData(value: unknown): value is AuthSessionData {
@@ -132,7 +89,13 @@ async function fetchBackendSession(): Promise<AuthSessionData | null> {
  */
 export const getServerSession = cache(
 	async (): Promise<AuthSessionData | null> => {
-		if (isDevelopmentBypassEnabled()) {
+		const bypassState = getDevelopmentAuthBypassState();
+
+		if (bypassState.error) {
+			throw new Error(bypassState.error);
+		}
+
+		if (isDevelopmentAuthBypassEnabled()) {
 			return buildDevelopmentSession();
 		}
 
@@ -147,7 +110,7 @@ export const getServerSession = cache(
 
 export const getAuthorizationData = cache(
 	async (): Promise<AuthorizationData> => {
-		if (isDevelopmentBypassEnabled()) {
+		if (isDevelopmentAuthBypassEnabled()) {
 			return buildDevelopmentAuthorization();
 		}
 
@@ -167,6 +130,7 @@ export const getAuthorizationData = cache(
 
 /**
  * Resolve the current request's server auth state for protected layouts and pages.
+ * This is the final auth checkpoint after Proxy's optimistic cookie check.
  */
 export const getAuthState = cache(async () => {
 	const session = await getServerSession();

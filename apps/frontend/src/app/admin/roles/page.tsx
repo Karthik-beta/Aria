@@ -4,6 +4,7 @@ import { logger } from "@aria/utils";
 import { Edit, Lock, MoreVertical, Plus, Shield, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import PageContainer from "@/components/layout/page-container";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -111,266 +112,324 @@ export default function RolesPage() {
 		setManagePermissionsOpen(true);
 	};
 
+	const totalRoles = roles?.length ?? 0;
+	const systemRoleCount = roles?.filter((role) => role.isSystem).length ?? 0;
+	const customRoleCount = Math.max(totalRoles - systemRoleCount, 0);
+	const permissionCount = permissions?.length ?? 0;
+	const roleInsights = [
+		{
+			label: "Total roles",
+			value: totalRoles,
+			helper: `${systemRoleCount} system-defined`,
+		},
+		{
+			label: "Custom roles",
+			value: customRoleCount,
+			helper: "Editable workspace roles",
+		},
+		{
+			label: "Permissions",
+			value: permissionCount,
+			helper: "Across all scopes",
+		},
+		{
+			label: "Protected roles",
+			value: systemRoleCount,
+			helper: "Locked from direct edits",
+		},
+	];
+
 	if (isLoading) {
 		return (
-			<div className="flex items-center justify-center py-12">
-				<div className="text-center">
-					<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-					<p className="text-muted-foreground">Loading roles...</p>
+			<PageContainer>
+				<div className="flex flex-1 items-center justify-center py-12">
+					<div className="text-center">
+						<div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-b-2 border-primary"></div>
+						<p className="text-muted-foreground">Loading roles...</p>
+					</div>
 				</div>
-			</div>
+			</PageContainer>
 		);
 	}
 
 	return (
-		<div className="space-y-6">
-			<div className="flex items-center justify-between">
-				<div>
-					<h2 className="text-3xl font-bold tracking-tight">
-						Roles & Permissions
-					</h2>
-					<p className="text-muted-foreground">
-						Manage roles and their permission assignments
-					</p>
+		<PageContainer>
+			<div className="flex flex-1 flex-col gap-6">
+				<div className="flex flex-wrap items-start justify-between gap-4">
+					<div className="space-y-1">
+						<h2 className="text-3xl font-bold tracking-tight">
+							Roles & Permissions
+						</h2>
+						<p className="text-muted-foreground">
+							Manage roles and their permission assignments
+						</p>
+					</div>
+					{canManageRoles && (
+						<Dialog open={createRoleOpen} onOpenChange={setCreateRoleOpen}>
+							<DialogTrigger asChild>
+								<Button>
+									<Plus className="mr-2 h-4 w-4" />
+									Create Role
+								</Button>
+							</DialogTrigger>
+							<DialogContent className="sm:max-w-[500px]">
+								<DialogHeader>
+									<DialogTitle>Create New Role</DialogTitle>
+									<DialogDescription>
+										Define a new role with name and description
+									</DialogDescription>
+								</DialogHeader>
+								<CreateRoleForm
+									onSuccess={() => {
+										refetch();
+										setCreateRoleOpen(false);
+									}}
+								/>
+							</DialogContent>
+						</Dialog>
+					)}
 				</div>
-				{canManageRoles && (
-					<Dialog open={createRoleOpen} onOpenChange={setCreateRoleOpen}>
-						<DialogTrigger asChild>
-							<Button>
-								<Plus className="mr-2 h-4 w-4" />
-								Create Role
-							</Button>
-						</DialogTrigger>
-						<DialogContent className="sm:max-w-[500px]">
-							<DialogHeader>
-								<DialogTitle>Create New Role</DialogTitle>
-								<DialogDescription>
-									Define a new role with name and description
-								</DialogDescription>
-							</DialogHeader>
-							<CreateRoleForm
-								onSuccess={() => {
-									refetch();
-									setCreateRoleOpen(false);
-								}}
-							/>
-						</DialogContent>
-					</Dialog>
-				)}
-			</div>
 
-			<Tabs defaultValue="roles">
-				<TabsList>
-					<TabsTrigger value="roles">Roles ({roles?.length || 0})</TabsTrigger>
-					<TabsTrigger value="permissions">
-						Permissions ({permissions?.length || 0})
-					</TabsTrigger>
-				</TabsList>
-
-				<TabsContent value="roles" className="space-y-4 mt-6">
-					<div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-						{roles?.map((role) => (
-							<Card key={role.id} className="relative">
-								<CardHeader>
-									<div className="flex items-center justify-between">
-										<div className="flex items-center gap-2">
-											<Shield className="h-5 w-5 text-primary" />
-											<CardTitle className="text-lg">{role.name}</CardTitle>
-										</div>
-										<div className="flex items-center gap-2">
-											{role.isSystem && (
-												<Badge variant="secondary" className="gap-1">
-													<Lock className="h-3 w-3" />
-													System
-												</Badge>
-											)}
-											<DropdownMenu>
-												<DropdownMenuTrigger asChild>
-													<Button
-														variant="ghost"
-														size="icon"
-														className="h-8 w-8"
-													>
-														<MoreVertical className="h-4 w-4" />
-													</Button>
-												</DropdownMenuTrigger>
-												<DropdownMenuContent align="end">
-													<DropdownMenuLabel>Actions</DropdownMenuLabel>
-													<DropdownMenuSeparator />
-													{canManageRoles && (
-														<>
-															<DropdownMenuItem
-																onClick={() => openPermissionsDialog(role)}
-															>
-																<Shield className="mr-2 h-4 w-4" />
-																Manage Permissions
-															</DropdownMenuItem>
-															<DropdownMenuItem
-																onClick={() => openEditDialog(role)}
-																disabled={role.isSystem}
-															>
-																<Edit className="mr-2 h-4 w-4" />
-																Edit Role
-															</DropdownMenuItem>
-															<DropdownMenuItem
-																onClick={() => openDeleteDialog(role)}
-																disabled={role.isSystem}
-																className="text-destructive"
-															>
-																<Trash2 className="mr-2 h-4 w-4" />
-																Delete Role
-															</DropdownMenuItem>
-														</>
-													)}
-												</DropdownMenuContent>
-											</DropdownMenu>
-										</div>
-									</div>
-									<CardDescription>
-										{role.description || "No description"}
-									</CardDescription>
-								</CardHeader>
-								<CardContent className="space-y-3">
-									<div className="flex items-center justify-between text-sm">
-										<span className="text-muted-foreground">Level</span>
-										<Badge variant="outline">{role.level}</Badge>
-									</div>
-									<div className="space-y-2">
-										<p className="text-sm font-medium">Permissions:</p>
-										<div className="flex flex-wrap gap-1">
-											{role.rolePermissions?.slice(0, 4).map((rp) => (
-												<Badge
-													key={rp.permission.id}
-													variant="outline"
-													className="text-xs"
-												>
-													{rp.permission.key}
-												</Badge>
-											))}
-											{(role.rolePermissions?.length || 0) > 4 && (
-												<Badge variant="outline" className="text-xs">
-													+{(role.rolePermissions?.length || 0) - 4} more
-												</Badge>
-											)}
-											{(role.rolePermissions?.length || 0) === 0 && (
-												<span className="text-xs text-muted-foreground">
-													No permissions assigned
-												</span>
-											)}
-										</div>
-									</div>
-								</CardContent>
-								<CardFooter>
-									{canManageRoles && (
-										<Button
-											variant="outline"
-											className="w-full"
-											onClick={() => openPermissionsDialog(role)}
-										>
-											<Shield className="mr-2 h-4 w-4" />
-											Manage Permissions
-										</Button>
-									)}
-								</CardFooter>
-							</Card>
-						))}
-					</div>
-				</TabsContent>
-
-				<TabsContent value="permissions" className="space-y-4 mt-6">
-					<div className="space-y-4">
-						<PermissionSection
-							title="System Permissions"
-							description="Core system-level permissions for administrative tasks"
-							permissions={
-								permissions?.filter((p) => p.scope === "system") || []
-							}
-						/>
-						<PermissionSection
-							title="App Permissions"
-							description="Application-specific permissions for different modules"
-							permissions={permissions?.filter((p) => p.scope === "app") || []}
-						/>
-						<PermissionSection
-							title="Entity Permissions"
-							description="Entity-level permissions for data access control"
-							permissions={
-								permissions?.filter((p) => p.scope === "entity") || []
-							}
-						/>
-					</div>
-				</TabsContent>
-			</Tabs>
-
-			{/* Edit Role Dialog */}
-			<Dialog open={editRoleOpen} onOpenChange={setEditRoleOpen}>
-				<DialogContent className="sm:max-w-[500px]">
-					<DialogHeader>
-						<DialogTitle>Edit Role</DialogTitle>
-						<DialogDescription>Update role information</DialogDescription>
-					</DialogHeader>
-					<EditRoleForm
-						role={selectedRole}
-						onSuccess={() => {
-							refetch();
-							setEditRoleOpen(false);
-						}}
-					/>
-				</DialogContent>
-			</Dialog>
-
-			{/* Manage Permissions Dialog */}
-			<Dialog
-				open={managePermissionsOpen}
-				onOpenChange={setManagePermissionsOpen}
-			>
-				<DialogContent className="sm:max-w-[700px]">
-					<DialogHeader>
-						<DialogTitle>Manage Role Permissions</DialogTitle>
-						<DialogDescription>
-							Assign or remove permissions for {selectedRole?.name}
-						</DialogDescription>
-					</DialogHeader>
-					<ManagePermissionsForm
-						role={selectedRole}
-						permissions={permissions || []}
-						onSuccess={() => {
-							refetch();
-							setManagePermissionsOpen(false);
-						}}
-					/>
-				</DialogContent>
-			</Dialog>
-
-			{/* Delete Confirmation Dialog */}
-			<AlertDialog open={deleteRoleOpen} onOpenChange={setDeleteRoleOpen}>
-				<AlertDialogContent>
-					<AlertDialogHeader>
-						<AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-						<AlertDialogDescription>
-							This action cannot be undone. This will permanently delete the
-							role <strong>{selectedRole?.name}</strong> and remove all user
-							assignments.
-						</AlertDialogDescription>
-					</AlertDialogHeader>
-					<AlertDialogFooter>
-						<AlertDialogCancel>Cancel</AlertDialogCancel>
-						<AlertDialogAction
-							onClick={() => {
-								if (selectedRole) {
-									deleteRoleMutation.mutate({ roleKey: selectedRole.key });
-								}
-								setDeleteRoleOpen(false);
-							}}
-							className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-							disabled={deleteRoleMutation.isPending}
+				<div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+					{roleInsights.map((insight) => (
+						<Card
+							key={insight.label}
+							className="border-muted/60 bg-card/90 shadow-sm"
 						>
-							{deleteRoleMutation.isPending ? "Deleting..." : "Delete Role"}
-						</AlertDialogAction>
-					</AlertDialogFooter>
-				</AlertDialogContent>
-			</AlertDialog>
-		</div>
+							<CardHeader className="pb-2">
+								<p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+									{insight.label}
+								</p>
+							</CardHeader>
+							<CardContent className="pb-4">
+								<div className="text-3xl font-semibold tracking-tight">
+									{insight.value}
+								</div>
+								<p className="text-xs text-muted-foreground">
+									{insight.helper}
+								</p>
+							</CardContent>
+						</Card>
+					))}
+				</div>
+
+				<Tabs defaultValue="roles" className="space-y-6">
+					<TabsList className="h-auto flex-wrap justify-start">
+						<TabsTrigger value="roles">
+							Roles ({roles?.length || 0})
+						</TabsTrigger>
+						<TabsTrigger value="permissions">
+							Permissions ({permissions?.length || 0})
+						</TabsTrigger>
+					</TabsList>
+
+					<TabsContent value="roles" className="space-y-4 mt-6">
+						<div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+							{roles?.map((role) => (
+								<Card key={role.id} className="relative">
+									<CardHeader>
+										<div className="flex items-center justify-between">
+											<div className="flex items-center gap-2">
+												<Shield className="h-5 w-5 text-primary" />
+												<CardTitle className="text-lg">{role.name}</CardTitle>
+											</div>
+											<div className="flex items-center gap-2">
+												{role.isSystem && (
+													<Badge variant="secondary" className="gap-1">
+														<Lock className="h-3 w-3" />
+														System
+													</Badge>
+												)}
+												<DropdownMenu>
+													<DropdownMenuTrigger asChild>
+														<Button
+															variant="ghost"
+															size="icon"
+															className="h-8 w-8"
+														>
+															<MoreVertical className="h-4 w-4" />
+														</Button>
+													</DropdownMenuTrigger>
+													<DropdownMenuContent align="end">
+														<DropdownMenuLabel>Actions</DropdownMenuLabel>
+														<DropdownMenuSeparator />
+														{canManageRoles && (
+															<>
+																<DropdownMenuItem
+																	onClick={() => openPermissionsDialog(role)}
+																>
+																	<Shield className="mr-2 h-4 w-4" />
+																	Manage Permissions
+																</DropdownMenuItem>
+																<DropdownMenuItem
+																	onClick={() => openEditDialog(role)}
+																	disabled={role.isSystem}
+																>
+																	<Edit className="mr-2 h-4 w-4" />
+																	Edit Role
+																</DropdownMenuItem>
+																<DropdownMenuItem
+																	onClick={() => openDeleteDialog(role)}
+																	disabled={role.isSystem}
+																	className="text-destructive"
+																>
+																	<Trash2 className="mr-2 h-4 w-4" />
+																	Delete Role
+																</DropdownMenuItem>
+															</>
+														)}
+													</DropdownMenuContent>
+												</DropdownMenu>
+											</div>
+										</div>
+										<CardDescription>
+											{role.description || "No description"}
+										</CardDescription>
+									</CardHeader>
+									<CardContent className="space-y-3">
+										<div className="flex items-center justify-between text-sm">
+											<span className="text-muted-foreground">Level</span>
+											<Badge variant="outline">{role.level}</Badge>
+										</div>
+										<div className="space-y-2">
+											<p className="text-sm font-medium">Permissions:</p>
+											<div className="flex flex-wrap gap-1">
+												{role.rolePermissions?.slice(0, 4).map((rp) => (
+													<Badge
+														key={rp.permission.id}
+														variant="outline"
+														className="text-xs"
+													>
+														{rp.permission.key}
+													</Badge>
+												))}
+												{(role.rolePermissions?.length || 0) > 4 && (
+													<Badge variant="outline" className="text-xs">
+														+{(role.rolePermissions?.length || 0) - 4} more
+													</Badge>
+												)}
+												{(role.rolePermissions?.length || 0) === 0 && (
+													<span className="text-xs text-muted-foreground">
+														No permissions assigned
+													</span>
+												)}
+											</div>
+										</div>
+									</CardContent>
+									<CardFooter>
+										{canManageRoles && (
+											<Button
+												variant="outline"
+												className="w-full"
+												onClick={() => openPermissionsDialog(role)}
+											>
+												<Shield className="mr-2 h-4 w-4" />
+												Manage Permissions
+											</Button>
+										)}
+									</CardFooter>
+								</Card>
+							))}
+						</div>
+					</TabsContent>
+
+					<TabsContent value="permissions" className="space-y-4 mt-6">
+						<div className="space-y-4">
+							<PermissionSection
+								title="System Permissions"
+								description="Core system-level permissions for administrative tasks"
+								permissions={
+									permissions?.filter((p) => p.scope === "system") || []
+								}
+							/>
+							<PermissionSection
+								title="App Permissions"
+								description="Application-specific permissions for different modules"
+								permissions={
+									permissions?.filter((p) => p.scope === "app") || []
+								}
+							/>
+							<PermissionSection
+								title="Entity Permissions"
+								description="Entity-level permissions for data access control"
+								permissions={
+									permissions?.filter((p) => p.scope === "entity") || []
+								}
+							/>
+						</div>
+					</TabsContent>
+				</Tabs>
+
+				{/* Edit Role Dialog */}
+				<Dialog open={editRoleOpen} onOpenChange={setEditRoleOpen}>
+					<DialogContent className="sm:max-w-[500px]">
+						<DialogHeader>
+							<DialogTitle>Edit Role</DialogTitle>
+							<DialogDescription>Update role information</DialogDescription>
+						</DialogHeader>
+						<EditRoleForm
+							role={selectedRole}
+							onSuccess={() => {
+								refetch();
+								setEditRoleOpen(false);
+							}}
+						/>
+					</DialogContent>
+				</Dialog>
+
+				{/* Manage Permissions Dialog */}
+				<Dialog
+					open={managePermissionsOpen}
+					onOpenChange={setManagePermissionsOpen}
+				>
+					<DialogContent className="sm:max-w-[700px]">
+						<DialogHeader>
+							<DialogTitle>Manage Role Permissions</DialogTitle>
+							<DialogDescription>
+								Assign or remove permissions for {selectedRole?.name}
+							</DialogDescription>
+						</DialogHeader>
+						<ManagePermissionsForm
+							role={selectedRole}
+							permissions={permissions || []}
+							onSuccess={() => {
+								refetch();
+								setManagePermissionsOpen(false);
+							}}
+						/>
+					</DialogContent>
+				</Dialog>
+
+				{/* Delete Confirmation Dialog */}
+				<AlertDialog open={deleteRoleOpen} onOpenChange={setDeleteRoleOpen}>
+					<AlertDialogContent>
+						<AlertDialogHeader>
+							<AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+							<AlertDialogDescription>
+								This action cannot be undone. This will permanently delete the
+								role <strong>{selectedRole?.name}</strong> and remove all user
+								assignments.
+							</AlertDialogDescription>
+						</AlertDialogHeader>
+						<AlertDialogFooter>
+							<AlertDialogCancel>Cancel</AlertDialogCancel>
+							<AlertDialogAction
+								onClick={() => {
+									if (selectedRole) {
+										deleteRoleMutation.mutate({ roleKey: selectedRole.key });
+									}
+									setDeleteRoleOpen(false);
+								}}
+								className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+								disabled={deleteRoleMutation.isPending}
+							>
+								{deleteRoleMutation.isPending ? "Deleting..." : "Delete Role"}
+							</AlertDialogAction>
+						</AlertDialogFooter>
+					</AlertDialogContent>
+				</AlertDialog>
+			</div>
+		</PageContainer>
 	);
 }
 

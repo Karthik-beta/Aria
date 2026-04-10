@@ -1500,6 +1500,49 @@ export namespace Inventory {
 		updatedAt: Date;
 	}
 
+	export interface ItemCatalogueListItem {
+		id: string;
+		name: string;
+		code: string;
+		itemGroupName?: string | null;
+		disabled: boolean;
+		hasVariants: boolean;
+		createdAt: Date;
+		updatedAt: Date;
+	}
+
+	export interface ItemCatalogueListResult {
+		items: ItemCatalogueListItem[];
+		totalCount: number;
+	}
+
+	export type ItemCatalogueSortBy =
+		| "createdAt"
+		| "updatedAt"
+		| "name"
+		| "code"
+		| "itemGroupName";
+
+	export interface ListItemsInput {
+		skip?: number;
+		take?: number;
+		search?: string;
+		sortBy?: ItemCatalogueSortBy;
+		sortDirection?: "asc" | "desc";
+	}
+
+	export const listItemsSchema = z
+		.object({
+			skip: z.number().int().min(0).optional(),
+			take: z.number().int().min(1).max(250).optional(),
+			search: z.string().max(255).optional(),
+			sortBy: z
+				.enum(["createdAt", "updatedAt", "name", "code", "itemGroupName"])
+				.optional(),
+			sortDirection: z.enum(["asc", "desc"]).optional(),
+		})
+		.optional();
+
 	/**
 	 * Input for creating a new inventory item
 	 */

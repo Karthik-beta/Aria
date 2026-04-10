@@ -61,6 +61,88 @@ export class ItemCatalogSubService {
 	}
 
 	/**
+	 * Get a bounded, slim catalogue view for high-cardinality item list pages.
+	 */
+	async findPagedItems(
+		params?: Inventory.ListItemsInput,
+	): Promise<Inventory.ItemCatalogueListResult> {
+		const skip = Math.max(0, params?.skip ?? 0);
+		const take = Math.min(Math.max(1, params?.take ?? 25), 250);
+		const search = params?.search?.trim();
+		const sortDirection = params?.sortDirection ?? "desc";
+
+		const where: Prisma.InventoryItemWhereInput | undefined = search
+			? {
+					OR: [
+						{ name: { contains: search, mode: "insensitive" } },
+						{ code: { contains: search, mode: "insensitive" } },
+						{
+							itemGroup: {
+								groupName: {
+									contains: search,
+									mode: "insensitive",
+								},
+							},
+						},
+					],
+				}
+			: undefined;
+
+		const orderBy: Prisma.InventoryItemOrderByWithRelationInput[] =
+			params?.sortBy === "name"
+				? [{ name: sortDirection }, { createdAt: "desc" }]
+				: params?.sortBy === "code"
+					? [{ code: sortDirection }, { createdAt: "desc" }]
+					: params?.sortBy === "itemGroupName"
+						? [
+								{ itemGroup: { groupName: sortDirection } },
+								{ name: "asc" },
+								{ createdAt: "desc" },
+							]
+						: params?.sortBy === "createdAt"
+							? [{ createdAt: sortDirection }, { name: "asc" }]
+							: [{ updatedAt: sortDirection }, { createdAt: "desc" }];
+
+		const [items, totalCount] = await Promise.all([
+			this.prisma.inventoryItem.findMany({
+				where,
+				orderBy,
+				skip,
+				take,
+				select: {
+					id: true,
+					name: true,
+					code: true,
+					disabled: true,
+					hasVariants: true,
+					createdAt: true,
+					updatedAt: true,
+					itemGroup: {
+						select: {
+							groupName: true,
+						},
+					},
+				},
+			}),
+			this.prisma.inventoryItem.count({ where }),
+		]);
+
+		return {
+			items: items.map((item) => ({
+				id: item.id,
+				name: item.name,
+				code: item.code,
+				itemGroupName: item.itemGroup?.groupName ?? null,
+				disabled: item.disabled,
+				hasVariants: item.hasVariants,
+				createdAt: item.createdAt,
+				updatedAt: item.updatedAt,
+			})),
+			totalCount,
+		};
+	}
+
+	/**
 	 * Get all item groups with optional search
 	 */
 	async findAllItemGroups(search?: string): Promise<Inventory.ItemGroup[]> {

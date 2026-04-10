@@ -66,6 +66,18 @@ const createScopeServiceMock = (): jest.Mocked<ScopeService> =>
 const originalNodeEnv = process.env.NODE_ENV;
 const originalDisableAuth = process.env.DISABLE_AUTH;
 
+function restoreEnvVar(
+	key: "NODE_ENV" | "DISABLE_AUTH",
+	value: string | undefined,
+) {
+	if (value === undefined) {
+		delete process.env[key];
+		return;
+	}
+
+	process.env[key] = value;
+}
+
 describe("Authorization Guards", () => {
 	beforeEach(() => {
 		process.env.NODE_ENV = "test";
@@ -73,8 +85,8 @@ describe("Authorization Guards", () => {
 	});
 
 	afterAll(() => {
-		process.env.NODE_ENV = originalNodeEnv;
-		process.env.DISABLE_AUTH = originalDisableAuth;
+		restoreEnvVar("NODE_ENV", originalNodeEnv);
+		restoreEnvVar("DISABLE_AUTH", originalDisableAuth);
 	});
 
 	describe("PublicRouteGuard", () => {
@@ -382,6 +394,24 @@ describe("Authorization Guards", () => {
 
 			const guard = new OwnershipGuard(policyService, scopeService);
 			const context = createExecutionContext({ params: { ownerId: "user-2" } });
+
+			await expect(guard.canActivate(context)).rejects.toThrow(
+				ForbiddenException,
+			);
+		});
+
+		it("throws when no owner is provided", async () => {
+			policyService.resolveUserPolicy.mockResolvedValue({
+				userId: "user-1",
+				isActive: true,
+				roles: [],
+				permissions: [],
+				apps: [],
+				supervisedApps: [],
+			});
+
+			const guard = new OwnershipGuard(policyService, scopeService);
+			const context = createExecutionContext({ params: {} });
 
 			await expect(guard.canActivate(context)).rejects.toThrow(
 				ForbiddenException,

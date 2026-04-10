@@ -27,6 +27,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import {
 	Dialog,
 	DialogContent,
+	DialogDescription,
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
@@ -518,8 +519,10 @@ export default function ItemManufacturersPage() {
 				<DialogContent className="max-w-[575px] gap-0 overflow-hidden p-0">
 					<DialogHeader className="border-b px-5 py-4">
 						<DialogTitle>New Item Manufacturer</DialogTitle>
+						<DialogDescription>
+							Create a new manufacturer mapping for the selected item.
+						</DialogDescription>
 					</DialogHeader>
-
 					<form
 						id="quick-create-manufacturer-form"
 						onSubmit={submitQuickCreate}

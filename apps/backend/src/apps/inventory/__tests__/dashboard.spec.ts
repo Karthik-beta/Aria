@@ -245,6 +245,60 @@ describe("DashboardSubService › getStockMovements", () => {
 
 		expect(result.stockMovements).toEqual([]);
 	});
+
+	it("queries only committed documents for movement and activity aggregations", async () => {
+		await service.getDashboardData();
+
+		expect(mp.stockEntry.findMany).toHaveBeenNthCalledWith(
+			1,
+			expect.objectContaining({
+				where: expect.objectContaining({
+					status: "SUBMITTED",
+				}),
+			}),
+		);
+		expect(mp.stockEntry.findMany).toHaveBeenNthCalledWith(
+			2,
+			expect.objectContaining({
+				where: {
+					status: "SUBMITTED",
+				},
+			}),
+		);
+		expect(mp.deliveryNote.findMany).toHaveBeenCalledWith(
+			expect.objectContaining({
+				where: expect.objectContaining({
+					status: {
+						in: ["TO_BILL", "COMPLETED", "RETURN_ISSUED", "CLOSED"],
+					},
+				}),
+			}),
+		);
+		expect(mp.purchaseReceipt.findMany).toHaveBeenCalledWith(
+			expect.objectContaining({
+				where: expect.objectContaining({
+					status: {
+						in: [
+							"PARTLY_BILLED",
+							"TO_BILL",
+							"COMPLETED",
+							"RETURN_ISSUED",
+							"CLOSED",
+						],
+					},
+				}),
+			}),
+		);
+		expect(mp.stockEntryItem.groupBy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				where: expect.objectContaining({
+					stockEntry: expect.objectContaining({
+						status: "SUBMITTED",
+					}),
+				}),
+			}),
+		);
+	});
 });
 
 // ── Warehouse Stock Tests ─────────────────────────────────────────────

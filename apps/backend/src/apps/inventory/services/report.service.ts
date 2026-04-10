@@ -10,7 +10,7 @@
  */
 import type { Inventory } from "@aria/types";
 import { BadRequestException, NotFoundException } from "@nestjs/common";
-import type { Prisma } from "../../../generated/prisma/client";
+import { Prisma } from "../../../generated/prisma/client";
 import type { PrismaService } from "../../../shared/prisma.service";
 import {
 	type BatchItemExpirySourceBatch,
@@ -28,20 +28,18 @@ import { buildItemShortageRows } from "../reports/item/item-shortage-report";
 import { buildItemVariantDetailsResult } from "../reports/item/item-variant-details-report";
 import { buildItemwiseRecommendedReorderLevelRows } from "../reports/item/itemwise-recommended-reorder-level-report";
 import { buildItemPriceStockRows } from "../reports/stock/item-price-stock-report";
-import { buildStockAgeingRows } from "../reports/stock/stock-ageing-report";
 import {
-	buildStockAnalyticsRows,
-	getPeriodDateRanges as getPeriodDateRangesForService,
-	type StockAnalyticsSourceEntry,
-} from "../reports/stock/stock-analytics-report";
-import { buildStockBalanceRows } from "../reports/stock/stock-balance-report";
+	applyStockAgeingItems,
+	createStockAgeingState,
+	finalizeStockAgeingRows,
+} from "../reports/stock/stock-ageing-report";
+import { getPeriodDateRanges as getPeriodDateRangesForService } from "../reports/stock/stock-analytics-report";
 import { buildStockLedgerRows } from "../reports/stock/stock-ledger-report";
 import {
 	buildStockProjectedQtyRows,
 	type StockProjectedQtySourceRow,
 } from "../reports/stock/stock-projected-qty-report";
 import { buildStockSummaryRows } from "../reports/stock/stock-summary-report";
-import { buildWarehouseWiseStockBalanceRows } from "../reports/stock/warehouse-wise-stock-balance-report";
 import {
 	buildRequestedItemsToBeTransferredRows,
 	summarizeRequestedItemsToBeTransferredRows,
@@ -60,6 +58,158 @@ import {
 	parseStockAgeingBucketRanges,
 	type StockAvailabilityParams,
 } from "./inventory-shared";
+
+const STOCK_AGEING_BATCH_SIZE = 1_000;
+
+interface ProjectedSourceAggregateRow {
+	company: string;
+	itemCode: string;
+	itemName: string | null;
+	description: string | null;
+	warehouse: string;
+	unitOfMeasure: string | null;
+	actualQty: number;
+	plannedQty: number;
+	requestedQty: number;
+	orderedQty: number;
+	reservedQty: number;
+	reservedQtyForProduction: number;
+	reservedQtyForSubcontracting: number;
+	reservedQtyForProductionPlan: number;
+	lastActivityDate: Date | null;
+}
+
+interface StockBalanceAggregateRow {
+	company: string;
+	itemCode: string;
+	itemName: string | null;
+	warehouse: string;
+	unitOfMeasure: string | null;
+	openingQty: number;
+	openingValue: number;
+	inQty: number;
+	inValue: number;
+	outQty: number;
+	outValue: number;
+	lastPostingDate: Date | null;
+}
+
+interface WarehouseWiseStockBalanceQueryRow {
+	id: string;
+	stockEntryId: string;
+	stockEntryItemId: string;
+	company: string;
+	itemCode: string;
+	itemName: string | null;
+	warehouse: string;
+	postingDate: Date;
+	voucherNo: string;
+	qtyChange: number;
+	incomingRate: number;
+	movementType: "IN" | "OUT";
+	createdAt: Date;
+	updatedAt: Date;
+}
+
+interface StockAnalyticsAggregateRow {
+	itemCode: string;
+	itemName: string | null;
+	description: string | null;
+	periodStart: Date | null;
+	qtyDelta: number;
+	valueDelta: number;
+	openingQtyDelta: number;
+	openingValueDelta: number;
+}
+
+interface StockAgeingMovementRow {
+	id: string;
+	itemCode: string;
+	itemName: string | null;
+	description: string | null;
+	qty: number;
+	basicRate: number;
+	basicAmount: number;
+	unitOfMeasure: string | null;
+	sourceWarehouse: string | null;
+	targetWarehouse: string | null;
+	stockEntry: {
+		id: string;
+		series: string;
+		company: string;
+		status: Inventory.StockEntryStatus;
+		stockEntryType: Inventory.StockEntryType;
+		postingDate: Date;
+		defaultSourceWarehouse: string | null;
+		defaultTargetWarehouse: string | null;
+		project: string | null;
+		remarks: string | null;
+		createdAt: Date;
+		updatedAt: Date;
+	};
+}
+
+function clampListWindow(rawSkip?: number, rawTake?: number) {
+	const skip = (rawSkip ?? 0) < 0 ? 0 : (rawSkip ?? 0);
+	const take =
+		(rawTake ?? LIST_QUERY_TAKE_MAX) <= 0
+			? 1
+			: (rawTake ?? LIST_QUERY_TAKE_MAX) > LIST_QUERY_TAKE_MAX
+				? LIST_QUERY_TAKE_MAX
+				: (rawTake ?? LIST_QUERY_TAKE_MAX);
+	return { skip, take };
+}
+
+function escapeLikePattern(value: string) {
+	return value
+		.replaceAll("\\", "\\\\")
+		.replaceAll("%", "\\%")
+		.replaceAll("_", "\\_");
+}
+
+function buildContainsCondition(column: string, value?: string) {
+	if (!value) return null;
+	return Prisma.sql`${Prisma.raw(column)} ILIKE ${`%${escapeLikePattern(value)}%`} ESCAPE '\\'`;
+}
+
+function buildInsensitiveEqualsCondition(column: string, value?: string) {
+	if (!value) return null;
+	return Prisma.sql`LOWER(COALESCE(${Prisma.raw(column)}, '')) = ${value.toLowerCase()}`;
+}
+
+function buildInCondition(column: string, values?: string[]) {
+	if (!values || values.length === 0) return null;
+	return Prisma.sql`${Prisma.raw(column)} IN (${Prisma.join(values)})`;
+}
+
+function combineSqlConditions(
+	conditions: Array<Prisma.Sql | null | undefined>,
+	separator = " AND ",
+) {
+	const filtered = conditions.filter(
+		(condition): condition is Prisma.Sql => condition != null,
+	);
+
+	if (filtered.length === 0) {
+		return Prisma.sql`TRUE`;
+	}
+
+	return filtered
+		.slice(1)
+		.reduce(
+			(current, condition) =>
+				Prisma.sql`${current}${Prisma.raw(separator)}${condition}`,
+			filtered[0],
+		);
+}
+
+function buildSearchCondition(columns: string[], value?: string) {
+	if (!value) return null;
+	return combineSqlConditions(
+		columns.map((column) => buildContainsCondition(column, value)),
+		" OR ",
+	);
+}
 
 export class ReportSubService {
 	constructor(private readonly prisma: PrismaService) {}
@@ -309,15 +459,7 @@ export class ReportSubService {
 	async findWarehouseWiseStockBalance(
 		params?: Inventory.ListWarehouseWiseStockBalanceInput,
 	) {
-		const rawSkip = params?.skip ?? 0;
-		const rawTake = params?.take ?? LIST_QUERY_TAKE_MAX;
-		const skip = rawSkip < 0 ? 0 : rawSkip;
-		const take =
-			rawTake <= 0
-				? 1
-				: rawTake > LIST_QUERY_TAKE_MAX
-					? LIST_QUERY_TAKE_MAX
-					: rawTake;
+		const { skip, take } = clampListWindow(params?.skip, params?.take);
 
 		const search = params?.search?.trim();
 		const company = params?.company?.trim();
@@ -332,105 +474,92 @@ export class ReportSubService {
 			throw new BadRequestException("dateFrom cannot be later than dateTo");
 		}
 
-		const whereClauses: Prisma.StockEntryItemWhereInput[] = [];
+		const rows = await this.prisma.client.$queryRaw<
+			WarehouseWiseStockBalanceQueryRow[]
+		>(Prisma.sql`
+			WITH movement_rows AS (
+				SELECT
+					CONCAT(sei.id, ':', COALESCE(sei."targetWarehouse", se."defaultTargetWarehouse"), ':IN') AS id,
+					sei."stockEntryId" AS "stockEntryId",
+					sei.id AS "stockEntryItemId",
+					se.company AS company,
+					sei."itemCode" AS "itemCode",
+					sei."itemName" AS "itemName",
+					COALESCE(sei."targetWarehouse", se."defaultTargetWarehouse") AS warehouse,
+					se."postingDate" AS "postingDate",
+					se.series AS "voucherNo",
+					sei.qty AS "qtyChange",
+					sei."basicRate" AS "incomingRate",
+					'IN'::text AS "movementType",
+					se."createdAt" AS "createdAt",
+					se."updatedAt" AS "updatedAt",
+					se.status AS status
+				FROM stock_entry_items sei
+				INNER JOIN stock_entries se ON se.id = sei."stockEntryId"
+				WHERE COALESCE(sei."targetWarehouse", se."defaultTargetWarehouse") IS NOT NULL
 
-		if (itemCode) {
-			whereClauses.push({
-				itemCode: {
-					contains: itemCode,
-					mode: "insensitive",
-				},
-			});
-		}
+				UNION ALL
 
-		if (warehouse) {
-			whereClauses.push({
-				OR: [
-					{ sourceWarehouse: { equals: warehouse, mode: "insensitive" } },
-					{ targetWarehouse: { equals: warehouse, mode: "insensitive" } },
-					{
-						stockEntry: {
-							defaultSourceWarehouse: {
-								equals: warehouse,
-								mode: "insensitive",
-							},
-						},
-					},
-					{
-						stockEntry: {
-							defaultTargetWarehouse: {
-								equals: warehouse,
-								mode: "insensitive",
-							},
-						},
-					},
-				],
-			});
-		}
+				SELECT
+					CONCAT(sei.id, ':', COALESCE(sei."sourceWarehouse", se."defaultSourceWarehouse"), ':OUT') AS id,
+					sei."stockEntryId" AS "stockEntryId",
+					sei.id AS "stockEntryItemId",
+					se.company AS company,
+					sei."itemCode" AS "itemCode",
+					sei."itemName" AS "itemName",
+					COALESCE(sei."sourceWarehouse", se."defaultSourceWarehouse") AS warehouse,
+					se."postingDate" AS "postingDate",
+					se.series AS "voucherNo",
+					-sei.qty AS "qtyChange",
+					0::double precision AS "incomingRate",
+					'OUT'::text AS "movementType",
+					se."createdAt" AS "createdAt",
+					se."updatedAt" AS "updatedAt",
+					se.status AS status
+				FROM stock_entry_items sei
+				INNER JOIN stock_entries se ON se.id = sei."stockEntryId"
+				WHERE COALESCE(sei."sourceWarehouse", se."defaultSourceWarehouse") IS NOT NULL
+			)
+			SELECT
+				id,
+				"stockEntryId",
+				"stockEntryItemId",
+				company,
+				"itemCode",
+				"itemName",
+				warehouse,
+				"postingDate",
+				"voucherNo",
+				"qtyChange",
+				"incomingRate",
+				"movementType",
+				"createdAt",
+				"updatedAt"
+			FROM movement_rows
+			WHERE ${combineSqlConditions([
+				Prisma.sql`status = ${status}`,
+				buildContainsCondition(`company`, company),
+				buildContainsCondition(`"voucherNo"`, voucherNo),
+				buildContainsCondition(`"itemCode"`, itemCode),
+				buildInsensitiveEqualsCondition(`warehouse`, warehouse),
+				dateFrom ? Prisma.sql`"postingDate" >= ${dateFrom}` : null,
+				dateTo ? Prisma.sql`"postingDate" <= ${dateTo}` : null,
+				buildSearchCondition(
+					[`company`, `"itemCode"`, `"itemName"`, `warehouse`, `"voucherNo"`],
+					search,
+				),
+			])}
+			ORDER BY "postingDate" DESC, "updatedAt" DESC, id ASC
+			OFFSET ${skip}
+			LIMIT ${take}
+		`);
 
-		if (search) {
-			whereClauses.push({
-				OR: [
-					{ itemCode: { contains: search, mode: "insensitive" } },
-					{ itemName: { contains: search, mode: "insensitive" } },
-					{ sourceWarehouse: { contains: search, mode: "insensitive" } },
-					{ targetWarehouse: { contains: search, mode: "insensitive" } },
-					{
-						stockEntry: {
-							series: { contains: search, mode: "insensitive" },
-						},
-					},
-					{
-						stockEntry: {
-							company: { contains: search, mode: "insensitive" },
-						},
-					},
-				],
-			});
-		}
-
-		const stockEntryWhere: Prisma.StockEntryWhereInput = {
-			status,
-			...(company
-				? {
-						company: { contains: company, mode: "insensitive" },
-					}
-				: {}),
-			...(voucherNo
-				? {
-						series: { contains: voucherNo, mode: "insensitive" },
-					}
-				: {}),
-			...(dateFrom || dateTo
-				? {
-						postingDate: {
-							...(dateFrom ? { gte: dateFrom } : {}),
-							...(dateTo ? { lte: dateTo } : {}),
-						},
-					}
-				: {}),
-		};
-
-		whereClauses.push({ stockEntry: stockEntryWhere });
-
-		const where: Prisma.StockEntryItemWhereInput =
-			whereClauses.length === 1 ? whereClauses[0] : { AND: whereClauses };
-
-		const items = await this.prisma.stockEntryItem.findMany({
-			where,
-			include: { stockEntry: true },
-			orderBy: [
-				{ stockEntry: { postingDate: "desc" } },
-				{ stockEntry: { createdAt: "desc" } },
-				{ id: "asc" },
-			],
-		});
-
-		const rows = buildWarehouseWiseStockBalanceRows(
-			buildStockLedgerRows(items, { warehouse }),
-		);
-
-		return rows.slice(skip, skip + take);
+		return rows.map((row) => ({
+			...row,
+			qtyChange: Number(row.qtyChange ?? 0),
+			incomingRate: Number(row.incomingRate ?? 0),
+			movementType: row.movementType,
+		}));
 	}
 
 	/**
@@ -439,15 +568,7 @@ export class ReportSubService {
 	 * stock entry movements up to the requested end date.
 	 */
 	async findStockBalance(params?: Inventory.ListStockBalanceInput) {
-		const rawSkip = params?.skip ?? 0;
-		const rawTake = params?.take ?? LIST_QUERY_TAKE_MAX;
-		const skip = rawSkip < 0 ? 0 : rawSkip;
-		const take =
-			rawTake <= 0
-				? 1
-				: rawTake > LIST_QUERY_TAKE_MAX
-					? LIST_QUERY_TAKE_MAX
-					: rawTake;
+		const { skip, take } = clampListWindow(params?.skip, params?.take);
 
 		const search = params?.search?.trim();
 		const company = params?.company?.trim();
@@ -500,113 +621,151 @@ export class ReportSubService {
 			}
 		}
 
-		const whereClauses: Prisma.StockEntryItemWhereInput[] = [];
+		const aggregateRows = await this.prisma.client.$queryRaw<
+			StockBalanceAggregateRow[]
+		>(Prisma.sql`
+			WITH movement_rows AS (
+				SELECT
+					se.company AS company,
+					se.status AS status,
+					sei."itemCode" AS "itemCode",
+					sei."itemName" AS "itemName",
+					COALESCE(sei."targetWarehouse", se."defaultTargetWarehouse") AS warehouse,
+					sei."unitOfMeasure" AS "unitOfMeasure",
+					se."postingDate" AS "postingDate",
+					se.project AS project,
+					se.series AS series,
+					sei.description AS description,
+					sei.qty AS "qtyIn",
+					0::double precision AS "qtyOut",
+					sei."basicAmount" AS "basicAmount"
+				FROM stock_entry_items sei
+				INNER JOIN stock_entries se ON se.id = sei."stockEntryId"
+				WHERE COALESCE(sei."targetWarehouse", se."defaultTargetWarehouse") IS NOT NULL
 
-		if (itemCode) {
-			whereClauses.push({
-				itemCode: {
-					contains: itemCode,
-					mode: "insensitive",
-				},
-			});
-		}
+				UNION ALL
 
-		if (filteredItemCodes) {
-			whereClauses.push({
-				itemCode: {
-					in: filteredItemCodes,
-				},
-			});
-		}
+				SELECT
+					se.company AS company,
+					se.status AS status,
+					sei."itemCode" AS "itemCode",
+					sei."itemName" AS "itemName",
+					COALESCE(sei."sourceWarehouse", se."defaultSourceWarehouse") AS warehouse,
+					sei."unitOfMeasure" AS "unitOfMeasure",
+					se."postingDate" AS "postingDate",
+					se.project AS project,
+					se.series AS series,
+					sei.description AS description,
+					0::double precision AS "qtyIn",
+					sei.qty AS "qtyOut",
+					sei."basicAmount" AS "basicAmount"
+				FROM stock_entry_items sei
+				INNER JOIN stock_entries se ON se.id = sei."stockEntryId"
+				WHERE COALESCE(sei."sourceWarehouse", se."defaultSourceWarehouse") IS NOT NULL
+			)
+			SELECT
+				company,
+				"itemCode",
+				MAX("itemName") AS "itemName",
+				warehouse,
+				MAX("unitOfMeasure") AS "unitOfMeasure",
+				SUM(
+					CASE
+						WHEN ${dateFrom ? Prisma.sql`"postingDate" < ${dateFrom}` : Prisma.sql`FALSE`}
+						THEN "qtyIn" - "qtyOut"
+						ELSE 0
+					END
+				) AS "openingQty",
+				SUM(
+					CASE
+						WHEN ${dateFrom ? Prisma.sql`"postingDate" < ${dateFrom}` : Prisma.sql`FALSE`}
+						THEN CASE
+							WHEN "qtyIn" > 0 THEN "basicAmount"
+							WHEN "qtyOut" > 0 THEN -"basicAmount"
+							ELSE 0
+						END
+						ELSE 0
+					END
+				) AS "openingValue",
+				SUM(
+					CASE
+						WHEN ${dateFrom ? Prisma.sql`"postingDate" >= ${dateFrom}` : Prisma.sql`TRUE`}
+						THEN "qtyIn"
+						ELSE 0
+					END
+				) AS "inQty",
+				SUM(
+					CASE
+						WHEN ${dateFrom ? Prisma.sql`"postingDate" >= ${dateFrom}` : Prisma.sql`TRUE`} AND "qtyIn" > 0
+						THEN "basicAmount"
+						ELSE 0
+					END
+				) AS "inValue",
+				SUM(
+					CASE
+						WHEN ${dateFrom ? Prisma.sql`"postingDate" >= ${dateFrom}` : Prisma.sql`TRUE`}
+						THEN "qtyOut"
+						ELSE 0
+					END
+				) AS "outQty",
+				SUM(
+					CASE
+						WHEN ${dateFrom ? Prisma.sql`"postingDate" >= ${dateFrom}` : Prisma.sql`TRUE`} AND "qtyOut" > 0
+						THEN "basicAmount"
+						ELSE 0
+					END
+				) AS "outValue",
+				MAX("postingDate") AS "lastPostingDate"
+			FROM movement_rows
+			WHERE ${combineSqlConditions([
+				Prisma.sql`warehouse IS NOT NULL`,
+				Prisma.sql`status = ${status}`,
+				buildContainsCondition(`company`, company),
+				buildContainsCondition(`"itemCode"`, itemCode),
+				buildInCondition(`"itemCode"`, filteredItemCodes),
+				buildInsensitiveEqualsCondition(`warehouse`, warehouse),
+				buildContainsCondition(`project`, project),
+				dateTo ? Prisma.sql`"postingDate" <= ${dateTo}` : null,
+				buildSearchCondition(
+					[
+						`company`,
+						`"itemCode"`,
+						`"itemName"`,
+						`description`,
+						`warehouse`,
+						`series`,
+					],
+					search,
+				),
+			])}
+			GROUP BY company, "itemCode", warehouse
+			${
+				params?.includeZeroStockItems
+					? Prisma.empty
+					: Prisma.sql`HAVING SUM(
+					CASE
+						WHEN ${dateFrom ? Prisma.sql`"postingDate" < ${dateFrom}` : Prisma.sql`FALSE`}
+						THEN "qtyIn" - "qtyOut"
+						ELSE 0
+					END
+				) + SUM(
+					CASE
+						WHEN ${dateFrom ? Prisma.sql`"postingDate" >= ${dateFrom}` : Prisma.sql`TRUE`}
+						THEN "qtyIn" - "qtyOut"
+						ELSE 0
+					END
+				) <> 0`
+			}
+			ORDER BY company ASC, "itemCode" ASC, warehouse ASC
+			OFFSET ${skip}
+			LIMIT ${take}
+		`);
 
-		if (warehouse) {
-			whereClauses.push({
-				OR: [
-					{ sourceWarehouse: { equals: warehouse, mode: "insensitive" } },
-					{ targetWarehouse: { equals: warehouse, mode: "insensitive" } },
-					{
-						stockEntry: {
-							defaultSourceWarehouse: {
-								equals: warehouse,
-								mode: "insensitive",
-							},
-						},
-					},
-					{
-						stockEntry: {
-							defaultTargetWarehouse: {
-								equals: warehouse,
-								mode: "insensitive",
-							},
-						},
-					},
-				],
-			});
-		}
-
-		if (search) {
-			whereClauses.push({
-				OR: [
-					{ itemCode: { contains: search, mode: "insensitive" } },
-					{ itemName: { contains: search, mode: "insensitive" } },
-					{ description: { contains: search, mode: "insensitive" } },
-					{ sourceWarehouse: { contains: search, mode: "insensitive" } },
-					{ targetWarehouse: { contains: search, mode: "insensitive" } },
-					{
-						stockEntry: {
-							company: { contains: search, mode: "insensitive" },
-						},
-					},
-					{
-						stockEntry: {
-							series: { contains: search, mode: "insensitive" },
-						},
-					},
-				],
-			});
-		}
-
-		const stockEntryWhere: Prisma.StockEntryWhereInput = {
-			...(company
-				? {
-						company: { contains: company, mode: "insensitive" },
-					}
-				: {}),
-			status,
-			...(project
-				? {
-						project: { contains: project, mode: "insensitive" },
-					}
-				: {}),
-			...(dateTo
-				? {
-						postingDate: {
-							lte: dateTo,
-						},
-					}
-				: {}),
-		};
-
-		whereClauses.push({ stockEntry: stockEntryWhere });
-
-		const where: Prisma.StockEntryItemWhereInput =
-			whereClauses.length === 1 ? whereClauses[0] : { AND: whereClauses };
-
-		const items = await this.prisma.stockEntryItem.findMany({
-			where,
-			include: { stockEntry: true },
-			orderBy: [
-				{ stockEntry: { postingDate: "asc" } },
-				{ stockEntry: { createdAt: "asc" } },
-				{ id: "asc" },
-			],
-		});
-
-		if (items.length === 0) {
+		if (aggregateRows.length === 0) {
 			return [];
 		}
 
-		const itemCodes = [...new Set(items.map((item) => item.itemCode))];
+		const itemCodes = [...new Set(aggregateRows.map((row) => row.itemCode))];
 		const itemMetadata = await this.prisma.item.findMany({
 			where: {
 				code: {
@@ -633,32 +792,40 @@ export class ReportSubService {
 			itemMetadata.map((item) => [item.code, item] as const),
 		);
 
-		const balanceRows = buildStockBalanceRows(
-			buildStockLedgerRows(items, { warehouse }).map((row) => {
-				const metadata = metadataByCode.get(row.itemCode);
-
-				return {
-					company: row.company,
-					itemCode: row.itemCode,
-					itemName: row.itemName,
-					itemGroupName: metadata?.itemGroup?.groupName ?? null,
-					brandName: metadata?.brand?.name ?? null,
-					warehouse: row.warehouse,
-					unitOfMeasure: row.unitOfMeasure,
-					postingDate: row.postingDate,
-					qtyIn: row.qtyIn,
-					qtyOut: row.qtyOut,
-					basicAmount: row.basicAmount,
-					valuationRate: metadata?.valuationRate ?? null,
-				};
-			}),
-			{
-				dateFrom,
-				includeZeroStockItems: params?.includeZeroStockItems,
-			},
-		);
-
-		return balanceRows.slice(skip, skip + take);
+		return aggregateRows.map((row) => {
+			const metadata = metadataByCode.get(row.itemCode);
+			const openingQty = Number(row.openingQty ?? 0);
+			const openingValue = Number(row.openingValue ?? 0);
+			const inQty = Number(row.inQty ?? 0);
+			const inValue = Number(row.inValue ?? 0);
+			const outQty = Number(row.outQty ?? 0);
+			const outValue = Number(row.outValue ?? 0);
+			const balanceQty = openingQty + inQty - outQty;
+			const valuationRate = metadata?.valuationRate ?? null;
+			return {
+				id: `${row.company}::${row.itemCode}::${row.warehouse}`,
+				company: row.company,
+				itemCode: row.itemCode,
+				itemName: row.itemName ?? null,
+				itemGroupName: metadata?.itemGroup?.groupName ?? null,
+				brandName: metadata?.brand?.name ?? null,
+				warehouse: row.warehouse,
+				unitOfMeasure: row.unitOfMeasure ?? null,
+				openingQty,
+				openingValue,
+				inQty,
+				inValue,
+				outQty,
+				outValue,
+				balanceQty,
+				valuationRate,
+				balanceValue:
+					valuationRate == null
+						? openingValue + inValue - outValue
+						: valuationRate * balanceQty,
+				lastPostingDate: row.lastPostingDate ?? null,
+			};
+		});
 	}
 
 	/**
@@ -820,492 +987,343 @@ export class ReportSubService {
 			return [];
 		}
 
-		const stockWhereClauses: Prisma.StockEntryItemWhereInput[] = [];
+		const sourceRows = await this.prisma.client.$queryRaw<
+			ProjectedSourceAggregateRow[]
+		>(Prisma.sql`
+			WITH actual_source_rows AS (
+				SELECT
+					company,
+					"itemCode",
+					MAX("itemName") AS "itemName",
+					MAX(description) AS description,
+					warehouse,
+					MAX("unitOfMeasure") AS "unitOfMeasure",
+					SUM("actualQty") AS "actualQty",
+					0::double precision AS "plannedQty",
+					0::double precision AS "requestedQty",
+					0::double precision AS "orderedQty",
+					0::double precision AS "reservedQty",
+					0::double precision AS "reservedQtyForProduction",
+					0::double precision AS "reservedQtyForSubcontracting",
+					0::double precision AS "reservedQtyForProductionPlan",
+					MAX("postingDate") AS "lastActivityDate"
+				FROM (
+					SELECT
+						se.company AS company,
+						se.series AS series,
+						se."postingDate" AS "postingDate",
+						sei."itemCode" AS "itemCode",
+						sei."itemName" AS "itemName",
+						sei.description AS description,
+						COALESCE(sei."targetWarehouse", se."defaultTargetWarehouse") AS warehouse,
+						sei."unitOfMeasure" AS "unitOfMeasure",
+						sei.qty AS "actualQty"
+					FROM stock_entry_items sei
+					INNER JOIN stock_entries se ON se.id = sei."stockEntryId"
+					WHERE se.status = 'SUBMITTED'
+						AND COALESCE(sei."targetWarehouse", se."defaultTargetWarehouse") IS NOT NULL
 
-		if (itemCode) {
-			stockWhereClauses.push({
-				itemCode: {
-					contains: itemCode,
-					mode: "insensitive",
-				},
-			});
-		}
+					UNION ALL
 
-		if (filteredItemCodes) {
-			stockWhereClauses.push({
-				itemCode: {
-					in: filteredItemCodes,
-				},
-			});
-		}
+					SELECT
+						se.company AS company,
+						se.series AS series,
+						se."postingDate" AS "postingDate",
+						sei."itemCode" AS "itemCode",
+						sei."itemName" AS "itemName",
+						sei.description AS description,
+						COALESCE(sei."sourceWarehouse", se."defaultSourceWarehouse") AS warehouse,
+						sei."unitOfMeasure" AS "unitOfMeasure",
+						-sei.qty AS "actualQty"
+					FROM stock_entry_items sei
+					INNER JOIN stock_entries se ON se.id = sei."stockEntryId"
+					WHERE se.status = 'SUBMITTED'
+						AND COALESCE(sei."sourceWarehouse", se."defaultSourceWarehouse") IS NOT NULL
+				) actual_rows
+				WHERE ${combineSqlConditions([
+					buildContainsCondition(`company`, company),
+					buildContainsCondition(`"itemCode"`, itemCode),
+					buildInCondition(`"itemCode"`, filteredItemCodes),
+					buildInsensitiveEqualsCondition(`warehouse`, warehouse),
+					buildSearchCondition(
+						[
+							`company`,
+							`series`,
+							`"itemCode"`,
+							`"itemName"`,
+							`description`,
+							`warehouse`,
+						],
+						search,
+					),
+				])}
+				GROUP BY company, "itemCode", warehouse
+			),
+			planned_source_rows AS (
+				SELECT
+					se.company AS company,
+					sei."itemCode" AS "itemCode",
+					MAX(sei."itemName") AS "itemName",
+					MAX(sei.description) AS description,
+					COALESCE(sei."targetWarehouse", se."defaultTargetWarehouse") AS warehouse,
+					MAX(sei."unitOfMeasure") AS "unitOfMeasure",
+					0::double precision AS "actualQty",
+					SUM(sei.qty) AS "plannedQty",
+					0::double precision AS "requestedQty",
+					0::double precision AS "orderedQty",
+					0::double precision AS "reservedQty",
+					0::double precision AS "reservedQtyForProduction",
+					0::double precision AS "reservedQtyForSubcontracting",
+					0::double precision AS "reservedQtyForProductionPlan",
+					MAX(se."postingDate") AS "lastActivityDate"
+				FROM stock_entry_items sei
+				INNER JOIN stock_entries se ON se.id = sei."stockEntryId"
+				WHERE ${combineSqlConditions([
+					Prisma.sql`se.status = 'DRAFT'`,
+					Prisma.sql`se."stockEntryType" IN ('MANUFACTURE', 'MATERIAL_TRANSFER_FOR_MANUFACTURE')`,
+					Prisma.sql`COALESCE(sei."targetWarehouse", se."defaultTargetWarehouse") IS NOT NULL`,
+					buildContainsCondition(`se.company`, company),
+					buildContainsCondition(`sei."itemCode"`, itemCode),
+					buildInCondition(`sei."itemCode"`, filteredItemCodes),
+					buildInsensitiveEqualsCondition(
+						`COALESCE(sei."targetWarehouse", se."defaultTargetWarehouse")`,
+						warehouse,
+					),
+					buildSearchCondition(
+						[
+							`se.company`,
+							`se.series`,
+							`sei."itemCode"`,
+							`sei."itemName"`,
+							`sei.description`,
+							`COALESCE(sei."targetWarehouse", se."defaultTargetWarehouse")`,
+						],
+						search,
+					),
+				])}
+				GROUP BY se.company, sei."itemCode", COALESCE(sei."targetWarehouse", se."defaultTargetWarehouse")
+			),
+			subcontract_source_rows AS (
+				SELECT
+					se.company AS company,
+					sei."itemCode" AS "itemCode",
+					MAX(sei."itemName") AS "itemName",
+					MAX(sei.description) AS description,
+					COALESCE(sei."sourceWarehouse", se."defaultSourceWarehouse") AS warehouse,
+					MAX(sei."unitOfMeasure") AS "unitOfMeasure",
+					0::double precision AS "actualQty",
+					0::double precision AS "plannedQty",
+					0::double precision AS "requestedQty",
+					0::double precision AS "orderedQty",
+					0::double precision AS "reservedQty",
+					0::double precision AS "reservedQtyForProduction",
+					SUM(sei.qty) AS "reservedQtyForSubcontracting",
+					0::double precision AS "reservedQtyForProductionPlan",
+					MAX(se."postingDate") AS "lastActivityDate"
+				FROM stock_entry_items sei
+				INNER JOIN stock_entries se ON se.id = sei."stockEntryId"
+				WHERE ${combineSqlConditions([
+					Prisma.sql`se.status = 'DRAFT'`,
+					Prisma.sql`se."stockEntryType" = 'SEND_TO_SUBCONTRACTOR'`,
+					Prisma.sql`COALESCE(sei."sourceWarehouse", se."defaultSourceWarehouse") IS NOT NULL`,
+					buildContainsCondition(`se.company`, company),
+					buildContainsCondition(`sei."itemCode"`, itemCode),
+					buildInCondition(`sei."itemCode"`, filteredItemCodes),
+					buildInsensitiveEqualsCondition(
+						`COALESCE(sei."sourceWarehouse", se."defaultSourceWarehouse")`,
+						warehouse,
+					),
+					buildSearchCondition(
+						[
+							`se.company`,
+							`se.series`,
+							`sei."itemCode"`,
+							`sei."itemName"`,
+							`sei.description`,
+							`COALESCE(sei."sourceWarehouse", se."defaultSourceWarehouse")`,
+						],
+						search,
+					),
+				])}
+				GROUP BY se.company, sei."itemCode", COALESCE(sei."sourceWarehouse", se."defaultSourceWarehouse")
+			),
+			request_source_rows AS (
+				SELECT
+					mr.company AS company,
+					mri."itemCode" AS "itemCode",
+					MAX(mri."itemName") AS "itemName",
+					NULL::text AS description,
+					COALESCE(mri."targetWarehouse", mr."targetWarehouse") AS warehouse,
+					MAX(mri."unitOfMeasure") AS "unitOfMeasure",
+					0::double precision AS "actualQty",
+					0::double precision AS "plannedQty",
+					SUM(GREATEST(mri.quantity - mri."orderedQty", 0)) AS "requestedQty",
+					SUM(GREATEST(mri."orderedQty" - mri."receivedQty", 0)) AS "orderedQty",
+					0::double precision AS "reservedQty",
+					0::double precision AS "reservedQtyForProduction",
+					0::double precision AS "reservedQtyForSubcontracting",
+					0::double precision AS "reservedQtyForProductionPlan",
+					MAX(COALESCE(mri."requiredBy", mr."transactionDate")) AS "lastActivityDate"
+				FROM material_request_items mri
+				INNER JOIN material_requests mr ON mr.id = mri."materialRequestId"
+				WHERE ${combineSqlConditions([
+					Prisma.sql`mr.status IN ('PENDING', 'APPROVED', 'ORDERED', 'PARTIALLY_ORDERED', 'PARTIALLY_RECEIVED')`,
+					Prisma.sql`COALESCE(mri."targetWarehouse", mr."targetWarehouse") IS NOT NULL`,
+					buildContainsCondition(`mr.company`, company),
+					buildContainsCondition(`mri."itemCode"`, itemCode),
+					buildInCondition(`mri."itemCode"`, filteredItemCodes),
+					buildInsensitiveEqualsCondition(
+						`COALESCE(mri."targetWarehouse", mr."targetWarehouse")`,
+						warehouse,
+					),
+					buildSearchCondition(
+						[
+							`mr.company`,
+							`mr.series`,
+							`mri."itemCode"`,
+							`mri."itemName"`,
+							`COALESCE(mri."targetWarehouse", mr."targetWarehouse")`,
+						],
+						search,
+					),
+				])}
+				GROUP BY mr.company, mri."itemCode", COALESCE(mri."targetWarehouse", mr."targetWarehouse")
+			),
+			reserved_source_rows AS (
+				SELECT
+					dn.company AS company,
+					dni."itemCode" AS "itemCode",
+					MAX(dni."itemName") AS "itemName",
+					MAX(dni.description) AS description,
+					COALESCE(dni.warehouse, dn."sourceWarehouse") AS warehouse,
+					MAX(dni.uom) AS "unitOfMeasure",
+					0::double precision AS "actualQty",
+					0::double precision AS "plannedQty",
+					0::double precision AS "requestedQty",
+					0::double precision AS "orderedQty",
+					SUM(dni.quantity) AS "reservedQty",
+					0::double precision AS "reservedQtyForProduction",
+					0::double precision AS "reservedQtyForSubcontracting",
+					0::double precision AS "reservedQtyForProductionPlan",
+					MAX(dn."postingDate") AS "lastActivityDate"
+				FROM delivery_note_items dni
+				INNER JOIN delivery_notes dn ON dn.id = dni."deliveryNoteId"
+				WHERE ${combineSqlConditions([
+					Prisma.sql`dn.status IN ('DRAFT', 'TO_BILL')`,
+					Prisma.sql`dn."isReturn" = FALSE`,
+					Prisma.sql`COALESCE(dni.warehouse, dn."sourceWarehouse") IS NOT NULL`,
+					buildContainsCondition(`dn.company`, company),
+					buildContainsCondition(`dni."itemCode"`, itemCode),
+					buildInCondition(`dni."itemCode"`, filteredItemCodes),
+					buildInsensitiveEqualsCondition(
+						`COALESCE(dni.warehouse, dn."sourceWarehouse")`,
+						warehouse,
+					),
+					buildSearchCondition(
+						[
+							`dn.company`,
+							`dn.series`,
+							`dni."itemCode"`,
+							`dni."itemName"`,
+							`dni.description`,
+							`COALESCE(dni.warehouse, dn."sourceWarehouse")`,
+						],
+						search,
+					),
+				])}
+				GROUP BY dn.company, dni."itemCode", COALESCE(dni.warehouse, dn."sourceWarehouse")
+			),
+			production_source_rows AS (
+				SELECT
+					pl.company AS company,
+					pli.item AS "itemCode",
+					NULL::text AS "itemName",
+					NULL::text AS description,
+					COALESCE(pli.warehouse, pl.warehouse) AS warehouse,
+					NULL::text AS "unitOfMeasure",
+					0::double precision AS "actualQty",
+					0::double precision AS "plannedQty",
+					0::double precision AS "requestedQty",
+					0::double precision AS "orderedQty",
+					0::double precision AS "reservedQty",
+					SUM(GREATEST(pli.qty - COALESCE(pli."pickedQty", 0), 0)) AS "reservedQtyForProduction",
+					0::double precision AS "reservedQtyForSubcontracting",
+					0::double precision AS "reservedQtyForProductionPlan",
+					MAX(pl."updatedAt") AS "lastActivityDate"
+				FROM pick_list_items pli
+				INNER JOIN pick_lists pl ON pl.id = pli."pickListId"
+				WHERE ${combineSqlConditions([
+					Prisma.sql`pl.status IN ('DRAFT', 'OPEN')`,
+					Prisma.sql`pl.purpose = 'MATERIAL_TRANSFER_FOR_MANUFACTURE'`,
+					Prisma.sql`COALESCE(pli.warehouse, pl.warehouse) IS NOT NULL`,
+					Prisma.sql`GREATEST(pli.qty - COALESCE(pli."pickedQty", 0), 0) > 0`,
+					buildContainsCondition(`pl.company`, company),
+					buildContainsCondition(`pli.item`, itemCode),
+					buildInCondition(`pli.item`, filteredItemCodes),
+					buildInsensitiveEqualsCondition(
+						`COALESCE(pli.warehouse, pl.warehouse)`,
+						warehouse,
+					),
+					buildSearchCondition(
+						[
+							`pl.company`,
+							`pl.series`,
+							`pli.item`,
+							`COALESCE(pli.warehouse, pl.warehouse)`,
+						],
+						search,
+					),
+				])}
+				GROUP BY pl.company, pli.item, COALESCE(pli.warehouse, pl.warehouse)
+			)
+			SELECT * FROM actual_source_rows
+			UNION ALL
+			SELECT * FROM planned_source_rows
+			UNION ALL
+			SELECT * FROM subcontract_source_rows
+			UNION ALL
+			SELECT * FROM request_source_rows
+			UNION ALL
+			SELECT * FROM reserved_source_rows
+			UNION ALL
+			SELECT * FROM production_source_rows
+		`);
 
-		if (warehouse) {
-			stockWhereClauses.push({
-				OR: [
-					{ sourceWarehouse: { equals: warehouse, mode: "insensitive" } },
-					{ targetWarehouse: { equals: warehouse, mode: "insensitive" } },
-					{
-						stockEntry: {
-							defaultSourceWarehouse: {
-								equals: warehouse,
-								mode: "insensitive",
-							},
-						},
-					},
-					{
-						stockEntry: {
-							defaultTargetWarehouse: {
-								equals: warehouse,
-								mode: "insensitive",
-							},
-						},
-					},
-				],
-			});
-		}
-
-		if (search) {
-			stockWhereClauses.push({
-				OR: [
-					{ itemCode: { contains: search, mode: "insensitive" } },
-					{ itemName: { contains: search, mode: "insensitive" } },
-					{ description: { contains: search, mode: "insensitive" } },
-					{ sourceWarehouse: { contains: search, mode: "insensitive" } },
-					{ targetWarehouse: { contains: search, mode: "insensitive" } },
-					{
-						stockEntry: {
-							series: { contains: search, mode: "insensitive" },
-						},
-					},
-				],
-			});
-		}
-
-		stockWhereClauses.push({
-			stockEntry: {
-				status: "SUBMITTED",
-				...(company
-					? {
-							company: {
-								contains: company,
-								mode: "insensitive",
-							},
-						}
-					: {}),
-			},
-		});
-
-		const stockEntryItems = await this.prisma.stockEntryItem.findMany({
-			where:
-				stockWhereClauses.length === 1
-					? stockWhereClauses[0]
-					: { AND: stockWhereClauses },
-			include: { stockEntry: true },
-			orderBy: [
-				{ stockEntry: { postingDate: "asc" } },
-				{ stockEntry: { createdAt: "asc" } },
-				{ id: "asc" },
-			],
-		});
-
-		const actualRows = buildStockLedgerRows(stockEntryItems, { warehouse }).map(
-			(row) => ({
+		const actualRows = sourceRows
+			.filter(
+				(row) =>
+					Number(row.actualQty ?? 0) !== 0 ||
+					Number(row.plannedQty ?? 0) !== 0 ||
+					Number(row.requestedQty ?? 0) !== 0 ||
+					Number(row.orderedQty ?? 0) !== 0 ||
+					Number(row.reservedQty ?? 0) !== 0 ||
+					Number(row.reservedQtyForProduction ?? 0) !== 0 ||
+					Number(row.reservedQtyForSubcontracting ?? 0) !== 0,
+			)
+			.map((row) => ({
 				company: row.company,
 				itemCode: row.itemCode,
 				itemName: row.itemName,
 				description: row.description,
 				warehouse: row.warehouse,
 				unitOfMeasure: row.unitOfMeasure,
-				actualQty: row.qtyIn - row.qtyOut,
-				lastActivityDate: row.postingDate,
-			}),
-		);
-
-		const plannedWhereClauses: Prisma.StockEntryItemWhereInput[] = [];
-
-		if (itemCode) {
-			plannedWhereClauses.push({
-				itemCode: {
-					contains: itemCode,
-					mode: "insensitive",
-				},
-			});
-		}
-
-		if (filteredItemCodes) {
-			plannedWhereClauses.push({
-				itemCode: {
-					in: filteredItemCodes,
-				},
-			});
-		}
-
-		plannedWhereClauses.push({
-			stockEntry: {
-				status: "DRAFT",
-				stockEntryType: {
-					in: ["MANUFACTURE", "MATERIAL_TRANSFER_FOR_MANUFACTURE"],
-				},
-				...(company
-					? {
-							company: {
-								contains: company,
-								mode: "insensitive",
-							},
-						}
-					: {}),
-			},
-		});
-
-		const plannedEntryItems = await this.prisma.stockEntryItem.findMany({
-			where:
-				plannedWhereClauses.length === 1
-					? plannedWhereClauses[0]
-					: { AND: plannedWhereClauses },
-			include: { stockEntry: true },
-		});
-
-		const plannedRows = plannedEntryItems
-			.map((item) => {
-				const targetWarehouse =
-					item.targetWarehouse ?? item.stockEntry.defaultTargetWarehouse;
-
-				if (!targetWarehouse) {
-					return null;
-				}
-
-				if (
-					warehouse &&
-					targetWarehouse.localeCompare(warehouse, undefined, {
-						sensitivity: "accent",
-					}) !== 0
-				) {
-					return null;
-				}
-
-				return {
-					company: item.stockEntry.company,
-					itemCode: item.itemCode,
-					itemName: item.itemName,
-					description: item.description,
-					warehouse: targetWarehouse,
-					unitOfMeasure: item.unitOfMeasure,
-					plannedQty: item.qty,
-					lastActivityDate: item.stockEntry.postingDate,
-				};
-			})
-			.filter((row): row is NonNullable<typeof row> => row != null);
-
-		const subcontractWhereClauses: Prisma.StockEntryItemWhereInput[] = [];
-
-		if (itemCode) {
-			subcontractWhereClauses.push({
-				itemCode: {
-					contains: itemCode,
-					mode: "insensitive",
-				},
-			});
-		}
-
-		if (filteredItemCodes) {
-			subcontractWhereClauses.push({
-				itemCode: {
-					in: filteredItemCodes,
-				},
-			});
-		}
-
-		subcontractWhereClauses.push({
-			stockEntry: {
-				status: "DRAFT",
-				stockEntryType: "SEND_TO_SUBCONTRACTOR",
-				...(company
-					? {
-							company: {
-								contains: company,
-								mode: "insensitive",
-							},
-						}
-					: {}),
-			},
-		});
-
-		const subcontractEntryItems = await this.prisma.stockEntryItem.findMany({
-			where:
-				subcontractWhereClauses.length === 1
-					? subcontractWhereClauses[0]
-					: { AND: subcontractWhereClauses },
-			include: { stockEntry: true },
-		});
-
-		const subcontractRows = subcontractEntryItems
-			.map((item) => {
-				const sourceWarehouse =
-					item.sourceWarehouse ?? item.stockEntry.defaultSourceWarehouse;
-
-				if (!sourceWarehouse) {
-					return null;
-				}
-
-				if (
-					warehouse &&
-					sourceWarehouse.localeCompare(warehouse, undefined, {
-						sensitivity: "accent",
-					}) !== 0
-				) {
-					return null;
-				}
-
-				return {
-					company: item.stockEntry.company,
-					itemCode: item.itemCode,
-					itemName: item.itemName,
-					description: item.description,
-					warehouse: sourceWarehouse,
-					unitOfMeasure: item.unitOfMeasure,
-					reservedQtyForSubcontracting: item.qty,
-					lastActivityDate: item.stockEntry.postingDate,
-				};
-			})
-			.filter((row): row is NonNullable<typeof row> => row != null);
-
-		const materialRequests = await this.prisma.materialRequest.findMany({
-			where: {
-				status: {
-					in: [
-						"PENDING",
-						"APPROVED",
-						"ORDERED",
-						"PARTIALLY_ORDERED",
-						"PARTIALLY_RECEIVED",
-					],
-				},
-				...(company
-					? {
-							company: {
-								contains: company,
-								mode: "insensitive",
-							},
-						}
-					: {}),
-			},
-			include: { items: true },
-			orderBy: [{ transactionDate: "asc" }, { createdAt: "asc" }],
-		});
-
-		const requestRows = materialRequests.flatMap((request) =>
-			request.items
-				.map((item) => {
-					const rowWarehouse = item.targetWarehouse ?? request.targetWarehouse;
-
-					if (!rowWarehouse) {
-						return null;
-					}
-
-					if (
-						warehouse &&
-						rowWarehouse.localeCompare(warehouse, undefined, {
-							sensitivity: "accent",
-						}) !== 0
-					) {
-						return null;
-					}
-
-					if (
-						itemCode &&
-						!item.itemCode.toLowerCase().includes(itemCode.toLowerCase())
-					) {
-						return null;
-					}
-
-					if (filteredItemCodes && !filteredItemCodes.includes(item.itemCode)) {
-						return null;
-					}
-
-					if (
-						search &&
-						![
-							request.series,
-							request.company,
-							item.itemCode,
-							item.itemName,
-							rowWarehouse,
-						]
-							.filter((value): value is string => Boolean(value))
-							.some((value) => value.toLowerCase().includes(search))
-					) {
-						return null;
-					}
-
-					return {
-						company: request.company,
-						itemCode: item.itemCode,
-						itemName: item.itemName,
-						warehouse: rowWarehouse,
-						unitOfMeasure: item.unitOfMeasure,
-						requestedQty: Math.max(item.quantity - item.orderedQty, 0),
-						orderedQty: Math.max(item.orderedQty - item.receivedQty, 0),
-						lastActivityDate: item.requiredBy ?? request.transactionDate,
-					};
-				})
-				.filter((row): row is NonNullable<typeof row> => row != null),
-		);
-
-		const deliveryNotes = await this.prisma.deliveryNote.findMany({
-			where: {
-				status: {
-					in: ["DRAFT", "TO_BILL"],
-				},
-				isReturn: false,
-				...(company
-					? {
-							company: {
-								contains: company,
-								mode: "insensitive",
-							},
-						}
-					: {}),
-			},
-			include: { items: true },
-			orderBy: [{ postingDate: "asc" }, { createdAt: "asc" }],
-		});
-
-		const reservedRows = deliveryNotes.flatMap((note) =>
-			note.items
-				.map((item) => {
-					const rowWarehouse = item.warehouse ?? note.sourceWarehouse;
-
-					if (!rowWarehouse) {
-						return null;
-					}
-
-					if (
-						warehouse &&
-						rowWarehouse.localeCompare(warehouse, undefined, {
-							sensitivity: "accent",
-						}) !== 0
-					) {
-						return null;
-					}
-
-					if (
-						itemCode &&
-						!item.itemCode.toLowerCase().includes(itemCode.toLowerCase())
-					) {
-						return null;
-					}
-
-					if (filteredItemCodes && !filteredItemCodes.includes(item.itemCode)) {
-						return null;
-					}
-
-					if (
-						search &&
-						![
-							note.series,
-							note.company,
-							item.itemCode,
-							item.itemName,
-							rowWarehouse,
-						]
-							.filter((value): value is string => Boolean(value))
-							.some((value) => value.toLowerCase().includes(search))
-					) {
-						return null;
-					}
-
-					return {
-						company: note.company,
-						itemCode: item.itemCode,
-						itemName: item.itemName,
-						description: item.description,
-						warehouse: rowWarehouse,
-						unitOfMeasure: item.uom,
-						reservedQty: item.quantity,
-						lastActivityDate: note.postingDate,
-					};
-				})
-				.filter((row): row is NonNullable<typeof row> => row != null),
-		);
-
-		const pickLists = await this.prisma.pickList.findMany({
-			where: {
-				status: {
-					in: ["DRAFT", "OPEN"],
-				},
-				purpose: "MATERIAL_TRANSFER_FOR_MANUFACTURE",
-				...(company
-					? {
-							company: {
-								contains: company,
-								mode: "insensitive",
-							},
-						}
-					: {}),
-			},
-			include: { items: true },
-			orderBy: [{ createdAt: "asc" }, { updatedAt: "asc" }],
-		});
-
-		const productionReservationRows = pickLists.flatMap((pickList) =>
-			pickList.items
-				.map((item) => {
-					const rowWarehouse = item.warehouse ?? pickList.warehouse;
-					const outstandingQty = Math.max(item.qty - (item.pickedQty ?? 0), 0);
-
-					if (!rowWarehouse || outstandingQty <= 0) {
-						return null;
-					}
-
-					if (
-						warehouse &&
-						rowWarehouse.localeCompare(warehouse, undefined, {
-							sensitivity: "accent",
-						}) !== 0
-					) {
-						return null;
-					}
-
-					if (
-						itemCode &&
-						!item.item.toLowerCase().includes(itemCode.toLowerCase())
-					) {
-						return null;
-					}
-
-					if (filteredItemCodes && !filteredItemCodes.includes(item.item)) {
-						return null;
-					}
-
-					if (
-						search &&
-						![pickList.series, pickList.company, item.item, rowWarehouse]
-							.filter((value): value is string => Boolean(value))
-							.some((value) => value.toLowerCase().includes(search))
-					) {
-						return null;
-					}
-
-					return {
-						company: pickList.company,
-						itemCode: item.item,
-						warehouse: rowWarehouse,
-						reservedQtyForProduction: outstandingQty,
-						lastActivityDate: pickList.updatedAt,
-					};
-				})
-				.filter((row): row is NonNullable<typeof row> => row != null),
-		);
+				actualQty: Number(row.actualQty ?? 0),
+				plannedQty: Number(row.plannedQty ?? 0),
+				requestedQty: Number(row.requestedQty ?? 0),
+				orderedQty: Number(row.orderedQty ?? 0),
+				reservedQty: Number(row.reservedQty ?? 0),
+				reservedQtyForProduction: Number(row.reservedQtyForProduction ?? 0),
+				reservedQtyForSubcontracting: Number(
+					row.reservedQtyForSubcontracting ?? 0,
+				),
+				reservedQtyForProductionPlan: Number(
+					row.reservedQtyForProductionPlan ?? 0,
+				),
+				lastActivityDate: row.lastActivityDate ?? null,
+			}));
 
 		const allItemCodes = new Set<string>();
-		for (const row of [
-			...actualRows,
-			...plannedRows,
-			...subcontractRows,
-			...requestRows,
-			...reservedRows,
-			...productionReservationRows,
-		]) {
+		for (const row of actualRows) {
 			allItemCodes.add(row.itemCode);
 		}
 
@@ -1357,14 +1375,7 @@ export class ReportSubService {
 		);
 
 		const companyCandidatesByItemWarehouse = new Map<string, Set<string>>();
-		for (const row of [
-			...actualRows,
-			...plannedRows,
-			...subcontractRows,
-			...requestRows,
-			...reservedRows,
-			...productionReservationRows,
-		]) {
+		for (const row of actualRows) {
 			const key = `${row.itemCode}::${row.warehouse}`;
 			const candidates =
 				companyCandidatesByItemWarehouse.get(key) ?? new Set<string>();
@@ -1405,11 +1416,6 @@ export class ReportSubService {
 
 		const projectedSourceRows: StockProjectedQtySourceRow[] = [
 			...actualRows,
-			...plannedRows,
-			...subcontractRows,
-			...requestRows,
-			...reservedRows,
-			...productionReservationRows,
 			...reorderRows,
 		].map((row) => {
 			const sourceRow = row as Partial<StockProjectedQtySourceRow>;
@@ -2042,15 +2048,7 @@ export class ReportSubService {
 	 * Get stock ageing rows using FIFO-preserved layer ages across warehouses.
 	 */
 	async findStockAgeing(params?: Inventory.ListStockAgeingInput) {
-		const rawSkip = params?.skip ?? 0;
-		const rawTake = params?.take ?? LIST_QUERY_TAKE_MAX;
-		const skip = rawSkip < 0 ? 0 : rawSkip;
-		const take =
-			rawTake <= 0
-				? 1
-				: rawTake > LIST_QUERY_TAKE_MAX
-					? LIST_QUERY_TAKE_MAX
-					: rawTake;
+		const { skip, take } = clampListWindow(params?.skip, params?.take);
 
 		const company = params?.company?.trim();
 		const warehouse = params?.warehouse?.trim();
@@ -2081,83 +2079,138 @@ export class ReportSubService {
 			}
 		}
 
-		const whereClauses: Prisma.StockEntryItemWhereInput[] = [
-			{
+		const state = createStockAgeingState();
+		let cursor:
+			| {
+					postingDate: Date;
+					createdAt: Date;
+					id: string;
+			  }
+			| undefined;
+
+		while (true) {
+			const batchRows = await this.prisma.client.$queryRaw<
+				Array<{
+					id: string;
+					itemCode: string;
+					itemName: string | null;
+					description: string | null;
+					qty: number;
+					basicRate: number;
+					basicAmount: number;
+					unitOfMeasure: string | null;
+					sourceWarehouse: string | null;
+					targetWarehouse: string | null;
+					stockEntryId: string;
+					series: string;
+					company: string;
+					status: Inventory.StockEntryStatus;
+					stockEntryType: Inventory.StockEntryType;
+					postingDate: Date;
+					defaultSourceWarehouse: string | null;
+					defaultTargetWarehouse: string | null;
+					project: string | null;
+					remarks: string | null;
+					createdAt: Date;
+					updatedAt: Date;
+				}>
+			>(Prisma.sql`
+				SELECT
+					sei.id AS id,
+					sei."itemCode" AS "itemCode",
+					sei."itemName" AS "itemName",
+					sei.description AS description,
+					sei.qty AS qty,
+					sei."basicRate" AS "basicRate",
+					sei."basicAmount" AS "basicAmount",
+					sei."unitOfMeasure" AS "unitOfMeasure",
+					sei."sourceWarehouse" AS "sourceWarehouse",
+					sei."targetWarehouse" AS "targetWarehouse",
+					se.id AS "stockEntryId",
+					se.series AS series,
+					se.company AS company,
+					se.status AS status,
+					se."stockEntryType" AS "stockEntryType",
+					se."postingDate" AS "postingDate",
+					se."defaultSourceWarehouse" AS "defaultSourceWarehouse",
+					se."defaultTargetWarehouse" AS "defaultTargetWarehouse",
+					se.project AS project,
+					se.remarks AS remarks,
+					se."createdAt" AS "createdAt",
+					se."updatedAt" AS "updatedAt"
+				FROM stock_entry_items sei
+				INNER JOIN stock_entries se ON se.id = sei."stockEntryId"
+				WHERE ${combineSqlConditions([
+					Prisma.sql`se.status = 'SUBMITTED'`,
+					Prisma.sql`se."postingDate" <= ${asOfDate}`,
+					buildContainsCondition(`se.company`, company),
+					buildContainsCondition(`sei."itemCode"`, itemCode),
+					buildInCondition(`sei."itemCode"`, filteredItemCodes),
+					warehouse
+						? combineSqlConditions(
+								[
+									buildInsensitiveEqualsCondition(
+										`COALESCE(sei."sourceWarehouse", se."defaultSourceWarehouse")`,
+										warehouse,
+									),
+									buildInsensitiveEqualsCondition(
+										`COALESCE(sei."targetWarehouse", se."defaultTargetWarehouse")`,
+										warehouse,
+									),
+								],
+								" OR ",
+							)
+						: null,
+					cursor
+						? Prisma.sql`(se."postingDate", se."createdAt", sei.id) > (${cursor.postingDate}, ${cursor.createdAt}, ${cursor.id})`
+						: null,
+				])}
+				ORDER BY se."postingDate" ASC, se."createdAt" ASC, sei.id ASC
+				LIMIT ${STOCK_AGEING_BATCH_SIZE}
+			`);
+
+			if (batchRows.length === 0) {
+				break;
+			}
+
+			const items: StockAgeingMovementRow[] = batchRows.map((row) => ({
+				id: row.id,
+				itemCode: row.itemCode,
+				itemName: row.itemName,
+				description: row.description,
+				qty: Number(row.qty ?? 0),
+				basicRate: Number(row.basicRate ?? 0),
+				basicAmount: Number(row.basicAmount ?? 0),
+				unitOfMeasure: row.unitOfMeasure,
+				sourceWarehouse: row.sourceWarehouse,
+				targetWarehouse: row.targetWarehouse,
 				stockEntry: {
-					status: "SUBMITTED",
-					postingDate: {
-						lte: asOfDate,
-					},
-					...(company
-						? {
-								company: {
-									contains: company,
-									mode: "insensitive",
-								},
-							}
-						: {}),
+					id: row.stockEntryId,
+					series: row.series,
+					company: row.company,
+					status: row.status,
+					stockEntryType: row.stockEntryType,
+					postingDate: row.postingDate,
+					defaultSourceWarehouse: row.defaultSourceWarehouse,
+					defaultTargetWarehouse: row.defaultTargetWarehouse,
+					project: row.project,
+					remarks: row.remarks,
+					createdAt: row.createdAt,
+					updatedAt: row.updatedAt,
 				},
-			},
-		];
+			}));
 
-		if (itemCode) {
-			whereClauses.push({
-				itemCode: {
-					contains: itemCode,
-					mode: "insensitive",
-				},
-			});
+			applyStockAgeingItems(state, items, asOfDate);
+
+			const lastRow = batchRows[batchRows.length - 1];
+			cursor = {
+				postingDate: lastRow.postingDate,
+				createdAt: lastRow.createdAt,
+				id: lastRow.id,
+			};
 		}
 
-		if (filteredItemCodes) {
-			whereClauses.push({
-				itemCode: {
-					in: filteredItemCodes,
-				},
-			});
-		}
-
-		if (warehouse) {
-			whereClauses.push({
-				OR: [
-					{ sourceWarehouse: { equals: warehouse, mode: "insensitive" } },
-					{ targetWarehouse: { equals: warehouse, mode: "insensitive" } },
-					{
-						stockEntry: {
-							defaultSourceWarehouse: {
-								equals: warehouse,
-								mode: "insensitive",
-							},
-						},
-					},
-					{
-						stockEntry: {
-							defaultTargetWarehouse: {
-								equals: warehouse,
-								mode: "insensitive",
-							},
-						},
-					},
-				],
-			});
-		}
-
-		const stockItems = await this.prisma.stockEntryItem.findMany({
-			where:
-				whereClauses.length === 1 ? whereClauses[0] : { AND: whereClauses },
-			include: { stockEntry: true },
-			orderBy: [
-				{ stockEntry: { postingDate: "asc" } },
-				{ stockEntry: { createdAt: "asc" } },
-				{ id: "asc" },
-			],
-		});
-
-		if (stockItems.length === 0) {
-			return [];
-		}
-
-		const ageingRows = buildStockAgeingRows(stockItems, {
+		const ageingRows = finalizeStockAgeingRows(state, {
 			asOfDate,
 			showWarehouseWiseStock: params?.showWarehouseWiseStock,
 			bucketRanges,
@@ -2283,95 +2336,118 @@ export class ReportSubService {
 			}
 		}
 
-		// Build item code filter for direct itemCode param
-		const whereClauses: Prisma.StockEntryItemWhereInput[] = [
-			{
-				stockEntry: {
-					status: "SUBMITTED",
-					postingDate: { lte: toDate },
-					...(company
-						? { company: { contains: company, mode: "insensitive" } }
-						: {}),
-				},
-			},
-		];
+		const periods = getPeriodDateRangesForService(fromDate, toDate, frequency);
+		const periodBucketExpression =
+			frequency === "Weekly"
+				? `DATE_TRUNC('week', "postingDate")::date`
+				: frequency === "Monthly"
+					? `DATE_TRUNC('month', "postingDate")::date`
+					: frequency === "Quarterly"
+						? `DATE_TRUNC('quarter', "postingDate")::date`
+						: `DATE_TRUNC('year', "postingDate")::date`;
 
-		if (itemCode) {
-			whereClauses.push({
-				itemCode: { contains: itemCode, mode: "insensitive" },
-			});
-		}
+		const aggregateRows = await this.prisma.client.$queryRaw<
+			StockAnalyticsAggregateRow[]
+		>(Prisma.sql`
+			WITH movement_rows AS (
+				SELECT
+					sei."itemCode" AS "itemCode",
+					sei."itemName" AS "itemName",
+					sei.description AS description,
+					se."postingDate" AS "postingDate",
+					sei.qty AS "qtyDelta",
+					sei."basicAmount" AS "valueDelta"
+				FROM stock_entry_items sei
+				INNER JOIN stock_entries se ON se.id = sei."stockEntryId"
+				WHERE ${combineSqlConditions([
+					Prisma.sql`se.status = 'SUBMITTED'`,
+					Prisma.sql`COALESCE(sei."targetWarehouse", se."defaultTargetWarehouse") IS NOT NULL`,
+					buildContainsCondition(`se.company`, company),
+					buildContainsCondition(`sei."itemCode"`, itemCode),
+					buildInCondition(`sei."itemCode"`, filteredItemCodes),
+					buildInsensitiveEqualsCondition(
+						`COALESCE(sei."targetWarehouse", se."defaultTargetWarehouse")`,
+						warehouse,
+					),
+					Prisma.sql`se."postingDate" <= ${toDate}`,
+				])}
 
-		if (filteredItemCodes) {
-			whereClauses.push({ itemCode: { in: filteredItemCodes } });
-		}
+				UNION ALL
 
-		if (warehouse) {
-			whereClauses.push({
-				OR: [
-					{ sourceWarehouse: { equals: warehouse, mode: "insensitive" } },
-					{ targetWarehouse: { equals: warehouse, mode: "insensitive" } },
-					{
-						stockEntry: {
-							defaultSourceWarehouse: {
-								equals: warehouse,
-								mode: "insensitive",
-							},
-						},
-					},
-					{
-						stockEntry: {
-							defaultTargetWarehouse: {
-								equals: warehouse,
-								mode: "insensitive",
-							},
-						},
-					},
-				],
-			});
-		}
+				SELECT
+					sei."itemCode" AS "itemCode",
+					sei."itemName" AS "itemName",
+					sei.description AS description,
+					se."postingDate" AS "postingDate",
+					-sei.qty AS "qtyDelta",
+					-sei."basicAmount" AS "valueDelta"
+				FROM stock_entry_items sei
+				INNER JOIN stock_entries se ON se.id = sei."stockEntryId"
+				WHERE ${combineSqlConditions([
+					Prisma.sql`se.status = 'SUBMITTED'`,
+					Prisma.sql`COALESCE(sei."sourceWarehouse", se."defaultSourceWarehouse") IS NOT NULL`,
+					buildContainsCondition(`se.company`, company),
+					buildContainsCondition(`sei."itemCode"`, itemCode),
+					buildInCondition(`sei."itemCode"`, filteredItemCodes),
+					buildInsensitiveEqualsCondition(
+						`COALESCE(sei."sourceWarehouse", se."defaultSourceWarehouse")`,
+						warehouse,
+					),
+					Prisma.sql`se."postingDate" <= ${toDate}`,
+				])}
+			)
+			SELECT
+				"itemCode",
+				MAX("itemName") AS "itemName",
+				MAX(description) AS description,
+				CASE
+					WHEN "postingDate" >= ${fromDate}
+					THEN ${Prisma.raw(periodBucketExpression)}
+					ELSE NULL
+				END AS "periodStart",
+				SUM(
+					CASE
+						WHEN "postingDate" >= ${fromDate}
+						THEN "qtyDelta"
+						ELSE 0
+					END
+				) AS "qtyDelta",
+				SUM(
+					CASE
+						WHEN "postingDate" >= ${fromDate}
+						THEN "valueDelta"
+						ELSE 0
+					END
+				) AS "valueDelta",
+				SUM(
+					CASE
+						WHEN "postingDate" < ${fromDate}
+						THEN "qtyDelta"
+						ELSE 0
+					END
+				) AS "openingQtyDelta",
+				SUM(
+					CASE
+						WHEN "postingDate" < ${fromDate}
+						THEN "valueDelta"
+						ELSE 0
+					END
+				) AS "openingValueDelta"
+			FROM movement_rows
+			GROUP BY
+				"itemCode",
+				CASE
+					WHEN "postingDate" >= ${fromDate}
+					THEN ${Prisma.raw(periodBucketExpression)}
+					ELSE NULL
+				END
+		`);
 
-		const stockItems = await this.prisma.stockEntryItem.findMany({
-			where:
-				whereClauses.length === 1 ? whereClauses[0] : { AND: whereClauses },
-			include: { stockEntry: true },
-			orderBy: [
-				{ stockEntry: { postingDate: "asc" } },
-				{ stockEntry: { createdAt: "asc" } },
-				{ id: "asc" },
-			],
-		});
-
-		if (stockItems.length === 0) {
-			const periods = getPeriodDateRangesForService(
-				fromDate,
-				toDate,
-				frequency,
-			);
+		if (aggregateRows.length === 0) {
 			return { periods, rows: [] };
 		}
 
-		// Map raw stock items to source entries using buildStockLedgerRows
-		const ledgerRows = buildStockLedgerRows(stockItems, { warehouse });
-
-		const sourceEntries: StockAnalyticsSourceEntry[] = ledgerRows.map(
-			(row) => ({
-				company: row.company,
-				itemCode: row.itemCode,
-				warehouse: row.warehouse,
-				postingDate: row.postingDate,
-				qtyChange: row.qtyIn - row.qtyOut,
-				valueChange:
-					row.qtyIn > 0
-						? row.basicAmount
-						: row.qtyOut > 0
-							? -row.basicAmount
-							: 0,
-			}),
-		);
-
-		// Build item metadata map
-		const itemCodes = [...new Set(sourceEntries.map((e) => e.itemCode))];
+		const itemCodes = [...new Set(aggregateRows.map((row) => row.itemCode))];
 		const [inventoryItems, itemMeta] = await Promise.all([
 			this.prisma.inventoryItem.findMany({
 				where: { code: { in: itemCodes } },
@@ -2396,32 +2472,73 @@ export class ReportSubService {
 			itemMeta.map((item) => [item.code, item.brand?.name ?? null] as const),
 		);
 
-		const metaMap = new Map<
-			string,
-			{
-				itemName?: string | null;
-				itemGroup?: string | null;
-				brand?: string | null;
-				unitOfMeasure?: string | null;
-			}
-		>();
+		const openingByCode = new Map<string, number>();
+		const periodDeltaByCode = new Map<string, Map<string, number>>();
+		const today = new Date();
+		today.setUTCHours(23, 59, 59, 999);
 
-		for (const code of itemCodes) {
-			const inv = inventoryItemsByCode.get(code);
-			metaMap.set(code, {
-				itemName: inv?.name ?? null,
-				itemGroup: inv?.itemGroup?.groupName ?? null,
-				brand: brandByCode.get(code) ?? null,
-				unitOfMeasure: inv?.defaultUnitOfMeasure?.name ?? null,
-			});
+		for (const row of aggregateRows) {
+			const delta =
+				valueQuantity === "Quantity"
+					? Number(row.qtyDelta ?? 0)
+					: Number(row.valueDelta ?? 0);
+			const openingDelta =
+				valueQuantity === "Quantity"
+					? Number(row.openingQtyDelta ?? 0)
+					: Number(row.openingValueDelta ?? 0);
+
+			if (openingDelta !== 0) {
+				openingByCode.set(
+					row.itemCode,
+					(openingByCode.get(row.itemCode) ?? 0) + openingDelta,
+				);
+			}
+
+			if (row.periodStart == null || delta === 0) {
+				continue;
+			}
+
+			const periodStartKey = new Date(row.periodStart).toISOString();
+			const bucketMap = periodDeltaByCode.get(row.itemCode) ?? new Map();
+			bucketMap.set(
+				periodStartKey,
+				(bucketMap.get(periodStartKey) ?? 0) + delta,
+			);
+			periodDeltaByCode.set(row.itemCode, bucketMap);
 		}
 
-		return buildStockAnalyticsRows(sourceEntries, metaMap, {
-			fromDate,
-			toDate,
-			frequency,
-			valueQuantity,
-		});
+		const rows: Inventory.StockAnalyticsRow[] = itemCodes
+			.map((code) => {
+				const inv = inventoryItemsByCode.get(code);
+				const periodValues: Record<string, number | null> = {};
+				let runningBalance = openingByCode.get(code) ?? 0;
+				const bucketMap =
+					periodDeltaByCode.get(code) ?? new Map<string, number>();
+
+				for (const period of periods) {
+					if (period.from > today) {
+						periodValues[period.key] = null;
+						continue;
+					}
+
+					const delta = bucketMap.get(period.from.toISOString()) ?? 0;
+					runningBalance += delta;
+					periodValues[period.key] = runningBalance;
+				}
+
+				return {
+					id: code,
+					itemCode: code,
+					itemName: inv?.name ?? null,
+					itemGroup: inv?.itemGroup?.groupName ?? null,
+					brand: brandByCode.get(code) ?? null,
+					unitOfMeasure: inv?.defaultUnitOfMeasure?.name ?? null,
+					periodValues,
+				};
+			})
+			.sort((left, right) => left.itemCode.localeCompare(right.itemCode));
+
+		return { periods, rows };
 	}
 
 	// ============================================================================

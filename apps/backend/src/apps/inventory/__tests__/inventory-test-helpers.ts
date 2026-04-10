@@ -691,6 +691,9 @@ export function createMockPrisma() {
 		itemReorder: {
 			count: jest.fn(),
 		},
+		documentSeriesCounter: {
+			findUnique: jest.fn(),
+		},
 		stockSettings: {
 			findUnique: jest.fn(),
 			upsert: jest.fn(),
@@ -822,6 +825,10 @@ export function createMockPrisma() {
 			create: jest.fn(),
 			count: jest.fn(),
 		},
+		client: {
+			$queryRaw: jest.fn(),
+		},
+		$queryRaw: jest.fn(),
 		deliveryTrip: {
 			findMany: jest.fn(),
 			findFirst: jest.fn(),
@@ -866,6 +873,37 @@ export type MockPrisma = ReturnType<typeof createMockPrisma>;
 /** Creates a fresh InventoryService + mockPrisma for each test. */
 export function createTestContext() {
 	const mockPrisma = createMockPrisma();
+
+	mockPrisma.documentSeriesCounter.findUnique.mockResolvedValue(null);
+	mockPrisma.client.$queryRaw.mockImplementation(async (query: unknown) => {
+		const sqlParts =
+			query &&
+			typeof query === "object" &&
+			"strings" in query &&
+			Array.isArray(query.strings)
+				? query.strings.join("")
+				: "";
+
+		if (sqlParts.includes(`"document_series_counters"`)) {
+			const values =
+				query &&
+				typeof query === "object" &&
+				"values" in query &&
+				Array.isArray(query.values)
+					? query.values
+					: [];
+			const initialValue =
+				typeof values[1] === "number" && Number.isFinite(values[1])
+					? values[1]
+					: 1;
+			return [{ value: initialValue }];
+		}
+
+		return [];
+	});
+	mockPrisma.$queryRaw.mockImplementation((query: unknown) =>
+		mockPrisma.client.$queryRaw(query),
+	);
 
 	mockPrisma.$transaction.mockImplementation(
 		(

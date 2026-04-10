@@ -24,6 +24,8 @@ Aria ERP uses [better-auth](https://better-auth.com) for username/password authe
 - `AuthStateProvider` hydrates the resolved session and authorization data into client components
 - `useAuth()` reads from that hydrated context instead of fetching its own session
 - `proxy.ts` only performs optimistic cookie checks and preserves callback URLs
+- Callback URLs are normalized to in-app relative paths only before any redirect is issued
+- Frontend and backend startup reject dev-bypass flags when they leak outside development
 
 ## Configuration
 
@@ -54,7 +56,11 @@ NEXT_PUBLIC_API_URL=https://your-domain.com
 NEXT_PUBLIC_DEV_AUTH_BYPASS=false
 ```
 
-`NEXT_PUBLIC_DEV_AUTH_BYPASS=true` enables a local development mock session. Keep it disabled in shared or production environments.
+`NEXT_PUBLIC_DEV_AUTH_BYPASS=true` enables a local development mock session. Next.js startup rejects this flag outside development so the bypass cannot leak into production-style runs.
+
+#### Backend Development Bypass
+
+`DISABLE_AUTH=true` is supported only during backend development. The NestJS bootstrap path now fails fast if that flag is enabled outside development.
 
 ### Cross-Site Cookies
 
@@ -111,18 +117,19 @@ On first production deployment, a default admin user is automatically created:
 ### Login Flow
 
 1. A user visits a protected route or the home page.
-2. The matching server layout calls `requireProtectedAuthState()`.
-3. If no session exists, the server redirects to `/auth/sign-in?callbackUrl=...`.
-4. If the account must change its password, the server redirects to `/auth/change-password`.
-5. The sign-in page submits credentials through better-auth.
-6. On success, the user is sent back to the original callback URL or the default app route.
+2. `proxy.ts` performs the lightweight cookie-presence check recommended by the Next.js auth guide and forwards the normalized callback URL.
+3. The matching server layout calls `requireProtectedAuthState()`.
+4. If no session exists, the server redirects to `/auth/sign-in?callbackUrl=...`.
+5. If the account must change its password, the server redirects to `/auth/change-password`.
+6. The sign-in page submits credentials through better-auth.
+7. On success, the user is sent back to the original callback URL or the default app route.
 
 ### Development vs Production
 
 | Feature | Development | Production |
 |---------|-------------|------------|
 | Auth Required | ✅ By default | ✅ |
-| Dev Bypass | Optional (`NEXT_PUBLIC_DEV_AUTH_BYPASS=true` on the frontend, `DISABLE_AUTH=true` on the backend) | ❌ |
+| Dev Bypass | Optional (`NEXT_PUBLIC_DEV_AUTH_BYPASS=true` on the frontend, `DISABLE_AUTH=true` on the backend) while `NODE_ENV=development` | ❌ |
 | Login Page | Visible | Visible |
 | Route Protection | Enabled | Enabled |
 | Cookies | Lax, non-secure | SameSite=None, Secure |

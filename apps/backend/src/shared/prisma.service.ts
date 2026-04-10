@@ -155,6 +155,9 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
 	get itemReorder() {
 		return this.client.itemReorder;
 	}
+	get documentSeriesCounter() {
+		return this.client.documentSeriesCounter;
+	}
 	get materialRequest() {
 		return this.client.materialRequest;
 	}

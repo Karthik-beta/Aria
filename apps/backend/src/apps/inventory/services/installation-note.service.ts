@@ -11,12 +11,15 @@
 import type { Inventory } from "@aria/types";
 import { BadRequestException, NotFoundException } from "@nestjs/common";
 import { Prisma } from "../../../generated/prisma/client";
+import {
+	allocateDocumentSeries,
+	getSeriesSeedValue,
+} from "../../../shared/document-series";
 import type { PrismaService } from "../../../shared/prisma.service";
 import { toInventoryInstallationNote } from "../inventory.types";
 import {
 	assertSerialNoStatusTransition,
 	buildSerialNoTransactionLabel,
-	computeBackoffMs,
 	INSTALLATION_NOTE_ALLOWED_STATUS_TRANSITIONS,
 	installationNoteInclude,
 	LIST_QUERY_TAKE_MAX,
@@ -26,6 +29,45 @@ import {
 
 export class InstallationNoteSubService {
 	constructor(private readonly prisma: PrismaService) {}
+
+	private async lockInstallationNoteRow(
+		tx: Prisma.TransactionClient,
+		installationNoteId: string,
+	): Promise<void> {
+		const rows = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+			SELECT id
+			FROM installation_notes
+			WHERE id = ${installationNoteId}
+			FOR UPDATE
+		`);
+
+		if (rows.length === 0) {
+			throw new NotFoundException(
+				`Installation note with ID ${installationNoteId} not found`,
+			);
+		}
+	}
+
+	private async lockSerialNoRows(
+		tx: Prisma.TransactionClient,
+		serialNoIds: Array<string | null | undefined>,
+	): Promise<void> {
+		const uniqueIds = [...new Set(serialNoIds.map((id) => id?.trim() ?? ""))]
+			.filter((id) => id.length > 0)
+			.sort();
+
+		if (uniqueIds.length === 0) {
+			return;
+		}
+
+		await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+			SELECT id
+			FROM serial_nos
+			WHERE id IN (${Prisma.join(uniqueIds)})
+			ORDER BY id
+			FOR UPDATE
+		`);
+	}
 
 	private getInstallationNoteOrderBy(
 		sortBy: Inventory.InstallationNoteSortBy = "updatedAt",
@@ -102,6 +144,7 @@ export class InstallationNoteSubService {
 	private async generateInstallationNoteSeries(
 		date: Date,
 		seriesPattern?: string | null,
+		client: Prisma.TransactionClient | PrismaService = this.prisma,
 	): Promise<string> {
 		const normalizedPattern =
 			this.normalizeInstallationNoteSeriesPattern(seriesPattern);
@@ -110,7 +153,16 @@ export class InstallationNoteSubService {
 			date,
 		);
 
-		const lastNote = await this.prisma.installationNote.findFirst({
+		const existingCounter = await client.documentSeriesCounter.findUnique({
+			where: { key: prefix },
+			select: { value: true },
+		});
+
+		if (existingCounter) {
+			return allocateDocumentSeries(client, prefix);
+		}
+
+		const lastNote = await client.installationNote.findFirst({
 			where: {
 				series: { startsWith: prefix },
 			},
@@ -118,16 +170,12 @@ export class InstallationNoteSubService {
 			select: { series: true },
 		});
 
-		let nextNumber = 1;
-		if (lastNote) {
-			const numStr = lastNote.series.slice(prefix.length);
-			const num = parseInt(numStr, 10);
-			if (!Number.isNaN(num)) {
-				nextNumber = num + 1;
-			}
-		}
-
-		return `${prefix}${String(nextNumber).padStart(5, "0")}`;
+		return allocateDocumentSeries(
+			client,
+			prefix,
+			5,
+			getSeriesSeedValue(prefix, lastNote?.series),
+		);
 	}
 
 	private async validateInstallationNoteInput(
@@ -319,6 +367,11 @@ export class InstallationNoteSubService {
 			}
 
 			if (input.status === "COMPLETED") {
+				if (serial.status === "INSTALLED") {
+					throw new BadRequestException(
+						`Serial number ${serial.serialNo} is already installed`,
+					);
+				}
 				assertSerialNoStatusTransition(serial.status, "INSTALLED");
 			}
 		}
@@ -485,122 +538,121 @@ export class InstallationNoteSubService {
 		);
 		const status = data.status ?? "DRAFT";
 
-		for (let attempt = 0; attempt < 3; attempt++) {
+		const created = await this.prisma.$transaction(async (tx) => {
+			if (status === "COMPLETED") {
+				await this.lockSerialNoRows(
+					tx,
+					data.items.map((item) => item.serialNoId),
+				);
+			}
+
 			const series = await this.generateInstallationNoteSeries(
 				installationDate,
 				seriesPattern,
+				tx,
 			);
+			const validated = await this.validateInstallationNoteInput(tx, {
+				company: data.company,
+				customer: data.customer,
+				deliveryNoteId: data.deliveryNoteId ?? null,
+				status,
+				items: data.items,
+			});
 
-			try {
-				const created = await this.prisma.$transaction(async (tx) => {
-					const validated = await this.validateInstallationNoteInput(tx, {
-						company: data.company,
-						customer: data.customer,
-						deliveryNoteId: data.deliveryNoteId ?? null,
-						status,
-						items: data.items,
-					});
+			const createdNote = await tx.installationNote.create({
+				data: {
+					series,
+					seriesPattern,
+					installationDate,
+					installationTime: data.installationTime
+						? normalizePostingTime(data.installationTime, installationDate)
+						: null,
+					customer: data.customer,
+					customerName: normalizeOptionalText(data.customerName),
+					customerAddress: normalizeOptionalText(data.customerAddress),
+					contactPerson: normalizeOptionalText(data.contactPerson),
+					territory: data.territory?.trim() || "All Territories",
+					customerGroup: normalizeOptionalText(data.customerGroup),
+					company: data.company,
+					status,
+					deliveryNoteId: data.deliveryNoteId ?? null,
+					remarks: normalizeOptionalText(data.remarks),
+					items: {
+						create: data.items.map((item) => ({
+							itemId: item.itemId,
+							serialNoId: item.serialNoId ?? null,
+							description: normalizeOptionalText(item.description),
+							installedQty: item.installedQty,
+						})),
+					},
+				},
+				include: installationNoteInclude,
+			});
 
-					const createdNote = await tx.installationNote.create({
-						data: {
-							series,
-							seriesPattern,
-							installationDate,
-							installationTime: data.installationTime
-								? normalizePostingTime(data.installationTime, installationDate)
-								: null,
-							customer: data.customer,
-							customerName: normalizeOptionalText(data.customerName),
-							customerAddress: normalizeOptionalText(data.customerAddress),
-							contactPerson: normalizeOptionalText(data.contactPerson),
-							territory: data.territory?.trim() || "All Territories",
-							customerGroup: normalizeOptionalText(data.customerGroup),
-							company: data.company,
-							status,
-							deliveryNoteId: data.deliveryNoteId ?? null,
-							remarks: normalizeOptionalText(data.remarks),
-							items: {
-								create: data.items.map((item) => ({
-									itemId: item.itemId,
-									serialNoId: item.serialNoId ?? null,
-									description: normalizeOptionalText(item.description),
-									installedQty: item.installedQty,
-								})),
-							},
-						},
-						include: installationNoteInclude,
-					});
-
-					if (status === "COMPLETED") {
-						await this.applyInstallationNoteSerialUpdates(tx, {
-							series,
-							remarks: data.remarks,
-							rows: data.items,
-							serialsById: validated.serialsById,
-						});
-					}
-
-					return createdNote;
+			if (status === "COMPLETED") {
+				await this.applyInstallationNoteSerialUpdates(tx, {
+					series,
+					remarks: data.remarks,
+					rows: data.items,
+					serialsById: validated.serialsById,
 				});
-
-				return toInventoryInstallationNote(created);
-			} catch (error) {
-				const isSeriesConflict =
-					error instanceof Prisma.PrismaClientKnownRequestError &&
-					error.code === "P2002";
-				if (isSeriesConflict && attempt < 2) {
-					await new Promise((resolve) =>
-						setTimeout(resolve, computeBackoffMs(attempt)),
-					);
-					continue;
-				}
-				throw error;
 			}
-		}
 
-		throw new Error("Failed to allocate a unique installation note series");
+			return createdNote;
+		});
+
+		return toInventoryInstallationNote(created);
 	}
 
 	async updateInstallationNote(
 		data: Inventory.UpdateInstallationNoteInput,
 	): Promise<Inventory.InstallationNote> {
-		const existing = await this.prisma.installationNote.findUnique({
-			where: { id: data.id },
-			include: {
-				items: true,
-			},
-		});
-
-		if (!existing) {
-			throw new NotFoundException(
-				`Installation note with ID ${data.id} not found`,
-			);
-		}
-
-		if (existing.status === "COMPLETED" || existing.status === "CANCELLED") {
-			throw new BadRequestException(
-				"Completed or cancelled installation notes cannot be modified",
-			);
-		}
-
-		const nextStatus =
-			data.status ?? (existing.status as Inventory.InstallationNoteStatus);
-		this.assertInstallationNoteStatusTransition(
-			existing.status as Inventory.InstallationNoteStatus,
-			nextStatus,
-		);
-
-		const nextItems =
-			data.items ??
-			existing.items.map((item) => ({
-				id: item.id,
-				itemId: item.itemId,
-				serialNoId: item.serialNoId,
-				description: item.description,
-				installedQty: item.installedQty,
-			}));
-
 		const updated = await this.prisma.$transaction(async (tx) => {
+			await this.lockInstallationNoteRow(tx, data.id);
+
+			const existing = await tx.installationNote.findUnique({
+				where: { id: data.id },
+				include: {
+					items: true,
+				},
+			});
+
+			if (!existing) {
+				throw new NotFoundException(
+					`Installation note with ID ${data.id} not found`,
+				);
+			}
+
+			if (existing.status === "COMPLETED" || existing.status === "CANCELLED") {
+				throw new BadRequestException(
+					"Completed or cancelled installation notes cannot be modified",
+				);
+			}
+
+			const nextStatus =
+				data.status ?? (existing.status as Inventory.InstallationNoteStatus);
+			this.assertInstallationNoteStatusTransition(
+				existing.status as Inventory.InstallationNoteStatus,
+				nextStatus,
+			);
+
+			const nextItems =
+				data.items ??
+				existing.items.map((item) => ({
+					id: item.id,
+					itemId: item.itemId,
+					serialNoId: item.serialNoId,
+					description: item.description,
+					installedQty: item.installedQty,
+				}));
+
+			if (nextStatus === "COMPLETED") {
+				await this.lockSerialNoRows(
+					tx,
+					nextItems.map((item) => item.serialNoId),
+				);
+			}
+
 			const validated = await this.validateInstallationNoteInput(tx, {
 				company: data.company ?? existing.company,
 				customer: data.customer ?? existing.customer,

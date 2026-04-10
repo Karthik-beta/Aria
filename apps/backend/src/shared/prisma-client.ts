@@ -34,6 +34,7 @@
  */
 import "dotenv/config";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { Pool } from "pg";
 import { PrismaClient } from "../generated/prisma/client";
 
 // ============================================================================
@@ -52,6 +53,22 @@ if (!connectionString) {
 		"DATABASE_URL environment variable is not set. " +
 			"Please ensure your .env file exists and contains DATABASE_URL.",
 	);
+}
+
+function parsePoolInteger(name: string, fallback: number) {
+	const rawValue = process.env[name];
+	if (!rawValue) {
+		return fallback;
+	}
+
+	const parsedValue = Number.parseInt(rawValue, 10);
+	if (!Number.isFinite(parsedValue) || parsedValue <= 0) {
+		throw new Error(
+			`${name} must be a positive integer when provided. Received "${rawValue}".`,
+		);
+	}
+
+	return parsedValue;
 }
 
 // ============================================================================
@@ -81,7 +98,17 @@ if (!connectionString) {
  *   }
  * });
  */
-const adapter = new PrismaPg({ connectionString });
+const adapter = new PrismaPg(
+	new Pool({
+		connectionString,
+		max: parsePoolInteger("DATABASE_POOL_MAX", 10),
+		connectionTimeoutMillis: parsePoolInteger(
+			"DATABASE_POOL_CONNECTION_TIMEOUT_MS",
+			5000,
+		),
+		idleTimeoutMillis: parsePoolInteger("DATABASE_POOL_IDLE_TIMEOUT_MS", 30000),
+	}),
+);
 
 // ============================================================================
 // Singleton Pattern for Development

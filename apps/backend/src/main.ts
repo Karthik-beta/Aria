@@ -9,6 +9,7 @@ import { config } from "dotenv";
 import { WebSocketServer } from "ws";
 import { AppModule } from "./app.module";
 import { auth } from "./auth/auth.config";
+import { assertValidDevelopmentAuthBypassConfiguration } from "./auth/development-bypass";
 import { TrpcContext } from "./trpc/trpc.context";
 import { TrpcService } from "./trpc/trpc.service";
 
@@ -78,6 +79,8 @@ try {
 }
 
 async function bootstrap() {
+	assertValidDevelopmentAuthBypassConfiguration();
+
 	/**
 	 * Disable body parser for Better Auth compatibility
 	 *
@@ -165,15 +168,21 @@ async function bootstrap() {
 	/**
 	 * Apply tRPC WebSocket handler
 	 *
-	 * WebSocket adapter doesn't use Express req/res, so we pass a minimal context.
-	 * For WebSocket subscriptions, authentication should be handled via connection params.
+	 * The WebSocket adapter exposes the upgrade request, so we propagate that
+	 * request into tRPC context and reuse the same auth path as HTTP procedures.
 	 */
 	const wssHandler = applyWSSHandler({
 		wss,
 		router: appRouter,
-		createContext: () => ({
-			prisma: trpcContext.prisma,
-		}),
+		createContext: (opts) =>
+			trpcContext.createWithRequest(
+				opts.req as unknown as Parameters<
+					typeof trpcContext.createWithRequest
+				>[0],
+				opts.res as unknown as Parameters<
+					typeof trpcContext.createWithRequest
+				>[1],
+			),
 		keepAlive: {
 			enabled: true,
 			pingMs: 30000, // Send ping every 30 seconds
@@ -196,5 +205,8 @@ async function bootstrap() {
 		`tRPC WebSocket endpoint: ws://localhost:${process.env.PORT ?? 3001}/trpc-ws`,
 	);
 }
-void bootstrap();
-// Trigger build
+
+bootstrap().catch((error) => {
+	logger.error("[BOOTSTRAP] Failed to start backend:", error);
+	process.exitCode = 1;
+});

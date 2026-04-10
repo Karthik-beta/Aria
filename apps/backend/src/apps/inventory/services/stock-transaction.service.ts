@@ -11,6 +11,10 @@
 import type { Inventory } from "@aria/types";
 import { BadRequestException, Logger, NotFoundException } from "@nestjs/common";
 import { Prisma } from "../../../generated/prisma/client";
+import {
+	allocateDocumentSeries,
+	getSeriesSeedValue,
+} from "../../../shared/document-series";
 import type { PrismaService } from "../../../shared/prisma.service";
 import {
 	toInventoryMaterialRequest,
@@ -35,6 +39,15 @@ export class StockTransactionSubService {
 		const year = date.getFullYear();
 		const prefix = `MAT-MR-${year}-`;
 
+		const existingCounter = await this.prisma.documentSeriesCounter.findUnique({
+			where: { key: prefix },
+			select: { value: true },
+		});
+
+		if (existingCounter) {
+			return allocateDocumentSeries(this.prisma, prefix);
+		}
+
 		const lastRequest = await this.prisma.materialRequest.findFirst({
 			where: {
 				series: { startsWith: prefix },
@@ -43,16 +56,12 @@ export class StockTransactionSubService {
 			select: { series: true },
 		});
 
-		let nextNumber = 1;
-		if (lastRequest) {
-			const numStr = lastRequest.series.slice(prefix.length);
-			const num = parseInt(numStr, 10);
-			if (!Number.isNaN(num)) {
-				nextNumber = num + 1;
-			}
-		}
-
-		return `${prefix}${String(nextNumber).padStart(5, "0")}`;
+		return allocateDocumentSeries(
+			this.prisma,
+			prefix,
+			5,
+			getSeriesSeedValue(prefix, lastRequest?.series),
+		);
 	}
 
 	/**
@@ -122,49 +131,34 @@ export class StockTransactionSubService {
 		data: Inventory.CreateMaterialRequestInput,
 	): Promise<Inventory.MaterialRequest> {
 		const transactionDate = data.transactionDate ?? new Date();
-
-		for (let attempt = 0; attempt < 3; attempt++) {
-			const series = await this.generateMaterialRequestSeries(transactionDate);
-			try {
-				const created = await this.prisma.materialRequest.create({
-					data: {
-						series,
-						transactionDate,
-						purpose: data.purpose ?? "PURCHASE",
-						company: data.company,
-						requiredBy: data.requiredBy,
-						status: "DRAFT",
-						targetWarehouse: data.targetWarehouse,
-						terms: data.terms,
-						termsContent: data.termsContent,
-						letterHead: data.letterHead,
-						printHeading: data.printHeading,
-						items: {
-							create: data.items.map((item) => ({
-								itemCode: item.itemCode,
-								itemName: item.itemName,
-								requiredBy: item.requiredBy,
-								quantity: item.quantity,
-								targetWarehouse: item.targetWarehouse,
-								unitOfMeasure: item.unitOfMeasure,
-							})),
-						},
-					},
-					include: { items: true },
-				});
-				return toInventoryMaterialRequest(created);
-			} catch (error) {
-				const isSeriesConflict =
-					error instanceof Prisma.PrismaClientKnownRequestError &&
-					error.code === "P2002";
-				if (isSeriesConflict && attempt < 2) {
-					continue;
-				}
-				throw error;
-			}
-		}
-		// Unreachable — the loop always returns or throws.
-		throw new Error("Failed to allocate a unique series number");
+		const series = await this.generateMaterialRequestSeries(transactionDate);
+		const created = await this.prisma.materialRequest.create({
+			data: {
+				series,
+				transactionDate,
+				purpose: data.purpose ?? "PURCHASE",
+				company: data.company,
+				requiredBy: data.requiredBy,
+				status: "DRAFT",
+				targetWarehouse: data.targetWarehouse,
+				terms: data.terms,
+				termsContent: data.termsContent,
+				letterHead: data.letterHead,
+				printHeading: data.printHeading,
+				items: {
+					create: data.items.map((item) => ({
+						itemCode: item.itemCode,
+						itemName: item.itemName,
+						requiredBy: item.requiredBy,
+						quantity: item.quantity,
+						targetWarehouse: item.targetWarehouse,
+						unitOfMeasure: item.unitOfMeasure,
+					})),
+				},
+			},
+			include: { items: true },
+		});
+		return toInventoryMaterialRequest(created);
 	}
 
 	/**
@@ -345,6 +339,15 @@ export class StockTransactionSubService {
 		const year = date.getFullYear();
 		const prefix = `MAT-STE-${year}-`;
 
+		const existingCounter = await this.prisma.documentSeriesCounter.findUnique({
+			where: { key: prefix },
+			select: { value: true },
+		});
+
+		if (existingCounter) {
+			return allocateDocumentSeries(this.prisma, prefix);
+		}
+
 		const lastEntry = await this.prisma.stockEntry.findFirst({
 			where: {
 				series: { startsWith: prefix },
@@ -353,16 +356,12 @@ export class StockTransactionSubService {
 			select: { series: true },
 		});
 
-		let nextNumber = 1;
-		if (lastEntry) {
-			const numStr = lastEntry.series.slice(prefix.length);
-			const num = parseInt(numStr, 10);
-			if (!Number.isNaN(num)) {
-				nextNumber = num + 1;
-			}
-		}
-
-		return `${prefix}${String(nextNumber).padStart(5, "0")}`;
+		return allocateDocumentSeries(
+			this.prisma,
+			prefix,
+			5,
+			getSeriesSeedValue(prefix, lastEntry?.series),
+		);
 	}
 
 	/**
@@ -430,53 +429,39 @@ export class StockTransactionSubService {
 		data: Inventory.CreateStockEntryInput,
 	): Promise<Inventory.StockEntry> {
 		const postingDate = data.postingDate ?? new Date();
-
-		for (let attempt = 0; attempt < 3; attempt++) {
-			const series = await this.generateStockEntrySeries(postingDate);
-			try {
-				const created = await this.prisma.stockEntry.create({
-					data: {
-						series,
-						stockEntryType: data.stockEntryType,
-						postingDate,
-						company: data.company,
-						status: "DRAFT",
-						project: data.project,
-						defaultSourceWarehouse: data.defaultSourceWarehouse,
-						defaultTargetWarehouse: data.defaultTargetWarehouse,
-						isOpening: data.isOpening ?? false,
-						remarks: data.remarks,
-						printHeading: data.printHeading,
-						letterHead: data.letterHead,
-						inspectionRequired: data.inspectionRequired ?? false,
-						items: {
-							create: data.items.map((item) => ({
-								sourceWarehouse: item.sourceWarehouse,
-								targetWarehouse: item.targetWarehouse,
-								itemCode: item.itemCode,
-								itemName: item.itemName,
-								description: item.description,
-								qty: item.qty,
-								basicRate: item.basicRate ?? 0,
-								basicAmount: item.qty * (item.basicRate ?? 0),
-								unitOfMeasure: item.unitOfMeasure,
-							})),
-						},
-					},
-					include: { items: true },
-				});
-				return toInventoryStockEntry(created);
-			} catch (error) {
-				const isSeriesConflict =
-					error instanceof Prisma.PrismaClientKnownRequestError &&
-					error.code === "P2002";
-				if (isSeriesConflict && attempt < 2) {
-					continue;
-				}
-				throw error;
-			}
-		}
-		throw new Error("Failed to allocate a unique series number");
+		const series = await this.generateStockEntrySeries(postingDate);
+		const created = await this.prisma.stockEntry.create({
+			data: {
+				series,
+				stockEntryType: data.stockEntryType,
+				postingDate,
+				company: data.company,
+				status: "DRAFT",
+				project: data.project,
+				defaultSourceWarehouse: data.defaultSourceWarehouse,
+				defaultTargetWarehouse: data.defaultTargetWarehouse,
+				isOpening: data.isOpening ?? false,
+				remarks: data.remarks,
+				printHeading: data.printHeading,
+				letterHead: data.letterHead,
+				inspectionRequired: data.inspectionRequired ?? false,
+				items: {
+					create: data.items.map((item) => ({
+						sourceWarehouse: item.sourceWarehouse,
+						targetWarehouse: item.targetWarehouse,
+						itemCode: item.itemCode,
+						itemName: item.itemName,
+						description: item.description,
+						qty: item.qty,
+						basicRate: item.basicRate ?? 0,
+						basicAmount: item.qty * (item.basicRate ?? 0),
+						unitOfMeasure: item.unitOfMeasure,
+					})),
+				},
+			},
+			include: { items: true },
+		});
+		return toInventoryStockEntry(created);
 	}
 
 	/**

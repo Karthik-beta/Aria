@@ -37,6 +37,101 @@ describe("InventoryService > Item Catalog", () => {
 		});
 	});
 
+	describe("findPagedItems", () => {
+		it("should return a bounded, paginated catalogue result with server-side search and sort", async () => {
+			mockPrisma.inventoryItem.findMany.mockResolvedValue([
+				{
+					id: mockItem.id,
+					name: mockItem.name,
+					code: mockItem.code,
+					disabled: false,
+					hasVariants: false,
+					createdAt: mockItem.createdAt,
+					updatedAt: mockItem.updatedAt,
+					itemGroup: { groupName: "Electronics" },
+				},
+			]);
+			mockPrisma.inventoryItem.count.mockResolvedValue(48);
+
+			const result = await service.findPagedItems({
+				skip: 5,
+				take: 500,
+				search: "iphone",
+				sortBy: "itemGroupName",
+				sortDirection: "asc",
+			});
+
+			expect(result).toEqual({
+				items: [
+					{
+						id: mockItem.id,
+						name: mockItem.name,
+						code: mockItem.code,
+						itemGroupName: "Electronics",
+						disabled: false,
+						hasVariants: false,
+						createdAt: mockItem.createdAt,
+						updatedAt: mockItem.updatedAt,
+					},
+				],
+				totalCount: 48,
+			});
+			expect(mockPrisma.inventoryItem.findMany).toHaveBeenCalledWith({
+				where: {
+					OR: [
+						{ name: { contains: "iphone", mode: "insensitive" } },
+						{ code: { contains: "iphone", mode: "insensitive" } },
+						{
+							itemGroup: {
+								groupName: {
+									contains: "iphone",
+									mode: "insensitive",
+								},
+							},
+						},
+					],
+				},
+				orderBy: [
+					{ itemGroup: { groupName: "asc" } },
+					{ name: "asc" },
+					{ createdAt: "desc" },
+				],
+				skip: 5,
+				take: 250,
+				select: {
+					id: true,
+					name: true,
+					code: true,
+					disabled: true,
+					hasVariants: true,
+					createdAt: true,
+					updatedAt: true,
+					itemGroup: {
+						select: {
+							groupName: true,
+						},
+					},
+				},
+			});
+			expect(mockPrisma.inventoryItem.count).toHaveBeenCalledWith({
+				where: {
+					OR: [
+						{ name: { contains: "iphone", mode: "insensitive" } },
+						{ code: { contains: "iphone", mode: "insensitive" } },
+						{
+							itemGroup: {
+								groupName: {
+									contains: "iphone",
+									mode: "insensitive",
+								},
+							},
+						},
+					],
+				},
+			});
+		});
+	});
+
 	describe("create", () => {
 		it("should create a new item", async () => {
 			const input = Inventory.createSchema.parse({

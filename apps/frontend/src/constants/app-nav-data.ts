@@ -683,11 +683,50 @@ export const hrmsNavItems: NavItem[] = [
 	},
 ];
 
+export const adminNavItems: NavItem[] = [
+	{
+		title: "Administration",
+		url: "#",
+		icon: "settings",
+		isActive: false,
+		items: [
+			{
+				title: "Dashboard",
+				url: "/admin",
+			},
+			{
+				title: "Users",
+				url: "/admin/users",
+			},
+			{
+				title: "Roles & Permissions",
+				url: "/admin/roles",
+			},
+		],
+	},
+	{
+		title: "Governance",
+		url: "#",
+		icon: "report",
+		isActive: false,
+		items: [
+			{
+				title: "Audit Logs",
+				url: "/admin/audit",
+			},
+		],
+	},
+];
+
 /**
  * Metadata for each app (used for headers, labels, etc.)
  * Frozen for performance optimization
  */
 export const appMetadata = Object.freeze({
+	admin: Object.freeze({
+		label: "Admin Console",
+		description: "Manage users, roles, and system governance",
+	}),
 	inventory: Object.freeze({
 		label: "Inventory Management",
 		description: "Manage stock, items, and warehouse operations",
@@ -711,6 +750,7 @@ export const appMetadata = Object.freeze({
  * Frozen for performance optimization
  */
 const NAV_MAP = Object.freeze({
+	admin: adminNavItems,
 	inventory: inventoryNavItems,
 	asset: assetNavItems,
 	crm: crmNavItems,

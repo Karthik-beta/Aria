@@ -20,10 +20,16 @@ vi.mock("../../hooks/use-media-query", () => ({
 }));
 
 let mockCanAccessApp = (_key: string) => true;
+let mockHasAdminAccess = false;
 let mockAuthLoading = false;
 
 vi.mock("@/hooks/use-auth", () => ({
 	useAuth: () => ({
+		hasAnyRole: () => mockHasAdminAccess,
+		hasPermission: (permission: string) =>
+			permission === "system:user.read" && mockHasAdminAccess,
+		isActive: true,
+		roles: mockHasAdminAccess ? ["admin"] : [],
 		user: {
 			name: "System Administrator",
 			email: "admin@aria.local",
@@ -57,6 +63,7 @@ describe("AppSidebar", () => {
 	beforeEach(() => {
 		currentPathname = "/inventory/items-catalogue/item/";
 		mockCanAccessApp = () => true;
+		mockHasAdminAccess = false;
 		mockAuthLoading = false;
 		mockAppSwitcher.mockClear();
 	});
@@ -92,6 +99,22 @@ describe("AppSidebar", () => {
 			expect(appKeys).toEqual(["inventory", "asset", "crm", "hrms"]);
 		});
 
+		it("includes admin when the user has system admin access", async () => {
+			mockCanAccessApp = () => true;
+			mockHasAdminAccess = true;
+			renderWithSidebar(<AppSidebar />);
+
+			await waitFor(() => {
+				expect(mockAppSwitcher).toHaveBeenCalled();
+			});
+
+			const lastCallProps = mockAppSwitcher.mock.calls.at(-1)?.[0] as {
+				apps: Array<{ key: string }>;
+			};
+			const appKeys = lastCallProps.apps.map((a: { key: string }) => a.key);
+			expect(appKeys).toEqual(["admin", "inventory", "asset", "crm", "hrms"]);
+		});
+
 		it("filters apps when user has limited access", async () => {
 			mockCanAccessApp = (key: string) => key === "inventory" || key === "crm";
 			renderWithSidebar(<AppSidebar />);
@@ -119,7 +142,7 @@ describe("AppSidebar", () => {
 				apps: Array<{ key: string }>;
 			};
 			// Falls back to all WORKSPACE_APPS when filter returns empty
-			expect(lastCallProps.apps).toHaveLength(4);
+			expect(lastCallProps.apps).toHaveLength(5);
 		});
 
 		it("shows all apps during auth loading", async () => {
@@ -133,7 +156,7 @@ describe("AppSidebar", () => {
 			const lastCallProps = mockAppSwitcher.mock.calls.at(-1)?.[0] as {
 				apps: Array<{ key: string }>;
 			};
-			expect(lastCallProps.apps).toHaveLength(4);
+			expect(lastCallProps.apps).toHaveLength(5);
 		});
 	});
 
@@ -194,6 +217,21 @@ describe("AppSidebar", () => {
 			expect(lastCallProps.defaultApp.key).toBe("hrms");
 		});
 
+		it("passes correct defaultApp for /admin routes", async () => {
+			currentPathname = "/admin/users";
+			mockHasAdminAccess = true;
+			renderWithSidebar(<AppSidebar />);
+
+			await waitFor(() => {
+				expect(mockAppSwitcher).toHaveBeenCalled();
+			});
+
+			const lastCallProps = mockAppSwitcher.mock.calls.at(-1)?.[0] as {
+				defaultApp: { key: string };
+			};
+			expect(lastCallProps.defaultApp.key).toBe("admin");
+		});
+
 		it("falls back to first accessible app for unknown pathname", async () => {
 			currentPathname = "/unknown-route";
 			renderWithSidebar(<AppSidebar />);
@@ -248,6 +286,17 @@ describe("AppSidebar", () => {
 			await waitFor(() => {
 				expect(screen.getByText("Employee")).toBeInTheDocument();
 				expect(screen.getByText("Attendance")).toBeInTheDocument();
+			});
+		});
+
+		it("renders admin nav items for /admin routes", async () => {
+			currentPathname = "/admin/users";
+			mockHasAdminAccess = true;
+			renderWithSidebar(<AppSidebar />);
+
+			await waitFor(() => {
+				expect(screen.getByText("Administration")).toBeInTheDocument();
+				expect(screen.getByText("Governance")).toBeInTheDocument();
 			});
 		});
 	});

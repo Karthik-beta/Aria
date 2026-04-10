@@ -12,13 +12,12 @@
  * @see {@link https://docs.erpnext.com/docs/user/manual/en/stock/packing-slip | ERPNext Packing Slip}
  */
 import type { Inventory } from "@aria/types";
-import {
-	BadRequestException,
-	ConflictException,
-	Logger,
-	NotFoundException,
-} from "@nestjs/common";
+import { BadRequestException, Logger, NotFoundException } from "@nestjs/common";
 import { Prisma } from "../../../generated/prisma/client";
+import {
+	allocateDocumentSeries,
+	getSeriesSeedValue,
+} from "../../../shared/document-series";
 import type { PrismaService } from "../../../shared/prisma.service";
 import {
 	toInventoryDeliveryNote,
@@ -38,6 +37,27 @@ export class DeliverySubService {
 
 	constructor(private readonly prisma: PrismaService) {}
 
+	private async lockDeliveryNoteRows(
+		tx: Prisma.TransactionClient,
+		deliveryNoteIds: string[],
+	): Promise<void> {
+		const uniqueIds = [...new Set(deliveryNoteIds.map((id) => id.trim()))]
+			.filter((id) => id.length > 0)
+			.sort();
+
+		if (uniqueIds.length === 0) {
+			return;
+		}
+
+		await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+			SELECT id
+			FROM delivery_notes
+			WHERE id IN (${Prisma.join(uniqueIds)})
+			ORDER BY id
+			FOR UPDATE
+		`);
+	}
+
 	// ============================================================================
 	// Delivery Note Methods
 	// ============================================================================
@@ -45,11 +65,20 @@ export class DeliverySubService {
 	/**
 	 * Generate a unique series number for a new Delivery Note.
 	 * Format: MAT-DN-YYYY-NNNNN.
-	 * Not atomic on its own — the caller retries on P2002 conflicts.
+	 * Uses a database-backed counter so concurrent writers stay bounded.
 	 */
 	private async generateDeliveryNoteSeries(date: Date): Promise<string> {
 		const year = date.getFullYear();
 		const prefix = `MAT-DN-${year}-`;
+
+		const existingCounter = await this.prisma.documentSeriesCounter.findUnique({
+			where: { key: prefix },
+			select: { value: true },
+		});
+
+		if (existingCounter) {
+			return allocateDocumentSeries(this.prisma, prefix);
+		}
 
 		const lastEntry = await this.prisma.deliveryNote.findFirst({
 			where: {
@@ -59,16 +88,12 @@ export class DeliverySubService {
 			select: { series: true },
 		});
 
-		let nextNumber = 1;
-		if (lastEntry) {
-			const numStr = lastEntry.series.slice(prefix.length);
-			const num = parseInt(numStr, 10);
-			if (!Number.isNaN(num)) {
-				nextNumber = num + 1;
-			}
-		}
-
-		return `${prefix}${String(nextNumber).padStart(5, "0")}`;
+		return allocateDocumentSeries(
+			this.prisma,
+			prefix,
+			5,
+			getSeriesSeedValue(prefix, lastEntry?.series),
+		);
 	}
 
 	/**
@@ -302,94 +327,76 @@ export class DeliverySubService {
 
 	/**
 	 * Create a new delivery note.
-	 * Retries up to 3 times on a series uniqueness conflict (P2002).
 	 * Item amounts are computed as quantity × rate on creation.
 	 */
 	async createDeliveryNote(
 		data: Inventory.CreateDeliveryNoteInput,
 	): Promise<Inventory.DeliveryNote> {
 		const postingDate = data.postingDate ?? new Date();
+		const series = await this.generateDeliveryNoteSeries(postingDate);
+		const itemsWithAmounts = data.items.map((item) => ({
+			itemCode: item.itemCode,
+			itemName: item.itemName,
+			description: item.description,
+			quantity: item.quantity,
+			uom: item.uom,
+			rate: item.rate ?? 0,
+			amount: item.quantity * (item.rate ?? 0),
+			warehouse: item.warehouse,
+		}));
 
-		for (let attempt = 0; attempt < 3; attempt++) {
-			const series = await this.generateDeliveryNoteSeries(postingDate);
-			try {
-				const itemsWithAmounts = data.items.map((item) => ({
-					itemCode: item.itemCode,
-					itemName: item.itemName,
-					description: item.description,
-					quantity: item.quantity,
-					uom: item.uom,
-					rate: item.rate ?? 0,
-					amount: item.quantity * (item.rate ?? 0),
-					warehouse: item.warehouse,
-				}));
+		const totals = this.computeDeliveryNoteTotals(
+			itemsWithAmounts,
+			data.additionalDiscountPercent,
+			data.additionalDiscountAmount,
+		);
 
-				const totals = this.computeDeliveryNoteTotals(
-					itemsWithAmounts,
-					data.additionalDiscountPercent,
-					data.additionalDiscountAmount,
-				);
-
-				const created = await this.prisma.deliveryNote.create({
-					data: {
-						series,
-						postingDate,
-						customer: data.customer,
-						company: data.company,
-						status: "DRAFT",
-						isReturn: data.isReturn ?? false,
-						currency: data.currency,
-						priceList: data.priceList,
-						sourceWarehouse: data.sourceWarehouse,
-						...totals,
-						additionalDiscountOn: data.additionalDiscountOn,
-						additionalDiscountPercent: data.additionalDiscountPercent,
-						additionalDiscountAmount: data.additionalDiscountAmount,
-						shippingAddress: data.shippingAddress,
-						dispatchAddress: data.dispatchAddress,
-						companyAddress: data.companyAddress,
-						companyContact: data.companyContact,
-						companyTRN: data.companyTRN,
-						terms: data.terms,
-						termsContent: data.termsContent,
-						transporter: data.transporter,
-						driverName: data.driverName,
-						driver: data.driver,
-						transportReceiptDate: data.transportReceiptDate,
-						transportReceiptNo: data.transportReceiptNo,
-						vehicleNo: data.vehicleNo,
-						customerPoNo: data.customerPoNo,
-						customerPoDate: data.customerPoDate,
-						salesPartner: data.salesPartner,
-						commissionRate: data.commissionRate,
-						letterHead: data.letterHead,
-						printHeading: data.printHeading,
-						printWithoutAmount: data.printWithoutAmount ?? false,
-						groupSameItems: data.groupSameItems ?? false,
-						permitNumber: data.permitNumber,
-						vatEmirate: data.vatEmirate,
-						project: data.project,
-						items: {
-							create: itemsWithAmounts,
-						},
-					},
-					include: { items: true },
-				});
-				return toInventoryDeliveryNote(created);
-			} catch (error) {
-				const isSeriesConflict =
-					error instanceof Prisma.PrismaClientKnownRequestError &&
-					error.code === "P2002";
-				if (isSeriesConflict && attempt < 2) {
-					await new Promise((resolve) =>
-						setTimeout(resolve, this.computeBackoffMs(attempt)),
-					);
-					continue;
-				}
-				throw error;
-			}
-		}
-		throw new Error("Failed to allocate a unique series number");
+		const created = await this.prisma.deliveryNote.create({
+			data: {
+				series,
+				postingDate,
+				customer: data.customer,
+				company: data.company,
+				status: "DRAFT",
+				isReturn: data.isReturn ?? false,
+				currency: data.currency,
+				priceList: data.priceList,
+				sourceWarehouse: data.sourceWarehouse,
+				...totals,
+				additionalDiscountOn: data.additionalDiscountOn,
+				additionalDiscountPercent: data.additionalDiscountPercent,
+				additionalDiscountAmount: data.additionalDiscountAmount,
+				shippingAddress: data.shippingAddress,
+				dispatchAddress: data.dispatchAddress,
+				companyAddress: data.companyAddress,
+				companyContact: data.companyContact,
+				companyTRN: data.companyTRN,
+				terms: data.terms,
+				termsContent: data.termsContent,
+				transporter: data.transporter,
+				driverName: data.driverName,
+				driver: data.driver,
+				transportReceiptDate: data.transportReceiptDate,
+				transportReceiptNo: data.transportReceiptNo,
+				vehicleNo: data.vehicleNo,
+				customerPoNo: data.customerPoNo,
+				customerPoDate: data.customerPoDate,
+				salesPartner: data.salesPartner,
+				commissionRate: data.commissionRate,
+				letterHead: data.letterHead,
+				printHeading: data.printHeading,
+				printWithoutAmount: data.printWithoutAmount ?? false,
+				groupSameItems: data.groupSameItems ?? false,
+				permitNumber: data.permitNumber,
+				vatEmirate: data.vatEmirate,
+				project: data.project,
+				items: {
+					create: itemsWithAmounts,
+				},
+			},
+			include: { items: true },
+		});
+		return toInventoryDeliveryNote(created);
 	}
 
 	/**
@@ -665,10 +672,6 @@ export class DeliverySubService {
 	 * @param attempt - Zero-based attempt index (0 = first retry).
 	 * @returns Delay in milliseconds.
 	 */
-	private computeBackoffMs(attempt: number): number {
-		return 50 * 2 ** attempt + Math.floor(Math.random() * 50);
-	}
-
 	/**
 	 * Generate a unique series number for a pick list using prefix STO-PICK.
 	 * Uses read-then-retry with exponential backoff to handle concurrent writes.
@@ -677,22 +680,27 @@ export class DeliverySubService {
 		const year = date.getFullYear();
 		const prefix = `STO-PICK-${year}-`;
 
+		const existingCounter = await this.prisma.documentSeriesCounter.findUnique({
+			where: { key: prefix },
+			select: { value: true },
+		});
+
+		if (existingCounter) {
+			return allocateDocumentSeries(this.prisma, prefix);
+		}
+
 		const lastPickList = await this.prisma.pickList.findFirst({
 			where: { series: { startsWith: prefix } },
 			orderBy: { series: "desc" },
 			select: { series: true },
 		});
 
-		let nextNumber = 1;
-		if (lastPickList) {
-			const numStr = lastPickList.series.slice(prefix.length);
-			const num = parseInt(numStr, 10);
-			if (!Number.isNaN(num)) {
-				nextNumber = num + 1;
-			}
-		}
-
-		return `${prefix}${String(nextNumber).padStart(5, "0")}`;
+		return allocateDocumentSeries(
+			this.prisma,
+			prefix,
+			5,
+			getSeriesSeedValue(prefix, lastPickList?.series),
+		);
 	}
 
 	/**
@@ -754,65 +762,42 @@ export class DeliverySubService {
 
 	/**
 	 * Create a new pick list.
-	 * Retries up to 3 times on a series uniqueness conflict (P2002).
 	 */
 	async createPickList(
 		data: Inventory.CreatePickListInput,
 	): Promise<Inventory.PickList> {
 		const postingDate = new Date();
+		const series = await this.generatePickListSeries(postingDate);
+		const created = await this.prisma.pickList.create({
+			data: {
+				series,
+				company: data.company,
+				customer: data.customer,
+				status: data.status ?? "DRAFT",
+				purpose: data.purpose ?? "MATERIAL_TRANSFER_FOR_MANUFACTURE",
+				workOrder: data.workOrder,
+				warehouse: data.warehouse,
+				considerRejectedWarehouses: data.considerRejectedWarehouses ?? false,
+				pickManually: data.pickManually ?? false,
+				ignorePricingRule: data.ignorePricingRule ?? false,
+				scanMode: data.scanMode ?? false,
+				promptQty: data.promptQty ?? false,
+				scanBarcode: data.scanBarcode,
+				groupSameItems: data.groupSameItems ?? false,
+				items: {
+					create: (data.items ?? []).map((item) => ({
+						item: item.item,
+						warehouse: item.warehouse,
+						qty: item.qty,
+						stockQty: item.stockQty,
+						pickedQty: item.pickedQty,
+					})),
+				},
+			},
+			include: { items: true },
+		});
 
-		for (let attempt = 0; attempt < 3; attempt++) {
-			const series = await this.generatePickListSeries(postingDate);
-			try {
-				const created = await this.prisma.pickList.create({
-					data: {
-						series,
-						company: data.company,
-						customer: data.customer,
-						status: data.status ?? "DRAFT",
-						purpose: data.purpose ?? "MATERIAL_TRANSFER_FOR_MANUFACTURE",
-						workOrder: data.workOrder,
-						warehouse: data.warehouse,
-						considerRejectedWarehouses:
-							data.considerRejectedWarehouses ?? false,
-						pickManually: data.pickManually ?? false,
-						ignorePricingRule: data.ignorePricingRule ?? false,
-						scanMode: data.scanMode ?? false,
-						promptQty: data.promptQty ?? false,
-						scanBarcode: data.scanBarcode,
-						groupSameItems: data.groupSameItems ?? false,
-						items: {
-							create: (data.items ?? []).map((item) => ({
-								item: item.item,
-								warehouse: item.warehouse,
-								qty: item.qty,
-								stockQty: item.stockQty,
-								pickedQty: item.pickedQty,
-							})),
-						},
-					},
-					include: { items: true },
-				});
-
-				return toInventoryPickList(created);
-			} catch (error) {
-				const isSeriesConflict =
-					error instanceof Prisma.PrismaClientKnownRequestError &&
-					error.code === "P2002";
-				if (isSeriesConflict && attempt < 2) {
-					await new Promise((resolve) =>
-						setTimeout(resolve, this.computeBackoffMs(attempt)),
-					);
-					continue;
-				}
-				if (!isSeriesConflict) {
-					throw error;
-				}
-				// Series conflict on last attempt — fall through to throw below.
-			}
-		}
-
-		throw new ConflictException("Failed to allocate a unique series number");
+		return toInventoryPickList(created);
 	}
 
 	/**
@@ -991,22 +976,27 @@ export class DeliverySubService {
 		const year = date.getFullYear();
 		const prefix = `MAT-DT-${year}-`;
 
+		const existingCounter = await this.prisma.documentSeriesCounter.findUnique({
+			where: { key: prefix },
+			select: { value: true },
+		});
+
+		if (existingCounter) {
+			return allocateDocumentSeries(this.prisma, prefix);
+		}
+
 		const lastTrip = await this.prisma.deliveryTrip.findFirst({
 			where: { series: { startsWith: prefix } },
 			orderBy: { series: "desc" },
 			select: { series: true },
 		});
 
-		let nextNumber = 1;
-		if (lastTrip) {
-			const numStr = lastTrip.series.slice(prefix.length);
-			const num = parseInt(numStr, 10);
-			if (!Number.isNaN(num)) {
-				nextNumber = num + 1;
-			}
-		}
-
-		return `${prefix}${String(nextNumber).padStart(5, "0")}`;
+		return allocateDocumentSeries(
+			this.prisma,
+			prefix,
+			5,
+			getSeriesSeedValue(prefix, lastTrip?.series),
+		);
 	}
 
 	/**
@@ -1070,62 +1060,39 @@ export class DeliverySubService {
 
 	/**
 	 * Create a delivery trip with its stops.
-	 * Series generation uses retry + exponential backoff to handle concurrent writes.
+	 * Series generation uses a database-backed allocator to stay safe under concurrency.
 	 */
 	async createDeliveryTrip(
 		data: Inventory.CreateDeliveryTripInput,
 	): Promise<Inventory.DeliveryTrip> {
 		const departureTime = data.departureTime ?? undefined;
 		const createdAt = new Date();
-
-		for (let attempt = 0; attempt < 3; attempt++) {
-			const series = await this.generateDeliveryTripSeries(createdAt);
-			try {
-				const created = await this.prisma.deliveryTrip.create({
-					data: {
-						series,
-						company: data.company,
-						status: data.status ?? "DRAFT",
-						driver: data.driver ?? null,
-						driverAddress: data.driverAddress ?? null,
-						vehicle: data.vehicle ?? null,
-						departureTime: departureTime ?? null,
-						initialEmailNotificationSent:
-							data.initialEmailNotificationSent ?? false,
-						stops: {
-							create: (data.stops ?? []).map((stop) => ({
-								stopNumber: stop.stopNumber,
-								customer: stop.customer ?? null,
-								addressName: stop.addressName,
-								locked: stop.locked ?? false,
-								deliveryNote: stop.deliveryNote ?? null,
-								estimatedArrival: stop.estimatedArrival ?? null,
-							})),
-						},
-					},
-					include: { stops: { orderBy: { stopNumber: "asc" } } },
-				});
-				return toInventoryDeliveryTrip(created);
-			} catch (error) {
-				const isSeriesConflict =
-					error instanceof Prisma.PrismaClientKnownRequestError &&
-					error.code === "P2002";
-				if (isSeriesConflict && attempt < 2) {
-					// Back off before retrying series allocation; computeBackoffMs uses the
-					// current attempt (e.g. for exponential backoff) to determine the delay.
-					await new Promise((resolve) =>
-						setTimeout(resolve, this.computeBackoffMs(attempt)),
-					);
-					continue;
-				}
-				if (!isSeriesConflict) {
-					throw error;
-				}
-				// Series conflict on last attempt — fall through to throw below.
-			}
-		}
-
-		throw new ConflictException("Failed to allocate a unique series number");
+		const series = await this.generateDeliveryTripSeries(createdAt);
+		const created = await this.prisma.deliveryTrip.create({
+			data: {
+				series,
+				company: data.company,
+				status: data.status ?? "DRAFT",
+				driver: data.driver ?? null,
+				driverAddress: data.driverAddress ?? null,
+				vehicle: data.vehicle ?? null,
+				departureTime: departureTime ?? null,
+				initialEmailNotificationSent:
+					data.initialEmailNotificationSent ?? false,
+				stops: {
+					create: (data.stops ?? []).map((stop) => ({
+						stopNumber: stop.stopNumber,
+						customer: stop.customer ?? null,
+						addressName: stop.addressName,
+						locked: stop.locked ?? false,
+						deliveryNote: stop.deliveryNote ?? null,
+						estimatedArrival: stop.estimatedArrival ?? null,
+					})),
+				},
+			},
+			include: { stops: { orderBy: { stopNumber: "asc" } } },
+		});
+		return toInventoryDeliveryTrip(created);
 	}
 
 	/**
@@ -1282,26 +1249,34 @@ export class DeliverySubService {
 	// Packing Slip
 	// ─────────────────────────────────────────────────────────────────────────────
 
-	private async generatePackingSlipSeries(date: Date): Promise<string> {
+	private async generatePackingSlipSeries(
+		date: Date,
+		client: Prisma.TransactionClient | PrismaService = this.prisma,
+	): Promise<string> {
 		const year = date.getFullYear();
 		const prefix = `MAT-PAC-${year}-`;
 
-		const lastEntry = await this.prisma.packingSlip.findFirst({
+		const existingCounter = await client.documentSeriesCounter.findUnique({
+			where: { key: prefix },
+			select: { value: true },
+		});
+
+		if (existingCounter) {
+			return allocateDocumentSeries(client, prefix);
+		}
+
+		const lastEntry = await client.packingSlip.findFirst({
 			where: { series: { startsWith: prefix } },
 			orderBy: { series: "desc" },
 			select: { series: true },
 		});
 
-		let nextNumber = 1;
-		if (lastEntry) {
-			const numStr = lastEntry.series.slice(prefix.length);
-			const num = parseInt(numStr, 10);
-			if (!Number.isNaN(num)) {
-				nextNumber = num + 1;
-			}
-		}
-
-		return `${prefix}${String(nextNumber).padStart(5, "0")}`;
+		return allocateDocumentSeries(
+			client,
+			prefix,
+			5,
+			getSeriesSeedValue(prefix, lastEntry?.series),
+		);
 	}
 
 	/**
@@ -1348,6 +1323,7 @@ export class DeliverySubService {
 	 * Validate that package numbers don't overlap with existing submitted packing slips.
 	 */
 	private async validateCaseNos(
+		tx: Prisma.TransactionClient,
 		deliveryNoteId: string,
 		fromCaseNo: number,
 		toCaseNo: number,
@@ -1362,7 +1338,7 @@ export class DeliverySubService {
 			);
 		}
 
-		const overlapping = await this.prisma.packingSlip.findFirst({
+		const overlapping = await tx.packingSlip.findFirst({
 			where: {
 				deliveryNoteId,
 				status: "SUBMITTED",
@@ -1393,11 +1369,12 @@ export class DeliverySubService {
 	 * Validate that item quantities don't exceed remaining unpacked quantities.
 	 */
 	private async validatePackingSlipItemQtys(
+		tx: Prisma.TransactionClient,
 		items: { deliveryNoteItemId: string; qty: number }[],
 		excludePackingSlipId?: string,
 	): Promise<void> {
 		for (const item of items) {
-			const dn = await this.prisma.deliveryNoteItem.findUnique({
+			const dn = await tx.deliveryNoteItem.findUnique({
 				where: { id: item.deliveryNoteItemId },
 				select: { quantity: true, packedQty: true },
 			});
@@ -1411,7 +1388,7 @@ export class DeliverySubService {
 			// When updating, subtract the current packing slip's contribution from packedQty
 			let alreadyPacked = dn.packedQty;
 			if (excludePackingSlipId) {
-				const existingQty = await this.prisma.packingSlipItem.findFirst({
+				const existingQty = await tx.packingSlipItem.findFirst({
 					where: {
 						packingSlipId: excludePackingSlipId,
 						deliveryNoteItemId: item.deliveryNoteItemId,
@@ -1507,149 +1484,40 @@ export class DeliverySubService {
 	async createPackingSlip(
 		data: Inventory.CreatePackingSlipInput,
 	): Promise<Inventory.PackingSlip> {
-		const dn = await this.prisma.deliveryNote.findUnique({
-			where: { id: data.deliveryNoteId },
-			select: { id: true, status: true },
-		});
+		const created = await this.prisma.$transaction(async (tx) => {
+			await this.lockDeliveryNoteRows(tx, [data.deliveryNoteId]);
 
-		if (!dn) {
-			throw new NotFoundException(
-				`Delivery note with ID "${data.deliveryNoteId}" not found.`,
-			);
-		}
+			const dn = await tx.deliveryNote.findUnique({
+				where: { id: data.deliveryNoteId },
+				select: { id: true, status: true },
+			});
 
-		if (dn.status !== "DRAFT") {
-			throw new BadRequestException(
-				"A Packing Slip can only be created for a Draft Delivery Note.",
-			);
-		}
-
-		const fromCaseNo = data.fromCaseNo;
-		const toCaseNo = data.toCaseNo ?? fromCaseNo;
-
-		await this.validateCaseNos(data.deliveryNoteId, fromCaseNo, toCaseNo);
-		await this.validatePackingSlipItemQtys(data.items);
-
-		// Auto-fill missing weight / UOM from Item master (ERPNext: set_missing_values)
-		const uniqueCodes = [...new Set(data.items.map((i) => i.itemCode))];
-		const itemMasters = await this.prisma.inventoryItem.findMany({
-			where: { code: { in: uniqueCodes } },
-			select: { code: true, weightPerUnit: true, weightUom: true },
-		});
-		const masterByCode = new Map(itemMasters.map((m) => [m.code, m]));
-		const enrichedItems = data.items.map((i) => {
-			const master = masterByCode.get(i.itemCode);
-			return {
-				...i,
-				netWeight:
-					i.netWeight != null && i.netWeight !== 0
-						? i.netWeight
-						: (master?.weightPerUnit ?? 0),
-				weightUom: i.weightUom ?? master?.weightUom ?? null,
-			};
-		});
-
-		const weights = this.computePackingSlipWeights(
-			enrichedItems.map((i) => ({
-				netWeight: i.netWeight,
-				qty: i.qty,
-				weightUom: i.weightUom,
-			})),
-			data.grossWeightPkg,
-		);
-
-		for (let attempt = 0; attempt < 3; attempt++) {
-			const series = await this.generatePackingSlipSeries(new Date());
-			try {
-				const ps = await this.prisma.packingSlip.create({
-					data: {
-						series,
-						status: "DRAFT",
-						deliveryNoteId: data.deliveryNoteId,
-						fromCaseNo,
-						toCaseNo,
-						netWeightPkg: weights.netWeightPkg,
-						netWeightUom: weights.netWeightUom,
-						grossWeightPkg: weights.grossWeightPkg,
-						grossWeightUom: data.grossWeightUom ?? weights.grossWeightUom,
-						letterHead: data.letterHead,
-						items: {
-							create: enrichedItems.map((item) => ({
-								deliveryNoteItemId: item.deliveryNoteItemId,
-								itemCode: item.itemCode,
-								itemName: item.itemName,
-								description: item.description,
-								qty: item.qty,
-								netWeight: item.netWeight,
-								weightUom: item.weightUom,
-								batchNo: item.batchNo,
-							})),
-						},
-					},
-					include: { items: true },
-				});
-				return toInventoryPackingSlip(ps);
-			} catch (error) {
-				const isConflict =
-					error instanceof Prisma.PrismaClientKnownRequestError &&
-					error.code === "P2002";
-				if (isConflict && attempt < 2) {
-					await new Promise((r) =>
-						setTimeout(r, this.computeBackoffMs(attempt)),
-					);
-					continue;
-				}
-				throw error;
+			if (!dn) {
+				throw new NotFoundException(
+					`Delivery note with ID "${data.deliveryNoteId}" not found.`,
+				);
 			}
-		}
-		throw new Error("Failed to allocate a unique packing slip series");
-	}
 
-	/**
-	 * Update a draft packing slip. Only draft slips can be updated.
-	 */
-	async updatePackingSlip(
-		data: Inventory.UpdatePackingSlipInput,
-	): Promise<Inventory.PackingSlip> {
-		const existing = await this.prisma.packingSlip.findUnique({
-			where: { id: data.id },
-			include: { items: true },
-		});
+			if (dn.status !== "DRAFT") {
+				throw new BadRequestException(
+					"A Packing Slip can only be created for a Draft Delivery Note.",
+				);
+			}
 
-		if (!existing) {
-			throw new NotFoundException(
-				`Packing slip with ID "${data.id}" not found.`,
-			);
-		}
+			const fromCaseNo = data.fromCaseNo;
+			const toCaseNo = data.toCaseNo ?? fromCaseNo;
 
-		if (existing.status !== "DRAFT") {
-			throw new BadRequestException("Only Draft packing slips can be edited.");
-		}
+			await this.validateCaseNos(tx, data.deliveryNoteId, fromCaseNo, toCaseNo);
+			await this.validatePackingSlipItemQtys(tx, data.items);
 
-		const fromCaseNo = data.fromCaseNo ?? existing.fromCaseNo;
-		const toCaseNo = data.toCaseNo ?? existing.toCaseNo;
-
-		await this.validateCaseNos(
-			existing.deliveryNoteId,
-			fromCaseNo,
-			toCaseNo,
-			existing.id,
-		);
-
-		if (data.items) {
-			await this.validatePackingSlipItemQtys(data.items, existing.id);
-		}
-
-		// Auto-fill missing weight / UOM from Item master when new items are provided
-		let enrichedUpdateItems: typeof data.items | undefined;
-		if (data.items) {
+			// Auto-fill missing weight / UOM from Item master (ERPNext: set_missing_values)
 			const uniqueCodes = [...new Set(data.items.map((i) => i.itemCode))];
-			const itemMasters = await this.prisma.inventoryItem.findMany({
+			const itemMasters = await tx.inventoryItem.findMany({
 				where: { code: { in: uniqueCodes } },
 				select: { code: true, weightPerUnit: true, weightUom: true },
 			});
 			const masterByCode = new Map(itemMasters.map((m) => [m.code, m]));
-			enrichedUpdateItems = data.items.map((i) => {
+			const enrichedItems = data.items.map((i) => {
 				const master = masterByCode.get(i.itemCode);
 				return {
 					...i,
@@ -1660,25 +1528,139 @@ export class DeliverySubService {
 					weightUom: i.weightUom ?? master?.weightUom ?? null,
 				};
 			});
-		}
 
-		const itemsForWeight = (enrichedUpdateItems ?? existing.items).map(
-			(i: {
-				netWeight?: number | null;
-				qty?: number | null;
-				weightUom?: string | null;
-			}) => ({
-				netWeight: i.netWeight ?? 0,
-				qty: i.qty ?? 0,
-				weightUom: i.weightUom,
-			}),
-		);
-		const weights = this.computePackingSlipWeights(
-			itemsForWeight,
-			data.grossWeightPkg ?? existing.grossWeightPkg,
-		);
+			const weights = this.computePackingSlipWeights(
+				enrichedItems.map((i) => ({
+					netWeight: i.netWeight,
+					qty: i.qty,
+					weightUom: i.weightUom,
+				})),
+				data.grossWeightPkg,
+			);
 
+			const series = await this.generatePackingSlipSeries(new Date(), tx);
+			return tx.packingSlip.create({
+				data: {
+					series,
+					status: "DRAFT",
+					deliveryNoteId: data.deliveryNoteId,
+					fromCaseNo,
+					toCaseNo,
+					netWeightPkg: weights.netWeightPkg,
+					netWeightUom: weights.netWeightUom,
+					grossWeightPkg: weights.grossWeightPkg,
+					grossWeightUom: data.grossWeightUom ?? weights.grossWeightUom,
+					letterHead: data.letterHead,
+					items: {
+						create: enrichedItems.map((item) => ({
+							deliveryNoteItemId: item.deliveryNoteItemId,
+							itemCode: item.itemCode,
+							itemName: item.itemName,
+							description: item.description,
+							qty: item.qty,
+							netWeight: item.netWeight,
+							weightUom: item.weightUom,
+							batchNo: item.batchNo,
+						})),
+					},
+				},
+				include: { items: true },
+			});
+		});
+
+		return toInventoryPackingSlip(created);
+	}
+
+	/**
+	 * Update a draft packing slip. Only draft slips can be updated.
+	 */
+	async updatePackingSlip(
+		data: Inventory.UpdatePackingSlipInput,
+	): Promise<Inventory.PackingSlip> {
 		const updated = await this.prisma.$transaction(async (tx) => {
+			const reference = await tx.packingSlip.findUnique({
+				where: { id: data.id },
+				select: { deliveryNoteId: true },
+			});
+
+			if (!reference) {
+				throw new NotFoundException(
+					`Packing slip with ID "${data.id}" not found.`,
+				);
+			}
+
+			await this.lockDeliveryNoteRows(tx, [reference.deliveryNoteId]);
+
+			const existing = await tx.packingSlip.findUnique({
+				where: { id: data.id },
+				include: { items: true },
+			});
+
+			if (!existing) {
+				throw new NotFoundException(
+					`Packing slip with ID "${data.id}" not found.`,
+				);
+			}
+
+			if (existing.status !== "DRAFT") {
+				throw new BadRequestException(
+					"Only Draft packing slips can be edited.",
+				);
+			}
+
+			const fromCaseNo = data.fromCaseNo ?? existing.fromCaseNo;
+			const toCaseNo = data.toCaseNo ?? existing.toCaseNo;
+
+			await this.validateCaseNos(
+				tx,
+				existing.deliveryNoteId,
+				fromCaseNo,
+				toCaseNo,
+				existing.id,
+			);
+
+			if (data.items) {
+				await this.validatePackingSlipItemQtys(tx, data.items, existing.id);
+			}
+
+			// Auto-fill missing weight / UOM from Item master when new items are provided
+			let enrichedUpdateItems: typeof data.items | undefined;
+			if (data.items) {
+				const uniqueCodes = [...new Set(data.items.map((i) => i.itemCode))];
+				const itemMasters = await tx.inventoryItem.findMany({
+					where: { code: { in: uniqueCodes } },
+					select: { code: true, weightPerUnit: true, weightUom: true },
+				});
+				const masterByCode = new Map(itemMasters.map((m) => [m.code, m]));
+				enrichedUpdateItems = data.items.map((i) => {
+					const master = masterByCode.get(i.itemCode);
+					return {
+						...i,
+						netWeight:
+							i.netWeight != null && i.netWeight !== 0
+								? i.netWeight
+								: (master?.weightPerUnit ?? 0),
+						weightUom: i.weightUom ?? master?.weightUom ?? null,
+					};
+				});
+			}
+
+			const itemsForWeight = (enrichedUpdateItems ?? existing.items).map(
+				(i: {
+					netWeight?: number | null;
+					qty?: number | null;
+					weightUom?: string | null;
+				}) => ({
+					netWeight: i.netWeight ?? 0,
+					qty: i.qty ?? 0,
+					weightUom: i.weightUom,
+				}),
+			);
+			const weights = this.computePackingSlipWeights(
+				itemsForWeight,
+				data.grossWeightPkg ?? existing.grossWeightPkg,
+			);
+
 			if (enrichedUpdateItems) {
 				await tx.packingSlipItem.deleteMany({
 					where: { packingSlipId: existing.id },
@@ -1725,33 +1707,45 @@ export class DeliverySubService {
 	 * on each referenced delivery note item.
 	 */
 	async submitPackingSlip(id: string): Promise<Inventory.PackingSlip> {
-		const existing = await this.prisma.packingSlip.findUnique({
-			where: { id },
-			include: { items: true },
-		});
-
-		if (!existing) {
-			throw new NotFoundException(`Packing slip with ID "${id}" not found.`);
-		}
-
-		if (existing.status !== "DRAFT") {
-			throw new BadRequestException(
-				"Only Draft packing slips can be submitted.",
-			);
-		}
-
-		// Validate case nos (no overlap with already-submitted ones)
-		await this.validateCaseNos(
-			existing.deliveryNoteId,
-			existing.fromCaseNo,
-			existing.toCaseNo,
-			existing.id,
-		);
-
-		// Validate quantities (fresh check at submit time)
-		await this.validatePackingSlipItemQtys(existing.items, existing.id);
-
 		const updated = await this.prisma.$transaction(async (tx) => {
+			const reference = await tx.packingSlip.findUnique({
+				where: { id },
+				select: { deliveryNoteId: true },
+			});
+
+			if (!reference) {
+				throw new NotFoundException(`Packing slip with ID "${id}" not found.`);
+			}
+
+			await this.lockDeliveryNoteRows(tx, [reference.deliveryNoteId]);
+
+			const existing = await tx.packingSlip.findUnique({
+				where: { id },
+				include: { items: true },
+			});
+
+			if (!existing) {
+				throw new NotFoundException(`Packing slip with ID "${id}" not found.`);
+			}
+
+			if (existing.status !== "DRAFT") {
+				throw new BadRequestException(
+					"Only Draft packing slips can be submitted.",
+				);
+			}
+
+			// Validate case nos (no overlap with already-submitted ones)
+			await this.validateCaseNos(
+				tx,
+				existing.deliveryNoteId,
+				existing.fromCaseNo,
+				existing.toCaseNo,
+				existing.id,
+			);
+
+			// Validate quantities (fresh check at submit time)
+			await this.validatePackingSlipItemQtys(tx, existing.items, existing.id);
+
 			for (const item of existing.items) {
 				await tx.deliveryNoteItem.update({
 					where: { id: item.deliveryNoteItemId },
@@ -1773,22 +1767,33 @@ export class DeliverySubService {
 	 * Cancel a submitted packing slip. Reverses packedQty on delivery note items.
 	 */
 	async cancelPackingSlip(id: string): Promise<Inventory.PackingSlip> {
-		const existing = await this.prisma.packingSlip.findUnique({
-			where: { id },
-			include: { items: true },
-		});
-
-		if (!existing) {
-			throw new NotFoundException(`Packing slip with ID "${id}" not found.`);
-		}
-
-		if (existing.status !== "SUBMITTED") {
-			throw new BadRequestException(
-				"Only Submitted packing slips can be cancelled.",
-			);
-		}
-
 		const updated = await this.prisma.$transaction(async (tx) => {
+			const reference = await tx.packingSlip.findUnique({
+				where: { id },
+				select: { deliveryNoteId: true },
+			});
+
+			if (!reference) {
+				throw new NotFoundException(`Packing slip with ID "${id}" not found.`);
+			}
+
+			await this.lockDeliveryNoteRows(tx, [reference.deliveryNoteId]);
+
+			const existing = await tx.packingSlip.findUnique({
+				where: { id },
+				include: { items: true },
+			});
+
+			if (!existing) {
+				throw new NotFoundException(`Packing slip with ID "${id}" not found.`);
+			}
+
+			if (existing.status !== "SUBMITTED") {
+				throw new BadRequestException(
+					"Only Submitted packing slips can be cancelled.",
+				);
+			}
+
 			for (const item of existing.items) {
 				await tx.deliveryNoteItem.update({
 					where: { id: item.deliveryNoteItemId },
@@ -1814,23 +1819,36 @@ export class DeliverySubService {
 	async deletePackingSlip(
 		id: string,
 	): Promise<{ success: boolean; id: string }> {
-		const existing = await this.prisma.packingSlip.findUnique({
-			where: { id },
-			select: { id: true, status: true },
+		return this.prisma.$transaction(async (tx) => {
+			const reference = await tx.packingSlip.findUnique({
+				where: { id },
+				select: { deliveryNoteId: true },
+			});
+
+			if (!reference) {
+				throw new NotFoundException(`Packing slip with ID "${id}" not found.`);
+			}
+
+			await this.lockDeliveryNoteRows(tx, [reference.deliveryNoteId]);
+
+			const existing = await tx.packingSlip.findUnique({
+				where: { id },
+				select: { id: true, status: true },
+			});
+
+			if (!existing) {
+				throw new NotFoundException(`Packing slip with ID "${id}" not found.`);
+			}
+
+			if (existing.status === "SUBMITTED") {
+				throw new BadRequestException(
+					"Submitted packing slips cannot be deleted. Cancel them first.",
+				);
+			}
+
+			await tx.packingSlip.delete({ where: { id } });
+			return { success: true, id };
 		});
-
-		if (!existing) {
-			throw new NotFoundException(`Packing slip with ID "${id}" not found.`);
-		}
-
-		if (existing.status === "SUBMITTED") {
-			throw new BadRequestException(
-				"Submitted packing slips cannot be deleted. Cancel them first.",
-			);
-		}
-
-		await this.prisma.packingSlip.delete({ where: { id } });
-		return { success: true, id };
 	}
 
 	/**
@@ -1841,22 +1859,38 @@ export class DeliverySubService {
 	): Promise<{ success: boolean; count: number; ids: string[] }> {
 		const uniqueIds = [...new Set(ids)];
 
-		const submitted = await this.prisma.packingSlip.findMany({
-			where: { id: { in: uniqueIds }, status: "SUBMITTED" },
-			select: { series: true },
-		});
+		return this.prisma.$transaction(async (tx) => {
+			const deliveryNoteRefs = await tx.packingSlip.findMany({
+				where: { id: { in: uniqueIds } },
+				select: { deliveryNoteId: true },
+			});
 
-		if (submitted.length > 0) {
-			const series = submitted.map((s) => s.series).join(", ");
-			throw new BadRequestException(
-				`Cannot delete submitted packing slips: ${series}. Cancel them first.`,
+			await this.lockDeliveryNoteRows(
+				tx,
+				deliveryNoteRefs.map((slip) => slip.deliveryNoteId),
 			);
-		}
 
-		const result = await this.prisma.packingSlip.deleteMany({
-			where: { id: { in: uniqueIds } },
+			const currentSlips = await tx.packingSlip.findMany({
+				where: { id: { in: uniqueIds } },
+				select: { series: true, status: true },
+			});
+
+			const submitted = currentSlips.filter(
+				(slip) => slip.status === "SUBMITTED",
+			);
+
+			if (submitted.length > 0) {
+				const series = submitted.map((slip) => slip.series).join(", ");
+				throw new BadRequestException(
+					`Cannot delete submitted packing slips: ${series}. Cancel them first.`,
+				);
+			}
+
+			const result = await tx.packingSlip.deleteMany({
+				where: { id: { in: uniqueIds } },
+			});
+
+			return { success: true, count: result.count, ids: uniqueIds };
 		});
-
-		return { success: true, count: result.count, ids: uniqueIds };
 	}
 }

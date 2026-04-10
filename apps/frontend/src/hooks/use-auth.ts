@@ -11,6 +11,11 @@ import {
 	authorizationIsSupervisorOf,
 	EMPTY_AUTHORIZATION_DATA,
 } from "@/lib/auth/authorization";
+import {
+	buildDevelopmentAuthorization,
+	buildDevelopmentSession,
+	isDevelopmentAuthBypassEnabled,
+} from "@/lib/auth/development-bypass";
 
 /**
  * Hook to access the current user's server-hydrated authorization context.
@@ -21,30 +26,21 @@ import {
  */
 export function useAuth() {
 	const authState = useAuthStateContext();
-
-	const isDevelopmentBypass =
-		process.env.NODE_ENV === "development" &&
-		process.env.NEXT_PUBLIC_DEV_AUTH_BYPASS === "true";
+	const isDevelopmentBypass = isDevelopmentAuthBypassEnabled();
 
 	return useMemo(() => {
 		if (isDevelopmentBypass) {
+			const session = buildDevelopmentSession();
+			const authorization = buildDevelopmentAuthorization();
+
 			return {
 				isAuthenticated: true,
 				isActive: true,
-				user: {
-					id: "dev-user",
-					email: "admin@aria.local",
-					name: "System Administrator",
-				},
-				roles: ["super_admin"],
-				permissions: ["system:*"],
-				apps: {
-					inventory: { roles: ["admin"] },
-					asset: { roles: ["admin"] },
-					crm: { roles: ["admin"] },
-					hrms: { roles: ["admin"] },
-				},
-				supervisedApps: ["inventory", "asset", "crm", "hrms"],
+				user: session.user,
+				roles: authorization.roles,
+				permissions: authorization.permissions,
+				apps: authorization.apps,
+				supervisedApps: authorization.supervisedApps,
 				hasPermission: () => true,
 				hasAnyPermission: () => true,
 				hasRole: () => true,

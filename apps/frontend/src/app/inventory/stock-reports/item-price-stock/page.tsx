@@ -1,5 +1,6 @@
 "use client";
 
+import type { Inventory } from "@aria/types";
 import type { ColumnDef } from "@tanstack/react-table";
 import * as React from "react";
 import {
@@ -32,7 +33,12 @@ import {
 
 type ItemPriceStockSubscriptionEvent = {
 	type: "created" | "updated" | "deleted";
-	data: { id: string };
+	data: {
+		id: string;
+		company?: string | null;
+		warehouses: string[];
+		itemCodes: string[];
+	};
 };
 
 type FilterState = {
@@ -56,15 +62,27 @@ const INITIAL_FILTERS: FilterState = {
 };
 
 function ItemPriceStockRealtimeSubscriptions({
-	onData,
+	scope,
+	onInventoryData,
+	onItemData,
 }: {
-	onData?: (event: ItemPriceStockSubscriptionEvent) => void;
+	scope:
+		| {
+				company?: string;
+				warehouse?: string;
+				itemCode?: string;
+		  }
+		| undefined;
+	onInventoryData?: (event: ItemPriceStockSubscriptionEvent) => void;
+	onItemData?: (event: Inventory.Item | { id: string }) => void;
 }) {
-	trpc.inventory.onStockEntriesChanged.useSubscription(undefined, {
-		onData,
+	trpc.inventory.onStockEntriesChanged.useSubscription(scope, {
+		onData: onInventoryData,
 	});
 	trpc.inventory.onItemsChanged.useSubscription(undefined, {
-		onData,
+		onData: (event) => {
+			onItemData?.(event.data);
+		},
 	});
 
 	return null;
@@ -111,6 +129,15 @@ export default function ItemPriceStockPage() {
 		filters.itemGroup,
 		filters.warehouse,
 	]);
+
+	const realtimeScope = React.useMemo(
+		() => ({
+			company: listQueryInput.company,
+			warehouse: listQueryInput.warehouse,
+			itemCode: listQueryInput.itemCode,
+		}),
+		[listQueryInput.company, listQueryInput.itemCode, listQueryInput.warehouse],
+	);
 
 	const {
 		data: rawRows = [],
@@ -266,12 +293,31 @@ export default function ItemPriceStockPage() {
 		[filters],
 	);
 
+	const handleRealtimeInventoryData = React.useCallback(() => {
+		void utils.inventory.listItemPriceStock.invalidate(listQueryInput);
+	}, [listQueryInput, utils.inventory.listItemPriceStock]);
+
+	const handleRealtimeItemData = React.useCallback(
+		(event: Inventory.Item | { id: string }) => {
+			const itemCodeFilter = listQueryInput.itemCode?.trim().toLowerCase();
+
+			if (itemCodeFilter && "code" in event) {
+				if (!event.code.toLowerCase().includes(itemCodeFilter)) {
+					return;
+				}
+			}
+
+			void utils.inventory.listItemPriceStock.invalidate(listQueryInput);
+		},
+		[listQueryInput, utils.inventory.listItemPriceStock],
+	);
+
 	return (
 		<div className="flex flex-1 flex-col gap-6 p-4 md:px-6">
 			<ItemPriceStockRealtimeSubscriptions
-				onData={() => {
-					void utils.inventory.listItemPriceStock.invalidate(listQueryInput);
-				}}
+				scope={realtimeScope}
+				onInventoryData={handleRealtimeInventoryData}
+				onItemData={handleRealtimeItemData}
 			/>
 
 			<div className="flex items-center justify-between gap-4">

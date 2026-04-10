@@ -1,4 +1,5 @@
 import { auth } from "../../auth/auth.config";
+import { INVALID_DEVELOPMENT_AUTH_BYPASS_MESSAGE } from "../../auth/development-bypass";
 import type { PrismaService } from "../../shared/prisma.service";
 import { protectedProcedure, router } from "../trpc";
 import type {
@@ -37,6 +38,15 @@ const originalGetSessionDescriptor = Object.getOwnPropertyDescriptor(
 	"getSession",
 );
 
+function restoreEnvVar(key: string, value: string | undefined) {
+	if (value === undefined) {
+		delete process.env[key];
+		return;
+	}
+
+	process.env[key] = value;
+}
+
 describe("protectedProcedure authentication middleware", () => {
 	beforeEach(() => {
 		jest.clearAllMocks();
@@ -67,11 +77,11 @@ describe("protectedProcedure authentication middleware", () => {
 	});
 
 	afterAll(() => {
-		process.env.NODE_ENV = originalNodeEnv;
-		process.env.DISABLE_AUTH = originalDisableAuth;
-		process.env.DEFAULT_ADMIN_EMAIL = originalDefaultAdminEmail;
-		process.env.DEFAULT_ADMIN_NAME = originalDefaultAdminName;
-		process.env.DEFAULT_ADMIN_USERNAME = originalDefaultAdminUsername;
+		restoreEnvVar("NODE_ENV", originalNodeEnv);
+		restoreEnvVar("DISABLE_AUTH", originalDisableAuth);
+		restoreEnvVar("DEFAULT_ADMIN_EMAIL", originalDefaultAdminEmail);
+		restoreEnvVar("DEFAULT_ADMIN_NAME", originalDefaultAdminName);
+		restoreEnvVar("DEFAULT_ADMIN_USERNAME", originalDefaultAdminUsername);
 	});
 
 	it("throws when DISABLE_AUTH is enabled in production", async () => {
@@ -82,7 +92,7 @@ describe("protectedProcedure authentication middleware", () => {
 
 		await expect(caller.currentUser()).rejects.toMatchObject({
 			code: "INTERNAL_SERVER_ERROR",
-			message: "DISABLE_AUTH cannot be used in production",
+			message: INVALID_DEVELOPMENT_AUTH_BYPASS_MESSAGE,
 		});
 		expect(getSessionMock).not.toHaveBeenCalled();
 	});

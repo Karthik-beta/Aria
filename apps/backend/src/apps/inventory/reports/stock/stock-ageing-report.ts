@@ -7,6 +7,23 @@ export type StockAgeingReportItem = Prisma.StockEntryItemGetPayload<{
 	};
 }>;
 
+export interface StockAgeingMovementLike {
+	itemCode: string;
+	itemName?: string | null;
+	description?: string | null;
+	qty: number;
+	basicRate: number;
+	unitOfMeasure?: string | null;
+	sourceWarehouse?: string | null;
+	targetWarehouse?: string | null;
+	stockEntry: {
+		company: string;
+		postingDate: Date;
+		defaultSourceWarehouse?: string | null;
+		defaultTargetWarehouse?: string | null;
+	};
+}
+
 export interface StockAgeingBucketRange {
 	minAge: number;
 	maxAge?: number | null;
@@ -23,6 +40,8 @@ type StockAgeingLayer = {
 	basicRate: number;
 	acquiredAt: Date;
 };
+
+export type StockAgeingState = Map<string, StockAgeingLayer[]>;
 
 type ConsumedLayerSegment = Omit<StockAgeingLayer, "warehouse">;
 
@@ -91,7 +110,7 @@ function consumeWarehouseLayers(
 }
 
 function createFallbackSegment(
-	item: StockAgeingReportItem,
+	item: StockAgeingMovementLike,
 	warehouse: string,
 	qty: number,
 ): StockAgeingLayer {
@@ -173,11 +192,22 @@ export function buildStockAgeingRows(
 	items: StockAgeingReportItem[],
 	options: BuildStockAgeingRowsOptions,
 ): Inventory.StockAgeingRow[] {
-	const bucketRanges = normalizeBucketRanges(options.bucketRanges);
-	const state = new Map<string, StockAgeingLayer[]>();
+	const state = createStockAgeingState();
+	applyStockAgeingItems(state, items, options.asOfDate);
+	return finalizeStockAgeingRows(state, options);
+}
 
+export function createStockAgeingState(): StockAgeingState {
+	return new Map<string, StockAgeingLayer[]>();
+}
+
+export function applyStockAgeingItems(
+	state: StockAgeingState,
+	items: StockAgeingMovementLike[],
+	asOfDate: Date,
+): void {
 	for (const item of items) {
-		if (item.stockEntry.postingDate.getTime() > options.asOfDate.getTime()) {
+		if (item.stockEntry.postingDate.getTime() > asOfDate.getTime()) {
 			continue;
 		}
 
@@ -229,7 +259,13 @@ export function buildStockAgeingRows(
 			);
 		}
 	}
+}
 
+export function finalizeStockAgeingRows(
+	state: StockAgeingState,
+	options: BuildStockAgeingRowsOptions,
+): Inventory.StockAgeingRow[] {
+	const bucketRanges = normalizeBucketRanges(options.bucketRanges);
 	const groupedLayers = new Map<string, StockAgeingLayer[]>();
 
 	for (const [warehouseStateKey, warehouseLayers] of state.entries()) {

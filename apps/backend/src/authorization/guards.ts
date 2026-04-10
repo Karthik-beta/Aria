@@ -3,11 +3,13 @@ import {
 	type ExecutionContext,
 	ForbiddenException,
 	Injectable,
+	InternalServerErrorException,
 	Logger,
 	UnauthorizedException,
 } from "@nestjs/common";
 // biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
 import { Reflector } from "@nestjs/core";
+import { getDevelopmentAuthBypassState } from "../auth/development-bypass";
 import {
 	APP_SCOPE_KEY,
 	PUBLIC_ROUTE_KEY,
@@ -26,10 +28,13 @@ type GuardRequest = {
 };
 
 function isAuthBypassEnabled(): boolean {
-	return (
-		process.env.DISABLE_AUTH === "true" &&
-		process.env.NODE_ENV === "development"
-	);
+	const bypassState = getDevelopmentAuthBypassState();
+
+	if (bypassState.error) {
+		throw new InternalServerErrorException(bypassState.error);
+	}
+
+	return bypassState.enabled;
 }
 
 function hasOwnStringValue(
@@ -37,6 +42,37 @@ function hasOwnStringValue(
 	key: string,
 ): source is Record<string, string> {
 	return Object.hasOwn(source, key) && typeof source[key] === "string";
+}
+
+/**
+ * Extract the first non-empty string value for any of the provided keys
+ * from the request (params, body, query). Returns a trimmed string or
+ * undefined when no matching string is found.
+ */
+function extractFirstString(
+	request: GuardRequest,
+	keys: string[],
+): string | undefined {
+	const sources = [request.params, request.body, request.query];
+
+	for (const source of sources) {
+		if (!source) {
+			continue;
+		}
+
+		for (const key of keys) {
+			if (!hasOwnStringValue(source, key)) {
+				continue;
+			}
+
+			const value = source[key];
+			if (value.trim().length > 0) {
+				return value.trim();
+			}
+		}
+	}
+
+	return undefined;
 }
 
 /**
@@ -63,28 +99,17 @@ export class PublicRouteGuard implements CanActivate {
 	constructor(private reflector: Reflector) {}
 
 	canActivate(context: ExecutionContext): boolean {
+		const bypassEnabled = isAuthBypassEnabled();
 		const isPublic = this.reflector.getAllAndOverride<boolean>(
 			PUBLIC_ROUTE_KEY,
 			[context.getHandler(), context.getClass()],
 		);
 
-		if (isPublic || isAuthBypassEnabled()) {
+		if (isPublic || bypassEnabled) {
 			this.logger.debug(
 				"Skipping authorization check (Public route or Dev bypass)",
 			);
 			return true;
-		}
-
-		if (
-			process.env.NODE_ENV === "production" &&
-			process.env.DISABLE_AUTH === "true"
-		) {
-			this.logger.error(
-				"DISABLE_AUTH=true was ignored because authorization bypass is never allowed in production.",
-			);
-			throw new UnauthorizedException(
-				"Authentication bypass is not allowed in production",
-			);
 		}
 
 		// Not public, let other guards handle authorization
@@ -235,18 +260,16 @@ export class RolePermissionGuard implements CanActivate {
 			throw new UnauthorizedException("No authenticated user found");
 		}
 
-		const teamId = this.extractFirstString(request, ["teamId", "team_id"]);
-		const resourceOwnerId = this.extractFirstString(request, [
+		const teamId = extractFirstString(request, ["teamId", "team_id"]);
+		const resourceOwnerId = extractFirstString(request, [
 			"ownerId",
 			"owner_id",
 			"userId",
 			"user_id",
 		]);
 		const resourceTeamId =
-			this.extractFirstString(request, [
-				"resourceTeamId",
-				"resource_team_id",
-			]) || teamId;
+			extractFirstString(request, ["resourceTeamId", "resource_team_id"]) ||
+			teamId;
 
 		// Check required roles
 		if (requiredRoles && requiredRoles.length > 0) {
@@ -289,30 +312,7 @@ export class RolePermissionGuard implements CanActivate {
 		return true;
 	}
 
-	private extractFirstString(
-		request: GuardRequest,
-		keys: string[],
-	): string | undefined {
-		const sources = [request.params, request.body, request.query];
-		for (const source of sources) {
-			if (!source) {
-				continue;
-			}
-
-			for (const key of keys) {
-				if (!hasOwnStringValue(source, key)) {
-					continue;
-				}
-
-				const value = source[key];
-				if (value.trim().length > 0) {
-					return value;
-				}
-			}
-		}
-
-		return undefined;
-	}
+	// extractFirstString is implemented at module scope and reused across guards
 }
 
 /**
@@ -344,16 +344,17 @@ export class OwnershipGuard implements CanActivate {
 			throw new UnauthorizedException("No authenticated user found");
 		}
 
-		// Extract resource owner from params or body
-		const resourceOwnerId =
-			request.params?.ownerId ||
-			request.body?.ownerId ||
-			request.query?.ownerId;
+		// Extract resource owner from params, body or query (trimmed)
+		const resourceOwnerId = extractFirstString(request, [
+			"ownerId",
+			"owner_id",
+			"userId",
+			"user_id",
+		]);
 
 		if (!resourceOwnerId) {
-			// If no owner specified, can't validate ownership
 			this.logger.warn("No resource owner ID provided for ownership check");
-			return true;
+			throw new ForbiddenException("Resource ownership could not be verified");
 		}
 
 		const policy = await this.policyService.resolveUserPolicy(String(user.id));

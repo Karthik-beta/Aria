@@ -13,6 +13,7 @@ import RenderResults from "./render-result";
 import useThemeSwitching from "./use-theme-switching";
 
 const apps = [
+	{ id: "0", name: "Admin", route: "/admin" },
 	{ id: "1", name: "Inventory", route: "/inventory" },
 	{ id: "2", name: "Asset", route: "/asset" },
 	{ id: "3", name: "CRM", route: "/crm" },

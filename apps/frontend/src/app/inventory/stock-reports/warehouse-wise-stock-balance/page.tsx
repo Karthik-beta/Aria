@@ -61,7 +61,12 @@ import {
 
 type WarehouseWiseSubscriptionEvent = {
 	type: "created" | "updated" | "deleted";
-	data: { id: string };
+	data: {
+		id: string;
+		company?: string | null;
+		warehouses: string[];
+		itemCodes: string[];
+	};
 };
 
 type FilterState = {
@@ -100,11 +105,19 @@ function createFilterRule(): WarehouseWiseFilterRule {
 }
 
 function WarehouseWiseRealtimeSubscription({
+	scope,
 	onData,
 }: {
+	scope:
+		| {
+				company?: string;
+				warehouse?: string;
+				itemCode?: string;
+		  }
+		| undefined;
 	onData?: (event: WarehouseWiseSubscriptionEvent) => void;
 }) {
-	trpc.inventory.onStockEntriesChanged.useSubscription(undefined, {
+	trpc.inventory.onStockEntriesChanged.useSubscription(scope, {
 		onData,
 	});
 
@@ -170,6 +183,15 @@ export default function WarehouseWiseStockBalancePage() {
 		filters.voucherNo,
 		filters.warehouse,
 	]);
+
+	const realtimeScope = React.useMemo(
+		() => ({
+			company: listQueryInput.company,
+			warehouse: listQueryInput.warehouse,
+			itemCode: listQueryInput.itemCode,
+		}),
+		[listQueryInput.company, listQueryInput.itemCode, listQueryInput.warehouse],
+	);
 
 	const {
 		data: rawRows = [],
@@ -427,6 +449,7 @@ export default function WarehouseWiseStockBalancePage() {
 	return (
 		<div className="flex flex-1 flex-col gap-6 p-4 md:px-6">
 			<WarehouseWiseRealtimeSubscription
+				scope={realtimeScope}
 				onData={() => {
 					void utils.inventory.listWarehouseWiseStockBalance.invalidate(
 						listQueryInput,

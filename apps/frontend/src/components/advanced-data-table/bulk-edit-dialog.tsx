@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import {
 	Dialog,
 	DialogContent,
+	DialogDescription,
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
@@ -192,6 +193,9 @@ export function BulkEditDialog<TData extends RowData>({
 				<form onSubmit={handleSubmit}>
 					<DialogHeader className="border-b px-5 py-4">
 						<DialogTitle>Bulk Edit</DialogTitle>
+						<DialogDescription>
+							Change a single field across the selected records.
+						</DialogDescription>
 					</DialogHeader>
 					<div className="space-y-5 px-5 py-5">
 						<div className="space-y-2">

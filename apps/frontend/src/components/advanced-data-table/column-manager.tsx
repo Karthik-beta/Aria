@@ -105,21 +105,18 @@ export function ColumnManager<TData>({
 			return;
 		}
 
-		setColumnOrder((items) => {
-			const activeId = String(active.id);
-			const overId = String(over.id);
-			const oldIndex = items.indexOf(activeId);
-			const newIndex = items.indexOf(overId);
-			const newOrder = arrayMove(items, oldIndex, newIndex);
+		const activeId = String(active.id);
+		const overId = String(over.id);
+		const oldIndex = columnOrder.indexOf(activeId);
+		const newIndex = columnOrder.indexOf(overId);
+		const newOrder = arrayMove(columnOrder, oldIndex, newIndex);
 
-			// Prepend 'select' and append 'actions' to maintain fixed positions
-			const fullOrder = ["select", ...newOrder, "actions"];
+		// Prepend 'select' and append 'actions' to maintain fixed positions
+		const fullOrder = ["select", ...newOrder, "actions"];
 
-			// Update table column order
-			table.setColumnOrder(fullOrder);
-
-			return newOrder;
-		});
+		// Call both state setters outside the updater to avoid setState-during-render
+		setColumnOrder(newOrder);
+		table.setColumnOrder(fullOrder);
 	};
 
 	const handleResetOrder = () => {
