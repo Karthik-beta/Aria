@@ -35,6 +35,7 @@ import {
 	formatItemGroupDefaults,
 	formatProductBundleItems,
 	formatReorderSettings,
+	formatUomConversions,
 	isDefaultItemManufacturerConstraintViolation,
 	itemAttributeSelect,
 	itemManufacturerInclude,
@@ -54,6 +55,16 @@ export class ItemCatalogSubService {
 				itemGroup: true,
 				barcodes: true,
 				reorderSettings: true,
+				uomConversions: {
+					include: {
+						uom: {
+							select: {
+								id: true,
+								name: true,
+							},
+						},
+					},
+				},
 			},
 		});
 
@@ -1551,7 +1562,7 @@ export class ItemCatalogSubService {
 		data: z.infer<typeof Inventory.createSchema>,
 	): Promise<Inventory.Item> {
 		try {
-			const { barcodes, reorderSettings, ...rest } = data;
+			const { barcodes, reorderSettings, uomConversions, ...rest } = data;
 			const sanitizedRest = removeUndefined(rest) as typeof rest;
 			const { itemGroupId, defaultUnitOfMeasureId, ...prismaFields } =
 				sanitizedRest;
@@ -1580,11 +1591,26 @@ export class ItemCatalogSubService {
 								create: formatReorderSettings(reorderSettings),
 							}
 						: undefined,
+					uomConversions: uomConversions
+						? {
+								create: formatUomConversions(uomConversions),
+							}
+						: undefined,
 				},
 				include: {
 					itemGroup: true,
 					barcodes: true,
 					reorderSettings: true,
+					uomConversions: {
+						include: {
+							uom: {
+								select: {
+									id: true,
+									name: true,
+								},
+							},
+						},
+					},
 				},
 			});
 
@@ -1608,7 +1634,7 @@ export class ItemCatalogSubService {
 	async update(
 		data: z.infer<typeof Inventory.updateSchema>,
 	): Promise<Inventory.Item> {
-		const { id, barcodes, reorderSettings, ...rest } = data;
+		const { id, barcodes, reorderSettings, uomConversions, ...rest } = data;
 		const sanitizedRest = removeUndefined(rest) as typeof rest;
 		const { itemGroupId, defaultUnitOfMeasureId, ...prismaFields } =
 			sanitizedRest;
@@ -1652,11 +1678,31 @@ export class ItemCatalogSubService {
 								create: formatReorderSettings(reorderSettings),
 							}
 						: undefined,
+				uomConversions:
+					// null explicitly clears all conversions
+					uomConversions === null
+						? { deleteMany: {} }
+						: uomConversions !== undefined
+							? {
+									deleteMany: {},
+									create: formatUomConversions(uomConversions),
+								}
+							: undefined,
 			},
 			include: {
 				itemGroup: true,
 				barcodes: true,
 				reorderSettings: true,
+				uomConversions: {
+					include: {
+						uom: {
+							select: {
+								id: true,
+								name: true,
+							},
+						},
+					},
+				},
 			},
 		});
 
@@ -1674,6 +1720,16 @@ export class ItemCatalogSubService {
 					itemGroup: true,
 					barcodes: true,
 					reorderSettings: true,
+					uomConversions: {
+						include: {
+							uom: {
+								select: {
+									id: true,
+									name: true,
+								},
+							},
+						},
+					},
 				},
 			});
 

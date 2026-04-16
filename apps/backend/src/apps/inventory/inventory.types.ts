@@ -9,6 +9,16 @@ export type InventoryItem = Prisma.InventoryItemGetPayload<{
 		itemGroup: true;
 		barcodes: true;
 		reorderSettings: true;
+		uomConversions: {
+			include: {
+				uom: {
+					select: {
+						id: true;
+						name: true;
+					};
+				};
+			};
+		};
 	};
 }>;
 
@@ -471,6 +481,12 @@ export function toInventoryItem(prismaItem: InventoryItem): Inventory.Item {
 			reorderLevel: r.reorderLevel,
 			reorderQty: r.reorderQty,
 			materialRequestType: r.materialRequestType,
+		})),
+
+		uomConversions: prismaItem.uomConversions?.map((u) => ({
+			id: u.id,
+			uomId: u.uomId,
+			conversionFactor: u.conversionFactor,
 		})),
 
 		itemGroupId: prismaItem.itemGroupId,

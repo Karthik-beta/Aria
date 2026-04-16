@@ -1423,6 +1423,16 @@ export namespace Inventory {
 		materialRequestType?: string | null;
 	}
 
+	export interface ItemUomConversion {
+		id?: string;
+		uomId: string;
+		conversionFactor: number;
+	}
+
+	export interface ItemUomConversionWithUom extends ItemUomConversion {
+		uomName?: string | null;
+	}
+
 	/**
 	 * Inventory item entity - matches the database schema
 	 * All fields are required in the database
@@ -1488,6 +1498,8 @@ export namespace Inventory {
 		barcodes: ItemBarcode[];
 		/** Item reorder settings */
 		reorderSettings: ItemReorder[];
+		/** Item UOM conversions */
+		uomConversions?: ItemUomConversion[];
 		/** Reference to item group */
 		itemGroupId?: string | null;
 		/** Item group name (populated from relation) */
@@ -1576,6 +1588,7 @@ export namespace Inventory {
 		hasSerialNo?: boolean;
 		barcodes?: ItemBarcode[];
 		reorderSettings?: ItemReorder[];
+		uomConversions?: ItemUomConversion[];
 		itemGroupId?: string;
 		defaultUnitOfMeasureId?: string;
 	}
@@ -1614,6 +1627,7 @@ export namespace Inventory {
 		hasSerialNo?: boolean;
 		barcodes?: ItemBarcode[];
 		reorderSettings?: ItemReorder[];
+		uomConversions?: ItemUomConversion[];
 		itemGroupId?: string;
 		defaultUnitOfMeasureId?: string;
 	}
@@ -1865,6 +1879,14 @@ export namespace Inventory {
 				}),
 			)
 			.optional(),
+		uomConversions: z
+			.array(
+				z.object({
+					uomId: z.string().min(1, "UOM is required").cuid("UOM is required"),
+					conversionFactor: z.number().min(0).default(1),
+				}),
+			)
+			.optional(),
 		itemGroupId: z.string().cuid().optional(),
 		defaultUnitOfMeasureId: z.string().cuid().optional(),
 	});
@@ -1921,6 +1943,16 @@ export namespace Inventory {
 					materialRequestType: z.string().max(100).optional().nullable(),
 				}),
 			)
+			.optional(),
+		uomConversions: z
+			.array(
+				z.object({
+					id: z.string().optional(),
+					uomId: z.string().min(1, "UOM is required").cuid("UOM is required"),
+					conversionFactor: z.number().min(0).default(1),
+				}),
+			)
+			.nullable()
 			.optional(),
 		itemGroupId: z.string().cuid().optional(),
 		defaultUnitOfMeasureId: z.string().cuid().optional(),

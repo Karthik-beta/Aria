@@ -32,6 +32,16 @@ describe("InventoryService > Item Catalog", () => {
 					itemGroup: true,
 					barcodes: true,
 					reorderSettings: true,
+					uomConversions: {
+						include: {
+							uom: {
+								select: {
+									id: true,
+									name: true,
+								},
+							},
+						},
+					},
 				},
 			});
 		});
@@ -196,6 +206,16 @@ describe("InventoryService > Item Catalog", () => {
 					itemGroup: true,
 					barcodes: true,
 					reorderSettings: true,
+					uomConversions: {
+						include: {
+							uom: {
+								select: {
+									id: true,
+									name: true,
+								},
+							},
+						},
+					},
 				},
 			});
 		});

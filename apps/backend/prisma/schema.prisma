@@ -87,6 +87,7 @@ model InventoryItem {
 
   barcodes        ItemBarcode[]
   reorderSettings ItemReorder[]
+  uomConversions  ItemUomConversion[]
 
   defaultUnitOfMeasureId String?
   defaultUnitOfMeasure   UnitOfMeasurement? @relation(fields: [defaultUnitOfMeasureId], references: [id])
@@ -132,6 +133,20 @@ model ItemReorder {
   @@index([warehouse])
   @@index([itemId, warehouse])
   @@map("item_reorder_settings")
+}
+
+model ItemUomConversion {
+  id               String           @id @default(cuid())
+  itemId           String
+  uomId            String
+  conversionFactor Float            @default(1)
+  item             InventoryItem    @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  uom              UnitOfMeasurement @relation(fields: [uomId], references: [id])
+
+  @@unique([itemId, uomId])
+  @@index([itemId])
+  @@index([uomId])
+  @@map("item_uom_conversions")
 }
 
 model DocumentSeriesCounter {
@@ -289,6 +304,7 @@ model UnitOfMeasurement {
   items              Item[]
   inventoryItems     InventoryItem[]
   productBundleItems ProductBundleItem[]
+  itemUomConversions ItemUomConversion[]
 }
 
 model Brand {

@@ -31,7 +31,7 @@ export default async function AdminLayout({
 }) {
 	const cookieStore = await cookies();
 	const sidebarCookie = cookieStore.get(SIDEBAR_COOKIE_NAME)?.value;
-	const defaultOpen = sidebarCookie === "true";
+	const defaultOpen = sidebarCookie !== "false";
 	const activeThemeValue = await getActiveThemeValue();
 	const authState = await requireProtectedAuthState({
 		callbackUrl: AUTH_CONFIG.appRedirects.admin,
