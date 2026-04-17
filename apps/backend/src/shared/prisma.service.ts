@@ -254,6 +254,9 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
 	get subcontractingOrderItem() {
 		return this.client.subcontractingOrderItem;
 	}
+	get itemActivityLog() {
+		return this.client.itemActivityLog;
+	}
 
 	// Asset Domain
 	get asset() {
