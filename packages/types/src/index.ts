@@ -191,6 +191,57 @@ export namespace Inventory {
 		defaultInTransitWarehouseId?: string | null;
 	}
 
+	/**
+	 * Activity types for item timeline
+	 */
+	export const ITEM_ACTIVITY_TYPES = [
+		"STOCK_IN",
+		"STOCK_OUT",
+		"TRANSFER",
+		"ADJUSTMENT",
+		"DELIVERY",
+		"PURCHASE_RECEIPT",
+		"STOCK_ENTRY",
+		"SERIAL_NUMBER",
+		"BATCH",
+		"CREATED",
+		"UPDATED",
+		"STATUS_CHANGE",
+	] as const;
+
+	export type ItemActivityType = (typeof ITEM_ACTIVITY_TYPES)[number];
+
+	/**
+	 * Activity log entry for item timeline display
+	 */
+	export interface ItemActivityLogEntry {
+		id: string;
+		itemId: string;
+		activityType: ItemActivityType;
+		description: string;
+		quantity: number | null;
+		value: number | null;
+		company: string | null;
+		warehouse: string | null;
+		referenceType: string | null;
+		referenceId: string | null;
+		referenceName: string | null;
+		metadata: Record<string, unknown> | null;
+		createdAt: Date;
+	}
+
+	/**
+	 * Query filters for fetching item activity
+	 */
+	export interface ListItemActivityInput {
+		itemId: string;
+		fromDate?: Date;
+		toDate?: Date;
+		activityType?: ItemActivityType;
+		limit?: number;
+		offset?: number;
+	}
+
 	export const batchStatusSchema = z.enum([
 		"ACTIVE",
 		"EMPTY",
