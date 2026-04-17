@@ -231,6 +231,23 @@ export namespace Inventory {
 	}
 
 	/**
+	 * Input type for creating an activity log entry (all optional fields allowed)
+	 */
+	export type CreateItemActivityLogInput = {
+		itemId: string;
+		activityType: ItemActivityType;
+		description: string;
+		quantity?: number | null;
+		value?: number | null;
+		company?: string | null;
+		warehouse?: string | null;
+		referenceType?: string | null;
+		referenceId?: string | null;
+		referenceName?: string | null;
+		metadata?: Record<string, unknown> | null;
+	};
+
+	/**
 	 * Query filters for fetching item activity
 	 */
 	export interface ListItemActivityInput {
