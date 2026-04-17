@@ -2016,3 +2016,24 @@ enum AssetDepreciationScheduleStatus {
   ACTIVE
   CANCELLED
 }
+
+model ItemActivityLog {
+  id            String   @id @default(cuid())
+  itemId        String   @db.VarChar(100)
+  activityType  String   @db.VarChar(50)
+  description   String   @db.VarChar(500)
+  quantity      Float?
+  value         Float?
+  company       String?  @db.VarChar(255)
+  warehouse     String?  @db.VarChar(255)
+  referenceType String?  @db.VarChar(50)
+  referenceId   String?  @db.VarChar(100)
+  referenceName String?  @db.VarChar(255)
+  metadata      Json?
+  createdAt     DateTime @default(now())
+
+  @@index([itemId])
+  @@index([createdAt])
+  @@index([itemId, createdAt])
+  @@map("item_activity_logs")
+}
