@@ -1,4 +1,4 @@
-import { Inventory } from "@aria/types";
+import type { Inventory } from "@aria/types";
 import type { Prisma } from "../../../generated/prisma/client";
 import type { PrismaService } from "../../../shared/prisma.service";
 
@@ -20,7 +20,12 @@ export class ItemActivityService {
 				referenceType: input.referenceType ?? null,
 				referenceId: input.referenceId ?? null,
 				referenceName: input.referenceName ?? null,
-				metadata: (input.metadata === null ? undefined : input.metadata) as Prisma.InputJsonValue | undefined,
+				metadata:
+					input.metadata == null
+						? undefined
+						: (JSON.parse(
+								JSON.stringify(input.metadata),
+							) as Prisma.InputJsonValue),
 			},
 		});
 

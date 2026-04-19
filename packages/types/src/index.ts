@@ -5819,6 +5819,10 @@ export namespace Asset {
 		depreciationMethod?: DepreciationMethod | null;
 		totalNumberOfDepreciations?: number | null;
 		frequencyOfDepreciation?: number | null;
+		dailyProrataBased?: boolean | null;
+		shiftBased?: boolean | null;
+		rateOfDepreciation?: number | null;
+		expectedValueAfterUsefulLife?: number | null;
 		nonDepreciableCategory: boolean;
 		enableCwipAccounting: boolean;
 		createdAt: Date;
@@ -5912,6 +5916,10 @@ export namespace Asset {
 		depreciationMethod?: DepreciationMethod | null;
 		totalNumberOfDepreciations?: number | null;
 		frequencyOfDepreciation?: number | null;
+		dailyProrataBased?: boolean | null;
+		shiftBased?: boolean | null;
+		rateOfDepreciation?: number | null;
+		expectedValueAfterUsefulLife?: number | null;
 		nonDepreciableCategory?: boolean;
 		enableCwipAccounting?: boolean;
 	}
@@ -5922,6 +5930,10 @@ export namespace Asset {
 		depreciationMethod?: DepreciationMethod | null;
 		totalNumberOfDepreciations?: number | null;
 		frequencyOfDepreciation?: number | null;
+		dailyProrataBased?: boolean | null;
+		shiftBased?: boolean | null;
+		rateOfDepreciation?: number | null;
+		expectedValueAfterUsefulLife?: number | null;
 		nonDepreciableCategory?: boolean;
 		enableCwipAccounting?: boolean;
 	}
@@ -6133,6 +6145,10 @@ export namespace Asset {
 		depreciationMethod: depreciationMethodSchema.optional().nullable(),
 		totalNumberOfDepreciations: z.number().int().min(0).optional().nullable(),
 		frequencyOfDepreciation: z.number().int().min(0).optional().nullable(),
+		dailyProrataBased: z.boolean().optional().nullable(),
+		shiftBased: z.boolean().optional().nullable(),
+		rateOfDepreciation: z.number().min(0).optional().nullable(),
+		expectedValueAfterUsefulLife: z.number().min(0).optional().nullable(),
 		nonDepreciableCategory: z.boolean().default(false),
 		enableCwipAccounting: z.boolean().default(false),
 	} satisfies z.ZodRawShape;
@@ -6146,6 +6162,10 @@ export namespace Asset {
 		totalNumberOfDepreciations:
 			assetCategoryInputFields.totalNumberOfDepreciations,
 		frequencyOfDepreciation: assetCategoryInputFields.frequencyOfDepreciation,
+		dailyProrataBased: z.boolean().optional().nullable(),
+		shiftBased: z.boolean().optional().nullable(),
+		rateOfDepreciation: z.number().min(0).optional().nullable(),
+		expectedValueAfterUsefulLife: z.number().min(0).optional().nullable(),
 		nonDepreciableCategory: z.boolean().optional(),
 		enableCwipAccounting: z.boolean().optional(),
 	});
@@ -6598,6 +6618,10 @@ export namespace Asset {
 		depreciationMethod: DepreciationMethod | null;
 		totalNumberOfDepreciations: number;
 		frequencyOfDepreciation: number;
+		dailyProrataBased?: boolean | null;
+		shiftBased?: boolean | null;
+		rateOfDepreciation?: number | null;
+		expectedValueAfterUsefulLife?: number | null;
 		bookedDepreciations: number;
 		remainingDepreciations: number;
 		entries: AssetDepreciationSchedulePreviewEntry[];

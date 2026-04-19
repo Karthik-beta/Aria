@@ -1638,16 +1638,20 @@ model Location {
 }
 
 model AssetCategory {
-  id                         String              @id @default(cuid())
-  name                       String              @unique @db.VarChar(255)
-  depreciationMethod         DepreciationMethod?
-  totalNumberOfDepreciations Int?
-  frequencyOfDepreciation    Int?
-  nonDepreciableCategory     Boolean             @default(false)
-  enableCwipAccounting       Boolean             @default(false)
-  createdAt                  DateTime            @default(now())
-  updatedAt                  DateTime            @updatedAt
-  assets                     Asset[]
+  id                            String              @id @default(cuid())
+  name                          String              @unique @db.VarChar(255)
+  depreciationMethod            DepreciationMethod?
+  totalNumberOfDepreciations    Int?
+  frequencyOfDepreciation       Int?
+  dailyProrataBased             Boolean             @default(false)
+  shiftBased                    Boolean             @default(false)
+  rateOfDepreciation           Float?
+  expectedValueAfterUsefulLife  Decimal?            @db.Decimal(18, 6)
+  nonDepreciableCategory       Boolean             @default(false)
+  enableCwipAccounting         Boolean             @default(false)
+  createdAt                     DateTime            @default(now())
+  updatedAt                     DateTime            @updatedAt
+  assets                        Asset[]
 
   @@index([name])
   @@map("asset_categories")
@@ -1794,28 +1798,32 @@ model AssetRevaluationEntryLine {
 }
 
 model AssetDepreciationSchedule {
-  id                          String                          @id @default(cuid())
-  adjustmentId                String                          @unique
-  adjustment                  AssetValueAdjustment            @relation(fields: [adjustmentId], references: [id], onDelete: Cascade)
-  assetId                     String
-  asset                       Asset                           @relation(fields: [assetId], references: [id])
-  previousScheduleId          String?
-  previousSchedule            AssetDepreciationSchedule?      @relation("AssetDepreciationScheduleChain", fields: [previousScheduleId], references: [id])
-  nextSchedules               AssetDepreciationSchedule[]     @relation("AssetDepreciationScheduleChain")
-  revisionNumber              Int
-  status                      AssetDepreciationScheduleStatus @default(ACTIVE)
-  startDate                   DateTime
-  depreciationMethod          DepreciationMethod?
-  totalNumberOfDepreciations  Int
-  frequencyOfDepreciation     Int
-  bookedDepreciations         Int
-  remainingDepreciations      Int
+  id                            String                          @id @default(cuid())
+  adjustmentId                  String                          @unique
+  adjustment                    AssetValueAdjustment            @relation(fields: [adjustmentId], references: [id], onDelete: Cascade)
+  assetId                       String
+  asset                         Asset                           @relation(fields: [assetId], references: [id])
+  previousScheduleId            String?
+  previousSchedule              AssetDepreciationSchedule?      @relation("AssetDepreciationScheduleChain", fields: [previousScheduleId], references: [id])
+  nextSchedules                 AssetDepreciationSchedule[]     @relation("AssetDepreciationScheduleChain")
+  revisionNumber                Int
+  status                        AssetDepreciationScheduleStatus @default(ACTIVE)
+  startDate                     DateTime
+  depreciationMethod            DepreciationMethod?
+  totalNumberOfDepreciations    Int
+  frequencyOfDepreciation       Int
+  dailyProrataBased             Boolean             @default(false)
+  shiftBased                    Boolean             @default(false)
+  rateOfDepreciation           Float?
+  expectedValueAfterUsefulLife  Decimal?            @db.Decimal(18, 6)
+  bookedDepreciations           Int
+  remainingDepreciations        Int
   openingAccumulatedDepreciation Decimal                      @default(0) @db.Decimal(18, 6)
-  baseAssetValue              Decimal                         @db.Decimal(18, 6)
-  notes                       String?                         @db.Text
-  entries                     AssetDepreciationScheduleEntry[]
-  createdAt                   DateTime                        @default(now())
-  updatedAt                   DateTime                        @updatedAt
+  baseAssetValue                Decimal                         @db.Decimal(18, 6)
+  notes                         String?                         @db.Text
+  entries                       AssetDepreciationScheduleEntry[]
+  createdAt                     DateTime                        @default(now())
+  updatedAt                     DateTime                        @updatedAt
 
   @@index([assetId])
   @@index([status])

@@ -1,4 +1,4 @@
-import { Inventory } from "@aria/types";
+import type { Inventory } from "@aria/types";
 import { ItemActivityService } from "../services/item-activity.service";
 
 // Mock prisma client

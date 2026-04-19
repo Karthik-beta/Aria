@@ -546,6 +546,18 @@ type InventoryRouterInput = {
 		};
 		meta: object;
 	}>;
+	listItemActivity: TRPCQueryProcedure<{
+		input: {
+			itemId: string;
+			fromDate?: unknown;
+			toDate?: unknown;
+			activityType?: string | undefined;
+			limit?: number | undefined;
+			offset?: number | undefined;
+		};
+		output: Inventory.ItemActivityLogEntry[];
+		meta: object;
+	}>;
 	listItemAlternatives: TRPCQueryProcedure<{
 		input: void;
 		output: Inventory.ItemAlternative[];
