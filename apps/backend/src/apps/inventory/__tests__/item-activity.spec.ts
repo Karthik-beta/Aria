@@ -1,4 +1,5 @@
 import type { Inventory } from "@aria/types";
+import type { PrismaService } from "../../../shared/prisma.service";
 import { ItemActivityService } from "../services/item-activity.service";
 
 // Mock prisma client
@@ -19,7 +20,7 @@ describe("ItemActivityService", () => {
 
 	beforeEach(() => {
 		jest.clearAllMocks();
-		service = new ItemActivityService(mockPrisma as any);
+		service = new ItemActivityService(mockPrisma as unknown as PrismaService);
 	});
 
 	describe("logActivity", () => {

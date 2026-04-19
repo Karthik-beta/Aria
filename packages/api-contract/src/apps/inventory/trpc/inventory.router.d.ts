@@ -2549,6 +2549,11 @@ type InventoryRouterInput = {
 		output: Inventory.DashboardBottomChartsData;
 		meta: object;
 	}>;
+	logItemActivity: TRPCMutationProcedure<{
+		input: unknown;
+		output: unknown;
+		meta: object;
+	}>;
 };
 
 type InventoryRouterRoot = (typeof accountRouter)["_def"]["_config"]["$types"];
