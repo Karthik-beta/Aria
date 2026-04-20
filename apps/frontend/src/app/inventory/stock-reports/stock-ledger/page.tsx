@@ -7,6 +7,7 @@ import {
 	AdvancedDataTable,
 	useAdvancedDataTable,
 } from "@/components/advanced-data-table";
+import { downloadExcelBuffer } from "@/components/advanced-data-table/utils";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ErrorState } from "@/components/ui/error-display";
@@ -637,6 +638,19 @@ export default function StockLedgerPage() {
 		[filters],
 	);
 
+	const handleExport = React.useCallback(
+		async (format: string) => {
+			if (format !== "excel") return;
+			const buffer = await (
+				trpc.inventory.exportStockLedgerExcel as unknown as {
+					mutate: (input: typeof listQueryInput) => Promise<Buffer>;
+				}
+			).mutate(listQueryInput);
+			downloadExcelBuffer(buffer, `stock-ledger-${Date.now()}.xlsx`);
+		},
+		[listQueryInput],
+	);
+
 	return (
 		<div className="flex flex-1 flex-col gap-6 p-4 md:px-6">
 			<StockLedgerRealtimeSubscription
@@ -827,6 +841,7 @@ export default function StockLedgerPage() {
 					table={table}
 					data={rows}
 					enableExport
+					onExport={handleExport}
 					enableVirtualization
 					enableColumnResizing
 					enableBulkActions={false}

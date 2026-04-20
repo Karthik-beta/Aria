@@ -14,6 +14,7 @@ import { protectedProcedure, router } from "../../../trpc/trpc";
 // biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
 import { InventoryService } from "../inventory.service";
 import { ItemActivityService } from "../services/item-activity.service";
+import { ReportTemplateService } from "../services/report-template.service";
 
 // Global event emitter for real-time subscriptions
 const inventoryEvents = new EventEmitter({ captureRejections: true });
@@ -1354,6 +1355,77 @@ function createListStockLedgerProcedure(inventoryService: InventoryService) {
 		});
 }
 
+function createExportStockLedgerExcelProcedure(
+	inventoryService: InventoryService,
+	reportTemplateService: ReportTemplateService,
+) {
+	return protectedProcedure
+		.input(Inventory.listStockLedgerSchema)
+		.mutation(async ({ input }) => {
+			if (!input) {
+				throw new Error("Invalid input");
+			}
+			// Fetch all data (up to 10000 rows for export)
+			const data = await inventoryService.findStockLedger({
+				...input,
+				take: 10000,
+			});
+
+			const columns = [
+				{ key: "postingDate", header: "Date" },
+				{ key: "itemCode", header: "Item" },
+				{ key: "itemName", header: "Item Name" },
+				{ key: "warehouse", header: "Warehouse" },
+				{ key: "unitOfMeasure", header: "UOM" },
+				{ key: "qtyIn", header: "In Qty" },
+				{ key: "qtyOut", header: "Out Qty" },
+				{ key: "balanceQty", header: "Balance Qty" },
+				{ key: "basicRate", header: "Incoming Rate" },
+				{ key: "valuationRate", header: "Avg Rate" },
+				{ key: "balanceValue", header: "Valuation" },
+				{ key: "stockEntryType", header: "Voucher Type" },
+				{ key: "voucherNo", header: "Voucher #" },
+				{ key: "batchNo", header: "Batch No" },
+				{ key: "serialNo", header: "Serial No" },
+				{ key: "company", header: "Company" },
+				{ key: "movementType", header: "Movement" },
+				{ key: "status", header: "Status" },
+			];
+
+			const filters: Array<{ label: string; value: string }> = [];
+			if (input.company)
+				filters.push({ label: "Company", value: input.company });
+			if (input.warehouse)
+				filters.push({ label: "Warehouse", value: input.warehouse });
+			if (input.itemCode)
+				filters.push({ label: "Item", value: input.itemCode });
+			if (input.dateFrom)
+				filters.push({ label: "From", value: String(input.dateFrom) });
+			if (input.dateTo)
+				filters.push({ label: "To", value: String(input.dateTo) });
+
+			const metadata = {
+				title: "Stock Ledger Report",
+				generatedAt: new Date(),
+				filters,
+			};
+
+			// Convert dates for export
+			const exportData = data.map((row) => ({
+				...row,
+				postingDate: row.postingDate,
+				createdAt: row.createdAt,
+				updatedAt: row.updatedAt,
+			}));
+
+			return reportTemplateService.buildExcelBuffer(
+				metadata,
+				exportData as unknown as Record<string, unknown>[],
+				columns,
+			);
+		});
+}
+
 function createListStockBalanceProcedure(inventoryService: InventoryService) {
 	return protectedProcedure
 		.input(Inventory.listStockBalanceSchema)
@@ -2434,6 +2506,9 @@ type InventoryRouterInput = {
 	>;
 	onStockEntriesChanged: typeof onStockEntriesChangedProcedure;
 	listStockLedger: ReturnType<typeof createListStockLedgerProcedure>;
+	exportStockLedgerExcel: ReturnType<
+		typeof createExportStockLedgerExcelProcedure
+	>;
 	listStockBalance: ReturnType<typeof createListStockBalanceProcedure>;
 	getQuickStockBalance: ReturnType<typeof createGetQuickStockBalanceProcedure>;
 	listStockProjectedQty: ReturnType<
@@ -2571,6 +2646,7 @@ type InventoryAppRouter = TRPCBuiltRouter<
 function createInventoryRouterRecord(
 	inventoryService: InventoryService,
 	prisma: PrismaService,
+	reportTemplateService: ReportTemplateService,
 ): InventoryRouterInput {
 	return {
 		getDashboardData: createGetDashboardDataProcedure(inventoryService),
@@ -2702,6 +2778,10 @@ function createInventoryRouterRecord(
 			createDeleteManyStockEntriesProcedure(inventoryService),
 		onStockEntriesChanged: onStockEntriesChangedProcedure,
 		listStockLedger: createListStockLedgerProcedure(inventoryService),
+		exportStockLedgerExcel: createExportStockLedgerExcelProcedure(
+			inventoryService,
+			reportTemplateService,
+		),
 		listStockBalance: createListStockBalanceProcedure(inventoryService),
 		getQuickStockBalance: createGetQuickStockBalanceProcedure(inventoryService),
 		listStockProjectedQty:
@@ -2807,8 +2887,13 @@ function createInventoryRouterRecord(
 function buildInventoryRouter(
 	inventoryService: InventoryService,
 ): InventoryAppRouter {
+	const reportTemplateService = new ReportTemplateService();
 	return router(
-		createInventoryRouterRecord(inventoryService, inventoryService.prisma),
+		createInventoryRouterRecord(
+			inventoryService,
+			inventoryService.prisma,
+			reportTemplateService,
+		),
 	);
 }
 
