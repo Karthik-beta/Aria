@@ -139,6 +139,21 @@ function downloadBlob(blob: Blob, filename: string): void {
 }
 
 /**
+ * Download Excel buffer as a file
+ */
+export function downloadExcelBuffer(
+	buffer: ArrayBuffer | Buffer,
+	filename: string,
+): void {
+	const uint8 =
+		buffer instanceof Buffer ? new Uint8Array(buffer) : new Uint8Array(buffer);
+	const blob = new Blob([uint8], {
+		type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+	});
+	downloadBlob(blob, filename);
+}
+
+/**
  * Parse CSV file to array of objects
  */
 export async function parseCSV(file: File): Promise<Record<string, unknown>[]> {

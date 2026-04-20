@@ -2554,6 +2554,11 @@ type InventoryRouterInput = {
 		output: unknown;
 		meta: object;
 	}>;
+	exportStockLedgerExcel: TRPCMutationProcedure<{
+		input: unknown;
+		output: unknown;
+		meta: object;
+	}>;
 };
 
 type InventoryRouterRoot = (typeof accountRouter)["_def"]["_config"]["$types"];
