@@ -63,6 +63,14 @@ export const formatReorderSettings = (
 		return entry;
 	});
 
+export const formatUomConversions = (
+	conversions?: Inventory.ItemUomConversion[] | null,
+) =>
+	conversions?.map(({ uomId, conversionFactor }) => ({
+		uomId,
+		conversionFactor: conversionFactor ?? 1,
+	}));
+
 export const removeUndefined = <T extends Record<string, unknown>>(obj: T) =>
 	Object.fromEntries(
 		Object.entries(obj).filter(([, value]) => value !== undefined),

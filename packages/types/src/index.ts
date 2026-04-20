@@ -191,6 +191,74 @@ export namespace Inventory {
 		defaultInTransitWarehouseId?: string | null;
 	}
 
+	/**
+	 * Activity types for item timeline
+	 */
+	export const ITEM_ACTIVITY_TYPES = [
+		"STOCK_IN",
+		"STOCK_OUT",
+		"TRANSFER",
+		"ADJUSTMENT",
+		"DELIVERY",
+		"PURCHASE_RECEIPT",
+		"STOCK_ENTRY",
+		"SERIAL_NUMBER",
+		"BATCH",
+		"CREATED",
+		"UPDATED",
+		"STATUS_CHANGE",
+	] as const;
+
+	export type ItemActivityType = (typeof ITEM_ACTIVITY_TYPES)[number];
+
+	/**
+	 * Activity log entry for item timeline display
+	 */
+	export interface ItemActivityLogEntry {
+		id: string;
+		itemId: string;
+		activityType: ItemActivityType;
+		description: string;
+		quantity: number | null;
+		value: number | null;
+		company: string | null;
+		warehouse: string | null;
+		referenceType: string | null;
+		referenceId: string | null;
+		referenceName: string | null;
+		metadata: Record<string, unknown> | null;
+		createdAt: Date;
+	}
+
+	/**
+	 * Input type for creating an activity log entry (all optional fields allowed)
+	 */
+	export type CreateItemActivityLogInput = {
+		itemId: string;
+		activityType: ItemActivityType;
+		description: string;
+		quantity?: number | null;
+		value?: number | null;
+		company?: string | null;
+		warehouse?: string | null;
+		referenceType?: string | null;
+		referenceId?: string | null;
+		referenceName?: string | null;
+		metadata?: Record<string, unknown> | null;
+	};
+
+	/**
+	 * Query filters for fetching item activity
+	 */
+	export interface ListItemActivityInput {
+		itemId: string;
+		fromDate?: Date;
+		toDate?: Date;
+		activityType?: ItemActivityType;
+		limit?: number;
+		offset?: number;
+	}
+
 	export const batchStatusSchema = z.enum([
 		"ACTIVE",
 		"EMPTY",
@@ -1423,6 +1491,16 @@ export namespace Inventory {
 		materialRequestType?: string | null;
 	}
 
+	export interface ItemUomConversion {
+		id?: string;
+		uomId: string;
+		conversionFactor: number;
+	}
+
+	export interface ItemUomConversionWithUom extends ItemUomConversion {
+		uomName?: string | null;
+	}
+
 	/**
 	 * Inventory item entity - matches the database schema
 	 * All fields are required in the database
@@ -1488,6 +1566,8 @@ export namespace Inventory {
 		barcodes: ItemBarcode[];
 		/** Item reorder settings */
 		reorderSettings: ItemReorder[];
+		/** Item UOM conversions */
+		uomConversions?: ItemUomConversion[];
 		/** Reference to item group */
 		itemGroupId?: string | null;
 		/** Item group name (populated from relation) */
@@ -1576,6 +1656,7 @@ export namespace Inventory {
 		hasSerialNo?: boolean;
 		barcodes?: ItemBarcode[];
 		reorderSettings?: ItemReorder[];
+		uomConversions?: ItemUomConversion[];
 		itemGroupId?: string;
 		defaultUnitOfMeasureId?: string;
 	}
@@ -1614,6 +1695,7 @@ export namespace Inventory {
 		hasSerialNo?: boolean;
 		barcodes?: ItemBarcode[];
 		reorderSettings?: ItemReorder[];
+		uomConversions?: ItemUomConversion[];
 		itemGroupId?: string;
 		defaultUnitOfMeasureId?: string;
 	}
@@ -1865,6 +1947,14 @@ export namespace Inventory {
 				}),
 			)
 			.optional(),
+		uomConversions: z
+			.array(
+				z.object({
+					uomId: z.string().min(1, "UOM is required").cuid("UOM is required"),
+					conversionFactor: z.number().min(0).default(1),
+				}),
+			)
+			.optional(),
 		itemGroupId: z.string().cuid().optional(),
 		defaultUnitOfMeasureId: z.string().cuid().optional(),
 	});
@@ -1921,6 +2011,16 @@ export namespace Inventory {
 					materialRequestType: z.string().max(100).optional().nullable(),
 				}),
 			)
+			.optional(),
+		uomConversions: z
+			.array(
+				z.object({
+					id: z.string().optional(),
+					uomId: z.string().min(1, "UOM is required").cuid("UOM is required"),
+					conversionFactor: z.number().min(0).default(1),
+				}),
+			)
+			.nullable()
 			.optional(),
 		itemGroupId: z.string().cuid().optional(),
 		defaultUnitOfMeasureId: z.string().cuid().optional(),
@@ -5719,6 +5819,10 @@ export namespace Asset {
 		depreciationMethod?: DepreciationMethod | null;
 		totalNumberOfDepreciations?: number | null;
 		frequencyOfDepreciation?: number | null;
+		dailyProrataBased?: boolean | null;
+		shiftBased?: boolean | null;
+		rateOfDepreciation?: number | null;
+		expectedValueAfterUsefulLife?: number | null;
 		nonDepreciableCategory: boolean;
 		enableCwipAccounting: boolean;
 		createdAt: Date;
@@ -5812,6 +5916,10 @@ export namespace Asset {
 		depreciationMethod?: DepreciationMethod | null;
 		totalNumberOfDepreciations?: number | null;
 		frequencyOfDepreciation?: number | null;
+		dailyProrataBased?: boolean | null;
+		shiftBased?: boolean | null;
+		rateOfDepreciation?: number | null;
+		expectedValueAfterUsefulLife?: number | null;
 		nonDepreciableCategory?: boolean;
 		enableCwipAccounting?: boolean;
 	}
@@ -5822,6 +5930,10 @@ export namespace Asset {
 		depreciationMethod?: DepreciationMethod | null;
 		totalNumberOfDepreciations?: number | null;
 		frequencyOfDepreciation?: number | null;
+		dailyProrataBased?: boolean | null;
+		shiftBased?: boolean | null;
+		rateOfDepreciation?: number | null;
+		expectedValueAfterUsefulLife?: number | null;
 		nonDepreciableCategory?: boolean;
 		enableCwipAccounting?: boolean;
 	}
@@ -6033,6 +6145,10 @@ export namespace Asset {
 		depreciationMethod: depreciationMethodSchema.optional().nullable(),
 		totalNumberOfDepreciations: z.number().int().min(0).optional().nullable(),
 		frequencyOfDepreciation: z.number().int().min(0).optional().nullable(),
+		dailyProrataBased: z.boolean().optional().nullable(),
+		shiftBased: z.boolean().optional().nullable(),
+		rateOfDepreciation: z.number().min(0).optional().nullable(),
+		expectedValueAfterUsefulLife: z.number().min(0).optional().nullable(),
 		nonDepreciableCategory: z.boolean().default(false),
 		enableCwipAccounting: z.boolean().default(false),
 	} satisfies z.ZodRawShape;
@@ -6046,6 +6162,10 @@ export namespace Asset {
 		totalNumberOfDepreciations:
 			assetCategoryInputFields.totalNumberOfDepreciations,
 		frequencyOfDepreciation: assetCategoryInputFields.frequencyOfDepreciation,
+		dailyProrataBased: z.boolean().optional().nullable(),
+		shiftBased: z.boolean().optional().nullable(),
+		rateOfDepreciation: z.number().min(0).optional().nullable(),
+		expectedValueAfterUsefulLife: z.number().min(0).optional().nullable(),
 		nonDepreciableCategory: z.boolean().optional(),
 		enableCwipAccounting: z.boolean().optional(),
 	});
@@ -6498,6 +6618,10 @@ export namespace Asset {
 		depreciationMethod: DepreciationMethod | null;
 		totalNumberOfDepreciations: number;
 		frequencyOfDepreciation: number;
+		dailyProrataBased?: boolean | null;
+		shiftBased?: boolean | null;
+		rateOfDepreciation?: number | null;
+		expectedValueAfterUsefulLife?: number | null;
 		bookedDepreciations: number;
 		remainingDepreciations: number;
 		entries: AssetDepreciationSchedulePreviewEntry[];

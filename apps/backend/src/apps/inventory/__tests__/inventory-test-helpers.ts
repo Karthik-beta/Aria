@@ -54,6 +54,7 @@ export const mockItem = {
 	updatedAt: new Date(),
 	barcodes: [],
 	reorderSettings: [],
+	uomConversions: [],
 };
 
 export const mockUnitOfMeasure = {

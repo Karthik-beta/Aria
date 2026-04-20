@@ -37,6 +37,7 @@ import {
 } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ActivityTimeline } from "@/features/inventory/components/activity-timeline";
 import { getToastMessage } from "@/lib/errors";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
@@ -333,6 +334,9 @@ export default function InventoryItemDetailPage() {
 				onConfirm={confirmDelete}
 				loading={deleteMutation.isPending}
 			/>
+
+			{/* Activity Timeline */}
+			<ActivityTimeline itemId={itemId} limit={50} />
 		</div>
 	);
 }

@@ -9,6 +9,10 @@ export const assetCategoryFormSchema = z
 		depreciationMethod: z.string().default(""),
 		totalNumberOfDepreciations: z.number().int().min(1).nullable().optional(),
 		frequencyOfDepreciation: z.number().int().min(1).nullable().optional(),
+		dailyProrataBased: z.boolean().nullable().optional(),
+		shiftBased: z.boolean().nullable().optional(),
+		rateOfDepreciation: z.number().min(0).nullable().optional(),
+		expectedValueAfterUsefulLife: z.number().min(0).nullable().optional(),
 	})
 	.superRefine((data, ctx) => {
 		if (!data.nonDepreciableCategory) {
@@ -63,4 +67,8 @@ export const getAssetCategoryFormDefaults = (): AssetCategoryFormValues => ({
 	depreciationMethod: "",
 	totalNumberOfDepreciations: null,
 	frequencyOfDepreciation: null,
+	dailyProrataBased: null,
+	shiftBased: null,
+	rateOfDepreciation: null,
+	expectedValueAfterUsefulLife: null,
 });

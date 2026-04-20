@@ -92,6 +92,11 @@ function AssetCategoryFormContent() {
 			depreciationMethod: category.depreciationMethod ?? "",
 			totalNumberOfDepreciations: category.totalNumberOfDepreciations ?? null,
 			frequencyOfDepreciation: category.frequencyOfDepreciation ?? null,
+			dailyProrataBased: category.dailyProrataBased ?? null,
+			shiftBased: category.shiftBased ?? null,
+			rateOfDepreciation: category.rateOfDepreciation ?? null,
+			expectedValueAfterUsefulLife:
+				category.expectedValueAfterUsefulLife ?? null,
 		});
 	}, [form, isEditMode, category]);
 
@@ -186,6 +191,12 @@ function AssetCategoryFormContent() {
 				shouldDirty: true,
 			});
 			form.setValue("frequencyOfDepreciation", null, {
+				shouldDirty: true,
+			});
+			form.setValue("dailyProrataBased", null, { shouldDirty: true });
+			form.setValue("shiftBased", null, { shouldDirty: true });
+			form.setValue("rateOfDepreciation", null, { shouldDirty: true });
+			form.setValue("expectedValueAfterUsefulLife", null, {
 				shouldDirty: true,
 			});
 		}
@@ -354,6 +365,25 @@ function AssetCategoryFormContent() {
 
 							{/* Frequency of Depreciation */}
 							<FrequencyOfDepreciationInput form={form} />
+
+							{/* Expected Value After Useful Life (Salvage Value) */}
+							<ExpectedValueAfterUsefulLifeInput form={form} />
+
+							{/* Rate of Depreciation (for WDV only) */}
+							{depreciationMethod === "WRITTEN_DOWN_VALUE" && (
+								<RateOfDepreciationInput form={form} />
+							)}
+
+							{/* Daily Prorata Based (for Straight Line and WDV) */}
+							{(depreciationMethod === "STRAIGHT_LINE" ||
+								depreciationMethod === "WRITTEN_DOWN_VALUE") && (
+								<DailyProrataBasedInput form={form} />
+							)}
+
+							{/* Shift Based (for Straight Line only) */}
+							{depreciationMethod === "STRAIGHT_LINE" && (
+								<ShiftBasedInput form={form} />
+							)}
 						</div>
 					</>
 				)}
@@ -489,6 +519,158 @@ function FrequencyOfDepreciationInput({
 			<p className="text-xs text-muted-foreground">
 				How often (in months) depreciation is booked.
 			</p>
+		</div>
+	);
+}
+
+function ExpectedValueAfterUsefulLifeInput({
+	form,
+}: {
+	form: ReturnType<typeof useForm<AssetCategoryFormValues>>;
+}) {
+	const value = useWatch({
+		control: form.control,
+		name: "expectedValueAfterUsefulLife",
+	});
+	return (
+		<div className="space-y-2">
+			<Label htmlFor="expectedValueAfterUsefulLife">
+				Expected Value After Useful Life (Salvage Value)
+			</Label>
+			<Input
+				id="expectedValueAfterUsefulLife"
+				type="number"
+				min={0}
+				step={0.01}
+				placeholder="e.g. 1000"
+				value={value ?? ""}
+				onChange={(e) => {
+					const num = parseFloat(e.target.value);
+					form.setValue(
+						"expectedValueAfterUsefulLife",
+						Number.isNaN(num) ? null : Math.max(0, num),
+						{ shouldDirty: true },
+					);
+				}}
+			/>
+			{form.formState.errors.expectedValueAfterUsefulLife && (
+				<p className="text-xs text-destructive">
+					{form.formState.errors.expectedValueAfterUsefulLife.message}
+				</p>
+			)}
+			<p className="text-xs text-muted-foreground">
+				The estimated value of the asset at the end of its useful life.
+			</p>
+		</div>
+	);
+}
+
+function RateOfDepreciationInput({
+	form,
+}: {
+	form: ReturnType<typeof useForm<AssetCategoryFormValues>>;
+}) {
+	const value = useWatch({
+		control: form.control,
+		name: "rateOfDepreciation",
+	});
+	return (
+		<div className="space-y-2">
+			<Label htmlFor="rateOfDepreciation">Rate of Depreciation (%)</Label>
+			<Input
+				id="rateOfDepreciation"
+				type="number"
+				min={0}
+				max={100}
+				step={0.01}
+				placeholder="e.g. 15"
+				value={value ?? ""}
+				onChange={(e) => {
+					const num = parseFloat(e.target.value);
+					form.setValue(
+						"rateOfDepreciation",
+						Number.isNaN(num) ? null : Math.max(0, Math.min(100, num)),
+						{ shouldDirty: true },
+					);
+				}}
+			/>
+			{form.formState.errors.rateOfDepreciation && (
+				<p className="text-xs text-destructive">
+					{form.formState.errors.rateOfDepreciation.message}
+				</p>
+			)}
+			<p className="text-xs text-muted-foreground">
+				Annual depreciation rate. If not set, it is calculated from the salvage
+				value.
+			</p>
+		</div>
+	);
+}
+
+function DailyProrataBasedInput({
+	form,
+}: {
+	form: ReturnType<typeof useForm<AssetCategoryFormValues>>;
+}) {
+	const value = useWatch({
+		control: form.control,
+		name: "dailyProrataBased",
+	});
+	return (
+		<div className="space-y-2">
+			<div className="flex items-start gap-2">
+				<Checkbox
+					id="dailyProrataBased"
+					checked={value ?? false}
+					onCheckedChange={(checked) =>
+						form.setValue("dailyProrataBased", Boolean(checked) ?? null, {
+							shouldDirty: true,
+						})
+					}
+				/>
+				<div className="space-y-1">
+					<Label htmlFor="dailyProrataBased">
+						Depreciate Based on Daily Pro-Rata
+					</Label>
+					<p className="text-sm text-muted-foreground">
+						Calculate depreciation based on the actual number of days in each
+						period rather than on a fixed monthly basis.
+					</p>
+				</div>
+			</div>
+		</div>
+	);
+}
+
+function ShiftBasedInput({
+	form,
+}: {
+	form: ReturnType<typeof useForm<AssetCategoryFormValues>>;
+}) {
+	const value = useWatch({
+		control: form.control,
+		name: "shiftBased",
+	});
+	return (
+		<div className="space-y-2">
+			<div className="flex items-start gap-2">
+				<Checkbox
+					id="shiftBased"
+					checked={value ?? false}
+					onCheckedChange={(checked) =>
+						form.setValue("shiftBased", Boolean(checked) ?? null, {
+							shouldDirty: true,
+						})
+					}
+				/>
+				<div className="space-y-1">
+					<Label htmlFor="shiftBased">Depreciate Based on Shifts</Label>
+					<p className="text-sm text-muted-foreground">
+						Apply different depreciation amounts based on asset shift factors.
+						Requires shift allocation setup.
+					</p>
+				</div>
+			</div>
 		</div>
 	);
 }

@@ -77,6 +77,7 @@ function ItemFormContent() {
 	const [hasUnsavedChanges, setHasUnsavedChanges] = useState(!isEditMode);
 	const [isInitialized, setIsInitialized] = useState(!isEditMode);
 	const [descriptionOpen, setDescriptionOpen] = useState(true);
+	const [uomOpen, setUomOpen] = useState(false);
 
 	// Combobox states
 	const [itemGroupOpen, setItemGroupOpen] = useState(false);
@@ -118,6 +119,7 @@ function ItemFormContent() {
 			barcodes: [],
 			reorderSettings: [],
 			isFixedAsset: queryIsFixedAsset,
+			uomConversions: [],
 		},
 	});
 
@@ -125,8 +127,15 @@ function ItemFormContent() {
 	useEffect(() => {
 		if (!isInitialized) return;
 
-		const subscription = form.watch(() => {
+		const subscription = form.watch((_, { name }) => {
 			setHasUnsavedChanges(true);
+			// Clear uomConversions error when user modifies the conversions list
+			if (
+				name &&
+				(name.startsWith("uomConversions") || name === "uomConversions")
+			) {
+				form.clearErrors("uomConversions");
+			}
 		});
 		return () => subscription.unsubscribe();
 	}, [form, isInitialized]);
@@ -185,6 +194,7 @@ function ItemFormContent() {
 				hasSerialNo: item.hasSerialNo,
 				barcodes: item.barcodes || [],
 				reorderSettings: item.reorderSettings || [],
+				uomConversions: item.uomConversions || [],
 			});
 			setHasUnsavedChanges(false);
 			setIsInitialized(true);
@@ -226,6 +236,20 @@ function ItemFormContent() {
 
 	// Handle form submission
 	const onSubmit = (data: CreateFormValues) => {
+		// Check for duplicate UOM conversions
+		const uomConversions = data.uomConversions ?? [];
+		const nonEmptyConversions = uomConversions.filter((c) => c.uomId);
+		const uomIds = nonEmptyConversions.map((c) => c.uomId);
+		const uniqueUomIds = new Set(uomIds);
+		if (uomIds.length !== uniqueUomIds.size) {
+			form.setError("uomConversions", {
+				type: "duplicate",
+				message:
+					"Duplicate UOM detected. Each UOM can only be added once in the conversions list.",
+			});
+			return;
+		}
+
 		// Filter out nulls and ensure consistency with what the router/service expects
 		const sanitizedData = {
 			...data,
@@ -239,6 +263,10 @@ function ItemFormContent() {
 				reorderLevel: r.reorderLevel,
 				reorderQty: r.reorderQty,
 				materialRequestType: r.materialRequestType ?? undefined,
+			})),
+			uomConversions: data.uomConversions?.map((u) => ({
+				uomId: u.uomId,
+				conversionFactor: u.conversionFactor,
 			})),
 		};
 
@@ -697,6 +725,164 @@ function ItemFormContent() {
 												form.setValue("description", e.target.value)
 											}
 										/>
+									</CollapsibleContent>
+								</Collapsible>
+
+								<Collapsible open={uomOpen} onOpenChange={setUomOpen}>
+									<CollapsibleTrigger asChild>
+										<div className="flex h-12 cursor-pointer items-center px-8 hover:bg-gray-50">
+											<span className="text-sm font-semibold text-gray-900">
+												Units of Measure
+											</span>
+											<ChevronDown
+												className={cn(
+													"ml-1 h-4 w-4 text-gray-400 transition-transform",
+													uomOpen && "rotate-180",
+												)}
+											/>
+										</div>
+									</CollapsibleTrigger>
+									<CollapsibleContent className="px-8 pb-8 pt-2">
+										<div className="space-y-4">
+											<div className="rounded border overflow-hidden">
+												<table className="w-full text-xs text-left">
+													<thead className="bg-[#f8f9fa] border-b text-gray-500">
+														<tr>
+															<th className="px-4 py-2 w-10">
+																<Checkbox className="h-3 w-3 rounded" />
+															</th>
+															<th className="px-4 py-2 w-16">No.</th>
+															<th className="px-4 py-2">
+																UOM <span className="text-red-500">*</span>
+															</th>
+															<th className="px-4 py-2">Conversion Factor</th>
+															<th className="px-4 py-2 w-10">
+																<Settings className="h-3 w-3" />
+															</th>
+														</tr>
+													</thead>
+													<tbody>
+														{form.watch("uomConversions")?.length === 0 ? (
+															<tr>
+																<td
+																	colSpan={5}
+																	className="p-12 text-center bg-white"
+																>
+																	<div className="flex flex-col items-center gap-2 opacity-50">
+																		<List className="h-6 w-6" />
+																		<span className="text-[11px]">No Data</span>
+																	</div>
+																</td>
+															</tr>
+														) : (
+															form
+																.watch("uomConversions")
+																?.map((conversion) => {
+																	const conversions =
+																		form.watch("uomConversions") ?? [];
+																	const idx = conversions.indexOf(conversion);
+																	return (
+																		<tr
+																			key={`uom-${conversion.uomId || "new"}-${idx}`}
+																			className="border-b last:border-0"
+																		>
+																			<td className="px-4 py-2">
+																				<Checkbox className="h-3 w-3 rounded" />
+																			</td>
+																			<td className="px-4 py-2">{idx + 1}</td>
+																			<td className="px-4 py-2">
+																				<Controller
+																					name={`uomConversions.${idx}.uomId`}
+																					control={form.control}
+																					render={({ field }) => (
+																						<select
+																							{...field}
+																							className="h-8 w-full rounded border border-gray-200 bg-transparent text-xs focus:ring-1 focus:ring-ring"
+																						>
+																							<option value="">
+																								Select UOM
+																							</option>
+																							{unitsOfMeasure
+																								.filter(
+																									(u) =>
+																										u.id !==
+																										form.watch(
+																											"defaultUnitOfMeasureId",
+																										),
+																								)
+																								.map((uom) => (
+																									<option
+																										key={uom.id}
+																										value={uom.id}
+																									>
+																										{uom.name}
+																									</option>
+																								))}
+																						</select>
+																					)}
+																				/>
+																			</td>
+																			<td className="px-4 py-2">
+																				<Input
+																					type="number"
+																					step="0.01"
+																					className="h-8 text-xs border-none bg-transparent focus-visible:ring-0 p-0"
+																					{...form.register(
+																						`uomConversions.${idx}.conversionFactor`,
+																						{ valueAsNumber: true },
+																					)}
+																					defaultValue={1}
+																				/>
+																			</td>
+																			<td className="px-4 py-2">
+																				<Button
+																					variant="ghost"
+																					size="icon"
+																					className="h-6 w-6 text-red-500"
+																					onClick={() => {
+																						const convs =
+																							form.getValues(
+																								"uomConversions",
+																							) ?? [];
+																						form.setValue(
+																							"uomConversions",
+																							convs.filter((_, i) => i !== idx),
+																						);
+																					}}
+																				>
+																					<Trash2 className="h-3 w-3" />
+																				</Button>
+																			</td>
+																		</tr>
+																	);
+																})
+														)}
+													</tbody>
+												</table>
+											</div>
+											<Button
+												variant="outline"
+												size="sm"
+												className="h-8 px-4 text-xs font-medium border-gray-300"
+												onClick={() => {
+													const convs = form.getValues("uomConversions") || [];
+													form.setValue("uomConversions", [
+														...convs,
+														{ uomId: "", conversionFactor: 1 },
+													]);
+												}}
+											>
+												Add Row
+											</Button>
+											{form.formState.errors.uomConversions && (
+												<p className="text-xs text-red-500 mt-2">
+													{
+														form.formState.errors.uomConversions
+															.message as string
+													}
+												</p>
+											)}
+										</div>
 									</CollapsibleContent>
 								</Collapsible>
 							</div>

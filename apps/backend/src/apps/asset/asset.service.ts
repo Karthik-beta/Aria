@@ -17,7 +17,7 @@ import {
 	Logger,
 	NotFoundException,
 } from "@nestjs/common";
-import type { Prisma } from "../../generated/prisma/client";
+import { Prisma } from "../../generated/prisma/client";
 import {
 	allocateDocumentSeries,
 	getSeriesSeedValue,
@@ -103,6 +103,10 @@ export class AssetService {
 				depreciationMethod: true,
 				totalNumberOfDepreciations: true,
 				frequencyOfDepreciation: true,
+				dailyProrataBased: true,
+				shiftBased: true,
+				rateOfDepreciation: true,
+				expectedValueAfterUsefulLife: true,
 				nonDepreciableCategory: true,
 			},
 		},
@@ -298,6 +302,10 @@ export class AssetService {
 			depreciationMethod: Asset.DepreciationMethod | null;
 			totalNumberOfDepreciations: number | null;
 			frequencyOfDepreciation: number | null;
+			dailyProrataBased: boolean | null;
+			shiftBased: boolean | null;
+			rateOfDepreciation: number | null;
+			expectedValueAfterUsefulLife: Prisma.Decimal | null;
 			nonDepreciableCategory?: boolean;
 		} | null;
 	}) {
@@ -309,6 +317,10 @@ export class AssetService {
 				depreciationMethod: null,
 				totalNumberOfDepreciations: null,
 				frequencyOfDepreciation: null,
+				dailyProrataBased: null,
+				shiftBased: null,
+				rateOfDepreciation: null,
+				expectedValueAfterUsefulLife: null,
 			};
 		}
 
@@ -325,6 +337,13 @@ export class AssetService {
 				asset.frequencyOfDepreciation ??
 				asset.assetCategory?.frequencyOfDepreciation ??
 				null,
+			dailyProrataBased: asset.assetCategory?.dailyProrataBased ?? null,
+			shiftBased: asset.assetCategory?.shiftBased ?? null,
+			rateOfDepreciation: asset.assetCategory?.rateOfDepreciation ?? null,
+			expectedValueAfterUsefulLife: asset.assetCategory
+				?.expectedValueAfterUsefulLife
+				? Number(asset.assetCategory.expectedValueAfterUsefulLife)
+				: null,
 		};
 	}
 
@@ -368,6 +387,11 @@ export class AssetService {
 							asset.assetCategory.totalNumberOfDepreciations ?? null,
 						frequencyOfDepreciation:
 							asset.assetCategory.frequencyOfDepreciation ?? null,
+						dailyProrataBased: asset.assetCategory.dailyProrataBased ?? null,
+						shiftBased: asset.assetCategory.shiftBased ?? null,
+						rateOfDepreciation: asset.assetCategory.rateOfDepreciation ?? null,
+						expectedValueAfterUsefulLife:
+							asset.assetCategory.expectedValueAfterUsefulLife ?? null,
 						nonDepreciableCategory: asset.assetCategory.nonDepreciableCategory,
 					}
 				: null,
@@ -405,6 +429,10 @@ export class AssetService {
 				depreciationMethod: Asset.DepreciationMethod | null;
 				totalNumberOfDepreciations: number | null;
 				frequencyOfDepreciation: number | null;
+				dailyProrataBased: boolean | null;
+				shiftBased: boolean | null;
+				rateOfDepreciation: number | null;
+				expectedValueAfterUsefulLife: Prisma.Decimal | null;
 				nonDepreciableCategory: boolean;
 			} | null;
 		},
@@ -431,6 +459,11 @@ export class AssetService {
 							asset.assetCategory.totalNumberOfDepreciations ?? null,
 						frequencyOfDepreciation:
 							asset.assetCategory.frequencyOfDepreciation ?? null,
+						dailyProrataBased: asset.assetCategory.dailyProrataBased ?? null,
+						shiftBased: asset.assetCategory.shiftBased ?? null,
+						rateOfDepreciation: asset.assetCategory.rateOfDepreciation ?? null,
+						expectedValueAfterUsefulLife:
+							asset.assetCategory.expectedValueAfterUsefulLife ?? null,
 						nonDepreciableCategory: asset.assetCategory.nonDepreciableCategory,
 					}
 				: null,
@@ -451,6 +484,11 @@ export class AssetService {
 					totalNumberOfDepreciations:
 						depreciationConfig.totalNumberOfDepreciations,
 					frequencyOfDepreciation: depreciationConfig.frequencyOfDepreciation,
+					dailyProrataBased: depreciationConfig.dailyProrataBased,
+					shiftBased: depreciationConfig.shiftBased,
+					rateOfDepreciation: depreciationConfig.rateOfDepreciation,
+					expectedValueAfterUsefulLife:
+						depreciationConfig.expectedValueAfterUsefulLife,
 				})
 			: null;
 		const resultState = getAssetValueAdjustmentResultState(
@@ -2022,6 +2060,12 @@ export class AssetService {
 				depreciationMethod: input.depreciationMethod ?? null,
 				totalNumberOfDepreciations: input.totalNumberOfDepreciations ?? null,
 				frequencyOfDepreciation: input.frequencyOfDepreciation ?? null,
+				dailyProrataBased: input.dailyProrataBased ?? false,
+				shiftBased: input.shiftBased ?? false,
+				rateOfDepreciation: input.rateOfDepreciation ?? null,
+				expectedValueAfterUsefulLife: input.expectedValueAfterUsefulLife
+					? new Prisma.Decimal(input.expectedValueAfterUsefulLife)
+					: null,
 				nonDepreciableCategory: input.nonDepreciableCategory ?? false,
 				enableCwipAccounting: input.enableCwipAccounting ?? false,
 			},
@@ -2052,6 +2096,20 @@ export class AssetService {
 				}),
 				...(input.frequencyOfDepreciation !== undefined && {
 					frequencyOfDepreciation: input.frequencyOfDepreciation,
+				}),
+				...(input.dailyProrataBased !== undefined && {
+					dailyProrataBased: input.dailyProrataBased ?? false,
+				}),
+				...(input.shiftBased !== undefined && {
+					shiftBased: input.shiftBased ?? false,
+				}),
+				...(input.rateOfDepreciation !== undefined && {
+					rateOfDepreciation: input.rateOfDepreciation,
+				}),
+				...(input.expectedValueAfterUsefulLife !== undefined && {
+					expectedValueAfterUsefulLife: input.expectedValueAfterUsefulLife
+						? new Prisma.Decimal(input.expectedValueAfterUsefulLife)
+						: null,
 				}),
 				...(input.nonDepreciableCategory !== undefined && {
 					nonDepreciableCategory: input.nonDepreciableCategory,

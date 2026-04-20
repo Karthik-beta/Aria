@@ -7,10 +7,13 @@ import type {
 } from "@trpc/server";
 import { observable } from "@trpc/server/observable";
 import { z } from "zod";
+// biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
+import { PrismaService } from "../../../shared/prisma.service";
 import type { accountRouter } from "../../../trpc/routers/account.router";
 import { protectedProcedure, router } from "../../../trpc/trpc";
 // biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
 import { InventoryService } from "../inventory.service";
+import { ItemActivityService } from "../services/item-activity.service";
 
 // Global event emitter for real-time subscriptions
 const inventoryEvents = new EventEmitter({ captureRejections: true });
@@ -750,6 +753,54 @@ function createDeleteItemManufacturerProcedure(
 		.input(z.object({ id: z.string().cuid() }))
 		.mutation(async ({ input }) => {
 			return inventoryService.deleteItemManufacturer(input.id);
+		});
+}
+
+function createListItemActivityProcedure(prisma: PrismaService) {
+	return protectedProcedure
+		.input(
+			z.object({
+				itemId: z.string().min(1),
+				fromDate: z.date().optional(),
+				toDate: z.date().optional(),
+				activityType: z.enum(Inventory.ITEM_ACTIVITY_TYPES).optional(),
+				limit: z.number().min(1).max(100).optional(),
+				offset: z.number().min(0).optional(),
+			}),
+		)
+		.query(async ({ input }) => {
+			const service = new ItemActivityService(prisma);
+			return service.getActivityForItem({
+				itemId: input.itemId,
+				fromDate: input.fromDate,
+				toDate: input.toDate,
+				activityType: input.activityType,
+				limit: input.limit,
+				offset: input.offset,
+			});
+		});
+}
+
+function createLogItemActivityProcedure(prisma: PrismaService) {
+	return protectedProcedure
+		.input(
+			z.object({
+				itemId: z.string().min(1),
+				activityType: z.enum(Inventory.ITEM_ACTIVITY_TYPES),
+				description: z.string().min(1).max(500),
+				quantity: z.number().nullable().optional(),
+				value: z.number().nullable().optional(),
+				company: z.string().max(255).nullable().optional(),
+				warehouse: z.string().max(255).nullable().optional(),
+				referenceType: z.string().max(50).nullable().optional(),
+				referenceId: z.string().max(100).nullable().optional(),
+				referenceName: z.string().max(255).nullable().optional(),
+				metadata: z.record(z.string(), z.unknown()).nullable().optional(),
+			}),
+		)
+		.mutation(async ({ input }) => {
+			const service = new ItemActivityService(prisma);
+			return service.logActivity(input);
 		});
 }
 
@@ -2326,6 +2377,8 @@ type InventoryRouterInput = {
 	deleteItemManufacturer: ReturnType<
 		typeof createDeleteItemManufacturerProcedure
 	>;
+	listItemActivity: ReturnType<typeof createListItemActivityProcedure>;
+	logItemActivity: ReturnType<typeof createLogItemActivityProcedure>;
 	listItemAlternatives: ReturnType<typeof createListItemAlternativesProcedure>;
 	getItemAlternativeById: ReturnType<
 		typeof createGetItemAlternativeByIdProcedure
@@ -2517,6 +2570,7 @@ type InventoryAppRouter = TRPCBuiltRouter<
 
 function createInventoryRouterRecord(
 	inventoryService: InventoryService,
+	prisma: PrismaService,
 ): InventoryRouterInput {
 	return {
 		getDashboardData: createGetDashboardDataProcedure(inventoryService),
@@ -2601,6 +2655,8 @@ function createInventoryRouterRecord(
 			createUpdateItemManufacturerProcedure(inventoryService),
 		deleteItemManufacturer:
 			createDeleteItemManufacturerProcedure(inventoryService),
+		listItemActivity: createListItemActivityProcedure(prisma),
+		logItemActivity: createLogItemActivityProcedure(prisma),
 		listItemAlternatives: createListItemAlternativesProcedure(inventoryService),
 		getItemAlternativeById:
 			createGetItemAlternativeByIdProcedure(inventoryService),
@@ -2751,7 +2807,9 @@ function createInventoryRouterRecord(
 function buildInventoryRouter(
 	inventoryService: InventoryService,
 ): InventoryAppRouter {
-	return router(createInventoryRouterRecord(inventoryService));
+	return router(
+		createInventoryRouterRecord(inventoryService, inventoryService.prisma),
+	);
 }
 
 @Injectable()

@@ -37,6 +37,10 @@ export type PrismaAssetCategory = Prisma.AssetCategoryGetPayload<{
 		depreciationMethod: true;
 		totalNumberOfDepreciations: true;
 		frequencyOfDepreciation: true;
+		dailyProrataBased: true;
+		shiftBased: true;
+		rateOfDepreciation: true;
+		expectedValueAfterUsefulLife: true;
 		nonDepreciableCategory: true;
 		enableCwipAccounting: true;
 		createdAt: true;
@@ -67,6 +71,13 @@ export function toAssetCategory(cat: PrismaAssetCategory): Asset.AssetCategory {
 			(cat.depreciationMethod as Asset.DepreciationMethod | null) ?? null,
 		totalNumberOfDepreciations: cat.totalNumberOfDepreciations ?? null,
 		frequencyOfDepreciation: cat.frequencyOfDepreciation ?? null,
+		dailyProrataBased: cat.dailyProrataBased ?? null,
+		shiftBased: cat.shiftBased ?? null,
+		rateOfDepreciation: cat.rateOfDepreciation ?? null,
+		expectedValueAfterUsefulLife:
+			cat.expectedValueAfterUsefulLife != null
+				? Number(cat.expectedValueAfterUsefulLife)
+				: null,
 		nonDepreciableCategory: cat.nonDepreciableCategory,
 		enableCwipAccounting: cat.enableCwipAccounting,
 		createdAt: cat.createdAt,
