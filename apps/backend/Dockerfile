@@ -154,6 +154,11 @@ COPY --from=builder /app/apps/backend/src/generated/prisma /app/apps/backend/src
 # Compiled service files required by demo-data scripts (stock-snapshot.js, etc.)
 COPY --from=builder /app/apps/backend/dist/apps/inventory/services /app/apps/backend/src/apps/inventory/services
 COPY --from=builder /app/apps/backend/dist/apps/asset /app/apps/backend/src/apps/asset
+COPY --from=builder /app/apps/backend/dist/shared /app/apps/backend/src/shared
+
+# Remove source .ts files that would take precedence over compiled .js files
+# These files only exist because builder stage copies full source tree to src/
+RUN rm -f /app/apps/backend/src/shared/prisma.service.ts /app/apps/backend/src/shared/prisma-client.ts
 
 # Shared workspace packages: copy only their compiled JS outputs + package.json
 # This keeps workspace symlinks valid and avoids shipping TS sources
