@@ -7,7 +7,7 @@
  * unconditionally since they're shared.
  */
 
-import type { PrismaClient } from "../../src/generated/prisma/client.js";
+import type { PrismaService } from "../../src/shared/prisma.service.js";
 import { ASSET_CATEGORIES, ASSET_LOCATIONS } from "./asset-data.js";
 import type { DemoConfig } from "./config.js";
 
@@ -30,7 +30,7 @@ const DEMO_ASSET_LOCATION_NAMES = flattenAssetLocationNames(ASSET_LOCATIONS);
  * Remove all demo data. Returns a summary of deleted record counts.
  */
 export async function cleanDemoData(
-	prisma: PrismaClient,
+	prisma: PrismaService,
 	config: DemoConfig,
 ): Promise<Record<string, number>> {
 	const company = config.company;
@@ -200,7 +200,7 @@ export async function cleanDemoData(
  * Return a quick status summary of demo-relevant record counts.
  */
 export async function getDemoStatus(
-	prisma: PrismaClient,
+	prisma: PrismaService,
 	config: DemoConfig,
 ): Promise<Record<string, number>> {
 	const company = config.company;

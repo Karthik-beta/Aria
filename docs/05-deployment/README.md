@@ -108,6 +108,73 @@ Set these in a `.env` file at the project root:
 | `DEFAULT_ADMIN_USERNAME` | Initial admin username |
 | `DEFAULT_ADMIN_PASSWORD` | Initial admin password |
 | `DEFAULT_ADMIN_EMAIL` | Initial admin email |
+| `LOAD_DEMO_DATA` | Set to any value to load demo data on backend startup (optional) |
+| `LOAD_DEMO_DATA_SCALE` | Demo data scale: `small`, `medium`, or `large` (default: `medium`) |
+
+## Railway Cloud Deployment
+
+For deployments on Railway (or any Docker-native cloud platform), images are built locally and pushed to Docker Hub, then deployed as containers.
+
+### Build & Push to Docker Hub
+
+```bash
+# Build frontend (empty NEXT_PUBLIC_API_URL = same-origin deployment)
+docker build --target runner -f apps/frontend/Dockerfile -t yourusername/aria-frontend:latest .
+
+# Build backend
+docker build --target runner -f apps/backend/Dockerfile -t yourusername/aria-backend:latest .
+
+# Push to Docker Hub
+docker push yourusername/aria-frontend:latest
+docker push yourusername/aria-backend:latest
+```
+
+### Railway Service Configuration
+
+Create two services in Railway dashboard (one for frontend, one for backend) and link them to your Docker Hub images.
+
+#### Frontend Service
+
+| Variable | Value |
+|----------|-------|
+| `NODE_ENV` | `production` |
+| `HOSTNAME` | `0.0.0.0` |
+| `PORT` | `3000` |
+
+#### Backend Service
+
+| Variable | Value |
+|----------|-------|
+| `NODE_ENV` | `production` |
+| `PORT` | `3001` |
+| `DATABASE_URL` | From Railway PostgreSQL instance |
+| `REDIS_URL` | `redis://redis:6379` (if using Railway Redis) |
+| `JWT_SECRET` | Generate a secure random string |
+| `BETTER_AUTH_SECRET` | Generate a secure random string |
+| `BETTER_AUTH_URL` | Your Railway frontend URL |
+| `FRONTEND_URL` | Your Railway frontend URL |
+| `CORS_ORIGIN` | `*` or your frontend domain |
+
+### Same-Origin vs Separate Backend
+
+The frontend supports two deployment modes:
+
+| Mode | `NEXT_PUBLIC_API_URL` | Use Case |
+|------|----------------------|----------|
+| **Same-origin** (default) | `""` (empty) | Frontend and backend on same domain, proxied by Railway |
+| **Separate domain** | `https://api.example.com` | Backend hosted separately |
+
+For Railway, use same-origin mode (empty `NEXT_PUBLIC_API_URL`) if Railway provides a single domain that routes both frontend and backend requests.
+
+### Proxy Routing for Same-Origin
+
+When using same-origin mode, ensure your platform routes:
+
+| Path | Destination |
+|------|-------------|
+| `/api/*` | Backend service (port 3001) |
+| `/trpc/*` | Backend service (port 3001) |
+| `/*` | Frontend service (port 3000) |
 
 ## Installation Scripts
 

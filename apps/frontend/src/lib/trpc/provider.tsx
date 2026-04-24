@@ -123,10 +123,10 @@ function getBaseUrl(): string {
 
 	if (typeof window !== "undefined") {
 		// Browser: use environment variable or empty string for same-origin requests
-		baseUrl = process.env.NEXT_PUBLIC_API_URL || "";
+		baseUrl = process.env.NEXT_PUBLIC_API_URL ?? "";
 	} else {
-		// SSR/Server: use environment variable or default to localhost
-		baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+		// SSR/Server: use environment variable or empty string for same-origin requests
+		baseUrl = process.env.NEXT_PUBLIC_API_URL ?? "";
 	}
 
 	// Remove trailing slash to prevent double-slash in URLs like //trpc/

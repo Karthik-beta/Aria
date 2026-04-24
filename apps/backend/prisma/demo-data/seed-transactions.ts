@@ -22,7 +22,7 @@
  * pack → deliver → install. Quantities and statuses are consistent.
  */
 
-import type { PrismaClient } from "../../src/generated/prisma/client.js";
+import type { PrismaService } from "../../src/shared/prisma.service.js";
 import type { DemoConfig } from "./config.js";
 import { CUSTOMERS, DRIVERS, ITEMS, SUPPLIERS, VEHICLES } from "./data.js";
 import {
@@ -76,7 +76,7 @@ async function getSeriesStart(
 }
 
 export async function seedTransactions(
-	prisma: PrismaClient,
+	prisma: PrismaService,
 	config: DemoConfig,
 	ids: MasterIds,
 ): Promise<void> {

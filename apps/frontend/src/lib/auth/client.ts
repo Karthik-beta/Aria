@@ -15,9 +15,9 @@ import {
  * Configured with username plugin for username-based authentication.
  * Environment-aware base URL configuration with credentials inclusion.
  */
-const baseURL = (
-	process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
-).replace(/\/$/, "");
+const baseURL = process.env.NEXT_PUBLIC_API_URL
+	? process.env.NEXT_PUBLIC_API_URL.replace(/\/$/, "")
+	: "";
 
 export const authClient = createAuthClient({
 	baseURL,

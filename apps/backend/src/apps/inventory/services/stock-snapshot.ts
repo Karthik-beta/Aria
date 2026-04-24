@@ -1,10 +1,10 @@
-import { Prisma } from "../../../generated/prisma/client";
+import { Prisma, type PrismaClient } from "../../../generated/prisma/client";
 import type { PrismaService } from "../../../shared/prisma.service";
 
-type StockSnapshotQueryClient = Pick<
-	PrismaService,
-	"client" | "inventoryItem"
-> & {
+type StockSnapshotQueryClient = {
+	client: {
+		$queryRaw: PrismaClient["$queryRaw"];
+	};
 	inventoryItem: {
 		findMany: PrismaService["inventoryItem"]["findMany"];
 		update: PrismaService["inventoryItem"]["update"];

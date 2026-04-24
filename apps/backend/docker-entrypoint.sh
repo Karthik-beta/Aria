@@ -40,6 +40,20 @@ BASELINE_MIGRATION="0_init"
 
 echo "ℹ️ Skipping Prisma Client generation at runtime (already generated during image build)."
 
+# Debug: Print DATABASE_URL if set (sanitized)
+if [ -n "$DATABASE_URL" ]; then
+  echo "✅ DATABASE_URL is set (length: ${#DATABASE_URL})"
+else
+  echo "⚠️ DATABASE_URL is NOT set - Railway env vars may not be passed correctly"
+fi
+
+# Check if DATABASE_URL is available before running migrations
+if [ -z "$DATABASE_URL" ]; then
+  echo "⚠️ DATABASE_URL not set - skipping migration and starting app directly"
+  echo "🎯 Starting NestJS application..."
+  exec bun dist/main.js
+fi
+
 echo "🔍 Checking if baseline migration needs resolution... (baselining strategy)"
 
 # Attempt to deploy migrations first
@@ -102,7 +116,13 @@ else
   echo "✅ All migrations applied successfully"
 fi
 
-echo "✅ Migration deployment complete"
+# Load optional demo data
+if [ -n "$LOAD_DEMO_DATA" ]; then
+  echo "📊 Loading demo data (scale=${LOAD_DEMO_DATA_SCALE:-medium})..."
+  bun prisma/demo-data/cli.ts load --scale=${LOAD_DEMO_DATA_SCALE:-medium}
+  echo "✅ Demo data loaded"
+fi
+
 echo "🎯 Starting NestJS application..."
 
 # Start the application (already in /app/apps/backend directory)

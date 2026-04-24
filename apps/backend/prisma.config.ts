@@ -11,23 +11,32 @@
  * - The `url` and `shadowDatabaseUrl` fields in the `datasource` block
  *   of schema.prisma are configured here.
  * - The `seed` script is now defined in this config file, not package.json.
- * - Environment variables must be explicitly loaded (dotenv/config).
+ * - Environment variables come from the container/runtime, not .env files.
  */
-import * as path from "node:path";
-import dotenv from "dotenv";
-import { defineConfig, env } from "prisma/config";
+import "dotenv/config";
+import { existsSync } from "node:fs";
+import { resolve } from "node:path";
+import type { PrismaConfig } from "prisma";
+import { env } from "prisma/config";
 
-// Load monorepo root env first, then per-environment overrides.
-// This keeps backend CLI commands working whether they are run from the package
-// directory or through Turbo/Bun from the workspace root.
-const workspaceRoot = path.resolve(__dirname, "..", "..");
-const rootEnv = path.resolve(workspaceRoot, ".env");
-const devEnv = path.resolve(workspaceRoot, ".env.development");
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const dotenv = require("dotenv");
 
-dotenv.config({ path: rootEnv });
-dotenv.config({ path: devEnv, override: true });
+// In Railway/Docker, env vars are passed directly to the container.
+// Only load .env files if they exist (for local development only).
+const workspaceRoot = resolve(__dirname, "..", "..");
+const rootEnv = resolve(workspaceRoot, ".env");
+const devEnv = resolve(workspaceRoot, ".env.development");
 
-export default defineConfig({
+if (existsSync(rootEnv)) {
+	dotenv.config({ path: rootEnv });
+}
+
+if (existsSync(devEnv)) {
+	dotenv.config({ path: devEnv, override: true });
+}
+
+export default {
 	/**
 	 * Path to the main Prisma schema file.
 	 * Relative to the project root (where package.json and this file reside).
@@ -48,16 +57,11 @@ export default defineConfig({
 	/**
 	 * Database connection configuration.
 	 *
-	 * The `env()` helper is type-safe and reads from process.env.
-	 * It does NOT replace the need for dotenv - you must still load
-	 * environment variables explicitly with `import 'dotenv/config'`.
-	 *
-	 * Available options:
-	 * - `url`: Primary database connection string (required)
-	 * - `shadowDatabaseUrl`: (optional) URL for shadow database used during migrations
+	 * Uses env() helper which reads from process.env at runtime.
+	 * In Railway/Docker, DATABASE_URL is set by the container environment.
 	 */
 	datasource: {
 		url: env("DATABASE_URL"),
 		// shadowDatabaseUrl: env('SHADOW_DB_URL'), // Uncomment for shadow database
 	},
-});
+} satisfies PrismaConfig;

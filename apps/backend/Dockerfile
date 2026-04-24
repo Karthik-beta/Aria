@@ -101,7 +101,7 @@ ENV TURBO_TOKEN=${TURBO_TOKEN} \
     TURBO_API=${TURBO_API}
 
 # Build backend (compiles NestJS to dist)
-RUN --mount=type=cache,id=turbo-build-cache,target=/app/.turbo/cache bun --filter backend build
+RUN --mount=type=cache,id=turbo-backend,target=/app/.turbo/cache bun --filter backend build
 
 #######################################################
 # Runner: minimal prod image with prod-only dependencies
@@ -147,6 +147,18 @@ RUN bun install --frozen-lockfile --production --ignore-scripts
 COPY --from=builder /app/apps/backend/dist /app/apps/backend/dist
 COPY --from=builder /app/apps/backend/prisma /app/apps/backend/prisma
 COPY --from=builder /app/apps/backend/prisma.config.ts /app/apps/backend/prisma.config.ts
+
+# Prisma-generated client (required at runtime for demo-data CLI scripts)
+COPY --from=builder /app/apps/backend/src/generated/prisma /app/apps/backend/src/generated/prisma
+
+# Compiled service files required by demo-data scripts (stock-snapshot.js, etc.)
+COPY --from=builder /app/apps/backend/dist/apps/inventory/services /app/apps/backend/src/apps/inventory/services
+COPY --from=builder /app/apps/backend/dist/apps/asset /app/apps/backend/src/apps/asset
+COPY --from=builder /app/apps/backend/dist/shared /app/apps/backend/src/shared
+
+# Remove source .ts files that would take precedence over compiled .js files
+# These files only exist because builder stage copies full source tree to src/
+RUN rm -f /app/apps/backend/src/shared/prisma.service.ts /app/apps/backend/src/shared/prisma-client.ts
 
 # Shared workspace packages: copy only their compiled JS outputs + package.json
 # This keeps workspace symlinks valid and avoids shipping TS sources

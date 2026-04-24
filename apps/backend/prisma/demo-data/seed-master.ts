@@ -16,7 +16,7 @@
  * 12. Stock Settings, Item Variant Settings
  */
 
-import type { PrismaClient } from "../../src/generated/prisma/client.js";
+import type { PrismaService } from "../../src/shared/prisma.service.js";
 import type { DemoConfig } from "./config.js";
 import {
 	BRANDS,
@@ -53,7 +53,7 @@ export interface MasterIds {
 }
 
 export async function seedMasterData(
-	prisma: PrismaClient,
+	prisma: PrismaService,
 	config: DemoConfig,
 ): Promise<MasterIds> {
 	const ids: MasterIds = {
