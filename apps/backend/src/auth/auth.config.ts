@@ -38,7 +38,7 @@ const cookieDomain = (() => {
 			// Strip subdomain to get parent domain: "app.aria.pivotr.in" -> ".aria.pivotr.in"
 			const parts = hostname.split(".");
 			if (parts.length > 2) {
-				return "." + parts.slice(-2).join(".");
+				return `.${parts.slice(-2).join(".")}`;
 			}
 			return hostname; // Return as-is for simple domains like "localhost"
 		}

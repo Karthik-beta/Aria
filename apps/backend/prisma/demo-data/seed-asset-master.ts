@@ -1,4 +1,4 @@
-import type { PrismaClient } from "../../src/generated/prisma/client.js";
+import type { PrismaService } from "../../src/shared/prisma.service.js";
 import {
 	ASSET_CATEGORIES,
 	ASSET_LOCATIONS,
@@ -43,7 +43,7 @@ function buildAssetDocumentCode(
 }
 
 export async function seedAssetMasterData(
-	prisma: PrismaClient,
+	prisma: PrismaService,
 	config: DemoConfig,
 	ids: MasterIds,
 ): Promise<void> {

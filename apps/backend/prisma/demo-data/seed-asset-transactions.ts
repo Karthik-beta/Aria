@@ -6,7 +6,7 @@ import {
 	getAssetValueAdjustmentDirection,
 	getAssetValueAdjustmentResultState,
 } from "../../src/apps/asset/asset-value-adjustment.utils.js";
-import type { PrismaClient } from "../../src/generated/prisma/client.js";
+import type { PrismaService } from "../../src/shared/prisma.service.js";
 import {
 	ASSET_CATEGORIES,
 	ASSET_MAINTENANCE_TEAMS,
@@ -153,7 +153,7 @@ function getScheduleCreatedAt(scheduleDate: Date, sequence: number): Date {
 }
 
 async function createAssetActivity(
-	prisma: PrismaClient,
+	prisma: PrismaService,
 	assetId: string,
 	activity: string,
 	createdAt: Date,
@@ -168,7 +168,7 @@ async function createAssetActivity(
 }
 
 async function seedMaintenanceRecord(
-	prisma: PrismaClient,
+	prisma: PrismaService,
 	config: DemoConfig,
 	ids: MasterIds,
 	assetId: string,
@@ -327,7 +327,7 @@ async function seedMaintenanceRecord(
 }
 
 async function seedValueAdjustments(
-	prisma: PrismaClient,
+	prisma: PrismaService,
 	config: DemoConfig,
 	assetId: string,
 	assetSeries: string,
@@ -557,7 +557,7 @@ async function seedValueAdjustments(
 }
 
 export async function seedAssetTransactions(
-	prisma: PrismaClient,
+	prisma: PrismaService,
 	config: DemoConfig,
 	ids: MasterIds,
 ): Promise<void> {

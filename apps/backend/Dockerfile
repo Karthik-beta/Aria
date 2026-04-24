@@ -148,6 +148,13 @@ COPY --from=builder /app/apps/backend/dist /app/apps/backend/dist
 COPY --from=builder /app/apps/backend/prisma /app/apps/backend/prisma
 COPY --from=builder /app/apps/backend/prisma.config.ts /app/apps/backend/prisma.config.ts
 
+# Prisma-generated client (required at runtime for demo-data CLI scripts)
+COPY --from=builder /app/apps/backend/src/generated/prisma /app/apps/backend/src/generated/prisma
+
+# Compiled service files required by demo-data scripts (stock-snapshot.js, etc.)
+COPY --from=builder /app/apps/backend/dist/apps/inventory/services /app/apps/backend/src/apps/inventory/services
+COPY --from=builder /app/apps/backend/dist/apps/asset /app/apps/backend/src/apps/asset
+
 # Shared workspace packages: copy only their compiled JS outputs + package.json
 # This keeps workspace symlinks valid and avoids shipping TS sources
 COPY --from=builder /app/packages/types/dist /app/packages/types/dist

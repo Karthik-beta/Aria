@@ -12,25 +12,20 @@
 
 import "dotenv/config";
 import { logger } from "@aria/utils";
-import { PrismaPg } from "@prisma/adapter-pg";
-import { PrismaClient } from "../../src/generated/prisma/client.js";
+import { PrismaService } from "../../src/shared/prisma.service.js";
 import { cleanDemoData, getDemoStatus } from "./cleanup.js";
 import type { DemoScale } from "./config.js";
 import { resolveConfig } from "./config.js";
 import { seedAll } from "./index.js";
 
-// ── Bootstrap Prisma ──────────────────────────────────────────────
-const connectionString = process.env.DATABASE_URL;
-if (!connectionString) {
-	logger.error("DATABASE_URL environment variable is not set");
-	process.exit(1);
-}
+// ── Bootstrap Prisma via PrismaService (NestJS DI-aware) ───────────
+const prismaService = new PrismaService();
 
-const adapter = new PrismaPg({ connectionString });
-const prisma = new PrismaClient({ adapter });
+// Ensure connection is established before running commands
+await prismaService.onModuleInit();
 
 // ── Parse CLI arguments ───────────────────────────────────────────
-const [command, ...flags] = process.argv.slice(2);
+const [, , command, ...flags] = process.argv;
 
 function parseScale(): DemoScale {
 	const scaleFlag = flags.find((f) => f.startsWith("--scale="));
@@ -41,7 +36,7 @@ function parseScale(): DemoScale {
 	return "medium";
 }
 
-// ── Commands ──────────────────────────────────────────────────────
+// ── Commands ─────────────────────────────────────────────────────
 async function run() {
 	switch (command) {
 		case "load": {
@@ -54,10 +49,10 @@ async function run() {
 			);
 			const start = Date.now();
 			logger.info("Cleaning existing demo data before loading...");
-			await cleanDemoData(prisma, config);
+			await cleanDemoData(prismaService, config);
 			const cleanupElapsed = ((Date.now() - start) / 1000).toFixed(1);
 			logger.info(`Existing demo data cleaned in ${cleanupElapsed}s`);
-			await seedAll(prisma, config);
+			await seedAll(prismaService, config);
 			const elapsed = ((Date.now() - start) / 1000).toFixed(1);
 			logger.info(`Demo data loaded successfully in ${elapsed}s`);
 			break;
@@ -67,7 +62,7 @@ async function run() {
 			const config = resolveConfig();
 			logger.info(`Cleaning demo data for company="${config.company}"...`);
 			const start = Date.now();
-			const counts = await cleanDemoData(prisma, config);
+			const counts = await cleanDemoData(prismaService, config);
 			const elapsed = ((Date.now() - start) / 1000).toFixed(1);
 			logger.info(`Cleanup complete in ${elapsed}s`);
 			for (const [model, count] of Object.entries(counts)) {
@@ -78,7 +73,7 @@ async function run() {
 
 		case "status": {
 			const config = resolveConfig();
-			const counts = await getDemoStatus(prisma, config);
+			const counts = await getDemoStatus(prismaService, config);
 			logger.info(`Demo data status for company="${config.company}":`);
 			for (const [model, count] of Object.entries(counts)) {
 				logger.info(`  ${model}: ${count}`);
@@ -103,4 +98,4 @@ run()
 		logger.error("Demo data CLI failed:", err);
 		process.exit(1);
 	})
-	.finally(() => prisma.$disconnect());
+	.finally(() => prismaService.onModuleDestroy());

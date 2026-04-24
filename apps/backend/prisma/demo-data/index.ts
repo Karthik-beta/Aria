@@ -16,7 +16,7 @@ export { type MasterIds, seedMasterData } from "./seed-master.js";
 export { seedTransactions } from "./seed-transactions.js";
 
 import { reconcileInventoryItemQuantities } from "../../src/apps/inventory/services/stock-snapshot.js";
-import type { PrismaClient } from "../../src/generated/prisma/client.js";
+import type { PrismaService } from "../../src/shared/prisma.service.js";
 import type { DemoConfig } from "./config.js";
 import { ITEMS } from "./data.js";
 import { seedMasterData } from "./seed-master.js";
@@ -26,7 +26,7 @@ import { seedTransactions } from "./seed-transactions.js";
  * Seed the full demo dataset (master data + transactions).
  */
 export async function seedAll(
-	prisma: PrismaClient,
+	prisma: PrismaService,
 	config: DemoConfig,
 ): Promise<void> {
 	const ids = await seedMasterData(prisma, config);
