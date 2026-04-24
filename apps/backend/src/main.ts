@@ -47,25 +47,31 @@ try {
 		}
 	}
 
+	// In production (Docker/Railway), no .env file exists - env vars come from container
 	if (!fileContent) {
-		throw new Error("No .env file found");
-	}
+		logger.info(
+			"[ENV] No .env file found (expected in Docker/production where env vars are passed via container)",
+		);
+		// Continue without loading .env - Railway/Docker env vars are already in process.env
+	} else {
+		// Load .env and explicitly merge with process.env
+		const result = config({ path: envPath, override: true });
 
-	// Load .env and explicitly merge with process.env
-	const result = config({ path: envPath, override: true });
+		if (result.error) {
+			logger.error(`[ENV] Error parsing .env file: ${result.error.message}`);
+		} else if (result.parsed) {
+			const parsedCount = Object.keys(result.parsed).length;
+			logger.info(
+				`[ENV] Successfully loaded ${parsedCount} variables from .env`,
+			);
 
-	if (result.error) {
-		logger.error(`[ENV] Error parsing .env file: ${result.error.message}`);
-	} else if (result.parsed) {
-		const parsedCount = Object.keys(result.parsed).length;
-		logger.info(`[ENV] Successfully loaded ${parsedCount} variables from .env`);
-
-		// Manually ensure variables are in process.env if dotenv didn't do it
-		if (
-			!process.env.DEFAULT_ADMIN_USERNAME &&
-			result.parsed.DEFAULT_ADMIN_USERNAME
-		) {
-			Object.assign(process.env, result.parsed);
+			// Manually ensure variables are in process.env if dotenv didn't do it
+			if (
+				!process.env.DEFAULT_ADMIN_USERNAME &&
+				result.parsed.DEFAULT_ADMIN_USERNAME
+			) {
+				Object.assign(process.env, result.parsed);
+			}
 		}
 	}
 } catch (error) {

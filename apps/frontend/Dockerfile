@@ -79,8 +79,9 @@ ENV NEXT_TELEMETRY_DISABLED=1
 
 # CRITICAL: Accept NEXT_PUBLIC_* variables as build args
 # Next.js embeds NEXT_PUBLIC_* env vars into the client bundle at BUILD time
-# These must be passed as build args, not just runtime environment variables
-ARG NEXT_PUBLIC_API_URL
+# For same-origin deployments (proxy handles routing), use empty string
+# For separate backend domains, set to the backend URL (e.g., https://api.example.com)
+ARG NEXT_PUBLIC_API_URL=
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 
 # Expose Turborepo remote cache args so they can be provided at docker build time
@@ -108,10 +109,10 @@ RUN cd packages/types && bun tsc --build tsconfig.json
 RUN cd packages/utils && bun tsc --build tsconfig.json
 
 # Build backend (required for tRPC types that frontend imports)
-RUN --mount=type=cache,id=turbo-build-cache,target=/app/.turbo/cache bun --filter backend build
+RUN --mount=type=cache,id=turbo-backend,target=/app/.turbo/cache bun --filter backend build
 
 # Build frontend using Turbo (now able to access remote cache via TURBO_* env)
-RUN --mount=type=cache,id=turbo-build-cache,target=/app/.turbo/cache bun turbo build --filter=frontend...
+RUN --mount=type=cache,id=turbo-frontend,target=/app/.turbo/cache bun turbo build --filter=frontend...
 
 # Production runner stage - minimal production image with standalone output 🏁
 FROM base AS runner

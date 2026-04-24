@@ -23,9 +23,7 @@ import { tryFetchServerTrpcQuery } from "@/lib/trpc/server";
 
 function getBackendUrl() {
 	const baseUrl =
-		process.env.BACKEND_URL ||
-		process.env.NEXT_PUBLIC_API_URL ||
-		"http://localhost:3001";
+		process.env.BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || "";
 
 	return baseUrl.replace(/\/$/, "");
 }

@@ -73,6 +73,10 @@ export class AuthService implements OnModuleInit {
 		const email = process.env.DEFAULT_ADMIN_EMAIL;
 		const name = process.env.DEFAULT_ADMIN_NAME || "Administrator";
 
+		this.logger.log(
+			`[createDefaultUser] Checking admin creation — username: "${username}", email: "${email}", name: "${name}"`,
+		);
+
 		if (!username || !password || !email) {
 			this.logger.warn(
 				"Default admin credentials not configured. Skipping user creation. " +
@@ -81,11 +85,18 @@ export class AuthService implements OnModuleInit {
 			return;
 		}
 
+		this.logger.log(
+			"[createDefaultUser] All required env vars present, proceeding...",
+		);
+
 		try {
 			// Wait for database to be ready
+			this.logger.log("[createDefaultUser] Connecting to database...");
 			await this.prisma.$connect();
+			this.logger.log("[createDefaultUser] Database connected");
 
 			// Check if user already exists
+			this.logger.log("[createDefaultUser] Checking for existing user...");
 			const existingUser = await this.prisma.user.findFirst({
 				where: {
 					OR: [{ username }, { email }],
@@ -98,25 +109,32 @@ export class AuthService implements OnModuleInit {
 				this.logger.log(`Default admin user already exists: ${username}`);
 				userCreated = true;
 			} else {
+				this.logger.log(
+					"[createDefaultUser] Creating new admin user via better-auth API...",
+				);
 				// Create user via better-auth's Request API
 				// Username plugin uses /sign-up/email endpoint with username field
-				const request = new Request(
-					`${process.env.BETTER_AUTH_URL || "http://localhost:3001"}/api/auth/sign-up/email`,
-					{
-						method: "POST",
-						headers: {
-							"Content-Type": "application/json",
-						},
-						body: JSON.stringify({
-							username,
-							password,
-							email,
-							name,
-						}),
-					},
-				);
+				const authUrl = `${process.env.BETTER_AUTH_URL || "http://localhost:3001"}/api/auth/sign-up/email`;
+				this.logger.log(`[createDefaultUser] Using auth URL: ${authUrl}`);
 
+				const request = new Request(authUrl, {
+					method: "POST",
+					headers: {
+						"Content-Type": "application/json",
+					},
+					body: JSON.stringify({
+						username,
+						password,
+						email,
+						name,
+					}),
+				});
+
+				this.logger.log("[createDefaultUser] Sending sign-up request...");
 				const response = await auth.handler(request);
+				this.logger.log(
+					`[createDefaultUser] Response status: ${response.status}`,
+				);
 
 				if (response.ok) {
 					this.logger.log(

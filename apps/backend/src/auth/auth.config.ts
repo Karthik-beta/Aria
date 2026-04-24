@@ -27,6 +27,27 @@ const backendUrl = (
 const useSecureCookies =
 	process.env.NODE_ENV === "production" || backendUrl.startsWith("https");
 
+// Extract parent domain from the first frontend URL for cookie sharing across subdomains.
+// e.g. "https://app.aria.pivotr.in" -> ".aria.pivotr.in"
+const cookieDomain = (() => {
+	try {
+		const firstFrontendUrl = frontendUrlsArray[0];
+		if (firstFrontendUrl) {
+			const url = new URL(firstFrontendUrl);
+			const hostname = url.hostname; // e.g. "app.aria.pivotr.in"
+			// Strip subdomain to get parent domain: "app.aria.pivotr.in" -> ".aria.pivotr.in"
+			const parts = hostname.split(".");
+			if (parts.length > 2) {
+				return "." + parts.slice(-2).join(".");
+			}
+			return hostname; // Return as-is for simple domains like "localhost"
+		}
+	} catch {
+		// Fallback to null (let browser handle cookie scope)
+	}
+	return null;
+})();
+
 const resolveAuthSecret = (): string => {
 	const configuredSecret = process.env.BETTER_AUTH_SECRET?.trim();
 	if (configuredSecret) {
@@ -158,6 +179,7 @@ export const auth = betterAuth({
 			secure: useSecureCookies,
 			httpOnly: true, // XSS protection
 			path: "/", // Cookie available to all routes
+			...(cookieDomain && { domain: cookieDomain }),
 		},
 
 		// Customize individual cookie attributes
@@ -173,6 +195,7 @@ export const auth = betterAuth({
 					secure: useSecureCookies,
 					httpOnly: true, // XSS protection
 					partitioned: process.env.NODE_ENV === "production", // CHIPS only in production
+					...(cookieDomain && { domain: cookieDomain }),
 				},
 			},
 			sessionData: {
@@ -185,6 +208,7 @@ export const auth = betterAuth({
 					secure: useSecureCookies,
 					httpOnly: true, // XSS protection
 					partitioned: process.env.NODE_ENV === "production", // CHIPS
+					...(cookieDomain && { domain: cookieDomain }),
 				},
 			},
 			dontRememberMe: {
@@ -197,6 +221,7 @@ export const auth = betterAuth({
 					secure: useSecureCookies,
 					httpOnly: true, // XSS protection
 					partitioned: process.env.NODE_ENV === "production", // CHIPS
+					...(cookieDomain && { domain: cookieDomain }),
 				},
 			},
 		},

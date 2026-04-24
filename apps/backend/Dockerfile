@@ -101,7 +101,7 @@ ENV TURBO_TOKEN=${TURBO_TOKEN} \
     TURBO_API=${TURBO_API}
 
 # Build backend (compiles NestJS to dist)
-RUN --mount=type=cache,id=turbo-build-cache,target=/app/.turbo/cache bun --filter backend build
+RUN --mount=type=cache,id=turbo-backend,target=/app/.turbo/cache bun --filter backend build
 
 #######################################################
 # Runner: minimal prod image with prod-only dependencies
