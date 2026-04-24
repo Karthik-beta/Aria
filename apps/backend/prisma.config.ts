@@ -14,8 +14,8 @@
  * - Environment variables come from the container/runtime, not .env files.
  */
 import "dotenv/config";
-import { resolve } from "node:path";
 import { existsSync } from "node:fs";
+import { resolve } from "node:path";
 import type { PrismaConfig } from "prisma";
 import { env } from "prisma/config";
 
