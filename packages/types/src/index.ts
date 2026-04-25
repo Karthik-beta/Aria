@@ -3432,6 +3432,9 @@ export namespace Inventory {
 		itemCode?: string;
 		itemGroup?: string;
 		brand?: string;
+		basedOn?: string;
+		periodicity?: string;
+		take?: number;
 	}
 
 	export const listStockAnalyticsSchema = z.object({
@@ -3444,6 +3447,9 @@ export namespace Inventory {
 		itemCode: z.string().max(100).optional(),
 		itemGroup: z.string().max(255).optional(),
 		brand: z.string().max(255).optional(),
+		basedOn: z.string().max(50).optional(),
+		periodicity: z.string().max(50).optional(),
+		take: z.number().int().min(1).max(10000).optional(),
 	});
 
 	// ============================================================================
@@ -3544,6 +3550,9 @@ export namespace Inventory {
 			.optional(),
 		warehouse: z.string().max(255).optional(),
 		groupBySalesOrder: z.boolean().optional(),
+		customer: z.string().max(255).optional(),
+		itemCode: z.string().max(100).optional(),
+		take: z.number().int().min(1).max(10000).optional(),
 	});
 
 	export interface ListSalesOrderAnalysisInput {
@@ -3554,6 +3563,9 @@ export namespace Inventory {
 		status?: SalesOrderAnalysisStatus[];
 		warehouse?: string;
 		groupBySalesOrder?: boolean;
+		customer?: string;
+		itemCode?: string;
+		take?: number;
 	}
 
 	// ============================================================================
@@ -3646,6 +3658,9 @@ export namespace Inventory {
 			.optional(),
 		project: z.string().max(255).optional(),
 		groupByPurchaseOrder: z.boolean().optional(),
+		supplier: z.string().max(255).optional(),
+		itemCode: z.string().max(100).optional(),
+		take: z.number().int().min(1).max(10000).optional(),
 	});
 
 	export interface ListPurchaseOrderAnalysisInput {
@@ -3656,6 +3671,9 @@ export namespace Inventory {
 		status?: PurchaseOrderAnalysisStatus[];
 		project?: string;
 		groupByPurchaseOrder?: boolean;
+		supplier?: string;
+		itemCode?: string;
+		take?: number;
 	}
 
 	// ============================================================================
@@ -3687,12 +3705,16 @@ export namespace Inventory {
 		.object({
 			company: z.string().max(255).optional(),
 			warehouses: z.array(z.string().max(255)).optional(),
+			itemGroup: z.string().max(255).optional(),
+			take: z.number().int().min(1).max(10000).optional(),
 		})
 		.optional();
 
 	export interface ListItemShortageInput {
 		company?: string;
 		warehouses?: string[];
+		itemGroup?: string;
+		take?: number;
 	}
 
 	// ============================================================================
@@ -3746,6 +3768,8 @@ export namespace Inventory {
 			itemCode: z.string().max(100).optional(),
 			targetWarehouse: z.string().max(255).optional(),
 			purpose: z.enum(["MATERIAL_TRANSFER", "MATERIAL_ISSUE"]).optional(),
+			status: z.string().max(50).optional(),
+			take: z.number().int().min(1).max(10000).optional(),
 		})
 		.optional();
 
@@ -3755,6 +3779,8 @@ export namespace Inventory {
 		itemCode?: string;
 		targetWarehouse?: string;
 		purpose?: RequestedItemsToBeTransferredPurpose;
+		status?: string;
+		take?: number;
 	}
 
 	// ============================================================================
@@ -3819,6 +3845,7 @@ export namespace Inventory {
 		supplier?: string;
 		itemCode?: string;
 		warehouse?: string;
+		take?: number;
 	}
 
 	export const listPurchaseReceiptTrendsSchema = z.object({
@@ -3830,6 +3857,7 @@ export namespace Inventory {
 		supplier: z.string().max(255).optional(),
 		itemCode: z.string().max(100).optional(),
 		warehouse: z.string().max(255).optional(),
+		take: z.number().int().min(1).max(10000).optional(),
 	});
 
 	// ============================================================================
@@ -3903,6 +3931,7 @@ export namespace Inventory {
 		customer?: string;
 		itemCode?: string;
 		warehouse?: string;
+		take?: number;
 	}
 
 	export const listDeliveryNoteTrendsSchema = z.object({
@@ -3914,6 +3943,7 @@ export namespace Inventory {
 		customer: z.string().max(255).optional(),
 		itemCode: z.string().max(100).optional(),
 		warehouse: z.string().max(255).optional(),
+		take: z.number().int().min(1).max(10000).optional(),
 	});
 
 	// ============================================================================
@@ -5366,6 +5396,7 @@ export namespace Inventory {
 		itemCode: z.string().max(100).trim().optional(),
 		warehouse: z.string().max(255).trim().optional(),
 		batchNo: z.string().max(120).trim().optional(),
+		take: z.number().int().min(1).max(10000).optional(),
 	});
 
 	export interface ListBatchWiseBalanceInput {
@@ -5375,6 +5406,7 @@ export namespace Inventory {
 		itemCode?: string;
 		warehouse?: string;
 		batchNo?: string;
+		take?: number;
 	}
 
 	// ---------------------------------------------------------------------------
@@ -5414,12 +5446,16 @@ export namespace Inventory {
 		fromDate: z.coerce.date(),
 		toDate: z.coerce.date(),
 		itemCode: z.string().max(100).trim().optional(),
+		warehouse: z.string().max(255).trim().optional(),
+		take: z.number().int().min(1).max(10000).optional(),
 	});
 
 	export interface ListBatchItemExpiryInput {
 		fromDate: Date;
 		toDate: Date;
 		itemCode?: string;
+		warehouse?: string;
+		take?: number;
 	}
 
 	// ---------------------------------------------------------------------------
@@ -5468,6 +5504,7 @@ export namespace Inventory {
 		itemCode: z.string().max(100).trim().optional(),
 		itemGroup: z.string().max(255).trim().optional(),
 		brand: z.string().max(255).trim().optional(),
+		take: z.number().int().min(1).max(10000).optional(),
 	});
 
 	export interface ListItemPricesInput {
@@ -5475,6 +5512,7 @@ export namespace Inventory {
 		itemCode?: string;
 		itemGroup?: string;
 		brand?: string;
+		take?: number;
 	}
 
 	// ============================================================================
@@ -5503,6 +5541,7 @@ export namespace Inventory {
 		toDate: z.coerce.date(),
 		itemGroup: z.string().max(255).trim().optional(),
 		brand: z.string().max(255).trim().optional(),
+		take: z.number().int().min(1).max(10000).optional(),
 	});
 
 	export interface ListItemwiseRecommendedReorderLevelInput {
@@ -5510,6 +5549,7 @@ export namespace Inventory {
 		toDate: Date;
 		itemGroup?: string;
 		brand?: string;
+		take?: number;
 	}
 
 	// ============================================================================
@@ -5550,10 +5590,12 @@ export namespace Inventory {
 	export const listItemVariantDetailsSchema = z.object({
 		/** The template item code (must have hasVariants=true) */
 		itemCode: z.string().min(1).max(100).trim(),
+		take: z.number().int().min(1).max(10000).optional(),
 	});
 
 	export interface ListItemVariantDetailsInput {
 		itemCode: string;
+		take?: number;
 	}
 
 	// ============================================================================
@@ -5604,6 +5646,7 @@ export namespace Inventory {
 		toDate: z.coerce.date(),
 		company: z.string().max(255).optional(),
 		rmItemCode: z.string().max(100).optional(),
+		take: z.number().int().min(1).max(10000).optional(),
 	});
 
 	export interface ListSubcontractedRawMaterialsInput {
@@ -5612,6 +5655,7 @@ export namespace Inventory {
 		toDate: Date;
 		company?: string;
 		rmItemCode?: string;
+		take?: number;
 	}
 
 	/** One row in the Subcontracted Item To Be Received report. */
@@ -5648,6 +5692,7 @@ export namespace Inventory {
 		toDate: z.coerce.date(),
 		company: z.string().max(255).optional(),
 		fgItemCode: z.string().max(100).optional(),
+		take: z.number().int().min(1).max(10000).optional(),
 	});
 
 	export interface ListSubcontractedItemToBeReceivedInput {
@@ -5656,6 +5701,7 @@ export namespace Inventory {
 		toDate: Date;
 		company?: string;
 		fgItemCode?: string;
+		take?: number;
 	}
 
 	// ────────────────────────────────────────────────────────────────

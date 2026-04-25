@@ -7,6 +7,7 @@ import {
 	AdvancedDataTable,
 	useAdvancedDataTable,
 } from "@/components/advanced-data-table";
+import { downloadExcelBuffer } from "@/components/advanced-data-table/utils";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ErrorState } from "@/components/ui/error-display";
@@ -363,6 +364,19 @@ export default function StockSummaryPage() {
 		getRowId: (row) => row.id,
 	});
 
+	const handleExport = React.useCallback(
+		async (format: string) => {
+			if (format !== "excel") return;
+			const buffer = await (
+				trpc.inventory.exportStockSummaryExcel as unknown as {
+					mutate: (input: typeof listQueryInput) => Promise<Buffer>;
+				}
+			).mutate(listQueryInput);
+			downloadExcelBuffer(buffer, `stock-summary-${Date.now()}.xlsx`);
+		},
+		[listQueryInput],
+	);
+
 	const hasActiveFilters = React.useMemo(
 		() =>
 			(Object.keys(INITIAL_FILTERS) as Array<keyof FilterState>).some(
@@ -530,6 +544,7 @@ export default function StockSummaryPage() {
 					enableGlobalSearch={false}
 					enableBulkActions={false}
 					enableExport
+					onExport={handleExport}
 					enableColumnResizing
 					enableVirtualization
 					exportFormats={["csv", "excel", "json"]}

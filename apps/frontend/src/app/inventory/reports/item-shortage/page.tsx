@@ -15,6 +15,7 @@ import {
 	AdvancedDataTable,
 	useAdvancedDataTable,
 } from "@/components/advanced-data-table";
+import { downloadExcelBuffer } from "@/components/advanced-data-table/utils";
 import { Button } from "@/components/ui/button";
 import { ErrorState } from "@/components/ui/error-display";
 import { Input } from "@/components/ui/input";
@@ -203,9 +204,17 @@ export default function ItemShortageReportPage() {
 		};
 	}, [validationError, filters.company, warehousesList]);
 
+	const listQueryInput = React.useMemo(() => {
+		if (validationError) return null;
+		return {
+			company: filters.company.trim(),
+			warehouses: warehousesList,
+		};
+	}, [validationError, filters.company, warehousesList]);
+
 	const { data, isLoading, error } =
-		trpc.inventory.listItemShortageReport.useQuery(queryInput ?? {}, {
-			enabled: queryInput !== null,
+		trpc.inventory.listItemShortageReport.useQuery(listQueryInput ?? {}, {
+			enabled: listQueryInput !== null,
 		});
 
 	const rows = data ?? [];
@@ -218,6 +227,16 @@ export default function ItemShortageReportPage() {
 		initialSorting: [{ id: "projectedQty", desc: false }],
 		initialPageSize: 50,
 	});
+
+	const handleExport = React.useCallback(async () => {
+		if (!listQueryInput) return;
+		const buffer = await (
+			trpc.inventory.exportItemShortageExcel as unknown as {
+				mutate: (input: typeof listQueryInput) => Promise<Buffer>;
+			}
+		).mutate(listQueryInput);
+		downloadExcelBuffer(buffer, `item-shortage-${Date.now()}.xlsx`);
+	}, [listQueryInput]);
 
 	return (
 		<div className="flex flex-1 flex-col gap-6 p-6">
@@ -351,7 +370,11 @@ export default function ItemShortageReportPage() {
 						</div>
 
 						{/* Data table */}
-						<AdvancedDataTable table={tableState.table} data={rows} />
+						<AdvancedDataTable
+							table={tableState.table}
+							data={rows}
+							onExport={handleExport}
+						/>
 					</>
 				))}
 		</div>

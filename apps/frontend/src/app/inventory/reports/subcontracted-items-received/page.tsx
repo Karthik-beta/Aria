@@ -15,6 +15,7 @@ import {
 	AdvancedDataTable,
 	useAdvancedDataTable,
 } from "@/components/advanced-data-table";
+import { downloadExcelBuffer } from "@/components/advanced-data-table/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ErrorState } from "@/components/ui/error-display";
@@ -242,6 +243,19 @@ export default function SubcontractedItemToBeReceivedPage() {
 		initialSorting: [{ id: "date", desc: false }],
 		initialPageSize: 50,
 	});
+
+	const handleExport = React.useCallback(async () => {
+		if (!queryInput) return;
+		const buffer = await (
+			trpc.inventory.exportSubcontractedItemToBeReceivedExcel as unknown as {
+				mutate: (input: typeof queryInput) => Promise<Buffer>;
+			}
+		).mutate(queryInput);
+		downloadExcelBuffer(
+			buffer,
+			`subcontracted-items-received-${Date.now()}.xlsx`,
+		);
+	}, [queryInput]);
 
 	return (
 		<div className="flex flex-1 flex-col gap-6 p-6">
@@ -497,6 +511,7 @@ export default function SubcontractedItemToBeReceivedPage() {
 							enableVirtualization={false}
 							enableBulkActions={false}
 							ariaLabel="Subcontracted items to be received"
+							onExport={handleExport}
 						/>
 					</section>
 				</>

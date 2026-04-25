@@ -8,6 +8,7 @@ import {
 	AdvancedDataTable,
 	useAdvancedDataTable,
 } from "@/components/advanced-data-table";
+import { downloadExcelBuffer } from "@/components/advanced-data-table/utils";
 import { Button } from "@/components/ui/button";
 import {
 	Card,
@@ -239,6 +240,19 @@ export default function AssetActivityPage() {
 		await refetch();
 	}, [refetch]);
 
+	const handleExport = React.useCallback(
+		async (format: string) => {
+			if (format !== "excel") return;
+			const buffer = await (
+				trpc.asset.exportAssetActivityExcel as unknown as {
+					mutate: (input: typeof queryInput) => Promise<Buffer>;
+				}
+			).mutate(queryInput);
+			downloadExcelBuffer(buffer, `asset-activity-${Date.now()}.xlsx`);
+		},
+		[queryInput],
+	);
+
 	const { table } = useAdvancedDataTable<ActivityRow>({
 		data: rows,
 		columns,
@@ -375,6 +389,7 @@ export default function AssetActivityPage() {
 					table={table}
 					data={rows}
 					enableExport
+					onExport={handleExport}
 					enableVirtualization
 					enableColumnResizing
 					enableBulkActions={false}

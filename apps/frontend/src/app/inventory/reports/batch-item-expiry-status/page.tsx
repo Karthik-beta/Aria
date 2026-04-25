@@ -6,6 +6,7 @@ import {
 	AdvancedDataTable,
 	useAdvancedDataTable,
 } from "@/components/advanced-data-table";
+import { downloadExcelBuffer } from "@/components/advanced-data-table/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ErrorState } from "@/components/ui/error-display";
@@ -224,6 +225,16 @@ export default function BatchItemExpiryStatusPage() {
 		initialPageSize: 50,
 	});
 
+	const handleExport = React.useCallback(async () => {
+		if (!queryInput) return;
+		const buffer = await (
+			trpc.inventory.exportBatchItemExpiryExcel as unknown as {
+				mutate: (input: typeof queryInput) => Promise<Buffer>;
+			}
+		).mutate(queryInput);
+		downloadExcelBuffer(buffer, `batch-item-expiry-${Date.now()}.xlsx`);
+	}, [queryInput]);
+
 	return (
 		<div className="flex flex-1 flex-col gap-6 p-6">
 			{/* Header */}
@@ -347,6 +358,7 @@ export default function BatchItemExpiryStatusPage() {
 							enableColumnResizing
 							enableBulkActions={false}
 							ariaLabel="Batch item expiry status table"
+							onExport={handleExport}
 						/>
 					</div>
 				))}

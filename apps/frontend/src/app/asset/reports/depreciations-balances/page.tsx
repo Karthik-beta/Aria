@@ -7,6 +7,7 @@ import Link from "next/link";
 import * as React from "react";
 import {
 	AdvancedDataTable,
+	downloadExcelBuffer,
 	useAdvancedDataTable,
 } from "@/components/advanced-data-table";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -471,6 +472,22 @@ export default function AssetDepreciationsAndBalancesPage() {
 			getRowId: (row) => row.groupingKey,
 		});
 
+	const handleExport = React.useCallback(
+		async (format: string) => {
+			if (format !== "excel") return;
+			const buffer = await (
+				trpc.asset.exportAssetDepreciationsAndBalancesExcel as unknown as {
+					mutate: (input: typeof queryInput) => Promise<Buffer>;
+				}
+			).mutate(queryInput);
+			downloadExcelBuffer(
+				buffer,
+				`asset-depreciations-balances-${Date.now()}.xlsx`,
+			);
+		},
+		[queryInput],
+	);
+
 	return (
 		<div className="flex flex-1 flex-col gap-6 p-4 md:px-6">
 			<div className="flex items-center justify-between gap-4">
@@ -624,6 +641,7 @@ export default function AssetDepreciationsAndBalancesPage() {
 					table={table}
 					data={rows}
 					enableExport
+					onExport={handleExport}
 					enableVirtualization
 					enableColumnResizing
 					enableBulkActions={false}

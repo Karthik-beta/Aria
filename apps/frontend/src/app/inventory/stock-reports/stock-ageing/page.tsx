@@ -7,6 +7,7 @@ import {
 	AdvancedDataTable,
 	useAdvancedDataTable,
 } from "@/components/advanced-data-table";
+import { downloadExcelBuffer } from "@/components/advanced-data-table/utils";
 import { Button } from "@/components/ui/button";
 import {
 	ChartContainer,
@@ -413,6 +414,19 @@ export default function StockAgeingPage() {
 		getRowId: (row) => row.id,
 	});
 
+	const handleExport = React.useCallback(
+		async (format: string) => {
+			if (format !== "excel") return;
+			const buffer = await (
+				trpc.inventory.exportStockAgeingExcel as unknown as {
+					mutate: (input: typeof listQueryInput) => Promise<Buffer>;
+				}
+			).mutate(listQueryInput);
+			downloadExcelBuffer(buffer, `stock-ageing-${Date.now()}.xlsx`);
+		},
+		[listQueryInput],
+	);
+
 	const hasActiveFilters = React.useMemo(
 		() =>
 			(Object.keys(INITIAL_FILTERS) as Array<keyof FilterState>).some(
@@ -647,6 +661,7 @@ export default function StockAgeingPage() {
 					enableColumnResizing
 					enableVirtualization
 					exportFormats={["csv", "excel", "json"]}
+					onExport={handleExport}
 				/>
 			)}
 

@@ -1,4 +1,5 @@
 import { EventEmitter } from "node:events";
+import { ReportTemplateService } from "@aria/report-export";
 import { Asset } from "@aria/types";
 import { Injectable } from "@nestjs/common";
 import { observable } from "@trpc/server/observable";
@@ -506,6 +507,168 @@ export class AssetRouter {
 					return () => assetEvents.off("assetMaintenancesChanged", handler);
 				}),
 			),
+
+			// ── Excel Export Procedures ──────────────────────────────────────
+			exportAssetDepreciationsAndBalancesExcel: protectedProcedure
+				.input(Asset.listAssetDepreciationsAndBalancesSchema)
+				.mutation(async ({ input }) => {
+					const reportTemplateService = new ReportTemplateService();
+					const result = await svc.findAssetDepreciationsAndBalances(input);
+
+					const columns = [
+						{ key: "groupingLabel", header: "Group" },
+						{ key: "company", header: "Company" },
+						{ key: "assetSeries", header: "Asset Series" },
+						{ key: "assetName", header: "Asset Name" },
+						{ key: "assetCategoryName", header: "Category" },
+						{ key: "valueAsOnFromDate", header: "Opening Value" },
+						{ key: "valueOfNewPurchase", header: "New Purchase" },
+						{ key: "valueOfSoldAsset", header: "Sold Value" },
+						{ key: "valueOfScrappedAsset", header: "Scrapped Value" },
+						{ key: "valueAdjustmentDuringPeriod", header: "Adjustment" },
+						{ key: "depreciationAmountDuringPeriod", header: "Depreciation" },
+						{ key: "valueAsOnToDate", header: "Closing Value" },
+						{
+							key: "accumulatedDepreciationAsOnToDate",
+							header: "Accumulated Depreciation",
+						},
+						{ key: "netAssetValueAsOnToDate", header: "Net Value" },
+					];
+
+					const filters: Array<{ label: string; value: string }> = [];
+					if (input.company)
+						filters.push({ label: "Company", value: input.company });
+					if (input.asset) filters.push({ label: "Asset", value: input.asset });
+					if (input.assetCategory)
+						filters.push({ label: "Category", value: input.assetCategory });
+					filters.push({
+						label: "From",
+						value: input.fromDate.toLocaleDateString("en-IN"),
+					});
+					filters.push({
+						label: "To",
+						value: input.toDate.toLocaleDateString("en-IN"),
+					});
+
+					const metadata = {
+						title: "Asset Depreciations and Balances Report",
+						generatedAt: new Date(),
+						filters,
+					};
+
+					return reportTemplateService.buildExcelBuffer(
+						metadata,
+						result.rows as unknown as Record<string, unknown>[],
+						columns,
+					);
+				}),
+
+			exportAssetDepreciationLedgerExcel: protectedProcedure
+				.input(Asset.listAssetDepreciationLedgerSchema)
+				.mutation(async ({ input }) => {
+					const reportTemplateService = new ReportTemplateService();
+					const result = await svc.findAssetDepreciationLedger(input);
+
+					const columns = [
+						{ key: "assetSeries", header: "Asset Series" },
+						{ key: "assetName", header: "Asset Name" },
+						{ key: "assetCategoryName", header: "Category" },
+						{ key: "company", header: "Company" },
+						{ key: "purchaseDate", header: "Purchase Date" },
+						{ key: "depreciationDate", header: "Depreciation Date" },
+						{
+							key: "openingAccumulatedDepreciation",
+							header: "Opening Accumulated Depreciation",
+						},
+						{ key: "depreciationAmount", header: "Depreciation Amount" },
+						{
+							key: "accumulatedDepreciationAmount",
+							header: "Accumulated Depreciation",
+						},
+						{
+							key: "valueAfterDepreciation",
+							header: "Value After Depreciation",
+						},
+						{ key: "adjustmentSeries", header: "Adjustment Series" },
+						{ key: "depreciationMethod", header: "Depreciation Method" },
+						{ key: "assetStatus", header: "Status" },
+					];
+
+					const filters: Array<{ label: string; value: string }> = [];
+					if (input.company)
+						filters.push({ label: "Company", value: input.company });
+					if (input.asset) filters.push({ label: "Asset", value: input.asset });
+					if (input.assetCategory)
+						filters.push({ label: "Category", value: input.assetCategory });
+					if (input.costCenter)
+						filters.push({ label: "Cost Center", value: input.costCenter });
+					filters.push({
+						label: "From",
+						value: input.fromDate.toLocaleDateString("en-IN"),
+					});
+					filters.push({
+						label: "To",
+						value: input.toDate.toLocaleDateString("en-IN"),
+					});
+
+					const metadata = {
+						title: "Asset Depreciation Ledger Report",
+						generatedAt: new Date(),
+						filters,
+					};
+
+					return reportTemplateService.buildExcelBuffer(
+						metadata,
+						result.rows as unknown as Record<string, unknown>[],
+						columns,
+					);
+				}),
+
+			exportAssetActivityExcel: protectedProcedure
+				.input(Asset.listAssetActivityReportSchema)
+				.mutation(async ({ input }) => {
+					const reportTemplateService = new ReportTemplateService();
+					const result = await svc.findAssetActivityReport(input);
+
+					const columns = [
+						{ key: "assetSeries", header: "Asset Series" },
+						{ key: "assetName", header: "Asset Name" },
+						{ key: "assetCategoryName", header: "Category" },
+						{ key: "company", header: "Company" },
+						{ key: "assetStatus", header: "Status" },
+						{ key: "activity", header: "Activity" },
+						{ key: "createdAt", header: "Date" },
+					];
+
+					const filters: Array<{ label: string; value: string }> = [];
+					if (input.company)
+						filters.push({ label: "Company", value: input.company });
+					if (input.asset) filters.push({ label: "Asset", value: input.asset });
+					if (input.assetCategory)
+						filters.push({ label: "Category", value: input.assetCategory });
+					if (input.activity)
+						filters.push({ label: "Activity", value: input.activity });
+					filters.push({
+						label: "From",
+						value: input.fromDate.toLocaleDateString("en-IN"),
+					});
+					filters.push({
+						label: "To",
+						value: input.toDate.toLocaleDateString("en-IN"),
+					});
+
+					const metadata = {
+						title: "Asset Activity Report",
+						generatedAt: new Date(),
+						filters,
+					};
+
+					return reportTemplateService.buildExcelBuffer(
+						metadata,
+						result.rows as unknown as Record<string, unknown>[],
+						columns,
+					);
+				}),
 		});
 	}
 }

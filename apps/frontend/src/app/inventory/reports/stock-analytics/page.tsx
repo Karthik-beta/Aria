@@ -16,6 +16,7 @@ import {
 	AdvancedDataTable,
 	useAdvancedDataTable,
 } from "@/components/advanced-data-table";
+import { downloadExcelBuffer } from "@/components/advanced-data-table/utils";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ErrorState } from "@/components/ui/error-display";
@@ -349,6 +350,16 @@ export default function StockAnalyticsPage() {
 		getRowId: (row) => row.id,
 	});
 
+	const handleExport = React.useCallback(async () => {
+		if (!queryInput) return;
+		const buffer = await (
+			trpc.inventory.exportStockAnalyticsExcel as unknown as {
+				mutate: (input: typeof queryInput) => Promise<Buffer>;
+			}
+		).mutate(queryInput);
+		downloadExcelBuffer(buffer, `stock-analytics-${Date.now()}.xlsx`);
+	}, [queryInput]);
+
 	const hasActiveFilters = React.useMemo(
 		() =>
 			(Object.keys(INITIAL_FILTERS) as Array<keyof FilterState>).some(
@@ -601,6 +612,7 @@ export default function StockAnalyticsPage() {
 						enableVirtualization
 						enableColumnResizing
 						enableBulkActions={false}
+						onExport={handleExport}
 						ariaLabel="Stock analytics table"
 					/>
 				</div>

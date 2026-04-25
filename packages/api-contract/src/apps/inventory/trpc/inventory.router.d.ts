@@ -2559,6 +2559,106 @@ type InventoryRouterInput = {
 		output: unknown;
 		meta: object;
 	}>;
+	exportStockBalanceExcel: TRPCMutationProcedure<{
+		input: unknown;
+		output: unknown;
+		meta: object;
+	}>;
+	exportStockSummaryExcel: TRPCMutationProcedure<{
+		input: unknown;
+		output: unknown;
+		meta: object;
+	}>;
+	exportStockAgeingExcel: TRPCMutationProcedure<{
+		input: unknown;
+		output: unknown;
+		meta: object;
+	}>;
+	exportStockProjectedQtyExcel: TRPCMutationProcedure<{
+		input: unknown;
+		output: unknown;
+		meta: object;
+	}>;
+	exportItemPriceStockExcel: TRPCMutationProcedure<{
+		input: unknown;
+		output: unknown;
+		meta: object;
+	}>;
+	exportWarehouseWiseStockBalanceExcel: TRPCMutationProcedure<{
+		input: unknown;
+		output: unknown;
+		meta: object;
+	}>;
+	exportSubcontractedRawMaterialsExcel: TRPCMutationProcedure<{
+		input: unknown;
+		output: unknown;
+		meta: object;
+	}>;
+	exportSubcontractedItemToBeReceivedExcel: TRPCMutationProcedure<{
+		input: unknown;
+		output: unknown;
+		meta: object;
+	}>;
+	exportItemShortageExcel: TRPCMutationProcedure<{
+		input: unknown;
+		output: unknown;
+		meta: object;
+	}>;
+	exportRequestedItemsToBeTransferredExcel: TRPCMutationProcedure<{
+		input: unknown;
+		output: unknown;
+		meta: object;
+	}>;
+	exportBatchWiseBalanceExcel: TRPCMutationProcedure<{
+		input: unknown;
+		output: unknown;
+		meta: object;
+	}>;
+	exportBatchItemExpiryExcel: TRPCMutationProcedure<{
+		input: unknown;
+		output: unknown;
+		meta: object;
+	}>;
+	exportItemPricesExcel: TRPCMutationProcedure<{
+		input: unknown;
+		output: unknown;
+		meta: object;
+	}>;
+	exportItemwiseRecommendedReorderLevelExcel: TRPCMutationProcedure<{
+		input: unknown;
+		output: unknown;
+		meta: object;
+	}>;
+	exportItemVariantDetailsExcel: TRPCMutationProcedure<{
+		input: unknown;
+		output: unknown;
+		meta: object;
+	}>;
+	exportStockAnalyticsExcel: TRPCMutationProcedure<{
+		input: unknown;
+		output: unknown;
+		meta: object;
+	}>;
+	exportSalesOrderAnalysisExcel: TRPCMutationProcedure<{
+		input: unknown;
+		output: unknown;
+		meta: object;
+	}>;
+	exportPurchaseOrderAnalysisExcel: TRPCMutationProcedure<{
+		input: unknown;
+		output: unknown;
+		meta: object;
+	}>;
+	exportPurchaseReceiptTrendsExcel: TRPCMutationProcedure<{
+		input: unknown;
+		output: unknown;
+		meta: object;
+	}>;
+	exportDeliveryNoteTrendsExcel: TRPCMutationProcedure<{
+		input: unknown;
+		output: unknown;
+		meta: object;
+	}>;
 };
 
 type InventoryRouterRoot = (typeof accountRouter)["_def"]["_config"]["$types"];

@@ -7,6 +7,7 @@ import {
 	AdvancedDataTable,
 	useAdvancedDataTable,
 } from "@/components/advanced-data-table";
+import { downloadExcelBuffer } from "@/components/advanced-data-table/utils";
 import { Button } from "@/components/ui/button";
 import {
 	DropdownMenu,
@@ -418,6 +419,19 @@ export default function WarehouseWiseStockBalancePage() {
 		onReload: handleReload,
 		getRowId: (row) => row.id,
 	});
+
+	const handleExport = React.useCallback(
+		async (format: string) => {
+			if (format !== "excel") return;
+			const buffer = await (
+				trpc.inventory.exportWarehouseWiseStockBalanceExcel as unknown as {
+					mutate: (input: typeof listQueryInput) => Promise<Buffer>;
+				}
+			).mutate(listQueryInput);
+			downloadExcelBuffer(buffer, `warehouse-wise-stock-${Date.now()}.xlsx`);
+		},
+		[listQueryInput],
+	);
 
 	const hasActiveFilters = React.useMemo(
 		() =>
@@ -895,6 +909,7 @@ export default function WarehouseWiseStockBalancePage() {
 					table={table}
 					data={displayRows}
 					enableExport
+					onExport={handleExport}
 					enableVirtualization
 					enableColumnResizing
 					enableBulkActions={false}

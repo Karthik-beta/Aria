@@ -6,6 +6,7 @@ import {
 	AdvancedDataTable,
 	useAdvancedDataTable,
 } from "@/components/advanced-data-table";
+import { downloadExcelBuffer } from "@/components/advanced-data-table/utils";
 import { Button } from "@/components/ui/button";
 import { ErrorState } from "@/components/ui/error-display";
 import { Input } from "@/components/ui/input";
@@ -187,6 +188,17 @@ export default function ItemVariantDetailsPage() {
 		getRowId: (row) => row.id,
 	});
 
+	const handleExport = React.useCallback(async () => {
+		const { buffer } = await (
+			trpc.inventory.exportItemVariantDetailsExcel as unknown as {
+				mutate: (input: { itemCode: string }) => Promise<{ buffer: Buffer }>;
+			}
+		).mutate({
+			itemCode: submittedItemCode,
+		});
+		downloadExcelBuffer(buffer, `item-variant-details-${Date.now()}.xlsx`);
+	}, [submittedItemCode]);
+
 	return (
 		<div className="flex flex-1 flex-col gap-6 p-6">
 			{/* Header */}
@@ -280,7 +292,11 @@ export default function ItemVariantDetailsPage() {
 						{rows.length} variant{rows.length !== 1 ? "s" : ""} of{" "}
 						<span className="font-medium">{submittedItemCode}</span>
 					</div>
-					<AdvancedDataTable<ItemVariantDetailsRow> table={table} data={rows} />
+					<AdvancedDataTable<ItemVariantDetailsRow>
+						table={table}
+						data={rows}
+						onExport={handleExport}
+					/>
 				</section>
 			)}
 		</div>

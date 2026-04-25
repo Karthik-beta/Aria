@@ -6,6 +6,7 @@ import {
 	AdvancedDataTable,
 	useAdvancedDataTable,
 } from "@/components/advanced-data-table";
+import { downloadExcelBuffer } from "@/components/advanced-data-table/utils";
 import { Button } from "@/components/ui/button";
 import { ErrorState } from "@/components/ui/error-display";
 import { Input } from "@/components/ui/input";
@@ -198,6 +199,15 @@ export default function ItemPricesPage() {
 		initialPageSize: 50,
 	});
 
+	const handleExport = React.useCallback(async () => {
+		const buffer = await (
+			trpc.inventory.exportItemPricesExcel as unknown as {
+				mutate: (input: typeof queryInput) => Promise<Buffer>;
+			}
+		).mutate(queryInput);
+		downloadExcelBuffer(buffer, `item-prices-${Date.now()}.xlsx`);
+	}, [queryInput]);
+
 	return (
 		<div className="flex flex-1 flex-col gap-6 p-6">
 			{/* Header */}
@@ -336,6 +346,7 @@ export default function ItemPricesPage() {
 							enableColumnResizing
 							enableBulkActions={false}
 							ariaLabel="Item prices table"
+							onExport={handleExport}
 						/>
 					</div>
 				))}

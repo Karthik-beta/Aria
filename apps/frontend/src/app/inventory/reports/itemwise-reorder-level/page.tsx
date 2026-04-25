@@ -6,6 +6,7 @@ import {
 	AdvancedDataTable,
 	useAdvancedDataTable,
 } from "@/components/advanced-data-table";
+import { downloadExcelBuffer } from "@/components/advanced-data-table/utils";
 import { Button } from "@/components/ui/button";
 import { ErrorState } from "@/components/ui/error-display";
 import { Input } from "@/components/ui/input";
@@ -221,6 +222,29 @@ export default function ItemwiseRecommendedReorderLevelPage() {
 
 	const rows = data ?? [];
 
+	const listQueryInput = React.useMemo(
+		() =>
+			queryInput
+				? {
+						fromDate: queryInput.fromDate.toISOString(),
+						toDate: queryInput.toDate.toISOString(),
+						itemGroup: queryInput.itemGroup,
+						brand: queryInput.brand,
+					}
+				: null,
+		[queryInput],
+	);
+
+	const handleExport = React.useCallback(async () => {
+		if (!listQueryInput) return;
+		const buffer = await (
+			trpc.inventory.exportItemwiseRecommendedReorderLevelExcel as unknown as {
+				mutate: (input: typeof listQueryInput) => Promise<Buffer>;
+			}
+		).mutate(listQueryInput);
+		downloadExcelBuffer(buffer, `itemwise-reorder-level-${Date.now()}.xlsx`);
+	}, [listQueryInput]);
+
 	const handleReload = React.useCallback(async () => {
 		await refetch();
 	}, [refetch]);
@@ -368,6 +392,7 @@ export default function ItemwiseRecommendedReorderLevelPage() {
 						<AdvancedDataTable<ItemwiseRecommendedReorderLevelRow>
 							table={table}
 							data={rows}
+							onExport={handleExport}
 						/>
 					</section>
 				))}

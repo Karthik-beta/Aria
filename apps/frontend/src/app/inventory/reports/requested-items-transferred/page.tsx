@@ -17,6 +17,7 @@ import {
 	AdvancedDataTable,
 	useAdvancedDataTable,
 } from "@/components/advanced-data-table";
+import { downloadExcelBuffer } from "@/components/advanced-data-table/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -295,12 +296,26 @@ export default function RequestedItemsToBeTransferredPage() {
 		[rows],
 	);
 
+	const listQueryInput = queryInput;
+
 	const tableState = useAdvancedDataTable({
 		data: rows,
 		columns,
 		initialSorting: [{ id: "date", desc: false }],
 		initialPageSize: 50,
 	});
+
+	const handleExport = React.useCallback(async () => {
+		const buffer = await (
+			trpc.inventory.exportRequestedItemsToBeTransferredExcel as unknown as {
+				mutate: (input: typeof listQueryInput) => Promise<Buffer>;
+			}
+		).mutate(listQueryInput);
+		downloadExcelBuffer(
+			buffer,
+			`requested-items-transferred-${Date.now()}.xlsx`,
+		);
+	}, [listQueryInput]);
 
 	const activeFilterCount = React.useMemo(
 		() =>
@@ -585,6 +600,7 @@ export default function RequestedItemsToBeTransferredPage() {
 							table={tableState.table}
 							data={rows}
 							enableExport
+							onExport={handleExport}
 							enableVirtualization={false}
 							enableBulkActions={false}
 							ariaLabel="Requested items to be transferred"

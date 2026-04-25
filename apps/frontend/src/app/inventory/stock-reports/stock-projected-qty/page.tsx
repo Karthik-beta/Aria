@@ -6,6 +6,7 @@ import {
 	AdvancedDataTable,
 	useAdvancedDataTable,
 } from "@/components/advanced-data-table";
+import { downloadExcelBuffer } from "@/components/advanced-data-table/utils";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ErrorState } from "@/components/ui/error-display";
@@ -412,6 +413,19 @@ export default function StockProjectedQtyPage() {
 		getRowId: (row) => row.id,
 	});
 
+	const handleExport = React.useCallback(
+		async (format: string) => {
+			if (format !== "excel") return;
+			const buffer = await (
+				trpc.inventory.exportStockProjectedQtyExcel as unknown as {
+					mutate: (input: typeof listQueryInput) => Promise<Buffer>;
+				}
+			).mutate(listQueryInput);
+			downloadExcelBuffer(buffer, `stock-projected-qty-${Date.now()}.xlsx`);
+		},
+		[listQueryInput],
+	);
+
 	const hasActiveFilters = React.useMemo(
 		() =>
 			(Object.keys(INITIAL_FILTERS) as Array<keyof FilterState>).some(
@@ -593,6 +607,7 @@ export default function StockProjectedQtyPage() {
 					table={table}
 					data={rows}
 					enableExport
+					onExport={handleExport}
 					enableVirtualization
 					enableColumnResizing
 					enableBulkActions={false}

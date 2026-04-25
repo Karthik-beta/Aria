@@ -6,6 +6,7 @@ import {
 	AdvancedDataTable,
 	useAdvancedDataTable,
 } from "@/components/advanced-data-table";
+import { downloadExcelBuffer } from "@/components/advanced-data-table/utils";
 import { Button } from "@/components/ui/button";
 import { ErrorState } from "@/components/ui/error-display";
 import { Input } from "@/components/ui/input";
@@ -249,6 +250,16 @@ export default function BatchWiseBalancePage() {
 		initialPageSize: 50,
 	});
 
+	const handleExport = React.useCallback(async () => {
+		if (!queryInput) return;
+		const buffer = await (
+			trpc.inventory.exportBatchWiseBalanceExcel as unknown as {
+				mutate: (input: typeof queryInput) => Promise<Buffer>;
+			}
+		).mutate(queryInput);
+		downloadExcelBuffer(buffer, `batch-wise-balance-${Date.now()}.xlsx`);
+	}, [queryInput]);
+
 	return (
 		<div className="flex flex-1 flex-col gap-6 p-6">
 			{/* Header */}
@@ -409,6 +420,7 @@ export default function BatchWiseBalancePage() {
 							enableVirtualization
 							enableColumnResizing
 							enableBulkActions={false}
+							onExport={handleExport}
 							ariaLabel="Batch-wise balance history table"
 						/>
 					</div>

@@ -15,6 +15,7 @@ import {
 	AdvancedDataTable,
 	useAdvancedDataTable,
 } from "@/components/advanced-data-table";
+import { downloadExcelBuffer } from "@/components/advanced-data-table/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ErrorState } from "@/components/ui/error-display";
@@ -250,6 +251,19 @@ export default function SubcontractedRawMaterialsTransferredPage() {
 		initialSorting: [{ id: "date", desc: false }],
 		initialPageSize: 50,
 	});
+
+	const handleExport = React.useCallback(async () => {
+		if (!queryInput) return;
+		const buffer = await (
+			trpc.inventory.exportSubcontractedRawMaterialsExcel as unknown as {
+				mutate: (input: typeof queryInput) => Promise<Buffer>;
+			}
+		).mutate(queryInput);
+		downloadExcelBuffer(
+			buffer,
+			`subcontracted-raw-materials-${Date.now()}.xlsx`,
+		);
+	}, [queryInput]);
 
 	return (
 		<div className="flex flex-1 flex-col gap-6 p-6">
@@ -521,6 +535,7 @@ export default function SubcontractedRawMaterialsTransferredPage() {
 							table={tableState.table}
 							data={rows}
 							enableExport
+							onExport={handleExport}
 							enableVirtualization={false}
 							enableBulkActions={false}
 							ariaLabel="Subcontracted raw materials to be transferred"

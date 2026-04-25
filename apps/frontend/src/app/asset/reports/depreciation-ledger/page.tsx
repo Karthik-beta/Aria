@@ -9,6 +9,7 @@ import {
 	AdvancedDataTable,
 	useAdvancedDataTable,
 } from "@/components/advanced-data-table";
+import { downloadExcelBuffer } from "@/components/advanced-data-table/utils";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
 	Card,
@@ -367,6 +368,22 @@ export default function AssetDepreciationLedgerPage() {
 			`${row.scheduleId}:${row.assetId}:${row.depreciationDate.toISOString()}`,
 	});
 
+	const handleExport = React.useCallback(
+		async (format: string) => {
+			if (format !== "excel") return;
+			const { buffer } = await (
+				trpc.asset.exportAssetDepreciationLedgerExcel as unknown as {
+					mutate: (input: typeof queryInput) => Promise<{ buffer: Buffer }>;
+				}
+			).mutate(queryInput);
+			downloadExcelBuffer(
+				buffer,
+				`asset-depreciation-ledger-${Date.now()}.xlsx`,
+			);
+		},
+		[queryInput],
+	);
+
 	return (
 		<div className="flex flex-1 flex-col gap-6 p-4 md:px-6">
 			<div className="flex items-center justify-between gap-4">
@@ -510,6 +527,7 @@ export default function AssetDepreciationLedgerPage() {
 					table={table}
 					data={rows}
 					enableExport
+					onExport={handleExport}
 					enableVirtualization
 					enableColumnResizing
 					enableBulkActions={false}

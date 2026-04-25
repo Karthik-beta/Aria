@@ -12,6 +12,7 @@ import {
 } from "recharts";
 import {
 	AdvancedDataTable,
+	downloadExcelBuffer,
 	useAdvancedDataTable,
 } from "@/components/advanced-data-table";
 import { Button } from "@/components/ui/button";
@@ -418,6 +419,16 @@ export default function PurchaseOrderAnalysisPage() {
 				: `${row.purchaseOrderId}_${row.itemCode ?? ""}`,
 	});
 
+	const handleExport = React.useCallback(async () => {
+		if (!queryInput) return;
+		const buffer = await (
+			trpc.inventory.exportPurchaseOrderAnalysisExcel as unknown as {
+				mutate: (input: typeof queryInput) => Promise<Buffer>;
+			}
+		).mutate(queryInput);
+		downloadExcelBuffer(buffer, `purchase-order-analysis-${Date.now()}.xlsx`);
+	}, [queryInput]);
+
 	const hasActiveFilters = React.useMemo(
 		() =>
 			(Object.keys(INITIAL_FILTERS) as Array<keyof FilterState>).some((key) => {
@@ -683,6 +694,7 @@ export default function PurchaseOrderAnalysisPage() {
 						table={table}
 						data={rows}
 						enableExport
+						onExport={handleExport}
 						enableVirtualization={false}
 						enableColumnResizing
 						enableBulkActions={false}

@@ -1,4 +1,5 @@
 import { EventEmitter } from "node:events";
+import { ReportTemplateService } from "@aria/report-export";
 import { Inventory } from "@aria/types";
 import { Injectable } from "@nestjs/common";
 import type {
@@ -14,7 +15,6 @@ import { protectedProcedure, router } from "../../../trpc/trpc";
 // biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
 import { InventoryService } from "../inventory.service";
 import { ItemActivityService } from "../services/item-activity.service";
-import { ReportTemplateService } from "../services/report-template.service";
 
 // Global event emitter for real-time subscriptions
 const inventoryEvents = new EventEmitter({ captureRejections: true });
@@ -1426,6 +1426,976 @@ function createExportStockLedgerExcelProcedure(
 		});
 }
 
+function createExportStockBalanceExcelProcedure(
+	inventoryService: InventoryService,
+	reportTemplateService: ReportTemplateService,
+) {
+	return protectedProcedure
+		.input(Inventory.listStockBalanceSchema)
+		.mutation(async ({ input }) => {
+			if (!input) {
+				throw new Error("Invalid input");
+			}
+			const data = await inventoryService.findStockBalance({
+				...input,
+				take: 10000,
+			});
+
+			const columns = [
+				{ key: "company", header: "Company" },
+				{ key: "itemCode", header: "Item Code" },
+				{ key: "itemName", header: "Item Name" },
+				{ key: "itemGroupName", header: "Item Group" },
+				{ key: "brandName", header: "Brand" },
+				{ key: "warehouse", header: "Warehouse" },
+				{ key: "unitOfMeasure", header: "UOM" },
+				{ key: "openingQty", header: "Opening Qty" },
+				{ key: "inQty", header: "In Qty" },
+				{ key: "outQty", header: "Out Qty" },
+				{ key: "balanceQty", header: "Balance Qty" },
+				{ key: "balanceValue", header: "Balance Value" },
+			];
+
+			const filters: Array<{ label: string; value: string }> = [];
+			if (input.company)
+				filters.push({ label: "Company", value: input.company });
+			if (input.warehouse)
+				filters.push({ label: "Warehouse", value: input.warehouse });
+			if (input.itemCode)
+				filters.push({ label: "Item", value: input.itemCode });
+			if (input.itemGroup)
+				filters.push({ label: "Item Group", value: input.itemGroup });
+			if (input.dateFrom)
+				filters.push({ label: "From", value: String(input.dateFrom) });
+			if (input.dateTo)
+				filters.push({ label: "To", value: String(input.dateTo) });
+
+			const metadata = {
+				title: "Stock Balance Report",
+				generatedAt: new Date(),
+				filters,
+			};
+
+			return reportTemplateService.buildExcelBuffer(
+				metadata,
+				data as unknown as Record<string, unknown>[],
+				columns,
+			);
+		});
+}
+
+function createExportStockSummaryExcelProcedure(
+	inventoryService: InventoryService,
+	reportTemplateService: ReportTemplateService,
+) {
+	return protectedProcedure
+		.input(Inventory.listStockSummarySchema)
+		.mutation(async ({ input }) => {
+			if (!input) {
+				throw new Error("Invalid input");
+			}
+			const data = await inventoryService.findStockSummary({
+				...input,
+				take: 10000,
+			});
+
+			const columns = [
+				{ key: "company", header: "Company" },
+				{ key: "itemCode", header: "Item Code" },
+				{ key: "itemName", header: "Item Name" },
+				{ key: "itemGroupName", header: "Item Group" },
+				{ key: "brandName", header: "Brand" },
+				{ key: "warehouse", header: "Warehouse" },
+				{ key: "unitOfMeasure", header: "UOM" },
+				{ key: "actualQty", header: "Actual Qty" },
+				{ key: "projectedQty", header: "Projected Qty" },
+				{ key: "reorderLevel", header: "Reorder Level" },
+				{ key: "shortageQty", header: "Shortage Qty" },
+				{ key: "stockHealth", header: "Stock Health" },
+			];
+
+			const filters: Array<{ label: string; value: string }> = [];
+			if (input.company)
+				filters.push({ label: "Company", value: input.company });
+			if (input.warehouse)
+				filters.push({ label: "Warehouse", value: input.warehouse });
+			if (input.itemCode)
+				filters.push({ label: "Item", value: input.itemCode });
+			if (input.itemGroup)
+				filters.push({ label: "Item Group", value: input.itemGroup });
+			if (input.metric) filters.push({ label: "Metric", value: input.metric });
+
+			const metadata = {
+				title: "Stock Summary Report",
+				generatedAt: new Date(),
+				filters,
+			};
+
+			return reportTemplateService.buildExcelBuffer(
+				metadata,
+				data as unknown as Record<string, unknown>[],
+				columns,
+			);
+		});
+}
+
+function createExportStockAgeingExcelProcedure(
+	inventoryService: InventoryService,
+	reportTemplateService: ReportTemplateService,
+) {
+	return protectedProcedure
+		.input(Inventory.listStockAgeingSchema)
+		.mutation(async ({ input }) => {
+			if (!input) {
+				throw new Error("Invalid input");
+			}
+			const data = await inventoryService.findStockAgeing({
+				...input,
+				take: 10000,
+			});
+
+			const columns = [
+				{ key: "company", header: "Company" },
+				{ key: "itemCode", header: "Item Code" },
+				{ key: "itemName", header: "Item Name" },
+				{ key: "itemGroupName", header: "Item Group" },
+				{ key: "brandName", header: "Brand" },
+				{ key: "warehouse", header: "Warehouse" },
+				{ key: "unitOfMeasure", header: "UOM" },
+				{ key: "availableQty", header: "Available Qty" },
+				{ key: "averageAge", header: "Average Age (Days)" },
+				{ key: "averageRate", header: "Avg Rate" },
+				{ key: "asOfDate", header: "As of Date" },
+			];
+
+			const filters: Array<{ label: string; value: string }> = [];
+			if (input.company)
+				filters.push({ label: "Company", value: input.company });
+			if (input.warehouse)
+				filters.push({ label: "Warehouse", value: input.warehouse });
+			if (input.itemCode)
+				filters.push({ label: "Item", value: input.itemCode });
+			if (input.brand) filters.push({ label: "Brand", value: input.brand });
+			if (input.asOfDate)
+				filters.push({ label: "As of Date", value: String(input.asOfDate) });
+
+			const metadata = {
+				title: "Stock Ageing Report",
+				generatedAt: new Date(),
+				filters,
+			};
+
+			return reportTemplateService.buildExcelBuffer(
+				metadata,
+				data as unknown as Record<string, unknown>[],
+				columns,
+			);
+		});
+}
+
+function createExportStockProjectedQtyExcelProcedure(
+	inventoryService: InventoryService,
+	reportTemplateService: ReportTemplateService,
+) {
+	return protectedProcedure
+		.input(Inventory.listStockProjectedQtySchema)
+		.mutation(async ({ input }) => {
+			if (!input) {
+				throw new Error("Invalid input");
+			}
+			const data = await inventoryService.findStockProjectedQty({
+				...input,
+				take: 10000,
+			});
+
+			const columns = [
+				{ key: "company", header: "Company" },
+				{ key: "itemCode", header: "Item Code" },
+				{ key: "itemName", header: "Item Name" },
+				{ key: "itemGroupName", header: "Item Group" },
+				{ key: "brandName", header: "Brand" },
+				{ key: "warehouse", header: "Warehouse" },
+				{ key: "unitOfMeasure", header: "UOM" },
+				{ key: "actualQty", header: "Actual Qty" },
+				{ key: "plannedQty", header: "Planned Qty" },
+				{ key: "requestedQty", header: "Requested Qty" },
+				{ key: "orderedQty", header: "Ordered Qty" },
+				{ key: "projectedQty", header: "Projected Qty" },
+				{ key: "shortageQty", header: "Shortage Qty" },
+			];
+
+			const filters: Array<{ label: string; value: string }> = [];
+			if (input.company)
+				filters.push({ label: "Company", value: input.company });
+			if (input.warehouse)
+				filters.push({ label: "Warehouse", value: input.warehouse });
+			if (input.itemCode)
+				filters.push({ label: "Item", value: input.itemCode });
+			if (input.itemGroup)
+				filters.push({ label: "Item Group", value: input.itemGroup });
+
+			const metadata = {
+				title: "Stock Projected Qty Report",
+				generatedAt: new Date(),
+				filters,
+			};
+
+			return reportTemplateService.buildExcelBuffer(
+				metadata,
+				data as unknown as Record<string, unknown>[],
+				columns,
+			);
+		});
+}
+
+function createExportItemPriceStockExcelProcedure(
+	inventoryService: InventoryService,
+	reportTemplateService: ReportTemplateService,
+) {
+	return protectedProcedure
+		.input(Inventory.listItemPriceStockSchema)
+		.mutation(async ({ input }) => {
+			if (!input) {
+				throw new Error("Invalid input");
+			}
+			const data = await inventoryService.findItemPriceStock({
+				...input,
+				take: 10000,
+			});
+
+			const columns = [
+				{ key: "company", header: "Company" },
+				{ key: "itemCode", header: "Item Code" },
+				{ key: "itemName", header: "Item Name" },
+				{ key: "itemGroupName", header: "Item Group" },
+				{ key: "brandName", header: "Brand" },
+				{ key: "warehouse", header: "Warehouse" },
+				{ key: "availableQty", header: "Available Qty" },
+				{ key: "buyingPriceList", header: "Buying Price List" },
+				{ key: "buyingRate", header: "Buying Rate" },
+				{ key: "sellingPriceList", header: "Selling Price List" },
+				{ key: "sellingRate", header: "Selling Rate" },
+			];
+
+			const filters: Array<{ label: string; value: string }> = [];
+			if (input.company)
+				filters.push({ label: "Company", value: input.company });
+			if (input.warehouse)
+				filters.push({ label: "Warehouse", value: input.warehouse });
+			if (input.itemCode)
+				filters.push({ label: "Item", value: input.itemCode });
+			if (input.itemGroup)
+				filters.push({ label: "Item Group", value: input.itemGroup });
+
+			const metadata = {
+				title: "Item Price Stock Report",
+				generatedAt: new Date(),
+				filters,
+			};
+
+			return reportTemplateService.buildExcelBuffer(
+				metadata,
+				data as unknown as Record<string, unknown>[],
+				columns,
+			);
+		});
+}
+
+function createExportWarehouseWiseStockBalanceExcelProcedure(
+	inventoryService: InventoryService,
+	reportTemplateService: ReportTemplateService,
+) {
+	return protectedProcedure
+		.input(Inventory.listWarehouseWiseStockBalanceSchema)
+		.mutation(async ({ input }) => {
+			if (!input) {
+				throw new Error("Invalid input");
+			}
+			const data = await inventoryService.findWarehouseWiseStockBalance({
+				...input,
+				take: 10000,
+			});
+
+			const columns = [
+				{ key: "company", header: "Company" },
+				{ key: "itemCode", header: "Item Code" },
+				{ key: "itemName", header: "Item Name" },
+				{ key: "warehouse", header: "Warehouse" },
+				{ key: "postingDate", header: "Posting Date" },
+				{ key: "voucherNo", header: "Voucher No" },
+				{ key: "movementType", header: "Movement" },
+				{ key: "qtyChange", header: "Qty Change" },
+				{ key: "incomingRate", header: "Incoming Rate" },
+			];
+
+			const filters: Array<{ label: string; value: string }> = [];
+			if (input.company)
+				filters.push({ label: "Company", value: input.company });
+			if (input.warehouse)
+				filters.push({ label: "Warehouse", value: input.warehouse });
+			if (input.itemCode)
+				filters.push({ label: "Item", value: input.itemCode });
+
+			const metadata = {
+				title: "Warehouse Wise Stock Balance Report",
+				generatedAt: new Date(),
+				filters,
+			};
+
+			return reportTemplateService.buildExcelBuffer(
+				metadata,
+				data as unknown as Record<string, unknown>[],
+				columns,
+			);
+		});
+}
+
+function createExportSubcontractedRawMaterialsExcelProcedure(
+	inventoryService: InventoryService,
+	reportTemplateService: ReportTemplateService,
+) {
+	return protectedProcedure
+		.input(Inventory.listSubcontractedRawMaterialsSchema)
+		.mutation(async ({ input }) => {
+			if (!input) {
+				throw new Error("Invalid input");
+			}
+			const data = await inventoryService.findSubcontractedRawMaterials({
+				...input,
+				take: 10000,
+			});
+
+			const columns = [
+				{ key: "subcontractOrder", header: "Subcontract Order" },
+				{ key: "date", header: "Date" },
+				{ key: "supplier", header: "Supplier" },
+				{ key: "rmItemCode", header: "RM Item Code" },
+				{ key: "rmItemName", header: "RM Item Name" },
+				{ key: "requiredQty", header: "Required Qty" },
+				{ key: "transferredQty", header: "Transferred Qty" },
+				{ key: "pendingQty", header: "Pending Qty" },
+				{ key: "stockUom", header: "UOM" },
+			];
+
+			const filters: Array<{ label: string; value: string }> = [];
+			if (input.supplier)
+				filters.push({ label: "Supplier", value: input.supplier });
+
+			const metadata = {
+				title: "Subcontracted Raw Materials Transferred Report",
+				generatedAt: new Date(),
+				filters,
+			};
+
+			return reportTemplateService.buildExcelBuffer(
+				metadata,
+				data as unknown as Record<string, unknown>[],
+				columns,
+			);
+		});
+}
+
+function createExportSubcontractedItemToBeReceivedExcelProcedure(
+	inventoryService: InventoryService,
+	reportTemplateService: ReportTemplateService,
+) {
+	return protectedProcedure
+		.input(Inventory.listSubcontractedItemToBeReceivedSchema)
+		.mutation(async ({ input }) => {
+			if (!input) {
+				throw new Error("Invalid input");
+			}
+			const data = await inventoryService.findSubcontractedItemToBeReceived({
+				...input,
+				take: 10000,
+			});
+
+			const columns = [
+				{ key: "subcontractOrder", header: "Subcontract Order" },
+				{ key: "date", header: "Date" },
+				{ key: "supplier", header: "Supplier" },
+				{ key: "fgItemCode", header: "FG Item Code" },
+				{ key: "itemName", header: "Item Name" },
+				{ key: "requiredQty", header: "Required Qty" },
+				{ key: "receivedQty", header: "Received Qty" },
+				{ key: "pendingQty", header: "Pending Qty" },
+			];
+
+			const filters: Array<{ label: string; value: string }> = [];
+			if (input.supplier)
+				filters.push({ label: "Supplier", value: input.supplier });
+
+			const metadata = {
+				title: "Subcontracted Items To Be Received Report",
+				generatedAt: new Date(),
+				filters,
+			};
+
+			return reportTemplateService.buildExcelBuffer(
+				metadata,
+				data as unknown as Record<string, unknown>[],
+				columns,
+			);
+		});
+}
+
+function createExportItemShortageExcelProcedure(
+	inventoryService: InventoryService,
+	reportTemplateService: ReportTemplateService,
+) {
+	return protectedProcedure
+		.input(Inventory.listItemShortageSchema)
+		.mutation(async ({ input }) => {
+			if (!input) {
+				throw new Error("Invalid input");
+			}
+			const data = await inventoryService.findItemShortageReport({
+				...input,
+				take: 10000,
+			});
+
+			const columns = [
+				{ key: "warehouse", header: "Warehouse" },
+				{ key: "itemCode", header: "Item Code" },
+				{ key: "itemName", header: "Item Name" },
+				{ key: "description", header: "Description" },
+				{ key: "actualQty", header: "Actual Qty" },
+				{ key: "orderedQty", header: "Ordered Qty" },
+				{ key: "requestedQty", header: "Requested Qty" },
+				{ key: "reservedQty", header: "Reserved Qty" },
+				{ key: "projectedQty", header: "Projected Qty" },
+				{ key: "shortageQty", header: "Shortage Qty" },
+				{ key: "reorderLevel", header: "Reorder Level" },
+				{ key: "reorderQty", header: "Reorder Qty" },
+				{ key: "stockUom", header: "UOM" },
+			];
+
+			const filters: Array<{ label: string; value: string }> = [];
+			if (input.warehouses && input.warehouses.length > 0) {
+				filters.push({
+					label: "Warehouse",
+					value: input.warehouses.join(", "),
+				});
+			}
+			if (input.itemGroup)
+				filters.push({ label: "Item Group", value: input.itemGroup });
+
+			const metadata = {
+				title: "Item Shortage Report",
+				generatedAt: new Date(),
+				filters,
+			};
+
+			return reportTemplateService.buildExcelBuffer(
+				metadata,
+				data as unknown as Record<string, unknown>[],
+				columns,
+			);
+		});
+}
+
+function createExportRequestedItemsToBeTransferredExcelProcedure(
+	inventoryService: InventoryService,
+	reportTemplateService: ReportTemplateService,
+) {
+	return protectedProcedure
+		.input(Inventory.listRequestedItemsToBeTransferredSchema)
+		.mutation(async ({ input }) => {
+			if (!input) {
+				throw new Error("Invalid input");
+			}
+			const data = await inventoryService.findRequestedItemsToBeTransferred({
+				...input,
+				take: 10000,
+			});
+
+			const columns = [
+				{ key: "materialRequest", header: "Material Request" },
+				{ key: "date", header: "Date" },
+				{ key: "purpose", header: "Purpose" },
+				{ key: "status", header: "Status" },
+				{ key: "itemCode", header: "Item Code" },
+				{ key: "itemName", header: "Item Name" },
+				{ key: "targetWarehouse", header: "Target Warehouse" },
+				{ key: "qty", header: "Qty" },
+				{ key: "transferredQty", header: "Transferred Qty" },
+				{ key: "pendingQty", header: "Pending Qty" },
+			];
+
+			const filters: Array<{ label: string; value: string }> = [];
+			if (input.status) filters.push({ label: "Status", value: input.status });
+
+			const metadata = {
+				title: "Requested Items To Be Transferred Report",
+				generatedAt: new Date(),
+				filters,
+			};
+
+			return reportTemplateService.buildExcelBuffer(
+				metadata,
+				data as unknown as Record<string, unknown>[],
+				columns,
+			);
+		});
+}
+
+function createExportItemPricesExcelProcedure(
+	inventoryService: InventoryService,
+	reportTemplateService: ReportTemplateService,
+) {
+	return protectedProcedure
+		.input(Inventory.listItemPricesSchema)
+		.mutation(async ({ input }) => {
+			if (!input) {
+				throw new Error("Invalid input");
+			}
+			const data = await inventoryService.findItemPrices({
+				...input,
+				take: 10000,
+			});
+
+			const columns = [
+				{ key: "itemCode", header: "Item Code" },
+				{ key: "itemName", header: "Item Name" },
+				{ key: "itemGroupName", header: "Item Group" },
+				{ key: "brandName", header: "Brand" },
+				{ key: "description", header: "Description" },
+				{ key: "stockUom", header: "UOM" },
+				{ key: "lastPurchaseRate", header: "Last Purchase Rate" },
+				{ key: "valuationRate", header: "Valuation Rate" },
+				{ key: "standardSellingRate", header: "Standard Selling Rate" },
+			];
+
+			const filters: Array<{ label: string; value: string }> = [];
+			if (input.itemGroup)
+				filters.push({ label: "Item Group", value: input.itemGroup });
+			if (input.brand) filters.push({ label: "Brand", value: input.brand });
+
+			const metadata = {
+				title: "Item Prices Report",
+				generatedAt: new Date(),
+				filters,
+			};
+
+			return reportTemplateService.buildExcelBuffer(
+				metadata,
+				data as unknown as Record<string, unknown>[],
+				columns,
+			);
+		});
+}
+
+function createExportItemwiseRecommendedReorderLevelExcelProcedure(
+	inventoryService: InventoryService,
+	reportTemplateService: ReportTemplateService,
+) {
+	return protectedProcedure
+		.input(Inventory.listItemwiseRecommendedReorderLevelSchema)
+		.mutation(async ({ input }) => {
+			if (!input) {
+				throw new Error("Invalid input");
+			}
+			const data = await inventoryService.findItemwiseRecommendedReorderLevel({
+				...input,
+				take: 10000,
+			});
+
+			const columns = [
+				{ key: "itemCode", header: "Item Code" },
+				{ key: "itemName", header: "Item Name" },
+				{ key: "itemGroup", header: "Item Group" },
+				{ key: "brand", header: "Brand" },
+				{ key: "description", header: "Description" },
+				{ key: "safetyStock", header: "Safety Stock" },
+				{ key: "leadTimeDays", header: "Lead Time Days" },
+				{ key: "consumed", header: "Consumed" },
+				{ key: "delivered", header: "Delivered" },
+				{ key: "totalOutgoing", header: "Total Outgoing" },
+				{ key: "avgDailyOutgoing", header: "Avg Daily Outgoing" },
+				{ key: "reorderLevel", header: "Reorder Level" },
+			];
+
+			const filters: Array<{ label: string; value: string }> = [];
+			if (input.itemGroup)
+				filters.push({ label: "Item Group", value: input.itemGroup });
+
+			const metadata = {
+				title: "Itemwise Recommended Reorder Level Report",
+				generatedAt: new Date(),
+				filters,
+			};
+
+			return reportTemplateService.buildExcelBuffer(
+				metadata,
+				data as unknown as Record<string, unknown>[],
+				columns,
+			);
+		});
+}
+
+function createExportItemVariantDetailsExcelProcedure(
+	inventoryService: InventoryService,
+	reportTemplateService: ReportTemplateService,
+) {
+	return protectedProcedure
+		.input(Inventory.listItemVariantDetailsSchema)
+		.mutation(async ({ input }) => {
+			if (!input) {
+				throw new Error("Invalid input");
+			}
+			const data = await inventoryService.findItemVariantDetails({
+				...input,
+				take: 10000,
+			});
+
+			const columns = [
+				{ key: "variantCode", header: "Variant Code" },
+				{ key: "variantName", header: "Variant Name" },
+				{ key: "itemCode", header: "Item Code" },
+				{ key: "itemName", header: "Item Name" },
+				{ key: "avgBuyingPriceListRate", header: "Avg Buying Rate" },
+				{ key: "avgSellingPriceListRate", header: "Avg Selling Rate" },
+				{ key: "currentStock", header: "Current Stock" },
+				{ key: "openOrders", header: "Open Orders" },
+			];
+
+			const filters: Array<{ label: string; value: string }> = [];
+			if (input.itemCode)
+				filters.push({ label: "Item", value: input.itemCode });
+
+			const metadata = {
+				title: "Item Variant Details Report",
+				generatedAt: new Date(),
+				filters,
+			};
+
+			return reportTemplateService.buildExcelBuffer(
+				metadata,
+				data as unknown as Record<string, unknown>[],
+				columns,
+			);
+		});
+}
+
+function createExportBatchWiseBalanceExcelProcedure(
+	inventoryService: InventoryService,
+	reportTemplateService: ReportTemplateService,
+) {
+	return protectedProcedure
+		.input(Inventory.listBatchWiseBalanceSchema)
+		.mutation(async ({ input }) => {
+			if (!input) {
+				throw new Error("Invalid input");
+			}
+			const data = await inventoryService.findBatchWiseBalanceHistory({
+				...input,
+				take: 10000,
+			});
+
+			const columns = [
+				{ key: "itemCode", header: "Item Code" },
+				{ key: "itemName", header: "Item Name" },
+				{ key: "description", header: "Description" },
+				{ key: "warehouse", header: "Warehouse" },
+				{ key: "batchNo", header: "Batch No" },
+				{ key: "openingQty", header: "Opening Qty" },
+				{ key: "inQty", header: "In Qty" },
+				{ key: "outQty", header: "Out Qty" },
+				{ key: "balanceQty", header: "Balance Qty" },
+				{ key: "valuationRate", header: "Valuation Rate" },
+				{ key: "balanceValue", header: "Balance Value" },
+				{ key: "unitOfMeasure", header: "UOM" },
+			];
+
+			const filters: Array<{ label: string; value: string }> = [];
+			if (input.warehouse)
+				filters.push({ label: "Warehouse", value: input.warehouse });
+			if (input.itemCode)
+				filters.push({ label: "Item", value: input.itemCode });
+
+			const metadata = {
+				title: "Batch Wise Balance Report",
+				generatedAt: new Date(),
+				filters,
+			};
+
+			return reportTemplateService.buildExcelBuffer(
+				metadata,
+				data as unknown as Record<string, unknown>[],
+				columns,
+			);
+		});
+}
+
+function createExportBatchItemExpiryExcelProcedure(
+	inventoryService: InventoryService,
+	reportTemplateService: ReportTemplateService,
+) {
+	return protectedProcedure
+		.input(Inventory.listBatchItemExpirySchema)
+		.mutation(async ({ input }) => {
+			if (!input) {
+				throw new Error("Invalid input");
+			}
+			const data = await inventoryService.findBatchItemExpiry({
+				...input,
+				take: 10000,
+			});
+
+			const columns = [
+				{ key: "itemCode", header: "Item Code" },
+				{ key: "itemName", header: "Item Name" },
+				{ key: "batchNo", header: "Batch No" },
+				{ key: "stockUom", header: "UOM" },
+				{ key: "quantity", header: "Quantity" },
+				{ key: "expiresOn", header: "Expires On" },
+				{ key: "expiryInDays", header: "Expiry In Days" },
+			];
+
+			const filters: Array<{ label: string; value: string }> = [];
+			if (input.warehouse)
+				filters.push({ label: "Warehouse", value: input.warehouse });
+
+			const metadata = {
+				title: "Batch Item Expiry Status Report",
+				generatedAt: new Date(),
+				filters,
+			};
+
+			return reportTemplateService.buildExcelBuffer(
+				metadata,
+				data as unknown as Record<string, unknown>[],
+				columns,
+			);
+		});
+}
+
+function createExportStockAnalyticsExcelProcedure(
+	inventoryService: InventoryService,
+	reportTemplateService: ReportTemplateService,
+) {
+	return protectedProcedure
+		.input(Inventory.listStockAnalyticsSchema)
+		.mutation(async ({ input }) => {
+			if (!input) {
+				throw new Error("Invalid input");
+			}
+			const data = await inventoryService.findStockAnalytics({
+				...input,
+				take: 10000,
+			});
+
+			const columns = [
+				{ key: "dimensionKey", header: "Item Code" },
+				{ key: "dimensionValue", header: "Item Name" },
+				{ key: "company", header: "Company" },
+				{ key: "totalValue", header: "Total Value" },
+			];
+
+			const filters: Array<{ label: string; value: string }> = [];
+			if (input.basedOn)
+				filters.push({ label: "Based On", value: input.basedOn });
+			if (input.periodicity)
+				filters.push({ label: "Periodicity", value: input.periodicity });
+
+			const metadata = {
+				title: "Stock Analytics Report",
+				generatedAt: new Date(),
+				filters,
+			};
+
+			return reportTemplateService.buildExcelBuffer(
+				metadata,
+				data as unknown as Record<string, unknown>[],
+				columns,
+			);
+		});
+}
+
+function createExportSalesOrderAnalysisExcelProcedure(
+	inventoryService: InventoryService,
+	reportTemplateService: ReportTemplateService,
+) {
+	return protectedProcedure
+		.input(Inventory.listSalesOrderAnalysisSchema)
+		.mutation(async ({ input }) => {
+			if (!input) {
+				throw new Error("Invalid input");
+			}
+			const data = await inventoryService.findSalesOrderAnalysis({
+				...input,
+				take: 10000,
+			});
+
+			const columns = [
+				{ key: "salesOrder", header: "Sales Order" },
+				{ key: "date", header: "Date" },
+				{ key: "customer", header: "Customer" },
+				{ key: "itemCode", header: "Item Code" },
+				{ key: "description", header: "Description" },
+				{ key: "qty", header: "Qty" },
+				{ key: "deliveredQty", header: "Delivered Qty" },
+				{ key: "pendingQty", header: "Pending Qty" },
+				{ key: "billedQty", header: "Billed Qty" },
+				{ key: "amount", header: "Amount" },
+				{ key: "warehouse", header: "Warehouse" },
+				{ key: "company", header: "Company" },
+			];
+
+			const filters: Array<{ label: string; value: string }> = [];
+			if (input.customer)
+				filters.push({ label: "Customer", value: input.customer });
+			if (input.itemCode)
+				filters.push({ label: "Item", value: input.itemCode });
+
+			const metadata = {
+				title: "Sales Order Analysis Report",
+				generatedAt: new Date(),
+				filters,
+			};
+
+			return reportTemplateService.buildExcelBuffer(
+				metadata,
+				data as unknown as Record<string, unknown>[],
+				columns,
+			);
+		});
+}
+
+function createExportPurchaseOrderAnalysisExcelProcedure(
+	inventoryService: InventoryService,
+	reportTemplateService: ReportTemplateService,
+) {
+	return protectedProcedure
+		.input(Inventory.listPurchaseOrderAnalysisSchema)
+		.mutation(async ({ input }) => {
+			if (!input) {
+				throw new Error("Invalid input");
+			}
+			const data = await inventoryService.findPurchaseOrderAnalysis({
+				...input,
+				take: 10000,
+			});
+
+			const columns = [
+				{ key: "purchaseOrder", header: "Purchase Order" },
+				{ key: "date", header: "Date" },
+				{ key: "supplier", header: "Supplier" },
+				{ key: "itemCode", header: "Item Code" },
+				{ key: "description", header: "Description" },
+				{ key: "qty", header: "Qty" },
+				{ key: "receivedQty", header: "Received Qty" },
+				{ key: "billedQty", header: "Billed Qty" },
+				{ key: "pendingQty", header: "Pending Qty" },
+				{ key: "pendingAmount", header: "Pending Amount" },
+			];
+
+			const filters: Array<{ label: string; value: string }> = [];
+			if (input.supplier)
+				filters.push({ label: "Supplier", value: input.supplier });
+			if (input.itemCode)
+				filters.push({ label: "Item", value: input.itemCode });
+
+			const metadata = {
+				title: "Purchase Order Analysis Report",
+				generatedAt: new Date(),
+				filters,
+			};
+
+			return reportTemplateService.buildExcelBuffer(
+				metadata,
+				data as unknown as Record<string, unknown>[],
+				columns,
+			);
+		});
+}
+
+function createExportPurchaseReceiptTrendsExcelProcedure(
+	inventoryService: InventoryService,
+	reportTemplateService: ReportTemplateService,
+) {
+	return protectedProcedure
+		.input(Inventory.listPurchaseReceiptTrendsSchema)
+		.mutation(async ({ input }) => {
+			if (!input) {
+				throw new Error("Invalid input");
+			}
+			const data = await inventoryService.findPurchaseReceiptTrends({
+				...input,
+				take: 10000,
+			});
+
+			const columns = [
+				{ key: "itemCode", header: "Item Code" },
+				{ key: "itemName", header: "Item Name" },
+				{ key: "supplier", header: "Supplier" },
+				{ key: "warehouse", header: "Warehouse" },
+				{ key: "company", header: "Company" },
+				{ key: "totalQty", header: "Total Qty" },
+				{ key: "totalAmount", header: "Total Amount" },
+			];
+
+			const filters: Array<{ label: string; value: string }> = [];
+			if (input.basedOn)
+				filters.push({ label: "Based On", value: input.basedOn });
+
+			const metadata = {
+				title: "Purchase Receipt Trends Report",
+				generatedAt: new Date(),
+				filters,
+			};
+
+			return reportTemplateService.buildExcelBuffer(
+				metadata,
+				data as unknown as Record<string, unknown>[],
+				columns,
+			);
+		});
+}
+
+function createExportDeliveryNoteTrendsExcelProcedure(
+	inventoryService: InventoryService,
+	reportTemplateService: ReportTemplateService,
+) {
+	return protectedProcedure
+		.input(Inventory.listDeliveryNoteTrendsSchema)
+		.mutation(async ({ input }) => {
+			if (!input) {
+				throw new Error("Invalid input");
+			}
+			const data = await inventoryService.findDeliveryNoteTrends({
+				...input,
+				take: 10000,
+			});
+
+			const columns = [
+				{ key: "itemCode", header: "Item Code" },
+				{ key: "itemName", header: "Item Name" },
+				{ key: "customer", header: "Customer" },
+				{ key: "warehouse", header: "Warehouse" },
+				{ key: "company", header: "Company" },
+				{ key: "totalQty", header: "Total Qty" },
+				{ key: "totalAmount", header: "Total Amount" },
+			];
+
+			const filters: Array<{ label: string; value: string }> = [];
+			if (input.basedOn)
+				filters.push({ label: "Based On", value: input.basedOn });
+
+			const metadata = {
+				title: "Delivery Note Trends Report",
+				generatedAt: new Date(),
+				filters,
+			};
+
+			return reportTemplateService.buildExcelBuffer(
+				metadata,
+				data as unknown as Record<string, unknown>[],
+				columns,
+			);
+		});
+}
+
 function createListStockBalanceProcedure(inventoryService: InventoryService) {
 	return protectedProcedure
 		.input(Inventory.listStockBalanceSchema)
@@ -2510,50 +3480,110 @@ type InventoryRouterInput = {
 		typeof createExportStockLedgerExcelProcedure
 	>;
 	listStockBalance: ReturnType<typeof createListStockBalanceProcedure>;
-	getQuickStockBalance: ReturnType<typeof createGetQuickStockBalanceProcedure>;
+	exportStockBalanceExcel: ReturnType<
+		typeof createExportStockBalanceExcelProcedure
+	>;
+	listStockSummary: ReturnType<typeof createListStockSummaryProcedure>;
+	exportStockSummaryExcel: ReturnType<
+		typeof createExportStockSummaryExcelProcedure
+	>;
+	listStockAgeing: ReturnType<typeof createListStockAgeingProcedure>;
+	exportStockAgeingExcel: ReturnType<
+		typeof createExportStockAgeingExcelProcedure
+	>;
 	listStockProjectedQty: ReturnType<
 		typeof createListStockProjectedQtyProcedure
 	>;
-	listItemShortageReport: ReturnType<
-		typeof createListItemShortageReportProcedure
+	exportStockProjectedQtyExcel: ReturnType<
+		typeof createExportStockProjectedQtyExcelProcedure
 	>;
-	listRequestedItemsToBeTransferred: ReturnType<
-		typeof createListRequestedItemsToBeTransferredProcedure
+	listItemPriceStock: ReturnType<typeof createListItemPriceStockProcedure>;
+	exportItemPriceStockExcel: ReturnType<
+		typeof createExportItemPriceStockExcelProcedure
+	>;
+	listWarehouseWiseStockBalance: ReturnType<
+		typeof createListWarehouseWiseStockBalanceProcedure
+	>;
+	exportWarehouseWiseStockBalanceExcel: ReturnType<
+		typeof createExportWarehouseWiseStockBalanceExcelProcedure
 	>;
 	listSubcontractedRawMaterials: ReturnType<
 		typeof createListSubcontractedRawMaterialsProcedure
 	>;
+	exportSubcontractedRawMaterialsExcel: ReturnType<
+		typeof createExportSubcontractedRawMaterialsExcelProcedure
+	>;
 	listSubcontractedItemToBeReceived: ReturnType<
 		typeof createListSubcontractedItemToBeReceivedProcedure
 	>;
+	exportSubcontractedItemToBeReceivedExcel: ReturnType<
+		typeof createExportSubcontractedItemToBeReceivedExcelProcedure
+	>;
+	listItemShortageReport: ReturnType<
+		typeof createListItemShortageReportProcedure
+	>;
+	exportItemShortageExcel: ReturnType<
+		typeof createExportItemShortageExcelProcedure
+	>;
+	listRequestedItemsToBeTransferred: ReturnType<
+		typeof createListRequestedItemsToBeTransferredProcedure
+	>;
+	exportRequestedItemsToBeTransferredExcel: ReturnType<
+		typeof createExportRequestedItemsToBeTransferredExcelProcedure
+	>;
 	listBatchWiseBalance: ReturnType<typeof createListBatchWiseBalanceProcedure>;
+	exportBatchWiseBalanceExcel: ReturnType<
+		typeof createExportBatchWiseBalanceExcelProcedure
+	>;
 	listBatchItemExpiry: ReturnType<typeof createListBatchItemExpiryProcedure>;
+	exportBatchItemExpiryExcel: ReturnType<
+		typeof createExportBatchItemExpiryExcelProcedure
+	>;
 	listItemPrices: ReturnType<typeof createListItemPricesProcedure>;
+	exportItemPricesExcel: ReturnType<
+		typeof createExportItemPricesExcelProcedure
+	>;
 	listItemwiseRecommendedReorderLevel: ReturnType<
 		typeof createListItemwiseRecommendedReorderLevelProcedure
+	>;
+	exportItemwiseRecommendedReorderLevelExcel: ReturnType<
+		typeof createExportItemwiseRecommendedReorderLevelExcelProcedure
 	>;
 	listItemVariantDetails: ReturnType<
 		typeof createListItemVariantDetailsProcedure
 	>;
-	listStockSummary: ReturnType<typeof createListStockSummaryProcedure>;
-	listStockAgeing: ReturnType<typeof createListStockAgeingProcedure>;
-	listItemPriceStock: ReturnType<typeof createListItemPriceStockProcedure>;
-	listWarehouseWiseStockBalance: ReturnType<
-		typeof createListWarehouseWiseStockBalanceProcedure
+	exportItemVariantDetailsExcel: ReturnType<
+		typeof createExportItemVariantDetailsExcelProcedure
 	>;
 	listStockAnalytics: ReturnType<typeof createListStockAnalyticsProcedure>;
-	listDeliveryNoteTrends: ReturnType<
-		typeof createListDeliveryNoteTrendsProcedure
-	>;
-	listPurchaseReceiptTrends: ReturnType<
-		typeof createListPurchaseReceiptTrendsProcedure
+	exportStockAnalyticsExcel: ReturnType<
+		typeof createExportStockAnalyticsExcelProcedure
 	>;
 	listSalesOrderAnalysis: ReturnType<
 		typeof createListSalesOrderAnalysisProcedure
 	>;
+	exportSalesOrderAnalysisExcel: ReturnType<
+		typeof createExportSalesOrderAnalysisExcelProcedure
+	>;
 	listPurchaseOrderAnalysis: ReturnType<
 		typeof createListPurchaseOrderAnalysisProcedure
 	>;
+	exportPurchaseOrderAnalysisExcel: ReturnType<
+		typeof createExportPurchaseOrderAnalysisExcelProcedure
+	>;
+	listPurchaseReceiptTrends: ReturnType<
+		typeof createListPurchaseReceiptTrendsProcedure
+	>;
+	exportPurchaseReceiptTrendsExcel: ReturnType<
+		typeof createExportPurchaseReceiptTrendsExcelProcedure
+	>;
+	listDeliveryNoteTrends: ReturnType<
+		typeof createListDeliveryNoteTrendsProcedure
+	>;
+	exportDeliveryNoteTrendsExcel: ReturnType<
+		typeof createExportDeliveryNoteTrendsExcelProcedure
+	>;
+	getQuickStockBalance: ReturnType<typeof createGetQuickStockBalanceProcedure>;
 	listDeliveryNotes: ReturnType<typeof createListDeliveryNotesProcedure>;
 	getDeliveryNoteById: ReturnType<typeof createGetDeliveryNoteByIdProcedure>;
 	createDeliveryNote: ReturnType<typeof createCreateDeliveryNoteProcedure>;
@@ -2783,38 +3813,125 @@ function createInventoryRouterRecord(
 			reportTemplateService,
 		),
 		listStockBalance: createListStockBalanceProcedure(inventoryService),
-		getQuickStockBalance: createGetQuickStockBalanceProcedure(inventoryService),
+		exportStockBalanceExcel: createExportStockBalanceExcelProcedure(
+			inventoryService,
+			reportTemplateService,
+		),
+		listStockSummary: createListStockSummaryProcedure(inventoryService),
+		exportStockSummaryExcel: createExportStockSummaryExcelProcedure(
+			inventoryService,
+			reportTemplateService,
+		),
+		listStockAgeing: createListStockAgeingProcedure(inventoryService),
+		exportStockAgeingExcel: createExportStockAgeingExcelProcedure(
+			inventoryService,
+			reportTemplateService,
+		),
 		listStockProjectedQty:
 			createListStockProjectedQtyProcedure(inventoryService),
-		listItemShortageReport:
-			createListItemShortageReportProcedure(inventoryService),
-		listRequestedItemsToBeTransferred:
-			createListRequestedItemsToBeTransferredProcedure(inventoryService),
-		listSubcontractedRawMaterials:
-			createListSubcontractedRawMaterialsProcedure(inventoryService),
-		listSubcontractedItemToBeReceived:
-			createListSubcontractedItemToBeReceivedProcedure(inventoryService),
-		listBatchWiseBalance: createListBatchWiseBalanceProcedure(inventoryService),
-		listBatchItemExpiry: createListBatchItemExpiryProcedure(inventoryService),
-		listItemPrices: createListItemPricesProcedure(inventoryService),
-		listItemwiseRecommendedReorderLevel:
-			createListItemwiseRecommendedReorderLevelProcedure(inventoryService),
-		listItemVariantDetails:
-			createListItemVariantDetailsProcedure(inventoryService),
-		listStockSummary: createListStockSummaryProcedure(inventoryService),
-		listStockAgeing: createListStockAgeingProcedure(inventoryService),
+		exportStockProjectedQtyExcel: createExportStockProjectedQtyExcelProcedure(
+			inventoryService,
+			reportTemplateService,
+		),
 		listItemPriceStock: createListItemPriceStockProcedure(inventoryService),
+		exportItemPriceStockExcel: createExportItemPriceStockExcelProcedure(
+			inventoryService,
+			reportTemplateService,
+		),
 		listWarehouseWiseStockBalance:
 			createListWarehouseWiseStockBalanceProcedure(inventoryService),
+		exportWarehouseWiseStockBalanceExcel:
+			createExportWarehouseWiseStockBalanceExcelProcedure(
+				inventoryService,
+				reportTemplateService,
+			),
+		listSubcontractedRawMaterials:
+			createListSubcontractedRawMaterialsProcedure(inventoryService),
+		exportSubcontractedRawMaterialsExcel:
+			createExportSubcontractedRawMaterialsExcelProcedure(
+				inventoryService,
+				reportTemplateService,
+			),
+		listSubcontractedItemToBeReceived:
+			createListSubcontractedItemToBeReceivedProcedure(inventoryService),
+		exportSubcontractedItemToBeReceivedExcel:
+			createExportSubcontractedItemToBeReceivedExcelProcedure(
+				inventoryService,
+				reportTemplateService,
+			),
+		getQuickStockBalance: createGetQuickStockBalanceProcedure(inventoryService),
 		listStockAnalytics: createListStockAnalyticsProcedure(inventoryService),
+		exportStockAnalyticsExcel: createExportStockAnalyticsExcelProcedure(
+			inventoryService,
+			reportTemplateService,
+		),
 		listDeliveryNoteTrends:
 			createListDeliveryNoteTrendsProcedure(inventoryService),
+		exportDeliveryNoteTrendsExcel: createExportDeliveryNoteTrendsExcelProcedure(
+			inventoryService,
+			reportTemplateService,
+		),
 		listPurchaseReceiptTrends:
 			createListPurchaseReceiptTrendsProcedure(inventoryService),
+		exportPurchaseReceiptTrendsExcel:
+			createExportPurchaseReceiptTrendsExcelProcedure(
+				inventoryService,
+				reportTemplateService,
+			),
 		listSalesOrderAnalysis:
 			createListSalesOrderAnalysisProcedure(inventoryService),
+		exportSalesOrderAnalysisExcel: createExportSalesOrderAnalysisExcelProcedure(
+			inventoryService,
+			reportTemplateService,
+		),
 		listPurchaseOrderAnalysis:
 			createListPurchaseOrderAnalysisProcedure(inventoryService),
+		exportPurchaseOrderAnalysisExcel:
+			createExportPurchaseOrderAnalysisExcelProcedure(
+				inventoryService,
+				reportTemplateService,
+			),
+		listItemShortageReport:
+			createListItemShortageReportProcedure(inventoryService),
+		exportItemShortageExcel: createExportItemShortageExcelProcedure(
+			inventoryService,
+			reportTemplateService,
+		),
+		listRequestedItemsToBeTransferred:
+			createListRequestedItemsToBeTransferredProcedure(inventoryService),
+		exportRequestedItemsToBeTransferredExcel:
+			createExportRequestedItemsToBeTransferredExcelProcedure(
+				inventoryService,
+				reportTemplateService,
+			),
+		listBatchWiseBalance: createListBatchWiseBalanceProcedure(inventoryService),
+		exportBatchWiseBalanceExcel: createExportBatchWiseBalanceExcelProcedure(
+			inventoryService,
+			reportTemplateService,
+		),
+		listBatchItemExpiry: createListBatchItemExpiryProcedure(inventoryService),
+		exportBatchItemExpiryExcel: createExportBatchItemExpiryExcelProcedure(
+			inventoryService,
+			reportTemplateService,
+		),
+		listItemPrices: createListItemPricesProcedure(inventoryService),
+		exportItemPricesExcel: createExportItemPricesExcelProcedure(
+			inventoryService,
+			reportTemplateService,
+		),
+		listItemwiseRecommendedReorderLevel:
+			createListItemwiseRecommendedReorderLevelProcedure(inventoryService),
+		exportItemwiseRecommendedReorderLevelExcel:
+			createExportItemwiseRecommendedReorderLevelExcelProcedure(
+				inventoryService,
+				reportTemplateService,
+			),
+		listItemVariantDetails:
+			createListItemVariantDetailsProcedure(inventoryService),
+		exportItemVariantDetailsExcel: createExportItemVariantDetailsExcelProcedure(
+			inventoryService,
+			reportTemplateService,
+		),
 		listDeliveryNotes: createListDeliveryNotesProcedure(inventoryService),
 		getDeliveryNoteById: createGetDeliveryNoteByIdProcedure(inventoryService),
 		createDeliveryNote: createCreateDeliveryNoteProcedure(inventoryService),

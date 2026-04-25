@@ -16,6 +16,7 @@ import {
 	AdvancedDataTable,
 	useAdvancedDataTable,
 } from "@/components/advanced-data-table";
+import { downloadExcelBuffer } from "@/components/advanced-data-table/utils";
 import { Button } from "@/components/ui/button";
 import { ErrorState } from "@/components/ui/error-display";
 import { Input } from "@/components/ui/input";
@@ -302,6 +303,16 @@ export default function PurchaseReceiptTrendsPage() {
 		getRowId: (row) => row.id,
 	});
 
+	const handleExport = React.useCallback(async () => {
+		if (!queryInput) return;
+		const buffer = await (
+			trpc.inventory.exportPurchaseReceiptTrendsExcel as unknown as {
+				mutate: (input: typeof queryInput) => Promise<Buffer>;
+			}
+		).mutate(queryInput);
+		downloadExcelBuffer(buffer, `purchase-receipt-trends-${Date.now()}.xlsx`);
+	}, [queryInput]);
+
 	const hasActiveFilters = React.useMemo(
 		() =>
 			(Object.keys(INITIAL_FILTERS) as Array<keyof FilterState>).some(
@@ -542,6 +553,7 @@ export default function PurchaseReceiptTrendsPage() {
 						table={table}
 						data={rows}
 						enableExport
+						onExport={handleExport}
 						enableVirtualization={false}
 						enableColumnResizing
 						enableBulkActions={false}

@@ -7,6 +7,7 @@ import {
 	AdvancedDataTable,
 	useAdvancedDataTable,
 } from "@/components/advanced-data-table";
+import { downloadExcelBuffer } from "@/components/advanced-data-table/utils";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ErrorState } from "@/components/ui/error-display";
@@ -273,6 +274,19 @@ export default function ItemPriceStockPage() {
 		await refetch();
 	}, [refetch]);
 
+	const handleExport = React.useCallback(
+		async (format: string) => {
+			if (format !== "excel") return;
+			const buffer = await (
+				trpc.inventory.exportItemPriceStockExcel as unknown as {
+					mutate: (input: typeof listQueryInput) => Promise<Buffer>;
+				}
+			).mutate(listQueryInput);
+			downloadExcelBuffer(buffer, `item-price-stock-${Date.now()}.xlsx`);
+		},
+		[listQueryInput],
+	);
+
 	const { table } = useAdvancedDataTable<ItemPriceStockRow>({
 		data: rows,
 		columns,
@@ -424,6 +438,7 @@ export default function ItemPriceStockPage() {
 					table={table}
 					data={rows}
 					enableExport
+					onExport={handleExport}
 					enableVirtualization
 					enableColumnResizing
 					enableBulkActions={false}
