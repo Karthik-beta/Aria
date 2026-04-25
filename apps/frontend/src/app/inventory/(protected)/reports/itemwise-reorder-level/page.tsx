@@ -1,6 +1,6 @@
 "use client";
 
-import type { ColumnDef } from "@tanstack/react-table";
+import type { ColumnDef, Row } from "@tanstack/react-table";
 import * as React from "react";
 import {
 	AdvancedDataTable,
@@ -235,15 +235,22 @@ export default function ItemwiseRecommendedReorderLevelPage() {
 		[queryInput],
 	);
 
-	const handleExport = React.useCallback(async () => {
-		if (!listQueryInput) return;
-		const buffer = await (
-			trpc.inventory.exportItemwiseRecommendedReorderLevelExcel as unknown as {
-				mutate: (input: typeof listQueryInput) => Promise<Buffer>;
-			}
-		).mutate(listQueryInput);
-		downloadExcelBuffer(buffer, `itemwise-reorder-level-${Date.now()}.xlsx`);
-	}, [listQueryInput]);
+	const handleExport = React.useCallback(
+		async (
+			_format: string,
+			_rows: readonly Row<ItemwiseRecommendedReorderLevelRow>[],
+		) => {
+			if (!listQueryInput) return;
+			const buffer = await (
+				trpc.inventory
+					.exportItemwiseRecommendedReorderLevelExcel as unknown as {
+					mutate: (input: typeof listQueryInput) => Promise<Buffer>;
+				}
+			).mutate(listQueryInput);
+			downloadExcelBuffer(buffer, `itemwise-reorder-level-${Date.now()}.xlsx`);
+		},
+		[listQueryInput],
+	);
 
 	const handleReload = React.useCallback(async () => {
 		await refetch();

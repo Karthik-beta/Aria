@@ -1,6 +1,6 @@
 "use client";
 
-import type { ColumnDef } from "@tanstack/react-table";
+import type { ColumnDef, Row } from "@tanstack/react-table";
 import * as React from "react";
 import {
 	Bar,
@@ -303,15 +303,21 @@ export default function PurchaseReceiptTrendsPage() {
 		getRowId: (row) => row.id,
 	});
 
-	const handleExport = React.useCallback(async () => {
-		if (!queryInput) return;
-		const buffer = await (
-			trpc.inventory.exportPurchaseReceiptTrendsExcel as unknown as {
-				mutate: (input: typeof queryInput) => Promise<Buffer>;
-			}
-		).mutate(queryInput);
-		downloadExcelBuffer(buffer, `purchase-receipt-trends-${Date.now()}.xlsx`);
-	}, [queryInput]);
+	const handleExport = React.useCallback(
+		async (
+			_format: string,
+			_rows: readonly Row<PurchaseReceiptTrendsRow>[],
+		) => {
+			if (!queryInput) return;
+			const buffer = await (
+				trpc.inventory.exportPurchaseReceiptTrendsExcel as unknown as {
+					mutate: (input: typeof queryInput) => Promise<Buffer>;
+				}
+			).mutate(queryInput);
+			downloadExcelBuffer(buffer, `purchase-receipt-trends-${Date.now()}.xlsx`);
+		},
+		[queryInput],
+	);
 
 	const hasActiveFilters = React.useMemo(
 		() =>

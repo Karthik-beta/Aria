@@ -63,7 +63,6 @@ function createWrapper(authState?: AuthState) {
 describe("useAuth", () => {
 	beforeEach(() => {
 		vi.stubEnv("NODE_ENV", "test");
-		vi.stubEnv("NEXT_PUBLIC_DEV_AUTH_BYPASS", "false");
 	});
 
 	describe("unauthenticated state", () => {
@@ -97,23 +96,6 @@ describe("useAuth", () => {
 				wrapper: createWrapper(),
 			});
 			expect(result.current.hasAnyRole("admin", "user")).toBe(false);
-		});
-	});
-
-	describe("development bypass mode", () => {
-		it("grants full access when bypass is enabled", () => {
-			vi.stubEnv("NODE_ENV", "development");
-			vi.stubEnv("NEXT_PUBLIC_DEV_AUTH_BYPASS", "true");
-
-			const { result } = renderHook(() => useAuth(), {
-				wrapper: createWrapper(),
-			});
-
-			expect(result.current.isAuthenticated).toBe(true);
-			expect(result.current.hasPermission("anything")).toBe(true);
-			expect(result.current.hasRole("any_role")).toBe(true);
-			expect(result.current.canAccessApp("inventory")).toBe(true);
-			expect(result.current.isSupervisorOf("crm")).toBe(true);
 		});
 	});
 

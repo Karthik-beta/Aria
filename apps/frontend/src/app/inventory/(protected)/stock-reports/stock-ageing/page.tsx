@@ -1,6 +1,6 @@
 "use client";
 
-import type { ColumnDef } from "@tanstack/react-table";
+import type { ColumnDef, Row } from "@tanstack/react-table";
 import * as React from "react";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import {
@@ -415,7 +415,7 @@ export default function StockAgeingPage() {
 	});
 
 	const handleExport = React.useCallback(
-		async (format: string) => {
+		async (format: string, _rows: readonly Row<StockAgeingRow>[]) => {
 			if (format !== "excel") return;
 			const buffer = await (
 				trpc.inventory.exportStockAgeingExcel as unknown as {

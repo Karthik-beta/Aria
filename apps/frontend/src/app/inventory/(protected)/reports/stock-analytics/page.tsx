@@ -1,6 +1,6 @@
 "use client";
 
-import type { ColumnDef } from "@tanstack/react-table";
+import type { ColumnDef, Row } from "@tanstack/react-table";
 import * as React from "react";
 import {
 	CartesianGrid,
@@ -350,15 +350,18 @@ export default function StockAnalyticsPage() {
 		getRowId: (row) => row.id,
 	});
 
-	const handleExport = React.useCallback(async () => {
-		if (!queryInput) return;
-		const buffer = await (
-			trpc.inventory.exportStockAnalyticsExcel as unknown as {
-				mutate: (input: typeof queryInput) => Promise<Buffer>;
-			}
-		).mutate(queryInput);
-		downloadExcelBuffer(buffer, `stock-analytics-${Date.now()}.xlsx`);
-	}, [queryInput]);
+	const handleExport = React.useCallback(
+		async (_format: string, _rows: readonly Row<StockAnalyticsRow>[]) => {
+			if (!queryInput) return;
+			const buffer = await (
+				trpc.inventory.exportStockAnalyticsExcel as unknown as {
+					mutate: (input: typeof queryInput) => Promise<Buffer>;
+				}
+			).mutate(queryInput);
+			downloadExcelBuffer(buffer, `stock-analytics-${Date.now()}.xlsx`);
+		},
+		[queryInput],
+	);
 
 	const hasActiveFilters = React.useMemo(
 		() =>

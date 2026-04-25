@@ -1,6 +1,6 @@
 "use client";
 
-import type { ColumnDef } from "@tanstack/react-table";
+import type { ColumnDef, Row } from "@tanstack/react-table";
 import { Ellipsis, Filter, FolderPlus, RotateCcw } from "lucide-react";
 import * as React from "react";
 import {
@@ -421,7 +421,7 @@ export default function WarehouseWiseStockBalancePage() {
 	});
 
 	const handleExport = React.useCallback(
-		async (format: string) => {
+		async (format: string, _rows: readonly Row<WarehouseWiseDisplayRow>[]) => {
 			if (format !== "excel") return;
 			const buffer = await (
 				trpc.inventory.exportWarehouseWiseStockBalanceExcel as unknown as {

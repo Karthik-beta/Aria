@@ -9,7 +9,6 @@ import { config } from "dotenv";
 import { WebSocketServer } from "ws";
 import { AppModule } from "./app.module";
 import { auth } from "./auth/auth.config";
-import { assertValidDevelopmentAuthBypassConfiguration } from "./auth/development-bypass";
 import { TrpcContext } from "./trpc/trpc.context";
 import { TrpcService } from "./trpc/trpc.service";
 
@@ -85,8 +84,6 @@ try {
 }
 
 async function bootstrap() {
-	assertValidDevelopmentAuthBypassConfiguration();
-
 	/**
 	 * Disable body parser for Better Auth compatibility
 	 *

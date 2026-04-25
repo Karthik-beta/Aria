@@ -1,7 +1,7 @@
 "use client";
 
 import type { Inventory } from "@aria/types";
-import type { ColumnDef } from "@tanstack/react-table";
+import type { ColumnDef, Row } from "@tanstack/react-table";
 import * as React from "react";
 import {
 	AdvancedDataTable,
@@ -275,7 +275,7 @@ export default function ItemPriceStockPage() {
 	}, [refetch]);
 
 	const handleExport = React.useCallback(
-		async (format: string) => {
+		async (format: string, _rows: readonly Row<ItemPriceStockRow>[]) => {
 			if (format !== "excel") return;
 			const buffer = await (
 				trpc.inventory.exportItemPriceStockExcel as unknown as {

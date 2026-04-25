@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getAuthRedirectUrl } from "@/config/auth";
 import SignUpViewPage from "@/features/auth/components/sign-up-view";
-import { isDevelopmentAuthBypassEnabled } from "@/lib/auth/development-bypass";
 import { getServerSession } from "@/lib/auth/server";
 
 export const metadata: Metadata = {
@@ -12,10 +11,9 @@ export const metadata: Metadata = {
 };
 
 export default async function Page() {
-	const isDevelopmentBypass = isDevelopmentAuthBypassEnabled();
 	const session = await getServerSession();
 
-	if (!isDevelopmentBypass && session) {
+	if (session) {
 		if (session.user.mustChangePassword) {
 			redirect("/auth/change-password");
 		}

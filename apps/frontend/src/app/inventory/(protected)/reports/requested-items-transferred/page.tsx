@@ -1,7 +1,7 @@
 "use client";
 
 import type { Inventory } from "@aria/types";
-import type { ColumnDef } from "@tanstack/react-table";
+import type { ColumnDef, Row } from "@tanstack/react-table";
 import Link from "next/link";
 import * as React from "react";
 import {
@@ -305,17 +305,23 @@ export default function RequestedItemsToBeTransferredPage() {
 		initialPageSize: 50,
 	});
 
-	const handleExport = React.useCallback(async () => {
-		const buffer = await (
-			trpc.inventory.exportRequestedItemsToBeTransferredExcel as unknown as {
-				mutate: (input: typeof listQueryInput) => Promise<Buffer>;
-			}
-		).mutate(listQueryInput);
-		downloadExcelBuffer(
-			buffer,
-			`requested-items-transferred-${Date.now()}.xlsx`,
-		);
-	}, [listQueryInput]);
+	const handleExport = React.useCallback(
+		async (
+			_format: string,
+			_rows: readonly Row<RequestedItemsToBeTransferredRow>[],
+		) => {
+			const buffer = await (
+				trpc.inventory.exportRequestedItemsToBeTransferredExcel as unknown as {
+					mutate: (input: typeof listQueryInput) => Promise<Buffer>;
+				}
+			).mutate(listQueryInput);
+			downloadExcelBuffer(
+				buffer,
+				`requested-items-transferred-${Date.now()}.xlsx`,
+			);
+		},
+		[listQueryInput],
+	);
 
 	const activeFilterCount = React.useMemo(
 		() =>

@@ -1,6 +1,6 @@
 "use client";
 
-import type { ColumnDef } from "@tanstack/react-table";
+import type { ColumnDef, Row } from "@tanstack/react-table";
 import * as React from "react";
 import {
 	Cell,
@@ -449,15 +449,18 @@ export default function SalesOrderAnalysisPage() {
 	});
 
 	const listQueryInput = queryInput;
-	const handleExport = React.useCallback(async () => {
-		if (!listQueryInput) return;
-		const buffer = await (
-			trpc.inventory.exportSalesOrderAnalysisExcel as unknown as {
-				mutate: (input: typeof listQueryInput) => Promise<Buffer>;
-			}
-		).mutate(listQueryInput);
-		downloadExcelBuffer(buffer, `sales-order-analysis-${Date.now()}.xlsx`);
-	}, [listQueryInput]);
+	const handleExport = React.useCallback(
+		async (_format: string, _rows: readonly Row<SalesOrderAnalysisRow>[]) => {
+			if (!listQueryInput) return;
+			const buffer = await (
+				trpc.inventory.exportSalesOrderAnalysisExcel as unknown as {
+					mutate: (input: typeof listQueryInput) => Promise<Buffer>;
+				}
+			).mutate(listQueryInput);
+			downloadExcelBuffer(buffer, `sales-order-analysis-${Date.now()}.xlsx`);
+		},
+		[listQueryInput],
+	);
 
 	const hasActiveFilters = React.useMemo(
 		() =>

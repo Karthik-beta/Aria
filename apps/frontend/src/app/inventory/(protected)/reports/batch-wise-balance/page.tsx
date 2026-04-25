@@ -1,6 +1,6 @@
 "use client";
 
-import type { ColumnDef } from "@tanstack/react-table";
+import type { ColumnDef, Row } from "@tanstack/react-table";
 import * as React from "react";
 import {
 	AdvancedDataTable,
@@ -250,15 +250,18 @@ export default function BatchWiseBalancePage() {
 		initialPageSize: 50,
 	});
 
-	const handleExport = React.useCallback(async () => {
-		if (!queryInput) return;
-		const buffer = await (
-			trpc.inventory.exportBatchWiseBalanceExcel as unknown as {
-				mutate: (input: typeof queryInput) => Promise<Buffer>;
-			}
-		).mutate(queryInput);
-		downloadExcelBuffer(buffer, `batch-wise-balance-${Date.now()}.xlsx`);
-	}, [queryInput]);
+	const handleExport = React.useCallback(
+		async (_format: string, _rows: readonly Row<BatchWiseBalanceRow>[]) => {
+			if (!queryInput) return;
+			const buffer = await (
+				trpc.inventory.exportBatchWiseBalanceExcel as unknown as {
+					mutate: (input: typeof queryInput) => Promise<Buffer>;
+				}
+			).mutate(queryInput);
+			downloadExcelBuffer(buffer, `batch-wise-balance-${Date.now()}.xlsx`);
+		},
+		[queryInput],
+	);
 
 	return (
 		<div className="flex flex-1 flex-col gap-6 p-6">

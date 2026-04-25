@@ -1,6 +1,6 @@
 "use client";
 
-import type { ColumnDef } from "@tanstack/react-table";
+import type { ColumnDef, Row } from "@tanstack/react-table";
 import Link from "next/link";
 import * as React from "react";
 import {
@@ -365,7 +365,7 @@ export default function StockSummaryPage() {
 	});
 
 	const handleExport = React.useCallback(
-		async (format: string) => {
+		async (format: string, _rows: readonly Row<StockSummaryRow>[]) => {
 			if (format !== "excel") return;
 			const buffer = await (
 				trpc.inventory.exportStockSummaryExcel as unknown as {

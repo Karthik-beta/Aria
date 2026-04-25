@@ -4,10 +4,6 @@ import {
 	usernameClient,
 } from "better-auth/client/plugins";
 import { createAuthClient } from "better-auth/react";
-import {
-	buildDevelopmentSession,
-	isDevelopmentAuthBypassEnabled,
-} from "./development-bypass";
 
 /**
  * Better Auth client for React
@@ -41,23 +37,4 @@ export const authClient = createAuthClient({
 /**
  * Type-safe hooks and utilities from auth client
  */
-export const { signIn, signOut, signUp } = authClient;
-
-/**
- * Enhanced useSession hook with development bypass
- *
- * If NEXT_PUBLIC_DEV_AUTH_BYPASS is set to 'true' in development,
- * returns a mock admin session when no real session exists.
- */
-export const useSession: typeof authClient.useSession = () => {
-	const session = authClient.useSession();
-
-	if (isDevelopmentAuthBypassEnabled() && !session.data && !session.isPending) {
-		return {
-			...session,
-			data: buildDevelopmentSession() as (typeof session)["data"],
-		};
-	}
-
-	return session;
-};
+export const { signIn, signOut, signUp, useSession } = authClient;

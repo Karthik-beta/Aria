@@ -8,12 +8,6 @@ import {
 	EMPTY_AUTHORIZATION_DATA,
 	isAuthorizationData,
 } from "@/lib/auth/authorization";
-import {
-	buildDevelopmentAuthorization,
-	buildDevelopmentSession,
-	getDevelopmentAuthBypassState,
-	isDevelopmentAuthBypassEnabled,
-} from "@/lib/auth/development-bypass";
 import type {
 	AuthSessionData,
 	AuthSessionRecord,
@@ -87,16 +81,6 @@ async function fetchBackendSession(): Promise<AuthSessionData | null> {
  */
 export const getServerSession = cache(
 	async (): Promise<AuthSessionData | null> => {
-		const bypassState = getDevelopmentAuthBypassState();
-
-		if (bypassState.error) {
-			throw new Error(bypassState.error);
-		}
-
-		if (isDevelopmentAuthBypassEnabled()) {
-			return buildDevelopmentSession();
-		}
-
 		try {
 			return await fetchBackendSession();
 		} catch (error) {
@@ -108,10 +92,6 @@ export const getServerSession = cache(
 
 export const getAuthorizationData = cache(
 	async (): Promise<AuthorizationData> => {
-		if (isDevelopmentAuthBypassEnabled()) {
-			return buildDevelopmentAuthorization();
-		}
-
 		const session = await getServerSession();
 
 		if (!session?.user.id) {

@@ -1,7 +1,6 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { buildSignInUrl, normalizeCallbackUrl } from "@/config/auth";
-import { isDevelopmentAuthBypassEnabled } from "@/lib/auth/development-bypass";
 
 const SESSION_COOKIE_NAMES = [
 	"better-auth.session_token",
@@ -30,14 +29,6 @@ export function proxy(request: NextRequest) {
 
 	if (callbackUrl) {
 		requestHeaders.set("x-aria-callback-url", callbackUrl);
-	}
-
-	if (isDevelopmentAuthBypassEnabled()) {
-		return NextResponse.next({
-			request: {
-				headers: requestHeaders,
-			},
-		});
 	}
 
 	if (!hasSessionCookie(request)) {

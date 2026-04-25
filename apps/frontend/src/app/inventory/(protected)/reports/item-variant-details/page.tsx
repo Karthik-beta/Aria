@@ -1,6 +1,6 @@
 "use client";
 
-import type { ColumnDef } from "@tanstack/react-table";
+import type { ColumnDef, Row } from "@tanstack/react-table";
 import * as React from "react";
 import {
 	AdvancedDataTable,
@@ -188,16 +188,19 @@ export default function ItemVariantDetailsPage() {
 		getRowId: (row) => row.id,
 	});
 
-	const handleExport = React.useCallback(async () => {
-		const { buffer } = await (
-			trpc.inventory.exportItemVariantDetailsExcel as unknown as {
-				mutate: (input: { itemCode: string }) => Promise<{ buffer: Buffer }>;
-			}
-		).mutate({
-			itemCode: submittedItemCode,
-		});
-		downloadExcelBuffer(buffer, `item-variant-details-${Date.now()}.xlsx`);
-	}, [submittedItemCode]);
+	const handleExport = React.useCallback(
+		async (_format: string, _rows: readonly Row<ItemVariantDetailsRow>[]) => {
+			const { buffer } = await (
+				trpc.inventory.exportItemVariantDetailsExcel as unknown as {
+					mutate: (input: { itemCode: string }) => Promise<{ buffer: Buffer }>;
+				}
+			).mutate({
+				itemCode: submittedItemCode,
+			});
+			downloadExcelBuffer(buffer, `item-variant-details-${Date.now()}.xlsx`);
+		},
+		[submittedItemCode],
+	);
 
 	return (
 		<div className="flex flex-1 flex-col gap-6 p-6">

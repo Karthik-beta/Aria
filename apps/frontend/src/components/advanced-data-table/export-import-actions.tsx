@@ -31,7 +31,10 @@ import { exportData, importData } from "./utils";
 interface ExportImportActionsProps<TData> {
 	table: Table<TData>;
 	exportFormats?: ExportFormat[];
-	onExport?: (format: ExportFormat, rows: Row<TData>[]) => void | Promise<void>;
+	onExport?: (
+		format: ExportFormat,
+		rows: readonly Row<TData>[],
+	) => void | Promise<void>;
 	onImport?: (data: readonly Record<string, unknown>[]) => void | Promise<void>;
 	enableImport?: boolean;
 }

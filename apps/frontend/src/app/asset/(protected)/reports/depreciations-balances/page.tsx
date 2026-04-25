@@ -1,7 +1,7 @@
 "use client";
 
 import type { Asset } from "@aria/types";
-import type { ColumnDef } from "@tanstack/react-table";
+import type { ColumnDef, Row } from "@tanstack/react-table";
 import { BookOpen } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
@@ -473,7 +473,10 @@ export default function AssetDepreciationsAndBalancesPage() {
 		});
 
 	const handleExport = React.useCallback(
-		async (format: string) => {
+		async (
+			format: string,
+			_rows: readonly Row<Asset.AssetDepreciationsAndBalancesRow>[],
+		) => {
 			if (format !== "excel") return;
 			const buffer = await (
 				trpc.asset.exportAssetDepreciationsAndBalancesExcel as unknown as {

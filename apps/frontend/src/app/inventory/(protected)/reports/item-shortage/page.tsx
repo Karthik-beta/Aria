@@ -1,6 +1,6 @@
 "use client";
 
-import type { ColumnDef } from "@tanstack/react-table";
+import type { ColumnDef, Row } from "@tanstack/react-table";
 import * as React from "react";
 import {
 	Bar,
@@ -228,15 +228,18 @@ export default function ItemShortageReportPage() {
 		initialPageSize: 50,
 	});
 
-	const handleExport = React.useCallback(async () => {
-		if (!listQueryInput) return;
-		const buffer = await (
-			trpc.inventory.exportItemShortageExcel as unknown as {
-				mutate: (input: typeof listQueryInput) => Promise<Buffer>;
-			}
-		).mutate(listQueryInput);
-		downloadExcelBuffer(buffer, `item-shortage-${Date.now()}.xlsx`);
-	}, [listQueryInput]);
+	const handleExport = React.useCallback(
+		async (_format: string, _rows: readonly Row<ItemShortageRow>[]) => {
+			if (!listQueryInput) return;
+			const buffer = await (
+				trpc.inventory.exportItemShortageExcel as unknown as {
+					mutate: (input: typeof listQueryInput) => Promise<Buffer>;
+				}
+			).mutate(listQueryInput);
+			downloadExcelBuffer(buffer, `item-shortage-${Date.now()}.xlsx`);
+		},
+		[listQueryInput],
+	);
 
 	return (
 		<div className="flex flex-1 flex-col gap-6 p-6">
