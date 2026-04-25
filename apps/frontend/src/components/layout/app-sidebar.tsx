@@ -337,10 +337,15 @@ export default function AppSidebar() {
 
 	const activeAppId = React.useMemo(() => activeApp.key, [activeApp.key]);
 
+	const canAccessCurrentApp = React.useMemo(
+		() => canAccessApp(activeAppId),
+		[activeAppId, canAccessApp],
+	);
+
 	// Memoize navigation items to prevent unnecessary recalculations
 	const appNavItems = React.useMemo(
-		() => getAppNavItems(activeAppId),
-		[activeAppId],
+		() => (canAccessCurrentApp ? getAppNavItems(activeAppId) : []),
+		[activeAppId, canAccessCurrentApp],
 	);
 
 	return (
@@ -380,10 +385,7 @@ export default function AppSidebar() {
 								</SidebarMenuButton>
 							</DropdownMenuTrigger>
 							{/* Reuse shared dropdown content so sidebar and top nav stay consistent */}
-							<UserDropdownContent
-								appRoute={activeApp.route}
-								className="w-[var(--radix-dropdown-menu-trigger-width)] min-w-56 rounded-lg"
-							/>
+							<UserDropdownContent className="w-[var(--radix-dropdown-menu-trigger-width)] min-w-56 rounded-lg" />
 						</DropdownMenu>
 					</SidebarMenuItem>
 				</SidebarMenu>

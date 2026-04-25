@@ -82,6 +82,33 @@ The `src/components/auth/protected-content.tsx` file provides several components
 
 These gates are for UX only; server-side checks still enforce access.
 
+### Server-Side App Access Gate
+
+App-level access is enforced server-side via `requireAppAccess(appKey)` in `src/lib/auth/app-access.ts`. This function:
+
+1. Calls `requireProtectedAuthState()` to fetch the authorization snapshot.
+2. Calls `authorizationCanAccessApp(authorization, appKey)` to check if the user has access.
+3. Redirects to `/{appKey}/access-denied` if access is denied.
+
+The app layouts use a **route group** (`(protected)/`) to separate protected routes from the access-denied page:
+
+```
+app/<appKey>/
+  layout.tsx               ← bare pass-through (no auth check)
+  (protected)/             ← route group (not in URL)
+    layout.tsx            ← requireAppAccess + sidebar/header shell
+    dashboard/page.tsx     ← protected
+    ...other protected routes
+  access-denied/           ← OUTSIDE (protected); renders without app access
+    page.tsx
+```
+
+**Why route groups?** Without them, `/{app}/access-denied` would be a child of `/{app}/layout.tsx`, which calls `requireAppAccess` first — causing an infinite redirect loop. Route groups create a separate layout subtree for access-denied pages.
+
+The two-layer defense:
+- **Server layer** (`requireAppAccess`): blocks unauthorized access before any render
+- **Client layer** (`AppGate`): provides defense-in-depth for client-side navigation edge cases
+
 ## API Reference
 
 ### Permission Key Format

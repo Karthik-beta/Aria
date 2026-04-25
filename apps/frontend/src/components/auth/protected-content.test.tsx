@@ -41,7 +41,13 @@ vi.mock("@/hooks/use-auth", () => ({
 	useAppAccess: (appKey: string) => mockAuth().canAccessApp(appKey),
 }));
 
-import { AppGate, AuthGate, ProtectedContent } from "./protected-content";
+import {
+	AppGate,
+	AuthGate,
+	PermissionGate,
+	ProtectedContent,
+	RoleGate,
+} from "./protected-content";
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
@@ -141,6 +147,192 @@ describe("AuthGate", () => {
 
 		expect(screen.queryByText("Protected")).not.toBeInTheDocument();
 		expect(screen.getByText("Inactive")).toBeInTheDocument();
+	});
+});
+
+describe("PermissionGate", () => {
+	it("renders children when user has the permission", () => {
+		mockAuth.mockReturnValue({
+			...deny,
+			hasAnyPermission: (..._perms: string[]) => true,
+		});
+
+		render(
+			<PermissionGate permission="app:inventory:read">
+				<div>Has Permission</div>
+			</PermissionGate>,
+		);
+
+		expect(screen.getByText("Has Permission")).toBeInTheDocument();
+	});
+
+	it("renders fallback when user lacks the permission", () => {
+		mockAuth.mockReturnValue({ ...deny, hasPermission: () => false });
+
+		render(
+			<PermissionGate
+				permission="app:inventory:write"
+				fallback={<div>No Permission</div>}
+			>
+				<div>Has Permission</div>
+			</PermissionGate>,
+		);
+
+		expect(screen.queryByText("Has Permission")).not.toBeInTheDocument();
+		expect(screen.getByText("No Permission")).toBeInTheDocument();
+	});
+
+	it("renders nothing during loading", () => {
+		mockAuth.mockReturnValue({ ...deny, isLoading: true });
+
+		const { container } = render(
+			<PermissionGate permission="app:inventory:read">
+				<div>Loading</div>
+			</PermissionGate>,
+		);
+
+		expect(container.innerHTML).toBe("");
+	});
+
+	it("uses hasAnyPermission for array of permissions (any match)", () => {
+		mockAuth.mockReturnValue({
+			...deny,
+			hasAnyPermission: (...perms: string[]) =>
+				perms.some((p) => p === "app:inventory:read"),
+		});
+
+		render(
+			<PermissionGate
+				permission={["app:inventory:write", "app:inventory:read"]}
+			>
+				<div>Has One</div>
+			</PermissionGate>,
+		);
+
+		expect(screen.getByText("Has One")).toBeInTheDocument();
+	});
+
+	it("requires all permissions when requireAll is true", () => {
+		const hasPermission = vi.fn((p: string) => p === "app:inventory:read");
+		mockAuth.mockReturnValue({ ...deny, hasPermission });
+
+		render(
+			<PermissionGate
+				permission={["app:inventory:read", "app:inventory:write"]}
+				requireAll
+				fallback={<div>Missing</div>}
+			>
+				<div>Has All</div>
+			</PermissionGate>,
+		);
+
+		expect(screen.queryByText("Has All")).not.toBeInTheDocument();
+		expect(screen.getByText("Missing")).toBeInTheDocument();
+	});
+
+	it("renders null fallback by default when access denied", () => {
+		mockAuth.mockReturnValue({ ...deny, hasPermission: () => false });
+
+		const { container } = render(
+			<PermissionGate permission="app:inventory:delete">
+				<div>Secret</div>
+			</PermissionGate>,
+		);
+
+		expect(container.innerHTML).toBe("");
+	});
+});
+
+describe("RoleGate", () => {
+	it("renders children when user has the role", () => {
+		mockAuth.mockReturnValue({
+			...deny,
+			hasAnyRole: (..._roles: string[]) => true,
+		});
+
+		render(
+			// biome-ignore lint/a11y/useValidAriaRole: `role` is a component prop, not an HTML attribute
+			<RoleGate role="admin">
+				<div>Is Admin</div>
+			</RoleGate>,
+		);
+
+		expect(screen.getByText("Is Admin")).toBeInTheDocument();
+	});
+
+	it("renders fallback when user lacks the role", () => {
+		mockAuth.mockReturnValue({ ...deny, hasRole: () => false });
+
+		render(
+			// biome-ignore lint/a11y/useValidAriaRole: `role` is a component prop, not an HTML attribute
+			<RoleGate role="admin" fallback={<div>Not Admin</div>}>
+				<div>Is Admin</div>
+			</RoleGate>,
+		);
+
+		expect(screen.queryByText("Is Admin")).not.toBeInTheDocument();
+		expect(screen.getByText("Not Admin")).toBeInTheDocument();
+	});
+
+	it("renders nothing during loading", () => {
+		mockAuth.mockReturnValue({ ...deny, isLoading: true });
+
+		const { container } = render(
+			// biome-ignore lint/a11y/useValidAriaRole: `role` is a component prop, not an HTML attribute
+			<RoleGate role="admin">
+				<div>Loading</div>
+			</RoleGate>,
+		);
+
+		expect(container.innerHTML).toBe("");
+	});
+
+	it("uses hasAnyRole for array of roles (any match)", () => {
+		mockAuth.mockReturnValue({
+			...deny,
+			hasAnyRole: (...roles: string[]) => roles.includes("admin"),
+		});
+
+		render(
+			<RoleGate role={["super_admin", "admin"]}>
+				<div>Has Role</div>
+			</RoleGate>,
+		);
+
+		expect(screen.getByText("Has Role")).toBeInTheDocument();
+	});
+
+	it("requires all roles when requireAll is true", () => {
+		mockAuth.mockReturnValue({
+			...deny,
+			hasRole: (r: string) => r === "admin",
+		});
+
+		render(
+			<RoleGate
+				role={["admin", "inventory_admin"]}
+				requireAll
+				fallback={<div>Missing Roles</div>}
+			>
+				<div>Has All Roles</div>
+			</RoleGate>,
+		);
+
+		expect(screen.queryByText("Has All Roles")).not.toBeInTheDocument();
+		expect(screen.getByText("Missing Roles")).toBeInTheDocument();
+	});
+
+	it("renders null fallback by default when access denied", () => {
+		mockAuth.mockReturnValue({ ...deny, hasRole: () => false });
+
+		const { container } = render(
+			// biome-ignore lint/a11y/useValidAriaRole: `role` is a component prop, not an HTML attribute
+			<RoleGate role="super_admin">
+				<div>Secret</div>
+			</RoleGate>,
+		);
+
+		expect(container.innerHTML).toBe("");
 	});
 });
 

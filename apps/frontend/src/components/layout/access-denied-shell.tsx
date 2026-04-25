@@ -1,30 +1,25 @@
-import type { Metadata } from "next";
+import type { ReactNode } from "react";
 import KBar from "@/components/kbar";
 import AppSidebar from "@/components/layout/app-sidebar";
 import Header from "@/components/layout/header";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 
-export const metadata: Metadata = {
-	title: "CRM by Pivotr",
-	description: "Customer relationship management system from Pivotr",
-};
+interface AccessDeniedShellProps {
+	children: ReactNode;
+	defaultOpen?: boolean;
+}
 
-export default async function DashboardLayout({
+export async function AccessDeniedShell({
 	children,
-}: {
-	children: React.ReactNode;
-}) {
-	const defaultOpen = false;
-
+	defaultOpen = false,
+}: AccessDeniedShellProps) {
 	return (
 		<KBar>
 			<SidebarProvider defaultOpen={defaultOpen}>
 				<AppSidebar />
 				<SidebarInset>
 					<Header />
-					{/* page main content */}
 					{children}
-					{/* page main content ends */}
 				</SidebarInset>
 			</SidebarProvider>
 		</KBar>
