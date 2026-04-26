@@ -6,8 +6,7 @@
  * (protected) route group (e.g. access-denied pages) render without
  * triggering the app access check.
  *
- * Relies on NEXT_PUBLIC_DEV_AUTH_BYPASS=true which grants full access,
- * so these tests cover the "happy path" and structural correctness.
+ * These tests cover the "happy path" and structural correctness.
  */
 import { expect, test } from "@playwright/test";
 

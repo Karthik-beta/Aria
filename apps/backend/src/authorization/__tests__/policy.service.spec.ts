@@ -5,12 +5,8 @@ import { PermissionService } from "../role-permission.service";
 import { ScopeService } from "../scope.service";
 
 const originalNodeEnv = process.env.NODE_ENV;
-const originalDisableAuth = process.env.DISABLE_AUTH;
 
-function restoreEnvVar(
-	key: "NODE_ENV" | "DISABLE_AUTH",
-	value: string | undefined,
-) {
+function restoreEnvVar(key: "NODE_ENV", value: string | undefined) {
 	if (value === undefined) {
 		delete process.env[key];
 		return;
@@ -39,7 +35,6 @@ describe("PolicyService", () => {
 
 	beforeEach(async () => {
 		process.env.NODE_ENV = "test";
-		delete process.env.DISABLE_AUTH;
 
 		mockPrisma = {
 			user: {
@@ -99,7 +94,6 @@ describe("PolicyService", () => {
 
 	afterAll(() => {
 		restoreEnvVar("NODE_ENV", originalNodeEnv);
-		restoreEnvVar("DISABLE_AUTH", originalDisableAuth);
 	});
 
 	describe("resolveUserPolicy", () => {

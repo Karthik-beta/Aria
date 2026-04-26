@@ -1,12 +1,5 @@
 /**
- * E2E tests for the universal profile page at /profile.
- *
- * The profile page is accessible to all authenticated users regardless of
- * which app they are currently in. It has its own full shell layout
- * (sidebar + header) and is not gated by app access.
- *
- * Relies on NEXT_PUBLIC_DEV_AUTH_BYPASS=true (set in playwright.config.ts
- * webServer env) which injects a predictable "System Administrator" session.
+ * E2E tests for profile page access and functionality.
  */
 import { expect, test } from "@playwright/test";
 

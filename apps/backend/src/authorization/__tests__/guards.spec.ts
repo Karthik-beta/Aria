@@ -64,12 +64,8 @@ const createScopeServiceMock = (): jest.Mocked<ScopeService> =>
 	}) as unknown as jest.Mocked<ScopeService>;
 
 const originalNodeEnv = process.env.NODE_ENV;
-const originalDisableAuth = process.env.DISABLE_AUTH;
 
-function restoreEnvVar(
-	key: "NODE_ENV" | "DISABLE_AUTH",
-	value: string | undefined,
-) {
+function restoreEnvVar(key: "NODE_ENV", value: string | undefined) {
 	if (value === undefined) {
 		delete process.env[key];
 		return;
@@ -81,12 +77,10 @@ function restoreEnvVar(
 describe("Authorization Guards", () => {
 	beforeEach(() => {
 		process.env.NODE_ENV = "test";
-		delete process.env.DISABLE_AUTH;
 	});
 
 	afterAll(() => {
 		restoreEnvVar("NODE_ENV", originalNodeEnv);
-		restoreEnvVar("DISABLE_AUTH", originalDisableAuth);
 	});
 
 	describe("PublicRouteGuard", () => {
