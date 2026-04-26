@@ -252,23 +252,24 @@ export default function SubcontractedRawMaterialsTransferredPage() {
 		initialPageSize: 50,
 	});
 
+	const exportSubcontractedRawMaterialsExcel =
+		trpc.inventory.exportSubcontractedRawMaterialsExcel.useMutation();
+
 	const handleExport = React.useCallback(
 		async (
 			_format: string,
 			_rows: readonly Row<SubcontractedRawMaterialsRow>[],
 		) => {
 			if (!queryInput) return;
-			const buffer = await (
-				trpc.inventory.exportSubcontractedRawMaterialsExcel as unknown as {
-					mutate: (input: typeof queryInput) => Promise<Buffer>;
-				}
-			).mutate(queryInput);
+			const buffer = (await exportSubcontractedRawMaterialsExcel.mutateAsync(
+				queryInput,
+			)) as ArrayBuffer;
 			downloadExcelBuffer(
 				buffer,
-				`subcontracted-raw-materials-${Date.now()}.xlsx`,
+				`subcontracted-raw-materials-transferred-${Date.now()}.xlsx`,
 			);
 		},
-		[queryInput],
+		[queryInput, exportSubcontractedRawMaterialsExcel],
 	);
 
 	return (

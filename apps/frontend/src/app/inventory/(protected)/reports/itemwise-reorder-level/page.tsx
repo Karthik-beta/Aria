@@ -235,21 +235,22 @@ export default function ItemwiseRecommendedReorderLevelPage() {
 		[queryInput],
 	);
 
+	const exportItemwiseRecommendedReorderLevelExcel =
+		trpc.inventory.exportItemwiseRecommendedReorderLevelExcel.useMutation();
+
 	const handleExport = React.useCallback(
 		async (
 			_format: string,
 			_rows: readonly Row<ItemwiseRecommendedReorderLevelRow>[],
 		) => {
 			if (!listQueryInput) return;
-			const buffer = await (
-				trpc.inventory
-					.exportItemwiseRecommendedReorderLevelExcel as unknown as {
-					mutate: (input: typeof listQueryInput) => Promise<Buffer>;
-				}
-			).mutate(listQueryInput);
+			const buffer =
+				(await exportItemwiseRecommendedReorderLevelExcel.mutateAsync(
+					listQueryInput,
+				)) as ArrayBuffer;
 			downloadExcelBuffer(buffer, `itemwise-reorder-level-${Date.now()}.xlsx`);
 		},
-		[listQueryInput],
+		[listQueryInput, exportItemwiseRecommendedReorderLevelExcel],
 	);
 
 	const handleReload = React.useCallback(async () => {

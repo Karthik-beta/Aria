@@ -4,24 +4,22 @@ import { fireEvent, renderWithProviders, screen, waitFor } from "@/test/utils";
 import ItemPricesPage from "./page";
 
 // ---------------------------------------------------------------------------
-// Mock state (module-level so vi.mock closure captures by reference)
+// Mock tRPC
 // ---------------------------------------------------------------------------
 
 let mockQueryData: unknown;
 let mockQueryIsLoading = false;
 let mockQueryError: Error | null = null;
 let capturedQueryInput: unknown;
+let mockUseMutation: ReturnType<typeof vi.fn>;
 
 function resetMockState() {
 	mockQueryData = undefined;
 	mockQueryIsLoading = false;
 	mockQueryError = null;
 	capturedQueryInput = undefined;
+	mockUseMutation = vi.fn().mockResolvedValue(Buffer.from([]));
 }
-
-// ---------------------------------------------------------------------------
-// Mock tRPC
-// ---------------------------------------------------------------------------
 
 vi.mock("@/lib/trpc", () => ({
 	trpc: {
@@ -36,6 +34,9 @@ vi.mock("@/lib/trpc", () => ({
 						error: mockQueryError,
 					};
 				},
+			},
+			exportItemPricesExcel: {
+				useMutation: () => ({ mutateAsync: mockUseMutation }),
 			},
 		},
 	},

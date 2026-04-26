@@ -274,17 +274,18 @@ export default function ItemPriceStockPage() {
 		await refetch();
 	}, [refetch]);
 
+	const exportItemPriceStockExcel =
+		trpc.inventory.exportItemPriceStockExcel.useMutation();
+
 	const handleExport = React.useCallback(
 		async (format: string, _rows: readonly Row<ItemPriceStockRow>[]) => {
 			if (format !== "excel") return;
-			const buffer = await (
-				trpc.inventory.exportItemPriceStockExcel as unknown as {
-					mutate: (input: typeof listQueryInput) => Promise<Buffer>;
-				}
-			).mutate(listQueryInput);
+			const buffer = (await exportItemPriceStockExcel.mutateAsync(
+				listQueryInput,
+			)) as ArrayBuffer;
 			downloadExcelBuffer(buffer, `item-price-stock-${Date.now()}.xlsx`);
 		},
-		[listQueryInput],
+		[listQueryInput, exportItemPriceStockExcel],
 	);
 
 	const { table } = useAdvancedDataTable<ItemPriceStockRow>({

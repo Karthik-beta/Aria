@@ -225,17 +225,18 @@ export default function BatchItemExpiryStatusPage() {
 		initialPageSize: 50,
 	});
 
+	const exportBatchItemExpiryExcel =
+		trpc.inventory.exportBatchItemExpiryExcel.useMutation();
+
 	const handleExport = React.useCallback(
 		async (_format: string, _rows: readonly Row<BatchItemExpiryRow>[]) => {
 			if (!queryInput) return;
-			const buffer = await (
-				trpc.inventory.exportBatchItemExpiryExcel as unknown as {
-					mutate: (input: typeof queryInput) => Promise<Buffer>;
-				}
-			).mutate(queryInput);
+			const buffer = (await exportBatchItemExpiryExcel.mutateAsync(
+				queryInput,
+			)) as ArrayBuffer;
 			downloadExcelBuffer(buffer, `batch-item-expiry-${Date.now()}.xlsx`);
 		},
-		[queryInput],
+		[queryInput, exportBatchItemExpiryExcel],
 	);
 
 	return (

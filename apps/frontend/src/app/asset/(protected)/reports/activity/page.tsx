@@ -240,17 +240,18 @@ export default function AssetActivityPage() {
 		await refetch();
 	}, [refetch]);
 
+	const exportAssetActivityExcel =
+		trpc.asset.exportAssetActivityExcel.useMutation();
+
 	const handleExport = React.useCallback(
-		async (format: string, _rows: readonly Row<ActivityRow>[]) => {
-			if (format !== "excel") return;
-			const buffer = await (
-				trpc.asset.exportAssetActivityExcel as unknown as {
-					mutate: (input: typeof queryInput) => Promise<Buffer>;
-				}
-			).mutate(queryInput);
+		async (_format: string, _rows: readonly Row<ActivityRow>[]) => {
+			if (!queryInput) return;
+			const buffer = (await exportAssetActivityExcel.mutateAsync(
+				queryInput,
+			)) as ArrayBuffer;
 			downloadExcelBuffer(buffer, `asset-activity-${Date.now()}.xlsx`);
 		},
-		[queryInput],
+		[queryInput, exportAssetActivityExcel],
 	);
 
 	const { table } = useAdvancedDataTable<ActivityRow>({

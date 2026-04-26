@@ -16,6 +16,7 @@ const {
 	mockUsePickListsSubscription,
 	mockUseQuery,
 	mockUseStockEntriesSubscription,
+	mockUseMutation,
 } = vi.hoisted(() => ({
 	mockInvalidate: vi.fn().mockResolvedValue(undefined),
 	mockUseDeliveryNotesSubscription: vi.fn(),
@@ -23,6 +24,7 @@ const {
 	mockUsePickListsSubscription: vi.fn(),
 	mockUseQuery: vi.fn(),
 	mockUseStockEntriesSubscription: vi.fn(),
+	mockUseMutation: vi.fn(),
 }));
 
 vi.mock("@/lib/trpc", () => ({
@@ -49,6 +51,9 @@ vi.mock("@/lib/trpc", () => ({
 			},
 			onPickListsChanged: {
 				useSubscription: mockUsePickListsSubscription,
+			},
+			exportStockSummaryExcel: {
+				useMutation: () => ({ mutateAsync: mockUseMutation }),
 			},
 		},
 	},

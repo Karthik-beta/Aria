@@ -5,6 +5,7 @@ import AssetDepreciationsAndBalancesPage from "./page";
 
 let mockUseQuery: ReturnType<typeof vi.fn> & ((...args: unknown[]) => unknown);
 let mockRefetch: ReturnType<typeof vi.fn>;
+let mockUseMutation: ReturnType<typeof vi.fn>;
 
 const balancesResponse = {
 	rows: [
@@ -52,6 +53,9 @@ vi.mock("@/lib/trpc", () => ({
 			listAssetDepreciationsAndBalances: {
 				useQuery: (...args: unknown[]) => mockUseQuery(...args),
 			},
+			exportAssetDepreciationsAndBalancesExcel: {
+				useMutation: () => ({ mutateAsync: mockUseMutation }),
+			},
 		},
 	},
 }));
@@ -60,8 +64,10 @@ describe("AssetDepreciationsAndBalancesPage", () => {
 	beforeEach(() => {
 		mockUseQuery = vi.fn() as typeof mockUseQuery;
 		mockRefetch = vi.fn().mockResolvedValue(undefined);
+		mockUseMutation = vi.fn();
 		mockRefetch.mockClear();
 		mockUseQuery.mockReset();
+		mockUseMutation.mockReset();
 		mockUseQuery.mockImplementation(() => ({
 			data: balancesResponse,
 			isLoading: false,

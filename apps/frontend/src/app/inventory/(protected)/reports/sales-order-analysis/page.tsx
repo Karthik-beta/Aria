@@ -449,17 +449,18 @@ export default function SalesOrderAnalysisPage() {
 	});
 
 	const listQueryInput = queryInput;
+	const exportSalesOrderAnalysisExcel =
+		trpc.inventory.exportSalesOrderAnalysisExcel.useMutation();
+
 	const handleExport = React.useCallback(
 		async (_format: string, _rows: readonly Row<SalesOrderAnalysisRow>[]) => {
 			if (!listQueryInput) return;
-			const buffer = await (
-				trpc.inventory.exportSalesOrderAnalysisExcel as unknown as {
-					mutate: (input: typeof listQueryInput) => Promise<Buffer>;
-				}
-			).mutate(listQueryInput);
+			const buffer = (await exportSalesOrderAnalysisExcel.mutateAsync(
+				listQueryInput,
+			)) as ArrayBuffer;
 			downloadExcelBuffer(buffer, `sales-order-analysis-${Date.now()}.xlsx`);
 		},
-		[listQueryInput],
+		[listQueryInput, exportSalesOrderAnalysisExcel],
 	);
 
 	const hasActiveFilters = React.useMemo(

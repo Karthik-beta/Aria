@@ -9,31 +9,13 @@ import {
 } from "@/test/utils";
 import StockAgeingPage from "./page";
 
-const { mockInvalidate, mockUseQuery, mockUseSubscription } = vi.hoisted(
-	() => ({
+const { mockInvalidate, mockUseQuery, mockUseSubscription, mockUseMutation } =
+	vi.hoisted(() => ({
 		mockInvalidate: vi.fn().mockResolvedValue(undefined),
 		mockUseQuery: vi.fn(),
 		mockUseSubscription: vi.fn(),
-	}),
-);
-
-vi.mock("@/components/ui/chart", () => ({
-	ChartContainer: ({ children }: { children: React.ReactNode }) => (
-		<div>{children}</div>
-	),
-	ChartTooltip: ({ content }: { content: React.ReactNode }) => content,
-	ChartTooltipContent: () => <div>tooltip</div>,
-}));
-
-vi.mock("recharts", () => ({
-	Bar: () => null,
-	BarChart: ({ children }: { children: React.ReactNode }) => (
-		<div>{children}</div>
-	),
-	CartesianGrid: () => null,
-	XAxis: () => null,
-	YAxis: () => null,
-}));
+		mockUseMutation: vi.fn(),
+	}));
 
 vi.mock("@/lib/trpc", () => ({
 	trpc: {
@@ -51,8 +33,29 @@ vi.mock("@/lib/trpc", () => ({
 			onStockEntriesChanged: {
 				useSubscription: mockUseSubscription,
 			},
+			exportStockAgeingExcel: {
+				useMutation: () => ({ mutateAsync: mockUseMutation }),
+			},
 		},
 	},
+}));
+
+vi.mock("@/components/ui/chart", () => ({
+	ChartContainer: ({ children }: { children: React.ReactNode }) => (
+		<div>{children}</div>
+	),
+	ChartTooltip: ({ content }: { content: React.ReactNode }) => content,
+	ChartTooltipContent: () => <div>tooltip</div>,
+}));
+
+vi.mock("recharts", () => ({
+	Bar: () => null,
+	BarChart: ({ children }: { children: React.ReactNode }) => (
+		<div>{children}</div>
+	),
+	CartesianGrid: () => null,
+	XAxis: () => null,
+	YAxis: () => null,
 }));
 
 describe("StockAgeingPage", () => {

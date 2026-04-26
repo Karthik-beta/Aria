@@ -14,11 +14,13 @@ const {
 	mockUseItemsSubscription,
 	mockUseQuery,
 	mockUseStockEntriesSubscription,
+	mockUseMutation,
 } = vi.hoisted(() => ({
 	mockInvalidate: vi.fn().mockResolvedValue(undefined),
 	mockUseItemsSubscription: vi.fn(),
 	mockUseQuery: vi.fn(),
 	mockUseStockEntriesSubscription: vi.fn(),
+	mockUseMutation: vi.fn(),
 }));
 
 vi.mock("@/lib/trpc", () => ({
@@ -39,6 +41,9 @@ vi.mock("@/lib/trpc", () => ({
 			},
 			onItemsChanged: {
 				useSubscription: mockUseItemsSubscription,
+			},
+			exportItemPriceStockExcel: {
+				useMutation: () => ({ mutateAsync: mockUseMutation }),
 			},
 		},
 	},

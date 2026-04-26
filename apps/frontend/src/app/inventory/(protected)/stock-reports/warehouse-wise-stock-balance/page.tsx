@@ -420,17 +420,18 @@ export default function WarehouseWiseStockBalancePage() {
 		getRowId: (row) => row.id,
 	});
 
+	const exportWarehouseWiseStockBalanceExcel =
+		trpc.inventory.exportWarehouseWiseStockBalanceExcel.useMutation();
+
 	const handleExport = React.useCallback(
 		async (format: string, _rows: readonly Row<WarehouseWiseDisplayRow>[]) => {
 			if (format !== "excel") return;
-			const buffer = await (
-				trpc.inventory.exportWarehouseWiseStockBalanceExcel as unknown as {
-					mutate: (input: typeof listQueryInput) => Promise<Buffer>;
-				}
-			).mutate(listQueryInput);
+			const buffer = (await exportWarehouseWiseStockBalanceExcel.mutateAsync(
+				listQueryInput,
+			)) as ArrayBuffer;
 			downloadExcelBuffer(buffer, `warehouse-wise-stock-${Date.now()}.xlsx`);
 		},
-		[listQueryInput],
+		[listQueryInput, exportWarehouseWiseStockBalanceExcel],
 	);
 
 	const hasActiveFilters = React.useMemo(

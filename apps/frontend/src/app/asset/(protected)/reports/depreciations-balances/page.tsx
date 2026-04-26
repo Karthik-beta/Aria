@@ -472,23 +472,25 @@ export default function AssetDepreciationsAndBalancesPage() {
 			getRowId: (row) => row.groupingKey,
 		});
 
-	const handleExport = React.useCallback(
+	const exportAssetDepreciationsAndBalancesExcel =
+		trpc.asset.exportAssetDepreciationsAndBalancesExcel.useMutation();
+
+	const _handleExport = React.useCallback(
 		async (
-			format: string,
+			_format: string,
 			_rows: readonly Row<Asset.AssetDepreciationsAndBalancesRow>[],
 		) => {
-			if (format !== "excel") return;
-			const buffer = await (
-				trpc.asset.exportAssetDepreciationsAndBalancesExcel as unknown as {
-					mutate: (input: typeof queryInput) => Promise<Buffer>;
-				}
-			).mutate(queryInput);
+			if (!queryInput) return;
+			const buffer =
+				(await exportAssetDepreciationsAndBalancesExcel.mutateAsync(
+					queryInput,
+				)) as ArrayBuffer;
 			downloadExcelBuffer(
 				buffer,
 				`asset-depreciations-balances-${Date.now()}.xlsx`,
 			);
 		},
-		[queryInput],
+		[queryInput, exportAssetDepreciationsAndBalancesExcel],
 	);
 
 	return (
@@ -644,7 +646,7 @@ export default function AssetDepreciationsAndBalancesPage() {
 					table={table}
 					data={rows}
 					enableExport
-					onExport={handleExport}
+					onExport={_handleExport}
 					enableVirtualization
 					enableColumnResizing
 					enableBulkActions={false}

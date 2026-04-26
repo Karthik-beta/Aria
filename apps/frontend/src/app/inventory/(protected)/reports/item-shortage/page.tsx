@@ -228,17 +228,18 @@ export default function ItemShortageReportPage() {
 		initialPageSize: 50,
 	});
 
+	const exportItemShortageExcel =
+		trpc.inventory.exportItemShortageExcel.useMutation();
+
 	const handleExport = React.useCallback(
 		async (_format: string, _rows: readonly Row<ItemShortageRow>[]) => {
 			if (!listQueryInput) return;
-			const buffer = await (
-				trpc.inventory.exportItemShortageExcel as unknown as {
-					mutate: (input: typeof listQueryInput) => Promise<Buffer>;
-				}
-			).mutate(listQueryInput);
+			const buffer = (await exportItemShortageExcel.mutateAsync(
+				listQueryInput,
+			)) as ArrayBuffer;
 			downloadExcelBuffer(buffer, `item-shortage-${Date.now()}.xlsx`);
 		},
-		[listQueryInput],
+		[listQueryInput, exportItemShortageExcel],
 	);
 
 	return (

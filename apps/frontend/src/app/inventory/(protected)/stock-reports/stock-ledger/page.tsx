@@ -638,17 +638,18 @@ export default function StockLedgerPage() {
 		[filters],
 	);
 
+	const exportStockLedgerExcel =
+		trpc.inventory.exportStockLedgerExcel.useMutation();
+
 	const handleExport = React.useCallback(
 		async (format: string, _rows: readonly Row<StockLedgerRow>[]) => {
 			if (format !== "excel") return;
-			const buffer = await (
-				trpc.inventory.exportStockLedgerExcel as unknown as {
-					mutate: (input: typeof listQueryInput) => Promise<Buffer>;
-				}
-			).mutate(listQueryInput);
+			const buffer = (await exportStockLedgerExcel.mutateAsync(
+				listQueryInput,
+			)) as ArrayBuffer;
 			downloadExcelBuffer(buffer, `stock-ledger-${Date.now()}.xlsx`);
 		},
-		[listQueryInput],
+		[listQueryInput, exportStockLedgerExcel],
 	);
 
 	return (

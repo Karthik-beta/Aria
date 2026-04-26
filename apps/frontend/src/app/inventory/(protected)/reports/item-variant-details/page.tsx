@@ -188,18 +188,17 @@ export default function ItemVariantDetailsPage() {
 		getRowId: (row) => row.id,
 	});
 
+	const exportItemVariantDetailsExcel =
+		trpc.inventory.exportItemVariantDetailsExcel.useMutation();
+
 	const handleExport = React.useCallback(
 		async (_format: string, _rows: readonly Row<ItemVariantDetailsRow>[]) => {
-			const { buffer } = await (
-				trpc.inventory.exportItemVariantDetailsExcel as unknown as {
-					mutate: (input: { itemCode: string }) => Promise<{ buffer: Buffer }>;
-				}
-			).mutate({
+			const buffer = (await exportItemVariantDetailsExcel.mutateAsync({
 				itemCode: submittedItemCode,
-			});
+			})) as ArrayBuffer;
 			downloadExcelBuffer(buffer, `item-variant-details-${Date.now()}.xlsx`);
 		},
-		[submittedItemCode],
+		[submittedItemCode, exportItemVariantDetailsExcel],
 	);
 
 	return (

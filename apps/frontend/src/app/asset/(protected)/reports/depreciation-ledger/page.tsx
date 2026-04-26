@@ -368,20 +368,21 @@ export default function AssetDepreciationLedgerPage() {
 			`${row.scheduleId}:${row.assetId}:${row.depreciationDate.toISOString()}`,
 	});
 
+	const exportAssetDepreciationLedgerExcel =
+		trpc.asset.exportAssetDepreciationLedgerExcel.useMutation();
+
 	const handleExport = React.useCallback(
-		async (format: string, _rows: readonly Row<LedgerRow>[]) => {
-			if (format !== "excel") return;
-			const { buffer } = await (
-				trpc.asset.exportAssetDepreciationLedgerExcel as unknown as {
-					mutate: (input: typeof queryInput) => Promise<{ buffer: Buffer }>;
-				}
-			).mutate(queryInput);
+		async (_format: string, _rows: readonly Row<LedgerRow>[]) => {
+			if (!queryInput) return;
+			const buffer = (await exportAssetDepreciationLedgerExcel.mutateAsync(
+				queryInput,
+			)) as ArrayBuffer;
 			downloadExcelBuffer(
 				buffer,
 				`asset-depreciation-ledger-${Date.now()}.xlsx`,
 			);
 		},
-		[queryInput],
+		[queryInput, exportAssetDepreciationLedgerExcel],
 	);
 
 	return (

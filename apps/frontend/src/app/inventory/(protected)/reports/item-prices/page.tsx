@@ -199,16 +199,18 @@ export default function ItemPricesPage() {
 		initialPageSize: 50,
 	});
 
+	const exportItemPricesExcel =
+		trpc.inventory.exportItemPricesExcel.useMutation();
+
 	const handleExport = React.useCallback(
 		async (_format: string, _rows: readonly Row<ItemPricesRow>[]) => {
-			const buffer = await (
-				trpc.inventory.exportItemPricesExcel as unknown as {
-					mutate: (input: typeof queryInput) => Promise<Buffer>;
-				}
-			).mutate(queryInput);
+			if (!queryInput) return;
+			const buffer = (await exportItemPricesExcel.mutateAsync(
+				queryInput,
+			)) as ArrayBuffer;
 			downloadExcelBuffer(buffer, `item-prices-${Date.now()}.xlsx`);
 		},
-		[queryInput],
+		[queryInput, exportItemPricesExcel],
 	);
 
 	return (

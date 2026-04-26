@@ -4,22 +4,20 @@ import { fireEvent, renderWithProviders, screen, waitFor } from "@/test/utils";
 import BatchItemExpiryStatusPage from "./page";
 
 // ---------------------------------------------------------------------------
-// Mock state
+// Mock tRPC
 // ---------------------------------------------------------------------------
 
 let mockQueryData: unknown;
 let mockQueryIsLoading = false;
 let mockQueryError: Error | null = null;
+let mockUseMutation: ReturnType<typeof vi.fn>;
 
 function resetMockState() {
 	mockQueryData = undefined;
 	mockQueryIsLoading = false;
 	mockQueryError = null;
+	mockUseMutation = vi.fn().mockResolvedValue(Buffer.from([]));
 }
-
-// ---------------------------------------------------------------------------
-// Mock tRPC
-// ---------------------------------------------------------------------------
 
 vi.mock("@/lib/trpc", () => ({
 	trpc: {
@@ -32,6 +30,9 @@ vi.mock("@/lib/trpc", () => ({
 						error: mockQueryError,
 					};
 				},
+			},
+			exportBatchItemExpiryExcel: {
+				useMutation: () => ({ mutateAsync: mockUseMutation }),
 			},
 		},
 	},

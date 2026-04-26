@@ -413,17 +413,18 @@ export default function StockProjectedQtyPage() {
 		getRowId: (row) => row.id,
 	});
 
+	const exportStockProjectedQtyExcel =
+		trpc.inventory.exportStockProjectedQtyExcel.useMutation();
+
 	const handleExport = React.useCallback(
 		async (format: string, _rows: readonly Row<StockProjectedQtyRow>[]) => {
 			if (format !== "excel") return;
-			const buffer = await (
-				trpc.inventory.exportStockProjectedQtyExcel as unknown as {
-					mutate: (input: typeof listQueryInput) => Promise<Buffer>;
-				}
-			).mutate(listQueryInput);
+			const buffer = (await exportStockProjectedQtyExcel.mutateAsync(
+				listQueryInput,
+			)) as ArrayBuffer;
 			downloadExcelBuffer(buffer, `stock-projected-qty-${Date.now()}.xlsx`);
 		},
-		[listQueryInput],
+		[listQueryInput, exportStockProjectedQtyExcel],
 	);
 
 	const hasActiveFilters = React.useMemo(

@@ -9,13 +9,13 @@ import {
 } from "@/test/utils";
 import WarehouseWiseStockBalancePage from "./page";
 
-const { mockInvalidate, mockUseQuery, mockUseSubscription } = vi.hoisted(
-	() => ({
+const { mockInvalidate, mockUseQuery, mockUseSubscription, mockUseMutation } =
+	vi.hoisted(() => ({
 		mockInvalidate: vi.fn().mockResolvedValue(undefined),
 		mockUseQuery: vi.fn(),
 		mockUseSubscription: vi.fn(),
-	}),
-);
+		mockUseMutation: vi.fn(),
+	}));
 
 vi.mock("@/lib/trpc", () => ({
 	trpc: {
@@ -32,6 +32,9 @@ vi.mock("@/lib/trpc", () => ({
 			},
 			onStockEntriesChanged: {
 				useSubscription: mockUseSubscription,
+			},
+			exportWarehouseWiseStockBalanceExcel: {
+				useMutation: () => ({ mutateAsync: mockUseMutation }),
 			},
 		},
 	},

@@ -364,17 +364,18 @@ export default function StockSummaryPage() {
 		getRowId: (row) => row.id,
 	});
 
+	const exportStockSummaryExcel =
+		trpc.inventory.exportStockSummaryExcel.useMutation();
+
 	const handleExport = React.useCallback(
 		async (format: string, _rows: readonly Row<StockSummaryRow>[]) => {
 			if (format !== "excel") return;
-			const buffer = await (
-				trpc.inventory.exportStockSummaryExcel as unknown as {
-					mutate: (input: typeof listQueryInput) => Promise<Buffer>;
-				}
-			).mutate(listQueryInput);
+			const buffer = (await exportStockSummaryExcel.mutateAsync(
+				listQueryInput,
+			)) as ArrayBuffer;
 			downloadExcelBuffer(buffer, `stock-summary-${Date.now()}.xlsx`);
 		},
-		[listQueryInput],
+		[listQueryInput, exportStockSummaryExcel],
 	);
 
 	const hasActiveFilters = React.useMemo(

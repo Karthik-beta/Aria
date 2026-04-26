@@ -305,22 +305,25 @@ export default function RequestedItemsToBeTransferredPage() {
 		initialPageSize: 50,
 	});
 
+	const exportRequestedItemsToBeTransferredExcel =
+		trpc.inventory.exportRequestedItemsToBeTransferredExcel.useMutation();
+
 	const handleExport = React.useCallback(
 		async (
 			_format: string,
 			_rows: readonly Row<RequestedItemsToBeTransferredRow>[],
 		) => {
-			const buffer = await (
-				trpc.inventory.exportRequestedItemsToBeTransferredExcel as unknown as {
-					mutate: (input: typeof listQueryInput) => Promise<Buffer>;
-				}
-			).mutate(listQueryInput);
+			if (!listQueryInput) return;
+			const buffer =
+				(await exportRequestedItemsToBeTransferredExcel.mutateAsync(
+					listQueryInput,
+				)) as ArrayBuffer;
 			downloadExcelBuffer(
 				buffer,
 				`requested-items-transferred-${Date.now()}.xlsx`,
 			);
 		},
-		[listQueryInput],
+		[listQueryInput, exportRequestedItemsToBeTransferredExcel],
 	);
 
 	const activeFilterCount = React.useMemo(

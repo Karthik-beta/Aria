@@ -250,17 +250,18 @@ export default function BatchWiseBalancePage() {
 		initialPageSize: 50,
 	});
 
+	const exportBatchWiseBalanceExcel =
+		trpc.inventory.exportBatchWiseBalanceExcel.useMutation();
+
 	const handleExport = React.useCallback(
 		async (_format: string, _rows: readonly Row<BatchWiseBalanceRow>[]) => {
 			if (!queryInput) return;
-			const buffer = await (
-				trpc.inventory.exportBatchWiseBalanceExcel as unknown as {
-					mutate: (input: typeof queryInput) => Promise<Buffer>;
-				}
-			).mutate(queryInput);
+			const buffer = (await exportBatchWiseBalanceExcel.mutateAsync(
+				queryInput,
+			)) as ArrayBuffer;
 			downloadExcelBuffer(buffer, `batch-wise-balance-${Date.now()}.xlsx`);
 		},
-		[queryInput],
+		[queryInput, exportBatchWiseBalanceExcel],
 	);
 
 	return (

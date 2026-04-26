@@ -303,17 +303,18 @@ export default function DeliveryNoteTrendsPage() {
 		getRowId: (row) => row.id,
 	});
 
+	const exportDeliveryNoteTrendsExcel =
+		trpc.inventory.exportDeliveryNoteTrendsExcel.useMutation();
+
 	const handleExport = React.useCallback(
 		async (_format: string, _rows: readonly Row<DeliveryNoteTrendsRow>[]) => {
 			if (!queryInput) return;
-			const buffer = await (
-				trpc.inventory.exportDeliveryNoteTrendsExcel as unknown as {
-					mutate: (input: typeof queryInput) => Promise<Buffer>;
-				}
-			).mutate(queryInput);
+			const buffer = (await exportDeliveryNoteTrendsExcel.mutateAsync(
+				queryInput,
+			)) as ArrayBuffer;
 			downloadExcelBuffer(buffer, `delivery-note-trends-${Date.now()}.xlsx`);
 		},
-		[queryInput],
+		[queryInput, exportDeliveryNoteTrendsExcel],
 	);
 
 	const hasActiveFilters = React.useMemo(

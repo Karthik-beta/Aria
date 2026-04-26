@@ -7,8 +7,9 @@ import SubcontractedRawMaterialsTransferredPage from "./page";
 // Mock tRPC
 // ---------------------------------------------------------------------------
 
-const { mockUseQuery } = vi.hoisted(() => ({
+const { mockUseQuery, mockUseMutation } = vi.hoisted(() => ({
 	mockUseQuery: vi.fn(),
+	mockUseMutation: vi.fn(),
 }));
 
 vi.mock("@/lib/trpc", () => ({
@@ -16,6 +17,9 @@ vi.mock("@/lib/trpc", () => ({
 		inventory: {
 			listSubcontractedRawMaterials: {
 				useQuery: mockUseQuery,
+			},
+			exportSubcontractedRawMaterialsExcel: {
+				useMutation: () => ({ mutateAsync: mockUseMutation }),
 			},
 		},
 	},

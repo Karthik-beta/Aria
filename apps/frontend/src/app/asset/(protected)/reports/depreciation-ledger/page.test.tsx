@@ -3,9 +3,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, renderWithProviders, screen, waitFor } from "@/test/utils";
 import AssetDepreciationLedgerPage from "./page";
 
-const { mockUseQuery, mockRefetch } = vi.hoisted(() => ({
+const { mockUseQuery, mockRefetch, mockUseMutation } = vi.hoisted(() => ({
 	mockUseQuery: vi.fn(),
 	mockRefetch: vi.fn().mockResolvedValue(undefined),
+	mockUseMutation: vi.fn(),
 }));
 
 const ledgerResponse = {
@@ -50,6 +51,9 @@ vi.mock("@/lib/trpc", () => ({
 		asset: {
 			listAssetDepreciationLedger: {
 				useQuery: mockUseQuery,
+			},
+			exportAssetDepreciationLedgerExcel: {
+				useMutation: () => ({ mutateAsync: mockUseMutation }),
 			},
 		},
 	},

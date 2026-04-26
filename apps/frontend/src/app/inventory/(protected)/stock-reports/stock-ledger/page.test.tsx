@@ -3,13 +3,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, renderWithProviders, screen, waitFor } from "@/test/utils";
 import StockLedgerPage from "./page";
 
-const { mockInvalidate, mockUseQuery, mockUseSubscription } = vi.hoisted(
-	() => ({
+const { mockInvalidate, mockUseQuery, mockUseSubscription, mockUseMutation } =
+	vi.hoisted(() => ({
 		mockInvalidate: vi.fn().mockResolvedValue(undefined),
 		mockUseQuery: vi.fn(),
 		mockUseSubscription: vi.fn(),
-	}),
-);
+		mockUseMutation: vi.fn(),
+	}));
 
 vi.mock("@/lib/trpc", () => ({
 	trpc: {
@@ -26,6 +26,9 @@ vi.mock("@/lib/trpc", () => ({
 			},
 			onStockEntriesChanged: {
 				useSubscription: mockUseSubscription,
+			},
+			exportStockLedgerExcel: {
+				useMutation: () => ({ mutateAsync: mockUseMutation }),
 			},
 		},
 	},

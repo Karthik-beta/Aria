@@ -419,20 +419,21 @@ export default function PurchaseOrderAnalysisPage() {
 				: `${row.purchaseOrderId}_${row.itemCode ?? ""}`,
 	});
 
+	const exportPurchaseOrderAnalysisExcel =
+		trpc.inventory.exportPurchaseOrderAnalysisExcel.useMutation();
+
 	const handleExport = React.useCallback(
 		async (
 			_format: string,
 			_rows: readonly Row<PurchaseOrderAnalysisRow>[],
 		) => {
 			if (!queryInput) return;
-			const buffer = await (
-				trpc.inventory.exportPurchaseOrderAnalysisExcel as unknown as {
-					mutate: (input: typeof queryInput) => Promise<Buffer>;
-				}
-			).mutate(queryInput);
+			const buffer = (await exportPurchaseOrderAnalysisExcel.mutateAsync(
+				queryInput,
+			)) as ArrayBuffer;
 			downloadExcelBuffer(buffer, `purchase-order-analysis-${Date.now()}.xlsx`);
 		},
-		[queryInput],
+		[queryInput, exportPurchaseOrderAnalysisExcel],
 	);
 
 	const hasActiveFilters = React.useMemo(

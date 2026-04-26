@@ -244,23 +244,25 @@ export default function SubcontractedItemToBeReceivedPage() {
 		initialPageSize: 50,
 	});
 
+	const exportSubcontractedItemToBeReceivedExcel =
+		trpc.inventory.exportSubcontractedItemToBeReceivedExcel.useMutation();
+
 	const handleExport = React.useCallback(
 		async (
 			_format: string,
 			_rows: readonly Row<SubcontractedItemToBeReceivedRow>[],
 		) => {
 			if (!queryInput) return;
-			const buffer = await (
-				trpc.inventory.exportSubcontractedItemToBeReceivedExcel as unknown as {
-					mutate: (input: typeof queryInput) => Promise<Buffer>;
-				}
-			).mutate(queryInput);
+			const buffer =
+				(await exportSubcontractedItemToBeReceivedExcel.mutateAsync(
+					queryInput,
+				)) as ArrayBuffer;
 			downloadExcelBuffer(
 				buffer,
 				`subcontracted-items-received-${Date.now()}.xlsx`,
 			);
 		},
-		[queryInput],
+		[queryInput, exportSubcontractedItemToBeReceivedExcel],
 	);
 
 	return (

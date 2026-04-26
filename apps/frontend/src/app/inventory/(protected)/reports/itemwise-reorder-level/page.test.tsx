@@ -7,8 +7,9 @@ import ItemwiseRecommendedReorderLevelPage from "./page";
 // Mock tRPC
 // ---------------------------------------------------------------------------
 
-const { mockUseQuery } = vi.hoisted(() => ({
+const { mockUseQuery, mockUseMutation } = vi.hoisted(() => ({
 	mockUseQuery: vi.fn(),
+	mockUseMutation: vi.fn(),
 }));
 
 vi.mock("@/lib/trpc", () => ({
@@ -17,6 +18,9 @@ vi.mock("@/lib/trpc", () => ({
 		inventory: {
 			listItemwiseRecommendedReorderLevel: {
 				useQuery: mockUseQuery,
+			},
+			exportItemwiseRecommendedReorderLevelExcel: {
+				useMutation: () => ({ mutateAsync: mockUseMutation }),
 			},
 		},
 	},

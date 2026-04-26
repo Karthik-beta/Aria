@@ -303,20 +303,21 @@ export default function PurchaseReceiptTrendsPage() {
 		getRowId: (row) => row.id,
 	});
 
+	const exportPurchaseReceiptTrendsExcel =
+		trpc.inventory.exportPurchaseReceiptTrendsExcel.useMutation();
+
 	const handleExport = React.useCallback(
 		async (
 			_format: string,
 			_rows: readonly Row<PurchaseReceiptTrendsRow>[],
 		) => {
 			if (!queryInput) return;
-			const buffer = await (
-				trpc.inventory.exportPurchaseReceiptTrendsExcel as unknown as {
-					mutate: (input: typeof queryInput) => Promise<Buffer>;
-				}
-			).mutate(queryInput);
+			const buffer = (await exportPurchaseReceiptTrendsExcel.mutateAsync(
+				queryInput,
+			)) as ArrayBuffer;
 			downloadExcelBuffer(buffer, `purchase-receipt-trends-${Date.now()}.xlsx`);
 		},
-		[queryInput],
+		[queryInput, exportPurchaseReceiptTrendsExcel],
 	);
 
 	const hasActiveFilters = React.useMemo(

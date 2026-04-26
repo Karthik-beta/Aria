@@ -350,17 +350,18 @@ export default function StockAnalyticsPage() {
 		getRowId: (row) => row.id,
 	});
 
+	const exportStockAnalyticsExcel =
+		trpc.inventory.exportStockAnalyticsExcel.useMutation();
+
 	const handleExport = React.useCallback(
 		async (_format: string, _rows: readonly Row<StockAnalyticsRow>[]) => {
 			if (!queryInput) return;
-			const buffer = await (
-				trpc.inventory.exportStockAnalyticsExcel as unknown as {
-					mutate: (input: typeof queryInput) => Promise<Buffer>;
-				}
-			).mutate(queryInput);
+			const buffer = (await exportStockAnalyticsExcel.mutateAsync(
+				queryInput,
+			)) as ArrayBuffer;
 			downloadExcelBuffer(buffer, `stock-analytics-${Date.now()}.xlsx`);
 		},
-		[queryInput],
+		[queryInput, exportStockAnalyticsExcel],
 	);
 
 	const hasActiveFilters = React.useMemo(

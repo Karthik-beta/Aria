@@ -418,17 +418,18 @@ export default function StockBalancePage() {
 		getRowId: (row) => row.id,
 	});
 
+	const exportStockBalanceExcel =
+		trpc.inventory.exportStockBalanceExcel.useMutation();
+
 	const handleExport = React.useCallback(
 		async (format: string, _rows: readonly Row<StockBalanceRow>[]) => {
 			if (format !== "excel") return;
-			const buffer = await (
-				trpc.inventory.exportStockBalanceExcel as unknown as {
-					mutate: (input: typeof listQueryInput) => Promise<Buffer>;
-				}
-			).mutate(listQueryInput);
+			const buffer = (await exportStockBalanceExcel.mutateAsync(
+				listQueryInput,
+			)) as ArrayBuffer;
 			downloadExcelBuffer(buffer, `stock-balance-${Date.now()}.xlsx`);
 		},
-		[listQueryInput],
+		[listQueryInput, exportStockBalanceExcel],
 	);
 
 	const hasActiveFilters = React.useMemo(

@@ -414,17 +414,18 @@ export default function StockAgeingPage() {
 		getRowId: (row) => row.id,
 	});
 
+	const exportStockAgeingExcel =
+		trpc.inventory.exportStockAgeingExcel.useMutation();
+
 	const handleExport = React.useCallback(
 		async (format: string, _rows: readonly Row<StockAgeingRow>[]) => {
 			if (format !== "excel") return;
-			const buffer = await (
-				trpc.inventory.exportStockAgeingExcel as unknown as {
-					mutate: (input: typeof listQueryInput) => Promise<Buffer>;
-				}
-			).mutate(listQueryInput);
+			const buffer = (await exportStockAgeingExcel.mutateAsync(
+				listQueryInput,
+			)) as ArrayBuffer;
 			downloadExcelBuffer(buffer, `stock-ageing-${Date.now()}.xlsx`);
 		},
-		[listQueryInput],
+		[listQueryInput, exportStockAgeingExcel],
 	);
 
 	const hasActiveFilters = React.useMemo(
