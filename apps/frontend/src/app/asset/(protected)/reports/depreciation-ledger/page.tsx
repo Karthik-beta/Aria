@@ -376,7 +376,7 @@ export default function AssetDepreciationLedgerPage() {
 			if (!queryInput) return;
 			const buffer = (await exportAssetDepreciationLedgerExcel.mutateAsync(
 				queryInput,
-			)) as ArrayBuffer;
+			)) as string;
 			downloadExcelBuffer(
 				buffer,
 				`asset-depreciation-ledger-${Date.now()}.xlsx`,

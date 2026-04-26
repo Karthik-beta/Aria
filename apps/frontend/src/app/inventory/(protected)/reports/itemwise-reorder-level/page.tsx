@@ -247,7 +247,7 @@ export default function ItemwiseRecommendedReorderLevelPage() {
 			const buffer =
 				(await exportItemwiseRecommendedReorderLevelExcel.mutateAsync(
 					listQueryInput,
-				)) as ArrayBuffer;
+				)) as string;
 			downloadExcelBuffer(buffer, `itemwise-reorder-level-${Date.now()}.xlsx`);
 		},
 		[listQueryInput, exportItemwiseRecommendedReorderLevelExcel],

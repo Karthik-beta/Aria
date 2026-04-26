@@ -236,7 +236,7 @@ export default function ItemShortageReportPage() {
 			if (!listQueryInput) return;
 			const buffer = (await exportItemShortageExcel.mutateAsync(
 				listQueryInput,
-			)) as ArrayBuffer;
+			)) as string;
 			downloadExcelBuffer(buffer, `item-shortage-${Date.now()}.xlsx`);
 		},
 		[listQueryInput, exportItemShortageExcel],

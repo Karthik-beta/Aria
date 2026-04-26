@@ -43,13 +43,13 @@ export class ReportTemplateService {
 	 * @param metadata - Report title, timestamp, and optional filters
 	 * @param data - Array of row objects to export
 	 * @param columns - Column definitions mapping keys to headers
-	 * @returns Buffer containing the Excel file
+	 * @returns Base64 encoded string containing the Excel file (safe for JSON transport via tRPC)
 	 */
 	buildExcelBuffer(
 		metadata: ReportMetadata,
 		data: Record<string, unknown>[],
 		columns: ReportColumn[],
-	): Buffer {
+	): string {
 		// eslint-disable-next-line @typescript-eslint/no-require-imports
 		const XLSX = require("xlsx") as typeof import("xlsx");
 
@@ -68,7 +68,7 @@ export class ReportTemplateService {
 		XLSX.utils.book_append_sheet(wb, ws, "Report");
 
 		const buffer = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
-		return Buffer.from(buffer);
+		return Buffer.from(buffer).toString("base64");
 	}
 
 	private buildMetadataSection(

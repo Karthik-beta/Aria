@@ -317,7 +317,7 @@ export default function RequestedItemsToBeTransferredPage() {
 			const buffer =
 				(await exportRequestedItemsToBeTransferredExcel.mutateAsync(
 					listQueryInput,
-				)) as ArrayBuffer;
+				)) as string;
 			downloadExcelBuffer(
 				buffer,
 				`requested-items-transferred-${Date.now()}.xlsx`,

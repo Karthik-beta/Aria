@@ -484,7 +484,7 @@ export default function AssetDepreciationsAndBalancesPage() {
 			const buffer =
 				(await exportAssetDepreciationsAndBalancesExcel.mutateAsync(
 					queryInput,
-				)) as ArrayBuffer;
+				)) as string;
 			downloadExcelBuffer(
 				buffer,
 				`asset-depreciations-balances-${Date.now()}.xlsx`,

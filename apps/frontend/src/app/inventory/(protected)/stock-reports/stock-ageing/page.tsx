@@ -422,7 +422,7 @@ export default function StockAgeingPage() {
 			if (format !== "excel") return;
 			const buffer = (await exportStockAgeingExcel.mutateAsync(
 				listQueryInput,
-			)) as ArrayBuffer;
+			)) as string;
 			downloadExcelBuffer(buffer, `stock-ageing-${Date.now()}.xlsx`);
 		},
 		[listQueryInput, exportStockAgeingExcel],

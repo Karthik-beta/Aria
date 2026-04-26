@@ -195,7 +195,7 @@ export default function ItemVariantDetailsPage() {
 		async (_format: string, _rows: readonly Row<ItemVariantDetailsRow>[]) => {
 			const buffer = (await exportItemVariantDetailsExcel.mutateAsync({
 				itemCode: submittedItemCode,
-			})) as ArrayBuffer;
+			})) as string;
 			downloadExcelBuffer(buffer, `item-variant-details-${Date.now()}.xlsx`);
 		},
 		[submittedItemCode, exportItemVariantDetailsExcel],

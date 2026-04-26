@@ -233,7 +233,7 @@ export default function BatchItemExpiryStatusPage() {
 			if (!queryInput) return;
 			const buffer = (await exportBatchItemExpiryExcel.mutateAsync(
 				queryInput,
-			)) as ArrayBuffer;
+			)) as string;
 			downloadExcelBuffer(buffer, `batch-item-expiry-${Date.now()}.xlsx`);
 		},
 		[queryInput, exportBatchItemExpiryExcel],

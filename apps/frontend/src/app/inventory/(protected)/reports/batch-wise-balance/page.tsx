@@ -258,7 +258,7 @@ export default function BatchWiseBalancePage() {
 			if (!queryInput) return;
 			const buffer = (await exportBatchWiseBalanceExcel.mutateAsync(
 				queryInput,
-			)) as ArrayBuffer;
+			)) as string;
 			downloadExcelBuffer(buffer, `batch-wise-balance-${Date.now()}.xlsx`);
 		},
 		[queryInput, exportBatchWiseBalanceExcel],

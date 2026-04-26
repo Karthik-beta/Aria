@@ -39,6 +39,8 @@ describe("StockLedgerPage", () => {
 		mockInvalidate.mockClear();
 		mockUseSubscription.mockClear();
 		mockUseQuery.mockReset();
+		mockUseMutation.mockReset();
+		mockUseMutation.mockResolvedValue("UEsDBBQABgA="); // Valid base64 xlsx
 		mockUseQuery.mockImplementation(() => ({
 			data: [
 				{

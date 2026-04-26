@@ -457,7 +457,7 @@ export default function SalesOrderAnalysisPage() {
 			if (!listQueryInput) return;
 			const buffer = (await exportSalesOrderAnalysisExcel.mutateAsync(
 				listQueryInput,
-			)) as ArrayBuffer;
+			)) as string;
 			downloadExcelBuffer(buffer, `sales-order-analysis-${Date.now()}.xlsx`);
 		},
 		[listQueryInput, exportSalesOrderAnalysisExcel],

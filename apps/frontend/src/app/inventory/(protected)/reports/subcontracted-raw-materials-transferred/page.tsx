@@ -263,7 +263,7 @@ export default function SubcontractedRawMaterialsTransferredPage() {
 			if (!queryInput) return;
 			const buffer = (await exportSubcontractedRawMaterialsExcel.mutateAsync(
 				queryInput,
-			)) as ArrayBuffer;
+			)) as string;
 			downloadExcelBuffer(
 				buffer,
 				`subcontracted-raw-materials-transferred-${Date.now()}.xlsx`,

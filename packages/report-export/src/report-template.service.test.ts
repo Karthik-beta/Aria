@@ -28,6 +28,16 @@ describe("ReportTemplateService", () => {
 		return rows;
 	}
 
+	function parseExcelFromBase64(base64String: string): string[][] {
+		const binaryString = atob(base64String);
+		const bytes = new Uint8Array(binaryString.length);
+		for (let i = 0; i < binaryString.length; i++) {
+			bytes[i] = binaryString.charCodeAt(i);
+		}
+		const buffer = Buffer.from(bytes);
+		return parseExcelRaw(buffer);
+	}
+
 	describe("buildExcelBuffer", () => {
 		it("should generate a valid Excel buffer", () => {
 			const metadata: ReportMetadata = {
@@ -35,14 +45,16 @@ describe("ReportTemplateService", () => {
 				generatedAt: new Date("2024-03-15T10:30:00.000Z"),
 			};
 
-			const buffer = service.buildExcelBuffer(
+			const result = service.buildExcelBuffer(
 				metadata,
 				basicData,
 				basicColumns,
 			);
 
-			expect(Buffer.isBuffer(buffer)).toBe(true);
-			expect(buffer.length).toBeGreaterThan(0);
+			expect(typeof result).toBe("string");
+			expect(result.length).toBeGreaterThan(0);
+			const bytes = Buffer.from(result, "base64");
+			expect(bytes.length).toBeGreaterThan(0);
 		});
 
 		it("should include metadata rows in the output", () => {
@@ -51,12 +63,12 @@ describe("ReportTemplateService", () => {
 				generatedAt: new Date("2024-01-15T09:00:00.000Z"),
 			};
 
-			const buffer = service.buildExcelBuffer(
+			const base64 = service.buildExcelBuffer(
 				metadata,
 				basicData,
 				basicColumns,
 			);
-			const rows = parseExcelRaw(buffer);
+			const rows = parseExcelFromBase64(base64);
 
 			expect(rows.length).toBeGreaterThan(1);
 			expect(rows[0][0]).toContain("Stock Balance Report");
@@ -73,12 +85,12 @@ describe("ReportTemplateService", () => {
 				],
 			};
 
-			const buffer = service.buildExcelBuffer(
+			const base64 = service.buildExcelBuffer(
 				metadata,
 				basicData,
 				basicColumns,
 			);
-			const rows = parseExcelRaw(buffer);
+			const rows = parseExcelFromBase64(base64);
 
 			expect(rows.length).toBeGreaterThan(2);
 			expect(rows[2][0]).toContain("Company: Acme Corp");
@@ -91,10 +103,10 @@ describe("ReportTemplateService", () => {
 				generatedAt: new Date(),
 			};
 
-			const buffer = service.buildExcelBuffer(metadata, [], basicColumns);
+			const result = service.buildExcelBuffer(metadata, [], basicColumns);
 
-			expect(Buffer.isBuffer(buffer)).toBe(true);
-			expect(buffer.length).toBeGreaterThan(0);
+			expect(typeof result).toBe("string");
+			expect(result.length).toBeGreaterThan(0);
 		});
 
 		it("should handle null and undefined values in data", () => {
@@ -108,13 +120,13 @@ describe("ReportTemplateService", () => {
 				{ itemCode: "ITEM-002", itemName: "Widget B", quantity: 200 },
 			];
 
-			const buffer = service.buildExcelBuffer(
+			const result = service.buildExcelBuffer(
 				metadata,
 				dataWithNulls,
 				basicColumns,
 			);
 
-			expect(Buffer.isBuffer(buffer)).toBe(true);
+			expect(typeof result).toBe("string");
 		});
 
 		it("should format Date objects correctly", () => {
@@ -136,8 +148,8 @@ describe("ReportTemplateService", () => {
 				{ key: "date", header: "Date" },
 			];
 
-			const buffer = service.buildExcelBuffer(metadata, dataWithDates, columns);
-			const rows = parseExcelRaw(buffer);
+			const base64 = service.buildExcelBuffer(metadata, dataWithDates, columns);
+			const rows = parseExcelFromBase64(base64);
 
 			expect(rows.length).toBeGreaterThan(4);
 			const dataRow = rows[4];
@@ -159,9 +171,9 @@ describe("ReportTemplateService", () => {
 
 			const data = [{ code: "A", name: "Long Name Here" }];
 
-			const buffer = service.buildExcelBuffer(metadata, data, columnsWithWidth);
+			const result = service.buildExcelBuffer(metadata, data, columnsWithWidth);
 
-			expect(Buffer.isBuffer(buffer)).toBe(true);
+			expect(typeof result).toBe("string");
 		});
 
 		it("should use header length + 4 for default width", () => {
@@ -177,13 +189,13 @@ describe("ReportTemplateService", () => {
 
 			const data = [{ short: "1", long: "text" }];
 
-			const buffer = service.buildExcelBuffer(
+			const result = service.buildExcelBuffer(
 				metadata,
 				data,
 				columnsWithoutWidth,
 			);
 
-			expect(Buffer.isBuffer(buffer)).toBe(true);
+			expect(typeof result).toBe("string");
 		});
 	});
 });

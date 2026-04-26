@@ -248,7 +248,7 @@ export default function AssetActivityPage() {
 			if (!queryInput) return;
 			const buffer = (await exportAssetActivityExcel.mutateAsync(
 				queryInput,
-			)) as ArrayBuffer;
+			)) as string;
 			downloadExcelBuffer(buffer, `asset-activity-${Date.now()}.xlsx`);
 		},
 		[queryInput, exportAssetActivityExcel],

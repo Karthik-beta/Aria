@@ -314,7 +314,7 @@ export default function PurchaseReceiptTrendsPage() {
 			if (!queryInput) return;
 			const buffer = (await exportPurchaseReceiptTrendsExcel.mutateAsync(
 				queryInput,
-			)) as ArrayBuffer;
+			)) as string;
 			downloadExcelBuffer(buffer, `purchase-receipt-trends-${Date.now()}.xlsx`);
 		},
 		[queryInput, exportPurchaseReceiptTrendsExcel],

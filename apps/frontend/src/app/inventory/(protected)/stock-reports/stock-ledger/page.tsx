@@ -646,7 +646,7 @@ export default function StockLedgerPage() {
 			if (format !== "excel") return;
 			const buffer = (await exportStockLedgerExcel.mutateAsync(
 				listQueryInput,
-			)) as ArrayBuffer;
+			)) as string;
 			downloadExcelBuffer(buffer, `stock-ledger-${Date.now()}.xlsx`);
 		},
 		[listQueryInput, exportStockLedgerExcel],

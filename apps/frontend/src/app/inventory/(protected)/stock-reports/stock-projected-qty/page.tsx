@@ -421,7 +421,7 @@ export default function StockProjectedQtyPage() {
 			if (format !== "excel") return;
 			const buffer = (await exportStockProjectedQtyExcel.mutateAsync(
 				listQueryInput,
-			)) as ArrayBuffer;
+			)) as string;
 			downloadExcelBuffer(buffer, `stock-projected-qty-${Date.now()}.xlsx`);
 		},
 		[listQueryInput, exportStockProjectedQtyExcel],

@@ -140,14 +140,29 @@ function downloadBlob(blob: Blob, filename: string): void {
 
 /**
  * Download Excel buffer as a file
+ * Handles both binary (ArrayBuffer/Buffer) and base64 string inputs
  */
 export function downloadExcelBuffer(
-	buffer: ArrayBuffer | Buffer,
+	buffer: ArrayBuffer | Buffer | string,
 	filename: string,
 ): void {
-	const uint8 =
-		buffer instanceof Buffer ? new Uint8Array(buffer) : new Uint8Array(buffer);
-	const blob = new Blob([uint8], {
+	let uint8: Uint8Array;
+
+	if (typeof buffer === "string") {
+		const binaryString = atob(buffer);
+		uint8 = new Uint8Array(binaryString.length);
+		for (let i = 0; i < binaryString.length; i++) {
+			uint8[i] = binaryString.charCodeAt(i);
+		}
+	} else {
+		uint8 = new Uint8Array(buffer as ArrayBuffer);
+	}
+
+	const arrayBuffer = uint8.buffer.slice(
+		uint8.byteOffset,
+		uint8.byteOffset + uint8.byteLength,
+	) as ArrayBuffer;
+	const blob = new Blob([arrayBuffer], {
 		type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 	});
 	downloadBlob(blob, filename);

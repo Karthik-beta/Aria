@@ -428,7 +428,7 @@ export default function WarehouseWiseStockBalancePage() {
 			if (format !== "excel") return;
 			const buffer = (await exportWarehouseWiseStockBalanceExcel.mutateAsync(
 				listQueryInput,
-			)) as ArrayBuffer;
+			)) as string;
 			downloadExcelBuffer(buffer, `warehouse-wise-stock-${Date.now()}.xlsx`);
 		},
 		[listQueryInput, exportWarehouseWiseStockBalanceExcel],

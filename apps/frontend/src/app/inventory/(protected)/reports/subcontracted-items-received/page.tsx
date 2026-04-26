@@ -256,7 +256,7 @@ export default function SubcontractedItemToBeReceivedPage() {
 			const buffer =
 				(await exportSubcontractedItemToBeReceivedExcel.mutateAsync(
 					queryInput,
-				)) as ArrayBuffer;
+				)) as string;
 			downloadExcelBuffer(
 				buffer,
 				`subcontracted-items-received-${Date.now()}.xlsx`,

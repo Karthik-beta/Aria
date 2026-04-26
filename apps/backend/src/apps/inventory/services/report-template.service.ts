@@ -21,12 +21,13 @@ interface ReportMetadata {
 export class ReportTemplateService {
 	/**
 	 * Build a styled Excel buffer from data and configuration
+	 * Returns base64 encoded string for safe JSON transport via tRPC
 	 */
 	buildExcelBuffer(
 		metadata: ReportMetadata,
 		data: Record<string, unknown>[],
 		columns: ReportColumn[],
-	): Buffer {
+	): string {
 		// eslint-disable-next-line @typescript-eslint/no-require-imports
 		const XLSX = require("xlsx") as typeof import("xlsx");
 
@@ -53,9 +54,9 @@ export class ReportTemplateService {
 		// Add workbook
 		XLSX.utils.book_append_sheet(wb, ws, "Report");
 
-		// Write to buffer
+		// Write to buffer and return as base64 for safe tRPC transport
 		const buffer = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
-		return Buffer.from(buffer);
+		return Buffer.from(buffer).toString("base64");
 	}
 
 	private buildMetadataSection(

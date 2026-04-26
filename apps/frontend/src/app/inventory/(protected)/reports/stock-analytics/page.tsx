@@ -358,7 +358,7 @@ export default function StockAnalyticsPage() {
 			if (!queryInput) return;
 			const buffer = (await exportStockAnalyticsExcel.mutateAsync(
 				queryInput,
-			)) as ArrayBuffer;
+			)) as string;
 			downloadExcelBuffer(buffer, `stock-analytics-${Date.now()}.xlsx`);
 		},
 		[queryInput, exportStockAnalyticsExcel],

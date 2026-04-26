@@ -207,7 +207,7 @@ export default function ItemPricesPage() {
 			if (!queryInput) return;
 			const buffer = (await exportItemPricesExcel.mutateAsync(
 				queryInput,
-			)) as ArrayBuffer;
+			)) as string;
 			downloadExcelBuffer(buffer, `item-prices-${Date.now()}.xlsx`);
 		},
 		[queryInput, exportItemPricesExcel],

@@ -430,7 +430,7 @@ export default function PurchaseOrderAnalysisPage() {
 			if (!queryInput) return;
 			const buffer = (await exportPurchaseOrderAnalysisExcel.mutateAsync(
 				queryInput,
-			)) as ArrayBuffer;
+			)) as string;
 			downloadExcelBuffer(buffer, `purchase-order-analysis-${Date.now()}.xlsx`);
 		},
 		[queryInput, exportPurchaseOrderAnalysisExcel],

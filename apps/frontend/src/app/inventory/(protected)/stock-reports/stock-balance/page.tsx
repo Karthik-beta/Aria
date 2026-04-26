@@ -426,7 +426,7 @@ export default function StockBalancePage() {
 			if (format !== "excel") return;
 			const buffer = (await exportStockBalanceExcel.mutateAsync(
 				listQueryInput,
-			)) as ArrayBuffer;
+			)) as string;
 			downloadExcelBuffer(buffer, `stock-balance-${Date.now()}.xlsx`);
 		},
 		[listQueryInput, exportStockBalanceExcel],

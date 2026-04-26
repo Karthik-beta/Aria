@@ -311,7 +311,7 @@ export default function DeliveryNoteTrendsPage() {
 			if (!queryInput) return;
 			const buffer = (await exportDeliveryNoteTrendsExcel.mutateAsync(
 				queryInput,
-			)) as ArrayBuffer;
+			)) as string;
 			downloadExcelBuffer(buffer, `delivery-note-trends-${Date.now()}.xlsx`);
 		},
 		[queryInput, exportDeliveryNoteTrendsExcel],

@@ -372,7 +372,7 @@ export default function StockSummaryPage() {
 			if (format !== "excel") return;
 			const buffer = (await exportStockSummaryExcel.mutateAsync(
 				listQueryInput,
-			)) as ArrayBuffer;
+			)) as string;
 			downloadExcelBuffer(buffer, `stock-summary-${Date.now()}.xlsx`);
 		},
 		[listQueryInput, exportStockSummaryExcel],
