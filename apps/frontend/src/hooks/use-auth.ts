@@ -11,11 +11,6 @@ import {
 	authorizationIsSupervisorOf,
 	EMPTY_AUTHORIZATION_DATA,
 } from "@/lib/auth/authorization";
-import {
-	buildDevelopmentAuthorization,
-	buildDevelopmentSession,
-	isDevelopmentAuthBypassEnabled,
-} from "@/lib/auth/development-bypass";
 
 /**
  * Hook to access the current user's server-hydrated authorization context.
@@ -26,31 +21,8 @@ import {
  */
 export function useAuth() {
 	const authState = useAuthStateContext();
-	const isDevelopmentBypass = isDevelopmentAuthBypassEnabled();
 
 	return useMemo(() => {
-		if (isDevelopmentBypass) {
-			const session = buildDevelopmentSession();
-			const authorization = buildDevelopmentAuthorization();
-
-			return {
-				isAuthenticated: true,
-				isActive: true,
-				user: session.user,
-				roles: authorization.roles,
-				permissions: authorization.permissions,
-				apps: authorization.apps,
-				supervisedApps: authorization.supervisedApps,
-				hasPermission: () => true,
-				hasAnyPermission: () => true,
-				hasRole: () => true,
-				hasAnyRole: () => true,
-				canAccessApp: () => true,
-				isSupervisorOf: () => true,
-				isLoading: false,
-			};
-		}
-
 		const session = authState?.session ?? null;
 		const authorization = authState?.authorization ?? EMPTY_AUTHORIZATION_DATA;
 		const isAuthenticated = Boolean(session?.user);
@@ -85,7 +57,7 @@ export function useAuth() {
 			isSupervisorOf,
 			isLoading: false,
 		};
-	}, [authState, isDevelopmentBypass]);
+	}, [authState]);
 }
 
 /**

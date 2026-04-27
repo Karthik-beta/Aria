@@ -6,7 +6,7 @@ import {
 	IconShield,
 	IconUserCircle,
 } from "@tabler/icons-react";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import * as React from "react";
 import { toast } from "sonner";
 import {
@@ -31,16 +31,11 @@ function hasProperty<T extends string>(
 }
 
 type Props = {
-	/** Optional explicit app route prefix (e.g. '/inventory'). If not provided the component will infer from pathname. */
-	appRoute?: string;
 	className?: string;
 };
 
-const PROFILE_APP_ROUTES = ["/inventory", "/asset", "/crm", "/hrms"] as const;
-
-export default function UserDropdownContent({ appRoute, className }: Props) {
+export default function UserDropdownContent({ className }: Props) {
 	const {
-		canAccessApp,
 		hasAnyRole,
 		hasPermission,
 		isActive,
@@ -48,7 +43,6 @@ export default function UserDropdownContent({ appRoute, className }: Props) {
 		user: sessionUser,
 	} = useAuth();
 	const router = useRouter();
-	const pathname = usePathname();
 
 	const user = React.useMemo(() => {
 		const su = sessionUser;
@@ -104,31 +98,6 @@ export default function UserDropdownContent({ appRoute, className }: Props) {
 		};
 	}, [sessionUser]);
 
-	const prefix = React.useMemo(() => {
-		if (appRoute) return appRoute;
-		if (!pathname) return "";
-		const parts = pathname.split("/").filter(Boolean);
-		return parts.length > 0 ? `/${parts[0]}` : "";
-	}, [appRoute, pathname]);
-
-	const defaultProfilePrefix = React.useMemo(
-		() =>
-			PROFILE_APP_ROUTES.find((route) => canAccessApp(route.slice(1))) ?? null,
-		[canAccessApp],
-	);
-
-	const profileRoute = React.useMemo(() => {
-		if (PROFILE_APP_ROUTES.some((route) => route === prefix)) {
-			return `${prefix}/dashboard/profile`;
-		}
-
-		if (defaultProfilePrefix) {
-			return `${defaultProfilePrefix}/dashboard/profile`;
-		}
-
-		return null;
-	}, [defaultProfilePrefix, prefix]);
-
 	// Check if user has admin access based on roles from user authorization
 	const hasAdminAccess = React.useMemo(
 		() =>
@@ -158,12 +127,10 @@ export default function UserDropdownContent({ appRoute, className }: Props) {
 			<DropdownMenuSeparator />
 
 			<DropdownMenuGroup>
-				{profileRoute ? (
-					<DropdownMenuItem onClick={() => router.push(profileRoute)}>
-						<IconUserCircle className="mr-2 h-4 w-4" />
-						Profile
-					</DropdownMenuItem>
-				) : null}
+				<DropdownMenuItem onClick={() => router.push("/profile")}>
+					<IconUserCircle className="mr-2 h-4 w-4" />
+					Profile
+				</DropdownMenuItem>
 				<DropdownMenuItem onClick={() => router.push("/auth/change-password")}>
 					<IconKey className="mr-2 h-4 w-4" />
 					Change password

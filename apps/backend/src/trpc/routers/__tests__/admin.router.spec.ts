@@ -14,7 +14,7 @@ import type {
 } from "../../trpc.context";
 import { createAdminRouter } from "../admin.router";
 
-// ── Mocks ──────────────────────────────────────────────────────────────────
+// ── Mocks ─────────────────────────────────────────────────────────────────────
 
 const prismaMock = {
 	user: {
@@ -81,7 +81,6 @@ const scopeServiceMock = {
 const getSessionMock = jest.fn();
 
 const originalNodeEnv = process.env.NODE_ENV;
-const originalDisableAuth = process.env.DISABLE_AUTH;
 
 const createSessionPayload = () => ({
 	user: {
@@ -122,10 +121,7 @@ const createCaller = () => {
 	return adminRouter.createCaller(ctx);
 };
 
-function restoreEnvVar(
-	key: "NODE_ENV" | "DISABLE_AUTH",
-	value: string | undefined,
-) {
+function restoreEnvVar(key: "NODE_ENV", value: string | undefined) {
 	if (value === undefined) {
 		delete process.env[key];
 		return;
@@ -134,13 +130,12 @@ function restoreEnvVar(
 	process.env[key] = value;
 }
 
-// ── Tests ──────────────────────────────────────────────────────────────────
+// ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe("admin.router", () => {
 	beforeEach(() => {
 		jest.clearAllMocks();
 		process.env.NODE_ENV = "test";
-		delete process.env.DISABLE_AUTH;
 		Object.defineProperty(auth.api, "getSession", {
 			value: getSessionMock,
 			configurable: true,
@@ -150,10 +145,8 @@ describe("admin.router", () => {
 
 	afterAll(() => {
 		restoreEnvVar("NODE_ENV", originalNodeEnv);
-		restoreEnvVar("DISABLE_AUTH", originalDisableAuth);
 	});
 
-	// Helper to set up an authenticated admin session
 	function setupAdminSession() {
 		getSessionMock.mockResolvedValue(createSessionPayload());
 		policyServiceMock.can.mockResolvedValue({ allowed: true });

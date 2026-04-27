@@ -1,6 +1,5 @@
 import { initTRPC, TRPCError } from "@trpc/server";
 import { auth } from "../auth/auth.config";
-import { getDevelopmentAuthBypassState } from "../auth/development-bypass";
 import type { TrpcContextType } from "./trpc.context";
 
 /**
@@ -40,41 +39,6 @@ export type ProtectedContext = TrpcContextType & {
  * Middleware to verify user is authenticated
  */
 const isAuthenticated = t.middleware(async ({ ctx, next }) => {
-	const bypassState = getDevelopmentAuthBypassState();
-
-	if (bypassState.error) {
-		throw new TRPCError({
-			code: "INTERNAL_SERVER_ERROR",
-			message: bypassState.error,
-		});
-	}
-
-	// Development bypass - Allow access without session if DISABLE_AUTH is set
-	if (bypassState.enabled) {
-		// Attempt to find the default admin user for a more realistic development experience
-		// otherwise fallback to a generic mock user
-		return next({
-			ctx: {
-				...ctx,
-				user: {
-					id: "dev-admin-id",
-					email: process.env.DEFAULT_ADMIN_EMAIL || "admin@aria.local",
-					emailVerified: true,
-					name: process.env.DEFAULT_ADMIN_NAME || "System Administrator",
-					createdAt: new Date(),
-					updatedAt: new Date(),
-					username: process.env.DEFAULT_ADMIN_USERNAME || "admin",
-					displayUsername: process.env.DEFAULT_ADMIN_USERNAME || "admin",
-				},
-				session: {
-					id: "dev-session-id",
-					userId: "dev-admin-id",
-					expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 7), // 7 days
-				},
-			},
-		});
-	}
-
 	const { req } = ctx;
 
 	if (!req) {

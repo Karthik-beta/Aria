@@ -300,4 +300,71 @@ describe("AppSidebar", () => {
 			});
 		});
 	});
+
+	describe("canAccessCurrentApp — sidebar nav item filtering", () => {
+		it("renders nav items when user can access the current app", async () => {
+			mockCanAccessApp = (key: string) => key === "inventory";
+			currentPathname = "/inventory/dashboard";
+			renderWithSidebar(<AppSidebar />);
+
+			await waitFor(() => {
+				expect(screen.getByText("Items Catalogue")).toBeInTheDocument();
+				expect(screen.getByText("Stock Transactions")).toBeInTheDocument();
+			});
+		});
+
+		it("renders empty sidebar when user cannot access the current app", async () => {
+			mockCanAccessApp = () => false;
+			currentPathname = "/crm/dashboard";
+			renderWithSidebar(<AppSidebar />);
+
+			await waitFor(() => {
+				const sidebarContent = document.querySelector(
+					"[data-sidebar='content']",
+				);
+				const menuItems =
+					sidebarContent?.querySelectorAll("[data-sidebar='menu'] li") ?? [];
+				expect(menuItems.length).toBe(0);
+			});
+		});
+
+		it("shows no nav items for inaccessible app even if other apps are accessible", async () => {
+			mockCanAccessApp = () => false;
+			currentPathname = "/hrms/dashboard";
+			renderWithSidebar(<AppSidebar />);
+
+			await waitFor(() => {
+				const sidebarContent = document.querySelector(
+					"[data-sidebar='content']",
+				);
+				const menuItems =
+					sidebarContent?.querySelectorAll("[data-sidebar='menu'] li") ?? [];
+				expect(menuItems.length).toBe(0);
+			});
+		});
+
+		it("renders nav items for asset when user has asset access", async () => {
+			mockCanAccessApp = (key: string) => key === "asset";
+			currentPathname = "/asset/dashboard";
+			renderWithSidebar(<AppSidebar />);
+
+			await waitFor(() => {
+				expect(screen.getByText("Assets")).toBeInTheDocument();
+			});
+		});
+
+		it("shows all accessible apps in switcher during auth loading", async () => {
+			mockAuthLoading = true;
+			renderWithSidebar(<AppSidebar />);
+
+			await waitFor(() => {
+				expect(mockAppSwitcher).toHaveBeenCalled();
+			});
+
+			const lastCallProps = mockAppSwitcher.mock.calls.at(-1)?.[0] as {
+				apps: Array<{ key: string }>;
+			};
+			expect(lastCallProps.apps).toHaveLength(5);
+		});
+	});
 });

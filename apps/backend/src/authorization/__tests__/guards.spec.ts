@@ -64,12 +64,8 @@ const createScopeServiceMock = (): jest.Mocked<ScopeService> =>
 	}) as unknown as jest.Mocked<ScopeService>;
 
 const originalNodeEnv = process.env.NODE_ENV;
-const originalDisableAuth = process.env.DISABLE_AUTH;
 
-function restoreEnvVar(
-	key: "NODE_ENV" | "DISABLE_AUTH",
-	value: string | undefined,
-) {
+function restoreEnvVar(key: "NODE_ENV", value: string | undefined) {
 	if (value === undefined) {
 		delete process.env[key];
 		return;
@@ -81,12 +77,10 @@ function restoreEnvVar(
 describe("Authorization Guards", () => {
 	beforeEach(() => {
 		process.env.NODE_ENV = "test";
-		delete process.env.DISABLE_AUTH;
 	});
 
 	afterAll(() => {
 		restoreEnvVar("NODE_ENV", originalNodeEnv);
-		restoreEnvVar("DISABLE_AUTH", originalDisableAuth);
 	});
 
 	describe("PublicRouteGuard", () => {
@@ -122,7 +116,7 @@ describe("Authorization Guards", () => {
 				isActive: true,
 				roles: [],
 				permissions: [],
-				apps: [],
+				apps: {},
 				supervisedApps: [],
 			});
 
@@ -152,7 +146,7 @@ describe("Authorization Guards", () => {
 				isActive: false,
 				roles: [],
 				permissions: [],
-				apps: [],
+				apps: {},
 				supervisedApps: [],
 			});
 
@@ -185,9 +179,9 @@ describe("Authorization Guards", () => {
 			policyService.resolveUserPolicy.mockResolvedValue({
 				userId: "user-1",
 				isActive: true,
-				roles: [{ roleKey: "super_admin", appKey: null, level: 100 }],
+				roles: ["super_admin"],
 				permissions: [],
-				apps: [],
+				apps: {},
 				supervisedApps: [],
 			});
 
@@ -210,7 +204,7 @@ describe("Authorization Guards", () => {
 				isActive: true,
 				roles: [],
 				permissions: [],
-				apps: [],
+				apps: {},
 				supervisedApps: [],
 			});
 
@@ -355,7 +349,7 @@ describe("Authorization Guards", () => {
 				isActive: true,
 				roles: [],
 				permissions: [],
-				apps: [],
+				apps: {},
 				supervisedApps: [],
 			});
 
@@ -369,9 +363,9 @@ describe("Authorization Guards", () => {
 			policyService.resolveUserPolicy.mockResolvedValue({
 				userId: "user-1",
 				isActive: true,
-				roles: [{ roleKey: "super_admin", appKey: null, level: 100 }],
+				roles: ["super_admin"],
 				permissions: [],
-				apps: [],
+				apps: {},
 				supervisedApps: [],
 			});
 
@@ -387,7 +381,7 @@ describe("Authorization Guards", () => {
 				isActive: true,
 				roles: [],
 				permissions: [],
-				apps: [],
+				apps: {},
 				supervisedApps: [],
 			});
 			scopeService.isInManagementHierarchy.mockResolvedValue(false);
@@ -406,7 +400,7 @@ describe("Authorization Guards", () => {
 				isActive: true,
 				roles: [],
 				permissions: [],
-				apps: [],
+				apps: {},
 				supervisedApps: [],
 			});
 
@@ -424,7 +418,7 @@ describe("Authorization Guards", () => {
 				isActive: true,
 				roles: [],
 				permissions: [],
-				apps: [],
+				apps: {},
 				supervisedApps: [],
 			});
 			scopeService.isInManagementHierarchy.mockResolvedValue(true);

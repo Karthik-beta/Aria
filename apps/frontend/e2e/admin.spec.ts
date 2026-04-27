@@ -4,7 +4,7 @@ test.describe("Admin shell", () => {
 	test("admin dashboard redirects unauthenticated users to sign-in", async ({
 		page,
 	}) => {
-		// With DEV_AUTH_BYPASS=true the page renders without real auth,
+		// The page renders with proper auth state,
 		// so we verify the admin layout is accessible and displays the sidebar.
 		await page.goto("/admin");
 

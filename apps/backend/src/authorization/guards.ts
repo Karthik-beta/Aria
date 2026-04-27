@@ -3,13 +3,11 @@ import {
 	type ExecutionContext,
 	ForbiddenException,
 	Injectable,
-	InternalServerErrorException,
 	Logger,
 	UnauthorizedException,
 } from "@nestjs/common";
 // biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
 import { Reflector } from "@nestjs/core";
-import { getDevelopmentAuthBypassState } from "../auth/development-bypass";
 import {
 	APP_SCOPE_KEY,
 	PUBLIC_ROUTE_KEY,
@@ -26,16 +24,6 @@ type GuardRequest = {
 	body?: Record<string, unknown>;
 	query?: Record<string, unknown>;
 };
-
-function isAuthBypassEnabled(): boolean {
-	const bypassState = getDevelopmentAuthBypassState();
-
-	if (bypassState.error) {
-		throw new InternalServerErrorException(bypassState.error);
-	}
-
-	return bypassState.enabled;
-}
 
 function hasOwnStringValue(
 	source: Record<string, unknown>,
@@ -99,16 +87,13 @@ export class PublicRouteGuard implements CanActivate {
 	constructor(private reflector: Reflector) {}
 
 	canActivate(context: ExecutionContext): boolean {
-		const bypassEnabled = isAuthBypassEnabled();
 		const isPublic = this.reflector.getAllAndOverride<boolean>(
 			PUBLIC_ROUTE_KEY,
 			[context.getHandler(), context.getClass()],
 		);
 
-		if (isPublic || bypassEnabled) {
-			this.logger.debug(
-				"Skipping authorization check (Public route or Dev bypass)",
-			);
+		if (isPublic) {
+			this.logger.debug("Skipping authorization check (Public route)");
 			return true;
 		}
 
@@ -128,11 +113,6 @@ export class ActiveUserGuard implements CanActivate {
 
 	async canActivate(context: ExecutionContext): Promise<boolean> {
 		const request = context.switchToHttp().getRequest();
-
-		// Development bypass
-		if (isAuthBypassEnabled()) {
-			return true;
-		}
 
 		const user = request.user;
 
@@ -179,11 +159,6 @@ export class AppScopeGuard implements CanActivate {
 
 		const request = context.switchToHttp().getRequest();
 
-		// Development bypass
-		if (isAuthBypassEnabled()) {
-			return true;
-		}
-
 		const user = request.user;
 
 		if (!user || !user.id) {
@@ -196,13 +171,13 @@ export class AppScopeGuard implements CanActivate {
 		);
 
 		// Super admins have access to all apps
-		if (policy.roles.some((r) => r.roleKey === "super_admin")) {
+		if (policy.roles.includes("super_admin")) {
 			return true;
 		}
 
 		// Check if user has any role in this app or supervises it
 		const hasAppAccess =
-			policy.apps.includes(appKey) || policy.supervisedApps.includes(appKey);
+			appKey in policy.apps || policy.supervisedApps.includes(appKey);
 
 		if (!hasAppAccess) {
 			throw new ForbiddenException(`No access to application: ${appKey}`);
@@ -245,11 +220,6 @@ export class RolePermissionGuard implements CanActivate {
 		}
 
 		const request = context.switchToHttp().getRequest();
-
-		// Development bypass
-		if (isAuthBypassEnabled()) {
-			return true;
-		}
 
 		const user = request.user;
 
@@ -333,11 +303,6 @@ export class OwnershipGuard implements CanActivate {
 	async canActivate(context: ExecutionContext): Promise<boolean> {
 		const request = context.switchToHttp().getRequest();
 
-		// Development bypass
-		if (isAuthBypassEnabled()) {
-			return true;
-		}
-
 		const user = request.user;
 
 		if (!user || !user.id) {
@@ -360,7 +325,7 @@ export class OwnershipGuard implements CanActivate {
 		const policy = await this.policyService.resolveUserPolicy(String(user.id));
 
 		// Super admins bypass ownership
-		if (policy.roles.some((r) => r.roleKey === "super_admin")) {
+		if (policy.roles.includes("super_admin")) {
 			return true;
 		}
 

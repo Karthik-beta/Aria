@@ -1,10 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 /**
- * Smoke tests — verify the app boots and critical pages load without errors.
- *
- * These tests run with NEXT_PUBLIC_DEV_AUTH_BYPASS=true (set by webServer in
- * playwright.config.ts), so authenticated routes render without real login.
+ * E2E smoke tests for core application flows.
  */
 test.describe("Smoke tests", () => {
 	test("home page redirects to inventory dashboard", async ({ page }) => {

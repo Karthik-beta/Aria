@@ -21,9 +21,9 @@ const prismaMock: AuthorizationPrismaMock = {
 	teamMember: { findMany: jest.fn() },
 	appSupervisor: { findMany: jest.fn() },
 };
+
 const getSessionMock = jest.fn();
 const originalNodeEnv = process.env.NODE_ENV;
-const originalDisableAuth = process.env.DISABLE_AUTH;
 
 const createSessionPayload = () => ({
 	user: {
@@ -56,10 +56,7 @@ const createCaller = () => {
 	return authorizationRouter.createCaller(ctx);
 };
 
-function restoreEnvVar(
-	key: "NODE_ENV" | "DISABLE_AUTH",
-	value: string | undefined,
-) {
+function restoreEnvVar(key: "NODE_ENV", value: string | undefined) {
 	if (value === undefined) {
 		delete process.env[key];
 		return;
@@ -72,7 +69,6 @@ describe("authorizationRouter", () => {
 	beforeEach(() => {
 		jest.clearAllMocks();
 		process.env.NODE_ENV = "test";
-		delete process.env.DISABLE_AUTH;
 		jest.spyOn(logger, "error").mockImplementation(() => {});
 		Object.defineProperty(auth.api, "getSession", {
 			value: getSessionMock,
@@ -83,7 +79,6 @@ describe("authorizationRouter", () => {
 
 	afterAll(() => {
 		restoreEnvVar("NODE_ENV", originalNodeEnv);
-		restoreEnvVar("DISABLE_AUTH", originalDisableAuth);
 	});
 
 	it("returns aggregated authorization data for active session", async () => {

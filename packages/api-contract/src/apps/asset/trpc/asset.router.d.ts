@@ -580,6 +580,21 @@ type AssetRouterInput = {
 		};
 		meta: object;
 	}>;
+	exportAssetDepreciationsAndBalancesExcel: TRPCMutationProcedure<{
+		input: unknown;
+		output: unknown;
+		meta: object;
+	}>;
+	exportAssetDepreciationLedgerExcel: TRPCMutationProcedure<{
+		input: unknown;
+		output: unknown;
+		meta: object;
+	}>;
+	exportAssetActivityExcel: TRPCMutationProcedure<{
+		input: unknown;
+		output: unknown;
+		meta: object;
+	}>;
 };
 
 type AssetRouterRoot = (typeof accountRouter)["_def"]["_config"]["$types"];

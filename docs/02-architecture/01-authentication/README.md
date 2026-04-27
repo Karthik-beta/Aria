@@ -4,7 +4,7 @@ This document covers the Aria ERP authentication system built with better-auth a
 
 ## Overview
 
-Aria ERP uses [better-auth](https://better-auth.com) for username/password authentication. The backend owns session issuance, while protected frontend route groups resolve the session on the server and hydrate client components with a single auth snapshot. Development bypasses are opt-in and limited to local workflows.
+Aria ERP uses [better-auth](https://better-auth.com) for username/password authentication. The backend owns session issuance, while protected frontend route groups resolve the session on the server and hydrate client components with a single auth snapshot.
 
 ## Architecture
 
@@ -25,7 +25,6 @@ Aria ERP uses [better-auth](https://better-auth.com) for username/password authe
 - `useAuth()` reads from that hydrated context instead of fetching its own session
 - `proxy.ts` only performs optimistic cookie checks and preserves callback URLs
 - Callback URLs are normalized to in-app relative paths only before any redirect is issued
-- Frontend and backend startup reject dev-bypass flags when they leak outside development
 
 ## Configuration
 
@@ -53,14 +52,7 @@ DEFAULT_ADMIN_NAME=Administrator
 
 ```bash
 NEXT_PUBLIC_API_URL=https://your-domain.com
-NEXT_PUBLIC_DEV_AUTH_BYPASS=false
 ```
-
-`NEXT_PUBLIC_DEV_AUTH_BYPASS=true` enables a local development mock session. Next.js startup rejects this flag outside development so the bypass cannot leak into production-style runs.
-
-#### Backend Development Bypass
-
-`DISABLE_AUTH=true` is supported only during backend development. The NestJS bootstrap path now fails fast if that flag is enabled outside development.
 
 ### Cross-Site Cookies
 
@@ -128,8 +120,7 @@ On first production deployment, a default admin user is automatically created:
 
 | Feature | Development | Production |
 |---------|-------------|------------|
-| Auth Required | ✅ By default | ✅ |
-| Dev Bypass | Optional (`NEXT_PUBLIC_DEV_AUTH_BYPASS=true` on the frontend, `DISABLE_AUTH=true` on the backend) while `NODE_ENV=development` | ❌ |
+| Auth Required | ✅ | ✅ |
 | Login Page | Visible | Visible |
 | Route Protection | Enabled | Enabled |
 | Cookies | Lax, non-secure | SameSite=None, Secure |

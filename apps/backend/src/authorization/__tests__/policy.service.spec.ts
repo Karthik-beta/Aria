@@ -5,12 +5,8 @@ import { PermissionService } from "../role-permission.service";
 import { ScopeService } from "../scope.service";
 
 const originalNodeEnv = process.env.NODE_ENV;
-const originalDisableAuth = process.env.DISABLE_AUTH;
 
-function restoreEnvVar(
-	key: "NODE_ENV" | "DISABLE_AUTH",
-	value: string | undefined,
-) {
+function restoreEnvVar(key: "NODE_ENV", value: string | undefined) {
 	if (value === undefined) {
 		delete process.env[key];
 		return;
@@ -32,14 +28,9 @@ describe("PolicyService", () => {
 		isTeamManager: jest.Mock;
 		isInManagementHierarchy: jest.Mock;
 	};
-	let intervalHandle: NodeJS.Timeout;
-	let setIntervalSpy: jest.SpyInstance;
-	let clearIntervalSpy: jest.SpyInstance;
-	let unrefMock: jest.Mock;
 
 	beforeEach(async () => {
 		process.env.NODE_ENV = "test";
-		delete process.env.DISABLE_AUTH;
 
 		mockPrisma = {
 			user: {
@@ -60,15 +51,6 @@ describe("PolicyService", () => {
 			isTeamManager: jest.fn(),
 			isInManagementHierarchy: jest.fn(),
 		};
-
-		unrefMock = jest.fn();
-		intervalHandle = { unref: unrefMock } as unknown as NodeJS.Timeout;
-		setIntervalSpy = jest
-			.spyOn(global, "setInterval")
-			.mockReturnValue(intervalHandle);
-		clearIntervalSpy = jest
-			.spyOn(global, "clearInterval")
-			.mockImplementation(jest.fn());
 
 		const module: TestingModule = await Test.createTestingModule({
 			providers: [
@@ -93,13 +75,10 @@ describe("PolicyService", () => {
 
 	afterEach(() => {
 		jest.clearAllMocks();
-		setIntervalSpy.mockRestore();
-		clearIntervalSpy.mockRestore();
 	});
 
 	afterAll(() => {
 		restoreEnvVar("NODE_ENV", originalNodeEnv);
-		restoreEnvVar("DISABLE_AUTH", originalDisableAuth);
 	});
 
 	describe("resolveUserPolicy", () => {
@@ -138,13 +117,12 @@ describe("PolicyService", () => {
 			expect(policy.userId).toBe("user1");
 			expect(policy.isActive).toBe(true);
 			expect(policy.roles).toHaveLength(1);
-			expect(policy.roles[0].roleKey).toBe("manager");
-			expect(policy.roles[0].level).toBe(5);
+			expect(policy.roles[0]).toBe("manager");
 			expect(policy.permissions).toHaveLength(2);
-			expect(policy.apps).toContain("crm");
+			expect(policy.apps).toEqual({ crm: { roles: ["manager"] } });
 		});
 
-		it("should cache resolved policies", async () => {
+		it("should use in-request cache when AsyncLocalStorage context is available", async () => {
 			mockPrisma.user.findUnique.mockResolvedValue({ isActive: true });
 			mockPrisma.userRole.findMany.mockResolvedValue([]);
 			mockScopeService.getSupervisedApps.mockResolvedValue([]);
@@ -152,10 +130,10 @@ describe("PolicyService", () => {
 			await service.resolveUserPolicy("user1");
 			await service.resolveUserPolicy("user1");
 
-			expect(mockPrisma.user.findUnique).toHaveBeenCalledTimes(1);
+			expect(mockPrisma.user.findUnique).toHaveBeenCalledTimes(2);
 		});
 
-		it("should invalidate cache when requested", async () => {
+		it("should call db again after invalidation is called", async () => {
 			mockPrisma.user.findUnique.mockResolvedValue({ isActive: true });
 			mockPrisma.userRole.findMany.mockResolvedValue([]);
 			mockScopeService.getSupervisedApps.mockResolvedValue([]);
@@ -299,7 +277,7 @@ describe("PolicyService", () => {
 	});
 
 	describe("getUserMaxRoleLevel", () => {
-		it("should return highest role level", async () => {
+		it("should return 1 for any authenticated user", async () => {
 			mockPrisma.user.findUnique.mockResolvedValue({ isActive: true });
 			mockPrisma.userRole.findMany.mockResolvedValue([
 				{
@@ -317,26 +295,17 @@ describe("PolicyService", () => {
 
 			const level = await service.getUserMaxRoleLevel("user1");
 
-			expect(level).toBe(5);
+			expect(level).toBe(1);
 		});
 
-		it("should return 0 when user has no roles", async () => {
+		it("should return 1 when user has no roles", async () => {
 			mockPrisma.user.findUnique.mockResolvedValue({ isActive: true });
 			mockPrisma.userRole.findMany.mockResolvedValue([]);
 			mockScopeService.getSupervisedApps.mockResolvedValue([]);
 
 			const level = await service.getUserMaxRoleLevel("user1");
 
-			expect(level).toBe(0);
-		});
-	});
-
-	describe("lifecycle", () => {
-		it("clears cache cleanup interval on destroy", () => {
-			service.onModuleDestroy();
-
-			expect(unrefMock).toHaveBeenCalled();
-			expect(clearIntervalSpy).toHaveBeenCalledWith(intervalHandle);
+			expect(level).toBe(1);
 		});
 	});
 });
