@@ -171,13 +171,13 @@ export class AppScopeGuard implements CanActivate {
 		);
 
 		// Super admins have access to all apps
-		if (policy.roles.some((r) => r.roleKey === "super_admin")) {
+		if (policy.roles.includes("super_admin")) {
 			return true;
 		}
 
 		// Check if user has any role in this app or supervises it
 		const hasAppAccess =
-			policy.apps.includes(appKey) || policy.supervisedApps.includes(appKey);
+			appKey in policy.apps || policy.supervisedApps.includes(appKey);
 
 		if (!hasAppAccess) {
 			throw new ForbiddenException(`No access to application: ${appKey}`);
@@ -325,7 +325,7 @@ export class OwnershipGuard implements CanActivate {
 		const policy = await this.policyService.resolveUserPolicy(String(user.id));
 
 		// Super admins bypass ownership
-		if (policy.roles.some((r) => r.roleKey === "super_admin")) {
+		if (policy.roles.includes("super_admin")) {
 			return true;
 		}
 

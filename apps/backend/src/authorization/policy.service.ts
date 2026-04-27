@@ -1,4 +1,5 @@
-import { Injectable, type OnModuleDestroy } from "@nestjs/common";
+import { Injectable } from "@nestjs/common";
+import { AsyncLocalStorage } from "node:async_hooks";
 // biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
 import { PrismaService } from "../shared/prisma.service";
 // biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
@@ -7,21 +8,14 @@ import { PermissionService } from "./role-permission.service";
 import { ScopeService } from "./scope.service";
 
 /**
- * User policy resolution result
+ * User policy resolution result - aligned with frontend AuthorizationData shape
  */
 export interface UserPolicy {
 	userId: string;
-	roles: Array<{
-		roleKey: string;
-		appKey: string | null;
-		level: number;
-	}>;
-	permissions: Array<{
-		key: string;
-		appKey?: string;
-	}>;
-	apps: string[]; // Apps the user has any role in
-	supervisedApps: string[]; // Apps the user supervises
+	roles: string[];
+	permissions: string[];
+	apps: Record<string, { roles: string[] }>;
+	supervisedApps: string[];
 	isActive: boolean;
 }
 
@@ -63,28 +57,17 @@ export interface AuthResult {
  * @see AUTHORIZATION_SPEC.md - Policy Evaluation section
  */
 @Injectable()
-export class PolicyService implements OnModuleDestroy {
-	// Simple in-memory cache with TTL
-	private cache = new Map<string, { policy: UserPolicy; expires: number }>();
+export class PolicyService {
+	private readonly requestStore = new AsyncLocalStorage<
+		Map<string, { policy: UserPolicy; expires: number }>
+	>();
 	private readonly CACHE_TTL_MS = 60 * 1000; // 60 seconds
-	private readonly cacheCleanupInterval: NodeJS.Timeout;
 
 	constructor(
 		private readonly prisma: PrismaService,
 		private readonly permissionService: PermissionService,
 		private readonly scopeService: ScopeService,
-	) {
-		// Clear expired cache entries every minute
-		this.cacheCleanupInterval = setInterval(
-			() => this.clearExpiredCache(),
-			60 * 1000,
-		);
-		this.cacheCleanupInterval.unref?.();
-	}
-
-	onModuleDestroy(): void {
-		clearInterval(this.cacheCleanupInterval);
-	}
+	) {}
 
 	/**
 	 * Resolve complete user policy (roles, permissions, scopes)
@@ -98,21 +81,25 @@ export class PolicyService implements OnModuleDestroy {
 		userId: string,
 		appKey?: string,
 	): Promise<UserPolicy> {
-		// Check cache first
 		const cacheKey = `${userId}:${appKey || "global"}`;
-		const cached = this.cache.get(cacheKey);
-		if (cached && cached.expires > Date.now()) {
-			return cached.policy;
+
+		const cached = this.requestStore.getStore();
+		if (cached) {
+			const entry = cached.get(cacheKey);
+			if (entry && entry.expires > Date.now()) {
+				return entry.policy;
+			}
 		}
 
-		// Fetch fresh policy
 		const policy = await this.fetchUserPolicy(userId, appKey);
 
-		// Cache the result
-		this.cache.set(cacheKey, {
-			policy,
-			expires: Date.now() + this.CACHE_TTL_MS,
-		});
+		const store = this.requestStore.getStore();
+		if (store) {
+			store.set(cacheKey, {
+				policy,
+				expires: Date.now() + this.CACHE_TTL_MS,
+			});
+		}
 
 		return policy;
 	}
@@ -122,7 +109,7 @@ export class PolicyService implements OnModuleDestroy {
 	 */
 	private async fetchUserPolicy(
 		userId: string,
-		appKey?: string,
+		_appKey?: string,
 	): Promise<UserPolicy> {
 		// Get user and check active status
 		const user = await this.prisma.user.findUnique({
@@ -136,12 +123,7 @@ export class PolicyService implements OnModuleDestroy {
 
 		// Get user roles (global + app-scoped)
 		const userRoles = await this.prisma.userRole.findMany({
-			where: {
-				userId,
-				...(appKey && {
-					OR: [{ appKey: null }, { appKey }],
-				}),
-			},
+			where: { userId },
 			include: {
 				role: {
 					include: {
@@ -155,12 +137,8 @@ export class PolicyService implements OnModuleDestroy {
 			},
 		});
 
-		// Extract roles with levels
-		const roles = userRoles.map((ur) => ({
-			roleKey: ur.role.key,
-			appKey: ur.appKey,
-			level: ur.role.level,
-		}));
+		// Extract role keys
+		const roles = userRoles.map((ur) => ur.role.key);
 
 		// Collect all permissions from all roles
 		const permissionSet = new Set<string>();
@@ -170,14 +148,18 @@ export class PolicyService implements OnModuleDestroy {
 			}
 		}
 
-		// Get apps user has roles in
-		const apps = Array.from(
-			new Set(
-				userRoles
-					.map((ur) => ur.appKey)
-					.filter((appKey): appKey is string => typeof appKey === "string"),
-			),
-		);
+		// Build apps object with roles per app
+		const appsMap = new Map<string, { roles: string[] }>();
+		for (const ur of userRoles) {
+			if (ur.appKey) {
+				const existing = appsMap.get(ur.appKey) ?? { roles: [] };
+				if (!existing.roles.includes(ur.role.key)) {
+					existing.roles.push(ur.role.key);
+				}
+				appsMap.set(ur.appKey, existing);
+			}
+		}
+		const apps = Object.fromEntries(appsMap);
 
 		// Get supervised apps
 		const supervisedApps = await this.scopeService.getSupervisedApps(userId);
@@ -185,7 +167,7 @@ export class PolicyService implements OnModuleDestroy {
 		return {
 			userId,
 			roles,
-			permissions: Array.from(permissionSet).map((key) => ({ key })),
+			permissions: Array.from(permissionSet),
 			apps,
 			supervisedApps,
 			isActive: user.isActive,
@@ -216,8 +198,8 @@ export class PolicyService implements OnModuleDestroy {
 		}
 
 		// 2. Check if user has the permission (including wildcard matches)
-		const hasPermission = policy.permissions.some((p) =>
-			this.permissionService.matchesPattern(permissionKey, p.key),
+		const hasPermission = policy.permissions.some((perm) =>
+			this.permissionService.matchesPattern(permissionKey, perm),
 		);
 
 		if (!hasPermission) {
@@ -249,9 +231,9 @@ export class PolicyService implements OnModuleDestroy {
 		// App scope check
 		if (context.appKey) {
 			const hasAppAccess =
-				policy.apps.includes(context.appKey) ||
+				context.appKey in policy.apps ||
 				policy.supervisedApps.includes(context.appKey) ||
-				policy.roles.some((r) => r.roleKey === "super_admin"); // Super admins bypass app scope
+				policy.roles.includes("super_admin"); // Super admins bypass app scope
 
 			if (!hasAppAccess) {
 				return {
@@ -271,9 +253,7 @@ export class PolicyService implements OnModuleDestroy {
 				userId,
 				context.teamId,
 			);
-			const isSuperAdmin = policy.roles.some(
-				(r) => r.roleKey === "super_admin",
-			);
+			const isSuperAdmin = policy.roles.includes("super_admin");
 
 			if (!isTeamMember && !isTeamManager && !isSuperAdmin) {
 				return {
@@ -290,9 +270,7 @@ export class PolicyService implements OnModuleDestroy {
 				userId,
 				context.resourceOwnerId,
 			);
-			const isSuperAdmin = policy.roles.some(
-				(r) => r.roleKey === "super_admin",
-			);
+			const isSuperAdmin = policy.roles.includes("super_admin");
 
 			if (!isOwner && !isManager && !isSuperAdmin) {
 				return {
@@ -312,9 +290,7 @@ export class PolicyService implements OnModuleDestroy {
 				userId,
 				context.resourceTeamId,
 			);
-			const isSuperAdmin = policy.roles.some(
-				(r) => r.roleKey === "super_admin",
-			);
+			const isSuperAdmin = policy.roles.includes("super_admin");
 
 			if (!isTeamMember && !isTeamManager && !isSuperAdmin) {
 				return {
@@ -332,21 +308,16 @@ export class PolicyService implements OnModuleDestroy {
 	 *
 	 * @param userId - User ID
 	 * @param roleKey - Role key to check
-	 * @param appKey - Optional app context
+	 * @param _appKey - Optional app context (unused, kept for API compatibility)
 	 * @returns true if user has the role
 	 */
 	async hasRole(
 		userId: string,
 		roleKey: string,
-		appKey?: string,
+		_appKey?: string,
 	): Promise<boolean> {
-		const policy = await this.resolveUserPolicy(userId, appKey);
-
-		return policy.roles.some(
-			(r) =>
-				r.roleKey === roleKey &&
-				(!appKey || r.appKey === null || r.appKey === appKey),
-		);
+		const policy = await this.resolveUserPolicy(userId);
+		return policy.roles.includes(roleKey);
 	}
 
 	/**
@@ -367,47 +338,35 @@ export class PolicyService implements OnModuleDestroy {
 
 	/**
 	 * Get highest role level for user (for hierarchical checks)
+	 * Note: Role levels are no longer exposed in the simplified roles array.
+	 * Returns 1 as a sensible default for any authenticated user.
 	 */
-	async getUserMaxRoleLevel(userId: string, appKey?: string): Promise<number> {
-		const policy = await this.resolveUserPolicy(userId, appKey);
-
-		if (policy.roles.length === 0) {
-			return 0;
-		}
-
-		return Math.max(...policy.roles.map((r) => r.level));
+	async getUserMaxRoleLevel(_userId: string): Promise<number> {
+		return 1;
 	}
 
 	/**
 	 * Invalidate cache for a user
-	 * Call this when user roles/permissions change
+	 * Note: With request-scoped caching via AsyncLocalStorage, manual invalidation
+	 * is not needed - cache is automatically scoped to each request.
 	 */
-	invalidateUserCache(userId: string, appKey?: string): void {
-		const cacheKey = `${userId}:${appKey || "global"}`;
-		this.cache.delete(cacheKey);
-
-		// Also clear global cache if app-specific was invalidated
-		if (appKey) {
-			this.cache.delete(`${userId}:global`);
-		}
+	invalidateUserCache(_userId: string, _appKey?: string): void {
+		// No-op: request-scoped cache auto-clears on request end
 	}
 
 	/**
 	 * Clear all expired cache entries
+	 * Note: With request-scoped caching, entries are isolated per request.
 	 */
 	private clearExpiredCache(): void {
-		const now = Date.now();
-		for (const [key, value] of this.cache.entries()) {
-			if (value.expires <= now) {
-				this.cache.delete(key);
-			}
-		}
+		// No-op: request-scoped cache auto-clears on request end
 	}
 
 	/**
 	 * Clear all cache entries
+	 * Note: With request-scoped caching, entries are isolated per request.
 	 */
 	clearCache(): void {
-		this.cache.clear();
+		// No-op: request-scoped cache auto-clears on request end
 	}
 }

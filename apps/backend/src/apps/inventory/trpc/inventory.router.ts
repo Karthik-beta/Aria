@@ -1,6 +1,6 @@
 import { EventEmitter } from "node:events";
 import { ReportTemplateService } from "@aria/report-export";
-import { Inventory, EXPORT_MAX_ROWS } from "@aria/types";
+import { EXPORT_MAX_ROWS, Inventory } from "@aria/types";
 import { Injectable } from "@nestjs/common";
 import type {
 	TRPCBuiltRouter,
