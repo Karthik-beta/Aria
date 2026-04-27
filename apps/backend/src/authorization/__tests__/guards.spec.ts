@@ -116,7 +116,7 @@ describe("Authorization Guards", () => {
 				isActive: true,
 				roles: [],
 				permissions: [],
-				apps: [],
+				apps: {},
 				supervisedApps: [],
 			});
 
@@ -146,7 +146,7 @@ describe("Authorization Guards", () => {
 				isActive: false,
 				roles: [],
 				permissions: [],
-				apps: [],
+				apps: {},
 				supervisedApps: [],
 			});
 
@@ -179,9 +179,9 @@ describe("Authorization Guards", () => {
 			policyService.resolveUserPolicy.mockResolvedValue({
 				userId: "user-1",
 				isActive: true,
-				roles: [{ roleKey: "super_admin", appKey: null, level: 100 }],
+				roles: ["super_admin"],
 				permissions: [],
-				apps: [],
+				apps: {},
 				supervisedApps: [],
 			});
 
@@ -204,7 +204,7 @@ describe("Authorization Guards", () => {
 				isActive: true,
 				roles: [],
 				permissions: [],
-				apps: [],
+				apps: {},
 				supervisedApps: [],
 			});
 
@@ -349,7 +349,7 @@ describe("Authorization Guards", () => {
 				isActive: true,
 				roles: [],
 				permissions: [],
-				apps: [],
+				apps: {},
 				supervisedApps: [],
 			});
 
@@ -363,9 +363,9 @@ describe("Authorization Guards", () => {
 			policyService.resolveUserPolicy.mockResolvedValue({
 				userId: "user-1",
 				isActive: true,
-				roles: [{ roleKey: "super_admin", appKey: null, level: 100 }],
+				roles: ["super_admin"],
 				permissions: [],
-				apps: [],
+				apps: {},
 				supervisedApps: [],
 			});
 
@@ -381,7 +381,7 @@ describe("Authorization Guards", () => {
 				isActive: true,
 				roles: [],
 				permissions: [],
-				apps: [],
+				apps: {},
 				supervisedApps: [],
 			});
 			scopeService.isInManagementHierarchy.mockResolvedValue(false);
@@ -400,7 +400,7 @@ describe("Authorization Guards", () => {
 				isActive: true,
 				roles: [],
 				permissions: [],
-				apps: [],
+				apps: {},
 				supervisedApps: [],
 			});
 
@@ -418,7 +418,7 @@ describe("Authorization Guards", () => {
 				isActive: true,
 				roles: [],
 				permissions: [],
-				apps: [],
+				apps: {},
 				supervisedApps: [],
 			});
 			scopeService.isInManagementHierarchy.mockResolvedValue(true);

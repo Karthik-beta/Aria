@@ -1,5 +1,5 @@
-import { Injectable } from "@nestjs/common";
 import { AsyncLocalStorage } from "node:async_hooks";
+import { Injectable } from "@nestjs/common";
 // biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
 import { PrismaService } from "../shared/prisma.service";
 // biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
@@ -61,6 +61,10 @@ export class PolicyService {
 	private readonly requestStore = new AsyncLocalStorage<
 		Map<string, { policy: UserPolicy; expires: number }>
 	>();
+	private readonly localCache = new Map<
+		string,
+		{ policy: UserPolicy; expires: number }
+	>();
 	private readonly CACHE_TTL_MS = 60 * 1000; // 60 seconds
 
 	constructor(
@@ -68,6 +72,16 @@ export class PolicyService {
 		private readonly permissionService: PermissionService,
 		private readonly scopeService: ScopeService,
 	) {}
+
+	private getCacheKey(userId: string, appKey?: string): string {
+		return `${userId}:${appKey || "global"}`;
+	}
+
+	private getCache():
+		| Map<string, { policy: UserPolicy; expires: number }>
+		| undefined {
+		return this.requestStore.getStore();
+	}
 
 	/**
 	 * Resolve complete user policy (roles, permissions, scopes)
@@ -81,11 +95,11 @@ export class PolicyService {
 		userId: string,
 		appKey?: string,
 	): Promise<UserPolicy> {
-		const cacheKey = `${userId}:${appKey || "global"}`;
+		const cacheKey = this.getCacheKey(userId, appKey);
 
-		const cached = this.requestStore.getStore();
-		if (cached) {
-			const entry = cached.get(cacheKey);
+		const requestCache = this.getCache();
+		if (requestCache) {
+			const entry = requestCache.get(cacheKey);
 			if (entry && entry.expires > Date.now()) {
 				return entry.policy;
 			}
@@ -93,9 +107,13 @@ export class PolicyService {
 
 		const policy = await this.fetchUserPolicy(userId, appKey);
 
-		const store = this.requestStore.getStore();
-		if (store) {
-			store.set(cacheKey, {
+		if (requestCache) {
+			requestCache.set(cacheKey, {
+				policy,
+				expires: Date.now() + this.CACHE_TTL_MS,
+			});
+		} else {
+			this.localCache.set(cacheKey, {
 				policy,
 				expires: Date.now() + this.CACHE_TTL_MS,
 			});
@@ -347,19 +365,14 @@ export class PolicyService {
 
 	/**
 	 * Invalidate cache for a user
-	 * Note: With request-scoped caching via AsyncLocalStorage, manual invalidation
-	 * is not needed - cache is automatically scoped to each request.
 	 */
-	invalidateUserCache(_userId: string, _appKey?: string): void {
-		// No-op: request-scoped cache auto-clears on request end
-	}
+	invalidateUserCache(userId: string, appKey?: string): void {
+		const cacheKey = this.getCacheKey(userId, appKey);
+		this.localCache.delete(cacheKey);
 
-	/**
-	 * Clear all expired cache entries
-	 * Note: With request-scoped caching, entries are isolated per request.
-	 */
-	private clearExpiredCache(): void {
-		// No-op: request-scoped cache auto-clears on request end
+		if (appKey) {
+			this.localCache.delete(this.getCacheKey(userId));
+		}
 	}
 
 	/**
