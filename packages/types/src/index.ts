@@ -7080,6 +7080,38 @@ export namespace Asset {
 }
 
 // ============================================================================
+// Shared Constants
+// ============================================================================
+
+/**
+ * Maximum number of rows to export in a single Excel export operation.
+ * This limit prevents memory issues when exporting large datasets.
+ */
+export const EXPORT_MAX_ROWS = 10_000;
+
+// ============================================================================
+// Auth & Authorization Types
+// ============================================================================
+
+/**
+ * Authorization data for a user session
+ *
+ * Used by both frontend (client-side auth checks) and backend (guard enforcement).
+ */
+export interface AuthorizationData {
+	/** Roles assigned to the user (e.g., ["admin", "user"]) */
+	roles: string[];
+	/** Permissions assigned to the user (e.g., ["entity:item:read", "app:inventory:write"]) */
+	permissions: string[];
+	/** Apps the user has access to, mapped by app key with role information */
+	apps: Record<string, { roles: string[] }>;
+	/** Apps that the user supervises (can access but doesn't own) */
+	supervisedApps: string[];
+	/** Whether the user account is currently active */
+	isActive: boolean;
+}
+
+// ============================================================================
 // Product Domain Types
 // ============================================================================
 

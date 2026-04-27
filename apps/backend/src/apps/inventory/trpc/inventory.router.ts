@@ -1,6 +1,6 @@
 import { EventEmitter } from "node:events";
 import { ReportTemplateService } from "@aria/report-export";
-import { Inventory } from "@aria/types";
+import { Inventory, EXPORT_MAX_ROWS } from "@aria/types";
 import { Injectable } from "@nestjs/common";
 import type {
 	TRPCBuiltRouter,
@@ -1368,7 +1368,7 @@ function createExportStockLedgerExcelProcedure(
 			// Fetch all data (up to 10000 rows for export)
 			const data = await inventoryService.findStockLedger({
 				...input,
-				take: 10000,
+				take: EXPORT_MAX_ROWS,
 			});
 
 			const columns = [
@@ -1438,7 +1438,7 @@ function createExportStockBalanceExcelProcedure(
 			}
 			const data = await inventoryService.findStockBalance({
 				...input,
-				take: 10000,
+				take: EXPORT_MAX_ROWS,
 			});
 
 			const columns = [
@@ -1496,7 +1496,7 @@ function createExportStockSummaryExcelProcedure(
 			}
 			const data = await inventoryService.findStockSummary({
 				...input,
-				take: 10000,
+				take: EXPORT_MAX_ROWS,
 			});
 
 			const columns = [
@@ -1551,7 +1551,7 @@ function createExportStockAgeingExcelProcedure(
 			}
 			const data = await inventoryService.findStockAgeing({
 				...input,
-				take: 10000,
+				take: EXPORT_MAX_ROWS,
 			});
 
 			const columns = [
@@ -1605,7 +1605,7 @@ function createExportStockProjectedQtyExcelProcedure(
 			}
 			const data = await inventoryService.findStockProjectedQty({
 				...input,
-				take: 10000,
+				take: EXPORT_MAX_ROWS,
 			});
 
 			const columns = [
@@ -1660,7 +1660,7 @@ function createExportItemPriceStockExcelProcedure(
 			}
 			const data = await inventoryService.findItemPriceStock({
 				...input,
-				take: 10000,
+				take: EXPORT_MAX_ROWS,
 			});
 
 			const columns = [
@@ -1713,7 +1713,7 @@ function createExportWarehouseWiseStockBalanceExcelProcedure(
 			}
 			const data = await inventoryService.findWarehouseWiseStockBalance({
 				...input,
-				take: 10000,
+				take: EXPORT_MAX_ROWS,
 			});
 
 			const columns = [
@@ -1762,7 +1762,7 @@ function createExportSubcontractedRawMaterialsExcelProcedure(
 			}
 			const data = await inventoryService.findSubcontractedRawMaterials({
 				...input,
-				take: 10000,
+				take: EXPORT_MAX_ROWS,
 			});
 
 			const columns = [
@@ -1807,7 +1807,7 @@ function createExportSubcontractedItemToBeReceivedExcelProcedure(
 			}
 			const data = await inventoryService.findSubcontractedItemToBeReceived({
 				...input,
-				take: 10000,
+				take: EXPORT_MAX_ROWS,
 			});
 
 			const columns = [
@@ -1851,7 +1851,7 @@ function createExportItemShortageExcelProcedure(
 			}
 			const data = await inventoryService.findItemShortageReport({
 				...input,
-				take: 10000,
+				take: EXPORT_MAX_ROWS,
 			});
 
 			const columns = [
@@ -1906,7 +1906,7 @@ function createExportRequestedItemsToBeTransferredExcelProcedure(
 			}
 			const data = await inventoryService.findRequestedItemsToBeTransferred({
 				...input,
-				take: 10000,
+				take: EXPORT_MAX_ROWS,
 			});
 
 			const columns = [
@@ -1951,7 +1951,7 @@ function createExportItemPricesExcelProcedure(
 			}
 			const data = await inventoryService.findItemPrices({
 				...input,
-				take: 10000,
+				take: EXPORT_MAX_ROWS,
 			});
 
 			const columns = [
@@ -1997,7 +1997,7 @@ function createExportItemwiseRecommendedReorderLevelExcelProcedure(
 			}
 			const data = await inventoryService.findItemwiseRecommendedReorderLevel({
 				...input,
-				take: 10000,
+				take: EXPORT_MAX_ROWS,
 			});
 
 			const columns = [
@@ -2045,7 +2045,7 @@ function createExportItemVariantDetailsExcelProcedure(
 			}
 			const data = await inventoryService.findItemVariantDetails({
 				...input,
-				take: 10000,
+				take: EXPORT_MAX_ROWS,
 			});
 
 			const columns = [
@@ -2089,7 +2089,7 @@ function createExportBatchWiseBalanceExcelProcedure(
 			}
 			const data = await inventoryService.findBatchWiseBalanceHistory({
 				...input,
-				take: 10000,
+				take: EXPORT_MAX_ROWS,
 			});
 
 			const columns = [
@@ -2139,7 +2139,7 @@ function createExportBatchItemExpiryExcelProcedure(
 			}
 			const data = await inventoryService.findBatchItemExpiry({
 				...input,
-				take: 10000,
+				take: EXPORT_MAX_ROWS,
 			});
 
 			const columns = [
@@ -2182,7 +2182,7 @@ function createExportStockAnalyticsExcelProcedure(
 			}
 			const data = await inventoryService.findStockAnalytics({
 				...input,
-				take: 10000,
+				take: EXPORT_MAX_ROWS,
 			});
 
 			const columns = [
@@ -2224,7 +2224,7 @@ function createExportSalesOrderAnalysisExcelProcedure(
 			}
 			const data = await inventoryService.findSalesOrderAnalysis({
 				...input,
-				take: 10000,
+				take: EXPORT_MAX_ROWS,
 			});
 
 			const columns = [
@@ -2274,7 +2274,7 @@ function createExportPurchaseOrderAnalysisExcelProcedure(
 			}
 			const data = await inventoryService.findPurchaseOrderAnalysis({
 				...input,
-				take: 10000,
+				take: EXPORT_MAX_ROWS,
 			});
 
 			const columns = [
@@ -2322,7 +2322,7 @@ function createExportPurchaseReceiptTrendsExcelProcedure(
 			}
 			const data = await inventoryService.findPurchaseReceiptTrends({
 				...input,
-				take: 10000,
+				take: EXPORT_MAX_ROWS,
 			});
 
 			const columns = [
@@ -2365,7 +2365,7 @@ function createExportDeliveryNoteTrendsExcelProcedure(
 			}
 			const data = await inventoryService.findDeliveryNoteTrends({
 				...input,
-				take: 10000,
+				take: EXPORT_MAX_ROWS,
 			});
 
 			const columns = [

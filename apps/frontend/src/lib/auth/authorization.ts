@@ -1,10 +1,6 @@
-export interface AuthorizationData {
-	roles: string[];
-	permissions: string[];
-	apps: Record<string, { roles: string[] }>;
-	supervisedApps: string[];
-	isActive: boolean;
-}
+import type { AuthorizationData } from "@aria/types";
+
+export type { AuthorizationData };
 
 export const EMPTY_AUTHORIZATION_DATA: AuthorizationData = {
 	roles: [],
