@@ -1999,6 +1999,43 @@ enum AssetMaintenancePeriodicity {
   THREE_YEARLY
 }
 
+model Company {
+  id            String    @id @default(cuid())
+  name          String    @unique @db.VarChar(255)
+  abbreviation   String?   @db.VarChar(50)
+  country       String?   @db.VarChar(100)
+  currency      String?   @db.VarChar(50)
+  disabled      Boolean   @default(false)
+  fiscalYears   FiscalYearCompany[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model FiscalYear {
+  id            String    @id @default(cuid())
+  year          String    @unique @db.VarChar(20)
+  yearStartDate DateTime
+  yearEndDate   DateTime
+  disabled      Boolean   @default(false)
+  isShortYear   Boolean   @default(false)
+  companies     FiscalYearCompany[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([year])
+  @@index([yearStartDate, yearEndDate])
+}
+
+model FiscalYearCompany {
+  id           String    @id @default(cuid())
+  fiscalYear   FiscalYear @relation(fields: [fiscalYearId], references: [id])
+  fiscalYearId String
+  company      Company   @relation(fields: [companyId], references: [id])
+  companyId    String
+
+  @@unique([fiscalYearId, companyId])
+}
+
 enum AssetValueAdjustmentStatus {
   DRAFT
   SUBMITTED

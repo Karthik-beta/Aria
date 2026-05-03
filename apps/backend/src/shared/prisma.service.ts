@@ -302,6 +302,17 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
 		return this.client.assetDepreciationScheduleEntry;
 	}
 
+	// Company & Fiscal Year (shared across all apps)
+	get company() {
+		return this.client.company;
+	}
+	get fiscalYear() {
+		return this.client.fiscalYear;
+	}
+	get fiscalYearCompany() {
+		return this.client.fiscalYearCompany;
+	}
+
 	// ═══════════════════════════════════════════════════════════════════════════
 	// Transaction Support
 	// ═══════════════════════════════════════════════════════════════════════════

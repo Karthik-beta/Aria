@@ -57,9 +57,9 @@
 		"testEnvironment": "node"
 	},
 	"dependencies": {
+		"@aria/report-export": "workspace:*",
 		"@aria/types": "workspace:*",
 		"@aria/utils": "workspace:*",
-		"@aria/report-export": "workspace:*",
 		"@nestjs/common": "^11.1.10",
 		"@nestjs/core": "^11.1.10",
 		"@nestjs/platform-express": "^11.1.10",
@@ -70,6 +70,7 @@
 		"@willsoto/nestjs-prometheus": "^6.0.2",
 		"bcrypt": "^6.0.0",
 		"better-auth": "^1.5.4",
+		"date-fns": "^4.1.0",
 		"dotenv": "^17.2.3",
 		"express": "^5.2.1",
 		"pg": "^8.16.3",

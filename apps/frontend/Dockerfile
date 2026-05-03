@@ -18,6 +18,7 @@ COPY bun.lock package.json turbo.json tsconfig.base.json ./
 # Copy all package.json files to maintain workspace structure
 COPY packages/api-contract/package.json ./packages/api-contract/
 COPY packages/config-typescript/package.json ./packages/config-typescript/
+COPY packages/report-export/package.json ./packages/report-export/
 COPY packages/types/package.json ./packages/types/
 COPY packages/utils/package.json ./packages/utils/
 COPY apps/frontend/package.json ./apps/frontend/
@@ -107,6 +108,7 @@ RUN cd apps/backend && bun prisma generate
 # Production requires compiled packages - JIT pattern only works in Next.js dev mode
 RUN cd packages/types && bun tsc --build tsconfig.json
 RUN cd packages/utils && bun tsc --build tsconfig.json
+RUN cd packages/report-export && bun tsc --build tsconfig.build.json
 
 # Build backend (required for tRPC types that frontend imports)
 RUN --mount=type=cache,id=turbo-backend,target=/app/.turbo/cache bun --filter backend build

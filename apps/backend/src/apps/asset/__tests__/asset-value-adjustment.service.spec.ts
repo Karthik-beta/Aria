@@ -394,4 +394,79 @@ describe("AssetService > AssetValueAdjustment", () => {
 			service.submitAssetValueAdjustment({ id: "adj-001" }),
 		).rejects.toBeInstanceOf(ConflictException);
 	});
+
+	describe("fiscal year scenarios", () => {
+		it("builds correct schedule when adjustment date is in April (FY transition)", async () => {
+			const assetContextApril = {
+				...baseAssetContext,
+				availableForUseDate: new Date("2025-01-15"),
+				purchaseDate: new Date("2025-01-01"),
+				netPurchaseAmount: new Prisma.Decimal("100000"),
+				openingAccumulatedDepreciation: new Prisma.Decimal("0"),
+				openingNumberOfBookedDepreciations: 0,
+				valueAfterDepreciation: new Prisma.Decimal("100000"),
+			};
+			mockPrisma.asset.findUnique.mockResolvedValue(assetContextApril);
+
+			const result = await service.previewAssetValueAdjustment({
+				assetId: "asset-001",
+				adjustmentDate: new Date("2025-04-15"),
+				newAssetValue: 100000,
+			});
+
+			expect(result.depreciationSchedule).not.toBeNull();
+			expect(result.depreciationSchedule?.entries.length).toBeGreaterThan(0);
+		});
+
+		it("preserves salvage value when expectedValueAfterUsefulLife is set", async () => {
+			const assetWithSalvage = {
+				...baseAssetContext,
+				assetCategory: {
+					...baseAssetContext.assetCategory,
+					expectedValueAfterUsefulLife: new Prisma.Decimal("10000"),
+				},
+			};
+			mockPrisma.asset.findUnique.mockResolvedValue(assetWithSalvage);
+
+			const result = await service.previewAssetValueAdjustment({
+				assetId: "asset-001",
+				adjustmentDate: new Date("2026-04-15"),
+				newAssetValue: 100000,
+			});
+
+			expect(result.depreciationSchedule).not.toBeNull();
+			const lastEntry =
+				result.depreciationSchedule?.entries[
+					result.depreciationSchedule?.entries.length - 1
+				];
+			expect(lastEntry?.bookValueAfterDepreciation).toBeCloseTo(10000, 0);
+		});
+
+		it("handles WDV depreciation with fiscal year boundary crossing", async () => {
+			const wdvAssetContext = {
+				...baseAssetContext,
+				depreciationMethod: "WRITTEN_DOWN_VALUE",
+				assetCategory: {
+					...baseAssetContext.assetCategory,
+					depreciationMethod: "WRITTEN_DOWN_VALUE",
+					rateOfDepreciation: 20,
+				},
+				openingAccumulatedDepreciation: new Prisma.Decimal("0"),
+				openingNumberOfBookedDepreciations: 0,
+				valueAfterDepreciation: new Prisma.Decimal("100000"),
+			};
+			mockPrisma.asset.findUnique.mockResolvedValue(wdvAssetContext);
+
+			const result = await service.previewAssetValueAdjustment({
+				assetId: "asset-001",
+				adjustmentDate: new Date("2024-11-01"),
+				newAssetValue: 100000,
+			});
+
+			expect(result.depreciationSchedule).not.toBeNull();
+			expect(result.depreciationSchedule?.depreciationMethod).toBe(
+				"WRITTEN_DOWN_VALUE",
+			);
+		});
+	});
 });

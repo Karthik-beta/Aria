@@ -7137,3 +7137,31 @@ export interface Product {
 	/** ISO 8601 timestamp when last updated */
 	updated_at: string;
 }
+
+// ============================================================================
+// Company & Fiscal Year Domain Types
+// ============================================================================
+
+export interface Company {
+	id: string;
+	name: string;
+	abbreviation: string | null;
+	country: string | null;
+	currency: string | null;
+	disabled: boolean;
+}
+
+export interface FiscalYear {
+	id: string;
+	year: string;
+	yearStartDate: Date;
+	yearEndDate: Date;
+	disabled: boolean;
+	isShortYear: boolean;
+}
+
+export interface FiscalYearCompany {
+	id: string;
+	fiscalYearId: string;
+	companyId: string;
+}

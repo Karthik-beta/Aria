@@ -47,6 +47,50 @@ else
   echo "⚠️ DATABASE_URL is NOT set - Railway env vars may not be passed correctly"
 fi
 
+# ============================================================================
+# Database Readiness Wait Loop
+# ============================================================================
+# Wait for PostgreSQL to be fully ready before running migrations.
+# This handles the "database system is starting up" race condition on
+# platforms like Railway that don't use Docker Compose healthchecks.
+# ============================================================================
+
+if [ -n "$DATABASE_URL" ]; then
+  WAIT_INTERVAL=${DB_WAIT_INTERVAL:-5}
+  WAIT_TIMEOUT=${DB_WAIT_TIMEOUT:-120}
+  WAIT_ATTEMPTS=$((WAIT_TIMEOUT / WAIT_INTERVAL))
+  DB_READY=0
+
+  echo "🔄 Waiting for database to be ready (timeout: ${WAIT_TIMEOUT}s)..."
+
+  # Extract connection details from DATABASE_URL
+  # Format: postgresql://user:password@host:port/database?options
+  DB_HOST=$(echo "$DATABASE_URL" | sed -n 's|.*@\([^:]*\):.*|\1|p')
+  DB_PORT=$(echo "$DATABASE_URL" | sed -n 's|.*:\([0-9]*\)/.*|\1|p')
+  DB_USER=$(echo "$DATABASE_URL" | sed -n 's|.*://\([^:]*\):.*|\1|p')
+  DB_NAME=$(echo "$DATABASE_URL" | sed -n 's|.*/\([^?]*\).*|\1|p')
+
+  # Defaults if extraction fails
+  DB_HOST=${DB_HOST:-localhost}
+  DB_PORT=${DB_PORT:-5432}
+  DB_USER=${DB_USER:-postgres}
+  DB_NAME=${DB_NAME:-postgres}
+
+  for i in $(seq 1 $WAIT_ATTEMPTS); do
+    if pg_isready -h "${DB_HOST}" -p "${DB_PORT}" -U "${DB_USER}" -d "${DB_NAME}" > /dev/null 2>&1; then
+      echo "✅ Database is ready!"
+      DB_READY=1
+      break
+    fi
+    echo "⏳ Attempt $i/$WAIT_ATTEMPTS: Database not ready, waiting ${WAIT_INTERVAL}s..."
+    sleep $WAIT_INTERVAL
+  done
+
+  if [ "$DB_READY" -eq 0 ]; then
+    echo "⚠️  Database wait timeout exceeded, proceeding anyway (migration may fail)"
+  fi
+fi
+
 # Check if DATABASE_URL is available before running migrations
 if [ -z "$DATABASE_URL" ]; then
   echo "⚠️ DATABASE_URL not set - skipping migration and starting app directly"

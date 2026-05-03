@@ -26,6 +26,7 @@ WORKDIR /app
 COPY bun.lock package.json turbo.json tsconfig.base.json ./
 COPY packages/api-contract/package.json ./packages/api-contract/
 COPY packages/config-typescript/package.json ./packages/config-typescript/
+COPY packages/report-export/package.json ./packages/report-export/
 COPY packages/types/package.json ./packages/types/
 COPY packages/utils/package.json ./packages/utils/
 COPY apps/backend/package.json ./apps/backend/
@@ -68,6 +69,7 @@ WORKDIR /app
 COPY bun.lock package.json turbo.json tsconfig.base.json ./
 COPY packages/api-contract/package.json ./packages/api-contract/
 COPY packages/config-typescript/package.json ./packages/config-typescript/
+COPY packages/report-export/package.json ./packages/report-export/
 COPY packages/types/package.json ./packages/types/
 COPY packages/utils/package.json ./packages/utils/
 COPY apps/backend/package.json ./apps/backend/
@@ -88,9 +90,10 @@ ENV DATABASE_URL=${DATABASE_URL}
 RUN cd /app/apps/backend && bun prisma generate
 
 # Pre-compile shared workspace packages to JS to satisfy Node/Bun runtime
-# (Node’s TS type-stripping does not apply for files under node_modules)
+# (Node's TS type-stripping does not apply for files under node_modules)
 RUN cd /app/packages/types && bun tsc --build tsconfig.json
 RUN cd /app/packages/utils && bun tsc --build tsconfig.json
+RUN cd /app/packages/report-export && bun tsc --build tsconfig.build.json
 
 # Optional: Turborepo remote cache
 ARG TURBO_TOKEN
@@ -131,6 +134,7 @@ RUN set -eux; \
 COPY package.json bun.lock ./
 COPY packages/api-contract/package.json ./packages/api-contract/package.json
 COPY packages/config-typescript/package.json ./packages/config-typescript/package.json
+COPY packages/report-export/package.json ./packages/report-export/package.json
 COPY packages/types/package.json ./packages/types/package.json
 COPY packages/utils/package.json ./packages/utils/package.json
 COPY apps/frontend/package.json ./apps/frontend/package.json
@@ -160,13 +164,15 @@ COPY --from=builder /app/apps/backend/dist/shared /app/apps/backend/src/shared
 # These files only exist because builder stage copies full source tree to src/
 RUN rm -f /app/apps/backend/src/shared/prisma.service.ts /app/apps/backend/src/shared/prisma-client.ts
 
-# Shared workspace packages: copy only their compiled JS outputs + package.json
-# This keeps workspace symlinks valid and avoids shipping TS sources
-COPY --from=builder /app/packages/types/dist /app/packages/types/dist
-COPY --from=builder /app/packages/utils/dist /app/packages/utils/dist
-
 # 4) Install OpenSSL for Prisma (required by oven/bun image)
 RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
+
+# 5) Copy shared workspace packages from source directories
+# bun install --production creates symlinks: node_modules/@aria/<pkg> -> packages/<pkg>
+# packages/ directories contain compiled dist/ after builder stage
+COPY --from=builder /app/packages/types /app/packages/types
+COPY --from=builder /app/packages/utils /app/packages/utils
+COPY --from=builder /app/packages/report-export /app/packages/report-export
 
 
 # Runtime assets for health checks and startup scripts
@@ -175,7 +181,7 @@ COPY --chown=nestjs:nodejs apps/backend/docker-entrypoint.sh /app/docker-entrypo
 USER root
 RUN chmod +x /app/docker-entrypoint.sh && \
     apt-get update -y && \
-    apt-get install -y curl && \
+    apt-get install -y curl postgresql-client && \
     rm -rf /var/lib/apt/lists/* && \
     chown -R nestjs:nodejs /app/node_modules
 

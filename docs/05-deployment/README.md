@@ -118,8 +118,12 @@ For deployments on Railway (or any Docker-native cloud platform), images are bui
 ### Build & Push to Docker Hub
 
 ```bash
-# Build frontend (empty NEXT_PUBLIC_API_URL = same-origin deployment)
-docker build --target runner -f apps/frontend/Dockerfile -t yourusername/aria-frontend:latest .
+# Build frontend with explicit backend URL for direct API calls (Railway, etc.)
+docker build \
+  --target runner \
+  -f apps/frontend/Dockerfile \
+  --build-arg NEXT_PUBLIC_API_URL=https://backend.aria.pivotr.in \
+  -t yourusername/aria-frontend:latest .
 
 # Build backend
 docker build --target runner -f apps/backend/Dockerfile -t yourusername/aria-backend:latest .
@@ -161,20 +165,22 @@ The frontend supports two deployment modes:
 
 | Mode | `NEXT_PUBLIC_API_URL` | Use Case |
 |------|----------------------|----------|
-| **Same-origin** (default) | `""` (empty) | Frontend and backend on same domain, proxied by Railway |
-| **Separate domain** | `https://api.example.com` | Backend hosted separately |
+| **Separate domain** (default) | `https://api.example.com` | Backend hosted separately |
+| **Same-origin** | `""` (empty) | Frontend and backend on same domain, proxied by Caddy/Nginx |
 
-For Railway, use same-origin mode (empty `NEXT_PUBLIC_API_URL`) if Railway provides a single domain that routes both frontend and backend requests.
+For Railway, set `NEXT_PUBLIC_API_URL` at **build time** via `--build-arg` to the backend's public URL (e.g., `https://backend.aria.pivotr.in`). Railway does not provide built-in proxy routing.
 
-### Proxy Routing for Same-Origin
+### Proxy Routing for Same-Origin (Docker/Caddy Only)
 
-When using same-origin mode, ensure your platform routes:
+When using same-origin mode (empty `NEXT_PUBLIC_API_URL`), ensure your platform routes:
 
 | Path | Destination |
 |------|-------------|
 | `/api/*` | Backend service (port 3001) |
 | `/trpc/*` | Backend service (port 3001) |
 | `/*` | Frontend service (port 3000) |
+
+> **Note:** This routing is handled automatically by Caddy in Docker Compose deployments. Railway deployments should use the separate domain mode with `NEXT_PUBLIC_API_URL` set at build time.
 
 ## Installation Scripts
 

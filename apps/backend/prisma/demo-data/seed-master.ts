@@ -32,6 +32,7 @@ import {
 } from "./data.js";
 import { zeroPad } from "./helpers.js";
 import { seedAssetMasterData } from "./seed-asset-master.js";
+import { seedFiscalYearData } from "./seed-fiscal-year.js";
 
 /** IDs collected during seeding, passed to transaction seeder */
 export interface MasterIds {
@@ -518,6 +519,9 @@ export async function seedMasterData(
 			allowRenameAttributeValue: true,
 		},
 	});
+
+	// ── 12. Fiscal Year & Company (master data for all apps) ────
+	await seedFiscalYearData(prisma, config);
 
 	// ── 13. Asset Management Masters ───────────────────────────────
 	await seedAssetMasterData(prisma, config, ids);
