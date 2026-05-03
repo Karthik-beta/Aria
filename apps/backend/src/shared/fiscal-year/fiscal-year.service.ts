@@ -1,6 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { addYears } from "date-fns";
-import type { PrismaService } from "../prisma.service";
+// biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
+import { PrismaService } from "../prisma.service";
 
 export interface FiscalYearInfo {
 	id: string;
