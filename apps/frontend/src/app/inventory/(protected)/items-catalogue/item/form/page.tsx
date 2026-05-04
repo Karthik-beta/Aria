@@ -410,13 +410,13 @@ function ItemFormContent() {
 									</div>
 									<div className="space-y-1.5">
 										<Label className="text-xs font-medium text-muted-foreground">
-											Item Name <span className="text-red-500">*</span>
+											Item Name <span className="text-destructive">*</span>
 										</Label>
 										<Input
 											{...form.register("name")}
 											className={cn(
 												"h-10",
-												form.formState.errors.name && "border-red-500",
+												form.formState.errors.name && "border-destructive",
 											)}
 										/>
 										{form.formState.errors.name && (
@@ -427,7 +427,7 @@ function ItemFormContent() {
 									</div>
 									<div className="space-y-1.5">
 										<Label className="text-xs font-medium text-muted-foreground">
-											Item Group <span className="text-red-500">*</span>
+											Item Group <span className="text-destructive">*</span>
 										</Label>
 										<Controller
 											name="itemGroupId"
@@ -517,7 +517,7 @@ function ItemFormContent() {
 									<div className="space-y-1.5">
 										<Label className="text-xs font-medium text-muted-foreground">
 											Default Unit of Measure{" "}
-											<span className="text-red-500">*</span>
+											<span className="text-destructive">*</span>
 										</Label>
 										<Controller
 											name="defaultUnitOfMeasureId"
@@ -749,7 +749,7 @@ function ItemFormContent() {
 															</th>
 															<th className="px-4 py-2 w-16">No.</th>
 															<th className="px-4 py-2">
-																UOM <span className="text-red-500">*</span>
+																UOM <span className="text-destructive">*</span>
 															</th>
 															<th className="px-4 py-2">Conversion Factor</th>
 															<th className="px-4 py-2 w-10">
@@ -834,7 +834,7 @@ function ItemFormContent() {
 																				<Button
 																					variant="ghost"
 																					size="icon"
-																					className="h-6 w-6 text-red-500"
+																					className="h-6 w-6 text-destructive"
 																					onClick={() => {
 																						const convs =
 																							form.getValues(
@@ -871,7 +871,7 @@ function ItemFormContent() {
 												Add Row
 											</Button>
 											{form.formState.errors.uomConversions && (
-												<p className="text-xs text-red-500 mt-2">
+												<p className="text-xs text-destructive mt-2">
 													{
 														form.formState.errors.uomConversions
 															.message as string
@@ -1027,7 +1027,8 @@ function ItemFormContent() {
 														</th>
 														<th className="px-4 py-2 w-16">No.</th>
 														<th className="px-4 py-2">
-															Barcode <span className="text-red-500">*</span>
+															Barcode{" "}
+															<span className="text-destructive">*</span>
 														</th>
 														<th className="px-4 py-2">Barcode Type</th>
 														<th className="px-4 py-2">UOM</th>
@@ -1085,7 +1086,7 @@ function ItemFormContent() {
 																	<Button
 																		variant="ghost"
 																		size="icon"
-																		className="h-6 w-6 text-red-500"
+																		className="h-6 w-6 text-destructive"
 																		onClick={() => {
 																			const barcodes =
 																				form.getValues("barcodes") ?? [];
@@ -1151,13 +1152,13 @@ function ItemFormContent() {
 															<th className="px-4 py-2">Check in (group)</th>
 															<th className="px-4 py-2">
 																Request for{" "}
-																<span className="text-red-500">*</span>
+																<span className="text-destructive">*</span>
 															</th>
 															<th className="px-4 py-2">Re-order Level</th>
 															<th className="px-4 py-2">Re-order Qty</th>
 															<th className="px-4 py-2">
 																Material Request Type{" "}
-																<span className="text-red-500">*</span>
+																<span className="text-destructive">*</span>
 															</th>
 															<th className="px-4 py-2 w-10">
 																<Settings className="h-3 w-3" />
@@ -1234,7 +1235,7 @@ function ItemFormContent() {
 																			<Button
 																				variant="ghost"
 																				size="icon"
-																				className="h-6 w-6 text-red-500"
+																				className="h-6 w-6 text-destructive"
 																				onClick={() => {
 																					const settings =
 																						form.getValues("reorderSettings") ??

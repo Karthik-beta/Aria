@@ -123,14 +123,14 @@ docker build \
   --target runner \
   -f apps/frontend/Dockerfile \
   --build-arg NEXT_PUBLIC_API_URL=https://backend.aria.pivotr.in \
-  -t yourusername/aria-frontend:latest .
+  -t karth1k/aria-frontend:latest .
 
 # Build backend
-docker build --target runner -f apps/backend/Dockerfile -t yourusername/aria-backend:latest .
+docker build --target runner -f apps/backend/Dockerfile -t karth1k/aria-backend:latest .
 
 # Push to Docker Hub
-docker push yourusername/aria-frontend:latest
-docker push yourusername/aria-backend:latest
+docker push karth1k/aria-frontend:latest
+docker push karth1k/aria-backend:latest
 ```
 
 ### Railway Service Configuration
