@@ -1,6 +1,13 @@
 /**
  * Asset Form Page — create and edit assets
  * Reads ?id= param to switch between create/edit modes.
+ *
+ * When "Calculate Depreciation" is enabled, depreciation detail fields appear
+ * in the Options section, mirroring ERPNext behavior:
+ * - Depreciation Method, Total Number of Depreciations, Frequency (months),
+ *   Expected Value After Useful Life, and Depreciation Start Date become visible.
+ * - When an Asset Category is selected, depreciation defaults from the category
+ *   are auto-populated into the form fields.
  */
 
 "use client";
@@ -9,7 +16,7 @@ import { Asset } from "@aria/types";
 import { ChevronDown, Loader2 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
-import { Controller, useForm } from "react-hook-form";
+import { Controller, useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -44,6 +51,7 @@ import {
 } from "@/components/ui/select";
 import { getToastMessage } from "@/lib/errors";
 import { trpc } from "@/lib/trpc";
+import { DEPRECIATION_METHOD_OPTIONS } from "../../asset-category/asset-category.schema";
 
 type AssetFormValues = {
 	assetName: string;
@@ -62,6 +70,11 @@ type AssetFormValues = {
 	netPurchaseAmount: string;
 	purchaseDate: string;
 	availableForUseDate: string;
+	depreciationMethod: string;
+	totalNumberOfDepreciations: string;
+	frequencyOfDepreciation: string;
+	expectedValueAfterUsefulLife: string;
+	depreciationStartDate: string;
 };
 
 const defaultValues: AssetFormValues = {
@@ -81,6 +94,11 @@ const defaultValues: AssetFormValues = {
 	netPurchaseAmount: "",
 	purchaseDate: "",
 	availableForUseDate: "",
+	depreciationMethod: "",
+	totalNumberOfDepreciations: "",
+	frequencyOfDepreciation: "",
+	expectedValueAfterUsefulLife: "",
+	depreciationStartDate: "",
 };
 
 export default function AssetFormPage() {
@@ -111,6 +129,20 @@ export default function AssetFormPage() {
 
 	const form = useForm<AssetFormValues>({ defaultValues });
 
+	const watchedCalculateDepreciation = useWatch({
+		control: form.control,
+		name: "calculateDepreciation",
+	});
+
+	const watchedAssetCategoryId = useWatch({
+		control: form.control,
+		name: "assetCategoryId",
+	});
+
+	const selectedCategory = categories.find(
+		(c) => c.id === watchedAssetCategoryId,
+	);
+
 	React.useEffect(() => {
 		if (!rawAsset) return;
 		form.reset({
@@ -138,8 +170,57 @@ export default function AssetFormPage() {
 				? (new Date(rawAsset.availableForUseDate).toISOString().split("T")[0] ??
 					"")
 				: "",
+			depreciationMethod: rawAsset.depreciationMethod ?? "",
+			totalNumberOfDepreciations:
+				rawAsset.totalNumberOfDepreciations != null
+					? String(rawAsset.totalNumberOfDepreciations)
+					: "",
+			frequencyOfDepreciation:
+				rawAsset.frequencyOfDepreciation != null
+					? String(rawAsset.frequencyOfDepreciation)
+					: "",
+			expectedValueAfterUsefulLife:
+				rawAsset.expectedValueAfterUsefulLife != null
+					? String(rawAsset.expectedValueAfterUsefulLife)
+					: "",
+			depreciationStartDate: "",
 		});
 	}, [rawAsset, form]);
+
+	React.useEffect(() => {
+		if (selectedCategory && !isEdit) {
+			if (selectedCategory.depreciationMethod) {
+				form.setValue(
+					"depreciationMethod",
+					selectedCategory.depreciationMethod,
+					{
+						shouldDirty: true,
+					},
+				);
+			}
+			if (selectedCategory.totalNumberOfDepreciations != null) {
+				form.setValue(
+					"totalNumberOfDepreciations",
+					String(selectedCategory.totalNumberOfDepreciations),
+					{ shouldDirty: true },
+				);
+			}
+			if (selectedCategory.frequencyOfDepreciation != null) {
+				form.setValue(
+					"frequencyOfDepreciation",
+					String(selectedCategory.frequencyOfDepreciation),
+					{ shouldDirty: true },
+				);
+			}
+			if (selectedCategory.expectedValueAfterUsefulLife != null) {
+				form.setValue(
+					"expectedValueAfterUsefulLife",
+					String(selectedCategory.expectedValueAfterUsefulLife),
+					{ shouldDirty: true },
+				);
+			}
+		}
+	}, [selectedCategory, isEdit, form]);
 
 	const createMutation = trpc.asset.createAsset.useMutation({
 		onSuccess: (newAsset) => {
@@ -188,6 +269,16 @@ export default function AssetFormPage() {
 			availableForUseDate: values.availableForUseDate
 				? new Date(values.availableForUseDate)
 				: null,
+			depreciationMethod: values.depreciationMethod || null,
+			totalNumberOfDepreciations: values.totalNumberOfDepreciations
+				? parseInt(values.totalNumberOfDepreciations, 10)
+				: null,
+			frequencyOfDepreciation: values.frequencyOfDepreciation
+				? parseInt(values.frequencyOfDepreciation, 10)
+				: null,
+			expectedValueAfterUsefulLife: values.expectedValueAfterUsefulLife
+				? Number(values.expectedValueAfterUsefulLife)
+				: null,
 		};
 
 		if (isEdit && assetId) {
@@ -218,9 +309,6 @@ export default function AssetFormPage() {
 		}
 	});
 
-	const selectedCategory = categories.find(
-		(c) => c.id === form.watch("assetCategoryId"),
-	);
 	const selectedLocation = locations.find(
 		(l) => l.id === form.watch("locationId"),
 	);
@@ -514,10 +602,107 @@ export default function AssetFormPage() {
 									/>
 								)}
 							/>
-							<Label htmlFor="calculateDepreciation">
+							<Label htmlFor="calculateDepreciation" className="cursor-pointer">
 								Calculate Depreciation
 							</Label>
 						</div>
+
+						{watchedCalculateDepreciation && (
+							<div className="mt-4 space-y-4 rounded-md border bg-muted/30 p-4">
+								<h3 className="text-sm font-medium">Depreciation Details</h3>
+
+								<div className="grid gap-4 sm:grid-cols-2">
+									{/* Depreciation Method */}
+									<div className="space-y-2">
+										<Label htmlFor="depreciationMethod">
+											Depreciation Method
+										</Label>
+										<Controller
+											name="depreciationMethod"
+											control={form.control}
+											render={({ field }) => (
+												<Select
+													value={field.value}
+													onValueChange={field.onChange}
+												>
+													<SelectTrigger
+														className="h-10"
+														id="depreciationMethod"
+													>
+														<SelectValue placeholder="Select method" />
+													</SelectTrigger>
+													<SelectContent>
+														{DEPRECIATION_METHOD_OPTIONS.map((opt) => (
+															<SelectItem key={opt.value} value={opt.value}>
+																{opt.label}
+															</SelectItem>
+														))}
+													</SelectContent>
+												</Select>
+											)}
+										/>
+									</div>
+
+									{/* Total Number of Depreciations */}
+									<div className="space-y-2">
+										<Label htmlFor="totalNumberOfDepreciations">
+											Total Number of Depreciations
+										</Label>
+										<Input
+											id="totalNumberOfDepreciations"
+											type="number"
+											min={1}
+											step={1}
+											placeholder="e.g. 60"
+											{...form.register("totalNumberOfDepreciations")}
+										/>
+									</div>
+
+									{/* Frequency of Depreciation */}
+									<div className="space-y-2">
+										<Label htmlFor="frequencyOfDepreciation">
+											Frequency of Depreciation (Months)
+										</Label>
+										<Input
+											id="frequencyOfDepreciation"
+											type="number"
+											min={1}
+											step={1}
+											placeholder="e.g. 12"
+											{...form.register("frequencyOfDepreciation")}
+										/>
+									</div>
+
+									{/* Expected Value After Useful Life */}
+									<div className="space-y-2">
+										<Label htmlFor="expectedValueAfterUsefulLife">
+											Expected Value After Useful Life
+										</Label>
+										<Input
+											id="expectedValueAfterUsefulLife"
+											type="number"
+											min={0}
+											step="0.01"
+											placeholder="e.g. 1000"
+											{...form.register("expectedValueAfterUsefulLife")}
+										/>
+									</div>
+
+									{/* Depreciation Start Date */}
+									<div className="space-y-2">
+										<Label htmlFor="depreciationStartDate">
+											Depreciation Start Date
+										</Label>
+										<Input
+											id="depreciationStartDate"
+											type="date"
+											{...form.register("depreciationStartDate")}
+										/>
+									</div>
+								</div>
+							</div>
+						)}
+
 						<div className="flex items-center gap-2">
 							<Controller
 								name="isFullyDepreciated"
@@ -530,7 +715,9 @@ export default function AssetFormPage() {
 									/>
 								)}
 							/>
-							<Label htmlFor="isFullyDepreciated">Fully Depreciated</Label>
+							<Label htmlFor="isFullyDepreciated" className="cursor-pointer">
+								Fully Depreciated
+							</Label>
 						</div>
 						<div className="flex items-center gap-2">
 							<Controller
@@ -544,7 +731,9 @@ export default function AssetFormPage() {
 									/>
 								)}
 							/>
-							<Label htmlFor="maintenanceRequired">Maintenance Required</Label>
+							<Label htmlFor="maintenanceRequired" className="cursor-pointer">
+								Maintenance Required
+							</Label>
 						</div>
 					</CardContent>
 				</Card>
