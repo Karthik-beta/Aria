@@ -182,7 +182,7 @@ export default function UnitOfMeasurePage() {
 							Disabled
 						</span>
 					) : (
-						<span className="inline-flex items-center rounded-full bg-[#e8f4ff] px-2.5 py-0.5 text-xs font-medium text-[#1976d2]">
+						<span className="inline-flex items-center rounded-full bg-blue-100 dark:bg-blue-900/30 px-2.5 py-0.5 text-xs font-medium text-blue-700 dark:text-blue-300">
 							Enabled
 						</span>
 					),

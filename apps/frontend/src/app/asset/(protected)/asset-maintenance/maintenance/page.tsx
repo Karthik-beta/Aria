@@ -307,9 +307,12 @@ export default function AssetMaintenancePage() {
 				cell: ({ row }) => {
 					const status = getOverallStatus(row.original.tasks);
 					const statusStyles: Record<Asset.AssetMaintenanceStatus, string> = {
-						PLANNED: "bg-green-100 text-green-700",
-						OVERDUE: "bg-red-100 text-red-700",
-						CANCELLED: "bg-gray-100 text-gray-600",
+						PLANNED:
+							"bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300",
+						OVERDUE:
+							"bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300",
+						CANCELLED:
+							"bg-muted text-muted-foreground dark:bg-muted dark:text-muted-foreground",
 					};
 					return (
 						<span

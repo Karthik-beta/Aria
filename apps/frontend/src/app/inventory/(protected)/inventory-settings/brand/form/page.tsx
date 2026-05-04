@@ -176,15 +176,11 @@ function BrandFormContent() {
 	const title = isEditMode && brand ? brand.name : "New Brand";
 
 	return (
-		<div className="flex min-h-screen flex-col bg-[#f8f9fa] px-4 py-4 md:px-6">
+		<div className="flex min-h-screen flex-col bg-muted px-4 py-4 md:px-6">
 			<div className="mb-4 flex items-center justify-between">
 				<div className="flex items-center gap-3">
 					<h1 className="text-3xl font-bold tracking-tight">{title}</h1>
-					{hasUnsavedChanges && (
-						<Badge className="border-none bg-[#fff3e0] text-[#fb8c00] hover:bg-[#fff3e0]">
-							Not Saved
-						</Badge>
-					)}
+					{hasUnsavedChanges && <Badge variant="secondary">Not Saved</Badge>}
 				</div>
 				<Button
 					onClick={form.handleSubmit(onSubmit)}

@@ -330,7 +330,7 @@ function ItemFormContent() {
 	}
 
 	return (
-		<div className="flex min-h-screen flex-col bg-[#f8f9fa]">
+		<div className="flex min-h-screen flex-col bg-muted">
 			{/* Main Content Area */}
 			<div className="flex-1 px-8 py-4">
 				{/* Header with Actions */}
@@ -339,11 +339,7 @@ function ItemFormContent() {
 						<h1 className="text-2xl font-bold tracking-tight">
 							{isEditMode ? item?.name : "New Item"}
 						</h1>
-						{hasUnsavedChanges && (
-							<Badge className="bg-[#fff3e0] text-[#fb8c00] border-none font-medium shadow-none hover:bg-[#fff3e0]">
-								Not Saved
-							</Badge>
-						)}
+						{hasUnsavedChanges && <Badge variant="secondary">Not Saved</Badge>}
 					</div>
 					<div className="flex items-center gap-2">
 						<Button variant="outline" size="sm" className="h-8">
@@ -374,7 +370,7 @@ function ItemFormContent() {
 				</div>
 
 				{/* Form Container */}
-				<div className="rounded-lg border bg-white shadow-sm overflow-hidden">
+				<div className="rounded-lg border bg-card shadow-sm overflow-hidden">
 					<Tabs defaultValue="details" className="w-full">
 						{/* Tab List */}
 						<div className="border-b px-4 py-2">
@@ -396,24 +392,24 @@ function ItemFormContent() {
 								{/* Left Column */}
 								<div className="space-y-6">
 									<div className="space-y-1.5">
-										<Label className="text-xs font-medium text-gray-500">
-											Item Code <span className="text-red-500">*</span>
+										<Label className="text-xs font-medium text-muted-foreground">
+											Item Code <span className="text-destructive">*</span>
 										</Label>
 										<Input
 											{...form.register("code")}
 											className={cn(
 												"h-10",
-												form.formState.errors.code && "border-red-500",
+												form.formState.errors.code && "border-destructive",
 											)}
 										/>
 										{form.formState.errors.code && (
-											<p className="text-xs text-red-500">
+											<p className="text-xs text-destructive">
 												{form.formState.errors.code.message}
 											</p>
 										)}
 									</div>
 									<div className="space-y-1.5">
-										<Label className="text-xs font-medium text-gray-500">
+										<Label className="text-xs font-medium text-muted-foreground">
 											Item Name <span className="text-red-500">*</span>
 										</Label>
 										<Input
@@ -424,13 +420,13 @@ function ItemFormContent() {
 											)}
 										/>
 										{form.formState.errors.name && (
-											<p className="text-xs text-red-500">
+											<p className="text-xs text-destructive">
 												{form.formState.errors.name.message}
 											</p>
 										)}
 									</div>
 									<div className="space-y-1.5">
-										<Label className="text-xs font-medium text-gray-500">
+										<Label className="text-xs font-medium text-muted-foreground">
 											Item Group <span className="text-red-500">*</span>
 										</Label>
 										<Controller
@@ -481,7 +477,7 @@ function ItemFormContent() {
 										/>
 									</div>
 									<div className="space-y-1.5">
-										<Label className="text-xs font-medium text-gray-500">
+										<Label className="text-xs font-medium text-muted-foreground">
 											Tax Code
 										</Label>
 										<Input {...form.register("taxCode")} className="h-10" />
@@ -519,7 +515,7 @@ function ItemFormContent() {
 										</div>
 									</div>
 									<div className="space-y-1.5">
-										<Label className="text-xs font-medium text-gray-500">
+										<Label className="text-xs font-medium text-muted-foreground">
 											Default Unit of Measure{" "}
 											<span className="text-red-500">*</span>
 										</Label>
@@ -636,7 +632,7 @@ function ItemFormContent() {
 													Has Variants
 												</Label>
 											</div>
-											<p className="pl-7.5 text-[11px] text-gray-500 leading-tight">
+											<p className="pl-7.5 text-[11px] text-muted-foreground leading-tight">
 												If this item has variants, then it cannot be selected in
 												sales orders etc.
 											</p>
@@ -644,7 +640,7 @@ function ItemFormContent() {
 									</div>
 
 									<div className="space-y-1.5 pt-2">
-										<Label className="text-xs font-medium text-gray-500">
+										<Label className="text-xs font-medium text-muted-foreground">
 											Opening Stock
 										</Label>
 										<Input
@@ -656,7 +652,7 @@ function ItemFormContent() {
 										/>
 									</div>
 									<div className="space-y-1.5">
-										<Label className="text-xs font-medium text-gray-500">
+										<Label className="text-xs font-medium text-muted-foreground">
 											Valuation Rate
 										</Label>
 										<Input
@@ -668,7 +664,7 @@ function ItemFormContent() {
 										/>
 									</div>
 									<div className="space-y-1.5">
-										<Label className="text-xs font-medium text-gray-500">
+										<Label className="text-xs font-medium text-muted-foreground">
 											Standard Selling Rate
 										</Label>
 										<Input
@@ -689,7 +685,7 @@ function ItemFormContent() {
 										/>
 										<Label
 											htmlFor="isFixedAsset"
-											className="text-sm font-normal text-gray-700 cursor-pointer"
+											className="text-sm font-normal text-foreground cursor-pointer"
 										>
 											Is Fixed Asset
 										</Label>
@@ -704,13 +700,13 @@ function ItemFormContent() {
 									onOpenChange={setDescriptionOpen}
 								>
 									<CollapsibleTrigger asChild>
-										<div className="flex h-12 cursor-pointer items-center px-8 hover:bg-gray-50">
-											<span className="text-sm font-semibold text-gray-900">
+										<div className="flex h-12 cursor-pointer items-center px-8 hover:bg-muted">
+											<span className="text-sm font-semibold text-foreground">
 												Description
 											</span>
 											<ChevronDown
 												className={cn(
-													"ml-1 h-4 w-4 text-gray-400 transition-transform",
+													"ml-1 h-4 w-4 text-muted-foreground transition-transform",
 													descriptionOpen && "rotate-180",
 												)}
 											/>
@@ -718,7 +714,7 @@ function ItemFormContent() {
 									</CollapsibleTrigger>
 									<CollapsibleContent className="px-8 pb-8 pt-2">
 										<textarea
-											className="w-full min-h-[160px] p-4 rounded border bg-[#fcfcfc] outline-none text-sm resize-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+											className="w-full min-h-[160px] p-4 rounded border bg-background outline-none text-sm resize-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
 											placeholder="Enter detailed description..."
 											value={form.watch("description")}
 											onChange={(e) =>
@@ -730,13 +726,13 @@ function ItemFormContent() {
 
 								<Collapsible open={uomOpen} onOpenChange={setUomOpen}>
 									<CollapsibleTrigger asChild>
-										<div className="flex h-12 cursor-pointer items-center px-8 hover:bg-gray-50">
-											<span className="text-sm font-semibold text-gray-900">
+										<div className="flex h-12 cursor-pointer items-center px-8 hover:bg-muted">
+											<span className="text-sm font-semibold text-foreground">
 												Units of Measure
 											</span>
 											<ChevronDown
 												className={cn(
-													"ml-1 h-4 w-4 text-gray-400 transition-transform",
+													"ml-1 h-4 w-4 text-muted-foreground transition-transform",
 													uomOpen && "rotate-180",
 												)}
 											/>
@@ -746,7 +742,7 @@ function ItemFormContent() {
 										<div className="space-y-4">
 											<div className="rounded border overflow-hidden">
 												<table className="w-full text-xs text-left">
-													<thead className="bg-[#f8f9fa] border-b text-gray-500">
+													<thead className="bg-muted border-b text-muted-foreground">
 														<tr>
 															<th className="px-4 py-2 w-10">
 																<Checkbox className="h-3 w-3 rounded" />
@@ -766,7 +762,7 @@ function ItemFormContent() {
 															<tr>
 																<td
 																	colSpan={5}
-																	className="p-12 text-center bg-white"
+																	className="p-12 text-center bg-card"
 																>
 																	<div className="flex flex-col items-center gap-2 opacity-50">
 																		<List className="h-6 w-6" />
@@ -797,7 +793,7 @@ function ItemFormContent() {
 																					render={({ field }) => (
 																						<select
 																							{...field}
-																							className="h-8 w-full rounded border border-gray-200 bg-transparent text-xs focus:ring-1 focus:ring-ring"
+																							className="h-8 w-full rounded border border-input bg-transparent text-xs focus:ring-1 focus:ring-ring"
 																						>
 																							<option value="">
 																								Select UOM
@@ -863,7 +859,7 @@ function ItemFormContent() {
 											<Button
 												variant="outline"
 												size="sm"
-												className="h-8 px-4 text-xs font-medium border-gray-300"
+												className="h-8 px-4 text-xs font-medium border-input"
 												onClick={() => {
 													const convs = form.getValues("uomConversions") || [];
 													form.setValue("uomConversions", [
@@ -900,7 +896,7 @@ function ItemFormContent() {
 									</h3>
 									<div className="grid grid-cols-2 gap-x-12 gap-y-6">
 										<div className="space-y-1.5">
-											<Label className="text-xs font-medium text-gray-500">
+											<Label className="text-xs font-medium text-muted-foreground">
 												Shelf Life In Days
 											</Label>
 											<Input
@@ -912,7 +908,7 @@ function ItemFormContent() {
 											/>
 										</div>
 										<div className="space-y-1.5">
-											<Label className="text-xs font-medium text-gray-500">
+											<Label className="text-xs font-medium text-muted-foreground">
 												Warranty Period (in days)
 											</Label>
 											<Input
@@ -924,7 +920,7 @@ function ItemFormContent() {
 											/>
 										</div>
 										<div className="space-y-1.5">
-											<Label className="text-xs font-medium text-gray-500">
+											<Label className="text-xs font-medium text-muted-foreground">
 												End of Life
 											</Label>
 											<Input
@@ -949,7 +945,7 @@ function ItemFormContent() {
 											/>
 										</div>
 										<div className="space-y-1.5">
-											<Label className="text-xs font-medium text-gray-500">
+											<Label className="text-xs font-medium text-muted-foreground">
 												Weight Per Unit
 											</Label>
 											<Input
@@ -962,7 +958,7 @@ function ItemFormContent() {
 											/>
 										</div>
 										<div className="space-y-1.5">
-											<Label className="text-xs font-medium text-gray-500">
+											<Label className="text-xs font-medium text-muted-foreground">
 												Default Material Request Type
 											</Label>
 											<select
@@ -981,13 +977,13 @@ function ItemFormContent() {
 											</select>
 										</div>
 										<div className="space-y-1.5">
-											<Label className="text-xs font-medium text-gray-500">
+											<Label className="text-xs font-medium text-muted-foreground">
 												Weight UOM
 											</Label>
 											<Input {...form.register("weightUom")} className="h-10" />
 										</div>
 										<div className="space-y-1.5">
-											<Label className="text-xs font-medium text-gray-500">
+											<Label className="text-xs font-medium text-muted-foreground">
 												Valuation Method
 											</Label>
 											<select
@@ -1019,12 +1015,12 @@ function ItemFormContent() {
 								<div className="border-t pt-8">
 									<h3 className="text-sm font-semibold mb-6">Barcodes</h3>
 									<div className="space-y-4">
-										<Label className="text-xs font-medium text-gray-500">
+										<Label className="text-xs font-medium text-muted-foreground">
 											Barcodes
 										</Label>
 										<div className="rounded border overflow-hidden">
 											<table className="w-full text-xs text-left">
-												<thead className="bg-[#f8f9fa] border-b text-gray-500">
+												<thead className="bg-muted border-b text-muted-foreground">
 													<tr>
 														<th className="px-4 py-2 w-10">
 															<Checkbox className="h-3 w-3 rounded" />
@@ -1045,7 +1041,7 @@ function ItemFormContent() {
 														<tr>
 															<td
 																colSpan={6}
-																className="p-12 text-center bg-white"
+																className="p-12 text-center bg-card"
 															>
 																<div className="flex flex-col items-center gap-2 opacity-50">
 																	<List className="h-6 w-6" />
@@ -1111,7 +1107,7 @@ function ItemFormContent() {
 										<Button
 											variant="outline"
 											size="sm"
-											className="h-8 px-4 text-xs font-medium border-gray-300"
+											className="h-8 px-4 text-xs font-medium border-input"
 											onClick={() => {
 												const barcodes = form.getValues("barcodes") || [];
 												form.setValue("barcodes", [
@@ -1128,25 +1124,25 @@ function ItemFormContent() {
 								<div className="border-t pt-2">
 									<Collapsible defaultOpen={false}>
 										<CollapsibleTrigger asChild>
-											<div className="flex h-12 cursor-pointer items-center hover:bg-gray-50">
-												<span className="text-sm font-semibold text-gray-900">
+											<div className="flex h-12 cursor-pointer items-center hover:bg-muted">
+												<span className="text-sm font-semibold text-foreground">
 													Auto re-order
 												</span>
-												<ChevronDown className="ml-1 h-4 w-4 text-gray-400" />
+												<ChevronDown className="ml-1 h-4 w-4 text-muted-foreground" />
 											</div>
 										</CollapsibleTrigger>
 										<CollapsibleContent className="pb-8 pt-4 space-y-4">
 											<div className="space-y-1">
-												<p className="text-[13px] text-gray-600">
+												<p className="text-[13px] text-foreground">
 													Reorder level based on Warehouse
 												</p>
-												<p className="text-[11px] text-gray-500">
+												<p className="text-[11px] text-muted-foreground">
 													Will also apply for variants unless overridden
 												</p>
 											</div>
 											<div className="rounded border overflow-hidden">
 												<table className="w-full text-xs text-left">
-													<thead className="bg-[#f8f9fa] border-b text-gray-500">
+													<thead className="bg-muted border-b text-muted-foreground">
 														<tr>
 															<th className="px-4 py-2 w-10">
 																<Checkbox className="h-3 w-3 rounded" />
@@ -1173,7 +1169,7 @@ function ItemFormContent() {
 															<tr>
 																<td
 																	colSpan={8}
-																	className="p-12 text-center bg-white"
+																	className="p-12 text-center bg-card"
 																>
 																	<div className="flex flex-col items-center gap-2 opacity-50">
 																		<List className="h-6 w-6" />
@@ -1263,7 +1259,7 @@ function ItemFormContent() {
 											<Button
 												variant="outline"
 												size="sm"
-												className="h-8 px-4 text-xs font-medium border-gray-300"
+												className="h-8 px-4 text-xs font-medium border-input"
 												onClick={() => {
 													const settings =
 														form.getValues("reorderSettings") || [];
@@ -1287,11 +1283,11 @@ function ItemFormContent() {
 								<div className="border-t pt-2">
 									<Collapsible defaultOpen={false}>
 										<CollapsibleTrigger asChild>
-											<div className="flex h-12 cursor-pointer items-center hover:bg-gray-50">
-												<span className="text-sm font-semibold text-gray-900">
+											<div className="flex h-12 cursor-pointer items-center hover:bg-muted">
+												<span className="text-sm font-semibold text-foreground">
 													Serial Nos and Batches
 												</span>
-												<ChevronDown className="ml-1 h-4 w-4 text-gray-400" />
+												<ChevronDown className="ml-1 h-4 w-4 text-muted-foreground" />
 											</div>
 										</CollapsibleTrigger>
 										<CollapsibleContent className="pb-8 pt-4">

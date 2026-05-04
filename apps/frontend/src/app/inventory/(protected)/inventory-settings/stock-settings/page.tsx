@@ -207,7 +207,7 @@ export default function StockSettingsPage() {
 	const isSubmitting = updateMutation.isPending;
 
 	return (
-		<div className="flex min-h-screen flex-col bg-[#f8f9fa] px-4 py-4 md:px-6">
+		<div className="flex min-h-screen flex-col bg-muted px-4 py-4 md:px-6">
 			<div className="mb-4 flex items-center justify-between gap-4">
 				<div className="space-y-1">
 					<div className="flex items-center gap-3">

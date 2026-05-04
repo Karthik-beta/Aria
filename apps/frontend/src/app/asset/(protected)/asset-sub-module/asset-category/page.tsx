@@ -230,7 +230,7 @@ export default function AssetCategoryPage() {
 				),
 				cell: ({ row }) =>
 					row.original.nonDepreciableCategory ? (
-						<span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
+						<span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground dark:bg-muted dark:text-muted-foreground">
 							Non-Depreciable
 						</span>
 					) : (
@@ -253,8 +253,8 @@ export default function AssetCategoryPage() {
 						className={cn(
 							"inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
 							row.original.enableCwipAccounting
-								? "bg-blue-100 text-blue-700"
-								: "bg-gray-100 text-gray-500",
+								? "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300"
+								: "bg-muted text-muted-foreground dark:bg-muted dark:text-muted-foreground",
 						)}
 					>
 						{row.original.enableCwipAccounting ? "Enabled" : "Disabled"}

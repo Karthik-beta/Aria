@@ -37,15 +37,19 @@ import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
 
 const STATUS_BADGE_CLASS: Record<string, string> = {
-	DRAFT: "bg-gray-100 text-gray-700",
-	SUBMITTED: "bg-blue-100 text-blue-700",
-	CANCELLED: "bg-red-100 text-red-700",
-	PARTIALLY_DEPRECIATED: "bg-amber-100 text-amber-700",
-	FULLY_DEPRECIATED: "bg-orange-100 text-orange-700",
-	SOLD: "bg-purple-100 text-purple-700",
-	SCRAPPED: "bg-zinc-100 text-zinc-700",
-	IN_MAINTENANCE: "bg-yellow-100 text-yellow-800",
-	OUT_OF_ORDER: "bg-red-200 text-red-800",
+	DRAFT:
+		"bg-muted text-muted-foreground dark:bg-muted dark:text-muted-foreground",
+	SUBMITTED: "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300",
+	CANCELLED: "bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300",
+	PARTIALLY_DEPRECIATED:
+		"bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300",
+	FULLY_DEPRECIATED:
+		"bg-orange-100 text-orange-700 dark:bg-orange-900/50 dark:text-orange-300",
+	SOLD: "bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300",
+	SCRAPPED: "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300",
+	IN_MAINTENANCE:
+		"bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300",
+	OUT_OF_ORDER: "bg-red-200 text-red-800 dark:bg-red-900/50 dark:text-red-300",
 };
 
 function formatStatus(status: string): string {
@@ -141,7 +145,8 @@ export default function AssetDetailPage() {
 	}
 
 	const badgeClass =
-		STATUS_BADGE_CLASS[asset.status] ?? "bg-gray-100 text-gray-700";
+		STATUS_BADGE_CLASS[asset.status] ??
+		"bg-muted text-muted-foreground dark:bg-muted dark:text-muted-foreground";
 
 	return (
 		<>

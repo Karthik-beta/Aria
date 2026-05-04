@@ -211,7 +211,7 @@ function ItemGroupFormContent() {
 	}
 
 	return (
-		<div className="flex min-h-screen flex-col bg-[#f8f9fa]">
+		<div className="flex min-h-screen flex-col bg-muted">
 			<div className="flex-1 px-8 py-4">
 				{/* Header */}
 				<div className="mb-6 flex items-center justify-between">
@@ -219,11 +219,7 @@ function ItemGroupFormContent() {
 						<h1 className="text-2xl font-bold tracking-tight">
 							{isEditMode ? itemGroup?.groupName : "New Item Group"}
 						</h1>
-						{hasUnsavedChanges && (
-							<Badge className="bg-[#fff3e0] text-[#fb8c00] border-none font-medium shadow-none hover:bg-[#fff3e0]">
-								Not Saved
-							</Badge>
-						)}
+						{hasUnsavedChanges && <Badge variant="secondary">Not Saved</Badge>}
 					</div>
 					<div className="flex items-center gap-2">
 						<Button variant="outline" size="sm" className="h-8" asChild>
@@ -236,7 +232,7 @@ function ItemGroupFormContent() {
 						</Button>
 						<Button
 							size="sm"
-							className="h-8 px-6 bg-black hover:bg-gray-800 text-white"
+							className="h-8 px-6 bg-primary hover:bg-primary/90 text-primary-foreground"
 							onClick={form.handleSubmit(onSubmit)}
 							disabled={isSubmitting}
 						>
@@ -250,33 +246,33 @@ function ItemGroupFormContent() {
 				</div>
 
 				{/* Main Form Content */}
-				<div className="rounded-lg border bg-white shadow-sm overflow-hidden p-6 space-y-8">
+				<div className="rounded-lg border bg-card shadow-sm overflow-hidden p-6 space-y-8">
 					{/* General Settings */}
 					<section className="space-y-4">
-						<h2 className="text-base font-semibold text-gray-900">
+						<h2 className="text-base font-semibold text-foreground">
 							General Settings
 						</h2>
 
 						<div className="space-y-1.5">
-							<Label className="text-xs font-medium text-gray-500">
-								Item Group Name <span className="text-red-500">*</span>
+							<Label className="text-xs font-medium text-muted-foreground">
+								Item Group Name <span className="text-destructive">*</span>
 							</Label>
 							<Input
 								{...form.register("groupName")}
 								className={cn(
-									"h-10 bg-gray-50/50",
-									form.formState.errors.groupName && "border-red-500",
+									"h-10 bg-muted",
+									form.formState.errors.groupName && "border-destructive",
 								)}
 							/>
 							{form.formState.errors.groupName && (
-								<p className="text-xs text-red-500">
+								<p className="text-xs text-destructive">
 									{form.formState.errors.groupName.message}
 								</p>
 							)}
 						</div>
 
 						<div className="space-y-1.5">
-							<Label className="text-xs font-medium text-gray-500">
+							<Label className="text-xs font-medium text-muted-foreground">
 								Parent Item Group
 							</Label>
 							<Controller
@@ -292,7 +288,7 @@ function ItemGroupFormContent() {
 												variant="outline"
 												role="combobox"
 												className={cn(
-													"h-10 w-full justify-between bg-gray-50/50 font-normal",
+													"h-10 w-full justify-between bg-muted font-normal",
 													!selectedParentGroup && "text-muted-foreground",
 												)}
 											>
@@ -368,7 +364,7 @@ function ItemGroupFormContent() {
 									Is Group
 								</Label>
 							</div>
-							<p className="text-[11px] text-gray-500">
+							<p className="text-[11px] text-muted-foreground">
 								Only leaf nodes are allowed in transaction
 							</p>
 						</div>
@@ -376,22 +372,24 @@ function ItemGroupFormContent() {
 
 					{/* Defaults Section */}
 					<section className="space-y-4">
-						<h2 className="text-base font-semibold text-gray-900">Defaults</h2>
+						<h2 className="text-base font-semibold text-foreground">
+							Defaults
+						</h2>
 
 						<div className="space-y-2">
-							<Label className="text-xs font-medium text-gray-500">
+							<Label className="text-xs font-medium text-muted-foreground">
 								Item Group Defaults
 							</Label>
 							<div className="rounded border overflow-hidden">
 								<table className="w-full text-xs text-left">
-									<thead className="bg-[#f8f9fa] border-b uppercase text-[10px] tracking-wider text-gray-500">
+									<thead className="bg-muted border-b uppercase text-[10px] tracking-wider text-muted-foreground">
 										<tr>
 											<th className="px-4 py-2 w-10">
 												<Checkbox className="h-3 w-3 rounded" />
 											</th>
 											<th className="px-4 py-2 w-16">No.</th>
 											<th className="px-4 py-2">
-												Company <span className="text-red-500">*</span>
+												Company <span className="text-destructive">*</span>
 											</th>
 											<th className="px-4 py-2">Default Warehouse</th>
 											<th className="px-4 py-2">Default Price List</th>
@@ -400,13 +398,13 @@ function ItemGroupFormContent() {
 											</th>
 										</tr>
 									</thead>
-									<tbody className="bg-white">
+									<tbody className="bg-card">
 										{defaultFields.length === 0 ? (
 											<tr>
 												<td colSpan={6} className="p-12 text-center">
 													<div className="flex flex-col items-center gap-2 opacity-40">
-														<List className="h-8 w-8 text-gray-300" />
-														<span className="text-[11px] text-gray-500">
+														<List className="h-8 w-8 text-muted-foreground" />
+														<span className="text-[11px] text-muted-foreground">
 															No Data
 														</span>
 													</div>
@@ -416,12 +414,12 @@ function ItemGroupFormContent() {
 											defaultFields.map((field, index) => (
 												<tr
 													key={field.id}
-													className="border-b last:border-0 hover:bg-gray-50/50"
+													className="border-b last:border-0 hover:bg-muted"
 												>
 													<td className="px-4 py-2">
 														<Checkbox className="h-3 w-3 rounded" />
 													</td>
-													<td className="px-4 py-2 text-gray-500">
+													<td className="px-4 py-2 text-muted-foreground">
 														{index + 1}
 													</td>
 													<td className="px-4 py-2">
@@ -451,7 +449,7 @@ function ItemGroupFormContent() {
 														<Button
 															variant="ghost"
 															size="icon"
-															className="h-6 w-6 text-gray-400 hover:text-red-500"
+															className="h-6 w-6 text-muted-foreground hover:text-destructive"
 															onClick={() => removeDefault(index)}
 														>
 															<Trash2 className="h-3 w-3" />
@@ -467,7 +465,7 @@ function ItemGroupFormContent() {
 								type="button"
 								variant="outline"
 								size="sm"
-								className="h-7 px-3 text-xs bg-gray-50 hover:bg-gray-100 border-gray-200 text-gray-600 shadow-sm"
+								className="h-7 px-3 text-xs bg-muted hover:bg-muted border-input text-muted-foreground shadow-sm"
 								onClick={() =>
 									appendDefault({
 										company: "",

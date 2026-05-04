@@ -252,8 +252,8 @@ export default function LocationPage() {
 						className={cn(
 							"inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
 							row.original.isGroup
-								? "bg-blue-100 text-blue-700"
-								: "bg-gray-100 text-gray-600",
+								? "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300"
+								: "bg-muted text-muted-foreground dark:bg-muted dark:text-muted-foreground",
 						)}
 					>
 						{getLocationGroupLabel(row.original.isGroup)}

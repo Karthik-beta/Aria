@@ -363,7 +363,7 @@ export default function WarehousePage() {
 	const tableResetKey = `${statusFilter}-${groupFilter}-${deferredSearch}-${deferredCompany}`;
 
 	return (
-		<div className="flex min-h-screen flex-col bg-[#f8f9fa] px-4 py-4 md:px-6">
+		<div className="flex min-h-screen flex-col bg-muted px-4 py-4 md:px-6">
 			<div className="mb-4 flex items-center justify-between">
 				<div>
 					<h1 className="text-3xl font-bold tracking-tight">Warehouse</h1>

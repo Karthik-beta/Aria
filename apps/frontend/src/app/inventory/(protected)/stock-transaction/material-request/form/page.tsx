@@ -275,7 +275,7 @@ function MaterialRequestFormContent() {
 	}
 
 	return (
-		<div className="flex min-h-screen flex-col bg-[#f8f9fa] px-4 py-4 md:px-6">
+		<div className="flex min-h-screen flex-col bg-muted px-4 py-4 md:px-6">
 			<div className="mb-4 flex items-center justify-between">
 				<div className="flex items-center gap-3">
 					<h1 className="text-3xl font-bold tracking-tight">
@@ -298,7 +298,7 @@ function MaterialRequestFormContent() {
 				</Button>
 			</div>
 
-			<div className="rounded-lg border bg-white shadow-sm overflow-hidden">
+			<div className="rounded-lg border bg-card shadow-sm overflow-hidden">
 				<Tabs defaultValue="details" className="w-full">
 					<div className="border-b px-4 py-2">
 						<TabsList>

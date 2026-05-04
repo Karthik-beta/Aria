@@ -257,7 +257,7 @@ export default function EditItemPage() {
 										<input
 											type="checkbox"
 											id="disabled"
-											className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+											className="h-4 w-4 rounded border-input text-primary focus:ring-primary"
 											{...form.register("disabled")}
 											disabled={updateMutation.isPending}
 										/>
@@ -272,7 +272,7 @@ export default function EditItemPage() {
 										<input
 											type="checkbox"
 											id="maintainStock"
-											className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+											className="h-4 w-4 rounded border-input text-primary focus:ring-primary"
 											{...form.register("maintainStock")}
 											disabled={updateMutation.isPending}
 										/>
@@ -287,7 +287,7 @@ export default function EditItemPage() {
 										<input
 											type="checkbox"
 											id="allowAlternateItem"
-											className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+											className="h-4 w-4 rounded border-input text-primary focus:ring-primary"
 											{...form.register("allowAlternateItem")}
 											disabled={updateMutation.isPending}
 										/>
