@@ -25,11 +25,11 @@ export default async function HomePage() {
 	});
 	const isSuperAdmin = authorizationHasRole(authorization, "super_admin");
 	const accessibleKeys = Object.keys(authorization.apps ?? {});
-	const orderedKeys = APP_PRIORITY.filter((key) =>
-		authorizationCanAccessApp(authorization, key),
+	const orderedKeys = APP_PRIORITY.filter((_key) =>
+		authorizationCanAccessApp(),
 	);
-	const firstAccessible = accessibleKeys.find((key) =>
-		authorizationCanAccessApp(authorization, key),
+	const firstAccessible = accessibleKeys.find((_key) =>
+		authorizationCanAccessApp(),
 	);
 	const fallbackKey =
 		orderedKeys[0] ||

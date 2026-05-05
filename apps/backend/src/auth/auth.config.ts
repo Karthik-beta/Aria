@@ -2,12 +2,29 @@ import { randomBytes } from "node:crypto";
 import { logger } from "@aria/utils";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { betterAuth } from "better-auth/minimal";
+import { createAccessControl } from "better-auth/plugins/access";
+import { admin } from "better-auth/plugins/admin";
+import { defaultStatements } from "better-auth/plugins/admin/access";
 import { customSession } from "better-auth/plugins/custom-session";
 import { username } from "better-auth/plugins/username";
 import { prismaClient } from "../shared/prisma-client.js";
 
 // Use the shared Prisma client singleton
 const prisma = prismaClient;
+
+const ac = createAccessControl({
+	user: [
+		"create",
+		"list",
+		"set-role",
+		"ban",
+		"impersonate",
+		"delete",
+		"set-password",
+		"update",
+	],
+	session: ["list", "revoke"],
+} as const);
 
 // 1. Get the comma-separated string from the .env file
 const frontendUrlsRaw = process.env.FRONTEND_URL || "http://localhost:3000";
@@ -141,6 +158,47 @@ export const auth = betterAuth({
 					session,
 				};
 			}
+		}),
+		admin({
+			ac,
+			roles: {
+				admin: ac.newRole({
+					user: [
+						"create",
+						"list",
+						"set-role",
+						"ban",
+						"impersonate",
+						"delete",
+						"set-password",
+						"update",
+					],
+					session: ["list", "revoke"],
+				}),
+				user: ac.newRole({
+					user: [],
+					session: [],
+				}),
+				super_admin: ac.newRole({
+					user: [
+						"create",
+						"list",
+						"set-role",
+						"ban",
+						"impersonate",
+						"delete",
+						"set-password",
+						"update",
+					],
+					session: ["list", "revoke"],
+				}),
+			},
+			adminRoles: ["admin", "super_admin"],
+			defaultRole: "user",
+			defaultBanReason: "Policy violation",
+			adminUserIds: process.env.DEFAULT_ADMIN_USER_ID
+				? [process.env.DEFAULT_ADMIN_USER_ID]
+				: [],
 		}),
 	],
 

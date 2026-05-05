@@ -29,14 +29,6 @@ const mockUsers = [
 		department: "IT",
 		passwordChangedAt: "2025-01-01T00:00:00Z",
 		mustChangePassword: false,
-		userRoles: [
-			{
-				id: "ur1",
-				role: { id: "r1", key: "admin", name: "Admin", level: 100 },
-				appKey: null,
-				assignedAt: "2025-01-01T00:00:00Z",
-			},
-		],
 	},
 	{
 		id: "user-2",
@@ -50,7 +42,6 @@ const mockUsers = [
 		department: null,
 		passwordChangedAt: null,
 		mustChangePassword: true,
-		userRoles: [],
 	},
 	{
 		id: "user-3",
@@ -64,7 +55,6 @@ const mockUsers = [
 		department: "HR",
 		passwordChangedAt: null,
 		mustChangePassword: false,
-		userRoles: [],
 	},
 ];
 

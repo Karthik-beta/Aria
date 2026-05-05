@@ -25,6 +25,10 @@ export type ProtectedContext = TrpcContextType & {
 		image?: string | null;
 		username?: string | null;
 		displayUsername?: string | null;
+		role?: string | null;
+		banned?: boolean;
+		banReason?: string | null;
+		banExpires?: Date | null;
 	};
 	session: {
 		id: string;

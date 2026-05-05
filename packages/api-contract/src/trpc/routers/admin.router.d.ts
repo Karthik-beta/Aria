@@ -12,7 +12,6 @@ export declare const adminRouter: import("@trpc/server").TRPCBuiltRouter<
 				page?: number | undefined;
 				limit?: number | undefined;
 				search?: string | undefined;
-				appKey?: string | undefined;
 				isActive?: boolean | undefined;
 			};
 			output: {
@@ -24,44 +23,8 @@ export declare const adminRouter: import("@trpc/server").TRPCBuiltRouter<
 					username: string | null;
 					department: string | null;
 					displayName: string | null;
-					isActive: boolean;
 					mustChangePassword: boolean;
 					passwordChangedAt: Date | null;
-					supervisedApps: ({
-						app: {
-							createdAt: Date;
-							updatedAt: Date;
-							name: string;
-							isActive: boolean;
-							description: string | null;
-							appKey: string;
-						};
-					} & {
-						id: string;
-						createdAt: Date;
-						appKey: string;
-						supervisorUserId: string;
-						createdBy: string | null;
-					})[];
-					userRoles: ({
-						role: {
-							key: string;
-							id: string;
-							createdAt: Date;
-							updatedAt: Date;
-							name: string;
-							description: string | null;
-							level: number;
-							isSystem: boolean;
-						};
-					} & {
-						id: string;
-						createdAt: Date;
-						userId: string;
-						appKey: string | null;
-						roleId: string;
-						assignedBy: string | null;
-					})[];
 				}[];
 				pagination: {
 					page: number;
@@ -91,87 +54,6 @@ export declare const adminRouter: import("@trpc/server").TRPCBuiltRouter<
 				userId: string;
 			};
 			output: {
-				supervisedApps: ({
-					app: {
-						createdAt: Date;
-						updatedAt: Date;
-						name: string;
-						isActive: boolean;
-						description: string | null;
-						appKey: string;
-					};
-				} & {
-					id: string;
-					createdAt: Date;
-					appKey: string;
-					supervisorUserId: string;
-					createdBy: string | null;
-				})[];
-				teamMemberships: ({
-					team: {
-						id: string;
-						createdAt: Date;
-						updatedAt: Date;
-						name: string;
-						appKey: string;
-						managerUserId: string | null;
-					};
-				} & {
-					id: string;
-					createdAt: Date;
-					userId: string;
-					teamId: string;
-				})[];
-				managedTeams: {
-					id: string;
-					name: string;
-				}[];
-				userRoles: ({
-					role: {
-						rolePermissions: ({
-							permission: {
-								key: string;
-								id: string;
-								createdAt: Date;
-								updatedAt: Date;
-								name: string;
-								description: string | null;
-							};
-						} & {
-							roleId: string;
-							permissionId: string;
-						})[];
-					} & {
-						key: string;
-						id: string;
-						createdAt: Date;
-						updatedAt: Date;
-						name: string;
-						description: string | null;
-						level: number;
-						isSystem: boolean;
-					};
-				} & {
-					id: string;
-					createdAt: Date;
-					userId: string;
-					appKey: string | null;
-					roleId: string;
-					assignedBy: string | null;
-				})[];
-				manager: {
-					email: string;
-					id: string;
-					name: string;
-					displayName: string | null;
-				} | null;
-				subordinates: {
-					email: string;
-					id: string;
-					name: string;
-					displayName: string | null;
-				}[];
-			} & {
 				email: string;
 				id: string;
 				createdAt: Date;
@@ -183,7 +65,10 @@ export declare const adminRouter: import("@trpc/server").TRPCBuiltRouter<
 				displayUsername: string | null;
 				department: string | null;
 				displayName: string | null;
-				isActive: boolean;
+				role: string;
+				banned: boolean;
+				banReason: string | null;
+				banExpires: Date | null;
 				managerId: string | null;
 				mustChangePassword: boolean;
 				passwordChangedAt: Date | null;
@@ -198,8 +83,6 @@ export declare const adminRouter: import("@trpc/server").TRPCBuiltRouter<
 				displayName?: string | undefined;
 				department?: string | undefined;
 				managerId?: string | undefined;
-				roleKeys?: string[] | undefined;
-				appKey?: string | undefined;
 				passwordStrategy?: "auto" | "manual" | undefined;
 				password?: string | undefined;
 				providedPassword?: string | undefined;
@@ -207,26 +90,6 @@ export declare const adminRouter: import("@trpc/server").TRPCBuiltRouter<
 			};
 			output: {
 				user: {
-					userRoles: ({
-						role: {
-							key: string;
-							id: string;
-							createdAt: Date;
-							updatedAt: Date;
-							name: string;
-							description: string | null;
-							level: number;
-							isSystem: boolean;
-						};
-					} & {
-						id: string;
-						createdAt: Date;
-						userId: string;
-						appKey: string | null;
-						roleId: string;
-						assignedBy: string | null;
-					})[];
-				} & {
 					email: string;
 					id: string;
 					createdAt: Date;
@@ -238,7 +101,10 @@ export declare const adminRouter: import("@trpc/server").TRPCBuiltRouter<
 					displayUsername: string | null;
 					department: string | null;
 					displayName: string | null;
-					isActive: boolean;
+					role: string;
+					banned: boolean;
+					banReason: string | null;
+					banExpires: Date | null;
 					managerId: string | null;
 					mustChangePassword: boolean;
 					passwordChangedAt: Date | null;
@@ -251,7 +117,6 @@ export declare const adminRouter: import("@trpc/server").TRPCBuiltRouter<
 		checkUsernameAvailability: import("@trpc/server").TRPCQueryProcedure<{
 			input: {
 				username: string;
-				appKey?: string | undefined;
 			};
 			output: {
 				available: boolean;
@@ -272,7 +137,6 @@ export declare const adminRouter: import("@trpc/server").TRPCBuiltRouter<
 		sendPasswordReset: import("@trpc/server").TRPCMutationProcedure<{
 			input: {
 				userId: string;
-				appKey?: string | undefined;
 				redirectTo?: string | undefined;
 			};
 			output: {
@@ -300,7 +164,10 @@ export declare const adminRouter: import("@trpc/server").TRPCBuiltRouter<
 				displayUsername: string | null;
 				department: string | null;
 				displayName: string | null;
-				isActive: boolean;
+				role: string;
+				banned: boolean;
+				banReason: string | null;
+				banExpires: Date | null;
 				managerId: string | null;
 				mustChangePassword: boolean;
 				passwordChangedAt: Date | null;
@@ -323,7 +190,10 @@ export declare const adminRouter: import("@trpc/server").TRPCBuiltRouter<
 				displayUsername: string | null;
 				department: string | null;
 				displayName: string | null;
-				isActive: boolean;
+				role: string;
+				banned: boolean;
+				banReason: string | null;
+				banExpires: Date | null;
 				managerId: string | null;
 				mustChangePassword: boolean;
 				passwordChangedAt: Date | null;
@@ -346,7 +216,10 @@ export declare const adminRouter: import("@trpc/server").TRPCBuiltRouter<
 				displayUsername: string | null;
 				department: string | null;
 				displayName: string | null;
-				isActive: boolean;
+				role: string;
+				banned: boolean;
+				banReason: string | null;
+				banExpires: Date | null;
 				managerId: string | null;
 				mustChangePassword: boolean;
 				passwordChangedAt: Date | null;
@@ -362,74 +235,9 @@ export declare const adminRouter: import("@trpc/server").TRPCBuiltRouter<
 			};
 			meta: object;
 		}>;
-		assignRole: import("@trpc/server").TRPCMutationProcedure<{
-			input: {
-				userId: string;
-				roleKey: string;
-				appKey?: string | undefined;
-			};
-			output: {
-				id: string;
-				createdAt: Date;
-				userId: string;
-				appKey: string | null;
-				roleId: string;
-				assignedBy: string | null;
-			};
-			meta: object;
-		}>;
-		revokeRole: import("@trpc/server").TRPCMutationProcedure<{
-			input: {
-				userId: string;
-				roleKey: string;
-				appKey?: string | undefined;
-			};
-			output: {
-				success: boolean;
-			};
-			meta: object;
-		}>;
-		assignSupervisor: import("@trpc/server").TRPCMutationProcedure<{
-			input: {
-				userId: string;
-				appKey: string;
-			};
-			output: {
-				id: string;
-				createdAt: Date;
-				appKey: string;
-				supervisorUserId: string;
-				createdBy: string | null;
-			};
-			meta: object;
-		}>;
-		revokeSupervisor: import("@trpc/server").TRPCMutationProcedure<{
-			input: {
-				userId: string;
-				appKey: string;
-			};
-			output: {
-				success: boolean;
-			};
-			meta: object;
-		}>;
 		listRoles: import("@trpc/server").TRPCQueryProcedure<{
 			input: void;
-			output: ({
-				rolePermissions: ({
-					permission: {
-						key: string;
-						id: string;
-						createdAt: Date;
-						updatedAt: Date;
-						name: string;
-						description: string | null;
-					};
-				} & {
-					roleId: string;
-					permissionId: string;
-				})[];
-			} & {
+			output: {
 				key: string;
 				id: string;
 				createdAt: Date;
@@ -438,7 +246,7 @@ export declare const adminRouter: import("@trpc/server").TRPCBuiltRouter<
 				description: string | null;
 				level: number;
 				isSystem: boolean;
-			})[];
+			}[];
 			meta: object;
 		}>;
 		getRole: import("@trpc/server").TRPCQueryProcedure<{
@@ -446,20 +254,6 @@ export declare const adminRouter: import("@trpc/server").TRPCBuiltRouter<
 				roleKey: string;
 			};
 			output: {
-				rolePermissions: ({
-					permission: {
-						key: string;
-						id: string;
-						createdAt: Date;
-						updatedAt: Date;
-						name: string;
-						description: string | null;
-					};
-				} & {
-					roleId: string;
-					permissionId: string;
-				})[];
-			} & {
 				key: string;
 				id: string;
 				createdAt: Date;
@@ -468,74 +262,6 @@ export declare const adminRouter: import("@trpc/server").TRPCBuiltRouter<
 				description: string | null;
 				level: number;
 				isSystem: boolean;
-			};
-			meta: object;
-		}>;
-		createRole: import("@trpc/server").TRPCMutationProcedure<{
-			input: {
-				key: string;
-				name: string;
-				level: number;
-				description?: string | undefined;
-				isSystem?: boolean | undefined;
-			};
-			output: {
-				key: string;
-				id: string;
-				createdAt: Date;
-				updatedAt: Date;
-				name: string;
-				description: string | null;
-				level: number;
-				isSystem: boolean;
-			};
-			meta: object;
-		}>;
-		updateRole: import("@trpc/server").TRPCMutationProcedure<{
-			input: {
-				roleKey: string;
-				name?: string | undefined;
-				description?: string | undefined;
-				level?: number | undefined;
-			};
-			output: {
-				key: string;
-				id: string;
-				createdAt: Date;
-				updatedAt: Date;
-				name: string;
-				description: string | null;
-				level: number;
-				isSystem: boolean;
-			};
-			meta: object;
-		}>;
-		deleteRole: import("@trpc/server").TRPCMutationProcedure<{
-			input: {
-				roleKey: string;
-			};
-			output: {
-				success: boolean;
-			};
-			meta: object;
-		}>;
-		assignPermissionToRole: import("@trpc/server").TRPCMutationProcedure<{
-			input: {
-				roleKey: string;
-				permissionKey: string;
-			};
-			output: {
-				success: boolean;
-			};
-			meta: object;
-		}>;
-		removePermissionFromRole: import("@trpc/server").TRPCMutationProcedure<{
-			input: {
-				roleKey: string;
-				permissionKey: string;
-			};
-			output: {
-				success: boolean;
 			};
 			meta: object;
 		}>;
@@ -546,7 +272,6 @@ export declare const adminRouter: import("@trpc/server").TRPCBuiltRouter<
 				  }
 				| undefined;
 			output: {
-				scope: "system" | "app" | "entity";
 				key: string;
 				id: string;
 				createdAt: Date;
@@ -554,62 +279,6 @@ export declare const adminRouter: import("@trpc/server").TRPCBuiltRouter<
 				name: string;
 				description: string | null;
 			}[];
-			meta: object;
-		}>;
-		getPermission: import("@trpc/server").TRPCQueryProcedure<{
-			input: {
-				permissionKey: string;
-			};
-			output: {
-				key: string;
-				id: string;
-				createdAt: Date;
-				updatedAt: Date;
-				name: string;
-				description: string | null;
-			};
-			meta: object;
-		}>;
-		createPermission: import("@trpc/server").TRPCMutationProcedure<{
-			input: {
-				key: string;
-				name: string;
-				scope: "system" | "app" | "entity";
-				description?: string | undefined;
-			};
-			output: {
-				key: string;
-				id: string;
-				createdAt: Date;
-				updatedAt: Date;
-				name: string;
-				description: string | null;
-			};
-			meta: object;
-		}>;
-		updatePermission: import("@trpc/server").TRPCMutationProcedure<{
-			input: {
-				permissionKey: string;
-				name?: string | undefined;
-				description?: string | undefined;
-			};
-			output: {
-				key: string;
-				id: string;
-				createdAt: Date;
-				updatedAt: Date;
-				name: string;
-				description: string | null;
-			};
-			meta: object;
-		}>;
-		deletePermission: import("@trpc/server").TRPCMutationProcedure<{
-			input: {
-				permissionKey: string;
-			};
-			output: {
-				success: boolean;
-			};
 			meta: object;
 		}>;
 		getAuditLogs: import("@trpc/server").TRPCQueryProcedure<{
@@ -633,8 +302,6 @@ export declare const adminRouter: import("@trpc/server").TRPCBuiltRouter<
 					subjectId: string | null;
 				}[];
 				total: number;
-				limit: number;
-				offset: number;
 			};
 			meta: object;
 		}>;

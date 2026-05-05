@@ -10,6 +10,10 @@ export interface AuthSessionUser {
 	image?: string | null;
 	mustChangePassword?: boolean;
 	passwordChangedAt?: string | Date | null;
+	role?: string | null;
+	banned?: boolean;
+	banReason?: string | null;
+	banExpires?: Date | null;
 }
 
 export interface AuthSessionRecord {

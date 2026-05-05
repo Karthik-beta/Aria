@@ -28,18 +28,16 @@ export function useAuth() {
 		const isAuthenticated = Boolean(session?.user);
 		const isActive = authorization.isActive;
 
-		const hasPermission = (permissionKey: string) =>
-			authorizationHasPermission(authorization, permissionKey);
-		const hasAnyPermission = (...permissionKeys: string[]) =>
-			authorizationHasAnyPermission(authorization, ...permissionKeys);
+		const hasPermission = (_permissionKey: string) =>
+			authorizationHasPermission();
+		const hasAnyPermission = (..._permissionKeys: string[]) =>
+			authorizationHasAnyPermission();
 		const hasRole = (roleKey: string) =>
 			authorizationHasRole(authorization, roleKey);
 		const hasAnyRole = (...roleKeys: string[]) =>
 			authorizationHasAnyRole(authorization, ...roleKeys);
-		const canAccessApp = (appKey: string) =>
-			authorizationCanAccessApp(authorization, appKey);
-		const isSupervisorOf = (appKey: string) =>
-			authorizationIsSupervisorOf(authorization, appKey);
+		const canAccessApp = (_appKey: string) => authorizationCanAccessApp();
+		const isSupervisorOf = (_appKey: string) => authorizationIsSupervisorOf();
 
 		return {
 			isAuthenticated,

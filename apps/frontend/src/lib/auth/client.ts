@@ -1,5 +1,6 @@
 import { logger } from "@aria/utils";
 import {
+	adminClient,
 	customSessionClient,
 	usernameClient,
 } from "better-auth/client/plugins";
@@ -17,7 +18,7 @@ const baseURL = process.env.NEXT_PUBLIC_API_URL
 
 export const authClient = createAuthClient({
 	baseURL,
-	plugins: [usernameClient(), customSessionClient()],
+	plugins: [usernameClient(), customSessionClient(), adminClient()],
 	fetchOptions: {
 		credentials: "include", // Include cookies for cross-site requests
 		onError(context) {

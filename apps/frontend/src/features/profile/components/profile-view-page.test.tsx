@@ -44,13 +44,11 @@ const authenticatedState: AuthState = {
 		},
 	},
 	authorization: {
-		roles: ["inventory_user", "super_admin"],
-		permissions: ["system:*"],
-		apps: {
-			inventory: { roles: ["admin"] },
-			asset: { roles: ["viewer"] },
-		},
-		supervisedApps: ["inventory"],
+		role: "inventory_user",
+		roles: ["inventory_user"],
+		permissions: [],
+		apps: {},
+		supervisedApps: [],
 		isActive: true,
 	},
 };
@@ -68,6 +66,7 @@ const unverifiedEmailState: AuthState = {
 const noRolesNoAppsState: AuthState = {
 	session: authenticatedState.session,
 	authorization: {
+		role: null,
 		roles: [],
 		permissions: [],
 		apps: {},
@@ -79,6 +78,7 @@ const noRolesNoAppsState: AuthState = {
 const noSessionState: AuthState = {
 	session: null,
 	authorization: {
+		role: null,
 		roles: [],
 		permissions: [],
 		apps: {},

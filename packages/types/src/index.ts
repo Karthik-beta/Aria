@@ -7102,16 +7102,18 @@ export const EXPORT_MAX_ROWS = 10_000;
  * Used by both frontend (client-side auth checks) and backend (guard enforcement).
  */
 export interface AuthorizationData {
-	/** Roles assigned to the user (e.g., ["admin", "user"]) */
-	roles: string[];
-	/** Permissions assigned to the user (e.g., ["entity:item:read", "app:inventory:write"]) */
-	permissions: string[];
-	/** Apps the user has access to, mapped by app key with role information */
-	apps: Record<string, { roles: string[] }>;
-	/** Apps that the user supervises (can access but doesn't own) */
-	supervisedApps: string[];
-	/** Whether the user account is currently active */
+	/** User's role from admin plugin (e.g., "user", "admin", "super_admin") */
+	role: string | null;
+	/** Whether the user account is active (derived from !banned) */
 	isActive: boolean;
+	/** @deprecated Roles are now flat (single role string), use role field instead */
+	roles: string[];
+	/** @deprecated No custom permissions anymore */
+	permissions: string[];
+	/** @deprecated No app-level access control */
+	apps: Record<string, { roles: string[] }>;
+	/** @deprecated No supervisor concept anymore */
+	supervisedApps: string[];
 }
 
 // ============================================================================

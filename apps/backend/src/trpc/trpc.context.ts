@@ -11,20 +11,6 @@ import { PrismaService } from "../shared/prisma.service";
 
 export type { TrpcContextType, TrpcRequestLike, TrpcResponseLike };
 
-declare module "@aria/api-contract" {
-	interface TrpcPrismaClient
-		extends Pick<
-			PrismaService,
-			| "role"
-			| "user"
-			| "userRole"
-			| "rolePermission"
-			| "teamMember"
-			| "appSupervisor"
-			| "app"
-		> {}
-}
-
 @Injectable()
 export class TrpcContext {
 	constructor(public readonly prisma: PrismaService) {}
@@ -42,7 +28,7 @@ export class TrpcContext {
 		return {
 			req,
 			res,
-			prisma: this.prisma satisfies TrpcPrismaClient,
+			prisma: this.prisma as unknown as TrpcPrismaClient,
 		};
 	}
 

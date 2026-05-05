@@ -3,7 +3,6 @@ import type { AssetRouter } from "../apps/asset/trpc/asset.router";
 import type { InventoryRouter } from "../apps/inventory/trpc/inventory.router";
 import { accountRouter } from "./routers/account.router";
 import type { AdminRouter } from "./routers/admin-router.service";
-import { authorizationRouter } from "./routers/authorization.router";
 import { router } from "./trpc";
 
 type InventoryAppRouter = ReturnType<InventoryRouter["getRouter"]>;
@@ -13,7 +12,6 @@ type AppRouterInput = {
 	inventory: InventoryAppRouter;
 	admin: AdminAppRouter;
 	asset: AssetAppRouter;
-	authorization: typeof authorizationRouter;
 	account: typeof accountRouter;
 };
 
@@ -28,7 +26,6 @@ function createAppRouterRecord(
 		inventory,
 		admin,
 		asset,
-		authorization: authorizationRouter,
 		account: accountRouter,
 	} satisfies ContractAppRouterRecord;
 
@@ -55,19 +52,13 @@ type AssertContractCompatibility = [
 	ContractAppRouterRecord["asset"] extends AppRouterInput["asset"]
 		? true
 		: never,
-	AppRouterInput["authorization"] extends ContractAppRouterRecord["authorization"]
-		? true
-		: never,
-	ContractAppRouterRecord["authorization"] extends AppRouterInput["authorization"]
-		? true
-		: never,
 	AppRouterInput["account"] extends ContractAppRouterRecord["account"]
 		? true
 		: never,
 	ContractAppRouterRecord["account"] extends AppRouterInput["account"]
 		? true
 		: never,
-] extends [true, true, true, true, true, true, true, true, true, true]
+] extends [true, true, true, true, true, true, true, true]
 	? true
 	: never;
 

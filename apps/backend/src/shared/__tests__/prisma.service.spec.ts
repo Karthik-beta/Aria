@@ -33,27 +33,9 @@ describe("PrismaService", () => {
 
 	describe("model accessors", () => {
 		const authModels = ["user", "session", "account", "verification"] as const;
-		const rbacModels = [
-			"role",
-			"permission",
-			"rolePermission",
-			"userRole",
-		] as const;
-		const appModels = [
-			"app",
-			"appSupervisor",
-			"team",
-			"teamMember",
-			"auditLog",
-		] as const;
 		const inventoryModels = ["inventoryItem", "warehouse", "serialNo"] as const;
 
-		const allModels = [
-			...authModels,
-			...rbacModels,
-			...appModels,
-			...inventoryModels,
-		];
+		const allModels = [...authModels, ...inventoryModels];
 
 		it.each(
 			allModels,

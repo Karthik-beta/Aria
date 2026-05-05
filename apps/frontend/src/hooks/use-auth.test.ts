@@ -30,19 +30,11 @@ const authenticatedState: AuthState = {
 		},
 	},
 	authorization: {
-		roles: ["inventory_user", "super_admin"],
-		permissions: [
-			"system:*",
-			"app:inventory:*",
-			"entity:inventory:item:read",
-			"entity:inventory:item:write",
-			"entity:crm:contact:*",
-		],
-		apps: {
-			inventory: { roles: ["admin"] },
-			crm: { roles: ["viewer"] },
-		},
-		supervisedApps: ["inventory"],
+		role: "inventory_user",
+		roles: ["inventory_user"],
+		permissions: [],
+		apps: {},
+		supervisedApps: [],
 		isActive: true,
 	},
 };
@@ -190,10 +182,11 @@ describe("useAuth", () => {
 				wrapper: createWrapper({
 					session: authenticatedState.session,
 					authorization: {
+						role: "admin",
 						roles: ["admin"],
-						permissions: ["system:*"],
-						apps: { inventory: { roles: ["admin"] } },
-						supervisedApps: ["inventory"],
+						permissions: [],
+						apps: {},
+						supervisedApps: [],
 						isActive: false,
 					},
 				}),

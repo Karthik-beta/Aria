@@ -6,14 +6,12 @@ import { buildSignInUrl, normalizeCallbackUrl } from "@/config/auth";
 import {
 	type AuthorizationData,
 	EMPTY_AUTHORIZATION_DATA,
-	isAuthorizationData,
 } from "@/lib/auth/authorization";
 import type {
 	AuthSessionData,
 	AuthSessionRecord,
 	AuthSessionUser,
 } from "@/lib/auth/types";
-import { tryFetchServerTrpcQuery } from "@/lib/trpc/server";
 
 function getBackendUrl() {
 	const baseUrl =
@@ -98,11 +96,14 @@ export const getAuthorizationData = cache(
 			return EMPTY_AUTHORIZATION_DATA;
 		}
 
-		const response = await tryFetchServerTrpcQuery<unknown>(
-			"authorization.getUserAuthorization",
-		);
-
-		return isAuthorizationData(response) ? response : EMPTY_AUTHORIZATION_DATA;
+		return {
+			isActive: !session.user.banned,
+			role: session.user.role ?? null,
+			roles: session.user.role ? [session.user.role] : [],
+			permissions: [],
+			apps: {},
+			supervisedApps: [],
+		};
 	},
 );
 
