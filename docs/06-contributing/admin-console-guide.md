@@ -1,6 +1,6 @@
 # Admin Console Guide
 
-The Admin Console provides a professional interface for managing users, roles, permissions, and viewing audit logs.
+The Admin Console provides a professional interface for managing users via the better-auth admin plugin. All operations are role-gated and require admin privileges.
 
 ## Features
 
@@ -16,8 +16,7 @@ The Admin Console provides a professional interface for managing users, roles, p
 - **List Users**: Searchable, paginated table with user information
 - **Create User**: Dialog form to add new users with email, name, display name, and department
 - **Edit User**: Update user details (name, display name, department)
-- **Manage Roles**: Assign/revoke roles with application context
-- **Enable/Disable**: Toggle user active status
+ - **Ban/Unban**: Disable/enable user account
 - **Delete User**: Remove users with confirmation dialog
 
 **Features:**
@@ -28,39 +27,6 @@ The Admin Console provides a professional interface for managing users, roles, p
 - Status indicators (Active/Inactive)
 - Dropdown actions menu for each user
 
-### 3. **Roles & Permissions** (`/admin/roles`)
-
-- **List Roles**: Card-based view of all roles with permission counts
-- **Create Role**: Add new roles with key, name, description, and level
-- **Edit Role**: Update role details
-- **Manage Permissions**: Assign/remove permissions organized by scope (system, app, entity)
-- **Delete Role**: Remove roles with confirmation (system roles protected)
-- **View Permissions**: Browse all permissions organized by scope
-
-**Features:**
-
-- Tabbed interface for roles and permissions
-- System role protection
-- Permission grouping by scope
-- Search and filter capabilities
-- Visual permission counts
-
-### 4. **Audit Logs** (`/admin/audit`)
-
-- **View Logs**: Comprehensive audit trail of authorization changes
-- **Filter**: By action type, search term
-- **Details View**: Expandable log details with full metadata
-- **Export**: Export logs (placeholder for implementation)
-
-**Features:**
-
-- Timestamp with calendar icons
-- Action type badges with color coding
-- Actor and subject information
-- Metadata preview with full details dialog
-- Search and filter controls
-- Adjustable results per page
-
 ## Component Structure
 
 ```
@@ -69,9 +35,9 @@ apps/frontend/src/app/admin/
 ├── page.tsx            # Dashboard with section cards
 ├── users/
 │   └── page.tsx        # User management
-├── roles/
+ ├── roles/          # (deprecated - roles managed via better-auth)
 │   └── page.tsx        # Roles & permissions
-└── audit/
+ └── audit/          # (deprecated - audit via better-auth)
     └── page.tsx        # Audit logs
 ```
 
@@ -99,23 +65,18 @@ apps/frontend/src/app/admin/
 
 ## API Integration
 
-### tRPC Admin Routes
+### better-auth Admin Plugin Routes
 
-- `admin.listUsers` - Get paginated users
-- `admin.createUser` - Create new user
-- `admin.updateUser` - Update user details
-- `admin.assignRole` - Assign role to user (uses roleKey)
-- `admin.revokeRole` - Remove role from user (uses roleKey)
-- `admin.disableUser` - Disable user account
-- `admin.enableUser` - Enable user account
-- `admin.listRoles` - Get all roles
-- `admin.createRole` - Create new role (requires key field)
-- `admin.updateRole` - Update role (uses roleKey)
-- `admin.deleteRole` - Delete role (uses roleKey)
-- `admin.assignPermissionToRole` - Assign permission to role
-- `admin.removePermissionFromRole` - Remove permission from role
-- `admin.listPermissions` - Get all permissions
-- `admin.getAuditLogs` - Get audit log entries
+The frontend uses the better-auth admin plugin client (`authClient.admin`) which provides these operations:
+
+- `listUsers` - Get paginated users with search and filtering
+- `createUser` - Create new user (with email, password, name, role)
+- `updateUser` - Update user details (name, display name, department)
+- `setRole` - Assign role to user
+- `banUser` / `unbanUser` - Disable/enable user account
+- `removeUser` - Delete user account
+- `revokeUserSessions` - Revoke all sessions for a user
+- `impersonateUser` / `stopImpersonating` - Admin impersonation (if configured)
 
 ## Styling & Theme
 
@@ -136,12 +97,10 @@ apps/frontend/src/app/admin/
 
 ## Future Enhancements
 
-- [ ] Add bulk operations (assign roles to multiple users)
+- [ ] Add bulk operations (enable/disable multiple users)
 - [ ] Implement advanced filtering with date ranges
-- [ ] Add CSV export for audit logs
-- [ ] User detail page with full activity history
-- [ ] Role templates for quick setup
-- [ ] Permission presets (read-only, editor, admin)
+- [ ] User detail page with session management
+- [ ] Export user data to CSV
 - [ ] Real-time notifications for changes
 - [ ] Advanced search with query builder
 
@@ -153,12 +112,11 @@ Run the admin console:
 bun --filter frontend dev
 ```
 
-Navigate to `/admin` (requires `system:user.read` permission)
+Navigate to `/admin` (requires admin or super_admin role)
 
 ## Notes
 
-- System roles cannot be edited or deleted
-- Role keys cannot be changed after creation
-- User emails cannot be changed after creation
-- All operations are permission-gated
-- Audit logs are automatically created for all changes
+- User emails cannot be changed after creation (better-auth limitation)
+- All operations are role-gated (require admin or super_admin role)
+- Password reset emails are sent via Resend (if configured)
+- Default admin user is created on startup via environment variables

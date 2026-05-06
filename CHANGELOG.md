@@ -17,7 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Docker Compose deployment with Caddy v2 reverse proxy
 - CI pipeline via GitHub Actions
 - Authentication via better-auth
-- RBAC/ABAC authorization system
+- Flat role model via better-auth admin plugin
 - Playwright E2E and Vitest unit test infrastructure
 - Prometheus + Grafana monitoring configuration
 - Inventory dashboard overview at `/inventory/dashboard/overview` with KPI cards, charts, and live snapshot data

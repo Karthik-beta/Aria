@@ -15,7 +15,7 @@ Aria ERP is a modern, modular B2B ERP suite built with TypeScript. It uses a Bun
 | **Frontend** | ✅ | Next.js 16 (App Router, Turbopack) |
 | **Database** | ✅ | PostgreSQL + Prisma 7 (PrismaPg adapter) |
 | **Authentication** | ✅ | better-auth (email/password, session-based) |
-| **Authorization** | ✅ | Custom RBAC (roles, permissions, apps) |
+| **Authorization** | ✅ | better-auth admin plugin (flat role model) |
 | **Inventory Module** | ✅ | Full CRUD — items, warehouses, stock, UoM, categories, brands, suppliers, purchase/sales/transfer orders, reports |
 | **Admin Console** | ✅ | User/role/permission management, audit logs |
 | **Monitoring** | ✅ | Prometheus + Grafana + cAdvisor + Node Exporter |
@@ -71,7 +71,7 @@ Aria ERP is a modern, modular B2B ERP suite built with TypeScript. It uses a Bun
 - Shared packages (`@aria/types`, `@aria/utils`, `@aria/api-contract`, `@aria/tsconfig`)
 - PostgreSQL integration with Prisma
 - better-auth authentication system
-- RBAC authorization system
+- Flat role model via better-auth admin plugin
 - Docker Compose deployment with Caddy reverse proxy
 - Monitoring stack (Prometheus, Grafana, cAdvisor, Node Exporter)
 - GitHub Actions CI pipeline
