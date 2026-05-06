@@ -1,16 +1,13 @@
 /**
- * E2E tests for app access flows.
+ * E2E tests for app navigation flows.
  *
- * Tests the protected route group architecture where app-level access
- * is enforced server-side via requireAppAccess(). Routes outside the
- * (protected) route group (e.g. access-denied pages) render without
- * triggering the app access check.
- *
- * These tests cover the "happy path" and structural correctness.
+ * All authenticated users can access all apps. The sidebar shows all four
+ * apps regardless of role. The profile page is accessible without any app
+ * context.
  */
 import { expect, test } from "@playwright/test";
 
-test.describe("App access – protected route group", () => {
+test.describe("App navigation – protected route group", () => {
 	const APPS = ["inventory", "asset", "crm", "hrms"] as const;
 
 	for (const app of APPS) {
@@ -25,19 +22,10 @@ test.describe("App access – protected route group", () => {
 			await page.goto(`/${app}`);
 			await expect(page).toHaveURL(new RegExp(`/${app}/dashboard/overview`));
 		});
-
-		test(`${app}: access-denied page renders without crash`, async ({
-			page,
-		}) => {
-			await page.goto(`/${app}/access-denied`);
-			await expect(
-				page.getByText(/access restricted|do not have permission/i),
-			).toBeVisible();
-		});
 	}
 });
 
-test.describe("App access – sidebar navigation", () => {
+test.describe("App navigation – sidebar", () => {
 	test("app switcher shows all four apps for super_admin session", async ({
 		page,
 	}) => {
@@ -52,7 +40,7 @@ test.describe("App access – sidebar navigation", () => {
 	});
 });
 
-test.describe("App access – profile page independence", () => {
+test.describe("App navigation – profile page", () => {
 	test("profile page is accessible without any app context", async ({
 		page,
 	}) => {

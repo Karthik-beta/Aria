@@ -16,7 +16,7 @@ apps/backend/prisma/
 ├── schema.prisma              # Database schema definition
 ├── prisma.config.ts           # Datasource configuration
 ├── migrations/                # Migration files
-├── seed-authorization.ts      # Seeds roles, permissions, apps
+├── seed-authorization.ts      # (removed — better-auth admin plugin handles roles)
 ├── seeds/                     # Additional seed scripts
 └── demo-data/                 # Demo data CLI + orchestrator + README
 ```
@@ -76,7 +76,7 @@ bun x --bun prisma migrate deploy
 bun x --bun prisma studio
 
 # Seed authorization data
-bun x tsx prisma/seed-authorization.ts
+# (Removed — better-auth admin plugin handles role seeding on startup)
 
 # Load inventory demo data
 bun prisma/demo-data/cli.ts load --scale=medium

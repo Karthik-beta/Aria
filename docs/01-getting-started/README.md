@@ -87,7 +87,7 @@ cd apps/backend
 bun x --bun prisma migrate dev
 
 # Seed authorization data (roles, permissions, default apps)
-bun x tsx prisma/seed-authorization.ts
+# (Removed — better-auth admin plugin handles role seeding on startup)
 
 # Load inventory demo data (optional)
 bun prisma/demo-data/cli.ts load --scale=medium
@@ -126,7 +126,6 @@ Aria/
 │   │   ├── src/
 │   │   │   ├── apps/         # Feature modules (inventory, etc.)
 │   │   │   ├── auth/         # better-auth integration
-│   │   │   ├── authorization/# RBAC/ABAC system
 │   │   │   ├── trpc/         # tRPC router assembly
 │   │   │   ├── shared/       # Shared services (Prisma, etc.)
 │   │   │   └── generated/    # Prisma-generated client

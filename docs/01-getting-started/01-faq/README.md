@@ -135,8 +135,8 @@ bun x --bun prisma migrate deploy
 ```bash
 cd apps/backend
 
-# Seed authorization (roles, permissions, apps)
-bun x tsx prisma/seed-authorization.ts
+# Seed authorization data
+# (Removed — better-auth admin plugin handles role seeding on startup)
 
 # Load inventory demo data
 bun prisma/demo-data/cli.ts load --scale=medium
