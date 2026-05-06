@@ -5,10 +5,6 @@ const mockInventoryRouter = {
 	getRouter: jest.fn().mockReturnValue({ inventory: true }),
 };
 
-const mockAdminRouter = {
-	getRouter: jest.fn().mockReturnValue({ admin: true }),
-};
-
 const mockAssetRouter = {
 	getRouter: jest.fn().mockReturnValue({ asset: true }),
 };
@@ -20,7 +16,6 @@ describe("TrpcService", () => {
 		jest.clearAllMocks();
 		service = new TrpcService(
 			mockInventoryRouter as never,
-			mockAdminRouter as never,
 			mockAssetRouter as never,
 		);
 	});
@@ -41,7 +36,6 @@ describe("TrpcService", () => {
 
 			expect(service.appRouter).not.toBeNull();
 			expect(mockInventoryRouter.getRouter).toHaveBeenCalledTimes(1);
-			expect(mockAdminRouter.getRouter).toHaveBeenCalledTimes(1);
 			expect(mockAssetRouter.getRouter).toHaveBeenCalledTimes(1);
 		});
 	});
