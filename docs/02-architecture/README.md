@@ -32,8 +32,7 @@ Aria ERP is a modular, type-safe B2B ERP suite built as a Bun + Turborepo monore
 │ ┌────────────────┐ │                 │  /admin            │
 │ │ tRPC Routers   │ │                 │  /asset            │
 │ │  • inventory   │ │  ◄── tRPC ──►  │  /crm              │
-│ │  • admin       │ │                 │  /hrms             │
-│ │  • authorization│ │                │  /inventory        │
+│ │  • admin       │ │                 │  /inventory        │
 │ │  • account     │ │                 └────────────────────┘
 │ └────────┬───────┘ │
 │          │         │
@@ -66,7 +65,7 @@ Aria ERP is a modular, type-safe B2B ERP suite built as a Bun + Turborepo monore
 | API | tRPC |
 | Database | PostgreSQL with Prisma 7 ORM (PrismaPg adapter) |
 | Authentication | better-auth (email+password, username plugin) |
-| Authorization | Custom RBAC + ABAC system |
+| Authorization | better-auth admin plugin (flat role model) |
 | Testing | Jest (unit + integration) |
 
 ### Frontend
@@ -108,18 +107,16 @@ apps/backend/
 │   ├── apps/             # Feature modules
 │   │   └── inventory/    # Inventory module (services, router, tests)
 │   ├── auth/             # better-auth configuration and service
-│   ├── authorization/    # RBAC/ABAC policy, role, permission services
 │   ├── trpc/             # tRPC router assembly and context
 │   │   ├── app-router.ts # Top-level router (inventory + admin + auth + account)
 │   │   ├── trpc.ts       # tRPC init, middleware, procedures
 │   │   ├── trpc.context.ts # Request context with Prisma
-│   │   └── routers/      # Admin, authorization, account routers
+│   │   └── routers/      # Admin, account routers
 │   ├── shared/           # Shared services (PrismaService, etc.)
 │   └── generated/        # Prisma-generated client
 ├── prisma/
 │   ├── schema.prisma     # Database schema (Prisma v7)
 │   ├── migrations/       # Database migrations
-│   ├── seed-authorization.ts # Seed roles, permissions, apps
 │   ├── seeds/            # Additional seed scripts
 │   └── demo-data/        # Demo data system (CLI + orchestrator + README)
 └── test/                 # Integration tests
@@ -130,7 +127,7 @@ apps/backend/
 - Feature modules live in `src/apps/<domain>`
 - Each module has dedicated services in a `services/` directory
 - A single tRPC router per module exposes all procedures
-- Cross-cutting concerns (auth, authorization) are at the top level
+- Cross-cutting concerns (auth) are at the top level
 
 #### Frontend (`apps/frontend/`)
 
@@ -138,7 +135,7 @@ Single Next.js application using App Router with route groups. Protected layouts
 
 | Route Group | Path | Description |
 |-------------|------|-------------|
-| Admin | `/admin` | User, role, permission management + audit logs |
+| Admin | `/admin` | User management |
 | Asset | `/asset` | Asset management and tracking |
 | CRM | `/crm` | Customer relationship management |
 | HRMS | `/hrms` | Human resources and payroll |

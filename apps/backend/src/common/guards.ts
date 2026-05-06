@@ -5,27 +5,6 @@ import {
 	Injectable,
 	UnauthorizedException,
 } from "@nestjs/common";
-import type { Reflector } from "@nestjs/core";
-
-const PUBLIC_ROUTE_KEY = "public_route";
-
-@Injectable()
-export class PublicRouteGuard implements CanActivate {
-	constructor(private reflector: Reflector) {}
-
-	canActivate(context: ExecutionContext): boolean {
-		const isPublic = this.reflector.getAllAndOverride<boolean>(
-			PUBLIC_ROUTE_KEY,
-			[context.getHandler(), context.getClass()],
-		);
-
-		if (isPublic) {
-			return true;
-		}
-
-		return true;
-	}
-}
 
 @Injectable()
 export class ActiveUserGuard implements CanActivate {

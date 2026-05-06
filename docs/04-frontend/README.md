@@ -27,7 +27,7 @@ apps/frontend/
 │   ├── app/
 │   │   ├── layout.tsx        # Root layout (TRPCProvider)
 │   │   ├── page.tsx          # Server redirect to the first accessible app
-│   │   ├── admin/            # Admin console (users, roles, audit)
+│   │   ├── admin/            # Admin console (users)
 │   │   ├── asset/            # Asset management module
 │   │   ├── auth/             # Authentication pages
 │   │   ├── crm/              # CRM module
@@ -52,7 +52,7 @@ The frontend is organized into modules, each as a route group under `src/app/`:
 
 | Module | Path | Description |
 |--------|------|-------------|
-| Admin | `/admin` | User management, roles & permissions, audit logs |
+| Admin | `/admin` | User management |
 | Asset | `/asset` | Asset management and tracking |
 | CRM | `/crm` | Customer relationship management |
 | HRMS | `/hrms` | Human resources and payroll |

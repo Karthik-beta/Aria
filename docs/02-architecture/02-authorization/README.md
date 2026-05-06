@@ -1,134 +1,84 @@
 # Authorization
 
-This document provides a comprehensive overview of the Aria ERP authorization system, which uses a hybrid Role-Based Access Control (RBAC) and Attribute-Based Access Control (ABAC) model.
-
 ## Overview
 
-The authorization system provides:
+Aria uses a **flat role model** provided by better-auth's admin plugin. There are no permission strings, no per-app access maps, and no team hierarchies. Every user has exactly one role stored in the `users.role` field.
 
-- Hierarchical roles with privilege levels
-- Fine-grained permissions with wildcard support
-- App-scoped access control
-- Team-based authorization with manager hierarchies
-- A supervisor model for delegated user creation
-- Comprehensive audit logging
-- Policy caching for performance
-- Server-hydrated authorization snapshots for client-side UI gating
+**Roles:**
+- `super_admin` — Full system access; default admin created on first startup
+- `admin` — Administrative control per app domain
+- `manager` — Manager-level access within scope
+- `user` — Standard employee access
+- `viewer` — Read-only access
 
 ## Architecture
 
 ### Authorization Flow
 
-Protected frontend layouts resolve authorization on the server and hydrate one snapshot into client components.
+Protected frontend layouts resolve auth on the server and hydrate a single snapshot into client components:
 
-1. A protected layout calls `requireProtectedAuthState()` from `apps/frontend/src/lib/auth/server.ts`.
-2. The server helper fetches the Better Auth session and, when a session exists, requests `authorization.getUserAuthorization` from the backend.
-3. The backend authorization router resolves roles, permissions, app access, supervised apps, and active status from the database.
-4. The layout wraps client components in `AuthStateProvider`.
-5. `useAuth()` and `protected-content.tsx` read the hydrated state for UI gating only. The backend remains the source of truth.
-
-### Service Layer
-
-The backend's authorization logic is encapsulated in a set of services:
-
-- **`PolicyService`**: The core RBAC+ABAC evaluation engine.
-- **`RoleService`**: CRUD operations for roles.
-- **`PermissionService`**: CRUD operations for permissions.
-- **`ScopeService`**: Ownership, team membership, and supervisor checks.
-- **`AuditService`**: Tamper-evident logging for all authorization changes.
-
-## Database Schema
-
-The authorization system adds several tables to the database:
-
-- **`roles`**: Role definitions with hierarchy levels.
-- **`permissions`**: Fine-grained permission definitions.
-- **`role_permissions`**: A many-to-many mapping between roles and permissions.
-- **`user_roles`**: User role assignments, with optional app scoping.
-- **`apps`**: Application definitions.
-- **`app_supervisors`**: Manager supervision per app.
-- **`teams`**: Team definitions with managers.
-- **`team_members`**: Team membership.
-- **`audit_logs`**: Tamper-evident authorization change logging.
-
-The `users` table is also extended with `isActive`, `displayName`, `department`, and `managerId` fields.
-
-## Backend Implementation
+1. A protected layout calls `requireProtectedAuthState()` from `apps/frontend/src/lib/auth/server.ts`
+2. The server helper fetches the better-auth session and returns `{ session, role, isActive }` directly — no separate authorization tRPC call
+3. The layout wraps client components in `AuthStateProvider`
+4. `useAuth()` and `protected-content.tsx` read the hydrated state for UI gating only. The backend tRPC `isAuthenticated` middleware remains the source of truth for API access.
 
 ### Session Enrichment
 
-The Better Auth custom session plugin only enriches the session with password-state metadata (`mustChangePassword`, `passwordChangedAt`). Roles, permissions, app access, and supervisor scope are resolved separately through the authorization router and should not be assumed to live on the session payload.
+The better-auth custom session plugin enriches the session with `mustChangePassword` and `passwordChangedAt`. The user's role comes from the `users.role` field resolved by better-auth's admin plugin — not from a separate authorization fetch.
 
-### tRPC Endpoints
+## Database Schema
 
-The `src/trpc/routers/admin.router.ts` file defines tRPC endpoints for managing users, roles, permissions, supervisors, and audit logs.
+The authorization system extends the users table with a single `role` field. No separate tables for roles, permissions, user_roles, apps, app_supervisors, teams, team_members, or audit_logs exist.
+
+```
+users
+  id            UUID (PK)
+  email         string (unique)
+  username      string (unique, optional)
+  name          string
+  role          string  ← flat role: super_admin | admin | manager | user | viewer
+  isActive      boolean
+  banned        boolean
+  banReason     string?
+  banExpires    DateTime?
+  ...
+```
 
 ## Frontend Integration
 
-### Client-Side Hooks
+### Client-Side Hook
 
-The `src/components/auth/auth-state-provider.tsx` file provides the server-resolved session and authorization state to client components.
+`src/hooks/use-auth.ts` reads from the server-hydrated auth context:
 
-The `src/hooks/use-auth.ts` file reads from that hydrated state and gives components access to role, permission, and app helpers.
+```typescript
+const { isAuthenticated, isActive, user, role, hasRole, hasAnyRole, isLoading } = useAuth();
 
-### UI Components
-
-The `src/components/auth/protected-content.tsx` file provides several components for controlling access to UI elements based on the hydrated auth snapshot:
-
-- **`PermissionGate`**: Renders its children only if the user has a specific permission.
-- **`RoleGate`**: Renders its children only if the user has a specific role.
-- **`AppGate`**: Renders its children only if the user has access to a specific app.
-- **`AuthGate`**: Renders its children only if the user is authenticated.
-
-These gates are for UX only; server-side checks still enforce access.
-
-### Server-Side App Access Gate
-
-App-level access is enforced server-side via `requireAppAccess(appKey)` in `src/lib/auth/app-access.ts`. This function:
-
-1. Calls `requireProtectedAuthState()` to fetch the authorization snapshot.
-2. Calls `authorizationCanAccessApp(authorization, appKey)` to check if the user has access.
-3. Redirects to `/{appKey}/access-denied` if access is denied.
-
-The app layouts use a **route group** (`(protected)/`) to separate protected routes from the access-denied page:
-
-```
-app/<appKey>/
-  layout.tsx               ← bare pass-through (no auth check)
-  (protected)/             ← route group (not in URL)
-    layout.tsx            ← requireAppAccess + sidebar/header shell
-    dashboard/page.tsx     ← protected
-    ...other protected routes
-  access-denied/           ← OUTSIDE (protected); renders without app access
-    page.tsx
+// hasRole("admin")         → true if role === "admin"
+// hasAnyRole("admin", "super_admin")  → true if role is in the given list
 ```
 
-**Why route groups?** Without them, `/{app}/access-denied` would be a child of `/{app}/layout.tsx`, which calls `requireAppAccess` first — causing an infinite redirect loop. Route groups create a separate layout subtree for access-denied pages.
+### UI Gates (`src/components/auth/protected-content.tsx`)
 
-The two-layer defense:
-- **Server layer** (`requireAppAccess`): blocks unauthorized access before any render
-- **Client layer** (`AppGate`): provides defense-in-depth for client-side navigation edge cases
+Only two gates remain:
 
-## API Reference
+- **`RoleGate`** — Renders children only when the user's role matches. Accepts `role` (string or string[]), `requireAll` (boolean, default false), and optional `fallback`.
+- **`AuthGate`** — Renders children only when the user is authenticated and active.
 
-### Permission Key Format
+No `PermissionGate` or `AppGate` exists. All authenticated users can access all apps.
 
-Permissions are defined with the following format:
+### Server-Side Auth
 
+`requireProtectedAuthState()` in `src/lib/auth/server.ts` returns:
+
+```typescript
+{ session: AuthSessionData | null, role: string | null, isActive: boolean }
 ```
-system:<resource>.<action>
-app:<appKey>:<resource>.<action>
-entity:<appKey>:<entity>.<action>
-```
 
-Wildcard matching is supported.
+No per-app or per-entity server-side gate is applied. tRPC procedures rely on `isAuthenticated` middleware.
 
 ## Security Considerations
 
-- **Default Deny**: All routes require authentication unless explicitly marked as public.
-- **Principle of Least Privilege**: Users start with minimal permissions.
-- **Separation of Duties**: Different roles for system administrators, business administrators, and managers.
-- **Audit Trail**: All authorization changes are logged.
-- **Cache Security**: The policy cache expires after 60 seconds and is invalidated on authorization changes.
-- **Session Security**: better-auth handles cookie security.
-- **Input Validation**: Permission keys are validated with regex patterns.
+- **Default Deny** — All tRPC procedures require authentication unless explicitly marked public
+- **Role Hierarchy** — better-auth admin plugin enforces role resolution from the users table
+- **Session Security** — better-auth handles cookie security, secure flags, and session expiry
+- **No Client-Side Enforcement** — UI gates are UX-only; backend tRPC middleware is the enforcement point

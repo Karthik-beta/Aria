@@ -98,20 +98,6 @@ export const getAuthorizationData = cache(
 );
 
 /**
- * Resolve the current request's server auth state for protected layouts and pages.
- * This is the final auth checkpoint after Proxy's optimistic cookie check.
- */
-export const getAuthState = cache(async () => {
-	const session = await getServerSession();
-	const authorization = await getAuthorizationData();
-
-	return {
-		session,
-		authorization,
-	};
-});
-
-/**
  * Read the current callback URL from request headers or fall back to the supplied value.
  */
 export async function getRequestCallbackUrl(

@@ -10,7 +10,7 @@ The backend is a monolithic NestJS application responsible for:
 - tRPC API endpoints for the frontend
 - Database access via Prisma 7 (PrismaPg adapter)
 - Authentication via better-auth (session-based)
-- RBAC/ABAC authorization
+- Authorization (flat role model via better-auth admin plugin)
 
 ## Tech Stack
 
@@ -22,7 +22,7 @@ The backend is a monolithic NestJS application responsible for:
 | ORM | Prisma 7 (PrismaPg adapter) |
 | Database | PostgreSQL |
 | Authentication | better-auth (email+password, username) |
-| Authorization | Custom RBAC + ABAC |
+| Authorization | better-auth admin plugin (flat role model) |
 | Testing | Jest |
 | Linting | Biome |
 
@@ -44,12 +44,6 @@ apps/backend/
 │   │   ├── auth.config.ts     # Auth configuration (plugins, session, cookies)
 │   │   ├── auth.module.ts     # Global auth module
 │   │   └── auth.service.ts    # Default admin user creation on startup
-│   ├── authorization/         # Permission / policy system
-│   │   ├── policy.service.ts  # User policy resolution and caching
-│   │   ├── role.service.ts    # Role CRUD
-│   │   ├── permission.service.ts # Permission CRUD + wildcard matching
-│   │   ├── scope.service.ts   # App / team / hierarchy scoping
-│   │   └── audit.service.ts   # Audit logging
 │   ├── trpc/                  # tRPC assembly layer
 │   │   ├── app-router.ts      # Top-level router (inventory + admin + auth + account)
 │   │   ├── trpc.ts            # tRPC init, middleware, protected/public procedures
@@ -64,7 +58,6 @@ apps/backend/
 │   ├── schema.prisma          # Database schema (Prisma v7)
 │   ├── prisma.config.ts       # Prisma config (datasource URL resolution)
 │   ├── migrations/            # Database migrations
-│   ├── seed-authorization.ts  # Seeds roles, permissions, default apps
 │   ├── seeds/                 # Additional seed scripts
 │   └── demo-data/             # Demo data system (CLI + orchestrator + README)
 └── test/                      # Integration tests

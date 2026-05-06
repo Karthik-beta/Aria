@@ -39,7 +39,7 @@ References:
    Performs a fast session-cookie presence check for protected routes and forwards the requested callback URL in a header.
 
 2. `apps/frontend/src/lib/auth/server.ts`
-   Fetches the Better Auth session from the backend on the server, fetches authorization only when a session exists, and exposes `requireProtectedAuthState()`.
+   Fetches the better-auth session and returns `{ session, role, isActive }` directly.
 
 3. Protected layouts
    `admin`, `asset`, `crm`, `hrms`, `inventory`, and the root `/` entrypoint now resolve auth on the server before rendering protected UI.
@@ -57,13 +57,3 @@ References:
 - workspace layouts render with a single auth snapshot
 - client-side sidebar/user menu/profile components no longer wait on `useSession()`
 - `change-password` is protected on the server and receives its `mustChangePassword` state without another client fetch
-
-## App Access — Route Groups and Access Denied
-
-Each workspace app (`asset`, `crm`, `hrms`, `inventory`) uses Next.js route groups to prevent the access-denied redirect loop:
-
-- `app/<appKey>/layout.tsx` — bare pass-through, no auth check
-- `app/<appKey>/(protected)/layout.tsx` — calls `requireAppAccess("<appKey>")` and wraps with sidebar/header shell; all protected routes live here
-- `app/<appKey>/access-denied/` — outside the route group; renders the `AccessDeniedShell` without triggering the app access check
-
-`requireAppAccess` (in `src/lib/auth/app-access.ts`) is the server-side gate that throws a redirect to `/{appKey}/access-denied` when `authorizationCanAccessApp` returns false. The profile page at `/profile` is outside all app layouts and accessible to all authenticated users.
