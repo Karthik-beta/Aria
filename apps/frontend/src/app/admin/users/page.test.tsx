@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { renderWithProviders, screen, waitFor } from "@/test/utils";
 import UsersPage from "./page";
@@ -10,8 +11,21 @@ vi.mock("sonner", () => ({
 	},
 }));
 
-vi.mock("@/hooks/use-auth", () => ({
-	usePermission: () => true,
+vi.mock("@/components/auth/auth-state-provider", () => ({
+	AuthStateProvider: ({ children }: { children: React.ReactNode }) => children,
+	useAuthStateContext: () => ({
+		session: {
+			user: {
+				id: "user-1",
+				role: "super_admin",
+				name: "Admin User",
+				email: "admin@test.com",
+			},
+			session: { id: "session-1", userId: "user-1", expiresAt: new Date() },
+		},
+		role: "super_admin",
+		isActive: true,
+	}),
 }));
 
 vi.mock("@/lib/auth/client", () => {

@@ -19,27 +19,22 @@ vi.mock("../../hooks/use-media-query", () => ({
 	useMediaQuery: () => ({ isOpen: false }),
 }));
 
-let mockCanAccessApp = (_key: string) => true;
 let mockHasAdminAccess = false;
 let mockAuthLoading = false;
 
 vi.mock("@/hooks/use-auth", () => ({
 	useAuth: () => ({
-		hasAnyRole: () => mockHasAdminAccess,
-		hasPermission: (permission: string) =>
-			permission === "system:user.read" && mockHasAdminAccess,
+		isAuthenticated: true,
 		isActive: true,
-		roles: mockHasAdminAccess ? ["admin"] : [],
-		user: {
-			name: "System Administrator",
-			email: "admin@aria.local",
-		},
-		canAccessApp: (key: string) => mockCanAccessApp(key),
+		user: { name: "System Administrator", email: "admin@aria.local" },
+		role: mockHasAdminAccess ? "admin" : "user",
+		hasRole: (roleKey: string) =>
+			roleKey === (mockHasAdminAccess ? "admin" : "user"),
+		hasAnyRole: (..._roles: string[]) => mockHasAdminAccess,
 		isLoading: mockAuthLoading,
 	}),
 }));
 
-// Use a spy for AppSwitcher to capture props
 const mockAppSwitcher = vi.fn((_props: Record<string, unknown>) => (
 	<div data-testid="app-switcher" />
 ));
@@ -62,7 +57,6 @@ function renderWithSidebar(ui: ReactNode) {
 describe("AppSidebar", () => {
 	beforeEach(() => {
 		currentPathname = "/inventory/items-catalogue/item/";
-		mockCanAccessApp = () => true;
 		mockHasAdminAccess = false;
 		mockAuthLoading = false;
 		mockAppSwitcher.mockClear();
@@ -80,83 +74,6 @@ describe("AppSidebar", () => {
 				screen.getByRole("button", { name: "Items Catalogue" }),
 			).toHaveAttribute("data-active", "true");
 			expect(screen.getByText("Item Group")).toBeVisible();
-		});
-	});
-
-	describe("App filtering based on authorization", () => {
-		it("passes all apps when canAccessApp returns true for all", async () => {
-			mockCanAccessApp = () => true;
-			renderWithSidebar(<AppSidebar />);
-
-			await waitFor(() => {
-				expect(mockAppSwitcher).toHaveBeenCalled();
-			});
-
-			const lastCallProps = mockAppSwitcher.mock.calls.at(-1)?.[0] as {
-				apps: Array<{ key: string }>;
-			};
-			const appKeys = lastCallProps.apps.map((a: { key: string }) => a.key);
-			expect(appKeys).toEqual(["inventory", "asset", "crm", "hrms"]);
-		});
-
-		it("includes admin when the user has system admin access", async () => {
-			mockCanAccessApp = () => true;
-			mockHasAdminAccess = true;
-			renderWithSidebar(<AppSidebar />);
-
-			await waitFor(() => {
-				expect(mockAppSwitcher).toHaveBeenCalled();
-			});
-
-			const lastCallProps = mockAppSwitcher.mock.calls.at(-1)?.[0] as {
-				apps: Array<{ key: string }>;
-			};
-			const appKeys = lastCallProps.apps.map((a: { key: string }) => a.key);
-			expect(appKeys).toEqual(["admin", "inventory", "asset", "crm", "hrms"]);
-		});
-
-		it("filters apps when user has limited access", async () => {
-			mockCanAccessApp = (key: string) => key === "inventory" || key === "crm";
-			renderWithSidebar(<AppSidebar />);
-
-			await waitFor(() => {
-				expect(mockAppSwitcher).toHaveBeenCalled();
-			});
-
-			const lastCallProps = mockAppSwitcher.mock.calls.at(-1)?.[0] as {
-				apps: Array<{ key: string }>;
-			};
-			const appKeys = lastCallProps.apps.map((a: { key: string }) => a.key);
-			expect(appKeys).toEqual(["inventory", "crm"]);
-		});
-
-		it("shows all apps when no access is granted (fallback)", async () => {
-			mockCanAccessApp = () => false;
-			renderWithSidebar(<AppSidebar />);
-
-			await waitFor(() => {
-				expect(mockAppSwitcher).toHaveBeenCalled();
-			});
-
-			const lastCallProps = mockAppSwitcher.mock.calls.at(-1)?.[0] as {
-				apps: Array<{ key: string }>;
-			};
-			// Falls back to all WORKSPACE_APPS when filter returns empty
-			expect(lastCallProps.apps).toHaveLength(5);
-		});
-
-		it("shows all apps during auth loading", async () => {
-			mockAuthLoading = true;
-			renderWithSidebar(<AppSidebar />);
-
-			await waitFor(() => {
-				expect(mockAppSwitcher).toHaveBeenCalled();
-			});
-
-			const lastCallProps = mockAppSwitcher.mock.calls.at(-1)?.[0] as {
-				apps: Array<{ key: string }>;
-			};
-			expect(lastCallProps.apps).toHaveLength(5);
 		});
 	});
 
@@ -243,7 +160,6 @@ describe("AppSidebar", () => {
 			const lastCallProps = mockAppSwitcher.mock.calls.at(-1)?.[0] as {
 				defaultApp: { key: string };
 			};
-			// Should default to first accessible app (inventory)
 			expect(lastCallProps.defaultApp.key).toBe("inventory");
 		});
 	});
@@ -296,75 +212,8 @@ describe("AppSidebar", () => {
 
 			await waitFor(() => {
 				expect(screen.getByText("Administration")).toBeInTheDocument();
-				expect(screen.getByText("Governance")).toBeInTheDocument();
+				expect(screen.getByText("Users")).toBeInTheDocument();
 			});
-		});
-	});
-
-	describe("canAccessCurrentApp — sidebar nav item filtering", () => {
-		it("renders nav items when user can access the current app", async () => {
-			mockCanAccessApp = (key: string) => key === "inventory";
-			currentPathname = "/inventory/dashboard";
-			renderWithSidebar(<AppSidebar />);
-
-			await waitFor(() => {
-				expect(screen.getByText("Items Catalogue")).toBeInTheDocument();
-				expect(screen.getByText("Stock Transactions")).toBeInTheDocument();
-			});
-		});
-
-		it("renders empty sidebar when user cannot access the current app", async () => {
-			mockCanAccessApp = () => false;
-			currentPathname = "/crm/dashboard";
-			renderWithSidebar(<AppSidebar />);
-
-			await waitFor(() => {
-				const sidebarContent = document.querySelector(
-					"[data-sidebar='content']",
-				);
-				const menuItems =
-					sidebarContent?.querySelectorAll("[data-sidebar='menu'] li") ?? [];
-				expect(menuItems.length).toBe(0);
-			});
-		});
-
-		it("shows no nav items for inaccessible app even if other apps are accessible", async () => {
-			mockCanAccessApp = () => false;
-			currentPathname = "/hrms/dashboard";
-			renderWithSidebar(<AppSidebar />);
-
-			await waitFor(() => {
-				const sidebarContent = document.querySelector(
-					"[data-sidebar='content']",
-				);
-				const menuItems =
-					sidebarContent?.querySelectorAll("[data-sidebar='menu'] li") ?? [];
-				expect(menuItems.length).toBe(0);
-			});
-		});
-
-		it("renders nav items for asset when user has asset access", async () => {
-			mockCanAccessApp = (key: string) => key === "asset";
-			currentPathname = "/asset/dashboard";
-			renderWithSidebar(<AppSidebar />);
-
-			await waitFor(() => {
-				expect(screen.getByText("Assets")).toBeInTheDocument();
-			});
-		});
-
-		it("shows all accessible apps in switcher during auth loading", async () => {
-			mockAuthLoading = true;
-			renderWithSidebar(<AppSidebar />);
-
-			await waitFor(() => {
-				expect(mockAppSwitcher).toHaveBeenCalled();
-			});
-
-			const lastCallProps = mockAppSwitcher.mock.calls.at(-1)?.[0] as {
-				apps: Array<{ key: string }>;
-			};
-			expect(lastCallProps.apps).toHaveLength(5);
 		});
 	});
 });

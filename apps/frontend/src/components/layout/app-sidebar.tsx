@@ -249,22 +249,15 @@ export default function AppSidebar() {
 	const pathname = usePathname();
 	useMediaQuery();
 	const {
-		canAccessApp,
 		hasAnyRole,
-		hasPermission,
 		isActive,
 		isLoading: authLoading,
-		roles,
 		user: sessionUser,
 	} = useAuth();
 
 	const hasAdminAccess = React.useMemo(
-		() =>
-			isActive &&
-			(hasPermission("system:user.read") ||
-				hasAnyRole("admin", "super_admin") ||
-				roles.some((roleKey) => roleKey.toLowerCase().includes("admin"))),
-		[hasAnyRole, hasPermission, isActive, roles],
+		() => isActive && hasAnyRole("admin", "super_admin"),
+		[hasAnyRole, isActive],
 	);
 
 	const accessibleApps = React.useMemo(() => {
@@ -273,10 +266,10 @@ export default function AppSidebar() {
 		}
 
 		const allowed = WORKSPACE_APPS.filter((app) =>
-			app.key === "admin" ? hasAdminAccess : canAccessApp(app.key),
+			app.key === "admin" ? hasAdminAccess : true,
 		);
 		return allowed.length > 0 ? allowed : WORKSPACE_APPS;
-	}, [authLoading, canAccessApp, hasAdminAccess]);
+	}, [authLoading, hasAdminAccess]);
 
 	// Map auth session user shape to the local user shape expected by UserAvatarProfile
 	const user = React.useMemo(() => {
@@ -337,15 +330,9 @@ export default function AppSidebar() {
 
 	const activeAppId = React.useMemo(() => activeApp.key, [activeApp.key]);
 
-	const canAccessCurrentApp = React.useMemo(
-		() => canAccessApp(activeAppId),
-		[activeAppId, canAccessApp],
-	);
-
-	// Memoize navigation items to prevent unnecessary recalculations
 	const appNavItems = React.useMemo(
-		() => (canAccessCurrentApp ? getAppNavItems(activeAppId) : []),
-		[activeAppId, canAccessCurrentApp],
+		() => getAppNavItems(activeAppId),
+		[activeAppId],
 	);
 
 	return (

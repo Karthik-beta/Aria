@@ -116,14 +116,7 @@ See [Authentication Documentation](../02-architecture/01-authentication/README.m
 
 ## Authorization
 
-Custom RBAC + ABAC system with:
-
-- **Roles**: super_admin, admin, manager, user, viewer (+ custom roles)
-- **Permissions**: System, app, and entity-level scopes with wildcard matching
-- **Policy caching**: 60-second TTL
-- **Audit logging**: All authorization changes are logged
-
-See [Authorization Documentation](../02-architecture/02-authorization/README.md).
+Authorization handled by better-auth's admin plugin with flat roles (super_admin, admin, manager, user, viewer). See [Authorization Documentation](../02-architecture/02-authorization/README.md).
 
 ## Database
 

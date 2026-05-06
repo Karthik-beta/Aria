@@ -44,7 +44,7 @@ All team members must follow these practices when contributing:
 ### Authentication and Authorization
 
 - All API endpoints must enforce authentication unless explicitly public
-- Follow the RBAC/ABAC authorization model documented in [Authorization Spec](./AUTHORIZATION_SPEC.md)
+- Follow the authorization model provided by better-auth's admin plugin
 - Never store passwords in plain text — use proper hashing (handled by better-auth)
 
 ### Dependency Security

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { AuthStateProvider } from "@/components/auth/auth-state-provider";
-import { ProtectedContent } from "@/components/auth/protected-content";
+import { RoleGate } from "@/components/auth/protected-content";
 import KBar from "@/components/kbar";
 import AppSidebar from "@/components/layout/app-sidebar";
 import Header from "@/components/layout/header";
@@ -49,8 +49,8 @@ export default async function AdminLayout({
 				<AuthStateProvider value={authState}>
 					<Toaster />
 					<KBar>
-						<ProtectedContent
-							permission="system:user.read"
+						<RoleGate
+							role={["admin", "super_admin"]}
 							fallback={<AdminAccessDenied />}
 						>
 							<SidebarProvider defaultOpen={defaultOpen}>
@@ -60,7 +60,7 @@ export default async function AdminLayout({
 									{children}
 								</SidebarInset>
 							</SidebarProvider>
-						</ProtectedContent>
+						</RoleGate>
 					</KBar>
 				</AuthStateProvider>
 			</Providers>

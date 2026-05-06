@@ -16,14 +16,6 @@ import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/hooks/use-auth";
 import type { AuthSessionUser } from "@/lib/auth/types";
 
-/** Human-readable display names for each application key. */
-const APP_DISPLAY_NAMES: Record<string, string> = {
-	inventory: "Inventory",
-	asset: "Asset Management",
-	crm: "CRM",
-	hrms: "HRMS",
-};
-
 /**
  * Derives up to two uppercase initials from a display name.
  *
@@ -53,7 +45,7 @@ export function getInitials(name: string): string {
  * Client component: reads auth state from context via `useAuth`.
  */
 export default function ProfileViewPage() {
-	const { user, roles, apps, supervisedApps } = useAuth();
+	const { user, role } = useAuth();
 	// Cast to the canonical session user type; the dev-bypass inline shape is a
 	// structural subset of AuthSessionUser.
 	const sessionUser = user as AuthSessionUser | null;
@@ -63,8 +55,6 @@ export default function ProfileViewPage() {
 	const username = sessionUser?.username ?? null;
 	const emailVerified = sessionUser?.emailVerified ?? false;
 	const initials = getInitials(name);
-	const accessibleApps = Object.entries(apps);
-
 	return (
 		<div className="flex w-full flex-col gap-6 p-4 md:p-6">
 			<div>
@@ -180,59 +170,17 @@ export default function ProfileViewPage() {
 					</CardDescription>
 				</CardHeader>
 				<CardContent>
-					{roles.length > 0 && (
+					{role ? (
 						<div>
 							<p className="text-muted-foreground mb-2 text-xs font-medium uppercase tracking-wide">
-								System Roles
+								System Role
 							</p>
 							<div className="flex flex-wrap gap-2">
-								{roles.map((role) => (
-									<Badge key={role} variant="secondary">
-										{role.replace(/_/g, " ")}
-									</Badge>
-								))}
+								<Badge variant="secondary">{role.replace(/_/g, " ")}</Badge>
 							</div>
 						</div>
-					)}
-
-					{accessibleApps.length > 0 && (
-						<div className={roles.length > 0 ? "mt-4" : undefined}>
-							{roles.length > 0 && <Separator className="mb-4" />}
-							<p className="text-muted-foreground mb-2 text-xs font-medium uppercase tracking-wide">
-								Application Access
-							</p>
-							<div className="grid gap-3 sm:grid-cols-2">
-								{accessibleApps.map(([appKey, appAccess]) => (
-									<div
-										key={appKey}
-										className="flex items-start gap-3 rounded-lg border p-3"
-										data-testid={`app-access-${appKey}`}
-									>
-										<div className="flex-1">
-											<p className="text-sm font-medium">
-												{APP_DISPLAY_NAMES[appKey] ?? appKey}
-											</p>
-											<div className="mt-1 flex flex-wrap gap-1">
-												{appAccess.roles.map((r) => (
-													<Badge key={r} variant="outline" className="text-xs">
-														{r}
-													</Badge>
-												))}
-											</div>
-										</div>
-										{supervisedApps.includes(appKey) && (
-											<Badge className="shrink-0 text-xs">Supervisor</Badge>
-										)}
-									</div>
-								))}
-							</div>
-						</div>
-					)}
-
-					{accessibleApps.length === 0 && roles.length === 0 && (
-						<p className="text-muted-foreground text-sm">
-							No roles or app access assigned.
-						</p>
+					) : (
+						<p className="text-muted-foreground text-sm">No role assigned.</p>
 					)}
 				</CardContent>
 			</Card>

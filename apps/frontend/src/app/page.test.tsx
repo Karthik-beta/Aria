@@ -1,8 +1,7 @@
 /**
  * Root HomePage Tests
  *
- * Tests the server-side redirect logic that routes authenticated users to
- * their first accessible app based on priority and authorization.
+ * Tests the server-side redirect logic that routes all authenticated users to /inventory.
  */
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -28,7 +27,7 @@ describe("HomePage — app redirect logic", () => {
 		mockRequireProtectedAuthState.mockReset();
 	});
 
-	it("redirects unauthenticated requests through the protected auth helper", async () => {
+	it("redirects unauthenticated requests through protected auth helper", async () => {
 		mockRequireProtectedAuthState.mockRejectedValue(
 			new Error("NEXT_REDIRECT:/auth/sign-in?callbackUrl=%2F"),
 		);
@@ -39,78 +38,59 @@ describe("HomePage — app redirect logic", () => {
 		expect(mockRedirect).not.toHaveBeenCalled();
 	});
 
-	it("redirects super_admin to /inventory (highest priority)", async () => {
+	it("redirects super_admin to /inventory", async () => {
 		mockRequireProtectedAuthState.mockResolvedValue({
-			authorization: {
-				roles: ["super_admin"],
-				permissions: ["system:*"],
-				apps: { inventory: { roles: ["admin"] } },
-				supervisedApps: [],
-				isActive: true,
+			session: {
+				user: { id: "1", email: "admin@test.com", name: "Admin" },
+				session: { id: "s1", expiresAt: "" },
 			},
+			role: "super_admin",
+			isActive: true,
 		});
 
 		await expect(HomePage()).rejects.toThrow("NEXT_REDIRECT:/inventory");
 		expect(mockRedirect).toHaveBeenCalledWith("/inventory");
 	});
 
-	it("redirects to first accessible app by APP_PRIORITY", async () => {
+	it("redirects regular user to /inventory", async () => {
 		mockRequireProtectedAuthState.mockResolvedValue({
-			authorization: {
-				roles: ["user"],
-				permissions: [],
-				apps: { crm: { roles: ["user"] }, hrms: { roles: ["user"] } },
-				supervisedApps: [],
-				isActive: true,
+			session: {
+				user: { id: "2", email: "user@test.com", name: "User" },
+				session: { id: "s2", expiresAt: "" },
 			},
-		});
-
-		await expect(HomePage()).rejects.toThrow("NEXT_REDIRECT:/crm");
-		expect(mockRedirect).toHaveBeenCalledWith("/crm");
-	});
-
-	it("redirects to /asset when only asset is accessible", async () => {
-		mockRequireProtectedAuthState.mockResolvedValue({
-			authorization: {
-				roles: ["viewer"],
-				permissions: [],
-				apps: { asset: { roles: ["viewer"] } },
-				supervisedApps: [],
-				isActive: true,
-			},
-		});
-
-		await expect(HomePage()).rejects.toThrow("NEXT_REDIRECT:/asset");
-		expect(mockRedirect).toHaveBeenCalledWith("/asset");
-	});
-
-	it("falls back to /inventory when authenticated but no apps match", async () => {
-		mockRequireProtectedAuthState.mockResolvedValue({
-			authorization: {
-				roles: ["user"],
-				permissions: [],
-				apps: {},
-				supervisedApps: [],
-				isActive: true,
-			},
+			role: "user",
+			isActive: true,
 		});
 
 		await expect(HomePage()).rejects.toThrow("NEXT_REDIRECT:/inventory");
 		expect(mockRedirect).toHaveBeenCalledWith("/inventory");
 	});
 
-	it("redirects to /hrms when only hrms is accessible (lowest priority)", async () => {
+	it("redirects viewer to /inventory", async () => {
 		mockRequireProtectedAuthState.mockResolvedValue({
-			authorization: {
-				roles: ["user"],
-				permissions: [],
-				apps: { hrms: { roles: ["user"] } },
-				supervisedApps: [],
-				isActive: true,
+			session: {
+				user: { id: "3", email: "viewer@test.com", name: "Viewer" },
+				session: { id: "s3", expiresAt: "" },
 			},
+			role: "viewer",
+			isActive: true,
 		});
 
-		await expect(HomePage()).rejects.toThrow("NEXT_REDIRECT:/hrms");
-		expect(mockRedirect).toHaveBeenCalledWith("/hrms");
+		await expect(HomePage()).rejects.toThrow("NEXT_REDIRECT:/inventory");
+		expect(mockRedirect).toHaveBeenCalledWith("/inventory");
+	});
+
+	it("redirects any role to /inventory", async () => {
+		mockRequireProtectedAuthState.mockResolvedValue({
+			session: {
+				user: { id: "4", email: "admin@test.com", name: "Admin" },
+				session: { id: "s4", expiresAt: "" },
+			},
+			role: "admin",
+			isActive: true,
+		});
+
+		await expect(HomePage()).rejects.toThrow("NEXT_REDIRECT:/inventory");
+		expect(mockRedirect).toHaveBeenCalledWith("/inventory");
 	});
 });

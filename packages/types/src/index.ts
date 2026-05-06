@@ -7106,14 +7106,6 @@ export interface AuthorizationData {
 	role: string | null;
 	/** Whether the user account is active (derived from !banned) */
 	isActive: boolean;
-	/** @deprecated Roles are now flat (single role string), use role field instead */
-	roles: string[];
-	/** @deprecated No custom permissions anymore */
-	permissions: string[];
-	/** @deprecated No app-level access control */
-	apps: Record<string, { roles: string[] }>;
-	/** @deprecated No supervisor concept anymore */
-	supervisedApps: string[];
 }
 
 // ============================================================================

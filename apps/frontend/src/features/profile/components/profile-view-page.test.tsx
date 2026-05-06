@@ -36,6 +36,7 @@ const authenticatedState: AuthState = {
 			username: "janedoe",
 			displayUsername: "janedoe",
 			mustChangePassword: false,
+			role: "super_admin",
 		},
 		session: {
 			id: "session-1",
@@ -43,17 +44,8 @@ const authenticatedState: AuthState = {
 			expiresAt: new Date("2030-01-01"),
 		},
 	},
-	authorization: {
-		role: "super_admin",
-		roles: ["super_admin", "inventory_user"],
-		permissions: [],
-		apps: {
-			inventory: { roles: ["admin"] },
-			asset: { roles: ["viewer"] },
-		},
-		supervisedApps: ["inventory"],
-		isActive: true,
-	},
+	role: "super_admin",
+	isActive: true,
 };
 
 const unverifiedEmailState: AuthState = {
@@ -64,30 +56,14 @@ const unverifiedEmailState: AuthState = {
 				user: { ...authenticatedState.session.user, emailVerified: false },
 			}
 		: null,
-};
-
-const noRolesNoAppsState: AuthState = {
-	session: authenticatedState.session,
-	authorization: {
-		role: null,
-		roles: [],
-		permissions: [],
-		apps: {},
-		supervisedApps: [],
-		isActive: true,
-	},
+	role: "super_admin",
+	isActive: true,
 };
 
 const noSessionState: AuthState = {
 	session: null,
-	authorization: {
-		role: null,
-		roles: [],
-		permissions: [],
-		apps: {},
-		supervisedApps: [],
-		isActive: false,
-	},
+	role: null,
+	isActive: false,
 };
 
 // ── Helper ───────────────────────────────────────────────────────────────────
@@ -180,7 +156,8 @@ describe("ProfileViewPage", () => {
 							user: { ...authenticatedState.session.user, email: "" },
 						}
 					: null,
-				authorization: authenticatedState.authorization,
+				role: authenticatedState.role,
+				isActive: authenticatedState.isActive,
 			};
 			renderProfile(stateNoEmail);
 			expect(screen.queryByText("Verified")).not.toBeInTheDocument();
@@ -215,54 +192,19 @@ describe("ProfileViewPage", () => {
 	});
 
 	describe("Roles & App Access section", () => {
-		it("renders system role badges", () => {
+		it("renders the System Role card heading", () => {
 			renderProfile(authenticatedState);
-			expect(screen.getByText("inventory user")).toBeInTheDocument();
+			expect(screen.getByText("System Role")).toBeInTheDocument();
+		});
+
+		it("renders a role badge with the user's role name", () => {
+			renderProfile(authenticatedState);
 			expect(screen.getByText("super admin")).toBeInTheDocument();
 		});
 
-		it("renders app access cards with correct app names", () => {
+		it("renders the card title", () => {
 			renderProfile(authenticatedState);
-			expect(screen.getByText("Inventory")).toBeInTheDocument();
-			expect(screen.getByText("Asset Management")).toBeInTheDocument();
-		});
-
-		it("renders the correct app-level role badges", () => {
-			renderProfile(authenticatedState);
-			// inventory → admin; asset → viewer
-			const adminBadges = screen.getAllByText("admin");
-			expect(adminBadges.length).toBeGreaterThan(0);
-			expect(screen.getByText("viewer")).toBeInTheDocument();
-		});
-
-		it("renders a Supervisor badge for supervised apps", () => {
-			renderProfile(authenticatedState);
-			// inventory is in supervisedApps
-			expect(screen.getByText("Supervisor")).toBeInTheDocument();
-		});
-
-		it("does NOT render Supervisor badge for non-supervised apps", () => {
-			renderProfile(authenticatedState);
-			// Only one Supervisor badge expected (inventory only)
-			const badges = screen.getAllByText("Supervisor");
-			expect(badges).toHaveLength(1);
-		});
-
-		it("shows the empty-state message when user has no roles or app access", () => {
-			renderProfile(noRolesNoAppsState);
-			expect(
-				screen.getByText(/no roles or app access assigned/i),
-			).toBeInTheDocument();
-		});
-
-		it("has correct data-testid attributes for app access cards", () => {
-			const { container } = renderProfile(authenticatedState);
-			expect(
-				container.querySelector('[data-testid="app-access-inventory"]'),
-			).toBeInTheDocument();
-			expect(
-				container.querySelector('[data-testid="app-access-asset"]'),
-			).toBeInTheDocument();
+			expect(screen.getByText(/roles.*app access/i)).toBeInTheDocument();
 		});
 	});
 });

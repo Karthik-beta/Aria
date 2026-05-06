@@ -1,12 +1,9 @@
+import type { AuthorizationData } from "@aria/types";
 import { logger } from "@aria/utils";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { cache } from "react";
 import { buildSignInUrl, normalizeCallbackUrl } from "@/config/auth";
-import {
-	type AuthorizationData,
-	EMPTY_AUTHORIZATION_DATA,
-} from "@/lib/auth/authorization";
 import type {
 	AuthSessionData,
 	AuthSessionRecord,
@@ -91,18 +88,11 @@ export const getServerSession = cache(
 export const getAuthorizationData = cache(
 	async (): Promise<AuthorizationData> => {
 		const session = await getServerSession();
-
-		if (!session?.user.id) {
-			return EMPTY_AUTHORIZATION_DATA;
-		}
+		const user = session?.user;
 
 		return {
-			isActive: !session.user.banned,
-			role: session.user.role ?? null,
-			roles: session.user.role ? [session.user.role] : [],
-			permissions: [],
-			apps: {},
-			supervisedApps: [],
+			role: user?.role ?? null,
+			isActive: Boolean(user),
 		};
 	},
 );
@@ -161,6 +151,7 @@ export async function requireProtectedAuthState(options?: {
 
 	return {
 		session,
-		authorization,
+		role: authorization.role,
+		isActive: authorization.isActive,
 	};
 }

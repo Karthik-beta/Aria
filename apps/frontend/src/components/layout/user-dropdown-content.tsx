@@ -35,13 +35,7 @@ type Props = {
 };
 
 export default function UserDropdownContent({ className }: Props) {
-	const {
-		hasAnyRole,
-		hasPermission,
-		isActive,
-		roles,
-		user: sessionUser,
-	} = useAuth();
+	const { hasAnyRole, isActive, user: sessionUser } = useAuth();
 	const router = useRouter();
 
 	const user = React.useMemo(() => {
@@ -100,12 +94,8 @@ export default function UserDropdownContent({ className }: Props) {
 
 	// Check if user has admin access based on roles from user authorization
 	const hasAdminAccess = React.useMemo(
-		() =>
-			isActive &&
-			(hasPermission("system:user.read") ||
-				hasAnyRole("admin", "super_admin") ||
-				roles.some((roleKey) => roleKey.toLowerCase().includes("admin"))),
-		[hasAnyRole, hasPermission, isActive, roles],
+		() => isActive && hasAnyRole("admin", "super_admin"),
+		[hasAnyRole, isActive],
 	);
 
 	return (

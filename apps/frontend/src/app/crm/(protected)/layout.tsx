@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { AppAccessBoundary } from "@/components/auth/app-access-boundary";
 import { AuthStateProvider } from "@/components/auth/auth-state-provider";
 import KBar from "@/components/kbar";
 import AppSidebar from "@/components/layout/app-sidebar";
@@ -10,7 +9,6 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { Toaster } from "@/components/ui/sonner";
 import { AUTH_CONFIG } from "@/config/auth";
 import { getActiveThemeValue } from "@/lib/active-theme.server";
-import { requireAppAccess } from "@/lib/auth/app-access";
 import { requireProtectedAuthState } from "@/lib/auth/server";
 
 export const metadata: Metadata = {
@@ -32,7 +30,6 @@ export default async function ProtectedLayout({
 	const authState = await requireProtectedAuthState({
 		callbackUrl: AUTH_CONFIG.appRedirects.crm,
 	});
-	await requireAppAccess("crm");
 
 	return (
 		<ThemeProvider
@@ -50,7 +47,7 @@ export default async function ProtectedLayout({
 							<AppSidebar />
 							<SidebarInset>
 								<Header />
-								<AppAccessBoundary appKey="crm">{children}</AppAccessBoundary>
+								{children}
 							</SidebarInset>
 						</SidebarProvider>
 					</KBar>

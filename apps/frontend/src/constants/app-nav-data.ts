@@ -698,22 +698,6 @@ export const adminNavItems: NavItem[] = [
 				title: "Users",
 				url: "/admin/users",
 			},
-			{
-				title: "Roles & Permissions",
-				url: "/admin/roles",
-			},
-		],
-	},
-	{
-		title: "Governance",
-		url: "#",
-		icon: "report",
-		isActive: false,
-		items: [
-			{
-				title: "Audit Logs",
-				url: "/admin/audit",
-			},
 		],
 	},
 ];

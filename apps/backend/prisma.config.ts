@@ -51,7 +51,6 @@ export default {
 	 */
 	migrations: {
 		path: "prisma/migrations",
-		seed: "bun prisma/seed-authorization.ts",
 	},
 
 	/**

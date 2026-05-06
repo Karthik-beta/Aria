@@ -1,12 +1,12 @@
 "use client";
 
 import * as React from "react";
-import type { AuthorizationData } from "@/lib/auth/authorization";
 import type { AuthSessionData } from "@/lib/auth/types";
 
 export interface AuthState {
 	session: AuthSessionData | null;
-	authorization: AuthorizationData;
+	role: string | null;
+	isActive: boolean;
 }
 
 const AuthStateContext = React.createContext<AuthState | null>(null);

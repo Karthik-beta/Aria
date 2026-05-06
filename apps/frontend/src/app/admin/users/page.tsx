@@ -41,7 +41,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Switch } from "@/components/ui/switch";
-import { usePermission } from "@/hooks/use-auth";
+import { useAuth } from "@/hooks/use-auth";
 import { authClient } from "@/lib/auth/client";
 
 type User = {
@@ -69,7 +69,7 @@ export default function UsersPage() {
 	const [isLoading, setIsLoading] = useState(false);
 	const [total, setTotal] = useState(0);
 	const [_refetchKey, setRefetchKey] = useState(0);
-	const canManageUsers = usePermission("system:user.manage");
+	const canManageUsers = useAuth().hasAnyRole("admin", "super_admin");
 
 	const refetch = useCallback(async () => {
 		setRefetchKey((k) => k + 1);

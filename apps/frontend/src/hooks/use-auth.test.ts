@@ -3,9 +3,10 @@
  *
  * @module use-auth.test
  */
+
 import { renderHook } from "@testing-library/react";
 import { createElement, Fragment, type ReactNode } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
 	type AuthState,
 	AuthStateProvider,
@@ -22,6 +23,7 @@ const authenticatedState: AuthState = {
 			createdAt: new Date(),
 			updatedAt: new Date(),
 			mustChangePassword: false,
+			role: "inventory_user",
 		},
 		session: {
 			id: "session-1",
@@ -29,18 +31,8 @@ const authenticatedState: AuthState = {
 			expiresAt: new Date(),
 		},
 	},
-	authorization: {
-		role: "inventory_user",
-		roles: ["inventory_user"],
-		permissions: [
-			"entity:inventory:item:read",
-			"app:inventory:*",
-			"entity:crm:*",
-		],
-		apps: { inventory: { roles: ["admin"] }, crm: { roles: ["viewer"] } },
-		supervisedApps: ["inventory"],
-		isActive: true,
-	},
+	role: "inventory_user",
+	isActive: true,
 };
 
 const superAdminState: AuthState = {
@@ -53,6 +45,7 @@ const superAdminState: AuthState = {
 			createdAt: new Date(),
 			updatedAt: new Date(),
 			mustChangePassword: false,
+			role: "super_admin",
 		},
 		session: {
 			id: "session-2",
@@ -60,14 +53,8 @@ const superAdminState: AuthState = {
 			expiresAt: new Date(),
 		},
 	},
-	authorization: {
-		role: "super_admin",
-		roles: ["super_admin"],
-		permissions: ["system:*"],
-		apps: {},
-		supervisedApps: [],
-		isActive: true,
-	},
+	role: "super_admin",
+	isActive: true,
 };
 
 function createWrapper(authState?: AuthState) {
@@ -84,10 +71,6 @@ function createWrapper(authState?: AuthState) {
 }
 
 describe("useAuth", () => {
-	beforeEach(() => {
-		vi.stubEnv("NODE_ENV", "test");
-	});
-
 	describe("unauthenticated state", () => {
 		it("returns isAuthenticated=false when no auth state is provided", () => {
 			const { result } = renderHook(() => useAuth(), {
@@ -97,24 +80,14 @@ describe("useAuth", () => {
 			expect(result.current.user).toBeNull();
 		});
 
-		it("all permission checks return false", () => {
+		it("hasRole returns false when no session", () => {
 			const { result } = renderHook(() => useAuth(), {
 				wrapper: createWrapper(),
 			});
-			expect(result.current.hasPermission("system:manage")).toBe(false);
 			expect(result.current.hasRole("admin")).toBe(false);
-			expect(result.current.canAccessApp("inventory")).toBe(false);
-			expect(result.current.isSupervisorOf("inventory")).toBe(false);
 		});
 
-		it("hasAnyPermission returns false", () => {
-			const { result } = renderHook(() => useAuth(), {
-				wrapper: createWrapper(),
-			});
-			expect(result.current.hasAnyPermission("a", "b")).toBe(false);
-		});
-
-		it("hasAnyRole returns false", () => {
+		it("hasAnyRole returns false when no session", () => {
 			const { result } = renderHook(() => useAuth(), {
 				wrapper: createWrapper(),
 			});
@@ -122,7 +95,7 @@ describe("useAuth", () => {
 		});
 	});
 
-	describe("authenticated with authorization data", () => {
+	describe("authenticated state", () => {
 		it("reports isAuthenticated=true", () => {
 			const { result } = renderHook(() => useAuth(), {
 				wrapper: createWrapper(authenticatedState),
@@ -130,54 +103,11 @@ describe("useAuth", () => {
 			expect(result.current.isAuthenticated).toBe(true);
 		});
 
-		it("hasPermission with exact match", () => {
+		it("hasRole checks user.role directly", () => {
 			const { result } = renderHook(() => useAuth(), {
 				wrapper: createWrapper(authenticatedState),
 			});
-			expect(result.current.hasPermission("entity:inventory:item:read")).toBe(
-				true,
-			);
-		});
-
-		it("hasPermission with system:* wildcard", () => {
-			const { result } = renderHook(() => useAuth(), {
-				wrapper: createWrapper(superAdminState),
-			});
-			expect(result.current.hasPermission("system:manage")).toBe(true);
-			expect(result.current.hasPermission("system:settings")).toBe(true);
-		});
-
-		it("hasPermission with app:<key>:* wildcard", () => {
-			const { result } = renderHook(() => useAuth(), {
-				wrapper: createWrapper(authenticatedState),
-			});
-			expect(result.current.hasPermission("app:inventory:settings")).toBe(true);
-			expect(result.current.hasPermission("app:inventory:anything")).toBe(true);
-		});
-
-		it("hasPermission with entity:<app>:<entity>:* wildcard", () => {
-			const { result } = renderHook(() => useAuth(), {
-				wrapper: createWrapper(authenticatedState),
-			});
-			expect(result.current.hasPermission("entity:crm:contact:read")).toBe(
-				true,
-			);
-			expect(result.current.hasPermission("entity:crm:contact:delete")).toBe(
-				true,
-			);
-		});
-
-		it("hasPermission returns false for non-matching permission", () => {
-			const { result } = renderHook(() => useAuth(), {
-				wrapper: createWrapper(authenticatedState),
-			});
-			expect(result.current.hasPermission("app:hrms:settings")).toBe(false);
-		});
-
-		it("hasRole checks role list", () => {
-			const { result } = renderHook(() => useAuth(), {
-				wrapper: createWrapper(authenticatedState),
-			});
+			expect(result.current.role).toBe("inventory_user");
 			expect(result.current.hasRole("inventory_user")).toBe(true);
 			expect(result.current.hasRole("nonexistent")).toBe(false);
 		});
@@ -191,43 +121,35 @@ describe("useAuth", () => {
 			);
 		});
 
-		it("canAccessApp for super_admin returns true for any app", () => {
-			const { result } = renderHook(() => useAuth(), {
-				wrapper: createWrapper(superAdminState),
-			});
-			expect(result.current.canAccessApp("anything")).toBe(true);
-		});
-
-		it("isSupervisorOf checks supervisedApps", () => {
+		it("hasAnyRole returns false when no match", () => {
 			const { result } = renderHook(() => useAuth(), {
 				wrapper: createWrapper(authenticatedState),
 			});
-			expect(result.current.isSupervisorOf("inventory")).toBe(true);
-			expect(result.current.isSupervisorOf("hrms")).toBe(false);
+			expect(result.current.hasAnyRole("admin", "super_admin")).toBe(false);
+		});
+	});
+
+	describe("super_admin user", () => {
+		it("hasRole returns true for super_admin", () => {
+			const { result } = renderHook(() => useAuth(), {
+				wrapper: createWrapper(superAdminState),
+			});
+			expect(result.current.hasRole("super_admin")).toBe(true);
 		});
 	});
 
 	describe("inactive user", () => {
-		it("denies all permissions when isActive is false", () => {
+		it("reports isActive=false", () => {
 			const { result } = renderHook(() => useAuth(), {
 				wrapper: createWrapper({
 					session: authenticatedState.session,
-					authorization: {
-						role: "admin",
-						roles: ["admin"],
-						permissions: [],
-						apps: {},
-						supervisedApps: [],
-						isActive: false,
-					},
+					role: "inventory_user",
+					isActive: false,
 				}),
 			});
 
 			expect(result.current.isActive).toBe(false);
-			expect(result.current.hasPermission("system:manage")).toBe(false);
-			expect(result.current.hasRole("admin")).toBe(false);
-			expect(result.current.canAccessApp("inventory")).toBe(false);
-			expect(result.current.isSupervisorOf("inventory")).toBe(false);
+			expect(result.current.isAuthenticated).toBe(true);
 		});
 	});
 });

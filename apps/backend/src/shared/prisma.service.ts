@@ -66,19 +66,6 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
 		return this.client.verification;
 	}
 
-	// Authorization (RBAC) - TODO: migrate to new admin plugin model after better-auth access control update
-	// get role() { return this.client.role; }
-	// get permission() { return this.client.permission; }
-	// get rolePermission() { return this.client.rolePermission; }
-	// get userRole() { return this.client.userRole; }
-
-	// Multi-App & Teams - TODO: restore if needed after app/team models are re-added
-	// get app() { return this.client.app; }
-	// get appSupervisor() { return this.client.appSupervisor; }
-	// get team() { return this.client.team; }
-	// get teamMember() { return this.client.teamMember; }
-	// get auditLog() { return this.client.auditLog; }
-
 	// Inventory Domain
 	get inventoryItem() {
 		return this.client.inventoryItem;
