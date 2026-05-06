@@ -44,11 +44,14 @@ const authenticatedState: AuthState = {
 		},
 	},
 	authorization: {
-		role: "inventory_user",
-		roles: ["inventory_user"],
+		role: "super_admin",
+		roles: ["super_admin", "inventory_user"],
 		permissions: [],
-		apps: {},
-		supervisedApps: [],
+		apps: {
+			inventory: { roles: ["admin"] },
+			asset: { roles: ["viewer"] },
+		},
+		supervisedApps: ["inventory"],
 		isActive: true,
 	},
 };

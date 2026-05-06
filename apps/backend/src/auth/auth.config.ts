@@ -4,7 +4,6 @@ import { prismaAdapter } from "better-auth/adapters/prisma";
 import { betterAuth } from "better-auth/minimal";
 import { createAccessControl } from "better-auth/plugins/access";
 import { admin } from "better-auth/plugins/admin";
-import { defaultStatements } from "better-auth/plugins/admin/access";
 import { customSession } from "better-auth/plugins/custom-session";
 import { username } from "better-auth/plugins/username";
 import { prismaClient } from "../shared/prisma-client.js";

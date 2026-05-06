@@ -89,33 +89,107 @@ describe("authorizationHasAnyRole", () => {
 });
 
 describe("authorizationHasPermission", () => {
-	it("returns true always (no custom permissions)", () => {
-		expect(authorizationHasPermission()).toBe(true);
+	it("returns false when permission is not in list", () => {
+		expect(authorizationHasPermission(adminAuth, "system:manage")).toBe(false);
 	});
 
-	it("returns true for inactive user too", () => {
-		expect(authorizationHasPermission()).toBe(true);
+	it("returns true for super_admin regardless of permission list", () => {
+		expect(authorizationHasPermission(superAdminAuth, "system:manage")).toBe(
+			true,
+		);
+	});
+
+	it("returns false for inactive user", () => {
+		expect(authorizationHasPermission(inactiveAuth, "system:manage")).toBe(
+			false,
+		);
+	});
+
+	it("returns true for exact permission match", () => {
+		const auth: AuthorizationData = {
+			...adminAuth,
+			permissions: ["system:manage"],
+		};
+		expect(authorizationHasPermission(auth, "system:manage")).toBe(true);
+	});
+
+	it("returns true for system:* wildcard", () => {
+		const auth: AuthorizationData = {
+			...adminAuth,
+			permissions: ["system:*"],
+		};
+		expect(authorizationHasPermission(auth, "system:manage")).toBe(true);
 	});
 });
 
 describe("authorizationHasAnyPermission", () => {
-	it("returns true always", () => {
-		expect(authorizationHasAnyPermission()).toBe(true);
+	it("returns true when any permission matches", () => {
+		const auth: AuthorizationData = {
+			...adminAuth,
+			permissions: ["system:manage", "app:inventory:read"],
+		};
+		expect(
+			authorizationHasAnyPermission(auth, "system:foo", "system:manage"),
+		).toBe(true);
+	});
+
+	it("returns false when no permissions match", () => {
+		expect(
+			authorizationHasAnyPermission(adminAuth, "system:foo", "app:bar"),
+		).toBe(false);
+	});
+
+	it("returns true for super_admin regardless of permission list", () => {
+		expect(
+			authorizationHasAnyPermission(superAdminAuth, "anything", "atall"),
+		).toBe(true);
 	});
 });
 
 describe("authorizationCanAccessApp", () => {
-	it("returns true always", () => {
-		expect(authorizationCanAccessApp()).toBe(true);
+	it("returns true when app is in apps", () => {
+		const auth: AuthorizationData = {
+			...adminAuth,
+			apps: { inventory: { roles: ["admin"] } },
+		};
+		expect(authorizationCanAccessApp(auth, "inventory")).toBe(true);
+	});
+
+	it("returns false when app is not in apps", () => {
+		expect(authorizationCanAccessApp(adminAuth, "inventory")).toBe(false);
+	});
+
+	it("returns true for super_admin for any app", () => {
+		expect(authorizationCanAccessApp(superAdminAuth, "anyapp")).toBe(true);
+	});
+
+	it("returns false for inactive user", () => {
+		expect(authorizationCanAccessApp(inactiveAuth, "inventory")).toBe(false);
 	});
 });
 
 describe("authorizationIsSupervisorOf", () => {
-	it("returns false always (no supervisor concept)", () => {
-		expect(authorizationIsSupervisorOf()).toBe(false);
+	it("returns true when app is in supervisedApps", () => {
+		const auth: AuthorizationData = {
+			...adminAuth,
+			supervisedApps: ["inventory", "crm"],
+		};
+		expect(authorizationIsSupervisorOf(auth, "inventory")).toBe(true);
+	});
+
+	it("returns false when app is not in supervisedApps", () => {
+		const auth: AuthorizationData = {
+			...adminAuth,
+			supervisedApps: ["inventory"],
+		};
+		expect(authorizationIsSupervisorOf(auth, "crm")).toBe(false);
+	});
+
+	it("returns true for super_admin for any app", () => {
+		expect(authorizationIsSupervisorOf(superAdminAuth, "anyapp")).toBe(true);
 	});
 
 	it("returns false for inactive user", () => {
-		expect(authorizationIsSupervisorOf()).toBe(false);
+		expect(authorizationIsSupervisorOf(inactiveAuth, "inventory")).toBe(false);
 	});
 });

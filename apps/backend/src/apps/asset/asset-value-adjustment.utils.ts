@@ -193,7 +193,7 @@ const getDDBAnnualRate = (
 	const totalYears =
 		(totalNumberOfDepreciations * frequencyOfDepreciation) / 12;
 	if (totalYears <= 0) return 0;
-	return (200 / totalYears) * (frequencyOfDepreciation / 12);
+	return (2 / totalYears) * (frequencyOfDepreciation / 12);
 };
 
 const getWDVAnnualRate = (
@@ -235,7 +235,7 @@ const detectFiscalYearChange = (
 ): boolean => {
 	if (!ctx.currentFiscalYearEndDate) {
 		ctx.currentFiscalYearEndDate = getDefaultIndiaFiscalYearEnd(scheduleDate);
-		return true;
+		return false;
 	}
 
 	if (scheduleDate > ctx.currentFiscalYearEndDate) {
@@ -342,7 +342,9 @@ export const buildDepreciationSchedulePreview = (
 			);
 
 			if (depreciationAmount <= 0) {
-				break;
+				depreciationAmount = roundCurrency(
+					pendingDepreciationAmount / periodsLeft,
+				);
 			}
 
 			const fyChanged = detectFiscalYearChange(scheduleDate, fyContext);

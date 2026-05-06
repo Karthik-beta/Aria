@@ -32,7 +32,38 @@ const authenticatedState: AuthState = {
 	authorization: {
 		role: "inventory_user",
 		roles: ["inventory_user"],
-		permissions: [],
+		permissions: [
+			"entity:inventory:item:read",
+			"app:inventory:*",
+			"entity:crm:*",
+		],
+		apps: { inventory: { roles: ["admin"] }, crm: { roles: ["viewer"] } },
+		supervisedApps: ["inventory"],
+		isActive: true,
+	},
+};
+
+const superAdminState: AuthState = {
+	session: {
+		user: {
+			id: "user-2",
+			email: "admin@example.com",
+			emailVerified: true,
+			name: "Admin User",
+			createdAt: new Date(),
+			updatedAt: new Date(),
+			mustChangePassword: false,
+		},
+		session: {
+			id: "session-2",
+			userId: "user-2",
+			expiresAt: new Date(),
+		},
+	},
+	authorization: {
+		role: "super_admin",
+		roles: ["super_admin"],
+		permissions: ["system:*"],
 		apps: {},
 		supervisedApps: [],
 		isActive: true,
@@ -110,7 +141,7 @@ describe("useAuth", () => {
 
 		it("hasPermission with system:* wildcard", () => {
 			const { result } = renderHook(() => useAuth(), {
-				wrapper: createWrapper(authenticatedState),
+				wrapper: createWrapper(superAdminState),
 			});
 			expect(result.current.hasPermission("system:manage")).toBe(true);
 			expect(result.current.hasPermission("system:settings")).toBe(true);
@@ -162,7 +193,7 @@ describe("useAuth", () => {
 
 		it("canAccessApp for super_admin returns true for any app", () => {
 			const { result } = renderHook(() => useAuth(), {
-				wrapper: createWrapper(authenticatedState),
+				wrapper: createWrapper(superAdminState),
 			});
 			expect(result.current.canAccessApp("anything")).toBe(true);
 		});

@@ -7,15 +7,13 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockRedirect, mockRequireProtectedAuthState } = vi.hoisted(() => ({
-	mockRedirect: vi.fn((url: string) => {
-		throw new Error(`NEXT_REDIRECT:${url}`);
-	}),
-	mockRequireProtectedAuthState: vi.fn(),
-}));
+const mockRedirect = vi.fn((url: string) => {
+	throw new Error(`NEXT_REDIRECT:${url}`);
+});
+const mockRequireProtectedAuthState = vi.fn();
 
 vi.mock("next/navigation", () => ({
-	redirect: mockRedirect,
+	redirect: (url: string) => mockRedirect(url),
 }));
 
 vi.mock("@/lib/auth/server", () => ({
