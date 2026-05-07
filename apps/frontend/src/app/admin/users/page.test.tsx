@@ -1,6 +1,5 @@
-import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
-import { renderWithProviders, screen, waitFor } from "@/test/utils";
+import { fireEvent, renderWithProviders, screen, waitFor } from "@/test/utils";
 import UsersPage from "./page";
 
 vi.mock("sonner", () => ({
@@ -152,5 +151,41 @@ describe("UsersPage", () => {
 	it("renders users sidebar heading", () => {
 		renderWithProviders(<UsersPage />);
 		expect(screen.getByText("Users")).toBeInTheDocument();
+	});
+
+	// ── Interaction tests ─────────────────────────────────────────────────────
+
+	it("selects a user when clicked", async () => {
+		renderWithProviders(<UsersPage />);
+		await waitFor(() => {
+			expect(screen.getByText("Admin User")).toBeInTheDocument();
+		});
+		fireEvent.click(screen.getByText("Admin User"));
+		await waitFor(() => {
+			expect(screen.getByText("User Information")).toBeInTheDocument();
+		});
+	});
+
+	it("switches to create panel when clicking create user button", async () => {
+		renderWithProviders(<UsersPage />);
+		await waitFor(() => {
+			expect(screen.getAllByText("Create user")[0]).toBeInTheDocument();
+		});
+		fireEvent.click(screen.getAllByText("Create user")[0]);
+		await waitFor(() => {
+			expect(screen.getByText("Create New User")).toBeInTheDocument();
+		});
+	});
+
+	it("searches when typing in search input", async () => {
+		renderWithProviders(<UsersPage />);
+		await waitFor(() => {
+			expect(
+				screen.getByPlaceholderText("Search users..."),
+			).toBeInTheDocument();
+		});
+		const searchInput = screen.getByPlaceholderText("Search users...");
+		fireEvent.change(searchInput, { target: { value: "admin" } });
+		expect((searchInput as HTMLInputElement).value).toBe("admin");
 	});
 });

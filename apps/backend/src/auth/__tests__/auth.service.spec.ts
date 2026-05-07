@@ -1,22 +1,89 @@
-import { AuthService } from "../auth.service";
+import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
+
+// biome-ignore lint/style/useNamingConvention: bun test mock
+const mockHandlerFn = mock(
+	(_req: Request) => new Response(JSON.stringify({}), { status: 200 }),
+);
+
+// biome-ignore lint/style/useNamingConvention: bun test mock
+mock.module("../auth.config", () => ({
+	auth: {
+		handler: (_req: Request) => mockHandlerFn(_req),
+	},
+	// biome-ignore lint/style/useNamingConvention: better-auth export name
+	Auth: {} as never,
+}));
+
+// biome-ignore lint/style/useNamingConvention: prisma method names
+const mockPrismaUserFindFirst = mock(() => Promise.resolve(null));
+// biome-ignore lint/style/useNamingConvention: prisma method names
+const mockPrismaUserFindUnique = mock(() => Promise.resolve(null));
+// biome-ignore lint/style/useNamingConvention: prisma method names
+const mockPrismaUserUpdate = mock(() => Promise.resolve({}));
+// biome-ignore lint/style/useNamingConvention: prisma method names
+const mockPrismaConnect = mock(() => Promise.resolve());
+// biome-ignore lint/style/useNamingConvention: prisma method names
+const mockPrismaDisconnect = mock(() => Promise.resolve());
+
+const mockPrismaObj = {
+	// biome-ignore lint/style/useNamingConvention: prisma method names
+	$connect: mockPrismaConnect,
+	// biome-ignore lint/style/useNamingConvention: prisma method names
+	$disconnect: mockPrismaDisconnect,
+	user: {
+		findFirst: mockPrismaUserFindFirst,
+		findUnique: mockPrismaUserFindUnique,
+		update: mockPrismaUserUpdate,
+	},
+};
+
+// biome-ignore lint/style/useNamingConvention: bun test mock
+mock.module("../shared/prisma-client.js", () => ({
+	prismaClient: mockPrismaObj,
+}));
+
+import { AuthService } from "../auth.service.js";
 
 /**
- * Unit tests for AuthService helper methods.
+ * Unit tests for AuthService.
  *
- * The public seeding / user-creation methods are tightly coupled to the
- * database and to better-auth, so they are best covered by integration tests.
- * Here we exercise the pure private helpers via casting to `any` to verify
- * edge-case handling of the error-reporting utilities.
+ * Exercises both the pure error-reporting helpers and the public
+ * createDefaultUser method with controlled mocks for the database and
+ * better-auth handler.
  */
 describe("AuthService", () => {
 	let service: AuthService;
 
+	const originalEnv = { ...process.env };
+
 	beforeEach(() => {
-		// Construct the service without DI — we only test pure helpers
 		service = Object.create(AuthService.prototype) as AuthService;
+		// biome-ignore lint/suspicious/noExplicitAny: accessing private helpers
+		(service as any).prisma = mockPrismaObj;
+		// biome-ignore lint/suspicious/noExplicitAny: accessing private helpers
+		(service as any).logger = {
+			log: () => {
+				/* suppressed */
+			},
+			warn: () => {
+				/* suppressed */
+			},
+			error: () => {
+				/* suppressed */
+			},
+		};
 	});
 
-	// ── getSafeErrorMessage ─────────────────────────────────────────────
+	afterEach(() => {
+		process.env = { ...originalEnv };
+		mockPrismaConnect.mockClear();
+		mockPrismaUserFindFirst.mockClear();
+		mockPrismaUserFindUnique.mockClear();
+		mockPrismaUserUpdate.mockClear();
+		mockHandlerFn.mockClear();
+	});
+
+	// ── getSafeErrorMessage ───────────────────────────────────────────────────
 
 	describe("getSafeErrorMessage", () => {
 		const call = (error: unknown) =>
@@ -60,7 +127,7 @@ describe("AuthService", () => {
 		});
 	});
 
-	// ── getErrorDetails ─────────────────────────────────────────────────
+	// ── getErrorDetails ───────────────────────────────────────────────────────
 
 	describe("getErrorDetails", () => {
 		const call = (error: unknown) =>
@@ -104,6 +171,219 @@ describe("AuthService", () => {
 			const circular: Record<string, unknown> = {};
 			circular.self = circular;
 			expect(call(circular)).toBeUndefined();
+		});
+	});
+
+	// ── createDefaultUser ─────────────────────────────────────────────────────
+
+	describe("createDefaultUser", () => {
+		const setEnv = (env: Record<string, string>) => {
+			Object.entries(env).forEach(([k, v]) => {
+				process.env[k] = v;
+			});
+		};
+
+		const clearEnv = (...keys: string[]) => {
+			keys.forEach((k) => {
+				// biome-ignore lint/performance/noDelete: test env manipulation
+				delete process.env[k];
+			});
+		};
+
+		beforeEach(() => {
+			clearEnv(
+				"DEFAULT_ADMIN_USERNAME",
+				"DEFAULT_ADMIN_PASSWORD",
+				"DEFAULT_ADMIN_EMAIL",
+				"DEFAULT_ADMIN_NAME",
+			);
+			mockPrismaConnect.mockImplementation(() => Promise.resolve());
+			mockPrismaUserFindFirst.mockImplementation(() => Promise.resolve(null));
+			mockPrismaUserFindUnique.mockImplementation(() => Promise.resolve(null));
+			mockPrismaUserUpdate.mockImplementation(() => Promise.resolve({}));
+			mockHandlerFn.mockImplementation(
+				() => new Response(JSON.stringify({}), { status: 200 }),
+			);
+		});
+
+		it("skips creation when DEFAULT_ADMIN_USERNAME is missing", async () => {
+			clearEnv("DEFAULT_ADMIN_USERNAME");
+			setEnv({
+				DEFAULT_ADMIN_PASSWORD: "pass12345",
+				DEFAULT_ADMIN_EMAIL: "admin@test.com",
+			});
+
+			await service.createDefaultUser();
+
+			expect(mockPrismaConnect).not.toHaveBeenCalled();
+			expect(mockHandlerFn).not.toHaveBeenCalled();
+		});
+
+		it("skips creation when DEFAULT_ADMIN_PASSWORD is missing", async () => {
+			setEnv({
+				DEFAULT_ADMIN_USERNAME: "admin",
+				DEFAULT_ADMIN_EMAIL: "admin@test.com",
+			});
+			clearEnv("DEFAULT_ADMIN_PASSWORD");
+
+			await service.createDefaultUser();
+
+			expect(mockPrismaConnect).not.toHaveBeenCalled();
+			expect(mockHandlerFn).not.toHaveBeenCalled();
+		});
+
+		it("skips creation when DEFAULT_ADMIN_EMAIL is missing", async () => {
+			setEnv({
+				DEFAULT_ADMIN_USERNAME: "admin",
+				DEFAULT_ADMIN_PASSWORD: "pass12345",
+			});
+			clearEnv("DEFAULT_ADMIN_EMAIL");
+
+			await service.createDefaultUser();
+
+			expect(mockPrismaConnect).not.toHaveBeenCalled();
+			expect(mockHandlerFn).not.toHaveBeenCalled();
+		});
+
+		it("skips sign-up when user already exists", async () => {
+			setEnv({
+				DEFAULT_ADMIN_USERNAME: "admin",
+				DEFAULT_ADMIN_PASSWORD: "pass12345",
+				DEFAULT_ADMIN_EMAIL: "admin@test.com",
+			});
+			mockPrismaUserFindFirst.mockResolvedValue({
+				id: "existing-id",
+				username: "admin",
+				email: "admin@test.com",
+			});
+
+			await service.createDefaultUser();
+
+			expect(mockPrismaConnect).toHaveBeenCalled();
+			expect(mockHandlerFn).not.toHaveBeenCalled();
+		});
+
+		it("creates user via auth.handler when no existing user found", async () => {
+			setEnv({
+				DEFAULT_ADMIN_USERNAME: "admin",
+				DEFAULT_ADMIN_PASSWORD: "pass12345",
+				DEFAULT_ADMIN_EMAIL: "admin@test.com",
+			});
+			mockPrismaUserFindFirst.mockResolvedValue(null);
+			mockPrismaUserFindUnique.mockResolvedValue({
+				id: "created-id",
+				email: "admin@test.com",
+			});
+
+			await service.createDefaultUser();
+
+			expect(mockHandlerFn).toHaveBeenCalledTimes(1);
+			const callArg = mockHandlerFn.mock.calls[0]?.[0] as Request | undefined;
+			expect(callArg).toBeDefined();
+			expect(callArg?.method).toBe("POST");
+		});
+
+		it("sets super_admin role after successful creation", async () => {
+			setEnv({
+				DEFAULT_ADMIN_USERNAME: "admin",
+				DEFAULT_ADMIN_PASSWORD: "pass12345",
+				DEFAULT_ADMIN_EMAIL: "admin@test.com",
+			});
+			mockPrismaUserFindFirst.mockResolvedValue(null);
+			mockPrismaUserFindUnique.mockResolvedValue({
+				id: "created-id",
+				email: "admin@test.com",
+			});
+
+			await service.createDefaultUser();
+
+			expect(mockPrismaUserUpdate).toHaveBeenCalled();
+			const updateCall = mockPrismaUserUpdate.mock.calls[0]?.[0] as
+				| Record<string, unknown>
+				| undefined;
+			expect(updateCall).toBeDefined();
+			if (updateCall) {
+				expect(updateCall.where).toEqual({ id: "created-id" });
+				expect(updateCall.data).toMatchObject({ role: "super_admin" });
+			}
+		});
+
+		it("does not crash when auth.handler returns non-ok", async () => {
+			setEnv({
+				DEFAULT_ADMIN_USERNAME: "admin",
+				DEFAULT_ADMIN_PASSWORD: "pass12345",
+				DEFAULT_ADMIN_EMAIL: "admin@test.com",
+			});
+			mockPrismaUserFindFirst.mockResolvedValue(null);
+			mockHandlerFn.mockResolvedValue(
+				new Response(JSON.stringify({ message: "Conflict" }), { status: 409 }),
+			);
+
+			await service.createDefaultUser();
+
+			expect(mockPrismaUserFindUnique).not.toHaveBeenCalled();
+		});
+
+		it("does not throw when prisma connection fails", async () => {
+			setEnv({
+				DEFAULT_ADMIN_USERNAME: "admin",
+				DEFAULT_ADMIN_PASSWORD: "pass12345",
+				DEFAULT_ADMIN_EMAIL: "admin@test.com",
+			});
+			mockPrismaConnect.mockRejectedValue(new Error("Connection refused"));
+
+			await expect(service.createDefaultUser()).resolves.toBeUndefined();
+		});
+
+		it("updates password metadata for existing user", async () => {
+			setEnv({
+				DEFAULT_ADMIN_USERNAME: "admin",
+				DEFAULT_ADMIN_PASSWORD: "pass12345",
+				DEFAULT_ADMIN_EMAIL: "admin@test.com",
+			});
+			mockPrismaUserFindFirst.mockResolvedValue({
+				id: "existing-id",
+				email: "admin@test.com",
+				username: "admin",
+			});
+
+			await service.createDefaultUser();
+
+			expect(mockPrismaUserUpdate).toHaveBeenCalled();
+			const updateCall = mockPrismaUserUpdate.mock.calls[0]?.[0] as
+				| Record<string, unknown>
+				| undefined;
+			expect(updateCall).toBeDefined();
+			if (updateCall) {
+				expect(updateCall.where).toEqual({ email: "admin@test.com" });
+				expect(updateCall.data).toMatchObject({
+					mustChangePassword: false,
+				});
+			}
+		});
+
+		it("uses DEFAULT_ADMIN_NAME in sign-up request body", async () => {
+			setEnv({
+				DEFAULT_ADMIN_USERNAME: "admin",
+				DEFAULT_ADMIN_PASSWORD: "pass12345",
+				DEFAULT_ADMIN_EMAIL: "admin@test.com",
+				DEFAULT_ADMIN_NAME: "Custom Admin",
+			});
+			mockPrismaUserFindFirst.mockResolvedValue(null);
+			mockPrismaUserFindUnique.mockResolvedValue({
+				id: "created-id",
+				email: "admin@test.com",
+			});
+
+			await service.createDefaultUser();
+
+			expect(mockHandlerFn).toHaveBeenCalled();
+			const callArg = mockHandlerFn.mock.calls[0]?.[0] as Request | undefined;
+			expect(callArg).toBeDefined();
+			if (callArg) {
+				const body = await callArg.json();
+				expect(body.name).toBe("Custom Admin");
+			}
 		});
 	});
 });
