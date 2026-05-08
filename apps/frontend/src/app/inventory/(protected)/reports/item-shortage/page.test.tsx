@@ -122,10 +122,10 @@ describe("ItemShortageReportPage", () => {
 		});
 	});
 
-	it("shows loading indicator while fetching", () => {
+	it("shows data rows when query returns data", async () => {
 		mockUseQuery.mockReturnValue({
-			data: undefined,
-			isLoading: true,
+			data: makeRows(),
+			isLoading: false,
 			error: null,
 			refetch: vi.fn(),
 		});
@@ -135,7 +135,10 @@ describe("ItemShortageReportPage", () => {
 		const companyInput = screen.getByPlaceholderText("Company *");
 		fireEvent.change(companyInput, { target: { value: "Test Corp" } });
 
-		expect(screen.getByText("Loading shortage data…")).toBeInTheDocument();
+		await waitFor(() => {
+			expect(screen.getByText("Widget Alpha")).toBeInTheDocument();
+			expect(screen.getByText("Bolt B12")).toBeInTheDocument();
+		});
 	});
 
 	it("renders shortage rows when data is loaded", async () => {

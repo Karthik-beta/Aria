@@ -28,7 +28,9 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 import { DataTableColumnHeader } from "@/components/ui/table/data-table-column-header";
+import { DataTableSkeleton } from "@/components/ui/table/data-table-skeleton";
 import { trpc } from "@/lib/trpc";
 import {
 	buildChartData,
@@ -570,13 +572,16 @@ export default function StockAnalyticsPage() {
 
 			{/* Loading state */}
 			{isLoading && (
-				<output
-					className="flex items-center justify-center py-12"
-					aria-live="polite"
-					aria-label="Loading stock analytics"
-				>
-					<div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-				</output>
+				<div className="flex flex-col gap-4">
+					<div className="rounded-lg border bg-background p-4">
+						<div className="mb-4">
+							<Skeleton className="h-5 w-48 mb-1" />
+							<Skeleton className="h-4 w-64" />
+						</div>
+						<Skeleton className="h-[320px] w-full rounded-md" />
+					</div>
+					<DataTableSkeleton columnCount={7} rowCount={10} filterCount={0} />
+				</div>
 			)}
 
 			{/* Error state */}

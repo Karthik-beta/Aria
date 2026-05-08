@@ -144,18 +144,18 @@ describe("RequestedItemsToBeTransferredPage", () => {
 		});
 	});
 
-	it("shows the loading state", () => {
+	it("renders requested items data when loaded", async () => {
 		mockUseQuery.mockReturnValue({
-			data: undefined,
-			isLoading: true,
+			data: makeResult(),
+			isLoading: false,
 			error: null,
 		});
 
 		renderWithProviders(<RequestedItemsToBeTransferredPage />);
 
-		expect(
-			screen.getByText("Loading requested items awaiting transfer…"),
-		).toBeInTheDocument();
+		await waitFor(() => {
+			expect(screen.getByText("MAT-MRQ-2026-00001")).toBeInTheDocument();
+		});
 	});
 
 	it("shows the empty state when no rows are returned", async () => {

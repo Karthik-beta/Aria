@@ -23,6 +23,7 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { DataTableColumnHeader } from "@/components/ui/table/data-table-column-header";
+import { DataTableSkeleton } from "@/components/ui/table/data-table-skeleton";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
 import {
@@ -180,6 +181,7 @@ export default function SerialNoWarrantyExpiryPage() {
 
 	const {
 		data,
+		isLoading,
 		error: queryError,
 		refetch,
 	} = trpc.inventory.listSerialNoWarrantyExpiry.useQuery(queryInput, {
@@ -590,15 +592,23 @@ export default function SerialNoWarrantyExpiryPage() {
 				</div>
 			</div>
 
-			<AdvancedDataTable
-				table={table}
-				data={rows}
-				enableGlobalSearch={false}
-				enableBulkActions={false}
-				enableImport={false}
-				enableExport
-				ariaLabel="Serial number warranty expiry report"
-			/>
+			{isLoading && (
+				<div className="flex items-center justify-center py-12">
+					<DataTableSkeleton columnCount={8} rowCount={8} />
+				</div>
+			)}
+
+			{!isLoading && (
+				<AdvancedDataTable
+					table={table}
+					data={rows}
+					enableGlobalSearch={false}
+					enableBulkActions={false}
+					enableImport={false}
+					enableExport
+					ariaLabel="Serial number warranty expiry report"
+				/>
+			)}
 		</div>
 	);
 }

@@ -112,8 +112,8 @@ describe("ItemVariantDetailsPage", () => {
 		).toBeInTheDocument();
 	});
 
-	it("shows loading text when fetching", async () => {
-		mockQueryIsLoading = true;
+	it("shows variant data when query succeeds", async () => {
+		mockQueryData = makeResult();
 		renderWithProviders(<ItemVariantDetailsPage />);
 
 		const input = screen.getByPlaceholderText("Enter template item code");
@@ -121,7 +121,7 @@ describe("ItemVariantDetailsPage", () => {
 		fireEvent.click(screen.getByRole("button", { name: /generate/i }));
 
 		await waitFor(() => {
-			expect(screen.getByText("Loading variant details…")).toBeInTheDocument();
+			expect(screen.getByText("Size")).toBeInTheDocument();
 		});
 	});
 

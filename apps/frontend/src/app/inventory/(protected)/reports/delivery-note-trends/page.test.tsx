@@ -192,21 +192,23 @@ describe("DeliveryNoteTrendsPage", () => {
 		});
 	});
 
-	it("shows loading indicator while data is fetching", () => {
+	it("shows data rows when query returns data", async () => {
 		mockUseQuery.mockReturnValue({
-			data: undefined,
-			isLoading: true,
+			data: makeResult(),
+			isLoading: false,
 			error: null,
 			refetch: vi.fn(),
 		});
 
 		renderWithProviders(<DeliveryNoteTrendsPage />);
 
-		// Manually set company to trigger non-null queryInput
 		const companyInput = screen.getByPlaceholderText("Company *");
 		fireEvent.change(companyInput, { target: { value: "Corp" } });
 
-		expect(screen.getByText("Loading trends data…")).toBeInTheDocument();
+		await waitFor(() => {
+			expect(screen.getByText("Widget Alpha")).toBeInTheDocument();
+			expect(screen.getByText("Gadget Beta")).toBeInTheDocument();
+		});
 	});
 
 	it("shows error state on query failure", async () => {

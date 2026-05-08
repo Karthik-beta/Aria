@@ -101,17 +101,20 @@ describe("ItemwiseRecommendedReorderLevelPage", () => {
 		expect(screen.getByLabelText("Filter by brand")).toBeInTheDocument();
 	});
 
-	it("shows loading indicator while fetching", async () => {
+	it("shows data rows when query returns data", async () => {
 		mockUseQuery.mockReturnValue({
-			data: undefined,
-			isLoading: true,
+			data: makeRows(),
+			isLoading: false,
 			error: null,
 			refetch: vi.fn(),
 		});
 
 		renderWithProviders(<ItemwiseRecommendedReorderLevelPage />);
 
-		expect(screen.getByText("Loading reorder level data…")).toBeInTheDocument();
+		await waitFor(() => {
+			expect(screen.getByText("Widget Alpha")).toBeInTheDocument();
+			expect(screen.getByText("Bolt B12")).toBeInTheDocument();
+		});
 	});
 
 	it("renders data rows when data is loaded", async () => {

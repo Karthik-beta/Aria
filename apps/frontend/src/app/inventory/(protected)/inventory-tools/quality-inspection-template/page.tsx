@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ErrorState } from "@/components/ui/error-display";
 import { DataTableColumnHeader } from "@/components/ui/table/data-table-column-header";
+import { DataTableSkeleton } from "@/components/ui/table/data-table-skeleton";
 import { getToastMessage } from "@/lib/errors";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
@@ -267,14 +268,18 @@ export default function QualityInspectionTemplatePage() {
 				</div>
 			</div>
 
-			<AdvancedDataTable
-				table={table}
-				data={templates}
-				enableGlobalSearch
-				enableColumnResizing
-				enableColumnReordering
-				ariaLabel="Quality inspection templates table"
-			/>
+			{isLoading ? (
+				<DataTableSkeleton columnCount={4} rowCount={8} />
+			) : (
+				<AdvancedDataTable
+					table={table}
+					data={templates}
+					enableGlobalSearch
+					enableColumnResizing
+					enableColumnReordering
+					ariaLabel="Quality inspection templates table"
+				/>
+			)}
 
 			<AlertModal
 				isOpen={deleteDialogOpen}

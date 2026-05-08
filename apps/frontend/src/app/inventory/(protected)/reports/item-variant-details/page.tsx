@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { ErrorState } from "@/components/ui/error-display";
 import { Input } from "@/components/ui/input";
 import { DataTableColumnHeader } from "@/components/ui/table/data-table-column-header";
+import { DataTableSkeleton } from "@/components/ui/table/data-table-skeleton";
 import { trpc } from "@/lib/trpc";
 import {
 	formatOptional,
@@ -249,9 +250,7 @@ export default function ItemVariantDetailsPage() {
 
 			{/* Loading */}
 			{submittedItemCode && isLoading && (
-				<p className="text-sm text-muted-foreground">
-					Loading variant details…
-				</p>
+				<DataTableSkeleton columnCount={8} rowCount={10} filterCount={1} />
 			)}
 
 			{/* Error */}

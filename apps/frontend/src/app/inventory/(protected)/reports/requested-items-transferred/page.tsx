@@ -30,7 +30,9 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 import { DataTableColumnHeader } from "@/components/ui/table/data-table-column-header";
+import { DataTableSkeleton } from "@/components/ui/table/data-table-skeleton";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
 import {
@@ -440,9 +442,9 @@ export default function RequestedItemsToBeTransferredPage() {
 			</section>
 
 			{isLoading ? (
-				<p className="text-sm text-muted-foreground">
-					Loading requested items awaiting transfer…
-				</p>
+				<div className="flex flex-col gap-4">
+					<DataTableSkeleton columnCount={12} rowCount={10} filterCount={5} />
+				</div>
 			) : null}
 
 			{!isLoading && queryError ? (

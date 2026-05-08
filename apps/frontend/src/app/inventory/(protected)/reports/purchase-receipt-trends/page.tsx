@@ -27,7 +27,9 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 import { DataTableColumnHeader } from "@/components/ui/table/data-table-column-header";
+import { DataTableSkeleton } from "@/components/ui/table/data-table-skeleton";
 import { trpc } from "@/lib/trpc";
 import {
 	BASED_ON_OPTIONS,
@@ -463,11 +465,43 @@ export default function PurchaseReceiptTrendsPage() {
 
 			{/* Loading state */}
 			{isLoading && queryInput != null ? (
-				<output aria-live="polite" className="block">
-					<div className="flex items-center justify-center py-12 text-muted-foreground">
-						<span className="animate-pulse">Loading trends data…</span>
+				<div className="flex flex-col gap-4">
+					<div className="rounded-lg border bg-background p-4">
+						<div className="flex items-center gap-2 mb-4">
+							<Skeleton className="h-4 w-24" />
+							<div className="flex gap-4 ml-auto">
+								<Skeleton className="h-7 w-20" />
+								<Skeleton className="h-7 w-20" />
+							</div>
+						</div>
 					</div>
-				</output>
+					<div className="rounded-lg border bg-background p-4">
+						<div className="mb-4">
+							<Skeleton className="h-5 w-48 mb-1" />
+							<Skeleton className="h-4 w-64" />
+						</div>
+						<Skeleton className="h-[300px] w-full rounded-md" />
+					</div>
+					<DataTableSkeleton
+						columnCount={12}
+						rowCount={10}
+						filterCount={0}
+						cellWidths={[
+							"auto",
+							"auto",
+							"auto",
+							"auto",
+							"auto",
+							"auto",
+							"auto",
+							"auto",
+							"auto",
+							"auto",
+							"auto",
+							"auto",
+						]}
+					/>
+				</div>
 			) : null}
 
 			{/* Error state */}

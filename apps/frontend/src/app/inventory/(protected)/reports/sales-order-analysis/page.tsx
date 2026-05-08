@@ -19,7 +19,9 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ErrorState } from "@/components/ui/error-display";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import { DataTableColumnHeader } from "@/components/ui/table/data-table-column-header";
+import { DataTableSkeleton } from "@/components/ui/table/data-table-skeleton";
 import { trpc } from "@/lib/trpc";
 import {
 	buildDonutChartData,
@@ -595,11 +597,22 @@ export default function SalesOrderAnalysisPage() {
 
 			{/* Loading state */}
 			{isLoading && queryInput != null ? (
-				<output aria-live="polite" className="block">
-					<div className="flex items-center justify-center py-12 text-muted-foreground">
-						<span className="animate-pulse">Loading sales order data…</span>
+				<div className="flex flex-col gap-4">
+					<div className="rounded-lg border bg-background p-4">
+						<div className="mb-4">
+							<Skeleton className="h-5 w-48 mb-1" />
+							<Skeleton className="h-4 w-64" />
+						</div>
+						<div className="flex flex-col md:flex-row items-center gap-6">
+							<Skeleton className="h-[260px] w-[260px] rounded-full" />
+							<div className="flex flex-col gap-3">
+								<Skeleton className="h-4 w-32" />
+								<Skeleton className="h-4 w-32" />
+							</div>
+						</div>
 					</div>
-				</output>
+					<DataTableSkeleton columnCount={14} rowCount={10} filterCount={0} />
+				</div>
 			) : null}
 
 			{/* Error state */}

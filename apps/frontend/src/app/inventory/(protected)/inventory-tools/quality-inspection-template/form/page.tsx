@@ -29,6 +29,7 @@ import { useFieldArray, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import * as z from "zod";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
 	Dialog,
 	DialogContent,
@@ -45,6 +46,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
 	Table,
 	TableBody,
@@ -438,15 +440,73 @@ function ParameterDialog({
 
 export default function QualityInspectionTemplateFormPage() {
 	return (
-		<Suspense
-			fallback={
-				<div className="flex min-h-screen items-center justify-center">
-					<Loader2 className="h-8 w-8 animate-spin text-primary" />
-				</div>
-			}
-		>
+		<Suspense fallback={<FormSkeleton />}>
 			<QualityInspectionTemplateFormContent />
 		</Suspense>
+	);
+}
+
+function FormSkeleton() {
+	return (
+		<div className="mx-auto max-w-3xl space-y-6 p-6">
+			<div className="flex items-center gap-3">
+				<Skeleton className="h-5 w-5" />
+				<Skeleton className="h-7 w-40" />
+			</div>
+			<div className="space-y-6">
+				<div className="space-y-1.5">
+					<Skeleton className="h-4 w-28" />
+					<Skeleton className="h-10 w-full" />
+				</div>
+				<div className="space-y-2">
+					<div className="flex items-center justify-between">
+						<Skeleton className="h-4 w-40" />
+						<Skeleton className="h-9 w-32" />
+					</div>
+					<div className="rounded-md border">
+						<Table>
+							<TableHeader>
+								<TableRow>
+									<TableHead className="w-8" />
+									<TableHead>Parameter</TableHead>
+									<TableHead>Group</TableHead>
+									<TableHead>Criteria</TableHead>
+									<TableHead className="w-20" />
+								</TableRow>
+							</TableHeader>
+							<TableBody>
+								{Array.from({ length: 3 }).map((_, i) => (
+									<TableRow key={i}>
+										<TableCell className="w-8 py-1">
+											<div className="flex flex-col gap-0.5">
+												<Skeleton className="h-3 w-3" />
+												<Skeleton className="h-3 w-3" />
+											</div>
+										</TableCell>
+										<TableCell>
+											<Skeleton className="h-5 w-32" />
+										</TableCell>
+										<TableCell>
+											<Skeleton className="h-4 w-20" />
+										</TableCell>
+										<TableCell>
+											<Skeleton className="h-4 w-24" />
+										</TableCell>
+										<TableCell className="w-20">
+											<Skeleton className="h-7 w-14" />
+										</TableCell>
+									</TableRow>
+								))}
+							</TableBody>
+						</Table>
+					</div>
+				</div>
+				<div className="flex items-center justify-end gap-3 border-t pt-4">
+					<Skeleton className="h-9 w-20" />
+					<Skeleton className="h-9 w-28" />
+				</div>
+			</div>
+		</div>
 	);
 }
 
@@ -596,11 +656,7 @@ function QualityInspectionTemplateFormContent() {
 	const isPending = createMutation.isPending || updateMutation.isPending;
 
 	if (isEditMode && isFetchingTemplate) {
-		return (
-			<div className="flex min-h-screen items-center justify-center">
-				<Loader2 className="h-8 w-8 animate-spin text-primary" />
-			</div>
-		);
+		return <FormSkeleton />;
 	}
 
 	return (

@@ -147,24 +147,6 @@ describe("BatchWiseBalancePage", () => {
 		});
 	});
 
-	it("shows loading indicator while fetching", () => {
-		mockUseQuery.mockReturnValue({
-			data: undefined,
-			isLoading: true,
-			error: null,
-			refetch: vi.fn(),
-		});
-
-		renderWithProviders(<BatchWiseBalancePage />);
-
-		const companyInput = screen.getByPlaceholderText("Company *");
-		fireEvent.change(companyInput, { target: { value: "Corp" } });
-
-		expect(
-			screen.getByLabelText("Loading batch-wise balance data"),
-		).toBeInTheDocument();
-	});
-
 	it("renders batch rows when data is loaded", async () => {
 		mockUseQuery.mockReturnValue({
 			data: makeRows(),

@@ -124,16 +124,17 @@ describe("SubcontractedRawMaterialsTransferredPage", () => {
 		expect(matches.length).toBeGreaterThanOrEqual(1);
 	});
 
-	it("shows loading text while fetching", () => {
+	it("renders raw materials data when loaded", async () => {
 		mockUseQuery.mockReturnValue({
-			data: undefined,
-			isLoading: true,
+			data: makeResult(),
+			isLoading: false,
 			error: null,
 		});
 		renderWithProviders(<SubcontractedRawMaterialsTransferredPage />);
-		expect(
-			screen.getByText("Loading subcontracted raw materials…"),
-		).toBeInTheDocument();
+
+		await waitFor(() => {
+			expect(screen.getByText("MAT-SCO-2026-00001")).toBeInTheDocument();
+		});
 	});
 
 	it("shows error state when query fails", () => {

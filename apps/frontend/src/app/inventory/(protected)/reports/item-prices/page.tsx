@@ -17,7 +17,9 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 import { DataTableColumnHeader } from "@/components/ui/table/data-table-column-header";
+import { DataTableSkeleton } from "@/components/ui/table/data-table-skeleton";
 import { trpc } from "@/lib/trpc";
 import {
 	formatOptional,
@@ -308,13 +310,22 @@ export default function ItemPricesPage() {
 
 			{/* Loading */}
 			{isLoading && (
-				<output
-					className="flex items-center justify-center py-12"
-					aria-live="polite"
-					aria-label="Loading item prices data"
-				>
-					<div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-				</output>
+				<DataTableSkeleton
+					columnCount={columns.length}
+					rowCount={15}
+					filterCount={4}
+					cellWidths={[
+						"auto",
+						"auto",
+						"auto",
+						"auto",
+						"auto",
+						"auto",
+						"auto",
+						"auto",
+						"auto",
+					]}
+				/>
 			)}
 
 			{/* Error */}

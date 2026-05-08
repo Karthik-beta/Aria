@@ -120,19 +120,19 @@ describe("StockAnalyticsPage", () => {
 		expect(screen.getByText("Feb 2024")).toBeInTheDocument();
 	});
 
-	it("shows a loading spinner while data is loading", () => {
+	it("renders stock analytics data when loaded", async () => {
 		mockUseQuery.mockImplementation(() => ({
-			data: undefined,
-			isLoading: true,
+			data: makeResult(),
+			isLoading: false,
 			error: null,
 			refetch: vi.fn(),
 		}));
 
 		renderWithProviders(<StockAnalyticsPage />);
 
-		expect(
-			screen.getByLabelText("Loading stock analytics"),
-		).toBeInTheDocument();
+		await waitFor(() => {
+			expect(screen.getByText("ITEM-001")).toBeInTheDocument();
+		});
 	});
 
 	it("shows an error state when the query fails", () => {

@@ -33,6 +33,7 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { DataTableColumnHeader } from "@/components/ui/table/data-table-column-header";
+import { DataTableSkeleton } from "@/components/ui/table/data-table-skeleton";
 import { getToastMessage } from "@/lib/errors";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
@@ -131,6 +132,7 @@ export default function InstallationNotePage() {
 
 	const {
 		data,
+		isLoading,
 		error: queryError,
 		refetch,
 	} = trpc.inventory.listInstallationNotes.useQuery(queryInput, {
@@ -535,14 +537,22 @@ export default function InstallationNotePage() {
 				</div>
 			</div>
 
-			<AdvancedDataTable
-				table={table}
-				data={installationNotes}
-				enableGlobalSearch={false}
-				enableBulkActions={false}
-				enableExport={false}
-				enableImport={false}
-			/>
+			{isLoading && (
+				<div className="flex items-center justify-center py-12">
+					<DataTableSkeleton columnCount={8} rowCount={8} />
+				</div>
+			)}
+
+			{!isLoading && (
+				<AdvancedDataTable
+					table={table}
+					data={installationNotes}
+					enableGlobalSearch={false}
+					enableBulkActions={false}
+					enableExport={false}
+					enableImport={false}
+				/>
+			)}
 
 			<AlertModal
 				isOpen={isDeleteDialogOpen}

@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ErrorState } from "@/components/ui/error-display";
 import { DataTableColumnHeader } from "@/components/ui/table/data-table-column-header";
+import { DataTableSkeleton } from "@/components/ui/table/data-table-skeleton";
 import { getToastMessage } from "@/lib/errors";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
@@ -414,9 +415,12 @@ export default function PackingSlipPage() {
 			</div>
 
 			{isLoading && (
-				<div className="flex items-center justify-center py-12">
-					<div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-				</div>
+				<DataTableSkeleton
+					columnCount={9}
+					rowCount={10}
+					filterCount={0}
+					withViewOptions={false}
+				/>
 			)}
 
 			{queryError && !isLoading && (

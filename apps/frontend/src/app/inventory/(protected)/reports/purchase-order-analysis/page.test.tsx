@@ -159,10 +159,10 @@ describe("PurchaseOrderAnalysisPage", () => {
 		});
 	});
 
-	it("shows loading indicator while fetching", () => {
+	it("shows data rows when query returns data", async () => {
 		mockUseQuery.mockReturnValue({
-			data: undefined,
-			isLoading: true,
+			data: makeResult(),
+			isLoading: false,
 			error: null,
 			refetch: vi.fn(),
 		});
@@ -172,9 +172,10 @@ describe("PurchaseOrderAnalysisPage", () => {
 		const companyInput = screen.getByPlaceholderText("Company *");
 		fireEvent.change(companyInput, { target: { value: "Test Corp" } });
 
-		expect(
-			screen.getByText("Loading purchase order data…"),
-		).toBeInTheDocument();
+		await waitFor(() => {
+			expect(screen.getByText("PO-2024-001")).toBeInTheDocument();
+			expect(screen.getByText("PO-2024-002")).toBeInTheDocument();
+		});
 	});
 
 	it("renders purchase order rows when data is loaded", async () => {

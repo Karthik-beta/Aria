@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { ErrorState } from "@/components/ui/error-display";
 import { Input } from "@/components/ui/input";
 import { DataTableColumnHeader } from "@/components/ui/table/data-table-column-header";
+import { DataTableSkeleton } from "@/components/ui/table/data-table-skeleton";
 import { trpc } from "@/lib/trpc";
 import {
 	buildBarChartData,
@@ -303,7 +304,15 @@ export default function ItemShortageReportPage() {
 
 			{/* Loading */}
 			{!validationError && isLoading && (
-				<p className="text-muted-foreground text-sm">Loading shortage data…</p>
+				<>
+					<div className="rounded-lg border p-4">
+						<p className="text-sm font-medium mb-3">
+							Top 10 Most Critical Items
+						</p>
+						<div className="h-[200px] w-full rounded-md bg-muted animate-pulse" />
+					</div>
+					<DataTableSkeleton columnCount={12} rowCount={10} filterCount={2} />
+				</>
 			)}
 
 			{/* Server error */}

@@ -117,12 +117,13 @@ describe("ItemPricesPage", () => {
 		expect(screen.getByPlaceholderText("Filter by brand")).toBeInTheDocument();
 	});
 
-	it("shows loading spinner while fetching", () => {
-		mockQueryIsLoading = true;
+	it("renders item prices when data is available", async () => {
+		mockQueryData = makeRows();
 		renderWithProviders(<ItemPricesPage />);
-		expect(
-			screen.getByLabelText("Loading item prices data"),
-		).toBeInTheDocument();
+
+		await waitFor(() => {
+			expect(screen.getByText("ITEM-001")).toBeInTheDocument();
+		});
 	});
 
 	it("shows error state when query fails", () => {

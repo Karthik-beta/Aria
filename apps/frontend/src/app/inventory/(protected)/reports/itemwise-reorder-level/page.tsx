@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { ErrorState } from "@/components/ui/error-display";
 import { Input } from "@/components/ui/input";
 import { DataTableColumnHeader } from "@/components/ui/table/data-table-column-header";
+import { DataTableSkeleton } from "@/components/ui/table/data-table-skeleton";
 import { trpc } from "@/lib/trpc";
 import {
 	formatOptionalText,
@@ -373,9 +374,7 @@ export default function ItemwiseRecommendedReorderLevelPage() {
 
 			{/* Loading */}
 			{!validationError && isLoading && (
-				<p className="text-muted-foreground text-sm">
-					Loading reorder level data…
-				</p>
+				<DataTableSkeleton columnCount={12} rowCount={10} filterCount={4} />
 			)}
 
 			{/* Server error */}

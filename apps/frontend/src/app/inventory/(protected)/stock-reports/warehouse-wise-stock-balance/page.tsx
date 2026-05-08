@@ -31,7 +31,9 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
 import { DataTableColumnHeader } from "@/components/ui/table/data-table-column-header";
+import { DataTableSkeleton } from "@/components/ui/table/data-table-skeleton";
 import { trpc } from "@/lib/trpc";
 import {
 	applyWarehouseWiseFilterRules,
@@ -890,11 +892,26 @@ export default function WarehouseWiseStockBalancePage() {
 				</div>
 			) : null}
 
-			{isLoading ? (
-				<div className="flex items-center justify-center py-12">
-					<div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+			<div className="rounded-lg border bg-background p-4">
+				<div className="grid gap-3 md:grid-cols-2 xl:grid-cols-7">
+					<Skeleton className="h-9 w-full" />
+					<Skeleton className="h-9 w-full" />
+					<Skeleton className="h-9 w-full" />
+					<Skeleton className="h-9 w-full" />
+					<Skeleton className="h-9 w-full" />
+					<Skeleton className="h-9 w-full" />
+					<Skeleton className="h-9 w-full" />
 				</div>
-			) : null}
+				<div className="mt-4 flex flex-wrap items-center gap-2">
+					<Skeleton className="h-9 w-24" />
+					<Skeleton className="h-9 w-28" />
+					<Skeleton className="h-9 w-[220px]" />
+					<Skeleton className="h-9 w-[160px]" />
+					<Skeleton className="h-9 w-20" />
+				</div>
+			</div>
+
+			<DataTableSkeleton columnCount={8} filterCount={7} rowCount={10} />
 
 			{queryError && !isLoading ? (
 				<ErrorState

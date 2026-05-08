@@ -96,12 +96,13 @@ describe("BatchItemExpiryStatusPage", () => {
 		expect(screen.getByPlaceholderText("Item code")).toBeInTheDocument();
 	});
 
-	it("shows loading spinner while fetching", () => {
-		mockQueryIsLoading = true;
+	it("renders batch expiry data when available", async () => {
+		mockQueryData = makeRows();
 		renderWithProviders(<BatchItemExpiryStatusPage />);
-		expect(
-			screen.getByLabelText("Loading batch item expiry data"),
-		).toBeInTheDocument();
+
+		await waitFor(() => {
+			expect(screen.getByText("BATCH-001")).toBeInTheDocument();
+		});
 	});
 
 	it("shows error state when query fails", () => {

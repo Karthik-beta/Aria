@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { ErrorState } from "@/components/ui/error-display";
 import { Input } from "@/components/ui/input";
 import { DataTableColumnHeader } from "@/components/ui/table/data-table-column-header";
+import { DataTableSkeleton } from "@/components/ui/table/data-table-skeleton";
 import { trpc } from "@/lib/trpc";
 import {
 	type BatchWiseBalanceRow,
@@ -380,13 +381,7 @@ export default function BatchWiseBalancePage() {
 
 			{/* Loading */}
 			{!validationError && isLoading && (
-				<output
-					className="flex items-center justify-center py-12"
-					aria-live="polite"
-					aria-label="Loading batch-wise balance data"
-				>
-					<div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-				</output>
+				<DataTableSkeleton columnCount={13} rowCount={15} filterCount={6} />
 			)}
 
 			{/* Error */}

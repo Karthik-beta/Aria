@@ -9,6 +9,7 @@ import {
 } from "@/components/advanced-data-table";
 import { downloadExcelBuffer } from "@/components/advanced-data-table/utils";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
 	ChartContainer,
 	ChartTooltip,
@@ -17,7 +18,9 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { ErrorState } from "@/components/ui/error-display";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import { DataTableColumnHeader } from "@/components/ui/table/data-table-column-header";
+import { DataTableSkeleton } from "@/components/ui/table/data-table-skeleton";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
 import {
@@ -634,11 +637,65 @@ export default function StockAgeingPage() {
 				</div>
 			) : null}
 
-			{isLoading && (
-				<div className="flex items-center justify-center py-12">
-					<div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+			<div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+				<Card>
+					<CardHeader className="pb-2">
+						<Skeleton className="h-4 w-24" />
+					</CardHeader>
+					<CardContent>
+						<Skeleton className="h-8 w-16 mb-1" />
+					</CardContent>
+				</Card>
+				<Card>
+					<CardHeader className="pb-2">
+						<Skeleton className="h-4 w-24" />
+					</CardHeader>
+					<CardContent>
+						<Skeleton className="h-8 w-16 mb-1" />
+					</CardContent>
+				</Card>
+				<Card>
+					<CardHeader className="pb-2">
+						<Skeleton className="h-4 w-24" />
+					</CardHeader>
+					<CardContent>
+						<Skeleton className="h-8 w-16 mb-1" />
+					</CardContent>
+				</Card>
+				<Card>
+					<CardHeader className="pb-2">
+						<Skeleton className="h-4 w-24" />
+					</CardHeader>
+					<CardContent>
+						<Skeleton className="h-8 w-16 mb-1" />
+					</CardContent>
+				</Card>
+			</div>
+
+			<div className="rounded-lg border bg-background p-4">
+				<div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+					<Skeleton className="h-9 w-full" />
+					<Skeleton className="h-9 w-full" />
+					<Skeleton className="h-9 w-full" />
+					<Skeleton className="h-9 w-full" />
+					<Skeleton className="h-9 w-full" />
+					<Skeleton className="h-9 w-full" />
 				</div>
-			)}
+				<div className="mt-4 flex items-center gap-4">
+					<Skeleton className="h-5 w-52" />
+					<Skeleton className="h-4 w-64" />
+				</div>
+			</div>
+
+			<div className="rounded-lg border bg-background p-4">
+				<div className="mb-4">
+					<Skeleton className="h-5 w-40" />
+					<Skeleton className="mt-1 h-4 w-64" />
+				</div>
+				<Skeleton className="h-[320px] w-full" />
+			</div>
+
+			<DataTableSkeleton columnCount={14} filterCount={6} rowCount={10} />
 
 			{queryError && !isLoading && (
 				<ErrorState

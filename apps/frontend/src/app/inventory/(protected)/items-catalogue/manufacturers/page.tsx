@@ -50,6 +50,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 import { DataTableColumnHeader } from "@/components/ui/table/data-table-column-header";
 import { getToastMessage } from "@/lib/errors";
 import { trpc } from "@/lib/trpc";
@@ -464,8 +465,95 @@ export default function ItemManufacturersPage() {
 			</div>
 
 			{isLoading && (
-				<div className="flex items-center justify-center py-12">
-					<div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+				<div className="flex flex-1 flex-col gap-4">
+					<div className="flex items-center justify-between">
+						<div className="flex items-center gap-4">
+							<Skeleton className="h-4 w-48" />
+							<Skeleton className="h-4 w-32" />
+						</div>
+						<div className="flex gap-2">
+							<Skeleton className="h-10 w-36" />
+						</div>
+					</div>
+					<Skeleton className="h-10 w-full" />
+					<div className="rounded-lg border bg-background">
+						<div className="w-full overflow-auto">
+							<table className="w-full">
+								<thead className="bg-muted/95">
+									<tr>
+										<th className="p-3">
+											<Skeleton className="h-4 w-4" />
+										</th>
+										<th className="p-3">
+											<Skeleton className="h-4 w-20" />
+										</th>
+										<th className="p-3">
+											<Skeleton className="h-4 w-28" />
+										</th>
+										<th className="p-3">
+											<Skeleton className="h-4 w-32" />
+										</th>
+										<th className="p-3">
+											<Skeleton className="h-4 w-16" />
+										</th>
+										<th className="p-3">
+											<Skeleton className="h-4 w-32" />
+										</th>
+										<th className="p-3">
+											<Skeleton className="h-4 w-12" />
+										</th>
+										<th className="p-3">
+											<Skeleton className="h-4 w-8" />
+										</th>
+										<th className="p-3">
+											<Skeleton className="h-4 w-8" />
+										</th>
+									</tr>
+								</thead>
+								<tbody>
+									{Array.from({ length: 8 }).map((_, i) => (
+										<tr key={i} className="border-t">
+											<td className="p-3">
+												<Skeleton className="h-4 w-4" />
+											</td>
+											<td className="p-3">
+												<Skeleton className="h-4 w-20" />
+											</td>
+											<td className="p-3">
+												<Skeleton className="h-4 w-28" />
+											</td>
+											<td className="p-3">
+												<Skeleton className="h-4 w-32" />
+											</td>
+											<td className="p-3">
+												<Skeleton className="h-4 w-16" />
+											</td>
+											<td className="p-3">
+												<Skeleton className="h-4 w-32" />
+											</td>
+											<td className="p-3">
+												<Skeleton className="h-4 w-12" />
+											</td>
+											<td className="p-3">
+												<Skeleton className="h-4 w-8" />
+											</td>
+											<td className="p-3">
+												<Skeleton className="h-8 w-8" />
+											</td>
+										</tr>
+									))}
+								</tbody>
+							</table>
+						</div>
+					</div>
+					<div className="flex items-center justify-between">
+						<Skeleton className="h-4 w-32" />
+						<div className="flex gap-2">
+							<Skeleton className="h-8 w-20" />
+							<Skeleton className="h-8 w-20" />
+							<Skeleton className="h-8 w-20" />
+						</div>
+					</div>
 				</div>
 			)}
 

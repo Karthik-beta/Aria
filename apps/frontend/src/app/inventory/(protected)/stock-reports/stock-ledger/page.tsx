@@ -19,7 +19,9 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 import { DataTableColumnHeader } from "@/components/ui/table/data-table-column-header";
+import { DataTableSkeleton } from "@/components/ui/table/data-table-skeleton";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
 import {
@@ -822,11 +824,31 @@ export default function StockLedgerPage() {
 				</div>
 			</div>
 
-			{isLoading && (
-				<div className="flex items-center justify-center py-12">
-					<div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+			<div className="rounded-lg border bg-background p-4">
+				<div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+					<Skeleton className="h-9 w-full" />
+					<Skeleton className="h-9 w-full" />
+					<Skeleton className="h-9 w-full" />
+					<Skeleton className="h-9 w-full" />
+					<Skeleton className="h-9 w-full" />
+					<Skeleton className="h-9 w-full" />
+					<Skeleton className="h-9 w-full" />
+					<Skeleton className="h-9 w-full" />
+					<Skeleton className="h-9 w-full" />
+					<Skeleton className="h-9 w-full" />
+					<Skeleton className="h-9 w-full" />
+					<Skeleton className="h-9 w-full" />
 				</div>
-			)}
+				<div className="mt-4 flex items-center gap-4">
+					<Skeleton className="h-5 w-52" />
+				</div>
+			</div>
+
+			<DataTableSkeleton
+				columnCount={showUom ? 20 : 19}
+				filterCount={12}
+				rowCount={10}
+			/>
 
 			{queryError && !isLoading && (
 				<ErrorState

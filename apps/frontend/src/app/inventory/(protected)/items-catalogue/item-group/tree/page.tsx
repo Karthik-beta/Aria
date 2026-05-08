@@ -4,7 +4,6 @@ import {
 	Circle,
 	Folder,
 	FolderOpen,
-	Loader2,
 	MoreHorizontal,
 	Plus,
 	Search,
@@ -20,6 +19,7 @@ import {
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
 
@@ -251,8 +251,42 @@ export default function ItemGroupTreePage() {
 
 	if (isLoading && !searchQuery) {
 		return (
-			<div className="flex h-[400px] items-center justify-center">
-				<Loader2 className="h-8 w-8 animate-spin text-primary" />
+			<div className="flex flex-col h-full w-full bg-background">
+				<div className="p-8 pb-4 space-y-6 flex-shrink-0">
+					<div className="flex items-center justify-between px-2">
+						<div>
+							<h1 className="text-2xl font-bold tracking-tight">
+								Item Group Tree
+							</h1>
+						</div>
+						<div className="flex items-center gap-2">
+							<Skeleton className="h-8 w-24" />
+							<Skeleton className="h-8 w-24" />
+							<Skeleton className="h-8 w-8" />
+							<Skeleton className="h-8 w-16" />
+						</div>
+					</div>
+				</div>
+				<div className="flex-1 p-8 pt-4">
+					<div className="bg-card border rounded-lg shadow-sm overflow-hidden min-h-[600px] w-full">
+						<div className="p-6 border-b bg-muted/20">
+							<Skeleton className="h-10 w-full max-w-sm" />
+						</div>
+						<div className="py-4 space-y-2 px-4">
+							{Array.from({ length: 6 }).map((_, i) => (
+								<div key={i} className="flex items-center gap-3 py-2">
+									<Skeleton className="h-4 w-4" />
+									<Skeleton className="h-4 w-32" />
+									<div className="ml-auto flex gap-2">
+										<Skeleton className="h-6 w-12" />
+										<Skeleton className="h-6 w-16" />
+										<Skeleton className="h-6 w-14" />
+									</div>
+								</div>
+							))}
+						</div>
+					</div>
+				</div>
 			</div>
 		);
 	}

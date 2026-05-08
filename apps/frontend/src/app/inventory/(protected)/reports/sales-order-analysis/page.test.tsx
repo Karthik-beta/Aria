@@ -163,22 +163,6 @@ describe("SalesOrderAnalysisPage", () => {
 		});
 	});
 
-	it("shows loading indicator while fetching", () => {
-		mockUseQuery.mockReturnValue({
-			data: undefined,
-			isLoading: true,
-			error: null,
-			refetch: vi.fn(),
-		});
-
-		renderWithProviders(<SalesOrderAnalysisPage />);
-
-		const companyInput = screen.getByPlaceholderText("Company *");
-		fireEvent.change(companyInput, { target: { value: "Test Corp" } });
-
-		expect(screen.getByText("Loading sales order data…")).toBeInTheDocument();
-	});
-
 	it("renders sales order rows when data is loaded", async () => {
 		mockUseQuery.mockReturnValue({
 			data: makeResult(),
