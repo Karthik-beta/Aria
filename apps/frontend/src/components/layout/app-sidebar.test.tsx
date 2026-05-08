@@ -32,6 +32,7 @@ vi.mock("@/hooks/use-auth", () => ({
 			roleKey === (mockHasAdminAccess ? "admin" : "user"),
 		hasAnyRole: (..._roles: string[]) => mockHasAdminAccess,
 		isLoading: mockAuthLoading,
+		memberRole: mockHasAdminAccess ? "admin" : "member",
 	}),
 }));
 

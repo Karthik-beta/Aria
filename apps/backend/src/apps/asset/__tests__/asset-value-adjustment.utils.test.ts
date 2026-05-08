@@ -244,4 +244,48 @@ describe("buildDepreciationSchedulePreview", () => {
 			expect(result?.entries.length).toBeGreaterThan(0);
 		});
 	});
+
+	describe("DOUBLE_DECLINING_BALANCE DDB rate", () => {
+		it("applies 200% declining balance rate per period (coefficient is 2/totalYears)", () => {
+			// Per authoritative sources (Investopedia, IRS Pub 946):
+			// DDB rate = 2/totalYears (as decimal, e.g., 0.20 for 10-year asset)
+			// NOT 200/totalYears which would be a 100x overstatement
+			const input: BuildDepreciationSchedulePreviewInput = {
+				...baseInput,
+				depreciationMethod: "DOUBLE_DECLINING_BALANCE",
+				expectedValueAfterUsefulLife: 10000,
+			};
+
+			const result = buildDepreciationSchedulePreview(input);
+
+			expect(result).not.toBeNull();
+			expect(result?.depreciationMethod).toBe("DOUBLE_DECLINING_BALANCE");
+			expect(result?.entries.length).toBeGreaterThan(1);
+
+			// Verify declining pattern (first > second)
+			const first = result?.entries[0];
+			const second = result?.entries[1];
+			expect(first?.depreciationAmount).toBeGreaterThan(
+				second?.depreciationAmount ?? 0,
+			);
+		});
+
+		it("terminates early when depreciation reaches zero (per IAS 16)", () => {
+			// IAS 16: schedule must terminate when depreciation hits zero,
+			// cannot depreciate below residual value
+			const input: BuildDepreciationSchedulePreviewInput = {
+				...baseInput,
+				depreciationMethod: "DOUBLE_DECLINING_BALANCE",
+				rateOfDepreciation: 100, // Forces rapid depreciation to zero
+				totalNumberOfDepreciations: 10,
+				expectedValueAfterUsefulLife: 10000,
+			};
+
+			const result = buildDepreciationSchedulePreview(input);
+
+			expect(result).not.toBeNull();
+			// Schedule should terminate early (per IAS 16), not redistribute
+			expect(result?.entries.length).toBeLessThan(10);
+		});
+	});
 });

@@ -151,6 +151,21 @@ function requireOrgMembership(orgSlug: string, requiredRoles?: string[]) {
 		});
 
 		if (!member) {
+			// Bypass org membership check for super_admin global role
+			const globalUser = await prisma.user.findUnique({
+				where: { id: userId },
+				select: { role: true },
+			});
+			if (globalUser?.role === "super_admin") {
+				return next({
+					ctx: {
+						...ctx,
+						orgMember: null,
+						organization,
+					} as unknown as OrgProtectedContext,
+				});
+			}
+
 			throw new TRPCError({
 				code: "FORBIDDEN",
 				message: `Not a member of "${orgSlug}"`,

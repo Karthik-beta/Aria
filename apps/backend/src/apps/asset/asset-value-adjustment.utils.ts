@@ -342,9 +342,7 @@ export const buildDepreciationSchedulePreview = (
 			);
 
 			if (depreciationAmount <= 0) {
-				depreciationAmount = roundCurrency(
-					pendingDepreciationAmount / periodsLeft,
-				);
+				break;
 			}
 
 			const fyChanged = detectFiscalYearChange(scheduleDate, fyContext);
