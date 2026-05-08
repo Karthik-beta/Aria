@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { useAuthStateContext } from "@/components/auth/auth-state-provider";
+import { authClient } from "@/lib/auth/client";
 
 /**
  * Hook to access the current user's server-hydrated auth context.
@@ -11,6 +12,20 @@ import { useAuthStateContext } from "@/components/auth/auth-state-provider";
  */
 export function useAuth() {
 	const authState = useAuthStateContext();
+
+	const hasOrgPermission = useCallback(
+		async (permissions: Record<string, string[]>) => {
+			try {
+				const { data } = await authClient.organization.hasPermission({
+					permissions,
+				});
+				return data ?? false;
+			} catch {
+				return false;
+			}
+		},
+		[],
+	);
 
 	return useMemo(() => {
 		const session = authState?.session ?? null;
@@ -43,6 +58,7 @@ export function useAuth() {
 			isOrgAdmin,
 			isOrgOwner,
 			hasOrgAccess,
+			hasOrgPermission,
 		};
-	}, [authState]);
+	}, [authState, hasOrgPermission]);
 }

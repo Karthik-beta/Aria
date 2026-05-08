@@ -235,11 +235,11 @@ export const auth = betterAuth({
 					});
 					for (const sa of superAdmins) {
 						if (sa.id !== member.userId) {
-							await prisma.member.create({
-								data: {
-									organizationId: organization.id,
+							await auth.api.addMember({
+								body: {
 									userId: sa.id,
 									role: "owner",
+									organizationId: organization.id,
 								},
 							});
 						}

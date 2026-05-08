@@ -231,28 +231,16 @@ export class AuthService implements OnModuleInit {
 				this.logger.log(
 					`[createDefaultOrganizations] Creating organization "${app.name}"...`,
 				);
-				const authUrl = `${process.env.BETTER_AUTH_URL || "http://localhost:3001"}/api/auth/organization/create`;
-				const request = new Request(authUrl, {
-					method: "POST",
-					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify({
+				await auth.api.createOrganization({
+					body: {
 						name: app.name,
 						slug: app.slug,
 						userId: superAdmin.id,
-					}),
+					},
 				});
-				const response = await auth.handler(request);
-				if (response.ok) {
-					this.logger.log(
-						`[createDefaultOrganizations] Created "${app.name}" (slug: ${app.slug})`,
-					);
-				} else {
-					const responseText = await response.text();
-					this.logger.error(
-						`[createDefaultOrganizations] Failed to create "${app.name}": ${response.status}`,
-						responseText,
-					);
-				}
+				this.logger.log(
+					`[createDefaultOrganizations] Created "${app.name}" (slug: ${app.slug})`,
+				);
 			} catch (error) {
 				this.logSafeError(
 					`[createDefaultOrganizations] Error creating "${app.name}":`,
