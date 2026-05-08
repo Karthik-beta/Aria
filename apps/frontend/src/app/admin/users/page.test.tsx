@@ -127,11 +127,17 @@ describe("UsersPage", () => {
 		expect(screen.getByText("Create user")).toBeInTheDocument();
 	});
 
-	it("renders stats cards", () => {
+	it("renders stats cards", async () => {
 		renderWithProviders(<UsersPage />);
-		expect(screen.getByText("Total accounts")).toBeInTheDocument();
-		expect(screen.getByText("Pending password resets")).toBeInTheDocument();
-		expect(screen.getByText("Disabled users")).toBeInTheDocument();
+		await waitFor(() => {
+			expect(screen.getByText("Total accounts")).toBeInTheDocument();
+		});
+		await waitFor(() => {
+			expect(screen.getByText("Pending password resets")).toBeInTheDocument();
+		});
+		await waitFor(() => {
+			expect(screen.getByText("Disabled users")).toBeInTheDocument();
+		});
 	});
 
 	it("renders user names in the list", async () => {

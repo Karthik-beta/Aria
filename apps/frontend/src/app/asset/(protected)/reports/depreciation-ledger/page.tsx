@@ -20,6 +20,7 @@ import {
 import { ErrorState } from "@/components/ui/error-display";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
 import { DataTableColumnHeader } from "@/components/ui/table/data-table-column-header";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
@@ -509,8 +510,66 @@ export default function AssetDepreciationLedgerPage() {
 				)}
 
 			{isLoading && !dateError && (
-				<div className="flex items-center justify-center py-12">
-					<div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+				<div className="flex flex-1 flex-col gap-4">
+					<div className="rounded-lg border bg-background p-4">
+						<div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+							{Array.from({ length: 6 }).map((_, i) => (
+								<Skeleton key={i} className="h-10 w-full" />
+							))}
+						</div>
+					</div>
+					<div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+						{Array.from({ length: 4 }).map((_, i) => (
+							<Card key={i}>
+								<CardHeader className="pb-2">
+									<Skeleton className="h-4 w-24" />
+								</CardHeader>
+								<CardContent>
+									<Skeleton className="h-8 w-16" />
+								</CardContent>
+							</Card>
+						))}
+					</div>
+					<div className="rounded-lg border bg-background">
+						<div className="w-full overflow-auto">
+							<table className="w-full">
+								<thead className="bg-muted/95">
+									<tr>
+										<th className="p-3">
+											<Skeleton className="h-4 w-24" />
+										</th>
+										<th className="p-3">
+											<Skeleton className="h-4 w-32" />
+										</th>
+										<th className="p-3">
+											<Skeleton className="h-4 w-20" />
+										</th>
+										<th className="p-3">
+											<Skeleton className="h-4 w-16" />
+										</th>
+									</tr>
+								</thead>
+								<tbody>
+									{Array.from({ length: 8 }).map((_, i) => (
+										<tr key={i} className="border-t">
+											<td className="p-3">
+												<Skeleton className="h-4 w-24" />
+											</td>
+											<td className="p-3">
+												<Skeleton className="h-4 w-32" />
+											</td>
+											<td className="p-3">
+												<Skeleton className="h-4 w-20" />
+											</td>
+											<td className="p-3">
+												<Skeleton className="h-4 w-16" />
+											</td>
+										</tr>
+									))}
+								</tbody>
+							</table>
+						</div>
+					</div>
 				</div>
 			)}
 

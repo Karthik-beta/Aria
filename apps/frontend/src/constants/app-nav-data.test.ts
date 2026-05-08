@@ -6,7 +6,7 @@ describe("getAppNavItems", () => {
 		const items = getAppNavItems("admin");
 		expect(items.length).toBeGreaterThan(0);
 		expect(items[0]?.title).toBe("Administration");
-		expect(items[0]?.items?.[0]?.url).toBe("/admin");
+		expect(items[0]?.items?.[0]?.url).toBe("/admin/dashboard/overview");
 	});
 
 	it("returns inventory nav items for 'inventory'", () => {
