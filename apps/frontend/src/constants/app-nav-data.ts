@@ -720,7 +720,7 @@ export const adminNavItems: NavItem[] = [
 		items: [
 			{
 				title: "Dashboard",
-				url: "/admin",
+				url: "/admin/dashboard/overview",
 			},
 			{
 				title: "Users",

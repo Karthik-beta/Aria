@@ -20,7 +20,7 @@ export const AUTH_CONFIG = {
 
 	// App-specific default redirect paths after successful authentication
 	appRedirects: {
-		admin: "/admin",
+		admin: "/admin/dashboard/overview",
 		asset: "/asset/dashboard/overview",
 		crm: "/crm/dashboard/overview",
 		hrms: "/hrms/dashboard/overview",

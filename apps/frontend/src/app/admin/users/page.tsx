@@ -161,6 +161,73 @@ export default function UsersPage() {
 	};
 
 	const [deletePending, setDeletePending] = useState(false);
+
+	function UserStatsLoadingSkeleton() {
+		return (
+			<div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+				{[0, 1, 2].map((i) => (
+					<Card key={i} className="border-muted/60 bg-card/90 shadow-sm">
+						<CardHeader className="pb-2">
+							<Skeleton className="h-3 w-24" />
+						</CardHeader>
+						<CardContent className="pb-4">
+							<Skeleton className="h-8 w-12" />
+							<Skeleton className="h-3 w-20 mt-1" />
+						</CardContent>
+					</Card>
+				))}
+			</div>
+		);
+	}
+
+	function UserListLoadingSkeleton() {
+		return (
+			<div className="p-2">
+				{[0, 1, 2, 3, 4].map((i) => (
+					<div key={i} className="p-3 rounded-md">
+						<div className="flex items-start justify-between gap-2">
+							<div className="flex-1 min-w-0 space-y-1">
+								<Skeleton className="h-4 w-32" />
+								<Skeleton className="h-3 w-40" />
+							</div>
+							<Skeleton className="h-5 w-12" />
+						</div>
+					</div>
+				))}
+			</div>
+		);
+	}
+
+	function UserDetailsLoadingSkeleton() {
+		return (
+			<div className="p-6 space-y-4">
+				<div className="flex items-start justify-between">
+					<div className="space-y-2">
+						<Skeleton className="h-6 w-32" />
+						<Skeleton className="h-4 w-40" />
+					</div>
+					<div className="flex gap-2">
+						<Skeleton className="h-8 w-20" />
+						<Skeleton className="h-8 w-20" />
+						<Skeleton className="h-8 w-20" />
+					</div>
+				</div>
+				<div className="space-y-4">
+					{[0, 1, 2].map((i) => (
+						<Card key={i}>
+							<CardHeader>
+								<Skeleton className="h-5 w-32" />
+							</CardHeader>
+							<CardContent className="space-y-3">
+								<Skeleton className="h-4 w-full" />
+								<Skeleton className="h-4 w-3/4" />
+							</CardContent>
+						</Card>
+					))}
+				</div>
+			</div>
+		);
+	}
 	const handleDeleteConfirm = async () => {
 		if (!userToDelete) return;
 		setDeletePending(true);
@@ -242,26 +309,30 @@ export default function UsersPage() {
 					</div>
 				</div>
 
-				<div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-					{userStats.map((stat) => (
-						<Card
-							key={stat.label}
-							className="border-muted/60 bg-card/90 shadow-sm"
-						>
-							<CardHeader className="pb-2">
-								<p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-									{stat.label}
-								</p>
-							</CardHeader>
-							<CardContent className="pb-4">
-								<div className="text-3xl font-semibold tracking-tight">
-									{stat.value}
-								</div>
-								<p className="text-xs text-muted-foreground">{stat.helper}</p>
-							</CardContent>
-						</Card>
-					))}
-				</div>
+				{isLoading ? (
+					<UserStatsLoadingSkeleton />
+				) : (
+					<div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+						{userStats.map((stat) => (
+							<Card
+								key={stat.label}
+								className="border-muted/60 bg-card/90 shadow-sm"
+							>
+								<CardHeader className="pb-2">
+									<p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+										{stat.label}
+									</p>
+								</CardHeader>
+								<CardContent className="pb-4">
+									<div className="text-3xl font-semibold tracking-tight">
+										{stat.value}
+									</div>
+									<p className="text-xs text-muted-foreground">{stat.helper}</p>
+								</CardContent>
+							</Card>
+						))}
+					</div>
+				)}
 
 				<div className="grid min-h-0 flex-1 gap-6 xl:grid-cols-[24rem_minmax(0,1fr)]">
 					<div className="flex min-h-[28rem] min-w-0 flex-col rounded-lg border bg-card xl:min-h-0">
@@ -291,9 +362,7 @@ export default function UsersPage() {
 						<ScrollArea className="flex-1">
 							<div className="p-2">
 								{isLoading ? (
-									<div className="text-center py-8 text-muted-foreground">
-										Loading users...
-									</div>
+									<UserListLoadingSkeleton />
 								) : filteredUsers.length === 0 ? (
 									<div className="text-center py-8 text-muted-foreground">
 										No users found
@@ -356,7 +425,9 @@ export default function UsersPage() {
 					</div>
 
 					<div className="min-h-[28rem] min-w-0 rounded-lg border bg-card xl:min-h-0">
-						{mode === "create" ? (
+						{isLoading ? (
+							<UserDetailsLoadingSkeleton />
+						) : mode === "create" ? (
 							<CreateUserPanel
 								onSuccess={handleSaveSuccess}
 								onCancel={() => {

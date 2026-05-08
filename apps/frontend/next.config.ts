@@ -76,6 +76,16 @@ const nextConfig: NextConfig = {
 				destination: "/inventory/dashboard/overview",
 				permanent: false,
 			},
+			{
+				source: "/admin",
+				destination: "/admin/dashboard/overview",
+				permanent: false,
+			},
+			{
+				source: "/admin/dashboard",
+				destination: "/admin/dashboard/overview",
+				permanent: false,
+			},
 		];
 	},
 	async headers() {

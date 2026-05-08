@@ -39,6 +39,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 import { authClient } from "@/lib/auth/client";
 import { addOrgMember, removeOrgMember } from "./actions";
 
@@ -138,12 +139,69 @@ export default function OrgMembersPage({
 		}
 	};
 
+	function OrgMembersPageLoadingSkeleton() {
+		return (
+			<div className="flex flex-1 flex-col gap-6">
+				<div className="flex flex-wrap items-start justify-between gap-4">
+					<div className="space-y-2">
+						<div className="flex items-center gap-3">
+							<Skeleton className="h-8 w-8" />
+							<Skeleton className="h-8 w-48" />
+							<Skeleton className="h-5 w-16" />
+						</div>
+						<Skeleton className="h-4 w-64" />
+					</div>
+					<div className="flex gap-2">
+						<Skeleton className="h-8 w-24" />
+						<Skeleton className="h-8 w-28" />
+					</div>
+				</div>
+
+				<div className="grid gap-3 sm:grid-cols-3">
+					<Card className="border-muted/60 shadow-sm">
+						<CardHeader className="pb-2">
+							<p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+								Total Members
+							</p>
+						</CardHeader>
+						<CardContent className="pb-4">
+							<Skeleton className="h-8 w-12" />
+						</CardContent>
+					</Card>
+				</div>
+
+				<div className="min-h-[28rem] rounded-lg border bg-card">
+					<ScrollArea className="h-[28rem]">
+						<div className="p-4 space-y-2">
+							{[0, 1, 2, 3, 4].map((i) => (
+								<div
+									key={i}
+									className="flex items-center justify-between rounded-lg border p-4"
+								>
+									<div className="flex items-center gap-4">
+										<Skeleton className="h-10 w-10 rounded-full" />
+										<div className="space-y-2">
+											<Skeleton className="h-4 w-32" />
+											<Skeleton className="h-3 w-40" />
+										</div>
+									</div>
+									<div className="flex items-center gap-3">
+										<Skeleton className="h-5 w-16" />
+										<Skeleton className="h-8 w-8" />
+									</div>
+								</div>
+							))}
+						</div>
+					</ScrollArea>
+				</div>
+			</div>
+		);
+	}
+
 	if (isLoading) {
 		return (
 			<PageContainer>
-				<div className="flex items-center justify-center h-64">
-					<Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-				</div>
+				<OrgMembersPageLoadingSkeleton />
 			</PageContainer>
 		);
 	}
