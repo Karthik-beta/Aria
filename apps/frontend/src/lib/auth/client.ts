@@ -2,6 +2,7 @@ import { logger } from "@aria/utils";
 import {
 	adminClient,
 	customSessionClient,
+	organizationClient,
 	usernameClient,
 } from "better-auth/client/plugins";
 import { createAuthClient } from "better-auth/react";
@@ -9,7 +10,7 @@ import { createAuthClient } from "better-auth/react";
 /**
  * Better Auth client for React
  *
- * Configured with username plugin for username-based authentication.
+ * Configured with username, organization, custom session, and admin plugins.
  * Environment-aware base URL configuration with credentials inclusion.
  */
 const baseURL = process.env.NEXT_PUBLIC_API_URL
@@ -18,7 +19,12 @@ const baseURL = process.env.NEXT_PUBLIC_API_URL
 
 export const authClient = createAuthClient({
 	baseURL,
-	plugins: [usernameClient(), customSessionClient(), adminClient()],
+	plugins: [
+		usernameClient(),
+		customSessionClient(),
+		adminClient(),
+		organizationClient(),
+	],
 	fetchOptions: {
 		credentials: "include", // Include cookies for cross-site requests
 		onError(context) {
@@ -38,4 +44,12 @@ export const authClient = createAuthClient({
 /**
  * Type-safe hooks and utilities from auth client
  */
-export const { signIn, signOut, signUp, useSession } = authClient;
+export const {
+	signIn,
+	signOut,
+	signUp,
+	useSession,
+	useListOrganizations,
+	useActiveOrganization,
+	organization,
+} = authClient;

@@ -33,6 +33,8 @@ const authenticatedState: AuthState = {
 	},
 	role: "inventory_user",
 	isActive: true,
+	activeOrganization: null,
+	memberRole: null,
 };
 
 const superAdminState: AuthState = {
@@ -55,6 +57,8 @@ const superAdminState: AuthState = {
 	},
 	role: "super_admin",
 	isActive: true,
+	activeOrganization: null,
+	memberRole: null,
 };
 
 function createWrapper(authState?: AuthState) {
@@ -145,11 +149,78 @@ describe("useAuth", () => {
 					session: authenticatedState.session,
 					role: "inventory_user",
 					isActive: false,
+					activeOrganization: null,
+					memberRole: null,
 				}),
 			});
 
 			expect(result.current.isActive).toBe(false);
 			expect(result.current.isAuthenticated).toBe(true);
+		});
+	});
+
+	describe("organization fields", () => {
+		const orgState: AuthState = {
+			...authenticatedState,
+			activeOrganization: {
+				id: "org-1",
+				name: "Aria Inventory",
+				slug: "inventory",
+				createdAt: new Date(),
+			},
+			memberRole: "admin",
+		};
+
+		it("returns activeOrganization when set", () => {
+			const { result } = renderHook(() => useAuth(), {
+				wrapper: createWrapper(orgState),
+			});
+			expect(result.current.activeOrganization?.slug).toBe("inventory");
+			expect(result.current.activeOrganization?.name).toBe("Aria Inventory");
+		});
+
+		it("returns memberRole when set", () => {
+			const { result } = renderHook(() => useAuth(), {
+				wrapper: createWrapper(orgState),
+			});
+			expect(result.current.memberRole).toBe("admin");
+		});
+
+		it("isOrgAdmin is true when memberRole is admin", () => {
+			const { result } = renderHook(() => useAuth(), {
+				wrapper: createWrapper(orgState),
+			});
+			expect(result.current.isOrgAdmin).toBe(true);
+			expect(result.current.isOrgOwner).toBe(false);
+		});
+
+		it("isOrgOwner is true when memberRole is owner", () => {
+			const { result } = renderHook(() => useAuth(), {
+				wrapper: createWrapper({
+					...orgState,
+					memberRole: "owner",
+				}),
+			});
+			expect(result.current.isOrgOwner).toBe(true);
+			expect(result.current.isOrgAdmin).toBe(false);
+		});
+
+		it("hasOrgAccess matches slug against active organization", () => {
+			const { result } = renderHook(() => useAuth(), {
+				wrapper: createWrapper(orgState),
+			});
+			expect(result.current.hasOrgAccess("inventory")).toBe(true);
+			expect(result.current.hasOrgAccess("crm")).toBe(false);
+		});
+
+		it("returns null org fields when not set", () => {
+			const { result } = renderHook(() => useAuth(), {
+				wrapper: createWrapper(authenticatedState),
+			});
+			expect(result.current.activeOrganization).toBeNull();
+			expect(result.current.memberRole).toBeNull();
+			expect(result.current.isOrgAdmin).toBe(false);
+			expect(result.current.isOrgOwner).toBe(false);
 		});
 	});
 });

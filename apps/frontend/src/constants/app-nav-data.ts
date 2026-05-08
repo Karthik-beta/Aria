@@ -17,6 +17,13 @@ export const inventoryNavItems: NavItem[] = [
 		items: [],
 	},
 	{
+		title: "Users",
+		url: "/inventory/users",
+		icon: "users",
+		isActive: false,
+		items: [],
+	},
+	{
 		title: "Items Catalogue",
 		url: "#",
 		icon: "catalogue",
@@ -284,6 +291,13 @@ export const assetNavItems: NavItem[] = [
 		items: [],
 	},
 	{
+		title: "Users",
+		url: "/asset/users",
+		icon: "users",
+		isActive: false,
+		items: [],
+	},
+	{
 		title: "Assets",
 		url: "#",
 		icon: "assets",
@@ -356,6 +370,13 @@ export const crmNavItems: NavItem[] = [
 		icon: "dashboard",
 		isActive: false,
 		shortcut: ["d", "d"],
+		items: [],
+	},
+	{
+		title: "Users",
+		url: "/crm/users",
+		icon: "users",
+		isActive: false,
 		items: [],
 	},
 	{
@@ -515,6 +536,13 @@ export const hrmsNavItems: NavItem[] = [
 		icon: "dashboard",
 		isActive: false,
 		shortcut: ["d", "d"],
+		items: [],
+	},
+	{
+		title: "Users",
+		url: "/hrms/users",
+		icon: "users",
+		isActive: false,
 		items: [],
 	},
 	{
@@ -697,6 +725,10 @@ export const adminNavItems: NavItem[] = [
 			{
 				title: "Users",
 				url: "/admin/users",
+			},
+			{
+				title: "Organizations",
+				url: "/admin/organizations",
 			},
 		],
 	},

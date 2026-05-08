@@ -4,6 +4,7 @@ import { logger } from "@aria/utils";
 import {
 	Ban,
 	Briefcase,
+	Building,
 	Check,
 	CheckCircle,
 	ClipboardCopy,
@@ -40,6 +41,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/hooks/use-auth";
 import { authClient } from "@/lib/auth/client";
@@ -596,9 +598,128 @@ function UserDetailsPanel({
 							)}
 						</CardContent>
 					</Card>
+
+					<OrgMembershipsCard userId={user.id} />
 				</div>
 			</ScrollArea>
 		</div>
+	);
+}
+
+function OrgMembershipsCard({ userId }: { userId: string }) {
+	const [memberships, setMemberships] = useState<
+		Array<{
+			id: string;
+			role: string;
+			organization: { id: string; name: string; slug: string };
+		}>
+	>([]);
+	const [isLoading, setIsLoading] = useState(true);
+
+	useEffect(() => {
+		let cancelled = false;
+		setIsLoading(true);
+		authClient.organization
+			.list()
+			.then((res) => {
+				if (cancelled || !res.data) return;
+				const orgs = res.data as Array<{
+					id: string;
+					name: string;
+					slug: string;
+				}>;
+				Promise.all(
+					orgs.map(async (org) => {
+						try {
+							const { data } =
+								await authClient.organization.getFullOrganization({
+									query: { organizationId: org.id, membersLimit: 500 },
+								});
+							if (!data) return null;
+							const members = data.members as Array<{
+								id: string;
+								userId: string;
+								role: string;
+							}>;
+							const member = members.find((m) => m.userId === userId);
+							if (member) {
+								return {
+									id: member.id,
+									role: member.role,
+									organization: { id: org.id, name: org.name, slug: org.slug },
+								};
+							}
+							return null;
+						} catch {
+							return null;
+						}
+					}),
+				).then((results) => {
+					if (!cancelled) {
+						setMemberships(results.filter(Boolean) as typeof memberships);
+						setIsLoading(false);
+					}
+				});
+			})
+			.catch(() => {
+				if (!cancelled) setIsLoading(false);
+			});
+		return () => {
+			cancelled = true;
+		};
+	}, [userId]);
+
+	const roleBadgeVariant = (role: string) => {
+		switch (role) {
+			case "owner":
+				return "destructive" as const;
+			case "admin":
+				return "default" as const;
+			default:
+				return "secondary" as const;
+		}
+	};
+
+	return (
+		<Card>
+			<CardHeader>
+				<CardTitle className="text-lg">Organization Memberships</CardTitle>
+			</CardHeader>
+			<CardContent>
+				{isLoading ? (
+					<div className="space-y-2">
+						<Skeleton className="h-6 w-full" />
+						<Skeleton className="h-6 w-3/4" />
+					</div>
+				) : memberships.length === 0 ? (
+					<p className="text-sm text-muted-foreground">
+						No organization memberships
+					</p>
+				) : (
+					<div className="space-y-2">
+						{memberships.map((m) => (
+							<div
+								key={m.id}
+								className="flex items-center justify-between rounded-md border p-2"
+							>
+								<div className="flex items-center gap-2">
+									<Building className="h-4 w-4 text-muted-foreground" />
+									<span className="font-medium text-sm">
+										{m.organization.name}
+									</span>
+									<code className="text-xs text-muted-foreground">
+										{m.organization.slug}
+									</code>
+								</div>
+								<Badge variant={roleBadgeVariant(m.role)} className="text-xs">
+									{m.role}
+								</Badge>
+							</div>
+						))}
+					</div>
+				)}
+			</CardContent>
+		</Card>
 	);
 }
 

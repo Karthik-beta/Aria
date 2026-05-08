@@ -12,19 +12,39 @@ Aria ERP uses [better-auth](https://better-auth.com) for username/password authe
 
 - better-auth server with Prisma adapter
 - Username plugin for username-based authentication
-- Custom session metadata for password-state checks
+- Admin plugin for global role-based user management
+- Organization plugin for app-scoped membership and permissions
+- Custom session metadata for password-state checks and organization context
 - PostgreSQL database for user storage
-- Automatic default admin user creation on deployment
+- Automatic default admin user and organization creation on deployment
 
 ### Frontend (Next.js)
 
 - Sign-in and sign-up pages under `/auth`
 - `/auth/change-password` for forced password updates
 - Protected route groups (`/admin`, `/asset`, `/crm`, `/hrms`, `/inventory`) call `requireProtectedAuthState()` on the server
-- `AuthStateProvider` hydrates the resolved session and authorization data into client components
+- `AuthStateProvider` hydrates the resolved session and authorization data into client components including active organization and member role
+- `OrganizationGate` enforces per-app membership at the UI level
 - `useAuth()` reads from that hydrated context instead of fetching its own session
 - `proxy.ts` only performs optimistic cookie checks and preserves callback URLs
 - Callback URLs are normalized to in-app relative paths only before any redirect is issued
+
+## Plugins
+
+### Admin Plugin
+
+Provides global user management (CRUD, ban, impersonate, set-role). Used by super admins in the Admin Console.
+
+### Organization Plugin
+
+Maps each ERP app domain to a Better Auth organization:
+- `hrms` → HRMS workspace
+- `crm` → CRM workspace
+- `asset` → Asset workspace
+- `inventory` → Inventory workspace
+- `admin` → Admin Console workspace
+
+Each organization has members with roles (`owner`, `admin`, `member`). Organization-scoped tRPC middleware enforces membership at the API level. See [Authorization](../02-authorization/README.md) for details.
 
 ## Configuration
 
@@ -83,12 +103,15 @@ const httpLink = httpBatchLink({
 
 ## Database Schema
 
-Better Auth requires four tables:
+Better Auth requires these tables:
 
 - **users** - User accounts
-- **sessions** - Active sessions
+- **sessions** - Active sessions (includes `activeOrganizationId` for org plugin)
 - **accounts** - Authentication credentials
 - **verifications** - Email verification tokens
+- **organizations** - App workspace organizations (org plugin)
+- **members** - User membership in organizations (org plugin)
+- **invitations** - Organization invitations (org plugin)
 
 These are defined in `apps/backend/prisma/schema.prisma`.
 
@@ -100,7 +123,9 @@ On first production deployment, a default admin user is automatically created:
 2. If credentials are set and the user does not exist, it creates:
    - User record with username, email, and name
    - Account record with hashed password (bcrypt)
-3. Logs success or skips if the user already exists
+   - Sets role to `super_admin`
+3. Creates default organizations (one per app) if they don't exist
+4. Logs success or skips if the user already exists
 
 **Security Note:** Change the default password immediately after first login.
 
@@ -120,9 +145,10 @@ On first production deployment, a default admin user is automatically created:
 
 | Feature | Development | Production |
 |---------|-------------|------------|
-| Auth Required | ✅ | ✅ |
+| Auth Required | Yes | Yes |
 | Login Page | Visible | Visible |
 | Route Protection | Enabled | Enabled |
+| Org Membership Gating | Enabled | Enabled |
 | Cookies | Lax, non-secure | SameSite=None, Secure |
 
 ### Logout
@@ -140,3 +166,4 @@ Better Auth provides these endpoints on the backend:
 - `POST /api/auth/sign-in/username` - Login with username
 - `POST /api/auth/sign-out` - Logout
 - `GET /api/auth/get-session` - Get current session
+- Organization plugin endpoints at `/api/auth/organization/*`

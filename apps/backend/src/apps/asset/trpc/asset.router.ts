@@ -4,7 +4,7 @@ import { Asset } from "@aria/types";
 import { Injectable } from "@nestjs/common";
 import { observable } from "@trpc/server/observable";
 import { z } from "zod";
-import { protectedProcedure, router } from "../../../trpc/trpc";
+import { orgProcedure, router } from "../../../trpc/trpc";
 // biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
 import { AssetService } from "../asset.service";
 
@@ -48,32 +48,33 @@ export class AssetRouter {
 
 	getRouter() {
 		const svc = this.assetService;
+		const assetProcedure = orgProcedure("asset");
 
 		return router({
 			// ── Asset CRUD ────────────────────────────────────────────────────
-			listAssets: protectedProcedure
+			listAssets: assetProcedure
 				.input(Asset.listAssetsSchema)
 				.query(async ({ input }) => svc.findAllAssets(input)),
 
-			listAssetActivityReport: protectedProcedure
+			listAssetActivityReport: assetProcedure
 				.input(Asset.listAssetActivityReportSchema)
 				.query(async ({ input }) => svc.findAssetActivityReport(input)),
 
-			listAssetDepreciationLedger: protectedProcedure
+			listAssetDepreciationLedger: assetProcedure
 				.input(Asset.listAssetDepreciationLedgerSchema)
 				.query(async ({ input }) => svc.findAssetDepreciationLedger(input)),
 
-			listAssetDepreciationsAndBalances: protectedProcedure
+			listAssetDepreciationsAndBalances: assetProcedure
 				.input(Asset.listAssetDepreciationsAndBalancesSchema)
 				.query(async ({ input }) =>
 					svc.findAssetDepreciationsAndBalances(input),
 				),
 
-			getAssetById: protectedProcedure
+			getAssetById: assetProcedure
 				.input(z.object({ id: z.string().cuid() }))
 				.query(async ({ input }) => svc.findAssetById(input.id)),
 
-			createAsset: protectedProcedure
+			createAsset: assetProcedure
 				.input(Asset.createAssetSchema)
 				.mutation(async ({ input }) => {
 					const asset = await svc.createAsset(input);
@@ -84,7 +85,7 @@ export class AssetRouter {
 					return asset;
 				}),
 
-			updateAsset: protectedProcedure
+			updateAsset: assetProcedure
 				.input(Asset.updateAssetSchema)
 				.mutation(async ({ input }) => {
 					const asset = await svc.updateAsset(input);
@@ -95,7 +96,7 @@ export class AssetRouter {
 					return asset;
 				}),
 
-			deleteAsset: protectedProcedure
+			deleteAsset: assetProcedure
 				.input(z.object({ id: z.string().cuid() }))
 				.mutation(async ({ input }) => {
 					const result = await svc.deleteAsset(input.id);
@@ -106,7 +107,7 @@ export class AssetRouter {
 					return result;
 				}),
 
-			deleteManyAssets: protectedProcedure
+			deleteManyAssets: assetProcedure
 				.input(Asset.bulkDeleteAssetsSchema)
 				.mutation(async ({ input }) => {
 					const result = await svc.deleteManyAssets(input.ids);
@@ -120,19 +121,19 @@ export class AssetRouter {
 				}),
 
 			// ── Asset Value Adjustment ───────────────────────────────────────
-			listAssetValueAdjustments: protectedProcedure
+			listAssetValueAdjustments: assetProcedure
 				.input(Asset.listAssetValueAdjustmentsSchema.optional())
 				.query(async ({ input }) => svc.findAllAssetValueAdjustments(input)),
 
-			getAssetValueAdjustmentById: protectedProcedure
+			getAssetValueAdjustmentById: assetProcedure
 				.input(Asset.getAssetValueAdjustmentSchema)
 				.query(async ({ input }) => svc.findAssetValueAdjustmentById(input.id)),
 
-			previewAssetValueAdjustment: protectedProcedure
+			previewAssetValueAdjustment: assetProcedure
 				.input(Asset.previewAssetValueAdjustmentSchema)
 				.query(async ({ input }) => svc.previewAssetValueAdjustment(input)),
 
-			createAssetValueAdjustment: protectedProcedure
+			createAssetValueAdjustment: assetProcedure
 				.input(Asset.createAssetValueAdjustmentSchema)
 				.mutation(async ({ input }) => {
 					const adjustment = await svc.createAssetValueAdjustment(input);
@@ -143,7 +144,7 @@ export class AssetRouter {
 					return adjustment;
 				}),
 
-			updateAssetValueAdjustment: protectedProcedure
+			updateAssetValueAdjustment: assetProcedure
 				.input(Asset.updateAssetValueAdjustmentSchema)
 				.mutation(async ({ input }) => {
 					const adjustment = await svc.updateAssetValueAdjustment(input);
@@ -154,7 +155,7 @@ export class AssetRouter {
 					return adjustment;
 				}),
 
-			submitAssetValueAdjustment: protectedProcedure
+			submitAssetValueAdjustment: assetProcedure
 				.input(Asset.submitAssetValueAdjustmentSchema)
 				.mutation(async ({ input }) => {
 					const adjustment = await svc.submitAssetValueAdjustment(input);
@@ -176,7 +177,7 @@ export class AssetRouter {
 					return adjustment;
 				}),
 
-			cancelAssetValueAdjustment: protectedProcedure
+			cancelAssetValueAdjustment: assetProcedure
 				.input(Asset.cancelAssetValueAdjustmentSchema)
 				.mutation(async ({ input }) => {
 					const adjustment = await svc.cancelAssetValueAdjustment(input);
@@ -198,7 +199,7 @@ export class AssetRouter {
 					return adjustment;
 				}),
 
-			deleteAssetValueAdjustment: protectedProcedure
+			deleteAssetValueAdjustment: assetProcedure
 				.input(Asset.deleteAssetValueAdjustmentSchema)
 				.mutation(async ({ input }) => {
 					const result = await svc.deleteAssetValueAdjustment(input.id);
@@ -210,15 +211,15 @@ export class AssetRouter {
 				}),
 
 			// ── Location CRUD ─────────────────────────────────────────────────
-			listLocations: protectedProcedure
+			listLocations: assetProcedure
 				.input(Asset.listLocationsSchema)
 				.query(async ({ input }) => svc.findAllLocations(input)),
 
-			getLocationById: protectedProcedure
+			getLocationById: assetProcedure
 				.input(z.object({ id: z.string().cuid() }))
 				.query(async ({ input }) => svc.findLocationById(input.id)),
 
-			createLocation: protectedProcedure
+			createLocation: assetProcedure
 				.input(Asset.createLocationSchema)
 				.mutation(async ({ input }) => {
 					const loc = await svc.createLocation(input);
@@ -229,7 +230,7 @@ export class AssetRouter {
 					return loc;
 				}),
 
-			updateLocation: protectedProcedure
+			updateLocation: assetProcedure
 				.input(Asset.updateLocationSchema)
 				.mutation(async ({ input }) => {
 					const loc = await svc.updateLocation(input);
@@ -240,7 +241,7 @@ export class AssetRouter {
 					return loc;
 				}),
 
-			deleteLocation: protectedProcedure
+			deleteLocation: assetProcedure
 				.input(z.object({ id: z.string().cuid() }))
 				.mutation(async ({ input }) => {
 					const result = await svc.deleteLocation(input.id);
@@ -252,15 +253,15 @@ export class AssetRouter {
 				}),
 
 			// ── Asset Category CRUD ───────────────────────────────────────────
-			listAssetCategories: protectedProcedure
+			listAssetCategories: assetProcedure
 				.input(Asset.listAssetCategoriesSchema)
 				.query(async ({ input }) => svc.findAllAssetCategories(input)),
 
-			getAssetCategoryById: protectedProcedure
+			getAssetCategoryById: assetProcedure
 				.input(z.object({ id: z.string().cuid() }))
 				.query(async ({ input }) => svc.findAssetCategoryById(input.id)),
 
-			createAssetCategory: protectedProcedure
+			createAssetCategory: assetProcedure
 				.input(Asset.createAssetCategorySchema)
 				.mutation(async ({ input }) => {
 					const cat = await svc.createAssetCategory(input);
@@ -271,7 +272,7 @@ export class AssetRouter {
 					return cat;
 				}),
 
-			updateAssetCategory: protectedProcedure
+			updateAssetCategory: assetProcedure
 				.input(Asset.updateAssetCategorySchema)
 				.mutation(async ({ input }) => {
 					const cat = await svc.updateAssetCategory(input);
@@ -282,7 +283,7 @@ export class AssetRouter {
 					return cat;
 				}),
 
-			deleteAssetCategory: protectedProcedure
+			deleteAssetCategory: assetProcedure
 				.input(z.object({ id: z.string().cuid() }))
 				.mutation(async ({ input }) => {
 					const result = await svc.deleteAssetCategory(input.id);
@@ -294,21 +295,21 @@ export class AssetRouter {
 				}),
 
 			// ── Dashboard ─────────────────────────────────────────────────────
-			getDashboardData: protectedProcedure.query(async () =>
+			getDashboardData: assetProcedure.query(async () =>
 				svc.getDashboardData(),
 			),
-			getDashboardOverviewData: protectedProcedure.query(async () =>
+			getDashboardOverviewData: assetProcedure.query(async () =>
 				svc.getDashboardOverviewData(),
 			),
-			getDashboardTopChartsData: protectedProcedure.query(async () =>
+			getDashboardTopChartsData: assetProcedure.query(async () =>
 				svc.getDashboardTopChartsData(),
 			),
-			getDashboardBottomChartsData: protectedProcedure.query(async () =>
+			getDashboardBottomChartsData: assetProcedure.query(async () =>
 				svc.getDashboardBottomChartsData(),
 			),
 
 			// ── Subscriptions ─────────────────────────────────────────────────
-			onAssetsChanged: protectedProcedure.subscription(() =>
+			onAssetsChanged: assetProcedure.subscription(() =>
 				observable<AssetsChangedEvent>((emit) => {
 					const handler = (event: AssetsChangedEvent) => emit.next(event);
 					assetEvents.on("assetsChanged", handler);
@@ -316,7 +317,7 @@ export class AssetRouter {
 				}),
 			),
 
-			onLocationsChanged: protectedProcedure.subscription(() =>
+			onLocationsChanged: assetProcedure.subscription(() =>
 				observable<LocationsChangedEvent>((emit) => {
 					const handler = (event: LocationsChangedEvent) => emit.next(event);
 					assetEvents.on("locationsChanged", handler);
@@ -324,7 +325,7 @@ export class AssetRouter {
 				}),
 			),
 
-			onAssetCategoriesChanged: protectedProcedure.subscription(() =>
+			onAssetCategoriesChanged: assetProcedure.subscription(() =>
 				observable<AssetCategoriesChangedEvent>((emit) => {
 					const handler = (event: AssetCategoriesChangedEvent) =>
 						emit.next(event);
@@ -333,7 +334,7 @@ export class AssetRouter {
 				}),
 			),
 
-			onAssetValueAdjustmentsChanged: protectedProcedure.subscription(() =>
+			onAssetValueAdjustmentsChanged: assetProcedure.subscription(() =>
 				observable<AssetValueAdjustmentsChangedEvent>((emit) => {
 					const handler = (event: AssetValueAdjustmentsChangedEvent) =>
 						emit.next(event);
@@ -343,15 +344,15 @@ export class AssetRouter {
 			),
 
 			// ── Asset Maintenance Team CRUD ───────────────────────────────────
-			listMaintenanceTeams: protectedProcedure
+			listMaintenanceTeams: assetProcedure
 				.input(Asset.listMaintenanceTeamsSchema)
 				.query(async ({ input }) => svc.findAllMaintenanceTeams(input)),
 
-			getMaintenanceTeamById: protectedProcedure
+			getMaintenanceTeamById: assetProcedure
 				.input(z.object({ id: z.string().cuid() }))
 				.query(async ({ input }) => svc.findMaintenanceTeamById(input.id)),
 
-			createMaintenanceTeam: protectedProcedure
+			createMaintenanceTeam: assetProcedure
 				.input(Asset.createMaintenanceTeamSchema)
 				.mutation(async ({ input }) => {
 					const team = await svc.createMaintenanceTeam(input);
@@ -362,7 +363,7 @@ export class AssetRouter {
 					return team;
 				}),
 
-			updateMaintenanceTeam: protectedProcedure
+			updateMaintenanceTeam: assetProcedure
 				.input(Asset.updateMaintenanceTeamSchema)
 				.mutation(async ({ input }) => {
 					const team = await svc.updateMaintenanceTeam(input);
@@ -373,7 +374,7 @@ export class AssetRouter {
 					return team;
 				}),
 
-			deleteMaintenanceTeam: protectedProcedure
+			deleteMaintenanceTeam: assetProcedure
 				.input(z.object({ id: z.string().cuid() }))
 				.mutation(async ({ input }) => {
 					const result = await svc.deleteMaintenanceTeam(input.id);
@@ -384,7 +385,7 @@ export class AssetRouter {
 					return result;
 				}),
 
-			deleteManyMaintenanceTeams: protectedProcedure
+			deleteManyMaintenanceTeams: assetProcedure
 				.input(Asset.bulkDeleteMaintenanceTeamsSchema)
 				.mutation(async ({ input }) => {
 					const result = await svc.deleteManyMaintenanceTeams(input.ids);
@@ -397,7 +398,7 @@ export class AssetRouter {
 					return result;
 				}),
 
-			onMaintenanceTeamsChanged: protectedProcedure.subscription(() =>
+			onMaintenanceTeamsChanged: assetProcedure.subscription(() =>
 				observable<MaintenanceTeamsChangedEvent>((emit) => {
 					const handler = (event: MaintenanceTeamsChangedEvent) =>
 						emit.next(event);
@@ -407,31 +408,31 @@ export class AssetRouter {
 			),
 
 			// ── Asset Maintenance CRUD ─────────────────────────────────────────
-			listAssetMaintenances: protectedProcedure
+			listAssetMaintenances: assetProcedure
 				.input(Asset.listAssetMaintenancesSchema)
 				.query(async ({ input }) => svc.findAllAssetMaintenances(input)),
 
-			getAssetMaintenanceById: protectedProcedure
+			getAssetMaintenanceById: assetProcedure
 				.input(z.object({ id: z.string().cuid() }))
 				.query(async ({ input }) => svc.findAssetMaintenanceById(input.id)),
 
-			getAssetMaintenanceByAssetId: protectedProcedure
+			getAssetMaintenanceByAssetId: assetProcedure
 				.input(z.object({ assetId: z.string().cuid() }))
 				.query(async ({ input }) =>
 					svc.findAssetMaintenanceByAssetId(input.assetId),
 				),
 
-			getAssetMaintenanceLogs: protectedProcedure
+			getAssetMaintenanceLogs: assetProcedure
 				.input(z.object({ maintenanceId: z.string().cuid() }))
 				.query(async ({ input }) =>
 					svc.findAssetMaintenanceLogs(input.maintenanceId),
 				),
 
-			listAssetMaintenanceLogs: protectedProcedure
+			listAssetMaintenanceLogs: assetProcedure
 				.input(Asset.listAssetMaintenanceLogsSchema.optional())
 				.query(async ({ input }) => svc.findAllAssetMaintenanceLogs(input)),
 
-			cancelAssetMaintenanceLog: protectedProcedure
+			cancelAssetMaintenanceLog: assetProcedure
 				.input(Asset.cancelAssetMaintenanceLogSchema)
 				.mutation(async ({ input }) => {
 					const log = await svc.cancelAssetMaintenanceLog(input);
@@ -442,7 +443,7 @@ export class AssetRouter {
 					return log;
 				}),
 
-			createAssetMaintenance: protectedProcedure
+			createAssetMaintenance: assetProcedure
 				.input(Asset.createAssetMaintenanceSchema)
 				.mutation(async ({ input }) => {
 					const record = await svc.createAssetMaintenance(input);
@@ -453,7 +454,7 @@ export class AssetRouter {
 					return record;
 				}),
 
-			updateAssetMaintenance: protectedProcedure
+			updateAssetMaintenance: assetProcedure
 				.input(Asset.updateAssetMaintenanceSchema)
 				.mutation(async ({ input }) => {
 					const record = await svc.updateAssetMaintenance(input);
@@ -464,7 +465,7 @@ export class AssetRouter {
 					return record;
 				}),
 
-			deleteAssetMaintenance: protectedProcedure
+			deleteAssetMaintenance: assetProcedure
 				.input(z.object({ id: z.string().cuid() }))
 				.mutation(async ({ input }) => {
 					const result = await svc.deleteAssetMaintenance(input.id);
@@ -475,7 +476,7 @@ export class AssetRouter {
 					return result;
 				}),
 
-			deleteManyAssetMaintenances: protectedProcedure
+			deleteManyAssetMaintenances: assetProcedure
 				.input(Asset.bulkDeleteAssetMaintenancesSchema)
 				.mutation(async ({ input }) => {
 					const result = await svc.deleteManyAssetMaintenances(input.ids);
@@ -488,7 +489,7 @@ export class AssetRouter {
 					return result;
 				}),
 
-			completeAssetMaintenanceLog: protectedProcedure
+			completeAssetMaintenanceLog: assetProcedure
 				.input(Asset.completeAssetMaintenanceLogSchema)
 				.mutation(async ({ input }) => {
 					const log = await svc.completeAssetMaintenanceLog(input);
@@ -499,7 +500,7 @@ export class AssetRouter {
 					return log;
 				}),
 
-			onAssetMaintenancesChanged: protectedProcedure.subscription(() =>
+			onAssetMaintenancesChanged: assetProcedure.subscription(() =>
 				observable<AssetMaintenancesChangedEvent>((emit) => {
 					const handler = (event: AssetMaintenancesChangedEvent) =>
 						emit.next(event);
@@ -509,7 +510,7 @@ export class AssetRouter {
 			),
 
 			// ── Excel Export Procedures ──────────────────────────────────────
-			exportAssetDepreciationsAndBalancesExcel: protectedProcedure
+			exportAssetDepreciationsAndBalancesExcel: assetProcedure
 				.input(Asset.listAssetDepreciationsAndBalancesSchema)
 				.mutation(async ({ input }) => {
 					const reportTemplateService = new ReportTemplateService();
@@ -563,7 +564,7 @@ export class AssetRouter {
 					);
 				}),
 
-			exportAssetDepreciationLedgerExcel: protectedProcedure
+			exportAssetDepreciationLedgerExcel: assetProcedure
 				.input(Asset.listAssetDepreciationLedgerSchema)
 				.mutation(async ({ input }) => {
 					const reportTemplateService = new ReportTemplateService();
@@ -624,7 +625,7 @@ export class AssetRouter {
 					);
 				}),
 
-			exportAssetActivityExcel: protectedProcedure
+			exportAssetActivityExcel: assetProcedure
 				.input(Asset.listAssetActivityReportSchema)
 				.mutation(async ({ input }) => {
 					const reportTemplateService = new ReportTemplateService();

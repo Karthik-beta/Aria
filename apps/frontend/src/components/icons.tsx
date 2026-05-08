@@ -40,6 +40,7 @@ import {
 	IconUser,
 	IconUserCircle,
 	IconUserEdit,
+	IconUsers,
 	IconUserX,
 	IconX,
 } from "@tabler/icons-react";
@@ -69,6 +70,7 @@ export const Icons = {
 	add: IconPlus,
 	warning: IconAlertTriangle,
 	user: IconUser,
+	users: IconUsers,
 	arrowRight: IconArrowRight,
 	help: IconHelpCircle,
 	pizza: IconPizza,

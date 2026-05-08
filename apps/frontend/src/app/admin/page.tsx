@@ -1,6 +1,6 @@
 "use client";
 
-import { UserCheck, Users } from "lucide-react";
+import { Building, UserCheck, Users } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import PageContainer from "@/components/layout/page-container";
@@ -14,7 +14,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { authClient } from "@/lib/auth/client";
 
-const SKELETON_KEYS = ["total", "active"] as const;
+const SKELETON_KEYS = ["total", "active", "orgs"] as const;
 
 function StatsLoadingSkeleton() {
 	return (
@@ -38,16 +38,24 @@ function StatsLoadingSkeleton() {
 export default function AdminDashboard() {
 	const [totalUsers, setTotalUsers] = useState(0);
 	const [activeUsers, setActiveUsers] = useState(0);
+	const [orgCount, setOrgCount] = useState(0);
 	const [isLoading, setIsLoading] = useState(true);
 
 	useEffect(() => {
 		let cancelled = false;
-		authClient.admin
-			.listUsers({ query: { limit: 100 } })
-			.then((res) => {
-				if (!cancelled && res.data) {
-					setTotalUsers(res.data.total);
-					setActiveUsers(res.data.users.filter((u) => !u.banned).length);
+		Promise.all([
+			authClient.admin.listUsers({ query: { limit: 100 } }),
+			authClient.organization.list(),
+		])
+			.then(([usersRes, orgsRes]) => {
+				if (!cancelled) {
+					if (usersRes.data) {
+						setTotalUsers(usersRes.data.total);
+						setActiveUsers(usersRes.data.users.filter((u) => !u.banned).length);
+					}
+					if (orgsRes.data) {
+						setOrgCount((orgsRes.data as unknown[]).length);
+					}
 					setIsLoading(false);
 				}
 			})
@@ -123,6 +131,19 @@ export default function AdminDashboard() {
 								</p>
 							</CardContent>
 						</Card>
+
+						<Card>
+							<CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+								<CardTitle className="text-sm font-medium">
+									Organizations
+								</CardTitle>
+								<Building className="h-4 w-4 text-muted-foreground" />
+							</CardHeader>
+							<CardContent>
+								<div className="text-2xl font-bold">{orgCount}</div>
+								<p className="text-xs text-muted-foreground">App workspaces</p>
+							</CardContent>
+						</Card>
 					</div>
 				)}
 
@@ -141,6 +162,16 @@ export default function AdminDashboard() {
 								<span className="font-medium">Manage Users</span>
 								<span className="text-sm text-muted-foreground">
 									Add, edit, or remove users
+								</span>
+							</Link>
+							<Link
+								href="/admin/organizations"
+								className="group flex flex-col items-center justify-center rounded-lg border p-6 transition-colors hover:bg-accent"
+							>
+								<Building className="mb-2 h-8 w-8 text-primary transition-transform group-hover:scale-110" />
+								<span className="font-medium">Organizations</span>
+								<span className="text-sm text-muted-foreground">
+									Manage app workspaces &amp; members
 								</span>
 							</Link>
 						</div>

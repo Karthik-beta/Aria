@@ -46,6 +46,8 @@ const authenticatedState: AuthState = {
 	},
 	role: "super_admin",
 	isActive: true,
+	activeOrganization: null,
+	memberRole: null,
 };
 
 const unverifiedEmailState: AuthState = {
@@ -64,6 +66,8 @@ const noSessionState: AuthState = {
 	session: null,
 	role: null,
 	isActive: false,
+	activeOrganization: null,
+	memberRole: null,
 };
 
 // ── Helper ───────────────────────────────────────────────────────────────────
@@ -158,6 +162,8 @@ describe("ProfileViewPage", () => {
 					: null,
 				role: authenticatedState.role,
 				isActive: authenticatedState.isActive,
+				activeOrganization: null,
+				memberRole: null,
 			};
 			renderProfile(stateNoEmail);
 			expect(screen.queryByText("Verified")).not.toBeInTheDocument();

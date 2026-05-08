@@ -1,34 +1,24 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 
-// biome-ignore lint/style/useNamingConvention: bun test mock
 const mockHandlerFn = mock(
 	(_req: Request) => new Response(JSON.stringify({}), { status: 200 }),
 );
 
-// biome-ignore lint/style/useNamingConvention: bun test mock
 mock.module("../auth.config", () => ({
 	auth: {
 		handler: (_req: Request) => mockHandlerFn(_req),
 	},
-	// biome-ignore lint/style/useNamingConvention: better-auth export name
 	Auth: {} as never,
 }));
 
-// biome-ignore lint/style/useNamingConvention: prisma method names
 const mockPrismaUserFindFirst = mock(() => Promise.resolve(null));
-// biome-ignore lint/style/useNamingConvention: prisma method names
 const mockPrismaUserFindUnique = mock(() => Promise.resolve(null));
-// biome-ignore lint/style/useNamingConvention: prisma method names
 const mockPrismaUserUpdate = mock(() => Promise.resolve({}));
-// biome-ignore lint/style/useNamingConvention: prisma method names
 const mockPrismaConnect = mock(() => Promise.resolve());
-// biome-ignore lint/style/useNamingConvention: prisma method names
 const mockPrismaDisconnect = mock(() => Promise.resolve());
 
 const mockPrismaObj = {
-	// biome-ignore lint/style/useNamingConvention: prisma method names
 	$connect: mockPrismaConnect,
-	// biome-ignore lint/style/useNamingConvention: prisma method names
 	$disconnect: mockPrismaDisconnect,
 	user: {
 		findFirst: mockPrismaUserFindFirst,
@@ -37,7 +27,6 @@ const mockPrismaObj = {
 	},
 };
 
-// biome-ignore lint/style/useNamingConvention: bun test mock
 mock.module("../shared/prisma-client.js", () => ({
 	prismaClient: mockPrismaObj,
 }));
@@ -185,7 +174,6 @@ describe("AuthService", () => {
 
 		const clearEnv = (...keys: string[]) => {
 			keys.forEach((k) => {
-				// biome-ignore lint/performance/noDelete: test env manipulation
 				delete process.env[k];
 			});
 		};

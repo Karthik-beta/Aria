@@ -85,6 +85,19 @@ vi.mock("@/lib/auth/client", () => {
 	const removeUser = () => Promise.resolve({ data: {} });
 	const createUser = () => Promise.resolve({ data: { id: "new-user" } });
 	const updateUser = () => Promise.resolve({ data: {} });
+	const mockOrgs = [
+		{
+			id: "org-1",
+			name: "Admin",
+			slug: "admin",
+			createdAt: new Date().toISOString(),
+		},
+	];
+	const listOrgs = () => Promise.resolve({ data: mockOrgs });
+	const getFullOrganization = () =>
+		Promise.resolve({
+			data: { id: "org-1", name: "Admin", slug: "admin", members: [] },
+		});
 	return {
 		authClient: {
 			admin: {
@@ -94,6 +107,10 @@ vi.mock("@/lib/auth/client", () => {
 				removeUser,
 				createUser,
 				updateUser,
+			},
+			organization: {
+				list: listOrgs,
+				getFullOrganization,
 			},
 		},
 	};

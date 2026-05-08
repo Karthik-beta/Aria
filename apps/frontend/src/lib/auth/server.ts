@@ -8,6 +8,7 @@ import type {
 	AuthSessionData,
 	AuthSessionRecord,
 	AuthSessionUser,
+	OrganizationData,
 } from "@/lib/auth/types";
 
 function getBackendUrl() {
@@ -98,6 +99,89 @@ export const getAuthorizationData = cache(
 );
 
 /**
+ * Fetch the active organization for the current request context.
+ *
+ * Uses getServerSession to obtain the activeOrganizationId from the session,
+ * then fetches the full organization from the backend.
+ */
+export const getActiveOrganization = cache(
+	async (): Promise<OrganizationData | null> => {
+		const session = await getServerSession();
+		const activeOrganizationId = session?.session?.activeOrganizationId;
+
+		if (!activeOrganizationId) {
+			return null;
+		}
+
+		try {
+			const cookieStore = await cookies();
+			const cookieHeader = cookieStore.toString();
+
+			const response = await fetch(
+				`${getBackendUrl()}/api/auth/organization/get-full-organization?organizationId=${activeOrganizationId}`,
+				{
+					method: "GET",
+					headers: {
+						"Content-Type": "application/json",
+						cookie: cookieHeader,
+					},
+					cache: "no-store",
+				},
+			);
+
+			if (!response.ok) {
+				return null;
+			}
+
+			const data = (await response.json()) as OrganizationData;
+			return data ?? null;
+		} catch (error) {
+			logger.error("[Auth] Failed to fetch active organization:", error);
+			return null;
+		}
+	},
+);
+
+/**
+ * Fetch the current user's member role in the active organization.
+ */
+export const getMemberRole = cache(async (): Promise<string | null> => {
+	const session = await getServerSession();
+	const activeOrganizationId = session?.session?.activeOrganizationId;
+
+	if (!activeOrganizationId) {
+		return null;
+	}
+
+	try {
+		const cookieStore = await cookies();
+		const cookieHeader = cookieStore.toString();
+
+		const response = await fetch(
+			`${getBackendUrl()}/api/auth/organization/get-active-member-role`,
+			{
+				method: "GET",
+				headers: {
+					"Content-Type": "application/json",
+					cookie: cookieHeader,
+				},
+				cache: "no-store",
+			},
+		);
+
+		if (!response.ok) {
+			return null;
+		}
+
+		const payload = (await response.json()) as { role?: string };
+		return payload?.role ?? null;
+	} catch (error) {
+		logger.error("[Auth] Failed to fetch member role:", error);
+		return null;
+	}
+});
+
+/**
  * Read the current callback URL from request headers or fall back to the supplied value.
  */
 export async function getRequestCallbackUrl(
@@ -114,6 +198,8 @@ export async function getRequestCallbackUrl(
 /**
  * Ensure the current request has a valid session, redirecting to sign-in or
  * change-password when required.
+ *
+ * Returns full auth state including active organization and member role.
  */
 export async function requireProtectedAuthState(options?: {
 	callbackUrl?: string;
@@ -134,10 +220,14 @@ export async function requireProtectedAuthState(options?: {
 	}
 
 	const authorization = await getAuthorizationData();
+	const activeOrganization = await getActiveOrganization();
+	const memberRole = await getMemberRole();
 
 	return {
 		session,
 		role: authorization.role,
 		isActive: authorization.isActive,
+		activeOrganization,
+		memberRole,
 	};
 }

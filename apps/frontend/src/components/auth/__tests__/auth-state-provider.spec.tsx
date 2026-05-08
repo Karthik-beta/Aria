@@ -29,6 +29,8 @@ const mockAuthState: AuthState = {
 	},
 	role: "super_admin",
 	isActive: true,
+	activeOrganization: null,
+	memberRole: null,
 };
 
 function TestConsumer() {
@@ -58,6 +60,8 @@ describe("AuthStateProvider", () => {
 			session: null,
 			role: null,
 			isActive: false,
+			activeOrganization: null,
+			memberRole: null,
 		};
 
 		const { getByTestId } = render(

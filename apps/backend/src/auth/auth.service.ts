@@ -57,6 +57,7 @@ export class AuthService implements OnModuleInit {
 
 	async onModuleInit() {
 		await this.createDefaultUser();
+		await this.createDefaultOrganizations();
 	}
 
 	/**
@@ -183,6 +184,81 @@ export class AuthService implements OnModuleInit {
 				"Failed to create default admin user (non-critical):",
 				error,
 			);
+		}
+	}
+
+	/**
+	 * Ensure default app organizations exist and the super admin is an owner in each.
+	 *
+	 * Creates one organization per Aria app (HRMS, CRM, Asset, Inventory, Admin).
+	 * Uses better-auth's server-side createOrganization API (no session headers)
+	 * to create orgs on behalf of the super admin user.
+	 */
+	private async createDefaultOrganizations() {
+		const superAdmin = await this.prisma.user.findFirst({
+			where: { role: "super_admin" },
+			select: { id: true, email: true },
+		});
+
+		if (!superAdmin) {
+			this.logger.warn(
+				"[createDefaultOrganizations] No super admin user found. Skipping organization creation.",
+			);
+			return;
+		}
+
+		const apps = [
+			{ name: "Aria HRMS", slug: "hrms" },
+			{ name: "Aria CRM", slug: "crm" },
+			{ name: "Aria Asset", slug: "asset" },
+			{ name: "Aria Inventory", slug: "inventory" },
+			{ name: "Aria Admin", slug: "admin" },
+		];
+
+		for (const app of apps) {
+			const existing = await this.prisma.organization.findUnique({
+				where: { slug: app.slug },
+			});
+
+			if (existing) {
+				this.logger.log(
+					`[createDefaultOrganizations] Organization "${app.name}" already exists.`,
+				);
+				continue;
+			}
+
+			try {
+				this.logger.log(
+					`[createDefaultOrganizations] Creating organization "${app.name}"...`,
+				);
+				const authUrl = `${process.env.BETTER_AUTH_URL || "http://localhost:3001"}/api/auth/organization/create`;
+				const request = new Request(authUrl, {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({
+						name: app.name,
+						slug: app.slug,
+						userId: superAdmin.id,
+					}),
+				});
+				const response = await auth.handler(request);
+				if (response.ok) {
+					this.logger.log(
+						`[createDefaultOrganizations] Created "${app.name}" (slug: ${app.slug})`,
+					);
+				} else {
+					const responseText = await response.text();
+					this.logger.error(
+						`[createDefaultOrganizations] Failed to create "${app.name}": ${response.status}`,
+						responseText,
+					);
+				}
+			} catch (error) {
+				this.logSafeError(
+					`[createDefaultOrganizations] Error creating "${app.name}":`,
+					error,
+				);
+			}
 		}
 	}
 }

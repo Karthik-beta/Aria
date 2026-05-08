@@ -11,10 +11,12 @@ import { z } from "zod";
 // biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
 import { PrismaService } from "../../../shared/prisma.service";
 import type { accountRouter } from "../../../trpc/routers/account.router";
-import { protectedProcedure, router } from "../../../trpc/trpc";
+import { orgProcedure, router } from "../../../trpc/trpc";
 // biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
 import { InventoryService } from "../inventory.service";
 import { ItemActivityService } from "../services/item-activity.service";
+
+const inventoryProcedure = orgProcedure("inventory");
 
 // Global event emitter for real-time subscriptions
 const inventoryEvents = new EventEmitter({ captureRejections: true });
@@ -204,13 +206,13 @@ function toPickListChangeScope(pickList: {
 }
 
 function createListItemsProcedure(inventoryService: InventoryService) {
-	return protectedProcedure.query(async () => {
+	return inventoryProcedure.query(async () => {
 		return inventoryService.findAll();
 	});
 }
 
 function createListItemCatalogueProcedure(inventoryService: InventoryService) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.listItemsSchema)
 		.query(async ({ input }) => {
 			return inventoryService.findPagedItems(input);
@@ -218,7 +220,7 @@ function createListItemCatalogueProcedure(inventoryService: InventoryService) {
 }
 
 function createListItemGroupsProcedure(inventoryService: InventoryService) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(z.object({ search: z.string().optional() }).optional())
 		.query(async ({ input }) => {
 			return inventoryService.findAllItemGroups(input?.search);
@@ -226,7 +228,7 @@ function createListItemGroupsProcedure(inventoryService: InventoryService) {
 }
 
 function createListUnitsOfMeasureProcedure(inventoryService: InventoryService) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(z.object({ search: z.string().optional() }).optional())
 		.query(async ({ input }) => {
 			return inventoryService.findAllUnitsOfMeasure(input?.search);
@@ -234,7 +236,7 @@ function createListUnitsOfMeasureProcedure(inventoryService: InventoryService) {
 }
 
 function createListWarehousesProcedure(inventoryService: InventoryService) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.listWarehousesSchema)
 		.query(async ({ input }) => {
 			return inventoryService.findWarehouses(input);
@@ -242,7 +244,7 @@ function createListWarehousesProcedure(inventoryService: InventoryService) {
 }
 
 function createListSerialNosProcedure(inventoryService: InventoryService) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.listSerialNosSchema)
 		.query(async ({ input }) => {
 			return inventoryService.findSerialNos(input);
@@ -252,7 +254,7 @@ function createListSerialNosProcedure(inventoryService: InventoryService) {
 function createListSerialNoServiceContractExpiryProcedure(
 	inventoryService: InventoryService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.listSerialNoServiceContractExpirySchema)
 		.query(async ({ input }) => {
 			return inventoryService.findSerialNoServiceContractExpiry(input);
@@ -262,7 +264,7 @@ function createListSerialNoServiceContractExpiryProcedure(
 function createListSerialNoWarrantyExpiryProcedure(
 	inventoryService: InventoryService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.listSerialNoWarrantyExpirySchema)
 		.query(async ({ input }) => {
 			return inventoryService.findSerialNoWarrantyExpiry(input);
@@ -270,7 +272,7 @@ function createListSerialNoWarrantyExpiryProcedure(
 }
 
 function createListSerialNoStatusProcedure(inventoryService: InventoryService) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.listSerialNoStatusSchema)
 		.query(async ({ input }) => {
 			return inventoryService.findSerialNoStatus(input);
@@ -278,7 +280,7 @@ function createListSerialNoStatusProcedure(inventoryService: InventoryService) {
 }
 
 function createListBatchesProcedure(inventoryService: InventoryService) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.listBatchesSchema)
 		.query(async ({ input }) => {
 			return inventoryService.findBatches(input);
@@ -286,7 +288,7 @@ function createListBatchesProcedure(inventoryService: InventoryService) {
 }
 
 function createGetBatchByIdProcedure(inventoryService: InventoryService) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(z.object({ id: z.string().cuid() }))
 		.query(async ({ input }) => {
 			return inventoryService.findBatchById(input.id);
@@ -294,7 +296,7 @@ function createGetBatchByIdProcedure(inventoryService: InventoryService) {
 }
 
 function createCreateBatchProcedure(inventoryService: InventoryService) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.createBatchSchema)
 		.mutation(async ({ input }) => {
 			const result = await inventoryService.createBatch(input);
@@ -304,7 +306,7 @@ function createCreateBatchProcedure(inventoryService: InventoryService) {
 }
 
 function createUpdateBatchProcedure(inventoryService: InventoryService) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.updateBatchSchema)
 		.mutation(async ({ input }) => {
 			const result = await inventoryService.updateBatch(input);
@@ -314,7 +316,7 @@ function createUpdateBatchProcedure(inventoryService: InventoryService) {
 }
 
 function createDeleteBatchProcedure(inventoryService: InventoryService) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(z.object({ id: z.string().cuid() }))
 		.mutation(async ({ input }) => {
 			const result = await inventoryService.deleteBatch(input.id);
@@ -324,7 +326,7 @@ function createDeleteBatchProcedure(inventoryService: InventoryService) {
 }
 
 function createGetSerialNoByIdProcedure(inventoryService: InventoryService) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(z.object({ id: z.string().cuid() }))
 		.query(async ({ input }) => {
 			return inventoryService.findSerialNoById(input.id);
@@ -332,7 +334,7 @@ function createGetSerialNoByIdProcedure(inventoryService: InventoryService) {
 }
 
 function createCreateSerialNoProcedure(inventoryService: InventoryService) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.createSerialNoSchema)
 		.mutation(async ({ input }) => {
 			const result = await inventoryService.createSerialNo(input);
@@ -342,7 +344,7 @@ function createCreateSerialNoProcedure(inventoryService: InventoryService) {
 }
 
 function createUpdateSerialNoProcedure(inventoryService: InventoryService) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.updateSerialNoSchema)
 		.mutation(async ({ input }) => {
 			const result = await inventoryService.updateSerialNo(input);
@@ -352,7 +354,7 @@ function createUpdateSerialNoProcedure(inventoryService: InventoryService) {
 }
 
 function createDeleteSerialNoProcedure(inventoryService: InventoryService) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(z.object({ id: z.string().cuid() }))
 		.mutation(async ({ input }) => {
 			const result = await inventoryService.deleteSerialNo(input.id);
@@ -364,7 +366,7 @@ function createDeleteSerialNoProcedure(inventoryService: InventoryService) {
 function createListInstallationNotesProcedure(
 	inventoryService: InventoryService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.listInstallationNotesSchema)
 		.query(async ({ input }) => {
 			return inventoryService.findInstallationNotes(input);
@@ -374,7 +376,7 @@ function createListInstallationNotesProcedure(
 function createGetInstallationNoteByIdProcedure(
 	inventoryService: InventoryService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(z.object({ id: z.string().cuid() }))
 		.query(async ({ input }) => {
 			return inventoryService.findInstallationNoteById(input.id);
@@ -384,7 +386,7 @@ function createGetInstallationNoteByIdProcedure(
 function createCreateInstallationNoteProcedure(
 	inventoryService: InventoryService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.createInstallationNoteSchema)
 		.mutation(async ({ input }) => {
 			const result = await inventoryService.createInstallationNote(input);
@@ -396,7 +398,7 @@ function createCreateInstallationNoteProcedure(
 function createUpdateInstallationNoteProcedure(
 	inventoryService: InventoryService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.updateInstallationNoteSchema)
 		.mutation(async ({ input }) => {
 			const result = await inventoryService.updateInstallationNote(input);
@@ -408,7 +410,7 @@ function createUpdateInstallationNoteProcedure(
 function createDeleteInstallationNoteProcedure(
 	inventoryService: InventoryService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(z.object({ id: z.string().cuid() }))
 		.mutation(async ({ input }) => {
 			const result = await inventoryService.deleteInstallationNote(input.id);
@@ -418,7 +420,7 @@ function createDeleteInstallationNoteProcedure(
 }
 
 function createGetWarehouseByIdProcedure(inventoryService: InventoryService) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(z.object({ id: z.string().cuid() }))
 		.query(async ({ input }) => {
 			return inventoryService.findWarehouseById(input.id);
@@ -426,7 +428,7 @@ function createGetWarehouseByIdProcedure(inventoryService: InventoryService) {
 }
 
 function createCreateWarehouseProcedure(inventoryService: InventoryService) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.createWarehouseSchema)
 		.mutation(async ({ input }) => {
 			return inventoryService.createWarehouse(input);
@@ -434,7 +436,7 @@ function createCreateWarehouseProcedure(inventoryService: InventoryService) {
 }
 
 function createUpdateWarehouseProcedure(inventoryService: InventoryService) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.updateWarehouseSchema)
 		.mutation(async ({ input }) => {
 			return inventoryService.updateWarehouse(input);
@@ -442,7 +444,7 @@ function createUpdateWarehouseProcedure(inventoryService: InventoryService) {
 }
 
 function createDeleteWarehouseProcedure(inventoryService: InventoryService) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(z.object({ id: z.string().cuid() }))
 		.mutation(async ({ input }) => {
 			return inventoryService.deleteWarehouse(input.id);
@@ -450,7 +452,7 @@ function createDeleteWarehouseProcedure(inventoryService: InventoryService) {
 }
 
 function createGetStockSettingsProcedure(inventoryService: InventoryService) {
-	return protectedProcedure.query(async () => {
+	return inventoryProcedure.query(async () => {
 		return inventoryService.findStockSettings();
 	});
 }
@@ -458,7 +460,7 @@ function createGetStockSettingsProcedure(inventoryService: InventoryService) {
 function createGetItemVariantSettingsProcedure(
 	inventoryService: InventoryService,
 ) {
-	return protectedProcedure.query(async () => {
+	return inventoryProcedure.query(async () => {
 		return inventoryService.findItemVariantSettings();
 	});
 }
@@ -466,7 +468,7 @@ function createGetItemVariantSettingsProcedure(
 function createUpdateItemVariantSettingsProcedure(
 	inventoryService: InventoryService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.updateItemVariantSettingsSchema)
 		.mutation(async ({ input }) => {
 			return inventoryService.updateItemVariantSettings(input);
@@ -476,7 +478,7 @@ function createUpdateItemVariantSettingsProcedure(
 function createUpdateStockSettingsProcedure(
 	inventoryService: InventoryService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.updateStockSettingsSchema)
 		.mutation(async ({ input }) => {
 			return inventoryService.updateStockSettings(input);
@@ -486,7 +488,7 @@ function createUpdateStockSettingsProcedure(
 function createGetUnitOfMeasureByIdProcedure(
 	inventoryService: InventoryService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(z.object({ id: z.string().cuid() }))
 		.query(async ({ input }) => {
 			return inventoryService.findUnitOfMeasureById(input.id);
@@ -496,7 +498,7 @@ function createGetUnitOfMeasureByIdProcedure(
 function createCreateUnitOfMeasureProcedure(
 	inventoryService: InventoryService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.createUnitOfMeasureSchema)
 		.mutation(async ({ input }) => {
 			return inventoryService.createUnitOfMeasure(input);
@@ -506,7 +508,7 @@ function createCreateUnitOfMeasureProcedure(
 function createUpdateUnitOfMeasureProcedure(
 	inventoryService: InventoryService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.updateUnitOfMeasureSchema)
 		.mutation(async ({ input }) => {
 			return inventoryService.updateUnitOfMeasure(input);
@@ -516,7 +518,7 @@ function createUpdateUnitOfMeasureProcedure(
 function createDeleteUnitOfMeasureProcedure(
 	inventoryService: InventoryService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(z.object({ id: z.string().cuid() }))
 		.mutation(async ({ input }) => {
 			return inventoryService.deleteUnitOfMeasure(input.id);
@@ -524,7 +526,7 @@ function createDeleteUnitOfMeasureProcedure(
 }
 
 function createListBrandsProcedure(inventoryService: InventoryService) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(z.object({ search: z.string().optional() }).optional())
 		.query(async ({ input }) => {
 			return inventoryService.findAllBrands(input?.search);
@@ -532,7 +534,7 @@ function createListBrandsProcedure(inventoryService: InventoryService) {
 }
 
 function createGetBrandByIdProcedure(inventoryService: InventoryService) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(z.object({ id: z.string().cuid() }))
 		.query(async ({ input }) => {
 			return inventoryService.findBrandById(input.id);
@@ -540,7 +542,7 @@ function createGetBrandByIdProcedure(inventoryService: InventoryService) {
 }
 
 function createCreateBrandProcedure(inventoryService: InventoryService) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.createBrandSchema)
 		.mutation(async ({ input }) => {
 			return inventoryService.createBrand(input);
@@ -548,7 +550,7 @@ function createCreateBrandProcedure(inventoryService: InventoryService) {
 }
 
 function createUpdateBrandProcedure(inventoryService: InventoryService) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.updateBrandSchema)
 		.mutation(async ({ input }) => {
 			return inventoryService.updateBrand(input);
@@ -556,7 +558,7 @@ function createUpdateBrandProcedure(inventoryService: InventoryService) {
 }
 
 function createDeleteBrandProcedure(inventoryService: InventoryService) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(z.object({ id: z.string().cuid() }))
 		.mutation(async ({ input }) => {
 			return inventoryService.deleteBrand(input.id);
@@ -568,7 +570,7 @@ function createDeleteBrandProcedure(inventoryService: InventoryService) {
 // ============================================================================
 
 function createListItemAttributesProcedure(inventoryService: InventoryService) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(z.object({ search: z.string().optional() }).optional())
 		.query(async ({ input }) => {
 			return inventoryService.findAllItemAttributes(input?.search);
@@ -578,7 +580,7 @@ function createListItemAttributesProcedure(inventoryService: InventoryService) {
 function createGetItemAttributeByIdProcedure(
 	inventoryService: InventoryService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(z.object({ id: z.string().cuid() }))
 		.query(async ({ input }) => {
 			return inventoryService.findItemAttributeById(input.id);
@@ -588,7 +590,7 @@ function createGetItemAttributeByIdProcedure(
 function createCreateItemAttributeProcedure(
 	inventoryService: InventoryService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.createItemAttributeSchema)
 		.mutation(async ({ input }) => {
 			return inventoryService.createItemAttribute(input);
@@ -598,7 +600,7 @@ function createCreateItemAttributeProcedure(
 function createUpdateItemAttributeProcedure(
 	inventoryService: InventoryService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.updateItemAttributeSchema)
 		.mutation(async ({ input }) => {
 			return inventoryService.updateItemAttribute(input);
@@ -608,7 +610,7 @@ function createUpdateItemAttributeProcedure(
 function createDeleteItemAttributeProcedure(
 	inventoryService: InventoryService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(z.object({ id: z.string().cuid() }))
 		.mutation(async ({ input }) => {
 			return inventoryService.deleteItemAttribute(input.id);
@@ -616,7 +618,7 @@ function createDeleteItemAttributeProcedure(
 }
 
 function createListBundleItemsProcedure(inventoryService: InventoryService) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(z.object({ search: z.string().optional() }).optional())
 		.query(async ({ input }) => {
 			return inventoryService.findAllItemsForBundleSelection(input?.search);
@@ -624,7 +626,7 @@ function createListBundleItemsProcedure(inventoryService: InventoryService) {
 }
 
 function createListProductBundlesProcedure(inventoryService: InventoryService) {
-	return protectedProcedure.query(async () => {
+	return inventoryProcedure.query(async () => {
 		return inventoryService.findAllProductBundles();
 	});
 }
@@ -632,7 +634,7 @@ function createListProductBundlesProcedure(inventoryService: InventoryService) {
 function createGetProductBundleByIdProcedure(
 	inventoryService: InventoryService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(z.object({ id: z.string().min(1) }))
 		.query(async ({ input }) => {
 			return inventoryService.findProductBundleById(input.id);
@@ -642,7 +644,7 @@ function createGetProductBundleByIdProcedure(
 function createCreateProductBundleProcedure(
 	inventoryService: InventoryService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.createProductBundleSchema)
 		.mutation(async ({ input }) => {
 			return inventoryService.createProductBundle(input);
@@ -652,7 +654,7 @@ function createCreateProductBundleProcedure(
 function createUpdateProductBundleProcedure(
 	inventoryService: InventoryService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.updateProductBundleSchema)
 		.mutation(async ({ input }) => {
 			return inventoryService.updateProductBundle(input);
@@ -662,7 +664,7 @@ function createUpdateProductBundleProcedure(
 function createDeleteProductBundleProcedure(
 	inventoryService: InventoryService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(z.object({ id: z.string().min(1) }))
 		.mutation(async ({ input }) => {
 			return inventoryService.deleteProductBundle(input.id);
@@ -670,7 +672,7 @@ function createDeleteProductBundleProcedure(
 }
 
 function createListShippingRulesProcedure(inventoryService: InventoryService) {
-	return protectedProcedure.query(async () => {
+	return inventoryProcedure.query(async () => {
 		return inventoryService.findAllShippingRules();
 	});
 }
@@ -678,7 +680,7 @@ function createListShippingRulesProcedure(inventoryService: InventoryService) {
 function createGetShippingRuleByIdProcedure(
 	inventoryService: InventoryService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(z.object({ id: z.string().min(1) }))
 		.query(async ({ input }) => {
 			return inventoryService.findShippingRuleById(input.id);
@@ -686,7 +688,7 @@ function createGetShippingRuleByIdProcedure(
 }
 
 function createCreateShippingRuleProcedure(inventoryService: InventoryService) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.createShippingRuleSchema)
 		.mutation(async ({ input }) => {
 			return inventoryService.createShippingRule(input);
@@ -694,7 +696,7 @@ function createCreateShippingRuleProcedure(inventoryService: InventoryService) {
 }
 
 function createUpdateShippingRuleProcedure(inventoryService: InventoryService) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.updateShippingRuleSchema)
 		.mutation(async ({ input }) => {
 			return inventoryService.updateShippingRule(input);
@@ -702,7 +704,7 @@ function createUpdateShippingRuleProcedure(inventoryService: InventoryService) {
 }
 
 function createDeleteShippingRuleProcedure(inventoryService: InventoryService) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(z.object({ id: z.string().min(1) }))
 		.mutation(async ({ input }) => {
 			return inventoryService.deleteShippingRule(input.id);
@@ -712,7 +714,7 @@ function createDeleteShippingRuleProcedure(inventoryService: InventoryService) {
 function createListItemManufacturersProcedure(
 	inventoryService: InventoryService,
 ) {
-	return protectedProcedure.query(async () => {
+	return inventoryProcedure.query(async () => {
 		return inventoryService.findAllItemManufacturers();
 	});
 }
@@ -720,7 +722,7 @@ function createListItemManufacturersProcedure(
 function createGetItemManufacturerByIdProcedure(
 	inventoryService: InventoryService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(z.object({ id: z.string().cuid() }))
 		.query(async ({ input }) => {
 			return inventoryService.findItemManufacturerById(input.id);
@@ -730,7 +732,7 @@ function createGetItemManufacturerByIdProcedure(
 function createCreateItemManufacturerProcedure(
 	inventoryService: InventoryService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.createItemManufacturerSchema)
 		.mutation(async ({ input }) => {
 			return inventoryService.createItemManufacturer(input);
@@ -740,7 +742,7 @@ function createCreateItemManufacturerProcedure(
 function createUpdateItemManufacturerProcedure(
 	inventoryService: InventoryService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.updateItemManufacturerSchema)
 		.mutation(async ({ input }) => {
 			return inventoryService.updateItemManufacturer(input);
@@ -750,7 +752,7 @@ function createUpdateItemManufacturerProcedure(
 function createDeleteItemManufacturerProcedure(
 	inventoryService: InventoryService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(z.object({ id: z.string().cuid() }))
 		.mutation(async ({ input }) => {
 			return inventoryService.deleteItemManufacturer(input.id);
@@ -758,7 +760,7 @@ function createDeleteItemManufacturerProcedure(
 }
 
 function createListItemActivityProcedure(prisma: PrismaService) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(
 			z.object({
 				itemId: z.string().min(1),
@@ -783,7 +785,7 @@ function createListItemActivityProcedure(prisma: PrismaService) {
 }
 
 function createLogItemActivityProcedure(prisma: PrismaService) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(
 			z.object({
 				itemId: z.string().min(1),
@@ -808,7 +810,7 @@ function createLogItemActivityProcedure(prisma: PrismaService) {
 function createListItemAlternativesProcedure(
 	inventoryService: InventoryService,
 ) {
-	return protectedProcedure.query(async () => {
+	return inventoryProcedure.query(async () => {
 		return inventoryService.findAllItemAlternatives();
 	});
 }
@@ -816,7 +818,7 @@ function createListItemAlternativesProcedure(
 function createGetItemAlternativeByIdProcedure(
 	inventoryService: InventoryService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(z.object({ id: z.string().cuid() }))
 		.query(async ({ input }) => {
 			return inventoryService.findItemAlternativeById(input.id);
@@ -826,7 +828,7 @@ function createGetItemAlternativeByIdProcedure(
 function createCreateItemAlternativeProcedure(
 	inventoryService: InventoryService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.createItemAlternativeSchema)
 		.mutation(async ({ input }) => {
 			return inventoryService.createItemAlternative(input);
@@ -836,7 +838,7 @@ function createCreateItemAlternativeProcedure(
 function createUpdateItemAlternativeProcedure(
 	inventoryService: InventoryService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.updateItemAlternativeSchema)
 		.mutation(async ({ input }) => {
 			return inventoryService.updateItemAlternative(input);
@@ -846,7 +848,7 @@ function createUpdateItemAlternativeProcedure(
 function createDeleteItemAlternativeProcedure(
 	inventoryService: InventoryService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(z.object({ id: z.string().cuid() }))
 		.mutation(async ({ input }) => {
 			return inventoryService.deleteItemAlternative(input.id);
@@ -854,7 +856,7 @@ function createDeleteItemAlternativeProcedure(
 }
 
 function createCreateItemProcedure(inventoryService: InventoryService) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.createSchema)
 		.mutation(async ({ input }) => {
 			const item = await inventoryService.create(input);
@@ -864,7 +866,7 @@ function createCreateItemProcedure(inventoryService: InventoryService) {
 }
 
 function createUpdateItemProcedure(inventoryService: InventoryService) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.updateSchema)
 		.mutation(async ({ input }) => {
 			const item = await inventoryService.update(input);
@@ -874,7 +876,7 @@ function createUpdateItemProcedure(inventoryService: InventoryService) {
 }
 
 function createDeleteItemProcedure(inventoryService: InventoryService) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(z.object({ id: z.string().min(1) }))
 		.mutation(async ({ input }) => {
 			await inventoryService.delete(input.id);
@@ -884,7 +886,7 @@ function createDeleteItemProcedure(inventoryService: InventoryService) {
 }
 
 function createBulkDeleteItemsProcedure(inventoryService: InventoryService) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.bulkDeleteSchema)
 		.mutation(async ({ input }) => {
 			const result = await inventoryService.deleteMany(input.ids);
@@ -898,7 +900,7 @@ function createBulkDeleteItemsProcedure(inventoryService: InventoryService) {
 }
 
 function createCreateItemGroupProcedure(inventoryService: InventoryService) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.createGroupSchema)
 		.mutation(async ({ input }) => {
 			const group = await inventoryService.createGroup(input);
@@ -908,7 +910,7 @@ function createCreateItemGroupProcedure(inventoryService: InventoryService) {
 }
 
 function createUpdateItemGroupProcedure(inventoryService: InventoryService) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.updateGroupSchema)
 		.mutation(async ({ input }) => {
 			const group = await inventoryService.updateGroup(input);
@@ -918,7 +920,7 @@ function createUpdateItemGroupProcedure(inventoryService: InventoryService) {
 }
 
 function createDeleteItemGroupProcedure(inventoryService: InventoryService) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(z.object({ id: z.string().min(1) }))
 		.mutation(async ({ input }) => {
 			const result = await inventoryService.deleteGroup(input.id);
@@ -927,7 +929,7 @@ function createDeleteItemGroupProcedure(inventoryService: InventoryService) {
 		});
 }
 
-const onItemGroupsChangedProcedure = protectedProcedure.subscription(() => {
+const onItemGroupsChangedProcedure = inventoryProcedure.subscription(() => {
 	return observable<ItemGroupsChangedEvent>((emit) => {
 		const onCreated = (data: Inventory.ItemGroup) => {
 			emit.next({ type: "created", data });
@@ -951,7 +953,7 @@ const onItemGroupsChangedProcedure = protectedProcedure.subscription(() => {
 	});
 });
 
-const onItemCreatedProcedure = protectedProcedure.subscription(() => {
+const onItemCreatedProcedure = inventoryProcedure.subscription(() => {
 	return observable<Inventory.Item>((emit) => {
 		const onCreated = (data: Inventory.Item) => {
 			emit.next(data);
@@ -965,7 +967,7 @@ const onItemCreatedProcedure = protectedProcedure.subscription(() => {
 	});
 });
 
-const onItemUpdatedProcedure = protectedProcedure.subscription(() => {
+const onItemUpdatedProcedure = inventoryProcedure.subscription(() => {
 	return observable<Inventory.Item>((emit) => {
 		const onUpdated = (data: Inventory.Item) => {
 			emit.next(data);
@@ -979,7 +981,7 @@ const onItemUpdatedProcedure = protectedProcedure.subscription(() => {
 	});
 });
 
-const onItemDeletedProcedure = protectedProcedure.subscription(() => {
+const onItemDeletedProcedure = inventoryProcedure.subscription(() => {
 	return observable<{ id: string }>((emit) => {
 		const onDeleted = (data: { id: string }) => {
 			emit.next(data);
@@ -993,7 +995,7 @@ const onItemDeletedProcedure = protectedProcedure.subscription(() => {
 	});
 });
 
-const onItemsChangedProcedure = protectedProcedure.subscription(() => {
+const onItemsChangedProcedure = inventoryProcedure.subscription(() => {
 	return observable<ItemsChangedEvent>((emit) => {
 		const onCreated = (data: Inventory.Item) => {
 			emit.next({ type: "created", data });
@@ -1019,7 +1021,7 @@ const onItemsChangedProcedure = protectedProcedure.subscription(() => {
 	});
 });
 
-const onSerialNosChangedProcedure = protectedProcedure.subscription(() => {
+const onSerialNosChangedProcedure = inventoryProcedure.subscription(() => {
 	return observable<SerialNosChangedEvent>((emit) => {
 		const onCreated = (data: Inventory.SerialNo) => {
 			emit.next({ type: "created", data });
@@ -1043,7 +1045,7 @@ const onSerialNosChangedProcedure = protectedProcedure.subscription(() => {
 	});
 });
 
-const onBatchesChangedProcedure = protectedProcedure.subscription(() => {
+const onBatchesChangedProcedure = inventoryProcedure.subscription(() => {
 	return observable<BatchesChangedEvent>((emit) => {
 		const onCreated = (data: Inventory.Batch) => {
 			emit.next({ type: "created", data });
@@ -1067,7 +1069,7 @@ const onBatchesChangedProcedure = protectedProcedure.subscription(() => {
 	});
 });
 
-const onInstallationNotesChangedProcedure = protectedProcedure.subscription(
+const onInstallationNotesChangedProcedure = inventoryProcedure.subscription(
 	() => {
 		return observable<InstallationNotesChangedEvent>((emit) => {
 			const onCreated = (data: Inventory.InstallationNote) => {
@@ -1103,7 +1105,7 @@ type MaterialRequestsChangedEvent = {
 function createListMaterialRequestsProcedure(
 	inventoryService: InventoryService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.listMaterialRequestsSchema)
 		.query(async ({ input }) => {
 			return inventoryService.findAllMaterialRequests(input);
@@ -1113,7 +1115,7 @@ function createListMaterialRequestsProcedure(
 function createGetMaterialRequestByIdProcedure(
 	inventoryService: InventoryService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(z.object({ id: z.string().min(1) }))
 		.query(async ({ input }) => {
 			return inventoryService.findMaterialRequestById(input.id);
@@ -1123,7 +1125,7 @@ function createGetMaterialRequestByIdProcedure(
 function createCreateMaterialRequestProcedure(
 	inventoryService: InventoryService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.createMaterialRequestSchema)
 		.mutation(async ({ input }) => {
 			const result = await inventoryService.createMaterialRequest(input);
@@ -1138,7 +1140,7 @@ function createCreateMaterialRequestProcedure(
 function createUpdateMaterialRequestProcedure(
 	inventoryService: InventoryService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.updateMaterialRequestSchema)
 		.mutation(async ({ input }) => {
 			const result = await inventoryService.updateMaterialRequest(input);
@@ -1153,7 +1155,7 @@ function createUpdateMaterialRequestProcedure(
 function createDeleteMaterialRequestProcedure(
 	inventoryService: InventoryService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(z.object({ id: z.string().min(1) }))
 		.mutation(async ({ input }) => {
 			const existing = await inventoryService.findMaterialRequestById(input.id);
@@ -1171,7 +1173,7 @@ function createDeleteMaterialRequestProcedure(
 function createDeleteManyMaterialRequestsProcedure(
 	inventoryService: InventoryService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.bulkDeleteMaterialRequestsSchema)
 		.mutation(async ({ input }) => {
 			const existingRequests = (
@@ -1194,7 +1196,7 @@ function createDeleteManyMaterialRequestsProcedure(
 		});
 }
 
-const onMaterialRequestsChangedProcedure = protectedProcedure
+const onMaterialRequestsChangedProcedure = inventoryProcedure
 	.input(inventoryChangeScopeSchema)
 	.subscription(({ input }) => {
 		return observable<MaterialRequestsChangedEvent>((emit) => {
@@ -1236,7 +1238,7 @@ type StockEntriesChangedEvent = {
 };
 
 function createListStockEntriesProcedure(inventoryService: InventoryService) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.listStockEntriesSchema)
 		.query(async ({ input }) => {
 			return inventoryService.findAllStockEntries(input);
@@ -1244,7 +1246,7 @@ function createListStockEntriesProcedure(inventoryService: InventoryService) {
 }
 
 function createGetStockEntryByIdProcedure(inventoryService: InventoryService) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(z.object({ id: z.string().min(1) }))
 		.query(async ({ input }) => {
 			return inventoryService.findStockEntryById(input.id);
@@ -1252,7 +1254,7 @@ function createGetStockEntryByIdProcedure(inventoryService: InventoryService) {
 }
 
 function createCreateStockEntryProcedure(inventoryService: InventoryService) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.createStockEntrySchema)
 		.mutation(async ({ input }) => {
 			const result = await inventoryService.createStockEntry(input);
@@ -1265,7 +1267,7 @@ function createCreateStockEntryProcedure(inventoryService: InventoryService) {
 }
 
 function createUpdateStockEntryProcedure(inventoryService: InventoryService) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.updateStockEntrySchema)
 		.mutation(async ({ input }) => {
 			const result = await inventoryService.updateStockEntry(input);
@@ -1278,7 +1280,7 @@ function createUpdateStockEntryProcedure(inventoryService: InventoryService) {
 }
 
 function createDeleteStockEntryProcedure(inventoryService: InventoryService) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(z.object({ id: z.string().min(1) }))
 		.mutation(async ({ input }) => {
 			const existing = await inventoryService.findStockEntryById(input.id);
@@ -1296,7 +1298,7 @@ function createDeleteStockEntryProcedure(inventoryService: InventoryService) {
 function createDeleteManyStockEntriesProcedure(
 	inventoryService: InventoryService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.bulkDeleteStockEntriesSchema)
 		.mutation(async ({ input }) => {
 			const existingEntries = (
@@ -1315,7 +1317,7 @@ function createDeleteManyStockEntriesProcedure(
 		});
 }
 
-const onStockEntriesChangedProcedure = protectedProcedure
+const onStockEntriesChangedProcedure = inventoryProcedure
 	.input(inventoryChangeScopeSchema)
 	.subscription(({ input }) => {
 		return observable<StockEntriesChangedEvent>((emit) => {
@@ -1348,7 +1350,7 @@ const onStockEntriesChangedProcedure = protectedProcedure
 	});
 
 function createListStockLedgerProcedure(inventoryService: InventoryService) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.listStockLedgerSchema)
 		.query(async ({ input }) => {
 			return inventoryService.findStockLedger(input);
@@ -1359,7 +1361,7 @@ function createExportStockLedgerExcelProcedure(
 	inventoryService: InventoryService,
 	reportTemplateService: ReportTemplateService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.listStockLedgerSchema)
 		.mutation(async ({ input }) => {
 			if (!input) {
@@ -1430,7 +1432,7 @@ function createExportStockBalanceExcelProcedure(
 	inventoryService: InventoryService,
 	reportTemplateService: ReportTemplateService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.listStockBalanceSchema)
 		.mutation(async ({ input }) => {
 			if (!input) {
@@ -1488,7 +1490,7 @@ function createExportStockSummaryExcelProcedure(
 	inventoryService: InventoryService,
 	reportTemplateService: ReportTemplateService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.listStockSummarySchema)
 		.mutation(async ({ input }) => {
 			if (!input) {
@@ -1543,7 +1545,7 @@ function createExportStockAgeingExcelProcedure(
 	inventoryService: InventoryService,
 	reportTemplateService: ReportTemplateService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.listStockAgeingSchema)
 		.mutation(async ({ input }) => {
 			if (!input) {
@@ -1597,7 +1599,7 @@ function createExportStockProjectedQtyExcelProcedure(
 	inventoryService: InventoryService,
 	reportTemplateService: ReportTemplateService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.listStockProjectedQtySchema)
 		.mutation(async ({ input }) => {
 			if (!input) {
@@ -1652,7 +1654,7 @@ function createExportItemPriceStockExcelProcedure(
 	inventoryService: InventoryService,
 	reportTemplateService: ReportTemplateService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.listItemPriceStockSchema)
 		.mutation(async ({ input }) => {
 			if (!input) {
@@ -1705,7 +1707,7 @@ function createExportWarehouseWiseStockBalanceExcelProcedure(
 	inventoryService: InventoryService,
 	reportTemplateService: ReportTemplateService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.listWarehouseWiseStockBalanceSchema)
 		.mutation(async ({ input }) => {
 			if (!input) {
@@ -1754,7 +1756,7 @@ function createExportSubcontractedRawMaterialsExcelProcedure(
 	inventoryService: InventoryService,
 	reportTemplateService: ReportTemplateService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.listSubcontractedRawMaterialsSchema)
 		.mutation(async ({ input }) => {
 			if (!input) {
@@ -1799,7 +1801,7 @@ function createExportSubcontractedItemToBeReceivedExcelProcedure(
 	inventoryService: InventoryService,
 	reportTemplateService: ReportTemplateService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.listSubcontractedItemToBeReceivedSchema)
 		.mutation(async ({ input }) => {
 			if (!input) {
@@ -1843,7 +1845,7 @@ function createExportItemShortageExcelProcedure(
 	inventoryService: InventoryService,
 	reportTemplateService: ReportTemplateService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.listItemShortageSchema)
 		.mutation(async ({ input }) => {
 			if (!input) {
@@ -1898,7 +1900,7 @@ function createExportRequestedItemsToBeTransferredExcelProcedure(
 	inventoryService: InventoryService,
 	reportTemplateService: ReportTemplateService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.listRequestedItemsToBeTransferredSchema)
 		.mutation(async ({ input }) => {
 			if (!input) {
@@ -1943,7 +1945,7 @@ function createExportItemPricesExcelProcedure(
 	inventoryService: InventoryService,
 	reportTemplateService: ReportTemplateService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.listItemPricesSchema)
 		.mutation(async ({ input }) => {
 			if (!input) {
@@ -1989,7 +1991,7 @@ function createExportItemwiseRecommendedReorderLevelExcelProcedure(
 	inventoryService: InventoryService,
 	reportTemplateService: ReportTemplateService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.listItemwiseRecommendedReorderLevelSchema)
 		.mutation(async ({ input }) => {
 			if (!input) {
@@ -2037,7 +2039,7 @@ function createExportItemVariantDetailsExcelProcedure(
 	inventoryService: InventoryService,
 	reportTemplateService: ReportTemplateService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.listItemVariantDetailsSchema)
 		.mutation(async ({ input }) => {
 			if (!input) {
@@ -2081,7 +2083,7 @@ function createExportBatchWiseBalanceExcelProcedure(
 	inventoryService: InventoryService,
 	reportTemplateService: ReportTemplateService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.listBatchWiseBalanceSchema)
 		.mutation(async ({ input }) => {
 			if (!input) {
@@ -2131,7 +2133,7 @@ function createExportBatchItemExpiryExcelProcedure(
 	inventoryService: InventoryService,
 	reportTemplateService: ReportTemplateService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.listBatchItemExpirySchema)
 		.mutation(async ({ input }) => {
 			if (!input) {
@@ -2174,7 +2176,7 @@ function createExportStockAnalyticsExcelProcedure(
 	inventoryService: InventoryService,
 	reportTemplateService: ReportTemplateService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.listStockAnalyticsSchema)
 		.mutation(async ({ input }) => {
 			if (!input) {
@@ -2216,7 +2218,7 @@ function createExportSalesOrderAnalysisExcelProcedure(
 	inventoryService: InventoryService,
 	reportTemplateService: ReportTemplateService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.listSalesOrderAnalysisSchema)
 		.mutation(async ({ input }) => {
 			if (!input) {
@@ -2266,7 +2268,7 @@ function createExportPurchaseOrderAnalysisExcelProcedure(
 	inventoryService: InventoryService,
 	reportTemplateService: ReportTemplateService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.listPurchaseOrderAnalysisSchema)
 		.mutation(async ({ input }) => {
 			if (!input) {
@@ -2314,7 +2316,7 @@ function createExportPurchaseReceiptTrendsExcelProcedure(
 	inventoryService: InventoryService,
 	reportTemplateService: ReportTemplateService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.listPurchaseReceiptTrendsSchema)
 		.mutation(async ({ input }) => {
 			if (!input) {
@@ -2357,7 +2359,7 @@ function createExportDeliveryNoteTrendsExcelProcedure(
 	inventoryService: InventoryService,
 	reportTemplateService: ReportTemplateService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.listDeliveryNoteTrendsSchema)
 		.mutation(async ({ input }) => {
 			if (!input) {
@@ -2397,7 +2399,7 @@ function createExportDeliveryNoteTrendsExcelProcedure(
 }
 
 function createListStockBalanceProcedure(inventoryService: InventoryService) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.listStockBalanceSchema)
 		.query(async ({ input }) => {
 			return inventoryService.findStockBalance(input);
@@ -2407,7 +2409,7 @@ function createListStockBalanceProcedure(inventoryService: InventoryService) {
 function createGetQuickStockBalanceProcedure(
 	inventoryService: InventoryService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.quickStockBalanceSchema)
 		.query(async ({ input }) => {
 			return inventoryService.getQuickStockBalance(input);
@@ -2417,7 +2419,7 @@ function createGetQuickStockBalanceProcedure(
 function createListStockProjectedQtyProcedure(
 	inventoryService: InventoryService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.listStockProjectedQtySchema)
 		.query(async ({ input }) => {
 			return inventoryService.findStockProjectedQty(input);
@@ -2427,7 +2429,7 @@ function createListStockProjectedQtyProcedure(
 function createListItemShortageReportProcedure(
 	inventoryService: InventoryService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.listItemShortageSchema)
 		.query(async ({ input }) => {
 			return inventoryService.findItemShortageReport(input);
@@ -2437,7 +2439,7 @@ function createListItemShortageReportProcedure(
 function createListRequestedItemsToBeTransferredProcedure(
 	inventoryService: InventoryService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.listRequestedItemsToBeTransferredSchema)
 		.query(async ({ input }) => {
 			return inventoryService.findRequestedItemsToBeTransferred(input);
@@ -2447,7 +2449,7 @@ function createListRequestedItemsToBeTransferredProcedure(
 function createListSubcontractedRawMaterialsProcedure(
 	inventoryService: InventoryService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.listSubcontractedRawMaterialsSchema)
 		.query(async ({ input }) => {
 			return inventoryService.findSubcontractedRawMaterials(input);
@@ -2457,7 +2459,7 @@ function createListSubcontractedRawMaterialsProcedure(
 function createListSubcontractedItemToBeReceivedProcedure(
 	inventoryService: InventoryService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.listSubcontractedItemToBeReceivedSchema)
 		.query(async ({ input }) => {
 			return inventoryService.findSubcontractedItemToBeReceived(input);
@@ -2467,7 +2469,7 @@ function createListSubcontractedItemToBeReceivedProcedure(
 function createListBatchWiseBalanceProcedure(
 	inventoryService: InventoryService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.listBatchWiseBalanceSchema)
 		.query(async ({ input }) => {
 			return inventoryService.findBatchWiseBalanceHistory(input);
@@ -2477,7 +2479,7 @@ function createListBatchWiseBalanceProcedure(
 function createListBatchItemExpiryProcedure(
 	inventoryService: InventoryService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.listBatchItemExpirySchema)
 		.query(async ({ input }) => {
 			return inventoryService.findBatchItemExpiry(input);
@@ -2485,7 +2487,7 @@ function createListBatchItemExpiryProcedure(
 }
 
 function createListItemPricesProcedure(inventoryService: InventoryService) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.listItemPricesSchema)
 		.query(async ({ input }) => {
 			return inventoryService.findItemPrices(input);
@@ -2495,7 +2497,7 @@ function createListItemPricesProcedure(inventoryService: InventoryService) {
 function createListItemwiseRecommendedReorderLevelProcedure(
 	inventoryService: InventoryService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.listItemwiseRecommendedReorderLevelSchema)
 		.query(async ({ input }) => {
 			return inventoryService.findItemwiseRecommendedReorderLevel(input);
@@ -2505,7 +2507,7 @@ function createListItemwiseRecommendedReorderLevelProcedure(
 function createListItemVariantDetailsProcedure(
 	inventoryService: InventoryService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.listItemVariantDetailsSchema)
 		.query(async ({ input }) => {
 			return inventoryService.findItemVariantDetails(input);
@@ -2513,7 +2515,7 @@ function createListItemVariantDetailsProcedure(
 }
 
 function createListStockSummaryProcedure(inventoryService: InventoryService) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.listStockSummarySchema)
 		.query(async ({ input }) => {
 			return inventoryService.findStockSummary(input);
@@ -2521,7 +2523,7 @@ function createListStockSummaryProcedure(inventoryService: InventoryService) {
 }
 
 function createListStockAgeingProcedure(inventoryService: InventoryService) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.listStockAgeingSchema)
 		.query(async ({ input }) => {
 			return inventoryService.findStockAgeing(input);
@@ -2529,7 +2531,7 @@ function createListStockAgeingProcedure(inventoryService: InventoryService) {
 }
 
 function createListItemPriceStockProcedure(inventoryService: InventoryService) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.listItemPriceStockSchema)
 		.query(async ({ input }) => {
 			return inventoryService.findItemPriceStock(input);
@@ -2539,7 +2541,7 @@ function createListItemPriceStockProcedure(inventoryService: InventoryService) {
 function createListWarehouseWiseStockBalanceProcedure(
 	inventoryService: InventoryService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.listWarehouseWiseStockBalanceSchema)
 		.query(async ({ input }) => {
 			return inventoryService.findWarehouseWiseStockBalance(input);
@@ -2547,7 +2549,7 @@ function createListWarehouseWiseStockBalanceProcedure(
 }
 
 function createListStockAnalyticsProcedure(inventoryService: InventoryService) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.listStockAnalyticsSchema)
 		.query(async ({ input }) => {
 			return inventoryService.findStockAnalytics(input);
@@ -2557,7 +2559,7 @@ function createListStockAnalyticsProcedure(inventoryService: InventoryService) {
 function createListDeliveryNoteTrendsProcedure(
 	inventoryService: InventoryService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.listDeliveryNoteTrendsSchema)
 		.query(async ({ input }) => {
 			return inventoryService.findDeliveryNoteTrends(input);
@@ -2567,7 +2569,7 @@ function createListDeliveryNoteTrendsProcedure(
 function createListPurchaseReceiptTrendsProcedure(
 	inventoryService: InventoryService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.listPurchaseReceiptTrendsSchema)
 		.query(async ({ input }) => {
 			return inventoryService.findPurchaseReceiptTrends(input);
@@ -2577,7 +2579,7 @@ function createListPurchaseReceiptTrendsProcedure(
 function createListSalesOrderAnalysisProcedure(
 	inventoryService: InventoryService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.listSalesOrderAnalysisSchema)
 		.query(async ({ input }) => {
 			return inventoryService.findSalesOrderAnalysis(input);
@@ -2587,7 +2589,7 @@ function createListSalesOrderAnalysisProcedure(
 function createListPurchaseOrderAnalysisProcedure(
 	inventoryService: InventoryService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.listPurchaseOrderAnalysisSchema)
 		.query(async ({ input }) => {
 			return inventoryService.findPurchaseOrderAnalysis(input);
@@ -2602,7 +2604,7 @@ type DeliveryNotesChangedEvent = {
 };
 
 function createListDeliveryNotesProcedure(inventoryService: InventoryService) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.listDeliveryNotesSchema)
 		.query(async ({ input }) => {
 			return inventoryService.findAllDeliveryNotes(input);
@@ -2612,7 +2614,7 @@ function createListDeliveryNotesProcedure(inventoryService: InventoryService) {
 function createGetDeliveryNoteByIdProcedure(
 	inventoryService: InventoryService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(z.object({ id: z.string().min(1) }))
 		.query(async ({ input }) => {
 			return inventoryService.findDeliveryNoteById(input.id);
@@ -2620,7 +2622,7 @@ function createGetDeliveryNoteByIdProcedure(
 }
 
 function createCreateDeliveryNoteProcedure(inventoryService: InventoryService) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.createDeliveryNoteSchema)
 		.mutation(async ({ input }) => {
 			const result = await inventoryService.createDeliveryNote(input);
@@ -2633,7 +2635,7 @@ function createCreateDeliveryNoteProcedure(inventoryService: InventoryService) {
 }
 
 function createUpdateDeliveryNoteProcedure(inventoryService: InventoryService) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.updateDeliveryNoteSchema)
 		.mutation(async ({ input }) => {
 			const result = await inventoryService.updateDeliveryNote(input);
@@ -2646,7 +2648,7 @@ function createUpdateDeliveryNoteProcedure(inventoryService: InventoryService) {
 }
 
 function createDeleteDeliveryNoteProcedure(inventoryService: InventoryService) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(z.object({ id: z.string().min(1) }))
 		.mutation(async ({ input }) => {
 			const existing = await inventoryService.findDeliveryNoteById(input.id);
@@ -2664,7 +2666,7 @@ function createDeleteDeliveryNoteProcedure(inventoryService: InventoryService) {
 function createDeleteManyDeliveryNotesProcedure(
 	inventoryService: InventoryService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.bulkDeleteDeliveryNotesSchema)
 		.mutation(async ({ input }) => {
 			const existingNotes = (
@@ -2683,7 +2685,7 @@ function createDeleteManyDeliveryNotesProcedure(
 		});
 }
 
-const onDeliveryNotesChangedProcedure = protectedProcedure
+const onDeliveryNotesChangedProcedure = inventoryProcedure
 	.input(inventoryChangeScopeSchema)
 	.subscription(({ input }) => {
 		return observable<DeliveryNotesChangedEvent>((emit) => {
@@ -2720,7 +2722,7 @@ const onDeliveryNotesChangedProcedure = protectedProcedure
 function createListPurchaseReceiptsProcedure(
 	inventoryService: InventoryService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.listPurchaseReceiptsSchema)
 		.query(async ({ input }) => {
 			return inventoryService.findAllPurchaseReceipts(input);
@@ -2730,7 +2732,7 @@ function createListPurchaseReceiptsProcedure(
 function createGetPurchaseReceiptByIdProcedure(
 	inventoryService: InventoryService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(z.object({ id: z.string().min(1) }))
 		.query(async ({ input }) => {
 			return inventoryService.findPurchaseReceiptById(input.id);
@@ -2740,7 +2742,7 @@ function createGetPurchaseReceiptByIdProcedure(
 function createCreatePurchaseReceiptProcedure(
 	inventoryService: InventoryService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.createPurchaseReceiptSchema)
 		.mutation(async ({ input }) => {
 			const result = await inventoryService.createPurchaseReceipt(input);
@@ -2752,7 +2754,7 @@ function createCreatePurchaseReceiptProcedure(
 function createUpdatePurchaseReceiptProcedure(
 	inventoryService: InventoryService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.updatePurchaseReceiptSchema)
 		.mutation(async ({ input }) => {
 			const result = await inventoryService.updatePurchaseReceipt(input);
@@ -2764,7 +2766,7 @@ function createUpdatePurchaseReceiptProcedure(
 function createDeletePurchaseReceiptProcedure(
 	inventoryService: InventoryService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(z.object({ id: z.string().min(1) }))
 		.mutation(async ({ input }) => {
 			const result = await inventoryService.deletePurchaseReceipt(input.id);
@@ -2776,7 +2778,7 @@ function createDeletePurchaseReceiptProcedure(
 function createDeleteManyPurchaseReceiptsProcedure(
 	inventoryService: InventoryService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.bulkDeletePurchaseReceiptsSchema)
 		.mutation(async ({ input }) => {
 			const result = await inventoryService.deleteManyPurchaseReceipts(
@@ -2794,7 +2796,7 @@ type PurchaseReceiptsChangedEvent = {
 	data: Inventory.PurchaseReceipt | { id: string };
 };
 
-const onPurchaseReceiptsChangedProcedure = protectedProcedure.subscription(
+const onPurchaseReceiptsChangedProcedure = inventoryProcedure.subscription(
 	() => {
 		return observable<PurchaseReceiptsChangedEvent>((emit) => {
 			const onCreated = (data: Inventory.PurchaseReceipt) => {
@@ -2828,7 +2830,7 @@ type PickListsChangedEvent = {
 };
 
 function createListPickListsProcedure(inventoryService: InventoryService) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.listPickListsSchema)
 		.query(async ({ input }) => {
 			return inventoryService.findAllPickLists(input);
@@ -2836,7 +2838,7 @@ function createListPickListsProcedure(inventoryService: InventoryService) {
 }
 
 function createGetPickListByIdProcedure(inventoryService: InventoryService) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(z.object({ id: z.string().min(1) }))
 		.query(async ({ input }) => {
 			return inventoryService.findPickListById(input.id);
@@ -2844,7 +2846,7 @@ function createGetPickListByIdProcedure(inventoryService: InventoryService) {
 }
 
 function createCreatePickListProcedure(inventoryService: InventoryService) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.createPickListSchema)
 		.mutation(async ({ input }) => {
 			const result = await inventoryService.createPickList(input);
@@ -2857,7 +2859,7 @@ function createCreatePickListProcedure(inventoryService: InventoryService) {
 }
 
 function createUpdatePickListProcedure(inventoryService: InventoryService) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.updatePickListSchema)
 		.mutation(async ({ input }) => {
 			const result = await inventoryService.updatePickList(input);
@@ -2870,7 +2872,7 @@ function createUpdatePickListProcedure(inventoryService: InventoryService) {
 }
 
 function createDeletePickListProcedure(inventoryService: InventoryService) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(z.object({ id: z.string().min(1) }))
 		.mutation(async ({ input }) => {
 			const existing = await inventoryService.findPickListById(input.id);
@@ -2888,7 +2890,7 @@ function createDeletePickListProcedure(inventoryService: InventoryService) {
 function createDeleteManyPickListsProcedure(
 	inventoryService: InventoryService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.bulkDeletePickListsSchema)
 		.mutation(async ({ input }) => {
 			const existingPickLists = (
@@ -2907,7 +2909,7 @@ function createDeleteManyPickListsProcedure(
 		});
 }
 
-const onPickListsChangedProcedure = protectedProcedure
+const onPickListsChangedProcedure = inventoryProcedure
 	.input(inventoryChangeScopeSchema)
 	.subscription(({ input }) => {
 		return observable<PickListsChangedEvent>((emit) => {
@@ -2949,7 +2951,7 @@ type DeliveryTripsChangedEvent = {
 };
 
 function createListDeliveryTripsProcedure(inventoryService: InventoryService) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.listDeliveryTripsSchema)
 		.query(async ({ input }) => {
 			return inventoryService.findAllDeliveryTrips(input);
@@ -2959,7 +2961,7 @@ function createListDeliveryTripsProcedure(inventoryService: InventoryService) {
 function createGetDeliveryTripByIdProcedure(
 	inventoryService: InventoryService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(z.object({ id: z.string().min(1) }))
 		.query(async ({ input }) => {
 			return inventoryService.findDeliveryTripById(input.id);
@@ -2967,7 +2969,7 @@ function createGetDeliveryTripByIdProcedure(
 }
 
 function createCreateDeliveryTripProcedure(inventoryService: InventoryService) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.createDeliveryTripSchema)
 		.mutation(async ({ input }) => {
 			const result = await inventoryService.createDeliveryTrip(input);
@@ -2977,7 +2979,7 @@ function createCreateDeliveryTripProcedure(inventoryService: InventoryService) {
 }
 
 function createUpdateDeliveryTripProcedure(inventoryService: InventoryService) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.updateDeliveryTripSchema)
 		.mutation(async ({ input }) => {
 			const result = await inventoryService.updateDeliveryTrip(input);
@@ -2987,7 +2989,7 @@ function createUpdateDeliveryTripProcedure(inventoryService: InventoryService) {
 }
 
 function createDeleteDeliveryTripProcedure(inventoryService: InventoryService) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(z.object({ id: z.string().min(1) }))
 		.mutation(async ({ input }) => {
 			const result = await inventoryService.deleteDeliveryTrip(input.id);
@@ -2999,7 +3001,7 @@ function createDeleteDeliveryTripProcedure(inventoryService: InventoryService) {
 function createDeleteManyDeliveryTripsProcedure(
 	inventoryService: InventoryService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.bulkDeleteDeliveryTripsSchema)
 		.mutation(async ({ input }) => {
 			const result = await inventoryService.deleteManyDeliveryTrips(input.ids);
@@ -3010,7 +3012,7 @@ function createDeleteManyDeliveryTripsProcedure(
 		});
 }
 
-const onDeliveryTripsChangedProcedure = protectedProcedure.subscription(() => {
+const onDeliveryTripsChangedProcedure = inventoryProcedure.subscription(() => {
 	return observable<DeliveryTripsChangedEvent>((emit) => {
 		const onCreated = (data: Inventory.DeliveryTrip) => {
 			emit.next({ type: "created", data });
@@ -3042,7 +3044,7 @@ type PackingSlipsChangedEvent = {
 };
 
 function createListPackingSlipsProcedure(inventoryService: InventoryService) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.listPackingSlipsSchema)
 		.query(async ({ input }) => {
 			return inventoryService.findAllPackingSlips(input);
@@ -3050,7 +3052,7 @@ function createListPackingSlipsProcedure(inventoryService: InventoryService) {
 }
 
 function createGetPackingSlipByIdProcedure(inventoryService: InventoryService) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(z.object({ id: z.string().min(1) }))
 		.query(async ({ input }) => {
 			return inventoryService.findPackingSlipById(input.id);
@@ -3060,7 +3062,7 @@ function createGetPackingSlipByIdProcedure(inventoryService: InventoryService) {
 function createGetRecommendedCaseNoProcedure(
 	inventoryService: InventoryService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(z.object({ deliveryNoteId: z.string().min(1) }))
 		.query(async ({ input }) => {
 			return inventoryService.getRecommendedCaseNo(input.deliveryNoteId);
@@ -3068,7 +3070,7 @@ function createGetRecommendedCaseNoProcedure(
 }
 
 function createCreatePackingSlipProcedure(inventoryService: InventoryService) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.createPackingSlipSchema)
 		.mutation(async ({ input }) => {
 			const result = await inventoryService.createPackingSlip(input);
@@ -3078,7 +3080,7 @@ function createCreatePackingSlipProcedure(inventoryService: InventoryService) {
 }
 
 function createUpdatePackingSlipProcedure(inventoryService: InventoryService) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.updatePackingSlipSchema)
 		.mutation(async ({ input }) => {
 			const result = await inventoryService.updatePackingSlip(input);
@@ -3088,7 +3090,7 @@ function createUpdatePackingSlipProcedure(inventoryService: InventoryService) {
 }
 
 function createSubmitPackingSlipProcedure(inventoryService: InventoryService) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(z.object({ id: z.string().min(1) }))
 		.mutation(async ({ input }) => {
 			const result = await inventoryService.submitPackingSlip(input.id);
@@ -3098,7 +3100,7 @@ function createSubmitPackingSlipProcedure(inventoryService: InventoryService) {
 }
 
 function createCancelPackingSlipProcedure(inventoryService: InventoryService) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(z.object({ id: z.string().min(1) }))
 		.mutation(async ({ input }) => {
 			const result = await inventoryService.cancelPackingSlip(input.id);
@@ -3108,7 +3110,7 @@ function createCancelPackingSlipProcedure(inventoryService: InventoryService) {
 }
 
 function createDeletePackingSlipProcedure(inventoryService: InventoryService) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(z.object({ id: z.string().min(1) }))
 		.mutation(async ({ input }) => {
 			const result = await inventoryService.deletePackingSlip(input.id);
@@ -3120,7 +3122,7 @@ function createDeletePackingSlipProcedure(inventoryService: InventoryService) {
 function createDeleteManyPackingSlipsProcedure(
 	inventoryService: InventoryService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.bulkDeletePackingSlipsSchema)
 		.mutation(async ({ input }) => {
 			const result = await inventoryService.deleteManyPackingSlips(input.ids);
@@ -3131,7 +3133,7 @@ function createDeleteManyPackingSlipsProcedure(
 		});
 }
 
-const onPackingSlipsChangedProcedure = protectedProcedure.subscription(() => {
+const onPackingSlipsChangedProcedure = inventoryProcedure.subscription(() => {
 	return observable<PackingSlipsChangedEvent>((emit) => {
 		const onCreated = (data: Inventory.PackingSlip) => {
 			emit.next({ type: "created", data });
@@ -3160,7 +3162,7 @@ const onPackingSlipsChangedProcedure = protectedProcedure.subscription(() => {
 function createListQiParameterGroupsProcedure(
 	inventoryService: InventoryService,
 ) {
-	return protectedProcedure.query(async () => {
+	return inventoryProcedure.query(async () => {
 		return inventoryService.findAllQiParameterGroups();
 	});
 }
@@ -3168,7 +3170,7 @@ function createListQiParameterGroupsProcedure(
 function createCreateQiParameterGroupProcedure(
 	inventoryService: InventoryService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.createQiParameterGroupSchema)
 		.mutation(async ({ input }) => {
 			return inventoryService.createQiParameterGroup(input);
@@ -3178,7 +3180,7 @@ function createCreateQiParameterGroupProcedure(
 function createUpdateQiParameterGroupProcedure(
 	inventoryService: InventoryService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.updateQiParameterGroupSchema)
 		.mutation(async ({ input }) => {
 			return inventoryService.updateQiParameterGroup(input);
@@ -3188,7 +3190,7 @@ function createUpdateQiParameterGroupProcedure(
 function createDeleteQiParameterGroupProcedure(
 	inventoryService: InventoryService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(z.object({ id: z.string().min(1) }))
 		.mutation(async ({ input }) => {
 			return inventoryService.deleteQiParameterGroup(input.id);
@@ -3198,7 +3200,7 @@ function createDeleteQiParameterGroupProcedure(
 // ─── QI Parameter Procedures ─────────────────────────────────────────────────
 
 function createListQiParametersProcedure(inventoryService: InventoryService) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.listQiParametersSchema)
 		.query(async ({ input }) => {
 			return inventoryService.findAllQiParameters(input);
@@ -3206,7 +3208,7 @@ function createListQiParametersProcedure(inventoryService: InventoryService) {
 }
 
 function createGetQiParameterByIdProcedure(inventoryService: InventoryService) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(z.object({ id: z.string().min(1) }))
 		.query(async ({ input }) => {
 			return inventoryService.findQiParameterById(input.id);
@@ -3214,7 +3216,7 @@ function createGetQiParameterByIdProcedure(inventoryService: InventoryService) {
 }
 
 function createCreateQiParameterProcedure(inventoryService: InventoryService) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.createQiParameterSchema)
 		.mutation(async ({ input }) => {
 			return inventoryService.createQiParameter(input);
@@ -3222,7 +3224,7 @@ function createCreateQiParameterProcedure(inventoryService: InventoryService) {
 }
 
 function createUpdateQiParameterProcedure(inventoryService: InventoryService) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.updateQiParameterSchema)
 		.mutation(async ({ input }) => {
 			return inventoryService.updateQiParameter(input);
@@ -3230,7 +3232,7 @@ function createUpdateQiParameterProcedure(inventoryService: InventoryService) {
 }
 
 function createDeleteQiParameterProcedure(inventoryService: InventoryService) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(z.object({ id: z.string().min(1) }))
 		.mutation(async ({ input }) => {
 			return inventoryService.deleteQiParameter(input.id);
@@ -3240,7 +3242,7 @@ function createDeleteQiParameterProcedure(inventoryService: InventoryService) {
 // ─── QI Template Procedures ───────────────────────────────────────────────────
 
 function createListQiTemplatesProcedure(inventoryService: InventoryService) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.listQiTemplatesSchema)
 		.query(async ({ input }) => {
 			return inventoryService.findAllQiTemplates(input);
@@ -3248,7 +3250,7 @@ function createListQiTemplatesProcedure(inventoryService: InventoryService) {
 }
 
 function createGetQiTemplateByIdProcedure(inventoryService: InventoryService) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(z.object({ id: z.string().min(1) }))
 		.query(async ({ input }) => {
 			return inventoryService.findQiTemplateById(input.id);
@@ -3256,7 +3258,7 @@ function createGetQiTemplateByIdProcedure(inventoryService: InventoryService) {
 }
 
 function createCreateQiTemplateProcedure(inventoryService: InventoryService) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.createQiTemplateSchema)
 		.mutation(async ({ input }) => {
 			return inventoryService.createQiTemplate(input);
@@ -3264,7 +3266,7 @@ function createCreateQiTemplateProcedure(inventoryService: InventoryService) {
 }
 
 function createUpdateQiTemplateProcedure(inventoryService: InventoryService) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.updateQiTemplateSchema)
 		.mutation(async ({ input }) => {
 			return inventoryService.updateQiTemplate(input);
@@ -3272,7 +3274,7 @@ function createUpdateQiTemplateProcedure(inventoryService: InventoryService) {
 }
 
 function createDeleteQiTemplateProcedure(inventoryService: InventoryService) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(z.object({ id: z.string().min(1) }))
 		.mutation(async ({ input }) => {
 			return inventoryService.deleteQiTemplate(input.id);
@@ -3282,7 +3284,7 @@ function createDeleteQiTemplateProcedure(inventoryService: InventoryService) {
 function createDeleteManyQiTemplatesProcedure(
 	inventoryService: InventoryService,
 ) {
-	return protectedProcedure
+	return inventoryProcedure
 		.input(Inventory.bulkDeleteQiTemplatesSchema)
 		.mutation(async ({ input }) => {
 			return inventoryService.deleteManyQiTemplates(input.ids);
@@ -3290,7 +3292,7 @@ function createDeleteManyQiTemplatesProcedure(
 }
 
 function createGetDashboardDataProcedure(inventoryService: InventoryService) {
-	return protectedProcedure.query(async () => {
+	return inventoryProcedure.query(async () => {
 		return inventoryService.getDashboardData();
 	});
 }
@@ -3298,7 +3300,7 @@ function createGetDashboardDataProcedure(inventoryService: InventoryService) {
 function createGetDashboardOverviewDataProcedure(
 	inventoryService: InventoryService,
 ) {
-	return protectedProcedure.query(async () => {
+	return inventoryProcedure.query(async () => {
 		return inventoryService.getDashboardOverviewData();
 	});
 }
@@ -3306,7 +3308,7 @@ function createGetDashboardOverviewDataProcedure(
 function createGetDashboardTopChartsDataProcedure(
 	inventoryService: InventoryService,
 ) {
-	return protectedProcedure.query(async () => {
+	return inventoryProcedure.query(async () => {
 		return inventoryService.getDashboardTopChartsData();
 	});
 }
@@ -3314,7 +3316,7 @@ function createGetDashboardTopChartsDataProcedure(
 function createGetDashboardBottomChartsDataProcedure(
 	inventoryService: InventoryService,
 ) {
-	return protectedProcedure.query(async () => {
+	return inventoryProcedure.query(async () => {
 		return inventoryService.getDashboardBottomChartsData();
 	});
 }

@@ -2,11 +2,13 @@ import { randomBytes } from "node:crypto";
 import { logger } from "@aria/utils";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { betterAuth } from "better-auth/minimal";
+import { organization } from "better-auth/plugins";
 import { createAccessControl } from "better-auth/plugins/access";
 import { admin } from "better-auth/plugins/admin";
 import { customSession } from "better-auth/plugins/custom-session";
 import { username } from "better-auth/plugins/username";
 import { prismaClient } from "../shared/prisma-client.js";
+import { ac as orgAc, orgAdmin, orgMember, orgOwner } from "./permissions.js";
 
 // Use the shared Prisma client singleton
 const prisma = prismaClient;
@@ -127,13 +129,19 @@ export const auth = betterAuth({
 		}),
 		customSession(async ({ user, session }) => {
 			try {
-				const passwordState = await prisma.user.findUnique({
-					where: { id: user.id },
-					select: {
-						mustChangePassword: true,
-						passwordChangedAt: true,
-					},
-				});
+				const [passwordState, activeOrg] = await Promise.all([
+					prisma.user.findUnique({
+						where: { id: user.id },
+						select: {
+							mustChangePassword: true,
+							passwordChangedAt: true,
+						},
+					}),
+					prisma.session.findUnique({
+						where: { id: session.id },
+						select: { activeOrganizationId: true },
+					}),
+				]);
 
 				return {
 					user: {
@@ -141,7 +149,10 @@ export const auth = betterAuth({
 						mustChangePassword: passwordState?.mustChangePassword ?? false,
 						passwordChangedAt: passwordState?.passwordChangedAt ?? null,
 					},
-					session,
+					session: {
+						...session,
+						activeOrganizationId: activeOrg?.activeOrganizationId ?? null,
+					},
 				};
 			} catch (error) {
 				logger.error(
@@ -154,7 +165,10 @@ export const auth = betterAuth({
 						mustChangePassword: false,
 						passwordChangedAt: null,
 					},
-					session,
+					session: {
+						...session,
+						activeOrganizationId: null,
+					},
 				};
 			}
 		}),
@@ -198,6 +212,40 @@ export const auth = betterAuth({
 			adminUserIds: process.env.DEFAULT_ADMIN_USER_ID
 				? [process.env.DEFAULT_ADMIN_USER_ID]
 				: [],
+		}),
+		organization({
+			ac: orgAc,
+			roles: {
+				owner: orgOwner,
+				admin: orgAdmin,
+				member: orgMember,
+			},
+			allowUserToCreateOrganization: async (user) => {
+				const dbUser = await prisma.user.findUnique({
+					where: { id: user.id },
+					select: { role: true },
+				});
+				return dbUser?.role === "super_admin";
+			},
+			organizationHooks: {
+				afterCreateOrganization: async ({ organization, member }) => {
+					const superAdmins = await prisma.user.findMany({
+						where: { role: "super_admin" },
+						select: { id: true },
+					});
+					for (const sa of superAdmins) {
+						if (sa.id !== member.userId) {
+							await prisma.member.create({
+								data: {
+									organizationId: organization.id,
+									userId: sa.id,
+									role: "owner",
+								},
+							});
+						}
+					}
+				},
+			},
 		}),
 	],
 

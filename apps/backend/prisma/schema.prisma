@@ -470,6 +470,7 @@ model User {
   passwordChangedAt  DateTime?
   accounts        Account[]
   sessions        Session[]
+  members         Member[]
   manager         User?           @relation("ManagerSubordinate", fields: [managerId], references: [id])
   subordinates    User[]          @relation("ManagerSubordinate")
 
@@ -489,6 +490,11 @@ model Session {
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  // Organization plugin fields
+  activeOrganizationId String?
+  activeTeamId         String?
+
+  @@index([activeOrganizationId])
   @@map("sessions")
 }
 
@@ -522,6 +528,56 @@ model Verification {
 
   @@unique([identifier, value])
   @@map("verifications")
+}
+
+// ─── Organization Plugin ───────────────────────────────────────────────────────
+// @see https://better-auth.com/docs/plugins/organization#schema
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  logo      String?
+  metadata  String?
+  createdAt DateTime @default(now())
+
+  members     Member[]
+  invitations Invitation[]
+
+  @@map("organizations")
+}
+
+model Member {
+  id             String       @id @default(cuid())
+  organizationId String
+  userId         String
+  role           String
+  createdAt      DateTime     @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+  @@index([organizationId])
+  @@index([userId])
+  @@map("members")
+}
+
+model Invitation {
+  id             String       @id @default(cuid())
+  email          String
+  organizationId String
+  inviterId      String
+  role           String?
+  status         String       @default("pending")
+  expiresAt      DateTime
+  createdAt      DateTime     @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([email, organizationId])
+  @@map("invitations")
 }
 
 model MaterialRequest {

@@ -17,6 +17,7 @@ import {
 	SidebarMenuButton,
 	SidebarMenuItem,
 } from "@/components/ui/sidebar";
+import { authClient } from "@/lib/auth/client";
 
 interface App {
 	id: string;
@@ -85,6 +86,13 @@ export function AppSwitcher({
 			// Set navigation state
 			setIsNavigating(true);
 			navigationTargetRef.current = app.route;
+
+			// Sync active organization with the app being switched to
+			if (app.key) {
+				authClient.organization.setActive({
+					organizationSlug: app.key,
+				});
+			}
 
 			// Navigate immediately without timeout
 			router.push(app.route);

@@ -15,11 +15,10 @@ declare module "bun:sqlite" {
  * without changing the project-wide tsconfig settings.
  */
 declare module "bun:test" {
-	// biome-ignore lint/suspicious/noExplicitAny: compatibility shim
-	export function mock(
-		// biome-ignore lint/suspicious/noExplicitAny: compatibility shim
-		implementation?: (...args: any[]) => any,
-	): jest.Mock;
+	// biome-ignore lint/suspicious/noExplicitAny: compatibility shim for bun test mock type
+	function mockImplementation(...args: any[]): any;
+
+	export function mock(implementation?: typeof mockImplementation): jest.Mock;
 
 	namespace mock {
 		function module(

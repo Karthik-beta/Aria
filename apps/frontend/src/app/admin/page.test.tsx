@@ -40,9 +40,25 @@ vi.mock("@/lib/auth/client", () => {
 	];
 	const listUsers = () =>
 		Promise.resolve({ data: { users: mockUsers, total: mockUsers.length } });
+	const mockOrgs = [
+		{
+			id: "org-1",
+			name: "Aria Inventory",
+			slug: "inventory",
+			createdAt: new Date().toISOString(),
+		},
+		{
+			id: "org-2",
+			name: "Aria Asset",
+			slug: "asset",
+			createdAt: new Date().toISOString(),
+		},
+	];
+	const listOrgs = () => Promise.resolve({ data: mockOrgs });
 	return {
 		authClient: {
 			admin: { listUsers },
+			organization: { list: listOrgs },
 		},
 	};
 });

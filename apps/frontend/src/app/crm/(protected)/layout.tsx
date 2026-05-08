@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { AuthStateProvider } from "@/components/auth/auth-state-provider";
+import { OrganizationGate } from "@/components/auth/organization-gate";
 import KBar from "@/components/kbar";
 import AppSidebar from "@/components/layout/app-sidebar";
 import Header from "@/components/layout/header";
@@ -47,7 +48,7 @@ export default async function ProtectedLayout({
 							<AppSidebar />
 							<SidebarInset>
 								<Header />
-								{children}
+								<OrganizationGate orgSlug="crm">{children}</OrganizationGate>
 							</SidebarInset>
 						</SidebarProvider>
 					</KBar>
