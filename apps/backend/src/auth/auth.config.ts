@@ -227,25 +227,6 @@ export const auth = betterAuth({
 				});
 				return dbUser?.role === "super_admin";
 			},
-			organizationHooks: {
-				afterCreateOrganization: async ({ organization, member }) => {
-					const superAdmins = await prisma.user.findMany({
-						where: { role: "super_admin" },
-						select: { id: true },
-					});
-					for (const sa of superAdmins) {
-						if (sa.id !== member.userId) {
-							await auth.api.addMember({
-								body: {
-									userId: sa.id,
-									role: "owner",
-									organizationId: organization.id,
-								},
-							});
-						}
-					}
-				},
-			},
 		}),
 	],
 

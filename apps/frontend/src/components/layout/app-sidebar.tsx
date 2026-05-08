@@ -253,6 +253,7 @@ export default function AppSidebar() {
 		isActive,
 		isLoading: authLoading,
 		user: sessionUser,
+		memberRole,
 	} = useAuth();
 
 	const hasAdminAccess = React.useMemo(
@@ -260,16 +261,25 @@ export default function AppSidebar() {
 		[hasAnyRole, isActive],
 	);
 
+	const hasOrgMembership = React.useMemo(
+		() => Boolean(memberRole) && memberRole !== null,
+		[memberRole],
+	);
+
 	const accessibleApps = React.useMemo(() => {
 		if (authLoading) {
 			return WORKSPACE_APPS;
+		}
+
+		if (!hasOrgMembership) {
+			return [];
 		}
 
 		const allowed = WORKSPACE_APPS.filter((app) =>
 			app.key === "admin" ? hasAdminAccess : true,
 		);
 		return allowed.length > 0 ? allowed : WORKSPACE_APPS;
-	}, [authLoading, hasAdminAccess]);
+	}, [authLoading, hasAdminAccess, hasOrgMembership]);
 
 	// Map auth session user shape to the local user shape expected by UserAvatarProfile
 	const user = React.useMemo(() => {
