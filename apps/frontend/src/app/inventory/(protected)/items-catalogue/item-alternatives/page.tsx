@@ -83,6 +83,11 @@ export default function ItemAlternativesPage() {
 		[rawAlternatives],
 	);
 
+	const skeletonRowKeys = React.useMemo(
+		() => Array.from({ length: 8 }, () => crypto.randomUUID()),
+		[],
+	);
+
 	const deleteMutation = trpc.inventory.deleteItemAlternative.useMutation({
 		onMutate: async ({ id }) => {
 			await utils.inventory.listItemAlternatives.cancel();
@@ -348,8 +353,8 @@ export default function ItemAlternativesPage() {
 									</tr>
 								</thead>
 								<tbody>
-									{Array.from({ length: 8 }).map((_, i) => (
-										<tr key={i} className="border-t">
+									{skeletonRowKeys.map((key) => (
+										<tr key={key} className="border-t">
 											<td className="p-3">
 												<Skeleton className="h-4 w-4" />
 											</td>

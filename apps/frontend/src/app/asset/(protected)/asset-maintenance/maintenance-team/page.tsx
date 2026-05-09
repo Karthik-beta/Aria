@@ -115,6 +115,11 @@ export default function MaintenanceTeamPage() {
 	});
 
 	const rawItems = data?.items ?? [];
+
+	const skeletonRowKeys = React.useMemo(
+		() => Array.from({ length: 8 }, () => crypto.randomUUID()),
+		[],
+	);
 	const totalCount = data?.totalCount ?? 0;
 
 	const teams = React.useMemo<TeamRow[]>(
@@ -428,8 +433,8 @@ export default function MaintenanceTeamPage() {
 										</tr>
 									</thead>
 									<tbody>
-										{Array.from({ length: 8 }).map((_, i) => (
-											<tr key={i} className="border-t">
+										{skeletonRowKeys.map((key) => (
+											<tr key={key} className="border-t">
 												<td className="p-3">
 													<Skeleton className="h-4 w-4" />
 												</td>

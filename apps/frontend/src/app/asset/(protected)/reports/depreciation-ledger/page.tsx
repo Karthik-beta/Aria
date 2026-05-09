@@ -386,6 +386,15 @@ export default function AssetDepreciationLedgerPage() {
 		[queryInput, exportAssetDepreciationLedgerExcel],
 	);
 
+	const skeletonKeys = React.useMemo(
+		() => ({
+			stats: Array.from({ length: 6 }, () => crypto.randomUUID()),
+			cards: Array.from({ length: 4 }, () => crypto.randomUUID()),
+			rows: Array.from({ length: 8 }, () => crypto.randomUUID()),
+		}),
+		[],
+	);
+
 	return (
 		<div className="flex flex-1 flex-col gap-6 p-4 md:px-6">
 			<div className="flex items-center justify-between gap-4">
@@ -513,14 +522,14 @@ export default function AssetDepreciationLedgerPage() {
 				<div className="flex flex-1 flex-col gap-4">
 					<div className="rounded-lg border bg-background p-4">
 						<div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
-							{Array.from({ length: 6 }).map((_, i) => (
-								<Skeleton key={i} className="h-10 w-full" />
+							{skeletonKeys.stats.map((key) => (
+								<Skeleton key={key} className="h-10 w-full" />
 							))}
 						</div>
 					</div>
 					<div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-						{Array.from({ length: 4 }).map((_, i) => (
-							<Card key={i}>
+						{skeletonKeys.cards.map((key) => (
+							<Card key={key}>
 								<CardHeader className="pb-2">
 									<Skeleton className="h-4 w-24" />
 								</CardHeader>
@@ -550,8 +559,8 @@ export default function AssetDepreciationLedgerPage() {
 									</tr>
 								</thead>
 								<tbody>
-									{Array.from({ length: 8 }).map((_, i) => (
-										<tr key={i} className="border-t">
+									{skeletonKeys.rows.map((key) => (
+										<tr key={key} className="border-t">
 											<td className="p-3">
 												<Skeleton className="h-4 w-24" />
 											</td>

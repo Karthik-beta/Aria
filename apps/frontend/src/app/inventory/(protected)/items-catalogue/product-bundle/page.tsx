@@ -338,6 +338,11 @@ export default function ProductBundleListPage() {
 		onReload: handleReload,
 	});
 
+	const skeletonRowKeys = React.useMemo(
+		() => Array.from({ length: 8 }, () => crypto.randomUUID()),
+		[],
+	);
+
 	return (
 		<>
 			<AlertModal
@@ -405,8 +410,8 @@ export default function ProductBundleListPage() {
 										</tr>
 									</thead>
 									<tbody>
-										{Array.from({ length: 8 }).map((_, i) => (
-											<tr key={i} className="border-t">
+										{skeletonRowKeys.map((key) => (
+											<tr key={key} className="border-t">
 												<td className="p-3">
 													<Skeleton className="h-4 w-4" />
 												</td>

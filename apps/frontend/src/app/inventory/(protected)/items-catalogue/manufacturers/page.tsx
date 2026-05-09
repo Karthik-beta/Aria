@@ -451,6 +451,11 @@ export default function ItemManufacturersPage() {
 		onReload: handleReload,
 	});
 
+	const skeletonRowKeys = React.useMemo(
+		() => Array.from({ length: 8 }, () => crypto.randomUUID()),
+		[],
+	);
+
 	return (
 		<div className="flex flex-1 flex-col gap-6 p-4 md:px-6">
 			<div className="flex items-center justify-between">
@@ -511,8 +516,8 @@ export default function ItemManufacturersPage() {
 									</tr>
 								</thead>
 								<tbody>
-									{Array.from({ length: 8 }).map((_, i) => (
-										<tr key={i} className="border-t">
+									{skeletonRowKeys.map((key) => (
+										<tr key={key} className="border-t">
 											<td className="p-3">
 												<Skeleton className="h-4 w-4" />
 											</td>

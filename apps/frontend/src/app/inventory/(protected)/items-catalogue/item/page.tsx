@@ -187,6 +187,11 @@ export default function InventoryItemsPage() {
 	const totalCount = data?.totalCount ?? 0;
 	const pageCount = Math.max(1, Math.ceil(totalCount / pagination.pageSize));
 
+	const skeletonRowKeys = React.useMemo(
+		() => Array.from({ length: 8 }, () => crypto.randomUUID()),
+		[],
+	);
+
 	const items = React.useMemo(
 		() =>
 			(data?.items ?? []).map((item) => ({
@@ -766,8 +771,8 @@ export default function InventoryItemsPage() {
 										</tr>
 									</thead>
 									<tbody>
-										{Array.from({ length: 8 }).map((_, i) => (
-											<tr key={i} className="border-t">
+										{skeletonRowKeys.map((key) => (
+											<tr key={key} className="border-t">
 												<td className="p-3">
 													<Skeleton className="h-4 w-4" />
 												</td>

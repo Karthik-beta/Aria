@@ -20,7 +20,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ErrorState } from "@/components/ui/error-display";
 import { Input } from "@/components/ui/input";
-import { Skeleton } from "@/components/ui/skeleton";
 import { DataTableColumnHeader } from "@/components/ui/table/data-table-column-header";
 import { DataTableSkeleton } from "@/components/ui/table/data-table-skeleton";
 import { trpc } from "@/lib/trpc";

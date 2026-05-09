@@ -30,7 +30,6 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
 import { DataTableColumnHeader } from "@/components/ui/table/data-table-column-header";
 import { DataTableSkeleton } from "@/components/ui/table/data-table-skeleton";
 import { trpc } from "@/lib/trpc";

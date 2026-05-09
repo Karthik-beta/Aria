@@ -215,6 +215,11 @@ export default function ItemGroupTreePage() {
 		return [rootNode];
 	}, [rawGroups]);
 
+	const skeletonRowKeys = React.useMemo(
+		() => Array.from({ length: 6 }, () => crypto.randomUUID()),
+		[],
+	);
+
 	const handleToggle = (id: string) => {
 		setExpanded((prev) => {
 			const next = new Set(prev);
@@ -273,8 +278,8 @@ export default function ItemGroupTreePage() {
 							<Skeleton className="h-10 w-full max-w-sm" />
 						</div>
 						<div className="py-4 space-y-2 px-4">
-							{Array.from({ length: 6 }).map((_, i) => (
-								<div key={i} className="flex items-center gap-3 py-2">
+							{skeletonRowKeys.map((key) => (
+								<div key={key} className="flex items-center gap-3 py-2">
 									<Skeleton className="h-4 w-4" />
 									<Skeleton className="h-4 w-32" />
 									<div className="ml-auto flex gap-2">

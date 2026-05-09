@@ -29,7 +29,6 @@ import { useFieldArray, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import * as z from "zod";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
 	Dialog,
 	DialogContent,
@@ -447,6 +446,11 @@ export default function QualityInspectionTemplateFormPage() {
 }
 
 function FormSkeleton() {
+	const skeletonRowKeys = React.useMemo(
+		() => Array.from({ length: 3 }, () => crypto.randomUUID()),
+		[],
+	);
+
 	return (
 		<div className="mx-auto max-w-3xl space-y-6 p-6">
 			<div className="flex items-center gap-3">
@@ -475,8 +479,8 @@ function FormSkeleton() {
 								</TableRow>
 							</TableHeader>
 							<TableBody>
-								{Array.from({ length: 3 }).map((_, i) => (
-									<TableRow key={i}>
+								{skeletonRowKeys.map((key) => (
+									<TableRow key={key}>
 										<TableCell className="w-8 py-1">
 											<div className="flex flex-col gap-0.5">
 												<Skeleton className="h-3 w-3" />
