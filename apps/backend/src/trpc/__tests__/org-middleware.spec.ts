@@ -4,20 +4,6 @@ const mockPrismaOrgFindUnique = mock(() => Promise.resolve(null));
 const mockPrismaMemberFindUnique = mock(() => Promise.resolve(null));
 const mockPrismaUserFindUnique = mock(() => Promise.resolve(null));
 
-mock.module("../../shared/prisma-client", () => ({
-	prismaClient: {
-		organization: {
-			findUnique: (...args: unknown[]) => mockPrismaOrgFindUnique(...args),
-		},
-		member: {
-			findUnique: (...args: unknown[]) => mockPrismaMemberFindUnique(...args),
-		},
-		user: {
-			findUnique: (...args: unknown[]) => mockPrismaUserFindUnique(...args),
-		},
-	},
-}));
-
 describe("Organization scoped tRPC middleware", () => {
 	beforeEach(() => {
 		mockPrismaOrgFindUnique.mockClear();
@@ -113,7 +99,6 @@ describe("Organization scoped tRPC middleware", () => {
 
 	describe("super_admin bypass logic", () => {
 		it("super_admin user bypasses org membership when member is null", async () => {
-			// Arrange: org exists, user is super_admin globally, but has no org membership
 			mockPrismaOrgFindUnique.mockImplementation(() =>
 				Promise.resolve({
 					id: "org-1",
@@ -128,10 +113,6 @@ describe("Organization scoped tRPC middleware", () => {
 				Promise.resolve({ id: "user-1", role: "super_admin" }),
 			);
 
-			// Simulate the middleware logic:
-			// 1. Check org exists → found
-			// 2. Check member → null (no membership)
-			// 3. Check global user role → super_admin → bypass
 			const org = await mockPrismaOrgFindUnique({ where: { slug: "default" } });
 			expect(org).not.toBeNull();
 
@@ -142,14 +123,12 @@ describe("Organization scoped tRPC middleware", () => {
 			});
 			expect(member).toBeNull();
 
-			// super_admin bypass check
 			const globalUser = await mockPrismaUserFindUnique({
 				where: { id: "user-1" },
 			});
 			expect(globalUser).not.toBeNull();
 			expect((globalUser as Record<string, unknown>).role).toBe("super_admin");
 
-			// The bypass should allow access without member record
 			const shouldBypass =
 				globalUser !== null &&
 				(globalUser as Record<string, unknown>).role === "super_admin";
@@ -184,7 +163,6 @@ describe("Organization scoped tRPC middleware", () => {
 			expect(globalUser).not.toBeNull();
 			expect((globalUser as Record<string, unknown>).role).toBe("user");
 
-			// Should NOT bypass — regular user without membership gets FORBIDDEN
 			const shouldBypass =
 				globalUser !== null &&
 				(globalUser as Record<string, unknown>).role === "super_admin";

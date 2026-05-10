@@ -1,6 +1,7 @@
 import { EventEmitter } from "node:events";
 import { ReportTemplateService } from "@aria/report-export";
 import { EXPORT_MAX_ROWS, Inventory } from "@aria/types";
+import { logger } from "@aria/utils";
 import { Injectable } from "@nestjs/common";
 import type {
 	TRPCBuiltRouter,
@@ -21,6 +22,9 @@ const inventoryProcedure = orgProcedure("inventory");
 // Global event emitter for real-time subscriptions
 const inventoryEvents = new EventEmitter({ captureRejections: true });
 inventoryEvents.setMaxListeners(50);
+inventoryEvents.on("error", (error) => {
+	logger.error("[inventoryEvents]", error);
+});
 
 type ItemGroupsChangedEvent = {
 	type: "created" | "updated" | "deleted";
@@ -1176,13 +1180,23 @@ function createDeleteManyMaterialRequestsProcedure(
 	return inventoryProcedure
 		.input(Inventory.bulkDeleteMaterialRequestsSchema)
 		.mutation(async ({ input }) => {
-			const existingRequests = (
-				await Promise.all(
-					input.ids.map((id) => inventoryService.findMaterialRequestById(id)),
-				)
-			).filter(
-				(request): request is Inventory.MaterialRequest => request != null,
-			);
+			let existingRequests: Inventory.MaterialRequest[];
+			try {
+				existingRequests = (
+					await Promise.all(
+						input.ids.map((id) => inventoryService.findMaterialRequestById(id)),
+					)
+				).filter(
+					(request): request is Inventory.MaterialRequest => request != null,
+				);
+			} catch (error) {
+				logger.error(
+					"[deleteManyMaterialRequests] Failed to fetch existing records",
+					error,
+					{ ids: input.ids },
+				);
+				throw error;
+			}
 			const result = await inventoryService.deleteManyMaterialRequests(
 				input.ids,
 			);
@@ -1301,11 +1315,21 @@ function createDeleteManyStockEntriesProcedure(
 	return inventoryProcedure
 		.input(Inventory.bulkDeleteStockEntriesSchema)
 		.mutation(async ({ input }) => {
-			const existingEntries = (
-				await Promise.all(
-					input.ids.map((id) => inventoryService.findStockEntryById(id)),
-				)
-			).filter((entry): entry is Inventory.StockEntry => entry != null);
+			let existingEntries: Inventory.StockEntry[];
+			try {
+				existingEntries = (
+					await Promise.all(
+						input.ids.map((id) => inventoryService.findStockEntryById(id)),
+					)
+				).filter((entry): entry is Inventory.StockEntry => entry != null);
+			} catch (error) {
+				logger.error(
+					"[deleteManyStockEntries] Failed to fetch existing records",
+					error,
+					{ ids: input.ids },
+				);
+				throw error;
+			}
 			const result = await inventoryService.deleteManyStockEntries(input.ids);
 			for (const entry of existingEntries) {
 				inventoryEvents.emit(
@@ -2669,11 +2693,21 @@ function createDeleteManyDeliveryNotesProcedure(
 	return inventoryProcedure
 		.input(Inventory.bulkDeleteDeliveryNotesSchema)
 		.mutation(async ({ input }) => {
-			const existingNotes = (
-				await Promise.all(
-					input.ids.map((id) => inventoryService.findDeliveryNoteById(id)),
-				)
-			).filter((note): note is Inventory.DeliveryNote => note != null);
+			let existingNotes: Inventory.DeliveryNote[];
+			try {
+				existingNotes = (
+					await Promise.all(
+						input.ids.map((id) => inventoryService.findDeliveryNoteById(id)),
+					)
+				).filter((note): note is Inventory.DeliveryNote => note != null);
+			} catch (error) {
+				logger.error(
+					"[deleteManyDeliveryNotes] Failed to fetch existing records",
+					error,
+					{ ids: input.ids },
+				);
+				throw error;
+			}
 			const result = await inventoryService.deleteManyDeliveryNotes(input.ids);
 			for (const note of existingNotes) {
 				inventoryEvents.emit(
@@ -2893,11 +2927,23 @@ function createDeleteManyPickListsProcedure(
 	return inventoryProcedure
 		.input(Inventory.bulkDeletePickListsSchema)
 		.mutation(async ({ input }) => {
-			const existingPickLists = (
-				await Promise.all(
-					input.ids.map((id) => inventoryService.findPickListById(id)),
-				)
-			).filter((pickList): pickList is Inventory.PickList => pickList != null);
+			let existingPickLists: Inventory.PickList[];
+			try {
+				existingPickLists = (
+					await Promise.all(
+						input.ids.map((id) => inventoryService.findPickListById(id)),
+					)
+				).filter(
+					(pickList): pickList is Inventory.PickList => pickList != null,
+				);
+			} catch (error) {
+				logger.error(
+					"[deleteManyPickLists] Failed to fetch existing records",
+					error,
+					{ ids: input.ids },
+				);
+				throw error;
+			}
 			const result = await inventoryService.deleteManyPickLists(input.ids);
 			for (const pickList of existingPickLists) {
 				void inventoryEvents.emit(

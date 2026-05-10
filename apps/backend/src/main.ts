@@ -12,6 +12,18 @@ import { auth } from "./auth/auth.config";
 import { TrpcContext } from "./trpc/trpc.context";
 import { TrpcService } from "./trpc/trpc.service";
 
+process.on("unhandledRejection", (reason) => {
+	logger.error(
+		"[UNHANDLED_REJECTION]",
+		reason instanceof Error ? reason.message : String(reason),
+	);
+});
+
+process.on("uncaughtException", (error) => {
+	logger.error("[UNCAUGHT_EXCEPTION]", error.message, error.stack);
+	process.exit(1);
+});
+
 /**
  * Load environment variables from .env file
  *
@@ -117,6 +129,8 @@ async function bootstrap() {
 		allowedHeaders: ["Content-Type", "Authorization"],
 		exposedHeaders: ["Set-Cookie"], // Allow browsers to access Set-Cookie header
 	});
+
+	app.enableShutdownHooks();
 
 	// Get tRPC services from DI container
 	const trpcService = app.get(TrpcService);
