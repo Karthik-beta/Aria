@@ -91,6 +91,7 @@ RUN cd /app/apps/backend && bun prisma generate
 
 # Pre-compile shared workspace packages to JS to satisfy Node/Bun runtime
 # (Node's TS type-stripping does not apply for files under node_modules)
+RUN cd /app/packages/api-contract && bun tsc -p tsconfig.build.json && cp -r src/trpc src/apps dist/
 RUN cd /app/packages/types && bun tsc --build tsconfig.json
 RUN cd /app/packages/utils && bun tsc --build tsconfig.json
 RUN cd /app/packages/report-export && bun tsc --build tsconfig.build.json
