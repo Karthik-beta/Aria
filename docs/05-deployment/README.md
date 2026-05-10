@@ -156,8 +156,7 @@ Create two services in Railway dashboard (one for frontend, one for backend) and
 | `JWT_SECRET` | Generate a secure random string |
 | `BETTER_AUTH_SECRET` | Generate a secure random string |
 | `BETTER_AUTH_URL` | Your Railway frontend URL |
-| `FRONTEND_URL` | Your Railway frontend URL |
-| `CORS_ORIGIN` | `*` or your frontend domain |
+| `FRONTEND_URL` | Your Railway frontend URL (drives CORS automatically) |
 
 ### Same-Origin vs Separate Backend
 

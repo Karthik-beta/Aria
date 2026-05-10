@@ -108,7 +108,6 @@ services:
       - PORT=3001
       - JWT_SECRET=${JWT_SECRET}
       - JWT_EXPIRATION=${JWT_EXPIRATION:-24h}
-      - CORS_ORIGIN=${CORS_ORIGIN:-*}
       # Better Auth Configuration
       - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
       - BETTER_AUTH_URL=${BETTER_AUTH_URL:-https://${DOMAIN:-localhost}}
