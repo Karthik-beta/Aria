@@ -50,7 +50,7 @@ export default async function ProtectedLayout({
 					<Toaster />
 					<KBar>
 						<SidebarProvider defaultOpen={defaultOpen}>
-							<AppSidebar />
+							<AppSidebar activeAppKey="asset" />
 							<SidebarInset>
 								<Header />
 								<OrganizationGate orgSlug="asset">{children}</OrganizationGate>

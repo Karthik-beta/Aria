@@ -1,16 +1,10 @@
+import { getSessionCookie } from "better-auth/cookies";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { buildSignInUrl, normalizeCallbackUrl } from "@/config/auth";
 
-const SESSION_COOKIE_NAMES = [
-	"better-auth.session_token",
-	"__Secure-better-auth.session_token",
-];
-
 function hasSessionCookie(request: NextRequest) {
-	return SESSION_COOKIE_NAMES.some((cookieName) =>
-		Boolean(request.cookies.get(cookieName)?.value),
-	);
+	return !!getSessionCookie(request);
 }
 
 /**
