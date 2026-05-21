@@ -50,6 +50,26 @@ export async function seedAssetMasterData(
 	const categoryDefaults = getCategoryDefaultsByName();
 	const assetSeriesCounters = new Map<number, number>();
 
+	async function getNextAssetSeries(year: number): Promise<string> {
+		if (!assetSeriesCounters.has(year)) {
+			const prefix = `AST-${year}-`;
+			const last = await prisma.asset.findFirst({
+				where: { series: { startsWith: prefix } },
+				orderBy: { series: "desc" },
+				select: { series: true },
+			});
+			let seed = 0;
+			if (last?.series) {
+				const num = Number.parseInt(last.series.slice(prefix.length), 10);
+				if (Number.isFinite(num)) seed = num;
+			}
+			assetSeriesCounters.set(year, seed);
+		}
+		const next = (assetSeriesCounters.get(year) ?? 0) + 1;
+		assetSeriesCounters.set(year, next);
+		return `AST-${year}-${String(next).padStart(5, "0")}`;
+	}
+
 	async function createLocations(
 		locations: AssetLocationDef[],
 		parentLocationId: string | null,
@@ -172,11 +192,7 @@ export async function seedAssetMasterData(
 				? null
 				: resolveRelativeDate(config, assetDef.insuranceEndOffsetDays, 18, 0);
 
-		const year = purchaseDate.getFullYear();
-		const assetSeriesCounter = (assetSeriesCounters.get(year) ?? 0) + 1;
-		assetSeriesCounters.set(year, assetSeriesCounter);
-
-		const assetSeries = `AST-${year}-${String(assetSeriesCounter).padStart(5, "0")}`;
+		const assetSeries = await getNextAssetSeries(purchaseDate.getFullYear());
 		const openingAccumulatedDepreciation =
 			assetDef.openingAccumulatedDepreciation ?? 0;
 		const derivedOpeningValue = getOpeningAssetValue(
