@@ -53,7 +53,7 @@ export class AssetRouter {
 
 	getRouter() {
 		const svc = this.assetService;
-		const assetProcedure = orgProcedure("asset");
+		const assetProcedure = orgProcedure();
 
 		return router({
 			// ── Asset CRUD ────────────────────────────────────────────────────

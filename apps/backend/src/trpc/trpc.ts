@@ -113,13 +113,19 @@ const isAuthenticated = t.middleware(async ({ ctx, next }) => {
 /**
  * Middleware factory to verify org membership.
  *
- * @param orgSlug - The slug of the organization to check membership in
+ * Resolves the active organization from the session's activeOrganizationId
+ * (set via better-auth's setActiveOrganization), then verifies the user is a
+ * member of that organization with the required roles.
+ *
+ * @see https://www.better-auth.com/docs/plugins/organization#active-organization
+ *
  * @param requiredRoles - Optional list of roles required for access
  */
-function requireOrgMembership(orgSlug: string, requiredRoles?: string[]) {
+function requireOrgMembership(requiredRoles?: string[]) {
 	return t.middleware(async ({ ctx, next }) => {
 		const protectedCtx = ctx as ProtectedContext;
 		const userId = protectedCtx.user?.id;
+		const activeOrganizationId = protectedCtx.session?.activeOrganizationId;
 
 		if (!userId) {
 			throw new TRPCError({
@@ -128,15 +134,22 @@ function requireOrgMembership(orgSlug: string, requiredRoles?: string[]) {
 			});
 		}
 
+		if (!activeOrganizationId) {
+			throw new TRPCError({
+				code: "UNAUTHORIZED",
+				message: "No active organization selected. Please select a workspace.",
+			});
+		}
+
 		const organization = await prisma.organization.findUnique({
-			where: { slug: orgSlug },
+			where: { id: activeOrganizationId },
 			select: { id: true, name: true, slug: true },
 		});
 
 		if (!organization) {
 			throw new TRPCError({
 				code: "NOT_FOUND",
-				message: `Organization "${orgSlug}" not found`,
+				message: "Active organization not found",
 			});
 		}
 
@@ -168,14 +181,14 @@ function requireOrgMembership(orgSlug: string, requiredRoles?: string[]) {
 
 			throw new TRPCError({
 				code: "FORBIDDEN",
-				message: `Not a member of "${orgSlug}"`,
+				message: `Not a member of "${organization.slug}"`,
 			});
 		}
 
 		if (requiredRoles && !requiredRoles.includes(member.role)) {
 			throw new TRPCError({
 				code: "FORBIDDEN",
-				message: `Insufficient role in "${orgSlug}". Required: ${requiredRoles.join(" or ")}`,
+				message: `Insufficient role in "${organization.slug}". Required: ${requiredRoles.join(" or ")}`,
 			});
 		}
 
@@ -196,13 +209,18 @@ export const protectedProcedure = t.procedure.use(isAuthenticated);
 /**
  * Create a procedure that requires org membership.
  *
- * @param orgSlug - The org slug to check
+ * Resolves the active organization from the session's activeOrganizationId
+ * (set via better-auth's setActiveOrganization). The caller no longer needs
+ * to provide a hardcoded org slug.
+ *
+ * @see https://www.better-auth.com/docs/plugins/organization#active-organization
+ *
  * @param requiredRoles - Optional roles (defaults to any member)
  */
-export function orgProcedure(orgSlug: string, requiredRoles?: string[]) {
+export function orgProcedure(requiredRoles?: string[]) {
 	return t.procedure
 		.use(isAuthenticated)
-		.use(requireOrgMembership(orgSlug, requiredRoles));
+		.use(requireOrgMembership(requiredRoles));
 }
 
 export const middleware = t.middleware;

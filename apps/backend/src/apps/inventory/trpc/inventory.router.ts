@@ -17,7 +17,7 @@ import { orgProcedure, router } from "../../../trpc/trpc";
 import { InventoryService } from "../inventory.service";
 import { ItemActivityService } from "../services/item-activity.service";
 
-const inventoryProcedure = orgProcedure("inventory");
+const inventoryProcedure = orgProcedure();
 
 // Global event emitter for real-time subscriptions
 const inventoryEvents = new EventEmitter({ captureRejections: true });
