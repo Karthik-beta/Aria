@@ -106,6 +106,7 @@ RUN cd apps/backend && bun prisma generate
 
 # CRITICAL: Compile shared packages before backend/frontend builds
 # Production requires compiled packages - JIT pattern only works in Next.js dev mode
+RUN cd packages/api-contract && bun tsc -p tsconfig.build.json && cp -r src/trpc src/apps dist/
 RUN cd packages/types && bun tsc --build tsconfig.json
 RUN cd packages/utils && bun tsc --build tsconfig.json
 RUN cd packages/report-export && bun tsc --build tsconfig.build.json

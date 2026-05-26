@@ -245,7 +245,16 @@ const NavItemComponent = React.memo(
 );
 NavItemComponent.displayName = "NavItemComponent";
 
-export default function AppSidebar() {
+export default function AppSidebar({
+	activeAppKey,
+}: {
+	/**
+	 * Server-validated active app key. When provided by the layout, this
+	 * takes precedence over client-side URL matching, ensuring the sidebar
+	 * nav items are always correct for the current route group.
+	 */
+	activeAppKey?: WorkspaceApp["key"];
+}) {
 	const pathname = usePathname();
 	useMediaQuery();
 	const {
@@ -254,6 +263,7 @@ export default function AppSidebar() {
 		isLoading: authLoading,
 		user: sessionUser,
 		memberRole,
+		role,
 	} = useAuth();
 
 	const hasAdminAccess = React.useMemo(
@@ -272,6 +282,15 @@ export default function AppSidebar() {
 		}
 
 		if (!hasOrgMembership) {
+			// Super admins have unrestricted access to all workspace apps
+			// regardless of organization membership.
+			if (role === "super_admin") {
+				return WORKSPACE_APPS;
+			}
+			// Regular admins retain access to the admin app only.
+			if (hasAdminAccess) {
+				return WORKSPACE_APPS.filter((app) => app.key === "admin");
+			}
 			return [];
 		}
 
@@ -279,7 +298,7 @@ export default function AppSidebar() {
 			app.key === "admin" ? hasAdminAccess : true,
 		);
 		return allowed.length > 0 ? allowed : WORKSPACE_APPS;
-	}, [authLoading, hasAdminAccess, hasOrgMembership]);
+	}, [authLoading, hasAdminAccess, hasOrgMembership, role]);
 
 	// Map auth session user shape to the local user shape expected by UserAvatarProfile
 	const user = React.useMemo(() => {
@@ -330,15 +349,26 @@ export default function AppSidebar() {
 		};
 	}, [sessionUser]);
 
-	// Memoize active app calculation to avoid recalculation on every render
-	const activeApp = React.useMemo(
-		() =>
-			accessibleApps.find((app) => pathname.startsWith(app.route)) ||
-			accessibleApps[0],
-		[accessibleApps, pathname],
-	);
+	// Determine the active app. When the layout supplies a server-validated
+	// app key, use it directly. Otherwise fall back to client-side URL matching.
+	const activeApp = React.useMemo(() => {
+		if (activeAppKey) {
+			return (
+				WORKSPACE_APPS.find((app) => app.key === activeAppKey) ||
+				WORKSPACE_APPS[0]
+			);
+		}
+		return (
+			WORKSPACE_APPS.find((app) => pathname.startsWith(app.route)) ||
+			accessibleApps[0] ||
+			WORKSPACE_APPS[0]
+		);
+	}, [activeAppKey, accessibleApps, pathname]);
 
-	const activeAppId = React.useMemo(() => activeApp.key, [activeApp.key]);
+	const activeAppId = React.useMemo(
+		() => activeApp?.key ?? WORKSPACE_APPS[0].key,
+		[activeApp?.key],
+	);
 
 	const appNavItems = React.useMemo(
 		() => getAppNavItems(activeAppId),

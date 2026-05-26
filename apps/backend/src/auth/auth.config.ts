@@ -231,9 +231,19 @@ export const auth = betterAuth({
 	],
 
 	// Session configuration with cross-site cookie support
+	// Enables cookie cache so sessions can be validated from the signed cookie
+	// without hitting the database on every request. Deferring session refresh
+	// keeps GET /get-session read-only — the client POSTs writes separately.
+	// @see https://better-auth.com/docs/concepts/session-management#cookie-cache
 	session: {
 		expiresIn: 60 * 60 * 24 * 7, // 7 days
 		updateAge: 60 * 60 * 24, // Update session every 24 hours
+		cookieCache: {
+			enabled: true,
+			maxAge: 5 * 60, // 5 min — keeps cookie data fresh without excessive DB reads
+		},
+		deferSessionRefresh: true,
+		storeSessionInDatabase: true,
 	},
 
 	// Base URL for the authentication server

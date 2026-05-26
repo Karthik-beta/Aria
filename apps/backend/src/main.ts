@@ -12,6 +12,18 @@ import { auth } from "./auth/auth.config";
 import { TrpcContext } from "./trpc/trpc.context";
 import { TrpcService } from "./trpc/trpc.service";
 
+process.on("unhandledRejection", (reason) => {
+	logger.error(
+		"[UNHANDLED_REJECTION]",
+		reason instanceof Error ? reason.message : String(reason),
+	);
+});
+
+process.on("uncaughtException", (error) => {
+	logger.error("[UNCAUGHT_EXCEPTION]", error.message, error.stack);
+	process.exit(1);
+});
+
 /**
  * Load environment variables from .env file
  *
@@ -101,13 +113,34 @@ async function bootstrap() {
 	 * Environment variable FRONTEND_URL can contain comma-separated origins.
 	 * Trailing slashes are removed to ensure consistent origin matching.
 	 */
-	const allowedOriginsRaw = process.env.FRONTEND_URL || "http://localhost:3000";
+	// Fail-fast in production before applying any fallback default
+	const frontendUrlFromEnv = process.env.FRONTEND_URL;
+	if (process.env.NODE_ENV === "production") {
+		const isMissing =
+			!frontendUrlFromEnv || frontendUrlFromEnv.trim().length === 0;
+		if (isMissing) {
+			logger.error(
+				"[SECURITY] FRONTEND_URL must be set to an explicit origin in production. Aborting startup.",
+			);
+			process.exit(1);
+		}
+	}
+
+	const allowedOriginsRaw = frontendUrlFromEnv || "http://localhost:3000";
 
 	// Split, trim whitespace, and remove trailing slashes from each origin
 	const allowedOrigins = allowedOriginsRaw
 		.split(",")
 		.map((origin) => origin.trim().replace(/\/$/, ""))
 		.filter((origin) => origin.length > 0);
+
+	// Reject wildcard in parsed origins (catches "*", "* ", "*,https://..." etc.)
+	if (process.env.NODE_ENV === "production" && allowedOrigins.includes("*")) {
+		logger.error(
+			"[SECURITY] FRONTEND_URL cannot contain a wildcard ('*') in production. Aborting startup.",
+		);
+		process.exit(1);
+	}
 
 	// Enable CORS for frontend with credentials support
 	app.enableCors({
@@ -117,6 +150,8 @@ async function bootstrap() {
 		allowedHeaders: ["Content-Type", "Authorization"],
 		exposedHeaders: ["Set-Cookie"], // Allow browsers to access Set-Cookie header
 	});
+
+	app.enableShutdownHooks();
 
 	// Get tRPC services from DI container
 	const trpcService = app.get(TrpcService);

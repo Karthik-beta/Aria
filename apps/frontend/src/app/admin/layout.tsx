@@ -54,7 +54,7 @@ export default async function AdminLayout({
 							fallback={<AdminAccessDenied />}
 						>
 							<SidebarProvider defaultOpen={defaultOpen}>
-								<AppSidebar />
+								<AppSidebar activeAppKey="admin" />
 								<SidebarInset>
 									<Header />
 									{children}

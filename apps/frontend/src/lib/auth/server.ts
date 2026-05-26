@@ -73,12 +73,43 @@ async function fetchBackendSession(): Promise<AuthSessionData | null> {
 }
 
 /**
+ * Fetch the backend session with retry for transient failures (e.g. connection
+ * refused during `bun dev` restart). Null results (no cookie, 401, bad payload)
+ * return immediately; only network-level errors trigger retries.
+ */
+async function fetchBackendSessionWithRetry(
+	maxRetries = 3,
+	baseDelayMs = 500,
+): Promise<AuthSessionData | null> {
+	let lastError: unknown;
+
+	for (let attempt = 0; attempt <= maxRetries; attempt++) {
+		try {
+			return await fetchBackendSession();
+		} catch (error) {
+			lastError = error;
+			if (attempt < maxRetries) {
+				await new Promise((resolve) =>
+					setTimeout(resolve, baseDelayMs * 2 ** attempt),
+				);
+			}
+		}
+	}
+
+	logger.error(
+		"[Auth] Failed to fetch server session after retries:",
+		lastError,
+	);
+	return null;
+}
+
+/**
  * Resolve the current Better Auth session on the server for this request.
  */
 export const getServerSession = cache(
 	async (): Promise<AuthSessionData | null> => {
 		try {
-			return await fetchBackendSession();
+			return await fetchBackendSessionWithRetry();
 		} catch (error) {
 			logger.error("[Auth] Failed to fetch server session:", error);
 			return null;

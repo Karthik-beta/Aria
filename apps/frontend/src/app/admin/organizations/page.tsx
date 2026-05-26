@@ -72,7 +72,12 @@ export default function OrganizationsPage() {
 					{},
 				);
 				if (memberList) {
-					setMembers(memberList as unknown as Member[]);
+					const listResult = memberList as unknown as {
+						members?: Member[];
+					};
+					setMembers(
+						Array.isArray(listResult) ? listResult : (listResult.members ?? []),
+					);
 				}
 			} else {
 				setOrg(null);

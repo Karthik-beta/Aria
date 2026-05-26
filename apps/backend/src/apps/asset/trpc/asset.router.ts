@@ -1,7 +1,9 @@
 import { EventEmitter } from "node:events";
 import { ReportTemplateService } from "@aria/report-export";
 import { Asset } from "@aria/types";
+import { logger } from "@aria/utils";
 import { Injectable } from "@nestjs/common";
+import { TRPCError } from "@trpc/server";
 import { observable } from "@trpc/server/observable";
 import { z } from "zod";
 import { orgProcedure, router } from "../../../trpc/trpc";
@@ -11,6 +13,9 @@ import { AssetService } from "../asset.service";
 // Global event emitter for real-time asset subscriptions
 const assetEvents = new EventEmitter({ captureRejections: true });
 assetEvents.setMaxListeners(50);
+assetEvents.on("error", (error) => {
+	logger.error("[assetEvents]", error);
+});
 
 type AssetsChangedEvent = {
 	type: "created" | "updated" | "deleted";
@@ -48,7 +53,7 @@ export class AssetRouter {
 
 	getRouter() {
 		const svc = this.assetService;
-		const assetProcedure = orgProcedure("asset");
+		const assetProcedure = orgProcedure();
 
 		return router({
 			// ── Asset CRUD ────────────────────────────────────────────────────
@@ -167,9 +172,10 @@ export class AssetRouter {
 						type: "updated",
 						data: await svc.findAssetById(adjustment.assetId).then((asset) => {
 							if (!asset) {
-								throw new Error(
-									`Asset ${adjustment.assetId} not found after submitting adjustment`,
-								);
+								throw new TRPCError({
+									code: "NOT_FOUND",
+									message: `Asset ${adjustment.assetId} not found after submitting adjustment`,
+								});
 							}
 							return asset;
 						}),
@@ -189,9 +195,10 @@ export class AssetRouter {
 						type: "updated",
 						data: await svc.findAssetById(adjustment.assetId).then((asset) => {
 							if (!asset) {
-								throw new Error(
-									`Asset ${adjustment.assetId} not found after cancelling adjustment`,
-								);
+								throw new TRPCError({
+									code: "NOT_FOUND",
+									message: `Asset ${adjustment.assetId} not found after cancelling adjustment`,
+								});
 							}
 							return asset;
 						}),

@@ -6,7 +6,7 @@ const isDev = process.env.NODE_ENV !== "production";
 
 const nextConfig: NextConfig = {
 	output: "standalone",
-	transpilePackages: ["@aria/types", "@aria/utils"],
+	transpilePackages: ["@aria/api-contract", "@aria/types", "@aria/utils"],
 	turbopack: {
 		root: path.join(__dirname, "../.."),
 	},
