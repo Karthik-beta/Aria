@@ -1,5 +1,6 @@
 "use client";
 
+import { logger } from "@aria/utils";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -16,7 +17,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { getAuthRedirectUrl } from "@/config/auth";
 import { authClient } from "@/lib/auth/client";
-import { logger } from "@aria/utils";
 
 /**
  * Login form component with username and password authentication
@@ -103,7 +103,10 @@ export function LoginForm({ callbackUrl }: { callbackUrl?: string | null }) {
 				} catch (orgError) {
 					// Fail-safe: if listing/setting org fails, redirect to onboarding
 					// so the user isn't stuck in a 401 loop.
-					logger.warn("[Login] Failed to resolve active organization:", orgError);
+					logger.warn(
+						"[Login] Failed to resolve active organization:",
+						orgError,
+					);
 					router.push("/onboarding/organization");
 					router.refresh();
 					return;

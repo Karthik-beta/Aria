@@ -148,11 +148,11 @@ function requireOrgMembership(requiredRoles?: string[]) {
 				? await prisma.organization.findUnique({
 						where: { id: activeOrganizationId },
 						select: { id: true, name: true, slug: true },
-				  })
+					})
 				: await prisma.organization.findFirst({
 						select: { id: true, name: true, slug: true },
 						orderBy: { createdAt: "asc" },
-				  });
+					});
 
 			if (!organization) {
 				organization = {

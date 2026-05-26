@@ -10,7 +10,9 @@ export default function OnboardingOrganizationPage() {
 	return (
 		<div className="flex min-h-screen flex-col items-center justify-center p-6">
 			<div className="max-w-md w-full rounded-2xl border bg-card p-8 text-center shadow-sm space-y-6">
-				<h1 className="text-2xl font-bold tracking-tight">No Workspace Found</h1>
+				<h1 className="text-2xl font-bold tracking-tight">
+					No Workspace Found
+				</h1>
 				<p className="text-muted-foreground text-sm">
 					Your account does not belong to any workspace yet. Please contact your
 					administrator to be invited to an organization, or create one if you
