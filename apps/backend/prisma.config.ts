@@ -51,6 +51,7 @@ export default {
 	 */
 	migrations: {
 		path: "prisma/migrations",
+		seed: "bun prisma/demo-data/cli.ts load",
 	},
 
 	/**

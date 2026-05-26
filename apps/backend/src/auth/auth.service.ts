@@ -228,7 +228,7 @@ export class AuthService implements OnModuleInit {
 			this.logger.log(
 				`[createDefaultOrganizations] Creating organization "${orgName}"...`,
 			);
-			await auth.api.createOrganization({
+			const createdOrg = await auth.api.createOrganization({
 				body: {
 					name: orgName,
 					slug: orgSlug,
@@ -236,7 +236,19 @@ export class AuthService implements OnModuleInit {
 				},
 			});
 			this.logger.log(
-				`[createDefaultOrganizations] Created organization "${orgName}" (slug: ${orgSlug})`,
+				`[createDefaultOrganizations] Created organization "${orgName}" (slug: ${orgSlug}, id: ${createdOrg.id})`,
+			);
+
+			// Seed activeOrganizationId onto all existing sessions for the super
+			// admin so the very first server-side tRPC call after login does not
+			// hit a 401 from orgProcedure. New logins still create fresh sessions,
+			// so the frontend login form also resolves the active org explicitly.
+			const sessionUpdate = await this.prisma.session.updateMany({
+				where: { userId: superAdmin.id },
+				data: { activeOrganizationId: createdOrg.id },
+			});
+			this.logger.log(
+				`[createDefaultOrganizations] Updated ${sessionUpdate.count} session(s) with activeOrganizationId`,
 			);
 		} catch (error) {
 			this.logSafeError(

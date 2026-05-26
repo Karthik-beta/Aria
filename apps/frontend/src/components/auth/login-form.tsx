@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { getAuthRedirectUrl } from "@/config/auth";
 import { authClient } from "@/lib/auth/client";
+import { logger } from "@aria/utils";
 
 /**
  * Login form component with username and password authentication
@@ -74,11 +75,42 @@ export function LoginForm({ callbackUrl }: { callbackUrl?: string | null }) {
 						"mustChangePassword" in user &&
 						(user as Record<string, unknown>).mustChangePassword,
 				);
-				const redirectTarget = getAuthRedirectUrl(callbackUrl ?? null);
 
-				router.push(
-					mustChangePassword ? "/auth/change-password" : redirectTarget,
-				);
+				if (mustChangePassword) {
+					router.push("/auth/change-password");
+					router.refresh();
+					return;
+				}
+
+				// Ensure an active organization is selected before entering the app.
+				// Without this, org-protected tRPC routes will return 401.
+				try {
+					const orgsResult = await authClient.organization.list();
+					const orgs = (orgsResult.data ?? []) as Array<{
+						id: string;
+						slug: string;
+					}>;
+
+					if (orgs.length === 0) {
+						router.push("/onboarding/organization");
+						router.refresh();
+						return;
+					}
+
+					await authClient.organization.setActive({
+						organizationId: orgs[0].id,
+					});
+				} catch (orgError) {
+					// Fail-safe: if listing/setting org fails, redirect to onboarding
+					// so the user isn't stuck in a 401 loop.
+					logger.warn("[Login] Failed to resolve active organization:", orgError);
+					router.push("/onboarding/organization");
+					router.refresh();
+					return;
+				}
+
+				const redirectTarget = getAuthRedirectUrl(callbackUrl ?? null);
+				router.push(redirectTarget);
 				router.refresh();
 			}
 		} catch {

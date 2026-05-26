@@ -43,7 +43,7 @@ export function useAuth() {
 		const isOrgAdmin = memberRole === "admin";
 		const isOrgOwner = memberRole === "owner";
 		const hasOrgAccess = (orgSlug: string) =>
-			activeOrganization?.slug === orgSlug;
+			role === "super_admin" || activeOrganization?.slug === orgSlug;
 
 		return {
 			isAuthenticated,

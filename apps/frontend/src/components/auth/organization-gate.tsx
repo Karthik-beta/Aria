@@ -2,6 +2,7 @@
 
 import { Loader2 } from "lucide-react";
 import type { ReactNode } from "react";
+import { useAuthStateContext } from "@/components/auth/auth-state-provider";
 import { authClient } from "@/lib/auth/client";
 
 interface OrganizationGateProps {
@@ -15,6 +16,9 @@ interface OrganizationGateProps {
  * Renders children only when the current user is a member of the specified
  * organization and optionally has the required role.
  *
+ * Super admins bypass organization membership checks entirely, mirroring the
+ * backend tRPC behaviour (trpc/trpc.ts).
+ *
  * Uses the reactive useListOrganizations hook for efficient membership checks.
  */
 export function OrganizationGate({
@@ -23,7 +27,14 @@ export function OrganizationGate({
 	children,
 	fallback,
 }: OrganizationGateProps) {
+	const authState = useAuthStateContext();
 	const { data: orgs, isPending } = authClient.useListOrganizations();
+
+	// Super admins have unrestricted cross-app access — skip org-gate checks.
+	const role = authState?.session?.user?.role ?? null;
+	if (role === "super_admin") {
+		return <>{children}</>;
+	}
 
 	if (isPending) {
 		return (
