@@ -1604,6 +1604,8 @@ model Asset {
   depreciationMethod                 DepreciationMethod?
   totalNumberOfDepreciations         Int?
   frequencyOfDepreciation            Int?
+  expectedValueAfterUsefulLife       Decimal?            @db.Decimal(18, 6)
+  depreciationStartDate              DateTime?
   purchaseReceipt                    String?             @db.VarChar(100)
   purchaseInvoice                    String?             @db.VarChar(100)
   status                             AssetStatus         @default(DRAFT)

@@ -257,6 +257,98 @@ export class AssetService {
 		);
 	}
 
+	private getLastDayOfMonth(date: Date): Date {
+		const d = new Date(date);
+		d.setMonth(d.getMonth() + 1, 0);
+		d.setHours(0, 0, 0, 0);
+		return d;
+	}
+
+	private validateDepreciationFields(
+		netPurchaseAmount: number,
+		expectedValueAfterUsefulLife: number | null,
+		depreciationStartDate: Date | null,
+		purchaseDate: Date,
+		availableForUseDate: Date | null,
+		totalNumberOfDepreciations: number | null,
+		frequencyOfDepreciation: number | null,
+		openingAccumulatedDepreciation: number | null,
+		openingNumberOfBookedDepreciations: number | null,
+		calculateDepreciation: boolean,
+	): void {
+		if (!calculateDepreciation) return;
+
+		if (
+			expectedValueAfterUsefulLife !== null &&
+			expectedValueAfterUsefulLife < 0
+		) {
+			throw new BadRequestException(
+				"Expected value after useful life cannot be negative",
+			);
+		}
+		if (
+			expectedValueAfterUsefulLife !== null &&
+			expectedValueAfterUsefulLife >= netPurchaseAmount
+		) {
+			throw new BadRequestException(
+				"Expected value after useful life must be less than net purchase amount",
+			);
+		}
+		if (depreciationStartDate) {
+			if (depreciationStartDate < purchaseDate) {
+				throw new BadRequestException(
+					"Depreciation start date cannot be before purchase date",
+				);
+			}
+			if (availableForUseDate && depreciationStartDate < availableForUseDate) {
+				throw new BadRequestException(
+					"Depreciation start date cannot be before available-for-use date",
+				);
+			}
+		}
+		if (
+			totalNumberOfDepreciations !== null &&
+			totalNumberOfDepreciations <= 0
+		) {
+			throw new BadRequestException(
+				"Total number of depreciations must be greater than zero",
+			);
+		}
+		if (frequencyOfDepreciation !== null && frequencyOfDepreciation <= 0) {
+			throw new BadRequestException(
+				"Frequency of depreciation must be greater than zero",
+			);
+		}
+		if (
+			openingAccumulatedDepreciation !== null &&
+			openingAccumulatedDepreciation > 0
+		) {
+			const depreciableAmount =
+				netPurchaseAmount - (expectedValueAfterUsefulLife ?? 0);
+			if (openingAccumulatedDepreciation > depreciableAmount) {
+				throw new BadRequestException(
+					`Opening accumulated depreciation must not exceed depreciable amount (${this.roundCurrency(depreciableAmount)})`,
+				);
+			}
+			if (
+				openingNumberOfBookedDepreciations === null ||
+				openingNumberOfBookedDepreciations === 0
+			) {
+				throw new BadRequestException(
+					"Opening number of booked depreciations is required when opening accumulated depreciation is set",
+				);
+			}
+			if (
+				totalNumberOfDepreciations !== null &&
+				totalNumberOfDepreciations <= openingNumberOfBookedDepreciations
+			) {
+				throw new BadRequestException(
+					"Total number of depreciations must be greater than opening number of booked depreciations",
+				);
+			}
+		}
+	}
+
 	private resolveCurrentAssetValue(asset: {
 		valueAfterDepreciation: Prisma.Decimal | null;
 		netPurchaseAmount: Prisma.Decimal | null;
@@ -289,6 +381,7 @@ export class AssetService {
 				totalNumberOfDepreciations: true,
 				frequencyOfDepreciation: true,
 				nonDepreciableCategory: true,
+				expectedValueAfterUsefulLife: true,
 			},
 		});
 	}
@@ -636,6 +729,33 @@ export class AssetService {
 			input.frequencyOfDepreciation ??
 			categoryDefaults?.frequencyOfDepreciation ??
 			null;
+		const expectedValueAfterUsefulLife =
+			input.expectedValueAfterUsefulLife ??
+			(categoryDefaults?.expectedValueAfterUsefulLife != null
+				? Number(categoryDefaults.expectedValueAfterUsefulLife)
+				: null);
+		const availableForUseDate =
+			input.availableForUseDate instanceof Date
+				? input.availableForUseDate
+				: null;
+		const depreciationStartDate =
+			input.depreciationStartDate ??
+			(availableForUseDate
+				? this.getLastDayOfMonth(availableForUseDate)
+				: null);
+
+		this.validateDepreciationFields(
+			netPurchaseAmount,
+			expectedValueAfterUsefulLife,
+			depreciationStartDate,
+			purchaseDate,
+			availableForUseDate,
+			totalNumberOfDepreciations,
+			frequencyOfDepreciation,
+			openingAccumulatedDepreciation,
+			input.openingNumberOfBookedDepreciations ?? null,
+			calculateDepreciation,
+		);
 
 		const created = await this.prisma.asset.create({
 			data: {
@@ -648,10 +768,7 @@ export class AssetService {
 				custodian: input.custodian ?? null,
 				department: input.department ?? null,
 				purchaseDate,
-				availableForUseDate:
-					input.availableForUseDate instanceof Date
-						? input.availableForUseDate
-						: null,
+				availableForUseDate,
 				netPurchaseAmount: netPurchaseAmount.toString(),
 				assetQuantity: input.assetQuantity ?? 1,
 				calculateDepreciation,
@@ -681,6 +798,9 @@ export class AssetService {
 				depreciationMethod,
 				totalNumberOfDepreciations,
 				frequencyOfDepreciation,
+				expectedValueAfterUsefulLife:
+					expectedValueAfterUsefulLife?.toString() ?? null,
+				depreciationStartDate,
 				purchaseReceipt: input.purchaseReceipt ?? null,
 				purchaseInvoice: input.purchaseInvoice ?? null,
 				status: input.status ?? "DRAFT",
@@ -718,6 +838,7 @@ export class AssetService {
 				frequencyOfDepreciation: true,
 				valueAfterDepreciation: true,
 				isFullyDepreciated: true,
+				openingNumberOfBookedDepreciations: true,
 			},
 		});
 		if (!existing) throw new NotFoundException(`Asset ${input.id} not found`);
@@ -765,11 +886,46 @@ export class AssetService {
 		const shouldInheritFrequency =
 			input.assetCategoryId !== undefined &&
 			input.frequencyOfDepreciation === undefined;
+		const shouldInheritExpectedValueAfterUsefulLife =
+			input.assetCategoryId !== undefined &&
+			input.expectedValueAfterUsefulLife === undefined;
+		const shouldInheritDepreciationStartDate =
+			input.assetCategoryId !== undefined &&
+			input.depreciationStartDate === undefined;
 		const calculateDepreciation =
 			input.calculateDepreciation ??
 			(input.assetCategoryId !== undefined && categoryDefaults
 				? !categoryDefaults.nonDepreciableCategory
 				: existing.calculateDepreciation);
+		const nextAvailableForUseDate =
+			input.availableForUseDate instanceof Date
+				? input.availableForUseDate
+				: null;
+		const nextDepreciationStartDate =
+			input.depreciationStartDate ??
+			(nextAvailableForUseDate
+				? this.getLastDayOfMonth(nextAvailableForUseDate)
+				: null);
+		const nextExpectedValueAfterUsefulLife =
+			input.expectedValueAfterUsefulLife ??
+			(shouldInheritExpectedValueAfterUsefulLife &&
+			categoryDefaults?.expectedValueAfterUsefulLife != null
+				? Number(categoryDefaults.expectedValueAfterUsefulLife)
+				: null);
+
+		this.validateDepreciationFields(
+			nextNetPurchaseAmount,
+			nextExpectedValueAfterUsefulLife,
+			nextDepreciationStartDate,
+			input.purchaseDate instanceof Date ? input.purchaseDate : new Date(),
+			nextAvailableForUseDate,
+			input.totalNumberOfDepreciations ?? existing.totalNumberOfDepreciations,
+			input.frequencyOfDepreciation ?? existing.frequencyOfDepreciation,
+			nextOpeningAccumulatedDepreciation,
+			input.openingNumberOfBookedDepreciations ??
+				existing.openingNumberOfBookedDepreciations,
+			calculateDepreciation,
+		);
 
 		const asset = await this.prisma.asset.update({
 			where: { id: input.id },
@@ -883,6 +1039,32 @@ export class AssetService {
 					frequencyOfDepreciation:
 						categoryDefaults?.frequencyOfDepreciation ?? null,
 				}),
+				...(input.expectedValueAfterUsefulLife !== undefined && {
+					expectedValueAfterUsefulLife:
+						input.expectedValueAfterUsefulLife !== null
+							? input.expectedValueAfterUsefulLife.toString()
+							: null,
+				}),
+				...(shouldInheritExpectedValueAfterUsefulLife &&
+				categoryDefaults?.expectedValueAfterUsefulLife != null
+					? {
+							expectedValueAfterUsefulLife:
+								categoryDefaults.expectedValueAfterUsefulLife.toString(),
+						}
+					: {}),
+				...(input.depreciationStartDate !== undefined && {
+					depreciationStartDate:
+						input.depreciationStartDate instanceof Date
+							? input.depreciationStartDate
+							: null,
+				}),
+				...(shouldInheritDepreciationStartDate && nextAvailableForUseDate
+					? {
+							depreciationStartDate: this.getLastDayOfMonth(
+								nextAvailableForUseDate,
+							),
+						}
+					: {}),
 				...(input.purchaseReceipt !== undefined && {
 					purchaseReceipt: input.purchaseReceipt,
 				}),

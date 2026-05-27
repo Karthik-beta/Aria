@@ -5918,6 +5918,7 @@ export namespace Asset {
 		totalNumberOfDepreciations?: number | null;
 		frequencyOfDepreciation?: number | null;
 		expectedValueAfterUsefulLife?: number | null;
+		depreciationStartDate?: Date | null;
 		purchaseReceipt?: string | null;
 		purchaseInvoice?: string | null;
 		status: AssetStatus;
@@ -6014,6 +6015,8 @@ export namespace Asset {
 		depreciationMethod?: DepreciationMethod | null;
 		totalNumberOfDepreciations?: number | null;
 		frequencyOfDepreciation?: number | null;
+		expectedValueAfterUsefulLife?: number | null;
+		depreciationStartDate?: Date | null;
 		purchaseReceipt?: string | null;
 		purchaseInvoice?: string | null;
 		status?: AssetStatus;
@@ -6051,6 +6054,8 @@ export namespace Asset {
 		depreciationMethod?: DepreciationMethod | null;
 		totalNumberOfDepreciations?: number | null;
 		frequencyOfDepreciation?: number | null;
+		expectedValueAfterUsefulLife?: number | null;
+		depreciationStartDate?: Date | null;
 		purchaseReceipt?: string | null;
 		purchaseInvoice?: string | null;
 		status?: AssetStatus;
@@ -6127,6 +6132,7 @@ export namespace Asset {
 		totalNumberOfDepreciations: z.number().int().min(0).optional().nullable(),
 		frequencyOfDepreciation: z.number().int().min(0).optional().nullable(),
 		expectedValueAfterUsefulLife: z.number().min(0).optional().nullable(),
+		depreciationStartDate: z.coerce.date().optional().nullable(),
 		purchaseReceipt: z.string().max(255).trim().optional().nullable(),
 		purchaseInvoice: z.string().max(255).trim().optional().nullable(),
 		status: assetStatusSchema.default("DRAFT"),
@@ -6169,6 +6175,7 @@ export namespace Asset {
 		totalNumberOfDepreciations: assetInputFields.totalNumberOfDepreciations,
 		frequencyOfDepreciation: assetInputFields.frequencyOfDepreciation,
 		expectedValueAfterUsefulLife: assetInputFields.expectedValueAfterUsefulLife,
+		depreciationStartDate: assetInputFields.depreciationStartDate,
 		purchaseReceipt: assetInputFields.purchaseReceipt,
 		purchaseInvoice: assetInputFields.purchaseInvoice,
 		status: assetStatusSchema.optional(),

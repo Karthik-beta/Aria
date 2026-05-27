@@ -132,6 +132,10 @@ export function toAsset(raw: PrismaAsset): Asset.AssetItem {
 			(raw.depreciationMethod as Asset.DepreciationMethod | null) ?? null,
 		totalNumberOfDepreciations: raw.totalNumberOfDepreciations ?? null,
 		frequencyOfDepreciation: raw.frequencyOfDepreciation ?? null,
+		expectedValueAfterUsefulLife: raw.expectedValueAfterUsefulLife
+			? Number(raw.expectedValueAfterUsefulLife)
+			: null,
+		depreciationStartDate: raw.depreciationStartDate ?? null,
 		purchaseReceipt: raw.purchaseReceipt ?? null,
 		purchaseInvoice: raw.purchaseInvoice ?? null,
 		status: raw.status as Asset.AssetStatus,

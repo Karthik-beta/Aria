@@ -1,23 +1,16 @@
-/**
- * Asset Form Page — create and edit assets
- * Reads ?id= param to switch between create/edit modes.
- *
- * When "Calculate Depreciation" is enabled, depreciation detail fields appear
- * in the Options section, mirroring ERPNext behavior:
- * - Depreciation Method, Total Number of Depreciations, Frequency (months),
- *   Expected Value After Useful Life, and Depreciation Start Date become visible.
- * - When an Asset Category is selected, depreciation defaults from the category
- *   are auto-populated into the form fields.
- */
-
 "use client";
 
 import { Asset } from "@aria/types";
-import { ChevronDown, Loader2 } from "lucide-react";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { ArrowLeft, ChevronDown, CircleAlert, Loader2 } from "lucide-react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
+import { Suspense } from "react";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
+import * as z from "zod";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
 	Card,
@@ -53,31 +46,175 @@ import { getToastMessage } from "@/lib/errors";
 import { trpc } from "@/lib/trpc";
 import { DEPRECIATION_METHOD_OPTIONS } from "../../asset-category/asset-category.schema";
 
-type AssetFormValues = {
-	assetName: string;
-	company: string;
-	itemCode: string;
-	assetCategoryId: string;
-	locationId: string;
-	custodian: string;
-	department: string;
-	assetQuantity: number;
-	calculateDepreciation: boolean;
-	isFullyDepreciated: boolean;
-	maintenanceRequired: boolean;
-	assetOwner: string;
-	status: string;
-	netPurchaseAmount: string;
-	purchaseDate: string;
-	availableForUseDate: string;
-	depreciationMethod: string;
-	totalNumberOfDepreciations: string;
-	frequencyOfDepreciation: string;
-	expectedValueAfterUsefulLife: string;
-	depreciationStartDate: string;
-};
+function getLastDayOfMonth(date: Date): Date {
+	const d = new Date(date);
+	d.setMonth(d.getMonth() + 1, 0);
+	d.setHours(0, 0, 0, 0);
+	return d;
+}
 
-const defaultValues: AssetFormValues = {
+const assetFormSchema = z
+	.object({
+		assetName: z.string().min(1, "Asset name is required").max(255),
+		company: z.string().min(1, "Company is required").max(255),
+		itemCode: z.string().max(100).optional().nullable(),
+		assetCategoryId: z.string().optional().nullable(),
+		locationId: z.string().optional().nullable(),
+		custodian: z.string().max(255).optional().nullable(),
+		department: z.string().max(255).optional().nullable(),
+		assetQuantity: z.number().int().min(1),
+		calculateDepreciation: z.boolean(),
+		isFullyDepreciated: z.boolean(),
+		maintenanceRequired: z.boolean(),
+		status: z.string(),
+		netPurchaseAmount: z.string().optional().nullable(),
+		purchaseDate: z.string().optional().nullable(),
+		availableForUseDate: z.string().optional().nullable(),
+		purchaseReceipt: z.string().max(255).optional().nullable(),
+		purchaseInvoice: z.string().max(255).optional().nullable(),
+		policyNumber: z.string().max(255).optional().nullable(),
+		insurer: z.string().max(255).optional().nullable(),
+		insuredValue: z.string().optional().nullable(),
+		insuranceStartDate: z.string().optional().nullable(),
+		insuranceEndDate: z.string().optional().nullable(),
+		assetOwner: z.string(),
+		assetOwnerCompany: z.string().max(255).optional().nullable(),
+		supplier: z.string().max(255).optional().nullable(),
+		customer: z.string().max(255).optional().nullable(),
+		depreciationMethod: z.string().optional().nullable(),
+		totalNumberOfDepreciations: z.string().optional().nullable(),
+		frequencyOfDepreciation: z.string().optional().nullable(),
+		expectedValueAfterUsefulLife: z.string().optional().nullable(),
+		depreciationStartDate: z.string().optional().nullable(),
+		openingAccumulatedDepreciation: z.string().optional().nullable(),
+		openingNumberOfBookedDepreciations: z.string().optional().nullable(),
+	})
+	.superRefine((data, ctx) => {
+		if (!data.calculateDepreciation) return;
+
+		if (!data.depreciationMethod) {
+			ctx.addIssue({
+				path: ["depreciationMethod"],
+				code: z.ZodIssueCode.custom,
+				message: "Depreciation method is required",
+			});
+		}
+
+		const totalDep = data.totalNumberOfDepreciations
+			? Number(data.totalNumberOfDepreciations)
+			: NaN;
+		if (
+			data.totalNumberOfDepreciations &&
+			(Number.isNaN(totalDep) || totalDep < 1)
+		) {
+			ctx.addIssue({
+				path: ["totalNumberOfDepreciations"],
+				code: z.ZodIssueCode.custom,
+				message: "Total depreciations must be at least 1",
+			});
+		}
+
+		const freq = data.frequencyOfDepreciation
+			? Number(data.frequencyOfDepreciation)
+			: NaN;
+		if (data.frequencyOfDepreciation && (Number.isNaN(freq) || freq < 1)) {
+			ctx.addIssue({
+				path: ["frequencyOfDepreciation"],
+				code: z.ZodIssueCode.custom,
+				message: "Frequency must be at least 1",
+			});
+		}
+
+		const expected = data.expectedValueAfterUsefulLife
+			? Number(data.expectedValueAfterUsefulLife)
+			: NaN;
+		const netPurchase = data.netPurchaseAmount
+			? Number(data.netPurchaseAmount)
+			: NaN;
+		if (
+			!Number.isNaN(expected) &&
+			!Number.isNaN(netPurchase) &&
+			expected >= netPurchase
+		) {
+			ctx.addIssue({
+				path: ["expectedValueAfterUsefulLife"],
+				code: z.ZodIssueCode.custom,
+				message: "Must be less than net purchase amount",
+			});
+		}
+
+		if (data.depreciationStartDate && data.purchaseDate) {
+			const depStart = new Date(data.depreciationStartDate);
+			const purchase = new Date(data.purchaseDate);
+			if (depStart < purchase) {
+				ctx.addIssue({
+					path: ["depreciationStartDate"],
+					code: z.ZodIssueCode.custom,
+					message: "Must be on or after purchase date",
+				});
+			}
+		}
+
+		if (data.depreciationStartDate && data.availableForUseDate) {
+			const depStart = new Date(data.depreciationStartDate);
+			const available = new Date(data.availableForUseDate);
+			if (depStart < available) {
+				ctx.addIssue({
+					path: ["depreciationStartDate"],
+					code: z.ZodIssueCode.custom,
+					message: "Must be on or after available for use date",
+				});
+			}
+		}
+
+		const openingAccum = data.openingAccumulatedDepreciation
+			? Number(data.openingAccumulatedDepreciation)
+			: NaN;
+		if (
+			!Number.isNaN(openingAccum) &&
+			!Number.isNaN(netPurchase) &&
+			!Number.isNaN(expected)
+		) {
+			if (openingAccum > netPurchase - expected) {
+				ctx.addIssue({
+					path: ["openingAccumulatedDepreciation"],
+					code: z.ZodIssueCode.custom,
+					message: "Cannot exceed net purchase minus expected salvage value",
+				});
+			}
+		}
+
+		if (
+			data.openingAccumulatedDepreciation &&
+			Number(data.openingAccumulatedDepreciation) > 0 &&
+			!data.openingNumberOfBookedDepreciations
+		) {
+			ctx.addIssue({
+				path: ["openingNumberOfBookedDepreciations"],
+				code: z.ZodIssueCode.custom,
+				message: "Required when opening accumulated depreciation is set",
+			});
+		}
+
+		const openingBooked = data.openingNumberOfBookedDepreciations
+			? Number(data.openingNumberOfBookedDepreciations)
+			: NaN;
+		if (
+			!Number.isNaN(totalDep) &&
+			!Number.isNaN(openingBooked) &&
+			totalDep <= openingBooked
+		) {
+			ctx.addIssue({
+				path: ["openingNumberOfBookedDepreciations"],
+				code: z.ZodIssueCode.custom,
+				message: "Total depreciations must exceed opening booked depreciations",
+			});
+		}
+	});
+
+type AssetFormValues = z.input<typeof assetFormSchema>;
+
+const defaultFormValues: AssetFormValues = {
 	assetName: "",
 	company: "",
 	itemCode: "",
@@ -89,19 +226,45 @@ const defaultValues: AssetFormValues = {
 	calculateDepreciation: false,
 	isFullyDepreciated: false,
 	maintenanceRequired: false,
-	assetOwner: "COMPANY",
 	status: "DRAFT",
 	netPurchaseAmount: "",
 	purchaseDate: "",
 	availableForUseDate: "",
+	purchaseReceipt: "",
+	purchaseInvoice: "",
+	policyNumber: "",
+	insurer: "",
+	insuredValue: "",
+	insuranceStartDate: "",
+	insuranceEndDate: "",
+	assetOwner: "COMPANY",
+	assetOwnerCompany: "",
+	supplier: "",
+	customer: "",
 	depreciationMethod: "",
 	totalNumberOfDepreciations: "",
 	frequencyOfDepreciation: "",
 	expectedValueAfterUsefulLife: "",
 	depreciationStartDate: "",
+	openingAccumulatedDepreciation: "",
+	openingNumberOfBookedDepreciations: "",
 };
 
 export default function AssetFormPage() {
+	return (
+		<Suspense
+			fallback={
+				<div className="flex h-[60vh] items-center justify-center">
+					<Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+				</div>
+			}
+		>
+			<AssetFormContent />
+		</Suspense>
+	);
+}
+
+function AssetFormContent() {
 	const router = useRouter();
 	const searchParams = useSearchParams();
 	const assetId = searchParams.get("id");
@@ -110,6 +273,8 @@ export default function AssetFormPage() {
 	const [_isPending, startTransition] = React.useTransition();
 	const [categoryOpen, setCategoryOpen] = React.useState(false);
 	const [locationOpen, setLocationOpen] = React.useState(false);
+	const [hasUnsavedChanges, setHasUnsavedChanges] = React.useState(false);
+	const [initialized, setInitialized] = React.useState(false);
 
 	const { data: categoriesData } = trpc.asset.listAssetCategories.useQuery(
 		undefined,
@@ -127,21 +292,30 @@ export default function AssetFormPage() {
 			{ enabled: isEdit && Boolean(assetId) },
 		);
 
-	const form = useForm<AssetFormValues>({ defaultValues });
+	const urlDefaults = React.useMemo((): Partial<AssetFormValues> => {
+		if (isEdit) return {};
+		const defaults: Partial<AssetFormValues> = {};
+		const assetName = searchParams.get("assetName");
+		const company = searchParams.get("company");
+		const assetCategoryId = searchParams.get("assetCategoryId");
+		const locationId = searchParams.get("locationId");
+		if (assetName) defaults.assetName = assetName;
+		if (company) defaults.company = company;
+		if (assetCategoryId) defaults.assetCategoryId = assetCategoryId;
+		if (locationId) defaults.locationId = locationId;
+		return defaults;
+	}, [isEdit, searchParams]);
 
-	const watchedCalculateDepreciation = useWatch({
-		control: form.control,
-		name: "calculateDepreciation",
+	const form = useForm<AssetFormValues>({
+		resolver: zodResolver(assetFormSchema),
+		defaultValues: { ...defaultFormValues, ...urlDefaults },
 	});
 
-	const watchedAssetCategoryId = useWatch({
-		control: form.control,
-		name: "assetCategoryId",
-	});
-
-	const selectedCategory = categories.find(
-		(c) => c.id === watchedAssetCategoryId,
-	);
+	React.useEffect(() => {
+		if (!isEdit) {
+			setInitialized(true);
+		}
+	}, [isEdit]);
 
 	React.useEffect(() => {
 		if (!rawAsset) return;
@@ -170,6 +344,23 @@ export default function AssetFormPage() {
 				? (new Date(rawAsset.availableForUseDate).toISOString().split("T")[0] ??
 					"")
 				: "",
+			purchaseReceipt: rawAsset.purchaseReceipt ?? "",
+			purchaseInvoice: rawAsset.purchaseInvoice ?? "",
+			policyNumber: rawAsset.policyNumber ?? "",
+			insurer: rawAsset.insurer ?? "",
+			insuredValue:
+				rawAsset.insuredValue != null ? String(rawAsset.insuredValue) : "",
+			insuranceStartDate: rawAsset.insuranceStartDate
+				? (new Date(rawAsset.insuranceStartDate).toISOString().split("T")[0] ??
+					"")
+				: "",
+			insuranceEndDate: rawAsset.insuranceEndDate
+				? (new Date(rawAsset.insuranceEndDate).toISOString().split("T")[0] ??
+					"")
+				: "",
+			assetOwnerCompany: rawAsset.assetOwnerCompany ?? "",
+			supplier: rawAsset.supplier ?? "",
+			customer: rawAsset.customer ?? "",
 			depreciationMethod: rawAsset.depreciationMethod ?? "",
 			totalNumberOfDepreciations:
 				rawAsset.totalNumberOfDepreciations != null
@@ -183,19 +374,54 @@ export default function AssetFormPage() {
 				rawAsset.expectedValueAfterUsefulLife != null
 					? String(rawAsset.expectedValueAfterUsefulLife)
 					: "",
-			depreciationStartDate: "",
+			depreciationStartDate: rawAsset.depreciationStartDate
+				? (new Date(rawAsset.depreciationStartDate)
+						.toISOString()
+						.split("T")[0] ?? "")
+				: "",
+			openingAccumulatedDepreciation:
+				rawAsset.openingAccumulatedDepreciation != null
+					? String(rawAsset.openingAccumulatedDepreciation)
+					: "",
+			openingNumberOfBookedDepreciations:
+				rawAsset.openingNumberOfBookedDepreciations != null
+					? String(rawAsset.openingNumberOfBookedDepreciations)
+					: "",
 		});
+		setInitialized(true);
 	}, [rawAsset, form]);
 
+	const watchedCalculateDepreciation = useWatch({
+		control: form.control,
+		name: "calculateDepreciation",
+	});
+
+	const watchedAssetCategoryId = useWatch({
+		control: form.control,
+		name: "assetCategoryId",
+	});
+
+	const watchedAvailableForUseDate = useWatch({
+		control: form.control,
+		name: "availableForUseDate",
+	});
+
+	const watchedAssetOwner = useWatch({
+		control: form.control,
+		name: "assetOwner",
+	});
+
+	const selectedCategory = categories.find(
+		(c) => c.id === watchedAssetCategoryId,
+	);
+
 	React.useEffect(() => {
-		if (selectedCategory && !isEdit) {
+		if (selectedCategory) {
 			if (selectedCategory.depreciationMethod) {
 				form.setValue(
 					"depreciationMethod",
 					selectedCategory.depreciationMethod,
-					{
-						shouldDirty: true,
-					},
+					{ shouldDirty: true },
 				);
 			}
 			if (selectedCategory.totalNumberOfDepreciations != null) {
@@ -220,10 +446,31 @@ export default function AssetFormPage() {
 				);
 			}
 		}
-	}, [selectedCategory, isEdit, form]);
+	}, [selectedCategory, form]);
+
+	React.useEffect(() => {
+		if (watchedCalculateDepreciation && watchedAvailableForUseDate) {
+			const lastDay = getLastDayOfMonth(new Date(watchedAvailableForUseDate));
+			const formatted = lastDay.toISOString().split("T")[0];
+			if (formatted) {
+				form.setValue("depreciationStartDate", formatted, {
+					shouldDirty: true,
+				});
+			}
+		}
+	}, [watchedCalculateDepreciation, watchedAvailableForUseDate, form]);
+
+	React.useEffect(() => {
+		if (!initialized) return;
+		const subscription = form.watch(() => {
+			setHasUnsavedChanges(true);
+		});
+		return () => subscription.unsubscribe();
+	}, [form, initialized]);
 
 	const createMutation = trpc.asset.createAsset.useMutation({
 		onSuccess: (newAsset) => {
+			setHasUnsavedChanges(false);
 			void utils.asset.listAssets.invalidate();
 			toast.success(`Asset "${newAsset.assetName}" created`);
 			startTransition(() =>
@@ -235,6 +482,7 @@ export default function AssetFormPage() {
 
 	const updateMutation = trpc.asset.updateAsset.useMutation({
 		onSuccess: (updated) => {
+			setHasUnsavedChanges(false);
 			void utils.asset.listAssets.invalidate();
 			toast.success("Asset updated");
 			startTransition(() =>
@@ -250,18 +498,39 @@ export default function AssetFormPage() {
 		const common = {
 			assetName: values.assetName.trim(),
 			company: values.company.trim(),
-			itemCode: values.itemCode.trim() || null,
+			itemCode: values.itemCode?.trim() || null,
 			assetCategoryId: values.assetCategoryId || null,
 			locationId: values.locationId || null,
-			custodian: values.custodian.trim() || null,
-			department: values.department.trim() || null,
+			custodian: values.custodian?.trim() || null,
+			department: values.department?.trim() || null,
 			assetQuantity: values.assetQuantity,
 			calculateDepreciation: values.calculateDepreciation,
 			isFullyDepreciated: values.isFullyDepreciated,
 			maintenanceRequired: values.maintenanceRequired,
-			assetOwner: values.assetOwner as ReturnType<
-				typeof Asset.assetOwnerSchema.parse
-			>,
+			assetOwner: values.assetOwner as Asset.AssetOwner,
+			assetOwnerCompany:
+				values.assetOwner === "COMPANY"
+					? values.assetOwnerCompany?.trim() || null
+					: null,
+			supplier:
+				values.assetOwner === "SUPPLIER"
+					? values.supplier?.trim() || null
+					: null,
+			customer:
+				values.assetOwner === "CUSTOMER"
+					? values.customer?.trim() || null
+					: null,
+			purchaseReceipt: values.purchaseReceipt?.trim() || null,
+			purchaseInvoice: values.purchaseInvoice?.trim() || null,
+			policyNumber: values.policyNumber?.trim() || null,
+			insurer: values.insurer?.trim() || null,
+			insuredValue: values.insuredValue ? Number(values.insuredValue) : null,
+			insuranceStartDate: values.insuranceStartDate
+				? new Date(values.insuranceStartDate)
+				: null,
+			insuranceEndDate: values.insuranceEndDate
+				? new Date(values.insuranceEndDate)
+				: null,
 			netPurchaseAmount: values.netPurchaseAmount
 				? Number(values.netPurchaseAmount)
 				: null,
@@ -279,15 +548,23 @@ export default function AssetFormPage() {
 			expectedValueAfterUsefulLife: values.expectedValueAfterUsefulLife
 				? Number(values.expectedValueAfterUsefulLife)
 				: null,
+			depreciationStartDate: values.depreciationStartDate
+				? new Date(values.depreciationStartDate)
+				: null,
+			openingAccumulatedDepreciation: values.openingAccumulatedDepreciation
+				? Number(values.openingAccumulatedDepreciation)
+				: null,
+			openingNumberOfBookedDepreciations:
+				values.openingNumberOfBookedDepreciations
+					? parseInt(values.openingNumberOfBookedDepreciations, 10)
+					: null,
 		};
 
 		if (isEdit && assetId) {
 			const parsed = Asset.updateAssetSchema.safeParse({
 				id: assetId,
 				...common,
-				status: values.status as ReturnType<
-					typeof Asset.assetStatusSchema.parse
-				>,
+				status: values.status as Asset.AssetStatus,
 			});
 			if (!parsed.success) {
 				toast.error(parsed.error.issues[0]?.message ?? "Invalid form values");
@@ -297,9 +574,7 @@ export default function AssetFormPage() {
 		} else {
 			const parsed = Asset.createAssetSchema.safeParse({
 				...common,
-				status: values.status as ReturnType<
-					typeof Asset.assetStatusSchema.parse
-				>,
+				status: "DRAFT",
 			});
 			if (!parsed.success) {
 				toast.error(parsed.error.issues[0]?.message ?? "Invalid form values");
@@ -313,19 +588,55 @@ export default function AssetFormPage() {
 		(l) => l.id === form.watch("locationId"),
 	);
 
+	const formErrors = form.formState.errors;
+
 	if (isEdit && isLoadingAsset) {
 		return (
-			<div className="container mx-auto py-6">
-				<p className="text-sm text-muted-foreground">Loading asset…</p>
+			<div className="flex h-[60vh] items-center justify-center">
+				<Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+			</div>
+		);
+	}
+
+	if (isEdit && !isLoadingAsset && !rawAsset) {
+		return (
+			<div className="container mx-auto max-w-3xl py-6">
+				<Card>
+					<CardContent className="flex flex-col items-center justify-center py-12">
+						<CircleAlert className="mb-4 h-12 w-12 text-muted-foreground" />
+						<h2 className="mb-2 text-lg font-semibold">Asset Not Found</h2>
+						<p className="mb-4 text-sm text-muted-foreground">
+							The asset you are looking for does not exist or has been removed.
+						</p>
+						<Button asChild variant="outline">
+							<Link href="/asset/asset-sub-module/asset">Back to Assets</Link>
+						</Button>
+					</CardContent>
+				</Card>
 			</div>
 		);
 	}
 
 	return (
 		<div className="container mx-auto max-w-3xl py-6 space-y-6">
-			<h1 className="text-2xl font-bold">
-				{isEdit ? "Edit Asset" : "New Asset"}
-			</h1>
+			<div className="flex items-center gap-3">
+				<Button variant="ghost" size="icon" asChild>
+					<Link href="/asset/asset-sub-module/asset">
+						<ArrowLeft className="h-4 w-4" />
+					</Link>
+				</Button>
+				<h1 className="text-2xl font-bold">
+					{isEdit ? "Edit Asset" : "New Asset"}
+				</h1>
+				{hasUnsavedChanges && (
+					<Badge
+						variant="outline"
+						className="text-orange-600 border-orange-300"
+					>
+						Unsaved Changes
+					</Badge>
+				)}
+			</div>
 
 			<form onSubmit={onSubmit} className="space-y-6">
 				<Card>
@@ -336,7 +647,6 @@ export default function AssetFormPage() {
 						</CardDescription>
 					</CardHeader>
 					<CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-						{/* Asset Name */}
 						<div className="space-y-2 sm:col-span-2">
 							<Label htmlFor="assetName">
 								Asset Name <span className="text-destructive">*</span>
@@ -344,11 +654,16 @@ export default function AssetFormPage() {
 							<Input
 								id="assetName"
 								placeholder="e.g. Dell Laptop 2024"
+								className={formErrors.assetName ? "border-destructive" : ""}
 								{...form.register("assetName")}
 							/>
+							{formErrors.assetName && (
+								<p className="text-sm text-destructive">
+									{formErrors.assetName.message}
+								</p>
+							)}
 						</div>
 
-						{/* Company */}
 						<div className="space-y-2">
 							<Label htmlFor="company">
 								Company <span className="text-destructive">*</span>
@@ -356,11 +671,16 @@ export default function AssetFormPage() {
 							<Input
 								id="company"
 								placeholder="e.g. My Company Ltd."
+								className={formErrors.company ? "border-destructive" : ""}
 								{...form.register("company")}
 							/>
+							{formErrors.company && (
+								<p className="text-sm text-destructive">
+									{formErrors.company.message}
+								</p>
+							)}
 						</div>
 
-						{/* Item Code */}
 						<div className="space-y-2">
 							<Label htmlFor="itemCode">Item Code</Label>
 							<Input
@@ -370,7 +690,6 @@ export default function AssetFormPage() {
 							/>
 						</div>
 
-						{/* Asset Category */}
 						<div className="space-y-2">
 							<Label>Asset Category</Label>
 							<Controller
@@ -382,7 +701,7 @@ export default function AssetFormPage() {
 											<Button
 												type="button"
 												variant="outline"
-												className="h-10 w-full justify-between font-normal"
+												className={`h-10 w-full justify-between font-normal ${formErrors.assetCategoryId ? "border-destructive" : ""}`}
 											>
 												<span className="truncate">
 													{selectedCategory?.name ?? "Select category…"}
@@ -419,7 +738,6 @@ export default function AssetFormPage() {
 							/>
 						</div>
 
-						{/* Location */}
 						<div className="space-y-2">
 							<Label>Location</Label>
 							<Controller
@@ -468,7 +786,6 @@ export default function AssetFormPage() {
 							/>
 						</div>
 
-						{/* Custodian */}
 						<div className="space-y-2">
 							<Label htmlFor="custodian">Custodian</Label>
 							<Input
@@ -478,7 +795,6 @@ export default function AssetFormPage() {
 							/>
 						</div>
 
-						{/* Department */}
 						<div className="space-y-2">
 							<Label htmlFor="department">Department</Label>
 							<Input
@@ -488,43 +804,28 @@ export default function AssetFormPage() {
 							/>
 						</div>
 
-						{/* Quantity */}
 						<div className="space-y-2">
 							<Label htmlFor="assetQuantity">Quantity</Label>
 							<Input
 								id="assetQuantity"
 								type="number"
 								min={1}
+								className={formErrors.assetQuantity ? "border-destructive" : ""}
 								{...form.register("assetQuantity", { valueAsNumber: true })}
 							/>
+							{formErrors.assetQuantity && (
+								<p className="text-sm text-destructive">
+									{formErrors.assetQuantity.message}
+								</p>
+							)}
 						</div>
 
-						{/* Status */}
-						<div className="space-y-2">
-							<Label>Status</Label>
-							<Controller
-								name="status"
-								control={form.control}
-								render={({ field }) => (
-									<Select value={field.value} onValueChange={field.onChange}>
-										<SelectTrigger className="h-10">
-											<SelectValue placeholder="Select status" />
-										</SelectTrigger>
-										<SelectContent>
-											<SelectItem value="DRAFT">Draft</SelectItem>
-											<SelectItem value="SUBMITTED">Submitted</SelectItem>
-											<SelectItem value="IN_MAINTENANCE">
-												In Maintenance
-											</SelectItem>
-											<SelectItem value="OUT_OF_ORDER">Out of Order</SelectItem>
-											<SelectItem value="SOLD">Sold</SelectItem>
-											<SelectItem value="SCRAPPED">Scrapped</SelectItem>
-											<SelectItem value="CANCELLED">Cancelled</SelectItem>
-										</SelectContent>
-									</Select>
-								)}
-							/>
-						</div>
+						{isEdit && (
+							<div className="space-y-2">
+								<Label>Status</Label>
+								<Input value={rawAsset?.status ?? "DRAFT"} disabled readOnly />
+							</div>
+						)}
 					</CardContent>
 				</Card>
 
@@ -559,10 +860,102 @@ export default function AssetFormPage() {
 								min={0}
 								step="0.01"
 								placeholder="0.00"
+								className={
+									formErrors.netPurchaseAmount ? "border-destructive" : ""
+								}
 								{...form.register("netPurchaseAmount")}
+							/>
+							{formErrors.netPurchaseAmount && (
+								<p className="text-sm text-destructive">
+									{formErrors.netPurchaseAmount.message}
+								</p>
+							)}
+						</div>
+
+						<div className="space-y-2">
+							<Label htmlFor="purchaseReceipt">Purchase Receipt</Label>
+							<Input
+								id="purchaseReceipt"
+								placeholder="e.g. PR-00001"
+								{...form.register("purchaseReceipt")}
 							/>
 						</div>
 
+						<div className="space-y-2">
+							<Label htmlFor="purchaseInvoice">Purchase Invoice</Label>
+							<Input
+								id="purchaseInvoice"
+								placeholder="e.g. PI-00001"
+								{...form.register("purchaseInvoice")}
+							/>
+						</div>
+					</CardContent>
+				</Card>
+
+				<Card>
+					<CardHeader>
+						<CardTitle>Insurance</CardTitle>
+						<CardDescription>Insurance details for the asset</CardDescription>
+					</CardHeader>
+					<CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+						<div className="space-y-2">
+							<Label htmlFor="policyNumber">Policy Number</Label>
+							<Input
+								id="policyNumber"
+								placeholder="e.g. POL-12345"
+								{...form.register("policyNumber")}
+							/>
+						</div>
+
+						<div className="space-y-2">
+							<Label htmlFor="insurer">Insurer</Label>
+							<Input
+								id="insurer"
+								placeholder="e.g. ABC Insurance Co."
+								{...form.register("insurer")}
+							/>
+						</div>
+
+						<div className="space-y-2">
+							<Label htmlFor="insuredValue">Insured Value</Label>
+							<Input
+								id="insuredValue"
+								type="number"
+								min={0}
+								step="0.01"
+								placeholder="0.00"
+								{...form.register("insuredValue")}
+							/>
+						</div>
+
+						<div className="space-y-2">
+							<Label htmlFor="insuranceStartDate">Insurance Start Date</Label>
+							<Input
+								id="insuranceStartDate"
+								type="date"
+								{...form.register("insuranceStartDate")}
+							/>
+						</div>
+
+						<div className="space-y-2">
+							<Label htmlFor="insuranceEndDate">Insurance End Date</Label>
+							<Input
+								id="insuranceEndDate"
+								type="date"
+								{...form.register("insuranceEndDate")}
+							/>
+						</div>
+					</CardContent>
+				</Card>
+
+				<Card>
+					<CardHeader>
+						<CardTitle>Ownership</CardTitle>
+						<CardDescription>
+							Asset ownership and related parties
+						</CardDescription>
+					</CardHeader>
+					<CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
 						<div className="space-y-2">
 							<Label>Asset Owner</Label>
 							<Controller
@@ -582,6 +975,39 @@ export default function AssetFormPage() {
 								)}
 							/>
 						</div>
+
+						{watchedAssetOwner === "COMPANY" && (
+							<div className="space-y-2">
+								<Label htmlFor="assetOwnerCompany">Company Name</Label>
+								<Input
+									id="assetOwnerCompany"
+									placeholder="Owner company name"
+									{...form.register("assetOwnerCompany")}
+								/>
+							</div>
+						)}
+
+						{watchedAssetOwner === "SUPPLIER" && (
+							<div className="space-y-2">
+								<Label htmlFor="supplier">Supplier</Label>
+								<Input
+									id="supplier"
+									placeholder="Supplier name"
+									{...form.register("supplier")}
+								/>
+							</div>
+						)}
+
+						{watchedAssetOwner === "CUSTOMER" && (
+							<div className="space-y-2">
+								<Label htmlFor="customer">Customer</Label>
+								<Input
+									id="customer"
+									placeholder="Customer name"
+									{...form.register("customer")}
+								/>
+							</div>
+						)}
 					</CardContent>
 				</Card>
 
@@ -612,21 +1038,21 @@ export default function AssetFormPage() {
 								<h3 className="text-sm font-medium">Depreciation Details</h3>
 
 								<div className="grid gap-4 sm:grid-cols-2">
-									{/* Depreciation Method */}
 									<div className="space-y-2">
 										<Label htmlFor="depreciationMethod">
-											Depreciation Method
+											Depreciation Method{" "}
+											<span className="text-destructive">*</span>
 										</Label>
 										<Controller
 											name="depreciationMethod"
 											control={form.control}
 											render={({ field }) => (
 												<Select
-													value={field.value}
+													value={field.value ?? ""}
 													onValueChange={field.onChange}
 												>
 													<SelectTrigger
-														className="h-10"
+														className={`h-10 ${formErrors.depreciationMethod ? "border-destructive" : ""}`}
 														id="depreciationMethod"
 													>
 														<SelectValue placeholder="Select method" />
@@ -641,9 +1067,13 @@ export default function AssetFormPage() {
 												</Select>
 											)}
 										/>
+										{formErrors.depreciationMethod && (
+											<p className="text-sm text-destructive">
+												{formErrors.depreciationMethod.message}
+											</p>
+										)}
 									</div>
 
-									{/* Total Number of Depreciations */}
 									<div className="space-y-2">
 										<Label htmlFor="totalNumberOfDepreciations">
 											Total Number of Depreciations
@@ -654,11 +1084,20 @@ export default function AssetFormPage() {
 											min={1}
 											step={1}
 											placeholder="e.g. 60"
+											className={
+												formErrors.totalNumberOfDepreciations
+													? "border-destructive"
+													: ""
+											}
 											{...form.register("totalNumberOfDepreciations")}
 										/>
+										{formErrors.totalNumberOfDepreciations && (
+											<p className="text-sm text-destructive">
+												{formErrors.totalNumberOfDepreciations.message}
+											</p>
+										)}
 									</div>
 
-									{/* Frequency of Depreciation */}
 									<div className="space-y-2">
 										<Label htmlFor="frequencyOfDepreciation">
 											Frequency of Depreciation (Months)
@@ -669,11 +1108,20 @@ export default function AssetFormPage() {
 											min={1}
 											step={1}
 											placeholder="e.g. 12"
+											className={
+												formErrors.frequencyOfDepreciation
+													? "border-destructive"
+													: ""
+											}
 											{...form.register("frequencyOfDepreciation")}
 										/>
+										{formErrors.frequencyOfDepreciation && (
+											<p className="text-sm text-destructive">
+												{formErrors.frequencyOfDepreciation.message}
+											</p>
+										)}
 									</div>
 
-									{/* Expected Value After Useful Life */}
 									<div className="space-y-2">
 										<Label htmlFor="expectedValueAfterUsefulLife">
 											Expected Value After Useful Life
@@ -684,11 +1132,20 @@ export default function AssetFormPage() {
 											min={0}
 											step="0.01"
 											placeholder="e.g. 1000"
+											className={
+												formErrors.expectedValueAfterUsefulLife
+													? "border-destructive"
+													: ""
+											}
 											{...form.register("expectedValueAfterUsefulLife")}
 										/>
+										{formErrors.expectedValueAfterUsefulLife && (
+											<p className="text-sm text-destructive">
+												{formErrors.expectedValueAfterUsefulLife.message}
+											</p>
+										)}
 									</div>
 
-									{/* Depreciation Start Date */}
 									<div className="space-y-2">
 										<Label htmlFor="depreciationStartDate">
 											Depreciation Start Date
@@ -696,8 +1153,66 @@ export default function AssetFormPage() {
 										<Input
 											id="depreciationStartDate"
 											type="date"
+											className={
+												formErrors.depreciationStartDate
+													? "border-destructive"
+													: ""
+											}
 											{...form.register("depreciationStartDate")}
 										/>
+										{formErrors.depreciationStartDate && (
+											<p className="text-sm text-destructive">
+												{formErrors.depreciationStartDate.message}
+											</p>
+										)}
+									</div>
+
+									<div className="space-y-2">
+										<Label htmlFor="openingAccumulatedDepreciation">
+											Opening Accumulated Depreciation
+										</Label>
+										<Input
+											id="openingAccumulatedDepreciation"
+											type="number"
+											min={0}
+											step="0.01"
+											placeholder="0.00"
+											className={
+												formErrors.openingAccumulatedDepreciation
+													? "border-destructive"
+													: ""
+											}
+											{...form.register("openingAccumulatedDepreciation")}
+										/>
+										{formErrors.openingAccumulatedDepreciation && (
+											<p className="text-sm text-destructive">
+												{formErrors.openingAccumulatedDepreciation.message}
+											</p>
+										)}
+									</div>
+
+									<div className="space-y-2">
+										<Label htmlFor="openingNumberOfBookedDepreciations">
+											Opening Number of Booked Depreciations
+										</Label>
+										<Input
+											id="openingNumberOfBookedDepreciations"
+											type="number"
+											min={0}
+											step={1}
+											placeholder="0"
+											className={
+												formErrors.openingNumberOfBookedDepreciations
+													? "border-destructive"
+													: ""
+											}
+											{...form.register("openingNumberOfBookedDepreciations")}
+										/>
+										{formErrors.openingNumberOfBookedDepreciations && (
+											<p className="text-sm text-destructive">
+												{formErrors.openingNumberOfBookedDepreciations.message}
+											</p>
+										)}
 									</div>
 								</div>
 							</div>

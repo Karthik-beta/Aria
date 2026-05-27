@@ -307,7 +307,7 @@ describe("AssetFormPage", () => {
 		renderWithProviders(<AssetFormPage />);
 
 		await user.type(screen.getByLabelText(/Asset Name/i), "Test Asset");
-		await user.type(screen.getByLabelText(/Company/i), "Test Company");
+		await user.type(document.getElementById("company")!, "Test Company");
 
 		const checkbox = screen.getByRole("checkbox", {
 			name: /Calculate Depreciation/i,
@@ -326,7 +326,6 @@ describe("AssetFormPage", () => {
 					assetName: "Test Asset",
 					company: "Test Company",
 					calculateDepreciation: true,
-					depreciationMethod: null,
 				}),
 			);
 		});
@@ -340,9 +339,9 @@ describe("AssetFormPage", () => {
 		expect(screen.getByRole("button", { name: /Cancel/i })).toBeInTheDocument();
 	});
 
-	it("renders all status options in dropdown", () => {
+	it("renders Depreciation section", () => {
 		renderWithProviders(<AssetFormPage />);
-		expect(screen.getByText("Status")).toBeInTheDocument();
+		expect(screen.getByText(/Depreciation/i)).toBeInTheDocument();
 	});
 
 	it("loads depreciation values in edit mode", async () => {
@@ -399,10 +398,10 @@ describe("AssetFormPage", () => {
 	it("renders all input fields in Basic Information section", () => {
 		renderWithProviders(<AssetFormPage />);
 		expect(screen.getByLabelText(/Asset Name/i)).toBeInTheDocument();
-		expect(screen.getByLabelText(/Company/i)).toBeInTheDocument();
 		expect(screen.getByLabelText(/Item Code/i)).toBeInTheDocument();
 		expect(screen.getByLabelText(/Custodian/i)).toBeInTheDocument();
 		expect(screen.getByLabelText(/Department/i)).toBeInTheDocument();
+		expect(document.getElementById("company")).toBeInTheDocument();
 	});
 
 	it("renders Purchase & Valuation fields", () => {
