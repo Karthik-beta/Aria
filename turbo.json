@@ -110,11 +110,7 @@
 			"persistent": true,
 			"cache": false
 		},
-		"db:start": {
-			"persistent": true,
-			"cache": false
-		},
-		"studio": {
+		"db:studio": {
 			"persistent": true,
 			"cache": false
 		},
