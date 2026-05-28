@@ -17,19 +17,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { authClient } from "@/lib/auth/client";
 
-interface ForgotPasswordFormState {
-	email: string;
-}
-
 export function ForgotPasswordForm() {
 	const router = useRouter();
-	const [state, setState] = useState<ForgotPasswordFormState>({ email: "" });
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [hasSentEmail, setHasSentEmail] = useState(false);
 
-	const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-		event.preventDefault();
-		if (!state.email) {
+	const handleSubmit = async (formData: FormData) => {
+		const email = formData.get("email") as string;
+		if (!email) {
 			toast.error(
 				"Please enter the email address associated with your account.",
 			);
@@ -44,7 +39,7 @@ export function ForgotPasswordForm() {
 					? `${window.location.origin}/auth/reset-password`
 					: undefined;
 			const { error } = await authClient.requestPasswordReset({
-				email: state.email,
+				email,
 				...(redirectTo ? { redirectTo } : {}),
 			});
 
@@ -86,17 +81,17 @@ export function ForgotPasswordForm() {
 				</div>
 			</CardHeader>
 			<CardContent className="space-y-4">
-				<form className="space-y-4" onSubmit={handleSubmit}>
+				<form className="space-y-4" action={handleSubmit}>
 					<div className="space-y-2">
 						<Label htmlFor="email">Work email address</Label>
 						<Input
 							id="email"
+							name="email"
 							type="email"
 							inputMode="email"
 							autoComplete="email"
 							placeholder="you@company.com"
-							value={state.email}
-							onChange={(event) => setState({ email: event.target.value })}
+							defaultValue=""
 							disabled={isSubmitting}
 							required
 						/>

@@ -28,33 +28,32 @@ export function ChangePasswordForm({
 	const router = useRouter();
 	const markPasswordUpdated = trpc.account.markPasswordUpdated.useMutation();
 
-	const [currentPassword, setCurrentPassword] = useState("");
-	const [newPassword, setNewPassword] = useState("");
-	const [confirmPassword, setConfirmPassword] = useState("");
 	const [showCurrentPassword, setShowCurrentPassword] = useState(false);
 	const [showNewPassword, setShowNewPassword] = useState(false);
 	const [revokeOtherSessions, setRevokeOtherSessions] = useState(true);
 	const [isSubmitting, setIsSubmitting] = useState(false);
 
-	const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-		event.preventDefault();
+	const handleSubmit = async (formData: FormData) => {
+		const currentPwd = formData.get("currentPassword") as string;
+		const newPwd = formData.get("newPassword") as string;
+		const confirmPwd = formData.get("confirmPassword") as string;
 
-		if (!currentPassword || !newPassword || !confirmPassword) {
+		if (!currentPwd || !newPwd || !confirmPwd) {
 			toast.error("Please complete all password fields.");
 			return;
 		}
 
-		if (newPassword.length < 8) {
+		if (newPwd.length < 8) {
 			toast.error("New password must be at least 8 characters long.");
 			return;
 		}
 
-		if (newPassword !== confirmPassword) {
+		if (newPwd !== confirmPwd) {
 			toast.error("New passwords do not match.");
 			return;
 		}
 
-		if (currentPassword === newPassword) {
+		if (currentPwd === newPwd) {
 			toast.error("Choose a new password that differs from the current one.");
 			return;
 		}
@@ -63,8 +62,8 @@ export function ChangePasswordForm({
 
 		try {
 			const { data, error } = await authClient.changePassword({
-				currentPassword,
-				newPassword,
+				currentPassword: currentPwd,
+				newPassword: newPwd,
 				revokeOtherSessions,
 			});
 
@@ -78,9 +77,6 @@ export function ChangePasswordForm({
 			router.refresh();
 
 			toast.success("Password updated successfully.");
-			setCurrentPassword("");
-			setNewPassword("");
-			setConfirmPassword("");
 
 			if (revokeOtherSessions && data?.token) {
 				toast.info(
@@ -128,17 +124,17 @@ export function ChangePasswordForm({
 						</AlertDescription>
 					</Alert>
 				)}
-				<form className="space-y-6" onSubmit={handleSubmit}>
+				<form className="space-y-6" action={handleSubmit}>
 					<div className="grid gap-4 sm:grid-cols-2">
 						<div className="space-y-2 sm:col-span-2">
 							<Label htmlFor="current-password">Current password</Label>
 							<div className="relative">
 								<Input
 									id="current-password"
+									name="currentPassword"
 									type={showCurrentPassword ? "text" : "password"}
 									autoComplete="current-password"
-									value={currentPassword}
-									onChange={(event) => setCurrentPassword(event.target.value)}
+									defaultValue=""
 									disabled={isSubmitting}
 									required
 								/>
@@ -166,10 +162,10 @@ export function ChangePasswordForm({
 							<div className="relative">
 								<Input
 									id="new-password"
+									name="newPassword"
 									type={showNewPassword ? "text" : "password"}
 									autoComplete="new-password"
-									value={newPassword}
-									onChange={(event) => setNewPassword(event.target.value)}
+									defaultValue=""
 									disabled={isSubmitting}
 									minLength={8}
 									required
@@ -195,10 +191,10 @@ export function ChangePasswordForm({
 							<Label htmlFor="confirm-password">Confirm new password</Label>
 							<Input
 								id="confirm-password"
+								name="confirmPassword"
 								type="password"
 								autoComplete="new-password"
-								value={confirmPassword}
-								onChange={(event) => setConfirmPassword(event.target.value)}
+								defaultValue=""
 								disabled={isSubmitting}
 								minLength={8}
 								required

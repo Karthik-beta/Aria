@@ -25,8 +25,6 @@ interface ResetPasswordFormProps {
 
 export function ResetPasswordForm({ token, error }: ResetPasswordFormProps) {
 	const router = useRouter();
-	const [newPassword, setNewPassword] = useState("");
-	const [confirmPassword, setConfirmPassword] = useState("");
 	const [showPassword, setShowPassword] = useState(false);
 	const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -64,20 +62,21 @@ export function ResetPasswordForm({ token, error }: ResetPasswordFormProps) {
 		);
 	}
 
-	const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-		event.preventDefault();
+	const handleSubmit = async (formData: FormData) => {
+		const newPwd = formData.get("newPassword") as string;
+		const confirmPwd = formData.get("confirmPassword") as string;
 
 		if (!token) {
 			toast.error("Reset token missing. Request a new link.");
 			return;
 		}
 
-		if (!newPassword || !confirmPassword) {
+		if (!newPwd || !confirmPwd) {
 			toast.error("Enter and confirm your new password.");
 			return;
 		}
 
-		if (newPassword !== confirmPassword) {
+		if (newPwd !== confirmPwd) {
 			toast.error("Passwords do not match.");
 			return;
 		}
@@ -87,7 +86,7 @@ export function ResetPasswordForm({ token, error }: ResetPasswordFormProps) {
 		try {
 			const { error: resetError } = await authClient.resetPassword({
 				token,
-				newPassword,
+				newPassword: newPwd,
 			});
 
 			if (resetError) {
@@ -126,16 +125,16 @@ export function ResetPasswordForm({ token, error }: ResetPasswordFormProps) {
 				</div>
 			</CardHeader>
 			<CardContent>
-				<form className="space-y-4" onSubmit={handleSubmit}>
+				<form className="space-y-4" action={handleSubmit}>
 					<div className="space-y-2">
 						<Label htmlFor="new-password">New password</Label>
 						<div className="relative">
 							<Input
 								id="new-password"
+								name="newPassword"
 								type={showPassword ? "text" : "password"}
 								autoComplete="new-password"
-								value={newPassword}
-								onChange={(event) => setNewPassword(event.target.value)}
+								defaultValue=""
 								disabled={isSubmitting}
 								minLength={8}
 								required
@@ -159,10 +158,10 @@ export function ResetPasswordForm({ token, error }: ResetPasswordFormProps) {
 						<Label htmlFor="confirm-password">Confirm new password</Label>
 						<Input
 							id="confirm-password"
+							name="confirmPassword"
 							type="password"
 							autoComplete="new-password"
-							value={confirmPassword}
-							onChange={(event) => setConfirmPassword(event.target.value)}
+							defaultValue=""
 							disabled={isSubmitting}
 							minLength={8}
 							required

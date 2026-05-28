@@ -24,8 +24,6 @@ import { authClient } from "@/lib/auth/client";
  * Uses better-auth with username plugin for authentication.
  */
 export function LoginForm({ callbackUrl }: { callbackUrl?: string | null }) {
-	const [identifier, setIdentifier] = useState("");
-	const [password, setPassword] = useState("");
 	const [showPassword, setShowPassword] = useState(false);
 	const [isLoading, setIsLoading] = useState(false);
 	const router = useRouter();
@@ -39,8 +37,9 @@ export function LoginForm({ callbackUrl }: { callbackUrl?: string | null }) {
 		};
 	}, []);
 
-	const handleSubmit = async (e: React.FormEvent) => {
-		e.preventDefault();
+	const handleSubmit = async (formData: FormData) => {
+		const identifier = formData.get("identifier") as string;
+		const password = formData.get("password") as string;
 
 		if (!identifier || !password) {
 			toast.error("Please enter your email or username and password");
@@ -143,7 +142,7 @@ export function LoginForm({ callbackUrl }: { callbackUrl?: string | null }) {
 				</div>
 			</CardHeader>
 			<CardContent>
-				<form onSubmit={handleSubmit} className="space-y-4">
+				<form action={handleSubmit} className="space-y-4">
 					<div className="space-y-2">
 						<Label htmlFor="identifier">Email or Username</Label>
 						<Input
@@ -155,8 +154,7 @@ export function LoginForm({ callbackUrl }: { callbackUrl?: string | null }) {
 							autoComplete="username"
 							autoCorrect="off"
 							disabled={isLoading}
-							value={identifier}
-							onChange={(e) => setIdentifier(e.target.value)}
+							defaultValue=""
 							required
 						/>
 					</div>
@@ -171,8 +169,7 @@ export function LoginForm({ callbackUrl }: { callbackUrl?: string | null }) {
 								autoCapitalize="none"
 								autoComplete="current-password"
 								disabled={isLoading}
-								value={password}
-								onChange={(e) => setPassword(e.target.value)}
+								defaultValue=""
 								required
 							/>
 							<button
