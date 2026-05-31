@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import ThemeProvider from "@/components/layout/ThemeToggle/theme-provider";
+import { Toaster } from "@/components/ui/sonner";
 
 export const metadata: Metadata = {
 	title: "Aria ERP | Authentication",
@@ -19,5 +21,16 @@ export default function AuthLayout({
 }: {
 	children: React.ReactNode;
 }) {
-	return <>{children}</>;
+	return (
+		<ThemeProvider
+			attribute="class"
+			defaultTheme="system"
+			enableSystem
+			disableTransitionOnChange
+			enableColorScheme
+		>
+			{children}
+			<Toaster />
+		</ThemeProvider>
+	);
 }

@@ -307,7 +307,7 @@ describe("AssetFormPage", () => {
 		renderWithProviders(<AssetFormPage />);
 
 		await user.type(screen.getByLabelText(/Asset Name/i), "Test Asset");
-		await user.type(document.getElementById("company")!, "Test Company");
+		await user.type(screen.getByLabelText("Company *"), "Test Company");
 
 		const checkbox = screen.getByRole("checkbox", {
 			name: /Calculate Depreciation/i,
