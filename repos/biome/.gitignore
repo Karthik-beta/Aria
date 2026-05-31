@@ -1,0 +1,166 @@
+# Dependencies
+node_modules/
+**/node_modules.mixed.*/
+.pnp.cjs
+.pnp.loader.mjs
+.pnpm-store/
+package-lock.json
+yarn.lock
+
+# Bun
+.bun/
+
+# Turborepo
+.turbo/
+
+# Build outputs
+dist/
+build/
+.next/
+out/
+**/dist-types/
+**/.next/
+**/out/
+*.tsbuildinfo
+tsbuildinfo.json
+tsbuild/
+target/
+.errors/
+
+# Rust compiler crashes
+rustc-ice-*.txt
+
+# Environment files
+.env*
+!.env.example
+!.env.development.template
+!.env.production.template
+
+# IDE and Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+**/.#*
+.nvmrc
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+*.cpuprofile
+*.heapsnapshot
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage/
+*.lcov
+.nyc_output/
+
+# Testing
+test-results/
+playwright-report/
+playwright/.cache/
+apps/backend/.test-dist/
+apps/backend/test/**/*.js
+apps/backend/test/**/*.js.map
+test/**/out/*
+test/**/next-env.d.ts
+test/**/.next*
+/e2e-tests
+test/tmp/**
+test/.trace
+test/traces
+pr-stats.md
+test-timings.json
+
+# Prisma
+apps/backend/prisma/migrations/
+!apps/backend/prisma/migrations/
+!apps/backend/prisma/migrations/**/
+!apps/backend/prisma/migrations/**/migration.sql
+!apps/backend/prisma/migrations/migration_lock.toml
+apps/backend/src/generated/
+
+# SSL/TLS Private Keys - NEVER commit to version control
+*.key
+*.pem
+traefik/certs/server.key
+traefik/certs/*.key
+traefik/certs/*.pem
+
+# Temporary folders
+tmp/
+temp/
+
+# Cache directories
+.cache/
+.parcel-cache/
+.eslintcache
+
+# Deployment
+.deployment/
+
+# Miscellaneous
+*.tgz
+*.tar.gz
+
+# Temporary files
+*.txt
+
+# Vercel & Next caches
+.vercel
+.now
+.swc/
+
+# Storybook logs
+*storybook.log
+
+# Examples
+examples/**/out/*
+
+# Conductor worktrees (keep scripts)
+.conductor/*/
+!.conductor/scripts/
+
+index.scip
+
+# Eval artifacts
+evals/.tarballs/
+evals/experiments/
+evals/results/
+evals/agent-results.json
+
+# Claude folder
+.claude
+
+# Turborepo
+.turbo
+
+# ERPNext
+.erpnext
+
+# Prompt
+.prompts
+
+# Others 
+.kilo

@@ -1,0 +1,228 @@
+"use client";
+
+import { logger } from "@aria/utils";
+import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
+import { Icons } from "@/components/icons";
+import { Button } from "@/components/ui/button";
+import {
+	Card,
+	CardContent,
+	CardDescription,
+	CardHeader,
+	CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { getAuthRedirectUrl } from "@/config/auth";
+import { authClient } from "@/lib/auth/client";
+
+/**
+ * Login form component with username and password authentication
+ *
+ * Uses better-auth with username plugin for authentication.
+ */
+export function LoginForm({ callbackUrl }: { callbackUrl?: string | null }) {
+	const [showPassword, setShowPassword] = useState(false);
+	const [isLoading, setIsLoading] = useState(false);
+	const router = useRouter();
+
+	// track mounted state to prevent state updates after unmount (avoids console error)
+	const mountedRef = useRef(false);
+	useEffect(() => {
+		mountedRef.current = true;
+		return () => {
+			mountedRef.current = false;
+		};
+	}, []);
+
+	const handleSubmit = async (formData: FormData) => {
+		const identifier = formData.get("identifier") as string;
+		const password = formData.get("password") as string;
+
+		if (!identifier || !password) {
+			toast.error("Please enter your email or username and password");
+			return;
+		}
+
+		setIsLoading(true);
+
+		try {
+			const isEmail = identifier.includes("@");
+			const { data, error } = isEmail
+				? await authClient.signIn.email({
+						email: identifier,
+						password,
+					})
+				: await authClient.signIn.username({
+						username: identifier,
+						password,
+					});
+
+			if (error) {
+				toast.error(error.message || "Failed to sign in. Please try again.");
+				return;
+			}
+
+			if (data) {
+				toast.success("Successfully signed in!");
+				const user = (data as { user?: Record<string, unknown> }).user;
+				const mustChangePassword = Boolean(
+					user &&
+						typeof user === "object" &&
+						"mustChangePassword" in user &&
+						(user as Record<string, unknown>).mustChangePassword,
+				);
+
+				if (mustChangePassword) {
+					router.push("/auth/change-password");
+					router.refresh();
+					return;
+				}
+
+				// Ensure an active organization is selected before entering the app.
+				// Without this, org-protected tRPC routes will return 401.
+				try {
+					const orgsResult = await authClient.organization.list();
+					const orgs = (orgsResult.data ?? []) as Array<{
+						id: string;
+						slug: string;
+					}>;
+
+					if (orgs.length === 0) {
+						router.push("/onboarding/organization");
+						router.refresh();
+						return;
+					}
+
+					await authClient.organization.setActive({
+						organizationId: orgs[0].id,
+					});
+				} catch (orgError) {
+					// Fail-safe: if listing/setting org fails, redirect to onboarding
+					// so the user isn't stuck in a 401 loop.
+					logger.warn(
+						"[Login] Failed to resolve active organization:",
+						orgError,
+					);
+					router.push("/onboarding/organization");
+					router.refresh();
+					return;
+				}
+
+				const redirectTarget = getAuthRedirectUrl(callbackUrl ?? null);
+				router.push(redirectTarget);
+				router.refresh();
+			}
+		} catch {
+			toast.error("An unexpected error occurred. Please try again.");
+		} finally {
+			if (mountedRef.current) {
+				setIsLoading(false);
+			}
+		}
+	};
+
+	return (
+		<Card className="w-full max-w-md border border-muted/40 shadow-sm backdrop-blur-sm bg-card/90">
+			<CardHeader className="space-y-4">
+				<div className="flex items-start gap-3">
+					<div className="rounded-md bg-primary/10 p-2 ring-1 ring-primary/20">
+						<Icons.login className="h-5 w-5 text-primary" />
+					</div>
+					<div className="space-y-1">
+						<CardTitle className="text-2xl font-bold tracking-tight">
+							Sign In
+						</CardTitle>
+						<CardDescription>
+							Secure access to your Aria workspace
+						</CardDescription>
+					</div>
+				</div>
+			</CardHeader>
+			<CardContent>
+				<form action={handleSubmit} className="space-y-4">
+					<div className="space-y-2">
+						<Label htmlFor="identifier">Email or Username</Label>
+						<Input
+							id="identifier"
+							name="identifier"
+							placeholder="Enter your email address or username"
+							type="text"
+							autoCapitalize="none"
+							autoComplete="username"
+							autoCorrect="off"
+							disabled={isLoading}
+							defaultValue=""
+							required
+						/>
+					</div>
+					<div className="space-y-2">
+						<Label htmlFor="password">Password</Label>
+						<div className="relative">
+							<Input
+								id="password"
+								name="password"
+								placeholder="Enter your password"
+								type={showPassword ? "text" : "password"}
+								autoCapitalize="none"
+								autoComplete="current-password"
+								disabled={isLoading}
+								defaultValue=""
+								required
+							/>
+							<button
+								type="button"
+								onClick={() => setShowPassword((prev) => !prev)}
+								className="absolute inset-y-0 right-2 flex items-center text-muted-foreground hover:text-foreground transition-colors"
+								disabled={isLoading}
+							>
+								{showPassword ? (
+									<Icons.eyeOff className="h-4 w-4" />
+								) : (
+									<Icons.eye className="h-4 w-4" />
+								)}
+								<span className="sr-only">
+									{showPassword ? "Hide password" : "Show password"}
+								</span>
+							</button>
+						</div>
+					</div>
+					<Button type="submit" className="w-full" disabled={isLoading}>
+						{isLoading && (
+							<Icons.spinner className="mr-2 h-4 w-4 animate-spin" />
+						)}
+						Sign In
+					</Button>
+				</form>
+				<div className="space-y-2 pt-2 text-xs text-muted-foreground">
+					<div className="flex justify-between">
+						<button
+							type="button"
+							className="underline underline-offset-4 hover:text-primary"
+							onClick={() => router.push("/auth/forgot-password")}
+							disabled={isLoading}
+						>
+							Forgot password?
+						</button>
+						<button
+							type="button"
+							className="underline underline-offset-4 hover:text-primary"
+							onClick={() =>
+								toast.info("Contact support at support@aria.example")
+							}
+							disabled={isLoading}
+						>
+							Need help?
+						</button>
+					</div>
+					<p className="text-[10px] leading-relaxed">
+						By signing in you agree to our security & usage policies.
+						Unauthorized access will be investigated.
+					</p>
+				</div>
+			</CardContent>
+		</Card>
+	);
+}
