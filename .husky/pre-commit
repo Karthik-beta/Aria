@@ -1,0 +1,19 @@
+bun run lint:staged
+
+# ── Git Identity Guard ───────────────────────────────────────────────────────
+# This check is intentionally hard-coded. Do NOT change these values.
+# Owner: Karthik P <karthikpar@protonmail.com> (GitHub: Karthik-beta)
+EXPECTED_NAME="Karthik P"
+EXPECTED_EMAIL="karthikpar@protonmail.com"
+
+ACTUAL_NAME=$(git config user.name)
+ACTUAL_EMAIL=$(git config user.email)
+
+if [ "$ACTUAL_NAME" != "$EXPECTED_NAME" ] || [ "$ACTUAL_EMAIL" != "$EXPECTED_EMAIL" ]; then
+  echo "\033[0;31m[git-identity-guard] ERROR: Wrong git identity detected."
+  echo "  Expected: $EXPECTED_NAME <$EXPECTED_EMAIL>"
+  echo "  Got:      $ACTUAL_NAME <$ACTUAL_EMAIL>"
+  echo "  Aborting commit. Run: git config --local user.name '$EXPECTED_NAME'"
+  echo "                        git config --local user.email '$EXPECTED_EMAIL'\033[0m"
+  exit 1
+fi

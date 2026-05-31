@@ -1,0 +1,741 @@
+"use client";
+
+import type { ColumnDef, Row } from "@tanstack/react-table";
+import * as React from "react";
+import {
+	Cell,
+	Label,
+	Pie,
+	PieChart,
+	ResponsiveContainer,
+	Tooltip,
+} from "recharts";
+import {
+	AdvancedDataTable,
+	downloadExcelBuffer,
+	useAdvancedDataTable,
+} from "@/components/advanced-data-table";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ErrorState } from "@/components/ui/error-display";
+import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
+import { DataTableColumnHeader } from "@/components/ui/table/data-table-column-header";
+import { DataTableSkeleton } from "@/components/ui/table/data-table-skeleton";
+import { trpc } from "@/lib/trpc";
+import {
+	buildDonutChartData,
+	formatAmount,
+	formatQty,
+	getBilledClass,
+	getChartColor,
+	getDefaultFromDate,
+	getDefaultToDate,
+	getReceivedClass,
+	type PurchaseOrderAnalysisRow,
+	type PurchaseOrderAnalysisStatus,
+	STATUS_OPTIONS,
+} from "./purchase-order-analysis.utils";
+
+// ---------------------------------------------------------------------------
+// Filter state
+// ---------------------------------------------------------------------------
+
+type FilterState = {
+	company: string;
+	fromDate: string;
+	toDate: string;
+	status: PurchaseOrderAnalysisStatus[];
+	project: string;
+	purchaseOrders: string;
+	groupByPurchaseOrder: boolean;
+};
+
+const INITIAL_FILTERS: FilterState = {
+	company: "",
+	fromDate: getDefaultFromDate(),
+	toDate: getDefaultToDate(),
+	status: [],
+	project: "",
+	purchaseOrders: "",
+	groupByPurchaseOrder: false,
+};
+
+// ---------------------------------------------------------------------------
+// Validation
+// ---------------------------------------------------------------------------
+
+function validateFilters(filters: FilterState): string | null {
+	if (!filters.company.trim()) return "Company is required.";
+	if (!filters.fromDate) return "From Date is required.";
+	if (!filters.toDate) return "To Date is required.";
+	if (filters.fromDate > filters.toDate) {
+		return "From Date must not be later than To Date.";
+	}
+	return null;
+}
+
+// ---------------------------------------------------------------------------
+// Page component
+// ---------------------------------------------------------------------------
+
+export default function PurchaseOrderAnalysisPage() {
+	const [filters, setFilters] = React.useState<FilterState>({
+		...INITIAL_FILTERS,
+	});
+
+	const updateFilter = React.useCallback(
+		<Key extends keyof FilterState>(key: Key, value: FilterState[Key]) => {
+			setFilters((current) => ({ ...current, [key]: value }));
+		},
+		[],
+	);
+
+	const resetFilters = React.useCallback(() => {
+		setFilters({ ...INITIAL_FILTERS });
+	}, []);
+
+	const validationError = React.useMemo(
+		() => validateFilters(filters),
+		[filters],
+	);
+
+	const queryInput = React.useMemo(() => {
+		if (validationError) return null;
+
+		const purchaseOrders = filters.purchaseOrders
+			.split(",")
+			.map((s) => s.trim())
+			.filter(Boolean);
+
+		return {
+			company: filters.company.trim(),
+			fromDate: new Date(`${filters.fromDate}T00:00:00.000Z`),
+			toDate: new Date(`${filters.toDate}T23:59:59.999Z`),
+			status: filters.status.length > 0 ? filters.status : undefined,
+			project: filters.project.trim() || undefined,
+			purchaseOrders: purchaseOrders.length > 0 ? purchaseOrders : undefined,
+			groupByPurchaseOrder: filters.groupByPurchaseOrder,
+		};
+	}, [
+		validationError,
+		filters.company,
+		filters.fromDate,
+		filters.toDate,
+		filters.status,
+		filters.project,
+		filters.purchaseOrders,
+		filters.groupByPurchaseOrder,
+	]);
+
+	const {
+		data: result,
+		isLoading,
+		error: queryError,
+		refetch,
+	} = trpc.inventory.listPurchaseOrderAnalysis.useQuery(
+		// biome-ignore lint/style/noNonNullAssertion: guarded by enabled
+		queryInput!,
+		{
+			enabled: queryInput != null,
+			refetchOnWindowFocus: false,
+			retry: 2,
+			staleTime: 60_000,
+		},
+	);
+
+	const rows: PurchaseOrderAnalysisRow[] = React.useMemo(
+		() => result?.rows ?? [],
+		[result],
+	);
+
+	const donutData = React.useMemo(
+		() => (result?.summary ? buildDonutChartData(result.summary) : []),
+		[result],
+	);
+
+	const totalBilled = result?.summary.totalBilledAmount ?? 0;
+	const totalPending = result?.summary.totalPendingAmount ?? 0;
+	const grouped = filters.groupByPurchaseOrder;
+
+	// ---------------------------------------------------------------------------
+	// Columns
+	// ---------------------------------------------------------------------------
+
+	const columns = React.useMemo<ColumnDef<PurchaseOrderAnalysisRow>[]>(() => {
+		const cols: ColumnDef<PurchaseOrderAnalysisRow>[] = [
+			{
+				accessorKey: "date",
+				header: ({ column }) => (
+					<DataTableColumnHeader column={column} title="Date" />
+				),
+				cell: ({ row }) => (
+					<span className="tabular-nums text-sm">
+						{new Date(row.original.date).toLocaleDateString("en-IN")}
+					</span>
+				),
+				meta: { label: "Date", exportable: true },
+			},
+			{
+				accessorKey: "requiredDate",
+				header: ({ column }) => (
+					<DataTableColumnHeader column={column} title="Required By" />
+				),
+				cell: ({ row }) => (
+					<span className="tabular-nums text-sm">
+						{new Date(row.original.requiredDate).toLocaleDateString("en-IN")}
+					</span>
+				),
+				meta: { label: "Required By", exportable: true },
+			},
+			{
+				accessorKey: "purchaseOrder",
+				header: ({ column }) => (
+					<DataTableColumnHeader column={column} title="Purchase Order" />
+				),
+				cell: ({ row }) => (
+					<span className="font-medium">{row.original.purchaseOrder}</span>
+				),
+				meta: { label: "Purchase Order", searchable: true, exportable: true },
+			},
+			{
+				accessorKey: "status",
+				header: ({ column }) => (
+					<DataTableColumnHeader column={column} title="Status" />
+				),
+				cell: ({ row }) => (
+					<span className="text-sm">
+						{STATUS_OPTIONS.find((o) => o.value === row.original.status)
+							?.label ?? row.original.status}
+					</span>
+				),
+				meta: { label: "Status", exportable: true },
+			},
+			{
+				accessorKey: "supplier",
+				header: ({ column }) => (
+					<DataTableColumnHeader column={column} title="Supplier" />
+				),
+				cell: ({ row }) => (
+					<span className="text-sm">{row.original.supplier}</span>
+				),
+				meta: { label: "Supplier", searchable: true, exportable: true },
+			},
+			{
+				accessorKey: "project",
+				header: ({ column }) => (
+					<DataTableColumnHeader column={column} title="Project" />
+				),
+				cell: ({ row }) => (
+					<span className="text-sm text-muted-foreground">
+						{row.original.project ?? "—"}
+					</span>
+				),
+				meta: { label: "Project", exportable: true },
+			},
+		];
+
+		if (!grouped) {
+			cols.push({
+				accessorKey: "itemCode",
+				header: ({ column }) => (
+					<DataTableColumnHeader column={column} title="Item Code" />
+				),
+				cell: ({ row }) => (
+					<span className="text-sm">{row.original.itemCode ?? "—"}</span>
+				),
+				meta: { label: "Item Code", searchable: true, exportable: true },
+			});
+		}
+
+		cols.push(
+			{
+				accessorKey: "qty",
+				header: ({ column }) => (
+					<DataTableColumnHeader column={column} title="Qty" />
+				),
+				cell: ({ row }) => (
+					<span className="tabular-nums text-sm">
+						{formatQty(row.original.qty)}
+					</span>
+				),
+				meta: { label: "Qty", exportable: true },
+			},
+			{
+				accessorKey: "receivedQty",
+				header: ({ column }) => (
+					<DataTableColumnHeader column={column} title="Received Qty" />
+				),
+				cell: ({ row }) => (
+					<span
+						className={`tabular-nums text-sm ${getReceivedClass(row.original.receivedQty)}`}
+					>
+						{formatQty(row.original.receivedQty)}
+					</span>
+				),
+				meta: { label: "Received Qty", exportable: true },
+			},
+			{
+				accessorKey: "pendingQty",
+				header: ({ column }) => (
+					<DataTableColumnHeader column={column} title="Pending Qty" />
+				),
+				cell: ({ row }) => (
+					<span className="tabular-nums text-sm">
+						{formatQty(row.original.pendingQty)}
+					</span>
+				),
+				meta: { label: "Pending Qty", exportable: true },
+			},
+			{
+				accessorKey: "billedQty",
+				header: ({ column }) => (
+					<DataTableColumnHeader column={column} title="Billed Qty" />
+				),
+				cell: ({ row }) => (
+					<span className="tabular-nums text-sm">
+						{formatQty(row.original.billedQty)}
+					</span>
+				),
+				meta: { label: "Billed Qty", exportable: true },
+			},
+			{
+				accessorKey: "qtyToBill",
+				header: ({ column }) => (
+					<DataTableColumnHeader column={column} title="Qty to Bill" />
+				),
+				cell: ({ row }) => (
+					<span className="tabular-nums text-sm">
+						{formatQty(row.original.qtyToBill)}
+					</span>
+				),
+				meta: { label: "Qty to Bill", exportable: true },
+			},
+			{
+				accessorKey: "amount",
+				header: ({ column }) => (
+					<DataTableColumnHeader column={column} title="Amount" />
+				),
+				cell: ({ row }) => (
+					<span className="tabular-nums text-sm">
+						{formatAmount(row.original.amount)}
+					</span>
+				),
+				meta: { label: "Amount", exportable: true },
+			},
+			{
+				accessorKey: "billedAmount",
+				header: ({ column }) => (
+					<DataTableColumnHeader column={column} title="Billed Amount" />
+				),
+				cell: ({ row }) => (
+					<span
+						className={`tabular-nums text-sm ${getBilledClass(row.original.billedAmount)}`}
+					>
+						{formatAmount(row.original.billedAmount)}
+					</span>
+				),
+				meta: { label: "Billed Amount", exportable: true },
+			},
+			{
+				accessorKey: "pendingAmount",
+				header: ({ column }) => (
+					<DataTableColumnHeader column={column} title="Pending Amount" />
+				),
+				cell: ({ row }) => (
+					<span
+						className={`tabular-nums text-sm ${row.original.pendingAmount > 0 ? "text-destructive font-medium" : ""}`}
+					>
+						{formatAmount(row.original.pendingAmount)}
+					</span>
+				),
+				meta: { label: "Pending Amount", exportable: true },
+			},
+			{
+				accessorKey: "receivedQtyAmount",
+				header: ({ column }) => (
+					<DataTableColumnHeader column={column} title="Received Qty Amount" />
+				),
+				cell: ({ row }) => (
+					<span
+						className={`tabular-nums text-sm ${getReceivedClass(row.original.receivedQtyAmount)}`}
+					>
+						{formatAmount(row.original.receivedQtyAmount)}
+					</span>
+				),
+				meta: { label: "Received Qty Amount", exportable: true },
+			},
+		);
+
+		if (!grouped) {
+			cols.push({
+				accessorKey: "warehouse",
+				header: ({ column }) => (
+					<DataTableColumnHeader column={column} title="Warehouse" />
+				),
+				cell: ({ row }) => (
+					<span className="text-sm text-muted-foreground">
+						{row.original.warehouse ?? "—"}
+					</span>
+				),
+				meta: { label: "Warehouse", exportable: true },
+			});
+		}
+
+		cols.push({
+			accessorKey: "company",
+			header: ({ column }) => (
+				<DataTableColumnHeader column={column} title="Company" />
+			),
+			cell: ({ row }) => (
+				<span className="text-sm text-muted-foreground">
+					{row.original.company}
+				</span>
+			),
+			meta: { label: "Company", exportable: true },
+		});
+
+		return cols;
+	}, [grouped]);
+
+	// ---------------------------------------------------------------------------
+	// Table
+	// ---------------------------------------------------------------------------
+
+	const handleReload = React.useCallback(async () => {
+		await refetch();
+	}, [refetch]);
+
+	const { table } = useAdvancedDataTable<PurchaseOrderAnalysisRow>({
+		data: rows,
+		columns,
+		initialPageSize: 50,
+		initialSorting: [{ id: "date", desc: true }],
+		enableRowSelection: false,
+		enableMultiRowSelection: false,
+		enableGlobalFilter: false,
+		onReload: handleReload,
+		getRowId: (row) =>
+			grouped
+				? row.purchaseOrderId
+				: `${row.purchaseOrderId}_${row.itemCode ?? ""}`,
+	});
+
+	const exportPurchaseOrderAnalysisExcel =
+		trpc.inventory.exportPurchaseOrderAnalysisExcel.useMutation();
+
+	const handleExport = React.useCallback(
+		async (
+			_format: string,
+			_rows: readonly Row<PurchaseOrderAnalysisRow>[],
+		) => {
+			if (!queryInput) return;
+			const buffer = (await exportPurchaseOrderAnalysisExcel.mutateAsync(
+				queryInput,
+			)) as string;
+			downloadExcelBuffer(buffer, `purchase-order-analysis-${Date.now()}.xlsx`);
+		},
+		[queryInput, exportPurchaseOrderAnalysisExcel],
+	);
+
+	const hasActiveFilters = React.useMemo(
+		() =>
+			(Object.keys(INITIAL_FILTERS) as Array<keyof FilterState>).some((key) => {
+				const current = filters[key];
+				const initial = INITIAL_FILTERS[key];
+				if (Array.isArray(current) && Array.isArray(initial)) {
+					return current.length !== initial.length;
+				}
+				return current !== initial;
+			}),
+		[filters],
+	);
+
+	// ---------------------------------------------------------------------------
+	// Render
+	// ---------------------------------------------------------------------------
+
+	return (
+		<div className="flex flex-1 flex-col gap-6 p-4 md:px-6">
+			{/* Header */}
+			<div className="flex items-center justify-between gap-4">
+				<div>
+					<h1 className="text-3xl font-bold tracking-tight">
+						Purchase Order Analysis
+					</h1>
+					<p className="text-muted-foreground">
+						Analyse purchase order fulfilment, receipt status, and billing
+						status.
+					</p>
+				</div>
+			</div>
+
+			{/* Filters */}
+			<search className="rounded-lg border bg-background p-4">
+				<div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+					<Input
+						value={filters.company}
+						onChange={(event) => updateFilter("company", event.target.value)}
+						placeholder="Company *"
+						aria-label="Filter by company (required)"
+					/>
+					<Input
+						value={filters.project}
+						onChange={(event) => updateFilter("project", event.target.value)}
+						placeholder="Project"
+						aria-label="Filter by project"
+					/>
+					<Input
+						value={filters.purchaseOrders}
+						onChange={(event) =>
+							updateFilter("purchaseOrders", event.target.value)
+						}
+						placeholder="Purchase orders (comma-separated)"
+						aria-label="Filter by purchase orders"
+					/>
+					<Input
+						type="date"
+						value={filters.fromDate}
+						onChange={(event) => updateFilter("fromDate", event.target.value)}
+						aria-label="From date"
+					/>
+					<Input
+						type="date"
+						value={filters.toDate}
+						onChange={(event) => updateFilter("toDate", event.target.value)}
+						aria-label="To date"
+					/>
+				</div>
+
+				{/* Status filter */}
+				<div className="mt-3">
+					<span className="mb-1.5 block text-sm text-muted-foreground">
+						Status:
+					</span>
+					<div className="flex flex-wrap gap-3">
+						{STATUS_OPTIONS.map((opt) => (
+							<label
+								key={opt.value}
+								htmlFor={`status-${opt.value}`}
+								className="flex cursor-pointer items-center gap-1.5 text-sm"
+							>
+								<Checkbox
+									id={`status-${opt.value}`}
+									checked={filters.status.includes(opt.value)}
+									onCheckedChange={(checked) => {
+										updateFilter(
+											"status",
+											checked
+												? [...filters.status, opt.value]
+												: filters.status.filter((s) => s !== opt.value),
+										);
+									}}
+									aria-label={`Filter by status ${opt.label}`}
+								/>
+								{opt.label}
+							</label>
+						))}
+					</div>
+				</div>
+
+				<div className="mt-3 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+					<label
+						htmlFor="group-by-purchase-order"
+						className="flex cursor-pointer items-center gap-2 text-sm"
+					>
+						<Checkbox
+							id="group-by-purchase-order"
+							checked={filters.groupByPurchaseOrder}
+							onCheckedChange={(checked) =>
+								updateFilter("groupByPurchaseOrder", Boolean(checked))
+							}
+							aria-label="Group by purchase order"
+						/>
+						Group by Purchase Order
+					</label>
+					<Button
+						variant="outline"
+						onClick={resetFilters}
+						disabled={!hasActiveFilters}
+					>
+						Reset filters
+					</Button>
+				</div>
+
+				{validationError ? (
+					<p className="mt-2 text-sm text-destructive" role="alert">
+						{validationError}
+					</p>
+				) : null}
+			</search>
+
+			{/* Loading state */}
+			{isLoading && queryInput != null ? (
+				<div className="flex flex-col gap-4">
+					<div className="rounded-lg border bg-background p-4">
+						<div className="mb-4">
+							<Skeleton className="h-5 w-48 mb-1" />
+							<Skeleton className="h-4 w-64" />
+						</div>
+						<div className="flex flex-col md:flex-row items-center gap-6">
+							<Skeleton className="h-[260px] w-[260px] rounded-full" />
+							<div className="flex flex-col gap-3">
+								<Skeleton className="h-4 w-32" />
+								<Skeleton className="h-4 w-32" />
+							</div>
+						</div>
+					</div>
+					<DataTableSkeleton columnCount={12} rowCount={10} filterCount={0} />
+				</div>
+			) : null}
+
+			{/* Error state */}
+			{!isLoading && queryError ? (
+				<ErrorState error={queryError} operation="load" />
+			) : null}
+
+			{/* Donut chart */}
+			{!validationError &&
+			!isLoading &&
+			!queryError &&
+			donutData.some((d) => d.value > 0) ? (
+				<section
+					className="rounded-lg border bg-background p-4"
+					aria-label="Purchase order billing summary chart"
+				>
+					<div className="mb-4">
+						<h2 className="text-lg font-semibold">Billing Summary</h2>
+						<p className="text-sm text-muted-foreground">
+							Amount to Bill vs Billed Amount across all filtered purchase
+							orders.
+						</p>
+					</div>
+					<div className="flex flex-col items-center gap-6 md:flex-row md:items-start">
+						<div className="h-[260px] w-full min-w-0 min-h-[260px]">
+							<ResponsiveContainer
+								width="100%"
+								height="100%"
+								minWidth={0}
+								minHeight={260}
+							>
+								<PieChart>
+									<Pie
+										data={donutData}
+										dataKey="value"
+										nameKey="name"
+										innerRadius={70}
+										outerRadius={110}
+										strokeWidth={2}
+										stroke="var(--background)"
+									>
+										{donutData.map((entry, index) => (
+											<Cell
+												key={`cell_${entry.name}`}
+												fill={getChartColor(index)}
+											/>
+										))}
+										<Label
+											content={({ viewBox }) => {
+												if (viewBox && "cx" in viewBox && "cy" in viewBox) {
+													const total = totalBilled + totalPending;
+													return (
+														<text
+															x={viewBox.cx}
+															y={viewBox.cy}
+															textAnchor="middle"
+															dominantBaseline="middle"
+														>
+															<tspan
+																x={viewBox.cx}
+																y={viewBox.cy}
+																className="fill-foreground text-2xl font-bold"
+															>
+																{`₹${new Intl.NumberFormat("en-IN", {
+																	notation: "compact",
+																	maximumFractionDigits: 1,
+																}).format(total)}`}
+															</tspan>
+															<tspan
+																x={viewBox.cx}
+																y={(viewBox.cy ?? 0) + 22}
+																className="fill-muted-foreground text-sm"
+															>
+																Total
+															</tspan>
+														</text>
+													);
+												}
+												return null;
+											}}
+										/>
+									</Pie>
+									<Tooltip
+										formatter={(value) => [
+											formatAmount(Number(value ?? 0)),
+											"",
+										]}
+									/>
+								</PieChart>
+							</ResponsiveContainer>
+						</div>
+						<div className="flex min-w-[180px] flex-col gap-3 pt-4">
+							{donutData.map((entry, index) => (
+								<div key={entry.name} className="flex items-center gap-2">
+									<span
+										className="h-3 w-3 shrink-0 rounded-full"
+										style={{ backgroundColor: getChartColor(index) }}
+									/>
+									<span className="text-sm">
+										<span className="text-muted-foreground">
+											{entry.name}:{" "}
+										</span>
+										<span className="font-medium">
+											{formatAmount(entry.value)}
+										</span>
+									</span>
+								</div>
+							))}
+						</div>
+					</div>
+				</section>
+			) : null}
+
+			{/* Table */}
+			{!validationError && !isLoading && !queryError && rows.length > 0 ? (
+				<section aria-label="Purchase order analysis table">
+					<div className="mb-2 flex items-center justify-between">
+						<p className="text-sm text-muted-foreground">
+							{rows.length} row{rows.length !== 1 ? "s" : ""} · Billed:{" "}
+							{formatAmount(totalBilled)} · Pending:{" "}
+							{formatAmount(totalPending)}
+						</p>
+					</div>
+					<AdvancedDataTable
+						table={table}
+						data={rows}
+						enableExport
+						onExport={handleExport}
+						enableVirtualization={false}
+						enableColumnResizing
+						enableBulkActions={false}
+						ariaLabel="Purchase order analysis"
+					/>
+				</section>
+			) : null}
+
+			{/* Empty state */}
+			{!validationError &&
+			!isLoading &&
+			!queryError &&
+			queryInput != null &&
+			rows.length === 0 ? (
+				<div className="flex flex-col items-center justify-center gap-2 py-16 text-center text-muted-foreground">
+					<p className="text-base font-medium">No purchase orders found</p>
+					<p className="text-sm">
+						Try adjusting the company, date range, or filters.
+					</p>
+				</div>
+			) : null}
+		</div>
+	);
+}
