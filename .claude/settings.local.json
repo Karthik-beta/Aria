@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "*",
+      "Bash",
+      "WebSearch",
+      "Fetch",
+      "Update",
+      "Read",
+      "Write",
+      "Edit",
+      "Find",
+      "List",
+      "Glob",
+      "mcp__sequential-thinking__sequentialthinking",
+      "mcp__ddg-search__search",
+      "mcp__context7__resolve-library-id",
+      "mcp__ddg-search__fetch_content",
+      "mcp__context7__get-library-docs",
+      "WebFetch(domain:trpc.io)",
+      "WebFetch(domain:michaelguay.dev)",
+      "WebFetch(domain:www.better-auth.com)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

@@ -1,0 +1,46 @@
+[Unit]
+Description=Aria ERP Application
+Documentation=https://github.com/Karthik-beta/Aria
+After=docker.service network-online.target
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/aria
+EnvironmentFile=/opt/aria/.env
+
+# Pull latest images before starting
+ExecStartPre=-/usr/bin/docker compose -f docker-compose.production.yml pull --quiet
+
+# Start the application
+ExecStart=/usr/bin/docker compose -f docker-compose.production.yml up -d --remove-orphans
+
+# Stop the application
+ExecStop=/usr/bin/docker compose -f docker-compose.production.yml down
+
+# Reload configuration
+ExecReload=/usr/bin/docker compose -f docker-compose.production.yml restart
+
+# Timeouts
+TimeoutStartSec=300
+TimeoutStopSec=120
+
+# Restart policy
+Restart=on-failure
+RestartSec=10s
+StartLimitInterval=60
+StartLimitBurst=3
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=aria-erp
+
+[Install]
+WantedBy=multi-user.target

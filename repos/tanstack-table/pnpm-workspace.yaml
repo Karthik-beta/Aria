@@ -1,0 +1,14 @@
+cleanupUnusedCatalogs: true
+linkWorkspacePackages: true
+preferWorkspacePackages: true
+
+packages:
+  - 'packages/*'
+  - 'examples/angular/*'
+  - 'examples/lit/*'
+  - 'examples/qwik/*'
+  - 'examples/react/*'
+  - 'examples/solid/*'
+  - 'examples/svelte/*'
+  - 'examples/vanilla/*'
+  - 'examples/vue/*'
