@@ -1,9 +1,14 @@
 import { Injectable, type OnModuleInit } from "@nestjs/common";
 import { AssetRouter } from "../apps/asset/trpc/asset.router";
+import { CompanyRouter } from "../apps/company/trpc/company.router";
 import { InventoryRouter } from "../apps/inventory/trpc/inventory.router";
 import { type AppRouter, createAppRouter } from "./app-router";
 
-const NEST_ROUTER_DEPENDENCIES = [InventoryRouter, AssetRouter] as const;
+const NEST_ROUTER_DEPENDENCIES = [
+	InventoryRouter,
+	AssetRouter,
+	CompanyRouter,
+] as const;
 void NEST_ROUTER_DEPENDENCIES;
 
 /**
@@ -19,6 +24,7 @@ export class TrpcService implements OnModuleInit {
 	constructor(
 		private readonly inventoryRouter: InventoryRouter,
 		private readonly assetRouter: AssetRouter,
+		private readonly companyRouter: CompanyRouter,
 	) {}
 
 	onModuleInit() {
@@ -34,6 +40,7 @@ export class TrpcService implements OnModuleInit {
 		return createAppRouter(
 			this.inventoryRouter.getRouter(),
 			this.assetRouter.getRouter(),
+			this.companyRouter.getRouter(),
 		);
 	}
 

@@ -8,7 +8,7 @@ export interface FiscalYearIds {
 
 export async function seedFiscalYearData(
 	prisma: PrismaService,
-	_config: DemoConfig,
+	config: DemoConfig,
 ): Promise<FiscalYearIds> {
 	const ids: FiscalYearIds = {
 		fiscalYearIds: new Map(),
@@ -46,31 +46,32 @@ export async function seedFiscalYearData(
 		}
 	}
 
-	// Create a default company for demo purposes
-	const companyData = {
-		name: "ACME Corp",
-		abbreviation: "ACME",
-		country: "India",
-		currency: "INR",
-		disabled: false,
-	};
-
+	// Create the demo company using config values
 	const existingCompany = await prisma.company.findUnique({
-		where: { name: companyData.name },
+		where: { name: config.company },
 	});
 
 	if (existingCompany) {
-		ids.companyIds.set(companyData.name, existingCompany.id);
+		ids.companyIds.set(config.company, existingCompany.id);
 	} else {
 		const created = await prisma.company.create({
-			data: companyData,
+			data: {
+				name: config.company,
+				abbreviation: "PTPL",
+				country: "India",
+				currency: config.currency,
+				taxId: "AABCP1234A",
+				domain: "Manufacturing",
+				isGroup: false,
+				disabled: false,
+			},
 		});
-		ids.companyIds.set(companyData.name, created.id);
+		ids.companyIds.set(config.company, created.id);
 	}
 
 	// Link current FY (2025-26) to the company
 	const currentFYId = ids.fiscalYearIds.get("2025-26");
-	const companyId = ids.companyIds.get("ACME Corp");
+	const companyId = ids.companyIds.get(config.company);
 
 	if (currentFYId && companyId) {
 		const existingLink = await prisma.fiscalYearCompany.findFirst({

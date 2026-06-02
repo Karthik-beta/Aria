@@ -7090,6 +7090,112 @@ export namespace Asset {
 }
 
 // ============================================================================
+// Company Domain Types & Schemas
+// ============================================================================
+
+/**
+ * Company namespace — groups all company-related types, Zod schemas, and
+ * input contracts. Mirrors the ERPNext Company DocType at a core-field level.
+ *
+ * Use: `import { Company } from '@aria/types';` then `Company.CompanyItem`, etc.
+ */
+export namespace Company {
+	// ── Interfaces ───────────────────────────────────────────────────────────
+
+	/** Domain model returned by the Company API. */
+	export interface CompanyItem {
+		id: string;
+		name: string;
+		abbreviation: string | null;
+		country: string | null;
+		currency: string | null;
+		taxId: string | null;
+		domain: string | null;
+		isGroup: boolean;
+		parentCompanyId: string | null;
+		parentCompanyName: string | null;
+		disabled: boolean;
+		createdAt: Date;
+		updatedAt: Date;
+	}
+
+	// ── List result wrappers ──────────────────────────────────────────────────
+
+	export interface CompanyListResult {
+		items: CompanyItem[];
+		totalCount: number;
+	}
+
+	// ── Create / update input interfaces ─────────────────────────────────────
+
+	export interface CreateCompanyInput {
+		name: string;
+		abbreviation?: string | null;
+		country?: string | null;
+		currency?: string | null;
+		taxId?: string | null;
+		domain?: string | null;
+		isGroup?: boolean;
+		parentCompanyId?: string | null;
+	}
+
+	export interface UpdateCompanyInput {
+		id: string;
+		name?: string;
+		abbreviation?: string | null;
+		country?: string | null;
+		currency?: string | null;
+		taxId?: string | null;
+		domain?: string | null;
+		isGroup?: boolean;
+		parentCompanyId?: string | null;
+		disabled?: boolean;
+	}
+
+	// ── Zod schemas ───────────────────────────────────────────────────────────
+
+	const companyInputFields = {
+		name: z.string().min(1, "Company name is required").max(255).trim(),
+		abbreviation: z.string().max(50).trim().optional().nullable(),
+		country: z.string().max(100).trim().optional().nullable(),
+		currency: z.string().max(50).trim().optional().nullable(),
+		taxId: z.string().max(100).trim().optional().nullable(),
+		domain: z.string().max(100).trim().optional().nullable(),
+		isGroup: z.boolean().default(false),
+		parentCompanyId: z.string().cuid().optional().nullable(),
+	} satisfies z.ZodRawShape;
+
+	export const createCompanySchema = z.object(companyInputFields);
+
+	export const updateCompanySchema = z.object({
+		id: z.string().cuid(),
+		name: companyInputFields.name.optional(),
+		abbreviation: companyInputFields.abbreviation,
+		country: companyInputFields.country,
+		currency: companyInputFields.currency,
+		taxId: companyInputFields.taxId,
+		domain: companyInputFields.domain,
+		isGroup: z.boolean().optional(),
+		parentCompanyId: companyInputFields.parentCompanyId,
+		disabled: z.boolean().optional(),
+	});
+
+	export const listCompaniesSchema = z
+		.object({
+			skip: z.number().int().min(0).optional(),
+			take: z.number().int().min(1).max(250).optional(),
+			search: z.string().max(255).trim().optional(),
+			isGroup: z.boolean().optional(),
+		})
+		.optional();
+	export type ListCompaniesInput = z.infer<typeof listCompaniesSchema>;
+
+	export const bulkDeleteCompaniesSchema = z.object({
+		ids: z.array(z.string().cuid()).min(1),
+	});
+}
+
+// ============================================================================
 // Shared Constants
 // ============================================================================
 
@@ -7140,19 +7246,6 @@ export interface Product {
 	created_at: string;
 	/** ISO 8601 timestamp when last updated */
 	updated_at: string;
-}
-
-// ============================================================================
-// Company & Fiscal Year Domain Types
-// ============================================================================
-
-export interface Company {
-	id: string;
-	name: string;
-	abbreviation: string | null;
-	country: string | null;
-	currency: string | null;
-	disabled: boolean;
 }
 
 export interface FiscalYear {

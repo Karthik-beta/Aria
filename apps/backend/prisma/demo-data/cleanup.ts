@@ -193,6 +193,34 @@ export async function cleanDemoData(
 		prisma.itemVariantSettings.deleteMany({}),
 	);
 
+	// ── Fiscal Year & Company ──────────────────────────────────────
+
+	// Delete FiscalYearCompany links first (FK to both Company and FiscalYear)
+	await del("FiscalYearCompany", () =>
+		prisma.fiscalYearCompany.deleteMany({
+			where: { company: { name: company } },
+		}),
+	);
+
+	// Delete the demo Company record
+	await del("Company", () =>
+		prisma.company.deleteMany({ where: { name: company } }),
+	);
+
+	// Delete seeded fiscal years
+	const seededFiscalYears = [
+		"2022-23",
+		"2023-24",
+		"2024-25",
+		"2025-26",
+		"2026-27",
+	];
+	await del("FiscalYear", () =>
+		prisma.fiscalYear.deleteMany({
+			where: { year: { in: seededFiscalYears } },
+		}),
+	);
+
 	return counts;
 }
 
@@ -234,6 +262,7 @@ export async function getDemoStatus(
 		assetMaintenanceTeams,
 		assetMaintenances,
 		assetMaintenanceLogs,
+		companies,
 	] = await Promise.all([
 		prisma.brand.count(),
 		prisma.itemGroup.count(),
@@ -267,6 +296,7 @@ export async function getDemoStatus(
 		prisma.assetMaintenanceTeam.count({ where: { company } }),
 		prisma.assetMaintenance.count({ where: { company } }),
 		prisma.assetMaintenanceLog.count({ where: { maintenance: { company } } }),
+		prisma.company.count({ where: { name: company } }),
 	]);
 
 	return {
@@ -298,5 +328,6 @@ export async function getDemoStatus(
 		assetMaintenanceTeams,
 		assetMaintenances,
 		assetMaintenanceLogs,
+		companies,
 	};
 }

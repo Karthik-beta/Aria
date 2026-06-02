@@ -730,6 +730,10 @@ export const adminNavItems: NavItem[] = [
 				title: "Organizations",
 				url: "/admin/organizations",
 			},
+			{
+				title: "Company",
+				url: "/admin/company",
+			},
 		],
 	},
 ];
