@@ -1,4 +1,5 @@
 import type { Asset } from "@aria/types";
+import { addMonths, endOfMonth } from "date-fns";
 
 const CURRENCY_SCALE = 6;
 const OPERATIONAL_ASSET_STATUSES = new Set<Asset.AssetStatus>([
@@ -10,25 +11,6 @@ const roundCurrency = (value: number): number =>
 	Number(value.toFixed(CURRENCY_SCALE));
 
 const clampToZero = (value: number): number => (value < 0 ? 0 : value);
-
-const endOfMonth = (date: Date): Date => {
-	const next = new Date(date);
-	next.setHours(0, 0, 0, 0);
-	next.setMonth(next.getMonth() + 1, 0);
-	return next;
-};
-
-const addMonths = (date: Date, months: number): Date => {
-	const next = new Date(date);
-	next.setMonth(next.getMonth() + months);
-	return next;
-};
-
-const addYears = (date: Date, years: number): Date => {
-	const next = new Date(date);
-	next.setFullYear(next.getFullYear() + years);
-	return next;
-};
 
 export interface BuildDepreciationSchedulePreviewInput {
 	adjustmentDate: Date;
@@ -45,6 +27,7 @@ export interface BuildDepreciationSchedulePreviewInput {
 	rateOfDepreciation?: number | null;
 	expectedValueAfterUsefulLife?: number | null;
 	companyId?: string;
+	getFiscalYearEndDate?: (date: Date) => Promise<Date | null>;
 }
 
 export interface BuildRevaluationEntryLineInput {
@@ -213,42 +196,9 @@ const getWDVAnnualRate = (
 	);
 };
 
-const getDefaultIndiaFiscalYearEnd = (date: Date): Date => {
-	const month = date.getMonth();
-	const year = date.getFullYear();
-	let fyStartYear: number;
-	if (month >= 3) {
-		fyStartYear = year;
-	} else {
-		fyStartYear = year - 1;
-	}
-	return new Date(fyStartYear + 1, 2, 31);
-};
-
-interface FiscalYearContext {
-	currentFiscalYearEndDate: Date | null;
-}
-
-const detectFiscalYearChange = (
-	scheduleDate: Date,
-	ctx: FiscalYearContext,
-): boolean => {
-	if (!ctx.currentFiscalYearEndDate) {
-		ctx.currentFiscalYearEndDate = getDefaultIndiaFiscalYearEnd(scheduleDate);
-		return false;
-	}
-
-	if (scheduleDate > ctx.currentFiscalYearEndDate) {
-		ctx.currentFiscalYearEndDate = addYears(ctx.currentFiscalYearEndDate, 1);
-		return true;
-	}
-
-	return false;
-};
-
-export const buildDepreciationSchedulePreview = (
+export const buildDepreciationSchedulePreview = async (
 	input: BuildDepreciationSchedulePreviewInput,
-): Asset.AssetDepreciationSchedulePreview | null => {
+): Promise<Asset.AssetDepreciationSchedulePreview | null> => {
 	if (
 		!input.depreciationMethod ||
 		!input.totalNumberOfDepreciations ||
@@ -306,10 +256,11 @@ export const buildDepreciationSchedulePreview = (
 		),
 	);
 	let scheduleDate = endOfMonth(input.adjustmentDate);
+	let currentFiscalYearEndDate: Date | null = null;
 
-	const fyContext: FiscalYearContext = {
-		currentFiscalYearEndDate: null,
-	};
+	if (input.getFiscalYearEndDate) {
+		currentFiscalYearEndDate = await input.getFiscalYearEndDate(scheduleDate);
+	}
 
 	const entries: Asset.AssetDepreciationSchedulePreviewEntry[] = [];
 
@@ -345,9 +296,16 @@ export const buildDepreciationSchedulePreview = (
 				break;
 			}
 
-			const fyChanged = detectFiscalYearChange(scheduleDate, fyContext);
-			if (fyChanged && remainingValue > 0) {
-				pendingDepreciationAmount = remainingValue;
+			if (
+				input.getFiscalYearEndDate &&
+				currentFiscalYearEndDate &&
+				scheduleDate > currentFiscalYearEndDate
+			) {
+				currentFiscalYearEndDate =
+					await input.getFiscalYearEndDate(scheduleDate);
+				if (remainingValue > 0) {
+					pendingDepreciationAmount = remainingValue;
+				}
 			}
 		}
 

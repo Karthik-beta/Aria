@@ -1,11 +1,4 @@
-import {
-	BadRequestException,
-	ConflictException,
-	ForbiddenException,
-	HttpException,
-	NotFoundException,
-	UnauthorizedException,
-} from "@nestjs/common";
+import { HttpException } from "@nestjs/common";
 import { initTRPC, TRPCError } from "@trpc/server";
 import { auth } from "../auth/auth.config";
 import { prismaClient } from "../shared/prisma-client";

@@ -22,6 +22,7 @@ import {
 	allocateDocumentSeries,
 	getSeriesSeedValue,
 } from "../../shared/document-series";
+import type { FiscalYearService } from "../../shared/fiscal-year/fiscal-year.service";
 // biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
 import { PrismaService } from "../../shared/prisma.service";
 import {
@@ -35,7 +36,7 @@ import {
 	toMaintenanceTeam,
 } from "./asset.types";
 import { buildAssetActivityReportResult } from "./asset-activity-report";
-import { AssetDashboardSubService } from "./asset-dashboard.service";
+import type { AssetDashboardSubService } from "./asset-dashboard.service";
 import { buildAssetDepreciationLedgerResult } from "./asset-depreciation-ledger-report";
 import { buildAssetDepreciationsAndBalancesResult } from "./asset-depreciations-and-balances-report";
 import {
@@ -118,11 +119,11 @@ export class AssetService {
 		},
 	} as const;
 
-	private readonly dashboard: AssetDashboardSubService;
-
-	constructor(private readonly prisma: PrismaService) {
-		this.dashboard = new AssetDashboardSubService(prisma);
-	}
+	constructor(
+		private readonly prisma: PrismaService,
+		private readonly dashboard: AssetDashboardSubService,
+		private readonly fiscalYearService: FiscalYearService,
+	) {}
 
 	// ============================================================================
 	// Dashboard
@@ -500,7 +501,7 @@ export class AssetService {
 		}
 	}
 
-	private buildAssetValueAdjustmentPreview(
+	private async buildAssetValueAdjustmentPreview(
 		asset: {
 			id: string;
 			series: string;
@@ -533,7 +534,7 @@ export class AssetService {
 			Asset.PreviewAssetValueAdjustmentInput,
 			"adjustmentDate" | "newAssetValue"
 		>,
-	): Asset.AssetValueAdjustmentPreview {
+	): Promise<Asset.AssetValueAdjustmentPreview> {
 		const currentAssetValue = this.resolveCurrentAssetValue(asset);
 		const differenceAmount = this.roundCurrency(
 			input.newAssetValue - currentAssetValue,
@@ -562,7 +563,7 @@ export class AssetService {
 				: null,
 		});
 		const schedulePreview = asset.calculateDepreciation
-			? buildDepreciationSchedulePreview({
+			? await buildDepreciationSchedulePreview({
 					adjustmentDate: input.adjustmentDate,
 					currentAssetValue,
 					newAssetValue: input.newAssetValue,
@@ -582,6 +583,8 @@ export class AssetService {
 					rateOfDepreciation: depreciationConfig.rateOfDepreciation,
 					expectedValueAfterUsefulLife:
 						depreciationConfig.expectedValueAfterUsefulLife,
+					getFiscalYearEndDate: (date: Date) =>
+						this.fiscalYearService.getFiscalYearEndDate(date),
 				})
 			: null;
 		const resultState = getAssetValueAdjustmentResultState(
@@ -1650,7 +1653,7 @@ export class AssetService {
 		input: Asset.CreateAssetValueAdjustmentInput,
 	): Promise<Asset.AssetValueAdjustmentItem> {
 		const asset = await this.getAssetAdjustmentContextOrThrow(input.assetId);
-		const preview = this.buildAssetValueAdjustmentPreview(asset, input);
+		const preview = await this.buildAssetValueAdjustmentPreview(asset, input);
 		this.assertAssetValueAdjustmentPreviewIsValid(preview);
 
 		const created = await this.prisma.assetValueAdjustment.create({
@@ -1715,7 +1718,10 @@ export class AssetService {
 			adjustmentDate: input.adjustmentDate ?? existing.adjustmentDate,
 			newAssetValue: input.newAssetValue ?? Number(existing.newAssetValue),
 		};
-		const preview = this.buildAssetValueAdjustmentPreview(asset, draftInput);
+		const preview = await this.buildAssetValueAdjustmentPreview(
+			asset,
+			draftInput,
+		);
 		this.assertAssetValueAdjustmentPreviewIsValid(preview);
 
 		const updated = await this.prisma.assetValueAdjustment.update({
@@ -1782,7 +1788,7 @@ export class AssetService {
 		const asset = await this.getAssetAdjustmentContextOrThrow(
 			adjustment.assetId,
 		);
-		const preview = this.buildAssetValueAdjustmentPreview(asset, {
+		const preview = await this.buildAssetValueAdjustmentPreview(asset, {
 			adjustmentDate: adjustment.adjustmentDate,
 			newAssetValue: Number(adjustment.newAssetValue),
 		});

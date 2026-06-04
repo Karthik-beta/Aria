@@ -1,8 +1,8 @@
-import { EventEmitter } from "node:events";
 import { ReportTemplateService } from "@aria/report-export";
 import { EXPORT_MAX_ROWS, Inventory } from "@aria/types";
 import { logger } from "@aria/utils";
 import { Injectable } from "@nestjs/common";
+import type { EventEmitter2 } from "@nestjs/event-emitter";
 import type {
 	TRPCBuiltRouter,
 	TRPCDecorateCreateRouterOptions,
@@ -20,12 +20,7 @@ import { ItemActivityService } from "../services/item-activity.service";
 
 const inventoryProcedure = orgProcedure();
 
-// Global event emitter for real-time subscriptions
-const inventoryEvents = new EventEmitter({ captureRejections: true });
-inventoryEvents.setMaxListeners(50);
-inventoryEvents.on("error", (error) => {
-	logger.error("[inventoryEvents]", error);
-});
+let inventoryEvents: EventEmitter2;
 
 type ItemGroupsChangedEvent = {
 	type: "created" | "updated" | "deleted";
@@ -4052,7 +4047,9 @@ function createInventoryRouterRecord(
 
 function buildInventoryRouter(
 	inventoryService: InventoryService,
+	eventEmitter: EventEmitter2,
 ): InventoryAppRouter {
+	inventoryEvents = eventEmitter;
 	const reportTemplateService = new ReportTemplateService();
 	return router(
 		createInventoryRouterRecord(
@@ -4065,9 +4062,12 @@ function buildInventoryRouter(
 
 @Injectable()
 export class InventoryRouter {
-	constructor(private readonly inventoryService: InventoryService) {}
+	constructor(
+		private readonly eventEmitter: EventEmitter2,
+		private readonly inventoryService: InventoryService,
+	) {}
 
 	getRouter(): InventoryAppRouter {
-		return buildInventoryRouter(this.inventoryService);
+		return buildInventoryRouter(this.inventoryService, this.eventEmitter);
 	}
 }

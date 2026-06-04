@@ -8,6 +8,7 @@
  * @module AssetDashboardSubService
  */
 import type { Asset } from "@aria/types";
+import { Injectable } from "@nestjs/common";
 import { Prisma } from "../../generated/prisma/client";
 import type { PrismaService } from "../../shared/prisma.service";
 
@@ -24,6 +25,7 @@ const NON_DISPOSED_STATUSES: Asset.AssetStatus[] = [
 	"FULLY_DEPRECIATED",
 ];
 
+@Injectable()
 export class AssetDashboardSubService {
 	constructor(private readonly prisma: PrismaService) {}
 

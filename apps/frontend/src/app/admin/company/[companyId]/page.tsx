@@ -5,16 +5,7 @@
 
 "use client";
 
-import type { Company } from "@aria/types";
-import {
-	ArrowLeft,
-	Building2,
-	Calendar,
-	Edit,
-	Globe,
-	Tag,
-	Trash,
-} from "lucide-react";
+import { ArrowLeft, Building2, Calendar, Edit, Tag, Trash } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import * as React from "react";
