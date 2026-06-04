@@ -45,6 +45,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/hooks/use-auth";
 import { authClient } from "@/lib/auth/client";
+import { getToastMessage } from "@/lib/errors";
 
 type User = {
 	id: string;
@@ -241,7 +242,7 @@ export default function UsersPage() {
 			refetch();
 		} catch (err) {
 			logger.error("Delete user failed", err);
-			toast.error("Failed to delete user");
+			toast.error(getToastMessage(err, "delete"));
 		} finally {
 			setDeletePending(false);
 		}
@@ -256,7 +257,7 @@ export default function UsersPage() {
 			refetch();
 		} catch (err) {
 			logger.error("Ban user failed", err);
-			toast.error("Failed to disable user");
+			toast.error(getToastMessage(err, "update"));
 		} finally {
 			setBanPending(false);
 		}
@@ -271,7 +272,7 @@ export default function UsersPage() {
 			refetch();
 		} catch (err) {
 			logger.error("Unban user failed", err);
-			toast.error("Failed to enable user");
+			toast.error(getToastMessage(err, "update"));
 		} finally {
 			setUnbanPending(false);
 		}
@@ -848,7 +849,7 @@ function CreateUserPanel({
 			toast.success("User created successfully");
 		} catch (err) {
 			logger.error("Create user error:", err);
-			toast.error("Failed to create user");
+			toast.error(getToastMessage(err, "create"));
 		} finally {
 			setIsSubmitting(false);
 		}
@@ -1085,7 +1086,7 @@ function EditUserPanel({
 			onSuccess();
 		} catch (err) {
 			logger.error("Update user error:", err);
-			toast.error("Failed to update user");
+			toast.error(getToastMessage(err, "update"));
 		} finally {
 			setIsSubmitting(false);
 		}

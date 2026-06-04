@@ -9,13 +9,10 @@
  * @see {@link https://docs.erpnext.com/docs/user/manual/en/stock/batch | ERPNext Batch}
  */
 import type { Inventory } from "@aria/types";
-import {
-	BadRequestException,
-	ConflictException,
-	NotFoundException,
-} from "@nestjs/common";
+import { BadRequestException, NotFoundException } from "@nestjs/common";
 import type { z } from "zod";
-import { Prisma } from "../../../generated/prisma/client";
+import { handlePrismaError } from "../../../common/prisma-error.handler";
+import type { Prisma } from "../../../generated/prisma/client";
 import type { PrismaService } from "../../../shared/prisma.service";
 import { type InventoryBatch, toInventoryBatch } from "../inventory.types";
 import {
@@ -458,14 +455,7 @@ export class BatchSubService {
 
 			return toInventoryBatch(created as InventoryBatch);
 		} catch (error) {
-			if (
-				error instanceof Prisma.PrismaClientKnownRequestError &&
-				error.code === "P2002"
-			) {
-				throw new ConflictException(`Batch ${data.batchId} already exists`);
-			}
-
-			throw error;
+			handlePrismaError(error);
 		}
 	}
 
@@ -592,16 +582,7 @@ export class BatchSubService {
 
 			return toInventoryBatch(updated as InventoryBatch);
 		} catch (error) {
-			if (
-				error instanceof Prisma.PrismaClientKnownRequestError &&
-				error.code === "P2002"
-			) {
-				throw new ConflictException(
-					`Batch ${data.batchId ?? existing.batchId} already exists`,
-				);
-			}
-
-			throw error;
+			handlePrismaError(error);
 		}
 	}
 

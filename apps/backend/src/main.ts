@@ -188,6 +188,11 @@ async function bootstrap() {
 			router: appRouter,
 			createContext: (opts: trpcExpress.CreateExpressContextOptions) =>
 				trpcContext.create(opts),
+			onError({ error, path, type }) {
+				if (error.code === "INTERNAL_SERVER_ERROR") {
+					logger.error(`[tRPC] ${type} ${path}:`, error);
+				}
+			},
 		}),
 	);
 

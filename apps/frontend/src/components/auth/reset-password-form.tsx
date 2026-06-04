@@ -17,6 +17,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { authClient } from "@/lib/auth/client";
+import { getToastMessage } from "@/lib/errors";
 
 interface ResetPasswordFormProps {
 	token: string | null;
@@ -90,7 +91,7 @@ export function ResetPasswordForm({ token, error }: ResetPasswordFormProps) {
 			});
 
 			if (resetError) {
-				toast.error(resetError.message || "We could not update your password.");
+				toast.error(getToastMessage(resetError, "update"));
 				return;
 			}
 

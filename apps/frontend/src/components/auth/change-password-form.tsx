@@ -18,6 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { authClient } from "@/lib/auth/client";
+import { getToastMessage } from "@/lib/errors";
 import { trpc } from "@/lib/trpc";
 
 export function ChangePasswordForm({
@@ -68,7 +69,7 @@ export function ChangePasswordForm({
 			});
 
 			if (error) {
-				toast.error(error.message || "Unable to change password.");
+				toast.error(getToastMessage(error, "update"));
 				return;
 			}
 

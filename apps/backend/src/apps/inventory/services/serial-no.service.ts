@@ -10,13 +10,10 @@
  * @see {@link https://docs.erpnext.com/docs/user/manual/en/stock/serial-no | ERPNext Serial No}
  */
 import type { Inventory } from "@aria/types";
-import {
-	BadRequestException,
-	ConflictException,
-	NotFoundException,
-} from "@nestjs/common";
+import { BadRequestException, NotFoundException } from "@nestjs/common";
 import type { z } from "zod";
-import { Prisma } from "../../../generated/prisma/client";
+import { handlePrismaError } from "../../../common/prisma-error.handler";
+import type { Prisma } from "../../../generated/prisma/client";
 import type { PrismaService } from "../../../shared/prisma.service";
 import { toInventorySerialNo } from "../inventory.types";
 import {
@@ -1105,16 +1102,7 @@ export class SerialNoSubService {
 
 			return toInventorySerialNo(created);
 		} catch (error) {
-			if (
-				error instanceof Prisma.PrismaClientKnownRequestError &&
-				error.code === "P2002"
-			) {
-				throw new ConflictException(
-					`Serial number ${data.serialNo} already exists`,
-				);
-			}
-
-			throw error;
+			handlePrismaError(error);
 		}
 	}
 
@@ -1285,16 +1273,7 @@ export class SerialNoSubService {
 
 			return toInventorySerialNo(updated);
 		} catch (error) {
-			if (
-				error instanceof Prisma.PrismaClientKnownRequestError &&
-				error.code === "P2002"
-			) {
-				throw new ConflictException(
-					`Serial number ${data.serialNo ?? existing.serialNo} already exists`,
-				);
-			}
-
-			throw error;
+			handlePrismaError(error);
 		}
 	}
 

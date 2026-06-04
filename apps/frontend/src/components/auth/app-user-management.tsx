@@ -38,6 +38,7 @@ import {
 } from "@/components/ui/select";
 import { useAuth } from "@/hooks/use-auth";
 import { authClient } from "@/lib/auth/client";
+import { getToastMessage } from "@/lib/errors";
 
 type Member = {
 	id: string;
@@ -114,7 +115,7 @@ export function AppUserManagement({
 			fetchData();
 		} catch (err) {
 			logger.error("Remove member failed", err);
-			toast.error("Failed to remove member");
+			toast.error(getToastMessage(err, "delete"));
 		} finally {
 			setRemovePending(false);
 		}
@@ -289,14 +290,14 @@ function AddMemberForm({
 				organizationId,
 			});
 			if (error) {
-				toast.error(error.message || "Failed to invite member");
+				toast.error(getToastMessage(error, "create"));
 				return;
 			}
 			toast.success("Member added successfully");
 			onSuccess();
 		} catch (err) {
 			logger.error("Add member error", err);
-			toast.error("Failed to add member");
+			toast.error(getToastMessage(err, "create"));
 		} finally {
 			setIsSubmitting(false);
 		}

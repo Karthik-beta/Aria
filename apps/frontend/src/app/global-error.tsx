@@ -7,6 +7,8 @@ export default function GlobalError({
 	error: Error & { digest?: string };
 	reset: () => void;
 }) {
+	const isDev = process.env.NODE_ENV === "development";
+
 	return (
 		<html lang="en">
 			<body
@@ -89,6 +91,40 @@ export default function GlobalError({
 									{error.digest}
 								</code>
 							</p>
+						) : null}
+						{isDev && error.message ? (
+							<details
+								style={{
+									marginTop: "16px",
+									fontSize: "13px",
+									lineHeight: 1.5,
+									color: "rgba(250, 250, 250, 0.5)",
+								}}
+							>
+								<summary
+									style={{
+										cursor: "pointer",
+										color: "rgba(250, 250, 250, 0.62)",
+									}}
+								>
+									Technical details (dev only)
+								</summary>
+								<pre
+									style={{
+										marginTop: "8px",
+										padding: "12px",
+										backgroundColor: "rgba(0, 0, 0, 0.3)",
+										borderRadius: "8px",
+										overflow: "auto",
+										fontSize: "12px",
+										whiteSpace: "pre-wrap",
+										wordBreak: "break-word",
+									}}
+								>
+									{error.message}
+									{error.stack ? `\n\n${error.stack}` : ""}
+								</pre>
+							</details>
 						) : null}
 						<button
 							onClick={() => reset()}

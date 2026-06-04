@@ -1,3 +1,11 @@
+import {
+	BadRequestException,
+	ConflictException,
+	ForbiddenException,
+	HttpException,
+	NotFoundException,
+	UnauthorizedException,
+} from "@nestjs/common";
 import { initTRPC, TRPCError } from "@trpc/server";
 import { auth } from "../auth/auth.config";
 import { prismaClient } from "../shared/prisma-client";
@@ -6,13 +14,45 @@ import type { TrpcContextType } from "./trpc.context";
 const prisma = prismaClient;
 
 /**
- * Initialize tRPC with Express context
+ * Mapping from NestJS exception class names to tRPC error codes.
+ * Used by the errorFormatter to preserve proper HTTP status codes.
+ */
+const NESTJS_TO_TRPC_CODE: Record<string, TRPCError["code"]> = {
+	BadRequestException: "BAD_REQUEST",
+	NotFoundException: "NOT_FOUND",
+	ConflictException: "CONFLICT",
+	ForbiddenException: "FORBIDDEN",
+	UnauthorizedException: "UNAUTHORIZED",
+};
+
+/**
+ * Initialize tRPC with Express context and error formatting.
  *
  * @remarks
- * Context type includes Express req/res plus injected services (Prisma)
- * This enables access to cookies, headers, and request state in procedures
+ * The errorFormatter maps NestJS HTTP exceptions (caught by errorBridgeMiddleware)
+ * to proper tRPC error codes so the frontend receives correct HTTP status codes
+ * instead of generic INTERNAL_SERVER_ERROR.
+ *
+ * @see https://trpc.io/docs/server/error-formatting
  */
-const t = initTRPC.context<TrpcContextType>().create();
+const t = initTRPC.context<TrpcContextType>().create({
+	errorFormatter({ shape, error }) {
+		if (error.cause instanceof HttpException) {
+			const trpcCode = NESTJS_TO_TRPC_CODE[error.cause.constructor.name];
+			if (trpcCode) {
+				return {
+					...shape,
+					data: {
+						...shape.data,
+						code: trpcCode,
+						httpStatus: error.cause.getStatus(),
+					},
+				};
+			}
+		}
+		return shape;
+	},
+});
 
 /**
  * Extended context type with authenticated user and organization membership
@@ -58,6 +98,32 @@ export type OrgProtectedContext = ProtectedContext & {
 		slug: string;
 	};
 };
+
+/**
+ * Middleware that catches NestJS HTTP exceptions thrown by services
+ * and wraps them in TRPCError with the correct tRPC error code.
+ *
+ * Without this middleware, NestJS exceptions bubble up unhandled through tRPC
+ * and become generic INTERNAL_SERVER_ERROR (500) responses, losing the original
+ * HTTP status code and error category.
+ */
+const errorBridgeMiddleware = t.middleware(async ({ next }) => {
+	try {
+		return await next();
+	} catch (error) {
+		if (error instanceof HttpException) {
+			const trpcCode = NESTJS_TO_TRPC_CODE[error.constructor.name];
+			if (trpcCode) {
+				throw new TRPCError({
+					code: trpcCode,
+					message: error.message,
+					cause: error,
+				});
+			}
+		}
+		throw error;
+	}
+});
 
 /**
  * Middleware to verify user is authenticated
@@ -226,7 +292,9 @@ function requireOrgMembership(requiredRoles?: string[]) {
 
 export const router = t.router;
 export const publicProcedure = t.procedure;
-export const protectedProcedure = t.procedure.use(isAuthenticated);
+export const protectedProcedure = t.procedure
+	.use(errorBridgeMiddleware)
+	.use(isAuthenticated);
 
 /**
  * Create a procedure that requires org membership.
@@ -241,6 +309,7 @@ export const protectedProcedure = t.procedure.use(isAuthenticated);
  */
 export function orgProcedure(requiredRoles?: string[]) {
 	return t.procedure
+		.use(errorBridgeMiddleware)
 		.use(isAuthenticated)
 		.use(requireOrgMembership(requiredRoles));
 }

@@ -7,6 +7,7 @@ import type {
 	TRPCBuiltRouter,
 	TRPCDecorateCreateRouterOptions,
 } from "@trpc/server";
+import { TRPCError } from "@trpc/server";
 import { observable } from "@trpc/server/observable";
 import { z } from "zod";
 // biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
@@ -1389,7 +1390,7 @@ function createExportStockLedgerExcelProcedure(
 		.input(Inventory.listStockLedgerSchema)
 		.mutation(async ({ input }) => {
 			if (!input) {
-				throw new Error("Invalid input");
+				throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid input" });
 			}
 			// Fetch all data (up to 10000 rows for export)
 			const data = await inventoryService.findStockLedger({
@@ -1460,7 +1461,7 @@ function createExportStockBalanceExcelProcedure(
 		.input(Inventory.listStockBalanceSchema)
 		.mutation(async ({ input }) => {
 			if (!input) {
-				throw new Error("Invalid input");
+				throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid input" });
 			}
 			const data = await inventoryService.findStockBalance({
 				...input,
@@ -1518,7 +1519,7 @@ function createExportStockSummaryExcelProcedure(
 		.input(Inventory.listStockSummarySchema)
 		.mutation(async ({ input }) => {
 			if (!input) {
-				throw new Error("Invalid input");
+				throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid input" });
 			}
 			const data = await inventoryService.findStockSummary({
 				...input,
@@ -1573,7 +1574,7 @@ function createExportStockAgeingExcelProcedure(
 		.input(Inventory.listStockAgeingSchema)
 		.mutation(async ({ input }) => {
 			if (!input) {
-				throw new Error("Invalid input");
+				throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid input" });
 			}
 			const data = await inventoryService.findStockAgeing({
 				...input,
@@ -1627,7 +1628,7 @@ function createExportStockProjectedQtyExcelProcedure(
 		.input(Inventory.listStockProjectedQtySchema)
 		.mutation(async ({ input }) => {
 			if (!input) {
-				throw new Error("Invalid input");
+				throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid input" });
 			}
 			const data = await inventoryService.findStockProjectedQty({
 				...input,
@@ -1682,7 +1683,7 @@ function createExportItemPriceStockExcelProcedure(
 		.input(Inventory.listItemPriceStockSchema)
 		.mutation(async ({ input }) => {
 			if (!input) {
-				throw new Error("Invalid input");
+				throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid input" });
 			}
 			const data = await inventoryService.findItemPriceStock({
 				...input,
@@ -1735,7 +1736,7 @@ function createExportWarehouseWiseStockBalanceExcelProcedure(
 		.input(Inventory.listWarehouseWiseStockBalanceSchema)
 		.mutation(async ({ input }) => {
 			if (!input) {
-				throw new Error("Invalid input");
+				throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid input" });
 			}
 			const data = await inventoryService.findWarehouseWiseStockBalance({
 				...input,
@@ -1784,7 +1785,7 @@ function createExportSubcontractedRawMaterialsExcelProcedure(
 		.input(Inventory.listSubcontractedRawMaterialsSchema)
 		.mutation(async ({ input }) => {
 			if (!input) {
-				throw new Error("Invalid input");
+				throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid input" });
 			}
 			const data = await inventoryService.findSubcontractedRawMaterials({
 				...input,
@@ -1829,7 +1830,7 @@ function createExportSubcontractedItemToBeReceivedExcelProcedure(
 		.input(Inventory.listSubcontractedItemToBeReceivedSchema)
 		.mutation(async ({ input }) => {
 			if (!input) {
-				throw new Error("Invalid input");
+				throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid input" });
 			}
 			const data = await inventoryService.findSubcontractedItemToBeReceived({
 				...input,
@@ -1873,7 +1874,7 @@ function createExportItemShortageExcelProcedure(
 		.input(Inventory.listItemShortageSchema)
 		.mutation(async ({ input }) => {
 			if (!input) {
-				throw new Error("Invalid input");
+				throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid input" });
 			}
 			const data = await inventoryService.findItemShortageReport({
 				...input,
@@ -1928,7 +1929,7 @@ function createExportRequestedItemsToBeTransferredExcelProcedure(
 		.input(Inventory.listRequestedItemsToBeTransferredSchema)
 		.mutation(async ({ input }) => {
 			if (!input) {
-				throw new Error("Invalid input");
+				throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid input" });
 			}
 			const data = await inventoryService.findRequestedItemsToBeTransferred({
 				...input,
@@ -1973,7 +1974,7 @@ function createExportItemPricesExcelProcedure(
 		.input(Inventory.listItemPricesSchema)
 		.mutation(async ({ input }) => {
 			if (!input) {
-				throw new Error("Invalid input");
+				throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid input" });
 			}
 			const data = await inventoryService.findItemPrices({
 				...input,
@@ -2019,7 +2020,7 @@ function createExportItemwiseRecommendedReorderLevelExcelProcedure(
 		.input(Inventory.listItemwiseRecommendedReorderLevelSchema)
 		.mutation(async ({ input }) => {
 			if (!input) {
-				throw new Error("Invalid input");
+				throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid input" });
 			}
 			const data = await inventoryService.findItemwiseRecommendedReorderLevel({
 				...input,
@@ -2067,7 +2068,7 @@ function createExportItemVariantDetailsExcelProcedure(
 		.input(Inventory.listItemVariantDetailsSchema)
 		.mutation(async ({ input }) => {
 			if (!input) {
-				throw new Error("Invalid input");
+				throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid input" });
 			}
 			const data = await inventoryService.findItemVariantDetails({
 				...input,
@@ -2111,7 +2112,7 @@ function createExportBatchWiseBalanceExcelProcedure(
 		.input(Inventory.listBatchWiseBalanceSchema)
 		.mutation(async ({ input }) => {
 			if (!input) {
-				throw new Error("Invalid input");
+				throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid input" });
 			}
 			const data = await inventoryService.findBatchWiseBalanceHistory({
 				...input,
@@ -2161,7 +2162,7 @@ function createExportBatchItemExpiryExcelProcedure(
 		.input(Inventory.listBatchItemExpirySchema)
 		.mutation(async ({ input }) => {
 			if (!input) {
-				throw new Error("Invalid input");
+				throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid input" });
 			}
 			const data = await inventoryService.findBatchItemExpiry({
 				...input,
@@ -2204,7 +2205,7 @@ function createExportStockAnalyticsExcelProcedure(
 		.input(Inventory.listStockAnalyticsSchema)
 		.mutation(async ({ input }) => {
 			if (!input) {
-				throw new Error("Invalid input");
+				throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid input" });
 			}
 			const data = await inventoryService.findStockAnalytics({
 				...input,
@@ -2246,7 +2247,7 @@ function createExportSalesOrderAnalysisExcelProcedure(
 		.input(Inventory.listSalesOrderAnalysisSchema)
 		.mutation(async ({ input }) => {
 			if (!input) {
-				throw new Error("Invalid input");
+				throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid input" });
 			}
 			const data = await inventoryService.findSalesOrderAnalysis({
 				...input,
@@ -2296,7 +2297,7 @@ function createExportPurchaseOrderAnalysisExcelProcedure(
 		.input(Inventory.listPurchaseOrderAnalysisSchema)
 		.mutation(async ({ input }) => {
 			if (!input) {
-				throw new Error("Invalid input");
+				throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid input" });
 			}
 			const data = await inventoryService.findPurchaseOrderAnalysis({
 				...input,
@@ -2344,7 +2345,7 @@ function createExportPurchaseReceiptTrendsExcelProcedure(
 		.input(Inventory.listPurchaseReceiptTrendsSchema)
 		.mutation(async ({ input }) => {
 			if (!input) {
-				throw new Error("Invalid input");
+				throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid input" });
 			}
 			const data = await inventoryService.findPurchaseReceiptTrends({
 				...input,
@@ -2387,7 +2388,7 @@ function createExportDeliveryNoteTrendsExcelProcedure(
 		.input(Inventory.listDeliveryNoteTrendsSchema)
 		.mutation(async ({ input }) => {
 			if (!input) {
-				throw new Error("Invalid input");
+				throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid input" });
 			}
 			const data = await inventoryService.findDeliveryNoteTrends({
 				...input,

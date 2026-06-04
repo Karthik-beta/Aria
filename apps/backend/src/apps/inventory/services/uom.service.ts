@@ -15,6 +15,7 @@ import {
 	NotFoundException,
 } from "@nestjs/common";
 import type { z } from "zod";
+import { handlePrismaError } from "../../../common/prisma-error.handler";
 import { Prisma } from "../../../generated/prisma/client";
 import type { PrismaService } from "../../../shared/prisma.service";
 import { toInventoryUnitOfMeasure } from "../inventory.types";
@@ -148,15 +149,7 @@ export class UomSubService {
 
 			return toInventoryUnitOfMeasure(created);
 		} catch (error) {
-			if (
-				error instanceof Prisma.PrismaClientKnownRequestError &&
-				error.code === "P2002"
-			) {
-				throw new ConflictException(
-					`Unit of measure with name "${data.name}" already exists`,
-				);
-			}
-			throw error;
+			handlePrismaError(error);
 		}
 	}
 
@@ -207,22 +200,12 @@ export class UomSubService {
 		} catch (error) {
 			if (
 				error instanceof Prisma.PrismaClientKnownRequestError &&
-				error.code === "P2025"
-			) {
-				throw new NotFoundException(`Unit of measure with ID ${id} not found`);
-			}
-			if (
-				error instanceof Prisma.PrismaClientKnownRequestError &&
 				error.code === "P2002"
 			) {
-				const conflictName = rest.name ?? existing.name;
-				throw new ConflictException(
-					conflictName
-						? `Unit of measure with name "${conflictName}" already exists`
-						: "Unit of measure already exists",
-				);
+				const name = rest.name ?? "Unit of measure";
+				throw new ConflictException(`${name} already exists`);
 			}
-			throw error;
+			handlePrismaError(error);
 		}
 	}
 

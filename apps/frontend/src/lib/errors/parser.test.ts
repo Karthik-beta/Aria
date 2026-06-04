@@ -197,6 +197,49 @@ describe("detectErrorCategory", () => {
 	it("handles objects with message property", () => {
 		expect(detectErrorCategory({ message: "not found" })).toBe("not_found");
 	});
+
+	it("detects tRPC structured error codes", () => {
+		expect(
+			detectErrorCategory({ data: { code: "BAD_REQUEST", httpStatus: 400 } }),
+		).toBe("validation");
+		expect(
+			detectErrorCategory({
+				data: { code: "UNAUTHORIZED", httpStatus: 401 },
+			}),
+		).toBe("authentication");
+		expect(
+			detectErrorCategory({ data: { code: "FORBIDDEN", httpStatus: 403 } }),
+		).toBe("authorization");
+		expect(
+			detectErrorCategory({ data: { code: "NOT_FOUND", httpStatus: 404 } }),
+		).toBe("not_found");
+		expect(
+			detectErrorCategory({ data: { code: "CONFLICT", httpStatus: 409 } }),
+		).toBe("conflict");
+		expect(
+			detectErrorCategory({
+				data: { code: "TOO_MANY_REQUESTS", httpStatus: 429 },
+			}),
+		).toBe("rate_limit");
+	});
+
+	it("falls back to httpStatus when code is not mapped", () => {
+		expect(
+			detectErrorCategory({
+				data: { code: "TIMEOUT", httpStatus: 408 },
+			}),
+		).toBe("unknown");
+	});
+
+	it("prioritizes tRPC structured data over message pattern matching", () => {
+		// The message says "not found" but the tRPC code says BAD_REQUEST
+		expect(
+			detectErrorCategory({
+				message: "Resource not found",
+				data: { code: "BAD_REQUEST", httpStatus: 400 },
+			}),
+		).toBe("validation");
+	});
 });
 
 // ---------------------------------------------------------------------------

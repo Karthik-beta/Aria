@@ -16,6 +16,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { authClient } from "@/lib/auth/client";
+import { getToastMessage } from "@/lib/errors";
 
 export function ForgotPasswordForm() {
 	const router = useRouter();
@@ -44,9 +45,7 @@ export function ForgotPasswordForm() {
 			});
 
 			if (error) {
-				toast.error(
-					error.message || "Password reset failed. Try again in a moment.",
-				);
+				toast.error(getToastMessage(error, "load"));
 				return;
 			}
 
