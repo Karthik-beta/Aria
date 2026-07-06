@@ -282,6 +282,7 @@ function AssetFormContent() {
 	const [_isPending, startTransition] = React.useTransition();
 	const [categoryOpen, setCategoryOpen] = React.useState(false);
 	const [locationOpen, setLocationOpen] = React.useState(false);
+	const [companyOpen, setCompanyOpen] = React.useState(false);
 	const [scannerOpen, setScannerOpen] = React.useState(false);
 	const [hasUnsavedChanges, setHasUnsavedChanges] = React.useState(false);
 	const [initialized, setInitialized] = React.useState(false);
@@ -295,6 +296,13 @@ function AssetFormContent() {
 		staleTime: 30_000,
 	});
 	const locations = locationsData?.items ?? [];
+	const { data: companiesData } = trpc.company.listCompanies.useQuery(
+		undefined,
+		{
+			staleTime: 30_000,
+		},
+	);
+	const companies = companiesData?.items ?? [];
 
 	const { data: rawAsset, isLoading: isLoadingAsset } =
 		trpc.asset.getAssetById.useQuery(
@@ -680,11 +688,50 @@ function AssetFormContent() {
 							<Label htmlFor="company">
 								Company <span className="text-destructive">*</span>
 							</Label>
-							<Input
-								id="company"
-								placeholder="e.g. My Company Ltd."
-								className={formErrors.company ? "border-destructive" : ""}
-								{...form.register("company")}
+							<Controller
+								name="company"
+								control={form.control}
+								render={({ field }) => (
+									<Popover open={companyOpen} onOpenChange={setCompanyOpen}>
+										<PopoverTrigger asChild>
+											<Button
+												id="company"
+												type="button"
+												variant="outline"
+												className={`h-10 w-full justify-between font-normal ${formErrors.company ? "border-destructive" : ""}`}
+											>
+												<span className="truncate">
+													{field.value || "Select company…"}
+												</span>
+												<ChevronDown className="h-4 w-4 opacity-50" />
+											</Button>
+										</PopoverTrigger>
+										<PopoverContent
+											className="p-0 pointer-events-auto"
+											style={{ width: "var(--radix-popover-trigger-width)" }}
+										>
+											<Command>
+												<CommandInput placeholder="Search companies…" />
+												<CommandList>
+													<CommandEmpty>No companies found</CommandEmpty>
+													<CommandGroup>
+														{companies.map((comp) => (
+															<CommandItem
+																key={comp.id}
+																onSelect={() => {
+																	field.onChange(comp.name);
+																	setCompanyOpen(false);
+																}}
+															>
+																{comp.name}
+															</CommandItem>
+														))}
+													</CommandGroup>
+												</CommandList>
+											</Command>
+										</PopoverContent>
+									</Popover>
+								)}
 							/>
 							{formErrors.company && (
 								<p className="text-sm text-destructive">
