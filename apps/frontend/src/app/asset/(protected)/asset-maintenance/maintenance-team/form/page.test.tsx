@@ -112,6 +112,19 @@ vi.mock("@/lib/trpc", () => ({
 				}),
 			},
 		},
+		company: {
+			listCompanies: {
+				useQuery: () => ({
+					data: {
+						items: [
+							{ id: "comp-1", name: "New Corp" },
+							{ id: "comp-2", name: "ACME Corp" },
+						],
+					},
+					isLoading: false,
+				}),
+			},
+		},
 	},
 }));
 
@@ -196,7 +209,10 @@ describe("MaintenanceTeamFormPage", () => {
 		renderWithProviders(<MaintenanceTeamFormPage />);
 
 		await user.type(screen.getByLabelText(/Team Name/i), "New Team");
-		await user.type(screen.getByLabelText(/Company/i), "New Corp");
+		const companyButton = screen.getByRole("button", { name: /company/i });
+		await user.click(companyButton);
+		const companyOption = await screen.findByText("New Corp");
+		await user.click(companyOption);
 		await user.click(screen.getByRole("button", { name: /Save/i }));
 
 		await waitFor(() => {

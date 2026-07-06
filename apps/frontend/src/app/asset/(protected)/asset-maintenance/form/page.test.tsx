@@ -126,6 +126,19 @@ vi.mock("@/lib/trpc", () => ({
 				}),
 			},
 		},
+		company: {
+			listCompanies: {
+				useQuery: () => ({
+					data: {
+						items: [
+							{ id: "comp-1", name: "New Corp" },
+							{ id: "comp-2", name: "ACME Corp" },
+						],
+					},
+					isLoading: false,
+				}),
+			},
+		},
 	},
 }));
 
@@ -197,7 +210,7 @@ describe("AssetMaintenanceFormPage", () => {
 		const user = userEvent.setup();
 		renderWithProviders(<AssetMaintenanceFormPage />);
 
-		await user.type(screen.getByLabelText(/Company/i), "Draft Corp");
+		await user.type(screen.getByLabelText(/Asset ID/i), "Draft Asset");
 
 		expect(screen.getByText("Not Saved")).toBeInTheDocument();
 	});
@@ -207,7 +220,10 @@ describe("AssetMaintenanceFormPage", () => {
 		renderWithProviders(<AssetMaintenanceFormPage />);
 
 		await user.type(screen.getByLabelText(/Asset ID/i), "clhasset001");
-		await user.type(screen.getByLabelText(/Company/i), "New Corp");
+		const companyButton = screen.getByRole("button", { name: /company/i });
+		await user.click(companyButton);
+		const companyOption = await screen.findByText("New Corp");
+		await user.click(companyOption);
 		await user.click(screen.getByRole("button", { name: /Save/i }));
 
 		await waitFor(() => {
@@ -231,7 +247,7 @@ describe("AssetMaintenanceFormPage", () => {
 		});
 
 		await waitFor(() => {
-			expect(screen.getByDisplayValue("ACME Corp")).toBeInTheDocument();
+			expect(screen.getByText("ACME Corp")).toBeInTheDocument();
 		});
 	});
 
@@ -241,7 +257,7 @@ describe("AssetMaintenanceFormPage", () => {
 		renderWithProviders(<AssetMaintenanceFormPage />);
 
 		await waitFor(() => {
-			expect(screen.getByDisplayValue("ACME Corp")).toBeInTheDocument();
+			expect(screen.getByText("ACME Corp")).toBeInTheDocument();
 		});
 
 		await user.click(screen.getByRole("button", { name: /Save/i }));
