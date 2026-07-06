@@ -411,4 +411,31 @@ describe("AssetFormPage", () => {
 		expect(screen.getByLabelText(/Net Purchase Amount/i)).toBeInTheDocument();
 		expect(screen.getByText("Asset Owner")).toBeInTheDocument();
 	});
+
+	it("renders barcode field and scan button", () => {
+		renderWithProviders(<AssetFormPage />);
+		expect(screen.getByLabelText(/Barcode \/ QR Code/i)).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: /Scan/i })).toBeInTheDocument();
+	});
+
+	it("submits create payload with barcode when provided", async () => {
+		const user = userEvent.setup();
+		renderWithProviders(<AssetFormPage />);
+
+		await user.type(screen.getByLabelText(/Asset Name/i), "Test Asset");
+		await user.type(screen.getByLabelText("Company *"), "Test Company");
+		await user.type(screen.getByLabelText(/Barcode \/ QR Code/i), "987654321");
+
+		await user.click(screen.getByRole("button", { name: /Create Asset/i }));
+
+		await waitFor(() => {
+			expect(mockCreateMutate).toHaveBeenCalledWith(
+				expect.objectContaining({
+					assetName: "Test Asset",
+					company: "Test Company",
+					barcode: "987654321",
+				}),
+			);
+		});
+	});
 });

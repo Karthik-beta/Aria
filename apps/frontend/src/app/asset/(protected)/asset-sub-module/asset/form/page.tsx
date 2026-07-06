@@ -2,7 +2,13 @@
 
 import { Asset } from "@aria/types";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowLeft, ChevronDown, CircleAlert, Loader2 } from "lucide-react";
+import {
+	ArrowLeft,
+	ChevronDown,
+	CircleAlert,
+	Loader2,
+	Scan,
+} from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
@@ -10,6 +16,7 @@ import { Suspense } from "react";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 import * as z from "zod";
+import { BarcodeScannerDialog } from "@/components/barcode-scanner-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -58,6 +65,7 @@ const assetFormSchema = z
 		assetName: z.string().min(1, "Asset name is required").max(255),
 		company: z.string().min(1, "Company is required").max(255),
 		itemCode: z.string().max(100).optional().nullable(),
+		barcode: z.string().max(255).optional().nullable(),
 		assetCategoryId: z.string().optional().nullable(),
 		locationId: z.string().optional().nullable(),
 		custodian: z.string().max(255).optional().nullable(),
@@ -218,6 +226,7 @@ const defaultFormValues: AssetFormValues = {
 	assetName: "",
 	company: "",
 	itemCode: "",
+	barcode: "",
 	assetCategoryId: "",
 	locationId: "",
 	custodian: "",
@@ -273,6 +282,7 @@ function AssetFormContent() {
 	const [_isPending, startTransition] = React.useTransition();
 	const [categoryOpen, setCategoryOpen] = React.useState(false);
 	const [locationOpen, setLocationOpen] = React.useState(false);
+	const [scannerOpen, setScannerOpen] = React.useState(false);
 	const [hasUnsavedChanges, setHasUnsavedChanges] = React.useState(false);
 	const [initialized, setInitialized] = React.useState(false);
 
@@ -323,6 +333,7 @@ function AssetFormContent() {
 			assetName: rawAsset.assetName,
 			company: rawAsset.company,
 			itemCode: rawAsset.itemCode ?? "",
+			barcode: rawAsset.barcode ?? "",
 			assetCategoryId: rawAsset.assetCategoryId ?? "",
 			locationId: rawAsset.locationId ?? "",
 			custodian: rawAsset.custodian ?? "",
@@ -499,6 +510,7 @@ function AssetFormContent() {
 			assetName: values.assetName.trim(),
 			company: values.company.trim(),
 			itemCode: values.itemCode?.trim() || null,
+			barcode: values.barcode?.trim() || null,
 			assetCategoryId: values.assetCategoryId || null,
 			locationId: values.locationId || null,
 			custodian: values.custodian?.trim() || null,
@@ -688,6 +700,27 @@ function AssetFormContent() {
 								placeholder="e.g. ITEM-001"
 								{...form.register("itemCode")}
 							/>
+						</div>
+
+						<div className="space-y-2">
+							<Label htmlFor="barcode">Barcode / QR Code</Label>
+							<div className="flex gap-2">
+								<Input
+									id="barcode"
+									placeholder="e.g. 1234567890"
+									className="flex-1"
+									{...form.register("barcode")}
+								/>
+								<Button
+									type="button"
+									variant="outline"
+									onClick={() => setScannerOpen(true)}
+									className="shrink-0"
+								>
+									<Scan className="h-4 w-4 mr-2" />
+									Scan
+								</Button>
+							</div>
 						</div>
 
 						<div className="space-y-2">
@@ -1263,6 +1296,14 @@ function AssetFormContent() {
 					</Button>
 				</div>
 			</form>
+
+			<BarcodeScannerDialog
+				isOpen={scannerOpen}
+				onClose={() => setScannerOpen(false)}
+				onScanSuccess={(code) => {
+					form.setValue("barcode", code, { shouldDirty: true });
+				}}
+			/>
 		</div>
 	);
 }

@@ -5887,6 +5887,7 @@ export namespace Asset {
 		series: string;
 		assetName: string;
 		itemCode?: string | null;
+		barcode?: string | null;
 		assetCategoryId?: string | null;
 		assetCategoryName?: string | null;
 		company: string;
@@ -5989,6 +5990,7 @@ export namespace Asset {
 	export interface CreateAssetInput {
 		assetName: string;
 		itemCode?: string | null;
+		barcode?: string | null;
 		assetCategoryId?: string | null;
 		company: string;
 		locationId?: string | null;
@@ -6026,6 +6028,7 @@ export namespace Asset {
 		id: string;
 		assetName?: string;
 		itemCode?: string | null;
+		barcode?: string | null;
 		assetCategoryId?: string | null;
 		company?: string;
 		locationId?: string | null;
@@ -6100,6 +6103,7 @@ export namespace Asset {
 	const assetInputFields = {
 		assetName: z.string().min(1, "Asset name is required").max(255).trim(),
 		itemCode: z.string().max(100).trim().optional().nullable(),
+		barcode: z.string().max(255).trim().optional().nullable(),
 		assetCategoryId: z.string().cuid().optional().nullable(),
 		company: z.string().min(1, "Company is required").max(255).trim(),
 		locationId: z.string().cuid().optional().nullable(),
@@ -6144,6 +6148,7 @@ export namespace Asset {
 		id: z.string().cuid(),
 		assetName: assetInputFields.assetName.optional(),
 		itemCode: assetInputFields.itemCode,
+		barcode: assetInputFields.barcode,
 		assetCategoryId: assetInputFields.assetCategoryId,
 		company: assetInputFields.company.optional(),
 		locationId: assetInputFields.locationId,

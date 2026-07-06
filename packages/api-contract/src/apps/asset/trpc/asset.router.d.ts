@@ -51,6 +51,11 @@ type AssetRouterInput = {
 		output: Asset.AssetItem | null;
 		meta: object;
 	}>;
+	getAssetByBarcode: TRPCQueryProcedure<{
+		input: { barcode: string };
+		output: Asset.AssetItem;
+		meta: object;
+	}>;
 	createAsset: TRPCMutationProcedure<{
 		input: {
 			assetName: string;

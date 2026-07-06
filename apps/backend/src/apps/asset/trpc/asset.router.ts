@@ -1,7 +1,8 @@
 import { ReportTemplateService } from "@aria/report-export";
 import { Asset } from "@aria/types";
 import { Injectable } from "@nestjs/common";
-import type { EventEmitter2 } from "@nestjs/event-emitter";
+// biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
+import { EventEmitter2 } from "@nestjs/event-emitter";
 import { TRPCError } from "@trpc/server";
 import { observable } from "@trpc/server/observable";
 import { z } from "zod";
@@ -73,6 +74,19 @@ export class AssetRouter {
 			getAssetById: assetProcedure
 				.input(z.object({ id: z.string().cuid() }))
 				.query(async ({ input }) => svc.findAssetById(input.id)),
+
+			getAssetByBarcode: assetProcedure
+				.input(z.object({ barcode: z.string().min(1) }))
+				.query(async ({ input }) => {
+					const asset = await svc.findAssetByBarcode(input.barcode);
+					if (!asset) {
+						throw new TRPCError({
+							code: "NOT_FOUND",
+							message: `Asset with barcode "${input.barcode}" not found`,
+						});
+					}
+					return asset;
+				}),
 
 			createAsset: assetProcedure
 				.input(Asset.createAssetSchema)

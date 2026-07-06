@@ -216,6 +216,7 @@ export default function AssetDetailPage() {
 								}
 							/>
 							<DetailRow label="Item Code" value={asset.itemCode} />
+							<DetailRow label="Barcode / QR Code" value={asset.barcode} />
 							<DetailRow label="Category" value={asset.assetCategoryName} />
 							<DetailRow label="Company" value={asset.company} />
 							<DetailRow

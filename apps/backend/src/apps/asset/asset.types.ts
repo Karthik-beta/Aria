@@ -94,6 +94,7 @@ export function toAsset(raw: PrismaAsset): Asset.AssetItem {
 		series: raw.series,
 		assetName: raw.assetName,
 		itemCode: raw.itemCode ?? null,
+		barcode: raw.barcode ?? null,
 		assetCategoryId: raw.assetCategoryId ?? null,
 		assetCategoryName: raw.assetCategory?.name ?? null,
 		company: raw.company,

@@ -2,7 +2,8 @@ import { ReportTemplateService } from "@aria/report-export";
 import { EXPORT_MAX_ROWS, Inventory } from "@aria/types";
 import { logger } from "@aria/utils";
 import { Injectable } from "@nestjs/common";
-import type { EventEmitter2 } from "@nestjs/event-emitter";
+// biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
+import { EventEmitter2 } from "@nestjs/event-emitter";
 import type {
 	TRPCBuiltRouter,
 	TRPCDecorateCreateRouterOptions,

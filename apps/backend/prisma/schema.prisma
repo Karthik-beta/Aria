@@ -1574,6 +1574,7 @@ model Asset {
   series                             String              @unique @db.VarChar(50)
   assetName                          String              @db.VarChar(255)
   itemCode                           String              @db.VarChar(100)
+  barcode                            String?             @unique @db.VarChar(255)
   assetCategoryId                    String?
   assetCategory                      AssetCategory?      @relation(fields: [assetCategoryId], references: [id])
   company                            String              @db.VarChar(255)

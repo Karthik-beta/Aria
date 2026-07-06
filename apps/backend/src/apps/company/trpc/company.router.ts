@@ -1,6 +1,7 @@
 import { Company } from "@aria/types";
 import { Injectable } from "@nestjs/common";
-import type { EventEmitter2 } from "@nestjs/event-emitter";
+// biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
+import { EventEmitter2 } from "@nestjs/event-emitter";
 import { observable } from "@trpc/server/observable";
 import { z } from "zod";
 import { orgProcedure, router } from "../../../trpc/trpc";

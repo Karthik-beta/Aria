@@ -22,7 +22,8 @@ import {
 	allocateDocumentSeries,
 	getSeriesSeedValue,
 } from "../../shared/document-series";
-import type { FiscalYearService } from "../../shared/fiscal-year/fiscal-year.service";
+// biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
+import { FiscalYearService } from "../../shared/fiscal-year/fiscal-year.service";
 // biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
 import { PrismaService } from "../../shared/prisma.service";
 import {
@@ -36,7 +37,8 @@ import {
 	toMaintenanceTeam,
 } from "./asset.types";
 import { buildAssetActivityReportResult } from "./asset-activity-report";
-import type { AssetDashboardSubService } from "./asset-dashboard.service";
+// biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
+import { AssetDashboardSubService } from "./asset-dashboard.service";
 import { buildAssetDepreciationLedgerResult } from "./asset-depreciation-ledger-report";
 import { buildAssetDepreciationsAndBalancesResult } from "./asset-depreciations-and-balances-report";
 import {
@@ -696,6 +698,14 @@ export class AssetService {
 		return asset ? toAsset(asset) : null;
 	}
 
+	async findAssetByBarcode(barcode: string): Promise<Asset.AssetItem | null> {
+		const asset = await this.prisma.asset.findUnique({
+			where: { barcode },
+			include: this.assetInclude,
+		});
+		return asset ? toAsset(asset) : null;
+	}
+
 	async createAsset(input: Asset.CreateAssetInput): Promise<Asset.AssetItem> {
 		const purchaseDate =
 			input.purchaseDate instanceof Date ? input.purchaseDate : new Date();
@@ -765,6 +775,7 @@ export class AssetService {
 				series,
 				assetName: input.assetName,
 				itemCode: input.itemCode ?? "",
+				barcode: input.barcode ?? null,
 				assetCategoryId: input.assetCategoryId ?? null,
 				company: input.company,
 				locationId: input.locationId ?? null,
@@ -935,6 +946,7 @@ export class AssetService {
 			data: {
 				...(input.assetName !== undefined && { assetName: input.assetName }),
 				...(input.itemCode !== undefined && { itemCode: input.itemCode ?? "" }),
+				...(input.barcode !== undefined && { barcode: input.barcode }),
 				...(input.assetCategoryId !== undefined && {
 					assetCategoryId: input.assetCategoryId,
 				}),
