@@ -620,7 +620,7 @@ function AssetFormContent() {
 
 	if (isEdit && !isLoadingAsset && !rawAsset) {
 		return (
-			<div className="container mx-auto max-w-3xl py-6">
+			<div className="container mx-auto max-w-3xl px-4 md:px-6 py-6">
 				<Card>
 					<CardContent className="flex flex-col items-center justify-center py-12">
 						<CircleAlert className="mb-4 h-12 w-12 text-muted-foreground" />
@@ -638,7 +638,7 @@ function AssetFormContent() {
 	}
 
 	return (
-		<div className="container mx-auto max-w-3xl py-6 space-y-6">
+		<div className="container mx-auto max-w-3xl px-4 md:px-6 py-6 space-y-6">
 			<div className="flex items-center gap-3">
 				<Button variant="ghost" size="icon" asChild>
 					<Link href="/asset/asset-sub-module/asset">

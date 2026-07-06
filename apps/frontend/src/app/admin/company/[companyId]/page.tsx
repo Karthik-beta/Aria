@@ -78,7 +78,7 @@ export default function CompanyDetailPage() {
 
 	if (isLoading) {
 		return (
-			<div className="container mx-auto py-6 space-y-6">
+			<div className="container mx-auto px-4 md:px-6 py-6 space-y-6">
 				<div className="flex items-center gap-4">
 					<Skeleton className="h-10 w-10" />
 					<Skeleton className="h-8 w-64" />
@@ -90,7 +90,7 @@ export default function CompanyDetailPage() {
 
 	if (!company) {
 		return (
-			<div className="container mx-auto py-6">
+			<div className="container mx-auto px-4 md:px-6 py-6">
 				<Card>
 					<CardContent className="flex flex-col items-center gap-4 py-16">
 						<Building2 className="h-12 w-12 text-muted-foreground" />
@@ -121,7 +121,7 @@ export default function CompanyDetailPage() {
 				loading={deleteMutation.isPending}
 			/>
 
-			<div className="container mx-auto py-6 space-y-6">
+			<div className="container mx-auto px-4 md:px-6 py-6 space-y-6">
 				{/* Header */}
 				<div className="flex items-center justify-between gap-4">
 					<div className="flex items-center gap-4">
