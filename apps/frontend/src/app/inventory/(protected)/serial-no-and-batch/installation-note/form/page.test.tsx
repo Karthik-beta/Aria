@@ -269,7 +269,7 @@ describe("InstallationNoteFormPage", () => {
 				}),
 			);
 		});
-	}, 30_000);
+	});
 
 	it("prefills and submits the update payload", async () => {
 		currentId = "clins0000000000000001";

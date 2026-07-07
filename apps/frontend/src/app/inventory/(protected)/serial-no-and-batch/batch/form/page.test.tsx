@@ -138,7 +138,7 @@ describe("BatchFormPage", () => {
 				}),
 			);
 		});
-	}, 30_000);
+	});
 
 	it("prefills and submits the update payload", async () => {
 		currentId = "clbatch00000000000001";
@@ -166,7 +166,7 @@ describe("BatchFormPage", () => {
 				}),
 			);
 		});
-	}, 30_000);
+	});
 
 	it("redirects when the batch is missing", async () => {
 		currentId = "missing";

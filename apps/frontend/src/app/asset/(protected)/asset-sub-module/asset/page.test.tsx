@@ -23,6 +23,14 @@ vi.mock("@/lib/trpc", () => ({
 				},
 			},
 		}),
+		company: {
+			listCompanies: {
+				useQuery: () => ({
+					data: { items: [] },
+					isLoading: false,
+				}),
+			},
+		},
 		asset: {
 			listAssets: {
 				useQuery: () => ({

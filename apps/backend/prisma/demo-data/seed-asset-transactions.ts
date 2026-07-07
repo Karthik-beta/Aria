@@ -6,6 +6,7 @@ import {
 	getAssetValueAdjustmentDirection,
 	getAssetValueAdjustmentResultState,
 } from "../../src/apps/asset/asset-value-adjustment.utils.js";
+import type { FiscalYear } from "../../src/generated/prisma/client.js";
 import type { PrismaService } from "../../src/shared/prisma.service.js";
 import {
 	ASSET_CATEGORIES,
@@ -336,7 +337,7 @@ async function seedValueAdjustments(
 	adjustmentCounters: Map<number, number>,
 	revaluationCounters: Map<number, number>,
 	activitySequenceBase: number,
-	fiscalYears: any[],
+	fiscalYears: FiscalYear[],
 ): Promise<number> {
 	const adjustments = [...(asset.valueAdjustments ?? [])].sort(
 		(left, right) => left.adjustmentOffsetDays - right.adjustmentOffsetDays,
@@ -436,7 +437,6 @@ async function seedValueAdjustments(
 				previousIsFullyDepreciated: state.isFullyDepreciated,
 				submittedAt: adjustment.kind === "draft" ? null : adjustmentDate,
 				cancelledAt,
-				fiscalYearId: matchingFy.id,
 				createdAt: adjustmentCreatedAt,
 				updatedAt: cancelledAt ?? adjustmentCreatedAt,
 			},

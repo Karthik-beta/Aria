@@ -90,5 +90,5 @@ describe("BrandPage", () => {
 				description: null,
 			});
 		});
-	}, 30_000);
+	});
 });

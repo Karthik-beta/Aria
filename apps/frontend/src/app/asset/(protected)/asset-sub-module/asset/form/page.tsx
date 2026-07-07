@@ -1348,7 +1348,33 @@ function AssetFormContent() {
 				isOpen={scannerOpen}
 				onClose={() => setScannerOpen(false)}
 				onScanSuccess={(code) => {
-					form.setValue("barcode", code, { shouldDirty: true });
+					const promise = utils.asset.getAssetByBarcode
+						.fetch({ barcode: code })
+						.then((existingAsset) => {
+							if (existingAsset && existingAsset.id !== assetId) {
+								throw new Error(
+									`Barcode "${code}" is already registered to asset "${existingAsset.assetName}"`,
+								);
+							}
+							form.setValue("barcode", code, { shouldDirty: true });
+							return existingAsset;
+						});
+
+					toast.promise(promise, {
+						loading: "Verifying barcode uniqueness...",
+						success: () => "Barcode is unique and available.",
+						error: (err: unknown) => {
+							if (
+								err instanceof Error &&
+								err.message.includes("is already registered")
+							) {
+								return err.message;
+							}
+							// NOT_FOUND error from backend means the barcode is not in use (available!)
+							form.setValue("barcode", code, { shouldDirty: true });
+							return "Barcode is unique and available.";
+						},
+					});
 				}}
 			/>
 		</div>

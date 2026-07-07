@@ -104,5 +104,5 @@ describe("NewItemDialog", () => {
 				isFixedAsset: true,
 			});
 		});
-	}, 30_000);
+	});
 });

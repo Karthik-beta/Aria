@@ -92,20 +92,31 @@ export default function AssetListPage() {
 
 	const handleScanSuccess = React.useCallback(
 		async (scannedCode: string) => {
-			try {
-				const asset = await utils.asset.getAssetByBarcode.fetch({
-					barcode: scannedCode,
-				});
-				if (asset) {
+			const promise = utils.asset.getAssetByBarcode
+				.fetch({ barcode: scannedCode })
+				.then((asset) => {
+					if (!asset) {
+						throw new Error(`No asset found with barcode "${scannedCode}"`);
+					}
 					startTransition(() => {
 						router.push(`/asset/asset-sub-module/asset/${asset.id}`);
 					});
-				}
-			} catch (err) {
-				// biome-ignore lint/suspicious/noConsole: error logging
-				console.error("Barcode lookup failed:", err);
-				toast.error(`No asset found with barcode "${scannedCode}"`);
-			}
+					return asset;
+				});
+
+			toast.promise(promise, {
+				loading: "Looking up asset by barcode...",
+				success: (asset) => `Asset "${asset.assetName}" found! Redirecting...`,
+				error: (err: unknown) => {
+					// Use custom error message if provided by backend, otherwise default
+					const errMsg =
+						(err as Error)?.message ||
+						`No asset found with barcode "${scannedCode}"`;
+					return errMsg.includes("not found")
+						? `No asset found with barcode "${scannedCode}"`
+						: errMsg;
+				},
+			});
 		},
 		[utils, router],
 	);

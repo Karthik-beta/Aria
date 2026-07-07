@@ -36,6 +36,8 @@ export function BarcodeScannerDialog({
 	const videoRef = React.useRef<HTMLVideoElement | null>(null);
 	const [videoDevices, setVideoDevices] = React.useState<MediaDeviceInfo[]>([]);
 	const [selectedDeviceId, setSelectedDeviceId] = React.useState<string>("");
+	const [selectedDeviceLabel, setSelectedDeviceLabel] =
+		React.useState<string>("");
 	const [isLoading, setIsLoading] = React.useState(true);
 	const [hasPermission, setHasPermission] = React.useState<boolean | null>(
 		null,
@@ -89,6 +91,19 @@ export function BarcodeScannerDialog({
 		}
 	}, [manualCode, onScanSuccess, handleClose]);
 
+	// Compute mirroring dynamically based on whether active camera is front-facing
+	const isMirrored = React.useMemo(() => {
+		const activeDevice = videoDevices.find(
+			(d) => d.deviceId === selectedDeviceId,
+		);
+		const label = (activeDevice?.label || selectedDeviceLabel).toLowerCase();
+		return (
+			label.includes("front") ||
+			label.includes("user") ||
+			label.includes("selfie")
+		);
+	}, [selectedDeviceId, videoDevices, selectedDeviceLabel]);
+
 	// Load cameras and start scan
 	React.useEffect(() => {
 		if (!isOpen || !isBrowser) return;
@@ -97,48 +112,14 @@ export function BarcodeScannerDialog({
 
 		async function initScanner() {
 			try {
-				// Request camera permission to trigger browser prompt and ensure device labels are populated
-				if (navigator.mediaDevices?.getUserMedia) {
-					const stream = await navigator.mediaDevices.getUserMedia({
-						video: true,
-					});
-					// Stop tracks immediately so we don't lock the camera
-					stream.getTracks().forEach((track) => {
-						track.stop();
-					});
-				} else {
-					throw new Error(
-						"Camera API is not supported in this browser or context",
-					);
-				}
-
-				// Import browser-only library dynamically inside hook to protect build
+				// Import browser-only libraries dynamically inside hook to protect build
 				const { BrowserMultiFormatReader } = await import("@zxing/browser");
-				const codeReader = new BrowserMultiFormatReader();
+				const { DecodeHintType } = await import("@zxing/library");
 
-				// Enumerate video devices
-				const devices = await BrowserMultiFormatReader.listVideoInputDevices();
-				if (!active) return;
-
-				setVideoDevices(devices);
-				setHasPermission(true);
-
-				// Determine device to use (prefer back camera, or first available)
-				let deviceIdToUse = selectedDeviceId;
-				if (!deviceIdToUse && devices.length > 0) {
-					// Look for back camera
-					const backCam = devices.find((device) =>
-						device.label.toLowerCase().includes("back"),
-					);
-					deviceIdToUse = backCam ? backCam.deviceId : devices[0]?.deviceId;
-					setSelectedDeviceId(deviceIdToUse);
-				}
-
-				if (!deviceIdToUse) {
-					toast.error("No camera devices found");
-					setIsLoading(false);
-					return;
-				}
+				// Configure decoding hints (TRY_HARDER increases accuracy for difficult barcodes)
+				const hints = new Map();
+				hints.set(DecodeHintType.TRY_HARDER, true);
+				const codeReader = new BrowserMultiFormatReader(hints);
 
 				// Ensure video element is ready
 				if (!videoRef.current) {
@@ -148,29 +129,87 @@ export function BarcodeScannerDialog({
 
 				if (!videoRef.current || !active) return;
 
-				setIsLoading(false);
+				// Setup constraints (prefer rear camera unless a specific device is selected)
+				const constraints: MediaStreamConstraints = selectedDeviceId
+					? { video: { deviceId: { exact: selectedDeviceId } } }
+					: { video: { facingMode: "environment" } };
 
-				// Start decoding
-				const controls = await codeReader.decodeFromVideoDevice(
-					deviceIdToUse,
-					videoRef.current,
-					(result, _error) => {
-						if (result && active) {
-							const code = result.getText();
-							if (code) {
-								toast.success("Code scanned successfully!");
-								onScanSuccess(code);
-								handleClose();
+				let controls: { stop(): void };
+				try {
+					controls = await codeReader.decodeFromConstraints(
+						constraints,
+						videoRef.current,
+						(result, _error) => {
+							if (result && active) {
+								const code = result.getText();
+								if (code) {
+									toast.success("Code scanned successfully!");
+									onScanSuccess(code);
+									handleClose();
+								}
 							}
-						}
-					},
-				);
-
-				if (active) {
-					controlsRef.current = controls;
-				} else {
-					controls.stop();
+						},
+					);
+				} catch (constraintsErr) {
+					// Fallback to default camera constraints if environment facingMode is not supported
+					if (!active) return;
+					if (!selectedDeviceId) {
+						controls = await codeReader.decodeFromConstraints(
+							{ video: true },
+							videoRef.current,
+							(result, _error) => {
+								if (result && active) {
+									const code = result.getText();
+									if (code) {
+										toast.success("Code scanned successfully!");
+										onScanSuccess(code);
+										handleClose();
+									}
+								}
+							},
+						);
+					} else {
+						throw constraintsErr;
+					}
 				}
+
+				if (!active) {
+					controls.stop();
+					return;
+				}
+
+				controlsRef.current = controls;
+				setHasPermission(true);
+
+				// Once the stream starts, enumerate devices to populate select dropdown with labels
+				const devices = await BrowserMultiFormatReader.listVideoInputDevices();
+				if (!active) return;
+
+				setVideoDevices(devices);
+
+				// Match active stream device with device list
+				const stream = videoRef.current?.srcObject as MediaStream | null;
+				const activeTrack = stream?.getVideoTracks()[0];
+				const activeDeviceId = activeTrack?.getSettings()?.deviceId;
+
+				if (activeDeviceId) {
+					setSelectedDeviceId(activeDeviceId);
+					const activeDevice = devices.find(
+						(d) => d.deviceId === activeDeviceId,
+					);
+					if (activeDevice) {
+						setSelectedDeviceLabel(activeDevice.label);
+					}
+				} else if (!selectedDeviceId && devices.length > 0) {
+					const backCam = devices.find((device) =>
+						device.label.toLowerCase().includes("back"),
+					);
+					const defaultId = backCam ? backCam.deviceId : devices[0]?.deviceId;
+					setSelectedDeviceId(defaultId);
+					setSelectedDeviceLabel(backCam ? backCam.label : devices[0]?.label);
+				}
+
+				setIsLoading(false);
 			} catch (err) {
 				// biome-ignore lint/suspicious/noConsole: error logging
 				console.error("Scanner init error:", err);
@@ -214,7 +253,7 @@ export function BarcodeScannerDialog({
 					{/* Video Feed */}
 					<video
 						ref={videoRef}
-						className="w-full h-full object-cover scale-x-[-1]"
+						className={`w-full h-full object-cover ${isMirrored ? "scale-x-[-1]" : ""}`}
 						playsInline
 						muted
 					/>

@@ -707,6 +707,18 @@ export class AssetService {
 	}
 
 	async createAsset(input: Asset.CreateAssetInput): Promise<Asset.AssetItem> {
+		if (input.barcode && input.barcode.trim().length > 0) {
+			const existingWithBarcode = await this.prisma.asset.findUnique({
+				where: { barcode: input.barcode.trim() },
+				select: { id: true, assetName: true },
+			});
+			if (existingWithBarcode) {
+				throw new ConflictException(
+					`Barcode "${input.barcode}" is already registered to asset "${existingWithBarcode.assetName}"`,
+				);
+			}
+		}
+
 		const purchaseDate =
 			input.purchaseDate instanceof Date ? input.purchaseDate : new Date();
 		const series = await this.generateAssetSeries(purchaseDate);
@@ -856,6 +868,18 @@ export class AssetService {
 			},
 		});
 		if (!existing) throw new NotFoundException(`Asset ${input.id} not found`);
+
+		if (input.barcode && input.barcode.trim().length > 0) {
+			const existingWithBarcode = await this.prisma.asset.findUnique({
+				where: { barcode: input.barcode.trim() },
+				select: { id: true, assetName: true },
+			});
+			if (existingWithBarcode && existingWithBarcode.id !== input.id) {
+				throw new ConflictException(
+					`Barcode "${input.barcode}" is already registered to asset "${existingWithBarcode.assetName}"`,
+				);
+			}
+		}
 
 		if (existing.status === "CANCELLED") {
 			throw new BadRequestException("Cannot update a cancelled asset");
