@@ -216,6 +216,7 @@ export async function seedAssetMasterData(
 				series: assetSeries,
 				assetName: assetDef.assetName,
 				itemCode: assetDef.itemCode,
+				barcode: `BAR-${assetSeries}`,
 				assetCategoryId:
 					ids.assetCategoryIds.get(assetDef.assetCategory) ?? null,
 				company: config.company,

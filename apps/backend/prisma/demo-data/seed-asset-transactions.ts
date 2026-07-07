@@ -336,6 +336,7 @@ async function seedValueAdjustments(
 	adjustmentCounters: Map<number, number>,
 	revaluationCounters: Map<number, number>,
 	activitySequenceBase: number,
+	fiscalYears: any[],
 ): Promise<number> {
 	const adjustments = [...(asset.valueAdjustments ?? [])].sort(
 		(left, right) => left.adjustmentOffsetDays - right.adjustmentOffsetDays,
@@ -363,7 +364,7 @@ async function seedValueAdjustments(
 		const previewSchedule =
 			asset.calculateDepreciation === false
 				? null
-				: buildDepreciationSchedulePreview({
+				: await buildDepreciationSchedulePreview({
 						adjustmentDate,
 						currentAssetValue: state.currentAssetValue,
 						newAssetValue: adjustment.newAssetValue,
@@ -400,6 +401,16 @@ async function seedValueAdjustments(
 					)
 				: null;
 
+		const matchingFy = fiscalYears.find(
+			(fy) =>
+				adjustmentDate >= fy.yearStartDate && adjustmentDate <= fy.yearEndDate,
+		);
+		if (!matchingFy) {
+			throw new Error(
+				`No matching fiscal year found for date ${adjustmentDate.toISOString()}`,
+			);
+		}
+
 		const createdAdjustment = await prisma.assetValueAdjustment.create({
 			data: {
 				series: adjustmentSeries,
@@ -425,6 +436,7 @@ async function seedValueAdjustments(
 				previousIsFullyDepreciated: state.isFullyDepreciated,
 				submittedAt: adjustment.kind === "draft" ? null : adjustmentDate,
 				cancelledAt,
+				fiscalYearId: matchingFy.id,
 				createdAt: adjustmentCreatedAt,
 				updatedAt: cancelledAt ?? adjustmentCreatedAt,
 			},
@@ -563,6 +575,7 @@ export async function seedAssetTransactions(
 ): Promise<void> {
 	const adjustmentCounters = new Map<number, number>();
 	const revaluationCounters = new Map<number, number>();
+	const fiscalYears = await prisma.fiscalYear.findMany();
 
 	for (const [assetIndex, asset] of ASSET_REGISTER.entries()) {
 		const assetId = ids.assetIds.get(asset.key);
@@ -642,6 +655,7 @@ export async function seedAssetTransactions(
 			adjustmentCounters,
 			revaluationCounters,
 			activitySequence,
+			fiscalYears,
 		);
 
 		if (
