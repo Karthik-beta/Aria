@@ -182,7 +182,7 @@ describe("buildDepreciationSchedulePreview", () => {
 	});
 
 	describe("MANUAL", () => {
-		it("returns empty entries for user-defined depreciation", async () => {
+		it("initializes entries using straight line by default", async () => {
 			const input: BuildDepreciationSchedulePreviewInput = {
 				...baseInput,
 				depreciationMethod: "MANUAL",
@@ -193,8 +193,16 @@ describe("buildDepreciationSchedulePreview", () => {
 
 			expect(result).not.toBeNull();
 			expect(result?.depreciationMethod).toBe("MANUAL");
-			expect(result?.entries).toHaveLength(0);
+			expect(result?.entries).toHaveLength(8);
 			expect(result?.remainingDepreciations).toBe(8);
+
+			const depreciableAmount = 100000 - 10000;
+			const expectedPerPeriod =
+				Math.round((depreciableAmount / 8) * 1000000) / 1000000;
+
+			result?.entries.forEach((entry) => {
+				expect(entry.depreciationAmount).toBeCloseTo(expectedPerPeriod, 4);
+			});
 		});
 	});
 
@@ -300,6 +308,42 @@ describe("buildDepreciationSchedulePreview", () => {
 			expect(result).not.toBeNull();
 			// Schedule should terminate early (per IAS 16), not redistribute
 			expect(result?.entries.length).toBeLessThan(10);
+		});
+	});
+
+	describe("dailyProrataBased", () => {
+		it("calculates daily pro-rata depreciation when dailyProrataBased is true for STRAIGHT_LINE", async () => {
+			const input: BuildDepreciationSchedulePreviewInput = {
+				...baseInput,
+				depreciationMethod: "STRAIGHT_LINE",
+				expectedValueAfterUsefulLife: 10000,
+				dailyProrataBased: true,
+				getFiscalYearEndDate: mockGetFiscalYearEndDate,
+			};
+
+			const result = await buildDepreciationSchedulePreview(input);
+
+			expect(result).not.toBeNull();
+			expect(result?.entries.length).toBeGreaterThan(0);
+			// Check that periods have varying amounts depending on number of days in the month/period
+			const firstAmount = result?.entries[0].depreciationAmount;
+			const secondAmount = result?.entries[1].depreciationAmount;
+			expect(firstAmount).not.toBe(secondAmount);
+		});
+
+		it("calculates daily pro-rata depreciation when dailyProrataBased is true for DOUBLE_DECLINING_BALANCE", async () => {
+			const input: BuildDepreciationSchedulePreviewInput = {
+				...baseInput,
+				depreciationMethod: "DOUBLE_DECLINING_BALANCE",
+				expectedValueAfterUsefulLife: 10000,
+				dailyProrataBased: true,
+				getFiscalYearEndDate: mockGetFiscalYearEndDate,
+			};
+
+			const result = await buildDepreciationSchedulePreview(input);
+
+			expect(result).not.toBeNull();
+			expect(result?.entries.length).toBeGreaterThan(0);
 		});
 	});
 });

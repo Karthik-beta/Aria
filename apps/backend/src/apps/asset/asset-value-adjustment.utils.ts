@@ -1,5 +1,5 @@
 import type { Asset } from "@aria/types";
-import { addMonths, endOfMonth } from "date-fns";
+import { addDays, addMonths, differenceInDays, endOfMonth } from "date-fns";
 
 const CURRENCY_SCALE = 6;
 const OPERATIONAL_ASSET_STATUSES = new Set<Asset.AssetStatus>([
@@ -158,15 +158,13 @@ const _getDaysBetween = (start: Date, end: Date): number => {
 	return Math.round((end.getTime() - start.getTime()) / msPerDay);
 };
 
-const calculateWDVSlopeRate = (
-	expectedValue: number,
-	currentValue: number,
-	pendingYears: number,
-): number => {
-	if (pendingYears <= 0 || currentValue <= 0) return 0;
-	const ratio = expectedValue / currentValue;
-	if (ratio <= 0) return 0;
-	return 100 * (1 - ratio ** (1.0 / pendingYears));
+const getDefaultFiscalYearEndDate = (date: Date): Date => {
+	const year = date.getFullYear();
+	const month = date.getMonth();
+	if (month >= 3) {
+		return new Date(year + 1, 2, 31);
+	}
+	return new Date(year, 2, 31);
 };
 
 const getDDBAnnualRate = (
@@ -176,24 +174,25 @@ const getDDBAnnualRate = (
 	const totalYears =
 		(totalNumberOfDepreciations * frequencyOfDepreciation) / 12;
 	if (totalYears <= 0) return 0;
-	return (2 / totalYears) * (frequencyOfDepreciation / 12);
+	return 2.0 / totalYears;
 };
 
 const getWDVAnnualRate = (
 	input: BuildDepreciationSchedulePreviewInput,
-	depreciableValue: number,
-	remainingDepreciations: number,
+	currentAssetValue: number,
+	pendingYears: number,
 ): number => {
 	if (input.rateOfDepreciation != null && input.rateOfDepreciation > 0) {
 		return input.rateOfDepreciation / 100;
 	}
 
 	const expectedValue = input.expectedValueAfterUsefulLife ?? 0;
-	const pendingYears =
-		(remainingDepreciations * (input.frequencyOfDepreciation ?? 12)) / 12;
-	return (
-		calculateWDVSlopeRate(expectedValue, depreciableValue, pendingYears) / 100
-	);
+	if (pendingYears <= 0 || currentAssetValue <= 0 || expectedValue <= 0) {
+		return 0;
+	}
+	const ratio = expectedValue / currentAssetValue;
+	if (ratio <= 0) return 0;
+	return 1 - ratio ** (1.0 / pendingYears);
 };
 
 export const buildDepreciationSchedulePreview = async (
@@ -209,39 +208,44 @@ export const buildDepreciationSchedulePreview = async (
 		return null;
 	}
 
-	if (input.depreciationMethod === "MANUAL") {
-		const bookedDepreciations = Math.min(
-			Math.max(input.bookedDepreciations, 0),
-			Math.max(input.totalNumberOfDepreciations - 1, 0),
-		);
-		const remainingDepreciations = Math.max(
-			input.totalNumberOfDepreciations - bookedDepreciations,
-			1,
-		);
-		return {
-			depreciationMethod: input.depreciationMethod,
-			totalNumberOfDepreciations: input.totalNumberOfDepreciations,
-			frequencyOfDepreciation: input.frequencyOfDepreciation,
-			dailyProrataBased: input.dailyProrataBased ?? null,
-			shiftBased: input.shiftBased ?? null,
-			rateOfDepreciation: input.rateOfDepreciation ?? null,
-			expectedValueAfterUsefulLife: input.expectedValueAfterUsefulLife ?? null,
-			bookedDepreciations,
-			remainingDepreciations,
-			entries: [],
-		};
-	}
+	const isManual = input.depreciationMethod === "MANUAL";
+	const isSLM = input.depreciationMethod === "STRAIGHT_LINE" || isManual;
+	const isWDV = input.depreciationMethod === "WRITTEN_DOWN_VALUE";
+	const isDDB = input.depreciationMethod === "DOUBLE_DECLINING_BALANCE";
 
 	const bookedDepreciations = Math.min(
 		Math.max(input.bookedDepreciations, 0),
 		Math.max(input.totalNumberOfDepreciations - 1, 0),
 	);
-	const remainingDepreciations = Math.max(
+
+	let remainingDepreciations = Math.max(
 		input.totalNumberOfDepreciations - bookedDepreciations,
 		1,
 	);
 
 	const expectedSalvage = input.expectedValueAfterUsefulLife ?? 0;
+	let scheduleDate = endOfMonth(input.adjustmentDate);
+
+	// Check pro-rata for new asset (row_idx === 0)
+	let hasProRata = false;
+	let firstPeriodActualDays = 0;
+	let firstPeriodStandardDays = 0;
+
+	if (bookedDepreciations === 0) {
+		const standardStartDate = addMonths(
+			scheduleDate,
+			-input.frequencyOfDepreciation,
+		);
+		firstPeriodStandardDays = differenceInDays(scheduleDate, standardStartDate);
+		// Period starts from adjustmentDate (availableForUseDate equivalent for preview)
+		firstPeriodActualDays =
+			differenceInDays(scheduleDate, input.adjustmentDate) + 1;
+		if (firstPeriodActualDays < firstPeriodStandardDays) {
+			hasProRata = true;
+			remainingDepreciations += 1; // Extra period at the end
+		}
+	}
+
 	const depreciableValue = roundCurrency(
 		clampToZero(input.newAssetValue - expectedSalvage),
 	);
@@ -255,61 +259,119 @@ export const buildDepreciationSchedulePreview = async (
 			0,
 		),
 	);
-	let scheduleDate = endOfMonth(input.adjustmentDate);
-	let currentFiscalYearEndDate: Date | null = null;
 
+	let currentFiscalYearEndDate: Date;
 	if (input.getFiscalYearEndDate) {
-		currentFiscalYearEndDate = await input.getFiscalYearEndDate(scheduleDate);
+		currentFiscalYearEndDate =
+			(await input.getFiscalYearEndDate(scheduleDate)) ??
+			getDefaultFiscalYearEndDate(scheduleDate);
+	} else {
+		currentFiscalYearEndDate = getDefaultFiscalYearEndDate(scheduleDate);
+	}
+
+	// Constants for Declining Balance rate
+	let annualRate = 0;
+	if (isDDB) {
+		annualRate = getDDBAnnualRate(
+			input.totalNumberOfDepreciations,
+			input.frequencyOfDepreciation,
+		);
+	} else if (isWDV) {
+		annualRate = getWDVAnnualRate(
+			input,
+			input.newAssetValue,
+			remainingDepreciations,
+		);
 	}
 
 	const entries: Asset.AssetDepreciationSchedulePreviewEntry[] = [];
+	let carryingValueAtStartOfFY = remainingValue;
+	let yearlyAmount = carryingValueAtStartOfFY * annualRate;
+	let prevDepreciationAmount = 0;
+
+	let previousScheduleDate = input.adjustmentDate;
 
 	for (let sequence = 1; sequence <= remainingDepreciations; sequence += 1) {
-		const periodsLeft = remainingDepreciations - sequence + 1;
-		let depreciationAmount = 0;
+		// Check if fiscal year changed
+		let fyChanged = false;
+		if (
+			sequence > 1 &&
+			currentFiscalYearEndDate &&
+			scheduleDate > currentFiscalYearEndDate
+		) {
+			if (input.getFiscalYearEndDate) {
+				currentFiscalYearEndDate =
+					(await input.getFiscalYearEndDate(scheduleDate)) ??
+					getDefaultFiscalYearEndDate(scheduleDate);
+			} else {
+				currentFiscalYearEndDate = getDefaultFiscalYearEndDate(scheduleDate);
+			}
+			fyChanged = true;
+		}
 
 		const isLastEntry = sequence === remainingDepreciations;
+		const periodsLeft = remainingDepreciations - sequence + 1;
+
+		const periodStartDate =
+			sequence === 1 ? input.adjustmentDate : addDays(previousScheduleDate, 1);
+		const periodEndDate = scheduleDate;
+		const daysInPeriod = differenceInDays(periodEndDate, periodStartDate) + 1;
+
+		let depreciationAmount = 0;
 
 		if (isLastEntry) {
 			depreciationAmount = pendingDepreciationAmount;
-		} else if (input.depreciationMethod === "STRAIGHT_LINE") {
-			depreciationAmount = roundCurrency(
-				pendingDepreciationAmount / periodsLeft,
-			);
-		} else if (
-			input.depreciationMethod === "DOUBLE_DECLINING_BALANCE" ||
-			input.depreciationMethod === "WRITTEN_DOWN_VALUE"
-		) {
-			const isDDB = input.depreciationMethod === "DOUBLE_DECLINING_BALANCE";
-			const annualRate = isDDB
-				? getDDBAnnualRate(
-						input.totalNumberOfDepreciations,
-						input.frequencyOfDepreciation,
-					)
-				: getWDVAnnualRate(input, pendingDepreciationAmount, periodsLeft);
-			const periodRate = (annualRate * input.frequencyOfDepreciation) / 12;
-			depreciationAmount = roundCurrency(
-				pendingDepreciationAmount * periodRate,
-			);
+		} else if (isSLM) {
+			if (input.dailyProrataBased) {
+				const standardPendingMonths =
+					remainingDepreciations * input.frequencyOfDepreciation;
+				const totalPendingYears = standardPendingMonths / 12;
+				const yearlySLMAmount = depreciableValue / totalPendingYears;
 
-			if (depreciationAmount <= 0) {
-				break;
+				// Get fiscal year containing scheduleDate
+				const fyEndDate = currentFiscalYearEndDate;
+				const fyStartDate = addDays(addMonths(fyEndDate, -12), 1);
+				const totalDaysInFY = differenceInDays(fyEndDate, fyStartDate) + 1;
+
+				const dailyDepr = yearlySLMAmount / totalDaysInFY;
+				depreciationAmount = roundCurrency(dailyDepr * daysInPeriod);
+			} else {
+				depreciationAmount = roundCurrency(
+					pendingDepreciationAmount / periodsLeft,
+				);
+				// If first row and has pro-rata
+				if (sequence === 1 && hasProRata && firstPeriodStandardDays > 0) {
+					depreciationAmount = roundCurrency(
+						(depreciationAmount * firstPeriodActualDays) /
+							firstPeriodStandardDays,
+					);
+				}
+			}
+		} else if (isWDV || isDDB) {
+			if (sequence === 1 || fyChanged) {
+				carryingValueAtStartOfFY = remainingValue;
+				yearlyAmount = carryingValueAtStartOfFY * annualRate;
+
+				// Re-calculate standard period depreciation amount for non-daily WDV/DDB
+				if (!input.dailyProrataBased) {
+					prevDepreciationAmount =
+						(yearlyAmount * input.frequencyOfDepreciation) / 12;
+				}
 			}
 
-			if (
-				input.getFiscalYearEndDate &&
-				currentFiscalYearEndDate &&
-				scheduleDate > currentFiscalYearEndDate
-			) {
-				currentFiscalYearEndDate =
-					await input.getFiscalYearEndDate(scheduleDate);
-				if (remainingValue > 0) {
-					pendingDepreciationAmount = remainingValue;
-				}
+			if (input.dailyProrataBased) {
+				const fyEndDate = currentFiscalYearEndDate;
+				const fyStartDate = addDays(addMonths(fyEndDate, -12), 1);
+				const totalDaysInFY = differenceInDays(fyEndDate, fyStartDate) + 1;
+
+				const dailyRate = yearlyAmount / totalDaysInFY;
+				depreciationAmount = roundCurrency(dailyRate * daysInPeriod);
+			} else {
+				depreciationAmount = roundCurrency(prevDepreciationAmount);
 			}
 		}
 
-		if (depreciationAmount <= 0) {
+		if (depreciationAmount <= 0 && !isLastEntry) {
 			break;
 		}
 
@@ -348,6 +410,7 @@ export const buildDepreciationSchedulePreview = async (
 			bookValueAfterDepreciation: remainingValue,
 		});
 
+		previousScheduleDate = scheduleDate;
 		scheduleDate = addMonths(scheduleDate, input.frequencyOfDepreciation);
 	}
 
