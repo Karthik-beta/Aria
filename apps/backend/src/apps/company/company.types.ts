@@ -17,6 +17,13 @@ export type PrismaCompany = Prisma.CompanyGetPayload<{
 		parentCompanyId: true;
 		parentCompany: { select: { id: true; name: true } };
 		disabled: true;
+		defaultFinanceBookId: true;
+		defaultFinanceBook: { select: { id: true; name: true } };
+		depreciationEntrySeries: true;
+		defaultCostCenter: true;
+		accumulatedDepreciationAccount: true;
+		depreciationExpenseAccount: true;
+		accountsFrozenThrough: true;
 		createdAt: true;
 		updatedAt: true;
 	};
@@ -37,6 +44,13 @@ export const companySelect = {
 	parentCompanyId: true,
 	parentCompany: { select: { id: true, name: true } },
 	disabled: true,
+	defaultFinanceBookId: true,
+	defaultFinanceBook: { select: { id: true, name: true } },
+	depreciationEntrySeries: true,
+	defaultCostCenter: true,
+	accumulatedDepreciationAccount: true,
+	depreciationExpenseAccount: true,
+	accountsFrozenThrough: true,
 	createdAt: true,
 	updatedAt: true,
 } as const;
@@ -57,6 +71,13 @@ export function toCompany(raw: PrismaCompany): Company.CompanyItem {
 		parentCompanyId: raw.parentCompanyId ?? null,
 		parentCompanyName: raw.parentCompany?.name ?? null,
 		disabled: raw.disabled,
+		defaultFinanceBookId: raw.defaultFinanceBookId ?? null,
+		defaultFinanceBookName: raw.defaultFinanceBook?.name ?? null,
+		depreciationEntrySeries: raw.depreciationEntrySeries ?? null,
+		defaultCostCenter: raw.defaultCostCenter ?? null,
+		accumulatedDepreciationAccount: raw.accumulatedDepreciationAccount ?? null,
+		depreciationExpenseAccount: raw.depreciationExpenseAccount ?? null,
+		accountsFrozenThrough: raw.accountsFrozenThrough ?? null,
 		createdAt: raw.createdAt,
 		updatedAt: raw.updatedAt,
 	};

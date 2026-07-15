@@ -16,10 +16,10 @@
 
 import { Asset } from "@aria/types";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Loader2 } from "lucide-react";
+import { Loader2, Plus, Trash2 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef, useTransition } from "react";
-import { useForm, useWatch } from "react-hook-form";
+import { useFieldArray, useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -72,6 +72,20 @@ function AssetCategoryFormContent() {
 		resolver: zodResolver(assetCategoryFormSchema),
 		defaultValues: getAssetCategoryFormDefaults(),
 	});
+	const financeBookFields = useFieldArray({
+		control: form.control,
+		name: "financeBooks",
+	});
+	const accountFields = useFieldArray({
+		control: form.control,
+		name: "accounts",
+	});
+	const { data: financeBookData } = trpc.asset.listFinanceBooks.useQuery({
+		take: 250,
+	});
+	const { data: companyData } = trpc.company.listCompanies.useQuery({
+		take: 250,
+	});
 
 	// Fetch category details in edit mode
 	const { data: category, isLoading: isFetchingCategory } =
@@ -97,6 +111,8 @@ function AssetCategoryFormContent() {
 			rateOfDepreciation: category.rateOfDepreciation ?? null,
 			expectedValueAfterUsefulLife:
 				category.expectedValueAfterUsefulLife ?? null,
+			financeBooks: category.financeBooks ?? [],
+			accounts: category.accounts ?? [],
 		});
 	}, [form, isEditMode, category]);
 
@@ -383,6 +399,206 @@ function AssetCategoryFormContent() {
 						</div>
 					</>
 				)}
+
+				{!nonDepreciableCategory && (
+					<>
+						<div className="flex items-center justify-between border-b px-5 py-5">
+							<div>
+								<h2 className="text-xl font-semibold">Finance Book Defaults</h2>
+								<p className="text-sm text-muted-foreground">
+									Each book produces an independent depreciation schedule.
+								</p>
+							</div>
+							<Button
+								type="button"
+								variant="outline"
+								onClick={() => {
+									const first = financeBookData?.items[0];
+									if (!first) {
+										toast.error("Create a finance book first");
+										return;
+									}
+									financeBookFields.append({
+										financeBookId: first.id,
+										depreciationMethod: "STRAIGHT_LINE",
+										totalNumberOfDepreciations: 60,
+										frequencyOfDepreciation: 1,
+										dailyProrataBased: false,
+										shiftBased: false,
+										rateOfDepreciation: null,
+										expectedValueAfterUsefulLife: null,
+									});
+								}}
+							>
+								<Plus className="mr-2 h-4 w-4" /> Add Book
+							</Button>
+						</div>
+						<div className="space-y-4 border-b px-5 py-5">
+							{financeBookFields.fields.map((field, index) => (
+								<div
+									key={field.id}
+									className="grid gap-4 rounded-lg border p-4 md:grid-cols-5"
+								>
+									<div className="space-y-2 md:col-span-2">
+										<Label htmlFor={`financeBooks.${index}.financeBookId`}>
+											Finance Book
+										</Label>
+										<select
+											className="h-9 w-full rounded-md border bg-background px-3"
+											{...form.register(`financeBooks.${index}.financeBookId`)}
+										>
+											{financeBookData?.items.map((book) => (
+												<option key={book.id} value={book.id}>
+													{book.name}
+												</option>
+											))}
+										</select>
+									</div>
+									<div className="space-y-2">
+										<Label>Method</Label>
+										<select
+											className="h-9 w-full rounded-md border bg-background px-3"
+											{...form.register(
+												`financeBooks.${index}.depreciationMethod`,
+											)}
+										>
+											{DEPRECIATION_METHOD_OPTIONS.map((option) => (
+												<option key={option.value} value={option.value}>
+													{option.label}
+												</option>
+											))}
+										</select>
+									</div>
+									<div className="space-y-2">
+										<Label>Periods</Label>
+										<Input
+											type="number"
+											min={1}
+											{...form.register(
+												`financeBooks.${index}.totalNumberOfDepreciations`,
+												{ valueAsNumber: true },
+											)}
+										/>
+									</div>
+									<div className="flex items-end gap-2">
+										<div className="flex-1 space-y-2">
+											<Label>Frequency (months)</Label>
+											<Input
+												type="number"
+												min={1}
+												{...form.register(
+													`financeBooks.${index}.frequencyOfDepreciation`,
+													{ valueAsNumber: true },
+												)}
+											/>
+										</div>
+										<Button
+											type="button"
+											size="icon"
+											variant="ghost"
+											aria-label="Remove finance book"
+											onClick={() => financeBookFields.remove(index)}
+										>
+											<Trash2 className="h-4 w-4" />
+										</Button>
+									</div>
+								</div>
+							))}
+						</div>
+					</>
+				)}
+
+				<div className="flex items-center justify-between border-b px-5 py-5">
+					<div>
+						<h2 className="text-xl font-semibold">Company Account Mappings</h2>
+						<p className="text-sm text-muted-foreground">
+							Category accounts override company depreciation defaults.
+						</p>
+					</div>
+					<Button
+						type="button"
+						variant="outline"
+						onClick={() => {
+							const first = companyData?.items[0];
+							if (!first) {
+								toast.error("Create a company first");
+								return;
+							}
+							accountFields.append({
+								companyId: first.id,
+								fixedAssetAccount: "",
+								accumulatedDepreciationAccount: "",
+								depreciationExpenseAccount: "",
+								capitalWorkInProgressAccount: "",
+							});
+						}}
+					>
+						<Plus className="mr-2 h-4 w-4" /> Add Mapping
+					</Button>
+				</div>
+				<div className="space-y-4 border-b px-5 py-5">
+					{accountFields.fields.map((field, index) => (
+						<div
+							key={field.id}
+							className="grid gap-4 rounded-lg border p-4 md:grid-cols-3"
+						>
+							<div className="space-y-2">
+								<Label>Company</Label>
+								<select
+									className="h-9 w-full rounded-md border bg-background px-3"
+									{...form.register(`accounts.${index}.companyId`)}
+								>
+									{companyData?.items.map((company) => (
+										<option key={company.id} value={company.id}>
+											{company.name}
+										</option>
+									))}
+								</select>
+							</div>
+							<div className="space-y-2">
+								<Label>Fixed Asset Account</Label>
+								<Input
+									{...form.register(`accounts.${index}.fixedAssetAccount`)}
+								/>
+							</div>
+							<div className="space-y-2">
+								<Label>Accumulated Depreciation</Label>
+								<Input
+									{...form.register(
+										`accounts.${index}.accumulatedDepreciationAccount`,
+									)}
+								/>
+							</div>
+							<div className="space-y-2">
+								<Label>Depreciation Expense</Label>
+								<Input
+									{...form.register(
+										`accounts.${index}.depreciationExpenseAccount`,
+									)}
+								/>
+							</div>
+							<div className="space-y-2">
+								<Label>CWIP Account</Label>
+								<Input
+									{...form.register(
+										`accounts.${index}.capitalWorkInProgressAccount`,
+									)}
+								/>
+							</div>
+							<div className="flex items-end justify-end">
+								<Button
+									type="button"
+									size="icon"
+									variant="ghost"
+									aria-label="Remove company mapping"
+									onClick={() => accountFields.remove(index)}
+								>
+									<Trash2 className="h-4 w-4" />
+								</Button>
+							</div>
+						</div>
+					))}
+				</div>
 
 				{/* Summary footer */}
 				<div className="px-5 py-4">

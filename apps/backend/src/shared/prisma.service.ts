@@ -270,6 +270,27 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
 	get assetDepreciationScheduleEntry() {
 		return this.client.assetDepreciationScheduleEntry;
 	}
+	get financeBook() {
+		return this.client.financeBook;
+	}
+	get assetFinanceBook() {
+		return this.client.assetFinanceBook;
+	}
+	get assetCategoryFinanceBook() {
+		return this.client.assetCategoryFinanceBook;
+	}
+	get assetCategoryAccount() {
+		return this.client.assetCategoryAccount;
+	}
+	get assetShiftFactor() {
+		return this.client.assetShiftFactor;
+	}
+	get assetDepreciationJournalEntry() {
+		return this.client.assetDepreciationJournalEntry;
+	}
+	get assetDepreciationJournalEntryLine() {
+		return this.client.assetDepreciationJournalEntryLine;
+	}
 
 	// Company & Fiscal Year (shared across all apps)
 	get company() {

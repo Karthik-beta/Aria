@@ -11,7 +11,7 @@ import { ArrowLeft, Loader2, Save } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useState } from "react";
-import { useForm } from "react-hook-form";
+import { type Resolver, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -51,9 +51,16 @@ function CompanyFormContent() {
 	);
 
 	const groupCompanies = groupCompaniesData?.items ?? [];
+	const { data: financeBooksData } = trpc.asset.listFinanceBooks.useQuery(
+		{ take: 250 },
+		{ refetchOnWindowFocus: false },
+	);
+	const financeBooks = financeBooksData?.items ?? [];
 
 	const form = useForm<Company.CreateCompanyInput>({
-		resolver: zodResolver(Company.createCompanySchema),
+		resolver: zodResolver(
+			Company.createCompanySchema,
+		) as Resolver<Company.CreateCompanyInput>,
 		defaultValues: {
 			name: "",
 			abbreviation: null,
@@ -63,6 +70,12 @@ function CompanyFormContent() {
 			domain: null,
 			isGroup: false,
 			parentCompanyId: null,
+			defaultFinanceBookId: null,
+			depreciationEntrySeries: "DEPR-",
+			defaultCostCenter: null,
+			accumulatedDepreciationAccount: null,
+			depreciationExpenseAccount: null,
+			accountsFrozenThrough: null,
 		},
 	});
 
@@ -77,6 +90,7 @@ function CompanyFormContent() {
 
 	const isGroup = watch("isGroup");
 	const parentCompanyId = watch("parentCompanyId");
+	const defaultFinanceBookId = watch("defaultFinanceBookId");
 
 	// Populate form in edit mode
 	useEffect(() => {
@@ -90,6 +104,15 @@ function CompanyFormContent() {
 				domain: existingCompany.domain,
 				isGroup: existingCompany.isGroup,
 				parentCompanyId: existingCompany.parentCompanyId,
+				defaultFinanceBookId: existingCompany.defaultFinanceBookId,
+				depreciationEntrySeries: existingCompany.depreciationEntrySeries,
+				defaultCostCenter: existingCompany.defaultCostCenter,
+				accumulatedDepreciationAccount:
+					existingCompany.accumulatedDepreciationAccount,
+				depreciationExpenseAccount: existingCompany.depreciationExpenseAccount,
+				accountsFrozenThrough: existingCompany.accountsFrozenThrough
+					? new Date(existingCompany.accountsFrozenThrough)
+					: null,
 			});
 		}
 	}, [existingCompany, isEditMode, reset]);
@@ -163,6 +186,91 @@ function CompanyFormContent() {
 							<ArrowLeft className="mr-2 h-4 w-4" />
 							Back to Companies
 						</Link>
+					</CardContent>
+				</Card>
+
+				<Card>
+					<CardHeader>
+						<CardTitle>Depreciation Accounting</CardTitle>
+						<CardDescription>
+							Defaults used when an asset category does not provide a
+							company-specific override.
+						</CardDescription>
+					</CardHeader>
+					<CardContent>
+						<div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+							<div className="space-y-2">
+								<Label htmlFor="defaultFinanceBookId">
+									Default Finance Book
+								</Label>
+								<select
+									id="defaultFinanceBookId"
+									value={defaultFinanceBookId ?? ""}
+									onChange={(event) =>
+										setValue(
+											"defaultFinanceBookId",
+											event.target.value || null,
+											{
+												shouldDirty: true,
+											},
+										)
+									}
+									className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+								>
+									<option value="">Primary book</option>
+									{financeBooks.map((book) => (
+										<option key={book.id} value={book.id}>
+											{book.name}
+										</option>
+									))}
+								</select>
+							</div>
+							<div className="space-y-2">
+								<Label htmlFor="depreciationEntrySeries">Entry Series</Label>
+								<Input
+									id="depreciationEntrySeries"
+									{...register("depreciationEntrySeries")}
+									placeholder="DEPR-"
+								/>
+							</div>
+							<div className="space-y-2">
+								<Label htmlFor="defaultCostCenter">Default Cost Center</Label>
+								<Input
+									id="defaultCostCenter"
+									{...register("defaultCostCenter")}
+								/>
+							</div>
+							<div className="space-y-2">
+								<Label htmlFor="accountsFrozenThrough">
+									Accounts Frozen Through
+								</Label>
+								<Input
+									id="accountsFrozenThrough"
+									type="date"
+									{...register("accountsFrozenThrough", {
+										setValueAs: (value) => (value ? new Date(value) : null),
+									})}
+								/>
+							</div>
+							<div className="space-y-2">
+								<Label htmlFor="accumulatedDepreciationAccount">
+									Accumulated Depreciation Account
+								</Label>
+								<Input
+									id="accumulatedDepreciationAccount"
+									{...register("accumulatedDepreciationAccount")}
+								/>
+							</div>
+							<div className="space-y-2">
+								<Label htmlFor="depreciationExpenseAccount">
+									Depreciation Expense Account
+								</Label>
+								<Input
+									id="depreciationExpenseAccount"
+									{...register("depreciationExpenseAccount")}
+								/>
+							</div>
+						</div>
 					</CardContent>
 				</Card>
 			</div>

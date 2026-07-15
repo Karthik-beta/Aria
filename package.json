@@ -15,6 +15,7 @@
 		"test:e2e": "bun x turbo run test:e2e --continue",
 		"typecheck": "bun x turbo run typecheck",
 		"test": "bun x turbo run test",
+		"test:integration": "bun x turbo run test:integration",
 		"prepare": "husky",
 		"validate": "bun x turbo run build test lint typecheck --continue",
 		"validate:fix": "bun x turbo run build test lint:fix typecheck --continue",

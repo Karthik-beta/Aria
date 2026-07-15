@@ -48,6 +48,15 @@ import {
 	getAssetValueAdjustmentDirection,
 	getAssetValueAdjustmentResultState,
 } from "./asset-value-adjustment.utils";
+// biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
+import { AssetDepreciationLifecycleService } from "./depreciation/asset-depreciation-lifecycle.service";
+import {
+	businessDate,
+	dateOnlyUtc,
+	depreciationTimeZone,
+} from "./depreciation/depreciation.config";
+// biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
+import { DepreciationBarrierService } from "./depreciation/depreciation-barrier.service";
 
 const LIST_TAKE_MAX = 250;
 const CURRENCY_SCALE = 6;
@@ -59,6 +68,21 @@ export class AssetService {
 		assetCategory: { select: { id: true, name: true } },
 		location: { select: { id: true, name: true } },
 		activities: { orderBy: { createdAt: "desc" as const } },
+		financeBooks: {
+			include: { financeBook: { select: { name: true } } },
+			orderBy: { createdAt: "asc" as const },
+		},
+	} as const;
+
+	private readonly assetCategoryInclude = {
+		financeBookDefaults: {
+			include: { financeBook: { select: { name: true } } },
+			orderBy: { createdAt: "asc" as const },
+		},
+		accounts: {
+			include: { company: { select: { name: true } } },
+			orderBy: { createdAt: "asc" as const },
+		},
 	} as const;
 
 	private readonly assetAdjustmentInclude = {
@@ -117,7 +141,12 @@ export class AssetService {
 			where: { status: "ACTIVE" as const },
 			orderBy: { revisionNumber: "desc" as const },
 			take: 1,
-			select: { id: true, revisionNumber: true },
+			select: { id: true, revisionNumber: true, assetFinanceBookId: true },
+		},
+		financeBooks: {
+			orderBy: { createdAt: "asc" as const },
+			take: 1,
+			select: { id: true },
 		},
 	} as const;
 
@@ -125,7 +154,21 @@ export class AssetService {
 		private readonly prisma: PrismaService,
 		private readonly dashboard: AssetDashboardSubService,
 		private readonly fiscalYearService: FiscalYearService,
+		private readonly depreciationLifecycle?: AssetDepreciationLifecycleService,
+		private readonly depreciationBarrier?: DepreciationBarrierService,
 	) {}
+
+	private async ensureReportDepreciation(
+		toDate: Date,
+		company?: string,
+	): Promise<void> {
+		const today = dateOnlyUtc(businessDate(depreciationTimeZone()));
+		const throughDate = toDate < today ? toDate : today;
+		await this.depreciationBarrier?.ensureDepreciationPosted({
+			throughDate,
+			...(company ? { company } : {}),
+		});
+	}
 
 	// ============================================================================
 	// Dashboard
@@ -492,6 +535,7 @@ export class AssetService {
 					}
 				: null,
 			activeDepreciationSchedule: asset.depreciationSchedules[0] ?? null,
+			defaultAssetFinanceBook: asset.financeBooks?.[0] ?? null,
 		};
 	}
 
@@ -707,6 +751,11 @@ export class AssetService {
 	}
 
 	async createAsset(input: Asset.CreateAssetInput): Promise<Asset.AssetItem> {
+		if (input.status && input.status !== "DRAFT") {
+			throw new BadRequestException(
+				"Create the asset as a draft, then use the explicit submit action",
+			);
+		}
 		if (input.barcode && input.barcode.trim().length > 0) {
 			const existingWithBarcode = await this.prisma.asset.findUnique({
 				where: { barcode: input.barcode.trim() },
@@ -829,9 +878,14 @@ export class AssetService {
 				depreciationStartDate,
 				purchaseReceipt: input.purchaseReceipt ?? null,
 				purchaseInvoice: input.purchaseInvoice ?? null,
-				status: input.status ?? "DRAFT",
+				status: "DRAFT",
 			},
 		});
+
+		await this.depreciationLifecycle?.configureAssetBooks(
+			created.id,
+			input.financeBooks,
+		);
 
 		await this.prisma.assetActivity.create({
 			data: {
@@ -883,6 +937,33 @@ export class AssetService {
 
 		if (existing.status === "CANCELLED") {
 			throw new BadRequestException("Cannot update a cancelled asset");
+		}
+
+		const depreciationCriticalEdit = [
+			input.assetCategoryId,
+			input.company,
+			input.purchaseDate,
+			input.availableForUseDate,
+			input.netPurchaseAmount,
+			input.calculateDepreciation,
+			input.openingAccumulatedDepreciation,
+			input.openingNumberOfBookedDepreciations,
+			input.depreciationMethod,
+			input.totalNumberOfDepreciations,
+			input.frequencyOfDepreciation,
+			input.expectedValueAfterUsefulLife,
+			input.depreciationStartDate,
+			input.financeBooks,
+		].some((value) => value !== undefined);
+		if (existing.status !== "DRAFT" && depreciationCriticalEdit) {
+			throw new BadRequestException(
+				"Depreciation-critical fields cannot be edited after submission; use a supported rescheduling or value-adjustment workflow",
+			);
+		}
+		if (input.status !== undefined) {
+			throw new BadRequestException(
+				"Use the explicit submit or cancel asset action to change lifecycle status",
+			);
 		}
 
 		const categoryDefaults = await this.getAssetCategoryDefaults(
@@ -1119,6 +1200,44 @@ export class AssetService {
 			data: { assetId: input.id, activity: "Asset updated" },
 		});
 
+		if (existing.status === "DRAFT" && input.financeBooks !== undefined) {
+			await this.depreciationLifecycle?.configureAssetBooks(
+				input.id,
+				input.financeBooks,
+			);
+			const refreshed = await this.prisma.asset.findUniqueOrThrow({
+				where: { id: input.id },
+				include: this.assetInclude,
+			});
+			return toAsset(refreshed);
+		}
+
+		return toAsset(asset);
+	}
+
+	/** Submits a draft asset and activates its precomputed schedules. */
+	async submitAsset(id: string): Promise<Asset.AssetItem> {
+		if (!this.depreciationLifecycle) {
+			throw new Error("Depreciation lifecycle service is unavailable");
+		}
+		await this.depreciationLifecycle.submitAsset(id);
+		const asset = await this.prisma.asset.findUniqueOrThrow({
+			where: { id },
+			include: this.assetInclude,
+		});
+		return toAsset(asset);
+	}
+
+	/** Cancels an unposted asset and cancels its open schedules. */
+	async cancelAsset(id: string): Promise<Asset.AssetItem> {
+		if (!this.depreciationLifecycle) {
+			throw new Error("Depreciation lifecycle service is unavailable");
+		}
+		await this.depreciationLifecycle.cancelAsset(id);
+		const asset = await this.prisma.asset.findUniqueOrThrow({
+			where: { id },
+			include: this.assetInclude,
+		});
 		return toAsset(asset);
 	}
 
@@ -1276,6 +1395,7 @@ export class AssetService {
 
 		const toDate = new Date(input.toDate);
 		toDate.setHours(23, 59, 59, 999);
+		await this.ensureReportDepreciation(toDate, input.company);
 
 		const assetWhere: Prisma.AssetWhereInput = {};
 
@@ -1375,6 +1495,7 @@ export class AssetService {
 								depreciationMethod: true,
 								openingAccumulatedDepreciation: true,
 								entries: {
+									where: { posting: { is: { status: "POSTED" } } },
 									orderBy: { sequence: "asc" },
 									select: {
 										id: true,
@@ -1385,6 +1506,40 @@ export class AssetService {
 										bookValueAfterDepreciation: true,
 									},
 								},
+							},
+						},
+					},
+				},
+				depreciationSchedules: {
+					where: {
+						entries: { some: { posting: { is: { status: "POSTED" } } } },
+					},
+					orderBy: [{ startDate: "asc" }, { revisionNumber: "asc" }],
+					select: {
+						id: true,
+						revisionNumber: true,
+						startDate: true,
+						depreciationMethod: true,
+						openingAccumulatedDepreciation: true,
+						adjustment: {
+							select: {
+								id: true,
+								series: true,
+								adjustmentDate: true,
+								costCenter: true,
+								revaluationEntry: { select: { series: true } },
+							},
+						},
+						entries: {
+							where: { posting: { is: { status: "POSTED" } } },
+							orderBy: { sequence: "asc" },
+							select: {
+								id: true,
+								sequence: true,
+								scheduleDate: true,
+								depreciationAmount: true,
+								accumulatedDepreciationAmount: true,
+								bookValueAfterDepreciation: true,
 							},
 						},
 					},
@@ -1411,41 +1566,39 @@ export class AssetService {
 							name: asset.assetCategory.name,
 						}
 					: null,
-				adjustments: asset.valueAdjustments.map((adjustment) => ({
-					id: adjustment.id,
-					series: adjustment.series,
-					adjustmentDate: adjustment.adjustmentDate,
-					costCenter: adjustment.costCenter ?? null,
-					revaluationEntrySeries: adjustment.revaluationEntry?.series ?? null,
-					schedule: adjustment.depreciationSchedule
-						? {
-								id: adjustment.depreciationSchedule.id,
-								revisionNumber: adjustment.depreciationSchedule.revisionNumber,
-								startDate: adjustment.depreciationSchedule.startDate,
-								depreciationMethod:
-									(adjustment.depreciationSchedule
-										.depreciationMethod as Asset.DepreciationMethod | null) ??
-									null,
-								openingAccumulatedDepreciation: Number(
-									adjustment.depreciationSchedule
-										.openingAccumulatedDepreciation,
-								),
-								entries: adjustment.depreciationSchedule.entries.map(
-									(entry) => ({
-										id: entry.id,
-										sequence: entry.sequence,
-										scheduleDate: entry.scheduleDate,
-										depreciationAmount: Number(entry.depreciationAmount),
-										accumulatedDepreciationAmount: Number(
-											entry.accumulatedDepreciationAmount,
-										),
-										bookValueAfterDepreciation: Number(
-											entry.bookValueAfterDepreciation,
-										),
-									}),
-								),
-							}
-						: null,
+				adjustments: asset.depreciationSchedules.map((schedule) => ({
+					id: schedule.adjustment?.id ?? schedule.id,
+					series:
+						schedule.adjustment?.series ??
+						`DEP-SCHEDULE-${schedule.revisionNumber}`,
+					adjustmentDate:
+						schedule.adjustment?.adjustmentDate ?? schedule.startDate,
+					costCenter: schedule.adjustment?.costCenter ?? null,
+					revaluationEntrySeries:
+						schedule.adjustment?.revaluationEntry?.series ?? null,
+					schedule: {
+						id: schedule.id,
+						revisionNumber: schedule.revisionNumber,
+						startDate: schedule.startDate,
+						depreciationMethod:
+							(schedule.depreciationMethod as Asset.DepreciationMethod | null) ??
+							null,
+						openingAccumulatedDepreciation: Number(
+							schedule.openingAccumulatedDepreciation,
+						),
+						entries: schedule.entries.map((entry) => ({
+							id: entry.id,
+							sequence: entry.sequence,
+							scheduleDate: entry.scheduleDate,
+							depreciationAmount: Number(entry.depreciationAmount),
+							accumulatedDepreciationAmount: Number(
+								entry.accumulatedDepreciationAmount,
+							),
+							bookValueAfterDepreciation: Number(
+								entry.bookValueAfterDepreciation,
+							),
+						})),
+					},
 				})),
 			})),
 		});
@@ -1459,6 +1612,7 @@ export class AssetService {
 
 		const toDate = new Date(input.toDate);
 		toDate.setHours(23, 59, 59, 999);
+		await this.ensureReportDepreciation(toDate, input.company);
 
 		const assetWhere: Prisma.AssetWhereInput = {
 			purchaseDate: {
@@ -1536,6 +1690,7 @@ export class AssetService {
 								startDate: true,
 								openingAccumulatedDepreciation: true,
 								entries: {
+									where: { posting: { is: { status: "POSTED" } } },
 									orderBy: { sequence: "asc" },
 									select: {
 										id: true,
@@ -1546,6 +1701,30 @@ export class AssetService {
 										bookValueAfterDepreciation: true,
 									},
 								},
+							},
+						},
+					},
+				},
+				depreciationSchedules: {
+					where: {
+						entries: { some: { posting: { is: { status: "POSTED" } } } },
+					},
+					orderBy: [{ startDate: "asc" }, { revisionNumber: "asc" }],
+					select: {
+						id: true,
+						revisionNumber: true,
+						startDate: true,
+						openingAccumulatedDepreciation: true,
+						entries: {
+							where: { posting: { is: { status: "POSTED" } } },
+							orderBy: { sequence: "asc" },
+							select: {
+								id: true,
+								sequence: true,
+								scheduleDate: true,
+								depreciationAmount: true,
+								accumulatedDepreciationAmount: true,
+								bookValueAfterDepreciation: true,
 							},
 						},
 					},
@@ -1575,36 +1754,39 @@ export class AssetService {
 							name: asset.assetCategory.name,
 						}
 					: null,
-				adjustments: asset.valueAdjustments.map((adjustment) => ({
-					id: adjustment.id,
-					adjustmentDate: adjustment.adjustmentDate,
-					differenceAmount: Number(adjustment.differenceAmount),
-					schedule: adjustment.depreciationSchedule
-						? {
-								id: adjustment.depreciationSchedule.id,
-								revisionNumber: adjustment.depreciationSchedule.revisionNumber,
-								startDate: adjustment.depreciationSchedule.startDate,
-								openingAccumulatedDepreciation: Number(
-									adjustment.depreciationSchedule
-										.openingAccumulatedDepreciation,
+				adjustments: [
+					...asset.valueAdjustments.map((adjustment) => ({
+						id: adjustment.id,
+						adjustmentDate: adjustment.adjustmentDate,
+						differenceAmount: Number(adjustment.differenceAmount),
+						schedule: null,
+					})),
+					...asset.depreciationSchedules.map((schedule) => ({
+						id: schedule.id,
+						adjustmentDate: schedule.startDate,
+						differenceAmount: 0,
+						schedule: {
+							id: schedule.id,
+							revisionNumber: schedule.revisionNumber,
+							startDate: schedule.startDate,
+							openingAccumulatedDepreciation: Number(
+								schedule.openingAccumulatedDepreciation,
+							),
+							entries: schedule.entries.map((entry) => ({
+								id: entry.id,
+								sequence: entry.sequence,
+								scheduleDate: entry.scheduleDate,
+								depreciationAmount: Number(entry.depreciationAmount),
+								accumulatedDepreciationAmount: Number(
+									entry.accumulatedDepreciationAmount,
 								),
-								entries: adjustment.depreciationSchedule.entries.map(
-									(entry) => ({
-										id: entry.id,
-										sequence: entry.sequence,
-										scheduleDate: entry.scheduleDate,
-										depreciationAmount: Number(entry.depreciationAmount),
-										accumulatedDepreciationAmount: Number(
-											entry.accumulatedDepreciationAmount,
-										),
-										bookValueAfterDepreciation: Number(
-											entry.bookValueAfterDepreciation,
-										),
-									}),
+								bookValueAfterDepreciation: Number(
+									entry.bookValueAfterDepreciation,
 								),
-							}
-						: null,
-				})),
+							})),
+						},
+					})),
+				],
 			})),
 		});
 	}
@@ -1880,10 +2062,14 @@ export class AssetService {
 			});
 
 			if (preview.depreciationSchedule) {
+				const assetFinanceBookId =
+					asset.activeDepreciationSchedule?.assetFinanceBookId ??
+					asset.defaultAssetFinanceBook?.id;
 				await tx.assetDepreciationSchedule.create({
 					data: {
 						adjustmentId: adjustment.id,
 						assetId: asset.id,
+						assetFinanceBookId,
 						previousScheduleId: asset.activeDepreciationSchedule?.id ?? null,
 						revisionNumber:
 							(asset.activeDepreciationSchedule?.revisionNumber ?? 0) + 1,
@@ -2230,6 +2416,95 @@ export class AssetService {
 	}
 
 	// ============================================================================
+	// Finance Book Methods
+	// ============================================================================
+
+	/** Lists named finance books used by independent depreciation schedules. */
+	async findAllFinanceBooks(params?: {
+		skip?: number;
+		take?: number;
+		search?: string;
+	}): Promise<Asset.FinanceBookListResult> {
+		const skip = Math.max(params?.skip ?? 0, 0);
+		const take = Math.min(
+			Math.max(params?.take ?? LIST_TAKE_MAX, 1),
+			LIST_TAKE_MAX,
+		);
+		const where = params?.search
+			? { name: { contains: params.search, mode: "insensitive" as const } }
+			: {};
+		const [items, totalCount] = await Promise.all([
+			this.prisma.financeBook.findMany({
+				where,
+				orderBy: { name: "asc" },
+				skip,
+				take,
+			}),
+			this.prisma.financeBook.count({ where }),
+		]);
+		return { items, totalCount };
+	}
+
+	/** Creates a uniquely named finance book. */
+	async createFinanceBook(input: { name: string }): Promise<Asset.FinanceBook> {
+		const name = input.name.trim();
+		const existing = await this.prisma.financeBook.findUnique({
+			where: { name },
+			select: { id: true },
+		});
+		if (existing) {
+			throw new ConflictException(`Finance book "${name}" already exists`);
+		}
+		return this.prisma.financeBook.create({ data: { name } });
+	}
+
+	/** Renames an existing finance book. */
+	async updateFinanceBook(input: {
+		id: string;
+		name: string;
+	}): Promise<Asset.FinanceBook> {
+		const existing = await this.prisma.financeBook.findUnique({
+			where: { id: input.id },
+			select: { id: true },
+		});
+		if (!existing)
+			throw new NotFoundException(`Finance book ${input.id} not found`);
+		return this.prisma.financeBook.update({
+			where: { id: input.id },
+			data: { name: input.name.trim() },
+		});
+	}
+
+	/** Deletes an unused finance book. */
+	async deleteFinanceBook(id: string): Promise<{ success: true; id: string }> {
+		const existing = await this.prisma.financeBook.findUnique({
+			where: { id },
+			select: {
+				id: true,
+				_count: {
+					select: {
+						assetFinanceBooks: true,
+						categoryDefaults: true,
+						companies: true,
+					},
+				},
+			},
+		});
+		if (!existing) throw new NotFoundException(`Finance book ${id} not found`);
+		const references =
+			existing._count.assetFinanceBooks +
+			existing._count.categoryDefaults +
+			existing._count.companies;
+		if (references > 0) {
+			throw new BadRequestException(
+				"Cannot delete a finance book that is in use",
+			);
+		}
+		await this.prisma.financeBook.delete({ where: { id } });
+		return { success: true, id };
+	}
+
+	// ============================================================================
 	// Asset Category Methods
 	// ============================================================================
 
@@ -2250,6 +2525,7 @@ export class AssetService {
 		const [items, totalCount] = await Promise.all([
 			this.prisma.assetCategory.findMany({
 				where,
+				include: this.assetCategoryInclude,
 				orderBy: { name: "asc" },
 				skip,
 				take,
@@ -2261,7 +2537,10 @@ export class AssetService {
 	}
 
 	async findAssetCategoryById(id: string): Promise<Asset.AssetCategory | null> {
-		const cat = await this.prisma.assetCategory.findUnique({ where: { id } });
+		const cat = await this.prisma.assetCategory.findUnique({
+			where: { id },
+			include: this.assetCategoryInclude,
+		});
 		return cat ? toAssetCategory(cat) : null;
 	}
 
@@ -2292,7 +2571,45 @@ export class AssetService {
 					: null,
 				nonDepreciableCategory: input.nonDepreciableCategory ?? false,
 				enableCwipAccounting: input.enableCwipAccounting ?? false,
+				financeBookDefaults: input.financeBooks?.length
+					? {
+							create: input.financeBooks.map((book) => ({
+								financeBookId: book.financeBookId,
+								depreciationMethod: book.depreciationMethod,
+								totalNumberOfDepreciations: book.totalNumberOfDepreciations,
+								frequencyOfDepreciation: book.frequencyOfDepreciation,
+								dailyProrataBased: book.dailyProrataBased ?? false,
+								shiftBased: book.shiftBased ?? false,
+								rateOfDepreciation:
+									book.rateOfDepreciation == null
+										? null
+										: new Prisma.Decimal(book.rateOfDepreciation),
+								expectedValueAfterUsefulLife:
+									book.expectedValueAfterUsefulLife == null
+										? null
+										: new Prisma.Decimal(book.expectedValueAfterUsefulLife),
+							})),
+						}
+					: undefined,
+				accounts: input.accounts?.length
+					? {
+							create: input.accounts.map((account) => ({
+								companyId: account.companyId,
+								fixedAssetAccount: account.fixedAssetAccount,
+								accumulatedDepreciationAccount: this.normalizeOptionalText(
+									account.accumulatedDepreciationAccount,
+								),
+								depreciationExpenseAccount: this.normalizeOptionalText(
+									account.depreciationExpenseAccount,
+								),
+								capitalWorkInProgressAccount: this.normalizeOptionalText(
+									account.capitalWorkInProgressAccount,
+								),
+							})),
+						}
+					: undefined,
 			},
+			include: this.assetCategoryInclude,
 		});
 		return toAssetCategory(cat);
 	}
@@ -2341,7 +2658,47 @@ export class AssetService {
 				...(input.enableCwipAccounting !== undefined && {
 					enableCwipAccounting: input.enableCwipAccounting,
 				}),
+				...(input.financeBooks !== undefined && {
+					financeBookDefaults: {
+						deleteMany: {},
+						create: input.financeBooks.map((book) => ({
+							financeBookId: book.financeBookId,
+							depreciationMethod: book.depreciationMethod,
+							totalNumberOfDepreciations: book.totalNumberOfDepreciations,
+							frequencyOfDepreciation: book.frequencyOfDepreciation,
+							dailyProrataBased: book.dailyProrataBased ?? false,
+							shiftBased: book.shiftBased ?? false,
+							rateOfDepreciation:
+								book.rateOfDepreciation == null
+									? null
+									: new Prisma.Decimal(book.rateOfDepreciation),
+							expectedValueAfterUsefulLife:
+								book.expectedValueAfterUsefulLife == null
+									? null
+									: new Prisma.Decimal(book.expectedValueAfterUsefulLife),
+						})),
+					},
+				}),
+				...(input.accounts !== undefined && {
+					accounts: {
+						deleteMany: {},
+						create: input.accounts.map((account) => ({
+							companyId: account.companyId,
+							fixedAssetAccount: account.fixedAssetAccount,
+							accumulatedDepreciationAccount: this.normalizeOptionalText(
+								account.accumulatedDepreciationAccount,
+							),
+							depreciationExpenseAccount: this.normalizeOptionalText(
+								account.depreciationExpenseAccount,
+							),
+							capitalWorkInProgressAccount: this.normalizeOptionalText(
+								account.capitalWorkInProgressAccount,
+							),
+						})),
+					},
+				}),
 			},
+			include: this.assetCategoryInclude,
 		});
 		return toAssetCategory(cat);
 	}

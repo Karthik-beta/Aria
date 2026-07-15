@@ -1,4 +1,4 @@
-import type { Asset } from "@aria/types";
+import { Asset } from "@aria/types";
 import * as z from "zod";
 
 export const assetCategoryFormSchema = z
@@ -13,6 +13,31 @@ export const assetCategoryFormSchema = z
 		shiftBased: z.boolean().nullable().optional(),
 		rateOfDepreciation: z.number().min(0).nullable().optional(),
 		expectedValueAfterUsefulLife: z.number().min(0).nullable().optional(),
+		financeBooks: z
+			.array(
+				z.object({
+					financeBookId: z.string().min(1),
+					depreciationMethod: Asset.depreciationMethodSchema,
+					totalNumberOfDepreciations: z.number().int().min(1),
+					frequencyOfDepreciation: z.number().int().min(1),
+					dailyProrataBased: z.boolean().default(false),
+					shiftBased: z.boolean().default(false),
+					rateOfDepreciation: z.number().min(0).nullable().optional(),
+					expectedValueAfterUsefulLife: z.number().min(0).nullable().optional(),
+				}),
+			)
+			.default([]),
+		accounts: z
+			.array(
+				z.object({
+					companyId: z.string().min(1),
+					fixedAssetAccount: z.string().min(1),
+					accumulatedDepreciationAccount: z.string().nullable().optional(),
+					depreciationExpenseAccount: z.string().nullable().optional(),
+					capitalWorkInProgressAccount: z.string().nullable().optional(),
+				}),
+			)
+			.default([]),
 	})
 	.superRefine((data, ctx) => {
 		if (!data.nonDepreciableCategory) {
@@ -71,4 +96,6 @@ export const getAssetCategoryFormDefaults = (): AssetCategoryFormValues => ({
 	shiftBased: null,
 	rateOfDepreciation: null,
 	expectedValueAfterUsefulLife: null,
+	financeBooks: [],
+	accounts: [],
 });

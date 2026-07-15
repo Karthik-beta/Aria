@@ -163,6 +163,12 @@ vi.mock("@/lib/trpc", () => ({
 			},
 		},
 		asset: {
+			listFinanceBooks: {
+				useQuery: () => ({
+					data: { items: [] },
+					isLoading: false,
+				}),
+			},
 			listAssetCategories: {
 				useQuery: () => ({
 					data: { items: mockCategories },

@@ -52,6 +52,23 @@ export class AssetRouter {
 		const assetProcedure = orgProcedure();
 
 		return router({
+			// ── Finance Books ──────────────────────────────────────────────────
+			listFinanceBooks: assetProcedure
+				.input(Asset.listFinanceBooksSchema)
+				.query(async ({ input }) => svc.findAllFinanceBooks(input)),
+
+			createFinanceBook: assetProcedure
+				.input(Asset.createFinanceBookSchema)
+				.mutation(async ({ input }) => svc.createFinanceBook(input)),
+
+			updateFinanceBook: assetProcedure
+				.input(Asset.updateFinanceBookSchema)
+				.mutation(async ({ input }) => svc.updateFinanceBook(input)),
+
+			deleteFinanceBook: assetProcedure
+				.input(z.object({ id: z.string().cuid() }))
+				.mutation(async ({ input }) => svc.deleteFinanceBook(input.id)),
+
 			// ── Asset CRUD ────────────────────────────────────────────────────
 			listAssets: assetProcedure
 				.input(Asset.listAssetsSchema)
@@ -103,6 +120,28 @@ export class AssetRouter {
 				.input(Asset.updateAssetSchema)
 				.mutation(async ({ input }) => {
 					const asset = await svc.updateAsset(input);
+					this.eventEmitter.emit("assetsChanged", {
+						type: "updated",
+						data: asset,
+					} satisfies AssetsChangedEvent);
+					return asset;
+				}),
+
+			submitAsset: assetProcedure
+				.input(z.object({ id: z.string().cuid() }))
+				.mutation(async ({ input }) => {
+					const asset = await svc.submitAsset(input.id);
+					this.eventEmitter.emit("assetsChanged", {
+						type: "updated",
+						data: asset,
+					} satisfies AssetsChangedEvent);
+					return asset;
+				}),
+
+			cancelAsset: assetProcedure
+				.input(z.object({ id: z.string().cuid() }))
+				.mutation(async ({ input }) => {
+					const asset = await svc.cancelAsset(input.id);
 					this.eventEmitter.emit("assetsChanged", {
 						type: "updated",
 						data: asset,

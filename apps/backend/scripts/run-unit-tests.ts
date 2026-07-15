@@ -11,7 +11,7 @@ const bunExecutable = process.execPath;
 dotenv.config({ path: path.join(workspaceRoot, ".env") });
 dotenv.config({
 	path: path.join(workspaceRoot, ".env.development"),
-	override: true,
+	override: false,
 });
 
 const testEnv = {
@@ -83,7 +83,13 @@ async function main() {
 		]);
 
 		const compiledSrcDir = path.join(tempDir, "src");
-		const specFiles = await collectSpecFiles(compiledSrcDir);
+		const filters = process.argv.slice(2);
+		const collectedSpecFiles = await collectSpecFiles(compiledSrcDir);
+		const specFiles = filters.length
+			? collectedSpecFiles.filter((file) =>
+					filters.some((filter) => file.includes(filter)),
+				)
+			: collectedSpecFiles;
 
 		if (specFiles.length === 0) {
 			throw new Error(`No compiled spec files found in ${compiledSrcDir}`);

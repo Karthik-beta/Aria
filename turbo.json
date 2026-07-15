@@ -166,6 +166,10 @@
 		"test:e2e": {
 			"cache": false
 		},
+		"test:integration": {
+			"dependsOn": ["^build", "prisma:generate"],
+			"cache": false
+		},
 		"prisma:generate": {
 			"outputs": ["src/generated/prisma/**"],
 			"cache": true

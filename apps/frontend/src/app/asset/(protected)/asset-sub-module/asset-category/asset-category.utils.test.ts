@@ -77,6 +77,12 @@ describe("asset-category.utils", () => {
 				depreciationMethod: "STRAIGHT_LINE",
 				totalNumberOfDepreciations: 60,
 				frequencyOfDepreciation: 12,
+				dailyProrataBased: false,
+				shiftBased: false,
+				rateOfDepreciation: null,
+				expectedValueAfterUsefulLife: null,
+				financeBooks: [],
+				accounts: [],
 			});
 		});
 

@@ -103,6 +103,10 @@ Set these in a `.env` file at the project root:
 |----------|-------------|
 | `POSTGRES_PASSWORD` | PostgreSQL password |
 | `REDIS_PASSWORD` | Redis password (optional) |
+| `REDIS_URL` | Durable BullMQ connection URL; required by the backend |
+| `APP_TIME_ZONE` | IANA timezone used for depreciation business dates and midnight discovery |
+| `ASSET_DEPRECIATION_QUEUE_CONCURRENCY` | Concurrent depreciation workers (default `5`) |
+| `ASSET_DEPRECIATION_BARRIER_TIMEOUT_MS` | Report synchronization timeout in milliseconds (default `120000`) |
 | `BETTER_AUTH_SECRET` | Auth session signing secret |
 | `DOMAIN` | Domain name or IP for Caddy |
 | `DEFAULT_ADMIN_USERNAME` | Initial admin username |
@@ -209,6 +213,44 @@ PostgreSQL is configured with production-tuned settings:
 - Data persisted to `postgres-data` volume
 
 Migrations run automatically on backend startup via `docker-entrypoint.sh`.
+
+## Depreciation Recovery
+
+Asset depreciation does not depend on the server being online at midnight. On
+every backend startup, Aria generates any missing base schedules for migrated
+submitted assets, discovers all due unposted periods, and places one durable
+BullMQ job per asset finance book and schedule date in Redis. The same discovery
+path runs daily at midnight in `APP_TIME_ZONE`.
+
+Redis uses append-only persistence in both Compose environments. Do not remove
+the Redis data volume during normal upgrades or restarts. PostgreSQL remains the
+accounting source of truth: a unique posting constraint prevents duplicate
+journal entries if power is lost after the database commit but before BullMQ
+acknowledges the job.
+
+Depreciation and asset-balance reports fail closed while due periods remain
+unposted. A timeout or failed job indicates a business-data issue such as
+missing company/category accounts or an accounting freeze; it does not make the
+application health endpoint fail.
+
+### Recovery checks
+
+```bash
+# Confirm PostgreSQL and Redis are healthy
+docker compose -f docker-compose.production.yml ps postgres redis
+
+# Inspect structured discovery and worker events
+docker compose -f docker-compose.production.yml logs backend \
+  | grep asset_depreciation
+
+# Restart only the backend; startup discovery will catch up database state
+docker compose -f docker-compose.production.yml restart backend
+```
+
+Before retrying a permanently failed posting, verify the company depreciation
+expense and accumulated-depreciation accounts, category overrides, finance-book
+configuration, and `accountsFrozenThrough` date in the admin UI. The next
+startup/daily discovery retries terminal jobs after the configured cooldown.
 
 ## Monitoring
 

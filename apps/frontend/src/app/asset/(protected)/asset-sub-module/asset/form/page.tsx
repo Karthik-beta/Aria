@@ -7,13 +7,15 @@ import {
 	ChevronDown,
 	CircleAlert,
 	Loader2,
+	Plus,
 	Scan,
+	Trash2,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
 import { Suspense } from "react";
-import { Controller, useForm, useWatch } from "react-hook-form";
+import { Controller, useFieldArray, useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 import * as z from "zod";
 import { BarcodeScannerDialog } from "@/components/barcode-scanner-dialog";
@@ -96,9 +98,36 @@ const assetFormSchema = z
 		depreciationStartDate: z.string().optional().nullable(),
 		openingAccumulatedDepreciation: z.string().optional().nullable(),
 		openingNumberOfBookedDepreciations: z.string().optional().nullable(),
+		financeBooks: z
+			.array(
+				z.object({
+					financeBookId: z.string().min(1),
+					depreciationMethod: Asset.depreciationMethodSchema,
+					totalNumberOfDepreciations: z.string().min(1),
+					frequencyOfDepreciation: z.string().min(1),
+					depreciationStartDate: z.string().min(1),
+					expectedValueAfterUsefulLife: z.string().optional(),
+					openingAccumulatedDepreciation: z.string().optional(),
+					openingNumberOfBookedDepreciations: z.string().optional(),
+					manualEntriesText: z.string().optional(),
+				}),
+			)
+			.default([]),
 	})
 	.superRefine((data, ctx) => {
 		if (!data.calculateDepreciation) return;
+		for (const [index, book] of data.financeBooks.entries()) {
+			if (
+				book.depreciationMethod === "MANUAL" &&
+				!book.manualEntriesText?.trim()
+			) {
+				ctx.addIssue({
+					path: ["financeBooks", index, "manualEntriesText"],
+					code: z.ZodIssueCode.custom,
+					message: "Manual schedules require date:amount rows",
+				});
+			}
+		}
 
 		if (!data.depreciationMethod) {
 			ctx.addIssue({
@@ -257,6 +286,7 @@ const defaultFormValues: AssetFormValues = {
 	depreciationStartDate: "",
 	openingAccumulatedDepreciation: "",
 	openingNumberOfBookedDepreciations: "",
+	financeBooks: [],
 };
 
 export default function AssetFormPage() {
@@ -303,6 +333,10 @@ function AssetFormContent() {
 		},
 	);
 	const companies = companiesData?.items ?? [];
+	const { data: financeBooksData } = trpc.asset.listFinanceBooks.useQuery(
+		{ take: 250 },
+		{ staleTime: 30_000 },
+	);
 
 	const { data: rawAsset, isLoading: isLoadingAsset } =
 		trpc.asset.getAssetById.useQuery(
@@ -327,6 +361,10 @@ function AssetFormContent() {
 	const form = useForm<AssetFormValues>({
 		resolver: zodResolver(assetFormSchema),
 		defaultValues: { ...defaultFormValues, ...urlDefaults },
+	});
+	const financeBookFields = useFieldArray({
+		control: form.control,
+		name: "financeBooks",
 	});
 
 	React.useEffect(() => {
@@ -406,6 +444,23 @@ function AssetFormContent() {
 				rawAsset.openingNumberOfBookedDepreciations != null
 					? String(rawAsset.openingNumberOfBookedDepreciations)
 					: "",
+			financeBooks: (rawAsset.financeBooks ?? []).map((book) => ({
+				financeBookId: book.financeBookId,
+				depreciationMethod: book.depreciationMethod,
+				totalNumberOfDepreciations: String(book.totalNumberOfDepreciations),
+				frequencyOfDepreciation: String(book.frequencyOfDepreciation),
+				depreciationStartDate:
+					new Date(book.depreciationStartDate).toISOString().split("T")[0] ??
+					"",
+				expectedValueAfterUsefulLife: String(book.expectedValueAfterUsefulLife),
+				openingAccumulatedDepreciation: String(
+					book.openingAccumulatedDepreciation,
+				),
+				openingNumberOfBookedDepreciations: String(
+					book.openingNumberOfBookedDepreciations,
+				),
+				manualEntriesText: "",
+			})),
 		});
 		setInitialized(true);
 	}, [rawAsset, form]);
@@ -428,6 +483,10 @@ function AssetFormContent() {
 	const watchedAssetOwner = useWatch({
 		control: form.control,
 		name: "assetOwner",
+	});
+	const watchedStatus = useWatch({
+		control: form.control,
+		name: "status",
 	});
 
 	const selectedCategory = categories.find(
@@ -578,13 +637,57 @@ function AssetFormContent() {
 				values.openingNumberOfBookedDepreciations
 					? parseInt(values.openingNumberOfBookedDepreciations, 10)
 					: null,
+			financeBooks: (values.financeBooks ?? []).map((book) => ({
+				financeBookId: book.financeBookId,
+				depreciationMethod: book.depreciationMethod,
+				totalNumberOfDepreciations: Number(book.totalNumberOfDepreciations),
+				frequencyOfDepreciation: Number(book.frequencyOfDepreciation),
+				depreciationStartDate: new Date(book.depreciationStartDate),
+				expectedValueAfterUsefulLife:
+					Number(book.expectedValueAfterUsefulLife) || 0,
+				openingAccumulatedDepreciation:
+					Number(book.openingAccumulatedDepreciation) || 0,
+				openingNumberOfBookedDepreciations:
+					Number(book.openingNumberOfBookedDepreciations) || 0,
+				manualEntries: book.manualEntriesText
+					?.split(/[\n,]+/)
+					.map((row) => row.trim())
+					.filter(Boolean)
+					.map((row) => {
+						const [date, amount] = row.split(":");
+						return { date: new Date(date ?? ""), amount: Number(amount) };
+					}),
+			})),
 		};
 
 		if (isEdit && assetId) {
+			const updatePayload =
+				values.status === "DRAFT"
+					? common
+					: {
+							assetName: common.assetName,
+							itemCode: common.itemCode,
+							barcode: common.barcode,
+							locationId: common.locationId,
+							custodian: common.custodian,
+							department: common.department,
+							assetQuantity: common.assetQuantity,
+							maintenanceRequired: common.maintenanceRequired,
+							assetOwner: common.assetOwner,
+							assetOwnerCompany: common.assetOwnerCompany,
+							supplier: common.supplier,
+							customer: common.customer,
+							purchaseReceipt: common.purchaseReceipt,
+							purchaseInvoice: common.purchaseInvoice,
+							policyNumber: common.policyNumber,
+							insurer: common.insurer,
+							insuredValue: common.insuredValue,
+							insuranceStartDate: common.insuranceStartDate,
+							insuranceEndDate: common.insuranceEndDate,
+						};
 			const parsed = Asset.updateAssetSchema.safeParse({
 				id: assetId,
-				...common,
-				status: values.status as Asset.AssetStatus,
+				...updatePayload,
 			});
 			if (!parsed.success) {
 				toast.error(parsed.error.issues[0]?.message ?? "Invalid form values");
@@ -1294,6 +1397,178 @@ function AssetFormContent() {
 											</p>
 										)}
 									</div>
+								</div>
+
+								<div className="mt-5 flex items-center justify-between border-t pt-4">
+									<div>
+										<h4 className="text-sm font-medium">Per-book schedules</h4>
+										<p className="text-xs text-muted-foreground">
+											Leave empty to inherit the category and company defaults.
+										</p>
+									</div>
+									<Button
+										type="button"
+										variant="outline"
+										size="sm"
+										disabled={watchedStatus !== "DRAFT"}
+										onClick={() => {
+											const book = financeBooksData?.items[0];
+											if (!book) {
+												toast.error("Create a finance book first");
+												return;
+											}
+											financeBookFields.append({
+												financeBookId: book.id,
+												depreciationMethod: "STRAIGHT_LINE",
+												totalNumberOfDepreciations: "60",
+												frequencyOfDepreciation: "1",
+												depreciationStartDate:
+													form.getValues("depreciationStartDate") || "",
+												expectedValueAfterUsefulLife: "0",
+												openingAccumulatedDepreciation: "0",
+												openingNumberOfBookedDepreciations: "0",
+												manualEntriesText: "",
+											});
+										}}
+									>
+										<Plus className="mr-2 h-4 w-4" /> Add Book
+									</Button>
+								</div>
+								<div className="space-y-3">
+									{financeBookFields.fields.map((field, index) => (
+										<div
+											key={field.id}
+											className="grid gap-3 rounded-md border bg-background p-3 sm:grid-cols-6"
+										>
+											<div className="space-y-1 sm:col-span-2">
+												<Label>Finance Book</Label>
+												<select
+													disabled={watchedStatus !== "DRAFT"}
+													className="h-9 w-full rounded-md border bg-background px-3"
+													{...form.register(
+														`financeBooks.${index}.financeBookId`,
+													)}
+												>
+													{financeBooksData?.items.map((book) => (
+														<option key={book.id} value={book.id}>
+															{book.name}
+														</option>
+													))}
+												</select>
+											</div>
+											<div className="space-y-1 sm:col-span-2">
+												<Label>Method</Label>
+												<select
+													disabled={watchedStatus !== "DRAFT"}
+													className="h-9 w-full rounded-md border bg-background px-3"
+													{...form.register(
+														`financeBooks.${index}.depreciationMethod`,
+													)}
+												>
+													{DEPRECIATION_METHOD_OPTIONS.map((option) => (
+														<option key={option.value} value={option.value}>
+															{option.label}
+														</option>
+													))}
+												</select>
+											</div>
+											<div className="space-y-1">
+												<Label>Periods</Label>
+												<Input
+													disabled={watchedStatus !== "DRAFT"}
+													type="number"
+													min={1}
+													{...form.register(
+														`financeBooks.${index}.totalNumberOfDepreciations`,
+													)}
+												/>
+											</div>
+											<div className="flex items-end gap-2">
+												<div className="flex-1 space-y-1">
+													<Label>Months</Label>
+													<Input
+														disabled={watchedStatus !== "DRAFT"}
+														type="number"
+														min={1}
+														{...form.register(
+															`financeBooks.${index}.frequencyOfDepreciation`,
+														)}
+													/>
+												</div>
+												<Button
+													disabled={watchedStatus !== "DRAFT"}
+													type="button"
+													size="icon"
+													variant="ghost"
+													aria-label="Remove finance book"
+													onClick={() => financeBookFields.remove(index)}
+												>
+													<Trash2 className="h-4 w-4" />
+												</Button>
+											</div>
+											<div className="space-y-1 sm:col-span-2">
+												<Label>Start Date</Label>
+												<Input
+													disabled={watchedStatus !== "DRAFT"}
+													type="date"
+													{...form.register(
+														`financeBooks.${index}.depreciationStartDate`,
+													)}
+												/>
+											</div>
+											<div className="space-y-1">
+												<Label>Salvage</Label>
+												<Input
+													disabled={watchedStatus !== "DRAFT"}
+													type="number"
+													min={0}
+													{...form.register(
+														`financeBooks.${index}.expectedValueAfterUsefulLife`,
+													)}
+												/>
+											</div>
+											<div className="space-y-1">
+												<Label>Opening Accum.</Label>
+												<Input
+													disabled={watchedStatus !== "DRAFT"}
+													type="number"
+													min={0}
+													{...form.register(
+														`financeBooks.${index}.openingAccumulatedDepreciation`,
+													)}
+												/>
+											</div>
+											<div className="space-y-1">
+												<Label>Booked</Label>
+												<Input
+													disabled={watchedStatus !== "DRAFT"}
+													type="number"
+													min={0}
+													{...form.register(
+														`financeBooks.${index}.openingNumberOfBookedDepreciations`,
+													)}
+												/>
+											</div>
+											{form.watch(
+												`financeBooks.${index}.depreciationMethod`,
+											) === "MANUAL" && (
+												<div className="space-y-1 sm:col-span-3">
+													<Label>Manual schedule rows</Label>
+													<Input
+														disabled={watchedStatus !== "DRAFT"}
+														placeholder="2026-07-31:1000, 2026-08-31:1000"
+														{...form.register(
+															`financeBooks.${index}.manualEntriesText`,
+														)}
+													/>
+													<p className="text-xs text-muted-foreground">
+														Enter date:amount pairs separated by commas or new
+														lines.
+													</p>
+												</div>
+											)}
+										</div>
+									))}
 								</div>
 							</div>
 						)}

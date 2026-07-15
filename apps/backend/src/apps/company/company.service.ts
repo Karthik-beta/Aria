@@ -119,6 +119,14 @@ export class CompanyService {
 				domain: input.domain?.trim() || null,
 				isGroup: input.isGroup ?? false,
 				parentCompanyId: input.parentCompanyId || null,
+				defaultFinanceBookId: input.defaultFinanceBookId || null,
+				depreciationEntrySeries: input.depreciationEntrySeries?.trim() || null,
+				defaultCostCenter: input.defaultCostCenter?.trim() || null,
+				accumulatedDepreciationAccount:
+					input.accumulatedDepreciationAccount?.trim() || null,
+				depreciationExpenseAccount:
+					input.depreciationExpenseAccount?.trim() || null,
+				accountsFrozenThrough: input.accountsFrozenThrough ?? null,
 			},
 			select: companySelect,
 		});
@@ -200,6 +208,27 @@ export class CompanyService {
 					parentCompanyId: input.parentCompanyId || null,
 				}),
 				...(input.disabled !== undefined && { disabled: input.disabled }),
+				...(input.defaultFinanceBookId !== undefined && {
+					defaultFinanceBookId: input.defaultFinanceBookId || null,
+				}),
+				...(input.depreciationEntrySeries !== undefined && {
+					depreciationEntrySeries:
+						input.depreciationEntrySeries?.trim() || null,
+				}),
+				...(input.defaultCostCenter !== undefined && {
+					defaultCostCenter: input.defaultCostCenter?.trim() || null,
+				}),
+				...(input.accumulatedDepreciationAccount !== undefined && {
+					accumulatedDepreciationAccount:
+						input.accumulatedDepreciationAccount?.trim() || null,
+				}),
+				...(input.depreciationExpenseAccount !== undefined && {
+					depreciationExpenseAccount:
+						input.depreciationExpenseAccount?.trim() || null,
+				}),
+				...(input.accountsFrozenThrough !== undefined && {
+					accountsFrozenThrough: input.accountsFrozenThrough ?? null,
+				}),
 			},
 			select: companySelect,
 		});
