@@ -17,8 +17,9 @@ import type {
 	DepreciationJobName,
 	DepreciationJobResult,
 } from "./depreciation.types";
+// biome-ignore lint/style/useImportType: Nest resolves this runtime constructor token from decorator metadata.
 import {
-	type DepreciationPersistenceService,
+	DepreciationPersistenceService,
 	DepreciationPostingValidationError,
 } from "./depreciation-persistence.service";
 

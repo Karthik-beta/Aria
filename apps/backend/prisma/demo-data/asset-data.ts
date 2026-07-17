@@ -1,5 +1,13 @@
 import type { Asset } from "@aria/types";
 
+export const DEMO_FINANCE_BOOK_NAME = "Companies Act Book";
+export const DEMO_DEPRECIATION_ACCOUNTS = {
+	fixedAsset: "Fixed Assets - PTPL",
+	accumulatedDepreciation: "Accumulated Depreciation - PTPL",
+	depreciationExpense: "Depreciation Expense - PTPL",
+	capitalWorkInProgress: "Capital Work in Progress - PTPL",
+} as const;
+
 export interface AssetLocationDef {
 	name: string;
 	isGroup: boolean;
@@ -11,6 +19,10 @@ export interface AssetCategoryDef {
 	depreciationMethod: Asset.DepreciationMethod | null;
 	totalNumberOfDepreciations: number | null;
 	frequencyOfDepreciation: number | null;
+	dailyProrataBased?: boolean;
+	shiftBased?: boolean;
+	rateOfDepreciation?: number | null;
+	expectedValueAfterUsefulLife?: number | null;
 	nonDepreciableCategory?: boolean;
 	enableCwipAccounting?: boolean;
 }
@@ -149,36 +161,44 @@ export const ASSET_CATEGORIES: AssetCategoryDef[] = [
 		depreciationMethod: "WRITTEN_DOWN_VALUE",
 		totalNumberOfDepreciations: 60,
 		frequencyOfDepreciation: 1,
+		dailyProrataBased: true,
+		rateOfDepreciation: 18.1,
 	},
 	{
 		name: "Test & Calibration Instruments",
 		depreciationMethod: "STRAIGHT_LINE",
 		totalNumberOfDepreciations: 36,
 		frequencyOfDepreciation: 3,
+		dailyProrataBased: true,
 	},
 	{
 		name: "Warehouse & Material Handling Assets",
 		depreciationMethod: "STRAIGHT_LINE",
 		totalNumberOfDepreciations: 48,
 		frequencyOfDepreciation: 3,
+		dailyProrataBased: true,
 	},
 	{
 		name: "IT Infrastructure & End-User Devices",
 		depreciationMethod: "STRAIGHT_LINE",
 		totalNumberOfDepreciations: 36,
 		frequencyOfDepreciation: 1,
+		dailyProrataBased: true,
 	},
 	{
 		name: "Utilities & Power Backup Systems",
 		depreciationMethod: "WRITTEN_DOWN_VALUE",
 		totalNumberOfDepreciations: 72,
 		frequencyOfDepreciation: 3,
+		dailyProrataBased: true,
+		rateOfDepreciation: 15,
 	},
 	{
 		name: "Demo & Field Deployment Systems",
 		depreciationMethod: "STRAIGHT_LINE",
 		totalNumberOfDepreciations: 24,
 		frequencyOfDepreciation: 1,
+		dailyProrataBased: true,
 	},
 ];
 

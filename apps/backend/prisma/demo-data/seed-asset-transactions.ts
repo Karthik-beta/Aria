@@ -24,6 +24,7 @@ type EffectiveAssetState = {
 	activeSchedule: {
 		id: string;
 		revisionNumber: number;
+		assetFinanceBookId: string;
 	} | null;
 };
 
@@ -122,7 +123,10 @@ function getCategoryDefaults(assetCategoryName: string) {
 	return category;
 }
 
-function buildInitialState(asset: AssetSeedDef): EffectiveAssetState {
+function buildInitialState(
+	asset: AssetSeedDef,
+	activeSchedule: EffectiveAssetState["activeSchedule"],
+): EffectiveAssetState {
 	return {
 		currentAssetValue: getCurrentAssetValue(asset),
 		status:
@@ -132,7 +136,7 @@ function buildInitialState(asset: AssetSeedDef): EffectiveAssetState {
 				: asset.status,
 		isFullyDepreciated:
 			asset.isFullyDepreciated ?? getCurrentAssetValue(asset) <= 0,
-		activeSchedule: null,
+		activeSchedule,
 	};
 }
 
@@ -380,6 +384,11 @@ async function seedValueAdjustments(
 							category.totalNumberOfDepreciations,
 						frequencyOfDepreciation:
 							asset.frequencyOfDepreciation ?? category.frequencyOfDepreciation,
+						dailyProrataBased: category.dailyProrataBased ?? false,
+						shiftBased: category.shiftBased ?? false,
+						rateOfDepreciation: category.rateOfDepreciation ?? null,
+						expectedValueAfterUsefulLife:
+							category.expectedValueAfterUsefulLife ?? null,
 					});
 		const resultState = getAssetValueAdjustmentResultState(
 			state.status,
@@ -402,10 +411,13 @@ async function seedValueAdjustments(
 					)
 				: null;
 
-		const matchingFy = fiscalYears.find(
-			(fy) =>
-				adjustmentDate >= fy.yearStartDate && adjustmentDate <= fy.yearEndDate,
-		);
+		const matchingFy = fiscalYears.find((fy) => {
+			const dayAfterYearEnd = new Date(fy.yearEndDate);
+			dayAfterYearEnd.setUTCDate(dayAfterYearEnd.getUTCDate() + 1);
+			return (
+				adjustmentDate >= fy.yearStartDate && adjustmentDate < dayAfterYearEnd
+			);
+		});
 		if (!matchingFy) {
 			throw new Error(
 				`No matching fiscal year found for date ${adjustmentDate.toISOString()}`,
@@ -486,12 +498,24 @@ async function seedValueAdjustments(
 		});
 
 		if (previewSchedule) {
+			if (!state.activeSchedule) {
+				throw new Error(
+					`Asset ${asset.key} requires an active finance-book schedule before a value adjustment can be seeded`,
+				);
+			}
 			const scheduleRevisionNumber =
 				(state.activeSchedule?.revisionNumber ?? 0) + 1;
+			if (adjustment.kind === "submitted") {
+				await prisma.assetDepreciationSchedule.update({
+					where: { id: state.activeSchedule.id },
+					data: { status: "CANCELLED" },
+				});
+			}
 			const schedule = await prisma.assetDepreciationSchedule.create({
 				data: {
 					adjustmentId: createdAdjustment.id,
 					assetId,
+					assetFinanceBookId: state.activeSchedule.assetFinanceBookId,
 					previousScheduleId: state.activeSchedule?.id ?? null,
 					revisionNumber: scheduleRevisionNumber,
 					status: adjustment.kind === "cancelled" ? "CANCELLED" : "ACTIVE",
@@ -538,6 +562,7 @@ async function seedValueAdjustments(
 				state.activeSchedule = {
 					id: schedule.id,
 					revisionNumber: scheduleRevisionNumber,
+					assetFinanceBookId: state.activeSchedule.assetFinanceBookId,
 				};
 			}
 		}
@@ -560,6 +585,12 @@ async function seedValueAdjustments(
 			state.currentAssetValue = adjustment.newAssetValue;
 			state.status = resultState.status;
 			state.isFullyDepreciated = resultState.isFullyDepreciated;
+			if (state.activeSchedule) {
+				await prisma.assetFinanceBook.update({
+					where: { id: state.activeSchedule.assetFinanceBookId },
+					data: { valueAfterDepreciation: adjustment.newAssetValue.toString() },
+				});
+			}
 		}
 
 		activitySequence += 1;
@@ -587,7 +618,19 @@ export async function seedAssetTransactions(
 
 		const assetRecord = await prisma.asset.findUnique({
 			where: { id: assetId },
-			select: { series: true },
+			select: {
+				series: true,
+				depreciationSchedules: {
+					where: { status: "ACTIVE" },
+					orderBy: { revisionNumber: "desc" },
+					take: 1,
+					select: {
+						id: true,
+						revisionNumber: true,
+						assetFinanceBookId: true,
+					},
+				},
+			},
 		});
 		if (!assetRecord) {
 			throw new Error(`Asset ${asset.key} could not be loaded after creation`);
@@ -644,7 +687,10 @@ export async function seedAssetTransactions(
 			activitySequence,
 		);
 
-		const effectiveState = buildInitialState(asset);
+		const effectiveState = buildInitialState(
+			asset,
+			assetRecord.depreciationSchedules[0] ?? null,
+		);
 		activitySequence = await seedValueAdjustments(
 			prisma,
 			config,

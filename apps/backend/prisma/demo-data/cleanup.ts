@@ -7,6 +7,7 @@
  * unconditionally since they're shared.
  */
 
+import { buildIndianFiscalYears } from "../../src/apps/asset/depreciation/demo-data.utils.js";
 import type { PrismaService } from "../../src/shared/prisma.service.js";
 import { ASSET_CATEGORIES, ASSET_LOCATIONS } from "./asset-data.js";
 import type { DemoConfig } from "./config.js";
@@ -56,6 +57,20 @@ export async function cleanDemoData(
 
 	await del("AssetMaintenanceTeam", () =>
 		prisma.assetMaintenanceTeam.deleteMany({ where: { company } }),
+	);
+
+	await del("AssetDepreciationJournalEntry", () =>
+		prisma.assetDepreciationJournalEntry.deleteMany({ where: { company } }),
+	);
+
+	await del("AssetDepreciationSchedule", () =>
+		prisma.assetDepreciationSchedule.deleteMany({
+			where: { asset: { company } },
+		}),
+	);
+
+	await del("AssetFinanceBook", () =>
+		prisma.assetFinanceBook.deleteMany({ where: { asset: { company } } }),
 	);
 
 	await del("AssetValueAdjustment", () =>
@@ -208,13 +223,9 @@ export async function cleanDemoData(
 	);
 
 	// Delete seeded fiscal years
-	const seededFiscalYears = [
-		"2022-23",
-		"2023-24",
-		"2024-25",
-		"2025-26",
-		"2026-27",
-	];
+	const seededFiscalYears = buildIndianFiscalYears(config.dateRange.to).map(
+		(fiscalYear) => fiscalYear.year,
+	);
 	await del("FiscalYear", () =>
 		prisma.fiscalYear.deleteMany({
 			where: { year: { in: seededFiscalYears } },
@@ -259,6 +270,9 @@ export async function getDemoStatus(
 		assetValueAdjustments,
 		assetRevaluationEntries,
 		assetDepreciationSchedules,
+		assetDepreciationScheduleEntries,
+		assetFinanceBooks,
+		assetDepreciationJournalEntries,
 		assetMaintenanceTeams,
 		assetMaintenances,
 		assetMaintenanceLogs,
@@ -293,6 +307,11 @@ export async function getDemoStatus(
 		prisma.assetValueAdjustment.count({ where: { companySnapshot: company } }),
 		prisma.assetRevaluationEntry.count({ where: { company } }),
 		prisma.assetDepreciationSchedule.count({ where: { asset: { company } } }),
+		prisma.assetDepreciationScheduleEntry.count({
+			where: { schedule: { asset: { company } } },
+		}),
+		prisma.assetFinanceBook.count({ where: { asset: { company } } }),
+		prisma.assetDepreciationJournalEntry.count({ where: { company } }),
 		prisma.assetMaintenanceTeam.count({ where: { company } }),
 		prisma.assetMaintenance.count({ where: { company } }),
 		prisma.assetMaintenanceLog.count({ where: { maintenance: { company } } }),
@@ -325,6 +344,9 @@ export async function getDemoStatus(
 		assetValueAdjustments,
 		assetRevaluationEntries,
 		assetDepreciationSchedules,
+		assetDepreciationScheduleEntries,
+		assetFinanceBooks,
+		assetDepreciationJournalEntries,
 		assetMaintenanceTeams,
 		assetMaintenances,
 		assetMaintenanceLogs,

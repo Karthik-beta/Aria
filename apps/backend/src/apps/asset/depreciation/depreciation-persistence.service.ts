@@ -232,7 +232,7 @@ export class DepreciationPersistenceService {
 	async post(job: DepreciationJobData): Promise<PostDepreciationResult> {
 		return this.db.$transaction(async (tx) => {
 			await tx.$queryRaw(Prisma.sql`
-				SELECT pg_advisory_xact_lock(hashtext(${job.assetFinanceBookId}))
+				SELECT pg_advisory_xact_lock(hashtext(${job.assetFinanceBookId})) IS NULL AS "locked"
 			`);
 
 			const entry =
