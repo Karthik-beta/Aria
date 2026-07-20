@@ -37,6 +37,10 @@ export class DepreciationQueueEventsListener extends QueueEventsHost {
 		super();
 	}
 
+	async checkReady(): Promise<void> {
+		await this.queueEvents.client.then((client) => client.info());
+	}
+
 	@OnQueueEvent("completed")
 	onCompleted(): void {
 		this.signal.notify();

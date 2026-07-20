@@ -2,8 +2,8 @@ import { Injectable, Logger } from "@nestjs/common";
 import type { Job } from "bullmq";
 import { normalizeDateOnly } from "./depreciation.config";
 import {
+	DEPRECIATION_COMPLETED_REDISCOVERY_COOLDOWN_MS,
 	DEPRECIATION_DISCOVERY_PAGE_SIZE,
-	DEPRECIATION_FAILED_REDISCOVERY_COOLDOWN_MS,
 	DEPRECIATION_JOB_VERSION,
 	depreciationJobId,
 	POST_ASSET_DEPRECIATION_JOB,
@@ -29,6 +29,7 @@ import {
 export type DepreciationDiscoveryTrigger =
 	| "startup"
 	| "cron"
+	| "reconciliation"
 	| "barrier"
 	| "manual";
 
@@ -134,9 +135,14 @@ export class DepreciationDiscoveryService {
 		job: Job<DepreciationJobData, DepreciationJobResult, DepreciationJobName>,
 	): Promise<boolean> {
 		const state = await job.getState();
-		if (state !== "failed" && state !== "completed") return false;
+		// Failed jobs are an operator-visible accounting stop. Reconciliation must
+		// not erase and recreate them, which would silently retry terminal errors.
+		if (state !== "completed") return false;
 		const terminalAt = job.finishedOn ?? job.timestamp;
-		if (Date.now() - terminalAt < DEPRECIATION_FAILED_REDISCOVERY_COOLDOWN_MS) {
+		if (
+			Date.now() - terminalAt <
+			DEPRECIATION_COMPLETED_REDISCOVERY_COOLDOWN_MS
+		) {
 			return false;
 		}
 		try {

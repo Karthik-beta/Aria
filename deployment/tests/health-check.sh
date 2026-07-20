@@ -95,10 +95,8 @@ test_endpoints() {
     sleep 5
     
     # Test health endpoint
-    test_http_endpoint "http://localhost/health" "Health check"
-    
-    # Test API endpoint
-    test_http_endpoint "http://localhost/api/health" "Backend API health" 200
+    test_http_endpoint "http://localhost/health/ready" "Backend readiness"
+    test_http_endpoint "http://localhost/health/live" "Backend liveness"
     
     # Test frontend
     test_http_endpoint "http://localhost" "Frontend root"

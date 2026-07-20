@@ -29,26 +29,6 @@ describe("AppController (e2e)", () => {
 		}
 	});
 
-	it("returns the simplified health payload", async () => {
-		const { app, moduleFixture } = await createApp();
-
-		try {
-			const response = await request(app.getHttpServer())
-				.get("/health")
-				.expect(200);
-
-			expect(response.body).toMatchObject({
-				status: "ok",
-				service: "aria-backend",
-			});
-			expect(typeof response.body.timestamp).toBe("string");
-			expect(response.body.timestamp).not.toBe("");
-		} finally {
-			await app.close();
-			await moduleFixture.close();
-		}
-	});
-
 	it("returns the detailed health payload", async () => {
 		const { app, moduleFixture } = await createApp();
 

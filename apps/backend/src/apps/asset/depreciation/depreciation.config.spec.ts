@@ -3,6 +3,9 @@ import {
 	businessDate,
 	depreciationBarrierTimeoutMs,
 	depreciationJobOptions,
+	depreciationProducerRedisConnection,
+	depreciationQueueOperationTimeoutMs,
+	depreciationReconciliationIntervalMs,
 	depreciationRedisConnection,
 	depreciationTimeZone,
 } from "./depreciation.config";
@@ -26,6 +29,31 @@ describe("depreciation configuration", () => {
 			tls: {},
 			maxRetriesPerRequest: null,
 		});
+	});
+
+	it("uses REDIS_PASSWORD when the URL has no credentials", () => {
+		process.env.REDIS_URL = "redis://redis.local:6379/2";
+		process.env.REDIS_PASSWORD = "secret";
+
+		expect(depreciationRedisConnection()).toMatchObject({
+			password: "secret",
+			maxRetriesPerRequest: null,
+		});
+		expect(depreciationProducerRedisConnection()).toMatchObject({
+			password: "secret",
+			maxRetriesPerRequest: 1,
+			enableOfflineQueue: false,
+			commandTimeout: 5_000,
+		});
+	});
+
+	it("rejects conflicting Redis password sources", () => {
+		process.env.REDIS_URL = "redis://:url-secret@redis.local:6379";
+		process.env.REDIS_PASSWORD = "environment-secret";
+
+		expect(() => depreciationRedisConnection()).toThrow(
+			"contain different passwords",
+		);
 	});
 
 	it("requires a valid business timezone", () => {
@@ -52,5 +80,7 @@ describe("depreciation configuration", () => {
 			count: 10_000,
 		});
 		expect(depreciationBarrierTimeoutMs()).toBe(120_000);
+		expect(depreciationQueueOperationTimeoutMs()).toBe(5_000);
+		expect(depreciationReconciliationIntervalMs()).toBe(900_000);
 	});
 });

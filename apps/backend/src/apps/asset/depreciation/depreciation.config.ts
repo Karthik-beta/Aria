@@ -1,8 +1,10 @@
-import type { ConnectionOptions, JobsOptions } from "bullmq";
+import type { JobsOptions, RedisOptions } from "bullmq";
 import {
 	DEPRECIATION_COMPLETED_RETENTION_COUNT,
 	DEPRECIATION_COMPLETED_RETENTION_SECONDS,
 	DEPRECIATION_DEFAULT_BARRIER_TIMEOUT_MS,
+	DEPRECIATION_DEFAULT_QUEUE_OPERATION_TIMEOUT_MS,
+	DEPRECIATION_DEFAULT_RECONCILIATION_INTERVAL_MS,
 	DEPRECIATION_DEFAULT_WORKER_CONCURRENCY,
 	DEPRECIATION_JOB_ATTEMPTS,
 	DEPRECIATION_RETRY_DELAY_MS,
@@ -26,8 +28,7 @@ function positiveInteger(name: string, fallback: number): number {
 	return parsed;
 }
 
-/** Parses REDIS_URL into the BullMQ/ioredis connection shape. */
-export function depreciationRedisConnection(): ConnectionOptions {
+function redisConnectionBase(): RedisOptions {
 	const raw = requiredEnvironmentValue("REDIS_URL");
 	let url: URL;
 	try {
@@ -45,14 +46,47 @@ export function depreciationRedisConnection(): ConnectionOptions {
 		throw new Error("REDIS_URL database must be a non-negative integer.");
 	}
 
+	const urlPassword = url.password
+		? decodeURIComponent(url.password)
+		: undefined;
+	const environmentPassword = process.env.REDIS_PASSWORD?.trim() || undefined;
+	if (
+		urlPassword &&
+		environmentPassword &&
+		urlPassword !== environmentPassword
+	) {
+		throw new Error(
+			"REDIS_URL and REDIS_PASSWORD contain different passwords.",
+		);
+	}
+
 	return {
 		host: url.hostname,
 		port: url.port ? Number.parseInt(url.port, 10) : 6379,
 		username: url.username ? decodeURIComponent(url.username) : undefined,
-		password: url.password ? decodeURIComponent(url.password) : undefined,
+		password: urlPassword ?? environmentPassword,
 		db: database,
 		tls: url.protocol === "rediss:" ? {} : undefined,
+		connectTimeout: depreciationQueueOperationTimeoutMs(),
+	};
+}
+
+/** Long-lived BullMQ connection for workers and queue events. */
+export function depreciationRedisConnection(): RedisOptions {
+	return {
+		...redisConnectionBase(),
 		maxRetriesPerRequest: null,
+	};
+}
+
+/** Fail-fast connection used only by HTTP/scheduler queue producers. */
+export function depreciationProducerRedisConnection(): RedisOptions {
+	return {
+		...redisConnectionBase(),
+		maxRetriesPerRequest: 1,
+		enableOfflineQueue: false,
+		commandTimeout: depreciationQueueOperationTimeoutMs(),
+		lazyConnect: true,
 	};
 }
 
@@ -78,6 +112,20 @@ export function depreciationBarrierTimeoutMs(): number {
 	return positiveInteger(
 		"ASSET_DEPRECIATION_BARRIER_TIMEOUT_MS",
 		DEPRECIATION_DEFAULT_BARRIER_TIMEOUT_MS,
+	);
+}
+
+export function depreciationQueueOperationTimeoutMs(): number {
+	return positiveInteger(
+		"ASSET_DEPRECIATION_QUEUE_OPERATION_TIMEOUT_MS",
+		DEPRECIATION_DEFAULT_QUEUE_OPERATION_TIMEOUT_MS,
+	);
+}
+
+export function depreciationReconciliationIntervalMs(): number {
+	return positiveInteger(
+		"ASSET_DEPRECIATION_RECONCILIATION_INTERVAL_MS",
+		DEPRECIATION_DEFAULT_RECONCILIATION_INTERVAL_MS,
 	);
 }
 

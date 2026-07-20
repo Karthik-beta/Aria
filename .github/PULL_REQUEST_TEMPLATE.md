@@ -99,6 +99,13 @@ Closes #
 
 <!-- Any special deployment considerations or steps required -->
 
+## Official Docs
+
+<!-- Link authoritative guidance considered for framework or platform changes. Include MCP context IDs when MCP research was used. -->
+
+- [ ] I reviewed the relevant official documentation or documented why it does not apply.
+- References:
+
 ---
 
 **By submitting this pull request, I confirm that my contribution is made under the terms of the project's license.**

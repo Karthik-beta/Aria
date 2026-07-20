@@ -4,7 +4,7 @@
 services:
   # Caddy reverse proxy (production mode with HTTPS) 🔐
   caddy:
-    image: caddy:2.10.2-alpine
+    image: caddy:2.10.2-alpine@sha256:4c6e91c6ed0e2fa03efd5b44747b625fec79bc9cd06ac5235a779726618e530d
     container_name: aria-caddy
     restart: unless-stopped
     ports:
@@ -91,6 +91,26 @@ services:
           memory: 512M
 
   # Backend (NestJS production build) 🚀
+  migrate:
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+      target: runner
+      args:
+        - NODE_ENV=production
+    image: aria-backend:${VERSION:-latest}
+    restart: 'no'
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://aria:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/aria
+    networks:
+      - aria-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+    entrypoint: ['/bin/sh', '-c']
+    command: ['cd /app/apps/backend && bun x --bun prisma migrate deploy']
+
   backend:
     build:
       context: .
@@ -103,21 +123,24 @@ services:
     restart: unless-stopped
     environment:
       - NODE_ENV=production
-      - DATABASE_URL=postgresql://aria:${POSTGRES_PASSWORD}@postgres:5432/aria
+      - DATABASE_URL=postgresql://aria:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/aria
       - REDIS_URL=${REDIS_URL:-redis://redis:6379}
-      - APP_TIME_ZONE=${APP_TIME_ZONE:-UTC}
+      - REDIS_PASSWORD=${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+      - APP_TIME_ZONE=${APP_TIME_ZONE:?APP_TIME_ZONE is required}
       - ASSET_DEPRECIATION_QUEUE_CONCURRENCY=${ASSET_DEPRECIATION_QUEUE_CONCURRENCY:-5}
       - ASSET_DEPRECIATION_BARRIER_TIMEOUT_MS=${ASSET_DEPRECIATION_BARRIER_TIMEOUT_MS:-120000}
+      - ASSET_DEPRECIATION_QUEUE_OPERATION_TIMEOUT_MS=${ASSET_DEPRECIATION_QUEUE_OPERATION_TIMEOUT_MS:-5000}
+      - ASSET_DEPRECIATION_RECONCILIATION_INTERVAL_MS=${ASSET_DEPRECIATION_RECONCILIATION_INTERVAL_MS:-900000}
       - PORT=3001
-      - JWT_SECRET=${JWT_SECRET}
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET is required}
       - JWT_EXPIRATION=${JWT_EXPIRATION:-24h}
       # Better Auth Configuration
-      - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
+      - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET:?BETTER_AUTH_SECRET is required}
       - BETTER_AUTH_URL=${BETTER_AUTH_URL:-https://${DOMAIN:-localhost}}
       - FRONTEND_URL=${FRONTEND_URL:-https://${DOMAIN:-localhost}}
       # Default Admin Account
       - DEFAULT_ADMIN_USERNAME=${DEFAULT_ADMIN_USERNAME:-admin}
-      - DEFAULT_ADMIN_PASSWORD=${DEFAULT_ADMIN_PASSWORD}
+      - DEFAULT_ADMIN_PASSWORD=${DEFAULT_ADMIN_PASSWORD:?DEFAULT_ADMIN_PASSWORD is required}
       - DEFAULT_ADMIN_EMAIL=${DEFAULT_ADMIN_EMAIL:-admin@localhost}
       - DEFAULT_ADMIN_NAME=${DEFAULT_ADMIN_NAME:-Administrator}
       # Optional: load demo data on startup (e.g., "medium" or "small" or "large")
@@ -130,8 +153,10 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     healthcheck:
-      test: ['CMD', 'curl', '-fsS', 'http://localhost:3001/health']
+      test: ['CMD', 'curl', '-fsS', 'http://localhost:3001/health/ready']
       interval: 15s
       timeout: 10s
       retries: 10
@@ -142,6 +167,7 @@ services:
         max-size: '10m'
         max-file: '3'
     deploy:
+      replicas: 1
       resources:
         limits:
           cpus: '2.0'
@@ -152,13 +178,13 @@ services:
 
   # PostgreSQL database
   postgres:
-    image: postgres:18-alpine
+    image: postgres:18-alpine@sha256:54451ecb8ab38c24c3ec123f2fd501303a3a1856a5c66e98cecf2460d5e1e9d7
     container_name: aria-postgres
     restart: unless-stopped
     environment:
       - POSTGRES_DB=aria
       - POSTGRES_USER=aria
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
       - POSTGRES_INITDB_ARGS=--encoding=UTF-8 --lc-collate=en_US.UTF-8 --lc-ctype=en_US.UTF-8
     volumes:
       - postgres-data:/var/lib/postgresql
@@ -213,11 +239,11 @@ services:
 
   # Redis (for caching and sessions)
   redis:
-    image: redis:7-alpine
+    image: redis:7-alpine@sha256:7aec734b2bb298a1d769fd8729f13b8514a41bf90fcdd1f38ec52267fbaa8ee6
     container_name: aria-redis
     restart: unless-stopped
     environment:
-      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+      - REDIS_PASSWORD=${REDIS_PASSWORD:?REDIS_PASSWORD is required}
     volumes:
       - redis-data:/data
     networks:
@@ -226,7 +252,7 @@ services:
       test:
         [
           'CMD-SHELL',
-          'if [ -n "$REDIS_PASSWORD" ]; then REDISCLI_AUTH="$REDIS_PASSWORD" redis-cli ping | grep -q PONG; else redis-cli ping | grep -q PONG; fi',
+          'REDISCLI_AUTH="$${REDIS_PASSWORD}" redis-cli ping | grep -q PONG',
         ]
       interval: 10s
       timeout: 5s
@@ -245,18 +271,14 @@ services:
         reservations:
           cpus: '0.25'
           memory: 128M
-    command: >
-      sh -c '
-        if [ -n "$$REDIS_PASSWORD" ]; then
-          redis-server --appendonly yes --requirepass "$$REDIS_PASSWORD"
-        else
-          redis-server --appendonly yes
-        fi
-      '
+    command:
+      - /bin/sh
+      - -c
+      - exec redis-server --appendonly yes --appendfsync everysec --maxmemory-policy noeviction --requirepass "$${REDIS_PASSWORD}"
 
   # Monitoring Services 📊
   prometheus:
-    image: prom/prometheus:latest
+    image: prom/prometheus@sha256:5550dc63da361dc30f6fe02ac0e4dfc736ededfef3c8d12a634db04a67824d78
     container_name: aria-prometheus
     restart: unless-stopped
     volumes:
@@ -280,7 +302,7 @@ services:
         max-file: '3'
 
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana@sha256:0f86bada30d65ef9d0183b90c1e2682ac92d53d95da8bed322b984ea78a4a73a
     container_name: aria-grafana
     restart: unless-stopped
     volumes:
@@ -303,7 +325,7 @@ services:
         max-file: '3'
 
   cadvisor:
-    image: gcr.io/cadvisor/cadvisor:latest
+    image: gcr.io/cadvisor/cadvisor@sha256:3de2bd5203120b866d74a9b283b2ffb8ec382fbf9dc321814700c6ea6f44ec57
     container_name: aria-cadvisor
     restart: unless-stopped
     volumes:
@@ -323,7 +345,7 @@ services:
         max-file: '3'
 
   node-exporter:
-    image: prom/node-exporter:latest
+    image: prom/node-exporter@sha256:e9cff4fc67b1818f8c97adb115b9f12c9a54b533de86765d4a0effc01b357205
     container_name: aria-node-exporter
     restart: unless-stopped
     volumes:

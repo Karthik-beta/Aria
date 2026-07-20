@@ -1,4 +1,4 @@
-import { BullModule, getQueueToken } from "@nestjs/bullmq";
+import { BullModule } from "@nestjs/bullmq";
 import { Module } from "@nestjs/common";
 import { ScheduleModule } from "@nestjs/schedule";
 import { AssetDepreciationLifecycleService } from "./asset-depreciation-lifecycle.service";
@@ -12,10 +12,7 @@ import { DepreciationProcessor } from "./depreciation.processor";
 import { DepreciationBarrierService } from "./depreciation-barrier.service";
 import { DepreciationDiscoveryService } from "./depreciation-discovery.service";
 import { DepreciationPersistenceService } from "./depreciation-persistence.service";
-import {
-	type DepreciationQueue,
-	DepreciationQueueClient,
-} from "./depreciation-queue.client";
+import { DepreciationQueueClient } from "./depreciation-queue.client";
 import {
 	DepreciationQueueEventsListener,
 	DepreciationQueueSignal,
@@ -36,12 +33,7 @@ import { DepreciationSchedulerService } from "./depreciation-scheduler.service";
 	],
 	providers: [
 		AssetDepreciationLifecycleService,
-		{
-			provide: DepreciationQueueClient,
-			inject: [getQueueToken(ASSET_DEPRECIATION_QUEUE)],
-			useFactory: (queue: DepreciationQueue) =>
-				new DepreciationQueueClient(queue),
-		},
+		DepreciationQueueClient,
 		DepreciationPersistenceService,
 		DepreciationMetrics,
 		DepreciationQueueSignal,
@@ -55,6 +47,11 @@ import { DepreciationSchedulerService } from "./depreciation-scheduler.service";
 		AssetDepreciationLifecycleService,
 		DepreciationDiscoveryService,
 		DepreciationBarrierService,
+		DepreciationMetrics,
+		DepreciationQueueClient,
+		DepreciationProcessor,
+		DepreciationQueueEventsListener,
+		DepreciationSchedulerService,
 	],
 })
 export class DepreciationProcessingModule {}

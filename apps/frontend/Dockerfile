@@ -5,7 +5,7 @@
 
 # Base stage with Bun package manager 🧱
 # Using Bun's official image which includes Node.js runtime
-FROM oven/bun:1 AS base
+FROM oven/bun:1.3.1@sha256:9c5d3c92b234b4708198577d2f39aab7397a242a40da7c2f059e51b9dc62b408 AS base
 WORKDIR /app
 
 # Dependencies stage - install all dependencies 📦
@@ -67,6 +67,11 @@ CMD ["bun", "--filter", "frontend", "dev"]
 FROM base AS builder
 WORKDIR /app
 
+# Prisma type generation needs OpenSSL available in the build stage.
+RUN apt-get update -y && \
+    apt-get install -y --no-install-recommends openssl && \
+    rm -rf /var/lib/apt/lists/*
+
 # Copy everything from deps (includes node_modules and source files)
 COPY --from=deps /app ./
 
@@ -84,18 +89,6 @@ ENV NEXT_TELEMETRY_DISABLED=1
 # For separate backend domains, set to the backend URL (e.g., https://api.example.com)
 ARG NEXT_PUBLIC_API_URL=
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
-
-# Expose Turborepo remote cache args so they can be provided at docker build time
-# These should be passed via build args (docker-compose/CI) and are turned into ENV
-ARG TURBO_TOKEN
-ARG TURBO_TEAM
-ARG TURBO_API
-
-# Make TURBO_* available as environment variables during the build
-# so `turbo` can authenticate with the remote cache.
-ENV TURBO_TOKEN=${TURBO_TOKEN}
-ENV TURBO_TEAM=${TURBO_TEAM}
-ENV TURBO_API=${TURBO_API}
 
 # Prisma config uses env("DATABASE_URL"), so provide a build-time placeholder.
 ARG DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres?schema=public
@@ -115,7 +108,7 @@ RUN cd packages/report-export && bun tsc --build tsconfig.build.json
 RUN --mount=type=cache,id=turbo-backend,target=/app/.turbo/cache bun --filter backend build
 
 # Build frontend using Turbo (now able to access remote cache via TURBO_* env)
-RUN --mount=type=cache,id=turbo-frontend,target=/app/.turbo/cache bun turbo build --filter=frontend...
+RUN --mount=type=cache,id=turbo-frontend,target=/app/.turbo/cache bun x turbo run build --filter=frontend...
 
 # Production runner stage - minimal production image with standalone output 🏁
 FROM base AS runner

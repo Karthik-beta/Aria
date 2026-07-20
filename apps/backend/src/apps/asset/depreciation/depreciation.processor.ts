@@ -43,6 +43,17 @@ export class DepreciationProcessor extends WorkerHost {
 		super();
 	}
 
+	isRunning(): boolean {
+		return this.worker.isRunning();
+	}
+
+	async checkReady(): Promise<void> {
+		if (!this.worker.isRunning()) {
+			throw new Error("Depreciation worker is not running.");
+		}
+		await this.worker.client.then((client) => client.info());
+	}
+
 	async process(job: DepreciationJob): Promise<DepreciationJobResult> {
 		const startedAt = performance.now();
 		let resultLabel = "failed";
@@ -119,6 +130,25 @@ export class DepreciationProcessor extends WorkerHost {
 			assetId: job?.data.assetId,
 			scheduleEntryId: job?.data.scheduleEntryId,
 			attemptsMade: job?.attemptsMade,
+			error: error.message,
+		});
+	}
+
+	@OnWorkerEvent("stalled")
+	onStalled(jobId: string, previousState: string): void {
+		this.metrics.recordStalled();
+		this.logger.warn({
+			event: "asset_depreciation_job_stalled",
+			jobId,
+			previousState,
+		});
+	}
+
+	@OnWorkerEvent("error")
+	onError(error: Error): void {
+		this.metrics.recordWorkerError();
+		this.logger.error({
+			event: "asset_depreciation_worker_error",
 			error: error.message,
 		});
 	}

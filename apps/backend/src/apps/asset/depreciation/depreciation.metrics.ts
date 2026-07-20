@@ -62,6 +62,63 @@ export class DepreciationMetrics {
 				help: "Depreciation worker failures eligible for another attempt.",
 			}),
 	);
+	private readonly discoveryFailures = getOrCreate(
+		"aria_asset_depreciation_discovery_failures_total",
+		() =>
+			new Counter({
+				name: "aria_asset_depreciation_discovery_failures_total",
+				help: "Depreciation discovery runs that failed before completion.",
+				labelNames: ["trigger"],
+			}),
+	);
+	private readonly lastSuccessfulDiscovery = getOrCreate(
+		"aria_asset_depreciation_last_successful_discovery_timestamp_seconds",
+		() =>
+			new Gauge({
+				name: "aria_asset_depreciation_last_successful_discovery_timestamp_seconds",
+				help: "Unix timestamp of the last successful depreciation discovery.",
+			}),
+	);
+	private readonly queueReady = getOrCreate(
+		"aria_asset_depreciation_queue_ready",
+		() =>
+			new Gauge({
+				name: "aria_asset_depreciation_queue_ready",
+				help: "Whether the depreciation producer can reach Redis.",
+			}),
+	);
+	private readonly workerReady = getOrCreate(
+		"aria_asset_depreciation_worker_ready",
+		() =>
+			new Gauge({
+				name: "aria_asset_depreciation_worker_ready",
+				help: "Whether the in-process depreciation worker is running.",
+			}),
+	);
+	private readonly queueEventsReady = getOrCreate(
+		"aria_asset_depreciation_queue_events_ready",
+		() =>
+			new Gauge({
+				name: "aria_asset_depreciation_queue_events_ready",
+				help: "Whether depreciation queue events are connected.",
+			}),
+	);
+	private readonly stalled = getOrCreate(
+		"aria_asset_depreciation_stalled_total",
+		() =>
+			new Counter({
+				name: "aria_asset_depreciation_stalled_total",
+				help: "Depreciation jobs reported stalled by BullMQ.",
+			}),
+	);
+	private readonly workerErrors = getOrCreate(
+		"aria_asset_depreciation_worker_errors_total",
+		() =>
+			new Counter({
+				name: "aria_asset_depreciation_worker_errors_total",
+				help: "Depreciation worker-level Redis or runtime errors.",
+			}),
+	);
 	private readonly blocked = getOrCreate(
 		"aria_asset_depreciation_blocked_total",
 		() =>
@@ -92,6 +149,11 @@ export class DepreciationMetrics {
 	recordDiscovery(trigger: string, discovered: number, enqueued: number): void {
 		this.discovered.inc({ trigger }, discovered);
 		this.enqueued.inc({ trigger }, enqueued);
+		this.lastSuccessfulDiscovery.set(Date.now() / 1000);
+	}
+
+	recordDiscoveryFailure(trigger: string): void {
+		this.discoveryFailures.inc({ trigger });
 	}
 
 	recordDuplicateSkipped(count = 1): void {
@@ -104,6 +166,26 @@ export class DepreciationMetrics {
 
 	recordFailed(terminal: boolean): void {
 		(terminal ? this.failed : this.retried).inc();
+	}
+
+	recordStalled(): void {
+		this.stalled.inc();
+	}
+
+	recordWorkerError(): void {
+		this.workerErrors.inc();
+	}
+
+	setQueueReady(ready: boolean): void {
+		this.queueReady.set(ready ? 1 : 0);
+	}
+
+	setWorkerReady(ready: boolean): void {
+		this.workerReady.set(ready ? 1 : 0);
+	}
+
+	setQueueEventsReady(ready: boolean): void {
+		this.queueEventsReady.set(ready ? 1 : 0);
 	}
 
 	recordBlocked(): void {

@@ -105,4 +105,45 @@ describe("DepreciationDiscoveryService", () => {
 		expect(result.enqueued).toBe(0);
 		expect(result.duplicateSkipped).toBe(1);
 	});
+
+	it("does not automatically retry a terminal failed accounting job", async () => {
+		const remove = mock(async () => undefined);
+		const queue = {
+			getJob: mock(async () => ({
+				getState: async () => "failed",
+				finishedOn: Date.now() - 86_400_000,
+				timestamp: Date.now() - 86_400_000,
+				remove,
+			})),
+			addBulk: mock(async () => undefined),
+		} as unknown as DepreciationQueueClient;
+		const persistence = {
+			pendingPage: mock(async () => [
+				{
+					assetId: "asset-1",
+					assetFinanceBookId: "asset-book-1",
+					financeBookId: "book-1",
+					scheduleId: "schedule-1",
+					scheduleEntryId: "entry-1",
+					depreciationDate: new Date("2026-07-05T00:00:00.000Z"),
+					company: "Aria",
+					blockedByFreeze: false,
+				},
+			]),
+		} as unknown as DepreciationPersistenceService;
+		const metrics = {
+			recordDiscovery: mock(() => undefined),
+			recordDuplicateSkipped: mock(() => undefined),
+			setOldestUnposted: mock(() => undefined),
+		} as unknown as DepreciationMetrics;
+
+		const result = await new DepreciationDiscoveryService(
+			queue,
+			persistence,
+			metrics,
+		).discover({ throughDate: "2026-07-10" }, "reconciliation");
+
+		expect(result.enqueued).toBe(0);
+		expect(remove).not.toHaveBeenCalled();
+	});
 });

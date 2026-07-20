@@ -85,11 +85,15 @@ async function main() {
 		const compiledSrcDir = path.join(tempDir, "src");
 		const filters = process.argv.slice(2);
 		const collectedSpecFiles = await collectSpecFiles(compiledSrcDir);
-		const specFiles = filters.length
-			? collectedSpecFiles.filter((file) =>
-					filters.some((filter) => file.includes(filter)),
-				)
-			: collectedSpecFiles;
+		const includeIntegration = filters.some((filter) =>
+			filter.includes("integration"),
+		);
+		const specFiles = collectedSpecFiles.filter(
+			(file) =>
+				(filters.length === 0 ||
+					filters.some((filter) => file.includes(filter))) &&
+				(includeIntegration || !file.endsWith(".integration.spec.js")),
+		);
 
 		if (specFiles.length === 0) {
 			throw new Error(`No compiled spec files found in ${compiledSrcDir}`);

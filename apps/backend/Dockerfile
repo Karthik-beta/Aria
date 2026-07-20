@@ -4,13 +4,13 @@
 # Key goals:
 # - Multi-stage for small, secure images (build tools excluded from runtime)
 # - Bun prod-only install in the final image to avoid broken virtual-store symlinks
-# - Prisma: generate at build time in final image and migrate deploy at startup
+# - Prisma: generate at build time; migrations run in a one-shot Compose service
 # - Workspace-aware caching: manifests first, sources later to maximize cache hits
 
 ############################
 # Base: Bun runtime/tooling
 ############################
-FROM oven/bun:1 AS base
+FROM oven/bun:1.3.1@sha256:9c5d3c92b234b4708198577d2f39aab7397a242a40da7c2f059e51b9dc62b408 AS base
 WORKDIR /app
 
 ########################################
@@ -65,6 +65,11 @@ CMD ["sh", "-c", "cd /app/apps/backend && bun prisma migrate dev && bun --filter
 FROM base AS builder
 WORKDIR /app
 
+# Prisma generation detects OpenSSL during the build as well as at runtime.
+RUN apt-get update -y && \
+    apt-get install -y --no-install-recommends openssl && \
+    rm -rf /var/lib/apt/lists/*
+
 # Copy manifests first for better caching
 COPY bun.lock package.json turbo.json tsconfig.base.json ./
 COPY packages/api-contract/package.json ./packages/api-contract/
@@ -96,14 +101,6 @@ RUN cd /app/packages/types && bun tsc --build tsconfig.json
 RUN cd /app/packages/utils && bun tsc --build tsconfig.json
 RUN cd /app/packages/report-export && bun tsc --build tsconfig.build.json
 
-# Optional: Turborepo remote cache
-ARG TURBO_TOKEN
-ARG TURBO_TEAM
-ARG TURBO_API
-ENV TURBO_TOKEN=${TURBO_TOKEN} \
-    TURBO_TEAM=${TURBO_TEAM} \
-    TURBO_API=${TURBO_API}
-
 # Build backend (compiles NestJS to dist)
 RUN --mount=type=cache,id=turbo-backend,target=/app/.turbo/cache bun --filter backend build
 
@@ -114,83 +111,77 @@ RUN --mount=type=cache,id=turbo-backend,target=/app/.turbo/cache bun --filter ba
 #   to keep Bun’s virtual-store links valid (no cross-layer copy)
 # - Copy only compiled JS and required runtime assets
 #######################################################
-FROM oven/bun:1 AS runner
+FROM oven/bun:1.3.1@sha256:9c5d3c92b234b4708198577d2f39aab7397a242a40da7c2f059e51b9dc62b408 AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 # Put CLI tools in PATH (e.g., prisma, if present)
 ENV PATH="/app/node_modules/.bin:${PATH}"
 
-# Security: non-root user
+# Security and runtime packages in one root layer
 RUN set -eux; \
+    apt-get update -y; \
+    apt-get install -y --no-install-recommends curl openssl; \
+    rm -rf /var/lib/apt/lists/*; \
     if command -v addgroup >/dev/null 2>&1; then \
       addgroup --system --gid 1001 nodejs; \
       adduser --system --uid 1001 --ingroup nodejs nestjs; \
     else \
       groupadd -g 1001 -r nodejs; \
       useradd -u 1001 -r -g nodejs -m -s /usr/sbin/nologin nestjs; \
-    fi
+    fi; \
+    chown nestjs:nodejs /app
 
 # 1) Copy only the minimal manifests required for a workspace-aware prod install
 # Root + per-package manifests (no sources yet)
-COPY package.json bun.lock ./
-COPY packages/api-contract/package.json ./packages/api-contract/package.json
-COPY packages/config-typescript/package.json ./packages/config-typescript/package.json
-COPY packages/report-export/package.json ./packages/report-export/package.json
-COPY packages/types/package.json ./packages/types/package.json
-COPY packages/utils/package.json ./packages/utils/package.json
-COPY apps/frontend/package.json ./apps/frontend/package.json
-COPY apps/backend/package.json ./apps/backend/package.json
+COPY --chown=nestjs:nodejs package.json bun.lock ./
+COPY --chown=nestjs:nodejs packages/api-contract/package.json ./packages/api-contract/package.json
+COPY --chown=nestjs:nodejs packages/config-typescript/package.json ./packages/config-typescript/package.json
+COPY --chown=nestjs:nodejs packages/report-export/package.json ./packages/report-export/package.json
+COPY --chown=nestjs:nodejs packages/types/package.json ./packages/types/package.json
+COPY --chown=nestjs:nodejs packages/utils/package.json ./packages/utils/package.json
+COPY --chown=nestjs:nodejs apps/frontend/package.json ./apps/frontend/package.json
+COPY --chown=nestjs:nodejs apps/backend/package.json ./apps/backend/package.json
 
 # 2) Production install happens in the final image to keep symlinks valid
 # Use BuildKit cache for Bun downloads; install prod-only to reduce size
 # Single workspace install ensures all dependencies are resolved together
 # Ignore lifecycle scripts in runtime image install (e.g., root prepare=husky)
+USER nestjs
 RUN bun install --frozen-lockfile --production --ignore-scripts
 
 # 3) Bring in the compiled application and only the runtime artifacts
 # Backend compiled code + prisma schema/migrations
-COPY --from=builder /app/apps/backend/dist /app/apps/backend/dist
-COPY --from=builder /app/apps/backend/prisma /app/apps/backend/prisma
-COPY --from=builder /app/apps/backend/prisma.config.ts /app/apps/backend/prisma.config.ts
+COPY --from=builder --chown=nestjs:nodejs /app/apps/backend/dist /app/apps/backend/dist
+COPY --from=builder --chown=nestjs:nodejs /app/apps/backend/prisma /app/apps/backend/prisma
+COPY --from=builder --chown=nestjs:nodejs /app/apps/backend/prisma.config.ts /app/apps/backend/prisma.config.ts
+COPY --from=builder --chown=nestjs:nodejs /app/apps/backend/scripts /app/apps/backend/scripts
 
 # Prisma-generated client (required at runtime for demo-data CLI scripts)
-COPY --from=builder /app/apps/backend/src/generated/prisma /app/apps/backend/src/generated/prisma
+COPY --from=builder --chown=nestjs:nodejs /app/apps/backend/src/generated/prisma /app/apps/backend/src/generated/prisma
 
 # Compiled service files required by demo-data scripts (stock-snapshot.js, etc.)
-COPY --from=builder /app/apps/backend/dist/apps/inventory/services /app/apps/backend/src/apps/inventory/services
-COPY --from=builder /app/apps/backend/dist/apps/asset /app/apps/backend/src/apps/asset
-COPY --from=builder /app/apps/backend/dist/shared /app/apps/backend/src/shared
+COPY --from=builder --chown=nestjs:nodejs /app/apps/backend/dist/apps/inventory/services /app/apps/backend/src/apps/inventory/services
+COPY --from=builder --chown=nestjs:nodejs /app/apps/backend/dist/apps/asset /app/apps/backend/src/apps/asset
+COPY --from=builder --chown=nestjs:nodejs /app/apps/backend/dist/shared /app/apps/backend/src/shared
 
 # Remove source .ts files that would take precedence over compiled .js files
 # These files only exist because builder stage copies full source tree to src/
 RUN rm -f /app/apps/backend/src/shared/prisma.service.ts /app/apps/backend/src/shared/prisma-client.ts
 
-# 4) Install OpenSSL for Prisma (required by oven/bun image)
-RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
-
-# 5) Copy shared workspace packages from source directories
+# 4) Copy shared workspace packages from source directories
 # bun install --production creates symlinks: node_modules/@aria/<pkg> -> packages/<pkg>
 # packages/ directories contain compiled dist/ after builder stage
-COPY --from=builder /app/packages/types /app/packages/types
-COPY --from=builder /app/packages/utils /app/packages/utils
-COPY --from=builder /app/packages/report-export /app/packages/report-export
+COPY --from=builder --chown=nestjs:nodejs /app/packages/types /app/packages/types
+COPY --from=builder --chown=nestjs:nodejs /app/packages/utils /app/packages/utils
+COPY --from=builder --chown=nestjs:nodejs /app/packages/report-export /app/packages/report-export
 
 
 # Runtime assets for health checks and startup scripts
-COPY --chown=nestjs:nodejs apps/backend/docker-entrypoint.sh /app/docker-entrypoint.sh
-
-USER root
-RUN chmod +x /app/docker-entrypoint.sh && \
-    apt-get update -y && \
-    apt-get install -y curl postgresql-client && \
-    rm -rf /var/lib/apt/lists/* && \
-    chown -R nestjs:nodejs /app/node_modules
-
-USER nestjs
+COPY --chmod=755 --chown=nestjs:nodejs apps/backend/docker-entrypoint.sh /app/docker-entrypoint.sh
 
 # Healthcheck and port
 HEALTHCHECK --interval=15s --timeout=10s --start-period=120s --retries=10 \
-    CMD curl -fsS http://localhost:3001/health || exit 1
+    CMD curl -fsS http://localhost:3001/health/ready || exit 1
 EXPOSE 3001
 
 ENTRYPOINT ["/app/docker-entrypoint.sh"]

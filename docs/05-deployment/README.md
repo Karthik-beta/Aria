@@ -25,6 +25,7 @@ The production deployment (`docker-compose.production.yml`) includes these servi
 |---------|-------|---------------|-------------|
 | `caddy` | caddy:2.10.2-alpine | 80, 443 | Reverse proxy with auto HTTPS |
 | `frontend` | aria-frontend | 3000 | Next.js application |
+| `migrate` | aria-backend | n/a | One-shot `prisma migrate deploy` gate |
 | `backend` | aria-backend | 3001 | NestJS API server |
 | `postgres` | postgres:18-alpine | 5432 | PostgreSQL database |
 | `redis` | redis:7-alpine | 6379 | Redis cache |
@@ -66,7 +67,9 @@ Caddy routes requests based on URL path:
 
 | Path | Destination | Description |
 |------|-------------|-------------|
-| `/health` | Direct 200 | Health check endpoint |
+| `/health/live` | backend:3001 | Process-only liveness |
+| `/health/ready` | backend:3001 | PostgreSQL, Redis, worker, and queue-events readiness |
+| `/health` | backend:3001 | Compatibility alias for readiness |
 | `/api/*` | backend:3001 | better-auth and API endpoints |
 | `/trpc/*` | backend:3001 | tRPC HTTP requests |
 | `/trpc-ws` | backend:3001 | tRPC WebSocket (real-time) |
@@ -102,11 +105,14 @@ Set these in a `.env` file at the project root:
 | Variable | Description |
 |----------|-------------|
 | `POSTGRES_PASSWORD` | PostgreSQL password |
-| `REDIS_PASSWORD` | Redis password (optional) |
-| `REDIS_URL` | Durable BullMQ connection URL; required by the backend |
+| `REDIS_PASSWORD` | Redis password; required by production Compose |
+| `REDIS_URL` | BullMQ URL; defaults to `redis://redis:6379`. Managed URLs may embed credentials |
 | `APP_TIME_ZONE` | IANA timezone used for depreciation business dates and midnight discovery |
 | `ASSET_DEPRECIATION_QUEUE_CONCURRENCY` | Concurrent depreciation workers (default `5`) |
 | `ASSET_DEPRECIATION_BARRIER_TIMEOUT_MS` | Report synchronization timeout in milliseconds (default `120000`) |
+| `ASSET_DEPRECIATION_QUEUE_OPERATION_TIMEOUT_MS` | Producer connection and operation timeout (default `5000`) |
+| `ASSET_DEPRECIATION_RECONCILIATION_INTERVAL_MS` | Missed-work discovery interval (default `900000`) |
+| `JWT_SECRET` | API authentication secret |
 | `BETTER_AUTH_SECRET` | Auth session signing secret |
 | `DOMAIN` | Domain name or IP for Caddy |
 | `DEFAULT_ADMIN_USERNAME` | Initial admin username |
@@ -212,7 +218,9 @@ PostgreSQL is configured with production-tuned settings:
 - Health checks on startup
 - Data persisted to `postgres-data` volume
 
-Migrations run automatically on backend startup via `docker-entrypoint.sh`.
+The one-shot `migrate` service runs only `prisma migrate deploy`. The backend
+starts only when that service exits successfully. No container automatically
+marks a failed migration as applied.
 
 ## Depreciation Recovery
 
@@ -220,7 +228,7 @@ Asset depreciation does not depend on the server being online at midnight. On
 every backend startup, Aria generates any missing base schedules for migrated
 submitted assets, discovers all due unposted periods, and places one durable
 BullMQ job per asset finance book and schedule date in Redis. The same discovery
-path runs daily at midnight in `APP_TIME_ZONE`.
+path runs daily at midnight in `APP_TIME_ZONE` and every 15 minutes by default.
 
 Redis uses append-only persistence in both Compose environments. Do not remove
 the Redis data volume during normal upgrades or restarts. PostgreSQL remains the
@@ -230,8 +238,8 @@ acknowledges the job.
 
 Depreciation and asset-balance reports fail closed while due periods remain
 unposted. A timeout or failed job indicates a business-data issue such as
-missing company/category accounts or an accounting freeze; it does not make the
-application health endpoint fail.
+missing company/category accounts or an accounting freeze. Readiness fails when
+PostgreSQL, Redis, the worker, or queue events are unavailable.
 
 ### Recovery checks
 
@@ -243,14 +251,21 @@ docker compose -f docker-compose.production.yml ps postgres redis
 docker compose -f docker-compose.production.yml logs backend \
   | grep asset_depreciation
 
-# Restart only the backend; startup discovery will catch up database state
+# Inspect the queue without changing accounting data
+docker compose -f docker-compose.production.yml exec backend \
+  bun run depreciation:queue -- status
+
+# Restart only the backend; startup/reconciliation discovery catches up state
 docker compose -f docker-compose.production.yml restart backend
 ```
 
 Before retrying a permanently failed posting, verify the company depreciation
 expense and accumulated-depreciation accounts, category overrides, finance-book
-configuration, and `accountsFrozenThrough` date in the admin UI. The next
-startup/daily discovery retries terminal jobs after the configured cooldown.
+configuration, and `accountsFrozenThrough` date in the admin UI. Terminal
+accounting failures are not automatically retried.
+
+See the [depreciation production runbook](./depreciation-production-runbook.md)
+for preflight, rollout, baselining, recovery, and rollback procedures.
 
 ## Monitoring
 

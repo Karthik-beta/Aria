@@ -170,6 +170,21 @@
 			"dependsOn": ["^build", "prisma:generate"],
 			"cache": false
 		},
+		"test:depreciation:unit": {
+			"dependsOn": ["^build", "prisma:generate"],
+			"outputs": []
+		},
+		"test:depreciation:integration": {
+			"dependsOn": ["^build", "prisma:generate"],
+			"cache": false
+		},
+		"test:depreciation:migrations": {
+			"dependsOn": ["prisma:generate"],
+			"cache": false
+		},
+		"depreciation:preflight": {
+			"cache": false
+		},
 		"prisma:generate": {
 			"outputs": ["src/generated/prisma/**"],
 			"cache": true
