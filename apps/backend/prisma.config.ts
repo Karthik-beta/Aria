@@ -33,7 +33,7 @@ if (existsSync(rootEnv)) {
 }
 
 if (existsSync(devEnv)) {
-	dotenv.config({ path: devEnv, override: true });
+	dotenv.config({ path: devEnv });
 }
 
 export default {

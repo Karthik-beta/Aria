@@ -31,6 +31,7 @@ describe("DepreciationProcessingModule", () => {
 		const module = await Test.createTestingModule({
 			imports: [DatabaseModule, DepreciationProcessingModule],
 		}).compile();
+		await module.init();
 
 		expect(module.get(DepreciationPersistenceService)).toBeDefined();
 		expect(module.get(DepreciationMetrics)).toBeDefined();
@@ -38,6 +39,8 @@ describe("DepreciationProcessingModule", () => {
 		expect(module.get(DepreciationSchedulerService)).toBeDefined();
 		expect(module.get(DepreciationQueueEventsListener)).toBeDefined();
 		expect(module.get(DepreciationProcessor)).toBeDefined();
+		await module.get(DepreciationQueueClient).checkReady();
+		await module.get(DepreciationProcessor).checkReady();
 
 		await module.close();
 	});

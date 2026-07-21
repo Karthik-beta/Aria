@@ -66,7 +66,7 @@ try {
 		// Continue without loading .env - Railway/Docker env vars are already in process.env
 	} else {
 		// Load .env and explicitly merge with process.env
-		const result = config({ path: envPath, override: true });
+		const result = config({ path: envPath });
 
 		if (result.error) {
 			logger.error(`[ENV] Error parsing .env file: ${result.error.message}`);

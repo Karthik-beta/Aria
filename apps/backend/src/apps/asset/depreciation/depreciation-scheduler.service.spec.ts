@@ -16,7 +16,13 @@ describe("DepreciationSchedulerService", () => {
 		process.env.APP_TIME_ZONE = "UTC";
 		process.env.ASSET_DEPRECIATION_RECONCILIATION_INTERVAL_MS = "900000";
 		const lifecycle = { ensureSubmittedSchedules: mock(async () => undefined) };
-		const discovery = { discover: mock(async () => undefined) };
+		const discovery = {
+			discover: mock(
+				async (
+					..._args: Parameters<DepreciationDiscoveryService["discover"]>
+				) => undefined,
+			),
+		};
 		const metrics = { recordDiscoveryFailure: mock(() => undefined) };
 		const registry = new SchedulerRegistry();
 		const scheduler = new DepreciationSchedulerService(
@@ -45,9 +51,13 @@ describe("DepreciationSchedulerService", () => {
 		const failure = new Error("redis unavailable");
 		const lifecycle = { ensureSubmittedSchedules: mock(async () => undefined) };
 		const discovery = {
-			discover: mock(async () => {
-				throw failure;
-			}),
+			discover: mock(
+				async (
+					..._args: Parameters<DepreciationDiscoveryService["discover"]>
+				) => {
+					throw failure;
+				},
+			),
 		};
 		const metrics = { recordDiscoveryFailure: mock(() => undefined) };
 		const registry = new SchedulerRegistry();
