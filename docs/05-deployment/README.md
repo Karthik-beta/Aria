@@ -82,10 +82,18 @@ Features: HTTP/3 support, security headers (X-Content-Type-Options, X-Frame-Opti
 ### Production Deployment
 
 ```bash
-# Deploy all services
-docker compose -f docker-compose.production.yml up -d --build
+# Copy and complete the production environment template.
+cp -n .env.production.template .env.production
 
-# Check service health
+# Validate the rendered configuration, then deploy. The `migrate` service is a
+# one-shot gate; the backend starts only after it completes successfully.
+docker compose --env-file .env.production \
+  -f docker-compose.production.yml config --quiet
+docker compose --env-file .env.production \
+  -f docker-compose.production.yml up -d --build
+
+# Check dependency-aware backend readiness.
+curl --fail https://YOUR_DOMAIN/health/ready
 bash deployment/tests/health-check.sh
 
 # View logs
@@ -95,17 +103,34 @@ docker compose -f docker-compose.production.yml logs -f backend
 ### Development Deployment
 
 ```bash
+# Copy local-only values, then start PostgreSQL and Redis.
+cp -n .env.development.template .env
+docker compose -f docker-compose.development.yml up -d postgres redis
+
+# Apply migrations before starting the application for the first time and after
+# pulling a schema change. Development Compose does not run migrations itself.
+docker compose -f docker-compose.development.yml run --rm backend \
+  bun x --bun prisma migrate dev
+
+# Start the application stack and verify dependency-aware readiness.
 docker compose -f docker-compose.development.yml up -d
+curl --fail http://localhost:3001/health/ready
 ```
+
+The development Compose file is intended for local data only. Do not run its
+database reset or demo-data commands against a production database.
 
 ## Required Environment Variables
 
-Set these in a `.env` file at the project root:
+For self-hosted Compose, place production values in `.env.production` and pass
+`--env-file .env.production` as shown above. Railway and other managed platforms
+set the same runtime values in the service configuration instead.
 
 | Variable | Description |
 |----------|-------------|
+| `DATABASE_URL` | PostgreSQL connection URL for the backend on managed platforms. Self-hosted production Compose derives this from `POSTGRES_PASSWORD`. |
 | `POSTGRES_PASSWORD` | PostgreSQL password |
-| `REDIS_PASSWORD` | Redis password; required by production Compose |
+| `REDIS_PASSWORD` | Redis password; required by self-hosted production Compose. Do not set a second password when a managed `REDIS_URL` already embeds one. |
 | `REDIS_URL` | BullMQ URL; defaults to `redis://redis:6379`. Managed URLs may embed credentials |
 | `APP_TIME_ZONE` | IANA timezone used for depreciation business dates and midnight discovery |
 | `ASSET_DEPRECIATION_QUEUE_CONCURRENCY` | Concurrent depreciation workers (default `5`) |
@@ -123,29 +148,27 @@ Set these in a `.env` file at the project root:
 
 ## Railway Cloud Deployment
 
-For deployments on Railway (or any Docker-native cloud platform), images are built locally and pushed to Docker Hub, then deployed as containers.
+Railway runs the frontend and one persistent backend service, plus managed
+PostgreSQL and Redis. The backend container contains the API, Nest scheduler,
+and BullMQ worker; do not use a Railway Cron Job for depreciation and do not
+scale this backend above one replica until those roles are separated.
 
-### Build & Push to Docker Hub
+Deploy from the repository using the Dockerfiles. In the backend service, set
+`RAILWAY_DOCKERFILE_PATH=apps/backend/Dockerfile` and keep the Dockerfile start
+command unchanged. Configure this pre-deploy command:
 
 ```bash
-# Build frontend with explicit backend URL for direct API calls (Railway, etc.)
-docker build \
-  --target runner \
-  -f apps/frontend/Dockerfile \
-  --build-arg NEXT_PUBLIC_API_URL=https://backend.aria.pivotr.in \
-  -t karth1k/aria-frontend:latest .
-
-# Build backend
-docker build --target runner -f apps/backend/Dockerfile -t karth1k/aria-backend:latest .
-
-# Push to Docker Hub
-docker push karth1k/aria-frontend:latest
-docker push karth1k/aria-backend:latest
+cd apps/backend && bun x --bun prisma migrate deploy
 ```
+
+Railway has no Compose `depends_on`; the backend readiness endpoint is the
+operational gate for PostgreSQL, Redis, the BullMQ worker, and queue events.
 
 ### Railway Service Configuration
 
-Create two services in Railway dashboard (one for frontend, one for backend) and link them to your Docker Hub images.
+Create a frontend service, one persistent backend service, and Railway-managed
+PostgreSQL and Redis services. Use Railway service-reference values for
+`DATABASE_URL` and `REDIS_URL` rather than hard-coding hostnames or credentials.
 
 #### Frontend Service
 
@@ -161,12 +184,18 @@ Create two services in Railway dashboard (one for frontend, one for backend) and
 |----------|-------|
 | `NODE_ENV` | `production` |
 | `PORT` | `3001` |
-| `DATABASE_URL` | From Railway PostgreSQL instance |
-| `REDIS_URL` | `redis://redis:6379` (if using Railway Redis) |
+| `DATABASE_URL` | Reference to the Railway PostgreSQL service |
+| `REDIS_URL` | Reference to the Railway Redis service; preserve embedded credentials if supplied |
+| `APP_TIME_ZONE` | Required IANA timezone, for example `Asia/Kolkata` |
+| `ASSET_DEPRECIATION_QUEUE_CONCURRENCY` | Optional worker concurrency; defaults to `5` |
+| `ASSET_DEPRECIATION_BARRIER_TIMEOUT_MS` | Optional reporting timeout; defaults to `120000` |
 | `JWT_SECRET` | Generate a secure random string |
 | `BETTER_AUTH_SECRET` | Generate a secure random string |
 | `BETTER_AUTH_URL` | Your Railway frontend URL |
 | `FRONTEND_URL` | Your Railway frontend URL (drives CORS automatically) |
+
+After deployment, require `GET /health/ready` to return `200` before routing
+traffic or resuming the depreciation queue. A liveness-only check is not enough.
 
 ### Same-Origin vs Separate Backend
 
@@ -177,7 +206,10 @@ The frontend supports two deployment modes:
 | **Separate domain** (default) | `https://api.example.com` | Backend hosted separately |
 | **Same-origin** | `""` (empty) | Frontend and backend on same domain, proxied by Caddy/Nginx |
 
-For Railway, set `NEXT_PUBLIC_API_URL` at **build time** via `--build-arg` to the backend's public URL (e.g., `https://backend.aria.pivotr.in`). Railway does not provide built-in proxy routing.
+For Railway, set `NEXT_PUBLIC_API_URL` as a frontend **build-time** value to the
+backend's public URL (for example, `https://backend.example.com`). Next.js embeds
+this value in the browser bundle; changing it after the image is built has no
+effect. Railway does not provide Compose-style path routing between services.
 
 ### Proxy Routing for Same-Origin (Docker/Caddy Only)
 
@@ -189,7 +221,9 @@ When using same-origin mode (empty `NEXT_PUBLIC_API_URL`), ensure your platform 
 | `/trpc/*` | Backend service (port 3001) |
 | `/*` | Frontend service (port 3000) |
 
-> **Note:** This routing is handled automatically by Caddy in Docker Compose deployments. Railway deployments should use the separate domain mode with `NEXT_PUBLIC_API_URL` set at build time.
+> **Note:** This routing is handled automatically by Caddy in Docker Compose
+> deployments. Railway deployments should use the separate-domain mode with
+> `NEXT_PUBLIC_API_URL` configured at build time.
 
 ## Installation Scripts
 
@@ -266,6 +300,9 @@ accounting failures are not automatically retried.
 
 See the [depreciation production runbook](./depreciation-production-runbook.md)
 for preflight, rollout, baselining, recovery, and rollback procedures.
+The latest isolated Compose evidence, including migration, worker, readiness,
+and restart/idempotency checks, is retained in the
+[depreciation verification report](./depreciation-verification-2026-07-20.md).
 
 ## Monitoring
 
@@ -291,4 +328,4 @@ The monitoring stack provides observability:
 ### Database Issues
 
 - **Connection failed**: Verify `DATABASE_URL` and PostgreSQL container health
-- **Migration failed**: Check backend logs and see [Prisma docs](./03-backend/02-prisma/README.md)
+- **Migration failed**: Check backend logs and see the [Prisma guide](../03-backend/02-prisma/README.md)
