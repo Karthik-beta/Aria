@@ -1,5 +1,8 @@
 import {
 	buildIndianFiscalYears,
+	DEMO_ASSET_DEPRECIATION_CADENCES,
+	getIndianFiscalYear,
+	normalizeDemoAsOf,
 	resolveDemoDepreciationStartDate,
 } from "../depreciation/demo-data.utils";
 
@@ -30,34 +33,32 @@ describe("asset demo depreciation data", () => {
 		);
 
 		expect(fiscalYears[3]?.year).toBe("2025-26");
+		expect(getIndianFiscalYear("2024-02-29")).toEqual({
+			startDate: "2023-04-01",
+			endDate: "2024-03-31",
+		});
 	});
 
 	it("allows cron to catch up a newly commissioned asset", () => {
 		const startDate = resolveDemoDepreciationStartDate(
-			new Date("2026-07-16T12:00:00.000Z"),
 			new Date("2026-03-25T00:00:00.000Z"),
-			0,
-			1,
 		);
 
 		expect(startDate.toISOString()).toBe("2026-03-31T00:00:00.000Z");
 	});
 
-	it("starts after the as-of date when opening depreciation is already booked", () => {
-		const monthly = resolveDemoDepreciationStartDate(
-			new Date("2026-07-16T12:00:00.000Z"),
-			new Date("2024-08-01T00:00:00.000Z"),
-			14,
-			1,
+	it("represents every ERPNext month-based demo cadence without weekly values", () => {
+		expect(new Set(Object.values(DEMO_ASSET_DEPRECIATION_CADENCES))).toEqual(
+			new Set([1, 3, 6, 12]),
 		);
-		const quarterlyAtMonthEnd = resolveDemoDepreciationStartDate(
-			new Date("2026-07-31T12:00:00.000Z"),
-			new Date("2024-08-01T00:00:00.000Z"),
-			8,
-			3,
-		);
+		expect(Object.values(DEMO_ASSET_DEPRECIATION_CADENCES)).not.toContain(0);
+	});
 
-		expect(monthly.toISOString()).toBe("2026-07-31T00:00:00.000Z");
-		expect(quarterlyAtMonthEnd.toISOString()).toBe("2026-10-31T00:00:00.000Z");
+	it("validates reproducible loader accounting cutoffs", () => {
+		expect(normalizeDemoAsOf("2026-07-22")).toBe("2026-07-22");
+		expect(() => normalizeDemoAsOf("2026-02-29")).toThrow(
+			"not a valid calendar date",
+		);
+		expect(() => normalizeDemoAsOf("22-07-2026")).toThrow("YYYY-MM-DD");
 	});
 });

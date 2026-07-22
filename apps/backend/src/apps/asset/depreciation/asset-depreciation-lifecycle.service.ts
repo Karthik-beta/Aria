@@ -1,8 +1,7 @@
 import type { Asset } from "@aria/types";
 import { BadRequestException, Injectable, Logger } from "@nestjs/common";
 import { Prisma } from "../../../generated/prisma/client";
-// biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
-import { PrismaService } from "../../../shared/prisma.service";
+import type { PrismaService } from "../../../shared/prisma.service";
 import {
 	buildDepreciationSchedule,
 	type DepreciationBookInput,

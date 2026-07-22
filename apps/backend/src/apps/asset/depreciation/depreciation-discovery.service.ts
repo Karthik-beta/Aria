@@ -8,8 +8,7 @@ import {
 	depreciationJobId,
 	POST_ASSET_DEPRECIATION_JOB,
 } from "./depreciation.constants";
-// biome-ignore lint/style/useImportType: Nest resolves this runtime constructor token from decorator metadata.
-import { DepreciationMetrics } from "./depreciation.metrics";
+import type { DepreciationMetrics } from "./depreciation.metrics";
 import type {
 	DepreciationDiscoveryResult,
 	DepreciationJobData,
@@ -18,11 +17,9 @@ import type {
 	DepreciationScope,
 	PendingDepreciationPeriod,
 } from "./depreciation.types";
-// biome-ignore lint/style/useImportType: Nest resolves this runtime constructor token from decorator metadata.
-import { DepreciationPersistenceService } from "./depreciation-persistence.service";
-// biome-ignore lint/style/useImportType: Nest resolves this runtime constructor token from decorator metadata.
-import {
-	type DepreciationBulkJob,
+import type { DepreciationPersistenceService } from "./depreciation-persistence.service";
+import type {
+	DepreciationBulkJob,
 	DepreciationQueueClient,
 } from "./depreciation-queue.client";
 
@@ -54,6 +51,7 @@ export class DepreciationDiscoveryService {
 		let duplicateSkipped = 0;
 		let frozen = 0;
 		let oldestUnpostedDate: Date | null = null;
+		const selectedFinanceBooks = new Set<string>();
 
 		for (;;) {
 			const page = await this.persistence.pendingPage(
@@ -62,8 +60,15 @@ export class DepreciationDiscoveryService {
 				DEPRECIATION_DISCOVERY_PAGE_SIZE,
 			);
 			discovered += page.length;
-			const actionable = page.filter((period) => !period.blockedByFreeze);
-			frozen += page.length - actionable.length;
+			const nextPeriods = page.filter((period) => {
+				if (selectedFinanceBooks.has(period.assetFinanceBookId)) return false;
+				selectedFinanceBooks.add(period.assetFinanceBookId);
+				return true;
+			});
+			const actionable = nextPeriods.filter(
+				(period) => !period.blockedByFreeze,
+			);
+			frozen += nextPeriods.length - actionable.length;
 			for (const period of actionable) {
 				if (
 					oldestUnpostedDate === null ||

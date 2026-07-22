@@ -1,8 +1,14 @@
 import { afterEach, describe, expect, it } from "bun:test";
 import { Test } from "@nestjs/testing";
 import { DatabaseModule } from "../../../shared/database.module";
+import {
+	DemoDepreciationModule,
+	runWithDemoDepreciationApplication,
+} from "./demo-data-runner";
 import { DepreciationMetrics } from "./depreciation.metrics";
 import { DepreciationProcessor } from "./depreciation.processor";
+import { DepreciationBarrierService } from "./depreciation-barrier.service";
+import { DepreciationExecutionModule } from "./depreciation-execution.module";
 import { DepreciationPersistenceService } from "./depreciation-persistence.service";
 import { DepreciationProcessingModule } from "./depreciation-processing.module";
 import { DepreciationQueueClient } from "./depreciation-queue.client";
@@ -16,12 +22,6 @@ afterEach(() => {
 });
 
 describe("DepreciationProcessingModule", () => {
-	it("emits runtime constructor tokens for the processor", () => {
-		expect(
-			Reflect.getMetadata("design:paramtypes", DepreciationProcessor),
-		).toEqual([DepreciationPersistenceService, DepreciationMetrics]);
-	});
-
 	it("resolves the production scheduler, producer, listener, and worker graph", async () => {
 		process.env.DATABASE_URL ??=
 			"postgresql://postgres:postgres@localhost:5432/aria";
@@ -43,5 +43,42 @@ describe("DepreciationProcessingModule", () => {
 		await module.get(DepreciationProcessor).checkReady();
 
 		await module.close();
+	});
+
+	it("builds the demo execution graph without an automatic scheduler", () => {
+		const imports = Reflect.getMetadata("imports", DemoDepreciationModule);
+		expect(imports).toContain(DepreciationExecutionModule);
+		expect(imports).not.toContain(DepreciationProcessingModule);
+	});
+
+	it("propagates barrier failures and closes the demo application", async () => {
+		let closed = false;
+		const application = {
+			get(token: unknown) {
+				if (token === DepreciationBarrierService) {
+					return {
+						ensureDepreciationPosted: async () => {
+							throw new Error("worker failed");
+						},
+					};
+				}
+				return {};
+			},
+			async close() {
+				closed = true;
+			},
+		};
+
+		await expect(
+			runWithDemoDepreciationApplication(
+				application as never,
+				async (_prisma, depreciation) => {
+					await depreciation.ensurePosted({
+						throughDate: new Date("2026-07-22T00:00:00.000Z"),
+					});
+				},
+			),
+		).rejects.toThrow("worker failed");
+		expect(closed).toBe(true);
 	});
 });

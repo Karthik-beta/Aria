@@ -106,6 +106,57 @@ describe("DepreciationDiscoveryService", () => {
 		expect(result.duplicateSkipped).toBe(1);
 	});
 
+	it("queues only the earliest due period for each asset finance book", async () => {
+		const addBulk = mock(async () => undefined);
+		const queue = {
+			getJob: mock(async () => undefined),
+			addBulk,
+		} as unknown as DepreciationQueueClient;
+		const persistence = {
+			pendingPage: mock(async () => [
+				{
+					assetId: "asset-1",
+					assetFinanceBookId: "asset-book-1",
+					financeBookId: "book-1",
+					scheduleId: "schedule-1",
+					scheduleEntryId: "entry-1",
+					depreciationDate: new Date("2026-06-30T00:00:00.000Z"),
+					company: "Aria",
+					blockedByFreeze: false,
+				},
+				{
+					assetId: "asset-1",
+					assetFinanceBookId: "asset-book-1",
+					financeBookId: "book-1",
+					scheduleId: "schedule-1",
+					scheduleEntryId: "entry-2",
+					depreciationDate: new Date("2026-07-31T00:00:00.000Z"),
+					company: "Aria",
+					blockedByFreeze: false,
+				},
+			]),
+		} as unknown as DepreciationPersistenceService;
+		const metrics = {
+			recordDiscovery: mock(() => undefined),
+			recordDuplicateSkipped: mock(() => undefined),
+			setOldestUnposted: mock(() => undefined),
+		} as unknown as DepreciationMetrics;
+
+		const result = await new DepreciationDiscoveryService(
+			queue,
+			persistence,
+			metrics,
+		).discover({ throughDate: "2026-07-31" });
+
+		expect(result.discovered).toBe(2);
+		expect(result.enqueued).toBe(1);
+		expect(addBulk).toHaveBeenCalledWith([
+			expect.objectContaining({
+				data: expect.objectContaining({ scheduleEntryId: "entry-1" }),
+			}),
+		]);
+	});
+
 	it("does not automatically retry a terminal failed accounting job", async () => {
 		const remove = mock(async () => undefined);
 		const queue = {

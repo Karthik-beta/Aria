@@ -12,17 +12,18 @@
 
 import "dotenv/config";
 import { logger } from "@aria/utils";
+import { normalizeDemoAsOf } from "../../src/apps/asset/depreciation/demo-data.utils.js";
+import { withDemoDepreciationExecution } from "../../src/apps/asset/depreciation/demo-data-runner.js";
+import {
+	businessDate,
+	dateOnlyUtc,
+	depreciationTimeZone,
+} from "../../src/apps/asset/depreciation/depreciation.config.js";
 import { PrismaService } from "../../src/shared/prisma.service.js";
 import { cleanDemoData, getDemoStatus } from "./cleanup.js";
 import type { DemoScale } from "./config.js";
 import { resolveConfig } from "./config.js";
 import { seedAll } from "./index.js";
-
-// ── Bootstrap Prisma via PrismaService (NestJS DI-aware) ───────────
-const prismaService = new PrismaService();
-
-// Ensure connection is established before running commands
-await prismaService.onModuleInit();
 
 // ── Parse CLI arguments ───────────────────────────────────────────
 const [, , command, ...flags] = process.argv;
@@ -36,12 +37,35 @@ function parseScale(): DemoScale {
 	return "medium";
 }
 
+function parseAsOf(): string {
+	const asOfFlag = flags.find((flag) => flag.startsWith("--as-of="));
+	const value =
+		asOfFlag?.slice("--as-of=".length) ?? businessDate(depreciationTimeZone());
+	return normalizeDemoAsOf(value);
+}
+
+async function withPrisma<T>(
+	callback: (prisma: PrismaService) => Promise<T>,
+): Promise<T> {
+	const prisma = new PrismaService();
+	await prisma.onModuleInit();
+	try {
+		return await callback(prisma);
+	} finally {
+		await prisma.onModuleDestroy();
+	}
+}
+
 // ── Commands ─────────────────────────────────────────────────────
 async function run() {
 	switch (command) {
 		case "load": {
 			const scale = parseScale();
-			const config = resolveConfig({ scale });
+			const asOf = parseAsOf();
+			const to = dateOnlyUtc(asOf);
+			const from = new Date(to);
+			from.setUTCMonth(from.getUTCMonth() - 6);
+			const config = resolveConfig({ scale, dateRange: { from, to } });
 			logger.info(
 				`Loading demo data (scale=${scale}, company="${config.company}", ` +
 					`range=${config.dateRange.from.toISOString().slice(0, 10)} → ` +
@@ -49,10 +73,12 @@ async function run() {
 			);
 			const start = Date.now();
 			logger.info("Cleaning existing demo data before loading...");
-			await cleanDemoData(prismaService, config);
-			const cleanupElapsed = ((Date.now() - start) / 1000).toFixed(1);
-			logger.info(`Existing demo data cleaned in ${cleanupElapsed}s`);
-			await seedAll(prismaService, config);
+			await withDemoDepreciationExecution(async (prisma, depreciation) => {
+				await cleanDemoData(prisma, config);
+				const cleanupElapsed = ((Date.now() - start) / 1000).toFixed(1);
+				logger.info(`Existing demo data cleaned in ${cleanupElapsed}s`);
+				await seedAll(prisma, config, depreciation);
+			});
 			const elapsed = ((Date.now() - start) / 1000).toFixed(1);
 			logger.info(`Demo data loaded successfully in ${elapsed}s`);
 			break;
@@ -62,7 +88,9 @@ async function run() {
 			const config = resolveConfig();
 			logger.info(`Cleaning demo data for company="${config.company}"...`);
 			const start = Date.now();
-			const counts = await cleanDemoData(prismaService, config);
+			const counts = await withPrisma((prisma) =>
+				cleanDemoData(prisma, config),
+			);
 			const elapsed = ((Date.now() - start) / 1000).toFixed(1);
 			logger.info(`Cleanup complete in ${elapsed}s`);
 			for (const [model, count] of Object.entries(counts)) {
@@ -73,7 +101,9 @@ async function run() {
 
 		case "status": {
 			const config = resolveConfig();
-			const counts = await getDemoStatus(prismaService, config);
+			const counts = await withPrisma((prisma) =>
+				getDemoStatus(prisma, config),
+			);
 			logger.info(`Demo data status for company="${config.company}":`);
 			for (const [model, count] of Object.entries(counts)) {
 				logger.info(`  ${model}: ${count}`);
@@ -85,7 +115,8 @@ async function run() {
 			logger.info(
 				"Usage: bun prisma/demo-data/cli.ts <command> [options]\n\n" +
 					"Commands:\n" +
-					"  load   [--scale=small|medium|large]  Load demo data\n" +
+					"  load   [--scale=small|medium|large] [--as-of=YYYY-MM-DD]\n" +
+					"                                           Load and post due demo data\n" +
 					"  clean                                Remove all demo data\n" +
 					"  status                               Show record counts\n",
 			);
@@ -93,9 +124,7 @@ async function run() {
 	}
 }
 
-run()
-	.catch((err) => {
-		logger.error("Demo data CLI failed:", err);
-		process.exit(1);
-	})
-	.finally(() => prismaService.onModuleDestroy());
+run().catch((err) => {
+	logger.error("Demo data CLI failed:", err);
+	process.exit(1);
+});

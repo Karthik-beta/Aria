@@ -13,14 +13,10 @@ import {
 	type EnsureDepreciationPostedResult,
 	type PendingDepreciationPeriod,
 } from "./depreciation.types";
-// biome-ignore lint/style/useImportType: Nest resolves this runtime constructor token from decorator metadata.
-import { DepreciationDiscoveryService } from "./depreciation-discovery.service";
-// biome-ignore lint/style/useImportType: Nest resolves this runtime constructor token from decorator metadata.
-import { DepreciationPersistenceService } from "./depreciation-persistence.service";
-// biome-ignore lint/style/useImportType: Nest resolves this runtime constructor token from decorator metadata.
-import { DepreciationQueueClient } from "./depreciation-queue.client";
-// biome-ignore lint/style/useImportType: Nest resolves this runtime constructor token from decorator metadata.
-import { DepreciationQueueSignal } from "./depreciation-queue-events";
+import type { DepreciationDiscoveryService } from "./depreciation-discovery.service";
+import type { DepreciationPersistenceService } from "./depreciation-persistence.service";
+import type { DepreciationQueueClient } from "./depreciation-queue.client";
+import type { DepreciationQueueSignal } from "./depreciation-queue-events";
 
 /** Fail-closed synchronization point for reports, closes, and disposals. */
 @Injectable()
@@ -38,7 +34,6 @@ export class DepreciationBarrierService {
 		const startedAt = Date.now();
 		const timeoutMs = depreciationBarrierTimeoutMs();
 		const deadline = startedAt + timeoutMs;
-		let nextRediscoveryAt = startedAt + 5_000;
 		await this.discovery.discover(scope, "barrier");
 
 		for (;;) {
@@ -85,10 +80,7 @@ export class DepreciationBarrierService {
 				);
 			}
 			await this.signal.wait(Math.min(1_000, remainingMs));
-			if (Date.now() >= nextRediscoveryAt) {
-				await this.discovery.discover(scope, "barrier");
-				nextRediscoveryAt = Date.now() + 5_000;
-			}
+			await this.discovery.discover(scope, "barrier");
 		}
 	}
 

@@ -317,6 +317,46 @@ export async function getDemoStatus(
 		prisma.assetMaintenanceLog.count({ where: { maintenance: { company } } }),
 		prisma.company.count({ where: { name: company } }),
 	]);
+	const eligibleAsset = {
+		company,
+		calculateDepreciation: true,
+		status: { in: ["SUBMITTED", "PARTIALLY_DEPRECIATED"] as const },
+	};
+	const [
+		postedDepreciationEntries,
+		dueUnpostedDepreciationEntries,
+		futureUnpostedDepreciationEntries,
+		monthlyAssetFinanceBooks,
+		quarterlyAssetFinanceBooks,
+		halfYearlyAssetFinanceBooks,
+		yearlyAssetFinanceBooks,
+	] = await Promise.all([
+		prisma.assetDepreciationScheduleEntry.count({
+			where: { postingId: { not: null }, schedule: { asset: { company } } },
+		}),
+		prisma.assetDepreciationScheduleEntry.count({
+			where: {
+				postingId: null,
+				scheduleDate: { lte: config.dateRange.to },
+				schedule: { status: "ACTIVE", asset: eligibleAsset },
+			},
+		}),
+		prisma.assetDepreciationScheduleEntry.count({
+			where: {
+				postingId: null,
+				scheduleDate: { gt: config.dateRange.to },
+				schedule: { status: "ACTIVE", asset: { company } },
+			},
+		}),
+		...([1, 3, 6, 12] as const).map((frequencyOfDepreciation) =>
+			prisma.assetFinanceBook.count({
+				where: {
+					frequencyOfDepreciation,
+					asset: { company },
+				},
+			}),
+		),
+	]);
 
 	return {
 		brands,
@@ -347,6 +387,13 @@ export async function getDemoStatus(
 		assetDepreciationScheduleEntries,
 		assetFinanceBooks,
 		assetDepreciationJournalEntries,
+		postedDepreciationEntries,
+		dueUnpostedDepreciationEntries,
+		futureUnpostedDepreciationEntries,
+		monthlyAssetFinanceBooks,
+		quarterlyAssetFinanceBooks,
+		halfYearlyAssetFinanceBooks,
+		yearlyAssetFinanceBooks,
 		assetMaintenanceTeams,
 		assetMaintenances,
 		assetMaintenanceLogs,

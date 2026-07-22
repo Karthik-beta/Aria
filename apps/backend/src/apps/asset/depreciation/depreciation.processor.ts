@@ -10,16 +10,14 @@ import {
 	DEPRECIATION_OUT_OF_ORDER_MAX_STARTS,
 	POST_ASSET_DEPRECIATION_JOB,
 } from "./depreciation.constants";
-// biome-ignore lint/style/useImportType: Nest resolves this runtime constructor token from decorator metadata.
-import { DepreciationMetrics } from "./depreciation.metrics";
+import type { DepreciationMetrics } from "./depreciation.metrics";
 import type {
 	DepreciationJobData,
 	DepreciationJobName,
 	DepreciationJobResult,
 } from "./depreciation.types";
-// biome-ignore lint/style/useImportType: Nest resolves this runtime constructor token from decorator metadata.
 import {
-	DepreciationPersistenceService,
+	type DepreciationPersistenceService,
 	DepreciationPostingValidationError,
 } from "./depreciation-persistence.service";
 

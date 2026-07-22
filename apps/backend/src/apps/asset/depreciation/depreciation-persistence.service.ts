@@ -1,7 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { Prisma } from "../../../generated/prisma/client";
-// biome-ignore lint/style/useImportType: Nest resolves this runtime constructor token from decorator metadata.
-import { PrismaService } from "../../../shared/prisma.service";
+import type { PrismaService } from "../../../shared/prisma.service";
 import { dateOnlyUtc, normalizeDateOnly } from "./depreciation.config";
 import type {
 	DepreciationJobData,
@@ -163,7 +162,7 @@ export class DepreciationPersistenceService {
 						},
 					},
 				},
-				orderBy: { id: "asc" },
+				orderBy: [{ scheduleDate: "asc" }, { id: "asc" }],
 				take,
 				...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
 			});

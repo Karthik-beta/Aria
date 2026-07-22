@@ -6,6 +6,8 @@ import {
 	getAssetValueAdjustmentDirection,
 	getAssetValueAdjustmentResultState,
 } from "../../src/apps/asset/asset-value-adjustment.utils.js";
+import type { DemoDepreciationCoordinator } from "../../src/apps/asset/depreciation/demo-data.types.js";
+import { getIndianFiscalYear } from "../../src/apps/asset/depreciation/demo-data.utils.js";
 import type { FiscalYear } from "../../src/generated/prisma/client.js";
 import type { PrismaService } from "../../src/shared/prisma.service.js";
 import {
@@ -19,6 +21,8 @@ import type { MasterIds } from "./seed-master.js";
 
 type EffectiveAssetState = {
 	currentAssetValue: number;
+	openingAccumulatedDepreciation: number;
+	bookedDepreciations: number;
 	status: Asset.AssetStatus;
 	isFullyDepreciated: boolean;
 	activeSchedule: {
@@ -104,13 +108,6 @@ function calculateNextDueDate(
 	return next;
 }
 
-function getCurrentAssetValue(asset: AssetSeedDef): number {
-	return Math.max(
-		asset.netPurchaseAmount - (asset.openingAccumulatedDepreciation ?? 0),
-		0,
-	);
-}
-
 function getCategoryDefaults(assetCategoryName: string) {
 	const category = ASSET_CATEGORIES.find(
 		(value) => value.name === assetCategoryName,
@@ -124,20 +121,52 @@ function getCategoryDefaults(assetCategoryName: string) {
 }
 
 function buildInitialState(
-	asset: AssetSeedDef,
+	currentAssetValue: number,
+	openingAccumulatedDepreciation: number,
+	bookedDepreciations: number,
+	status: Asset.AssetStatus,
+	isFullyDepreciated: boolean,
 	activeSchedule: EffectiveAssetState["activeSchedule"],
 ): EffectiveAssetState {
 	return {
-		currentAssetValue: getCurrentAssetValue(asset),
-		status:
-			asset.status === "PARTIALLY_DEPRECIATED" ||
-			asset.status === "FULLY_DEPRECIATED"
-				? "SUBMITTED"
-				: asset.status,
-		isFullyDepreciated:
-			asset.isFullyDepreciated ?? getCurrentAssetValue(asset) <= 0,
+		currentAssetValue,
+		openingAccumulatedDepreciation,
+		bookedDepreciations,
+		status,
+		isFullyDepreciated,
 		activeSchedule,
 	};
+}
+
+async function refreshEffectiveState(
+	prisma: PrismaService,
+	assetId: string,
+	state: EffectiveAssetState,
+): Promise<void> {
+	const current = await prisma.asset.findUniqueOrThrow({
+		where: { id: assetId },
+		select: {
+			valueAfterDepreciation: true,
+			openingAccumulatedDepreciation: true,
+			status: true,
+			isFullyDepreciated: true,
+			financeBooks: {
+				where: state.activeSchedule
+					? { id: state.activeSchedule.assetFinanceBookId }
+					: undefined,
+				take: 1,
+				select: { totalNumberOfBookedDepreciations: true },
+			},
+		},
+	});
+	state.currentAssetValue = Number(current.valueAfterDepreciation);
+	state.openingAccumulatedDepreciation = Number(
+		current.openingAccumulatedDepreciation,
+	);
+	state.bookedDepreciations =
+		current.financeBooks[0]?.totalNumberOfBookedDepreciations ?? 0;
+	state.status = current.status;
+	state.isFullyDepreciated = current.isFullyDepreciated;
 }
 
 function buildAdjustmentSeries(
@@ -342,6 +371,7 @@ async function seedValueAdjustments(
 	revaluationCounters: Map<number, number>,
 	activitySequenceBase: number,
 	fiscalYears: FiscalYear[],
+	depreciation: DemoDepreciationCoordinator,
 ): Promise<number> {
 	const adjustments = [...(asset.valueAdjustments ?? [])].sort(
 		(left, right) => left.adjustmentOffsetDays - right.adjustmentOffsetDays,
@@ -356,6 +386,14 @@ async function seedValueAdjustments(
 			14,
 			0,
 		);
+		if (adjustment.kind !== "draft") {
+			await depreciation.ensurePosted({
+				throughDate: adjustmentDate,
+				company: config.company,
+				assetIds: [assetId],
+			});
+			await refreshEffectiveState(prisma, assetId, state);
+		}
 		const adjustmentSeries = buildAdjustmentSeries(
 			"AVA",
 			adjustmentDate,
@@ -375,8 +413,8 @@ async function seedValueAdjustments(
 						newAssetValue: adjustment.newAssetValue,
 						purchaseAmount: asset.netPurchaseAmount,
 						openingAccumulatedDepreciation:
-							asset.openingAccumulatedDepreciation ?? 0,
-						bookedDepreciations: asset.openingNumberOfBookedDepreciations ?? 0,
+							state.openingAccumulatedDepreciation,
+						bookedDepreciations: state.bookedDepreciations,
 						depreciationMethod:
 							asset.depreciationMethod ?? category.depreciationMethod,
 						totalNumberOfDepreciations:
@@ -389,6 +427,12 @@ async function seedValueAdjustments(
 						rateOfDepreciation: category.rateOfDepreciation ?? null,
 						expectedValueAfterUsefulLife:
 							category.expectedValueAfterUsefulLife ?? null,
+						getFiscalYearEndDate: async (date) => {
+							const fiscalYear = getIndianFiscalYear(
+								date.toISOString().slice(0, 10),
+							);
+							return new Date(`${fiscalYear.endDate}T00:00:00.000Z`);
+						},
 					});
 		const resultState = getAssetValueAdjustmentResultState(
 			state.status,
@@ -526,8 +570,9 @@ async function seedValueAdjustments(
 					frequencyOfDepreciation: previewSchedule.frequencyOfDepreciation,
 					bookedDepreciations: previewSchedule.bookedDepreciations,
 					remainingDepreciations: previewSchedule.remainingDepreciations,
-					openingAccumulatedDepreciation: (
-						asset.openingAccumulatedDepreciation ?? 0
+					openingAccumulatedDepreciation: Math.max(
+						state.openingAccumulatedDepreciation,
+						asset.netPurchaseAmount - state.currentAssetValue,
 					).toString(),
 					baseAssetValue: adjustment.newAssetValue.toString(),
 					notes:
@@ -585,6 +630,14 @@ async function seedValueAdjustments(
 			state.currentAssetValue = adjustment.newAssetValue;
 			state.status = resultState.status;
 			state.isFullyDepreciated = resultState.isFullyDepreciated;
+			await prisma.asset.update({
+				where: { id: assetId },
+				data: {
+					valueAfterDepreciation: adjustment.newAssetValue.toString(),
+					status: resultState.status,
+					isFullyDepreciated: resultState.isFullyDepreciated,
+				},
+			});
 			if (state.activeSchedule) {
 				await prisma.assetFinanceBook.update({
 					where: { id: state.activeSchedule.assetFinanceBookId },
@@ -603,6 +656,7 @@ export async function seedAssetTransactions(
 	prisma: PrismaService,
 	config: DemoConfig,
 	ids: MasterIds,
+	depreciation: DemoDepreciationCoordinator,
 ): Promise<void> {
 	const adjustmentCounters = new Map<number, number>();
 	const revaluationCounters = new Map<number, number>();
@@ -620,6 +674,14 @@ export async function seedAssetTransactions(
 			where: { id: assetId },
 			select: {
 				series: true,
+				valueAfterDepreciation: true,
+				openingAccumulatedDepreciation: true,
+				status: true,
+				isFullyDepreciated: true,
+				financeBooks: {
+					take: 1,
+					select: { totalNumberOfBookedDepreciations: true },
+				},
 				depreciationSchedules: {
 					where: { status: "ACTIVE" },
 					orderBy: { revisionNumber: "desc" },
@@ -688,7 +750,11 @@ export async function seedAssetTransactions(
 		);
 
 		const effectiveState = buildInitialState(
-			asset,
+			Number(assetRecord.valueAfterDepreciation),
+			Number(assetRecord.openingAccumulatedDepreciation),
+			assetRecord.financeBooks[0]?.totalNumberOfBookedDepreciations ?? 0,
+			assetRecord.status,
+			assetRecord.isFullyDepreciated,
 			assetRecord.depreciationSchedules[0] ?? null,
 		);
 		activitySequence = await seedValueAdjustments(
@@ -702,27 +768,32 @@ export async function seedAssetTransactions(
 			revaluationCounters,
 			activitySequence,
 			fiscalYears,
+			depreciation,
 		);
 
 		if (
-			asset.valueAdjustments?.some(
-				(adjustment) => adjustment.kind === "submitted",
-			)
+			(asset.status === "SOLD" || asset.status === "SCRAPPED") &&
+			asset.disposalOffsetDays !== undefined
 		) {
-			const expectedValueAfterDepreciation = Number(
-				(asset.valueAfterDepreciation ?? getCurrentAssetValue(asset)).toFixed(
-					6,
-				),
+			const disposalDate = resolveRelativeDate(
+				config,
+				asset.disposalOffsetDays,
+				17,
+				0,
 			);
-			if (
-				Math.abs(
-					effectiveState.currentAssetValue - expectedValueAfterDepreciation,
-				) > 0.000001
-			) {
-				throw new Error(
-					`Asset ${asset.key} final carrying value ${expectedValueAfterDepreciation} does not match seeded adjustment history ${effectiveState.currentAssetValue}`,
-				);
-			}
+			await depreciation.ensurePosted({
+				throughDate: disposalDate,
+				company: config.company,
+				assetIds: [assetId],
+			});
+			await prisma.assetDepreciationSchedule.updateMany({
+				where: { assetId, status: "ACTIVE" },
+				data: { status: "CANCELLED" },
+			});
+			await prisma.asset.update({
+				where: { id: assetId },
+				data: { status: asset.status, disposalDate },
+			});
 		}
 	}
 }
