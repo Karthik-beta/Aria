@@ -1,21 +1,14 @@
-import { EventEmitter } from "node:events";
 import { ReportTemplateService } from "@aria/report-export";
 import { Asset } from "@aria/types";
-import { logger } from "@aria/utils";
 import { Injectable } from "@nestjs/common";
+// biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
+import { EventEmitter2 } from "@nestjs/event-emitter";
 import { TRPCError } from "@trpc/server";
 import { observable } from "@trpc/server/observable";
 import { z } from "zod";
 import { orgProcedure, router } from "../../../trpc/trpc";
 // biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
 import { AssetService } from "../asset.service";
-
-// Global event emitter for real-time asset subscriptions
-const assetEvents = new EventEmitter({ captureRejections: true });
-assetEvents.setMaxListeners(50);
-assetEvents.on("error", (error) => {
-	logger.error("[assetEvents]", error);
-});
 
 type AssetsChangedEvent = {
 	type: "created" | "updated" | "deleted";
@@ -49,13 +42,33 @@ type AssetMaintenancesChangedEvent = {
 
 @Injectable()
 export class AssetRouter {
-	constructor(private readonly assetService: AssetService) {}
+	constructor(
+		private readonly eventEmitter: EventEmitter2,
+		private readonly assetService: AssetService,
+	) {}
 
 	getRouter() {
 		const svc = this.assetService;
 		const assetProcedure = orgProcedure();
 
 		return router({
+			// ── Finance Books ──────────────────────────────────────────────────
+			listFinanceBooks: assetProcedure
+				.input(Asset.listFinanceBooksSchema)
+				.query(async ({ input }) => svc.findAllFinanceBooks(input)),
+
+			createFinanceBook: assetProcedure
+				.input(Asset.createFinanceBookSchema)
+				.mutation(async ({ input }) => svc.createFinanceBook(input)),
+
+			updateFinanceBook: assetProcedure
+				.input(Asset.updateFinanceBookSchema)
+				.mutation(async ({ input }) => svc.updateFinanceBook(input)),
+
+			deleteFinanceBook: assetProcedure
+				.input(z.object({ id: z.string().cuid() }))
+				.mutation(async ({ input }) => svc.deleteFinanceBook(input.id)),
+
 			// ── Asset CRUD ────────────────────────────────────────────────────
 			listAssets: assetProcedure
 				.input(Asset.listAssetsSchema)
@@ -79,11 +92,24 @@ export class AssetRouter {
 				.input(z.object({ id: z.string().cuid() }))
 				.query(async ({ input }) => svc.findAssetById(input.id)),
 
+			getAssetByBarcode: assetProcedure
+				.input(z.object({ barcode: z.string().min(1) }))
+				.query(async ({ input }) => {
+					const asset = await svc.findAssetByBarcode(input.barcode);
+					if (!asset) {
+						throw new TRPCError({
+							code: "NOT_FOUND",
+							message: `Asset with barcode "${input.barcode}" not found`,
+						});
+					}
+					return asset;
+				}),
+
 			createAsset: assetProcedure
 				.input(Asset.createAssetSchema)
 				.mutation(async ({ input }) => {
 					const asset = await svc.createAsset(input);
-					assetEvents.emit("assetsChanged", {
+					this.eventEmitter.emit("assetsChanged", {
 						type: "created",
 						data: asset,
 					} satisfies AssetsChangedEvent);
@@ -94,7 +120,29 @@ export class AssetRouter {
 				.input(Asset.updateAssetSchema)
 				.mutation(async ({ input }) => {
 					const asset = await svc.updateAsset(input);
-					assetEvents.emit("assetsChanged", {
+					this.eventEmitter.emit("assetsChanged", {
+						type: "updated",
+						data: asset,
+					} satisfies AssetsChangedEvent);
+					return asset;
+				}),
+
+			submitAsset: assetProcedure
+				.input(z.object({ id: z.string().cuid() }))
+				.mutation(async ({ input }) => {
+					const asset = await svc.submitAsset(input.id);
+					this.eventEmitter.emit("assetsChanged", {
+						type: "updated",
+						data: asset,
+					} satisfies AssetsChangedEvent);
+					return asset;
+				}),
+
+			cancelAsset: assetProcedure
+				.input(z.object({ id: z.string().cuid() }))
+				.mutation(async ({ input }) => {
+					const asset = await svc.cancelAsset(input.id);
+					this.eventEmitter.emit("assetsChanged", {
 						type: "updated",
 						data: asset,
 					} satisfies AssetsChangedEvent);
@@ -105,7 +153,7 @@ export class AssetRouter {
 				.input(z.object({ id: z.string().cuid() }))
 				.mutation(async ({ input }) => {
 					const result = await svc.deleteAsset(input.id);
-					assetEvents.emit("assetsChanged", {
+					this.eventEmitter.emit("assetsChanged", {
 						type: "deleted",
 						data: { id: input.id },
 					} satisfies AssetsChangedEvent);
@@ -117,7 +165,7 @@ export class AssetRouter {
 				.mutation(async ({ input }) => {
 					const result = await svc.deleteManyAssets(input.ids);
 					for (const id of input.ids) {
-						assetEvents.emit("assetsChanged", {
+						this.eventEmitter.emit("assetsChanged", {
 							type: "deleted",
 							data: { id },
 						} satisfies AssetsChangedEvent);
@@ -142,7 +190,7 @@ export class AssetRouter {
 				.input(Asset.createAssetValueAdjustmentSchema)
 				.mutation(async ({ input }) => {
 					const adjustment = await svc.createAssetValueAdjustment(input);
-					assetEvents.emit("assetValueAdjustmentsChanged", {
+					this.eventEmitter.emit("assetValueAdjustmentsChanged", {
 						type: "created",
 						data: adjustment,
 					} satisfies AssetValueAdjustmentsChangedEvent);
@@ -153,7 +201,7 @@ export class AssetRouter {
 				.input(Asset.updateAssetValueAdjustmentSchema)
 				.mutation(async ({ input }) => {
 					const adjustment = await svc.updateAssetValueAdjustment(input);
-					assetEvents.emit("assetValueAdjustmentsChanged", {
+					this.eventEmitter.emit("assetValueAdjustmentsChanged", {
 						type: "updated",
 						data: adjustment,
 					} satisfies AssetValueAdjustmentsChangedEvent);
@@ -164,11 +212,11 @@ export class AssetRouter {
 				.input(Asset.submitAssetValueAdjustmentSchema)
 				.mutation(async ({ input }) => {
 					const adjustment = await svc.submitAssetValueAdjustment(input);
-					assetEvents.emit("assetValueAdjustmentsChanged", {
+					this.eventEmitter.emit("assetValueAdjustmentsChanged", {
 						type: "submitted",
 						data: adjustment,
 					} satisfies AssetValueAdjustmentsChangedEvent);
-					assetEvents.emit("assetsChanged", {
+					this.eventEmitter.emit("assetsChanged", {
 						type: "updated",
 						data: await svc.findAssetById(adjustment.assetId).then((asset) => {
 							if (!asset) {
@@ -187,11 +235,11 @@ export class AssetRouter {
 				.input(Asset.cancelAssetValueAdjustmentSchema)
 				.mutation(async ({ input }) => {
 					const adjustment = await svc.cancelAssetValueAdjustment(input);
-					assetEvents.emit("assetValueAdjustmentsChanged", {
+					this.eventEmitter.emit("assetValueAdjustmentsChanged", {
 						type: "cancelled",
 						data: adjustment,
 					} satisfies AssetValueAdjustmentsChangedEvent);
-					assetEvents.emit("assetsChanged", {
+					this.eventEmitter.emit("assetsChanged", {
 						type: "updated",
 						data: await svc.findAssetById(adjustment.assetId).then((asset) => {
 							if (!asset) {
@@ -210,7 +258,7 @@ export class AssetRouter {
 				.input(Asset.deleteAssetValueAdjustmentSchema)
 				.mutation(async ({ input }) => {
 					const result = await svc.deleteAssetValueAdjustment(input.id);
-					assetEvents.emit("assetValueAdjustmentsChanged", {
+					this.eventEmitter.emit("assetValueAdjustmentsChanged", {
 						type: "deleted",
 						data: { id: input.id },
 					} satisfies AssetValueAdjustmentsChangedEvent);
@@ -230,7 +278,7 @@ export class AssetRouter {
 				.input(Asset.createLocationSchema)
 				.mutation(async ({ input }) => {
 					const loc = await svc.createLocation(input);
-					assetEvents.emit("locationsChanged", {
+					this.eventEmitter.emit("locationsChanged", {
 						type: "created",
 						data: loc,
 					} satisfies LocationsChangedEvent);
@@ -241,7 +289,7 @@ export class AssetRouter {
 				.input(Asset.updateLocationSchema)
 				.mutation(async ({ input }) => {
 					const loc = await svc.updateLocation(input);
-					assetEvents.emit("locationsChanged", {
+					this.eventEmitter.emit("locationsChanged", {
 						type: "updated",
 						data: loc,
 					} satisfies LocationsChangedEvent);
@@ -252,7 +300,7 @@ export class AssetRouter {
 				.input(z.object({ id: z.string().cuid() }))
 				.mutation(async ({ input }) => {
 					const result = await svc.deleteLocation(input.id);
-					assetEvents.emit("locationsChanged", {
+					this.eventEmitter.emit("locationsChanged", {
 						type: "deleted",
 						data: { id: input.id },
 					} satisfies LocationsChangedEvent);
@@ -272,7 +320,7 @@ export class AssetRouter {
 				.input(Asset.createAssetCategorySchema)
 				.mutation(async ({ input }) => {
 					const cat = await svc.createAssetCategory(input);
-					assetEvents.emit("assetCategoriesChanged", {
+					this.eventEmitter.emit("assetCategoriesChanged", {
 						type: "created",
 						data: cat,
 					} satisfies AssetCategoriesChangedEvent);
@@ -283,7 +331,7 @@ export class AssetRouter {
 				.input(Asset.updateAssetCategorySchema)
 				.mutation(async ({ input }) => {
 					const cat = await svc.updateAssetCategory(input);
-					assetEvents.emit("assetCategoriesChanged", {
+					this.eventEmitter.emit("assetCategoriesChanged", {
 						type: "updated",
 						data: cat,
 					} satisfies AssetCategoriesChangedEvent);
@@ -294,7 +342,7 @@ export class AssetRouter {
 				.input(z.object({ id: z.string().cuid() }))
 				.mutation(async ({ input }) => {
 					const result = await svc.deleteAssetCategory(input.id);
-					assetEvents.emit("assetCategoriesChanged", {
+					this.eventEmitter.emit("assetCategoriesChanged", {
 						type: "deleted",
 						data: { id: input.id },
 					} satisfies AssetCategoriesChangedEvent);
@@ -319,16 +367,16 @@ export class AssetRouter {
 			onAssetsChanged: assetProcedure.subscription(() =>
 				observable<AssetsChangedEvent>((emit) => {
 					const handler = (event: AssetsChangedEvent) => emit.next(event);
-					assetEvents.on("assetsChanged", handler);
-					return () => assetEvents.off("assetsChanged", handler);
+					this.eventEmitter.on("assetsChanged", handler);
+					return () => this.eventEmitter.off("assetsChanged", handler);
 				}),
 			),
 
 			onLocationsChanged: assetProcedure.subscription(() =>
 				observable<LocationsChangedEvent>((emit) => {
 					const handler = (event: LocationsChangedEvent) => emit.next(event);
-					assetEvents.on("locationsChanged", handler);
-					return () => assetEvents.off("locationsChanged", handler);
+					this.eventEmitter.on("locationsChanged", handler);
+					return () => this.eventEmitter.off("locationsChanged", handler);
 				}),
 			),
 
@@ -336,8 +384,8 @@ export class AssetRouter {
 				observable<AssetCategoriesChangedEvent>((emit) => {
 					const handler = (event: AssetCategoriesChangedEvent) =>
 						emit.next(event);
-					assetEvents.on("assetCategoriesChanged", handler);
-					return () => assetEvents.off("assetCategoriesChanged", handler);
+					this.eventEmitter.on("assetCategoriesChanged", handler);
+					return () => this.eventEmitter.off("assetCategoriesChanged", handler);
 				}),
 			),
 
@@ -345,8 +393,9 @@ export class AssetRouter {
 				observable<AssetValueAdjustmentsChangedEvent>((emit) => {
 					const handler = (event: AssetValueAdjustmentsChangedEvent) =>
 						emit.next(event);
-					assetEvents.on("assetValueAdjustmentsChanged", handler);
-					return () => assetEvents.off("assetValueAdjustmentsChanged", handler);
+					this.eventEmitter.on("assetValueAdjustmentsChanged", handler);
+					return () =>
+						this.eventEmitter.off("assetValueAdjustmentsChanged", handler);
 				}),
 			),
 
@@ -363,7 +412,7 @@ export class AssetRouter {
 				.input(Asset.createMaintenanceTeamSchema)
 				.mutation(async ({ input }) => {
 					const team = await svc.createMaintenanceTeam(input);
-					assetEvents.emit("maintenanceTeamsChanged", {
+					this.eventEmitter.emit("maintenanceTeamsChanged", {
 						type: "created",
 						data: team,
 					} satisfies MaintenanceTeamsChangedEvent);
@@ -374,7 +423,7 @@ export class AssetRouter {
 				.input(Asset.updateMaintenanceTeamSchema)
 				.mutation(async ({ input }) => {
 					const team = await svc.updateMaintenanceTeam(input);
-					assetEvents.emit("maintenanceTeamsChanged", {
+					this.eventEmitter.emit("maintenanceTeamsChanged", {
 						type: "updated",
 						data: team,
 					} satisfies MaintenanceTeamsChangedEvent);
@@ -385,7 +434,7 @@ export class AssetRouter {
 				.input(z.object({ id: z.string().cuid() }))
 				.mutation(async ({ input }) => {
 					const result = await svc.deleteMaintenanceTeam(input.id);
-					assetEvents.emit("maintenanceTeamsChanged", {
+					this.eventEmitter.emit("maintenanceTeamsChanged", {
 						type: "deleted",
 						data: { id: input.id },
 					} satisfies MaintenanceTeamsChangedEvent);
@@ -397,7 +446,7 @@ export class AssetRouter {
 				.mutation(async ({ input }) => {
 					const result = await svc.deleteManyMaintenanceTeams(input.ids);
 					for (const id of input.ids) {
-						assetEvents.emit("maintenanceTeamsChanged", {
+						this.eventEmitter.emit("maintenanceTeamsChanged", {
 							type: "deleted",
 							data: { id },
 						} satisfies MaintenanceTeamsChangedEvent);
@@ -409,8 +458,9 @@ export class AssetRouter {
 				observable<MaintenanceTeamsChangedEvent>((emit) => {
 					const handler = (event: MaintenanceTeamsChangedEvent) =>
 						emit.next(event);
-					assetEvents.on("maintenanceTeamsChanged", handler);
-					return () => assetEvents.off("maintenanceTeamsChanged", handler);
+					this.eventEmitter.on("maintenanceTeamsChanged", handler);
+					return () =>
+						this.eventEmitter.off("maintenanceTeamsChanged", handler);
 				}),
 			),
 
@@ -443,7 +493,7 @@ export class AssetRouter {
 				.input(Asset.cancelAssetMaintenanceLogSchema)
 				.mutation(async ({ input }) => {
 					const log = await svc.cancelAssetMaintenanceLog(input);
-					assetEvents.emit("assetMaintenancesChanged", {
+					this.eventEmitter.emit("assetMaintenancesChanged", {
 						type: "log_completed",
 						data: { id: input.logId },
 					} satisfies AssetMaintenancesChangedEvent);
@@ -454,7 +504,7 @@ export class AssetRouter {
 				.input(Asset.createAssetMaintenanceSchema)
 				.mutation(async ({ input }) => {
 					const record = await svc.createAssetMaintenance(input);
-					assetEvents.emit("assetMaintenancesChanged", {
+					this.eventEmitter.emit("assetMaintenancesChanged", {
 						type: "created",
 						data: record,
 					} satisfies AssetMaintenancesChangedEvent);
@@ -465,7 +515,7 @@ export class AssetRouter {
 				.input(Asset.updateAssetMaintenanceSchema)
 				.mutation(async ({ input }) => {
 					const record = await svc.updateAssetMaintenance(input);
-					assetEvents.emit("assetMaintenancesChanged", {
+					this.eventEmitter.emit("assetMaintenancesChanged", {
 						type: "updated",
 						data: record,
 					} satisfies AssetMaintenancesChangedEvent);
@@ -476,7 +526,7 @@ export class AssetRouter {
 				.input(z.object({ id: z.string().cuid() }))
 				.mutation(async ({ input }) => {
 					const result = await svc.deleteAssetMaintenance(input.id);
-					assetEvents.emit("assetMaintenancesChanged", {
+					this.eventEmitter.emit("assetMaintenancesChanged", {
 						type: "deleted",
 						data: { id: input.id },
 					} satisfies AssetMaintenancesChangedEvent);
@@ -488,7 +538,7 @@ export class AssetRouter {
 				.mutation(async ({ input }) => {
 					const result = await svc.deleteManyAssetMaintenances(input.ids);
 					for (const id of input.ids) {
-						assetEvents.emit("assetMaintenancesChanged", {
+						this.eventEmitter.emit("assetMaintenancesChanged", {
 							type: "deleted",
 							data: { id },
 						} satisfies AssetMaintenancesChangedEvent);
@@ -500,7 +550,7 @@ export class AssetRouter {
 				.input(Asset.completeAssetMaintenanceLogSchema)
 				.mutation(async ({ input }) => {
 					const log = await svc.completeAssetMaintenanceLog(input);
-					assetEvents.emit("assetMaintenancesChanged", {
+					this.eventEmitter.emit("assetMaintenancesChanged", {
 						type: "log_completed",
 						data: { id: input.logId },
 					} satisfies AssetMaintenancesChangedEvent);
@@ -511,8 +561,9 @@ export class AssetRouter {
 				observable<AssetMaintenancesChangedEvent>((emit) => {
 					const handler = (event: AssetMaintenancesChangedEvent) =>
 						emit.next(event);
-					assetEvents.on("assetMaintenancesChanged", handler);
-					return () => assetEvents.off("assetMaintenancesChanged", handler);
+					this.eventEmitter.on("assetMaintenancesChanged", handler);
+					return () =>
+						this.eventEmitter.off("assetMaintenancesChanged", handler);
 				}),
 			),
 

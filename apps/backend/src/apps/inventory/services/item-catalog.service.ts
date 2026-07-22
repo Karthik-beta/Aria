@@ -16,6 +16,7 @@ import {
 	NotFoundException,
 } from "@nestjs/common";
 import type { z } from "zod";
+import { handlePrismaError } from "../../../common/prisma-error.handler";
 import { Prisma } from "../../../generated/prisma/client";
 import type { PrismaService } from "../../../shared/prisma.service";
 import {
@@ -243,15 +244,7 @@ export class ItemCatalogSubService {
 
 			return toInventoryBrand(created);
 		} catch (error) {
-			if (
-				error instanceof Prisma.PrismaClientKnownRequestError &&
-				error.code === "P2002"
-			) {
-				throw new ConflictException(
-					`Brand with name "${data.name}" already exists`,
-				);
-			}
-			throw error;
+			handlePrismaError(error);
 		}
 	}
 
@@ -300,24 +293,7 @@ export class ItemCatalogSubService {
 
 			return toInventoryBrand(updated);
 		} catch (error) {
-			if (
-				error instanceof Prisma.PrismaClientKnownRequestError &&
-				error.code === "P2025"
-			) {
-				throw new NotFoundException(`Brand with ID ${id} not found`);
-			}
-			if (
-				error instanceof Prisma.PrismaClientKnownRequestError &&
-				error.code === "P2002"
-			) {
-				const conflictName = rest.name ?? existing.name;
-				throw new ConflictException(
-					conflictName
-						? `Brand with name "${conflictName}" already exists`
-						: "Brand already exists",
-				);
-			}
-			throw error;
+			handlePrismaError(error);
 		}
 	}
 
@@ -409,15 +385,7 @@ export class ItemCatalogSubService {
 			});
 			return toInventoryItemAttribute(attribute);
 		} catch (error) {
-			if (
-				error instanceof Prisma.PrismaClientKnownRequestError &&
-				error.code === "P2002"
-			) {
-				throw new ConflictException(
-					`Item Attribute with name "${data.name}" already exists`,
-				);
-			}
-			throw error;
+			handlePrismaError(error);
 		}
 	}
 
@@ -511,24 +479,7 @@ export class ItemCatalogSubService {
 
 			return toInventoryItemAttribute(updated);
 		} catch (error) {
-			if (
-				error instanceof Prisma.PrismaClientKnownRequestError &&
-				error.code === "P2025"
-			) {
-				throw new NotFoundException(`Item Attribute with ID ${id} not found`);
-			}
-			if (
-				error instanceof Prisma.PrismaClientKnownRequestError &&
-				error.code === "P2002"
-			) {
-				const conflictName = rest.name ?? existing.name;
-				throw new ConflictException(
-					conflictName
-						? `Item Attribute with name "${conflictName}" already exists`
-						: "Item Attribute already exists",
-				);
-			}
-			throw error;
+			handlePrismaError(error);
 		}
 	}
 
@@ -703,15 +654,7 @@ export class ItemCatalogSubService {
 
 			return toInventoryProductBundle(created);
 		} catch (error) {
-			if (
-				error instanceof Prisma.PrismaClientKnownRequestError &&
-				error.code === "P2002"
-			) {
-				throw new ConflictException(
-					"Duplicate bundle item found in this product bundle",
-				);
-			}
-			throw error;
+			handlePrismaError(error);
 		}
 	}
 
@@ -804,13 +747,7 @@ export class ItemCatalogSubService {
 			await this.prisma.productBundle.delete({ where: { id } });
 			return { success: true, id };
 		} catch (error) {
-			if (
-				error instanceof Prisma.PrismaClientKnownRequestError &&
-				error.code === "P2025"
-			) {
-				throw new NotFoundException(`Product bundle with ID ${id} not found`);
-			}
-			throw error;
+			handlePrismaError(error);
 		}
 	}
 
@@ -872,15 +809,7 @@ export class ItemCatalogSubService {
 
 			return toInventoryShippingRule(created);
 		} catch (error) {
-			if (
-				error instanceof Prisma.PrismaClientKnownRequestError &&
-				error.code === "P2002"
-			) {
-				throw new ConflictException(
-					`Shipping rule with label "${data.shippingRuleLabel}" already exists`,
-				);
-			}
-			throw error;
+			handlePrismaError(error);
 		}
 	}
 
@@ -919,21 +848,7 @@ export class ItemCatalogSubService {
 
 			return toInventoryShippingRule(updated);
 		} catch (error) {
-			if (
-				error instanceof Prisma.PrismaClientKnownRequestError &&
-				error.code === "P2025"
-			) {
-				throw new NotFoundException(`Shipping rule with ID ${id} not found`);
-			}
-			if (
-				error instanceof Prisma.PrismaClientKnownRequestError &&
-				error.code === "P2002"
-			) {
-				throw new ConflictException(
-					`Shipping rule with label "${rest.shippingRuleLabel}" already exists`,
-				);
-			}
-			throw error;
+			handlePrismaError(error);
 		}
 	}
 
@@ -947,13 +862,7 @@ export class ItemCatalogSubService {
 			await this.prisma.shippingRule.delete({ where: { id } });
 			return { success: true, id };
 		} catch (error) {
-			if (
-				error instanceof Prisma.PrismaClientKnownRequestError &&
-				error.code === "P2025"
-			) {
-				throw new NotFoundException(`Shipping rule with ID ${id} not found`);
-			}
-			throw error;
+			handlePrismaError(error);
 		}
 	}
 
@@ -1029,7 +938,7 @@ export class ItemCatalogSubService {
 				}
 				throw new ConflictException("Item manufacturer already exists");
 			}
-			throw error;
+			handlePrismaError(error);
 		}
 	}
 
@@ -1099,7 +1008,7 @@ export class ItemCatalogSubService {
 				}
 				throw new ConflictException("Item manufacturer already exists");
 			}
-			throw error;
+			handlePrismaError(error);
 		}
 	}
 
@@ -1115,15 +1024,7 @@ export class ItemCatalogSubService {
 			});
 			return { success: true, id };
 		} catch (error) {
-			if (
-				error instanceof Prisma.PrismaClientKnownRequestError &&
-				error.code === "P2025"
-			) {
-				throw new NotFoundException(
-					`Item manufacturer with ID ${id} not found`,
-				);
-			}
-			throw error;
+			handlePrismaError(error);
 		}
 	}
 
@@ -1300,13 +1201,7 @@ export class ItemCatalogSubService {
 				twoWay: created.twoWay,
 			};
 		} catch (error) {
-			if (
-				error instanceof Prisma.PrismaClientKnownRequestError &&
-				error.code === "P2002"
-			) {
-				throw new ConflictException("Item alternative already exists");
-			}
-			throw error;
+			handlePrismaError(error);
 		}
 	}
 
@@ -1423,19 +1318,7 @@ export class ItemCatalogSubService {
 				twoWay: Boolean(reverseAlternative),
 			};
 		} catch (error) {
-			if (
-				error instanceof Prisma.PrismaClientKnownRequestError &&
-				error.code === "P2025"
-			) {
-				throw new NotFoundException(`Item alternative with ID ${id} not found`);
-			}
-			if (
-				error instanceof Prisma.PrismaClientKnownRequestError &&
-				error.code === "P2002"
-			) {
-				throw new ConflictException("Item alternative already exists");
-			}
-			throw error;
+			handlePrismaError(error);
 		}
 	}
 
@@ -1476,13 +1359,7 @@ export class ItemCatalogSubService {
 
 			return { success: true, id };
 		} catch (error) {
-			if (
-				error instanceof Prisma.PrismaClientKnownRequestError &&
-				error.code === "P2025"
-			) {
-				throw new NotFoundException(`Item alternative with ID ${id} not found`);
-			}
-			throw error;
+			handlePrismaError(error);
 		}
 	}
 
@@ -1616,15 +1493,7 @@ export class ItemCatalogSubService {
 
 			return toInventoryItem(created);
 		} catch (error) {
-			if (
-				error instanceof Prisma.PrismaClientKnownRequestError &&
-				error.code === "P2002"
-			) {
-				throw new ConflictException(
-					`Item with code ${data.code} already exists`,
-				);
-			}
-			throw error;
+			handlePrismaError(error);
 		}
 	}
 
@@ -1735,13 +1604,7 @@ export class ItemCatalogSubService {
 
 			return toInventoryItem(deleted);
 		} catch (error) {
-			if (
-				error instanceof Prisma.PrismaClientKnownRequestError &&
-				error.code === "P2025"
-			) {
-				throw new NotFoundException(`Item with ID ${id} not found`);
-			}
-			throw error;
+			handlePrismaError(error);
 		}
 	}
 

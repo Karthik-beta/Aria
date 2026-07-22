@@ -26,8 +26,13 @@ flow through [`seed-master.ts`](./seed-master.ts),
 Run these commands from `apps/backend`:
 
 ```bash
-# Load demo data
-bun prisma/demo-data/cli.ts load --scale=medium
+# Load demo data and post every depreciation period due today
+REDIS_URL=redis://localhost:6379 APP_TIME_ZONE=Asia/Kolkata \
+  bun prisma/demo-data/cli.ts load --scale=medium
+
+# Reproduce a fixed accounting snapshot
+REDIS_URL=redis://localhost:6379 APP_TIME_ZONE=Asia/Kolkata \
+  bun prisma/demo-data/cli.ts load --scale=small --as-of=2026-07-22
 
 # Inspect how much demo data is present
 bun prisma/demo-data/cli.ts status
@@ -41,6 +46,18 @@ Supported scale values:
 - `small`
 - `medium` (default)
 - `large`
+
+`load` requires PostgreSQL, Redis, and an IANA `APP_TIME_ZONE`. It starts the
+same BullMQ worker used by the backend, without starting another cron
+scheduler, and waits for every due depreciation entry to be posted before it
+reports success. Monthly, quarterly, half-yearly, and yearly schedules are
+represented; the daily scheduler discovers due work and daily pro-rata affects
+amounts, while future schedule rows remain unposted projections.
+
+Stop the backend before replacing the demo dataset so its scheduler cannot
+discover records while cleanup and loading are in progress. A failed load exits
+non-zero. Correct the dependency or posting error and rerun `load`; the loader
+cleans the incomplete Pivotr dataset before rebuilding it.
 
 ## Configuration
 
@@ -75,5 +92,7 @@ which seeds roles, permissions, and default apps.
 ## Troubleshooting
 
 - Make sure `DATABASE_URL` is set before running the CLI.
+- `load` also requires `REDIS_URL` and `APP_TIME_ZONE`; `clean` and `status`
+  remain database-only commands.
 - If you see older docs mentioning `seed`, use `load` instead.
 - If the database already contains demo records, run `clean` first.

@@ -30,6 +30,28 @@ type AssetValueAdjustmentsChangedEvent = {
 };
 
 type AssetRouterInput = {
+	// ── Finance Books ────────────────────────────────────────────────────────
+	listFinanceBooks: TRPCQueryProcedure<{
+		input: { skip?: number; take?: number; search?: string } | undefined;
+		output: Asset.FinanceBookListResult;
+		meta: object;
+	}>;
+	createFinanceBook: TRPCMutationProcedure<{
+		input: { name: string };
+		output: Asset.FinanceBook;
+		meta: object;
+	}>;
+	updateFinanceBook: TRPCMutationProcedure<{
+		input: { id: string; name: string };
+		output: Asset.FinanceBook;
+		meta: object;
+	}>;
+	deleteFinanceBook: TRPCMutationProcedure<{
+		input: { id: string };
+		output: { success: true; id: string };
+		meta: object;
+	}>;
+
 	// ── Asset CRUD ──────────────────────────────────────────────────────────
 	listAssets: TRPCQueryProcedure<{
 		input:
@@ -49,6 +71,11 @@ type AssetRouterInput = {
 	getAssetById: TRPCQueryProcedure<{
 		input: { id: string };
 		output: Asset.AssetItem | null;
+		meta: object;
+	}>;
+	getAssetByBarcode: TRPCQueryProcedure<{
+		input: { barcode: string };
+		output: Asset.AssetItem;
 		meta: object;
 	}>;
 	createAsset: TRPCMutationProcedure<{
@@ -125,6 +152,16 @@ type AssetRouterInput = {
 			purchaseInvoice?: string | null | undefined;
 			status?: Asset.AssetStatus | undefined;
 		};
+		output: Asset.AssetItem;
+		meta: object;
+	}>;
+	submitAsset: TRPCMutationProcedure<{
+		input: { id: string };
+		output: Asset.AssetItem;
+		meta: object;
+	}>;
+	cancelAsset: TRPCMutationProcedure<{
+		input: { id: string };
 		output: Asset.AssetItem;
 		meta: object;
 	}>;

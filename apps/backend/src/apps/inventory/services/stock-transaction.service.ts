@@ -10,6 +10,7 @@
  */
 import type { Inventory } from "@aria/types";
 import { BadRequestException, Logger, NotFoundException } from "@nestjs/common";
+import { handlePrismaError } from "../../../common/prisma-error.handler";
 import { Prisma } from "../../../generated/prisma/client";
 import {
 	allocateDocumentSeries,
@@ -291,13 +292,7 @@ export class StockTransactionSubService {
 			await this.prisma.materialRequest.delete({ where: { id } });
 			return { success: true, id };
 		} catch (error) {
-			if (
-				error instanceof Prisma.PrismaClientKnownRequestError &&
-				error.code === "P2025"
-			) {
-				throw new NotFoundException(`Material request with ID ${id} not found`);
-			}
-			throw error;
+			handlePrismaError(error);
 		}
 	}
 
@@ -322,7 +317,7 @@ export class StockTransactionSubService {
 					error.stack,
 				);
 			}
-			throw error;
+			handlePrismaError(error);
 		}
 	}
 
@@ -615,13 +610,7 @@ export class StockTransactionSubService {
 			await this.prisma.stockEntry.delete({ where: { id } });
 			return { success: true, id };
 		} catch (error) {
-			if (
-				error instanceof Prisma.PrismaClientKnownRequestError &&
-				error.code === "P2025"
-			) {
-				throw new NotFoundException(`Stock entry with ID ${id} not found`);
-			}
-			throw error;
+			handlePrismaError(error);
 		}
 	}
 
@@ -644,7 +633,7 @@ export class StockTransactionSubService {
 					error.stack,
 				);
 			}
-			throw error;
+			handlePrismaError(error);
 		}
 	}
 }

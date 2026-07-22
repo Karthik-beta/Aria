@@ -93,5 +93,5 @@ describe("UnitOfMeasurePage", () => {
 				isWholeNumber: true,
 			});
 		});
-	}, 15_000);
+	});
 });

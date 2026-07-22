@@ -1564,6 +1564,8 @@ model AssetCategory {
   createdAt                     DateTime            @default(now())
   updatedAt                     DateTime            @updatedAt
   assets                        Asset[]
+  financeBookDefaults          AssetCategoryFinanceBook[]
+  accounts                     AssetCategoryAccount[]
 
   @@index([name])
   @@map("asset_categories")
@@ -1574,6 +1576,7 @@ model Asset {
   series                             String              @unique @db.VarChar(50)
   assetName                          String              @db.VarChar(255)
   itemCode                           String              @db.VarChar(100)
+  barcode                            String?             @unique @db.VarChar(255)
   assetCategoryId                    String?
   assetCategory                      AssetCategory?      @relation(fields: [assetCategoryId], references: [id])
   company                            String              @db.VarChar(255)
@@ -1614,6 +1617,8 @@ model Asset {
   valueAdjustments                   AssetValueAdjustment[]
   revaluationEntries                 AssetRevaluationEntry[]
   depreciationSchedules              AssetDepreciationSchedule[]
+  financeBooks                       AssetFinanceBook[]
+  depreciationJournalEntries         AssetDepreciationJournalEntry[]
   createdAt                          DateTime            @default(now())
   updatedAt                          DateTime            @updatedAt
 
@@ -1713,10 +1718,12 @@ model AssetRevaluationEntryLine {
 
 model AssetDepreciationSchedule {
   id                            String                          @id @default(cuid())
-  adjustmentId                  String                          @unique
-  adjustment                    AssetValueAdjustment            @relation(fields: [adjustmentId], references: [id], onDelete: Cascade)
+  adjustmentId                  String?                         @unique
+  adjustment                    AssetValueAdjustment?           @relation(fields: [adjustmentId], references: [id], onDelete: SetNull)
   assetId                       String
   asset                         Asset                           @relation(fields: [assetId], references: [id])
+  assetFinanceBookId            String
+  assetFinanceBook              AssetFinanceBook                @relation(fields: [assetFinanceBookId], references: [id])
   previousScheduleId            String?
   previousSchedule              AssetDepreciationSchedule?      @relation("AssetDepreciationScheduleChain", fields: [previousScheduleId], references: [id])
   nextSchedules                 AssetDepreciationSchedule[]     @relation("AssetDepreciationScheduleChain")
@@ -1740,6 +1747,8 @@ model AssetDepreciationSchedule {
   updatedAt                     DateTime                        @updatedAt
 
   @@index([assetId])
+  @@index([assetFinanceBookId])
+  @@index([assetFinanceBookId, status])
   @@index([status])
   @@index([startDate])
   @@index([previousScheduleId])
@@ -1755,6 +1764,9 @@ model AssetDepreciationScheduleEntry {
   depreciationAmount            Decimal                   @db.Decimal(18, 6)
   accumulatedDepreciationAmount Decimal                   @db.Decimal(18, 6)
   bookValueAfterDepreciation    Decimal                   @db.Decimal(18, 6)
+  postingId                     String?                   @unique
+  posting                       AssetDepreciationJournalEntry? @relation(fields: [postingId], references: [id], onDelete: SetNull)
+  postedAt                      DateTime?
   createdAt                     DateTime                  @default(now())
   updatedAt                     DateTime                  @updatedAt
 
@@ -1762,6 +1774,155 @@ model AssetDepreciationScheduleEntry {
   @@index([scheduleId])
   @@index([scheduleDate])
   @@map("asset_depreciation_schedule_entries")
+}
+
+/// A named accounting book used to maintain an independent asset valuation.
+model FinanceBook {
+  id                String                     @id @default(cuid())
+  name              String                     @unique @db.VarChar(255)
+  companies         Company[]                  @relation("CompanyDefaultFinanceBook")
+  assetFinanceBooks AssetFinanceBook[]
+  categoryDefaults  AssetCategoryFinanceBook[]
+  createdAt         DateTime                   @default(now())
+  updatedAt         DateTime                   @updatedAt
+
+  @@index([name])
+  @@map("finance_books")
+}
+
+/// Depreciation configuration and posting cursor for one asset and finance book.
+model AssetFinanceBook {
+  id                                 String                          @id @default(cuid())
+  assetId                            String
+  asset                              Asset                           @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  financeBookId                      String
+  financeBook                        FinanceBook                     @relation(fields: [financeBookId], references: [id])
+  depreciationMethod                 DepreciationMethod
+  totalNumberOfDepreciations         Int
+  frequencyOfDepreciation            Int
+  dailyProrataBased                  Boolean                         @default(false)
+  shiftBased                         Boolean                         @default(false)
+  rateOfDepreciation                 Decimal?                        @db.Decimal(9, 6)
+  expectedValueAfterUsefulLife       Decimal                         @default(0) @db.Decimal(18, 6)
+  depreciationStartDate              DateTime
+  openingAccumulatedDepreciation     Decimal                         @default(0) @db.Decimal(18, 6)
+  openingNumberOfBookedDepreciations Int                             @default(0)
+  valueAfterDepreciation             Decimal                         @default(0) @db.Decimal(18, 6)
+  totalNumberOfBookedDepreciations   Int                             @default(0)
+  postingStatus                      AssetFinanceBookPostingStatus   @default(PENDING)
+  lastPostedDepreciationDate         DateTime?
+  schedules                          AssetDepreciationSchedule[]
+  journalEntries                     AssetDepreciationJournalEntry[]
+  createdAt                          DateTime                        @default(now())
+  updatedAt                          DateTime                        @updatedAt
+
+  @@unique([assetId, financeBookId])
+  @@index([assetId])
+  @@index([financeBookId])
+  @@index([postingStatus])
+  @@index([lastPostedDepreciationDate])
+  @@map("asset_finance_books")
+}
+
+/// Default depreciation settings copied from an asset category into an asset book.
+model AssetCategoryFinanceBook {
+  id                           String             @id @default(cuid())
+  assetCategoryId              String
+  assetCategory                AssetCategory      @relation(fields: [assetCategoryId], references: [id], onDelete: Cascade)
+  financeBookId                String
+  financeBook                  FinanceBook        @relation(fields: [financeBookId], references: [id])
+  depreciationMethod           DepreciationMethod
+  totalNumberOfDepreciations   Int
+  frequencyOfDepreciation      Int
+  dailyProrataBased            Boolean            @default(false)
+  shiftBased                   Boolean            @default(false)
+  rateOfDepreciation           Decimal?           @db.Decimal(9, 6)
+  expectedValueAfterUsefulLife Decimal?           @db.Decimal(18, 6)
+  createdAt                    DateTime           @default(now())
+  updatedAt                    DateTime           @updatedAt
+
+  @@unique([assetCategoryId, financeBookId])
+  @@index([assetCategoryId])
+  @@index([financeBookId])
+  @@map("asset_category_finance_books")
+}
+
+/// Company-specific accounting defaults for an asset category.
+model AssetCategoryAccount {
+  id                             String        @id @default(cuid())
+  assetCategoryId                String
+  assetCategory                  AssetCategory @relation(fields: [assetCategoryId], references: [id], onDelete: Cascade)
+  companyId                      String
+  company                        Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  fixedAssetAccount              String        @db.VarChar(255)
+  accumulatedDepreciationAccount String?       @db.VarChar(255)
+  depreciationExpenseAccount     String?       @db.VarChar(255)
+  capitalWorkInProgressAccount   String?       @db.VarChar(255)
+  createdAt                      DateTime      @default(now())
+  updatedAt                      DateTime      @updatedAt
+
+  @@unique([assetCategoryId, companyId])
+  @@index([assetCategoryId])
+  @@index([companyId])
+  @@map("asset_category_accounts")
+}
+
+/// Multiplier applied to straight-line depreciation for a named operating shift.
+model AssetShiftFactor {
+  id          String   @id @default(cuid())
+  shiftName   String   @unique @db.VarChar(100)
+  shiftFactor Decimal  @db.Decimal(9, 6)
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([isDefault])
+  @@map("asset_shift_factors")
+}
+
+/// Asset-specific accounting document created for one posted depreciation period.
+model AssetDepreciationJournalEntry {
+  id                 String                              @id @default(cuid())
+  series             String                              @unique @db.VarChar(50)
+  assetId            String
+  asset              Asset                               @relation(fields: [assetId], references: [id])
+  assetFinanceBookId String
+  assetFinanceBook   AssetFinanceBook                    @relation(fields: [assetFinanceBookId], references: [id])
+  company            String                              @db.VarChar(255)
+  financeBookName    String                              @db.VarChar(255)
+  postingDate        DateTime
+  depreciationAmount Decimal                             @db.Decimal(18, 6)
+  remarks            String?                             @db.VarChar(500)
+  status             AssetDepreciationJournalEntryStatus @default(POSTED)
+  reversedAt         DateTime?
+  scheduleEntry      AssetDepreciationScheduleEntry?
+  lines              AssetDepreciationJournalEntryLine[]
+  createdAt          DateTime                            @default(now())
+  updatedAt          DateTime                            @updatedAt
+
+  @@unique([assetFinanceBookId, postingDate], map: "asset_depreciation_journal_entries_assetFinanceBookId_postingDa")
+  @@index([assetId])
+  @@index([postingDate])
+  @@index([status])
+  @@map("asset_depreciation_journal_entries")
+}
+
+/// Debit or credit line belonging to an asset depreciation journal entry.
+model AssetDepreciationJournalEntryLine {
+  id             String                        @id @default(cuid())
+  journalEntryId String
+  journalEntry   AssetDepreciationJournalEntry @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+  lineType       AssetRevaluationLineType
+  account        String                        @db.VarChar(255)
+  debitAmount    Decimal                       @default(0) @db.Decimal(18, 6)
+  creditAmount   Decimal                       @default(0) @db.Decimal(18, 6)
+  costCenter     String?                       @db.VarChar(255)
+  createdAt      DateTime                      @default(now())
+  updatedAt      DateTime                      @updatedAt
+
+  @@index([journalEntryId])
+  @@index([account])
+  @@map("asset_depreciation_journal_entry_lines")
 }
 
 model AssetMaintenanceTeam {
@@ -1914,15 +2075,32 @@ enum AssetMaintenancePeriodicity {
 }
 
 model Company {
-  id            String    @id @default(cuid())
-  name          String    @unique @db.VarChar(255)
-  abbreviation   String?   @db.VarChar(50)
-  country       String?   @db.VarChar(100)
-  currency      String?   @db.VarChar(50)
-  disabled      Boolean   @default(false)
-  fiscalYears   FiscalYearCompany[]
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id                             String                 @id @default(cuid())
+  name                           String                 @unique @db.VarChar(255)
+  abbreviation                   String?                @db.VarChar(50)
+  country                        String?                @db.VarChar(100)
+  currency                       String?                @db.VarChar(50)
+  taxId                          String?                @db.VarChar(100)
+  domain                         String?                @db.VarChar(100)
+  isGroup                        Boolean                @default(false)
+  parentCompanyId                String?
+  parentCompany                  Company?               @relation("CompanyHierarchy", fields: [parentCompanyId], references: [id])
+  children                       Company[]              @relation("CompanyHierarchy")
+  disabled                       Boolean                @default(false)
+  defaultFinanceBookId           String?
+  defaultFinanceBook             FinanceBook?           @relation("CompanyDefaultFinanceBook", fields: [defaultFinanceBookId], references: [id], onDelete: SetNull)
+  depreciationEntrySeries        String?                @default("DEP-.YYYY.-") @db.VarChar(50)
+  defaultCostCenter              String?                @db.VarChar(255)
+  accumulatedDepreciationAccount String?                @db.VarChar(255)
+  depreciationExpenseAccount     String?                @db.VarChar(255)
+  accountsFrozenThrough          DateTime?
+  assetCategoryAccounts          AssetCategoryAccount[]
+  fiscalYears                    FiscalYearCompany[]
+  createdAt                      DateTime                @default(now())
+  updatedAt                      DateTime                @updatedAt
+
+  @@index([parentCompanyId])
+  @@index([defaultFinanceBookId])
 }
 
 model FiscalYear {
@@ -1972,8 +2150,20 @@ enum AssetRevaluationLineType {
 }
 
 enum AssetDepreciationScheduleStatus {
+  DRAFT
   ACTIVE
   CANCELLED
+}
+
+enum AssetFinanceBookPostingStatus {
+  PENDING
+  PARTIALLY_DEPRECIATED
+  FULLY_DEPRECIATED
+}
+
+enum AssetDepreciationJournalEntryStatus {
+  POSTED
+  REVERSED
 }
 
 model ItemActivityLog {

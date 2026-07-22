@@ -258,7 +258,7 @@ describe("InventoryService > Stock Transaction", () => {
 			});
 		});
 
-		it("should re-throw Prisma errors after logging", async () => {
+		it("should convert Prisma errors to BadRequestException after logging", async () => {
 			const dbError = new Prisma.PrismaClientKnownRequestError(
 				"Foreign key constraint",
 				{ code: "P2003", clientVersion: "5.0.0" },
@@ -267,7 +267,7 @@ describe("InventoryService > Stock Transaction", () => {
 
 			await expect(
 				service.deleteManyMaterialRequests([mockMR.id]),
-			).rejects.toThrow(Prisma.PrismaClientKnownRequestError);
+			).rejects.toThrow(BadRequestException);
 		});
 	});
 
@@ -510,7 +510,7 @@ describe("InventoryService > Stock Transaction", () => {
 			});
 		});
 
-		it("should re-throw Prisma errors after logging", async () => {
+		it("should convert Prisma errors to BadRequestException after logging", async () => {
 			const dbError = new Prisma.PrismaClientKnownRequestError(
 				"Foreign key constraint",
 				{ code: "P2003", clientVersion: "5.0.0" },
@@ -519,7 +519,7 @@ describe("InventoryService > Stock Transaction", () => {
 
 			await expect(
 				service.deleteManyStockEntries([mockStockEntry.id]),
-			).rejects.toThrow(Prisma.PrismaClientKnownRequestError);
+			).rejects.toThrow(BadRequestException);
 		});
 	});
 });

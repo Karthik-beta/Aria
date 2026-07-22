@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { once } from "node:events";
-import { readdir, rm } from "node:fs/promises";
+import { mkdir, readdir, rm, writeFile } from "node:fs/promises";
 import * as path from "node:path";
 import dotenv from "dotenv";
 
@@ -11,7 +11,7 @@ const bunExecutable = process.execPath;
 dotenv.config({ path: path.join(workspaceRoot, ".env") });
 dotenv.config({
 	path: path.join(workspaceRoot, ".env.development"),
-	override: true,
+	override: false,
 });
 
 const testEnv = {
@@ -48,44 +48,72 @@ async function runCommand(args: string[], retries = 0) {
 	}
 }
 
-async function collectSpecFiles(dir: string): Promise<string[]> {
+async function collectSpecFiles(
+	dir: string,
+	extension = ".spec.ts",
+): Promise<string[]> {
 	const entries = await readdir(dir, { withFileTypes: true });
 	const results = await Promise.all(
 		entries.map(async (entry) => {
 			const fullPath = path.join(dir, entry.name);
 
 			if (entry.isDirectory()) {
-				return collectSpecFiles(fullPath);
+				return collectSpecFiles(fullPath, extension);
 			}
 
-			return entry.isFile() && entry.name.endsWith(".spec.js")
-				? [fullPath]
-				: [];
+			return entry.isFile() && entry.name.endsWith(extension) ? [fullPath] : [];
 		}),
 	);
 
 	return results.flat().sort((left, right) => left.localeCompare(right));
 }
 
-const tempDir = path.join(projectRoot, ".test-dist");
-
 async function main() {
+	const tempDir = path.join(projectRoot, ".test-dist");
 	try {
 		await rm(tempDir, { recursive: true, force: true });
+		await mkdir(tempDir, { recursive: true });
 
-		await runCommand([
-			"x",
-			"tsc",
-			"-p",
-			"tsconfig.spec.json",
-			"--outDir",
-			tempDir,
-		]);
+		const filters = process.argv.slice(2);
+		const includeIntegration = filters.some((filter) =>
+			filter.includes("integration"),
+		);
+		const sourceDir = path.join(projectRoot, "src");
+		const collectedSpecFiles = await collectSpecFiles(sourceDir);
+		const sourceSpecFiles = collectedSpecFiles.filter(
+			(file) =>
+				(filters.length === 0 ||
+					filters.some((filter) => file.includes(filter))) &&
+				(includeIntegration || !file.endsWith(".integration.spec.ts")),
+		);
+
+		if (sourceSpecFiles.length === 0) {
+			throw new Error(`No source spec files found in ${sourceDir}`);
+		}
+
+		const temporaryTsconfigPath = path.join(tempDir, "tsconfig.json");
+		await writeFile(
+			temporaryTsconfigPath,
+			JSON.stringify({
+				extends: path.join(projectRoot, "tsconfig.json"),
+				compilerOptions: {
+					outDir: tempDir,
+					rootDir: projectRoot,
+					types: ["bun", "jest", "node"],
+				},
+				include: [],
+				files: sourceSpecFiles,
+			}),
+		);
+
+		await runCommand(["x", "tsc", "-p", temporaryTsconfigPath]);
 
 		const compiledSrcDir = path.join(tempDir, "src");
-		const specFiles = await collectSpecFiles(compiledSrcDir);
-
-		if (specFiles.length === 0) {
+		const compiledSpecFiles = await collectSpecFiles(
+			compiledSrcDir,
+			".spec.js",
+		);
+		if (compiledSpecFiles.length === 0) {
 			throw new Error(`No compiled spec files found in ${compiledSrcDir}`);
 		}
 
@@ -93,7 +121,7 @@ async function main() {
 			"test",
 			"--preload",
 			path.join(projectRoot, "node_modules", "reflect-metadata", "Reflect.js"),
-			...specFiles,
+			...compiledSpecFiles,
 		]);
 	} finally {
 		await rm(tempDir, { recursive: true, force: true });

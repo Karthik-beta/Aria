@@ -5847,6 +5847,15 @@ export namespace Asset {
 	]);
 	export type DepreciationMethod = z.infer<typeof depreciationMethodSchema>;
 
+	export const depreciationPostingStatusSchema = z.enum([
+		"PENDING",
+		"PARTIALLY_DEPRECIATED",
+		"FULLY_DEPRECIATED",
+	]);
+	export type DepreciationPostingStatus = z.infer<
+		typeof depreciationPostingStatusSchema
+	>;
+
 	// ── Interfaces ───────────────────────────────────────────────────────────
 
 	export interface Location {
@@ -5871,8 +5880,64 @@ export namespace Asset {
 		expectedValueAfterUsefulLife?: number | null;
 		nonDepreciableCategory: boolean;
 		enableCwipAccounting: boolean;
+		financeBooks?: AssetCategoryFinanceBook[];
+		accounts?: AssetCategoryAccount[];
 		createdAt: Date;
 		updatedAt: Date;
+	}
+
+	/** Named accounting book used to maintain an independent depreciation schedule. */
+	export interface FinanceBook {
+		id: string;
+		name: string;
+		createdAt: Date;
+		updatedAt: Date;
+	}
+
+	/** Default depreciation settings supplied by a category for a finance book. */
+	export interface AssetCategoryFinanceBook {
+		id: string;
+		financeBookId: string;
+		financeBookName: string;
+		depreciationMethod: DepreciationMethod;
+		totalNumberOfDepreciations: number;
+		frequencyOfDepreciation: number;
+		dailyProrataBased: boolean;
+		shiftBased: boolean;
+		rateOfDepreciation: number | null;
+		expectedValueAfterUsefulLife: number | null;
+	}
+
+	/** Company-specific asset accounts configured on an asset category. */
+	export interface AssetCategoryAccount {
+		id: string;
+		companyId: string;
+		companyName?: string;
+		fixedAssetAccount: string;
+		accumulatedDepreciationAccount: string | null;
+		depreciationExpenseAccount: string | null;
+		capitalWorkInProgressAccount: string | null;
+	}
+
+	/** Per-book depreciation state for one asset. */
+	export interface AssetFinanceBook {
+		id: string;
+		financeBookId: string;
+		financeBookName: string;
+		depreciationMethod: DepreciationMethod;
+		totalNumberOfDepreciations: number;
+		frequencyOfDepreciation: number;
+		depreciationStartDate: Date;
+		dailyProrataBased: boolean;
+		shiftBased: boolean;
+		rateOfDepreciation: number | null;
+		expectedValueAfterUsefulLife: number;
+		openingAccumulatedDepreciation: number;
+		openingNumberOfBookedDepreciations: number;
+		valueAfterDepreciation: number;
+		totalNumberOfBookedDepreciations: number;
+		lastPostedDepreciationDate: Date | null;
+		postingStatus: DepreciationPostingStatus;
 	}
 
 	export interface AssetActivity {
@@ -5887,6 +5952,7 @@ export namespace Asset {
 		series: string;
 		assetName: string;
 		itemCode?: string | null;
+		barcode?: string | null;
 		assetCategoryId?: string | null;
 		assetCategoryName?: string | null;
 		company: string;
@@ -5919,6 +5985,7 @@ export namespace Asset {
 		frequencyOfDepreciation?: number | null;
 		expectedValueAfterUsefulLife?: number | null;
 		depreciationStartDate?: Date | null;
+		financeBooks?: AssetFinanceBook[];
 		purchaseReceipt?: string | null;
 		purchaseInvoice?: string | null;
 		status: AssetStatus;
@@ -5941,6 +6008,11 @@ export namespace Asset {
 
 	export interface AssetCategoryListResult {
 		items: AssetCategory[];
+		totalCount: number;
+	}
+
+	export interface FinanceBookListResult {
+		items: FinanceBook[];
 		totalCount: number;
 	}
 
@@ -5970,6 +6042,8 @@ export namespace Asset {
 		expectedValueAfterUsefulLife?: number | null;
 		nonDepreciableCategory?: boolean;
 		enableCwipAccounting?: boolean;
+		financeBooks?: AssetCategoryFinanceBookInput[];
+		accounts?: AssetCategoryAccountInput[];
 	}
 
 	export interface UpdateAssetCategoryInput {
@@ -5984,11 +6058,52 @@ export namespace Asset {
 		expectedValueAfterUsefulLife?: number | null;
 		nonDepreciableCategory?: boolean;
 		enableCwipAccounting?: boolean;
+		financeBooks?: AssetCategoryFinanceBookInput[];
+		accounts?: AssetCategoryAccountInput[];
+	}
+
+	export interface AssetCategoryFinanceBookInput {
+		financeBookId: string;
+		depreciationMethod: DepreciationMethod;
+		totalNumberOfDepreciations: number;
+		frequencyOfDepreciation: number;
+		dailyProrataBased?: boolean;
+		shiftBased?: boolean;
+		rateOfDepreciation?: number | null;
+		expectedValueAfterUsefulLife?: number | null;
+	}
+
+	export interface AssetCategoryAccountInput {
+		companyId: string;
+		fixedAssetAccount: string;
+		accumulatedDepreciationAccount?: string | null;
+		depreciationExpenseAccount?: string | null;
+		capitalWorkInProgressAccount?: string | null;
+	}
+
+	export interface AssetFinanceBookInput {
+		financeBookId: string;
+		depreciationMethod: DepreciationMethod;
+		totalNumberOfDepreciations: number;
+		frequencyOfDepreciation: number;
+		depreciationStartDate: Date;
+		dailyProrataBased?: boolean;
+		shiftBased?: boolean;
+		rateOfDepreciation?: number | null;
+		expectedValueAfterUsefulLife?: number | null;
+		openingAccumulatedDepreciation?: number;
+		openingNumberOfBookedDepreciations?: number;
+		manualEntries?: Array<{
+			date: Date;
+			amount: number;
+			shift?: string | null;
+		}>;
 	}
 
 	export interface CreateAssetInput {
 		assetName: string;
 		itemCode?: string | null;
+		barcode?: string | null;
 		assetCategoryId?: string | null;
 		company: string;
 		locationId?: string | null;
@@ -6020,12 +6135,14 @@ export namespace Asset {
 		purchaseReceipt?: string | null;
 		purchaseInvoice?: string | null;
 		status?: AssetStatus;
+		financeBooks?: AssetFinanceBookInput[];
 	}
 
 	export interface UpdateAssetInput {
 		id: string;
 		assetName?: string;
 		itemCode?: string | null;
+		barcode?: string | null;
 		assetCategoryId?: string | null;
 		company?: string;
 		locationId?: string | null;
@@ -6059,6 +6176,7 @@ export namespace Asset {
 		purchaseReceipt?: string | null;
 		purchaseInvoice?: string | null;
 		status?: AssetStatus;
+		financeBooks?: AssetFinanceBookInput[];
 	}
 
 	// ── Zod schemas ───────────────────────────────────────────────────────────
@@ -6097,9 +6215,64 @@ export namespace Asset {
 		typeof listAssetCategoriesSchema
 	>;
 
+	export const assetFinanceBookInputSchema = z.object({
+		financeBookId: z.string().cuid(),
+		depreciationMethod: depreciationMethodSchema,
+		totalNumberOfDepreciations: z.number().int().min(1),
+		frequencyOfDepreciation: z.number().int().min(1),
+		depreciationStartDate: z.coerce.date(),
+		dailyProrataBased: z.boolean().default(false),
+		shiftBased: z.boolean().default(false),
+		rateOfDepreciation: z.number().min(0).optional().nullable(),
+		expectedValueAfterUsefulLife: z.number().min(0).optional().nullable(),
+		openingAccumulatedDepreciation: z.number().min(0).default(0),
+		openingNumberOfBookedDepreciations: z.number().int().min(0).default(0),
+		manualEntries: z
+			.array(
+				z.object({
+					date: z.coerce.date(),
+					amount: z.number().positive(),
+					shift: z.string().max(100).trim().optional().nullable(),
+				}),
+			)
+			.optional(),
+	});
+
+	export const assetCategoryFinanceBookInputSchema =
+		assetFinanceBookInputSchema.omit({
+			depreciationStartDate: true,
+			openingAccumulatedDepreciation: true,
+			openingNumberOfBookedDepreciations: true,
+			manualEntries: true,
+		});
+
+	export const assetCategoryAccountInputSchema = z.object({
+		companyId: z.string().cuid(),
+		fixedAssetAccount: z.string().min(1).max(255).trim(),
+		accumulatedDepreciationAccount: z
+			.string()
+			.max(255)
+			.trim()
+			.optional()
+			.nullable(),
+		depreciationExpenseAccount: z
+			.string()
+			.max(255)
+			.trim()
+			.optional()
+			.nullable(),
+		capitalWorkInProgressAccount: z
+			.string()
+			.max(255)
+			.trim()
+			.optional()
+			.nullable(),
+	});
+
 	const assetInputFields = {
 		assetName: z.string().min(1, "Asset name is required").max(255).trim(),
 		itemCode: z.string().max(100).trim().optional().nullable(),
+		barcode: z.string().max(255).trim().optional().nullable(),
 		assetCategoryId: z.string().cuid().optional().nullable(),
 		company: z.string().min(1, "Company is required").max(255).trim(),
 		locationId: z.string().cuid().optional().nullable(),
@@ -6136,6 +6309,7 @@ export namespace Asset {
 		purchaseReceipt: z.string().max(255).trim().optional().nullable(),
 		purchaseInvoice: z.string().max(255).trim().optional().nullable(),
 		status: assetStatusSchema.default("DRAFT"),
+		financeBooks: z.array(assetFinanceBookInputSchema).optional(),
 	} satisfies z.ZodRawShape;
 
 	export const createAssetSchema = z.object(assetInputFields);
@@ -6144,6 +6318,7 @@ export namespace Asset {
 		id: z.string().cuid(),
 		assetName: assetInputFields.assetName.optional(),
 		itemCode: assetInputFields.itemCode,
+		barcode: assetInputFields.barcode,
 		assetCategoryId: assetInputFields.assetCategoryId,
 		company: assetInputFields.company.optional(),
 		locationId: assetInputFields.locationId,
@@ -6179,6 +6354,7 @@ export namespace Asset {
 		purchaseReceipt: assetInputFields.purchaseReceipt,
 		purchaseInvoice: assetInputFields.purchaseInvoice,
 		status: assetStatusSchema.optional(),
+		financeBooks: assetInputFields.financeBooks,
 	});
 
 	const locationInputFields = {
@@ -6207,6 +6383,8 @@ export namespace Asset {
 		expectedValueAfterUsefulLife: z.number().min(0).optional().nullable(),
 		nonDepreciableCategory: z.boolean().default(false),
 		enableCwipAccounting: z.boolean().default(false),
+		financeBooks: z.array(assetCategoryFinanceBookInputSchema).optional(),
+		accounts: z.array(assetCategoryAccountInputSchema).optional(),
 	} satisfies z.ZodRawShape;
 
 	export const createAssetCategorySchema = z.object(assetCategoryInputFields);
@@ -6224,7 +6402,25 @@ export namespace Asset {
 		expectedValueAfterUsefulLife: z.number().min(0).optional().nullable(),
 		nonDepreciableCategory: z.boolean().optional(),
 		enableCwipAccounting: z.boolean().optional(),
+		financeBooks: assetCategoryInputFields.financeBooks,
+		accounts: assetCategoryInputFields.accounts,
 	});
+
+	export const createFinanceBookSchema = z.object({
+		name: z.string().min(1, "Finance book name is required").max(255).trim(),
+	});
+
+	export const updateFinanceBookSchema = createFinanceBookSchema.extend({
+		id: z.string().cuid(),
+	});
+
+	export const listFinanceBooksSchema = z
+		.object({
+			skip: z.number().int().min(0).optional(),
+			take: z.number().int().min(1).max(250).optional(),
+			search: z.string().max(255).trim().optional(),
+		})
+		.optional();
 
 	export const bulkDeleteAssetsSchema = z.object({
 		ids: z.array(z.string().cuid()).min(1),
@@ -6597,6 +6793,7 @@ export namespace Asset {
 	>;
 
 	export const assetDepreciationScheduleStatusSchema = z.enum([
+		"DRAFT",
 		"ACTIVE",
 		"CANCELLED",
 	]);
@@ -6637,14 +6834,17 @@ export namespace Asset {
 		depreciationAmount: number;
 		accumulatedDepreciationAmount: number;
 		bookValueAfterDepreciation: number;
+		postingId: string | null;
+		postedAt: Date | string | null;
 		createdAt: Date;
 		updatedAt: Date;
 	}
 
 	export interface AssetDepreciationSchedule {
 		id: string;
-		adjustmentId: string;
+		adjustmentId: string | null;
 		assetId: string;
+		assetFinanceBookId: string;
 		previousScheduleId: string | null;
 		revisionNumber: number;
 		status: AssetDepreciationScheduleStatus;
@@ -7090,6 +7290,154 @@ export namespace Asset {
 }
 
 // ============================================================================
+// Company Domain Types & Schemas
+// ============================================================================
+
+/**
+ * Company namespace — groups all company-related types, Zod schemas, and
+ * input contracts. Mirrors the ERPNext Company DocType at a core-field level.
+ *
+ * Use: `import { Company } from '@aria/types';` then `Company.CompanyItem`, etc.
+ */
+export namespace Company {
+	// ── Interfaces ───────────────────────────────────────────────────────────
+
+	/** Domain model returned by the Company API. */
+	export interface CompanyItem {
+		id: string;
+		name: string;
+		abbreviation: string | null;
+		country: string | null;
+		currency: string | null;
+		taxId: string | null;
+		domain: string | null;
+		isGroup: boolean;
+		parentCompanyId: string | null;
+		parentCompanyName: string | null;
+		disabled: boolean;
+		defaultFinanceBookId: string | null;
+		defaultFinanceBookName: string | null;
+		defaultCostCenter: string | null;
+		depreciationEntrySeries: string | null;
+		accumulatedDepreciationAccount: string | null;
+		depreciationExpenseAccount: string | null;
+		accountsFrozenThrough: Date | null;
+		createdAt: Date;
+		updatedAt: Date;
+	}
+
+	// ── List result wrappers ──────────────────────────────────────────────────
+
+	export interface CompanyListResult {
+		items: CompanyItem[];
+		totalCount: number;
+	}
+
+	// ── Create / update input interfaces ─────────────────────────────────────
+
+	export interface CreateCompanyInput {
+		name: string;
+		abbreviation?: string | null;
+		country?: string | null;
+		currency?: string | null;
+		taxId?: string | null;
+		domain?: string | null;
+		isGroup?: boolean;
+		parentCompanyId?: string | null;
+		defaultFinanceBookId?: string | null;
+		defaultCostCenter?: string | null;
+		depreciationEntrySeries?: string | null;
+		accumulatedDepreciationAccount?: string | null;
+		depreciationExpenseAccount?: string | null;
+		accountsFrozenThrough?: Date | null;
+	}
+
+	export interface UpdateCompanyInput {
+		id: string;
+		name?: string;
+		abbreviation?: string | null;
+		country?: string | null;
+		currency?: string | null;
+		taxId?: string | null;
+		domain?: string | null;
+		isGroup?: boolean;
+		parentCompanyId?: string | null;
+		disabled?: boolean;
+		defaultFinanceBookId?: string | null;
+		defaultCostCenter?: string | null;
+		depreciationEntrySeries?: string | null;
+		accumulatedDepreciationAccount?: string | null;
+		depreciationExpenseAccount?: string | null;
+		accountsFrozenThrough?: Date | null;
+	}
+
+	// ── Zod schemas ───────────────────────────────────────────────────────────
+
+	const companyInputFields = {
+		name: z.string().min(1, "Company name is required").max(255).trim(),
+		abbreviation: z.string().max(50).trim().optional().nullable(),
+		country: z.string().max(100).trim().optional().nullable(),
+		currency: z.string().max(50).trim().optional().nullable(),
+		taxId: z.string().max(100).trim().optional().nullable(),
+		domain: z.string().max(100).trim().optional().nullable(),
+		isGroup: z.boolean().default(false),
+		parentCompanyId: z.string().cuid().optional().nullable(),
+		defaultFinanceBookId: z.string().cuid().optional().nullable(),
+		defaultCostCenter: z.string().max(255).trim().optional().nullable(),
+		depreciationEntrySeries: z.string().max(50).trim().optional().nullable(),
+		accumulatedDepreciationAccount: z
+			.string()
+			.max(255)
+			.trim()
+			.optional()
+			.nullable(),
+		depreciationExpenseAccount: z
+			.string()
+			.max(255)
+			.trim()
+			.optional()
+			.nullable(),
+		accountsFrozenThrough: z.coerce.date().optional().nullable(),
+	} satisfies z.ZodRawShape;
+
+	export const createCompanySchema = z.object(companyInputFields);
+
+	export const updateCompanySchema = z.object({
+		id: z.string().cuid(),
+		name: companyInputFields.name.optional(),
+		abbreviation: companyInputFields.abbreviation,
+		country: companyInputFields.country,
+		currency: companyInputFields.currency,
+		taxId: companyInputFields.taxId,
+		domain: companyInputFields.domain,
+		isGroup: z.boolean().optional(),
+		parentCompanyId: companyInputFields.parentCompanyId,
+		disabled: z.boolean().optional(),
+		defaultFinanceBookId: companyInputFields.defaultFinanceBookId,
+		defaultCostCenter: companyInputFields.defaultCostCenter,
+		depreciationEntrySeries: companyInputFields.depreciationEntrySeries,
+		accumulatedDepreciationAccount:
+			companyInputFields.accumulatedDepreciationAccount,
+		depreciationExpenseAccount: companyInputFields.depreciationExpenseAccount,
+		accountsFrozenThrough: companyInputFields.accountsFrozenThrough,
+	});
+
+	export const listCompaniesSchema = z
+		.object({
+			skip: z.number().int().min(0).optional(),
+			take: z.number().int().min(1).max(250).optional(),
+			search: z.string().max(255).trim().optional(),
+			isGroup: z.boolean().optional(),
+		})
+		.optional();
+	export type ListCompaniesInput = z.infer<typeof listCompaniesSchema>;
+
+	export const bulkDeleteCompaniesSchema = z.object({
+		ids: z.array(z.string().cuid()).min(1),
+	});
+}
+
+// ============================================================================
 // Shared Constants
 // ============================================================================
 
@@ -7140,19 +7488,6 @@ export interface Product {
 	created_at: string;
 	/** ISO 8601 timestamp when last updated */
 	updated_at: string;
-}
-
-// ============================================================================
-// Company & Fiscal Year Domain Types
-// ============================================================================
-
-export interface Company {
-	id: string;
-	name: string;
-	abbreviation: string | null;
-	country: string | null;
-	currency: string | null;
-	disabled: boolean;
 }
 
 export interface FiscalYear {

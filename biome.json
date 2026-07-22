@@ -15,7 +15,8 @@
 			"!!**/test-results",
 			"!!**/tmp-typecheck",
 			"!!apps/backend/test/**/*.js",
-			"!!apps/backend/test/**/*.js.map"
+			"!!apps/backend/test/**/*.js.map",
+			"!!repos"
 		]
 	},
 	"formatter": {

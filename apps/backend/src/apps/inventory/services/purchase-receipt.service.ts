@@ -10,6 +10,7 @@
  */
 import type { Inventory } from "@aria/types";
 import { BadRequestException, Logger, NotFoundException } from "@nestjs/common";
+import { handlePrismaError } from "../../../common/prisma-error.handler";
 import { Prisma } from "../../../generated/prisma/client";
 import {
 	allocateDocumentSeries,
@@ -1086,13 +1087,7 @@ export class PurchaseReceiptSubService {
 			});
 			return { success: true, id };
 		} catch (error) {
-			if (
-				error instanceof Prisma.PrismaClientKnownRequestError &&
-				error.code === "P2025"
-			) {
-				throw new NotFoundException(`Purchase receipt with ID ${id} not found`);
-			}
-			throw error;
+			handlePrismaError(error);
 		}
 	}
 
@@ -1115,7 +1110,7 @@ export class PurchaseReceiptSubService {
 					error.stack,
 				);
 			}
-			throw error;
+			handlePrismaError(error);
 		}
 	}
 }

@@ -1,7 +1,9 @@
 import { ConflictException } from "@nestjs/common";
 import { Prisma } from "../../../generated/prisma/client";
+import type { FiscalYearService } from "../../../shared/fiscal-year/fiscal-year.service";
 import type { PrismaService } from "../../../shared/prisma.service";
 import { AssetService } from "../asset.service";
+import type { AssetDashboardSubService } from "../asset-dashboard.service";
 
 function createMockPrisma() {
 	const mockTx = {
@@ -80,7 +82,15 @@ function createTestContext() {
 				: 1;
 		return [{ value: initialValue }];
 	});
-	const service = new AssetService(mockPrisma as unknown as PrismaService);
+	const mockDashboard = {} as unknown as AssetDashboardSubService;
+	const mockFiscalYear = {
+		getFiscalYearEndDate: jest.fn().mockResolvedValue(null),
+	} as unknown as FiscalYearService;
+	const service = new AssetService(
+		mockPrisma as unknown as PrismaService,
+		mockDashboard,
+		mockFiscalYear,
+	);
 	return { service, mockPrisma, mockTx: mockPrisma._mockTx };
 }
 

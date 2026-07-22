@@ -1,4 +1,9 @@
+import { buildIndianFiscalYears } from "../../src/apps/asset/depreciation/demo-data.utils.js";
 import type { PrismaService } from "../../src/shared/prisma.service.js";
+import {
+	DEMO_DEPRECIATION_ACCOUNTS,
+	DEMO_FINANCE_BOOK_NAME,
+} from "./asset-data.js";
 import type { DemoConfig } from "./config.js";
 
 export interface FiscalYearIds {
@@ -8,22 +13,14 @@ export interface FiscalYearIds {
 
 export async function seedFiscalYearData(
 	prisma: PrismaService,
-	_config: DemoConfig,
+	config: DemoConfig,
 ): Promise<FiscalYearIds> {
 	const ids: FiscalYearIds = {
 		fiscalYearIds: new Map(),
 		companyIds: new Map(),
 	};
 
-	// Indian Fiscal Years: April 1 - March 31
-	// For demo, we seed past, current, and next FY
-	const indianFiscalYears = [
-		{ year: "2022-23", yearStartDate: "2022-04-01", yearEndDate: "2023-03-31" },
-		{ year: "2023-24", yearStartDate: "2023-04-01", yearEndDate: "2024-03-31" },
-		{ year: "2024-25", yearStartDate: "2024-04-01", yearEndDate: "2025-03-31" },
-		{ year: "2025-26", yearStartDate: "2025-04-01", yearEndDate: "2026-03-31" },
-		{ year: "2026-27", yearStartDate: "2026-04-01", yearEndDate: "2027-03-31" },
-	];
+	const indianFiscalYears = buildIndianFiscalYears(config.dateRange.to);
 
 	for (const fy of indianFiscalYears) {
 		const existing = await prisma.fiscalYear.findUnique({
@@ -36,8 +33,8 @@ export async function seedFiscalYearData(
 			const created = await prisma.fiscalYear.create({
 				data: {
 					year: fy.year,
-					yearStartDate: new Date(fy.yearStartDate),
-					yearEndDate: new Date(fy.yearEndDate),
+					yearStartDate: fy.yearStartDate,
+					yearEndDate: fy.yearEndDate,
 					disabled: false,
 					isShortYear: false,
 				},
@@ -46,31 +43,59 @@ export async function seedFiscalYearData(
 		}
 	}
 
-	// Create a default company for demo purposes
-	const companyData = {
-		name: "ACME Corp",
-		abbreviation: "ACME",
-		country: "India",
-		currency: "INR",
-		disabled: false,
-	};
+	const financeBook = await prisma.financeBook.upsert({
+		where: { name: DEMO_FINANCE_BOOK_NAME },
+		update: {},
+		create: { name: DEMO_FINANCE_BOOK_NAME },
+	});
 
+	// Create the demo company using config values and cron posting defaults.
 	const existingCompany = await prisma.company.findUnique({
-		where: { name: companyData.name },
+		where: { name: config.company },
 	});
 
 	if (existingCompany) {
-		ids.companyIds.set(companyData.name, existingCompany.id);
+		ids.companyIds.set(config.company, existingCompany.id);
+		await prisma.company.update({
+			where: { id: existingCompany.id },
+			data: {
+				defaultFinanceBookId: financeBook.id,
+				depreciationEntrySeries: "DEP-.YYYY.-",
+				defaultCostCenter: "Bangalore Head Office - PTPL",
+				accumulatedDepreciationAccount:
+					DEMO_DEPRECIATION_ACCOUNTS.accumulatedDepreciation,
+				depreciationExpenseAccount:
+					DEMO_DEPRECIATION_ACCOUNTS.depreciationExpense,
+			},
+		});
 	} else {
 		const created = await prisma.company.create({
-			data: companyData,
+			data: {
+				name: config.company,
+				abbreviation: "PTPL",
+				country: "India",
+				currency: config.currency,
+				taxId: "AABCP1234A",
+				domain: "Manufacturing",
+				isGroup: false,
+				disabled: false,
+				defaultFinanceBookId: financeBook.id,
+				depreciationEntrySeries: "DEP-.YYYY.-",
+				defaultCostCenter: "Bangalore Head Office - PTPL",
+				accumulatedDepreciationAccount:
+					DEMO_DEPRECIATION_ACCOUNTS.accumulatedDepreciation,
+				depreciationExpenseAccount:
+					DEMO_DEPRECIATION_ACCOUNTS.depreciationExpense,
+			},
 		});
-		ids.companyIds.set(companyData.name, created.id);
+		ids.companyIds.set(config.company, created.id);
 	}
 
-	// Link current FY (2025-26) to the company
-	const currentFYId = ids.fiscalYearIds.get("2025-26");
-	const companyId = ids.companyIds.get("ACME Corp");
+	const currentFiscalYear = buildIndianFiscalYears(config.dateRange.to)[3];
+	const currentFYId = currentFiscalYear
+		? ids.fiscalYearIds.get(currentFiscalYear.year)
+		: undefined;
+	const companyId = ids.companyIds.get(config.company);
 
 	if (currentFYId && companyId) {
 		const existingLink = await prisma.fiscalYearCompany.findFirst({

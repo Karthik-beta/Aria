@@ -9,6 +9,10 @@ const mockAssetRouter = {
 	getRouter: jest.fn().mockReturnValue({ asset: true }),
 };
 
+const mockCompanyRouter = {
+	getRouter: jest.fn().mockReturnValue({ company: true }),
+};
+
 describe("TrpcService", () => {
 	let service: TrpcService;
 
@@ -17,6 +21,7 @@ describe("TrpcService", () => {
 		service = new TrpcService(
 			mockInventoryRouter as never,
 			mockAssetRouter as never,
+			mockCompanyRouter as never,
 		);
 	});
 
@@ -37,6 +42,7 @@ describe("TrpcService", () => {
 			expect(service.appRouter).not.toBeNull();
 			expect(mockInventoryRouter.getRouter).toHaveBeenCalledTimes(1);
 			expect(mockAssetRouter.getRouter).toHaveBeenCalledTimes(1);
+			expect(mockCompanyRouter.getRouter).toHaveBeenCalledTimes(1);
 		});
 	});
 

@@ -13,6 +13,7 @@
  */
 import type { Inventory } from "@aria/types";
 import { BadRequestException, Logger, NotFoundException } from "@nestjs/common";
+import { handlePrismaError } from "../../../common/prisma-error.handler";
 import { Prisma } from "../../../generated/prisma/client";
 import {
 	allocateDocumentSeries,
@@ -628,13 +629,7 @@ export class DeliverySubService {
 			await this.prisma.deliveryNote.delete({ where: { id } });
 			return { success: true, id };
 		} catch (error) {
-			if (
-				error instanceof Prisma.PrismaClientKnownRequestError &&
-				error.code === "P2025"
-			) {
-				throw new NotFoundException(`Delivery note with ID ${id} not found`);
-			}
-			throw error;
+			handlePrismaError(error);
 		}
 	}
 
@@ -657,7 +652,7 @@ export class DeliverySubService {
 					error.stack,
 				);
 			}
-			throw error;
+			handlePrismaError(error);
 		}
 	}
 
@@ -931,13 +926,7 @@ export class DeliverySubService {
 			});
 			return { success: true, id };
 		} catch (error) {
-			if (
-				error instanceof Prisma.PrismaClientKnownRequestError &&
-				error.code === "P2025"
-			) {
-				throw new NotFoundException(`Pick list with ID ${id} not found`);
-			}
-			throw error;
+			handlePrismaError(error);
 		}
 	}
 
@@ -960,7 +949,7 @@ export class DeliverySubService {
 					error.stack,
 				);
 			}
-			throw error;
+			handlePrismaError(error);
 		}
 	}
 
@@ -1212,13 +1201,7 @@ export class DeliverySubService {
 			await this.prisma.deliveryTrip.delete({ where: { id } });
 			return { success: true, id };
 		} catch (error) {
-			if (
-				error instanceof Prisma.PrismaClientKnownRequestError &&
-				error.code === "P2025"
-			) {
-				throw new NotFoundException(`Delivery trip with ID ${id} not found`);
-			}
-			throw error;
+			handlePrismaError(error);
 		}
 	}
 
@@ -1241,7 +1224,7 @@ export class DeliverySubService {
 					error.stack,
 				);
 			}
-			throw error;
+			handlePrismaError(error);
 		}
 	}
 

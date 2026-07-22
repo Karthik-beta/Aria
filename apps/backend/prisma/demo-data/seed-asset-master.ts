@@ -1,3 +1,9 @@
+import type { Asset } from "@aria/types";
+import {
+	getIndianFiscalYear,
+	resolveDemoDepreciationStartDate,
+} from "../../src/apps/asset/depreciation/demo-data.utils.js";
+import { buildDepreciationSchedule } from "../../src/apps/asset/depreciation/depreciation-schedule-engine.js";
 import type { PrismaService } from "../../src/shared/prisma.service.js";
 import {
 	ASSET_CATEGORIES,
@@ -6,6 +12,8 @@ import {
 	ASSET_REGISTER,
 	type AssetCategoryDef,
 	type AssetLocationDef,
+	DEMO_DEPRECIATION_ACCOUNTS,
+	DEMO_FINANCE_BOOK_NAME,
 } from "./asset-data.js";
 import type { DemoConfig } from "./config.js";
 import { CUSTOMERS, SUPPLIERS } from "./data.js";
@@ -27,13 +35,6 @@ function getCategoryDefaultsByName(): Map<string, AssetCategoryDef> {
 	return new Map(ASSET_CATEGORIES.map((category) => [category.name, category]));
 }
 
-function getOpeningAssetValue(
-	netPurchaseAmount: number,
-	openingAccumulatedDepreciation: number,
-): number {
-	return Math.max(netPurchaseAmount - openingAccumulatedDepreciation, 0);
-}
-
 function buildAssetDocumentCode(
 	prefix: string,
 	purchaseDate: Date,
@@ -49,6 +50,12 @@ export async function seedAssetMasterData(
 ): Promise<void> {
 	const categoryDefaults = getCategoryDefaultsByName();
 	const assetSeriesCounters = new Map<number, number>();
+	const [financeBook, company] = await Promise.all([
+		prisma.financeBook.findUniqueOrThrow({
+			where: { name: DEMO_FINANCE_BOOK_NAME },
+		}),
+		prisma.company.findUniqueOrThrow({ where: { name: config.company } }),
+	]);
 
 	async function getNextAssetSeries(year: number): Promise<string> {
 		if (!assetSeriesCounters.has(year)) {
@@ -99,8 +106,43 @@ export async function seedAssetMasterData(
 				depreciationMethod: category.depreciationMethod,
 				totalNumberOfDepreciations: category.totalNumberOfDepreciations,
 				frequencyOfDepreciation: category.frequencyOfDepreciation,
+				dailyProrataBased: category.dailyProrataBased ?? false,
+				shiftBased: category.shiftBased ?? false,
+				rateOfDepreciation: category.rateOfDepreciation ?? null,
+				expectedValueAfterUsefulLife:
+					category.expectedValueAfterUsefulLife?.toString() ?? null,
 				nonDepreciableCategory: category.nonDepreciableCategory ?? false,
 				enableCwipAccounting: category.enableCwipAccounting ?? false,
+				financeBookDefaults:
+					category.nonDepreciableCategory || !category.depreciationMethod
+						? undefined
+						: {
+								create: {
+									financeBookId: financeBook.id,
+									depreciationMethod: category.depreciationMethod,
+									totalNumberOfDepreciations:
+										category.totalNumberOfDepreciations ?? 1,
+									frequencyOfDepreciation:
+										category.frequencyOfDepreciation ?? 1,
+									dailyProrataBased: category.dailyProrataBased ?? false,
+									shiftBased: category.shiftBased ?? false,
+									rateOfDepreciation: category.rateOfDepreciation ?? null,
+									expectedValueAfterUsefulLife:
+										category.expectedValueAfterUsefulLife?.toString() ?? null,
+								},
+							},
+				accounts: {
+					create: {
+						companyId: company.id,
+						fixedAssetAccount: `${category.name} Fixed Asset`,
+						accumulatedDepreciationAccount:
+							DEMO_DEPRECIATION_ACCOUNTS.accumulatedDepreciation,
+						depreciationExpenseAccount:
+							DEMO_DEPRECIATION_ACCOUNTS.depreciationExpense,
+						capitalWorkInProgressAccount:
+							DEMO_DEPRECIATION_ACCOUNTS.capitalWorkInProgress,
+					},
+				},
 			},
 		});
 		ids.assetCategoryIds.set(category.name, created.id);
@@ -193,29 +235,36 @@ export async function seedAssetMasterData(
 				: resolveRelativeDate(config, assetDef.insuranceEndOffsetDays, 18, 0);
 
 		const assetSeries = await getNextAssetSeries(purchaseDate.getFullYear());
-		const openingAccumulatedDepreciation =
-			assetDef.openingAccumulatedDepreciation ?? 0;
-		const derivedOpeningValue = getOpeningAssetValue(
-			assetDef.netPurchaseAmount,
-			openingAccumulatedDepreciation,
-		);
-		const valueAfterDepreciation =
-			assetDef.valueAfterDepreciation ?? derivedOpeningValue;
+		const openingAccumulatedDepreciation = 0;
+		const derivedOpeningValue = assetDef.netPurchaseAmount;
+		const valueAfterDepreciation = derivedOpeningValue;
 		const calculateDepreciation =
 			assetDef.calculateDepreciation ?? !category.nonDepreciableCategory;
 		const assetOwner = assetDef.assetOwner ?? "COMPANY";
-
-		if (assetDef.isFullyDepreciated === true && valueAfterDepreciation > 0) {
-			throw new Error(
-				`Asset ${assetDef.key} cannot be fully depreciated with a positive carrying value`,
-			);
-		}
+		const depreciationMethod =
+			assetDef.depreciationMethod ?? category.depreciationMethod;
+		const totalNumberOfDepreciations =
+			assetDef.totalNumberOfDepreciations ??
+			category.totalNumberOfDepreciations;
+		const frequencyOfDepreciation =
+			assetDef.frequencyOfDepreciation ?? category.frequencyOfDepreciation;
+		const depreciationStartDate =
+			calculateDepreciation && availableForUseDate && frequencyOfDepreciation
+				? resolveDemoDepreciationStartDate(availableForUseDate)
+				: null;
+		const initialStatus =
+			calculateDepreciation &&
+			!(["DRAFT", "CANCELLED"] as Asset.AssetStatus[]).includes(assetDef.status)
+				? "SUBMITTED"
+				: assetDef.status;
+		const deferDisposal = ["SOLD", "SCRAPPED"].includes(assetDef.status);
 
 		const asset = await prisma.asset.create({
 			data: {
 				series: assetSeries,
 				assetName: assetDef.assetName,
 				itemCode: assetDef.itemCode,
+				barcode: `BAR-${assetSeries}`,
 				assetCategoryId:
 					ids.assetCategoryIds.get(assetDef.assetCategory) ?? null,
 				company: config.company,
@@ -226,16 +275,14 @@ export async function seedAssetMasterData(
 				department: assetDef.department ?? null,
 				purchaseDate,
 				availableForUseDate,
-				disposalDate,
+				disposalDate: deferDisposal ? null : disposalDate,
 				netPurchaseAmount: assetDef.netPurchaseAmount.toString(),
 				assetQuantity: assetDef.assetQuantity ?? 1,
 				calculateDepreciation,
 				openingAccumulatedDepreciation:
 					openingAccumulatedDepreciation.toString(),
-				openingNumberOfBookedDepreciations:
-					assetDef.openingNumberOfBookedDepreciations ?? 0,
-				isFullyDepreciated:
-					assetDef.isFullyDepreciated ?? valueAfterDepreciation <= 0,
+				openingNumberOfBookedDepreciations: 0,
+				isFullyDepreciated: false,
 				valueAfterDepreciation: valueAfterDepreciation.toString(),
 				maintenanceRequired: assetDef.maintenanceRequired ?? false,
 				assetOwner,
@@ -253,25 +300,107 @@ export async function seedAssetMasterData(
 				insuredValue: assetDef.insuredValue?.toString() ?? null,
 				insuranceStartDate,
 				insuranceEndDate,
-				depreciationMethod:
-					assetDef.depreciationMethod ?? category.depreciationMethod,
-				totalNumberOfDepreciations:
-					assetDef.totalNumberOfDepreciations ??
-					category.totalNumberOfDepreciations,
-				frequencyOfDepreciation:
-					assetDef.frequencyOfDepreciation ?? category.frequencyOfDepreciation,
+				depreciationMethod,
+				totalNumberOfDepreciations,
+				frequencyOfDepreciation,
+				expectedValueAfterUsefulLife:
+					category.expectedValueAfterUsefulLife?.toString() ?? null,
+				depreciationStartDate,
 				purchaseReceipt:
 					assetDef.purchaseReceipt ??
 					buildAssetDocumentCode("FA-GRN", purchaseDate, index),
 				purchaseInvoice:
 					assetDef.purchaseInvoice ??
 					buildAssetDocumentCode("FA-PINV", purchaseDate, index),
-				status: assetDef.status,
+				status: initialStatus,
 				createdAt: purchaseDate,
 				updatedAt: disposalDate ?? availableForUseDate ?? purchaseDate,
 			},
 		});
 
 		ids.assetIds.set(assetDef.key, asset.id);
+
+		if (
+			calculateDepreciation &&
+			depreciationMethod &&
+			totalNumberOfDepreciations &&
+			frequencyOfDepreciation &&
+			depreciationStartDate &&
+			availableForUseDate
+		) {
+			const openingBooked = 0;
+			const assetBook = await prisma.assetFinanceBook.create({
+				data: {
+					assetId: asset.id,
+					financeBookId: financeBook.id,
+					depreciationMethod,
+					totalNumberOfDepreciations,
+					frequencyOfDepreciation,
+					dailyProrataBased: category.dailyProrataBased ?? false,
+					shiftBased: category.shiftBased ?? false,
+					rateOfDepreciation: category.rateOfDepreciation?.toString() ?? null,
+					expectedValueAfterUsefulLife: (
+						category.expectedValueAfterUsefulLife ?? 0
+					).toString(),
+					depreciationStartDate,
+					openingAccumulatedDepreciation:
+						openingAccumulatedDepreciation.toString(),
+					openingNumberOfBookedDepreciations: openingBooked,
+					valueAfterDepreciation: derivedOpeningValue.toString(),
+					totalNumberOfBookedDepreciations: openingBooked,
+					postingStatus: "PENDING",
+				},
+			});
+
+			const schedule = buildDepreciationSchedule({
+				financeBookId: financeBook.id,
+				method: depreciationMethod,
+				grossBookValue: assetDef.netPurchaseAmount,
+				availableForUseDate: availableForUseDate.toISOString().slice(0, 10),
+				depreciationStartDate: depreciationStartDate.toISOString().slice(0, 10),
+				totalPeriods: totalNumberOfDepreciations,
+				frequencyMonths: frequencyOfDepreciation,
+				salvageValue: category.expectedValueAfterUsefulLife ?? 0,
+				openingBookedPeriods: openingBooked,
+				openingAccumulatedDepreciation,
+				ratePercent: category.rateOfDepreciation ?? undefined,
+				dailyProrata: category.dailyProrataBased ?? false,
+				getFiscalYear: getIndianFiscalYear,
+			});
+			await prisma.assetDepreciationSchedule.create({
+				data: {
+					assetId: asset.id,
+					assetFinanceBookId: assetBook.id,
+					revisionNumber: 1,
+					status: "ACTIVE",
+					startDate: depreciationStartDate,
+					depreciationMethod,
+					totalNumberOfDepreciations,
+					frequencyOfDepreciation,
+					dailyProrataBased: category.dailyProrataBased ?? false,
+					shiftBased: category.shiftBased ?? false,
+					rateOfDepreciation: category.rateOfDepreciation ?? null,
+					expectedValueAfterUsefulLife:
+						category.expectedValueAfterUsefulLife?.toString() ?? null,
+					bookedDepreciations: openingBooked,
+					remainingDepreciations: schedule.entries.length,
+					openingAccumulatedDepreciation:
+						openingAccumulatedDepreciation.toString(),
+					baseAssetValue: assetDef.netPurchaseAmount.toString(),
+					notes: "Indian Companies Act demo depreciation schedule",
+					entries: {
+						create: schedule.entries.map((entry) => ({
+							sequence: entry.periodNumber,
+							scheduleDate: new Date(`${entry.date}T00:00:00.000Z`),
+							depreciationAmount: entry.depreciationAmount.toString(),
+							accumulatedDepreciationAmount:
+								entry.accumulatedDepreciation.toString(),
+							bookValueAfterDepreciation:
+								entry.bookValueAfterDepreciation.toString(),
+						})),
+					},
+				},
+			});
+		}
 	}
 }

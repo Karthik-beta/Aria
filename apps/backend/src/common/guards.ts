@@ -6,6 +6,8 @@ import {
 	UnauthorizedException,
 } from "@nestjs/common";
 
+export { handlePrismaError } from "./prisma-error.handler";
+
 @Injectable()
 export class ActiveUserGuard implements CanActivate {
 	canActivate(context: ExecutionContext): boolean {

@@ -149,7 +149,26 @@ vi.mock("@/lib/trpc", () => ({
 				},
 			},
 		}),
+		company: {
+			listCompanies: {
+				useQuery: () => ({
+					data: {
+						items: [
+							{ id: "comp-1", name: "Test Company" },
+							{ id: "comp-2", name: "Acme Corp" },
+						],
+					},
+					isLoading: false,
+				}),
+			},
+		},
 		asset: {
+			listFinanceBooks: {
+				useQuery: () => ({
+					data: { items: [] },
+					isLoading: false,
+				}),
+			},
 			listAssetCategories: {
 				useQuery: () => ({
 					data: { items: mockCategories },
@@ -307,7 +326,12 @@ describe("AssetFormPage", () => {
 		renderWithProviders(<AssetFormPage />);
 
 		await user.type(screen.getByLabelText(/Asset Name/i), "Test Asset");
-		await user.type(screen.getByLabelText("Company *"), "Test Company");
+		const companyButton = screen.getByRole("button", {
+			name: /company/i,
+		});
+		await user.click(companyButton);
+		const companyOption = await screen.findByText("Test Company");
+		await user.click(companyOption);
 
 		const checkbox = screen.getByRole("checkbox", {
 			name: /Calculate Depreciation/i,
@@ -389,10 +413,11 @@ describe("AssetFormPage", () => {
 		});
 	});
 
-	it("renders location and category comboboxes", () => {
+	it("renders location, category, and company comboboxes", () => {
 		renderWithProviders(<AssetFormPage />);
 		expect(screen.getByText("Select category…")).toBeInTheDocument();
 		expect(screen.getByText("Select location…")).toBeInTheDocument();
+		expect(screen.getByText("Select company…")).toBeInTheDocument();
 	});
 
 	it("renders all input fields in Basic Information section", () => {
@@ -410,5 +435,37 @@ describe("AssetFormPage", () => {
 		expect(screen.getByLabelText(/Available For Use/i)).toBeInTheDocument();
 		expect(screen.getByLabelText(/Net Purchase Amount/i)).toBeInTheDocument();
 		expect(screen.getByText("Asset Owner")).toBeInTheDocument();
+	});
+
+	it("renders barcode field and scan button", () => {
+		renderWithProviders(<AssetFormPage />);
+		expect(screen.getByLabelText(/Barcode \/ QR Code/i)).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: /Scan/i })).toBeInTheDocument();
+	});
+
+	it("submits create payload with barcode when provided", async () => {
+		const user = userEvent.setup();
+		renderWithProviders(<AssetFormPage />);
+
+		await user.type(screen.getByLabelText(/Asset Name/i), "Test Asset");
+		const companyButton = screen.getByRole("button", {
+			name: /company/i,
+		});
+		await user.click(companyButton);
+		const companyOption = await screen.findByText("Test Company");
+		await user.click(companyOption);
+		await user.type(screen.getByLabelText(/Barcode \/ QR Code/i), "987654321");
+
+		await user.click(screen.getByRole("button", { name: /Create Asset/i }));
+
+		await waitFor(() => {
+			expect(mockCreateMutate).toHaveBeenCalledWith(
+				expect.objectContaining({
+					assetName: "Test Asset",
+					company: "Test Company",
+					barcode: "987654321",
+				}),
+			);
+		});
 	});
 });

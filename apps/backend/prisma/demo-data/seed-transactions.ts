@@ -22,6 +22,7 @@
  * pack → deliver → install. Quantities and statuses are consistent.
  */
 
+import type { DemoDepreciationCoordinator } from "../../src/apps/asset/depreciation/demo-data.types.js";
 import type { PrismaService } from "../../src/shared/prisma.service.js";
 import type { DemoConfig } from "./config.js";
 import { CUSTOMERS, DRIVERS, ITEMS, SUPPLIERS, VEHICLES } from "./data.js";
@@ -79,6 +80,7 @@ export async function seedTransactions(
 	prisma: PrismaService,
 	config: DemoConfig,
 	ids: MasterIds,
+	depreciation: DemoDepreciationCoordinator,
 ): Promise<void> {
 	const year = config.dateRange.from.getFullYear();
 	const poC = {
@@ -868,5 +870,5 @@ export async function seedTransactions(
 	// ────────────────────────────────────────────────────────────
 	// 14. Asset Management Transaction Story
 	// ────────────────────────────────────────────────────────────
-	await seedAssetTransactions(prisma, config, ids);
+	await seedAssetTransactions(prisma, config, ids, depreciation);
 }

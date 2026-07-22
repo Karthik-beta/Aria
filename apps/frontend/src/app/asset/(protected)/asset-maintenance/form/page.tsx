@@ -16,9 +16,9 @@
 
 import { Asset } from "@aria/types";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Loader2, Plus, Trash2 } from "lucide-react";
+import { ChevronDown, Loader2, Plus, Trash2 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useRef, useTransition } from "react";
+import { Suspense, useEffect, useRef, useState, useTransition } from "react";
 import {
 	Controller,
 	type Resolver,
@@ -29,8 +29,21 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+	Command,
+	CommandEmpty,
+	CommandGroup,
+	CommandInput,
+	CommandItem,
+	CommandList,
+} from "@/components/ui/command";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "@/components/ui/popover";
 import {
 	Select,
 	SelectContent,
@@ -82,6 +95,15 @@ function AssetMaintenanceFormContent() {
 	const [isPending, startTransition] = useTransition();
 	const hasHandledMissingRef = useRef(false);
 	const utils = trpc.useUtils();
+
+	const [companyOpen, setCompanyOpen] = useState(false);
+	const { data: companiesData } = trpc.company.listCompanies.useQuery(
+		undefined,
+		{
+			staleTime: 30_000,
+		},
+	);
+	const companies = companiesData?.items ?? [];
 
 	const form = useForm<AssetMaintenanceFormValues>({
 		resolver: zodResolver(
@@ -267,10 +289,50 @@ function AssetMaintenanceFormContent() {
 							<Label htmlFor="company">
 								Company <span className="text-destructive">*</span>
 							</Label>
-							<Input
-								id="company"
-								placeholder="Company name"
-								{...form.register("company")}
+							<Controller
+								name="company"
+								control={form.control}
+								render={({ field }) => (
+									<Popover open={companyOpen} onOpenChange={setCompanyOpen}>
+										<PopoverTrigger asChild>
+											<Button
+												id="company"
+												type="button"
+												variant="outline"
+												className={`h-10 w-full justify-between font-normal ${form.formState.errors.company ? "border-destructive" : ""}`}
+											>
+												<span className="truncate">
+													{field.value || "Select company…"}
+												</span>
+												<ChevronDown className="h-4 w-4 opacity-50" />
+											</Button>
+										</PopoverTrigger>
+										<PopoverContent
+											className="p-0 pointer-events-auto"
+											style={{ width: "var(--radix-popover-trigger-width)" }}
+										>
+											<Command>
+												<CommandInput placeholder="Search companies…" />
+												<CommandList>
+													<CommandEmpty>No companies found</CommandEmpty>
+													<CommandGroup>
+														{companies.map((comp) => (
+															<CommandItem
+																key={comp.id}
+																onSelect={() => {
+																	field.onChange(comp.name);
+																	setCompanyOpen(false);
+																}}
+															>
+																{comp.name}
+															</CommandItem>
+														))}
+													</CommandGroup>
+												</CommandList>
+											</Command>
+										</PopoverContent>
+									</Popover>
+								)}
 							/>
 							{form.formState.errors.company && (
 								<p className="text-xs text-destructive">

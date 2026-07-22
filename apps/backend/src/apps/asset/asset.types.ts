@@ -9,6 +9,10 @@ export type PrismaAsset = Prisma.AssetGetPayload<{
 		assetCategory: { select: { id: true; name: true } };
 		location: { select: { id: true; name: true } };
 		activities: { orderBy: { createdAt: "desc" } };
+		financeBooks: {
+			include: { financeBook: { select: { name: true } } };
+			orderBy: { createdAt: "asc" };
+		};
 	};
 }>;
 
@@ -28,23 +32,18 @@ export type PrismaLocation = Prisma.LocationGetPayload<{
 }>;
 
 /**
- * Prisma model type for AssetCategory (scalar fields only).
+ * Prisma model type for an asset category and its per-book/account defaults.
  */
 export type PrismaAssetCategory = Prisma.AssetCategoryGetPayload<{
-	select: {
-		id: true;
-		name: true;
-		depreciationMethod: true;
-		totalNumberOfDepreciations: true;
-		frequencyOfDepreciation: true;
-		dailyProrataBased: true;
-		shiftBased: true;
-		rateOfDepreciation: true;
-		expectedValueAfterUsefulLife: true;
-		nonDepreciableCategory: true;
-		enableCwipAccounting: true;
-		createdAt: true;
-		updatedAt: true;
+	include: {
+		financeBookDefaults: {
+			include: { financeBook: { select: { name: true } } };
+			orderBy: { createdAt: "asc" };
+		};
+		accounts: {
+			include: { company: { select: { name: true } } };
+			orderBy: { createdAt: "asc" };
+		};
 	};
 }>;
 
@@ -80,6 +79,35 @@ export function toAssetCategory(cat: PrismaAssetCategory): Asset.AssetCategory {
 				: null,
 		nonDepreciableCategory: cat.nonDepreciableCategory,
 		enableCwipAccounting: cat.enableCwipAccounting,
+		financeBooks: (cat.financeBookDefaults ?? []).map((book) => ({
+			id: book.id,
+			financeBookId: book.financeBookId,
+			financeBookName: book.financeBook.name,
+			depreciationMethod: book.depreciationMethod as Asset.DepreciationMethod,
+			totalNumberOfDepreciations: book.totalNumberOfDepreciations,
+			frequencyOfDepreciation: book.frequencyOfDepreciation,
+			dailyProrataBased: book.dailyProrataBased,
+			shiftBased: book.shiftBased,
+			rateOfDepreciation:
+				book.rateOfDepreciation == null
+					? null
+					: Number(book.rateOfDepreciation),
+			expectedValueAfterUsefulLife:
+				book.expectedValueAfterUsefulLife == null
+					? null
+					: Number(book.expectedValueAfterUsefulLife),
+		})),
+		accounts: (cat.accounts ?? []).map((account) => ({
+			id: account.id,
+			companyId: account.companyId,
+			companyName: account.company.name,
+			fixedAssetAccount: account.fixedAssetAccount,
+			accumulatedDepreciationAccount:
+				account.accumulatedDepreciationAccount ?? null,
+			depreciationExpenseAccount: account.depreciationExpenseAccount ?? null,
+			capitalWorkInProgressAccount:
+				account.capitalWorkInProgressAccount ?? null,
+		})),
 		createdAt: cat.createdAt,
 		updatedAt: cat.updatedAt,
 	};
@@ -94,6 +122,7 @@ export function toAsset(raw: PrismaAsset): Asset.AssetItem {
 		series: raw.series,
 		assetName: raw.assetName,
 		itemCode: raw.itemCode ?? null,
+		barcode: raw.barcode ?? null,
 		assetCategoryId: raw.assetCategoryId ?? null,
 		assetCategoryName: raw.assetCategory?.name ?? null,
 		company: raw.company,
@@ -139,6 +168,31 @@ export function toAsset(raw: PrismaAsset): Asset.AssetItem {
 		purchaseReceipt: raw.purchaseReceipt ?? null,
 		purchaseInvoice: raw.purchaseInvoice ?? null,
 		status: raw.status as Asset.AssetStatus,
+		financeBooks: (raw.financeBooks ?? []).map((book) => ({
+			id: book.id,
+			financeBookId: book.financeBookId,
+			financeBookName: book.financeBook.name,
+			depreciationMethod: book.depreciationMethod as Asset.DepreciationMethod,
+			totalNumberOfDepreciations: book.totalNumberOfDepreciations,
+			frequencyOfDepreciation: book.frequencyOfDepreciation,
+			depreciationStartDate: book.depreciationStartDate,
+			dailyProrataBased: book.dailyProrataBased,
+			shiftBased: book.shiftBased,
+			rateOfDepreciation:
+				book.rateOfDepreciation == null
+					? null
+					: Number(book.rateOfDepreciation),
+			expectedValueAfterUsefulLife: Number(book.expectedValueAfterUsefulLife),
+			openingAccumulatedDepreciation: Number(
+				book.openingAccumulatedDepreciation,
+			),
+			openingNumberOfBookedDepreciations:
+				book.openingNumberOfBookedDepreciations,
+			valueAfterDepreciation: Number(book.valueAfterDepreciation),
+			totalNumberOfBookedDepreciations: book.totalNumberOfBookedDepreciations,
+			lastPostedDepreciationDate: book.lastPostedDepreciationDate ?? null,
+			postingStatus: book.postingStatus as Asset.DepreciationPostingStatus,
+		})),
 		activities: raw.activities.map((a) => ({
 			id: a.id,
 			assetId: a.assetId,
@@ -240,6 +294,8 @@ export function toAssetDepreciationScheduleEntry(
 		depreciationAmount: Number(raw.depreciationAmount),
 		accumulatedDepreciationAmount: Number(raw.accumulatedDepreciationAmount),
 		bookValueAfterDepreciation: Number(raw.bookValueAfterDepreciation),
+		postingId: raw.postingId ?? null,
+		postedAt: raw.postedAt ?? null,
 		createdAt: raw.createdAt,
 		updatedAt: raw.updatedAt,
 	};
@@ -250,8 +306,9 @@ export function toAssetDepreciationSchedule(
 ): Asset.AssetDepreciationSchedule {
 	return {
 		id: raw.id,
-		adjustmentId: raw.adjustmentId,
+		adjustmentId: raw.adjustmentId ?? null,
 		assetId: raw.assetId,
+		assetFinanceBookId: raw.assetFinanceBookId,
 		previousScheduleId: raw.previousScheduleId ?? null,
 		revisionNumber: raw.revisionNumber,
 		status: raw.status as Asset.AssetDepreciationScheduleStatus,

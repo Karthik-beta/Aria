@@ -7,7 +7,7 @@
  * - hasCertificate: checkbox; when true, certificateAttachment is expected
  * - certificateAttachment: URL/path; required when hasCertificate is true
  */
-import { z } from "zod";
+import * as z from "zod";
 
 export const completeMaintenanceLogFormSchema = z
 	.object({

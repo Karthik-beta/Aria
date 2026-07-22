@@ -8,8 +8,10 @@
  * @module AssetDashboardSubService
  */
 import type { Asset } from "@aria/types";
+import { Injectable } from "@nestjs/common";
 import { Prisma } from "../../generated/prisma/client";
-import type { PrismaService } from "../../shared/prisma.service";
+// biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
+import { PrismaService } from "../../shared/prisma.service";
 
 const ACTIVE_STATUSES: Asset.AssetStatus[] = [
 	"SUBMITTED",
@@ -24,6 +26,7 @@ const NON_DISPOSED_STATUSES: Asset.AssetStatus[] = [
 	"FULLY_DEPRECIATED",
 ];
 
+@Injectable()
 export class AssetDashboardSubService {
 	constructor(private readonly prisma: PrismaService) {}
 

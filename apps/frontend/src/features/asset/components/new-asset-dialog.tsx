@@ -53,6 +53,15 @@ export function NewAssetDialog() {
 	const [isOpen, setIsOpen] = React.useState(false);
 	const [categoryOpen, setCategoryOpen] = React.useState(false);
 	const [locationOpen, setLocationOpen] = React.useState(false);
+	const [companyOpen, setCompanyOpen] = React.useState(false);
+
+	const { data: companiesData } = trpc.company.listCompanies.useQuery(
+		undefined,
+		{
+			staleTime: 30_000,
+		},
+	);
+	const companies = companiesData?.items ?? [];
 
 	const { data: categoriesData } = trpc.asset.listAssetCategories.useQuery(
 		{ search: "" },
@@ -78,6 +87,7 @@ export function NewAssetDialog() {
 		setIsOpen(false);
 		setCategoryOpen(false);
 		setLocationOpen(false);
+		setCompanyOpen(false);
 		form.reset();
 	}, [form]);
 
@@ -202,11 +212,50 @@ export function NewAssetDialog() {
 						>
 							Company <span className="text-destructive">*</span>
 						</Label>
-						<Input
-							id="quick-company"
-							placeholder="e.g. My Company Ltd."
-							className="h-10"
-							{...form.register("company")}
+						<Controller
+							name="company"
+							control={form.control}
+							render={({ field }) => (
+								<Popover open={companyOpen} onOpenChange={setCompanyOpen}>
+									<PopoverTrigger asChild>
+										<Button
+											id="quick-company"
+											type="button"
+											variant="outline"
+											className="h-10 w-full justify-between font-normal"
+										>
+											<span className="truncate">
+												{field.value || "Select company…"}
+											</span>
+											<ChevronDown className="h-4 w-4 opacity-50" />
+										</Button>
+									</PopoverTrigger>
+									<PopoverContent
+										className="p-0 pointer-events-auto"
+										style={{ width: "var(--radix-popover-trigger-width)" }}
+									>
+										<Command>
+											<CommandInput placeholder="Search companies…" />
+											<CommandList>
+												<CommandEmpty>No companies found</CommandEmpty>
+												<CommandGroup>
+													{companies.map((comp) => (
+														<CommandItem
+															key={comp.id}
+															onSelect={() => {
+																field.onChange(comp.name);
+																setCompanyOpen(false);
+															}}
+														>
+															{comp.name}
+														</CommandItem>
+													))}
+												</CommandGroup>
+											</CommandList>
+										</Command>
+									</PopoverContent>
+								</Popover>
+							)}
 						/>
 					</div>
 

@@ -41,6 +41,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/use-auth";
 import { authClient } from "@/lib/auth/client";
+import { getToastMessage } from "@/lib/errors";
 
 type Member = {
 	id: string;
@@ -114,7 +115,7 @@ export default function OrgMembersPage() {
 				memberIdOrEmail: memberToRemove.user.email,
 			});
 			if (error) {
-				toast.error(error.message || "Failed to remove member");
+				toast.error(getToastMessage(error, "delete"));
 				return;
 			}
 			toast.success("Member removed");
@@ -123,7 +124,7 @@ export default function OrgMembersPage() {
 			fetchData();
 		} catch (err) {
 			logger.error("Remove member failed", err);
-			toast.error("Failed to remove member");
+			toast.error(getToastMessage(err, "delete"));
 		} finally {
 			setRemovePending(false);
 		}
@@ -399,7 +400,7 @@ function AddMemberPanel({
 				organizationId,
 			});
 			if (error) {
-				toast.error(error.message || "Failed to invite member");
+				toast.error(getToastMessage(error, "create"));
 				setIsSubmitting(false);
 				return;
 			}
@@ -407,7 +408,7 @@ function AddMemberPanel({
 			onSuccess();
 		} catch (err) {
 			logger.error("Add member error", err);
-			toast.error("Failed to add member");
+			toast.error(getToastMessage(err, "create"));
 		} finally {
 			setIsSubmitting(false);
 		}

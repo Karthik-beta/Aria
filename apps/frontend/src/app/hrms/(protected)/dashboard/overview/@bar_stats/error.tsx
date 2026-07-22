@@ -1,12 +1,11 @@
 "use client";
 
 import * as Sentry from "@sentry/nextjs";
-import { IconAlertCircle } from "@tabler/icons-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useTransition } from "react";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { ErrorAlert } from "@/components/ui/error-display";
 
 interface StatsErrorProps {
 	error: Error;
@@ -31,13 +30,7 @@ export default function StatsError({ error, reset }: StatsErrorProps) {
 		<Card className="border-red-500">
 			<CardHeader className="flex flex-col items-stretch space-y-0 border-b p-0 sm:flex-row">
 				<div className="flex flex-1 flex-col justify-center gap-1 px-6 py-5 sm:py-6">
-					<Alert variant="destructive" className="border-none">
-						<IconAlertCircle className="h-4 w-4" />
-						<AlertTitle>Error</AlertTitle>
-						<AlertDescription className="mt-2">
-							Failed to load statistics: {error.message}
-						</AlertDescription>
-					</Alert>
+					<ErrorAlert error={error} operation="load" className="border-none" />
 				</div>
 			</CardHeader>
 			<CardContent className="flex h-[316px] items-center justify-center p-6">

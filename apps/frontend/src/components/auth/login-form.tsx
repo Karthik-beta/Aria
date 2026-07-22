@@ -17,6 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { getAuthRedirectUrl } from "@/config/auth";
 import { authClient } from "@/lib/auth/client";
+import { getToastMessage } from "@/lib/errors";
 
 /**
  * Login form component with username and password authentication
@@ -61,7 +62,7 @@ export function LoginForm({ callbackUrl }: { callbackUrl?: string | null }) {
 					});
 
 			if (error) {
-				toast.error(error.message || "Failed to sign in. Please try again.");
+				toast.error(getToastMessage(error, "load"));
 				return;
 			}
 

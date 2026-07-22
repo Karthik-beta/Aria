@@ -111,6 +111,38 @@ export function isTechnicalError(message: string): boolean {
 export function detectErrorCategory(error: unknown): ErrorCategory {
 	const message = extractErrorMessage(error);
 
+	// Prefer tRPC's structured error code
+	if (error && typeof error === "object" && "data" in error) {
+		const data = (error as Record<string, unknown>).data;
+		if (data && typeof data === "object") {
+			if ("code" in data) {
+				const code = (data as Record<string, unknown>).code;
+				if (typeof code === "string") {
+					const trpcToCategory: Record<string, ErrorCategory> = {
+						BAD_REQUEST: "validation",
+						UNAUTHORIZED: "authentication",
+						FORBIDDEN: "authorization",
+						NOT_FOUND: "not_found",
+						CONFLICT: "conflict",
+						TOO_MANY_REQUESTS: "rate_limit",
+					};
+					if (trpcToCategory[code]) {
+						return trpcToCategory[code];
+					}
+				}
+			}
+			if ("httpStatus" in data) {
+				const httpStatus = (data as Record<string, unknown>).httpStatus;
+				if (
+					typeof httpStatus === "number" &&
+					httpStatus in HTTP_ERROR_CATEGORIES
+				) {
+					return HTTP_ERROR_CATEGORIES[httpStatus];
+				}
+			}
+		}
+	}
+
 	// Check for HTTP status codes in the error
 	const statusMatch = message.match(/\b(\d{3})\b/);
 	if (statusMatch) {

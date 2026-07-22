@@ -103,6 +103,22 @@ export default function AssetDetailPage() {
 			toast.error(getToastMessage(error, "delete"));
 		},
 	});
+	const submitMutation = trpc.asset.submitAsset.useMutation({
+		onSuccess: async () => {
+			await utils.asset.getAssetById.invalidate({ id: assetId });
+			await utils.asset.listAssets.invalidate();
+			toast.success("Asset submitted and depreciation schedules activated");
+		},
+		onError: (error) => toast.error(getToastMessage(error, "submit")),
+	});
+	const cancelMutation = trpc.asset.cancelAsset.useMutation({
+		onSuccess: async () => {
+			await utils.asset.getAssetById.invalidate({ id: assetId });
+			await utils.asset.listAssets.invalidate();
+			toast.success("Asset cancelled");
+		},
+		onError: (error) => toast.error(getToastMessage(error, "cancel")),
+	});
 
 	const confirmDelete = () => {
 		deleteMutation.mutate({ id: assetId });
@@ -110,7 +126,7 @@ export default function AssetDetailPage() {
 
 	if (isLoading) {
 		return (
-			<div className="container mx-auto py-6 space-y-6">
+			<div className="container mx-auto px-4 md:px-6 py-6 space-y-6">
 				<div className="flex items-center gap-4">
 					<Skeleton className="h-10 w-10" />
 					<Skeleton className="h-8 w-64" />
@@ -122,7 +138,7 @@ export default function AssetDetailPage() {
 
 	if (!asset) {
 		return (
-			<div className="container mx-auto py-6">
+			<div className="container mx-auto px-4 md:px-6 py-6">
 				<Card>
 					<CardContent className="flex flex-col items-center gap-4 py-16">
 						<Tag className="h-12 w-12 text-muted-foreground" />
@@ -157,7 +173,7 @@ export default function AssetDetailPage() {
 				loading={deleteMutation.isPending}
 			/>
 
-			<div className="container mx-auto py-6 space-y-6">
+			<div className="container mx-auto px-4 md:px-6 py-6 space-y-6">
 				{/* Header */}
 				<div className="flex items-center justify-between gap-4">
 					<div className="flex items-center gap-4">
@@ -180,6 +196,25 @@ export default function AssetDetailPage() {
 						<Badge className={`${badgeClass} border-0`}>
 							{formatStatus(asset.status)}
 						</Badge>
+						{asset.status === "DRAFT" && (
+							<Button
+								size="sm"
+								onClick={() => submitMutation.mutate({ id: asset.id })}
+								disabled={submitMutation.isPending}
+							>
+								Submit
+							</Button>
+						)}
+						{["SUBMITTED", "PARTIALLY_DEPRECIATED"].includes(asset.status) && (
+							<Button
+								size="sm"
+								variant="outline"
+								onClick={() => cancelMutation.mutate({ id: asset.id })}
+								disabled={cancelMutation.isPending}
+							>
+								Cancel Asset
+							</Button>
+						)}
 						<Link
 							href={`/asset/asset-sub-module/asset/form?id=${asset.id}`}
 							className={buttonVariants({ variant: "outline", size: "sm" })}
@@ -216,6 +251,7 @@ export default function AssetDetailPage() {
 								}
 							/>
 							<DetailRow label="Item Code" value={asset.itemCode} />
+							<DetailRow label="Barcode / QR Code" value={asset.barcode} />
 							<DetailRow label="Category" value={asset.assetCategoryName} />
 							<DetailRow label="Company" value={asset.company} />
 							<DetailRow
@@ -234,6 +270,37 @@ export default function AssetDetailPage() {
 							<DetailRow label="Asset Quantity" value={asset.assetQuantity} />
 						</CardContent>
 					</Card>
+
+					{asset.financeBooks && asset.financeBooks.length > 0 && (
+						<Card>
+							<CardHeader>
+								<CardTitle>Finance Books</CardTitle>
+								<CardDescription>
+									Independent depreciation state by accounting book
+								</CardDescription>
+							</CardHeader>
+							<CardContent className="space-y-3">
+								{asset.financeBooks.map((book) => (
+									<div key={book.id} className="rounded-lg border p-3">
+										<div className="flex items-center justify-between">
+											<span className="font-medium">
+												{book.financeBookName}
+											</span>
+											<Badge variant="outline">
+												{formatStatus(book.postingStatus)}
+											</Badge>
+										</div>
+										<p className="mt-1 text-sm text-muted-foreground">
+											{formatStatus(book.depreciationMethod)} ·{" "}
+											{book.frequencyOfDepreciation} month cadence ·{" "}
+											{book.totalNumberOfBookedDepreciations}/
+											{book.totalNumberOfDepreciations} posted
+										</p>
+									</div>
+								))}
+							</CardContent>
+						</Card>
+					)}
 
 					{/* Purchase & Depreciation */}
 					<Card>

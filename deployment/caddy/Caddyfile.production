@@ -25,10 +25,11 @@
 {$DOMAIN:localhost} {
 	# Routing configuration with priority
 	route {
-		# Health check endpoint (direct access)
-		respond /health 200 {
-			body "OK"
-			close
+		# Backend liveness/readiness endpoints
+		reverse_proxy /health* backend:3001 {
+			health_uri /health/ready
+			health_interval 30s
+			health_timeout 3s
 		}
 
 		# API routes to backend (including auth at /api/auth/*)
@@ -38,7 +39,7 @@
 			lb_try_duration 30s
 
 			# Active health checking
-			health_uri /health
+			health_uri /health/ready
 			health_interval 30s
 			health_timeout 10s
 			health_status 200
@@ -54,7 +55,7 @@
 
 		# tRPC routes to backend
 		reverse_proxy /trpc/* backend:3001 {
-			health_uri /health
+			health_uri /health/ready
 			health_interval 30s
 		}
 

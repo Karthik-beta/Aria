@@ -11,8 +11,9 @@
 
 import type { Asset } from "@aria/types";
 import type { ColumnDef, Row } from "@tanstack/react-table";
-import { Edit, Eye, MoreHorizontal, Trash } from "lucide-react";
+import { Edit, Eye, MoreHorizontal, Scan, Trash } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import * as React from "react";
 import { toast } from "sonner";
 import {
@@ -20,6 +21,7 @@ import {
 	type BulkAction,
 	useAdvancedDataTable,
 } from "@/components/advanced-data-table";
+import { BarcodeScannerDialog } from "@/components/barcode-scanner-dialog";
 import { AlertModal } from "@/components/modal/alert-modal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -84,6 +86,40 @@ function formatStatus(status: string): string {
 
 export default function AssetListPage() {
 	const utils = trpc.useUtils();
+	const router = useRouter();
+	const [scannerOpen, setScannerOpen] = React.useState(false);
+	const [_isPending, startTransition] = React.useTransition();
+
+	const handleScanSuccess = React.useCallback(
+		async (scannedCode: string) => {
+			const promise = utils.asset.getAssetByBarcode
+				.fetch({ barcode: scannedCode })
+				.then((asset) => {
+					if (!asset) {
+						throw new Error(`No asset found with barcode "${scannedCode}"`);
+					}
+					startTransition(() => {
+						router.push(`/asset/asset-sub-module/asset/${asset.id}`);
+					});
+					return asset;
+				});
+
+			toast.promise(promise, {
+				loading: "Looking up asset by barcode...",
+				success: (asset) => `Asset "${asset.assetName}" found! Redirecting...`,
+				error: (err: unknown) => {
+					// Use custom error message if provided by backend, otherwise default
+					const errMsg =
+						(err as Error)?.message ||
+						`No asset found with barcode "${scannedCode}"`;
+					return errMsg.includes("not found")
+						? `No asset found with barcode "${scannedCode}"`
+						: errMsg;
+				},
+			});
+		},
+		[utils, router],
+	);
 
 	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
 	const [assetToDelete, setAssetToDelete] = React.useState<string | null>(null);
@@ -624,7 +660,20 @@ export default function AssetListPage() {
 						enableColumnReordering
 						exportFormats={["csv", "excel", "json", "pdf"]}
 						bulkActions={bulkActions}
-						primaryAction={<NewAssetDialog />}
+						primaryAction={
+							<div className="flex items-center gap-2">
+								<Button
+									type="button"
+									variant="outline"
+									size="sm"
+									onClick={() => setScannerOpen(true)}
+								>
+									<Scan className="mr-2 h-4 w-4" />
+									Scan Barcode
+								</Button>
+								<NewAssetDialog />
+							</div>
+						}
 						ariaLabel="Assets table"
 						ariaDescription="A table of all assets with advanced filtering, sorting, and bulk actions"
 					/>
@@ -639,6 +688,12 @@ export default function AssetListPage() {
 					}}
 					onConfirm={confirmDelete}
 					loading={deleteMutation.isPending}
+				/>
+
+				<BarcodeScannerDialog
+					isOpen={scannerOpen}
+					onClose={() => setScannerOpen(false)}
+					onScanSuccess={handleScanSuccess}
 				/>
 			</div>
 		</>

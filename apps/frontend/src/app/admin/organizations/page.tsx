@@ -24,6 +24,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/use-auth";
 import { authClient } from "@/lib/auth/client";
+import { getToastMessage } from "@/lib/errors";
 
 type Organization = {
 	id: string;
@@ -105,7 +106,7 @@ export default function OrganizationsPage() {
 				role: inviteRole,
 			});
 			if (error) {
-				toast.error(error.message || "Failed to send invitation");
+				toast.error(getToastMessage(error, "create"));
 				return;
 			}
 			toast.success(`Invitation sent to ${inviteEmail}`);
@@ -113,7 +114,7 @@ export default function OrganizationsPage() {
 			fetchOrgAndMembers();
 		} catch (err) {
 			logger.error("Invite failed", err);
-			toast.error("Failed to send invitation");
+			toast.error(getToastMessage(err, "create"));
 		} finally {
 			setIsInviting(false);
 		}
@@ -132,7 +133,7 @@ export default function OrganizationsPage() {
 				memberIdOrEmail: memberToRemove.user.email,
 			});
 			if (error) {
-				toast.error(error.message || "Failed to remove member");
+				toast.error(getToastMessage(error, "delete"));
 				return;
 			}
 			toast.success(`${memberToRemove.user.name} removed from organization`);
@@ -141,7 +142,7 @@ export default function OrganizationsPage() {
 			fetchOrgAndMembers();
 		} catch (err) {
 			logger.error("Remove member failed", err);
-			toast.error("Failed to remove member");
+			toast.error(getToastMessage(err, "delete"));
 		} finally {
 			setIsRemoving(false);
 		}

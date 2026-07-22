@@ -7,6 +7,7 @@
  * unconditionally since they're shared.
  */
 
+import { buildIndianFiscalYears } from "../../src/apps/asset/depreciation/demo-data.utils.js";
 import type { PrismaService } from "../../src/shared/prisma.service.js";
 import { ASSET_CATEGORIES, ASSET_LOCATIONS } from "./asset-data.js";
 import type { DemoConfig } from "./config.js";
@@ -56,6 +57,20 @@ export async function cleanDemoData(
 
 	await del("AssetMaintenanceTeam", () =>
 		prisma.assetMaintenanceTeam.deleteMany({ where: { company } }),
+	);
+
+	await del("AssetDepreciationJournalEntry", () =>
+		prisma.assetDepreciationJournalEntry.deleteMany({ where: { company } }),
+	);
+
+	await del("AssetDepreciationSchedule", () =>
+		prisma.assetDepreciationSchedule.deleteMany({
+			where: { asset: { company } },
+		}),
+	);
+
+	await del("AssetFinanceBook", () =>
+		prisma.assetFinanceBook.deleteMany({ where: { asset: { company } } }),
 	);
 
 	await del("AssetValueAdjustment", () =>
@@ -193,6 +208,30 @@ export async function cleanDemoData(
 		prisma.itemVariantSettings.deleteMany({}),
 	);
 
+	// ── Fiscal Year & Company ──────────────────────────────────────
+
+	// Delete FiscalYearCompany links first (FK to both Company and FiscalYear)
+	await del("FiscalYearCompany", () =>
+		prisma.fiscalYearCompany.deleteMany({
+			where: { company: { name: company } },
+		}),
+	);
+
+	// Delete the demo Company record
+	await del("Company", () =>
+		prisma.company.deleteMany({ where: { name: company } }),
+	);
+
+	// Delete seeded fiscal years
+	const seededFiscalYears = buildIndianFiscalYears(config.dateRange.to).map(
+		(fiscalYear) => fiscalYear.year,
+	);
+	await del("FiscalYear", () =>
+		prisma.fiscalYear.deleteMany({
+			where: { year: { in: seededFiscalYears } },
+		}),
+	);
+
 	return counts;
 }
 
@@ -231,9 +270,13 @@ export async function getDemoStatus(
 		assetValueAdjustments,
 		assetRevaluationEntries,
 		assetDepreciationSchedules,
+		assetDepreciationScheduleEntries,
+		assetFinanceBooks,
+		assetDepreciationJournalEntries,
 		assetMaintenanceTeams,
 		assetMaintenances,
 		assetMaintenanceLogs,
+		companies,
 	] = await Promise.all([
 		prisma.brand.count(),
 		prisma.itemGroup.count(),
@@ -264,9 +307,55 @@ export async function getDemoStatus(
 		prisma.assetValueAdjustment.count({ where: { companySnapshot: company } }),
 		prisma.assetRevaluationEntry.count({ where: { company } }),
 		prisma.assetDepreciationSchedule.count({ where: { asset: { company } } }),
+		prisma.assetDepreciationScheduleEntry.count({
+			where: { schedule: { asset: { company } } },
+		}),
+		prisma.assetFinanceBook.count({ where: { asset: { company } } }),
+		prisma.assetDepreciationJournalEntry.count({ where: { company } }),
 		prisma.assetMaintenanceTeam.count({ where: { company } }),
 		prisma.assetMaintenance.count({ where: { company } }),
 		prisma.assetMaintenanceLog.count({ where: { maintenance: { company } } }),
+		prisma.company.count({ where: { name: company } }),
+	]);
+	const eligibleAsset = {
+		company,
+		calculateDepreciation: true,
+		status: { in: ["SUBMITTED", "PARTIALLY_DEPRECIATED"] as const },
+	};
+	const [
+		postedDepreciationEntries,
+		dueUnpostedDepreciationEntries,
+		futureUnpostedDepreciationEntries,
+		monthlyAssetFinanceBooks,
+		quarterlyAssetFinanceBooks,
+		halfYearlyAssetFinanceBooks,
+		yearlyAssetFinanceBooks,
+	] = await Promise.all([
+		prisma.assetDepreciationScheduleEntry.count({
+			where: { postingId: { not: null }, schedule: { asset: { company } } },
+		}),
+		prisma.assetDepreciationScheduleEntry.count({
+			where: {
+				postingId: null,
+				scheduleDate: { lte: config.dateRange.to },
+				schedule: { status: "ACTIVE", asset: eligibleAsset },
+			},
+		}),
+		prisma.assetDepreciationScheduleEntry.count({
+			where: {
+				postingId: null,
+				scheduleDate: { gt: config.dateRange.to },
+				schedule: { status: "ACTIVE", asset: { company } },
+			},
+		}),
+		...([1, 3, 6, 12] as const).map((frequencyOfDepreciation) =>
+			prisma.assetFinanceBook.count({
+				where: {
+					frequencyOfDepreciation,
+					asset: { company },
+				},
+			}),
+		),
 	]);
 
 	return {
@@ -295,8 +384,19 @@ export async function getDemoStatus(
 		assetValueAdjustments,
 		assetRevaluationEntries,
 		assetDepreciationSchedules,
+		assetDepreciationScheduleEntries,
+		assetFinanceBooks,
+		assetDepreciationJournalEntries,
+		postedDepreciationEntries,
+		dueUnpostedDepreciationEntries,
+		futureUnpostedDepreciationEntries,
+		monthlyAssetFinanceBooks,
+		quarterlyAssetFinanceBooks,
+		halfYearlyAssetFinanceBooks,
+		yearlyAssetFinanceBooks,
 		assetMaintenanceTeams,
 		assetMaintenances,
 		assetMaintenanceLogs,
+		companies,
 	};
 }

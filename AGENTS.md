@@ -22,6 +22,41 @@ Aria is a bun-powered Turborepo that hosts the entire ERP surface area under one
 - **Automation everywhere**: the root scripts (`bun lint`, `bun test`, `bun build`, `bun dev`) remain the single entry points for validation and local orchestration.
 - **Quality as a default**: unit, integration, and E2E coverage evolve in lockstep with features; no feature is “done” until the relevant tests are green.
 
+## Vendored Repositories
+
+This project vendors external dependency source trees under `repos/` so that
+coding agents can explore real implementations instead of guessing from
+documentation. See `VENDORED_REPOS.md` for the full rationale, setup commands,
+and maintenance guide.
+
+- **Read-only reference**: Use vendored repos to explore real implementations
+  when working with related libraries. Do NOT edit files under `repos/` unless
+  explicitly asked.
+- **Prefer source over docs**: When unsure about an API, explore the vendored
+  source code instead of relying on web search or documentation.
+- **Do not import**: Application code must continue importing from normal
+  package dependencies (`node_modules`), not from `repos/`.
+
+### When to consult each repo
+
+| Task | Consult |
+|---|---|
+| Writing tRPC routers/procedures/middleware | `repos/trpc` |
+| Configuring auth, sessions, org plugins | `repos/better-auth` |
+| Defining Zod schemas (v4 API) | `repos/zod` |
+| Building NestJS modules/services | `repos/nest` |
+| Prisma queries, relations, migrations | `repos/prisma` |
+| Data table setup, column definitions | `repos/tanstack-table` |
+| Form handling with react-hook-form | `repos/react-hook-form` |
+| Drag-and-drop interactions | `repos/dnd-kit` |
+| URL state management | `repos/nuqs` |
+| Zustand stores, middleware | `repos/zustand` |
+| Recharts chart components | `repos/recharts` |
+| Date manipulation utilities | `repos/date-fns` |
+| Biome lint/format rules | `repos/biome` |
+
+---
+
 The four agents below interpret and enforce these principles from complementary perspectives.
 
 ## Agent 1 – Simplicity Advocate

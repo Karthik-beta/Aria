@@ -57,6 +57,26 @@ export function toAssetCategoryMutationInput(
 		frequencyOfDepreciation: isNonDepreciable
 			? null
 			: (values.frequencyOfDepreciation ?? null),
+		dailyProrataBased: isNonDepreciable
+			? false
+			: (values.dailyProrataBased ?? false),
+		shiftBased: isNonDepreciable ? false : (values.shiftBased ?? false),
+		rateOfDepreciation: isNonDepreciable
+			? null
+			: (values.rateOfDepreciation ?? null),
+		expectedValueAfterUsefulLife: isNonDepreciable
+			? null
+			: (values.expectedValueAfterUsefulLife ?? null),
+		financeBooks: isNonDepreciable ? [] : (values.financeBooks ?? []),
+		accounts: (values.accounts ?? []).map((account) => ({
+			...account,
+			accumulatedDepreciationAccount:
+				account.accumulatedDepreciationAccount?.trim() || null,
+			depreciationExpenseAccount:
+				account.depreciationExpenseAccount?.trim() || null,
+			capitalWorkInProgressAccount:
+				account.capitalWorkInProgressAccount?.trim() || null,
+		})),
 	};
 }
 

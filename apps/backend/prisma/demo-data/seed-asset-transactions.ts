@@ -6,6 +6,9 @@ import {
 	getAssetValueAdjustmentDirection,
 	getAssetValueAdjustmentResultState,
 } from "../../src/apps/asset/asset-value-adjustment.utils.js";
+import type { DemoDepreciationCoordinator } from "../../src/apps/asset/depreciation/demo-data.types.js";
+import { getIndianFiscalYear } from "../../src/apps/asset/depreciation/demo-data.utils.js";
+import type { FiscalYear } from "../../src/generated/prisma/client.js";
 import type { PrismaService } from "../../src/shared/prisma.service.js";
 import {
 	ASSET_CATEGORIES,
@@ -18,11 +21,14 @@ import type { MasterIds } from "./seed-master.js";
 
 type EffectiveAssetState = {
 	currentAssetValue: number;
+	openingAccumulatedDepreciation: number;
+	bookedDepreciations: number;
 	status: Asset.AssetStatus;
 	isFullyDepreciated: boolean;
 	activeSchedule: {
 		id: string;
 		revisionNumber: number;
+		assetFinanceBookId: string;
 	} | null;
 };
 
@@ -102,13 +108,6 @@ function calculateNextDueDate(
 	return next;
 }
 
-function getCurrentAssetValue(asset: AssetSeedDef): number {
-	return Math.max(
-		asset.netPurchaseAmount - (asset.openingAccumulatedDepreciation ?? 0),
-		0,
-	);
-}
-
 function getCategoryDefaults(assetCategoryName: string) {
 	const category = ASSET_CATEGORIES.find(
 		(value) => value.name === assetCategoryName,
@@ -121,18 +120,53 @@ function getCategoryDefaults(assetCategoryName: string) {
 	return category;
 }
 
-function buildInitialState(asset: AssetSeedDef): EffectiveAssetState {
+function buildInitialState(
+	currentAssetValue: number,
+	openingAccumulatedDepreciation: number,
+	bookedDepreciations: number,
+	status: Asset.AssetStatus,
+	isFullyDepreciated: boolean,
+	activeSchedule: EffectiveAssetState["activeSchedule"],
+): EffectiveAssetState {
 	return {
-		currentAssetValue: getCurrentAssetValue(asset),
-		status:
-			asset.status === "PARTIALLY_DEPRECIATED" ||
-			asset.status === "FULLY_DEPRECIATED"
-				? "SUBMITTED"
-				: asset.status,
-		isFullyDepreciated:
-			asset.isFullyDepreciated ?? getCurrentAssetValue(asset) <= 0,
-		activeSchedule: null,
+		currentAssetValue,
+		openingAccumulatedDepreciation,
+		bookedDepreciations,
+		status,
+		isFullyDepreciated,
+		activeSchedule,
 	};
+}
+
+async function refreshEffectiveState(
+	prisma: PrismaService,
+	assetId: string,
+	state: EffectiveAssetState,
+): Promise<void> {
+	const current = await prisma.asset.findUniqueOrThrow({
+		where: { id: assetId },
+		select: {
+			valueAfterDepreciation: true,
+			openingAccumulatedDepreciation: true,
+			status: true,
+			isFullyDepreciated: true,
+			financeBooks: {
+				where: state.activeSchedule
+					? { id: state.activeSchedule.assetFinanceBookId }
+					: undefined,
+				take: 1,
+				select: { totalNumberOfBookedDepreciations: true },
+			},
+		},
+	});
+	state.currentAssetValue = Number(current.valueAfterDepreciation);
+	state.openingAccumulatedDepreciation = Number(
+		current.openingAccumulatedDepreciation,
+	);
+	state.bookedDepreciations =
+		current.financeBooks[0]?.totalNumberOfBookedDepreciations ?? 0;
+	state.status = current.status;
+	state.isFullyDepreciated = current.isFullyDepreciated;
 }
 
 function buildAdjustmentSeries(
@@ -336,6 +370,8 @@ async function seedValueAdjustments(
 	adjustmentCounters: Map<number, number>,
 	revaluationCounters: Map<number, number>,
 	activitySequenceBase: number,
+	fiscalYears: FiscalYear[],
+	depreciation: DemoDepreciationCoordinator,
 ): Promise<number> {
 	const adjustments = [...(asset.valueAdjustments ?? [])].sort(
 		(left, right) => left.adjustmentOffsetDays - right.adjustmentOffsetDays,
@@ -350,6 +386,14 @@ async function seedValueAdjustments(
 			14,
 			0,
 		);
+		if (adjustment.kind !== "draft") {
+			await depreciation.ensurePosted({
+				throughDate: adjustmentDate,
+				company: config.company,
+				assetIds: [assetId],
+			});
+			await refreshEffectiveState(prisma, assetId, state);
+		}
 		const adjustmentSeries = buildAdjustmentSeries(
 			"AVA",
 			adjustmentDate,
@@ -363,14 +407,14 @@ async function seedValueAdjustments(
 		const previewSchedule =
 			asset.calculateDepreciation === false
 				? null
-				: buildDepreciationSchedulePreview({
+				: await buildDepreciationSchedulePreview({
 						adjustmentDate,
 						currentAssetValue: state.currentAssetValue,
 						newAssetValue: adjustment.newAssetValue,
 						purchaseAmount: asset.netPurchaseAmount,
 						openingAccumulatedDepreciation:
-							asset.openingAccumulatedDepreciation ?? 0,
-						bookedDepreciations: asset.openingNumberOfBookedDepreciations ?? 0,
+							state.openingAccumulatedDepreciation,
+						bookedDepreciations: state.bookedDepreciations,
 						depreciationMethod:
 							asset.depreciationMethod ?? category.depreciationMethod,
 						totalNumberOfDepreciations:
@@ -378,6 +422,17 @@ async function seedValueAdjustments(
 							category.totalNumberOfDepreciations,
 						frequencyOfDepreciation:
 							asset.frequencyOfDepreciation ?? category.frequencyOfDepreciation,
+						dailyProrataBased: category.dailyProrataBased ?? false,
+						shiftBased: category.shiftBased ?? false,
+						rateOfDepreciation: category.rateOfDepreciation ?? null,
+						expectedValueAfterUsefulLife:
+							category.expectedValueAfterUsefulLife ?? null,
+						getFiscalYearEndDate: async (date) => {
+							const fiscalYear = getIndianFiscalYear(
+								date.toISOString().slice(0, 10),
+							);
+							return new Date(`${fiscalYear.endDate}T00:00:00.000Z`);
+						},
 					});
 		const resultState = getAssetValueAdjustmentResultState(
 			state.status,
@@ -399,6 +454,19 @@ async function seedValueAdjustments(
 						30,
 					)
 				: null;
+
+		const matchingFy = fiscalYears.find((fy) => {
+			const dayAfterYearEnd = new Date(fy.yearEndDate);
+			dayAfterYearEnd.setUTCDate(dayAfterYearEnd.getUTCDate() + 1);
+			return (
+				adjustmentDate >= fy.yearStartDate && adjustmentDate < dayAfterYearEnd
+			);
+		});
+		if (!matchingFy) {
+			throw new Error(
+				`No matching fiscal year found for date ${adjustmentDate.toISOString()}`,
+			);
+		}
 
 		const createdAdjustment = await prisma.assetValueAdjustment.create({
 			data: {
@@ -474,12 +542,24 @@ async function seedValueAdjustments(
 		});
 
 		if (previewSchedule) {
+			if (!state.activeSchedule) {
+				throw new Error(
+					`Asset ${asset.key} requires an active finance-book schedule before a value adjustment can be seeded`,
+				);
+			}
 			const scheduleRevisionNumber =
 				(state.activeSchedule?.revisionNumber ?? 0) + 1;
+			if (adjustment.kind === "submitted") {
+				await prisma.assetDepreciationSchedule.update({
+					where: { id: state.activeSchedule.id },
+					data: { status: "CANCELLED" },
+				});
+			}
 			const schedule = await prisma.assetDepreciationSchedule.create({
 				data: {
 					adjustmentId: createdAdjustment.id,
 					assetId,
+					assetFinanceBookId: state.activeSchedule.assetFinanceBookId,
 					previousScheduleId: state.activeSchedule?.id ?? null,
 					revisionNumber: scheduleRevisionNumber,
 					status: adjustment.kind === "cancelled" ? "CANCELLED" : "ACTIVE",
@@ -490,8 +570,9 @@ async function seedValueAdjustments(
 					frequencyOfDepreciation: previewSchedule.frequencyOfDepreciation,
 					bookedDepreciations: previewSchedule.bookedDepreciations,
 					remainingDepreciations: previewSchedule.remainingDepreciations,
-					openingAccumulatedDepreciation: (
-						asset.openingAccumulatedDepreciation ?? 0
+					openingAccumulatedDepreciation: Math.max(
+						state.openingAccumulatedDepreciation,
+						asset.netPurchaseAmount - state.currentAssetValue,
 					).toString(),
 					baseAssetValue: adjustment.newAssetValue.toString(),
 					notes:
@@ -526,6 +607,7 @@ async function seedValueAdjustments(
 				state.activeSchedule = {
 					id: schedule.id,
 					revisionNumber: scheduleRevisionNumber,
+					assetFinanceBookId: state.activeSchedule.assetFinanceBookId,
 				};
 			}
 		}
@@ -548,6 +630,20 @@ async function seedValueAdjustments(
 			state.currentAssetValue = adjustment.newAssetValue;
 			state.status = resultState.status;
 			state.isFullyDepreciated = resultState.isFullyDepreciated;
+			await prisma.asset.update({
+				where: { id: assetId },
+				data: {
+					valueAfterDepreciation: adjustment.newAssetValue.toString(),
+					status: resultState.status,
+					isFullyDepreciated: resultState.isFullyDepreciated,
+				},
+			});
+			if (state.activeSchedule) {
+				await prisma.assetFinanceBook.update({
+					where: { id: state.activeSchedule.assetFinanceBookId },
+					data: { valueAfterDepreciation: adjustment.newAssetValue.toString() },
+				});
+			}
 		}
 
 		activitySequence += 1;
@@ -560,9 +656,11 @@ export async function seedAssetTransactions(
 	prisma: PrismaService,
 	config: DemoConfig,
 	ids: MasterIds,
+	depreciation: DemoDepreciationCoordinator,
 ): Promise<void> {
 	const adjustmentCounters = new Map<number, number>();
 	const revaluationCounters = new Map<number, number>();
+	const fiscalYears = await prisma.fiscalYear.findMany();
 
 	for (const [assetIndex, asset] of ASSET_REGISTER.entries()) {
 		const assetId = ids.assetIds.get(asset.key);
@@ -574,7 +672,27 @@ export async function seedAssetTransactions(
 
 		const assetRecord = await prisma.asset.findUnique({
 			where: { id: assetId },
-			select: { series: true },
+			select: {
+				series: true,
+				valueAfterDepreciation: true,
+				openingAccumulatedDepreciation: true,
+				status: true,
+				isFullyDepreciated: true,
+				financeBooks: {
+					take: 1,
+					select: { totalNumberOfBookedDepreciations: true },
+				},
+				depreciationSchedules: {
+					where: { status: "ACTIVE" },
+					orderBy: { revisionNumber: "desc" },
+					take: 1,
+					select: {
+						id: true,
+						revisionNumber: true,
+						assetFinanceBookId: true,
+					},
+				},
+			},
 		});
 		if (!assetRecord) {
 			throw new Error(`Asset ${asset.key} could not be loaded after creation`);
@@ -631,7 +749,14 @@ export async function seedAssetTransactions(
 			activitySequence,
 		);
 
-		const effectiveState = buildInitialState(asset);
+		const effectiveState = buildInitialState(
+			Number(assetRecord.valueAfterDepreciation),
+			Number(assetRecord.openingAccumulatedDepreciation),
+			assetRecord.financeBooks[0]?.totalNumberOfBookedDepreciations ?? 0,
+			assetRecord.status,
+			assetRecord.isFullyDepreciated,
+			assetRecord.depreciationSchedules[0] ?? null,
+		);
 		activitySequence = await seedValueAdjustments(
 			prisma,
 			config,
@@ -642,27 +767,33 @@ export async function seedAssetTransactions(
 			adjustmentCounters,
 			revaluationCounters,
 			activitySequence,
+			fiscalYears,
+			depreciation,
 		);
 
 		if (
-			asset.valueAdjustments?.some(
-				(adjustment) => adjustment.kind === "submitted",
-			)
+			(asset.status === "SOLD" || asset.status === "SCRAPPED") &&
+			asset.disposalOffsetDays !== undefined
 		) {
-			const expectedValueAfterDepreciation = Number(
-				(asset.valueAfterDepreciation ?? getCurrentAssetValue(asset)).toFixed(
-					6,
-				),
+			const disposalDate = resolveRelativeDate(
+				config,
+				asset.disposalOffsetDays,
+				17,
+				0,
 			);
-			if (
-				Math.abs(
-					effectiveState.currentAssetValue - expectedValueAfterDepreciation,
-				) > 0.000001
-			) {
-				throw new Error(
-					`Asset ${asset.key} final carrying value ${expectedValueAfterDepreciation} does not match seeded adjustment history ${effectiveState.currentAssetValue}`,
-				);
-			}
+			await depreciation.ensurePosted({
+				throughDate: disposalDate,
+				company: config.company,
+				assetIds: [assetId],
+			});
+			await prisma.assetDepreciationSchedule.updateMany({
+				where: { assetId, status: "ACTIVE" },
+				data: { status: "CANCELLED" },
+			});
+			await prisma.asset.update({
+				where: { id: assetId },
+				data: { status: asset.status, disposalDate },
+			});
 		}
 	}
 }
