@@ -104,11 +104,13 @@ RUN cd packages/types && bun tsc --build tsconfig.json
 RUN cd packages/utils && bun tsc --build tsconfig.json
 RUN cd packages/report-export && bun tsc --build tsconfig.build.json
 
-# Build backend (required for tRPC types that frontend imports)
-RUN --mount=type=cache,id=turbo-backend,target=/app/.turbo/cache bun --filter backend build
+# Build backend (required for tRPC types that frontend imports).
+# Railway's cache mounts require a service-specific cache key, so this shared
+# Dockerfile deliberately relies on ordinary Docker layer caching instead.
+RUN bun --filter backend build
 
-# Build frontend using Turbo (now able to access remote cache via TURBO_* env)
-RUN --mount=type=cache,id=turbo-frontend,target=/app/.turbo/cache bun x turbo run build --filter=frontend...
+# Build frontend using Turbo.
+RUN bun x turbo run build --filter=frontend...
 
 # Production runner stage - minimal production image with standalone output 🏁
 FROM base AS runner

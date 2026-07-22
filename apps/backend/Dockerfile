@@ -101,8 +101,11 @@ RUN cd /app/packages/types && bun tsc --build tsconfig.json
 RUN cd /app/packages/utils && bun tsc --build tsconfig.json
 RUN cd /app/packages/report-export && bun tsc --build tsconfig.build.json
 
-# Build backend (compiles NestJS to dist)
-RUN --mount=type=cache,id=turbo-backend,target=/app/.turbo/cache bun --filter backend build
+# Build backend (compiles NestJS to dist).
+#
+# Keep this portable across Docker builders. Railway's cache mounts require a
+# service-specific cache key, which cannot be encoded in this shared Dockerfile.
+RUN bun --filter backend build
 
 #######################################################
 # Runner: minimal prod image with prod-only dependencies
