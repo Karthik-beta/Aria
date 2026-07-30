@@ -70,7 +70,7 @@ bun x --bun prisma generate
 bun x --bun prisma migrate reset
 
 # Apply migrations without creating new ones (production)
-bun x --bun prisma migrate deploy
+bun run db:migrate:deploy
 
 # Open Prisma Studio (visual database browser)
 bun x --bun prisma studio

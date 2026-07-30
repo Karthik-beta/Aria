@@ -108,8 +108,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    entrypoint: ['/bin/sh', '-c']
-    command: ['cd /app/apps/backend && bun x --bun prisma migrate deploy']
+    command: ['bun', 'run', 'db:migrate:deploy']
 
   backend:
     build:
@@ -132,20 +131,15 @@ services:
       - ASSET_DEPRECIATION_QUEUE_OPERATION_TIMEOUT_MS=${ASSET_DEPRECIATION_QUEUE_OPERATION_TIMEOUT_MS:-5000}
       - ASSET_DEPRECIATION_RECONCILIATION_INTERVAL_MS=${ASSET_DEPRECIATION_RECONCILIATION_INTERVAL_MS:-900000}
       - PORT=3001
-      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET is required}
-      - JWT_EXPIRATION=${JWT_EXPIRATION:-24h}
       # Better Auth Configuration
       - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET:?BETTER_AUTH_SECRET is required}
       - BETTER_AUTH_URL=${BETTER_AUTH_URL:-https://${DOMAIN:-localhost}}
       - FRONTEND_URL=${FRONTEND_URL:-https://${DOMAIN:-localhost}}
       # Default Admin Account
       - DEFAULT_ADMIN_USERNAME=${DEFAULT_ADMIN_USERNAME:-admin}
-      - DEFAULT_ADMIN_PASSWORD=${DEFAULT_ADMIN_PASSWORD:?DEFAULT_ADMIN_PASSWORD is required}
+      - DEFAULT_ADMIN_PASSWORD=${DEFAULT_ADMIN_PASSWORD:-}
       - DEFAULT_ADMIN_EMAIL=${DEFAULT_ADMIN_EMAIL:-admin@localhost}
       - DEFAULT_ADMIN_NAME=${DEFAULT_ADMIN_NAME:-Administrator}
-      # Optional: load demo data on startup (e.g., "medium" or "small" or "large")
-      - LOAD_DEMO_DATA=${LOAD_DEMO_DATA:-}
-      - LOAD_DEMO_DATA_SCALE=${LOAD_DEMO_DATA_SCALE:-medium}
     networks:
       - aria-network
     depends_on:

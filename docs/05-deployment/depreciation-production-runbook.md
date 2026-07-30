@@ -7,8 +7,9 @@ backend above one replica until API, scheduler, and worker roles are separated.
 ## Required configuration
 
 Production Compose refuses to render without `POSTGRES_PASSWORD`,
-`REDIS_PASSWORD`, `APP_TIME_ZONE`, `JWT_SECRET`, `BETTER_AUTH_SECRET`, and
-`DEFAULT_ADMIN_PASSWORD`. `APP_TIME_ZONE` must be a valid IANA timezone.
+`REDIS_PASSWORD`, `APP_TIME_ZONE`, and `BETTER_AUTH_SECRET`. `APP_TIME_ZONE`
+must be a valid IANA timezone. The three initial-administrator values are needed
+only when bootstrapping the first account.
 
 `REDIS_URL` may contain managed-service credentials. If it has no password,
 the backend uses `REDIS_PASSWORD`. Startup fails when both contain different
@@ -34,7 +35,7 @@ schedules, or duplicate active schedules are blockers.
 ## Deployment
 
 ```bash
-docker compose -f docker-compose.production.yml up migrate
+docker compose -f docker-compose.production.yml run --rm migrate
 docker compose -f docker-compose.production.yml up -d backend frontend caddy
 curl --fail https://YOUR_DOMAIN/health/ready
 docker compose -f docker-compose.production.yml exec backend \
@@ -58,7 +59,7 @@ deployment retry loop.
    cd apps/backend
    bun x --bun prisma migrate resolve --applied 0_init
    bun x --bun prisma migrate status
-   bun x --bun prisma migrate deploy
+   bun run db:migrate:deploy
    ```
 
 If any step fails, stop and diagnose it. Do not resolve a named failed
@@ -101,4 +102,6 @@ readiness transitions from 503 back to 200 before resuming the queue.
 - [BullMQ connections](https://docs.bullmq.io/guide/connections)
 - [BullMQ production guidance](https://docs.bullmq.io/guide/going-to-production)
 - [Prisma production migrations](https://www.prisma.io/docs/orm/prisma-migrate/workflows/development-and-production)
+- [Railway pre-deploy commands](https://docs.railway.com/deployments/pre-deploy-command)
+- [Railway private networking](https://docs.railway.com/networking/private-networking)
 - [Docker build best practices](https://docs.docker.com/build/building/best-practices/)

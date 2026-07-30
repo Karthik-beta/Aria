@@ -82,22 +82,35 @@ Features: HTTP/3 support, security headers (X-Content-Type-Options, X-Frame-Opti
 ### Production Deployment
 
 ```bash
-# Copy and complete the production environment template.
 cp -n .env.production.template .env.production
-
-# Validate the rendered configuration, then deploy. The `migrate` service is a
-# one-shot gate; the backend starts only after it completes successfully.
-docker compose --env-file .env.production \
-  -f docker-compose.production.yml config --quiet
-docker compose --env-file .env.production \
-  -f docker-compose.production.yml up -d --build
-
-# Check dependency-aware backend readiness.
+docker compose --env-file .env.production -f docker-compose.production.yml config --quiet
+docker compose --env-file .env.production -f docker-compose.production.yml build backend frontend
+docker compose --env-file .env.production -f docker-compose.production.yml up -d postgres redis
+docker compose --env-file .env.production -f docker-compose.production.yml run --rm migrate
+docker compose --env-file .env.production -f docker-compose.production.yml run --rm backend bun run demo:load:small
+docker compose --env-file .env.production -f docker-compose.production.yml up -d backend frontend caddy
 curl --fail https://YOUR_DOMAIN/health/ready
 bash deployment/tests/health-check.sh
-
-# View logs
 docker compose -f docker-compose.production.yml logs -f backend
+```
+
+The demo command is optional and intended for a fresh demo database. It is an
+explicit one-time operation: the backend entrypoint never migrates or loads
+demo data automatically. The commands above are one line each and work in Bash
+and PowerShell. On Windows, use Linux containers in Docker Desktop and replace
+the first `cp` command with:
+
+```powershell
+Copy-Item .env.production.template .env.production
+```
+
+To reload Pivotr data later, stop the backend first because the loader cleans
+and rebuilds that dataset:
+
+```bash
+docker compose --env-file .env.production -f docker-compose.production.yml stop backend
+docker compose --env-file .env.production -f docker-compose.production.yml run --rm backend bun run demo:load:small
+docker compose --env-file .env.production -f docker-compose.production.yml start backend
 ```
 
 ### Development Deployment
@@ -110,7 +123,7 @@ docker compose -f docker-compose.development.yml up -d postgres redis
 # Apply migrations before starting the application for the first time and after
 # pulling a schema change. Development Compose does not run migrations itself.
 docker compose -f docker-compose.development.yml run --rm backend \
-  bun x --bun prisma migrate dev
+  bun run db:migrate
 
 # Start the application stack and verify dependency-aware readiness.
 docker compose -f docker-compose.development.yml up -d
@@ -120,31 +133,39 @@ curl --fail http://localhost:3001/health/ready
 The development Compose file is intended for local data only. Do not run its
 database reset or demo-data commands against a production database.
 
-## Required Environment Variables
+## Environment Variables
 
 For self-hosted Compose, place production values in `.env.production` and pass
 `--env-file .env.production` as shown above. Railway and other managed platforms
 set the same runtime values in the service configuration instead.
 
-| Variable | Description |
-|----------|-------------|
-| `DATABASE_URL` | PostgreSQL connection URL for the backend on managed platforms. Self-hosted production Compose derives this from `POSTGRES_PASSWORD`. |
-| `POSTGRES_PASSWORD` | PostgreSQL password |
-| `REDIS_PASSWORD` | Redis password; required by self-hosted production Compose. Do not set a second password when a managed `REDIS_URL` already embeds one. |
-| `REDIS_URL` | BullMQ URL; defaults to `redis://redis:6379`. Managed URLs may embed credentials |
-| `APP_TIME_ZONE` | IANA timezone used for depreciation business dates and midnight discovery |
-| `ASSET_DEPRECIATION_QUEUE_CONCURRENCY` | Concurrent depreciation workers (default `5`) |
-| `ASSET_DEPRECIATION_BARRIER_TIMEOUT_MS` | Report synchronization timeout in milliseconds (default `120000`) |
-| `ASSET_DEPRECIATION_QUEUE_OPERATION_TIMEOUT_MS` | Producer connection and operation timeout (default `5000`) |
-| `ASSET_DEPRECIATION_RECONCILIATION_INTERVAL_MS` | Missed-work discovery interval (default `900000`) |
-| `JWT_SECRET` | API authentication secret |
-| `BETTER_AUTH_SECRET` | Auth session signing secret |
-| `DOMAIN` | Domain name or IP for Caddy |
-| `DEFAULT_ADMIN_USERNAME` | Initial admin username |
-| `DEFAULT_ADMIN_PASSWORD` | Initial admin password |
-| `DEFAULT_ADMIN_EMAIL` | Initial admin email |
-| `LOAD_DEMO_DATA` | Set to any value to load demo data on backend startup (optional) |
-| `LOAD_DEMO_DATA_SCALE` | Demo data scale: `small`, `medium`, or `large` (default: `medium`) |
+### Required runtime values
+
+| Target | Variables |
+|--------|-----------|
+| Self-hosted Compose | `POSTGRES_PASSWORD`, `REDIS_PASSWORD`, `APP_TIME_ZONE`, `BETTER_AUTH_SECRET`, `FRONTEND_URL`, `BETTER_AUTH_URL`, `DOMAIN` |
+| Railway backend | `DATABASE_URL`, `REDIS_URL`, `APP_TIME_ZONE`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `FRONTEND_URL` |
+| Railway frontend build | `NEXT_PUBLIC_API_URL` |
+
+`BETTER_AUTH_URL` is the public backend URL. `FRONTEND_URL` is the public
+frontend origin used for trusted origins and CORS. `JWT_SECRET` is not used by
+the current Better Auth implementation. Managed Railway Redis already provides
+credentials through `REDIS_URL`, so do not add `REDIS_PASSWORD` there.
+
+### Initial administrator
+
+Set `DEFAULT_ADMIN_USERNAME`, `DEFAULT_ADMIN_PASSWORD`, and
+`DEFAULT_ADMIN_EMAIL` together only when bootstrapping the first administrator.
+They are not required after that account exists. `DEFAULT_ADMIN_NAME` is
+optional and defaults to `Administrator`.
+
+### Optional worker tuning
+
+`ASSET_DEPRECIATION_QUEUE_CONCURRENCY`,
+`ASSET_DEPRECIATION_BARRIER_TIMEOUT_MS`,
+`ASSET_DEPRECIATION_QUEUE_OPERATION_TIMEOUT_MS`, and
+`ASSET_DEPRECIATION_RECONCILIATION_INTERVAL_MS` retain the defaults documented
+in `.env.production.template`.
 
 ## Railway Cloud Deployment
 
@@ -153,13 +174,29 @@ PostgreSQL and Redis. The backend container contains the API, Nest scheduler,
 and BullMQ worker; do not use a Railway Cron Job for depreciation and do not
 scale this backend above one replica until those roles are separated.
 
-Deploy from the repository using the Dockerfiles. In the backend service, set
-`RAILWAY_DOCKERFILE_PATH=apps/backend/Dockerfile` and keep the Dockerfile start
-command unchanged. Configure this pre-deploy command:
+All four services must be in the same Railway project and environment so the
+PostgreSQL and Redis private service references resolve. Connect both app
+services to the GitHub repository's `master` branch, leave Root Directory empty,
+and set each service's Config File path:
 
-```bash
-cd apps/backend && bun x --bun prisma migrate deploy
+- Backend: `/apps/backend/railway.json`
+- Frontend: `/apps/frontend/railway.json`
+
+Those checked-in files select the Dockerfile builder and absolute Dockerfile
+paths. Do not set `RAILWAY_DOCKERFILE_PATH`, a custom build command, or a custom
+start command in Railway. Before investigating runtime behavior, confirm the
+deployment SHA contains the current Dockerfile and the deployment details show
+the config values came from the expected `railway.json` file.
+
+The backend config runs this pre-deploy command from the built image:
+
+```text
+bun --cwd=/app/apps/backend run db:migrate:deploy
 ```
+
+It validates `DATABASE_URL`, logs only the target host, port, and database,
+waits a bounded time for PostgreSQL, then executes Prisma migration deployment
+once. Migration-history or SQL failures are returned immediately.
 
 Railway has no Compose `depends_on`; the backend readiness endpoint is the
 operational gate for PostgreSQL, Redis, the BullMQ worker, and queue events.
@@ -174,28 +211,34 @@ PostgreSQL and Redis services. Use Railway service-reference values for
 
 | Variable | Value |
 |----------|-------|
-| `NODE_ENV` | `production` |
-| `HOSTNAME` | `0.0.0.0` |
-| `PORT` | `3000` |
+| `NEXT_PUBLIC_API_URL` | `https://${{<exact-backend-service-name>.RAILWAY_PUBLIC_DOMAIN}}` |
 
 #### Backend Service
 
 | Variable | Value |
 |----------|-------|
-| `NODE_ENV` | `production` |
-| `PORT` | `3001` |
-| `DATABASE_URL` | Reference to the Railway PostgreSQL service |
-| `REDIS_URL` | Reference to the Railway Redis service; preserve embedded credentials if supplied |
-| `APP_TIME_ZONE` | Required IANA timezone, for example `Asia/Kolkata` |
-| `ASSET_DEPRECIATION_QUEUE_CONCURRENCY` | Optional worker concurrency; defaults to `5` |
-| `ASSET_DEPRECIATION_BARRIER_TIMEOUT_MS` | Optional reporting timeout; defaults to `120000` |
-| `JWT_SECRET` | Generate a secure random string |
-| `BETTER_AUTH_SECRET` | Generate a secure random string |
-| `BETTER_AUTH_URL` | Your Railway frontend URL |
-| `FRONTEND_URL` | Your Railway frontend URL (drives CORS automatically) |
+| `DATABASE_URL` | `${{<exact-postgres-service-name>.DATABASE_URL}}` |
+| `REDIS_URL` | `${{<exact-redis-service-name>.REDIS_URL}}` |
+| `APP_TIME_ZONE` | `Asia/Kolkata` |
+| `BETTER_AUTH_SECRET` | A sealed random secret |
+| `BETTER_AUTH_URL` | `https://${{RAILWAY_PUBLIC_DOMAIN}}` |
+| `FRONTEND_URL` | `https://${{<exact-frontend-service-name>.RAILWAY_PUBLIC_DOMAIN}}` |
 
-After deployment, require `GET /health/ready` to return `200` before routing
-traffic or resuming the depreciation queue. A liveness-only check is not enough.
+Replace every angle-bracket placeholder with the exact Railway service name.
+Add the three initial-administrator variables only for first-account bootstrap.
+Keep the backend at one replica.
+
+After migration and deployment, require `GET /health/ready` to return `200`.
+Then load the small Pivotr dataset exactly once on the fresh database using the
+current Railway CLI:
+
+```bash
+railway ssh --service <exact-backend-service-name> -- bun --cwd=/app/apps/backend run demo:load:small
+```
+
+Run `bun --cwd=/app/apps/backend prisma/demo-data/cli.ts status` through the
+same SSH command to inspect the result. Never add a demo-loading startup flag.
+If reloading an existing demo is intentional, stop the backend first.
 
 ### Same-Origin vs Separate Backend
 
@@ -255,6 +298,12 @@ PostgreSQL is configured with production-tuned settings:
 The one-shot `migrate` service runs only `prisma migrate deploy`. The backend
 starts only when that service exits successfully. No container automatically
 marks a failed migration as applied.
+
+The package-owned command used by Compose, Railway, and CI is:
+
+```bash
+bun --cwd=apps/backend run db:migrate:deploy
+```
 
 ## Depreciation Recovery
 
@@ -318,6 +367,12 @@ The monitoring stack provides observability:
 ### Container Issues
 
 - **Container won't start**: `docker compose -f docker-compose.production.yml logs <service>`
+- **Railway has no Deploy or Network logs**: the pre-deploy command has not
+  succeeded, so Railway has not started the deploy or health-check phases. Read
+  the pre-deploy log for the sanitized target and PostgreSQL readiness result.
+- **Railway selects Railpack**: confirm the service Config File path is the
+  absolute `/apps/backend/railway.json` or `/apps/frontend/railway.json`, then
+  verify the deployment details show the checked-in Dockerfile builder config.
 - **Container keeps restarting**: Check health check and dependencies
 
 ### Network Issues
@@ -329,3 +384,11 @@ The monitoring stack provides observability:
 
 - **Connection failed**: Verify `DATABASE_URL` and PostgreSQL container health
 - **Migration failed**: Check backend logs and see the [Prisma guide](../03-backend/02-prisma/README.md)
+
+## Official Platform Guidance
+
+- [Railway Config as Code](https://docs.railway.com/config-as-code)
+- [Railway pre-deploy commands](https://docs.railway.com/deployments/pre-deploy-command)
+- [Railway private networking](https://docs.railway.com/networking/private-networking)
+- [Railway SSH](https://docs.railway.com/cli/ssh)
+- [Prisma `migrate deploy`](https://docs.prisma.io/docs/cli/migrate/deploy)

@@ -164,7 +164,7 @@ function Set-Environment {
             Copy-Item -Path $envTemplatePath -Destination $envPath
             Write-WarnLog "Environment file created from template"
             Write-WarnLog "IMPORTANT: Edit $envPath and set all required values"
-            Write-WarnLog "Especially: POSTGRES_PASSWORD, JWT_SECRET, DOMAIN"
+            Write-WarnLog "Especially: POSTGRES_PASSWORD, REDIS_PASSWORD, BETTER_AUTH_SECRET, DOMAIN"
         }
         else {
             Write-ErrorLog "Environment template not found"

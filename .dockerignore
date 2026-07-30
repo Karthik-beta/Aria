@@ -72,3 +72,13 @@ LICENSE
 # IDE
 .vscode
 .idea
+
+# Vendored/reference repositories and local agent metadata
+repos
+.erpnext
+.agents
+.claude
+.codex
+.conductor
+.opencode
+.github

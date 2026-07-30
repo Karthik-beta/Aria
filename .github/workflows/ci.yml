@@ -81,7 +81,7 @@ jobs:
 
       - name: Apply database migrations
         working-directory: apps/backend
-        run: bun x --bun prisma migrate deploy
+        run: bun run db:migrate:deploy
 
       - name: Lint
         run: bun run lint
@@ -117,7 +117,6 @@ jobs:
       POSTGRES_PASSWORD: docker_test_postgres
       REDIS_PASSWORD: docker_test_redis
       APP_TIME_ZONE: UTC
-      JWT_SECRET: docker_test_jwt_secret
       BETTER_AUTH_SECRET: docker_test_better_auth_secret
       DEFAULT_ADMIN_PASSWORD: docker_test_admin_password
       DOMAIN: localhost
@@ -127,6 +126,9 @@ jobs:
 
       - name: Build production images from a clean cache
         run: docker compose -f docker-compose.production.yml build --no-cache backend frontend
+
+      - name: Verify backend command forwarding
+        run: docker compose -f docker-compose.production.yml run --rm --no-deps backend bun --version
 
       - name: Start migration-gated application
         run: docker compose -f docker-compose.production.yml up -d postgres redis migrate backend frontend

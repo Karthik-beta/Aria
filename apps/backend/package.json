@@ -36,11 +36,13 @@
 		"test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
 		"test:e2e": "node ./node_modules/jest/bin/jest.js --config ./test/jest-e2e.json --runInBand",
 		"db:migrate": "bun x --bun prisma migrate dev",
+		"db:migrate:deploy": "bun ./scripts/deploy-migrations.ts",
 		"db:push": "bun x --bun prisma db push",
 		"db:studio": "bun x --bun prisma studio",
 		"db:generate": "bun run prisma:generate",
 		"db:seed": "bun x --bun prisma db seed",
 		"db:reset": "bun x --bun prisma migrate reset --force",
+		"demo:load:small": "bun prisma/demo-data/cli.ts load --scale=small",
 		"clean": "rimraf dist .test-dist .turbo tsconfig.tsbuildinfo tsconfig.build.tsbuildinfo"
 	},
 	"jest": {
