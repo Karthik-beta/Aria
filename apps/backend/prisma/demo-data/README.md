@@ -26,6 +26,9 @@ flow through [`seed-master.ts`](./seed-master.ts),
 Run these commands from `apps/backend`:
 
 ```bash
+# Standard one-time small demo load used for deployments
+bun run demo:load:small
+
 # Load demo data and post every depreciation period due today
 REDIS_URL=redis://localhost:6379 APP_TIME_ZONE=Asia/Kolkata \
   bun prisma/demo-data/cli.ts load --scale=medium
@@ -58,6 +61,19 @@ Stop the backend before replacing the demo dataset so its scheduler cannot
 discover records while cleanup and loading are in progress. A failed load exits
 non-zero. Correct the dependency or posting error and rerun `load`; the loader
 cleans the incomplete Pivotr dataset before rebuilding it.
+
+Container startup never loads demo data. For Compose, run the one-time command
+from the backend image after PostgreSQL, Redis, and migrations are ready:
+
+```bash
+docker compose --env-file .env.production -f docker-compose.production.yml run --rm backend bun run demo:load:small
+```
+
+For Railway, wait for `/health/ready` to return `200`, then run:
+
+```bash
+railway ssh --service <exact-backend-service-name> -- bun --cwd=/app/apps/backend run demo:load:small
+```
 
 ## Configuration
 

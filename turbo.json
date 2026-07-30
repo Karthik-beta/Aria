@@ -114,6 +114,12 @@
 			"persistent": true,
 			"cache": false
 		},
+		"db:migrate:deploy": {
+			"cache": false
+		},
+		"demo:load:small": {
+			"cache": false
+		},
 		"start": {
 			"dependsOn": ["^build"],
 			"persistent": true,

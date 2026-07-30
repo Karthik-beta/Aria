@@ -165,6 +165,7 @@ COPY --from=builder --chown=nestjs:nodejs /app/apps/backend/src/generated/prisma
 # Compiled service files required by demo-data scripts (stock-snapshot.js, etc.)
 COPY --from=builder --chown=nestjs:nodejs /app/apps/backend/dist/apps/inventory/services /app/apps/backend/src/apps/inventory/services
 COPY --from=builder --chown=nestjs:nodejs /app/apps/backend/dist/apps/asset /app/apps/backend/src/apps/asset
+COPY --from=builder --chown=nestjs:nodejs /app/apps/backend/dist/deployment /app/apps/backend/src/deployment
 COPY --from=builder --chown=nestjs:nodejs /app/apps/backend/dist/shared /app/apps/backend/src/shared
 
 # Remove source .ts files that would take precedence over compiled .js files
@@ -188,3 +189,4 @@ HEALTHCHECK --interval=15s --timeout=10s --start-period=120s --retries=10 \
 EXPOSE 3001
 
 ENTRYPOINT ["/app/docker-entrypoint.sh"]
+CMD ["bun", "dist/main.js"]

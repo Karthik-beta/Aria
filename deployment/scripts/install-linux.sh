@@ -123,7 +123,7 @@ configure_environment() {
             cp "$INSTALL_DIR/.env.production.template" "$INSTALL_DIR/.env"
             log_warn "Environment file created from template"
             log_warn "IMPORTANT: Edit $INSTALL_DIR/.env and set all required values"
-            log_warn "Especially: POSTGRES_PASSWORD, JWT_SECRET, DOMAIN"
+            log_warn "Especially: POSTGRES_PASSWORD, REDIS_PASSWORD, BETTER_AUTH_SECRET, DOMAIN"
         else
             log_error "Environment template not found"
             exit 1

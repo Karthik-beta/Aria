@@ -5,10 +5,9 @@
 		"dockerfilePath": "/apps/backend/Dockerfile"
 	},
 	"deploy": {
-		"preDeployCommand": [
-			"cd apps/backend && bun x --bun prisma migrate deploy"
-		],
+		"preDeployCommand": ["bun --cwd=/app/apps/backend run db:migrate:deploy"],
 		"healthcheckPath": "/health/ready",
-		"healthcheckTimeout": 600
+		"healthcheckTimeout": 600,
+		"numReplicas": 1
 	}
 }

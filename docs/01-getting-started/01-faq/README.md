@@ -127,7 +127,7 @@ cd apps/backend
 bun x --bun prisma migrate dev --name your_migration_name
 
 # Apply existing migrations (production)
-bun x --bun prisma migrate deploy
+bun run db:migrate:deploy
 ```
 
 ### How do I load demo data?
@@ -138,8 +138,8 @@ cd apps/backend
 # Seed authorization data
 # (Removed — better-auth admin plugin handles role seeding on startup)
 
-# Load inventory demo data
-bun prisma/demo-data/cli.ts load --scale=medium
+# Load the small deployment demo explicitly
+bun run demo:load:small
 ```
 
 ## TypeScript
