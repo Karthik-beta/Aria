@@ -5,6 +5,7 @@
 		"dockerfilePath": "/apps/frontend/Dockerfile"
 	},
 	"deploy": {
-		"healthcheckPath": "/"
+		"healthcheckPath": "/ready/",
+		"healthcheckTimeout": 300
 	}
 }

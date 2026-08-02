@@ -1,0 +1,39 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+name: Production Smoke
+
+on:
+  deployment_status:
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: production-smoke
+  cancel-in-progress: false
+
+jobs:
+  verify-demo:
+    name: Verify demo deployment
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.deployment_status.state == 'success' &&
+      github.event.deployment.environment == 'aria-erp-demo / production')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Verify public readiness endpoints
+        env:
+          BACKEND_HEALTH_URL: https://backend.aria.pivotr.in/health/ready
+          FRONTEND_HEALTH_URL: https://aria.pivotr.in/ready/
+        run: |
+          backend_status="$(curl --silent --show-error --retry 12 --retry-all-errors \
+            --retry-delay 5 --output /tmp/backend-health.json --write-out '%{http_code}' \
+            "$BACKEND_HEALTH_URL")"
+          frontend_status="$(curl --silent --show-error --retry 12 --retry-all-errors \
+            --retry-delay 5 --output /tmp/frontend-health.json --write-out '%{http_code}' \
+            "$FRONTEND_HEALTH_URL")"
+
+          test "$backend_status" = "200"
+          test "$frontend_status" = "200"
+          jq -e '.status == "ok"' /tmp/backend-health.json
+          jq -e '.status == "ok" and .service == "frontend"' /tmp/frontend-health.json

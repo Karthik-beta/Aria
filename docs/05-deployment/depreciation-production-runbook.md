@@ -24,9 +24,9 @@ passwords.
 
    ```bash
    docker compose -f docker-compose.production.yml run --rm backend \
-     bun run depreciation:preflight
+     bun --cwd=/app/apps/backend run depreciation:preflight
    docker compose -f docker-compose.production.yml run --rm backend \
-     bun run depreciation:queue -- pause
+     bun --cwd=/app/apps/backend run depreciation:queue -- pause
    ```
 
 Archive the preflight JSON. Missing company/category accounts, invalid active
@@ -39,7 +39,7 @@ docker compose -f docker-compose.production.yml run --rm migrate
 docker compose -f docker-compose.production.yml up -d backend frontend caddy
 curl --fail https://YOUR_DOMAIN/health/ready
 docker compose -f docker-compose.production.yml exec backend \
-  bun run depreciation:queue -- resume
+  bun --cwd=/app/apps/backend run depreciation:queue -- resume
 ```
 
 Observe readiness, discovery failures, terminal failures, and oldest-unposted

@@ -137,9 +137,9 @@ COPY --from=builder --chown=nextjs:nodejs /app/apps/frontend/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/apps/frontend/.next/static ./apps/frontend/.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/apps/frontend/public ./apps/frontend/public
 
-# Health check - accept 2xx and 3xx status codes (redirects are OK) 🩺
+# Health check - require the dedicated readiness route to return exactly 200
 HEALTHCHECK --interval=60s --timeout=10s --start-period=40s --retries=3 \
-    CMD node -e "require('http').get('http://localhost:3000/', (r) => process.exit((r.statusCode >= 200 && r.statusCode < 400) ? 0 : 1))"
+    CMD node -e "const request=require('http').get('http://localhost:3000/ready/',(response)=>process.exit(response.statusCode===200?0:1));request.on('error',()=>process.exit(1))"
 
 # Switch to non-root user
 USER nextjs
