@@ -1,28 +1,7 @@
 # yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
-name: Deployment Testing
+name: Manual Deployment Diagnostics
 
 on:
-  push:
-    branches:
-      - main
-      - master
-      - refactor/deployment-rewrite
-    paths:
-      - 'apps/**'
-      - 'packages/**'
-      - 'deployment/**'
-      - 'docker-compose*.yml'
-      - '.github/workflows/deployment-test.yml'
-  pull_request:
-    branches:
-      - main
-      - master
-      - refactor/deployment-rewrite
-    paths:
-      - 'apps/**'
-      - 'packages/**'
-      - 'deployment/**'
-      - 'docker-compose*.yml'
   workflow_dispatch:
 
 env:

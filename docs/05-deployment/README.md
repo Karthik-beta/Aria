@@ -70,6 +70,7 @@ Caddy routes requests based on URL path:
 | `/health/live` | backend:3001 | Process-only liveness |
 | `/health/ready` | backend:3001 | PostgreSQL, Redis, worker, and queue-events readiness |
 | `/health` | backend:3001 | Compatibility alias for readiness |
+| `/ready/` | frontend:3000 | Exact-200 frontend process readiness |
 | `/api/*` | backend:3001 | better-auth and API endpoints |
 | `/trpc/*` | backend:3001 | tRPC HTTP requests |
 | `/trpc-ws` | backend:3001 | tRPC WebSocket (real-time) |
@@ -200,6 +201,38 @@ once. Migration-history or SQL failures are returned immediately.
 
 Railway has no Compose `depends_on`; the backend readiness endpoint is the
 operational gate for PostgreSQL, Redis, the BullMQ worker, and queue events.
+
+### GitHub-to-Railway CI/CD Gate
+
+The `CI` GitHub Actions workflow is the production gate. Pull requests run
+linting, unit and integration tests, migration compatibility, type checking,
+browser tests, and the production build. A push to `master` repeats those
+checks, then performs an isolated production Compose smoke test that verifies
+migrations, the queue, frontend and backend readiness, Redis recovery, and
+backend restart idempotency. The older cross-platform deployment diagnostics
+workflow is manual-only so it cannot create a second production gate.
+
+In both the Railway Backend and Frontend services, enable **Wait for CI** on the
+GitHub deployment trigger. A failed or unavailable check suite must skip the new
+deployment and leave the current healthy release active. Keep both services on
+the same `master` branch and repository so they evaluate the same commit.
+
+The checked-in health gates are:
+
+- Backend: `GET /health/ready` must return exactly `200`.
+- Frontend: `GET /ready/` must return exactly `200` without authentication or
+  redirects.
+
+After Railway reports a successful deployment, the `Production Smoke` workflow
+checks both public endpoints. It can also be run manually from GitHub Actions.
+This smoke test observes production but does not change application or database
+state.
+
+Do not put `demo:load:*` in GitHub Actions, a Railway start command, a
+pre-deploy command, or a cron job. Demo loading cleans and rebuilds the Pivotr
+dataset and must remain an explicit maintenance operation. Before any
+intentional demo reload or potentially destructive migration, create and verify
+a PostgreSQL volume backup in Railway.
 
 ### Railway Service Configuration
 
@@ -336,7 +369,7 @@ docker compose -f docker-compose.production.yml logs backend \
 
 # Inspect the queue without changing accounting data
 docker compose -f docker-compose.production.yml exec backend \
-  bun run depreciation:queue -- status
+  bun --cwd=/app/apps/backend run depreciation:queue -- status
 
 # Restart only the backend; startup/reconciliation discovery catches up state
 docker compose -f docker-compose.production.yml restart backend
