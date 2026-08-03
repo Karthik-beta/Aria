@@ -3,6 +3,10 @@
 import { Camera, Loader2, RefreshCw } from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
+import {
+	type BarcodeScanObservation,
+	BarcodeScanStabilityTracker,
+} from "@/components/barcode-scan-stability";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -20,6 +24,40 @@ interface BarcodeScannerDialogProps {
 	isOpen: boolean;
 	onClose: () => void;
 	onScanSuccess: (scannedCode: string) => void;
+}
+
+interface ScannerControls {
+	stop: () => void | Promise<void>;
+}
+
+interface ScannerResult {
+	getText: () => string;
+	getBarcodeFormat: () => number;
+}
+
+function isNamedError(error: unknown, name: string): boolean {
+	return (
+		typeof error === "object" &&
+		error !== null &&
+		"name" in error &&
+		error.name === name
+	);
+}
+
+function getCameraErrorMessage(error: unknown): string {
+	if (isNamedError(error, "NotAllowedError")) {
+		return "Camera permission was denied. Allow camera access in your browser settings and try again.";
+	}
+	if (isNamedError(error, "NotFoundError")) {
+		return "No camera is available on this device.";
+	}
+	if (isNamedError(error, "NotReadableError")) {
+		return "The camera is unavailable or already in use by another application.";
+	}
+	if (isNamedError(error, "OverconstrainedError")) {
+		return "The selected camera does not support the requested settings.";
+	}
+	return "Unable to start the camera. Check the device and browser permissions, then try again.";
 }
 
 /**
@@ -43,25 +81,48 @@ export function BarcodeScannerDialog({
 		null,
 	);
 	const [manualCode, setManualCode] = React.useState("");
-	const controlsRef = React.useRef<{ stop: () => void } | null>(null);
+	const [scanProgress, setScanProgress] =
+		React.useState<BarcodeScanObservation | null>(null);
+	const [cameraError, setCameraError] = React.useState<string | null>(null);
+	const controlsRef = React.useRef<ScannerControls | null>(null);
+	const activeStreamRef = React.useRef<MediaStream | null>(null);
+	const scanTrackerRef = React.useRef(new BarcodeScanStabilityTracker());
+	const acceptedRef = React.useRef(false);
+	const onCloseRef = React.useRef(onClose);
+	const onScanSuccessRef = React.useRef(onScanSuccess);
+
+	React.useEffect(() => {
+		onCloseRef.current = onClose;
+	}, [onClose]);
+
+	React.useEffect(() => {
+		onScanSuccessRef.current = onScanSuccess;
+	}, [onScanSuccess]);
 
 	// Stop any active scanning stream
 	const stopScanning = React.useCallback(() => {
-		if (controlsRef.current) {
+		const controls = controlsRef.current;
+		controlsRef.current = null;
+		if (controls) {
 			try {
-				controlsRef.current.stop();
+				void Promise.resolve(controls.stop()).catch((error: unknown) => {
+					// biome-ignore lint/suspicious/noConsole: error logging
+					console.error("Error stopping scanner controls:", error);
+				});
 			} catch (e) {
 				// biome-ignore lint/suspicious/noConsole: error logging
 				console.error("Error stopping scanner controls:", e);
 			}
-			controlsRef.current = null;
 		}
 
-		// Backup: explicitly stop any stream on the video element
+		// Backup: stop the retained stream even after React detaches the video ref.
 		const currentVideo = videoRef.current;
-		if (currentVideo?.srcObject) {
+		const stream =
+			activeStreamRef.current ??
+			(currentVideo?.srcObject as MediaStream | null | undefined);
+		activeStreamRef.current = null;
+		if (stream) {
 			try {
-				const stream = currentVideo.srcObject as MediaStream;
 				const tracks = stream.getTracks();
 				for (const track of tracks) {
 					track.stop();
@@ -70,6 +131,8 @@ export function BarcodeScannerDialog({
 				// biome-ignore lint/suspicious/noConsole: error logging
 				console.error("Error stopping video ref tracks:", e);
 			}
+		}
+		if (currentVideo) {
 			currentVideo.srcObject = null;
 		}
 	}, []);
@@ -79,17 +142,20 @@ export function BarcodeScannerDialog({
 		stopScanning();
 		setIsLoading(true);
 		setManualCode("");
-		onClose();
-	}, [onClose, stopScanning]);
+		setScanProgress(null);
+		setCameraError(null);
+		onCloseRef.current();
+	}, [stopScanning]);
 
 	// Handle manually entered code submission
 	const handleManualSubmit = React.useCallback(() => {
 		if (manualCode.trim()) {
+			acceptedRef.current = true;
 			toast.success("Code entered successfully!");
-			onScanSuccess(manualCode.trim());
+			onScanSuccessRef.current(manualCode.trim());
 			handleClose();
 		}
-	}, [manualCode, onScanSuccess, handleClose]);
+	}, [manualCode, handleClose]);
 
 	// Compute mirroring dynamically based on whether active camera is front-facing
 	const isMirrored = React.useMemo(() => {
@@ -109,12 +175,24 @@ export function BarcodeScannerDialog({
 		if (!isOpen || !isBrowser) return;
 
 		let active = true;
+		acceptedRef.current = false;
+		scanTrackerRef.current.reset();
+		setScanProgress(null);
+		setCameraError(null);
+		setHasPermission(null);
+		setIsLoading(true);
 
 		async function initScanner() {
 			try {
 				// Import browser-only libraries dynamically inside hook to protect build
 				const { BrowserMultiFormatReader } = await import("@zxing/browser");
-				const { DecodeHintType } = await import("@zxing/library");
+				const {
+					BarcodeFormat,
+					ChecksumException,
+					DecodeHintType,
+					FormatException,
+					NotFoundException,
+				} = await import("@zxing/library");
 
 				// Configure decoding hints (TRY_HARDER increases accuracy for difficult barcodes)
 				const hints = new Map();
@@ -129,55 +207,107 @@ export function BarcodeScannerDialog({
 
 				if (!videoRef.current || !active) return;
 
-				// Setup constraints (prefer rear camera unless a specific device is selected)
-				const constraints: MediaStreamConstraints = selectedDeviceId
-					? { video: { deviceId: { exact: selectedDeviceId } } }
-					: { video: { facingMode: "environment" } };
+				// Prefer a high-resolution rear camera without making resolution mandatory.
+				const preferredVideoConstraints: MediaTrackConstraints = {
+					width: { ideal: 1920 },
+					height: { ideal: 1080 },
+					...(selectedDeviceId
+						? { deviceId: { exact: selectedDeviceId } }
+						: { facingMode: { ideal: "environment" } }),
+				};
+				const constraints: MediaStreamConstraints = {
+					video: preferredVideoConstraints,
+				};
 
-				let controls: { stop(): void };
+				const handleDecode = (
+					result: ScannerResult | undefined,
+					error: unknown,
+					controls: ScannerControls,
+				) => {
+					if (!active || acceptedRef.current) return;
+
+					if (result) {
+						const code = result.getText();
+						if (!code) return;
+
+						const rawFormat = result.getBarcodeFormat();
+						const format = BarcodeFormat[rawFormat] ?? String(rawFormat);
+						const observation = scanTrackerRef.current.record({
+							text: code,
+							format,
+						});
+						setScanProgress(observation);
+
+						if (!observation.accepted) return;
+
+						acceptedRef.current = true;
+						if (controlsRef.current === controls) {
+							controlsRef.current = null;
+						}
+						try {
+							void Promise.resolve(controls.stop()).catch(
+								(stopError: unknown) => {
+									// biome-ignore lint/suspicious/noConsole: error logging
+									console.error("Error stopping scanner controls:", stopError);
+								},
+							);
+						} catch (stopError) {
+							// biome-ignore lint/suspicious/noConsole: error logging
+							console.error("Error stopping scanner controls:", stopError);
+						}
+						toast.success("Code scanned successfully!");
+						onScanSuccessRef.current(code);
+						handleClose();
+						return;
+					}
+
+					const isExpectedDecodeMiss =
+						error instanceof NotFoundException ||
+						error instanceof ChecksumException ||
+						error instanceof FormatException;
+					if (error && !isExpectedDecodeMiss) {
+						const message = "Barcode scanning stopped unexpectedly. Try again.";
+						acceptedRef.current = true;
+						setHasPermission(false);
+						setIsLoading(false);
+						setCameraError(message);
+						toast.error(message);
+						try {
+							void controls.stop();
+						} catch {
+							// The stream cleanup below remains the final fallback.
+						}
+					}
+				};
+
+				let controls: ScannerControls;
 				try {
 					controls = await codeReader.decodeFromConstraints(
 						constraints,
 						videoRef.current,
-						(result, _error) => {
-							if (result && active) {
-								const code = result.getText();
-								if (code) {
-									toast.success("Code scanned successfully!");
-									onScanSuccess(code);
-									handleClose();
-								}
-							}
-						},
+						handleDecode,
 					);
 				} catch (constraintsErr) {
-					// Fallback to default camera constraints if environment facingMode is not supported
+					// Retry only when the requested camera settings cannot be satisfied.
 					if (!active) return;
-					if (!selectedDeviceId) {
+					if (isNamedError(constraintsErr, "OverconstrainedError")) {
 						controls = await codeReader.decodeFromConstraints(
 							{ video: true },
 							videoRef.current,
-							(result, _error) => {
-								if (result && active) {
-									const code = result.getText();
-									if (code) {
-										toast.success("Code scanned successfully!");
-										onScanSuccess(code);
-										handleClose();
-									}
-								}
-							},
+							handleDecode,
 						);
 					} else {
 						throw constraintsErr;
 					}
 				}
 
-				if (!active) {
-					controls.stop();
+				if (!active || acceptedRef.current) {
+					void controls.stop();
 					return;
 				}
 
+				activeStreamRef.current = videoRef.current
+					.srcObject as MediaStream | null;
 				controlsRef.current = controls;
 				setHasPermission(true);
 
@@ -214,9 +344,11 @@ export function BarcodeScannerDialog({
 				// biome-ignore lint/suspicious/noConsole: error logging
 				console.error("Scanner init error:", err);
 				if (active) {
+					const message = getCameraErrorMessage(err);
 					setHasPermission(false);
 					setIsLoading(false);
-					toast.error("Failed to access camera. Please check permissions.");
+					setCameraError(message);
+					toast.error(message);
 				}
 			}
 		}
@@ -227,11 +359,15 @@ export function BarcodeScannerDialog({
 			active = false;
 			stopScanning();
 		};
-	}, [isOpen, selectedDeviceId, onScanSuccess, handleClose, stopScanning]);
+	}, [isOpen, selectedDeviceId, handleClose, stopScanning]);
 
 	// Switch camera device
 	const handleDeviceChange = (deviceId: string) => {
 		stopScanning();
+		acceptedRef.current = false;
+		scanTrackerRef.current.reset();
+		setScanProgress(null);
+		setCameraError(null);
 		setIsLoading(true);
 		setSelectedDeviceId(deviceId);
 	};
@@ -245,7 +381,8 @@ export function BarcodeScannerDialog({
 						Scan Barcode / QR Code
 					</DialogTitle>
 					<DialogDescription>
-						Align the code within the targeting overlay to scan automatically
+						Keep one code centered and hold the camera steady to scan
+						automatically
 					</DialogDescription>
 				</DialogHeader>
 
@@ -272,11 +409,11 @@ export function BarcodeScannerDialog({
 					{hasPermission === false && (
 						<div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center gap-3 bg-zinc-950 text-zinc-400 z-10">
 							<p className="text-sm font-medium text-destructive">
-								Camera permission denied or unavailable.
+								Camera unavailable
 							</p>
 							<p className="text-xs text-zinc-500">
-								Please grant camera permissions in your browser settings to use
-								the scanner.
+								{cameraError ??
+									"Check your browser camera settings and try again."}
 							</p>
 						</div>
 					)}
@@ -301,6 +438,15 @@ export function BarcodeScannerDialog({
 
 				{/* Device Selector / Footer */}
 				<div className="mt-4 flex flex-col gap-3">
+					{scanProgress && !scanProgress.accepted && (
+						<output
+							aria-live="polite"
+							className="text-center text-sm font-medium text-emerald-600 dark:text-emerald-400"
+						>
+							Reading code… {scanProgress.count}/{scanProgress.required}
+						</output>
+					)}
+
 					{videoDevices.length > 1 && (
 						<div className="flex items-center justify-between gap-3 text-xs">
 							<span className="text-muted-foreground font-medium flex items-center gap-1">

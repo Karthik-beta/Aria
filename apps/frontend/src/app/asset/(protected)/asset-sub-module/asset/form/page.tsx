@@ -1,7 +1,9 @@
 "use client";
 
+import type { AppRouter } from "@aria/api-contract";
 import { Asset } from "@aria/types";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { TRPCClientError } from "@trpc/client";
 import {
 	ArrowLeft,
 	ChevronDown,
@@ -54,6 +56,12 @@ import {
 import { getToastMessage } from "@/lib/errors";
 import { trpc } from "@/lib/trpc";
 import { DEPRECIATION_METHOD_OPTIONS } from "../../asset-category/asset-category.schema";
+
+function isTRPCClientError(
+	error: unknown,
+): error is TRPCClientError<AppRouter> {
+	return error instanceof TRPCClientError;
+}
 
 function getLastDayOfMonth(date: Date): Date {
 	const d = new Date(date);
@@ -706,6 +714,46 @@ function AssetFormContent() {
 			createMutation.mutate(parsed.data);
 		}
 	});
+
+	const handleBarcodeScanSuccess = React.useCallback(
+		(code: string) => {
+			const promise = (async () => {
+				try {
+					const existingAsset = await utils.asset.getAssetByBarcode.fetch({
+						barcode: code,
+					});
+					if (existingAsset.id !== assetId) {
+						throw new Error(
+							`Barcode "${code}" is already registered to asset "${existingAsset.assetName}"`,
+						);
+					}
+
+					form.setValue("barcode", code, { shouldDirty: true });
+					return { isAvailable: false };
+				} catch (error) {
+					if (isTRPCClientError(error) && error.data?.code === "NOT_FOUND") {
+						form.setValue("barcode", code, { shouldDirty: true });
+						return { isAvailable: true };
+					}
+
+					throw error;
+				}
+			})();
+
+			toast.promise(promise, {
+				loading: "Verifying barcode uniqueness...",
+				success: ({ isAvailable }) =>
+					isAvailable
+						? "Barcode is unique and available."
+						: "Barcode verified for this asset.",
+				error: (error: unknown) =>
+					error instanceof Error
+						? error.message
+						: "Unable to verify barcode availability.",
+			});
+		},
+		[assetId, form, utils],
+	);
 
 	const selectedLocation = locations.find(
 		(l) => l.id === form.watch("locationId"),
@@ -1622,35 +1670,7 @@ function AssetFormContent() {
 			<BarcodeScannerDialog
 				isOpen={scannerOpen}
 				onClose={() => setScannerOpen(false)}
-				onScanSuccess={(code) => {
-					const promise = utils.asset.getAssetByBarcode
-						.fetch({ barcode: code })
-						.then((existingAsset) => {
-							if (existingAsset && existingAsset.id !== assetId) {
-								throw new Error(
-									`Barcode "${code}" is already registered to asset "${existingAsset.assetName}"`,
-								);
-							}
-							form.setValue("barcode", code, { shouldDirty: true });
-							return existingAsset;
-						});
-
-					toast.promise(promise, {
-						loading: "Verifying barcode uniqueness...",
-						success: () => "Barcode is unique and available.",
-						error: (err: unknown) => {
-							if (
-								err instanceof Error &&
-								err.message.includes("is already registered")
-							) {
-								return err.message;
-							}
-							// NOT_FOUND error from backend means the barcode is not in use (available!)
-							form.setValue("barcode", code, { shouldDirty: true });
-							return "Barcode is unique and available.";
-						},
-					});
-				}}
+				onScanSuccess={handleBarcodeScanSuccess}
 			/>
 		</div>
 	);
