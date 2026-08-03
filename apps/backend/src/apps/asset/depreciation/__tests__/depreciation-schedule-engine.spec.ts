@@ -153,6 +153,31 @@ describe("buildDepreciationSchedule", () => {
 		]);
 	});
 
+	it("derives ERPNext's 100 percent WDV rate for zero salvage", () => {
+		const result = buildDepreciationSchedule({
+			financeBookId: "zero-salvage-book",
+			method: "WRITTEN_DOWN_VALUE",
+			grossBookValue: 100_000,
+			availableForUseDate: "2030-01-01",
+			depreciationStartDate: "2030-12-31",
+			totalPeriods: 3,
+			frequencyMonths: 12,
+			salvageValue: 0,
+		});
+
+		expect(result.ratePercent).toBe(100);
+		expect(result.entries).toEqual([
+			{
+				periodNumber: 1,
+				date: "2030-12-31",
+				depreciationAmount: 100_000,
+				accumulatedDepreciation: 100_000,
+				bookValueAfterDepreciation: 0,
+				shift: null,
+			},
+		]);
+	});
+
 	it("ports ERPNext's daily pro-rata WDV fixture across fiscal years", () => {
 		const result = buildDepreciationSchedule({
 			financeBookId: "wdv-daily-book",

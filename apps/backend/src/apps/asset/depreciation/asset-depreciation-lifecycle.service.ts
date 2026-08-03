@@ -140,14 +140,20 @@ export class AssetDepreciationLifecycleService {
 					include: {
 						schedules: {
 							where: { status: { in: ["DRAFT", "ACTIVE"] } },
-							select: { id: true },
+							select: {
+								id: true,
+								revisionNumber: true,
+								_count: { select: { entries: true } },
+							},
 							take: 1,
 						},
 					},
 				});
-				if (existing?.schedules.length) continue;
+				const existingSchedule = existing?.schedules[0];
+				if ((existingSchedule?._count.entries ?? 0) > 0) continue;
 
 				const schedule = this.calculateSchedule(asset, configuration);
+				const effectiveRate = schedule.ratePercent;
 				const carryingValue =
 					asset.netPurchaseAmount -
 					(configuration.openingAccumulatedDepreciation ?? 0);
@@ -164,9 +170,9 @@ export class AssetDepreciationLifecycleService {
 							dailyProrataBased: configuration.dailyProrataBased ?? false,
 							shiftBased: configuration.shiftBased ?? false,
 							rateOfDepreciation:
-								configuration.rateOfDepreciation == null
+								effectiveRate == null
 									? null
-									: new Prisma.Decimal(configuration.rateOfDepreciation),
+									: new Prisma.Decimal(effectiveRate),
 							expectedValueAfterUsefulLife: new Prisma.Decimal(
 								configuration.expectedValueAfterUsefulLife ?? 0,
 							),
@@ -186,11 +192,23 @@ export class AssetDepreciationLifecycleService {
 						},
 					}));
 
-				await tx.assetDepreciationSchedule.create({
-					data: {
+				if (
+					existing &&
+					effectiveRate != null &&
+					(existing.rateOfDepreciation == null ||
+						Number(existing.rateOfDepreciation) !== effectiveRate)
+				) {
+					await tx.assetFinanceBook.update({
+						where: { id: existing.id },
+						data: { rateOfDepreciation: new Prisma.Decimal(effectiveRate) },
+					});
+				}
+
+				const scheduleData: Prisma.AssetDepreciationScheduleUncheckedCreateInput =
+					{
 						assetId,
 						assetFinanceBookId: book.id,
-						revisionNumber: 1,
+						revisionNumber: existingSchedule?.revisionNumber ?? 1,
 						status: asset.status === "DRAFT" ? "DRAFT" : "ACTIVE",
 						startDate: configuration.depreciationStartDate,
 						depreciationMethod: configuration.depreciationMethod,
@@ -199,7 +217,7 @@ export class AssetDepreciationLifecycleService {
 						frequencyOfDepreciation: configuration.frequencyOfDepreciation,
 						dailyProrataBased: configuration.dailyProrataBased ?? false,
 						shiftBased: configuration.shiftBased ?? false,
-						rateOfDepreciation: configuration.rateOfDepreciation,
+						rateOfDepreciation: effectiveRate,
 						expectedValueAfterUsefulLife:
 							configuration.expectedValueAfterUsefulLife ?? 0,
 						bookedDepreciations:
@@ -218,8 +236,15 @@ export class AssetDepreciationLifecycleService {
 								bookValueAfterDepreciation: entry.bookValueAfterDepreciation,
 							})),
 						},
-					},
-				});
+					};
+				if (existingSchedule) {
+					await tx.assetDepreciationSchedule.update({
+						where: { id: existingSchedule.id },
+						data: scheduleData,
+					});
+				} else {
+					await tx.assetDepreciationSchedule.create({ data: scheduleData });
+				}
 			}
 		});
 	}
@@ -235,7 +260,12 @@ export class AssetDepreciationLifecycleService {
 						status: { in: ["SUBMITTED", "PARTIALLY_DEPRECIATED"] },
 						calculateDepreciation: true,
 					},
-					schedules: { none: { status: { in: ["DRAFT", "ACTIVE"] } } },
+					schedules: {
+						none: {
+							status: { in: ["DRAFT", "ACTIVE"] },
+							entries: { some: {} },
+						},
+					},
 				},
 				select: { id: true, assetId: true },
 				orderBy: { id: "asc" },
@@ -286,6 +316,28 @@ export class AssetDepreciationLifecycleService {
 	private resolveDefaultBooks(
 		asset: Awaited<ReturnType<AssetDepreciationLifecycleService["loadAsset"]>>,
 	): BookConfiguration[] {
+		if (asset.financeBooks.length) {
+			return asset.financeBooks.map((book) => ({
+				financeBookId: book.financeBookId,
+				depreciationMethod: book.depreciationMethod as Asset.DepreciationMethod,
+				totalNumberOfDepreciations: book.totalNumberOfDepreciations,
+				frequencyOfDepreciation: book.frequencyOfDepreciation,
+				depreciationStartDate: book.depreciationStartDate,
+				dailyProrataBased: book.dailyProrataBased,
+				shiftBased: book.shiftBased,
+				rateOfDepreciation:
+					book.rateOfDepreciation == null
+						? null
+						: Number(book.rateOfDepreciation),
+				expectedValueAfterUsefulLife: Number(book.expectedValueAfterUsefulLife),
+				openingAccumulatedDepreciation: Number(
+					book.openingAccumulatedDepreciation,
+				),
+				openingNumberOfBookedDepreciations:
+					book.openingNumberOfBookedDepreciations,
+			}));
+		}
+
 		if (asset.assetCategory?.financeBookDefaults.length) {
 			return asset.assetCategory.financeBookDefaults.map((book) => ({
 				financeBookId: book.financeBookId,
@@ -355,6 +407,7 @@ export class AssetDepreciationLifecycleService {
 			where: { id: assetId },
 			include: {
 				assetCategory: { include: { financeBookDefaults: true } },
+				financeBooks: true,
 			},
 		});
 		const companyRecord = await this.prisma.company.findUnique({
