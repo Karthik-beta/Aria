@@ -180,15 +180,6 @@ const validateInput = (input: DepreciationBookInput): void => {
 	) {
 		throw new Error("openingBookedPeriods must be less than totalPeriods");
 	}
-	if (
-		input.method === "WRITTEN_DOWN_VALUE" &&
-		(input.ratePercent ?? 0) <= 0 &&
-		salvageValue <= 0
-	) {
-		throw new Error(
-			"Written-down value requires ratePercent or a positive salvageValue",
-		);
-	}
 	if (input.method === "MANUAL" && !input.manualEntries?.length) {
 		throw new Error("Manual depreciation requires at least one manual entry");
 	}

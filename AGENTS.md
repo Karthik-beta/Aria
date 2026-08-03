@@ -11,6 +11,62 @@ This repository belongs to **Karthik P** (GitHub: `Karthik-beta`). The correct g
 
 No agent, under any circumstances, may change these values in `.git/config`, global config, or via environment variables. The pre-commit hook enforces this and will block any commit attributed to a different identity.
 
+## ⛔ HARD RULE — Branch Naming (ALL AGENTS)
+
+When creating a new git branch, always choose a short, descriptive, and professional branch name that clearly communicates the purpose of the work.
+
+### Branch naming format
+
+Use one of the following prefixes:
+
+- `feat/` – New features
+- `fix/` – Bug fixes
+- `refactor/` – Refactoring without behavior changes
+- `chore/` – Maintenance, tooling, dependency updates
+- `docs/` – Documentation
+- `test/` – Tests
+- `perf/` – Performance improvements
+- `ci/` – CI/CD and workflow changes
+
+Examples:
+
+- `feat/inventory-dashboard`
+- `feat/material-request-workflow`
+- `fix/auth-session-refresh`
+- `refactor/inventory-service`
+- `docs/api-guidelines`
+- `test/inventory-subscriptions`
+- `perf/dashboard-rendering`
+- `chore/update-dependencies`
+
+### Naming rules
+
+- Use lowercase letters only.
+- Separate words with hyphens (`-`).
+- Keep names concise and descriptive.
+- Name the branch after the actual work being performed, not the tool creating it.
+
+### Prohibited branch names
+
+Never include AI-related or branding-related terms in branch names, including but not limited to:
+
+- `ai/`
+- `agent/`
+- `agents/`
+- `assistant/`
+- `bot/`
+- `gpt/`
+- `claude/`
+- `copilot/`
+- `cursor/`
+- `windsurf/`
+- `codex/`
+- `openai/`
+- `anthropic/`
+- Any company, model, or AI product branding.
+
+The repository history should read as if every branch was created by a professional software engineer. Branch names must describe the work itself, never the tool or agent that produced it.
+
 ## Operating Context
 
 Aria is a bun-powered Turborepo that hosts the entire ERP surface area under one roof. The backend NestJS service lives in `apps/backend`, a single Next.js 16 App Router frontend with route groups (asset, CRM, hrms, inventory) lives in `apps/frontend`, and reusable building blocks reside in `packages/config-eslint`, `packages/config-typescript`, `packages/types`, and `packages/utils`. Docker Compose plus Caddy orchestrates deployment, and `.github/workflows/ci.yml` guards the main branch. Every contribution must respect this living architecture.
