@@ -1,12 +1,11 @@
 import {
 	BarcodeFormat,
 	BinaryBitmap,
-	DecodeHintType,
 	HybridBinarizer,
 	MultiFormatReader,
 	RGBLuminanceSource,
 } from "@zxing/library";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { BarcodeScanStabilityTracker } from "./barcode-scan-stability";
 
 const LEFT_PATTERNS = {
@@ -114,10 +113,8 @@ function decodeEan13(value: string, moduleWidth = 4) {
 	const source = new RGBLuminanceSource(data, width, height);
 	const bitmap = new BinaryBitmap(new HybridBinarizer(source));
 	const reader = new MultiFormatReader();
-	const result = reader.decode(
-		bitmap,
-		new Map([[DecodeHintType.TRY_HARDER, true]]),
-	);
+	// BrowserMultiFormatReader initializes the core reader with explicit hints.
+	const result = reader.decode(bitmap, new Map());
 
 	return {
 		format: BarcodeFormat[result.getBarcodeFormat()],
@@ -126,6 +123,22 @@ function decodeEan13(value: string, moduleWidth = 4) {
 }
 
 describe("ZXing barcode stability integration", () => {
+	it("decodes a visible EAN before reaching ZXing's noisy 2D readers", () => {
+		const consoleWarn = vi
+			.spyOn(console, "warn")
+			.mockImplementation(() => undefined);
+
+		try {
+			expect(decodeEan13("8904287602549")).toEqual({
+				format: "EAN_13",
+				text: "8904287602549",
+			});
+			expect(consoleWarn).not.toHaveBeenCalled();
+		} finally {
+			consoleWarn.mockRestore();
+		}
+	});
+
 	it.each([
 		2, 3, 4, 6,
 	])("decodes the supplied EAN consistently at %d pixels per module", (moduleWidth) => {

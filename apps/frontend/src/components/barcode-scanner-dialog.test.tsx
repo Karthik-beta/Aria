@@ -26,6 +26,7 @@ type MockDecodeCallback = (
 const scannerMocks = vi.hoisted(() => ({
 	decodeFromConstraints: vi.fn(),
 	listVideoInputDevices: vi.fn(),
+	readerConstructor: vi.fn(),
 	callbacks: [] as MockDecodeCallback[],
 	controls: { stop: vi.fn() } as MockScannerControls,
 	trackStop: vi.fn(),
@@ -45,6 +46,10 @@ vi.mock("@zxing/browser", () => ({
 	BrowserMultiFormatReader: class BrowserMultiFormatReader {
 		static listVideoInputDevices = scannerMocks.listVideoInputDevices;
 
+		constructor(...args: unknown[]) {
+			scannerMocks.readerConstructor(...args);
+		}
+
 		decodeFromConstraints(
 			constraints: MediaStreamConstraints,
 			video: HTMLVideoElement,
@@ -58,7 +63,6 @@ vi.mock("@zxing/browser", () => ({
 vi.mock("@zxing/library", () => ({
 	BarcodeFormat: { 7: "EAN_13", 8: "CODE_128" },
 	ChecksumException: scannerMocks.ChecksumException,
-	DecodeHintType: { TRY_HARDER: 3 },
 	FormatException: scannerMocks.FormatException,
 	NotFoundException: scannerMocks.NotFoundException,
 }));
@@ -119,10 +123,25 @@ describe("BarcodeScannerDialog", () => {
 		scannerMocks.decodeFromConstraints.mockReset();
 		scannerMocks.listVideoInputDevices.mockReset();
 		scannerMocks.listVideoInputDevices.mockResolvedValue([]);
+		scannerMocks.readerConstructor.mockReset();
 		scannerMocks.callbacks.length = 0;
 		scannerMocks.controls.stop.mockReset();
 		scannerMocks.trackStop.mockReset();
 		installSuccessfulCamera();
+	});
+
+	it("uses ZXing's default all-format reader without the broken TRY_HARDER hint", async () => {
+		render(
+			<BarcodeScannerDialog isOpen onClose={vi.fn()} onScanSuccess={vi.fn()} />,
+		);
+
+		await waitFor(() =>
+			expect(scannerMocks.readerConstructor).toHaveBeenCalled(),
+		);
+		expect(scannerMocks.readerConstructor).toHaveBeenCalledWith();
+		expect(
+			screen.getByText(/Keep one code horizontal and centered/i),
+		).toBeInTheDocument();
 	});
 
 	afterEach(() => {
@@ -315,6 +334,11 @@ describe("BarcodeScannerDialog", () => {
 				new scannerMocks.ChecksumException(),
 				scannerMocks.controls,
 			);
+			callback?.(
+				undefined,
+				new scannerMocks.FormatException(),
+				scannerMocks.controls,
+			);
 		});
 
 		expect(screen.getByRole("status")).toHaveTextContent("Reading code… 2/3");
@@ -331,6 +355,26 @@ describe("BarcodeScannerDialog", () => {
 
 		expect(onScanSuccess).toHaveBeenCalledOnce();
 		expect(onScanSuccess).toHaveBeenCalledWith("8904287602549");
+	});
+
+	it("stops scanning when an unexpected decoder error reaches the callback", async () => {
+		render(
+			<BarcodeScannerDialog isOpen onClose={vi.fn()} onScanSuccess={vi.fn()} />,
+		);
+
+		await waitFor(() => expect(scannerMocks.callbacks.length).toBe(1));
+		act(() => {
+			scannerMocks.callbacks[0]?.(
+				undefined,
+				new Error("unexpected decoder failure"),
+				scannerMocks.controls,
+			);
+		});
+
+		expect(
+			screen.getByText(/Barcode scanning stopped unexpectedly/i),
+		).toBeInTheDocument();
+		expect(scannerMocks.controls.stop).toHaveBeenCalledOnce();
 	});
 
 	it("resets visible progress when the decoded format changes", async () => {

@@ -189,15 +189,13 @@ export function BarcodeScannerDialog({
 				const {
 					BarcodeFormat,
 					ChecksumException,
-					DecodeHintType,
 					FormatException,
 					NotFoundException,
 				} = await import("@zxing/library");
 
-				// Configure decoding hints (TRY_HARDER increases accuracy for difficult barcodes)
-				const hints = new Map();
-				hints.set(DecodeHintType.TRY_HARDER, true);
-				const codeReader = new BrowserMultiFormatReader(hints);
+				// The default reader keeps every supported format enabled and prioritizes 1D
+				// codes. Do not re-enable TRY_HARDER until zxing-js/browser#74 is fixed.
+				const codeReader = new BrowserMultiFormatReader();
 
 				// Ensure video element is ready
 				if (!videoRef.current) {
@@ -381,8 +379,8 @@ export function BarcodeScannerDialog({
 						Scan Barcode / QR Code
 					</DialogTitle>
 					<DialogDescription>
-						Keep one code centered and hold the camera steady to scan
-						automatically
+						Keep one code horizontal and centered, then hold the camera steady
+						to scan automatically
 					</DialogDescription>
 				</DialogHeader>
 

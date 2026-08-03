@@ -190,6 +190,11 @@ async function openManualScanner(page: Page) {
 		await scanButton.click();
 		await expect(dialogHeading).toBeVisible({ timeout: 2_000 });
 	}).toPass({ timeout: 20_000 });
+	await expect(
+		page
+			.getByRole("dialog")
+			.getByText(/Keep one code horizontal and centered/i),
+	).toBeVisible();
 }
 
 async function openAssetForm(page: Page) {
