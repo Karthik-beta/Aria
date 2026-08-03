@@ -77,8 +77,14 @@ export function drawBarcodeScanRegion(
 	);
 	if (region.width === 0 || region.height === 0) return sourceCanvas;
 
-	regionCanvas.width = region.outputWidth;
-	regionCanvas.height = region.outputHeight;
+	// Assigning either dimension clears the canvas and allocates a new backing
+	// buffer. Keep the existing buffer while consecutive frames have one size.
+	if (regionCanvas.width !== region.outputWidth) {
+		regionCanvas.width = region.outputWidth;
+	}
+	if (regionCanvas.height !== region.outputHeight) {
+		regionCanvas.height = region.outputHeight;
+	}
 
 	let context: CanvasRenderingContext2D | null;
 	try {

@@ -45,6 +45,46 @@ describe("calculateBarcodeScanRegion", () => {
 });
 
 describe("drawBarcodeScanRegion", () => {
+	it("reuses the canvas backing buffer across equal-sized frames", () => {
+		const sourceCanvas = { height: 480, width: 640 } as HTMLCanvasElement;
+		const drawImage = vi.fn();
+		const context = {
+			drawImage,
+			imageSmoothingEnabled: false,
+			imageSmoothingQuality: "low",
+		} as unknown as CanvasRenderingContext2D;
+		const setWidth = vi.fn();
+		const setHeight = vi.fn();
+		let width = 0;
+		let height = 0;
+		const regionCanvas = {
+			get width() {
+				return width;
+			},
+			set width(value: number) {
+				width = value;
+				setWidth(value);
+			},
+			get height() {
+				return height;
+			},
+			set height(value: number) {
+				height = value;
+				setHeight(value);
+			},
+			getContext: vi.fn(() => context),
+		} as unknown as HTMLCanvasElement;
+
+		drawBarcodeScanRegion(sourceCanvas, regionCanvas);
+		drawBarcodeScanRegion(sourceCanvas, regionCanvas);
+
+		expect(setWidth).toHaveBeenCalledOnce();
+		expect(setWidth).toHaveBeenCalledWith(640);
+		expect(setHeight).toHaveBeenCalledOnce();
+		expect(setHeight).toHaveBeenCalledWith(400);
+		expect(drawImage).toHaveBeenCalledTimes(2);
+	});
+
 	it("falls back to the original frame when canvas decoding is unavailable", () => {
 		const sourceCanvas = document.createElement("canvas");
 		sourceCanvas.width = 640;

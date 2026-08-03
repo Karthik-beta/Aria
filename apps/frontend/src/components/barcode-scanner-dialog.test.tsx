@@ -146,7 +146,7 @@ describe("BarcodeScannerDialog", () => {
 		installSuccessfulCamera();
 	});
 
-	it("uses ZXing's default all-format reader with faster continuous timing", async () => {
+	it("throttles failed all-format scans while confirming successes quickly", async () => {
 		render(
 			<BarcodeScannerDialog isOpen onClose={vi.fn()} onScanSuccess={vi.fn()} />,
 		);
@@ -155,7 +155,7 @@ describe("BarcodeScannerDialog", () => {
 			expect(scannerMocks.readerConstructor).toHaveBeenCalled(),
 		);
 		expect(scannerMocks.readerConstructor).toHaveBeenCalledWith(undefined, {
-			delayBetweenScanAttempts: 150,
+			delayBetweenScanAttempts: 500,
 			delayBetweenScanSuccess: 150,
 		});
 		expect(

@@ -209,7 +209,10 @@ export function BarcodeScannerDialog({
 				// The default reader keeps every supported format enabled and prioritizes 1D
 				// codes. Do not re-enable TRY_HARDER until zxing-js/browser#74 is fixed.
 				const codeReader = new BarcodeRegionReader(undefined, {
-					delayBetweenScanAttempts: 150,
+					// Failed all-format scans are CPU intensive and ZXing 0.23.0 logs one
+					// warning per attempted reader. Successful reads stay fast and stop
+					// after the third stable result.
+					delayBetweenScanAttempts: 500,
 					delayBetweenScanSuccess: 150,
 				});
 
