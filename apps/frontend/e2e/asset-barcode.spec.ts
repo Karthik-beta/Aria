@@ -193,7 +193,7 @@ async function openManualScanner(page: Page) {
 	await expect(
 		page
 			.getByRole("dialog")
-			.getByText(/Keep one code horizontal and centered/i),
+			.getByText(/Fill the scan box with one horizontal code/i),
 	).toBeVisible();
 }
 

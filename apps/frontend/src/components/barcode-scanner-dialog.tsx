@@ -3,6 +3,7 @@
 import { Camera, Loader2, RefreshCw } from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
+import { drawBarcodeScanRegion } from "@/components/barcode-scan-region";
 import {
 	type BarcodeScanObservation,
 	BarcodeScanStabilityTracker,
@@ -193,9 +194,24 @@ export function BarcodeScannerDialog({
 					NotFoundException,
 				} = await import("@zxing/library");
 
+				/** Decodes the same centered region displayed by the scanner target box. */
+				class BarcodeRegionReader extends BrowserMultiFormatReader {
+					private regionCanvas: HTMLCanvasElement | null = null;
+
+					public override decodeFromCanvas(canvas: HTMLCanvasElement) {
+						this.regionCanvas ??= canvas.ownerDocument.createElement("canvas");
+						return super.decodeFromCanvas(
+							drawBarcodeScanRegion(canvas, this.regionCanvas),
+						);
+					}
+				}
+
 				// The default reader keeps every supported format enabled and prioritizes 1D
 				// codes. Do not re-enable TRY_HARDER until zxing-js/browser#74 is fixed.
-				const codeReader = new BrowserMultiFormatReader();
+				const codeReader = new BarcodeRegionReader(undefined, {
+					delayBetweenScanAttempts: 150,
+					delayBetweenScanSuccess: 150,
+				});
 
 				// Ensure video element is ready
 				if (!videoRef.current) {
@@ -379,8 +395,8 @@ export function BarcodeScannerDialog({
 						Scan Barcode / QR Code
 					</DialogTitle>
 					<DialogDescription>
-						Keep one code horizontal and centered, then hold the camera steady
-						to scan automatically
+						Fill the scan box with one horizontal code, then hold the camera
+						steady to scan automatically
 					</DialogDescription>
 				</DialogHeader>
 
@@ -420,7 +436,10 @@ export function BarcodeScannerDialog({
 					{!isLoading && hasPermission && (
 						<div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
 							{/* Targeting Box */}
-							<div className="relative w-64 h-36 border-2 border-emerald-500/30 rounded-lg">
+							<div
+								data-testid="barcode-scan-region"
+								className="relative h-[50%] w-[60%] rounded-lg border-2 border-emerald-500/30"
+							>
 								{/* Pulse Scanning Laser */}
 								<div className="absolute left-0 w-full h-[2px] bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,1)] animate-bounce top-0" />
 

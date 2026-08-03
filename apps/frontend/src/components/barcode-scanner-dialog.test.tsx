@@ -17,6 +17,10 @@ interface MockScannerResult {
 	getBarcodeFormat: () => number;
 }
 
+interface MockReaderInstance {
+	decodeFromCanvas: (canvas: HTMLCanvasElement) => MockScannerResult;
+}
+
 type MockDecodeCallback = (
 	result: MockScannerResult | undefined,
 	error: unknown,
@@ -25,8 +29,10 @@ type MockDecodeCallback = (
 
 const scannerMocks = vi.hoisted(() => ({
 	decodeFromConstraints: vi.fn(),
+	decodeFromCanvas: vi.fn(),
 	listVideoInputDevices: vi.fn(),
 	readerConstructor: vi.fn(),
+	readerInstances: [] as MockReaderInstance[],
 	callbacks: [] as MockDecodeCallback[],
 	controls: { stop: vi.fn() } as MockScannerControls,
 	trackStop: vi.fn(),
@@ -48,6 +54,11 @@ vi.mock("@zxing/browser", () => ({
 
 		constructor(...args: unknown[]) {
 			scannerMocks.readerConstructor(...args);
+			scannerMocks.readerInstances.push(this);
+		}
+
+		decodeFromCanvas(canvas: HTMLCanvasElement) {
+			return scannerMocks.decodeFromCanvas(canvas);
 		}
 
 		decodeFromConstraints(
@@ -121,16 +132,21 @@ function installSuccessfulCamera(deviceId?: string) {
 describe("BarcodeScannerDialog", () => {
 	beforeEach(() => {
 		scannerMocks.decodeFromConstraints.mockReset();
+		scannerMocks.decodeFromCanvas.mockReset();
+		scannerMocks.decodeFromCanvas.mockReturnValue(
+			createResult("8904287602549"),
+		);
 		scannerMocks.listVideoInputDevices.mockReset();
 		scannerMocks.listVideoInputDevices.mockResolvedValue([]);
 		scannerMocks.readerConstructor.mockReset();
+		scannerMocks.readerInstances.length = 0;
 		scannerMocks.callbacks.length = 0;
 		scannerMocks.controls.stop.mockReset();
 		scannerMocks.trackStop.mockReset();
 		installSuccessfulCamera();
 	});
 
-	it("uses ZXing's default all-format reader without the broken TRY_HARDER hint", async () => {
+	it("uses ZXing's default all-format reader with faster continuous timing", async () => {
 		render(
 			<BarcodeScannerDialog isOpen onClose={vi.fn()} onScanSuccess={vi.fn()} />,
 		);
@@ -138,10 +154,51 @@ describe("BarcodeScannerDialog", () => {
 		await waitFor(() =>
 			expect(scannerMocks.readerConstructor).toHaveBeenCalled(),
 		);
-		expect(scannerMocks.readerConstructor).toHaveBeenCalledWith();
+		expect(scannerMocks.readerConstructor).toHaveBeenCalledWith(undefined, {
+			delayBetweenScanAttempts: 150,
+			delayBetweenScanSuccess: 150,
+		});
 		expect(
-			screen.getByText(/Keep one code horizontal and centered/i),
+			screen.getByText(/Fill the scan box with one horizontal code/i),
 		).toBeInTheDocument();
+	});
+
+	it("crops and magnifies the visible target region before decoding", async () => {
+		const drawImage = vi.fn();
+		vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
+			drawImage,
+			imageSmoothingEnabled: false,
+			imageSmoothingQuality: "low",
+		} as unknown as CanvasRenderingContext2D);
+
+		render(
+			<BarcodeScannerDialog isOpen onClose={vi.fn()} onScanSuccess={vi.fn()} />,
+		);
+
+		await waitFor(() => expect(scannerMocks.readerInstances.length).toBe(1));
+		const sourceCanvas = document.createElement("canvas");
+		sourceCanvas.width = 640;
+		sourceCanvas.height = 480;
+
+		const decodedResult =
+			scannerMocks.readerInstances[0]?.decodeFromCanvas(sourceCanvas);
+		expect(decodedResult?.getText()).toBe("8904287602549");
+		expect(drawImage).toHaveBeenCalledWith(
+			sourceCanvas,
+			128,
+			120,
+			384,
+			240,
+			0,
+			0,
+			640,
+			400,
+		);
+		const decodedCanvas = scannerMocks.decodeFromCanvas.mock.calls[0]?.[0] as
+			| HTMLCanvasElement
+			| undefined;
+		expect(decodedCanvas).not.toBe(sourceCanvas);
+		expect(decodedCanvas).toMatchObject({ width: 640, height: 400 });
 	});
 
 	afterEach(() => {

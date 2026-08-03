@@ -110,7 +110,19 @@ function renderEan13(
 
 function decodeEan13(value: string, moduleWidth = 4) {
 	const { data, height, width } = renderEan13(value, moduleWidth);
-	const source = new RGBLuminanceSource(data, width, height);
+	return decodeGrayscale(data, width, height);
+}
+
+function decodeGrayscale(
+	data: Uint8Array | Uint8ClampedArray,
+	width: number,
+	height: number,
+) {
+	const source = new RGBLuminanceSource(
+		data instanceof Uint8ClampedArray ? data : new Uint8ClampedArray(data),
+		width,
+		height,
+	);
 	const bitmap = new BinaryBitmap(new HybridBinarizer(source));
 	const reader = new MultiFormatReader();
 	// BrowserMultiFormatReader initializes the core reader with explicit hints.
@@ -122,7 +134,66 @@ function decodeEan13(value: string, moduleWidth = 4) {
 	};
 }
 
+function placeBarcode(
+	frame: Uint8ClampedArray,
+	frameWidth: number,
+	barcode: ReturnType<typeof renderEan13>,
+	left: number,
+	top: number,
+) {
+	for (let y = 0; y < barcode.height; y += 1) {
+		const sourceStart = y * barcode.width;
+		const targetStart = (top + y) * frameWidth + left;
+		frame.set(
+			barcode.data.subarray(sourceStart, sourceStart + barcode.width),
+			targetStart,
+		);
+	}
+}
+
 describe("ZXing barcode stability integration", () => {
+	it("decodes the barcode inside the target region instead of a competing code", () => {
+		const frameWidth = 1200;
+		const frameHeight = 480;
+		const cameraFrame = new Uint8ClampedArray(frameWidth * frameHeight);
+		cameraFrame.fill(255);
+		placeBarcode(
+			cameraFrame,
+			frameWidth,
+			renderEan13("4904182602549", 2),
+			0,
+			160,
+		);
+		placeBarcode(
+			cameraFrame,
+			frameWidth,
+			renderEan13("8904287602549", 3),
+			420,
+			160,
+		);
+
+		expect(decodeGrayscale(cameraFrame, frameWidth, frameHeight)).toEqual({
+			format: "EAN_13",
+			text: "4904182602549",
+		});
+
+		const targetWidth = 720;
+		const targetHeight = 240;
+		const targetRegion = new Uint8ClampedArray(targetWidth * targetHeight);
+		for (let y = 0; y < targetHeight; y += 1) {
+			const sourceStart = (120 + y) * frameWidth + 240;
+			targetRegion.set(
+				cameraFrame.subarray(sourceStart, sourceStart + targetWidth),
+				y * targetWidth,
+			);
+		}
+
+		expect(decodeGrayscale(targetRegion, targetWidth, targetHeight)).toEqual({
+			format: "EAN_13",
+			text: "8904287602549",
+		});
+	});
+
 	it("decodes a visible EAN before reaching ZXing's noisy 2D readers", () => {
 		const consoleWarn = vi
 			.spyOn(console, "warn")
