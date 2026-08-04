@@ -7,11 +7,6 @@ const isDev = process.env.NODE_ENV !== "production";
 const nextConfig: NextConfig = {
 	output: "standalone",
 	transpilePackages: ["@aria/api-contract", "@aria/types", "@aria/utils"],
-	logging: {
-		// ZXing 0.23.0 emits expected per-frame decode misses as warnings.
-		// Keep real browser errors visible without source-mapping warning floods.
-		browserToTerminal: "error",
-	},
 	turbopack: {
 		root: path.join(__dirname, "../.."),
 	},

@@ -14,11 +14,6 @@ interface MockScannerControls {
 
 interface MockScannerResult {
 	getText: () => string;
-	getBarcodeFormat: () => number;
-}
-
-interface MockReaderInstance {
-	decodeFromCanvas: (canvas: HTMLCanvasElement) => MockScannerResult;
 }
 
 type MockDecodeCallback = (
@@ -29,10 +24,8 @@ type MockDecodeCallback = (
 
 const scannerMocks = vi.hoisted(() => ({
 	decodeFromConstraints: vi.fn(),
-	decodeFromCanvas: vi.fn(),
 	listVideoInputDevices: vi.fn(),
 	readerConstructor: vi.fn(),
-	readerInstances: [] as MockReaderInstance[],
 	callbacks: [] as MockDecodeCallback[],
 	controls: { stop: vi.fn() } as MockScannerControls,
 	trackStop: vi.fn(),
@@ -54,11 +47,6 @@ vi.mock("@zxing/browser", () => ({
 
 		constructor(...args: unknown[]) {
 			scannerMocks.readerConstructor(...args);
-			scannerMocks.readerInstances.push(this);
-		}
-
-		decodeFromCanvas(canvas: HTMLCanvasElement) {
-			return scannerMocks.decodeFromCanvas(canvas);
 		}
 
 		decodeFromConstraints(
@@ -72,7 +60,6 @@ vi.mock("@zxing/browser", () => ({
 }));
 
 vi.mock("@zxing/library", () => ({
-	BarcodeFormat: { 7: "EAN_13", 8: "CODE_128" },
 	ChecksumException: scannerMocks.ChecksumException,
 	FormatException: scannerMocks.FormatException,
 	NotFoundException: scannerMocks.NotFoundException,
@@ -88,10 +75,9 @@ function createDevice(deviceId: string, label: string): MediaDeviceInfo {
 	};
 }
 
-function createResult(text: string, format = 7): MockScannerResult {
+function createResult(text: string): MockScannerResult {
 	return {
 		getText: () => text,
-		getBarcodeFormat: () => format,
 	};
 }
 
@@ -132,21 +118,16 @@ function installSuccessfulCamera(deviceId?: string) {
 describe("BarcodeScannerDialog", () => {
 	beforeEach(() => {
 		scannerMocks.decodeFromConstraints.mockReset();
-		scannerMocks.decodeFromCanvas.mockReset();
-		scannerMocks.decodeFromCanvas.mockReturnValue(
-			createResult("8904287602549"),
-		);
 		scannerMocks.listVideoInputDevices.mockReset();
 		scannerMocks.listVideoInputDevices.mockResolvedValue([]);
 		scannerMocks.readerConstructor.mockReset();
-		scannerMocks.readerInstances.length = 0;
 		scannerMocks.callbacks.length = 0;
 		scannerMocks.controls.stop.mockReset();
 		scannerMocks.trackStop.mockReset();
 		installSuccessfulCamera();
 	});
 
-	it("throttles failed all-format scans while confirming successes quickly", async () => {
+	it("uses ZXing's default full-frame multi-format reader", async () => {
 		render(
 			<BarcodeScannerDialog isOpen onClose={vi.fn()} onScanSuccess={vi.fn()} />,
 		);
@@ -154,58 +135,17 @@ describe("BarcodeScannerDialog", () => {
 		await waitFor(() =>
 			expect(scannerMocks.readerConstructor).toHaveBeenCalled(),
 		);
-		expect(scannerMocks.readerConstructor).toHaveBeenCalledWith(undefined, {
-			delayBetweenScanAttempts: 500,
-			delayBetweenScanSuccess: 150,
-		});
+		expect(scannerMocks.readerConstructor).toHaveBeenCalledWith();
 		expect(
-			screen.getByText(/Fill the scan box with one horizontal code/i),
+			screen.getByText(/Hold one barcode or QR code clearly in view/i),
 		).toBeInTheDocument();
-	});
-
-	it("crops and magnifies the visible target region before decoding", async () => {
-		const drawImage = vi.fn();
-		vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
-			drawImage,
-			imageSmoothingEnabled: false,
-			imageSmoothingQuality: "low",
-		} as unknown as CanvasRenderingContext2D);
-
-		render(
-			<BarcodeScannerDialog isOpen onClose={vi.fn()} onScanSuccess={vi.fn()} />,
-		);
-
-		await waitFor(() => expect(scannerMocks.readerInstances.length).toBe(1));
-		const sourceCanvas = document.createElement("canvas");
-		sourceCanvas.width = 640;
-		sourceCanvas.height = 480;
-
-		const decodedResult =
-			scannerMocks.readerInstances[0]?.decodeFromCanvas(sourceCanvas);
-		expect(decodedResult?.getText()).toBe("8904287602549");
-		expect(drawImage).toHaveBeenCalledWith(
-			sourceCanvas,
-			128,
-			120,
-			384,
-			240,
-			0,
-			0,
-			640,
-			400,
-		);
-		const decodedCanvas = scannerMocks.decodeFromCanvas.mock.calls[0]?.[0] as
-			| HTMLCanvasElement
-			| undefined;
-		expect(decodedCanvas).not.toBe(sourceCanvas);
-		expect(decodedCanvas).toMatchObject({ width: 640, height: 400 });
 	});
 
 	afterEach(() => {
 		vi.restoreAllMocks();
 	});
 
-	it("accepts only after three matching reads and ignores a transient misread", async () => {
+	it("accepts the first successful result exactly once", async () => {
 		const onClose = vi.fn();
 		const onScanSuccess = vi.fn();
 		render(
@@ -222,33 +162,12 @@ describe("BarcodeScannerDialog", () => {
 
 		act(() => {
 			callback?.(
+				createResult("8904287602549"),
+				undefined,
+				scannerMocks.controls,
+			);
+			callback?.(
 				createResult("4904182602549"),
-				undefined,
-				scannerMocks.controls,
-			);
-			callback?.(
-				createResult("8904287602549"),
-				undefined,
-				scannerMocks.controls,
-			);
-			callback?.(
-				createResult("8904287602549"),
-				undefined,
-				scannerMocks.controls,
-			);
-		});
-
-		expect(onScanSuccess).not.toHaveBeenCalled();
-		expect(screen.getByRole("status")).toHaveTextContent("Reading code… 2/3");
-
-		act(() => {
-			callback?.(
-				createResult("8904287602549"),
-				undefined,
-				scannerMocks.controls,
-			);
-			callback?.(
-				createResult("8904287602549"),
 				undefined,
 				scannerMocks.controls,
 			);
@@ -353,10 +272,8 @@ describe("BarcodeScannerDialog", () => {
 		expect(scannerMocks.controls.stop).toHaveBeenCalled();
 	});
 
-	it("ignores ordinary decode misses between matching successful frames", async () => {
+	it("continues scanning after expected decode misses", async () => {
 		const onScanSuccess = vi.fn();
-		let now = 0;
-		vi.spyOn(Date, "now").mockImplementation(() => now);
 		render(
 			<BarcodeScannerDialog
 				isOpen
@@ -371,19 +288,8 @@ describe("BarcodeScannerDialog", () => {
 
 		act(() => {
 			callback?.(
-				createResult("8904287602549"),
-				undefined,
-				scannerMocks.controls,
-			);
-			callback?.(
 				undefined,
 				new scannerMocks.NotFoundException(),
-				scannerMocks.controls,
-			);
-			now = 1_000;
-			callback?.(
-				createResult("8904287602549"),
-				undefined,
 				scannerMocks.controls,
 			);
 			callback?.(
@@ -398,11 +304,10 @@ describe("BarcodeScannerDialog", () => {
 			);
 		});
 
-		expect(screen.getByRole("status")).toHaveTextContent("Reading code… 2/3");
 		expect(onScanSuccess).not.toHaveBeenCalled();
+		expect(scannerMocks.controls.stop).not.toHaveBeenCalled();
 
 		act(() => {
-			now = 2_000;
 			callback?.(
 				createResult("8904287602549"),
 				undefined,
@@ -432,109 +337,6 @@ describe("BarcodeScannerDialog", () => {
 			screen.getByText(/Barcode scanning stopped unexpectedly/i),
 		).toBeInTheDocument();
 		expect(scannerMocks.controls.stop).toHaveBeenCalledOnce();
-	});
-
-	it("resets visible progress when the decoded format changes", async () => {
-		const onScanSuccess = vi.fn();
-		render(
-			<BarcodeScannerDialog
-				isOpen
-				onClose={vi.fn()}
-				onScanSuccess={onScanSuccess}
-			/>,
-		);
-
-		await waitFor(() => expect(scannerMocks.callbacks.length).toBe(1));
-		const callback = scannerMocks.callbacks[0];
-		expect(callback).toBeDefined();
-
-		act(() => {
-			callback?.(
-				createResult("SHARED-TEXT", 7),
-				undefined,
-				scannerMocks.controls,
-			);
-			callback?.(
-				createResult("SHARED-TEXT", 8),
-				undefined,
-				scannerMocks.controls,
-			);
-		});
-
-		expect(screen.getByRole("status")).toHaveTextContent("Reading code… 1/3");
-		expect(onScanSuccess).not.toHaveBeenCalled();
-
-		act(() => {
-			callback?.(
-				createResult("SHARED-TEXT", 8),
-				undefined,
-				scannerMocks.controls,
-			);
-			callback?.(
-				createResult("SHARED-TEXT", 8),
-				undefined,
-				scannerMocks.controls,
-			);
-		});
-
-		expect(onScanSuccess).toHaveBeenCalledOnce();
-	});
-
-	it("restarts progress when matching reads exceed the stability window", async () => {
-		const onScanSuccess = vi.fn();
-		let now = 0;
-		vi.spyOn(Date, "now").mockImplementation(() => now);
-		render(
-			<BarcodeScannerDialog
-				isOpen
-				onClose={vi.fn()}
-				onScanSuccess={onScanSuccess}
-			/>,
-		);
-
-		await waitFor(() => expect(scannerMocks.callbacks.length).toBe(1));
-		const callback = scannerMocks.callbacks[0];
-		expect(callback).toBeDefined();
-
-		act(() => {
-			callback?.(
-				createResult("8904287602549"),
-				undefined,
-				scannerMocks.controls,
-			);
-			now = 2_000;
-			callback?.(
-				createResult("8904287602549"),
-				undefined,
-				scannerMocks.controls,
-			);
-			now = 2_501;
-			callback?.(
-				createResult("8904287602549"),
-				undefined,
-				scannerMocks.controls,
-			);
-		});
-
-		expect(screen.getByRole("status")).toHaveTextContent("Reading code… 1/3");
-		expect(onScanSuccess).not.toHaveBeenCalled();
-
-		act(() => {
-			now = 2_700;
-			callback?.(
-				createResult("8904287602549"),
-				undefined,
-				scannerMocks.controls,
-			);
-			now = 2_900;
-			callback?.(
-				createResult("8904287602549"),
-				undefined,
-				scannerMocks.controls,
-			);
-		});
-
-		expect(onScanSuccess).toHaveBeenCalledOnce();
 	});
 
 	it("stops scanner controls and media tracks when unmounted", async () => {

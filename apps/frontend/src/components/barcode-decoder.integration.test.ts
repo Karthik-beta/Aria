@@ -3,10 +3,10 @@ import {
 	BinaryBitmap,
 	HybridBinarizer,
 	MultiFormatReader,
+	QRCodeWriter,
 	RGBLuminanceSource,
 } from "@zxing/library";
 import { describe, expect, it, vi } from "vitest";
-import { BarcodeScanStabilityTracker } from "./barcode-scan-stability";
 
 const LEFT_PATTERNS = {
 	L: [
@@ -113,6 +113,28 @@ function decodeEan13(value: string, moduleWidth = 4) {
 	return decodeGrayscale(data, width, height);
 }
 
+function decodeQrCode(value: string) {
+	const matrix = new QRCodeWriter().encode(
+		value,
+		BarcodeFormat.QR_CODE,
+		240,
+		240,
+		new Map(),
+	);
+	const width = matrix.getWidth();
+	const height = matrix.getHeight();
+	const data = new Uint8ClampedArray(width * height);
+	data.fill(255);
+
+	for (let y = 0; y < height; y += 1) {
+		for (let x = 0; x < width; x += 1) {
+			if (matrix.get(x, y)) data[y * width + x] = 0;
+		}
+	}
+
+	return decodeGrayscale(data, width, height);
+}
+
 function decodeGrayscale(
 	data: Uint8Array | Uint8ClampedArray,
 	width: number,
@@ -134,66 +156,7 @@ function decodeGrayscale(
 	};
 }
 
-function placeBarcode(
-	frame: Uint8ClampedArray,
-	frameWidth: number,
-	barcode: ReturnType<typeof renderEan13>,
-	left: number,
-	top: number,
-) {
-	for (let y = 0; y < barcode.height; y += 1) {
-		const sourceStart = y * barcode.width;
-		const targetStart = (top + y) * frameWidth + left;
-		frame.set(
-			barcode.data.subarray(sourceStart, sourceStart + barcode.width),
-			targetStart,
-		);
-	}
-}
-
-describe("ZXing barcode stability integration", () => {
-	it("decodes the barcode inside the target region instead of a competing code", () => {
-		const frameWidth = 1200;
-		const frameHeight = 480;
-		const cameraFrame = new Uint8ClampedArray(frameWidth * frameHeight);
-		cameraFrame.fill(255);
-		placeBarcode(
-			cameraFrame,
-			frameWidth,
-			renderEan13("4904182602549", 2),
-			0,
-			160,
-		);
-		placeBarcode(
-			cameraFrame,
-			frameWidth,
-			renderEan13("8904287602549", 3),
-			420,
-			160,
-		);
-
-		expect(decodeGrayscale(cameraFrame, frameWidth, frameHeight)).toEqual({
-			format: "EAN_13",
-			text: "4904182602549",
-		});
-
-		const targetWidth = 720;
-		const targetHeight = 240;
-		const targetRegion = new Uint8ClampedArray(targetWidth * targetHeight);
-		for (let y = 0; y < targetHeight; y += 1) {
-			const sourceStart = (120 + y) * frameWidth + 240;
-			targetRegion.set(
-				cameraFrame.subarray(sourceStart, sourceStart + targetWidth),
-				y * targetWidth,
-			);
-		}
-
-		expect(decodeGrayscale(targetRegion, targetWidth, targetHeight)).toEqual({
-			format: "EAN_13",
-			text: "8904287602549",
-		});
-	});
-
+describe("ZXing barcode decoder integration", () => {
 	it("decodes a visible EAN before reaching ZXing's noisy 2D readers", () => {
 		const consoleWarn = vi
 			.spyOn(console, "warn")
@@ -223,30 +186,10 @@ describe("ZXing barcode stability integration", () => {
 		expect(() => decodeEan13("8904287602548")).toThrow();
 	});
 
-	it("accepts the correct decoded value only after a transient valid misread", () => {
-		const tracker = new BarcodeScanStabilityTracker();
-		const values = [
-			"4904182602549",
-			"8904287602549",
-			"8904287602549",
-			"8904287602549",
-		];
-
-		const observations = values.map((value, index) =>
-			tracker.record(decodeEan13(value), index * 250),
-		);
-
-		expect(
-			observations.map(({ accepted, count }) => ({ accepted, count })),
-		).toEqual([
-			{ accepted: false, count: 1 },
-			{ accepted: false, count: 1 },
-			{ accepted: false, count: 2 },
-			{ accepted: true, count: 3 },
-		]);
-		expect(observations.at(-1)?.candidate).toEqual({
-			format: "EAN_13",
-			text: "8904287602549",
+	it("decodes a QR code produced by ZXing's official writer", () => {
+		expect(decodeQrCode("ARIA-ASSET-QR-001")).toEqual({
+			format: "QR_CODE",
+			text: "ARIA-ASSET-QR-001",
 		});
 	});
 });

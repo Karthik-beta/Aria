@@ -193,7 +193,7 @@ async function openManualScanner(page: Page) {
 	await expect(
 		page
 			.getByRole("dialog")
-			.getByText(/Fill the scan box with one horizontal code/i),
+			.getByText(/Hold one barcode or QR code clearly in view/i),
 	).toBeVisible();
 }
 

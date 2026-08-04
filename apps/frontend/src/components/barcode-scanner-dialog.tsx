@@ -3,11 +3,6 @@
 import { Camera, Loader2, RefreshCw } from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
-import { drawBarcodeScanRegion } from "@/components/barcode-scan-region";
-import {
-	type BarcodeScanObservation,
-	BarcodeScanStabilityTracker,
-} from "@/components/barcode-scan-stability";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -33,7 +28,6 @@ interface ScannerControls {
 
 interface ScannerResult {
 	getText: () => string;
-	getBarcodeFormat: () => number;
 }
 
 function isNamedError(error: unknown, name: string): boolean {
@@ -82,12 +76,9 @@ export function BarcodeScannerDialog({
 		null,
 	);
 	const [manualCode, setManualCode] = React.useState("");
-	const [scanProgress, setScanProgress] =
-		React.useState<BarcodeScanObservation | null>(null);
 	const [cameraError, setCameraError] = React.useState<string | null>(null);
 	const controlsRef = React.useRef<ScannerControls | null>(null);
 	const activeStreamRef = React.useRef<MediaStream | null>(null);
-	const scanTrackerRef = React.useRef(new BarcodeScanStabilityTracker());
 	const acceptedRef = React.useRef(false);
 	const onCloseRef = React.useRef(onClose);
 	const onScanSuccessRef = React.useRef(onScanSuccess);
@@ -143,7 +134,6 @@ export function BarcodeScannerDialog({
 		stopScanning();
 		setIsLoading(true);
 		setManualCode("");
-		setScanProgress(null);
 		setCameraError(null);
 		onCloseRef.current();
 	}, [stopScanning]);
@@ -177,8 +167,6 @@ export function BarcodeScannerDialog({
 
 		let active = true;
 		acceptedRef.current = false;
-		scanTrackerRef.current.reset();
-		setScanProgress(null);
 		setCameraError(null);
 		setHasPermission(null);
 		setIsLoading(true);
@@ -187,34 +175,11 @@ export function BarcodeScannerDialog({
 			try {
 				// Import browser-only libraries dynamically inside hook to protect build
 				const { BrowserMultiFormatReader } = await import("@zxing/browser");
-				const {
-					BarcodeFormat,
-					ChecksumException,
-					FormatException,
-					NotFoundException,
-				} = await import("@zxing/library");
+				const { ChecksumException, FormatException, NotFoundException } =
+					await import("@zxing/library");
 
-				/** Decodes the same centered region displayed by the scanner target box. */
-				class BarcodeRegionReader extends BrowserMultiFormatReader {
-					private regionCanvas: HTMLCanvasElement | null = null;
-
-					public override decodeFromCanvas(canvas: HTMLCanvasElement) {
-						this.regionCanvas ??= canvas.ownerDocument.createElement("canvas");
-						return super.decodeFromCanvas(
-							drawBarcodeScanRegion(canvas, this.regionCanvas),
-						);
-					}
-				}
-
-				// The default reader keeps every supported format enabled and prioritizes 1D
-				// codes. Do not re-enable TRY_HARDER until zxing-js/browser#74 is fixed.
-				const codeReader = new BarcodeRegionReader(undefined, {
-					// Failed all-format scans are CPU intensive and ZXing 0.23.0 logs one
-					// warning per attempted reader. Successful reads stay fast and stop
-					// after the third stable result.
-					delayBetweenScanAttempts: 500,
-					delayBetweenScanSuccess: 150,
-				});
+				// Use ZXing's documented full-frame multi-format reader and default scan loop.
+				const codeReader = new BrowserMultiFormatReader();
 
 				// Ensure video element is ready
 				if (!videoRef.current) {
@@ -246,16 +211,6 @@ export function BarcodeScannerDialog({
 					if (result) {
 						const code = result.getText();
 						if (!code) return;
-
-						const rawFormat = result.getBarcodeFormat();
-						const format = BarcodeFormat[rawFormat] ?? String(rawFormat);
-						const observation = scanTrackerRef.current.record({
-							text: code,
-							format,
-						});
-						setScanProgress(observation);
-
-						if (!observation.accepted) return;
 
 						acceptedRef.current = true;
 						if (controlsRef.current === controls) {
@@ -382,8 +337,6 @@ export function BarcodeScannerDialog({
 	const handleDeviceChange = (deviceId: string) => {
 		stopScanning();
 		acceptedRef.current = false;
-		scanTrackerRef.current.reset();
-		setScanProgress(null);
 		setCameraError(null);
 		setIsLoading(true);
 		setSelectedDeviceId(deviceId);
@@ -398,8 +351,7 @@ export function BarcodeScannerDialog({
 						Scan Barcode / QR Code
 					</DialogTitle>
 					<DialogDescription>
-						Fill the scan box with one horizontal code, then hold the camera
-						steady to scan automatically
+						Hold one barcode or QR code clearly in view to scan automatically
 					</DialogDescription>
 				</DialogHeader>
 
@@ -458,15 +410,6 @@ export function BarcodeScannerDialog({
 
 				{/* Device Selector / Footer */}
 				<div className="mt-4 flex flex-col gap-3">
-					{scanProgress && !scanProgress.accepted && (
-						<output
-							aria-live="polite"
-							className="text-center text-sm font-medium text-emerald-600 dark:text-emerald-400"
-						>
-							Reading code… {scanProgress.count}/{scanProgress.required}
-						</output>
-					)}
-
 					{videoDevices.length > 1 && (
 						<div className="flex items-center justify-between gap-3 text-xs">
 							<span className="text-muted-foreground font-medium flex items-center gap-1">
