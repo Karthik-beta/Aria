@@ -1,14 +1,29 @@
 import "@testing-library/jest-dom";
+import type { AppRouter } from "@aria/api-contract";
+import { TRPCClientError } from "@trpc/client";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithProviders, screen, userEvent, waitFor } from "@/test/utils";
 import AssetFormPage from "./page";
 
 const mockCreateMutate = vi.fn();
 const mockUpdateMutate = vi.fn();
+const mockBarcodeFetch = vi.fn();
 const mockPush = vi.fn();
 const mockBack = vi.fn();
 
 let currentId: string | null = null;
+
+function createTRPCError(
+	message: string,
+	code: "INTERNAL_SERVER_ERROR" | "NOT_FOUND" | "UNAUTHORIZED",
+	httpStatus: number,
+): TRPCClientError<AppRouter> {
+	const error = new TRPCClientError<AppRouter>(message);
+	Object.defineProperty(error, "data", {
+		value: { code, httpStatus },
+	});
+	return error;
+}
 
 const mockCategories = [
 	{
@@ -117,6 +132,21 @@ vi.mock("@hookform/resolvers/zod", () => ({
 	}),
 }));
 
+vi.mock("@/components/barcode-scanner-dialog", () => ({
+	BarcodeScannerDialog: ({
+		isOpen,
+		onScanSuccess,
+	}: {
+		isOpen: boolean;
+		onScanSuccess: (code: string) => void;
+	}) =>
+		isOpen ? (
+			<button type="button" onClick={() => onScanSuccess("8904287602549")}>
+				Complete barcode scan
+			</button>
+		) : null,
+}));
+
 vi.mock("@aria/types", () => ({
 	Asset: {
 		assetOwnerSchema: {
@@ -144,6 +174,9 @@ vi.mock("@/lib/trpc", () => ({
 	trpc: {
 		useUtils: () => ({
 			asset: {
+				getAssetByBarcode: {
+					fetch: mockBarcodeFetch,
+				},
 				listAssets: {
 					invalidate: vi.fn().mockResolvedValue(undefined),
 				},
@@ -224,6 +257,7 @@ describe("AssetFormPage", () => {
 		currentId = null;
 		mockCreateMutate.mockClear();
 		mockUpdateMutate.mockClear();
+		mockBarcodeFetch.mockReset();
 		mockPush.mockClear();
 		mockBack.mockClear();
 	});
@@ -467,5 +501,124 @@ describe("AssetFormPage", () => {
 				}),
 			);
 		});
+	});
+
+	it("fills a scanned barcode only when lookup returns NOT_FOUND", async () => {
+		const user = userEvent.setup();
+		mockBarcodeFetch.mockRejectedValueOnce(
+			createTRPCError("Asset not found", "NOT_FOUND", 404),
+		);
+		renderWithProviders(<AssetFormPage />);
+
+		await user.click(screen.getByRole("button", { name: /^Scan$/i }));
+		await user.click(
+			screen.getByRole("button", { name: /Complete barcode scan/i }),
+		);
+
+		await waitFor(() => {
+			expect(screen.getByLabelText(/Barcode \/ QR Code/i)).toHaveValue(
+				"8904287602549",
+			);
+		});
+		expect(mockBarcodeFetch).toHaveBeenCalledWith({
+			barcode: "8904287602549",
+		});
+	});
+
+	it("rejects a scanned barcode registered to another asset", async () => {
+		const user = userEvent.setup();
+		mockBarcodeFetch.mockResolvedValueOnce({
+			id: "different-asset",
+			assetName: "Existing Asset",
+		});
+		renderWithProviders(<AssetFormPage />);
+
+		await user.click(screen.getByRole("button", { name: /^Scan$/i }));
+		await user.click(
+			screen.getByRole("button", { name: /Complete barcode scan/i }),
+		);
+
+		await waitFor(() => expect(mockBarcodeFetch).toHaveBeenCalledOnce());
+		expect(screen.getByLabelText(/Barcode \/ QR Code/i)).toHaveValue("");
+	});
+
+	it("accepts the current asset barcode while editing", async () => {
+		const user = userEvent.setup();
+		currentId = existingAsset.id;
+		mockBarcodeFetch.mockResolvedValueOnce({
+			id: existingAsset.id,
+			assetName: existingAsset.assetName,
+		});
+		renderWithProviders(<AssetFormPage />);
+
+		await waitFor(() =>
+			expect(screen.getByDisplayValue("Company Vehicle")).toBeInTheDocument(),
+		);
+		await user.click(screen.getByRole("button", { name: /^Scan$/i }));
+		await user.click(
+			screen.getByRole("button", { name: /Complete barcode scan/i }),
+		);
+
+		await waitFor(() => {
+			expect(screen.getByLabelText(/Barcode \/ QR Code/i)).toHaveValue(
+				"8904287602549",
+			);
+		});
+	});
+
+	it("does not approve a barcode when lookup fails unexpectedly", async () => {
+		const user = userEvent.setup();
+		mockBarcodeFetch.mockRejectedValueOnce(
+			createTRPCError(
+				"Barcode lookup service unavailable",
+				"INTERNAL_SERVER_ERROR",
+				500,
+			),
+		);
+		renderWithProviders(<AssetFormPage />);
+		const barcodeInput = screen.getByLabelText(/Barcode \/ QR Code/i);
+		await user.type(barcodeInput, "ORIGINAL-BARCODE");
+
+		await user.click(screen.getByRole("button", { name: /^Scan$/i }));
+		await user.click(
+			screen.getByRole("button", { name: /Complete barcode scan/i }),
+		);
+
+		await waitFor(() => expect(mockBarcodeFetch).toHaveBeenCalledOnce());
+		expect(barcodeInput).toHaveValue("ORIGINAL-BARCODE");
+	});
+
+	it("preserves the previous value when the lookup fails at the network layer", async () => {
+		const user = userEvent.setup();
+		mockBarcodeFetch.mockRejectedValueOnce(new Error("Network request failed"));
+		renderWithProviders(<AssetFormPage />);
+		const barcodeInput = screen.getByLabelText(/Barcode \/ QR Code/i);
+		await user.type(barcodeInput, "ORIGINAL-BARCODE");
+
+		await user.click(screen.getByRole("button", { name: /^Scan$/i }));
+		await user.click(
+			screen.getByRole("button", { name: /Complete barcode scan/i }),
+		);
+
+		await waitFor(() => expect(mockBarcodeFetch).toHaveBeenCalledOnce());
+		expect(barcodeInput).toHaveValue("ORIGINAL-BARCODE");
+	});
+
+	it("does not treat authentication failures as barcode availability", async () => {
+		const user = userEvent.setup();
+		mockBarcodeFetch.mockRejectedValueOnce(
+			createTRPCError("Authentication required", "UNAUTHORIZED", 401),
+		);
+		renderWithProviders(<AssetFormPage />);
+		const barcodeInput = screen.getByLabelText(/Barcode \/ QR Code/i);
+		await user.type(barcodeInput, "ORIGINAL-BARCODE");
+
+		await user.click(screen.getByRole("button", { name: /^Scan$/i }));
+		await user.click(
+			screen.getByRole("button", { name: /Complete barcode scan/i }),
+		);
+
+		await waitFor(() => expect(mockBarcodeFetch).toHaveBeenCalledOnce());
+		expect(barcodeInput).toHaveValue("ORIGINAL-BARCODE");
 	});
 });

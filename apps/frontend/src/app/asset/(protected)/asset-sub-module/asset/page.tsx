@@ -415,6 +415,28 @@ export default function AssetListPage() {
 				enableGlobalFilter: true,
 			},
 			{
+				id: "custodian",
+				accessorFn: (row) => row.custodian ?? "",
+				header: ({ column }) => (
+					<DataTableColumnHeader column={column} title="Custodian" />
+				),
+				cell: ({ row }) => (
+					<span className="text-sm text-muted-foreground">
+						{row.original.custodian ?? "—"}
+					</span>
+				),
+				meta: {
+					label: "Custodian",
+					placeholder: "Search by custodian...",
+					variant: "text",
+					searchable: true,
+					exportable: true,
+				},
+				enableSorting: true,
+				enableColumnFilter: true,
+				enableGlobalFilter: true,
+			},
+			{
 				id: "age",
 				accessorFn: (row) => row.createdAt,
 				header: () => <span className="text-muted-foreground" />,
@@ -585,6 +607,9 @@ export default function AssetListPage() {
 												<Skeleton className="h-4 w-24" />
 											</th>
 											<th className="p-3">
+												<Skeleton className="h-4 w-24" />
+											</th>
+											<th className="p-3">
 												<Skeleton className="h-4 w-12" />
 											</th>
 											<th className="p-3">
@@ -606,6 +631,9 @@ export default function AssetListPage() {
 												</td>
 												<td className="p-3">
 													<Skeleton className="h-4 w-20" />
+												</td>
+												<td className="p-3">
+													<Skeleton className="h-4 w-24" />
 												</td>
 												<td className="p-3">
 													<Skeleton className="h-4 w-24" />

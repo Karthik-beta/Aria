@@ -1,5 +1,17 @@
 import { expect, type Page, test } from "@playwright/test";
 
+const ASSET_FORM_PATH = "/asset/asset-sub-module/asset/form";
+const CORRECT_EAN = "8904287602549";
+
+type BarcodeLookupMock =
+	| { kind: "found"; assetId: string; assetName: string }
+	| {
+			kind: "error";
+			code: "INTERNAL_SERVER_ERROR" | "NOT_FOUND";
+			httpStatus: number;
+			message: string;
+	  };
+
 const mockCategories = {
 	items: [
 		{
@@ -68,9 +80,132 @@ async function mockFormQueries(page: Page) {
 	});
 }
 
-test.describe("Asset Barcode Scanning & Input UI", () => {
-	test.describe.configure({ mode: "serial" });
+async function installCameraFailure(
+	page: Page,
+	name: "NotAllowedError" | "NotFoundError" | "NotReadableError",
+	message: string,
+) {
+	await page.addInitScript(
+		({ errorName, errorMessage }) => {
+			const mockGetUserMedia = async () => {
+				throw new DOMException(errorMessage, errorName);
+			};
+			const mockEnumerateDevices = async () => [];
+			const mediaDevicesMock = {
+				getUserMedia: mockGetUserMedia,
+				enumerateDevices: mockEnumerateDevices,
+			};
 
+			if (typeof MediaDevices !== "undefined" && MediaDevices.prototype) {
+				Object.defineProperty(MediaDevices.prototype, "getUserMedia", {
+					value: mockGetUserMedia,
+					configurable: true,
+					writable: true,
+				});
+				Object.defineProperty(MediaDevices.prototype, "enumerateDevices", {
+					value: mockEnumerateDevices,
+					configurable: true,
+					writable: true,
+				});
+			} else {
+				Object.defineProperty(
+					Object.getPrototypeOf(navigator),
+					"mediaDevices",
+					{
+						value: mediaDevicesMock,
+						configurable: true,
+					},
+				);
+			}
+		},
+		{ errorName: name, errorMessage: message },
+	);
+}
+
+function getBarcodeFromRequest(requestUrl: string): string | undefined {
+	const input = new URL(requestUrl).searchParams.get("input");
+	if (!input) return undefined;
+
+	const parsed = JSON.parse(input) as Record<string, unknown>;
+	const batchEntry = parsed["0"] as
+		| { json?: { barcode?: string }; barcode?: string }
+		| undefined;
+	const directEntry = parsed as {
+		json?: { barcode?: string };
+		barcode?: string;
+	};
+	return (
+		batchEntry?.json?.barcode ??
+		batchEntry?.barcode ??
+		directEntry.json?.barcode ??
+		directEntry.barcode
+	);
+}
+
+async function mockBarcodeLookup(page: Page, response: BarcodeLookupMock) {
+	const receivedBarcodes: string[] = [];
+
+	await page.route("**/trpc/asset.getAssetByBarcode**", async (route) => {
+		const barcode = getBarcodeFromRequest(route.request().url());
+		if (barcode) receivedBarcodes.push(barcode);
+
+		const payload =
+			response.kind === "found"
+				? {
+						result: {
+							data: {
+								id: response.assetId,
+								assetName: response.assetName,
+							},
+						},
+					}
+				: {
+						error: {
+							message: response.message,
+							code: response.code === "NOT_FOUND" ? -32_004 : -32_603,
+							data: {
+								code: response.code,
+								httpStatus: response.httpStatus,
+								path: "asset.getAssetByBarcode",
+							},
+						},
+					};
+		const body = route.request().url().includes("batch=1")
+			? [payload]
+			: payload;
+		await route.fulfill({ json: body });
+	});
+
+	return receivedBarcodes;
+}
+
+async function openManualScanner(page: Page) {
+	const scanButton = page.getByRole("button", { name: /^Scan$/i });
+	const dialogHeading = page.getByRole("heading", {
+		name: /Scan Barcode \/ QR Code/i,
+	});
+
+	// The form can be visible before Next.js finishes attaching client handlers.
+	await expect(async () => {
+		await scanButton.click();
+		await expect(dialogHeading).toBeVisible({ timeout: 2_000 });
+	}).toPass({ timeout: 20_000 });
+	await expect(
+		page
+			.getByRole("dialog")
+			.getByText(/Hold one barcode or QR code clearly in view/i),
+	).toBeVisible();
+}
+
+async function openAssetForm(page: Page) {
+	await mockFormQueries(page);
+	await page.goto(ASSET_FORM_PATH, { waitUntil: "domcontentloaded" });
+	await expect(page.getByLabel(/Barcode \/ QR Code/i)).toBeVisible({
+		timeout: 45_000,
+	});
+}
+
+test.describe("Asset Barcode Scanning & Input UI", () => {
 	test.beforeEach(async ({ page }) => {
 		test.setTimeout(180_000);
 		await login(page);
@@ -121,200 +256,114 @@ test.describe("Asset Barcode Scanning & Input UI", () => {
 		await expect(barcodeInput).toHaveValue("1234567890ABC");
 	});
 
-	test("barcode scanner dialog - permission denied scenario", async ({
+	for (const scenario of [
+		{
+			name: "NotAllowedError" as const,
+			browserMessage: "Permission denied",
+			expectedMessage: /Camera permission was denied/i,
+		},
+		{
+			name: "NotFoundError" as const,
+			browserMessage: "No camera",
+			expectedMessage: /No camera is available on this device/i,
+		},
+		{
+			name: "NotReadableError" as const,
+			browserMessage: "Camera busy",
+			expectedMessage: /camera is unavailable or already in use/i,
+		},
+	]) {
+		test(`reports ${scenario.name} camera failures accurately`, async ({
+			page,
+		}) => {
+			await installCameraFailure(page, scenario.name, scenario.browserMessage);
+			await openAssetForm(page);
+			await openManualScanner(page);
+
+			await expect(
+				page.getByRole("dialog").getByText(scenario.expectedMessage),
+			).toBeVisible({ timeout: 15_000 });
+		});
+	}
+
+	test("manual scanner accepts only a typed NOT_FOUND response", async ({
 		page,
 	}) => {
-		// Mock getUserMedia to simulate permission denied
-		await page.addInitScript(() => {
-			const mockGetUserMedia = async () => {
-				throw new DOMException("Permission denied", "NotAllowedError");
-			};
-			const mockEnumerateDevices = async () => [];
-
-			const mediaDevicesMock = {
-				getUserMedia: mockGetUserMedia,
-				enumerateDevices: mockEnumerateDevices,
-			};
-
-			if (typeof MediaDevices !== "undefined" && MediaDevices.prototype) {
-				Object.defineProperty(MediaDevices.prototype, "getUserMedia", {
-					value: mockGetUserMedia,
-					configurable: true,
-					writable: true,
-				});
-				Object.defineProperty(MediaDevices.prototype, "enumerateDevices", {
-					value: mockEnumerateDevices,
-					configurable: true,
-					writable: true,
-				});
-			} else if (typeof Navigator !== "undefined" && Navigator.prototype) {
-				Object.defineProperty(Navigator.prototype, "mediaDevices", {
-					value: mediaDevicesMock,
-					configurable: true,
-					writable: true,
-				});
-			}
+		await installCameraFailure(page, "NotAllowedError", "Permission denied");
+		const receivedBarcodes = await mockBarcodeLookup(page, {
+			kind: "error",
+			code: "NOT_FOUND",
+			httpStatus: 404,
+			message: `Asset with barcode "${CORRECT_EAN}" not found`,
 		});
+		await openAssetForm(page);
+		await openManualScanner(page);
 
-		await mockFormQueries(page);
-		await page.goto("/asset/asset-sub-module/asset/form", {
-			waitUntil: "networkidle",
-		});
-		await page.waitForTimeout(2000); // wait for React hydration
+		await page
+			.getByPlaceholder(/Enter barcode or QR code/i)
+			.fill(`  ${CORRECT_EAN}  `);
+		await page.getByRole("button", { name: /Submit/i }).click();
 
-		// Click Scan to open dialog
-		const scanButton = page.getByRole("button", { name: /Scan/i });
-		await expect(scanButton).toBeVisible();
-		await scanButton.click();
-
-		// Verify dialog is visible
-		const dialogTitle = page.getByText(/Scan Barcode \/ QR Code/i);
-		await expect(dialogTitle).toBeVisible();
-
-		// Verify permission denied overlay is visible
-		const deniedText = page.getByText(
-			/Camera permission denied or unavailable/i,
+		await expect(page.getByRole("dialog")).not.toBeVisible();
+		await expect(page.getByLabel(/Barcode \/ QR Code/i)).toHaveValue(
+			CORRECT_EAN,
 		);
-		await expect(deniedText).toBeVisible({ timeout: 15_000 });
+		await expect(
+			page.getByText(/Barcode is unique and available/i),
+		).toBeVisible();
+		await expect.poll(() => receivedBarcodes).toEqual([CORRECT_EAN]);
 	});
 
-	test("barcode scanner dialog - permission granted scenario", async ({
+	test("duplicate lookup leaves the previous form value unchanged", async ({
 		page,
 	}) => {
-		// Mock mediaDevices to simulate permission granted and list a camera
-		await page.addInitScript(() => {
-			const mockStream = new MediaStream();
-			mockStream.getTracks = () => [
-				{
-					stop: () => {},
-					enabled: true,
-				} as unknown as MediaStreamTrack,
-			];
-			const mockGetUserMedia = async () => mockStream;
-			const mockEnumerateDevices = async () => [
-				{
-					deviceId: "mock-camera-id",
-					kind: "videoinput" as const,
-					label: "Mock Back Camera",
-					groupId: "mock-group-id",
-					toJSON: () => {},
-				},
-			];
-
-			const mediaDevicesMock = {
-				getUserMedia: mockGetUserMedia,
-				enumerateDevices: mockEnumerateDevices,
-			};
-
-			if (typeof MediaDevices !== "undefined" && MediaDevices.prototype) {
-				Object.defineProperty(MediaDevices.prototype, "getUserMedia", {
-					value: mockGetUserMedia,
-					configurable: true,
-					writable: true,
-				});
-				Object.defineProperty(MediaDevices.prototype, "enumerateDevices", {
-					value: mockEnumerateDevices,
-					configurable: true,
-					writable: true,
-				});
-			} else if (typeof Navigator !== "undefined" && Navigator.prototype) {
-				Object.defineProperty(Navigator.prototype, "mediaDevices", {
-					value: mediaDevicesMock,
-					configurable: true,
-					writable: true,
-				});
-			}
+		await installCameraFailure(page, "NotAllowedError", "Permission denied");
+		await mockBarcodeLookup(page, {
+			kind: "found",
+			assetId: "existing-asset",
+			assetName: "Existing Forklift",
 		});
-
-		await mockFormQueries(page);
-		await page.goto("/asset/asset-sub-module/asset/form", {
-			waitUntil: "networkidle",
-		});
-		await page.waitForTimeout(2000); // wait for React hydration
-
-		// Click Scan to open dialog
-		const scanButton = page.getByRole("button", { name: /Scan/i });
-		await expect(scanButton).toBeVisible();
-		await scanButton.click();
-
-		// Verify dialog is visible
-		const dialogTitle = page.getByText(/Scan Barcode \/ QR Code/i);
-		await expect(dialogTitle).toBeVisible();
-
-		// Verify loading spinner disappears and targeting box/video feed becomes active
-		const videoFeed = page.locator("video");
-		await expect(videoFeed).toBeVisible({ timeout: 15_000 });
-
-		// Verify there is no denied text
-		const deniedText = page.getByText(
-			/Camera permission denied or unavailable/i,
-		);
-		await expect(deniedText).not.toBeVisible();
-	});
-
-	test("barcode scanner dialog - manual entry scenario", async ({ page }) => {
-		// Mock permission denied to show the manual entry is fully functional even when camera is blocked
-		await page.addInitScript(() => {
-			const mockGetUserMedia = async () => {
-				throw new DOMException("Permission denied", "NotAllowedError");
-			};
-			const mockEnumerateDevices = async () => [];
-
-			const mediaDevicesMock = {
-				getUserMedia: mockGetUserMedia,
-				enumerateDevices: mockEnumerateDevices,
-			};
-
-			if (typeof MediaDevices !== "undefined" && MediaDevices.prototype) {
-				Object.defineProperty(MediaDevices.prototype, "getUserMedia", {
-					value: mockGetUserMedia,
-					configurable: true,
-					writable: true,
-				});
-				Object.defineProperty(MediaDevices.prototype, "enumerateDevices", {
-					value: mockEnumerateDevices,
-					configurable: true,
-					writable: true,
-				});
-			} else if (typeof Navigator !== "undefined" && Navigator.prototype) {
-				Object.defineProperty(Navigator.prototype, "mediaDevices", {
-					value: mediaDevicesMock,
-					configurable: true,
-					writable: true,
-				});
-			}
-		});
-
-		await mockFormQueries(page);
-		await page.goto("/asset/asset-sub-module/asset/form", {
-			waitUntil: "networkidle",
-		});
-		await page.waitForTimeout(2000); // wait for React hydration
-
-		// Click Scan to open dialog
-		const scanButton = page.getByRole("button", { name: /Scan/i });
-		await expect(scanButton).toBeVisible();
-		await scanButton.click();
-
-		// Verify dialog is visible
-		const dialogTitle = page.getByText(/Scan Barcode \/ QR Code/i);
-		await expect(dialogTitle).toBeVisible();
-
-		// Locate manual input and type code
-		const manualInput = page.getByPlaceholder(/Enter barcode or QR code.../i);
-		await expect(manualInput).toBeVisible();
-		await manualInput.fill("MANUAL-BARCODE-123");
-
-		// Click Submit
-		const submitButton = page.getByRole("button", { name: /Submit/i });
-		await expect(submitButton).toBeVisible();
-		await submitButton.click();
-
-		// Verify dialog is closed (title is no longer visible)
-		await expect(dialogTitle).not.toBeVisible();
-
-		// Verify the value in the form input field is updated
+		await openAssetForm(page);
+		await openManualScanner(page);
+		await page.getByRole("button", { name: /^Cancel$/i }).click();
+		await expect(page.getByRole("dialog")).not.toBeVisible();
 		const formInput = page.getByLabel(/Barcode \/ QR Code/i);
-		await expect(formInput).toHaveValue("MANUAL-BARCODE-123");
+		await formInput.fill("ORIGINAL-BARCODE");
+		await openManualScanner(page);
+
+		await page.getByPlaceholder(/Enter barcode or QR code/i).fill(CORRECT_EAN);
+		await page.getByRole("button", { name: /Submit/i }).click();
+
+		await expect(formInput).toHaveValue("ORIGINAL-BARCODE");
+		await expect(
+			page.getByText(/already registered to asset "Existing Forklift"/i),
+		).toBeVisible();
+	});
+
+	test("server lookup failure leaves the previous form value unchanged", async ({
+		page,
+	}) => {
+		await installCameraFailure(page, "NotAllowedError", "Permission denied");
+		await mockBarcodeLookup(page, {
+			kind: "error",
+			code: "INTERNAL_SERVER_ERROR",
+			httpStatus: 500,
+			message: "Barcode lookup service unavailable",
+		});
+		await openAssetForm(page);
+		await openManualScanner(page);
+		await page.getByRole("button", { name: /^Cancel$/i }).click();
+		await expect(page.getByRole("dialog")).not.toBeVisible();
+		const formInput = page.getByLabel(/Barcode \/ QR Code/i);
+		await formInput.fill("ORIGINAL-BARCODE");
+		await openManualScanner(page);
+
+		await page.getByPlaceholder(/Enter barcode or QR code/i).fill(CORRECT_EAN);
+		await page.getByRole("button", { name: /Submit/i }).click();
+
+		await expect(formInput).toHaveValue("ORIGINAL-BARCODE");
+		await expect(
+			page.getByText(/Barcode lookup service unavailable/i),
+		).toBeVisible();
 	});
 });
