@@ -731,8 +731,16 @@ export const adminNavItems: NavItem[] = [
 				url: "/admin/organizations",
 			},
 			{
+				title: "Organization Members",
+				url: "/admin/organization/members",
+			},
+			{
 				title: "Company",
 				url: "/admin/company",
+			},
+			{
+				title: "Finance Books",
+				url: "/admin/finance-book",
 			},
 		],
 	},

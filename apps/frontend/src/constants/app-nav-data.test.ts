@@ -80,6 +80,19 @@ describe("getAppNavItems", () => {
 		expect(titles).toContain("Stock Transactions");
 		expect(titles).toContain("Inventory Settings");
 	});
+
+	it("admin nav data includes all expected navigation items", () => {
+		const items = getAppNavItems("admin");
+		const subItemTitles = items.flatMap(
+			(i) => i.items?.map((sub) => sub.title) ?? [],
+		);
+		expect(subItemTitles).toContain("Dashboard");
+		expect(subItemTitles).toContain("Users");
+		expect(subItemTitles).toContain("Organizations");
+		expect(subItemTitles).toContain("Organization Members");
+		expect(subItemTitles).toContain("Company");
+		expect(subItemTitles).toContain("Finance Books");
+	});
 });
 
 describe("getAppMetadata", () => {
