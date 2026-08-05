@@ -78,11 +78,11 @@ describe("AssetDepreciationLifecycleService", () => {
 		await service.configureAssetBooks("asset-1");
 
 		expect(updateBook).toHaveBeenCalledTimes(1);
-		expect(Number(updateBook.mock.calls[0]?.[0].data.rateOfDepreciation)).toBe(
-			100,
-		);
+		const firstBookCall = (updateBook.mock.calls as any)[0];
+		expect(Number(firstBookCall[0].data.rateOfDepreciation)).toBe(100);
 		expect(updateSchedule).toHaveBeenCalledTimes(1);
-		const scheduleData = updateSchedule.mock.calls[0]?.[0].data;
+		const firstScheduleCall = (updateSchedule.mock.calls as any)[0];
+		const scheduleData = firstScheduleCall[0].data;
 		expect(scheduleData.revisionNumber).toBe(3);
 		expect(scheduleData.rateOfDepreciation).toBe(100);
 		expect(scheduleData.entries.create).toHaveLength(1);
