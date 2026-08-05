@@ -28,6 +28,15 @@ test.describe("Admin shell", () => {
 		});
 		await expect(heading).toBeVisible({ timeout: 15000 });
 	});
+
+	test("admin finance book page is reachable", async ({ page }) => {
+		await page.goto("/admin/finance-book");
+
+		const heading = page.getByRole("heading", {
+			name: /finance books|sign in/i,
+		});
+		await expect(heading).toBeVisible({ timeout: 15000 });
+	});
 });
 
 test.describe("Admin CRUD flows (authenticated)", () => {
