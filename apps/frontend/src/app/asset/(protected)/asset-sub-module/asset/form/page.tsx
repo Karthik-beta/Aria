@@ -20,6 +20,11 @@ import { Suspense } from "react";
 import { Controller, useFieldArray, useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 import * as z from "zod";
+import {
+	DEPRECIATION_METHOD_DOCS,
+	DepreciationMethodInlineCard,
+	DepreciationMethodLabel,
+} from "@/components/asset/depreciation-method-doc-guide";
 import { BarcodeScannerDialog } from "@/components/barcode-scanner-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -1270,32 +1275,52 @@ function AssetFormContent() {
 
 								<div className="grid gap-4 sm:grid-cols-2">
 									<div className="space-y-2">
-										<Label htmlFor="depreciationMethod">
-											Depreciation Method{" "}
-											<span className="text-destructive">*</span>
-										</Label>
+										<DepreciationMethodLabel
+											htmlFor="depreciationMethod"
+											required
+										/>
 										<Controller
 											name="depreciationMethod"
 											control={form.control}
 											render={({ field }) => (
-												<Select
-													value={field.value ?? ""}
-													onValueChange={field.onChange}
-												>
-													<SelectTrigger
-														className={`h-10 ${formErrors.depreciationMethod ? "border-destructive" : ""}`}
-														id="depreciationMethod"
+												<>
+													<Select
+														value={field.value ?? ""}
+														onValueChange={field.onChange}
 													>
-														<SelectValue placeholder="Select method" />
-													</SelectTrigger>
-													<SelectContent>
-														{DEPRECIATION_METHOD_OPTIONS.map((opt) => (
-															<SelectItem key={opt.value} value={opt.value}>
-																{opt.label}
-															</SelectItem>
-														))}
-													</SelectContent>
-												</Select>
+														<SelectTrigger
+															className={`h-10 ${formErrors.depreciationMethod ? "border-destructive" : ""}`}
+															id="depreciationMethod"
+														>
+															<SelectValue placeholder="Select method" />
+														</SelectTrigger>
+														<SelectContent>
+															{DEPRECIATION_METHOD_OPTIONS.map((opt) => {
+																const doc =
+																	DEPRECIATION_METHOD_DOCS[
+																		opt.value as Asset.DepreciationMethod
+																	];
+																return (
+																	<SelectItem key={opt.value} value={opt.value}>
+																		<div className="flex flex-col gap-0.5 py-0.5">
+																			<span className="font-medium">
+																				{opt.label}
+																			</span>
+																			{doc?.subtitle && (
+																				<span className="text-[11px] text-muted-foreground font-normal">
+																					{doc.subtitle}
+																				</span>
+																			)}
+																		</div>
+																	</SelectItem>
+																);
+															})}
+														</SelectContent>
+													</Select>
+													<DepreciationMethodInlineCard
+														selectedMethod={field.value}
+													/>
+												</>
 											)}
 										/>
 										{formErrors.depreciationMethod && (
