@@ -1,10 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 
-const mockHandlerFn = mock(
-	(_req: Request) =>
-		Promise.resolve(
-			new Response(JSON.stringify({}), { status: 200 }),
-		) as unknown,
+const mockHandlerFn = mock((_req: Request) =>
+	Promise.resolve(new Response(JSON.stringify({}), { status: 200 })),
 );
 
 mock.module("../auth.config", () => ({
@@ -14,15 +11,13 @@ mock.module("../auth.config", () => ({
 	Auth: {} as never,
 }));
 
-const mockPrismaUserFindFirst = mock((..._args: unknown[]) =>
+const mockPrismaUserFindFirst = mock((_args?: unknown) =>
 	Promise.resolve<unknown>(null),
 );
-const mockPrismaUserFindUnique = mock((..._args: unknown[]) =>
+const mockPrismaUserFindUnique = mock((_args?: unknown) =>
 	Promise.resolve<unknown>(null),
 );
-const mockPrismaUserUpdate = mock((..._args: unknown[]) =>
-	Promise.resolve<unknown>({}),
-);
+const mockPrismaUserUpdate = mock((_args?: unknown) => Promise.resolve({}));
 const mockPrismaConnect = mock(() => Promise.resolve());
 const mockPrismaDisconnect = mock(() => Promise.resolve());
 
@@ -198,8 +193,8 @@ describe("AuthService", () => {
 			mockPrismaUserFindFirst.mockImplementation(() => Promise.resolve(null));
 			mockPrismaUserFindUnique.mockImplementation(() => Promise.resolve(null));
 			mockPrismaUserUpdate.mockImplementation(() => Promise.resolve({}));
-			mockHandlerFn.mockImplementation(
-				() => new Response(JSON.stringify({}), { status: 200 }),
+			mockHandlerFn.mockImplementation(() =>
+				Promise.resolve(new Response(JSON.stringify({}), { status: 200 })),
 			);
 		});
 

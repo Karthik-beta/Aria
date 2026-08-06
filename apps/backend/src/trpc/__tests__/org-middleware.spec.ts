@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, mock } from "bun:test";
 
-const mockPrismaOrgFindUnique = mock((..._args: unknown[]) =>
+const mockPrismaOrgFindUnique = mock((_args?: unknown) =>
 	Promise.resolve<unknown>(null),
 );
-const mockPrismaMemberFindUnique = mock((..._args: unknown[]) =>
+const mockPrismaMemberFindUnique = mock((_args?: unknown) =>
 	Promise.resolve<unknown>(null),
 );
-const mockPrismaUserFindUnique = mock((..._args: unknown[]) =>
+const mockPrismaUserFindUnique = mock((_args?: unknown) =>
 	Promise.resolve<unknown>(null),
 );
 
