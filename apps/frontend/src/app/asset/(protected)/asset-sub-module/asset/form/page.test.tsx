@@ -351,7 +351,7 @@ describe("AssetFormPage", () => {
 		await user.click(checkbox);
 
 		await waitFor(() => {
-			expect(screen.getByText(/Depreciation Method/i)).toBeInTheDocument();
+			expect(screen.getByLabelText(/Depreciation Method/i)).toBeInTheDocument();
 		});
 	});
 
