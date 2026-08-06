@@ -76,7 +76,7 @@ export const DEPRECIATION_METHOD_DOCS: Record<
 			"General Equipment",
 		],
 		exampleScenario:
-			"A $10,000 machine with $0 salvage value over 5 years (60 months) depreciates by $2,000 every year ($166.67/month).",
+			"A ₹10,000 machine with ₹0 salvage value over 5 years (60 months) depreciates by ₹2,000 every year (₹166.67/month).",
 	},
 	DOUBLE_DECLINING_BALANCE: {
 		id: "DOUBLE_DECLINING_BALANCE",
@@ -101,7 +101,7 @@ export const DEPRECIATION_METHOD_DOCS: Record<
 			"Fast-Evolving Assets",
 		],
 		exampleScenario:
-			"A $10,000 server over 5 years has a 40% annual rate (2 × 20%). Year 1 depreciation is $4,000, Year 2 is $2,400 (40% of $6,000), declining rapidly.",
+			"A ₹10,000 server over 5 years has a 40% annual rate (2 × 20%). Year 1 depreciation is ₹4,000, Year 2 is ₹2,400 (40% of ₹6,000), declining rapidly.",
 	},
 	WRITTEN_DOWN_VALUE: {
 		id: "WRITTEN_DOWN_VALUE",
@@ -127,7 +127,7 @@ export const DEPRECIATION_METHOD_DOCS: Record<
 			"Heavy Electronics",
 		],
 		exampleScenario:
-			"A $10,000 asset with a 20% WDV rate depreciates by $2,000 in Year 1 (leaving $8,000), $1,600 in Year 2 (leaving $6,400), and $1,280 in Year 3.",
+			"A ₹10,000 asset with a 20% WDV rate depreciates by ₹2,000 in Year 1 (leaving ₹8,000), ₹1,600 in Year 2 (leaving ₹6,400), and ₹1,280 in Year 3.",
 	},
 	MANUAL: {
 		id: "MANUAL",
@@ -152,7 +152,7 @@ export const DEPRECIATION_METHOD_DOCS: Record<
 			"Unique Tax Settlements",
 		],
 		exampleScenario:
-			"A seasonal harvesting machine is depreciated only in Q3 of each year ($4,000 in Year 1 Q3, $3,000 in Year 2 Q3, $0 in other quarters).",
+			"A seasonal harvesting machine is depreciated only in Q3 of each year (₹4,000 in Year 1 Q3, ₹3,000 in Year 2 Q3, ₹0 in other quarters).",
 	},
 };
 
@@ -289,14 +289,14 @@ export function DepreciationMethodDocModal({
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
 }) {
-	const [simValue, setSimValue] = useState<number>(10000);
+	const [simValue, setSimValue] = useState<number>(100000);
 	const [simYears, setSimYears] = useState<number>(5);
 	const [simWdvRate, setSimWdvRate] = useState<number>(20);
 
 	// Generate simulation dataset for Recharts chart
 	const simData = React.useMemo(() => {
 		const data = [];
-		const cost = Math.max(100, simValue || 10000);
+		const cost = Math.max(100, simValue || 100000);
 		const periods = Math.max(1, simYears || 5);
 		const wdvRate = (simWdvRate || 20) / 100;
 		const ddbRate = 2 / periods;
@@ -463,13 +463,13 @@ export function DepreciationMethodDocModal({
 								<div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
 									<div className="space-y-1">
 										<Label htmlFor="simValue" className="text-xs">
-											Initial Asset Value ($)
+											Initial Asset Value (₹)
 										</Label>
 										<Input
 											id="simValue"
 											type="number"
 											min={100}
-											step={500}
+											step={5000}
 											value={simValue}
 											onChange={(e) => setSimValue(Number(e.target.value))}
 											className="h-8 text-xs"
@@ -515,11 +515,11 @@ export function DepreciationMethodDocModal({
 											<XAxis dataKey="year" tick={{ fontSize: 11 }} />
 											<YAxis
 												tick={{ fontSize: 11 }}
-												tickFormatter={(val) => `$${val.toLocaleString()}`}
+												tickFormatter={(val) => `₹${val.toLocaleString()}`}
 											/>
 											<Tooltip
-												formatter={(val: number | string) => [
-													`$${Number(val).toLocaleString()}`,
+												formatter={(val) => [
+													`₹${Number(val ?? 0).toLocaleString()}`,
 													"",
 												]}
 												contentStyle={{ borderRadius: "8px", fontSize: "12px" }}

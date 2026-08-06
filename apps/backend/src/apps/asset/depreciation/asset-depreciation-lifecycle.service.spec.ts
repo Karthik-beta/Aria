@@ -78,14 +78,24 @@ describe("AssetDepreciationLifecycleService", () => {
 		await service.configureAssetBooks("asset-1");
 
 		expect(updateBook).toHaveBeenCalledTimes(1);
-		const firstBookCall = (updateBook.mock.calls as any)[0];
+		const firstBookCall = (
+			updateBook.mock.calls as unknown as Array<
+				[{ data: Record<string, unknown> }]
+			>
+		)[0]!;
 		expect(Number(firstBookCall[0].data.rateOfDepreciation)).toBe(100);
 		expect(updateSchedule).toHaveBeenCalledTimes(1);
-		const firstScheduleCall = (updateSchedule.mock.calls as any)[0];
+		const firstScheduleCall = (
+			updateSchedule.mock.calls as unknown as Array<
+				[{ data: Record<string, unknown> }]
+			>
+		)[0]!;
 		const scheduleData = firstScheduleCall[0].data;
 		expect(scheduleData.revisionNumber).toBe(3);
 		expect(scheduleData.rateOfDepreciation).toBe(100);
-		expect(scheduleData.entries.create).toHaveLength(1);
+		expect(
+			(scheduleData.entries as Record<string, unknown>).create,
+		).toHaveLength(1);
 	});
 
 	it("discovers books whose only open schedule has no entries", async () => {

@@ -290,9 +290,11 @@ describe("AuthService", () => {
 			await service.createDefaultUser();
 
 			expect(mockPrismaUserUpdate).toHaveBeenCalled();
-			const updateCall = mockPrismaUserUpdate.mock.calls[0]?.[0] as
-				| Record<string, unknown>
-				| undefined;
+			const updateCall = (
+				mockPrismaUserUpdate.mock.calls as unknown as [
+					Record<string, unknown>[],
+				]
+			)[0]?.[0];
 			expect(updateCall).toBeDefined();
 			if (updateCall) {
 				expect(updateCall.where).toEqual({ id: "created-id" });
@@ -307,8 +309,12 @@ describe("AuthService", () => {
 				DEFAULT_ADMIN_EMAIL: "admin@test.com",
 			});
 			mockPrismaUserFindFirst.mockResolvedValue(null);
-			mockHandlerFn.mockResolvedValue(
-				new Response(JSON.stringify({ message: "Conflict" }), { status: 409 }),
+			mockHandlerFn.mockImplementation(() =>
+				Promise.resolve(
+					new Response(JSON.stringify({ message: "Conflict" }), {
+						status: 409,
+					}),
+				),
 			);
 
 			await service.createDefaultUser();
@@ -342,9 +348,11 @@ describe("AuthService", () => {
 			await service.createDefaultUser();
 
 			expect(mockPrismaUserUpdate).toHaveBeenCalled();
-			const updateCall = mockPrismaUserUpdate.mock.calls[0]?.[0] as
-				| Record<string, unknown>
-				| undefined;
+			const updateCall = (
+				mockPrismaUserUpdate.mock.calls as unknown as [
+					Record<string, unknown>[],
+				]
+			)[0]?.[0];
 			expect(updateCall).toBeDefined();
 			if (updateCall) {
 				expect(updateCall.where).toEqual({ email: "admin@test.com" });
