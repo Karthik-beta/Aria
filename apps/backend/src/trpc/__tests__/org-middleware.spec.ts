@@ -1,8 +1,14 @@
 import { beforeEach, describe, expect, it, mock } from "bun:test";
 
-const mockPrismaOrgFindUnique = mock(() => Promise.resolve(null));
-const mockPrismaMemberFindUnique = mock(() => Promise.resolve(null));
-const mockPrismaUserFindUnique = mock(() => Promise.resolve(null));
+const mockPrismaOrgFindUnique = mock((..._args: unknown[]) =>
+	Promise.resolve<unknown>(null),
+);
+const mockPrismaMemberFindUnique = mock((..._args: unknown[]) =>
+	Promise.resolve<unknown>(null),
+);
+const mockPrismaUserFindUnique = mock((..._args: unknown[]) =>
+	Promise.resolve<unknown>(null),
+);
 
 describe("Organization scoped tRPC middleware", () => {
 	beforeEach(() => {

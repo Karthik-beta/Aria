@@ -1,7 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 
 const mockHandlerFn = mock(
-	(_req: Request) => new Response(JSON.stringify({}), { status: 200 }),
+	(_req: Request) =>
+		Promise.resolve(
+			new Response(JSON.stringify({}), { status: 200 }),
+		) as unknown,
 );
 
 mock.module("../auth.config", () => ({
@@ -11,9 +14,15 @@ mock.module("../auth.config", () => ({
 	Auth: {} as never,
 }));
 
-const mockPrismaUserFindFirst = mock(() => Promise.resolve(null));
-const mockPrismaUserFindUnique = mock(() => Promise.resolve(null));
-const mockPrismaUserUpdate = mock(() => Promise.resolve({}));
+const mockPrismaUserFindFirst = mock((..._args: unknown[]) =>
+	Promise.resolve<unknown>(null),
+);
+const mockPrismaUserFindUnique = mock((..._args: unknown[]) =>
+	Promise.resolve<unknown>(null),
+);
+const mockPrismaUserUpdate = mock((..._args: unknown[]) =>
+	Promise.resolve<unknown>({}),
+);
 const mockPrismaConnect = mock(() => Promise.resolve());
 const mockPrismaDisconnect = mock(() => Promise.resolve());
 
@@ -286,9 +295,11 @@ describe("AuthService", () => {
 			await service.createDefaultUser();
 
 			expect(mockPrismaUserUpdate).toHaveBeenCalled();
-			const updateCall = mockPrismaUserUpdate.mock.calls[0]?.[0] as
-				| Record<string, unknown>
-				| undefined;
+			const updateCall = (
+				mockPrismaUserUpdate.mock.calls as unknown as [
+					Record<string, unknown>[],
+				]
+			)[0]?.[0];
 			expect(updateCall).toBeDefined();
 			if (updateCall) {
 				expect(updateCall.where).toEqual({ id: "created-id" });
@@ -303,8 +314,12 @@ describe("AuthService", () => {
 				DEFAULT_ADMIN_EMAIL: "admin@test.com",
 			});
 			mockPrismaUserFindFirst.mockResolvedValue(null);
-			mockHandlerFn.mockResolvedValue(
-				new Response(JSON.stringify({ message: "Conflict" }), { status: 409 }),
+			mockHandlerFn.mockImplementation(() =>
+				Promise.resolve(
+					new Response(JSON.stringify({ message: "Conflict" }), {
+						status: 409,
+					}),
+				),
 			);
 
 			await service.createDefaultUser();
@@ -338,9 +353,11 @@ describe("AuthService", () => {
 			await service.createDefaultUser();
 
 			expect(mockPrismaUserUpdate).toHaveBeenCalled();
-			const updateCall = mockPrismaUserUpdate.mock.calls[0]?.[0] as
-				| Record<string, unknown>
-				| undefined;
+			const updateCall = (
+				mockPrismaUserUpdate.mock.calls as unknown as [
+					Record<string, unknown>[],
+				]
+			)[0]?.[0];
 			expect(updateCall).toBeDefined();
 			if (updateCall) {
 				expect(updateCall.where).toEqual({ email: "admin@test.com" });
