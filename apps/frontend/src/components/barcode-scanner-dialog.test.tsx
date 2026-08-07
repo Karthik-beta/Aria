@@ -60,6 +60,36 @@ vi.mock("@zxing/browser", () => ({
 }));
 
 vi.mock("@zxing/library", () => ({
+	BarcodeFormat: {
+		AZTEC: 0,
+		CODABAR: 1,
+		CODE_39: 2,
+		CODE_93: 3,
+		CODE_128: 4,
+		DATA_MATRIX: 5,
+		EAN_8: 6,
+		EAN_13: 7,
+		ITF: 8,
+		MAXICODE: 9,
+		PDF_417: 10,
+		QR_CODE: 11,
+		RSS_14: 12,
+		RSS_EXPANDED: 13,
+		UPC_A: 14,
+		UPC_E: 15,
+		UPC_EAN_EXTENSION: 16,
+	},
+	DecodeHintType: {
+		OTHER: 0,
+		PURPOSE: 1,
+		POSSIBLE_FORMATS: 2,
+		TRY_HARDER: 3,
+		CHARACTER_SET: 4,
+		ALLOWED_LENGTHS: 5,
+		ASSUME_CODE_39_CHECK_DIGIT: 6,
+		NEED_RESULT_POINT_CALLBACK: 7,
+		ALLOWED_EAN_EXTENSIONS: 8,
+	},
 	ChecksumException: scannerMocks.ChecksumException,
 	FormatException: scannerMocks.FormatException,
 	NotFoundException: scannerMocks.NotFoundException,
@@ -127,7 +157,7 @@ describe("BarcodeScannerDialog", () => {
 		installSuccessfulCamera();
 	});
 
-	it("uses ZXing's default full-frame multi-format reader", async () => {
+	it("uses ZXing multi-format reader configured with performance hints and scan options", async () => {
 		render(
 			<BarcodeScannerDialog isOpen onClose={vi.fn()} onScanSuccess={vi.fn()} />,
 		);
@@ -135,7 +165,13 @@ describe("BarcodeScannerDialog", () => {
 		await waitFor(() =>
 			expect(scannerMocks.readerConstructor).toHaveBeenCalled(),
 		);
-		expect(scannerMocks.readerConstructor).toHaveBeenCalledWith();
+		expect(scannerMocks.readerConstructor).toHaveBeenCalledWith(
+			expect.any(Map),
+			expect.objectContaining({
+				delayBetweenScanAttempts: 80,
+				delayBetweenScanSuccess: 500,
+			}),
+		);
 		expect(
 			screen.getByText(/Hold one barcode or QR code clearly in view/i),
 		).toBeInTheDocument();
@@ -211,8 +247,8 @@ describe("BarcodeScannerDialog", () => {
 		expect(scannerMocks.decodeFromConstraints.mock.calls[0]?.[0]).toEqual({
 			video: {
 				facingMode: { ideal: "environment" },
-				height: { ideal: 1080 },
-				width: { ideal: 1920 },
+				height: { ideal: 720 },
+				width: { ideal: 1280 },
 			},
 		});
 		expect(scannerMocks.decodeFromConstraints.mock.calls[1]?.[0]).toEqual({
@@ -263,8 +299,8 @@ describe("BarcodeScannerDialog", () => {
 			expect(latestCall?.[0]).toEqual({
 				video: {
 					deviceId: { exact: "front-camera" },
-					height: { ideal: 1080 },
-					width: { ideal: 1920 },
+					height: { ideal: 720 },
+					width: { ideal: 1280 },
 				},
 			});
 		});
@@ -417,5 +453,48 @@ describe("BarcodeScannerDialog", () => {
 			await screen.findByText(new RegExp(message, "i")),
 		).toBeInTheDocument();
 		expect(scannerMocks.decodeFromConstraints).toHaveBeenCalledOnce();
+	});
+
+	it("renders Torch toggle button when media track supports torch", async () => {
+		const applyConstraintsMock = vi.fn().mockResolvedValue(undefined);
+		scannerMocks.decodeFromConstraints.mockImplementation(
+			async (
+				_constraints: MediaStreamConstraints,
+				video: HTMLVideoElement,
+				callback: MockDecodeCallback,
+			) => {
+				scannerMocks.callbacks.push(callback);
+				const track = {
+					getCapabilities: () => ({ torch: true }),
+					getSettings: () => ({ deviceId: "cam-1" }),
+					applyConstraints: applyConstraintsMock,
+					stop: scannerMocks.trackStop,
+				};
+				const stream = {
+					getTracks: () => [track],
+					getVideoTracks: () => [track],
+				};
+				Object.defineProperty(video, "srcObject", {
+					configurable: true,
+					value: stream,
+					writable: true,
+				});
+				return scannerMocks.controls;
+			},
+		);
+
+		render(
+			<BarcodeScannerDialog isOpen onClose={vi.fn()} onScanSuccess={vi.fn()} />,
+		);
+
+		const torchBtn = await screen.findByTestId("torch-toggle-button");
+		expect(torchBtn).toBeInTheDocument();
+
+		fireEvent.click(torchBtn);
+		await waitFor(() =>
+			expect(applyConstraintsMock).toHaveBeenCalledWith({
+				advanced: [{ torch: true }],
+			}),
+		);
 	});
 });

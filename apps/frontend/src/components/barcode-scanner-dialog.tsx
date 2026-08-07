@@ -1,6 +1,6 @@
 "use client";
 
-import { Camera, Loader2, RefreshCw } from "lucide-react";
+import { Camera, Loader2, RefreshCw, Zap } from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -58,7 +58,7 @@ function getCameraErrorMessage(error: unknown): string {
 /**
  * BarcodeScannerDialog — client-side camera modal for scanning barcodes and QR codes.
  *
- * Utilizes `@zxing/browser` for decoding and provides camera device selection.
+ * Utilizes `@zxing/browser` for decoding and provides camera device selection and flashlight controls.
  * Client component: safely handles Next.js SSR and cleans up camera streams on unmount/close.
  */
 export function BarcodeScannerDialog({
@@ -77,6 +77,8 @@ export function BarcodeScannerDialog({
 	);
 	const [manualCode, setManualCode] = React.useState("");
 	const [cameraError, setCameraError] = React.useState<string | null>(null);
+	const [hasTorch, setHasTorch] = React.useState(false);
+	const [isTorchOn, setIsTorchOn] = React.useState(false);
 	const controlsRef = React.useRef<ScannerControls | null>(null);
 	const activeStreamRef = React.useRef<MediaStream | null>(null);
 	const acceptedRef = React.useRef(false);
@@ -91,41 +93,56 @@ export function BarcodeScannerDialog({
 		onScanSuccessRef.current = onScanSuccess;
 	}, [onScanSuccess]);
 
-	// Stop any active scanning stream
-	const stopScanning = React.useCallback(() => {
-		const controls = controlsRef.current;
-		controlsRef.current = null;
-		if (controls) {
-			try {
-				void Promise.resolve(controls.stop()).catch((error: unknown) => {
-					// biome-ignore lint/suspicious/noConsole: error logging
-					console.error("Error stopping scanner controls:", error);
-				});
-			} catch (e) {
-				// biome-ignore lint/suspicious/noConsole: error logging
-				console.error("Error stopping scanner controls:", e);
-			}
-		}
-
-		// Backup: stop the retained stream even after React detaches the video ref.
+	// Toggle flashlight / torch on supported camera hardware
+	const toggleTorch = React.useCallback(async () => {
 		const currentVideo = videoRef.current;
 		const stream =
 			activeStreamRef.current ??
 			(currentVideo?.srcObject as MediaStream | null | undefined);
-		activeStreamRef.current = null;
-		if (stream) {
+		const track = stream?.getVideoTracks()[0];
+		if (!track) return;
+
+		const nextState = !isTorchOn;
+		try {
+			await track.applyConstraints({
+				advanced: [
+					{ torch: nextState },
+				] as unknown as MediaTrackConstraintSet[],
+			});
+			setIsTorchOn(nextState);
+		} catch (e) {
+			// biome-ignore lint/suspicious/noConsole: error logging
+			console.error("Error toggling torch:", e);
+		}
+	}, [isTorchOn]);
+
+	// Stop any active scanning stream
+	const stopScanning = React.useCallback(() => {
+		setIsTorchOn(false);
+		setHasTorch(false);
+		const controls = controlsRef.current;
+		controlsRef.current = null;
+		if (controls) {
 			try {
-				const tracks = stream.getTracks();
-				for (const track of tracks) {
-					track.stop();
-				}
-			} catch (e) {
+				void Promise.resolve(controls.stop()).catch((stopError: unknown) => {
+					// biome-ignore lint/suspicious/noConsole: error logging
+					console.error("Error stopping scanner controls:", stopError);
+				});
+			} catch (stopError) {
 				// biome-ignore lint/suspicious/noConsole: error logging
-				console.error("Error stopping video ref tracks:", e);
+				console.error("Error stopping scanner controls:", stopError);
 			}
 		}
-		if (currentVideo) {
-			currentVideo.srcObject = null;
+
+		if (activeStreamRef.current) {
+			for (const track of activeStreamRef.current.getTracks()) {
+				track.stop();
+			}
+			activeStreamRef.current = null;
+		}
+
+		if (videoRef.current) {
+			videoRef.current.srcObject = null;
 		}
 	}, []);
 
@@ -175,11 +192,39 @@ export function BarcodeScannerDialog({
 			try {
 				// Import browser-only libraries dynamically inside hook to protect build
 				const { BrowserMultiFormatReader } = await import("@zxing/browser");
-				const { ChecksumException, FormatException, NotFoundException } =
-					await import("@zxing/library");
+				const {
+					BarcodeFormat,
+					ChecksumException,
+					DecodeHintType,
+					FormatException,
+					NotFoundException,
+				} = await import("@zxing/library");
 
-				// Use ZXing's documented full-frame multi-format reader and default scan loop.
-				const codeReader = new BrowserMultiFormatReader();
+				// Configure explicit barcode hints to eliminate format ambiguity & speed up frame decoding.
+				// Restricting possible formats prevents multi-format false positives and reduces CPU load.
+				// Enabling TRY_HARDER performs multi-row scanline decoding across 1D barcodes to fix
+				// misidentification of left-half digit patterns.
+				const hints = new Map();
+				hints.set(DecodeHintType.POSSIBLE_FORMATS, [
+					BarcodeFormat.QR_CODE,
+					BarcodeFormat.EAN_13,
+					BarcodeFormat.CODE_128,
+					BarcodeFormat.CODE_39,
+					BarcodeFormat.UPC_A,
+					BarcodeFormat.UPC_E,
+					BarcodeFormat.EAN_8,
+					BarcodeFormat.ITF,
+					BarcodeFormat.DATA_MATRIX,
+					BarcodeFormat.PDF_417,
+				]);
+				hints.set(DecodeHintType.TRY_HARDER, true);
+
+				const options = {
+					delayBetweenScanAttempts: 80,
+					delayBetweenScanSuccess: 500,
+				};
+
+				const codeReader = new BrowserMultiFormatReader(hints, options);
 
 				// Ensure video element is ready
 				if (!videoRef.current) {
@@ -189,10 +234,10 @@ export function BarcodeScannerDialog({
 
 				if (!videoRef.current || !active) return;
 
-				// Prefer a high-resolution rear camera without making resolution mandatory.
+				// Prefer a high-resolution rear camera (720p ideal for fast binarization & sharp focus).
 				const preferredVideoConstraints: MediaTrackConstraints = {
-					width: { ideal: 1920 },
-					height: { ideal: 1080 },
+					width: { ideal: 1280 },
+					height: { ideal: 720 },
 					...(selectedDeviceId
 						? { deviceId: { exact: selectedDeviceId } }
 						: { facingMode: { ideal: "environment" } }),
@@ -293,6 +338,17 @@ export function BarcodeScannerDialog({
 				const stream = videoRef.current?.srcObject as MediaStream | null;
 				const activeTrack = stream?.getVideoTracks()[0];
 				const activeDeviceId = activeTrack?.getSettings()?.deviceId;
+				if (activeTrack && typeof activeTrack.getCapabilities === "function") {
+					try {
+						const caps = activeTrack.getCapabilities() as Record<
+							string,
+							unknown
+						>;
+						setHasTorch(Boolean(caps.torch));
+					} catch {
+						setHasTorch(false);
+					}
+				}
 
 				if (activeDeviceId) {
 					setSelectedDeviceId(activeDeviceId);
@@ -344,7 +400,7 @@ export function BarcodeScannerDialog({
 
 	return (
 		<Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
-			<DialogContent className="sm:max-w-[480px] p-6 overflow-hidden">
+			<DialogContent className="sm:max-w-[480px] p-6 bg-background overflow-hidden">
 				<DialogHeader className="mb-4">
 					<DialogTitle className="flex items-center gap-2 text-xl font-bold">
 						<Camera className="h-5 w-5 text-emerald-500" />
@@ -408,26 +464,50 @@ export function BarcodeScannerDialog({
 					)}
 				</div>
 
-				{/* Device Selector / Footer */}
+				{/* Device Selector & Controls / Footer */}
 				<div className="mt-4 flex flex-col gap-3">
-					{videoDevices.length > 1 && (
+					{(videoDevices.length > 1 || hasTorch) && (
 						<div className="flex items-center justify-between gap-3 text-xs">
-							<span className="text-muted-foreground font-medium flex items-center gap-1">
-								<RefreshCw className="h-3 w-3" />
-								Active Camera:
-							</span>
-							<select
-								value={selectedDeviceId}
-								onChange={(e) => handleDeviceChange(e.target.value)}
-								className="bg-background border border-input rounded-md px-2 py-1 text-sm font-medium max-w-[200px] truncate focus:outline-none focus:ring-1 focus:ring-ring"
-							>
-								{videoDevices.map((device) => (
-									<option key={device.deviceId} value={device.deviceId}>
-										{device.label ||
-											`Camera ${videoDevices.indexOf(device) + 1}`}
-									</option>
-								))}
-							</select>
+							{videoDevices.length > 1 ? (
+								<div className="flex items-center gap-2">
+									<span className="text-muted-foreground font-medium flex items-center gap-1">
+										<RefreshCw className="h-3 w-3" />
+										Active Camera:
+									</span>
+									<select
+										value={selectedDeviceId}
+										onChange={(e) => handleDeviceChange(e.target.value)}
+										className="bg-background border border-input rounded-md px-2 py-1 text-sm font-medium max-w-[200px] truncate focus:outline-none focus:ring-1 focus:ring-ring"
+									>
+										{videoDevices.map((device) => (
+											<option key={device.deviceId} value={device.deviceId}>
+												{device.label ||
+													`Camera ${videoDevices.indexOf(device) + 1}`}
+											</option>
+										))}
+									</select>
+								</div>
+							) : (
+								<div />
+							)}
+
+							{hasTorch && (
+								<Button
+									type="button"
+									variant="outline"
+									size="sm"
+									data-testid="torch-toggle-button"
+									onClick={toggleTorch}
+									className="flex items-center gap-1 text-xs"
+								>
+									<Zap
+										className={`h-3.5 w-3.5 ${
+											isTorchOn ? "text-amber-400 fill-amber-400" : ""
+										}`}
+									/>
+									{isTorchOn ? "Torch On" : "Torch Off"}
+								</Button>
+							)}
 						</div>
 					)}
 
