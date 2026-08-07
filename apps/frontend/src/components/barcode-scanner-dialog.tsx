@@ -178,27 +178,6 @@ export function BarcodeScannerDialog({
 		);
 	}, [selectedDeviceId, videoDevices, selectedDeviceLabel]);
 
-	// Silence internal ZXing MultiFormatReader non-ReaderException warning log spam in browser console while scanning
-	React.useEffect(() => {
-		if (!isOpen || typeof window === "undefined") return;
-
-		// biome-ignore lint/suspicious/noConsole: console interceptor
-		const originalWarn = console.warn;
-		console.warn = (...args: unknown[]) => {
-			if (
-				typeof args[0] === "string" &&
-				args[0].includes("MultiFormatReader: non-ReaderException from reader:")
-			) {
-				return;
-			}
-			originalWarn.apply(console, args);
-		};
-
-		return () => {
-			console.warn = originalWarn;
-		};
-	}, [isOpen]);
-
 	// Load cameras and start scan
 	React.useEffect(() => {
 		if (!isOpen || !isBrowser) return;
@@ -421,7 +400,13 @@ export function BarcodeScannerDialog({
 					const isExpectedDecodeMiss =
 						error instanceof NotFoundException ||
 						error instanceof ChecksumException ||
-						error instanceof FormatException;
+						error instanceof FormatException ||
+						(typeof error === "object" &&
+							error !== null &&
+							"name" in error &&
+							(error.name === "NotFoundException" ||
+								error.name === "FormatException" ||
+								error.name === "ChecksumException"));
 					if (error && !isExpectedDecodeMiss) {
 						const message = "Barcode scanning stopped unexpectedly. Try again.";
 						acceptedRef.current = true;
