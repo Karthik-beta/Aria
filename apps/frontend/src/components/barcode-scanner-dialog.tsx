@@ -178,6 +178,27 @@ export function BarcodeScannerDialog({
 		);
 	}, [selectedDeviceId, videoDevices, selectedDeviceLabel]);
 
+	// Silence internal ZXing MultiFormatReader non-ReaderException warning log spam in browser console while scanning
+	React.useEffect(() => {
+		if (!isOpen || typeof window === "undefined") return;
+
+		// biome-ignore lint/suspicious/noConsole: console interceptor
+		const originalWarn = console.warn;
+		console.warn = (...args: unknown[]) => {
+			if (
+				typeof args[0] === "string" &&
+				args[0].includes("MultiFormatReader: non-ReaderException from reader:")
+			) {
+				return;
+			}
+			originalWarn.apply(console, args);
+		};
+
+		return () => {
+			console.warn = originalWarn;
+		};
+	}, [isOpen]);
+
 	// Load cameras and start scan
 	React.useEffect(() => {
 		if (!isOpen || !isBrowser) return;
