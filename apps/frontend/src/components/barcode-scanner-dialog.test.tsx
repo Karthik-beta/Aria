@@ -29,6 +29,7 @@ const scannerMocks = vi.hoisted(() => ({
 	callbacks: [] as MockDecodeCallback[],
 	controls: { stop: vi.fn() } as MockScannerControls,
 	trackStop: vi.fn(),
+	ReaderException: class MockReaderException extends Error {},
 	ChecksumException: class MockChecksumException extends Error {},
 	FormatException: class MockFormatException extends Error {},
 	NotFoundException: class MockNotFoundException extends Error {},
@@ -42,6 +43,20 @@ vi.mock("sonner", () => ({
 }));
 
 vi.mock("@zxing/browser", () => ({
+	HTMLCanvasElementLuminanceSource: class HTMLCanvasElementLuminanceSource {
+		getTempCanvasElement() {
+			return null;
+		}
+	},
+	BrowserCodeReader: class BrowserCodeReader {
+		static getMediaElementDimensions(mediaElement: unknown) {
+			const elem = mediaElement as HTMLVideoElement | null;
+			return {
+				width: elem?.videoWidth || 0,
+				height: elem?.videoHeight || 0,
+			};
+		}
+	},
 	BrowserMultiFormatReader: class BrowserMultiFormatReader {
 		static listVideoInputDevices = scannerMocks.listVideoInputDevices;
 
@@ -90,6 +105,7 @@ vi.mock("@zxing/library", () => ({
 		NEED_RESULT_POINT_CALLBACK: 7,
 		ALLOWED_EAN_EXTENSIONS: 8,
 	},
+	ReaderException: scannerMocks.ReaderException,
 	ChecksumException: scannerMocks.ChecksumException,
 	FormatException: scannerMocks.FormatException,
 	NotFoundException: scannerMocks.NotFoundException,

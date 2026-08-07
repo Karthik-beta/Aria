@@ -178,6 +178,27 @@ export function BarcodeScannerDialog({
 		);
 	}, [selectedDeviceId, videoDevices, selectedDeviceLabel]);
 
+	// Silence internal ZXing MultiFormatReader non-ReaderException warning log spam in browser console while scanning
+	React.useEffect(() => {
+		if (!isOpen || typeof window === "undefined") return;
+
+		// biome-ignore lint/suspicious/noConsole: console interceptor
+		const originalWarn = console.warn;
+		console.warn = (...args: unknown[]) => {
+			if (
+				typeof args[0] === "string" &&
+				args[0].includes("MultiFormatReader: non-ReaderException from reader:")
+			) {
+				return;
+			}
+			originalWarn.apply(console, args);
+		};
+
+		return () => {
+			console.warn = originalWarn;
+		};
+	}, [isOpen]);
+
 	// Load cameras and start scan
 	React.useEffect(() => {
 		if (!isOpen || !isBrowser) return;
@@ -191,14 +212,133 @@ export function BarcodeScannerDialog({
 		async function initScanner() {
 			try {
 				// Import browser-only libraries dynamically inside hook to protect build
-				const { BrowserMultiFormatReader } = await import("@zxing/browser");
+				const zxingBrowser = await import("@zxing/browser");
+				const zxingLibrary = await import("@zxing/library");
+				const {
+					BrowserCodeReader,
+					BrowserMultiFormatReader,
+					HTMLCanvasElementLuminanceSource,
+				} = zxingBrowser;
 				const {
 					BarcodeFormat,
 					ChecksumException,
 					DecodeHintType,
 					FormatException,
 					NotFoundException,
-				} = await import("@zxing/library");
+					ReaderException,
+				} = zxingLibrary;
+
+				// Patch HTMLCanvasElementLuminanceSource.getTempCanvasElement to safely fall back to document
+				// if canvas.ownerDocument is unpopulated, preventing "Could not create a Canvas element" errors during rotation.
+				if (
+					HTMLCanvasElementLuminanceSource &&
+					!Object.hasOwn(
+						HTMLCanvasElementLuminanceSource.prototype,
+						"_ariaPatched",
+					)
+				) {
+					Object.defineProperty(
+						HTMLCanvasElementLuminanceSource.prototype,
+						"_ariaPatched",
+						{ value: true, configurable: true },
+					);
+					type ZXingLuminanceSourceInstance = {
+						tempCanvasElement?: HTMLCanvasElement;
+						canvas?: HTMLCanvasElement;
+					};
+					(
+						HTMLCanvasElementLuminanceSource.prototype as unknown as {
+							getTempCanvasElement: (
+								this: ZXingLuminanceSourceInstance,
+							) => HTMLCanvasElement;
+						}
+					).getTempCanvasElement = function (
+						this: ZXingLuminanceSourceInstance,
+					) {
+						if (!this.tempCanvasElement) {
+							const doc =
+								this.canvas?.ownerDocument ||
+								(typeof document !== "undefined" ? document : null);
+							const tempCanvas = doc
+								? doc.createElement("canvas")
+								: ({
+										getContext: () => null,
+									} as unknown as HTMLCanvasElement);
+							tempCanvas.width = this.canvas?.width || 640;
+							tempCanvas.height = this.canvas?.height || 480;
+							this.tempCanvasElement = tempCanvas;
+						}
+						return this.tempCanvasElement;
+					};
+				}
+
+				// Patch ZXing ReaderException Symbol.hasInstance to resolve prototype identity mismatches in ESM bundles
+				// that cause MultiFormatReader to output "non-ReaderException from reader" console warnings.
+				const rawClasses = [
+					ReaderException,
+					NotFoundException,
+					ChecksumException,
+					FormatException,
+				];
+				const exceptionClasses = rawClasses.filter(
+					(c) => typeof c === "function",
+				);
+
+				for (const excClass of exceptionClasses) {
+					if (!(Symbol.hasInstance in excClass)) {
+						Object.defineProperty(excClass, Symbol.hasInstance, {
+							value: (instance: unknown) => {
+								if (!instance || typeof instance !== "object") return false;
+								const name =
+									(instance as { name?: string }).name ||
+									(instance as { constructor?: { name?: string } }).constructor
+										?.name;
+								return (
+									name === "NotFoundException" ||
+									name === "FormatException" ||
+									name === "ChecksumException" ||
+									name === "ReaderException" ||
+									instance instanceof excClass
+								);
+							},
+							configurable: true,
+						});
+					}
+				}
+
+				// Patch BrowserCodeReader canvas dimensions to fallback to default 640x480 if videoWidth is 0
+				// during early stream initialization, preventing "Could not create a Canvas element" errors.
+				if (
+					BrowserCodeReader &&
+					!Object.hasOwn(BrowserCodeReader, "_ariaCanvasPatched")
+				) {
+					Object.defineProperty(BrowserCodeReader, "_ariaCanvasPatched", {
+						value: true,
+						configurable: true,
+					});
+					const origGetDimensions = (
+						BrowserCodeReader as unknown as {
+							getMediaElementDimensions: (elem: unknown) => {
+								width: number;
+								height: number;
+							};
+						}
+					).getMediaElementDimensions;
+					(
+						BrowserCodeReader as unknown as {
+							getMediaElementDimensions: (elem: unknown) => {
+								width: number;
+								height: number;
+							};
+						}
+					).getMediaElementDimensions = function (mediaElement: unknown) {
+						const dims = origGetDimensions.call(this, mediaElement);
+						const elem = mediaElement as HTMLVideoElement | null;
+						const width = dims.width || elem?.clientWidth || 640;
+						const height = dims.height || elem?.clientHeight || 480;
+						return { width, height };
+					};
+				}
 
 				// Configure explicit barcode hints to eliminate format ambiguity & speed up frame decoding.
 				// Restricting possible formats prevents multi-format false positives and reduces CPU load.
