@@ -5856,6 +5856,52 @@ export namespace Asset {
 		typeof depreciationPostingStatusSchema
 	>;
 
+	export const assetMovementPurposeSchema = z.enum([
+		"TRANSFER",
+		"ISSUE",
+		"RECEIPT",
+		"TRANSFER_AND_ISSUE",
+	]);
+	export type AssetMovementPurpose = z.infer<typeof assetMovementPurposeSchema>;
+
+	export const assetMovementStatusSchema = z.enum([
+		"DRAFT",
+		"SUBMITTED",
+		"CANCELLED",
+	]);
+	export type AssetMovementStatus = z.infer<typeof assetMovementStatusSchema>;
+
+	export const assetRepairStatusSchema = z.enum([
+		"DRAFT",
+		"PENDING",
+		"COMPLETED",
+		"CANCELLED",
+	]);
+	export type AssetRepairStatus = z.infer<typeof assetRepairStatusSchema>;
+
+	export const assetCapitalizationTargetTypeSchema = z.enum([
+		"NEW_ASSET",
+		"EXISTING_ASSET",
+	]);
+	export type AssetCapitalizationTargetType = z.infer<
+		typeof assetCapitalizationTargetTypeSchema
+	>;
+
+	export const assetCapitalizationStatusSchema = z.enum([
+		"DRAFT",
+		"SUBMITTED",
+		"CANCELLED",
+	]);
+	export type AssetCapitalizationStatus = z.infer<
+		typeof assetCapitalizationStatusSchema
+	>;
+
+	export const assetDisposalTypeSchema = z.enum(["SCRAP", "SELL"]);
+	export type AssetDisposalType = z.infer<typeof assetDisposalTypeSchema>;
+
+	export const assetDisposalStatusSchema = z.enum(["POSTED", "CANCELLED"]);
+	export type AssetDisposalStatus = z.infer<typeof assetDisposalStatusSchema>;
+
 	// ── Interfaces ───────────────────────────────────────────────────────────
 
 	export interface Location {
@@ -5943,6 +5989,8 @@ export namespace Asset {
 	export interface AssetActivity {
 		id: string;
 		assetId: string;
+		userId?: string | null;
+		userName?: string | null;
 		activity: string;
 		createdAt: Date;
 	}
@@ -6136,6 +6184,7 @@ export namespace Asset {
 		purchaseInvoice?: string | null;
 		status?: AssetStatus;
 		financeBooks?: AssetFinanceBookInput[];
+		userId?: string | null;
 	}
 
 	export interface UpdateAssetInput {
@@ -6177,6 +6226,7 @@ export namespace Asset {
 		purchaseInvoice?: string | null;
 		status?: AssetStatus;
 		financeBooks?: AssetFinanceBookInput[];
+		userId?: string | null;
 	}
 
 	// ── Zod schemas ───────────────────────────────────────────────────────────
@@ -6303,16 +6353,51 @@ export namespace Asset {
 		insuranceEndDate: z.coerce.date().optional().nullable(),
 		depreciationMethod: depreciationMethodSchema.optional().nullable(),
 		totalNumberOfDepreciations: z.number().int().min(0).optional().nullable(),
-		frequencyOfDepreciation: z.number().int().min(0).optional().nullable(),
+		frequencyOfDepreciation: z
+			.number()
+			.int()
+			.min(1, "Frequency of depreciation must be at least 1 month")
+			.optional()
+			.nullable(),
 		expectedValueAfterUsefulLife: z.number().min(0).optional().nullable(),
 		depreciationStartDate: z.coerce.date().optional().nullable(),
 		purchaseReceipt: z.string().max(255).trim().optional().nullable(),
 		purchaseInvoice: z.string().max(255).trim().optional().nullable(),
 		status: assetStatusSchema.default("DRAFT"),
 		financeBooks: z.array(assetFinanceBookInputSchema).optional(),
+		userId: z.string().max(255).optional().nullable(),
 	} satisfies z.ZodRawShape;
 
-	export const createAssetSchema = z.object(assetInputFields);
+	export const createAssetSchema = z
+		.object(assetInputFields)
+		.refine(
+			(data) => {
+				if (data.purchaseDate && data.availableForUseDate) {
+					return (
+						data.availableForUseDate.getTime() >= data.purchaseDate.getTime()
+					);
+				}
+				return true;
+			},
+			{
+				message: "Available for use date must be on or after purchase date",
+				path: ["availableForUseDate"],
+			},
+		)
+		.refine(
+			(data) => {
+				if (data.insuranceStartDate && data.insuranceEndDate) {
+					return (
+						data.insuranceEndDate.getTime() >= data.insuranceStartDate.getTime()
+					);
+				}
+				return true;
+			},
+			{
+				message: "Insurance end date must be on or after insurance start date",
+				path: ["insuranceEndDate"],
+			},
+		);
 
 	export const updateAssetSchema = z.object({
 		id: z.string().cuid(),
@@ -6355,6 +6440,7 @@ export namespace Asset {
 		purchaseInvoice: assetInputFields.purchaseInvoice,
 		status: assetStatusSchema.optional(),
 		financeBooks: assetInputFields.financeBooks,
+		userId: assetInputFields.userId,
 	});
 
 	const locationInputFields = {
@@ -6376,7 +6462,12 @@ export namespace Asset {
 		name: z.string().min(1, "Category name is required").max(255).trim(),
 		depreciationMethod: depreciationMethodSchema.optional().nullable(),
 		totalNumberOfDepreciations: z.number().int().min(0).optional().nullable(),
-		frequencyOfDepreciation: z.number().int().min(0).optional().nullable(),
+		frequencyOfDepreciation: z
+			.number()
+			.int()
+			.min(1, "Frequency of depreciation must be at least 1 month")
+			.optional()
+			.nullable(),
 		dailyProrataBased: z.boolean().optional().nullable(),
 		shiftBased: z.boolean().optional().nullable(),
 		rateOfDepreciation: z.number().min(0).optional().nullable(),
@@ -7003,6 +7094,7 @@ export namespace Asset {
 
 	export const submitAssetValueAdjustmentSchema = z.object({
 		id: z.string().cuid(),
+		userId: z.string().max(255).optional().nullable(),
 	});
 	export type SubmitAssetValueAdjustmentInput = z.infer<
 		typeof submitAssetValueAdjustmentSchema
@@ -7010,6 +7102,7 @@ export namespace Asset {
 
 	export const cancelAssetValueAdjustmentSchema = z.object({
 		id: z.string().cuid(),
+		userId: z.string().max(255).optional().nullable(),
 	});
 	export type CancelAssetValueAdjustmentInput = z.infer<
 		typeof cancelAssetValueAdjustmentSchema
@@ -7032,6 +7125,8 @@ export namespace Asset {
 		company: string;
 		assetStatus: AssetStatus;
 		activity: string;
+		userId: string | null;
+		userName: string | null;
 		createdAt: Date;
 	}
 
@@ -7188,6 +7283,76 @@ export namespace Asset {
 	>;
 
 	// ────────────────────────────────────────────────────────────────
+	// Fixed Asset Register Report
+	// ────────────────────────────────────────────────────────────────
+
+	export const fixedAssetRegisterGroupBySchema = z.enum([
+		"ASSET_CATEGORY",
+		"LOCATION",
+	]);
+	export type FixedAssetRegisterGroupBy = z.infer<
+		typeof fixedAssetRegisterGroupBySchema
+	>;
+
+	export interface FixedAssetRegisterRow {
+		groupingKey: string;
+		groupingLabel: string;
+		assetId: string;
+		assetSeries: string;
+		assetName: string;
+		assetCategoryId: string | null;
+		assetCategoryName: string | null;
+		locationId: string | null;
+		locationName: string | null;
+		company: string;
+		purchaseDate: Date | string | null;
+		availableForUseDate: Date | string | null;
+		status: AssetStatus;
+		netPurchaseAmount: number;
+		openingAccumulatedDepreciation: number;
+		depreciatedAmount: number;
+		revaluationAmount: number;
+		netBookValue: number;
+	}
+
+	export interface FixedAssetRegisterChartPoint {
+		month: string;
+		assetValue: number;
+		depreciatedAmount: number;
+	}
+
+	export interface FixedAssetRegisterSummary {
+		totalAssets: number;
+		totalPurchaseAmount: number;
+		totalDepreciatedAmount: number;
+		totalRevaluationAmount: number;
+		totalNetBookValue: number;
+	}
+
+	export interface FixedAssetRegisterReportResult {
+		rows: FixedAssetRegisterRow[];
+		chartPoints: FixedAssetRegisterChartPoint[];
+		summary: FixedAssetRegisterSummary;
+	}
+
+	export const listFixedAssetRegisterReportSchema = z
+		.object({
+			fromDate: z.coerce.date(),
+			toDate: z.coerce.date(),
+			company: z.string().trim().max(255).optional(),
+			groupBy: fixedAssetRegisterGroupBySchema,
+			assetCategory: z.string().trim().max(255).optional(),
+			location: z.string().trim().max(255).optional(),
+		})
+		.refine((input) => input.fromDate <= input.toDate, {
+			message: "From date must be on or before to date.",
+			path: ["toDate"],
+		});
+	export type ListFixedAssetRegisterReportInput = z.infer<
+		typeof listFixedAssetRegisterReportSchema
+	>;
+
+	// ────────────────────────────────────────────────────────────────
 	// Dashboard
 	// ────────────────────────────────────────────────────────────────
 
@@ -7282,6 +7447,429 @@ export namespace Asset {
 		categoryValues: AssetDashboardCategoryValue[];
 		locationDistribution: AssetDashboardLocationDistribution[];
 	}
+
+	// ── Phase 2 Lifecycle Domain Interfaces & Schemas ─────────────────────
+
+	export interface AssetMovementItem {
+		id: string;
+		movementId: string;
+		assetId: string;
+		assetName?: string | null;
+		sourceLocationId?: string | null;
+		sourceLocationName?: string | null;
+		targetLocationId?: string | null;
+		targetLocationName?: string | null;
+		fromEmployee?: string | null;
+		toEmployee?: string | null;
+		createdAt: Date | string;
+		updatedAt: Date | string;
+	}
+
+	export interface AssetMovement {
+		id: string;
+		series: string;
+		company: string;
+		transactionDate: Date | string;
+		purpose: AssetMovementPurpose;
+		status: AssetMovementStatus;
+		notes?: string | null;
+		submittedAt?: Date | string | null;
+		cancelledAt?: Date | string | null;
+		items: AssetMovementItem[];
+		createdAt: Date | string;
+		updatedAt: Date | string;
+	}
+
+	export interface AssetMovementListResult {
+		items: AssetMovement[];
+		totalCount: number;
+	}
+
+	export interface AssetRepairConsumedItem {
+		id: string;
+		repairId: string;
+		assetId?: string | null;
+		consumedAssetName?: string | null;
+		itemCode: string;
+		warehouse?: string | null;
+		quantity: number;
+		valuationRate: number;
+		totalAmount: number;
+		createdAt: Date | string;
+		updatedAt: Date | string;
+	}
+
+	export interface AssetRepairPurchaseInvoice {
+		id: string;
+		repairId: string;
+		purchaseInvoice: string;
+		expenseAccount?: string | null;
+		amount: number;
+		createdAt: Date | string;
+		updatedAt: Date | string;
+	}
+
+	export interface AssetRepair {
+		id: string;
+		series: string;
+		assetId: string;
+		assetName?: string | null;
+		company: string;
+		failureDate: Date | string;
+		completionDate?: Date | string | null;
+		repairStatus: AssetRepairStatus;
+		repairCost: number;
+		capitalizeRepairCost: boolean;
+		increaseInAssetLife: number;
+		description?: string | null;
+		submittedAt?: Date | string | null;
+		cancelledAt?: Date | string | null;
+		consumedItems: AssetRepairConsumedItem[];
+		purchaseInvoices: AssetRepairPurchaseInvoice[];
+		createdAt: Date | string;
+		updatedAt: Date | string;
+	}
+
+	export interface AssetRepairListResult {
+		items: AssetRepair[];
+		totalCount: number;
+	}
+
+	export interface AssetCapitalizationStockItem {
+		id: string;
+		capitalizationId: string;
+		itemCode: string;
+		warehouse?: string | null;
+		stockQty: number;
+		valuationRate: number;
+		amount: number;
+		createdAt: Date | string;
+		updatedAt: Date | string;
+	}
+
+	export interface AssetCapitalizationAssetItem {
+		id: string;
+		capitalizationId: string;
+		assetId: string;
+		assetName?: string | null;
+		assetValue: number;
+		createdAt: Date | string;
+		updatedAt: Date | string;
+	}
+
+	export interface AssetCapitalizationServiceItem {
+		id: string;
+		capitalizationId: string;
+		itemCode?: string | null;
+		expenseAccount: string;
+		amount: number;
+		createdAt: Date | string;
+		updatedAt: Date | string;
+	}
+
+	export interface AssetCapitalization {
+		id: string;
+		series: string;
+		company: string;
+		postingDate: Date | string;
+		targetType: AssetCapitalizationTargetType;
+		targetAssetId?: string | null;
+		targetAssetName?: string | null;
+		targetAssetCategory?: string | null;
+		status: AssetCapitalizationStatus;
+		totalStockValue: number;
+		totalAssetValue: number;
+		totalServiceValue: number;
+		totalValue: number;
+		notes?: string | null;
+		submittedAt?: Date | string | null;
+		cancelledAt?: Date | string | null;
+		stockItems: AssetCapitalizationStockItem[];
+		assetItems: AssetCapitalizationAssetItem[];
+		serviceItems: AssetCapitalizationServiceItem[];
+		createdAt: Date | string;
+		updatedAt: Date | string;
+	}
+
+	export interface AssetCapitalizationListResult {
+		items: AssetCapitalization[];
+		totalCount: number;
+	}
+
+	export interface AssetDisposal {
+		id: string;
+		series: string;
+		assetId: string;
+		assetName?: string | null;
+		company: string;
+		disposalDate: Date | string;
+		disposalType: AssetDisposalType;
+		salesAmount?: number | null;
+		gainLossAmount: number;
+		journalEntrySeries?: string | null;
+		status: AssetDisposalStatus;
+		notes?: string | null;
+		createdAt: Date | string;
+		updatedAt: Date | string;
+	}
+
+	export interface AssetDisposalListResult {
+		items: AssetDisposal[];
+		totalCount: number;
+	}
+
+	export type AssetCapitalizationItem = AssetCapitalization;
+	export type AssetRepairItem = AssetRepair;
+	export type AssetDisposalItem = AssetDisposal;
+
+	// ── Phase 2 Zod Schemas & Inputs ──────────────────────────────────────
+
+	export const scrapAssetSchema = z.object({
+		assetId: z.string().cuid(),
+		disposalDate: z.coerce.date(),
+		notes: z.string().trim().max(1000).optional().nullable(),
+		userId: z.string().max(255).optional().nullable(),
+	});
+	export type ScrapAssetInput = z.infer<typeof scrapAssetSchema>;
+
+	export const sellAssetSchema = z.object({
+		assetId: z.string().cuid(),
+		disposalDate: z.coerce.date(),
+		salesAmount: z.number().finite().min(0),
+		notes: z.string().trim().max(1000).optional().nullable(),
+		userId: z.string().max(255).optional().nullable(),
+	});
+	export type SellAssetInput = z.infer<typeof sellAssetSchema>;
+
+	export const restoreAssetSchema = z.object({
+		assetId: z.string().cuid(),
+		userId: z.string().max(255).optional().nullable(),
+	});
+	export type RestoreAssetInput = z.infer<typeof restoreAssetSchema>;
+
+	export const createAssetMovementItemSchema = z.object({
+		assetId: z.string().cuid(),
+		sourceLocationId: z.string().cuid().optional().nullable(),
+		targetLocationId: z.string().cuid().optional().nullable(),
+		fromEmployee: z.string().trim().max(255).optional().nullable(),
+		toEmployee: z.string().trim().max(255).optional().nullable(),
+	});
+	export type CreateAssetMovementItemInput = z.infer<
+		typeof createAssetMovementItemSchema
+	>;
+
+	export const createAssetMovementSchema = z.object({
+		company: z.string().trim().min(1).max(255),
+		transactionDate: z.coerce.date(),
+		purpose: assetMovementPurposeSchema,
+		notes: z.string().trim().max(1000).optional().nullable(),
+		items: z.array(createAssetMovementItemSchema).min(1),
+	});
+	export type CreateAssetMovementInput = z.infer<
+		typeof createAssetMovementSchema
+	>;
+
+	export const submitAssetMovementSchema = z.object({
+		id: z.string().cuid(),
+		userId: z.string().max(255).optional().nullable(),
+	});
+	export type SubmitAssetMovementInput = z.infer<
+		typeof submitAssetMovementSchema
+	>;
+
+	export const cancelAssetMovementSchema = z.object({
+		id: z.string().cuid(),
+		userId: z.string().max(255).optional().nullable(),
+	});
+	export type CancelAssetMovementInput = z.infer<
+		typeof cancelAssetMovementSchema
+	>;
+
+	export const getAssetMovementSchema = z.object({
+		id: z.string().cuid(),
+	});
+	export type GetAssetMovementInput = z.infer<typeof getAssetMovementSchema>;
+
+	export const listAssetMovementsSchema = z.object({
+		skip: z.number().int().min(0).optional(),
+		take: z.number().int().min(1).max(250).optional(),
+		search: z.string().trim().optional(),
+		company: z.string().trim().optional(),
+		status: assetMovementStatusSchema.optional(),
+		purpose: assetMovementPurposeSchema.optional(),
+	});
+	export type ListAssetMovementsInput = z.infer<
+		typeof listAssetMovementsSchema
+	>;
+
+	export const createAssetRepairConsumedItemSchema = z.object({
+		assetId: z.string().cuid().optional().nullable(),
+		itemCode: z.string().trim().min(1).max(100),
+		warehouse: z.string().trim().max(255).optional().nullable(),
+		quantity: z.number().int().min(1).default(1),
+		valuationRate: z.number().finite().min(0).default(0),
+	});
+	export type CreateAssetRepairConsumedItemInput = z.infer<
+		typeof createAssetRepairConsumedItemSchema
+	>;
+
+	export const createAssetRepairPurchaseInvoiceSchema = z.object({
+		purchaseInvoice: z.string().trim().min(1).max(100),
+		expenseAccount: z.string().trim().max(255).optional().nullable(),
+		amount: z.number().finite().min(0),
+	});
+	export type CreateAssetRepairPurchaseInvoiceInput = z.infer<
+		typeof createAssetRepairPurchaseInvoiceSchema
+	>;
+
+	export const createAssetRepairSchema = z.object({
+		assetId: z.string().cuid(),
+		company: z.string().trim().min(1).max(255),
+		failureDate: z.coerce.date(),
+		completionDate: z.coerce.date().optional().nullable(),
+		capitalizeRepairCost: z.boolean().optional().default(false),
+		increaseInAssetLife: z.number().int().min(0).optional().default(0),
+		description: z.string().trim().max(2000).optional().nullable(),
+		consumedItems: z
+			.array(createAssetRepairConsumedItemSchema)
+			.optional()
+			.default([]),
+		purchaseInvoices: z
+			.array(createAssetRepairPurchaseInvoiceSchema)
+			.optional()
+			.default([]),
+	});
+	export type CreateAssetRepairInput = z.infer<typeof createAssetRepairSchema>;
+
+	export const submitAssetRepairSchema = z.object({
+		id: z.string().cuid(),
+		userId: z.string().max(255).optional().nullable(),
+	});
+	export type SubmitAssetRepairInput = z.infer<typeof submitAssetRepairSchema>;
+
+	export const cancelAssetRepairSchema = z.object({
+		id: z.string().cuid(),
+		userId: z.string().max(255).optional().nullable(),
+	});
+	export type CancelAssetRepairInput = z.infer<typeof cancelAssetRepairSchema>;
+
+	export const getAssetRepairSchema = z.object({
+		id: z.string().cuid(),
+	});
+	export type GetAssetRepairInput = z.infer<typeof getAssetRepairSchema>;
+
+	export const listAssetRepairsSchema = z.object({
+		skip: z.number().int().min(0).optional(),
+		take: z.number().int().min(1).max(250).optional(),
+		search: z.string().trim().optional(),
+		assetId: z.string().cuid().optional(),
+		company: z.string().trim().optional(),
+		status: assetRepairStatusSchema.optional(),
+	});
+	export type ListAssetRepairsInput = z.infer<typeof listAssetRepairsSchema>;
+
+	export const createAssetCapitalizationStockItemSchema = z.object({
+		itemCode: z.string().trim().min(1).max(100),
+		warehouse: z.string().trim().max(255).optional().nullable(),
+		stockQty: z.number().int().min(1).default(1),
+		valuationRate: z.number().finite().min(0).default(0),
+	});
+	export type CreateAssetCapitalizationStockItemInput = z.infer<
+		typeof createAssetCapitalizationStockItemSchema
+	>;
+
+	export const createAssetCapitalizationAssetItemSchema = z.object({
+		assetId: z.string().cuid(),
+		assetValue: z.number().finite().min(0),
+	});
+	export type CreateAssetCapitalizationAssetItemInput = z.infer<
+		typeof createAssetCapitalizationAssetItemSchema
+	>;
+
+	export const createAssetCapitalizationServiceItemSchema = z.object({
+		itemCode: z.string().trim().max(100).optional().nullable(),
+		expenseAccount: z.string().trim().min(1).max(255),
+		amount: z.number().finite().min(0),
+	});
+	export type CreateAssetCapitalizationServiceItemInput = z.infer<
+		typeof createAssetCapitalizationServiceItemSchema
+	>;
+
+	export const createAssetCapitalizationSchema = z.object({
+		company: z.string().trim().min(1).max(255),
+		postingDate: z.coerce.date(),
+		targetType: assetCapitalizationTargetTypeSchema,
+		targetAssetId: z.string().cuid().optional().nullable(),
+		targetAssetName: z.string().trim().max(255).optional().nullable(),
+		targetAssetCategory: z.string().trim().max(255).optional().nullable(),
+		notes: z.string().trim().max(2000).optional().nullable(),
+		stockItems: z
+			.array(createAssetCapitalizationStockItemSchema)
+			.optional()
+			.default([]),
+		assetItems: z
+			.array(createAssetCapitalizationAssetItemSchema)
+			.optional()
+			.default([]),
+		serviceItems: z
+			.array(createAssetCapitalizationServiceItemSchema)
+			.optional()
+			.default([]),
+	});
+	export type CreateAssetCapitalizationInput = z.infer<
+		typeof createAssetCapitalizationSchema
+	>;
+
+	export const submitAssetCapitalizationSchema = z.object({
+		id: z.string().cuid(),
+		userId: z.string().max(255).optional().nullable(),
+	});
+	export type SubmitAssetCapitalizationInput = z.infer<
+		typeof submitAssetCapitalizationSchema
+	>;
+
+	export const cancelAssetCapitalizationSchema = z.object({
+		id: z.string().cuid(),
+		userId: z.string().max(255).optional().nullable(),
+	});
+	export type CancelAssetCapitalizationInput = z.infer<
+		typeof cancelAssetCapitalizationSchema
+	>;
+
+	export const getAssetCapitalizationSchema = z.object({
+		id: z.string().cuid(),
+	});
+	export type GetAssetCapitalizationInput = z.infer<
+		typeof getAssetCapitalizationSchema
+	>;
+
+	export const listAssetCapitalizationsSchema = z.object({
+		skip: z.number().int().min(0).optional(),
+		take: z.number().int().min(1).max(250).optional(),
+		search: z.string().trim().optional(),
+		company: z.string().trim().optional(),
+		status: assetCapitalizationStatusSchema.optional(),
+	});
+	export type ListAssetCapitalizationsInput = z.infer<
+		typeof listAssetCapitalizationsSchema
+	>;
+
+	export const getAssetDisposalSchema = z.object({
+		id: z.string().cuid(),
+	});
+	export type GetAssetDisposalInput = z.infer<typeof getAssetDisposalSchema>;
+
+	export const listAssetDisposalsSchema = z.object({
+		skip: z.number().int().min(0).optional(),
+		take: z.number().int().min(1).max(250).optional(),
+		search: z.string().trim().optional(),
+		assetId: z.string().cuid().optional(),
+		company: z.string().trim().optional(),
+		disposalType: assetDisposalTypeSchema.optional(),
+	});
+	export type ListAssetDisposalsInput = z.infer<
+		typeof listAssetDisposalsSchema
+	>;
 
 	export interface AssetDashboardData
 		extends AssetDashboardOverviewData,

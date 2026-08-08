@@ -632,6 +632,219 @@ type AssetRouterInput = {
 		output: unknown;
 		meta: object;
 	}>;
+	listFixedAssetRegisterReport: TRPCQueryProcedure<{
+		input: {
+			fromDate: unknown;
+			toDate: unknown;
+			groupBy: "ASSET_CATEGORY" | "LOCATION";
+			company?: string | undefined;
+			assetCategory?: string | undefined;
+			location?: string | undefined;
+		};
+		output: Asset.FixedAssetRegisterReportResult;
+		meta: object;
+	}>;
+	exportFixedAssetRegisterExcel: TRPCMutationProcedure<{
+		input: {
+			fromDate: unknown;
+			toDate: unknown;
+			groupBy: "ASSET_CATEGORY" | "LOCATION";
+			company?: string | undefined;
+			assetCategory?: string | undefined;
+			location?: string | undefined;
+		};
+		output: string;
+		meta: object;
+	}>;
+
+	// ── Asset Disposal ───────────────────────────────────────────────
+	scrapAsset: TRPCMutationProcedure<{
+		input: {
+			assetId: string;
+			disposalDate: unknown;
+			notes?: string | null | undefined;
+			userId?: string | null | undefined;
+		};
+		output: Asset.AssetDisposal;
+		meta: object;
+	}>;
+	sellAsset: TRPCMutationProcedure<{
+		input: {
+			assetId: string;
+			disposalDate: unknown;
+			salesAmount: number;
+			notes?: string | null | undefined;
+			userId?: string | null | undefined;
+		};
+		output: Asset.AssetDisposal;
+		meta: object;
+	}>;
+	restoreAsset: TRPCMutationProcedure<{
+		input: { assetId: string };
+		output: Asset.AssetItem;
+		meta: object;
+	}>;
+	getAssetDisposalById: TRPCQueryProcedure<{
+		input: { id: string };
+		output: Asset.AssetDisposal | null;
+		meta: object;
+	}>;
+	listAssetDisposals: TRPCQueryProcedure<{
+		input: unknown;
+		output: Asset.AssetDisposalListResult;
+		meta: object;
+	}>;
+
+	// ── Asset Movement ───────────────────────────────────────────────
+	createAssetMovement: TRPCMutationProcedure<{
+		input: {
+			company: string;
+			transactionDate: unknown;
+			purpose: Asset.AssetMovementPurpose;
+			notes?: string | null | undefined;
+			items: {
+				assetId: string;
+				sourceLocationId?: string | null | undefined;
+				targetLocationId?: string | null | undefined;
+				fromEmployee?: string | null | undefined;
+				toEmployee?: string | null | undefined;
+			}[];
+		};
+		output: Asset.AssetMovement;
+		meta: object;
+	}>;
+	submitAssetMovement: TRPCMutationProcedure<{
+		input: { id: string };
+		output: Asset.AssetMovement;
+		meta: object;
+	}>;
+	cancelAssetMovement: TRPCMutationProcedure<{
+		input: { id: string };
+		output: Asset.AssetMovement;
+		meta: object;
+	}>;
+	getAssetMovementById: TRPCQueryProcedure<{
+		input: { id: string };
+		output: Asset.AssetMovement | null;
+		meta: object;
+	}>;
+	listAssetMovements: TRPCQueryProcedure<{
+		input: unknown;
+		output: Asset.AssetMovementListResult;
+		meta: object;
+	}>;
+
+	// ── Asset Repair ─────────────────────────────────────────────────
+	createAssetRepair: TRPCMutationProcedure<{
+		input: {
+			assetId: string;
+			company: string;
+			failureDate: unknown;
+			completionDate?: unknown;
+			capitalizeRepairCost?: boolean | undefined;
+			increaseInAssetLife?: number | undefined;
+			description?: string | null | undefined;
+			consumedItems?:
+				| {
+						itemCode: string;
+						quantity?: number | undefined;
+						valuationRate?: number | undefined;
+						assetId?: string | null | undefined;
+						warehouse?: string | null | undefined;
+				  }[]
+				| undefined;
+			purchaseInvoices?:
+				| {
+						purchaseInvoice: string;
+						amount: number;
+						expenseAccount?: string | null | undefined;
+				  }[]
+				| undefined;
+		};
+		output: Asset.AssetRepair;
+		meta: object;
+	}>;
+	submitAssetRepair: TRPCMutationProcedure<{
+		input: { id: string };
+		output: Asset.AssetRepair;
+		meta: object;
+	}>;
+	cancelAssetRepair: TRPCMutationProcedure<{
+		input: { id: string };
+		output: Asset.AssetRepair;
+		meta: object;
+	}>;
+	getAssetRepairById: TRPCQueryProcedure<{
+		input: { id: string };
+		output: Asset.AssetRepair | null;
+		meta: object;
+	}>;
+	listAssetRepairs: TRPCQueryProcedure<{
+		input: unknown;
+		output: Asset.AssetRepairListResult;
+		meta: object;
+	}>;
+
+	// ── Asset Capitalization ─────────────────────────────────────────
+	createAssetCapitalization: TRPCMutationProcedure<{
+		input: {
+			company: string;
+			postingDate: unknown;
+			targetType: Asset.AssetCapitalizationTargetType;
+			targetAssetId?: string | null | undefined;
+			targetAssetName?: string | null | undefined;
+			targetAssetCategory?: string | null | undefined;
+			notes?: string | null | undefined;
+			stockItems?:
+				| {
+						itemCode: string;
+						stockQty?: number | undefined;
+						valuationRate?: number | undefined;
+						warehouse?: string | null | undefined;
+				  }[]
+				| undefined;
+			assetItems?:
+				| {
+						assetId: string;
+						assetValue: number;
+				  }[]
+				| undefined;
+			serviceItems?:
+				| {
+						expenseAccount: string;
+						amount: number;
+						itemCode?: string | null | undefined;
+				  }[]
+				| undefined;
+		};
+		output: Asset.AssetCapitalization;
+		meta: object;
+	}>;
+	submitAssetCapitalization: TRPCMutationProcedure<{
+		input: { id: string };
+		output: Asset.AssetCapitalization;
+		meta: object;
+	}>;
+	cancelAssetCapitalization: TRPCMutationProcedure<{
+		input: { id: string };
+		output: Asset.AssetCapitalization;
+		meta: object;
+	}>;
+	getAssetCapitalizationById: TRPCQueryProcedure<{
+		input: { id: string };
+		output: Asset.AssetCapitalization | null;
+		meta: object;
+	}>;
+	listAssetCapitalizations: TRPCQueryProcedure<{
+		input: unknown;
+		output: Asset.AssetCapitalizationListResult;
+		meta: object;
+	}>;
+	listAssetCapitalizations: TRPCQueryProcedure<{
+		input: unknown;
+		output: Asset.AssetCapitalizationListResult;
+		meta: object;
+	}>;
 };
 
 type AssetRouterRoot = (typeof accountRouter)["_def"]["_config"]["$types"];
