@@ -727,7 +727,7 @@ export default function AssetDepreciationsAndBalancesPage() {
 								No asset balance rows match these filters.
 							</p>
 							<Link
-								href="/asset/asset-maintenance/value-adjustment"
+								href="/asset/value-adjustments"
 								className={cn(
 									buttonVariants({
 										variant: "outline",

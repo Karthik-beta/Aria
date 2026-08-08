@@ -205,7 +205,7 @@ describe("LocationFormPage", () => {
 		renderWithProviders(<LocationFormPage />);
 
 		await waitFor(() => {
-			expect(mockPush).toHaveBeenCalledWith("/asset/asset-sub-module/location");
+			expect(mockPush).toHaveBeenCalledWith("/asset/locations");
 		});
 	});
 
@@ -216,7 +216,7 @@ describe("LocationFormPage", () => {
 		await user.click(screen.getByRole("button", { name: /Back to List/i }));
 
 		await waitFor(() => {
-			expect(mockPush).toHaveBeenCalledWith("/asset/asset-sub-module/location");
+			expect(mockPush).toHaveBeenCalledWith("/asset/locations");
 		});
 	});
 

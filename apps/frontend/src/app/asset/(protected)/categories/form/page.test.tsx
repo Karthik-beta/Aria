@@ -250,9 +250,7 @@ describe("AssetCategoryFormPage", () => {
 		renderWithProviders(<AssetCategoryFormPage />);
 
 		await waitFor(() => {
-			expect(mockPush).toHaveBeenCalledWith(
-				"/asset/asset-sub-module/asset-category",
-			);
+			expect(mockPush).toHaveBeenCalledWith("/asset/categories");
 		});
 	});
 
@@ -263,9 +261,7 @@ describe("AssetCategoryFormPage", () => {
 		await user.click(screen.getByRole("button", { name: /Back to List/i }));
 
 		await waitFor(() => {
-			expect(mockPush).toHaveBeenCalledWith(
-				"/asset/asset-sub-module/asset-category",
-			);
+			expect(mockPush).toHaveBeenCalledWith("/asset/categories");
 		});
 	});
 

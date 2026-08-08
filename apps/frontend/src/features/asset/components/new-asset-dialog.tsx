@@ -113,9 +113,8 @@ export function NewAssetDialog() {
 		if (selectedCategoryId) params.set("assetCategoryId", selectedCategoryId);
 		if (selectedLocationId) params.set("locationId", selectedLocationId);
 		const query = params.toString();
-		return query
-			? `/asset/asset-sub-module/asset/form?${query}`
-			: "/asset/asset-sub-module/asset/form";
+		const formUrl = query ? `/asset/items/form?${query}` : "/asset/items/form";
+		return formUrl;
 	}, [assetName, company, selectedCategoryId, selectedLocationId]);
 
 	const createMutation = trpc.asset.createAsset.useMutation({

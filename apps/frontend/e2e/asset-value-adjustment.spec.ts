@@ -144,15 +144,13 @@ test.describe("Asset value adjustment", () => {
 		await mockValueAdjustmentQueries(page);
 	});
 
-	test("redirects the legacy route and renders the adjustment list", async ({
-		page,
-	}) => {
-		await page.goto("/asset/value-adjustment", {
+	test("renders the adjustment list on canonical route", async ({ page }) => {
+		await page.goto("/asset/value-adjustments", {
 			waitUntil: "domcontentloaded",
 		});
 
 		await expect(page).toHaveURL(
-			/\/asset\/asset-maintenance\/value-adjustment\/?$/,
+			/\/asset\/value-adjustments\/?$/,
 		);
 		await expect(
 			page.getByRole("heading", { name: /asset value adjustment/i }),
@@ -161,12 +159,9 @@ test.describe("Asset value adjustment", () => {
 	});
 
 	test("renders the new adjustment form route", async ({ page }) => {
-		await page.goto(
-			"/asset/asset-maintenance/value-adjustment/form?assetId=asset-001",
-			{
-				waitUntil: "domcontentloaded",
-			},
-		);
+		await page.goto("/asset/value-adjustments/form?assetId=asset-001", {
+			waitUntil: "domcontentloaded",
+		});
 
 		await expect(
 			page.getByRole("heading", { name: /new asset value adjustment/i }),

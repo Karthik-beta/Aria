@@ -609,7 +609,7 @@ export default function AssetDepreciationLedgerPage() {
 								No effective depreciation entries match these filters.
 							</p>
 							<Link
-								href="/asset/asset-maintenance/value-adjustment"
+								href="/asset/value-adjustments"
 								className={cn(
 									buttonVariants({
 										variant: "outline",

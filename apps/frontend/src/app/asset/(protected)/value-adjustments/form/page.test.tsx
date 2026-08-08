@@ -252,7 +252,7 @@ describe("AssetValueAdjustmentFormPage", () => {
 
 		await waitFor(() => {
 			expect(mockPush).toHaveBeenCalledWith(
-				"/asset/asset-maintenance/value-adjustment/form?id=adj-new",
+				"/asset/value-adjustments/form?id=adj-new",
 			);
 		});
 	});

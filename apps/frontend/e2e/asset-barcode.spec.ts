@@ -1,6 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 
-const ASSET_FORM_PATH = "/asset/asset-sub-module/asset/form";
+const ASSET_FORM_PATH = "/asset/items/form";
 const CORRECT_EAN = "8904287602549";
 
 type BarcodeLookupMock =
@@ -225,7 +225,7 @@ test.describe("Asset Barcode Scanning & Input UI", () => {
 			});
 		});
 
-		await page.goto("/asset/asset-sub-module/asset", {
+		await page.goto("/asset/items", {
 			waitUntil: "domcontentloaded",
 		});
 
@@ -239,7 +239,7 @@ test.describe("Asset Barcode Scanning & Input UI", () => {
 	}) => {
 		await mockFormQueries(page);
 
-		await page.goto("/asset/asset-sub-module/asset/form", {
+		await page.goto("/asset/items/form", {
 			waitUntil: "domcontentloaded",
 		});
 
