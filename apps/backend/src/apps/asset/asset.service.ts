@@ -20,6 +20,7 @@ import {
 import { Prisma } from "../../generated/prisma/client";
 import {
 	allocateDocumentSeries,
+	formatDocumentSeries,
 	getSeriesSeedValue,
 } from "../../shared/document-series";
 // biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
@@ -28,11 +29,16 @@ import { FiscalYearService } from "../../shared/fiscal-year/fiscal-year.service"
 import { PrismaService } from "../../shared/prisma.service";
 import {
 	toAsset,
+	toAssetCapitalizationItem,
 	toAssetCategory,
+	toAssetDisposalItem,
 	toAssetLocation,
 	toAssetMaintenance,
 	toAssetMaintenanceLog,
 	toAssetMaintenanceLogListItem,
+	toAssetMovement,
+	toAssetMovementItem,
+	toAssetRepairItem,
 	toAssetValueAdjustment,
 	toMaintenanceTeam,
 } from "./asset.types";
@@ -57,6 +63,8 @@ import {
 } from "./depreciation/depreciation.config";
 // biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
 import { DepreciationBarrierService } from "./depreciation/depreciation-barrier.service";
+// biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
+import { FixedAssetRegisterReportService } from "./fixed-asset-register-report";
 
 const LIST_TAKE_MAX = 250;
 const CURRENCY_SCALE = 6;
@@ -67,11 +75,49 @@ export class AssetService {
 	private readonly assetInclude = {
 		assetCategory: { select: { id: true, name: true } },
 		location: { select: { id: true, name: true } },
-		activities: { orderBy: { createdAt: "desc" as const } },
+		activities: {
+			include: { user: { select: { id: true, name: true } } },
+			orderBy: { createdAt: "desc" as const },
+		},
 		financeBooks: {
 			include: { financeBook: { select: { name: true } } },
 			orderBy: { createdAt: "asc" as const },
 		},
+	} as const;
+
+	private readonly assetMovementInclude = {
+		items: {
+			include: {
+				sourceLocation: { select: { name: true } },
+				targetLocation: { select: { name: true } },
+				asset: { select: { assetName: true } },
+			},
+		},
+	} as const;
+
+	private readonly assetRepairInclude = {
+		asset: { select: { assetName: true } },
+		consumedItems: {
+			include: {
+				consumedAsset: { select: { assetName: true } },
+			},
+		},
+		purchaseInvoices: true,
+	} as const;
+
+	private readonly assetCapitalizationInclude = {
+		targetAsset: { select: { assetName: true } },
+		stockItems: true,
+		assetItems: {
+			include: {
+				asset: { select: { assetName: true } },
+			},
+		},
+		serviceItems: true,
+	} as const;
+
+	private readonly assetDisposalInclude = {
+		asset: { select: { assetName: true } },
 	} as const;
 
 	private readonly assetCategoryInclude = {
@@ -156,6 +202,7 @@ export class AssetService {
 		private readonly fiscalYearService: FiscalYearService,
 		private readonly depreciationLifecycle?: AssetDepreciationLifecycleService,
 		private readonly depreciationBarrier?: DepreciationBarrierService,
+		private readonly fixedAssetRegisterReportService?: FixedAssetRegisterReportService,
 	) {}
 
 	private async ensureReportDepreciation(
@@ -198,82 +245,266 @@ export class AssetService {
 	 * Generates a unique asset series in format AST-YYYY-NNNNN.
 	 * Uses a database-backed counter to stay safe under concurrent creates.
 	 */
-	private async generateAssetSeries(date: Date): Promise<string> {
+	/**
+	 * Generates the next sequential series identifier for an asset.
+	 * Format: AST-YYYY-NNNNN
+	 */
+	private async generateAssetSeries(
+		date: Date,
+		tx?: Prisma.TransactionClient,
+	): Promise<string> {
+		const client = tx ?? this.prisma;
 		const year = date.getFullYear();
 		const prefix = `AST-${year}-`;
-		const existingCounter = await this.prisma.documentSeriesCounter.findUnique({
+		const existingCounter = await client.documentSeriesCounter.findUnique({
 			where: { key: prefix },
 			select: { value: true },
 		});
 
 		if (existingCounter) {
-			return allocateDocumentSeries(this.prisma, prefix);
+			const updated = await client.documentSeriesCounter.update({
+				where: { key: prefix },
+				data: { value: { increment: 1 } },
+			});
+			return formatDocumentSeries(prefix, updated.value);
 		}
 
-		const last = await this.prisma.asset.findFirst({
+		const last = await client.asset.findFirst({
 			where: { series: { startsWith: prefix } },
 			orderBy: { series: "desc" },
 			select: { series: true },
 		});
 
 		return allocateDocumentSeries(
-			this.prisma,
+			client,
 			prefix,
 			5,
 			getSeriesSeedValue(prefix, last?.series),
 		);
 	}
 
+	/**
+	 * Generates the next sequential series identifier for an asset value adjustment.
+	 * Format: AVA-YYYY-NNNNN
+	 */
 	private async generateAssetValueAdjustmentSeries(
 		date: Date,
+		tx?: Prisma.TransactionClient,
 	): Promise<string> {
+		const client = tx ?? this.prisma;
 		const year = date.getFullYear();
 		const prefix = `AVA-${year}-`;
-		const existingCounter = await this.prisma.documentSeriesCounter.findUnique({
+		const existingCounter = await client.documentSeriesCounter.findUnique({
 			where: { key: prefix },
 			select: { value: true },
 		});
 
 		if (existingCounter) {
-			return allocateDocumentSeries(this.prisma, prefix);
+			const updated = await client.documentSeriesCounter.update({
+				where: { key: prefix },
+				data: { value: { increment: 1 } },
+			});
+			return formatDocumentSeries(prefix, updated.value);
 		}
 
-		const last = await this.prisma.assetValueAdjustment.findFirst({
+		const last = await client.assetValueAdjustment.findFirst({
 			where: { series: { startsWith: prefix } },
 			orderBy: { series: "desc" },
 			select: { series: true },
 		});
 
 		return allocateDocumentSeries(
-			this.prisma,
+			client,
 			prefix,
 			5,
 			getSeriesSeedValue(prefix, last?.series),
 		);
 	}
 
+	/**
+	 * Generates the next sequential series identifier for an asset revaluation journal entry.
+	 * Format: JE-AVA-YYYY-NNNNN
+	 */
 	private async generateAssetRevaluationEntrySeries(
 		date: Date,
+		tx?: Prisma.TransactionClient,
 	): Promise<string> {
+		const client = tx ?? this.prisma;
 		const year = date.getFullYear();
 		const prefix = `JE-AVA-${year}-`;
-		const existingCounter = await this.prisma.documentSeriesCounter.findUnique({
+		const existingCounter = await client.documentSeriesCounter.findUnique({
 			where: { key: prefix },
 			select: { value: true },
 		});
 
 		if (existingCounter) {
-			return allocateDocumentSeries(this.prisma, prefix);
+			const updated = await client.documentSeriesCounter.update({
+				where: { key: prefix },
+				data: { value: { increment: 1 } },
+			});
+			return formatDocumentSeries(prefix, updated.value);
 		}
 
-		const last = await this.prisma.assetRevaluationEntry.findFirst({
+		const last = await client.assetRevaluationEntry.findFirst({
 			where: { series: { startsWith: prefix } },
 			orderBy: { series: "desc" },
 			select: { series: true },
 		});
 
 		return allocateDocumentSeries(
-			this.prisma,
+			client,
+			prefix,
+			5,
+			getSeriesSeedValue(prefix, last?.series),
+		);
+	}
+
+	/**
+	 * Generates the next sequential series identifier for an asset movement.
+	 * Format: MOV-YYYY-NNNNN
+	 */
+	private async generateAssetMovementSeries(
+		date: Date,
+		tx?: Prisma.TransactionClient,
+	): Promise<string> {
+		const client = tx ?? this.prisma;
+		const year = date.getFullYear();
+		const prefix = `MOV-${year}-`;
+		const existingCounter = await client.documentSeriesCounter.findUnique({
+			where: { key: prefix },
+			select: { value: true },
+		});
+
+		if (existingCounter) {
+			const updated = await client.documentSeriesCounter.update({
+				where: { key: prefix },
+				data: { value: { increment: 1 } },
+			});
+			return formatDocumentSeries(prefix, updated.value);
+		}
+
+		const last = await client.assetMovement.findFirst({
+			where: { series: { startsWith: prefix } },
+			orderBy: { series: "desc" },
+			select: { series: true },
+		});
+
+		return allocateDocumentSeries(
+			client,
+			prefix,
+			5,
+			getSeriesSeedValue(prefix, last?.series),
+		);
+	}
+
+	/**
+	 * Generates the next sequential series identifier for an asset repair.
+	 * Format: REP-YYYY-NNNNN
+	 */
+	private async generateAssetRepairSeries(
+		date: Date,
+		tx?: Prisma.TransactionClient,
+	): Promise<string> {
+		const client = tx ?? this.prisma;
+		const year = date.getFullYear();
+		const prefix = `REP-${year}-`;
+		const existingCounter = await client.documentSeriesCounter.findUnique({
+			where: { key: prefix },
+			select: { value: true },
+		});
+
+		if (existingCounter) {
+			const updated = await client.documentSeriesCounter.update({
+				where: { key: prefix },
+				data: { value: { increment: 1 } },
+			});
+			return formatDocumentSeries(prefix, updated.value);
+		}
+
+		const last = await client.assetRepair.findFirst({
+			where: { series: { startsWith: prefix } },
+			orderBy: { series: "desc" },
+			select: { series: true },
+		});
+
+		return allocateDocumentSeries(
+			client,
+			prefix,
+			5,
+			getSeriesSeedValue(prefix, last?.series),
+		);
+	}
+
+	/**
+	 * Generates the next sequential series identifier for an asset capitalization.
+	 * Format: CAP-YYYY-NNNNN
+	 */
+	private async generateAssetCapitalizationSeries(
+		date: Date,
+		tx?: Prisma.TransactionClient,
+	): Promise<string> {
+		const client = tx ?? this.prisma;
+		const year = date.getFullYear();
+		const prefix = `CAP-${year}-`;
+		const existingCounter = await client.documentSeriesCounter.findUnique({
+			where: { key: prefix },
+			select: { value: true },
+		});
+
+		if (existingCounter) {
+			const updated = await client.documentSeriesCounter.update({
+				where: { key: prefix },
+				data: { value: { increment: 1 } },
+			});
+			return formatDocumentSeries(prefix, updated.value);
+		}
+
+		const last = await client.assetCapitalization.findFirst({
+			where: { series: { startsWith: prefix } },
+			orderBy: { series: "desc" },
+			select: { series: true },
+		});
+
+		return allocateDocumentSeries(
+			client,
+			prefix,
+			5,
+			getSeriesSeedValue(prefix, last?.series),
+		);
+	}
+
+	/**
+	 * Generates the next sequential series identifier for an asset disposal.
+	 * Format: DISP-YYYY-NNNNN
+	 */
+	private async generateAssetDisposalSeries(
+		date: Date,
+		tx?: Prisma.TransactionClient,
+	): Promise<string> {
+		const client = tx ?? this.prisma;
+		const year = date.getFullYear();
+		const prefix = `DISP-${year}-`;
+		const existingCounter = await client.documentSeriesCounter.findUnique({
+			where: { key: prefix },
+			select: { value: true },
+		});
+
+		if (existingCounter) {
+			const updated = await client.documentSeriesCounter.update({
+				where: { key: prefix },
+				data: { value: { increment: 1 } },
+			});
+			return formatDocumentSeries(prefix, updated.value);
+		}
+
+		const last = await client.assetDisposal.findFirst({
+			where: { series: { startsWith: prefix } },
+			orderBy: { series: "desc" },
+			select: { series: true },
+		});
+
+		return allocateDocumentSeries(
+			client,
 			prefix,
 			5,
 			getSeriesSeedValue(prefix, last?.series),
@@ -891,6 +1122,7 @@ export class AssetService {
 			data: {
 				assetId: created.id,
 				activity: `Asset created with series ${series}`,
+				userId: input.userId ?? null,
 			},
 		});
 
@@ -1197,7 +1429,11 @@ export class AssetService {
 		});
 
 		await this.prisma.assetActivity.create({
-			data: { assetId: input.id, activity: "Asset updated" },
+			data: {
+				assetId: input.id,
+				activity: "Asset updated",
+				userId: input.userId ?? null,
+			},
 		});
 
 		if (existing.status === "DRAFT" && input.financeBooks !== undefined) {
@@ -1347,6 +1583,13 @@ export class AssetService {
 			select: {
 				id: true,
 				assetId: true,
+				userId: true,
+				user: {
+					select: {
+						id: true,
+						name: true,
+					},
+				},
 				activity: true,
 				createdAt: true,
 				asset: {
@@ -1382,6 +1625,14 @@ export class AssetService {
 				company: activity.asset.company,
 				assetStatus: activity.asset.status as Asset.AssetStatus,
 				activity: activity.activity,
+				user: activity.user
+					? {
+							id: activity.user.id,
+							name: activity.user.name,
+						}
+					: null,
+				userId: activity.userId ?? null,
+				userName: activity.user?.name ?? null,
 				createdAt: activity.createdAt,
 			})),
 		});
@@ -1791,6 +2042,19 @@ export class AssetService {
 		});
 	}
 
+	async findFixedAssetRegisterReport(
+		input: Asset.ListFixedAssetRegisterReportInput,
+	): Promise<Asset.FixedAssetRegisterReportResult> {
+		const toDate = new Date(input.toDate);
+		toDate.setHours(23, 59, 59, 999);
+		await this.ensureReportDepreciation(toDate, input.company);
+
+		const reportService =
+			this.fixedAssetRegisterReportService ??
+			new FixedAssetRegisterReportService(this.prisma);
+		return reportService.generateReport(input);
+	}
+
 	async findAllAssetValueAdjustments(
 		params?: Asset.ListAssetValueAdjustmentsInput,
 	): Promise<Asset.AssetValueAdjustmentListResult> {
@@ -2022,18 +2286,19 @@ export class AssetService {
 			);
 		}
 
-		const entrySeries = await this.generateAssetRevaluationEntrySeries(
-			adjustment.adjustmentDate,
-		);
-		const now = new Date();
 		const revaluationLines = buildRevaluationEntryLines({
 			differenceAmount: preview.differenceAmount,
 			fixedAssetAccount: preview.fixedAssetAccount,
 			differenceAccount: adjustment.differenceAccount,
 			costCenter: adjustment.costCenter ?? null,
 		});
+		const now = new Date();
 
 		const updated = await this.prisma.$transaction(async (tx) => {
+			const entrySeries = await this.generateAssetRevaluationEntrySeries(
+				adjustment.adjustmentDate,
+				tx,
+			);
 			if (asset.activeDepreciationSchedule) {
 				await tx.assetDepreciationSchedule.update({
 					where: { id: asset.activeDepreciationSchedule.id },
@@ -2121,6 +2386,7 @@ export class AssetService {
 				data: {
 					assetId: asset.id,
 					activity: `Asset value adjustment ${adjustment.series} submitted. Carrying value changed from ${preview.currentAssetValue.toFixed(2)} to ${preview.newAssetValue.toFixed(2)} via ${entrySeries}.`,
+					userId: input.userId ?? null,
 				},
 			});
 
@@ -2238,6 +2504,7 @@ export class AssetService {
 				data: {
 					assetId: adjustment.assetId,
 					activity: `Asset value adjustment ${adjustment.series} cancelled and the previous carrying value was restored.`,
+					userId: input.userId ?? null,
 				},
 			});
 
@@ -3607,5 +3874,1107 @@ export class AssetService {
 		});
 
 		return toAssetMaintenanceLog(updatedLog);
+	}
+
+	// ============================================================================
+	// Phase 2 Lifecycle Workflows & Document Management
+	// ============================================================================
+
+	/**
+	 * Scraps an asset, transitioning its status to SCRAPPED and generating an AssetDisposal record.
+	 *
+	 * @param input Scrap asset parameters including assetId, disposalDate, and optional notes/userId
+	 * @returns The created AssetDisposal domain object
+	 */
+	async scrapAsset(input: Asset.ScrapAssetInput): Promise<Asset.AssetDisposal> {
+		const asset = await this.prisma.asset.findUnique({
+			where: { id: input.assetId },
+		});
+		if (!asset) {
+			throw new NotFoundException(`Asset with ID ${input.assetId} not found.`);
+		}
+
+		if (
+			asset.status !== "SUBMITTED" &&
+			asset.status !== "PARTIALLY_DEPRECIATED" &&
+			asset.status !== "FULLY_DEPRECIATED"
+		) {
+			throw new BadRequestException(
+				`Asset ${asset.series} cannot be scrapped because its status is ${asset.status}.`,
+			);
+		}
+
+		if (input.disposalDate < asset.purchaseDate) {
+			throw new BadRequestException(
+				`Disposal date (${input.disposalDate.toISOString()}) cannot be before purchase date (${asset.purchaseDate.toISOString()}).`,
+			);
+		}
+
+		const carryingValue = Number(asset.valueAfterDepreciation);
+		const gainLossAmount = -carryingValue;
+
+		const disposal = await this.prisma.$transaction(async (tx) => {
+			const series = await this.generateAssetDisposalSeries(
+				input.disposalDate,
+				tx,
+			);
+
+			await tx.asset.update({
+				where: { id: input.assetId },
+				data: {
+					status: "SCRAPPED",
+					disposalDate: input.disposalDate,
+				},
+			});
+
+			const created = await tx.assetDisposal.create({
+				data: {
+					series,
+					assetId: input.assetId,
+					company: asset.company,
+					disposalDate: input.disposalDate,
+					disposalType: "SCRAP",
+					salesAmount: 0,
+					gainLossAmount,
+					status: "POSTED",
+					notes: input.notes ?? null,
+				},
+				include: this.assetDisposalInclude,
+			});
+
+			await tx.assetActivity.create({
+				data: {
+					assetId: input.assetId,
+					userId: input.userId ?? null,
+					activity: `Asset scrapped via disposal entry ${series}`,
+				},
+			});
+
+			return created;
+		});
+
+		return toAssetDisposalItem(disposal);
+	}
+
+	/**
+	 * Sells an asset, transitioning its status to SOLD and generating an AssetDisposal record.
+	 *
+	 * @param input Sell asset parameters including assetId, disposalDate, salesAmount, and optional notes/userId
+	 * @returns The created AssetDisposal domain object
+	 */
+	async sellAsset(input: Asset.SellAssetInput): Promise<Asset.AssetDisposal> {
+		const asset = await this.prisma.asset.findUnique({
+			where: { id: input.assetId },
+		});
+		if (!asset) {
+			throw new NotFoundException(`Asset with ID ${input.assetId} not found.`);
+		}
+
+		if (
+			asset.status !== "SUBMITTED" &&
+			asset.status !== "PARTIALLY_DEPRECIATED" &&
+			asset.status !== "FULLY_DEPRECIATED"
+		) {
+			throw new BadRequestException(
+				`Asset ${asset.series} cannot be sold because its status is ${asset.status}.`,
+			);
+		}
+
+		if (input.disposalDate < asset.purchaseDate) {
+			throw new BadRequestException(
+				`Disposal date (${input.disposalDate.toISOString()}) cannot be before purchase date (${asset.purchaseDate.toISOString()}).`,
+			);
+		}
+
+		const carryingValue = Number(asset.valueAfterDepreciation);
+		const gainLossAmount = this.roundCurrency(
+			input.salesAmount - carryingValue,
+		);
+
+		const disposal = await this.prisma.$transaction(async (tx) => {
+			const series = await this.generateAssetDisposalSeries(
+				input.disposalDate,
+				tx,
+			);
+
+			await tx.asset.update({
+				where: { id: input.assetId },
+				data: {
+					status: "SOLD",
+					disposalDate: input.disposalDate,
+				},
+			});
+
+			const created = await tx.assetDisposal.create({
+				data: {
+					series,
+					assetId: input.assetId,
+					company: asset.company,
+					disposalDate: input.disposalDate,
+					disposalType: "SELL",
+					salesAmount: input.salesAmount,
+					gainLossAmount,
+					status: "POSTED",
+					notes: input.notes ?? null,
+				},
+				include: this.assetDisposalInclude,
+			});
+
+			await tx.assetActivity.create({
+				data: {
+					assetId: input.assetId,
+					userId: input.userId ?? null,
+					activity: `Asset sold for ${input.salesAmount} via disposal entry ${series}`,
+				},
+			});
+
+			return created;
+		});
+
+		return toAssetDisposalItem(disposal);
+	}
+
+	/**
+	 * Restores a scrapped or sold asset back to an active operational status.
+	 *
+	 * @param input Restore asset parameters containing assetId and optional userId
+	 * @returns The restored AssetItem domain object
+	 */
+	async restoreAsset(input: Asset.RestoreAssetInput): Promise<Asset.AssetItem> {
+		const asset = await this.prisma.asset.findUnique({
+			where: { id: input.assetId },
+			include: this.assetInclude,
+		});
+		if (!asset) {
+			throw new NotFoundException(`Asset with ID ${input.assetId} not found.`);
+		}
+
+		if (asset.status !== "SCRAPPED" && asset.status !== "SOLD") {
+			throw new BadRequestException(
+				`Asset ${asset.series} is not scrapped or sold (current status: ${asset.status}).`,
+			);
+		}
+
+		const valAfterDep = Number(asset.valueAfterDepreciation);
+		const netPurchase = Number(asset.netPurchaseAmount);
+		let restoredStatus: Asset.AssetStatus = "SUBMITTED";
+		if (asset.isFullyDepreciated || valAfterDep <= 0) {
+			restoredStatus = "FULLY_DEPRECIATED";
+		} else if (valAfterDep < netPurchase) {
+			restoredStatus = "PARTIALLY_DEPRECIATED";
+		}
+
+		const updatedAsset = await this.prisma.$transaction(async (tx) => {
+			await tx.assetDisposal.updateMany({
+				where: { assetId: input.assetId, status: "POSTED" },
+				data: { status: "CANCELLED" },
+			});
+
+			const updated = await tx.asset.update({
+				where: { id: input.assetId },
+				data: {
+					status: restoredStatus,
+					disposalDate: null,
+				},
+				include: this.assetInclude,
+			});
+
+			await tx.assetActivity.create({
+				data: {
+					assetId: input.assetId,
+					userId: input.userId ?? null,
+					activity: `Asset restored from disposal state to ${restoredStatus}`,
+				},
+			});
+
+			return updated;
+		});
+
+		return toAsset(updatedAsset);
+	}
+
+	/**
+	 * Creates a new draft AssetMovement record.
+	 *
+	 * @param input CreateAssetMovementInput containing company, transactionDate, purpose, notes, and items
+	 * @returns The created AssetMovement domain object
+	 */
+	async createAssetMovement(
+		input: Asset.CreateAssetMovementInput,
+	): Promise<Asset.AssetMovement> {
+		for (const item of input.items) {
+			const asset = await this.prisma.asset.findUnique({
+				where: { id: item.assetId },
+				select: { id: true, series: true, status: true },
+			});
+			if (!asset) {
+				throw new NotFoundException(`Asset with ID ${item.assetId} not found.`);
+			}
+			if (
+				asset.status === "DRAFT" ||
+				asset.status === "CANCELLED" ||
+				asset.status === "SCRAPPED" ||
+				asset.status === "SOLD"
+			) {
+				throw new BadRequestException(
+					`Asset ${asset.series} cannot be moved because its status is ${asset.status}.`,
+				);
+			}
+		}
+
+		const movement = await this.prisma.$transaction(async (tx) => {
+			const series = await this.generateAssetMovementSeries(
+				input.transactionDate,
+				tx,
+			);
+			return tx.assetMovement.create({
+				data: {
+					series,
+					company: input.company,
+					transactionDate: input.transactionDate,
+					purpose: input.purpose,
+					status: "DRAFT",
+					notes: input.notes ?? null,
+					items: {
+						create: input.items.map((i) => ({
+							assetId: i.assetId,
+							sourceLocationId: i.sourceLocationId ?? null,
+							targetLocationId: i.targetLocationId ?? null,
+							fromEmployee: i.fromEmployee ?? null,
+							toEmployee: i.toEmployee ?? null,
+						})),
+					},
+				},
+				include: this.assetMovementInclude,
+			});
+		});
+
+		return toAssetMovement(movement);
+	}
+
+	/**
+	 * Submits an AssetMovement, updating locations and custodians on linked assets.
+	 *
+	 * @param input SubmitAssetMovementInput containing movement id and optional userId
+	 * @returns The submitted AssetMovement domain object
+	 */
+	async submitAssetMovement(
+		input: Asset.SubmitAssetMovementInput,
+	): Promise<Asset.AssetMovement> {
+		const movement = await this.prisma.assetMovement.findUnique({
+			where: { id: input.id },
+			include: this.assetMovementInclude,
+		});
+		if (!movement) {
+			throw new NotFoundException(`AssetMovement ${input.id} not found.`);
+		}
+		if (movement.status !== "DRAFT") {
+			throw new BadRequestException(
+				`AssetMovement ${movement.series} cannot be submitted because status is ${movement.status}.`,
+			);
+		}
+
+		const submitted = await this.prisma.$transaction(async (tx) => {
+			for (const item of movement.items) {
+				const assetUpdate: Prisma.AssetUpdateInput = {};
+				if (item.targetLocationId) {
+					assetUpdate.location = { connect: { id: item.targetLocationId } };
+				}
+				if (item.toEmployee) {
+					assetUpdate.custodian = item.toEmployee;
+				}
+				if (Object.keys(assetUpdate).length > 0) {
+					await tx.asset.update({
+						where: { id: item.assetId },
+						data: assetUpdate,
+					});
+				}
+
+				await tx.assetActivity.create({
+					data: {
+						assetId: item.assetId,
+						userId: input.userId ?? null,
+						activity: `Asset movement ${movement.series} submitted: transferred to ${
+							item.targetLocation?.name ?? "new location"
+						}`,
+					},
+				});
+			}
+
+			return tx.assetMovement.update({
+				where: { id: input.id },
+				data: {
+					status: "SUBMITTED",
+					submittedAt: new Date(),
+				},
+				include: this.assetMovementInclude,
+			});
+		});
+
+		return toAssetMovement(submitted);
+	}
+
+	/**
+	 * Cancels an AssetMovement, reverting locations and custodians on linked assets.
+	 *
+	 * @param input CancelAssetMovementInput containing movement id and optional userId
+	 * @returns The cancelled AssetMovement domain object
+	 */
+	async cancelAssetMovement(
+		input: Asset.CancelAssetMovementInput,
+	): Promise<Asset.AssetMovement> {
+		const movement = await this.prisma.assetMovement.findUnique({
+			where: { id: input.id },
+			include: this.assetMovementInclude,
+		});
+		if (!movement) {
+			throw new NotFoundException(`AssetMovement ${input.id} not found.`);
+		}
+		if (movement.status !== "SUBMITTED") {
+			throw new BadRequestException(
+				`AssetMovement ${movement.series} cannot be cancelled because status is ${movement.status}.`,
+			);
+		}
+
+		const cancelled = await this.prisma.$transaction(async (tx) => {
+			for (const item of movement.items) {
+				const assetUpdate: Prisma.AssetUpdateInput = {};
+				if (item.sourceLocationId) {
+					assetUpdate.location = { connect: { id: item.sourceLocationId } };
+				}
+				if (item.fromEmployee !== undefined) {
+					assetUpdate.custodian = item.fromEmployee;
+				}
+				if (Object.keys(assetUpdate).length > 0) {
+					await tx.asset.update({
+						where: { id: item.assetId },
+						data: assetUpdate,
+					});
+				}
+
+				await tx.assetActivity.create({
+					data: {
+						assetId: item.assetId,
+						userId: input.userId ?? null,
+						activity: `Asset movement ${movement.series} cancelled: location/custodian reverted`,
+					},
+				});
+			}
+
+			return tx.assetMovement.update({
+				where: { id: input.id },
+				data: {
+					status: "CANCELLED",
+					cancelledAt: new Date(),
+				},
+				include: this.assetMovementInclude,
+			});
+		});
+
+		return toAssetMovement(cancelled);
+	}
+
+	/**
+	 * Finds an AssetMovement by ID.
+	 *
+	 * @param id Unique CUID of the movement
+	 * @returns The AssetMovement domain object
+	 */
+	async findMovementById(id: string): Promise<Asset.AssetMovement> {
+		const movement = await this.prisma.assetMovement.findUnique({
+			where: { id },
+			include: this.assetMovementInclude,
+		});
+		if (!movement) {
+			throw new NotFoundException(`AssetMovement ${id} not found.`);
+		}
+		return toAssetMovement(movement);
+	}
+
+	/**
+	 * Lists AssetMovement records with pagination and filtering.
+	 *
+	 * @param input List parameters
+	 * @returns List result wrapper
+	 */
+	async listMovements(
+		input: Asset.ListAssetMovementsInput,
+	): Promise<Asset.AssetMovementListResult> {
+		const where: Prisma.AssetMovementWhereInput = {};
+		if (input.company) where.company = input.company;
+		if (input.status) where.status = input.status;
+		if (input.purpose) where.purpose = input.purpose;
+		if (input.search) {
+			where.OR = [
+				{ series: { contains: input.search, mode: "insensitive" } },
+				{ notes: { contains: input.search, mode: "insensitive" } },
+			];
+		}
+
+		const take = Math.min(input.take ?? 50, LIST_TAKE_MAX);
+		const skip = input.skip ?? 0;
+
+		const [items, totalCount] = await Promise.all([
+			this.prisma.assetMovement.findMany({
+				where,
+				include: this.assetMovementInclude,
+				orderBy: { createdAt: "desc" },
+				take,
+				skip,
+			}),
+			this.prisma.assetMovement.count({ where }),
+		]);
+
+		return {
+			items: items.map(toAssetMovement),
+			totalCount,
+		};
+	}
+
+	/**
+	 * Creates a new draft AssetRepair document.
+	 *
+	 * @param input CreateAssetRepairInput
+	 * @returns The created AssetRepair domain object
+	 */
+	async createAssetRepair(
+		input: Asset.CreateAssetRepairInput,
+	): Promise<Asset.AssetRepair> {
+		const asset = await this.prisma.asset.findUnique({
+			where: { id: input.assetId },
+			select: { id: true, series: true, status: true },
+		});
+		if (!asset) {
+			throw new NotFoundException(`Asset with ID ${input.assetId} not found.`);
+		}
+		if (
+			asset.status === "CANCELLED" ||
+			asset.status === "SCRAPPED" ||
+			asset.status === "SOLD"
+		) {
+			throw new BadRequestException(
+				`Cannot create repair for asset ${asset.series} in ${asset.status} state.`,
+			);
+		}
+
+		let consumedTotal = 0;
+		const consumedItemsData = (input.consumedItems ?? []).map((ci) => {
+			const itemValuation = ci.valuationRate ?? 0;
+			const totalAmt = this.roundCurrency(ci.quantity * itemValuation);
+			consumedTotal += totalAmt;
+			return {
+				assetId: ci.assetId ?? null,
+				itemCode: ci.itemCode,
+				warehouse: ci.warehouse ?? null,
+				quantity: ci.quantity,
+				valuationRate: itemValuation,
+				totalAmount: totalAmt,
+			};
+		});
+
+		let piTotal = 0;
+		const piData = (input.purchaseInvoices ?? []).map((pi) => {
+			piTotal += pi.amount;
+			return {
+				purchaseInvoice: pi.purchaseInvoice,
+				expenseAccount: pi.expenseAccount ?? null,
+				amount: pi.amount,
+			};
+		});
+
+		const totalRepairCost = this.roundCurrency(consumedTotal + piTotal);
+
+		const repair = await this.prisma.$transaction(async (tx) => {
+			const series = await this.generateAssetRepairSeries(
+				input.failureDate,
+				tx,
+			);
+			return tx.assetRepair.create({
+				data: {
+					series,
+					assetId: input.assetId,
+					company: input.company,
+					failureDate: input.failureDate,
+					completionDate: input.completionDate ?? null,
+					repairStatus: "DRAFT",
+					repairCost: totalRepairCost,
+					capitalizeRepairCost: input.capitalizeRepairCost ?? false,
+					increaseInAssetLife: input.increaseInAssetLife ?? 0,
+					description: input.description ?? null,
+					consumedItems: { create: consumedItemsData },
+					purchaseInvoices: { create: piData },
+				},
+				include: this.assetRepairInclude,
+			});
+		});
+
+		return toAssetRepairItem(repair);
+	}
+
+	/**
+	 * Submits an AssetRepair document, completing the repair and optionally capitalizing repair cost into asset value.
+	 *
+	 * @param input SubmitAssetRepairInput
+	 * @returns The submitted AssetRepair domain object
+	 */
+	async submitAssetRepair(
+		input: Asset.SubmitAssetRepairInput,
+	): Promise<Asset.AssetRepair> {
+		const repair = await this.prisma.assetRepair.findUnique({
+			where: { id: input.id },
+			include: this.assetRepairInclude,
+		});
+		if (!repair) {
+			throw new NotFoundException(`AssetRepair ${input.id} not found.`);
+		}
+		if (
+			repair.repairStatus === "COMPLETED" ||
+			repair.repairStatus === "CANCELLED"
+		) {
+			throw new BadRequestException(
+				`AssetRepair ${repair.series} cannot be submitted because status is ${repair.repairStatus}.`,
+			);
+		}
+
+		const submitted = await this.prisma.$transaction(async (tx) => {
+			if (repair.capitalizeRepairCost && Number(repair.repairCost) > 0) {
+				const asset = await tx.asset.findUniqueOrThrow({
+					where: { id: repair.assetId },
+				});
+				const newNet = this.roundCurrency(
+					Number(asset.netPurchaseAmount) + Number(repair.repairCost),
+				);
+				const newValue = this.roundCurrency(
+					Number(asset.valueAfterDepreciation) + Number(repair.repairCost),
+				);
+				const newTotalDeps =
+					asset.totalNumberOfDepreciations != null
+						? asset.totalNumberOfDepreciations + repair.increaseInAssetLife
+						: null;
+
+				await tx.asset.update({
+					where: { id: repair.assetId },
+					data: {
+						netPurchaseAmount: newNet,
+						valueAfterDepreciation: newValue,
+						totalNumberOfDepreciations: newTotalDeps,
+					},
+				});
+			}
+
+			const updated = await tx.assetRepair.update({
+				where: { id: input.id },
+				data: {
+					repairStatus: "COMPLETED",
+					submittedAt: new Date(),
+					completionDate: repair.completionDate ?? new Date(),
+				},
+				include: this.assetRepairInclude,
+			});
+
+			await tx.assetActivity.create({
+				data: {
+					assetId: repair.assetId,
+					userId: input.userId ?? null,
+					activity: `Asset repair ${repair.series} submitted (cost: ${repair.repairCost})`,
+				},
+			});
+
+			return updated;
+		});
+
+		return toAssetRepairItem(submitted);
+	}
+
+	/**
+	 * Cancels an AssetRepair document, reverting any capitalized repair cost from the asset value.
+	 *
+	 * @param input CancelAssetRepairInput
+	 * @returns The cancelled AssetRepair domain object
+	 */
+	async cancelAssetRepair(
+		input: Asset.CancelAssetRepairInput,
+	): Promise<Asset.AssetRepair> {
+		const repair = await this.prisma.assetRepair.findUnique({
+			where: { id: input.id },
+			include: this.assetRepairInclude,
+		});
+		if (!repair) {
+			throw new NotFoundException(`AssetRepair ${input.id} not found.`);
+		}
+		if (repair.repairStatus === "CANCELLED") {
+			throw new BadRequestException(
+				`AssetRepair ${repair.series} is already cancelled.`,
+			);
+		}
+
+		const wasSubmitted =
+			repair.submittedAt != null || repair.repairStatus === "COMPLETED";
+
+		const cancelled = await this.prisma.$transaction(async (tx) => {
+			if (
+				wasSubmitted &&
+				repair.capitalizeRepairCost &&
+				Number(repair.repairCost) > 0
+			) {
+				const asset = await tx.asset.findUniqueOrThrow({
+					where: { id: repair.assetId },
+				});
+				const newNet = Math.max(
+					0,
+					this.roundCurrency(
+						Number(asset.netPurchaseAmount) - Number(repair.repairCost),
+					),
+				);
+				const newValue = Math.max(
+					0,
+					this.roundCurrency(
+						Number(asset.valueAfterDepreciation) - Number(repair.repairCost),
+					),
+				);
+				const newTotalDeps =
+					asset.totalNumberOfDepreciations != null
+						? Math.max(
+								1,
+								asset.totalNumberOfDepreciations - repair.increaseInAssetLife,
+							)
+						: null;
+
+				await tx.asset.update({
+					where: { id: repair.assetId },
+					data: {
+						netPurchaseAmount: newNet,
+						valueAfterDepreciation: newValue,
+						totalNumberOfDepreciations: newTotalDeps,
+					},
+				});
+			}
+
+			const updated = await tx.assetRepair.update({
+				where: { id: input.id },
+				data: {
+					repairStatus: "CANCELLED",
+					cancelledAt: new Date(),
+				},
+				include: this.assetRepairInclude,
+			});
+
+			await tx.assetActivity.create({
+				data: {
+					assetId: repair.assetId,
+					userId: input.userId ?? null,
+					activity: `Asset repair ${repair.series} cancelled`,
+				},
+			});
+
+			return updated;
+		});
+
+		return toAssetRepairItem(cancelled);
+	}
+
+	/**
+	 * Finds an AssetRepair by ID.
+	 *
+	 * @param id Unique CUID of the repair
+	 * @returns The AssetRepair domain object
+	 */
+	async findRepairById(id: string): Promise<Asset.AssetRepair> {
+		const repair = await this.prisma.assetRepair.findUnique({
+			where: { id },
+			include: this.assetRepairInclude,
+		});
+		if (!repair) {
+			throw new NotFoundException(`AssetRepair ${id} not found.`);
+		}
+		return toAssetRepairItem(repair);
+	}
+
+	/**
+	 * Lists AssetRepair records with pagination and filtering.
+	 *
+	 * @param input List parameters
+	 * @returns List result wrapper
+	 */
+	async listRepairs(
+		input: Asset.ListAssetRepairsInput,
+	): Promise<Asset.AssetRepairListResult> {
+		const where: Prisma.AssetRepairWhereInput = {};
+		if (input.assetId) where.assetId = input.assetId;
+		if (input.company) where.company = input.company;
+		if (input.status) where.repairStatus = input.status;
+		if (input.search) {
+			where.OR = [
+				{ series: { contains: input.search, mode: "insensitive" } },
+				{ description: { contains: input.search, mode: "insensitive" } },
+			];
+		}
+
+		const take = Math.min(input.take ?? 50, LIST_TAKE_MAX);
+		const skip = input.skip ?? 0;
+
+		const [items, totalCount] = await Promise.all([
+			this.prisma.assetRepair.findMany({
+				where,
+				include: this.assetRepairInclude,
+				orderBy: { createdAt: "desc" },
+				take,
+				skip,
+			}),
+			this.prisma.assetRepair.count({ where }),
+		]);
+
+		return {
+			items: items.map(toAssetRepairItem),
+			totalCount,
+		};
+	}
+
+	/**
+	 * Creates a new draft AssetCapitalization document.
+	 *
+	 * @param input CreateAssetCapitalizationInput
+	 * @returns The created AssetCapitalization domain object
+	 */
+	async createAssetCapitalization(
+		input: Asset.CreateAssetCapitalizationInput,
+	): Promise<Asset.AssetCapitalization> {
+		let totalStockVal = 0;
+		const stockItemsData = (input.stockItems ?? []).map((si) => {
+			const amt = this.roundCurrency(si.stockQty * si.valuationRate);
+			totalStockVal += amt;
+			return {
+				itemCode: si.itemCode,
+				warehouse: si.warehouse ?? null,
+				stockQty: si.stockQty,
+				valuationRate: si.valuationRate,
+				amount: amt,
+			};
+		});
+
+		let totalAssetVal = 0;
+		const assetItemsData = (input.assetItems ?? []).map((ai) => {
+			totalAssetVal += ai.assetValue;
+			return {
+				assetId: ai.assetId,
+				assetValue: ai.assetValue,
+			};
+		});
+
+		let totalServiceVal = 0;
+		const serviceItemsData = (input.serviceItems ?? []).map((si) => {
+			totalServiceVal += si.amount;
+			return {
+				itemCode: si.itemCode ?? null,
+				expenseAccount: si.expenseAccount,
+				amount: si.amount,
+			};
+		});
+
+		const grandTotalValue = this.roundCurrency(
+			totalStockVal + totalAssetVal + totalServiceVal,
+		);
+
+		const capitalization = await this.prisma.$transaction(async (tx) => {
+			const series = await this.generateAssetCapitalizationSeries(
+				input.postingDate,
+				tx,
+			);
+			return tx.assetCapitalization.create({
+				data: {
+					series,
+					company: input.company,
+					postingDate: input.postingDate,
+					targetType: input.targetType,
+					targetAssetId: input.targetAssetId ?? null,
+					targetAssetName: input.targetAssetName ?? null,
+					targetAssetCategory: input.targetAssetCategory ?? null,
+					status: "DRAFT",
+					totalStockValue: totalStockVal,
+					totalAssetValue: totalAssetVal,
+					totalServiceValue: totalServiceVal,
+					totalValue: grandTotalValue,
+					notes: input.notes ?? null,
+					stockItems: { create: stockItemsData },
+					assetItems: { create: assetItemsData },
+					serviceItems: { create: serviceItemsData },
+				},
+				include: this.assetCapitalizationInclude,
+			});
+		});
+
+		return toAssetCapitalizationItem(capitalization);
+	}
+
+	/**
+	 * Submits an AssetCapitalization document, capitalizing values into the target asset and marking consumed assets as scrapped.
+	 *
+	 * @param input SubmitAssetCapitalizationInput
+	 * @returns The submitted AssetCapitalization domain object
+	 */
+	async submitAssetCapitalization(
+		input: Asset.SubmitAssetCapitalizationInput,
+	): Promise<Asset.AssetCapitalization> {
+		const cap = await this.prisma.assetCapitalization.findUnique({
+			where: { id: input.id },
+			include: this.assetCapitalizationInclude,
+		});
+		if (!cap) {
+			throw new NotFoundException(`AssetCapitalization ${input.id} not found.`);
+		}
+		if (cap.status !== "DRAFT") {
+			throw new BadRequestException(
+				`AssetCapitalization ${cap.series} cannot be submitted because status is ${cap.status}.`,
+			);
+		}
+
+		const submitted = await this.prisma.$transaction(async (tx) => {
+			if (cap.targetType === "EXISTING_ASSET" && cap.targetAssetId) {
+				const target = await tx.asset.findUniqueOrThrow({
+					where: { id: cap.targetAssetId },
+				});
+				const newNet = this.roundCurrency(
+					Number(target.netPurchaseAmount) + Number(cap.totalValue),
+				);
+				const newValue = this.roundCurrency(
+					Number(target.valueAfterDepreciation) + Number(cap.totalValue),
+				);
+				await tx.asset.update({
+					where: { id: cap.targetAssetId },
+					data: {
+						netPurchaseAmount: newNet,
+						valueAfterDepreciation: newValue,
+					},
+				});
+				await tx.assetActivity.create({
+					data: {
+						assetId: cap.targetAssetId,
+						userId: input.userId ?? null,
+						activity: `Capitalized value ${cap.totalValue} added via ${cap.series}`,
+					},
+				});
+			}
+
+			for (const ai of cap.assetItems) {
+				await tx.asset.update({
+					where: { id: ai.assetId },
+					data: { status: "SCRAPPED" },
+				});
+				await tx.assetActivity.create({
+					data: {
+						assetId: ai.assetId,
+						userId: input.userId ?? null,
+						activity: `Asset consumed in capitalization ${cap.series}`,
+					},
+				});
+			}
+
+			return tx.assetCapitalization.update({
+				where: { id: input.id },
+				data: {
+					status: "SUBMITTED",
+					submittedAt: new Date(),
+				},
+				include: this.assetCapitalizationInclude,
+			});
+		});
+
+		return toAssetCapitalizationItem(submitted);
+	}
+
+	/**
+	 * Cancels an AssetCapitalization document, reverting target asset values and restoring consumed assets.
+	 *
+	 * @param input CancelAssetCapitalizationInput
+	 * @returns The cancelled AssetCapitalization domain object
+	 */
+	async cancelAssetCapitalization(
+		input: Asset.CancelAssetCapitalizationInput,
+	): Promise<Asset.AssetCapitalization> {
+		const cap = await this.prisma.assetCapitalization.findUnique({
+			where: { id: input.id },
+			include: this.assetCapitalizationInclude,
+		});
+		if (!cap) {
+			throw new NotFoundException(`AssetCapitalization ${input.id} not found.`);
+		}
+		if (cap.status !== "SUBMITTED") {
+			throw new BadRequestException(
+				`AssetCapitalization ${cap.series} cannot be cancelled because status is ${cap.status}.`,
+			);
+		}
+
+		const cancelled = await this.prisma.$transaction(async (tx) => {
+			if (cap.targetType === "EXISTING_ASSET" && cap.targetAssetId) {
+				const target = await tx.asset.findUniqueOrThrow({
+					where: { id: cap.targetAssetId },
+				});
+				const newNet = Math.max(
+					0,
+					this.roundCurrency(
+						Number(target.netPurchaseAmount) - Number(cap.totalValue),
+					),
+				);
+				const newValue = Math.max(
+					0,
+					this.roundCurrency(
+						Number(target.valueAfterDepreciation) - Number(cap.totalValue),
+					),
+				);
+				await tx.asset.update({
+					where: { id: cap.targetAssetId },
+					data: {
+						netPurchaseAmount: newNet,
+						valueAfterDepreciation: newValue,
+					},
+				});
+				await tx.assetActivity.create({
+					data: {
+						assetId: cap.targetAssetId,
+						userId: input.userId ?? null,
+						activity: `Capitalization ${cap.series} cancelled`,
+					},
+				});
+			}
+
+			for (const ai of cap.assetItems) {
+				await tx.asset.update({
+					where: { id: ai.assetId },
+					data: { status: "SUBMITTED" },
+				});
+				await tx.assetActivity.create({
+					data: {
+						assetId: ai.assetId,
+						userId: input.userId ?? null,
+						activity: `Asset restored from cancelled capitalization ${cap.series}`,
+					},
+				});
+			}
+
+			return tx.assetCapitalization.update({
+				where: { id: input.id },
+				data: {
+					status: "CANCELLED",
+					cancelledAt: new Date(),
+				},
+				include: this.assetCapitalizationInclude,
+			});
+		});
+
+		return toAssetCapitalizationItem(cancelled);
+	}
+
+	/**
+	 * Finds an AssetCapitalization by ID.
+	 *
+	 * @param id Unique CUID of the capitalization
+	 * @returns The AssetCapitalization domain object
+	 */
+	async findCapitalizationById(id: string): Promise<Asset.AssetCapitalization> {
+		const cap = await this.prisma.assetCapitalization.findUnique({
+			where: { id },
+			include: this.assetCapitalizationInclude,
+		});
+		if (!cap) {
+			throw new NotFoundException(`AssetCapitalization ${id} not found.`);
+		}
+		return toAssetCapitalizationItem(cap);
+	}
+
+	/**
+	 * Lists AssetCapitalization records with pagination and filtering.
+	 *
+	 * @param input List parameters
+	 * @returns List result wrapper
+	 */
+	async listCapitalizations(
+		input: Asset.ListAssetCapitalizationsInput,
+	): Promise<Asset.AssetCapitalizationListResult> {
+		const where: Prisma.AssetCapitalizationWhereInput = {};
+		if (input.company) where.company = input.company;
+		if (input.status) where.status = input.status;
+		if (input.search) {
+			where.OR = [
+				{ series: { contains: input.search, mode: "insensitive" } },
+				{ notes: { contains: input.search, mode: "insensitive" } },
+				{ targetAssetName: { contains: input.search, mode: "insensitive" } },
+			];
+		}
+
+		const take = Math.min(input.take ?? 50, LIST_TAKE_MAX);
+		const skip = input.skip ?? 0;
+
+		const [items, totalCount] = await Promise.all([
+			this.prisma.assetCapitalization.findMany({
+				where,
+				include: this.assetCapitalizationInclude,
+				orderBy: { createdAt: "desc" },
+				take,
+				skip,
+			}),
+			this.prisma.assetCapitalization.count({ where }),
+		]);
+
+		return {
+			items: items.map(toAssetCapitalizationItem),
+			totalCount,
+		};
+	}
+
+	/**
+	 * Finds an AssetDisposal by ID.
+	 *
+	 * @param id Unique CUID of the disposal
+	 * @returns The AssetDisposal domain object
+	 */
+	async findDisposalById(id: string): Promise<Asset.AssetDisposal> {
+		const disposal = await this.prisma.assetDisposal.findUnique({
+			where: { id },
+			include: this.assetDisposalInclude,
+		});
+		if (!disposal) {
+			throw new NotFoundException(`AssetDisposal ${id} not found.`);
+		}
+		return toAssetDisposalItem(disposal);
+	}
+
+	/**
+	 * Lists AssetDisposal records with pagination and filtering.
+	 *
+	 * @param input List parameters
+	 * @returns List result wrapper
+	 */
+	async listDisposals(
+		input: Asset.ListAssetDisposalsInput,
+	): Promise<Asset.AssetDisposalListResult> {
+		const where: Prisma.AssetDisposalWhereInput = {};
+		if (input.assetId) where.assetId = input.assetId;
+		if (input.company) where.company = input.company;
+		if (input.disposalType) where.disposalType = input.disposalType;
+		if (input.search) {
+			where.OR = [
+				{ series: { contains: input.search, mode: "insensitive" } },
+				{ notes: { contains: input.search, mode: "insensitive" } },
+			];
+		}
+
+		const take = Math.min(input.take ?? 50, LIST_TAKE_MAX);
+		const skip = input.skip ?? 0;
+
+		const [items, totalCount] = await Promise.all([
+			this.prisma.assetDisposal.findMany({
+				where,
+				include: this.assetDisposalInclude,
+				orderBy: { createdAt: "desc" },
+				take,
+				skip,
+			}),
+			this.prisma.assetDisposal.count({ where }),
+		]);
+
+		return {
+			items: items.map(toAssetDisposalItem),
+			totalCount,
+		};
 	}
 }

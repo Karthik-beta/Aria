@@ -8,7 +8,10 @@ export type PrismaAsset = Prisma.AssetGetPayload<{
 	include: {
 		assetCategory: { select: { id: true; name: true } };
 		location: { select: { id: true; name: true } };
-		activities: { orderBy: { createdAt: "desc" } };
+		activities: {
+			include: { user: { select: { id: true; name: true } } };
+			orderBy: { createdAt: "desc" };
+		};
 		financeBooks: {
 			include: { financeBook: { select: { name: true } } };
 			orderBy: { createdAt: "asc" };
@@ -196,6 +199,8 @@ export function toAsset(raw: PrismaAsset): Asset.AssetItem {
 		activities: raw.activities.map((a) => ({
 			id: a.id,
 			assetId: a.assetId,
+			userId: a.userId ?? null,
+			userName: a.user?.name ?? null,
 			activity: a.activity,
 			createdAt: a.createdAt,
 		})),
@@ -540,6 +545,322 @@ export function toAssetMaintenanceLogListItem(
 		actionsPerformed: raw.actionsPerformed ?? null,
 		hasCertificate: raw.hasCertificate,
 		certificateAttachment: raw.certificateAttachment ?? null,
+		createdAt: raw.createdAt,
+		updatedAt: raw.updatedAt,
+	};
+}
+
+// ============================================================================
+// Phase 2 Lifecycle Mappers & Prisma Payload Types
+// ============================================================================
+
+/**
+ * Prisma model type for AssetMovementItem with locations and asset.
+ */
+export type PrismaAssetMovementItem = Prisma.AssetMovementItemGetPayload<{
+	include: {
+		sourceLocation: { select: { name: true } };
+		targetLocation: { select: { name: true } };
+		asset: { select: { assetName: true } };
+	};
+}>;
+
+/**
+ * Prisma model type for AssetMovement with items.
+ */
+export type PrismaAssetMovement = Prisma.AssetMovementGetPayload<{
+	include: {
+		items: {
+			include: {
+				sourceLocation: { select: { name: true } };
+				targetLocation: { select: { name: true } };
+				asset: { select: { assetName: true } };
+			};
+		};
+	};
+}>;
+
+/**
+ * Maps a Prisma AssetMovementItem record to the Asset.AssetMovementItem domain type.
+ */
+export function toAssetMovementItem(
+	raw: PrismaAssetMovementItem,
+): Asset.AssetMovementItem {
+	return {
+		id: raw.id,
+		movementId: raw.movementId,
+		assetId: raw.assetId,
+		assetName: raw.asset?.assetName ?? null,
+		sourceLocationId: raw.sourceLocationId ?? null,
+		sourceLocationName: raw.sourceLocation?.name ?? null,
+		targetLocationId: raw.targetLocationId ?? null,
+		targetLocationName: raw.targetLocation?.name ?? null,
+		fromEmployee: raw.fromEmployee ?? null,
+		toEmployee: raw.toEmployee ?? null,
+		createdAt: raw.createdAt,
+		updatedAt: raw.updatedAt,
+	};
+}
+
+/**
+ * Maps a full Prisma AssetMovement record to the Asset.AssetMovement domain type.
+ */
+export function toAssetMovement(raw: PrismaAssetMovement): Asset.AssetMovement {
+	return {
+		id: raw.id,
+		series: raw.series,
+		company: raw.company,
+		transactionDate: raw.transactionDate,
+		purpose: raw.purpose as Asset.AssetMovementPurpose,
+		status: raw.status as Asset.AssetMovementStatus,
+		notes: raw.notes ?? null,
+		submittedAt: raw.submittedAt ?? null,
+		cancelledAt: raw.cancelledAt ?? null,
+		items: raw.items.map(toAssetMovementItem),
+		createdAt: raw.createdAt,
+		updatedAt: raw.updatedAt,
+	};
+}
+
+/**
+ * Prisma model type for AssetRepairConsumedItem.
+ */
+export type PrismaAssetRepairConsumedItem =
+	Prisma.AssetRepairConsumedItemGetPayload<{
+		include: {
+			consumedAsset: { select: { assetName: true } };
+		};
+	}>;
+
+/**
+ * Prisma model type for AssetRepairPurchaseInvoice.
+ */
+export type PrismaAssetRepairPurchaseInvoice =
+	Prisma.AssetRepairPurchaseInvoiceGetPayload<Record<string, never>>;
+
+/**
+ * Prisma model type for AssetRepair with relations.
+ */
+export type PrismaAssetRepair = Prisma.AssetRepairGetPayload<{
+	include: {
+		asset: { select: { assetName: true } };
+		consumedItems: {
+			include: {
+				consumedAsset: { select: { assetName: true } };
+			};
+		};
+		purchaseInvoices: true;
+	};
+}>;
+
+/**
+ * Maps a Prisma AssetRepairConsumedItem record to the Asset.AssetRepairConsumedItem domain type.
+ */
+export function toAssetRepairConsumedItem(
+	raw: PrismaAssetRepairConsumedItem,
+): Asset.AssetRepairConsumedItem {
+	return {
+		id: raw.id,
+		repairId: raw.repairId,
+		assetId: raw.assetId ?? null,
+		consumedAssetName: raw.consumedAsset?.assetName ?? null,
+		itemCode: raw.itemCode,
+		warehouse: raw.warehouse ?? null,
+		quantity: raw.quantity,
+		valuationRate: Number(raw.valuationRate),
+		totalAmount: Number(raw.totalAmount),
+		createdAt: raw.createdAt,
+		updatedAt: raw.updatedAt,
+	};
+}
+
+/**
+ * Maps a Prisma AssetRepairPurchaseInvoice record to the Asset.AssetRepairPurchaseInvoice domain type.
+ */
+export function toAssetRepairPurchaseInvoice(
+	raw: PrismaAssetRepairPurchaseInvoice,
+): Asset.AssetRepairPurchaseInvoice {
+	return {
+		id: raw.id,
+		repairId: raw.repairId,
+		purchaseInvoice: raw.purchaseInvoice,
+		expenseAccount: raw.expenseAccount ?? null,
+		amount: Number(raw.amount),
+		createdAt: raw.createdAt,
+		updatedAt: raw.updatedAt,
+	};
+}
+
+/**
+ * Maps a full Prisma AssetRepair record to the Asset.AssetRepair domain type.
+ */
+export function toAssetRepairItem(raw: PrismaAssetRepair): Asset.AssetRepair {
+	return {
+		id: raw.id,
+		series: raw.series,
+		assetId: raw.assetId,
+		assetName: raw.asset?.assetName ?? null,
+		company: raw.company,
+		failureDate: raw.failureDate,
+		completionDate: raw.completionDate ?? null,
+		repairStatus: raw.repairStatus as Asset.AssetRepairStatus,
+		repairCost: Number(raw.repairCost),
+		capitalizeRepairCost: raw.capitalizeRepairCost,
+		increaseInAssetLife: raw.increaseInAssetLife,
+		description: raw.description ?? null,
+		submittedAt: raw.submittedAt ?? null,
+		cancelledAt: raw.cancelledAt ?? null,
+		consumedItems: raw.consumedItems.map(toAssetRepairConsumedItem),
+		purchaseInvoices: raw.purchaseInvoices.map(toAssetRepairPurchaseInvoice),
+		createdAt: raw.createdAt,
+		updatedAt: raw.updatedAt,
+	};
+}
+
+/**
+ * Prisma model types for AssetCapitalization child items.
+ */
+export type PrismaAssetCapitalizationStockItem =
+	Prisma.AssetCapitalizationStockItemGetPayload<Record<string, never>>;
+
+export type PrismaAssetCapitalizationAssetItem =
+	Prisma.AssetCapitalizationAssetItemGetPayload<{
+		include: {
+			asset: { select: { assetName: true } };
+		};
+	}>;
+
+export type PrismaAssetCapitalizationServiceItem =
+	Prisma.AssetCapitalizationServiceItemGetPayload<Record<string, never>>;
+
+/**
+ * Prisma model type for AssetCapitalization with relations.
+ */
+export type PrismaAssetCapitalization = Prisma.AssetCapitalizationGetPayload<{
+	include: {
+		targetAsset: { select: { assetName: true } };
+		stockItems: true;
+		assetItems: {
+			include: {
+				asset: { select: { assetName: true } };
+			};
+		};
+		serviceItems: true;
+	};
+}>;
+
+/**
+ * Maps a Prisma AssetCapitalizationStockItem record to the Asset.AssetCapitalizationStockItem domain type.
+ */
+export function toAssetCapitalizationStockItem(
+	raw: PrismaAssetCapitalizationStockItem,
+): Asset.AssetCapitalizationStockItem {
+	return {
+		id: raw.id,
+		capitalizationId: raw.capitalizationId,
+		itemCode: raw.itemCode,
+		warehouse: raw.warehouse ?? null,
+		stockQty: raw.stockQty,
+		valuationRate: Number(raw.valuationRate),
+		amount: Number(raw.amount),
+		createdAt: raw.createdAt,
+		updatedAt: raw.updatedAt,
+	};
+}
+
+/**
+ * Maps a Prisma AssetCapitalizationAssetItem record to the Asset.AssetCapitalizationAssetItem domain type.
+ */
+export function toAssetCapitalizationAssetItem(
+	raw: PrismaAssetCapitalizationAssetItem,
+): Asset.AssetCapitalizationAssetItem {
+	return {
+		id: raw.id,
+		capitalizationId: raw.capitalizationId,
+		assetId: raw.assetId,
+		assetName: raw.asset?.assetName ?? null,
+		assetValue: Number(raw.assetValue),
+		createdAt: raw.createdAt,
+		updatedAt: raw.updatedAt,
+	};
+}
+
+/**
+ * Maps a Prisma AssetCapitalizationServiceItem record to the Asset.AssetCapitalizationServiceItem domain type.
+ */
+export function toAssetCapitalizationServiceItem(
+	raw: PrismaAssetCapitalizationServiceItem,
+): Asset.AssetCapitalizationServiceItem {
+	return {
+		id: raw.id,
+		capitalizationId: raw.capitalizationId,
+		itemCode: raw.itemCode ?? null,
+		expenseAccount: raw.expenseAccount,
+		amount: Number(raw.amount),
+		createdAt: raw.createdAt,
+		updatedAt: raw.updatedAt,
+	};
+}
+
+/**
+ * Maps a full Prisma AssetCapitalization record to the Asset.AssetCapitalization domain type.
+ */
+export function toAssetCapitalizationItem(
+	raw: PrismaAssetCapitalization,
+): Asset.AssetCapitalization {
+	return {
+		id: raw.id,
+		series: raw.series,
+		company: raw.company,
+		postingDate: raw.postingDate,
+		targetType: raw.targetType as Asset.AssetCapitalizationTargetType,
+		targetAssetId: raw.targetAssetId ?? null,
+		targetAssetName: raw.targetAsset?.assetName ?? raw.targetAssetName ?? null,
+		targetAssetCategory: raw.targetAssetCategory ?? null,
+		status: raw.status as Asset.AssetCapitalizationStatus,
+		totalStockValue: Number(raw.totalStockValue),
+		totalAssetValue: Number(raw.totalAssetValue),
+		totalServiceValue: Number(raw.totalServiceValue),
+		totalValue: Number(raw.totalValue),
+		notes: raw.notes ?? null,
+		submittedAt: raw.submittedAt ?? null,
+		cancelledAt: raw.cancelledAt ?? null,
+		stockItems: raw.stockItems.map(toAssetCapitalizationStockItem),
+		assetItems: raw.assetItems.map(toAssetCapitalizationAssetItem),
+		serviceItems: raw.serviceItems.map(toAssetCapitalizationServiceItem),
+		createdAt: raw.createdAt,
+		updatedAt: raw.updatedAt,
+	};
+}
+
+/**
+ * Prisma model type for AssetDisposal with asset relation.
+ */
+export type PrismaAssetDisposal = Prisma.AssetDisposalGetPayload<{
+	include: {
+		asset: { select: { assetName: true } };
+	};
+}>;
+
+/**
+ * Maps a full Prisma AssetDisposal record to the Asset.AssetDisposal domain type.
+ */
+export function toAssetDisposalItem(
+	raw: PrismaAssetDisposal,
+): Asset.AssetDisposal {
+	return {
+		id: raw.id,
+		series: raw.series,
+		assetId: raw.assetId,
+		assetName: raw.asset?.assetName ?? null,
+		company: raw.company,
+		disposalDate: raw.disposalDate,
+		disposalType: raw.disposalType as Asset.AssetDisposalType,
+		salesAmount: raw.salesAmount != null ? Number(raw.salesAmount) : null,
+		gainLossAmount: Number(raw.gainLossAmount),
+		journalEntrySeries: raw.journalEntrySeries ?? null,
+		status: raw.status as Asset.AssetDisposalStatus,
+		notes: raw.notes ?? null,
 		createdAt: raw.createdAt,
 		updatedAt: raw.updatedAt,
 	};

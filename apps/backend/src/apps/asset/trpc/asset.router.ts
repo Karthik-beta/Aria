@@ -88,6 +88,10 @@ export class AssetRouter {
 					svc.findAssetDepreciationsAndBalances(input),
 				),
 
+			listFixedAssetRegisterReport: assetProcedure
+				.input(Asset.listFixedAssetRegisterReportSchema)
+				.query(async ({ input }) => svc.findFixedAssetRegisterReport(input)),
+
 			getAssetById: assetProcedure
 				.input(z.object({ id: z.string().cuid() }))
 				.query(async ({ input }) => svc.findAssetById(input.id)),
@@ -728,6 +732,144 @@ export class AssetRouter {
 						columns,
 					);
 				}),
+
+			exportFixedAssetRegisterExcel: assetProcedure
+				.input(Asset.listFixedAssetRegisterReportSchema)
+				.mutation(async ({ input }) => {
+					const reportTemplateService = new ReportTemplateService();
+					const result = await svc.findFixedAssetRegisterReport(input);
+
+					const columns = [
+						{ key: "groupingLabel", header: "Group" },
+						{ key: "assetSeries", header: "Asset Series" },
+						{ key: "assetName", header: "Asset Name" },
+						{ key: "assetCategoryName", header: "Category" },
+						{ key: "locationName", header: "Location" },
+						{ key: "company", header: "Company" },
+						{ key: "purchaseDate", header: "Purchase Date" },
+						{ key: "status", header: "Status" },
+						{ key: "netPurchaseAmount", header: "Purchase Amount" },
+						{
+							key: "openingAccumulatedDepreciation",
+							header: "Opening Depreciation",
+						},
+						{ key: "depreciatedAmount", header: "Depreciated Amount" },
+						{ key: "revaluationAmount", header: "Revaluation Amount" },
+						{ key: "netBookValue", header: "Net Book Value" },
+					];
+
+					const filters: Array<{ label: string; value: string }> = [];
+					if (input.company)
+						filters.push({ label: "Company", value: input.company });
+					if (input.groupBy)
+						filters.push({ label: "Group By", value: input.groupBy });
+					if (input.assetCategory)
+						filters.push({ label: "Category", value: input.assetCategory });
+					if (input.location)
+						filters.push({ label: "Location", value: input.location });
+					filters.push({
+						label: "From",
+						value: input.fromDate.toLocaleDateString("en-IN"),
+					});
+					filters.push({
+						label: "To",
+						value: input.toDate.toLocaleDateString("en-IN"),
+					});
+
+					const metadata = {
+						title: "Fixed Asset Register Report",
+						generatedAt: new Date(),
+						filters,
+					};
+
+					return reportTemplateService.buildExcelBuffer(
+						metadata,
+						result.rows as unknown as Record<string, unknown>[],
+						columns,
+					);
+				}),
+
+			// ── Phase 2 Lifecycle Procedures ─────────────────────────────────
+
+			scrapAsset: assetProcedure
+				.input(Asset.scrapAssetSchema)
+				.mutation(async ({ input }) => svc.scrapAsset(input)),
+
+			sellAsset: assetProcedure
+				.input(Asset.sellAssetSchema)
+				.mutation(async ({ input }) => svc.sellAsset(input)),
+
+			restoreAsset: assetProcedure
+				.input(Asset.restoreAssetSchema)
+				.mutation(async ({ input }) => svc.restoreAsset(input)),
+
+			createAssetMovement: assetProcedure
+				.input(Asset.createAssetMovementSchema)
+				.mutation(async ({ input }) => svc.createAssetMovement(input)),
+
+			submitAssetMovement: assetProcedure
+				.input(Asset.submitAssetMovementSchema)
+				.mutation(async ({ input }) => svc.submitAssetMovement(input)),
+
+			cancelAssetMovement: assetProcedure
+				.input(Asset.cancelAssetMovementSchema)
+				.mutation(async ({ input }) => svc.cancelAssetMovement(input)),
+
+			getAssetMovementById: assetProcedure
+				.input(Asset.getAssetMovementSchema)
+				.query(async ({ input }) => svc.findMovementById(input.id)),
+
+			listAssetMovements: assetProcedure
+				.input(Asset.listAssetMovementsSchema)
+				.query(async ({ input }) => svc.listMovements(input)),
+
+			createAssetRepair: assetProcedure
+				.input(Asset.createAssetRepairSchema)
+				.mutation(async ({ input }) => svc.createAssetRepair(input)),
+
+			submitAssetRepair: assetProcedure
+				.input(Asset.submitAssetRepairSchema)
+				.mutation(async ({ input }) => svc.submitAssetRepair(input)),
+
+			cancelAssetRepair: assetProcedure
+				.input(Asset.cancelAssetRepairSchema)
+				.mutation(async ({ input }) => svc.cancelAssetRepair(input)),
+
+			getAssetRepairById: assetProcedure
+				.input(Asset.getAssetRepairSchema)
+				.query(async ({ input }) => svc.findRepairById(input.id)),
+
+			listAssetRepairs: assetProcedure
+				.input(Asset.listAssetRepairsSchema)
+				.query(async ({ input }) => svc.listRepairs(input)),
+
+			createAssetCapitalization: assetProcedure
+				.input(Asset.createAssetCapitalizationSchema)
+				.mutation(async ({ input }) => svc.createAssetCapitalization(input)),
+
+			submitAssetCapitalization: assetProcedure
+				.input(Asset.submitAssetCapitalizationSchema)
+				.mutation(async ({ input }) => svc.submitAssetCapitalization(input)),
+
+			cancelAssetCapitalization: assetProcedure
+				.input(Asset.cancelAssetCapitalizationSchema)
+				.mutation(async ({ input }) => svc.cancelAssetCapitalization(input)),
+
+			getAssetCapitalizationById: assetProcedure
+				.input(Asset.getAssetCapitalizationSchema)
+				.query(async ({ input }) => svc.findCapitalizationById(input.id)),
+
+			listAssetCapitalizations: assetProcedure
+				.input(Asset.listAssetCapitalizationsSchema)
+				.query(async ({ input }) => svc.listCapitalizations(input)),
+
+			getAssetDisposalById: assetProcedure
+				.input(Asset.getAssetDisposalSchema)
+				.query(async ({ input }) => svc.findDisposalById(input.id)),
+
+			listAssetDisposals: assetProcedure
+				.input(Asset.listAssetDisposalsSchema)
+				.query(async ({ input }) => svc.listDisposals(input)),
 		});
 	}
 }
