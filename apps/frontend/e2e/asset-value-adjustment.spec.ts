@@ -149,9 +149,7 @@ test.describe("Asset value adjustment", () => {
 			waitUntil: "domcontentloaded",
 		});
 
-		await expect(page).toHaveURL(
-			/\/asset\/value-adjustments\/?$/,
-		);
+		await expect(page).toHaveURL(/\/asset\/value-adjustments\/?$/);
 		await expect(
 			page.getByRole("heading", { name: /asset value adjustment/i }),
 		).toBeVisible({ timeout: 30_000 });
