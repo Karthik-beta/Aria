@@ -473,6 +473,7 @@ model User {
   members         Member[]
   manager         User?           @relation("ManagerSubordinate", fields: [managerId], references: [id])
   subordinates    User[]          @relation("ManagerSubordinate")
+  assetActivities AssetActivity[]
 
   @@index([managerId])
   @@map("users")
@@ -1543,6 +1544,8 @@ model Location {
   createdAt        DateTime   @default(now())
   updatedAt        DateTime   @updatedAt
   assets           Asset[]
+  sourceMovements  AssetMovementItem[] @relation("SourceMovements")
+  targetMovements  AssetMovementItem[] @relation("TargetMovements")
 
   @@index([name])
   @@index([parentLocationId])
@@ -1619,6 +1622,12 @@ model Asset {
   depreciationSchedules              AssetDepreciationSchedule[]
   financeBooks                       AssetFinanceBook[]
   depreciationJournalEntries         AssetDepreciationJournalEntry[]
+  movementItems                      AssetMovementItem[]              @relation("AssetMovementItems")
+  repairs                            AssetRepair[]                    @relation("AssetRepairs")
+  consumedInRepairs                  AssetRepairConsumedItem[]        @relation("ConsumedInRepairs")
+  capitalizationsAsTarget            AssetCapitalization[]            @relation("TargetCapitalizations")
+  capitalizationsAsSource            AssetCapitalizationAssetItem[]   @relation("SourceCapitalizationAssets")
+  disposals                          AssetDisposal[]                  @relation("AssetDisposals")
   createdAt                          DateTime            @default(now())
   updatedAt                          DateTime            @updatedAt
 
@@ -1636,10 +1645,13 @@ model AssetActivity {
   id        String   @id @default(cuid())
   assetId   String
   asset     Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  userId    String?  @db.VarChar(255)
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
   activity  String   @db.VarChar(500)
   createdAt DateTime @default(now())
 
   @@index([assetId])
+  @@index([userId])
   @@index([createdAt])
   @@map("asset_activities")
 }
@@ -2018,6 +2030,251 @@ model AssetMaintenanceLog {
   @@index([taskId])
   @@index([maintenanceStatus])
   @@map("asset_maintenance_logs")
+}
+
+model AssetMovement {
+  id              String               @id @default(cuid())
+  series          String               @unique @db.VarChar(50)
+  company         String               @db.VarChar(255)
+  transactionDate DateTime
+  purpose         AssetMovementPurpose @default(TRANSFER)
+  status          AssetMovementStatus  @default(DRAFT)
+  notes           String?              @db.Text
+  submittedAt     DateTime?
+  cancelledAt     DateTime?
+  items           AssetMovementItem[]
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  @@index([series])
+  @@index([status])
+  @@index([transactionDate])
+  @@index([company])
+  @@map("asset_movements")
+}
+
+model AssetMovementItem {
+  id               String        @id @default(cuid())
+  movementId       String
+  movement         AssetMovement @relation(fields: [movementId], references: [id], onDelete: Cascade)
+  assetId          String
+  asset            Asset         @relation("AssetMovementItems", fields: [assetId], references: [id])
+  sourceLocationId String?
+  sourceLocation   Location?     @relation("SourceMovements", fields: [sourceLocationId], references: [id])
+  targetLocationId String?
+  targetLocation   Location?     @relation("TargetMovements", fields: [targetLocationId], references: [id])
+  fromEmployee     String?       @db.VarChar(255)
+  toEmployee       String?       @db.VarChar(255)
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  @@index([movementId])
+  @@index([assetId])
+  @@index([sourceLocationId])
+  @@index([targetLocationId])
+  @@map("asset_movement_items")
+}
+
+model AssetRepair {
+  id                   String                        @id @default(cuid())
+  series               String                        @unique @db.VarChar(50)
+  assetId              String
+  asset                Asset                         @relation("AssetRepairs", fields: [assetId], references: [id])
+  company              String                        @db.VarChar(255)
+  failureDate          DateTime
+  completionDate       DateTime?
+  repairStatus         AssetRepairStatus             @default(DRAFT)
+  repairCost           Decimal                       @default(0) @db.Decimal(18, 6)
+  capitalizeRepairCost Boolean                       @default(false)
+  increaseInAssetLife  Int                           @default(0)
+  description          String?                       @db.Text
+  submittedAt          DateTime?
+  cancelledAt          DateTime?
+  consumedItems        AssetRepairConsumedItem[]
+  purchaseInvoices     AssetRepairPurchaseInvoice[]
+  createdAt            DateTime                      @default(now())
+  updatedAt            DateTime                      @updatedAt
+
+  @@index([assetId])
+  @@index([repairStatus])
+  @@index([failureDate])
+  @@index([company])
+  @@map("asset_repairs")
+}
+
+model AssetRepairConsumedItem {
+  id            String      @id @default(cuid())
+  repairId      String
+  repair        AssetRepair @relation(fields: [repairId], references: [id], onDelete: Cascade)
+  assetId       String?
+  consumedAsset Asset?      @relation("ConsumedInRepairs", fields: [assetId], references: [id])
+  itemCode      String      @db.VarChar(100)
+  warehouse     String?     @db.VarChar(255)
+  quantity      Int         @default(1)
+  valuationRate Decimal     @default(0) @db.Decimal(18, 6)
+  totalAmount   Decimal     @default(0) @db.Decimal(18, 6)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@index([repairId])
+  @@index([itemCode])
+  @@index([assetId])
+  @@map("asset_repair_consumed_items")
+}
+
+model AssetRepairPurchaseInvoice {
+  id              String      @id @default(cuid())
+  repairId        String
+  repair          AssetRepair @relation(fields: [repairId], references: [id], onDelete: Cascade)
+  purchaseInvoice String      @db.VarChar(100)
+  expenseAccount  String?     @db.VarChar(255)
+  amount          Decimal     @default(0) @db.Decimal(18, 6)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@index([repairId])
+  @@map("asset_repair_purchase_invoices")
+}
+
+model AssetCapitalization {
+  id                  String                         @id @default(cuid())
+  series              String                         @unique @db.VarChar(50)
+  company             String                         @db.VarChar(255)
+  postingDate         DateTime
+  targetType          AssetCapitalizationTargetType  @default(NEW_ASSET)
+  targetAssetId       String?
+  targetAsset         Asset?                         @relation("TargetCapitalizations", fields: [targetAssetId], references: [id])
+  targetAssetName     String?                        @db.VarChar(255)
+  targetAssetCategory String?                        @db.VarChar(255)
+  status              AssetCapitalizationStatus      @default(DRAFT)
+  totalStockValue     Decimal                        @default(0) @db.Decimal(18, 6)
+  totalAssetValue     Decimal                        @default(0) @db.Decimal(18, 6)
+  totalServiceValue   Decimal                        @default(0) @db.Decimal(18, 6)
+  totalValue          Decimal                        @default(0) @db.Decimal(18, 6)
+  notes               String?                        @db.Text
+  submittedAt         DateTime?
+  cancelledAt         DateTime?
+  stockItems          AssetCapitalizationStockItem[]
+  assetItems          AssetCapitalizationAssetItem[]
+  serviceItems        AssetCapitalizationServiceItem[]
+  createdAt           DateTime                       @default(now())
+  updatedAt           DateTime                       @updatedAt
+
+  @@index([series])
+  @@index([status])
+  @@index([postingDate])
+  @@index([company])
+  @@map("asset_capitalizations")
+}
+
+model AssetCapitalizationStockItem {
+  id               String              @id @default(cuid())
+  capitalizationId String
+  capitalization   AssetCapitalization @relation(fields: [capitalizationId], references: [id], onDelete: Cascade)
+  itemCode         String              @db.VarChar(100)
+  warehouse        String?             @db.VarChar(255)
+  stockQty         Int                 @default(1)
+  valuationRate    Decimal             @default(0) @db.Decimal(18, 6)
+  amount           Decimal             @default(0) @db.Decimal(18, 6)
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
+  @@index([capitalizationId])
+  @@index([itemCode])
+  @@map("asset_capitalization_stock_items")
+}
+
+model AssetCapitalizationAssetItem {
+  id               String              @id @default(cuid())
+  capitalizationId String
+  capitalization   AssetCapitalization @relation(fields: [capitalizationId], references: [id], onDelete: Cascade)
+  assetId          String
+  asset            Asset               @relation("SourceCapitalizationAssets", fields: [assetId], references: [id])
+  assetValue       Decimal             @default(0) @db.Decimal(18, 6)
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
+  @@index([capitalizationId])
+  @@index([assetId])
+  @@map("asset_capitalization_asset_items")
+}
+
+model AssetCapitalizationServiceItem {
+  id               String              @id @default(cuid())
+  capitalizationId String
+  capitalization   AssetCapitalization @relation(fields: [capitalizationId], references: [id], onDelete: Cascade)
+  itemCode         String?             @db.VarChar(100)
+  expenseAccount   String              @db.VarChar(255)
+  amount           Decimal             @default(0) @db.Decimal(18, 6)
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
+  @@index([capitalizationId])
+  @@map("asset_capitalization_service_items")
+}
+
+model AssetDisposal {
+  id                 String              @id @default(cuid())
+  series             String              @unique @db.VarChar(50)
+  assetId            String
+  asset              Asset               @relation("AssetDisposals", fields: [assetId], references: [id])
+  company            String              @db.VarChar(255)
+  disposalDate       DateTime
+  disposalType       AssetDisposalType
+  salesAmount        Decimal?            @db.Decimal(18, 6)
+  gainLossAmount     Decimal             @default(0) @db.Decimal(18, 6)
+  journalEntrySeries String?             @db.VarChar(50)
+  status             AssetDisposalStatus @default(POSTED)
+  notes              String?             @db.Text
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+
+  @@index([assetId])
+  @@index([status])
+  @@index([disposalDate])
+  @@index([company])
+  @@map("asset_disposals")
+}
+
+enum AssetMovementPurpose {
+  TRANSFER
+  ISSUE
+  RECEIPT
+  TRANSFER_AND_ISSUE
+}
+
+enum AssetMovementStatus {
+  DRAFT
+  SUBMITTED
+  CANCELLED
+}
+
+enum AssetRepairStatus {
+  DRAFT
+  PENDING
+  COMPLETED
+  CANCELLED
+}
+
+enum AssetCapitalizationTargetType {
+  NEW_ASSET
+  EXISTING_ASSET
+}
+
+enum AssetCapitalizationStatus {
+  DRAFT
+  SUBMITTED
+  CANCELLED
+}
+
+enum AssetDisposalType {
+  SCRAP
+  SELL
+}
+
+enum AssetDisposalStatus {
+  POSTED
+  CANCELLED
 }
 
 enum AssetStatus {
