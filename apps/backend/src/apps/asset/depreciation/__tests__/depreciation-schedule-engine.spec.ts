@@ -153,7 +153,7 @@ describe("buildDepreciationSchedule", () => {
 		]);
 	});
 
-	it("derives ERPNext's 100 percent WDV rate for zero salvage", () => {
+	it("enforces 5 percent salvage floor for WDV rate when salvage is zero or missing", () => {
 		const result = buildDepreciationSchedule({
 			financeBookId: "zero-salvage-book",
 			method: "WRITTEN_DOWN_VALUE",
@@ -165,17 +165,8 @@ describe("buildDepreciationSchedule", () => {
 			salvageValue: 0,
 		});
 
-		expect(result.ratePercent).toBe(100);
-		expect(result.entries).toEqual([
-			{
-				periodNumber: 1,
-				date: "2030-12-31",
-				depreciationAmount: 100_000,
-				accumulatedDepreciation: 100_000,
-				bookValueAfterDepreciation: 0,
-				shift: null,
-			},
-		]);
+		expect(result.ratePercent).toBe(63.16);
+		expect(result.entries).toHaveLength(3);
 	});
 
 	it("ports ERPNext's daily pro-rata WDV fixture across fiscal years", () => {
@@ -260,7 +251,7 @@ describe("buildDepreciationSchedule", () => {
 		]);
 	});
 
-	it("applies supplied shift factors and truncates at salvage value", () => {
+	it("applies supplied shift factors using sum of shift factors formula", () => {
 		const result = buildDepreciationSchedule({
 			financeBookId: "shift-book",
 			method: "STRAIGHT_LINE",
@@ -272,10 +263,10 @@ describe("buildDepreciationSchedule", () => {
 			shiftAllocations: [{ periodIndex: 4, shift: "Triple", factor: 2 }],
 		});
 
-		expect(result.entries).toHaveLength(11);
+		expect(result.entries).toHaveLength(12);
 		expect(result.entries[4]).toMatchObject({
 			date: "2023-05-31",
-			depreciationAmount: 20_000,
+			depreciationAmount: 18461.54,
 			shift: "Triple",
 		});
 		expect(result.entries.at(-1)?.bookValueAfterDepreciation).toBe(0);

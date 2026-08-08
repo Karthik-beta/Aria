@@ -12,6 +12,12 @@ export interface AssetActivityReportEntryInput {
 	company: string;
 	assetStatus: Asset.AssetStatus;
 	activity: string;
+	user?: {
+		id: string;
+		name: string;
+	} | null;
+	userId?: string | null;
+	userName?: string | null;
 	createdAt: Date;
 }
 
@@ -19,6 +25,12 @@ export interface BuildAssetActivityReportResultInput {
 	activities: AssetActivityReportEntryInput[];
 }
 
+/**
+ * Builds a formatted Asset Activity Report result with summary metrics from activity entries.
+ *
+ * @param input Raw activity entries retrieved for the report.
+ * @returns Sorted report rows and summary statistics.
+ */
 export function buildAssetActivityReportResult(
 	input: BuildAssetActivityReportResultInput,
 ): Asset.AssetActivityReportResult {
@@ -33,6 +45,8 @@ export function buildAssetActivityReportResult(
 			company: activity.company,
 			assetStatus: activity.assetStatus,
 			activity: activity.activity,
+			userId: activity.user?.id ?? activity.userId ?? null,
+			userName: activity.user?.name ?? activity.userName ?? null,
 			createdAt: activity.createdAt,
 		}))
 		.sort((left, right) => {

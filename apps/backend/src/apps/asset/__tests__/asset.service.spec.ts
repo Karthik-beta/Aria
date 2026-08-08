@@ -20,9 +20,11 @@ function createMockPrisma() {
 		},
 		assetActivity: {
 			create: jest.fn(),
+			findMany: jest.fn(),
 		},
 		documentSeriesCounter: {
 			findUnique: jest.fn(),
+			update: jest.fn(),
 		},
 		client: {
 			$queryRaw: jest.fn(),
@@ -121,8 +123,8 @@ describe("AssetService > Barcode support", () => {
 		});
 	});
 
-	describe("createAsset with barcode", () => {
-		it("persists barcode when provided", async () => {
+	describe("createAsset with barcode and userId", () => {
+		it("persists barcode and populates userId in assetActivity when provided", async () => {
 			mockPrisma.assetCategory.findUnique.mockResolvedValue(null);
 			mockPrisma.documentSeriesCounter.findUnique.mockResolvedValue(null);
 			mockPrisma.asset.findFirst.mockResolvedValue(null);
@@ -132,6 +134,7 @@ describe("AssetService > Barcode support", () => {
 				assetName: "Office Laptop",
 				company: "Test Corp",
 				barcode: "1234567890",
+				userId: "user-123",
 			};
 
 			const result = await service.createAsset(input);
@@ -143,12 +146,45 @@ describe("AssetService > Barcode support", () => {
 					}),
 				}),
 			);
+			expect(mockPrisma.assetActivity.create).toHaveBeenCalledWith({
+				data: expect.objectContaining({
+					assetId: "asset-123",
+					userId: "user-123",
+				}),
+			});
 			expect(result.barcode).toBe("1234567890");
+		});
+
+		it("atomically increments documentSeriesCounter when counter exists", async () => {
+			mockPrisma.assetCategory.findUnique.mockResolvedValue(null);
+			mockPrisma.documentSeriesCounter.findUnique.mockResolvedValue({
+				value: 5,
+			});
+			mockPrisma.documentSeriesCounter.update.mockResolvedValue({ value: 6 });
+			mockPrisma.asset.create.mockResolvedValue({
+				...mockAssetRow,
+				series: "AST-2026-00006",
+			});
+			mockPrisma.asset.findUniqueOrThrow.mockResolvedValue({
+				...mockAssetRow,
+				series: "AST-2026-00006",
+			});
+
+			const result = await service.createAsset({
+				assetName: "Office Chair",
+				company: "Test Corp",
+			});
+
+			expect(mockPrisma.documentSeriesCounter.update).toHaveBeenCalledWith({
+				where: { key: "AST-2026-" },
+				data: { value: { increment: 1 } },
+			});
+			expect(result.series).toBe("AST-2026-00006");
 		});
 	});
 
-	describe("updateAsset with barcode", () => {
-		it("updates barcode when provided", async () => {
+	describe("updateAsset with barcode and userId", () => {
+		it("updates barcode and logs activity with userId", async () => {
 			mockPrisma.asset.findUnique.mockResolvedValue(mockAssetRow);
 			mockPrisma.asset.update.mockResolvedValue({
 				...mockAssetRow,
@@ -158,6 +194,7 @@ describe("AssetService > Barcode support", () => {
 			const input: Asset.UpdateAssetInput = {
 				id: "asset-123",
 				barcode: "9876543210",
+				userId: "user-456",
 			};
 
 			const result = await service.updateAsset(input);
@@ -170,7 +207,51 @@ describe("AssetService > Barcode support", () => {
 					}),
 				}),
 			);
+			expect(mockPrisma.assetActivity.create).toHaveBeenCalledWith({
+				data: {
+					assetId: "asset-123",
+					activity: "Asset updated",
+					userId: "user-456",
+				},
+			});
 			expect(result.barcode).toBe("9876543210");
+		});
+	});
+
+	describe("findAssetActivityReport", () => {
+		it("populates userId and userName in report result", async () => {
+			const createdAt = new Date("2026-01-15T10:00:00Z");
+			mockPrisma.assetActivity.findMany.mockResolvedValue([
+				{
+					id: "act-1",
+					assetId: "asset-123",
+					userId: "user-123",
+					user: { id: "user-123", name: "John Doe" },
+					activity: "Asset updated",
+					createdAt,
+					asset: {
+						id: "asset-123",
+						series: "AST-2026-00001",
+						assetName: "Office Laptop",
+						company: "Test Corp",
+						status: "DRAFT",
+						assetCategory: null,
+					},
+				},
+			]);
+
+			const result = await service.findAssetActivityReport({
+				fromDate: new Date("2026-01-01"),
+				toDate: new Date("2026-01-31"),
+			});
+
+			expect(result.rows).toHaveLength(1);
+			expect(result.rows[0]).toMatchObject({
+				activityId: "act-1",
+				assetId: "asset-123",
+				userId: "user-123",
+				userName: "John Doe",
+			});
 		});
 	});
 });

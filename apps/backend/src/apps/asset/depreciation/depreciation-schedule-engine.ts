@@ -201,7 +201,9 @@ const calculateRate = (
 
 	const pendingPeriods = input.totalPeriods - (input.openingBookedPeriods ?? 0);
 	const pendingYears = (pendingPeriods * input.frequencyMonths) / 12;
-	const ratio = (input.salvageValue ?? 0) / openingBookValue;
+	const salvageFloor = openingBookValue * 0.05;
+	const effectiveSalvage = Math.max(input.salvageValue ?? 0, salvageFloor);
+	const ratio = effectiveSalvage / openingBookValue;
 	return round(100 * (1 - ratio ** (1 / pendingYears)), ratePrecision);
 };
 
@@ -294,13 +296,19 @@ export const buildDepreciationSchedule = (
 	const hasFinalPartialPeriod = usefulLifeEnd > lastNominalDate;
 	const generatedPeriods = remainingPeriods + (hasFinalPartialPeriod ? 1 : 0);
 	const depreciableValue = round(input.grossBookValue - salvage, precision);
-	const fixedPeriodAmount = depreciableValue / input.totalPeriods;
 	const shiftByIndex = new Map(
 		(input.shiftAllocations ?? []).map((allocation) => [
 			allocation.periodIndex,
 			allocation,
 		]),
 	);
+	const shiftFactorsSum = input.shiftAllocations?.length
+		? Array.from(
+				{ length: input.totalPeriods },
+				(_, i) => shiftByIndex.get(i)?.factor ?? 1,
+			).reduce((a, b) => a + b, 0)
+		: input.totalPeriods;
+	const fixedPeriodAmount = depreciableValue / shiftFactorsSum;
 	const fiscalYearFor = input.getFiscalYear ?? defaultFiscalYear;
 	const totalLifeDays = differenceInDays(usefulLifeEndBase, availableDate);
 
@@ -363,9 +371,10 @@ export const buildDepreciationSchedule = (
 				amount = (fiscalYearAnnualAmount / fiscalDays) * coveredDays;
 			}
 		} else {
+			const factor = allocation?.factor ?? 1;
 			amount =
 				input.method === "STRAIGHT_LINE"
-					? fixedPeriodAmount * (allocation?.factor ?? 1)
+					? fixedPeriodAmount * factor
 					: fiscalYearPeriodicAmount;
 
 			if (index === 0 && openingPeriods === 0) {

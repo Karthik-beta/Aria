@@ -7,21 +7,30 @@ import type { AssetDashboardSubService } from "../asset-dashboard.service";
 
 function createMockPrisma() {
 	const mockTx = {
+		$queryRaw: jest.fn().mockResolvedValue([{ value: 1 }]),
 		assetDepreciationSchedule: {
 			update: jest.fn(),
 			create: jest.fn(),
 		},
 		assetRevaluationEntry: {
+			findFirst: jest.fn(),
+			findUnique: jest.fn(),
 			create: jest.fn(),
 			update: jest.fn(),
 		},
 		asset: {
+			findFirst: jest.fn(),
 			update: jest.fn(),
 		},
 		assetActivity: {
 			create: jest.fn(),
 		},
 		assetValueAdjustment: {
+			findFirst: jest.fn(),
+			update: jest.fn(),
+		},
+		documentSeriesCounter: {
+			findUnique: jest.fn(),
 			update: jest.fn(),
 		},
 	};
@@ -56,6 +65,7 @@ function createMockPrisma() {
 		},
 		documentSeriesCounter: {
 			findUnique: jest.fn(),
+			update: jest.fn(),
 		},
 		client: {
 			$queryRaw: jest.fn(),
@@ -68,6 +78,7 @@ function createMockPrisma() {
 function createTestContext() {
 	const mockPrisma = createMockPrisma();
 	mockPrisma.documentSeriesCounter.findUnique.mockResolvedValue(null);
+	mockPrisma._mockTx.documentSeriesCounter.findUnique.mockResolvedValue(null);
 	mockPrisma.client.$queryRaw.mockImplementation(async (query: unknown) => {
 		const values =
 			query &&
