@@ -305,15 +305,27 @@ export const assetNavItems: NavItem[] = [
 		items: [
 			{
 				title: "Asset",
-				url: "/asset/asset-sub-module/asset",
+				url: "/asset/items",
 			},
 			{
 				title: "Location",
-				url: "/asset/asset-sub-module/location",
+				url: "/asset/locations",
 			},
 			{
 				title: "Asset Category",
-				url: "/asset/asset-sub-module/asset-category",
+				url: "/asset/categories",
+			},
+			{
+				title: "Movements",
+				url: "/asset/movements",
+			},
+			{
+				title: "Repairs",
+				url: "/asset/repairs",
+			},
+			{
+				title: "Capitalizations",
+				url: "/asset/capitalizations",
 			},
 		],
 	},
@@ -325,11 +337,11 @@ export const assetNavItems: NavItem[] = [
 		items: [
 			{
 				title: "Asset Maintenance Team",
-				url: "/asset/asset-maintenance/maintenance-team",
+				url: "/asset/maintenance-teams",
 			},
 			{
 				title: "Asset Maintenance",
-				url: "/asset/asset-maintenance/maintenance",
+				url: "/asset/maintenance",
 			},
 			{
 				title: "Asset Maintenance Log",
@@ -337,7 +349,7 @@ export const assetNavItems: NavItem[] = [
 			},
 			{
 				title: "Asset Value Adjustment",
-				url: "/asset/asset-maintenance/value-adjustment",
+				url: "/asset/value-adjustments",
 			},
 		],
 	},
@@ -347,6 +359,10 @@ export const assetNavItems: NavItem[] = [
 		icon: "report",
 		isActive: false,
 		items: [
+			{
+				title: "Fixed Asset Register",
+				url: "/asset/reports/fixed-asset-register",
+			},
 			{
 				title: "Asset Depreciation Ledger",
 				url: "/asset/reports/depreciation-ledger",
