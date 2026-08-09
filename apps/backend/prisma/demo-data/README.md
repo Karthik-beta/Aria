@@ -15,6 +15,10 @@ The loader creates a coherent Pivotr Technologies business story:
     pick lists, packing slips, delivery trips, installation notes,
     subcontracting orders, asset activities, asset maintenance logs, asset
     value adjustments, revaluation entries, and depreciation schedules
+- asset lifecycle documents: submitted and draft (pending-submission)
+  movements, pending and completed repairs, draft and submitted
+  capitalizations, posted and cancelled disposals, balanced Asset-subledger
+  entries, linked material issues, and qualified/booked CWIP examples
 
 The entrypoint is [`cli.ts`](./cli.ts), which orchestrates the full seeding
 flow through [`seed-master.ts`](./seed-master.ts),
@@ -57,6 +61,12 @@ reports success. Monthly, quarterly, half-yearly, and yearly schedules are
 represented; the daily scheduler discovers due work and daily pro-rata affects
 amounts, while future schedule rows remain unposted projections.
 
+Lifecycle records are seeded only after due depreciation is posted. The loader
+does not invoke lifecycle queues and does not fabricate purchase invoices. One
+CWIP asset is already booked with balanced fixed-asset/CWIP lines; a second
+qualified asset is intentionally left unbooked so the scheduler can discover it
+and the BullMQ worker can demonstrate idempotent posting.
+
 Stop the backend before replacing the demo dataset so its scheduler cannot
 discover records while cleanup and loading are in progress. A failed load exits
 non-zero. Correct the dependency or posting error and rerun `load`; the loader
@@ -93,6 +103,8 @@ Use the demo loader when you need:
 
 - realistic inventory data for a walkthrough
 - realistic asset-management data for a walkthrough
+- movement, repair, capitalization, disposal, Asset-subledger, and CWIP
+  workflow walkthroughs
 - sample records for QA or screenshots
 - a reproducible training dataset
 

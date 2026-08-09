@@ -221,6 +221,14 @@ async function seedMaintenanceRecord(
 			`Maintenance team key "${asset.maintenancePlan.teamKey}" is not defined in asset-data.ts`,
 		);
 	}
+	const maintenanceTeamId = ids.assetMaintenanceTeamIds.get(
+		asset.maintenancePlan.teamKey,
+	);
+	if (!maintenanceTeamId) {
+		throw new Error(
+			`Maintenance team "${asset.maintenancePlan.teamKey}" was not created during master seeding`,
+		);
+	}
 
 	const maintenanceCreatedAt = resolveRelativeDate(
 		config,
@@ -232,8 +240,7 @@ async function seedMaintenanceRecord(
 		data: {
 			assetId,
 			company: config.company,
-			maintenanceTeamId:
-				ids.assetMaintenanceTeamIds.get(asset.maintenancePlan.teamKey) ?? null,
+			maintenanceTeamId,
 			maintenanceManager: team.maintenanceManager,
 			maintenanceManagerName: team.maintenanceManagerName,
 			createdAt: maintenanceCreatedAt,
@@ -773,7 +780,7 @@ export async function seedAssetTransactions(
 
 		if (
 			(asset.status === "SOLD" || asset.status === "SCRAPPED") &&
-			asset.disposalOffsetDays !== undefined
+			asset.disposalOffsetDays != null
 		) {
 			const disposalDate = resolveRelativeDate(
 				config,

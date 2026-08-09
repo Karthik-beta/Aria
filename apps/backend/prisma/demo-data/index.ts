@@ -21,6 +21,7 @@ import type { PrismaService } from "../../src/shared/prisma.service.js";
 import { ASSET_REGISTER } from "./asset-data.js";
 import type { DemoConfig } from "./config.js";
 import { ITEMS } from "./data.js";
+import { seedAssetLifecycleTransactions } from "./seed-asset-lifecycle.js";
 import { seedMasterData } from "./seed-master.js";
 import { seedTransactions } from "./seed-transactions.js";
 
@@ -38,6 +39,7 @@ export async function seedAll(
 		throughDate: config.dateRange.to,
 		company: config.company,
 	});
+	await seedAssetLifecycleTransactions(prisma, config, ids);
 
 	for (const asset of ASSET_REGISTER) {
 		const assetId = ids.assetIds.get(asset.key);

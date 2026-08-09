@@ -184,6 +184,7 @@ export async function seedMasterData(
 				defaultUnitOfMeasureId: uomId ?? null,
 				disabled: false,
 				maintainStock: item.maintainStock,
+				isFixedAsset: item.isFixedAsset ?? false,
 				hasBatchNo: item.hasBatchNo,
 				hasSerialNo: item.hasSerialNo,
 				valuationRate: item.valuationRate,

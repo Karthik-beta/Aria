@@ -136,6 +136,7 @@ export interface ItemDef {
 	hasBatchNo: boolean;
 	hasSerialNo: boolean;
 	maintainStock: boolean;
+	isFixedAsset?: boolean;
 	weightPerUnit?: number; // kg
 	shelfLifeInDays?: number;
 	warrantyPeriodInDays?: number;
@@ -818,6 +819,22 @@ export const ITEMS: ItemDef[] = [
 		weightPerUnit: 0.06,
 		safetyStock: 50,
 		leadTimeDays: 3,
+	},
+	{
+		code: "FA-COMPOSITE-TEST-CELL",
+		name: "Composite Electronics Test Cell",
+		group: "Custom Assemblies",
+		brand: "Pivotr",
+		description:
+			"Non-stock fixed-asset item used for capitalized production and reliability test cells",
+		uom: "No",
+		valuationRate: 0,
+		sellingRate: 0,
+		hasBatchNo: false,
+		hasSerialNo: false,
+		maintainStock: false,
+		isFixedAsset: true,
+		leadTimeDays: 0,
 	},
 ];
 

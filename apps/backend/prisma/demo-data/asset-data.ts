@@ -9,6 +9,14 @@ export const DEMO_DEPRECIATION_ACCOUNTS = {
 	capitalWorkInProgress: "Capital Work in Progress - PTPL",
 } as const;
 
+export const DEMO_ASSET_LIFECYCLE_ACCOUNTS = {
+	repairsAndMaintenance: "Repairs and Maintenance - PTPL",
+	storesConsumption: "Stores Consumption - PTPL",
+	externalEngineeringServices: "External Engineering Services - PTPL",
+	assetSaleProceeds: "Bank - PTPL",
+	assetDisposalGainLoss: "Gain or Loss on Asset Disposal - PTPL",
+} as const;
+
 export interface AssetLocationDef {
 	name: string;
 	isGroup: boolean;
@@ -196,6 +204,14 @@ export const ASSET_CATEGORIES: AssetCategoryDef[] = [
 		totalNumberOfDepreciations: 24,
 		frequencyOfDepreciation: DEMO_ASSET_DEPRECIATION_CADENCES.demoSystems,
 		dailyProrataBased: true,
+	},
+	{
+		name: "Capital Projects & Composite Assets",
+		depreciationMethod: null,
+		totalNumberOfDepreciations: null,
+		frequencyOfDepreciation: null,
+		nonDepreciableCategory: true,
+		enableCwipAccounting: true,
 	},
 ];
 
@@ -1206,6 +1222,98 @@ export const ASSET_REGISTER: AssetSeedDef[] = [
 				costCenter: "Whitefield Quality",
 				notes:
 					"Draft increase for camera head and ring light retrofit awaiting capital approval.",
+			},
+		],
+	},
+	{
+		key: "peenya-control-panel-subassembly-01",
+		assetName: "Peenya Test Cell Control Panel Subassembly",
+		itemCode: "FA-CONTROL-PANEL-SUBASSY-01",
+		assetCategory: "Test & Calibration Instruments",
+		location: "Peenya Production Floor",
+		custodian: "Harsha Rao",
+		department: "Manufacturing Engineering",
+		purchaseOffsetDays: -190,
+		availableForUseOffsetDays: -180,
+		netPurchaseAmount: 82000,
+		calculateDepreciation: false,
+		maintenanceRequired: false,
+		supplier: "Rajesh Electricals, Chickpet",
+		status: "SUBMITTED",
+		activityNotes: [
+			{
+				offsetDays: -180,
+				activity:
+					"Control-panel subassembly commissioned for standalone acceptance testing before composite test-cell capitalization.",
+			},
+		],
+	},
+	{
+		key: "whitefield-camera-module-subassembly-01",
+		assetName: "Whitefield Vision Camera Module Subassembly",
+		itemCode: "FA-VISION-CAMERA-SUBASSY-01",
+		assetCategory: "Test & Calibration Instruments",
+		location: "Whitefield Reliability Lab",
+		custodian: "Priyanka Narayan",
+		department: "Quality Assurance",
+		purchaseOffsetDays: 72,
+		availableForUseOffsetDays: 78,
+		netPurchaseAmount: 64000,
+		calculateDepreciation: false,
+		maintenanceRequired: false,
+		supplier: "Prerna Sensor Technologies",
+		status: "SUBMITTED",
+		activityNotes: [
+			{
+				offsetDays: 78,
+				activity:
+					"Vision module accepted as a standalone component pending composite AOI bench approval.",
+			},
+		],
+	},
+	{
+		key: "peenya-cwip-power-monitoring-panel-01",
+		assetName: "Peenya Power Monitoring Panel Project",
+		itemCode: "FA-CWIP-POWER-PANEL-01",
+		assetCategory: "Capital Projects & Composite Assets",
+		location: "Peenya Production Floor",
+		custodian: "Lakshmi Narayanan",
+		department: "Facilities & Utilities",
+		purchaseOffsetDays: 90,
+		availableForUseOffsetDays: 128,
+		netPurchaseAmount: 320000,
+		calculateDepreciation: false,
+		maintenanceRequired: false,
+		supplier: "Balaji Power Systems",
+		status: "SUBMITTED",
+		activityNotes: [
+			{
+				offsetDays: 128,
+				activity:
+					"Power monitoring panel accepted for use and transferred from CWIP to the fixed-asset subledger.",
+			},
+		],
+	},
+	{
+		key: "whitefield-cwip-reliability-rig-01",
+		assetName: "Whitefield Reliability Rig Project",
+		itemCode: "FA-CWIP-RELIABILITY-RIG-01",
+		assetCategory: "Capital Projects & Composite Assets",
+		location: "Whitefield Reliability Lab",
+		custodian: "Meghana Rao",
+		department: "Quality Assurance",
+		purchaseOffsetDays: 145,
+		availableForUseOffsetDays: 170,
+		netPurchaseAmount: 275000,
+		calculateDepreciation: false,
+		maintenanceRequired: false,
+		supplier: "Vindhya Components Pvt Ltd",
+		status: "SUBMITTED",
+		activityNotes: [
+			{
+				offsetDays: 170,
+				activity:
+					"Reliability rig commissioned and left qualified for the next queue-backed CWIP posting run.",
 			},
 		],
 	},

@@ -8,6 +8,7 @@
  */
 
 import { buildIndianFiscalYears } from "../../src/apps/asset/depreciation/demo-data.utils.js";
+import type { Prisma } from "../../src/generated/prisma/client.js";
 import type { PrismaService } from "../../src/shared/prisma.service.js";
 import { ASSET_CATEGORIES, ASSET_LOCATIONS } from "./asset-data.js";
 import type { DemoConfig } from "./config.js";
@@ -50,6 +51,27 @@ export async function cleanDemoData(
 	);
 
 	// ── Asset Management transaction-level ──────────────────────
+	// Lifecycle documents must be removed before their asset, stock-entry, and
+	// accounting-entry parents. Their owned line items cascade from the document.
+	await del("AssetMovement", () =>
+		prisma.assetMovement.deleteMany({ where: { company } }),
+	);
+
+	await del("AssetRepair", () =>
+		prisma.assetRepair.deleteMany({ where: { company } }),
+	);
+
+	await del("AssetCapitalization", () =>
+		prisma.assetCapitalization.deleteMany({ where: { company } }),
+	);
+
+	await del("AssetDisposal", () =>
+		prisma.assetDisposal.deleteMany({ where: { company } }),
+	);
+
+	await del("AssetAccountingEntry", () =>
+		prisma.client.assetAccountingEntry.deleteMany({ where: { company } }),
+	);
 
 	await del("AssetMaintenance", () =>
 		prisma.assetMaintenance.deleteMany({ where: { company } }),
@@ -276,6 +298,22 @@ export async function getDemoStatus(
 		assetMaintenanceTeams,
 		assetMaintenances,
 		assetMaintenanceLogs,
+		assetMovements,
+		pendingAssetMovements,
+		submittedAssetMovements,
+		assetRepairs,
+		pendingAssetRepairs,
+		completedAssetRepairs,
+		assetCapitalizations,
+		draftAssetCapitalizations,
+		submittedAssetCapitalizations,
+		assetDisposals,
+		postedAssetDisposals,
+		cancelledAssetDisposals,
+		assetAccountingEntries,
+		assetAccountingEntryLines,
+		qualifiedCwipAssets,
+		bookedCwipAssets,
 		companies,
 	] = await Promise.all([
 		prisma.brand.count(),
@@ -315,12 +353,53 @@ export async function getDemoStatus(
 		prisma.assetMaintenanceTeam.count({ where: { company } }),
 		prisma.assetMaintenance.count({ where: { company } }),
 		prisma.assetMaintenanceLog.count({ where: { maintenance: { company } } }),
+		prisma.assetMovement.count({ where: { company } }),
+		prisma.assetMovement.count({ where: { company, status: "DRAFT" } }),
+		prisma.assetMovement.count({ where: { company, status: "SUBMITTED" } }),
+		prisma.assetRepair.count({ where: { company } }),
+		prisma.assetRepair.count({ where: { company, repairStatus: "PENDING" } }),
+		prisma.assetRepair.count({ where: { company, repairStatus: "COMPLETED" } }),
+		prisma.assetCapitalization.count({ where: { company } }),
+		prisma.assetCapitalization.count({ where: { company, status: "DRAFT" } }),
+		prisma.assetCapitalization.count({
+			where: { company, status: "SUBMITTED" },
+		}),
+		prisma.assetDisposal.count({ where: { company } }),
+		prisma.assetDisposal.count({ where: { company, status: "POSTED" } }),
+		prisma.assetDisposal.count({ where: { company, status: "CANCELLED" } }),
+		prisma.client.assetAccountingEntry.count({ where: { company } }),
+		prisma.client.assetAccountingEntryLine.count({
+			where: { accountingEntry: { company } },
+		}),
+		prisma.asset.count({
+			where: {
+				company,
+				status: "SUBMITTED",
+				availableForUseDate: { not: null, lte: config.dateRange.to },
+				netPurchaseAmount: { gt: 0 },
+				cwipAccountingEntryId: null,
+				assetCategory: {
+					is: {
+						enableCwipAccounting: true,
+						accounts: {
+							some: {
+								company: { name: company },
+								capitalWorkInProgressAccount: { not: null },
+							},
+						},
+					},
+				},
+			},
+		}),
+		prisma.asset.count({
+			where: { company, cwipAccountingEntryId: { not: null } },
+		}),
 		prisma.company.count({ where: { name: company } }),
 	]);
-	const eligibleAsset = {
+	const eligibleAsset: Prisma.AssetWhereInput = {
 		company,
 		calculateDepreciation: true,
-		status: { in: ["SUBMITTED", "PARTIALLY_DEPRECIATED"] as const },
+		status: { in: ["SUBMITTED", "PARTIALLY_DEPRECIATED"] },
 	};
 	const [
 		postedDepreciationEntries,
@@ -397,6 +476,22 @@ export async function getDemoStatus(
 		assetMaintenanceTeams,
 		assetMaintenances,
 		assetMaintenanceLogs,
+		assetMovements,
+		pendingAssetMovements,
+		submittedAssetMovements,
+		assetRepairs,
+		pendingAssetRepairs,
+		completedAssetRepairs,
+		assetCapitalizations,
+		draftAssetCapitalizations,
+		submittedAssetCapitalizations,
+		assetDisposals,
+		postedAssetDisposals,
+		cancelledAssetDisposals,
+		assetAccountingEntries,
+		assetAccountingEntryLines,
+		qualifiedCwipAssets,
+		bookedCwipAssets,
 		companies,
 	};
 }
