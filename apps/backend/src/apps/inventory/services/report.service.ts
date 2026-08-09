@@ -240,6 +240,10 @@ export class ReportSubService {
 		const project = params?.project?.trim();
 		const dateFrom = params?.dateFrom;
 		const dateTo = params?.dateTo;
+		// Persisted stock movements affect balances only once submitted. The
+		// explicit status filter remains available for report workflows that
+		// deliberately request a different document state.
+		const status = params?.status ?? "SUBMITTED";
 
 		if (dateFrom && dateTo && dateFrom > dateTo) {
 			throw new BadRequestException("dateFrom cannot be later than dateTo");
@@ -366,7 +370,7 @@ export class ReportSubService {
 			...(params?.stockEntryType
 				? { stockEntryType: params.stockEntryType }
 				: {}),
-			...(params?.status ? { status: params.status } : {}),
+			status,
 			...(project
 				? {
 						project: { contains: project, mode: "insensitive" },

@@ -27,26 +27,31 @@ import {
 import { FiscalYearService } from "../../shared/fiscal-year/fiscal-year.service";
 // biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
 import { PrismaService } from "../../shared/prisma.service";
+import type { PrismaAssetCapitalization } from "./asset.types";
 import {
 	toAsset,
 	toAssetCapitalizationItem,
 	toAssetCategory,
+	toAssetDepreciationSchedule,
 	toAssetDisposalItem,
 	toAssetLocation,
 	toAssetMaintenance,
 	toAssetMaintenanceLog,
 	toAssetMaintenanceLogListItem,
 	toAssetMovement,
-	toAssetMovementItem,
 	toAssetRepairItem,
 	toAssetValueAdjustment,
 	toMaintenanceTeam,
 } from "./asset.types";
+// biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
+import { AssetAccountingService } from "./asset-accounting.service";
 import { buildAssetActivityReportResult } from "./asset-activity-report";
 // biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
 import { AssetDashboardSubService } from "./asset-dashboard.service";
 import { buildAssetDepreciationLedgerResult } from "./asset-depreciation-ledger-report";
 import { buildAssetDepreciationsAndBalancesResult } from "./asset-depreciations-and-balances-report";
+// biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
+import { AssetStockPostingService } from "./asset-stock-posting.service";
 import {
 	buildDepreciationSchedulePreview,
 	buildRevaluationEntryLines,
@@ -56,6 +61,7 @@ import {
 } from "./asset-value-adjustment.utils";
 // biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
 import { AssetDepreciationLifecycleService } from "./depreciation/asset-depreciation-lifecycle.service";
+import { AssetDepreciationRevisionService } from "./depreciation/asset-depreciation-revision.service";
 import {
 	businessDate,
 	dateOnlyUtc,
@@ -118,6 +124,7 @@ export class AssetService {
 
 	private readonly assetDisposalInclude = {
 		asset: { select: { assetName: true } },
+		accountingEntry: { select: { series: true } },
 	} as const;
 
 	private readonly assetCategoryInclude = {
@@ -132,6 +139,7 @@ export class AssetService {
 	} as const;
 
 	private readonly assetAdjustmentInclude = {
+		financeBook: { select: { name: true } },
 		asset: {
 			select: {
 				id: true,
@@ -183,16 +191,9 @@ export class AssetService {
 				nonDepreciableCategory: true,
 			},
 		},
-		depreciationSchedules: {
-			where: { status: "ACTIVE" as const },
-			orderBy: { revisionNumber: "desc" as const },
-			take: 1,
-			select: { id: true, revisionNumber: true, assetFinanceBookId: true },
-		},
 		financeBooks: {
+			include: { financeBook: { select: { name: true } } },
 			orderBy: { createdAt: "asc" as const },
-			take: 1,
-			select: { id: true },
 		},
 	} as const;
 
@@ -203,6 +204,9 @@ export class AssetService {
 		private readonly depreciationLifecycle?: AssetDepreciationLifecycleService,
 		private readonly depreciationBarrier?: DepreciationBarrierService,
 		private readonly fixedAssetRegisterReportService?: FixedAssetRegisterReportService,
+		private readonly accounting: AssetAccountingService = new AssetAccountingService(),
+		private readonly stockPosting: AssetStockPostingService = new AssetStockPostingService(),
+		private readonly depreciationRevision: AssetDepreciationRevisionService = new AssetDepreciationRevisionService(),
 	) {}
 
 	private async ensureReportDepreciation(
@@ -515,6 +519,101 @@ export class AssetService {
 		return Number(value.toFixed(CURRENCY_SCALE));
 	}
 
+	private assertValidOperationalDate(date: Date, label: string): void {
+		if (Number.isNaN(date.getTime())) {
+			throw new BadRequestException(`${label} must be a valid date.`);
+		}
+		const today = dateOnlyUtc(businessDate(depreciationTimeZone()));
+		if (dateOnlyUtc(date) > today) {
+			throw new BadRequestException(`${label} cannot be in the future.`);
+		}
+	}
+
+	private async lockAssets(
+		tx: Prisma.TransactionClient,
+		assetIds: readonly string[],
+	): Promise<void> {
+		for (const assetId of [...new Set(assetIds)].sort()) {
+			await tx.$queryRaw(Prisma.sql`
+				SELECT pg_advisory_xact_lock(hashtext(${`asset:${assetId}`})) IS NULL AS "locked"
+			`);
+		}
+	}
+
+	private async getAssetAccountingContext(
+		tx: Prisma.TransactionClient,
+		asset: {
+			series: string;
+			company: string;
+			assetCategoryId: string | null;
+		},
+		costCenter?: string | null,
+	): Promise<{
+		fixedAssetAccount: string;
+		accumulatedDepreciationAccount: string | null;
+		costCenter: string | null;
+	}> {
+		if (!asset.assetCategoryId) {
+			throw new BadRequestException(
+				`Asset ${asset.series} requires an asset category before accounting can be posted.`,
+			);
+		}
+		const company = await tx.company.findUnique({
+			where: { name: asset.company },
+			select: {
+				id: true,
+				disabled: true,
+				defaultCostCenter: true,
+				accumulatedDepreciationAccount: true,
+			},
+		});
+		if (!company || company.disabled) {
+			throw new BadRequestException(
+				`Company ${asset.company} is missing or disabled.`,
+			);
+		}
+		const accounts = await tx.assetCategoryAccount.findUnique({
+			where: {
+				assetCategoryId_companyId: {
+					assetCategoryId: asset.assetCategoryId,
+					companyId: company.id,
+				},
+			},
+			select: {
+				fixedAssetAccount: true,
+				accumulatedDepreciationAccount: true,
+			},
+		});
+		if (!accounts?.fixedAssetAccount.trim()) {
+			throw new BadRequestException(
+				`A fixed asset account is required for asset ${asset.series} and company ${asset.company}.`,
+			);
+		}
+		return {
+			fixedAssetAccount: accounts.fixedAssetAccount.trim(),
+			accumulatedDepreciationAccount:
+				accounts.accumulatedDepreciationAccount?.trim() ||
+				company.accumulatedDepreciationAccount?.trim() ||
+				null,
+			costCenter:
+				costCenter?.trim() || company.defaultCostCenter?.trim() || null,
+		};
+	}
+
+	private async getFixedAssetBalance(
+		tx: Prisma.TransactionClient,
+		assetId: string,
+		netPurchaseAmount: number,
+	): Promise<number> {
+		const adjustments = await tx.assetValueAdjustment.aggregate({
+			where: { assetId, status: "SUBMITTED" },
+			_sum: { differenceAmount: true },
+		});
+		return this.roundCurrency(
+			netPurchaseAmount + Number(adjustments._sum.differenceAmount ?? 0),
+		);
+	}
+
 	private normalizeOptionalText(
 		value: string | null | undefined,
 	): string | null {
@@ -663,62 +762,11 @@ export class AssetService {
 		});
 	}
 
-	private resolveDepreciationConfig(asset: {
-		calculateDepreciation: boolean;
-		depreciationMethod: Asset.DepreciationMethod | null;
-		totalNumberOfDepreciations: number | null;
-		frequencyOfDepreciation: number | null;
-		assetCategory?: {
-			depreciationMethod: Asset.DepreciationMethod | null;
-			totalNumberOfDepreciations: number | null;
-			frequencyOfDepreciation: number | null;
-			dailyProrataBased: boolean | null;
-			shiftBased: boolean | null;
-			rateOfDepreciation: number | null;
-			expectedValueAfterUsefulLife: Prisma.Decimal | null;
-			nonDepreciableCategory?: boolean;
-		} | null;
-	}) {
-		if (
-			!asset.calculateDepreciation ||
-			asset.assetCategory?.nonDepreciableCategory
-		) {
-			return {
-				depreciationMethod: null,
-				totalNumberOfDepreciations: null,
-				frequencyOfDepreciation: null,
-				dailyProrataBased: null,
-				shiftBased: null,
-				rateOfDepreciation: null,
-				expectedValueAfterUsefulLife: null,
-			};
-		}
-
-		return {
-			depreciationMethod:
-				asset.depreciationMethod ??
-				asset.assetCategory?.depreciationMethod ??
-				null,
-			totalNumberOfDepreciations:
-				asset.totalNumberOfDepreciations ??
-				asset.assetCategory?.totalNumberOfDepreciations ??
-				null,
-			frequencyOfDepreciation:
-				asset.frequencyOfDepreciation ??
-				asset.assetCategory?.frequencyOfDepreciation ??
-				null,
-			dailyProrataBased: asset.assetCategory?.dailyProrataBased ?? null,
-			shiftBased: asset.assetCategory?.shiftBased ?? null,
-			rateOfDepreciation: asset.assetCategory?.rateOfDepreciation ?? null,
-			expectedValueAfterUsefulLife: asset.assetCategory
-				?.expectedValueAfterUsefulLife
-				? Number(asset.assetCategory.expectedValueAfterUsefulLife)
-				: null,
-		};
-	}
-
-	private async getAssetAdjustmentContextOrThrow(assetId: string) {
-		const asset = await this.prisma.asset.findUnique({
+	private async getAssetAdjustmentContextOrThrow(
+		assetId: string,
+		client: Pick<Prisma.TransactionClient, "asset"> = this.prisma,
+	) {
+		const asset = await client.asset.findUnique({
 			where: { id: assetId },
 			select: this.assetAdjustmentContextSelect,
 		});
@@ -765,9 +813,68 @@ export class AssetService {
 						nonDepreciableCategory: asset.assetCategory.nonDepreciableCategory,
 					}
 				: null,
-			activeDepreciationSchedule: asset.depreciationSchedules[0] ?? null,
-			defaultAssetFinanceBook: asset.financeBooks?.[0] ?? null,
+			financeBooks: asset.financeBooks.map((book) => ({
+				id: book.id,
+				financeBookId: book.financeBookId,
+				financeBookName: book.financeBook.name,
+				depreciationMethod: book.depreciationMethod as Asset.DepreciationMethod,
+				totalNumberOfDepreciations: book.totalNumberOfDepreciations,
+				frequencyOfDepreciation: book.frequencyOfDepreciation,
+				depreciationStartDate: book.depreciationStartDate,
+				dailyProrataBased: book.dailyProrataBased,
+				shiftBased: book.shiftBased,
+				rateOfDepreciation:
+					book.rateOfDepreciation == null
+						? null
+						: Number(book.rateOfDepreciation),
+				expectedValueAfterUsefulLife: Number(book.expectedValueAfterUsefulLife),
+				openingAccumulatedDepreciation: Number(
+					book.openingAccumulatedDepreciation,
+				),
+				openingNumberOfBookedDepreciations:
+					book.openingNumberOfBookedDepreciations,
+				valueAfterDepreciation: Number(book.valueAfterDepreciation),
+				totalNumberOfBookedDepreciations: book.totalNumberOfBookedDepreciations,
+				lastPostedDepreciationDate: book.lastPostedDepreciationDate ?? null,
+				postingStatus: book.postingStatus as Asset.DepreciationPostingStatus,
+			})),
 		};
+	}
+
+	private resolveAssetAdjustmentFinanceBook(
+		asset: Pick<
+			Awaited<ReturnType<AssetService["getAssetAdjustmentContextOrThrow"]>>,
+			"financeBooks" | "series"
+		>,
+		financeBookId?: string | null,
+	) {
+		if (financeBookId) {
+			const selected = asset.financeBooks.find(
+				(book) => book.financeBookId === financeBookId,
+			);
+			if (!selected) {
+				throw new BadRequestException(
+					`Finance book ${financeBookId} is not configured for asset ${asset.series}.`,
+				);
+			}
+			return selected;
+		}
+
+		return asset.financeBooks.length === 1 ? asset.financeBooks[0] : null;
+	}
+
+	private getAdjustedSalvageValue(
+		currentAssetValue: number,
+		newAssetValue: number,
+		currentSalvageValue: number,
+	): number {
+		if (currentSalvageValue <= 0 || currentAssetValue <= 0) {
+			return this.roundCurrency(Math.max(currentSalvageValue, 0));
+		}
+
+		return this.roundCurrency(
+			(currentSalvageValue * newAssetValue) / currentAssetValue,
+		);
 	}
 
 	private assertAssetValueAdjustmentPreviewIsValid(
@@ -806,69 +913,93 @@ export class AssetService {
 				expectedValueAfterUsefulLife: Prisma.Decimal | null;
 				nonDepreciableCategory: boolean;
 			} | null;
+			financeBooks: Array<{
+				id: string;
+				financeBookId: string;
+				financeBookName: string;
+				depreciationMethod: Asset.DepreciationMethod;
+				totalNumberOfDepreciations: number;
+				frequencyOfDepreciation: number;
+				depreciationStartDate: Date;
+				dailyProrataBased: boolean;
+				shiftBased: boolean;
+				rateOfDepreciation: number | null;
+				expectedValueAfterUsefulLife: number;
+				openingAccumulatedDepreciation: number;
+				openingNumberOfBookedDepreciations: number;
+				valueAfterDepreciation: number;
+				totalNumberOfBookedDepreciations: number;
+				lastPostedDepreciationDate: Date | null;
+				postingStatus: Asset.DepreciationPostingStatus;
+			}>;
 		},
 		input: Pick<
 			Asset.PreviewAssetValueAdjustmentInput,
-			"adjustmentDate" | "newAssetValue"
+			"adjustmentDate" | "financeBookId" | "newAssetValue"
 		>,
 	): Promise<Asset.AssetValueAdjustmentPreview> {
-		const currentAssetValue = this.resolveCurrentAssetValue(asset);
+		const selectedFinanceBook = this.resolveAssetAdjustmentFinanceBook(
+			asset,
+			input.financeBookId,
+		);
+		const currentAssetValue = selectedFinanceBook
+			? this.roundCurrency(selectedFinanceBook.valueAfterDepreciation)
+			: this.resolveCurrentAssetValue(asset);
 		const differenceAmount = this.roundCurrency(
 			input.newAssetValue - currentAssetValue,
 		);
-		const depreciationConfig = this.resolveDepreciationConfig({
-			calculateDepreciation: asset.calculateDepreciation,
-			depreciationMethod: asset.depreciationMethod,
-			totalNumberOfDepreciations: asset.totalNumberOfDepreciations,
-			frequencyOfDepreciation: asset.frequencyOfDepreciation,
-			assetCategory: asset.assetCategory
-				? {
-						depreciationMethod:
-							(asset.assetCategory
-								.depreciationMethod as Asset.DepreciationMethod | null) ?? null,
-						totalNumberOfDepreciations:
-							asset.assetCategory.totalNumberOfDepreciations ?? null,
-						frequencyOfDepreciation:
-							asset.assetCategory.frequencyOfDepreciation ?? null,
-						dailyProrataBased: asset.assetCategory.dailyProrataBased ?? null,
-						shiftBased: asset.assetCategory.shiftBased ?? null,
-						rateOfDepreciation: asset.assetCategory.rateOfDepreciation ?? null,
-						expectedValueAfterUsefulLife:
-							asset.assetCategory.expectedValueAfterUsefulLife ?? null,
-						nonDepreciableCategory: asset.assetCategory.nonDepreciableCategory,
-					}
-				: null,
-		});
-		const schedulePreview = asset.calculateDepreciation
-			? await buildDepreciationSchedulePreview({
-					adjustmentDate: input.adjustmentDate,
+		const adjustedSalvageValue = selectedFinanceBook
+			? this.getAdjustedSalvageValue(
 					currentAssetValue,
-					newAssetValue: input.newAssetValue,
-					purchaseAmount: asset.netPurchaseAmount
-						? Number(asset.netPurchaseAmount)
-						: 0,
-					openingAccumulatedDepreciation: asset.openingAccumulatedDepreciation
-						? Number(asset.openingAccumulatedDepreciation)
-						: 0,
-					bookedDepreciations: asset.openingNumberOfBookedDepreciations ?? 0,
-					depreciationMethod: depreciationConfig.depreciationMethod,
-					totalNumberOfDepreciations:
-						depreciationConfig.totalNumberOfDepreciations,
-					frequencyOfDepreciation: depreciationConfig.frequencyOfDepreciation,
-					dailyProrataBased: depreciationConfig.dailyProrataBased,
-					shiftBased: depreciationConfig.shiftBased,
-					rateOfDepreciation: depreciationConfig.rateOfDepreciation,
-					expectedValueAfterUsefulLife:
-						depreciationConfig.expectedValueAfterUsefulLife,
-					getFiscalYearEndDate: (date: Date) =>
-						this.fiscalYearService.getFiscalYearEndDate(date),
-				})
+					input.newAssetValue,
+					selectedFinanceBook.expectedValueAfterUsefulLife,
+				)
 			: null;
+		const schedulePreview =
+			asset.calculateDepreciation && selectedFinanceBook
+				? await buildDepreciationSchedulePreview({
+						adjustmentDate: input.adjustmentDate,
+						currentAssetValue,
+						newAssetValue: input.newAssetValue,
+						purchaseAmount: asset.netPurchaseAmount
+							? Number(asset.netPurchaseAmount)
+							: 0,
+						openingAccumulatedDepreciation:
+							selectedFinanceBook.openingAccumulatedDepreciation,
+						bookedDepreciations:
+							selectedFinanceBook.totalNumberOfBookedDepreciations,
+						depreciationMethod: selectedFinanceBook.depreciationMethod,
+						totalNumberOfDepreciations:
+							selectedFinanceBook.totalNumberOfDepreciations,
+						frequencyOfDepreciation:
+							selectedFinanceBook.frequencyOfDepreciation,
+						dailyProrataBased: selectedFinanceBook.dailyProrataBased,
+						shiftBased: selectedFinanceBook.shiftBased,
+						rateOfDepreciation: selectedFinanceBook.rateOfDepreciation,
+						expectedValueAfterUsefulLife: adjustedSalvageValue,
+						getFiscalYearEndDate: (date: Date) =>
+							this.fiscalYearService.getFiscalYearEndDate(date),
+					})
+				: null;
+		const rootCurrentAssetValue = this.resolveCurrentAssetValue(asset);
+		const resultingRootAssetValue = this.roundCurrency(
+			rootCurrentAssetValue + differenceAmount,
+		);
 		const resultState = getAssetValueAdjustmentResultState(
 			asset.status,
-			input.newAssetValue,
+			resultingRootAssetValue,
 		);
 		const validationMessages: string[] = [];
+
+		if (asset.calculateDepreciation && asset.financeBooks.length === 0) {
+			validationMessages.push(
+				"This depreciating asset has no configured finance book.",
+			);
+		} else if (asset.financeBooks.length > 1 && !input.financeBookId) {
+			validationMessages.push(
+				"Select the finance book whose carrying value and schedule should be revised.",
+			);
+		}
 
 		if (
 			asset.status === "DRAFT" ||
@@ -881,9 +1012,22 @@ export class AssetService {
 			);
 		}
 
-		if (input.adjustmentDate < asset.purchaseDate) {
+		if (
+			dateOnlyUtc(input.adjustmentDate).getTime() <
+			dateOnlyUtc(asset.purchaseDate).getTime()
+		) {
 			validationMessages.push(
 				"The adjustment date cannot be earlier than the asset purchase date.",
+			);
+		}
+
+		if (
+			selectedFinanceBook?.lastPostedDepreciationDate &&
+			dateOnlyUtc(input.adjustmentDate).getTime() <
+				dateOnlyUtc(selectedFinanceBook.lastPostedDepreciationDate).getTime()
+		) {
+			validationMessages.push(
+				"The adjustment date cannot be earlier than the selected finance book's last posted depreciation date.",
 			);
 		}
 
@@ -897,9 +1041,29 @@ export class AssetService {
 			);
 		}
 
-		if (asset.calculateDepreciation && !schedulePreview) {
+		if (
+			asset.calculateDepreciation &&
+			selectedFinanceBook &&
+			!schedulePreview
+		) {
 			validationMessages.push(
 				"This asset requires depreciation settings before a value adjustment can be submitted.",
+			);
+		}
+
+		if (selectedFinanceBook?.depreciationMethod === "MANUAL") {
+			validationMessages.push(
+				"Manual depreciation requires future schedule entries before this value adjustment can be submitted.",
+			);
+		}
+
+		if (
+			selectedFinanceBook &&
+			selectedFinanceBook.totalNumberOfDepreciations <=
+				selectedFinanceBook.totalNumberOfBookedDepreciations
+		) {
+			validationMessages.push(
+				"The selected finance book must have at least one unbooked depreciation period.",
 			);
 		}
 
@@ -909,6 +1073,9 @@ export class AssetService {
 			assetName: asset.assetName,
 			assetCategoryName: asset.assetCategory?.name ?? null,
 			company: asset.company,
+			financeBookId: selectedFinanceBook?.financeBookId ?? null,
+			financeBookName: selectedFinanceBook?.financeBookName ?? null,
+			assetFinanceBookId: selectedFinanceBook?.id ?? null,
 			adjustmentDate: input.adjustmentDate,
 			currentAssetValue,
 			newAssetValue: this.roundCurrency(input.newAssetValue),
@@ -971,6 +1138,24 @@ export class AssetService {
 			include: this.assetInclude,
 		});
 		return asset ? toAsset(asset) : null;
+	}
+
+	async listAssetDepreciationSchedules(
+		assetId: string,
+	): Promise<Asset.AssetDepreciationScheduleListResult> {
+		const exists = await this.prisma.asset.findUnique({
+			where: { id: assetId },
+			select: { id: true },
+		});
+		if (!exists) {
+			throw new NotFoundException(`Asset ${assetId} not found`);
+		}
+		const schedules = await this.prisma.assetDepreciationSchedule.findMany({
+			where: { assetId },
+			include: { entries: { orderBy: { sequence: "asc" } } },
+			orderBy: [{ assetFinanceBookId: "asc" }, { revisionNumber: "desc" }],
+		});
+		return { items: schedules.map(toAssetDepreciationSchedule) };
 	}
 
 	async findAssetByBarcode(barcode: string): Promise<Asset.AssetItem | null> {
@@ -1066,6 +1251,7 @@ export class AssetService {
 			data: {
 				series,
 				assetName: input.assetName,
+				assetType: input.assetType ?? "EXISTING_ASSET",
 				itemCode: input.itemCode ?? "",
 				barcode: input.barcode ?? null,
 				assetCategoryId: input.assetCategoryId ?? null,
@@ -1141,6 +1327,7 @@ export class AssetService {
 			select: {
 				id: true,
 				status: true,
+				assetType: true,
 				assetCategoryId: true,
 				netPurchaseAmount: true,
 				openingAccumulatedDepreciation: true,
@@ -1172,6 +1359,7 @@ export class AssetService {
 		}
 
 		const depreciationCriticalEdit = [
+			input.assetType,
 			input.assetCategoryId,
 			input.company,
 			input.purchaseDate,
@@ -1282,6 +1470,7 @@ export class AssetService {
 			where: { id: input.id },
 			data: {
 				...(input.assetName !== undefined && { assetName: input.assetName }),
+				...(input.assetType !== undefined && { assetType: input.assetType }),
 				...(input.itemCode !== undefined && { itemCode: input.itemCode ?? "" }),
 				...(input.barcode !== undefined && { barcode: input.barcode }),
 				...(input.assetCategoryId !== undefined && {
@@ -2144,6 +2333,7 @@ export class AssetService {
 					input.adjustmentDate,
 				),
 				assetId: asset.id,
+				financeBookId: preview.financeBookId,
 				assetCategorySnapshot: asset.assetCategory?.name ?? null,
 				companySnapshot: asset.company,
 				adjustmentDate: input.adjustmentDate,
@@ -2158,6 +2348,8 @@ export class AssetService {
 				direction: preview.direction,
 				previousAssetStatus: asset.status,
 				previousIsFullyDepreciated: asset.isFullyDepreciated,
+				previousAssetValueAfterDepreciation:
+					this.resolveCurrentAssetValue(asset).toString(),
 			},
 			include: this.assetAdjustmentInclude,
 		});
@@ -2174,6 +2366,7 @@ export class AssetService {
 				id: true,
 				status: true,
 				assetId: true,
+				financeBookId: true,
 				adjustmentDate: true,
 				newAssetValue: true,
 				differenceAccount: true,
@@ -2193,12 +2386,18 @@ export class AssetService {
 			);
 		}
 
-		const asset = await this.getAssetAdjustmentContextOrThrow(
-			input.assetId ?? existing.assetId,
-		);
+		const targetAssetId = input.assetId ?? existing.assetId;
+		const requestedFinanceBookId =
+			input.financeBookId !== undefined
+				? input.financeBookId
+				: targetAssetId !== existing.assetId
+					? null
+					: existing.financeBookId;
+		const asset = await this.getAssetAdjustmentContextOrThrow(targetAssetId);
 		const draftInput = {
 			adjustmentDate: input.adjustmentDate ?? existing.adjustmentDate,
 			newAssetValue: input.newAssetValue ?? Number(existing.newAssetValue),
+			financeBookId: requestedFinanceBookId,
 		};
 		const preview = await this.buildAssetValueAdjustmentPreview(
 			asset,
@@ -2210,6 +2409,7 @@ export class AssetService {
 			where: { id: input.id },
 			data: {
 				assetId: asset.id,
+				financeBookId: preview.financeBookId,
 				assetCategorySnapshot: asset.assetCategory?.name ?? null,
 				companySnapshot: asset.company,
 				adjustmentDate: draftInput.adjustmentDate,
@@ -2230,6 +2430,8 @@ export class AssetService {
 				direction: preview.direction,
 				previousAssetStatus: asset.status,
 				previousIsFullyDepreciated: asset.isFullyDepreciated,
+				previousAssetValueAfterDepreciation:
+					this.resolveCurrentAssetValue(asset).toString(),
 			},
 			include: this.assetAdjustmentInclude,
 		});
@@ -2240,71 +2442,107 @@ export class AssetService {
 	async submitAssetValueAdjustment(
 		input: Asset.SubmitAssetValueAdjustmentInput,
 	): Promise<Asset.AssetValueAdjustmentItem> {
-		const adjustment = await this.prisma.assetValueAdjustment.findUnique({
-			where: { id: input.id },
-			select: {
-				id: true,
-				series: true,
-				assetId: true,
-				adjustmentDate: true,
-				currentAssetValue: true,
-				newAssetValue: true,
-				differenceAccount: true,
-				costCenter: true,
-				notes: true,
-				status: true,
+		const pendingAdjustment = await this.prisma.assetValueAdjustment.findUnique(
+			{
+				where: { id: input.id },
+				select: {
+					id: true,
+					assetId: true,
+					financeBookId: true,
+					adjustmentDate: true,
+					status: true,
+				},
 			},
-		});
+		);
 
-		if (!adjustment) {
+		if (!pendingAdjustment) {
 			throw new NotFoundException(
 				`Asset value adjustment ${input.id} not found`,
 			);
 		}
-		if (adjustment.status !== "DRAFT") {
+		if (pendingAdjustment.status !== "DRAFT") {
 			throw new BadRequestException(
 				"Only draft asset value adjustments can be submitted.",
 			);
 		}
 
-		const asset = await this.getAssetAdjustmentContextOrThrow(
-			adjustment.assetId,
-		);
-		const preview = await this.buildAssetValueAdjustmentPreview(asset, {
-			adjustmentDate: adjustment.adjustmentDate,
-			newAssetValue: Number(adjustment.newAssetValue),
+		await this.depreciationBarrier?.ensureDepreciationPosted({
+			throughDate: pendingAdjustment.adjustmentDate,
+			assetIds: [pendingAdjustment.assetId],
+			...(pendingAdjustment.financeBookId
+				? { financeBookId: pendingAdjustment.financeBookId }
+				: {}),
 		});
-		this.assertAssetValueAdjustmentPreviewIsValid(preview);
-
-		if (
-			Math.abs(
-				Number(adjustment.currentAssetValue) - preview.currentAssetValue,
-			) > 0.000001
-		) {
-			throw new ConflictException(
-				"The asset carrying value changed while this adjustment was in draft. Refresh the draft before submitting it.",
-			);
-		}
-
-		const revaluationLines = buildRevaluationEntryLines({
-			differenceAmount: preview.differenceAmount,
-			fixedAssetAccount: preview.fixedAssetAccount,
-			differenceAccount: adjustment.differenceAccount,
-			costCenter: adjustment.costCenter ?? null,
-		});
-		const now = new Date();
 
 		const updated = await this.prisma.$transaction(async (tx) => {
+			await this.lockAssets(tx, [pendingAdjustment.assetId]);
+			await tx.$queryRaw(Prisma.sql`
+				SELECT pg_advisory_xact_lock(hashtext(${`asset-value-adjustment:${input.id}`})) IS NULL AS "locked"
+			`);
+			const adjustment = await tx.assetValueAdjustment.findUnique({
+				where: { id: input.id },
+				select: {
+					id: true,
+					series: true,
+					assetId: true,
+					financeBookId: true,
+					companySnapshot: true,
+					adjustmentDate: true,
+					currentAssetValue: true,
+					newAssetValue: true,
+					differenceAccount: true,
+					costCenter: true,
+					notes: true,
+					status: true,
+				},
+			});
+			if (!adjustment || adjustment.status !== "DRAFT") {
+				throw new ConflictException(
+					"The asset value adjustment changed before it could be submitted.",
+				);
+			}
+			if (adjustment.assetId !== pendingAdjustment.assetId) {
+				throw new ConflictException(
+					"The adjustment asset changed before submission. Refresh the draft and try again.",
+				);
+			}
+
+			const asset = await this.getAssetAdjustmentContextOrThrow(
+				adjustment.assetId,
+				tx,
+			);
+			if (asset.company !== adjustment.companySnapshot) {
+				throw new ConflictException(
+					"The asset company no longer matches the adjustment company snapshot.",
+				);
+			}
+			const preview = await this.buildAssetValueAdjustmentPreview(asset, {
+				financeBookId: adjustment.financeBookId,
+				adjustmentDate: adjustment.adjustmentDate,
+				newAssetValue: Number(adjustment.newAssetValue),
+			});
+			this.assertAssetValueAdjustmentPreviewIsValid(preview);
+			if (
+				Math.abs(
+					Number(adjustment.currentAssetValue) - preview.currentAssetValue,
+				) > 0.000001
+			) {
+				throw new ConflictException(
+					"The selected finance book's carrying value changed while this adjustment was in draft. Refresh the draft before submitting it.",
+				);
+			}
+
+			const revaluationLines = buildRevaluationEntryLines({
+				differenceAmount: preview.differenceAmount,
+				fixedAssetAccount: preview.fixedAssetAccount,
+				differenceAccount: adjustment.differenceAccount,
+				costCenter: adjustment.costCenter ?? null,
+			});
+			const now = new Date();
 			const entrySeries = await this.generateAssetRevaluationEntrySeries(
 				adjustment.adjustmentDate,
 				tx,
 			);
-			if (asset.activeDepreciationSchedule) {
-				await tx.assetDepreciationSchedule.update({
-					where: { id: asset.activeDepreciationSchedule.id },
-					data: { status: "CANCELLED" },
-				});
-			}
 
 			await tx.assetRevaluationEntry.create({
 				data: {
@@ -2326,59 +2564,51 @@ export class AssetService {
 				},
 			});
 
-			if (preview.depreciationSchedule) {
-				const assetFinanceBookId =
-					asset.activeDepreciationSchedule?.assetFinanceBookId ??
-					asset.defaultAssetFinanceBook?.id;
-				await tx.assetDepreciationSchedule.create({
-					data: {
-						adjustmentId: adjustment.id,
-						assetId: asset.id,
-						assetFinanceBookId,
-						previousScheduleId: asset.activeDepreciationSchedule?.id ?? null,
-						revisionNumber:
-							(asset.activeDepreciationSchedule?.revisionNumber ?? 0) + 1,
-						status: "ACTIVE",
-						startDate: adjustment.adjustmentDate,
-						depreciationMethod: preview.depreciationSchedule.depreciationMethod,
-						totalNumberOfDepreciations:
-							preview.depreciationSchedule.totalNumberOfDepreciations,
-						frequencyOfDepreciation:
-							preview.depreciationSchedule.frequencyOfDepreciation,
-						bookedDepreciations:
-							preview.depreciationSchedule.bookedDepreciations,
-						remainingDepreciations:
-							preview.depreciationSchedule.remainingDepreciations,
-						openingAccumulatedDepreciation:
-							(asset.openingAccumulatedDepreciation
-								? Number(asset.openingAccumulatedDepreciation)
-								: 0
-							).toString(),
-						baseAssetValue: preview.newAssetValue.toString(),
-						notes:
-							this.normalizeOptionalText(adjustment.notes) ??
-							`Projected from adjustment ${adjustment.series}`,
-						entries: {
-							create: preview.depreciationSchedule.entries.map((entry) => ({
-								sequence: entry.sequence,
-								scheduleDate: entry.scheduleDate,
-								depreciationAmount: entry.depreciationAmount.toString(),
-								accumulatedDepreciationAmount:
-									entry.accumulatedDepreciationAmount.toString(),
-								bookValueAfterDepreciation:
-									entry.bookValueAfterDepreciation.toString(),
-							})),
-						},
-					},
+			if (asset.calculateDepreciation && preview.financeBookId) {
+				const selectedFinanceBook = asset.financeBooks.find(
+					(book) => book.financeBookId === preview.financeBookId,
+				);
+				if (!selectedFinanceBook) {
+					throw new ConflictException(
+						"The selected finance book is no longer configured for this asset.",
+					);
+				}
+				const adjustedSalvageValue = this.getAdjustedSalvageValue(
+					preview.currentAssetValue,
+					preview.newAssetValue,
+					selectedFinanceBook.expectedValueAfterUsefulLife,
+				);
+				await this.depreciationRevision.revise(tx, {
+					assetId: asset.id,
+					financeBookId: preview.financeBookId,
+					effectiveDate: adjustment.adjustmentDate,
+					valueDelta: preview.differenceAmount,
+					salvageValueDelta: this.roundCurrency(
+						adjustedSalvageValue -
+							selectedFinanceBook.expectedValueAfterUsefulLife,
+					),
+					usefulLifeDeltaMonths: 0,
+					adjustmentId: adjustment.id,
+					notes:
+						this.normalizeOptionalText(adjustment.notes) ??
+						`Projected from adjustment ${adjustment.series}`,
 				});
 			}
 
+			const previousRootValue = this.resolveCurrentAssetValue(asset);
+			const resultingRootValue = this.roundCurrency(
+				previousRootValue + preview.differenceAmount,
+			);
+			const resultState = getAssetValueAdjustmentResultState(
+				asset.status,
+				resultingRootValue,
+			);
 			await tx.asset.update({
 				where: { id: asset.id },
 				data: {
-					valueAfterDepreciation: preview.newAssetValue.toString(),
-					isFullyDepreciated: preview.resultingIsFullyDepreciated,
-					status: preview.resultingStatus,
+					valueAfterDepreciation: resultingRootValue.toString(),
+					isFullyDepreciated: resultState.isFullyDepreciated,
+					status: resultState.status,
 				},
 			});
 
@@ -2393,6 +2623,7 @@ export class AssetService {
 			return tx.assetValueAdjustment.update({
 				where: { id: adjustment.id },
 				data: {
+					financeBookId: preview.financeBookId,
 					currentAssetValue: preview.currentAssetValue.toString(),
 					newAssetValue: preview.newAssetValue.toString(),
 					differenceAmount: preview.differenceAmount.toString(),
@@ -2400,6 +2631,7 @@ export class AssetService {
 					direction: preview.direction,
 					previousAssetStatus: asset.status,
 					previousIsFullyDepreciated: asset.isFullyDepreciated,
+					previousAssetValueAfterDepreciation: previousRootValue.toString(),
 					status: "SUBMITTED",
 					submittedAt: now,
 					cancelledAt: null,
@@ -2414,86 +2646,123 @@ export class AssetService {
 	async cancelAssetValueAdjustment(
 		input: Asset.CancelAssetValueAdjustmentInput,
 	): Promise<Asset.AssetValueAdjustmentItem> {
-		const adjustment = await this.prisma.assetValueAdjustment.findUnique({
-			where: { id: input.id },
-			select: {
-				id: true,
-				series: true,
-				assetId: true,
-				currentAssetValue: true,
-				status: true,
-				previousAssetStatus: true,
-				previousIsFullyDepreciated: true,
-				submittedAt: true,
-				revaluationEntry: { select: { id: true } },
-				depreciationSchedule: {
-					select: { id: true, previousScheduleId: true },
+		const pendingAdjustment = await this.prisma.assetValueAdjustment.findUnique(
+			{
+				where: { id: input.id },
+				select: {
+					id: true,
+					assetId: true,
+					status: true,
 				},
 			},
-		});
+		);
 
-		if (!adjustment) {
+		if (!pendingAdjustment) {
 			throw new NotFoundException(
 				`Asset value adjustment ${input.id} not found`,
 			);
 		}
-		if (adjustment.status !== "SUBMITTED") {
+		if (pendingAdjustment.status !== "SUBMITTED") {
 			throw new BadRequestException(
 				"Only submitted asset value adjustments can be cancelled.",
 			);
 		}
 
-		const newerSubmittedAdjustments =
-			await this.prisma.assetValueAdjustment.count({
+		const updated = await this.prisma.$transaction(async (tx) => {
+			await this.lockAssets(tx, [pendingAdjustment.assetId]);
+			await tx.$queryRaw(Prisma.sql`
+				SELECT pg_advisory_xact_lock(hashtext(${`asset-value-adjustment:${input.id}`})) IS NULL AS "locked"
+			`);
+			const adjustment = await tx.assetValueAdjustment.findUnique({
+				where: { id: input.id },
+				select: {
+					id: true,
+					series: true,
+					assetId: true,
+					financeBookId: true,
+					companySnapshot: true,
+					currentAssetValue: true,
+					status: true,
+					previousAssetStatus: true,
+					previousIsFullyDepreciated: true,
+					previousAssetValueAfterDepreciation: true,
+					submittedAt: true,
+					revaluationEntry: { select: { id: true } },
+					depreciationSchedule: { select: { id: true } },
+				},
+			});
+			if (!adjustment || adjustment.status !== "SUBMITTED") {
+				throw new ConflictException(
+					"The asset value adjustment changed before it could be cancelled.",
+				);
+			}
+			const asset = await tx.asset.findUnique({
+				where: { id: adjustment.assetId },
+				select: { company: true, calculateDepreciation: true },
+			});
+			if (!asset) {
+				throw new NotFoundException(`Asset ${adjustment.assetId} not found`);
+			}
+			if (asset.company !== adjustment.companySnapshot) {
+				throw new ConflictException(
+					"The asset company no longer matches the adjustment company snapshot.",
+				);
+			}
+			if (
+				asset.calculateDepreciation &&
+				(!adjustment.financeBookId || !adjustment.depreciationSchedule)
+			) {
+				throw new BadRequestException(
+					"This depreciating adjustment has incomplete finance-book history and cannot be cancelled safely.",
+				);
+			}
+
+			const newerSubmittedAdjustments = await tx.assetValueAdjustment.count({
 				where: {
 					assetId: adjustment.assetId,
 					status: "SUBMITTED",
 					submittedAt: { gt: adjustment.submittedAt ?? new Date(0) },
 				},
 			});
+			if (newerSubmittedAdjustments > 0) {
+				throw new BadRequestException(
+					"Only the latest submitted asset value adjustment can be cancelled.",
+				);
+			}
+			if (!adjustment.revaluationEntry) {
+				throw new BadRequestException(
+					"The revaluation entry for this asset value adjustment is missing.",
+				);
+			}
 
-		if (newerSubmittedAdjustments > 0) {
-			throw new BadRequestException(
-				"Only the latest submitted asset value adjustment can be cancelled.",
-			);
-		}
+			if (adjustment.depreciationSchedule) {
+				if (!adjustment.financeBookId) {
+					throw new BadRequestException(
+						"The adjustment's finance book identity is missing.",
+					);
+				}
+				await this.depreciationRevision.restoreRevision(tx, {
+					assetId: adjustment.assetId,
+					financeBookId: adjustment.financeBookId,
+					scheduleId: adjustment.depreciationSchedule.id,
+					previousValueAfterDepreciation: Number(adjustment.currentAssetValue),
+				});
+			}
 
-		if (!adjustment.revaluationEntry) {
-			throw new BadRequestException(
-				"The revaluation entry for this asset value adjustment is missing.",
-			);
-		}
-
-		const revaluationEntryId = adjustment.revaluationEntry.id;
-
-		const updated = await this.prisma.$transaction(async (tx) => {
 			await tx.assetRevaluationEntry.update({
-				where: { id: revaluationEntryId },
+				where: { id: adjustment.revaluationEntry.id },
 				data: {
 					status: "REVERSED",
 					reversedAt: new Date(),
 				},
 			});
 
-			if (adjustment.depreciationSchedule) {
-				await tx.assetDepreciationSchedule.update({
-					where: { id: adjustment.depreciationSchedule.id },
-					data: { status: "CANCELLED" },
-				});
-
-				if (adjustment.depreciationSchedule.previousScheduleId) {
-					await tx.assetDepreciationSchedule.update({
-						where: { id: adjustment.depreciationSchedule.previousScheduleId },
-						data: { status: "ACTIVE" },
-					});
-				}
-			}
-
 			await tx.asset.update({
 				where: { id: adjustment.assetId },
 				data: {
 					valueAfterDepreciation: Number(
-						adjustment.currentAssetValue,
+						adjustment.previousAssetValueAfterDepreciation ??
+							adjustment.currentAssetValue,
 					).toString(),
 					status: adjustment.previousAssetStatus,
 					isFullyDepreciated: adjustment.previousIsFullyDepreciated,
@@ -3883,151 +4152,248 @@ export class AssetService {
 	/**
 	 * Scraps an asset, transitioning its status to SCRAPPED and generating an AssetDisposal record.
 	 *
-	 * @param input Scrap asset parameters including assetId, disposalDate, and optional notes/userId
+	 * @param input Scrap asset parameters including assetId, disposalDate, and optional notes
 	 * @returns The created AssetDisposal domain object
 	 */
-	async scrapAsset(input: Asset.ScrapAssetInput): Promise<Asset.AssetDisposal> {
-		const asset = await this.prisma.asset.findUnique({
-			where: { id: input.assetId },
+	async scrapAsset(
+		input: Asset.ScrapAssetInput,
+		actorId?: string,
+	): Promise<Asset.AssetDisposal> {
+		return this.postAssetDisposal({
+			assetId: input.assetId,
+			disposalDate: input.disposalDate,
+			disposalType: "SCRAP",
+			salesAmount: 0,
+			gainLossAccount: input.gainLossAccount,
+			costCenter: input.costCenter,
+			notes: input.notes,
+			actorId,
 		});
-		if (!asset) {
-			throw new NotFoundException(`Asset with ID ${input.assetId} not found.`);
-		}
-
-		if (
-			asset.status !== "SUBMITTED" &&
-			asset.status !== "PARTIALLY_DEPRECIATED" &&
-			asset.status !== "FULLY_DEPRECIATED"
-		) {
-			throw new BadRequestException(
-				`Asset ${asset.series} cannot be scrapped because its status is ${asset.status}.`,
-			);
-		}
-
-		if (input.disposalDate < asset.purchaseDate) {
-			throw new BadRequestException(
-				`Disposal date (${input.disposalDate.toISOString()}) cannot be before purchase date (${asset.purchaseDate.toISOString()}).`,
-			);
-		}
-
-		const carryingValue = Number(asset.valueAfterDepreciation);
-		const gainLossAmount = -carryingValue;
-
-		const disposal = await this.prisma.$transaction(async (tx) => {
-			const series = await this.generateAssetDisposalSeries(
-				input.disposalDate,
-				tx,
-			);
-
-			await tx.asset.update({
-				where: { id: input.assetId },
-				data: {
-					status: "SCRAPPED",
-					disposalDate: input.disposalDate,
-				},
-			});
-
-			const created = await tx.assetDisposal.create({
-				data: {
-					series,
-					assetId: input.assetId,
-					company: asset.company,
-					disposalDate: input.disposalDate,
-					disposalType: "SCRAP",
-					salesAmount: 0,
-					gainLossAmount,
-					status: "POSTED",
-					notes: input.notes ?? null,
-				},
-				include: this.assetDisposalInclude,
-			});
-
-			await tx.assetActivity.create({
-				data: {
-					assetId: input.assetId,
-					userId: input.userId ?? null,
-					activity: `Asset scrapped via disposal entry ${series}`,
-				},
-			});
-
-			return created;
-		});
-
-		return toAssetDisposalItem(disposal);
 	}
 
 	/**
 	 * Sells an asset, transitioning its status to SOLD and generating an AssetDisposal record.
 	 *
-	 * @param input Sell asset parameters including assetId, disposalDate, salesAmount, and optional notes/userId
+	 * @param input Sell asset parameters including assetId, disposalDate, salesAmount, and optional notes
 	 * @returns The created AssetDisposal domain object
 	 */
-	async sellAsset(input: Asset.SellAssetInput): Promise<Asset.AssetDisposal> {
-		const asset = await this.prisma.asset.findUnique({
-			where: { id: input.assetId },
+	async sellAsset(
+		input: Asset.SellAssetInput,
+		actorId?: string,
+	): Promise<Asset.AssetDisposal> {
+		return this.postAssetDisposal({
+			assetId: input.assetId,
+			disposalDate: input.disposalDate,
+			disposalType: "SELL",
+			salesAmount: input.salesAmount,
+			proceedsAccount: input.proceedsAccount,
+			gainLossAccount: input.gainLossAccount,
+			costCenter: input.costCenter,
+			notes: input.notes,
+			actorId,
 		});
-		if (!asset) {
-			throw new NotFoundException(`Asset with ID ${input.assetId} not found.`);
-		}
+	}
 
-		if (
-			asset.status !== "SUBMITTED" &&
-			asset.status !== "PARTIALLY_DEPRECIATED" &&
-			asset.status !== "FULLY_DEPRECIATED"
-		) {
-			throw new BadRequestException(
-				`Asset ${asset.series} cannot be sold because its status is ${asset.status}.`,
-			);
-		}
-
-		if (input.disposalDate < asset.purchaseDate) {
-			throw new BadRequestException(
-				`Disposal date (${input.disposalDate.toISOString()}) cannot be before purchase date (${asset.purchaseDate.toISOString()}).`,
-			);
-		}
-
-		const carryingValue = Number(asset.valueAfterDepreciation);
-		const gainLossAmount = this.roundCurrency(
-			input.salesAmount - carryingValue,
-		);
+	private async postAssetDisposal(input: {
+		assetId: string;
+		disposalDate: Date;
+		disposalType: "SCRAP" | "SELL";
+		salesAmount: number;
+		proceedsAccount?: string | null;
+		gainLossAccount: string;
+		costCenter?: string | null;
+		notes?: string | null;
+		actorId?: string;
+	}): Promise<Asset.AssetDisposal> {
+		this.assertValidOperationalDate(input.disposalDate, "Disposal date");
+		await this.depreciationBarrier?.ensureDepreciationPosted({
+			throughDate: input.disposalDate,
+			assetIds: [input.assetId],
+		});
 
 		const disposal = await this.prisma.$transaction(async (tx) => {
+			await this.lockAssets(tx, [input.assetId]);
+			const asset = await tx.asset.findUnique({
+				where: { id: input.assetId },
+				select: {
+					id: true,
+					series: true,
+					company: true,
+					assetCategoryId: true,
+					purchaseDate: true,
+					availableForUseDate: true,
+					status: true,
+					netPurchaseAmount: true,
+					valueAfterDepreciation: true,
+					isFullyDepreciated: true,
+				},
+			});
+			if (!asset) {
+				throw new NotFoundException(
+					`Asset with ID ${input.assetId} not found.`,
+				);
+			}
+			if (
+				asset.status !== "SUBMITTED" &&
+				asset.status !== "PARTIALLY_DEPRECIATED" &&
+				asset.status !== "FULLY_DEPRECIATED"
+			) {
+				throw new BadRequestException(
+					`Asset ${asset.series} cannot be disposed because its status is ${asset.status}.`,
+				);
+			}
+			const firstOperationalDate =
+				asset.availableForUseDate ?? asset.purchaseDate;
+			if (dateOnlyUtc(input.disposalDate) < dateOnlyUtc(firstOperationalDate)) {
+				throw new BadRequestException(
+					"Disposal date cannot be before the asset's purchase or available-for-use date.",
+				);
+			}
+			const laterDepreciation = await tx.assetDepreciationJournalEntry.count({
+				where: {
+					assetId: asset.id,
+					status: "POSTED",
+					postingDate: { gt: input.disposalDate },
+				},
+			});
+			if (laterDepreciation > 0) {
+				throw new BadRequestException(
+					"Asset cannot be disposed before its latest posted depreciation.",
+				);
+			}
+
+			const context = await this.getAssetAccountingContext(
+				tx,
+				asset,
+				input.costCenter,
+			);
+			const carryingValue = this.roundCurrency(
+				Number(asset.valueAfterDepreciation),
+			);
+			const fixedAssetBalance = await this.getFixedAssetBalance(
+				tx,
+				asset.id,
+				Number(asset.netPurchaseAmount),
+			);
+			const accumulatedDepreciation = this.roundCurrency(
+				fixedAssetBalance - carryingValue,
+			);
+			if (carryingValue < 0 || accumulatedDepreciation < 0) {
+				throw new BadRequestException(
+					`Asset ${asset.series} has an inconsistent carrying value and cannot be disposed.`,
+				);
+			}
+			if (
+				accumulatedDepreciation > 0 &&
+				!context.accumulatedDepreciationAccount
+			) {
+				throw new BadRequestException(
+					`An accumulated depreciation account is required for asset ${asset.series}.`,
+				);
+			}
+			const salesAmount = this.roundCurrency(input.salesAmount);
+			const gainLossAmount = this.roundCurrency(salesAmount - carryingValue);
 			const series = await this.generateAssetDisposalSeries(
 				input.disposalDate,
 				tx,
 			);
-
-			await tx.asset.update({
-				where: { id: input.assetId },
-				data: {
-					status: "SOLD",
-					disposalDate: input.disposalDate,
-				},
-			});
-
-			const created = await tx.assetDisposal.create({
+			let created = await tx.assetDisposal.create({
 				data: {
 					series,
-					assetId: input.assetId,
+					assetId: asset.id,
 					company: asset.company,
 					disposalDate: input.disposalDate,
-					disposalType: "SELL",
-					salesAmount: input.salesAmount,
+					disposalType: input.disposalType,
+					salesAmount,
 					gainLossAmount,
+					fixedAssetAccount: context.fixedAssetAccount,
+					accumulatedDepreciationAccount:
+						context.accumulatedDepreciationAccount,
+					proceedsAccount: input.proceedsAccount?.trim() || null,
+					gainLossAccount: input.gainLossAccount.trim(),
+					costCenter: context.costCenter,
+					previousAssetStatus: asset.status,
+					previousIsFullyDepreciated: asset.isFullyDepreciated,
 					status: "POSTED",
 					notes: input.notes ?? null,
 				},
 				include: this.assetDisposalInclude,
 			});
 
-			await tx.assetActivity.create({
+			const lines = [
+				...(fixedAssetBalance > 0
+					? [
+							{
+								account: context.fixedAssetAccount,
+								debitAmount: 0,
+								creditAmount: fixedAssetBalance,
+								costCenter: context.costCenter,
+							},
+						]
+					: []),
+				...(accumulatedDepreciation > 0
+					? [
+							{
+								account: context.accumulatedDepreciationAccount as string,
+								debitAmount: accumulatedDepreciation,
+								creditAmount: 0,
+								costCenter: context.costCenter,
+							},
+						]
+					: []),
+				...(salesAmount > 0
+					? [
+							{
+								account: input.proceedsAccount as string,
+								debitAmount: salesAmount,
+								creditAmount: 0,
+								costCenter: context.costCenter,
+							},
+						]
+					: []),
+				...(gainLossAmount !== 0
+					? [
+							{
+								account: input.gainLossAccount,
+								debitAmount: gainLossAmount < 0 ? -gainLossAmount : 0,
+								creditAmount: gainLossAmount > 0 ? gainLossAmount : 0,
+								costCenter: context.costCenter,
+							},
+						]
+					: []),
+			];
+			if (lines.length >= 2) {
+				const entry = await this.accounting.createPostedEntry(tx, {
+					company: asset.company,
+					assetId: asset.id,
+					sourceType: "DISPOSAL",
+					sourceId: created.id,
+					postingDate: input.disposalDate,
+					remarks: `Asset ${asset.series} ${input.disposalType === "SELL" ? "sold" : "scrapped"} via ${series}`,
+					lines,
+				});
+				created = await tx.assetDisposal.update({
+					where: { id: created.id },
+					data: { accountingEntryId: entry.id },
+					include: this.assetDisposalInclude,
+				});
+			}
+
+			await this.depreciationRevision.closeOpenSchedules(tx, asset.id);
+			await tx.asset.update({
+				where: { id: asset.id },
 				data: {
-					assetId: input.assetId,
-					userId: input.userId ?? null,
-					activity: `Asset sold for ${input.salesAmount} via disposal entry ${series}`,
+					status: input.disposalType === "SELL" ? "SOLD" : "SCRAPPED",
+					disposalDate: input.disposalDate,
 				},
 			});
-
+			await tx.assetActivity.create({
+				data: {
+					assetId: asset.id,
+					userId: input.actorId ?? null,
+					activity: `Asset ${input.disposalType === "SELL" ? "sold" : "scrapped"} via disposal ${series}${created.accountingEntry?.series ? ` and accounting entry ${created.accountingEntry.series}` : ""}`,
+				},
+			});
 			return created;
 		});
 
@@ -4037,43 +4403,99 @@ export class AssetService {
 	/**
 	 * Restores a scrapped or sold asset back to an active operational status.
 	 *
-	 * @param input Restore asset parameters containing assetId and optional userId
+	 * @param input Restore asset parameters containing assetId
 	 * @returns The restored AssetItem domain object
 	 */
-	async restoreAsset(input: Asset.RestoreAssetInput): Promise<Asset.AssetItem> {
-		const asset = await this.prisma.asset.findUnique({
-			where: { id: input.assetId },
-			include: this.assetInclude,
-		});
-		if (!asset) {
-			throw new NotFoundException(`Asset with ID ${input.assetId} not found.`);
-		}
-
-		if (asset.status !== "SCRAPPED" && asset.status !== "SOLD") {
-			throw new BadRequestException(
-				`Asset ${asset.series} is not scrapped or sold (current status: ${asset.status}).`,
-			);
-		}
-
-		const valAfterDep = Number(asset.valueAfterDepreciation);
-		const netPurchase = Number(asset.netPurchaseAmount);
-		let restoredStatus: Asset.AssetStatus = "SUBMITTED";
-		if (asset.isFullyDepreciated || valAfterDep <= 0) {
-			restoredStatus = "FULLY_DEPRECIATED";
-		} else if (valAfterDep < netPurchase) {
-			restoredStatus = "PARTIALLY_DEPRECIATED";
-		}
-
+	async restoreAsset(
+		input: Asset.RestoreAssetInput,
+		actorId?: string,
+	): Promise<Asset.AssetItem> {
 		const updatedAsset = await this.prisma.$transaction(async (tx) => {
-			await tx.assetDisposal.updateMany({
-				where: { assetId: input.assetId, status: "POSTED" },
+			await this.lockAssets(tx, [input.assetId]);
+			const asset = await tx.asset.findUnique({
+				where: { id: input.assetId },
+				include: this.assetInclude,
+			});
+			if (!asset) {
+				throw new NotFoundException(
+					`Asset with ID ${input.assetId} not found.`,
+				);
+			}
+			if (asset.status !== "SCRAPPED" && asset.status !== "SOLD") {
+				throw new BadRequestException(
+					`Asset ${asset.series} is not scrapped or sold (current status: ${asset.status}).`,
+				);
+			}
+			const disposal = await tx.assetDisposal.findFirst({
+				where: { assetId: asset.id, status: "POSTED" },
+				orderBy: { createdAt: "desc" },
+				select: {
+					id: true,
+					series: true,
+					createdAt: true,
+					disposalDate: true,
+					accountingEntryId: true,
+					previousAssetStatus: true,
+					previousIsFullyDepreciated: true,
+				},
+			});
+			if (!disposal) {
+				throw new BadRequestException(
+					`The posted disposal for asset ${asset.series} is missing.`,
+				);
+			}
+			const [laterDepreciation, laterAccounting] = await Promise.all([
+				tx.assetDepreciationJournalEntry.count({
+					where: {
+						assetId: asset.id,
+						status: "POSTED",
+						createdAt: { gt: disposal.createdAt },
+					},
+				}),
+				tx.assetAccountingEntry.count({
+					where: {
+						assetId: asset.id,
+						status: "POSTED",
+						createdAt: { gt: disposal.createdAt },
+						...(disposal.accountingEntryId
+							? { id: { not: disposal.accountingEntryId } }
+							: {}),
+					},
+				}),
+			]);
+			if (laterDepreciation > 0 || laterAccounting > 0) {
+				throw new ConflictException(
+					"The disposal cannot be restored after later depreciation or asset accounting has been posted.",
+				);
+			}
+			if (disposal.accountingEntryId) {
+				await this.accounting.reversePostedEntry(
+					tx,
+					disposal.accountingEntryId,
+				);
+			}
+			await this.depreciationRevision.reactivateLatestClosedSchedules(
+				tx,
+				asset.id,
+			);
+			await tx.assetDisposal.update({
+				where: { id: disposal.id },
 				data: { status: "CANCELLED" },
 			});
-
+			const restoredStatus =
+				disposal.previousAssetStatus ??
+				(asset.isFullyDepreciated
+					? "FULLY_DEPRECIATED"
+					: Number(asset.valueAfterDepreciation) <
+							Number(asset.netPurchaseAmount)
+						? "PARTIALLY_DEPRECIATED"
+						: "SUBMITTED");
 			const updated = await tx.asset.update({
-				where: { id: input.assetId },
+				where: { id: asset.id },
 				data: {
 					status: restoredStatus,
+					isFullyDepreciated:
+						disposal.previousIsFullyDepreciated ?? asset.isFullyDepreciated,
 					disposalDate: null,
 				},
 				include: this.assetInclude,
@@ -4081,9 +4503,9 @@ export class AssetService {
 
 			await tx.assetActivity.create({
 				data: {
-					assetId: input.assetId,
-					userId: input.userId ?? null,
-					activity: `Asset restored from disposal state to ${restoredStatus}`,
+					assetId: asset.id,
+					userId: actorId ?? null,
+					activity: `Disposal ${disposal.series} reversed; asset restored to ${restoredStatus}`,
 				},
 			});
 
@@ -4102,27 +4524,147 @@ export class AssetService {
 	async createAssetMovement(
 		input: Asset.CreateAssetMovementInput,
 	): Promise<Asset.AssetMovement> {
-		for (const item of input.items) {
-			const asset = await this.prisma.asset.findUnique({
-				where: { id: item.assetId },
-				select: { id: true, series: true, status: true },
-			});
-			if (!asset) {
-				throw new NotFoundException(`Asset with ID ${item.assetId} not found.`);
-			}
-			if (
-				asset.status === "DRAFT" ||
-				asset.status === "CANCELLED" ||
-				asset.status === "SCRAPPED" ||
-				asset.status === "SOLD"
-			) {
-				throw new BadRequestException(
-					`Asset ${asset.series} cannot be moved because its status is ${asset.status}.`,
-				);
-			}
+		const assetIds = input.items.map((item) => item.assetId);
+		if (new Set(assetIds).size !== assetIds.length) {
+			throw new BadRequestException(
+				"An asset can appear only once in an asset movement.",
+			);
 		}
 
 		const movement = await this.prisma.$transaction(async (tx) => {
+			await this.lockAssets(tx, assetIds);
+			const resolvedItems: Array<{
+				assetId: string;
+				sourceLocationId: string | null;
+				targetLocationId: string | null;
+				fromEmployee: string | null;
+				toEmployee: string | null;
+			}> = [];
+
+			for (const item of input.items) {
+				const asset = await tx.asset.findUnique({
+					where: { id: item.assetId },
+					select: {
+						id: true,
+						series: true,
+						company: true,
+						status: true,
+						locationId: true,
+						custodian: true,
+					},
+				});
+				if (!asset) {
+					throw new NotFoundException(
+						`Asset with ID ${item.assetId} not found.`,
+					);
+				}
+				if (asset.company !== input.company) {
+					throw new BadRequestException(
+						`Asset ${asset.series} does not belong to company ${input.company}.`,
+					);
+				}
+				if (
+					asset.status === "DRAFT" ||
+					asset.status === "CANCELLED" ||
+					asset.status === "SCRAPPED" ||
+					asset.status === "SOLD" ||
+					asset.status === "CAPITALIZED"
+				) {
+					throw new BadRequestException(
+						`Asset ${asset.series} cannot be moved because its status is ${asset.status}.`,
+					);
+				}
+
+				const previousMovement = await tx.assetMovement.findFirst({
+					where: {
+						company: input.company,
+						status: "SUBMITTED",
+						items: { some: { assetId: asset.id } },
+					},
+					select: { transactionDate: true },
+					orderBy: [{ transactionDate: "desc" }, { submittedAt: "desc" }],
+				});
+				if (
+					previousMovement &&
+					input.transactionDate < previousMovement.transactionDate
+				) {
+					throw new BadRequestException(
+						"Transaction date cannot be earlier than the latest submitted movement for this asset.",
+					);
+				}
+
+				const sourceLocationId = asset.locationId;
+				const fromEmployee = asset.custodian;
+				if (
+					item.sourceLocationId != null &&
+					item.sourceLocationId !== sourceLocationId
+				) {
+					throw new BadRequestException(
+						`Asset ${asset.series} is not at the supplied source location.`,
+					);
+				}
+				if (item.fromEmployee != null && item.fromEmployee !== fromEmployee) {
+					throw new BadRequestException(
+						`Asset ${asset.series} is not held by the supplied custodian.`,
+					);
+				}
+
+				const targetLocationId = item.targetLocationId ?? null;
+				const toEmployee = item.toEmployee ?? null;
+				if (
+					(input.purpose === "TRANSFER" ||
+						input.purpose === "RECEIPT" ||
+						input.purpose === "TRANSFER_AND_ISSUE") &&
+					!targetLocationId
+				) {
+					throw new BadRequestException(
+						`Target location is required for ${input.purpose.toLowerCase().replaceAll("_", " ")}.`,
+					);
+				}
+				if (
+					(input.purpose === "TRANSFER" ||
+						input.purpose === "TRANSFER_AND_ISSUE") &&
+					targetLocationId === sourceLocationId
+				) {
+					throw new BadRequestException(
+						"Source and target locations cannot be the same.",
+					);
+				}
+				if (
+					(input.purpose === "ISSUE" ||
+						input.purpose === "TRANSFER_AND_ISSUE") &&
+					!toEmployee
+				) {
+					throw new BadRequestException(
+						`Target employee is required for ${input.purpose.toLowerCase().replaceAll("_", " ")}.`,
+					);
+				}
+				if (input.purpose === "TRANSFER_AND_ISSUE" && !fromEmployee) {
+					throw new BadRequestException(
+						"Source employee is required for transfer and issue.",
+					);
+				}
+				if (targetLocationId) {
+					const target = await tx.location.findUnique({
+						where: { id: targetLocationId },
+						select: { id: true },
+					});
+					if (!target) {
+						throw new NotFoundException(
+							`Target location ${targetLocationId} not found.`,
+						);
+					}
+				}
+
+				resolvedItems.push({
+					assetId: asset.id,
+					sourceLocationId,
+					targetLocationId,
+					fromEmployee,
+					toEmployee,
+				});
+			}
+
 			const series = await this.generateAssetMovementSeries(
 				input.transactionDate,
 				tx,
@@ -4136,12 +4678,12 @@ export class AssetService {
 					status: "DRAFT",
 					notes: input.notes ?? null,
 					items: {
-						create: input.items.map((i) => ({
-							assetId: i.assetId,
-							sourceLocationId: i.sourceLocationId ?? null,
-							targetLocationId: i.targetLocationId ?? null,
-							fromEmployee: i.fromEmployee ?? null,
-							toEmployee: i.toEmployee ?? null,
+						create: resolvedItems.map((item) => ({
+							assetId: item.assetId,
+							sourceLocationId: item.sourceLocationId,
+							targetLocationId: item.targetLocationId,
+							fromEmployee: item.fromEmployee,
+							toEmployee: item.toEmployee,
 						})),
 					},
 				},
@@ -4155,11 +4697,12 @@ export class AssetService {
 	/**
 	 * Submits an AssetMovement, updating locations and custodians on linked assets.
 	 *
-	 * @param input SubmitAssetMovementInput containing movement id and optional userId
+	 * @param input SubmitAssetMovementInput containing movement id
 	 * @returns The submitted AssetMovement domain object
 	 */
 	async submitAssetMovement(
 		input: Asset.SubmitAssetMovementInput,
+		actorId?: string,
 	): Promise<Asset.AssetMovement> {
 		const movement = await this.prisma.assetMovement.findUnique({
 			where: { id: input.id },
@@ -4175,25 +4718,95 @@ export class AssetService {
 		}
 
 		const submitted = await this.prisma.$transaction(async (tx) => {
+			await this.lockAssets(
+				tx,
+				movement.items.map((item) => item.assetId),
+			);
+			const transition = await tx.assetMovement.updateMany({
+				where: { id: input.id, status: "DRAFT" },
+				data: { status: "SUBMITTED", submittedAt: new Date() },
+			});
+			if (transition.count !== 1) {
+				throw new ConflictException(
+					`AssetMovement ${movement.series} was submitted by another request.`,
+				);
+			}
 			for (const item of movement.items) {
-				const assetUpdate: Prisma.AssetUpdateInput = {};
-				if (item.targetLocationId) {
-					assetUpdate.location = { connect: { id: item.targetLocationId } };
+				const asset = await tx.asset.findUniqueOrThrow({
+					where: { id: item.assetId },
+					select: {
+						company: true,
+						locationId: true,
+						custodian: true,
+						series: true,
+						status: true,
+					},
+				});
+				if (asset.company !== movement.company) {
+					throw new BadRequestException(
+						`Asset ${asset.series} does not belong to company ${movement.company}.`,
+					);
 				}
-				if (item.toEmployee) {
-					assetUpdate.custodian = item.toEmployee;
+				if (
+					asset.status === "DRAFT" ||
+					asset.status === "CANCELLED" ||
+					asset.status === "SCRAPPED" ||
+					asset.status === "SOLD" ||
+					asset.status === "CAPITALIZED"
+				) {
+					throw new BadRequestException(
+						`Asset ${asset.series} cannot be moved because its status is ${asset.status}.`,
+					);
 				}
-				if (Object.keys(assetUpdate).length > 0) {
-					await tx.asset.update({
-						where: { id: item.assetId },
-						data: assetUpdate,
-					});
+				const latestMovement = await tx.assetMovement.findFirst({
+					where: {
+						company: movement.company,
+						status: "SUBMITTED",
+						items: { some: { assetId: item.assetId } },
+					},
+					select: { transactionDate: true },
+					orderBy: [{ transactionDate: "desc" }, { submittedAt: "desc" }],
+				});
+				if (
+					latestMovement &&
+					movement.transactionDate < latestMovement.transactionDate
+				) {
+					throw new BadRequestException(
+						"Transaction date cannot be earlier than the latest submitted movement for this asset.",
+					);
 				}
+				if (
+					asset.locationId !== item.sourceLocationId ||
+					asset.custodian !== item.fromEmployee
+				) {
+					throw new ConflictException(
+						`Asset ${asset.series} changed after movement ${movement.series} was created.`,
+					);
+				}
+				if (
+					(movement.purpose === "TRANSFER" ||
+						movement.purpose === "RECEIPT" ||
+						movement.purpose === "TRANSFER_AND_ISSUE") &&
+					!item.targetLocationId
+				) {
+					throw new ConflictException(
+						`Asset movement ${movement.series} no longer has its required target location.`,
+					);
+				}
+				await tx.asset.update({
+					where: { id: item.assetId },
+					data: {
+						...(item.targetLocationId
+							? { locationId: item.targetLocationId }
+							: {}),
+						custodian: item.toEmployee,
+					},
+				});
 
 				await tx.assetActivity.create({
 					data: {
 						assetId: item.assetId,
-						userId: input.userId ?? null,
+						userId: actorId ?? null,
 						activity: `Asset movement ${movement.series} submitted: transferred to ${
 							item.targetLocation?.name ?? "new location"
 						}`,
@@ -4201,12 +4814,8 @@ export class AssetService {
 				});
 			}
 
-			return tx.assetMovement.update({
+			return tx.assetMovement.findUniqueOrThrow({
 				where: { id: input.id },
-				data: {
-					status: "SUBMITTED",
-					submittedAt: new Date(),
-				},
 				include: this.assetMovementInclude,
 			});
 		});
@@ -4217,11 +4826,12 @@ export class AssetService {
 	/**
 	 * Cancels an AssetMovement, reverting locations and custodians on linked assets.
 	 *
-	 * @param input CancelAssetMovementInput containing movement id and optional userId
+	 * @param input CancelAssetMovementInput containing movement id
 	 * @returns The cancelled AssetMovement domain object
 	 */
 	async cancelAssetMovement(
 		input: Asset.CancelAssetMovementInput,
+		actorId?: string,
 	): Promise<Asset.AssetMovement> {
 		const movement = await this.prisma.assetMovement.findUnique({
 			where: { id: input.id },
@@ -4237,36 +4847,69 @@ export class AssetService {
 		}
 
 		const cancelled = await this.prisma.$transaction(async (tx) => {
+			await this.lockAssets(
+				tx,
+				movement.items.map((item) => item.assetId),
+			);
+			const transition = await tx.assetMovement.updateMany({
+				where: { id: input.id, status: "SUBMITTED" },
+				data: { status: "CANCELLED", cancelledAt: new Date() },
+			});
+			if (transition.count !== 1) {
+				throw new ConflictException(
+					`AssetMovement ${movement.series} was cancelled by another request.`,
+				);
+			}
 			for (const item of movement.items) {
-				const assetUpdate: Prisma.AssetUpdateInput = {};
-				if (item.sourceLocationId) {
-					assetUpdate.location = { connect: { id: item.sourceLocationId } };
+				const asset = await tx.asset.findUniqueOrThrow({
+					where: { id: item.assetId },
+					select: {
+						company: true,
+						series: true,
+						locationId: true,
+					},
+				});
+				if (asset.company !== movement.company) {
+					throw new BadRequestException(
+						`Asset ${asset.series} does not belong to company ${movement.company}.`,
+					);
 				}
-				if (item.fromEmployee !== undefined) {
-					assetUpdate.custodian = item.fromEmployee;
-				}
-				if (Object.keys(assetUpdate).length > 0) {
-					await tx.asset.update({
-						where: { id: item.assetId },
-						data: assetUpdate,
-					});
-				}
+				const latest = await tx.assetMovement.findFirst({
+					where: {
+						company: movement.company,
+						status: "SUBMITTED",
+						items: { some: { assetId: item.assetId } },
+					},
+					include: {
+						items: {
+							where: { assetId: item.assetId },
+							select: { targetLocationId: true, toEmployee: true },
+						},
+					},
+					orderBy: [{ transactionDate: "desc" }, { submittedAt: "desc" }],
+				});
+				const latestItem = latest?.items[0];
+				await tx.asset.update({
+					where: { id: item.assetId },
+					data: {
+						locationId: latestItem
+							? (latestItem.targetLocationId ?? asset.locationId)
+							: item.sourceLocationId,
+						custodian: latestItem ? latestItem.toEmployee : item.fromEmployee,
+					},
+				});
 
 				await tx.assetActivity.create({
 					data: {
 						assetId: item.assetId,
-						userId: input.userId ?? null,
+						userId: actorId ?? null,
 						activity: `Asset movement ${movement.series} cancelled: location/custodian reverted`,
 					},
 				});
 			}
 
-			return tx.assetMovement.update({
+			return tx.assetMovement.findUniqueOrThrow({
 				where: { id: input.id },
-				data: {
-					status: "CANCELLED",
-					cancelledAt: new Date(),
-				},
 				include: this.assetMovementInclude,
 			});
 		});
@@ -4339,21 +4982,37 @@ export class AssetService {
 	 */
 	async createAssetRepair(
 		input: Asset.CreateAssetRepairInput,
+		actorId?: string,
 	): Promise<Asset.AssetRepair> {
-		const asset = await this.prisma.asset.findUnique({
-			where: { id: input.assetId },
-			select: { id: true, series: true, status: true },
-		});
-		if (!asset) {
-			throw new NotFoundException(`Asset with ID ${input.assetId} not found.`);
+		this.assertValidOperationalDate(input.failureDate, "Failure date");
+		if (input.completionDate) {
+			this.assertValidOperationalDate(input.completionDate, "Completion date");
+			if (dateOnlyUtc(input.completionDate) < dateOnlyUtc(input.failureDate)) {
+				throw new BadRequestException(
+					"Completion date cannot be before the failure date.",
+				);
+			}
 		}
-		if (
-			asset.status === "CANCELLED" ||
-			asset.status === "SCRAPPED" ||
-			asset.status === "SOLD"
-		) {
+		if (!input.capitalizeRepairCost && input.increaseInAssetLife > 0) {
 			throw new BadRequestException(
-				`Cannot create repair for asset ${asset.series} in ${asset.status} state.`,
+				"Useful life can be extended only when the repair cost is capitalized.",
+			);
+		}
+		const invoiceKeys = (input.purchaseInvoices ?? []).map(
+			(item) =>
+				`${item.purchaseInvoice.trim()}\u0000${item.expenseAccount?.trim() ?? ""}`,
+		);
+		if (new Set(invoiceKeys).size !== invoiceKeys.length) {
+			throw new BadRequestException(
+				"Purchase invoice allocations must be unique by invoice and expense account.",
+			);
+		}
+		const consumedItemKeys = (input.consumedItems ?? []).map(
+			(item) => `${item.itemCode.trim()}\u0000${item.warehouse.trim()}`,
+		);
+		if (new Set(consumedItemKeys).size !== consumedItemKeys.length) {
+			throw new BadRequestException(
+				"Consumed stock items must be unique by item and warehouse.",
 			);
 		}
 
@@ -4366,6 +5025,7 @@ export class AssetService {
 				assetId: ci.assetId ?? null,
 				itemCode: ci.itemCode,
 				warehouse: ci.warehouse ?? null,
+				expenseAccount: ci.expenseAccount ?? null,
 				quantity: ci.quantity,
 				valuationRate: itemValuation,
 				totalAmount: totalAmt,
@@ -4385,27 +5045,109 @@ export class AssetService {
 		const totalRepairCost = this.roundCurrency(consumedTotal + piTotal);
 
 		const repair = await this.prisma.$transaction(async (tx) => {
+			await this.lockAssets(tx, [input.assetId]);
+			const asset = await tx.asset.findUnique({
+				where: { id: input.assetId },
+				select: {
+					id: true,
+					series: true,
+					company: true,
+					status: true,
+					purchaseDate: true,
+				},
+			});
+			if (!asset) {
+				throw new NotFoundException(
+					`Asset with ID ${input.assetId} not found.`,
+				);
+			}
+			if (asset.company !== input.company) {
+				throw new BadRequestException(
+					`Asset ${asset.series} does not belong to company ${input.company}.`,
+				);
+			}
+			if (dateOnlyUtc(input.failureDate) < dateOnlyUtc(asset.purchaseDate)) {
+				throw new BadRequestException(
+					"Failure date cannot be before the asset purchase date.",
+				);
+			}
+			if (
+				asset.status === "DRAFT" ||
+				asset.status === "CANCELLED" ||
+				asset.status === "SCRAPPED" ||
+				asset.status === "SOLD" ||
+				asset.status === "CAPITALIZED" ||
+				asset.status === "FULLY_DEPRECIATED"
+			) {
+				throw new BadRequestException(
+					`Cannot create repair for asset ${asset.series} in ${asset.status} state.`,
+				);
+			}
+			const openRepair = await tx.assetRepair.findFirst({
+				where: {
+					assetId: asset.id,
+					repairStatus: { in: ["DRAFT", "PENDING"] },
+				},
+				select: { series: true },
+			});
+			if (openRepair) {
+				throw new ConflictException(
+					`Asset ${asset.series} already has open repair ${openRepair.series}.`,
+				);
+			}
+			const consumedAssetIds = (input.consumedItems ?? [])
+				.map((item) => item.assetId)
+				.filter((assetId): assetId is string => Boolean(assetId));
+			if (consumedAssetIds.includes(asset.id)) {
+				throw new BadRequestException(
+					"The repaired asset cannot also be a consumed repair item.",
+				);
+			}
+			if (consumedAssetIds.length > 0) {
+				const consumedAssets = await tx.asset.findMany({
+					where: { id: { in: consumedAssetIds }, company: input.company },
+					select: { id: true },
+				});
+				if (consumedAssets.length !== new Set(consumedAssetIds).size) {
+					throw new BadRequestException(
+						"Every consumed asset must exist and belong to the repair company.",
+					);
+				}
+			}
 			const series = await this.generateAssetRepairSeries(
 				input.failureDate,
 				tx,
 			);
-			return tx.assetRepair.create({
+			const created = await tx.assetRepair.create({
 				data: {
 					series,
 					assetId: input.assetId,
 					company: input.company,
 					failureDate: input.failureDate,
 					completionDate: input.completionDate ?? null,
-					repairStatus: "DRAFT",
+					repairStatus: "PENDING",
 					repairCost: totalRepairCost,
 					capitalizeRepairCost: input.capitalizeRepairCost ?? false,
 					increaseInAssetLife: input.increaseInAssetLife ?? 0,
 					description: input.description ?? null,
+					previousAssetStatus: asset.status,
 					consumedItems: { create: consumedItemsData },
 					purchaseInvoices: { create: piData },
 				},
 				include: this.assetRepairInclude,
 			});
+			await tx.asset.update({
+				where: { id: asset.id },
+				data: { status: "OUT_OF_ORDER" },
+			});
+			await tx.assetActivity.create({
+				data: {
+					assetId: asset.id,
+					userId: actorId ?? null,
+					activity: `Asset marked out of order for repair ${series}`,
+				},
+			});
+			return created;
 		});
 
 		return toAssetRepairItem(repair);
@@ -4419,64 +5161,189 @@ export class AssetService {
 	 */
 	async submitAssetRepair(
 		input: Asset.SubmitAssetRepairInput,
+		actorId?: string,
 	): Promise<Asset.AssetRepair> {
 		const repair = await this.prisma.assetRepair.findUnique({
 			where: { id: input.id },
-			include: this.assetRepairInclude,
+			select: {
+				id: true,
+				assetId: true,
+				completionDate: true,
+				failureDate: true,
+				capitalizeRepairCost: true,
+			},
 		});
 		if (!repair) {
 			throw new NotFoundException(`AssetRepair ${input.id} not found.`);
 		}
-		if (
-			repair.repairStatus === "COMPLETED" ||
-			repair.repairStatus === "CANCELLED"
-		) {
+		const completionDate =
+			repair.completionDate ??
+			dateOnlyUtc(businessDate(depreciationTimeZone()));
+		if (dateOnlyUtc(completionDate) < dateOnlyUtc(repair.failureDate)) {
 			throw new BadRequestException(
-				`AssetRepair ${repair.series} cannot be submitted because status is ${repair.repairStatus}.`,
+				"Completion date cannot be before the failure date.",
 			);
+		}
+		if (repair.capitalizeRepairCost) {
+			await this.depreciationBarrier?.ensureDepreciationPosted({
+				throughDate: completionDate,
+				assetIds: [repair.assetId],
+			});
 		}
 
 		const submitted = await this.prisma.$transaction(async (tx) => {
-			if (repair.capitalizeRepairCost && Number(repair.repairCost) > 0) {
-				const asset = await tx.asset.findUniqueOrThrow({
-					where: { id: repair.assetId },
+			await this.lockAssets(tx, [repair.assetId]);
+			const currentRepair = await tx.assetRepair.findUnique({
+				where: { id: input.id },
+				include: this.assetRepairInclude,
+			});
+			if (!currentRepair) {
+				throw new NotFoundException(`AssetRepair ${input.id} not found.`);
+			}
+			if (currentRepair.repairStatus !== "PENDING") {
+				throw new BadRequestException(
+					`AssetRepair ${currentRepair.series} cannot be completed because status is ${currentRepair.repairStatus}.`,
+				);
+			}
+			const asset = await tx.asset.findUniqueOrThrow({
+				where: { id: currentRepair.assetId },
+				select: {
+					id: true,
+					series: true,
+					company: true,
+					assetCategoryId: true,
+					status: true,
+					netPurchaseAmount: true,
+					valueAfterDepreciation: true,
+					totalNumberOfDepreciations: true,
+					calculateDepreciation: true,
+				},
+			});
+			if (asset.status !== "OUT_OF_ORDER") {
+				throw new ConflictException(
+					`Asset ${asset.series} changed state while repair ${currentRepair.series} was pending.`,
+				);
+			}
+			let stockEntryId: string | null = null;
+			if (currentRepair.consumedItems.length > 0) {
+				const stockEntry = await this.stockPosting.createMaterialIssue(tx, {
+					company: currentRepair.company,
+					postingDate: completionDate,
+					sourceType: "ASSET_REPAIR",
+					sourceId: currentRepair.id,
+					lines: currentRepair.consumedItems.map((item) => ({
+						itemCode: item.itemCode,
+						warehouse: item.warehouse ?? "",
+						quantity: item.quantity,
+						valuationRate: Number(item.valuationRate),
+					})),
 				});
-				const newNet = this.roundCurrency(
-					Number(asset.netPurchaseAmount) + Number(repair.repairCost),
-				);
-				const newValue = this.roundCurrency(
-					Number(asset.valueAfterDepreciation) + Number(repair.repairCost),
-				);
-				const newTotalDeps =
-					asset.totalNumberOfDepreciations != null
-						? asset.totalNumberOfDepreciations + repair.increaseInAssetLife
-						: null;
+				stockEntryId = stockEntry.id;
+			}
 
-				await tx.asset.update({
-					where: { id: repair.assetId },
-					data: {
-						netPurchaseAmount: newNet,
-						valueAfterDepreciation: newValue,
-						totalNumberOfDepreciations: newTotalDeps,
-					},
+			const repairCost = this.roundCurrency(Number(currentRepair.repairCost));
+			let accountingEntryId: string | null = null;
+			if (currentRepair.capitalizeRepairCost && repairCost > 0) {
+				const context = await this.getAssetAccountingContext(tx, asset);
+				const creditLines = [
+					...currentRepair.consumedItems.map((item) => ({
+						account: item.expenseAccount?.trim() ?? "",
+						amount: Number(item.totalAmount),
+					})),
+					...currentRepair.purchaseInvoices.map((item) => ({
+						account: item.expenseAccount?.trim() ?? "",
+						amount: Number(item.amount),
+					})),
+				].filter((line) => line.amount > 0);
+				if (creditLines.some((line) => !line.account)) {
+					throw new BadRequestException(
+						"Every capitalized repair cost requires an expense account.",
+					);
+				}
+				const entry = await this.accounting.createPostedEntry(tx, {
+					company: currentRepair.company,
+					assetId: asset.id,
+					sourceType: "REPAIR",
+					sourceId: currentRepair.id,
+					postingDate: completionDate,
+					remarks: `Capitalized repair ${currentRepair.series} for ${asset.series}`,
+					lines: [
+						{
+							account: context.fixedAssetAccount,
+							debitAmount: repairCost,
+							creditAmount: 0,
+							costCenter: context.costCenter,
+						},
+						...creditLines.map((line) => ({
+							account: line.account,
+							debitAmount: 0,
+							creditAmount: this.roundCurrency(line.amount),
+							costCenter: context.costCenter,
+						})),
+					],
+				});
+				accountingEntryId = entry.id;
+			}
+
+			const previousNet = Number(asset.netPurchaseAmount);
+			const previousValue = Number(asset.valueAfterDepreciation);
+			const previousTotal = asset.totalNumberOfDepreciations;
+			const lifeDelta = currentRepair.capitalizeRepairCost
+				? currentRepair.increaseInAssetLife
+				: 0;
+			if (
+				currentRepair.capitalizeRepairCost &&
+				asset.calculateDepreciation &&
+				(repairCost !== 0 || lifeDelta !== 0)
+			) {
+				await this.depreciationRevision.revise(tx, {
+					assetId: asset.id,
+					effectiveDate: completionDate,
+					valueDelta: repairCost,
+					usefulLifeDeltaMonths: lifeDelta,
+					notes: `Schedule revised for repair ${currentRepair.series}`,
 				});
 			}
+			const newValue = this.roundCurrency(
+				previousValue + (currentRepair.capitalizeRepairCost ? repairCost : 0),
+			);
+			const restoredStatus = currentRepair.previousAssetStatus ?? "SUBMITTED";
+			await tx.asset.update({
+				where: { id: asset.id },
+				data: {
+					status:
+						restoredStatus === "FULLY_DEPRECIATED" && newValue > 0
+							? "PARTIALLY_DEPRECIATED"
+							: restoredStatus,
+					netPurchaseAmount: this.roundCurrency(
+						previousNet + (currentRepair.capitalizeRepairCost ? repairCost : 0),
+					),
+					valueAfterDepreciation: newValue,
+					totalNumberOfDepreciations: previousTotal,
+					isFullyDepreciated: newValue <= 0,
+				},
+			});
 
 			const updated = await tx.assetRepair.update({
 				where: { id: input.id },
 				data: {
 					repairStatus: "COMPLETED",
 					submittedAt: new Date(),
-					completionDate: repair.completionDate ?? new Date(),
+					completionDate,
+					stockEntryId,
+					accountingEntryId,
+					previousNetPurchaseAmount: previousNet,
+					previousValueAfterDepreciation: previousValue,
+					previousTotalDepreciations: previousTotal,
 				},
 				include: this.assetRepairInclude,
 			});
 
 			await tx.assetActivity.create({
 				data: {
-					assetId: repair.assetId,
-					userId: input.userId ?? null,
-					activity: `Asset repair ${repair.series} submitted (cost: ${repair.repairCost})`,
+					assetId: currentRepair.assetId,
+					userId: actorId ?? null,
+					activity: `Asset repair ${currentRepair.series} completed (cost: ${repairCost})`,
 				},
 			});
 
@@ -4494,58 +5361,157 @@ export class AssetService {
 	 */
 	async cancelAssetRepair(
 		input: Asset.CancelAssetRepairInput,
+		actorId?: string,
 	): Promise<Asset.AssetRepair> {
 		const repair = await this.prisma.assetRepair.findUnique({
 			where: { id: input.id },
-			include: this.assetRepairInclude,
+			select: { id: true, assetId: true },
 		});
 		if (!repair) {
 			throw new NotFoundException(`AssetRepair ${input.id} not found.`);
 		}
-		if (repair.repairStatus === "CANCELLED") {
-			throw new BadRequestException(
-				`AssetRepair ${repair.series} is already cancelled.`,
-			);
-		}
-
-		const wasSubmitted =
-			repair.submittedAt != null || repair.repairStatus === "COMPLETED";
 
 		const cancelled = await this.prisma.$transaction(async (tx) => {
-			if (
-				wasSubmitted &&
-				repair.capitalizeRepairCost &&
-				Number(repair.repairCost) > 0
-			) {
-				const asset = await tx.asset.findUniqueOrThrow({
-					where: { id: repair.assetId },
-				});
-				const newNet = Math.max(
-					0,
-					this.roundCurrency(
-						Number(asset.netPurchaseAmount) - Number(repair.repairCost),
-					),
+			await this.lockAssets(tx, [repair.assetId]);
+			const currentRepair = await tx.assetRepair.findUnique({
+				where: { id: input.id },
+				include: this.assetRepairInclude,
+			});
+			if (!currentRepair) {
+				throw new NotFoundException(`AssetRepair ${input.id} not found.`);
+			}
+			if (currentRepair.repairStatus === "CANCELLED") {
+				throw new BadRequestException(
+					`AssetRepair ${currentRepair.series} is already cancelled.`,
 				);
-				const newValue = Math.max(
-					0,
-					this.roundCurrency(
-						Number(asset.valueAfterDepreciation) - Number(repair.repairCost),
-					),
-				);
-				const newTotalDeps =
-					asset.totalNumberOfDepreciations != null
-						? Math.max(
-								1,
-								asset.totalNumberOfDepreciations - repair.increaseInAssetLife,
-							)
-						: null;
+			}
+			const asset = await tx.asset.findUniqueOrThrow({
+				where: { id: currentRepair.assetId },
+				select: {
+					id: true,
+					series: true,
+					status: true,
+					netPurchaseAmount: true,
+					valueAfterDepreciation: true,
+					totalNumberOfDepreciations: true,
+					calculateDepreciation: true,
+				},
+			});
 
+			if (currentRepair.repairStatus === "COMPLETED") {
+				if (
+					currentRepair.previousNetPurchaseAmount == null ||
+					currentRepair.previousValueAfterDepreciation == null ||
+					!currentRepair.submittedAt
+				) {
+					throw new ConflictException(
+						`Repair ${currentRepair.series} is missing its reversal snapshot.`,
+					);
+				}
+				const repairCost = currentRepair.capitalizeRepairCost
+					? Number(currentRepair.repairCost)
+					: 0;
+				const expectedNet = this.roundCurrency(
+					Number(currentRepair.previousNetPurchaseAmount) + repairCost,
+				);
+				const expectedValue = this.roundCurrency(
+					Number(currentRepair.previousValueAfterDepreciation) + repairCost,
+				);
+				const expectedTotal = currentRepair.previousTotalDepreciations;
+				if (
+					this.roundCurrency(Number(asset.netPurchaseAmount)) !== expectedNet ||
+					this.roundCurrency(Number(asset.valueAfterDepreciation)) !==
+						expectedValue ||
+					asset.totalNumberOfDepreciations !== expectedTotal
+				) {
+					throw new ConflictException(
+						`Asset ${asset.series} changed after repair ${currentRepair.series}; cancellation would overwrite later values.`,
+					);
+				}
+				const [laterDepreciation, laterAdjustments, laterAccounting] =
+					await Promise.all([
+						tx.assetDepreciationJournalEntry.count({
+							where: {
+								assetId: asset.id,
+								status: "POSTED",
+								createdAt: { gt: currentRepair.submittedAt },
+							},
+						}),
+						tx.assetValueAdjustment.count({
+							where: {
+								assetId: asset.id,
+								status: "SUBMITTED",
+								submittedAt: { gt: currentRepair.submittedAt },
+							},
+						}),
+						tx.assetAccountingEntry.count({
+							where: {
+								assetId: asset.id,
+								status: "POSTED",
+								createdAt: { gt: currentRepair.submittedAt },
+								...(currentRepair.accountingEntryId
+									? { id: { not: currentRepair.accountingEntryId } }
+									: {}),
+							},
+						}),
+					]);
+				if (
+					laterDepreciation > 0 ||
+					laterAdjustments > 0 ||
+					laterAccounting > 0
+				) {
+					throw new ConflictException(
+						"Repair cancellation is blocked by later depreciation or asset accounting.",
+					);
+				}
+				if (currentRepair.accountingEntryId) {
+					await this.accounting.reversePostedEntry(
+						tx,
+						currentRepair.accountingEntryId,
+					);
+				}
+				if (currentRepair.stockEntryId) {
+					await this.stockPosting.cancelMaterialIssue(
+						tx,
+						currentRepair.stockEntryId,
+					);
+				}
+				if (
+					currentRepair.capitalizeRepairCost &&
+					asset.calculateDepreciation &&
+					(repairCost !== 0 || currentRepair.increaseInAssetLife !== 0)
+				) {
+					await this.depreciationRevision.revise(tx, {
+						assetId: asset.id,
+						effectiveDate: dateOnlyUtc(businessDate(depreciationTimeZone())),
+						valueDelta: -repairCost,
+						usefulLifeDeltaMonths: -currentRepair.increaseInAssetLife,
+						notes: `Schedule revised after cancellation of repair ${currentRepair.series}`,
+					});
+				}
 				await tx.asset.update({
-					where: { id: repair.assetId },
+					where: { id: asset.id },
 					data: {
-						netPurchaseAmount: newNet,
-						valueAfterDepreciation: newValue,
-						totalNumberOfDepreciations: newTotalDeps,
+						status: currentRepair.previousAssetStatus ?? "SUBMITTED",
+						netPurchaseAmount: currentRepair.previousNetPurchaseAmount,
+						valueAfterDepreciation:
+							currentRepair.previousValueAfterDepreciation,
+						totalNumberOfDepreciations:
+							currentRepair.previousTotalDepreciations,
+						isFullyDepreciated:
+							currentRepair.previousAssetStatus === "FULLY_DEPRECIATED",
+					},
+				});
+			} else {
+				if (asset.status !== "OUT_OF_ORDER") {
+					throw new ConflictException(
+						`Asset ${asset.series} changed state while repair ${currentRepair.series} was pending.`,
+					);
+				}
+				await tx.asset.update({
+					where: { id: asset.id },
+					data: {
+						status: currentRepair.previousAssetStatus ?? "SUBMITTED",
 					},
 				});
 			}
@@ -4561,9 +5527,9 @@ export class AssetService {
 
 			await tx.assetActivity.create({
 				data: {
-					assetId: repair.assetId,
-					userId: input.userId ?? null,
-					activity: `Asset repair ${repair.series} cancelled`,
+					assetId: currentRepair.assetId,
+					userId: actorId ?? null,
+					activity: `Asset repair ${currentRepair.series} cancelled`,
 				},
 			});
 
@@ -4639,6 +5605,40 @@ export class AssetService {
 	async createAssetCapitalization(
 		input: Asset.CreateAssetCapitalizationInput,
 	): Promise<Asset.AssetCapitalization> {
+		this.assertValidOperationalDate(input.postingDate, "Posting date");
+		if (
+			(input.stockItems?.length ?? 0) === 0 &&
+			(input.assetItems?.length ?? 0) === 0 &&
+			(input.serviceItems?.length ?? 0) === 0
+		) {
+			throw new BadRequestException(
+				"At least one stock, asset, or service source is required for capitalization.",
+			);
+		}
+		const sourceAssetIds = (input.assetItems ?? []).map((item) => item.assetId);
+		if (new Set(sourceAssetIds).size !== sourceAssetIds.length) {
+			throw new BadRequestException(
+				"An asset can appear only once in a capitalization document.",
+			);
+		}
+		if (input.targetType === "EXISTING_ASSET" && !input.targetAssetId) {
+			throw new BadRequestException(
+				"Target asset is required when capitalizing into an existing asset.",
+			);
+		}
+		if (input.targetAssetId && sourceAssetIds.includes(input.targetAssetId)) {
+			throw new BadRequestException(
+				"The target asset cannot also be a consumed asset.",
+			);
+		}
+		const stockKeys = (input.stockItems ?? []).map(
+			(item) => `${item.itemCode.trim()}\u0000${item.warehouse?.trim() ?? ""}`,
+		);
+		if (new Set(stockKeys).size !== stockKeys.length) {
+			throw new BadRequestException(
+				"Consumed stock items must be unique by item and warehouse.",
+			);
+		}
 		let totalStockVal = 0;
 		const stockItemsData = (input.stockItems ?? []).map((si) => {
 			const amt = this.roundCurrency(si.stockQty * si.valuationRate);
@@ -4646,6 +5646,7 @@ export class AssetService {
 			return {
 				itemCode: si.itemCode,
 				warehouse: si.warehouse ?? null,
+				expenseAccount: si.expenseAccount ?? null,
 				stockQty: si.stockQty,
 				valuationRate: si.valuationRate,
 				amount: amt,
@@ -4671,11 +5672,144 @@ export class AssetService {
 			};
 		});
 
-		const grandTotalValue = this.roundCurrency(
-			totalStockVal + totalAssetVal + totalServiceVal,
-		);
-
 		const capitalization = await this.prisma.$transaction(async (tx) => {
+			await this.lockAssets(tx, [
+				...sourceAssetIds,
+				...(input.targetAssetId ? [input.targetAssetId] : []),
+			]);
+			const company = await tx.company.findUnique({
+				where: { name: input.company },
+				select: { disabled: true },
+			});
+			if (!company || company.disabled) {
+				throw new BadRequestException(
+					`Company ${input.company} is missing or disabled.`,
+				);
+			}
+			let resolvedTargetName = input.targetAssetName ?? null;
+			let resolvedTargetCategory = input.targetAssetCategory ?? null;
+			let resolvedTargetItemCode = input.targetItemCode ?? null;
+			if (input.targetAssetId) {
+				const target = await tx.asset.findUnique({
+					where: { id: input.targetAssetId },
+					select: {
+						company: true,
+						series: true,
+						assetName: true,
+						itemCode: true,
+						status: true,
+						assetType: true,
+						assetCategory: { select: { name: true } },
+					},
+				});
+				if (!target) {
+					throw new NotFoundException(
+						`Asset ${input.targetAssetId} not found.`,
+					);
+				}
+				if (target.company !== input.company) {
+					throw new BadRequestException(
+						`Target asset ${target.series} does not belong to company ${input.company}.`,
+					);
+				}
+				if (
+					target.status !== "DRAFT" ||
+					target.assetType !== "COMPOSITE_ASSET"
+				) {
+					throw new BadRequestException(
+						`Target asset ${target.series} must be a draft composite asset.`,
+					);
+				}
+				resolvedTargetName = target.assetName;
+				resolvedTargetCategory = target.assetCategory?.name ?? null;
+				resolvedTargetItemCode = target.itemCode;
+			} else {
+				const [category, item] = await Promise.all([
+					tx.assetCategory.findUnique({
+						where: { name: input.targetAssetCategory ?? "" },
+						select: { id: true },
+					}),
+					tx.inventoryItem.findUnique({
+						where: { code: input.targetItemCode ?? "" },
+						select: {
+							isFixedAsset: true,
+							disabled: true,
+							endOfLife: true,
+						},
+					}),
+				]);
+				if (!category) {
+					throw new NotFoundException(
+						`Asset category ${input.targetAssetCategory} not found.`,
+					);
+				}
+				if (
+					!item ||
+					!item.isFixedAsset ||
+					item.disabled ||
+					(item.endOfLife && item.endOfLife < input.postingDate)
+				) {
+					throw new BadRequestException(
+						`Target item ${input.targetItemCode} must be an active fixed-asset item.`,
+					);
+				}
+			}
+			const sources = await tx.asset.findMany({
+				where: { id: { in: sourceAssetIds } },
+				select: {
+					id: true,
+					series: true,
+					company: true,
+					status: true,
+					purchaseDate: true,
+					availableForUseDate: true,
+					valueAfterDepreciation: true,
+				},
+			});
+			if (sources.length !== sourceAssetIds.length) {
+				throw new NotFoundException(
+					"One or more source assets were not found.",
+				);
+			}
+			const sourceById = new Map(sources.map((source) => [source.id, source]));
+			for (const item of assetItemsData) {
+				const source = sourceById.get(item.assetId);
+				if (!source || source.company !== input.company) {
+					throw new BadRequestException(
+						`Every source asset must belong to company ${input.company}.`,
+					);
+				}
+				if (
+					source.status !== "SUBMITTED" &&
+					source.status !== "PARTIALLY_DEPRECIATED" &&
+					source.status !== "FULLY_DEPRECIATED"
+				) {
+					throw new BadRequestException(
+						`Source asset ${source.series} cannot be capitalized from ${source.status}.`,
+					);
+				}
+				const operationalDate =
+					source.availableForUseDate ?? source.purchaseDate;
+				if (dateOnlyUtc(input.postingDate) < dateOnlyUtc(operationalDate)) {
+					throw new BadRequestException(
+						`Posting date cannot be before source asset ${source.series} became available.`,
+					);
+				}
+				item.assetValue = this.roundCurrency(
+					Number(source.valueAfterDepreciation),
+				);
+			}
+			totalAssetVal = this.roundCurrency(
+				assetItemsData.reduce((total, item) => total + item.assetValue, 0),
+			);
+			const grandTotalValue = this.roundCurrency(
+				totalStockVal + totalAssetVal + totalServiceVal,
+			);
+			if (grandTotalValue <= 0) {
+				throw new BadRequestException(
+					"Capitalization total must be greater than zero.",
+				);
+			}
 			const series = await this.generateAssetCapitalizationSeries(
 				input.postingDate,
 				tx,
@@ -4687,8 +5821,9 @@ export class AssetService {
 					postingDate: input.postingDate,
 					targetType: input.targetType,
 					targetAssetId: input.targetAssetId ?? null,
-					targetAssetName: input.targetAssetName ?? null,
-					targetAssetCategory: input.targetAssetCategory ?? null,
+					targetAssetName: resolvedTargetName,
+					targetAssetCategory: resolvedTargetCategory,
+					targetItemCode: resolvedTargetItemCode,
 					status: "DRAFT",
 					totalStockValue: totalStockVal,
 					totalAssetValue: totalAssetVal,
@@ -4707,79 +5842,429 @@ export class AssetService {
 	}
 
 	/**
-	 * Submits an AssetCapitalization document, capitalizing values into the target asset and marking consumed assets as scrapped.
+	 * Submits an AssetCapitalization document, capitalizing values into the target asset and marking consumed assets as capitalized.
 	 *
 	 * @param input SubmitAssetCapitalizationInput
 	 * @returns The submitted AssetCapitalization domain object
 	 */
 	async submitAssetCapitalization(
 		input: Asset.SubmitAssetCapitalizationInput,
+		actorId?: string,
 	): Promise<Asset.AssetCapitalization> {
 		const cap = await this.prisma.assetCapitalization.findUnique({
 			where: { id: input.id },
-			include: this.assetCapitalizationInclude,
+			select: {
+				postingDate: true,
+				targetAssetId: true,
+				assetItems: { select: { assetId: true } },
+			},
 		});
 		if (!cap) {
 			throw new NotFoundException(`AssetCapitalization ${input.id} not found.`);
 		}
-		if (cap.status !== "DRAFT") {
-			throw new BadRequestException(
-				`AssetCapitalization ${cap.series} cannot be submitted because status is ${cap.status}.`,
-			);
+		const sourceAssetIds = cap.assetItems.map((item) => item.assetId);
+		if (sourceAssetIds.length > 0) {
+			await this.depreciationBarrier?.ensureDepreciationPosted({
+				throughDate: cap.postingDate,
+				assetIds: sourceAssetIds,
+			});
 		}
 
 		const submitted = await this.prisma.$transaction(async (tx) => {
-			if (cap.targetType === "EXISTING_ASSET" && cap.targetAssetId) {
-				const target = await tx.asset.findUniqueOrThrow({
-					where: { id: cap.targetAssetId },
-				});
-				const newNet = this.roundCurrency(
-					Number(target.netPurchaseAmount) + Number(cap.totalValue),
-				);
-				const newValue = this.roundCurrency(
-					Number(target.valueAfterDepreciation) + Number(cap.totalValue),
-				);
-				await tx.asset.update({
-					where: { id: cap.targetAssetId },
-					data: {
-						netPurchaseAmount: newNet,
-						valueAfterDepreciation: newValue,
-					},
-				});
-				await tx.assetActivity.create({
-					data: {
-						assetId: cap.targetAssetId,
-						userId: input.userId ?? null,
-						activity: `Capitalized value ${cap.totalValue} added via ${cap.series}`,
-					},
-				});
-			}
-
-			for (const ai of cap.assetItems) {
-				await tx.asset.update({
-					where: { id: ai.assetId },
-					data: { status: "SCRAPPED" },
-				});
-				await tx.assetActivity.create({
-					data: {
-						assetId: ai.assetId,
-						userId: input.userId ?? null,
-						activity: `Asset consumed in capitalization ${cap.series}`,
-					},
-				});
-			}
-
-			return tx.assetCapitalization.update({
+			await tx.$queryRaw(Prisma.sql`
+				SELECT pg_advisory_xact_lock(hashtext(${`asset-capitalization:${input.id}`})) IS NULL AS "locked"
+			`);
+			await this.lockAssets(tx, [
+				...sourceAssetIds,
+				...(cap.targetAssetId ? [cap.targetAssetId] : []),
+			]);
+			const currentCap = await tx.assetCapitalization.findUnique({
 				where: { id: input.id },
-				data: {
-					status: "SUBMITTED",
-					submittedAt: new Date(),
-				},
 				include: this.assetCapitalizationInclude,
 			});
+			if (!currentCap) {
+				throw new NotFoundException(
+					`AssetCapitalization ${input.id} not found.`,
+				);
+			}
+			if (currentCap.status !== "DRAFT") {
+				throw new BadRequestException(
+					`AssetCapitalization ${currentCap.series} cannot be submitted because status is ${currentCap.status}.`,
+				);
+			}
+			return this.postAssetCapitalization(
+				tx,
+				currentCap,
+				sourceAssetIds,
+				actorId,
+			);
 		});
 
 		return toAssetCapitalizationItem(submitted);
+	}
+
+	private async postAssetCapitalization(
+		tx: Prisma.TransactionClient,
+		cap: PrismaAssetCapitalization,
+		sourceAssetIds: readonly string[],
+		actorId?: string,
+	): Promise<PrismaAssetCapitalization> {
+		const company = await tx.company.findUnique({
+			where: { name: cap.company },
+			select: { disabled: true },
+		});
+		if (!company || company.disabled) {
+			throw new BadRequestException(
+				`Company ${cap.company} is missing or disabled.`,
+			);
+		}
+		const sources = await tx.asset.findMany({
+			where: { id: { in: [...sourceAssetIds] } },
+			select: {
+				id: true,
+				series: true,
+				company: true,
+				assetCategoryId: true,
+				status: true,
+				disposalDate: true,
+				netPurchaseAmount: true,
+				valueAfterDepreciation: true,
+			},
+		});
+		if (sources.length !== sourceAssetIds.length) {
+			throw new NotFoundException("One or more source assets were not found.");
+		}
+		const laterDepreciation = await tx.assetDepreciationJournalEntry.count({
+			where: {
+				assetId: { in: [...sourceAssetIds] },
+				status: "POSTED",
+				postingDate: { gt: cap.postingDate },
+			},
+		});
+		if (laterDepreciation > 0) {
+			throw new BadRequestException(
+				"Capitalization cannot precede a source asset's latest posted depreciation.",
+			);
+		}
+
+		type TargetAsset = {
+			id: string;
+			series: string;
+			company: string;
+			assetCategoryId: string | null;
+			status: Asset.AssetStatus;
+			assetType: Asset.AssetType;
+			netPurchaseAmount: Prisma.Decimal;
+			valueAfterDepreciation: Prisma.Decimal;
+		};
+		let target: TargetAsset;
+		let createdTargetAsset = false;
+		if (cap.targetType === "EXISTING_ASSET") {
+			if (!cap.targetAssetId) {
+				throw new BadRequestException(
+					"An existing target asset is required for capitalization.",
+				);
+			}
+			const existingTarget = await tx.asset.findUnique({
+				where: { id: cap.targetAssetId },
+				select: {
+					id: true,
+					series: true,
+					company: true,
+					assetCategoryId: true,
+					status: true,
+					assetType: true,
+					netPurchaseAmount: true,
+					valueAfterDepreciation: true,
+				},
+			});
+			if (!existingTarget) {
+				throw new NotFoundException(
+					`Target asset ${cap.targetAssetId} not found.`,
+				);
+			}
+			if (
+				existingTarget.company !== cap.company ||
+				existingTarget.status !== "DRAFT" ||
+				existingTarget.assetType !== "COMPOSITE_ASSET"
+			) {
+				throw new ConflictException(
+					`Target asset ${existingTarget.series} must remain a draft composite asset in ${cap.company}.`,
+				);
+			}
+			target = {
+				...existingTarget,
+				status: existingTarget.status as Asset.AssetStatus,
+			};
+		} else {
+			const [category, item] = await Promise.all([
+				tx.assetCategory.findUnique({
+					where: { name: cap.targetAssetCategory ?? "" },
+					select: { id: true },
+				}),
+				tx.inventoryItem.findUnique({
+					where: { code: cap.targetItemCode ?? "" },
+					select: { isFixedAsset: true, disabled: true, endOfLife: true },
+				}),
+			]);
+			if (!category) {
+				throw new NotFoundException(
+					`Asset category ${cap.targetAssetCategory} not found.`,
+				);
+			}
+			if (
+				!item ||
+				!item.isFixedAsset ||
+				item.disabled ||
+				(item.endOfLife && item.endOfLife < cap.postingDate)
+			) {
+				throw new BadRequestException(
+					`Target item ${cap.targetItemCode} must remain an active fixed-asset item.`,
+				);
+			}
+			const targetSeries = await this.generateAssetSeries(cap.postingDate, tx);
+			const created = await tx.asset.create({
+				data: {
+					series: targetSeries,
+					assetName: cap.targetAssetName ?? targetSeries,
+					itemCode: cap.targetItemCode ?? "",
+					assetCategoryId: category.id,
+					company: cap.company,
+					purchaseDate: cap.postingDate,
+					availableForUseDate: cap.postingDate,
+					netPurchaseAmount: 0,
+					valueAfterDepreciation: 0,
+					calculateDepreciation: false,
+					assetType: "COMPOSITE_ASSET",
+					status: "DRAFT",
+				},
+				select: {
+					id: true,
+					series: true,
+					company: true,
+					assetCategoryId: true,
+					status: true,
+					assetType: true,
+					netPurchaseAmount: true,
+					valueAfterDepreciation: true,
+				},
+			});
+			target = { ...created, status: created.status as Asset.AssetStatus };
+			createdTargetAsset = true;
+			await tx.assetActivity.create({
+				data: {
+					assetId: target.id,
+					userId: actorId ?? null,
+					activity: `Draft composite asset created for capitalization ${cap.series}`,
+				},
+			});
+		}
+		if (sourceAssetIds.includes(target.id)) {
+			throw new BadRequestException(
+				"The target asset cannot also be a consumed source asset.",
+			);
+		}
+
+		let stockEntryId: string | null = null;
+		if (cap.stockItems.length > 0) {
+			const stockEntry = await this.stockPosting.createMaterialIssue(tx, {
+				company: cap.company,
+				postingDate: cap.postingDate,
+				sourceType: "ASSET_CAPITALIZATION",
+				sourceId: cap.id,
+				lines: cap.stockItems.map((item) => ({
+					itemCode: item.itemCode,
+					warehouse: item.warehouse ?? "",
+					quantity: item.stockQty,
+					valuationRate: Number(item.valuationRate),
+				})),
+			});
+			stockEntryId = stockEntry.id;
+		}
+
+		const targetContext = await this.getAssetAccountingContext(tx, target);
+		const accountingLines: Array<{
+			account: string;
+			debitAmount: number;
+			creditAmount: number;
+			costCenter: string | null;
+		}> = [];
+		let totalStockValue = 0;
+		for (const item of cap.stockItems) {
+			const amount = this.roundCurrency(Number(item.amount));
+			if (amount <= 0) continue;
+			if (!item.expenseAccount?.trim()) {
+				throw new BadRequestException(
+					`Stock item ${item.itemCode} requires an expense account for capitalization.`,
+				);
+			}
+			totalStockValue = this.roundCurrency(totalStockValue + amount);
+			accountingLines.push({
+				account: item.expenseAccount.trim(),
+				debitAmount: 0,
+				creditAmount: amount,
+				costCenter: targetContext.costCenter,
+			});
+		}
+		let totalServiceValue = 0;
+		for (const item of cap.serviceItems) {
+			const amount = this.roundCurrency(Number(item.amount));
+			if (amount <= 0) continue;
+			totalServiceValue = this.roundCurrency(totalServiceValue + amount);
+			accountingLines.push({
+				account: item.expenseAccount.trim(),
+				debitAmount: 0,
+				creditAmount: amount,
+				costCenter: targetContext.costCenter,
+			});
+		}
+
+		let totalAssetValue = 0;
+		const sourceById = new Map(sources.map((source) => [source.id, source]));
+		for (const item of cap.assetItems) {
+			const source = sourceById.get(item.assetId);
+			if (!source || source.company !== cap.company) {
+				throw new BadRequestException(
+					`Every source asset must belong to ${cap.company}.`,
+				);
+			}
+			if (
+				source.status !== "SUBMITTED" &&
+				source.status !== "PARTIALLY_DEPRECIATED" &&
+				source.status !== "FULLY_DEPRECIATED"
+			) {
+				throw new ConflictException(
+					`Source asset ${source.series} changed to ${source.status} before capitalization.`,
+				);
+			}
+			const carryingValue = this.roundCurrency(
+				Number(source.valueAfterDepreciation),
+			);
+			const fixedAssetBalance = await this.getFixedAssetBalance(
+				tx,
+				source.id,
+				Number(source.netPurchaseAmount),
+			);
+			const accumulatedDepreciation = this.roundCurrency(
+				fixedAssetBalance - carryingValue,
+			);
+			if (carryingValue < 0 || accumulatedDepreciation < 0) {
+				throw new BadRequestException(
+					`Source asset ${source.series} has inconsistent book values.`,
+				);
+			}
+			const sourceContext = await this.getAssetAccountingContext(tx, source);
+			if (
+				accumulatedDepreciation > 0 &&
+				!sourceContext.accumulatedDepreciationAccount
+			) {
+				throw new BadRequestException(
+					`Source asset ${source.series} requires an accumulated depreciation account.`,
+				);
+			}
+			if (fixedAssetBalance > 0) {
+				accountingLines.push({
+					account: sourceContext.fixedAssetAccount,
+					debitAmount: 0,
+					creditAmount: fixedAssetBalance,
+					costCenter: sourceContext.costCenter,
+				});
+			}
+			if (accumulatedDepreciation > 0) {
+				accountingLines.push({
+					account: sourceContext.accumulatedDepreciationAccount as string,
+					debitAmount: accumulatedDepreciation,
+					creditAmount: 0,
+					costCenter: sourceContext.costCenter,
+				});
+			}
+			totalAssetValue = this.roundCurrency(totalAssetValue + carryingValue);
+			await tx.assetCapitalizationAssetItem.update({
+				where: { id: item.id },
+				data: {
+					assetValue: carryingValue,
+					previousStatus: source.status,
+					previousDisposalDate: source.disposalDate,
+				},
+			});
+		}
+		const totalValue = this.roundCurrency(
+			totalStockValue + totalServiceValue + totalAssetValue,
+		);
+		if (totalValue <= 0) {
+			throw new BadRequestException(
+				"Capitalization total must be greater than zero.",
+			);
+		}
+		accountingLines.unshift({
+			account: targetContext.fixedAssetAccount,
+			debitAmount: totalValue,
+			creditAmount: 0,
+			costCenter: targetContext.costCenter,
+		});
+		const entry = await this.accounting.createPostedEntry(tx, {
+			company: cap.company,
+			assetId: target.id,
+			sourceType: "CAPITALIZATION",
+			sourceId: cap.id,
+			postingDate: cap.postingDate,
+			remarks: `Capitalization ${cap.series} into ${target.series}`,
+			lines: accountingLines,
+		});
+
+		const targetPreviousNet = Number(target.netPurchaseAmount);
+		const targetPreviousValue = Number(target.valueAfterDepreciation);
+		await tx.asset.update({
+			where: { id: target.id },
+			data: {
+				netPurchaseAmount: this.roundCurrency(targetPreviousNet + totalValue),
+				valueAfterDepreciation: this.roundCurrency(
+					targetPreviousValue + totalValue,
+				),
+				isFullyDepreciated: false,
+			},
+		});
+		await tx.assetActivity.create({
+			data: {
+				assetId: target.id,
+				userId: actorId ?? null,
+				activity: `Capitalized value ${totalValue} via ${cap.series} and accounting entry ${entry.series}`,
+			},
+		});
+		for (const source of sources) {
+			await this.depreciationRevision.closeOpenSchedules(tx, source.id);
+			await tx.asset.update({
+				where: { id: source.id },
+				data: { status: "CAPITALIZED", disposalDate: cap.postingDate },
+			});
+			await tx.assetActivity.create({
+				data: {
+					assetId: source.id,
+					userId: actorId ?? null,
+					activity: `Asset consumed in capitalization ${cap.series}`,
+				},
+			});
+		}
+
+		return tx.assetCapitalization.update({
+			where: { id: cap.id },
+			data: {
+				status: "SUBMITTED",
+				submittedAt: new Date(),
+				targetAssetId: target.id,
+				createdTargetAsset,
+				stockEntryId,
+				accountingEntryId: entry.id,
+				targetPreviousNetPurchaseAmount: targetPreviousNet,
+				targetPreviousValueAfterDepreciation: targetPreviousValue,
+				targetPreviousStatus: target.status,
+				totalStockValue,
+				totalAssetValue,
+				totalServiceValue,
+				totalValue,
+			},
+			include: this.assetCapitalizationInclude,
+		});
 	}
 
 	/**
@@ -4790,78 +6275,212 @@ export class AssetService {
 	 */
 	async cancelAssetCapitalization(
 		input: Asset.CancelAssetCapitalizationInput,
+		actorId?: string,
 	): Promise<Asset.AssetCapitalization> {
 		const cap = await this.prisma.assetCapitalization.findUnique({
 			where: { id: input.id },
-			include: this.assetCapitalizationInclude,
+			select: {
+				targetAssetId: true,
+				assetItems: { select: { assetId: true } },
+			},
 		});
 		if (!cap) {
 			throw new NotFoundException(`AssetCapitalization ${input.id} not found.`);
 		}
-		if (cap.status !== "SUBMITTED") {
-			throw new BadRequestException(
-				`AssetCapitalization ${cap.series} cannot be cancelled because status is ${cap.status}.`,
-			);
-		}
 
 		const cancelled = await this.prisma.$transaction(async (tx) => {
-			if (cap.targetType === "EXISTING_ASSET" && cap.targetAssetId) {
-				const target = await tx.asset.findUniqueOrThrow({
-					where: { id: cap.targetAssetId },
-				});
-				const newNet = Math.max(
-					0,
-					this.roundCurrency(
-						Number(target.netPurchaseAmount) - Number(cap.totalValue),
-					),
-				);
-				const newValue = Math.max(
-					0,
-					this.roundCurrency(
-						Number(target.valueAfterDepreciation) - Number(cap.totalValue),
-					),
-				);
-				await tx.asset.update({
-					where: { id: cap.targetAssetId },
-					data: {
-						netPurchaseAmount: newNet,
-						valueAfterDepreciation: newValue,
-					},
-				});
-				await tx.assetActivity.create({
-					data: {
-						assetId: cap.targetAssetId,
-						userId: input.userId ?? null,
-						activity: `Capitalization ${cap.series} cancelled`,
-					},
-				});
-			}
-
-			for (const ai of cap.assetItems) {
-				await tx.asset.update({
-					where: { id: ai.assetId },
-					data: { status: "SUBMITTED" },
-				});
-				await tx.assetActivity.create({
-					data: {
-						assetId: ai.assetId,
-						userId: input.userId ?? null,
-						activity: `Asset restored from cancelled capitalization ${cap.series}`,
-					},
-				});
-			}
-
-			return tx.assetCapitalization.update({
+			await tx.$queryRaw(Prisma.sql`
+				SELECT pg_advisory_xact_lock(hashtext(${`asset-capitalization:${input.id}`})) IS NULL AS "locked"
+			`);
+			const assetIds = [
+				...cap.assetItems.map((item) => item.assetId),
+				...(cap.targetAssetId ? [cap.targetAssetId] : []),
+			];
+			await this.lockAssets(tx, assetIds);
+			const currentCap = await tx.assetCapitalization.findUnique({
 				where: { id: input.id },
-				data: {
-					status: "CANCELLED",
-					cancelledAt: new Date(),
-				},
 				include: this.assetCapitalizationInclude,
 			});
+			if (!currentCap) {
+				throw new NotFoundException(
+					`AssetCapitalization ${input.id} not found.`,
+				);
+			}
+			if (currentCap.status !== "SUBMITTED") {
+				throw new BadRequestException(
+					`AssetCapitalization ${currentCap.series} cannot be cancelled because status is ${currentCap.status}.`,
+				);
+			}
+			return this.reverseAssetCapitalization(tx, currentCap, actorId);
 		});
 
 		return toAssetCapitalizationItem(cancelled);
+	}
+
+	private async reverseAssetCapitalization(
+		tx: Prisma.TransactionClient,
+		cap: PrismaAssetCapitalization,
+		actorId?: string,
+	): Promise<PrismaAssetCapitalization> {
+		if (
+			!cap.targetAssetId ||
+			!cap.submittedAt ||
+			cap.targetPreviousNetPurchaseAmount == null ||
+			cap.targetPreviousValueAfterDepreciation == null ||
+			!cap.targetPreviousStatus
+		) {
+			throw new ConflictException(
+				`Capitalization ${cap.series} is missing its reversal snapshot.`,
+			);
+		}
+		const target = await tx.asset.findUnique({
+			where: { id: cap.targetAssetId },
+			select: {
+				id: true,
+				series: true,
+				status: true,
+				netPurchaseAmount: true,
+				valueAfterDepreciation: true,
+			},
+		});
+		if (!target) {
+			throw new NotFoundException(
+				`Target asset ${cap.targetAssetId} not found.`,
+			);
+		}
+		const previousNet = Number(cap.targetPreviousNetPurchaseAmount);
+		const previousValue = Number(cap.targetPreviousValueAfterDepreciation);
+		const expectedNet = this.roundCurrency(
+			previousNet + Number(cap.totalValue),
+		);
+		const expectedValue = this.roundCurrency(
+			previousValue + Number(cap.totalValue),
+		);
+		if (
+			target.status !== cap.targetPreviousStatus ||
+			this.roundCurrency(Number(target.netPurchaseAmount)) !== expectedNet ||
+			this.roundCurrency(Number(target.valueAfterDepreciation)) !==
+				expectedValue
+		) {
+			throw new ConflictException(
+				`Target asset ${target.series} changed after capitalization ${cap.series}.`,
+			);
+		}
+
+		const sourceIds = cap.assetItems.map((item) => item.assetId);
+		const sources = await tx.asset.findMany({
+			where: { id: { in: sourceIds } },
+			select: { id: true, series: true, status: true, disposalDate: true },
+		});
+		if (sources.length !== sourceIds.length) {
+			throw new ConflictException(
+				"A source asset needed to reverse this capitalization is missing.",
+			);
+		}
+		const itemByAssetId = new Map(
+			cap.assetItems.map((item) => [item.assetId, item]),
+		);
+		for (const source of sources) {
+			const snapshot = itemByAssetId.get(source.id);
+			if (
+				!snapshot?.previousStatus ||
+				source.status !== "CAPITALIZED" ||
+				!source.disposalDate ||
+				dateOnlyUtc(source.disposalDate).getTime() !==
+					dateOnlyUtc(cap.postingDate).getTime()
+			) {
+				throw new ConflictException(
+					`Source asset ${source.series} changed after capitalization ${cap.series}.`,
+				);
+			}
+		}
+
+		const allAssetIds = [target.id, ...sourceIds];
+		const [laterDepreciation, laterAdjustments, laterAccounting] =
+			await Promise.all([
+				tx.assetDepreciationJournalEntry.count({
+					where: {
+						assetId: { in: allAssetIds },
+						status: "POSTED",
+						createdAt: { gt: cap.submittedAt },
+					},
+				}),
+				tx.assetValueAdjustment.count({
+					where: {
+						assetId: { in: allAssetIds },
+						status: "SUBMITTED",
+						submittedAt: { gt: cap.submittedAt },
+					},
+				}),
+				tx.assetAccountingEntry.count({
+					where: {
+						assetId: { in: allAssetIds },
+						status: "POSTED",
+						createdAt: { gt: cap.submittedAt },
+						...(cap.accountingEntryId
+							? { id: { not: cap.accountingEntryId } }
+							: {}),
+					},
+				}),
+			]);
+		if (laterDepreciation > 0 || laterAdjustments > 0 || laterAccounting > 0) {
+			throw new ConflictException(
+				"Capitalization cancellation is blocked by later depreciation or asset accounting.",
+			);
+		}
+		if (!cap.accountingEntryId) {
+			throw new ConflictException(
+				`Capitalization ${cap.series} has no accounting entry to reverse.`,
+			);
+		}
+		await this.accounting.reversePostedEntry(tx, cap.accountingEntryId);
+		if (cap.stockEntryId) {
+			await this.stockPosting.cancelMaterialIssue(tx, cap.stockEntryId);
+		}
+		await tx.asset.update({
+			where: { id: target.id },
+			data: {
+				status: cap.createdTargetAsset ? "CANCELLED" : cap.targetPreviousStatus,
+				netPurchaseAmount: cap.targetPreviousNetPurchaseAmount,
+				valueAfterDepreciation: cap.targetPreviousValueAfterDepreciation,
+				isFullyDepreciated: false,
+			},
+		});
+		await tx.assetActivity.create({
+			data: {
+				assetId: target.id,
+				userId: actorId ?? null,
+				activity: `Capitalization ${cap.series} cancelled and accounting reversed`,
+			},
+		});
+		for (const source of sources) {
+			const snapshot = itemByAssetId.get(source.id);
+			if (!snapshot?.previousStatus) continue;
+			await this.depreciationRevision.reactivateLatestClosedSchedules(
+				tx,
+				source.id,
+			);
+			await tx.asset.update({
+				where: { id: source.id },
+				data: {
+					status: snapshot.previousStatus,
+					disposalDate: snapshot.previousDisposalDate,
+				},
+			});
+			await tx.assetActivity.create({
+				data: {
+					assetId: source.id,
+					userId: actorId ?? null,
+					activity: `Asset restored from cancelled capitalization ${cap.series}`,
+				},
+			});
+		}
+
+		return tx.assetCapitalization.update({
+			where: { id: cap.id },
+			data: { status: "CANCELLED", cancelledAt: new Date() },
+			include: this.assetCapitalizationInclude,
+		});
 	}
 
 	/**

@@ -96,6 +96,12 @@ export class AssetRouter {
 				.input(z.object({ id: z.string().cuid() }))
 				.query(async ({ input }) => svc.findAssetById(input.id)),
 
+			getAssetDepreciationSchedules: assetProcedure
+				.input(Asset.getAssetDepreciationSchedulesSchema)
+				.query(async ({ input }) =>
+					svc.listAssetDepreciationSchedules(input.assetId),
+				),
+
 			getAssetByBarcode: assetProcedure
 				.input(z.object({ barcode: z.string().min(1) }))
 				.query(async ({ input }) => {
@@ -793,15 +799,17 @@ export class AssetRouter {
 
 			scrapAsset: assetProcedure
 				.input(Asset.scrapAssetSchema)
-				.mutation(async ({ input }) => svc.scrapAsset(input)),
+				.mutation(async ({ input, ctx }) => svc.scrapAsset(input, ctx.user.id)),
 
 			sellAsset: assetProcedure
 				.input(Asset.sellAssetSchema)
-				.mutation(async ({ input }) => svc.sellAsset(input)),
+				.mutation(async ({ input, ctx }) => svc.sellAsset(input, ctx.user.id)),
 
 			restoreAsset: assetProcedure
 				.input(Asset.restoreAssetSchema)
-				.mutation(async ({ input }) => svc.restoreAsset(input)),
+				.mutation(async ({ input, ctx }) =>
+					svc.restoreAsset(input, ctx.user.id),
+				),
 
 			createAssetMovement: assetProcedure
 				.input(Asset.createAssetMovementSchema)
@@ -809,11 +817,15 @@ export class AssetRouter {
 
 			submitAssetMovement: assetProcedure
 				.input(Asset.submitAssetMovementSchema)
-				.mutation(async ({ input }) => svc.submitAssetMovement(input)),
+				.mutation(async ({ input, ctx }) =>
+					svc.submitAssetMovement(input, ctx.user.id),
+				),
 
 			cancelAssetMovement: assetProcedure
 				.input(Asset.cancelAssetMovementSchema)
-				.mutation(async ({ input }) => svc.cancelAssetMovement(input)),
+				.mutation(async ({ input, ctx }) =>
+					svc.cancelAssetMovement(input, ctx.user.id),
+				),
 
 			getAssetMovementById: assetProcedure
 				.input(Asset.getAssetMovementSchema)
@@ -825,15 +837,21 @@ export class AssetRouter {
 
 			createAssetRepair: assetProcedure
 				.input(Asset.createAssetRepairSchema)
-				.mutation(async ({ input }) => svc.createAssetRepair(input)),
+				.mutation(async ({ input, ctx }) =>
+					svc.createAssetRepair(input, ctx.user.id),
+				),
 
 			submitAssetRepair: assetProcedure
 				.input(Asset.submitAssetRepairSchema)
-				.mutation(async ({ input }) => svc.submitAssetRepair(input)),
+				.mutation(async ({ input, ctx }) =>
+					svc.submitAssetRepair(input, ctx.user.id),
+				),
 
 			cancelAssetRepair: assetProcedure
 				.input(Asset.cancelAssetRepairSchema)
-				.mutation(async ({ input }) => svc.cancelAssetRepair(input)),
+				.mutation(async ({ input, ctx }) =>
+					svc.cancelAssetRepair(input, ctx.user.id),
+				),
 
 			getAssetRepairById: assetProcedure
 				.input(Asset.getAssetRepairSchema)
@@ -849,11 +867,15 @@ export class AssetRouter {
 
 			submitAssetCapitalization: assetProcedure
 				.input(Asset.submitAssetCapitalizationSchema)
-				.mutation(async ({ input }) => svc.submitAssetCapitalization(input)),
+				.mutation(async ({ input, ctx }) =>
+					svc.submitAssetCapitalization(input, ctx.user.id),
+				),
 
 			cancelAssetCapitalization: assetProcedure
 				.input(Asset.cancelAssetCapitalizationSchema)
-				.mutation(async ({ input }) => svc.cancelAssetCapitalization(input)),
+				.mutation(async ({ input, ctx }) =>
+					svc.cancelAssetCapitalization(input, ctx.user.id),
+				),
 
 			getAssetCapitalizationById: assetProcedure
 				.input(Asset.getAssetCapitalizationSchema)

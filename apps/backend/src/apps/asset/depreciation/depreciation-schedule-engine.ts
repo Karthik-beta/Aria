@@ -201,9 +201,7 @@ const calculateRate = (
 
 	const pendingPeriods = input.totalPeriods - (input.openingBookedPeriods ?? 0);
 	const pendingYears = (pendingPeriods * input.frequencyMonths) / 12;
-	const salvageFloor = openingBookValue * 0.05;
-	const effectiveSalvage = Math.max(input.salvageValue ?? 0, salvageFloor);
-	const ratio = effectiveSalvage / openingBookValue;
+	const ratio = (input.salvageValue ?? 0) / openingBookValue;
 	return round(100 * (1 - ratio ** (1 / pendingYears)), ratePrecision);
 };
 

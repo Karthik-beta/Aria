@@ -1,6 +1,11 @@
 import { afterEach, describe, expect, it } from "bun:test";
 import { Test } from "@nestjs/testing";
 import { DatabaseModule } from "../../../shared/database.module";
+import { CwipCapitalizationProcessor } from "./cwip-capitalization.processor";
+import { CwipCapitalizationDiscoveryService } from "./cwip-capitalization-discovery.service";
+import { CwipCapitalizationExecutionModule } from "./cwip-capitalization-execution.module";
+import { CwipCapitalizationPersistenceService } from "./cwip-capitalization-persistence.service";
+import { CwipCapitalizationQueueClient } from "./cwip-capitalization-queue.client";
 import {
 	DemoDepreciationModule,
 	runWithDemoDepreciationApplication,
@@ -34,6 +39,10 @@ describe("DepreciationProcessingModule", () => {
 		await module.init();
 
 		expect(module.get(DepreciationPersistenceService)).toBeDefined();
+		expect(module.get(CwipCapitalizationDiscoveryService)).toBeDefined();
+		expect(module.get(CwipCapitalizationPersistenceService)).toBeDefined();
+		expect(module.get(CwipCapitalizationQueueClient)).toBeDefined();
+		expect(module.get(CwipCapitalizationProcessor)).toBeDefined();
 		expect(module.get(DepreciationMetrics)).toBeDefined();
 		expect(module.get(DepreciationQueueClient)).toBeDefined();
 		expect(module.get(DepreciationSchedulerService)).toBeDefined();
@@ -41,6 +50,8 @@ describe("DepreciationProcessingModule", () => {
 		expect(module.get(DepreciationProcessor)).toBeDefined();
 		await module.get(DepreciationQueueClient).checkReady();
 		await module.get(DepreciationProcessor).checkReady();
+		await module.get(CwipCapitalizationQueueClient).checkReady();
+		await module.get(CwipCapitalizationProcessor).checkReady();
 
 		await module.close();
 	});
@@ -48,6 +59,7 @@ describe("DepreciationProcessingModule", () => {
 	it("builds the demo execution graph without an automatic scheduler", () => {
 		const imports = Reflect.getMetadata("imports", DemoDepreciationModule);
 		expect(imports).toContain(DepreciationExecutionModule);
+		expect(imports).not.toContain(CwipCapitalizationExecutionModule);
 		expect(imports).not.toContain(DepreciationProcessingModule);
 	});
 

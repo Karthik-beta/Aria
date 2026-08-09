@@ -153,7 +153,7 @@ describe("buildDepreciationSchedule", () => {
 		]);
 	});
 
-	it("enforces 5 percent salvage floor for WDV rate when salvage is zero or missing", () => {
+	it("mirrors ERPNext's 100 percent WDV rate for zero salvage without an explicit rate", () => {
 		const result = buildDepreciationSchedule({
 			financeBookId: "zero-salvage-book",
 			method: "WRITTEN_DOWN_VALUE",
@@ -165,8 +165,13 @@ describe("buildDepreciationSchedule", () => {
 			salvageValue: 0,
 		});
 
-		expect(result.ratePercent).toBe(63.16);
-		expect(result.entries).toHaveLength(3);
+		expect(result.ratePercent).toBe(100);
+		expect(result.entries).toEqual([
+			expect.objectContaining({
+				depreciationAmount: 100_000,
+				bookValueAfterDepreciation: 0,
+			}),
+		]);
 	});
 
 	it("ports ERPNext's daily pro-rata WDV fixture across fiscal years", () => {

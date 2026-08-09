@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, mock } from "bun:test";
 import { SchedulerRegistry } from "@nestjs/schedule";
 import type { PrismaService } from "../../../shared/prisma.service";
 import type { AssetDepreciationLifecycleService } from "./asset-depreciation-lifecycle.service";
+import type { CwipCapitalizationDiscoveryService } from "./cwip-capitalization-discovery.service";
 import type { DepreciationMetrics } from "./depreciation.metrics";
 import type { DepreciationDiscoveryService } from "./depreciation-discovery.service";
 import { DepreciationSchedulerService } from "./depreciation-scheduler.service";
@@ -13,6 +14,15 @@ afterEach(() => {
 });
 
 describe("DepreciationSchedulerService", () => {
+	const cwipDiscovery = {
+		discover: mock(async () => ({
+			discovered: 0,
+			qualified: 0,
+			enqueued: 0,
+			duplicateSkipped: 0,
+		})),
+	} as unknown as CwipCapitalizationDiscoveryService;
+
 	it("uses one idempotent path for startup, cron, and reconciliation, and registers 4 cron jobs", async () => {
 		process.env.APP_TIME_ZONE = "UTC";
 		process.env.ASSET_DEPRECIATION_RECONCILIATION_INTERVAL_MS = "900000";
@@ -31,6 +41,7 @@ describe("DepreciationSchedulerService", () => {
 			lifecycle as unknown as AssetDepreciationLifecycleService,
 			discovery as unknown as DepreciationDiscoveryService,
 			metrics as unknown as DepreciationMetrics,
+			cwipDiscovery,
 		);
 
 		await scheduler.onApplicationBootstrap();
@@ -44,6 +55,7 @@ describe("DepreciationSchedulerService", () => {
 			"cron",
 			"reconciliation",
 		]);
+		expect(cwipDiscovery.discover).toHaveBeenCalledWith(expect.any(String));
 
 		// Verify all 4 daily cron jobs were registered
 		expect(
@@ -94,6 +106,7 @@ describe("DepreciationSchedulerService", () => {
 			lifecycle as unknown as AssetDepreciationLifecycleService,
 			discovery as unknown as DepreciationDiscoveryService,
 			metrics as unknown as DepreciationMetrics,
+			cwipDiscovery,
 		);
 
 		await expect(scheduler.onApplicationBootstrap()).resolves.toBeUndefined();
@@ -122,6 +135,7 @@ describe("DepreciationSchedulerService", () => {
 			{} as unknown as AssetDepreciationLifecycleService,
 			{} as unknown as DepreciationDiscoveryService,
 			{} as unknown as DepreciationMetrics,
+			cwipDiscovery,
 			prismaMock,
 		);
 
@@ -132,38 +146,27 @@ describe("DepreciationSchedulerService", () => {
 		expect(updateManyAssetMock).toHaveBeenCalledTimes(2);
 	});
 
-	it("executes postCwipCapitalizationGlEntries daily job correctly", async () => {
-		const findManyAssetMock = mock(async () => [
-			{ id: "asset-cwip-1", assetName: "Building A" },
-		]);
-		const updateAssetMock = mock(async () => ({
-			id: "asset-cwip-1",
-			status: "SUBMITTED",
-		}));
-
-		const prismaMock = {
-			asset: {
-				findMany: findManyAssetMock,
-				update: updateAssetMock,
-			},
-		} as unknown as PrismaService;
-
+	it("discovers CWIP jobs without mutating asset or stock state", async () => {
+		const cwipDiscovery = {
+			discover: mock(async () => ({
+				discovered: 1,
+				qualified: 1,
+				enqueued: 1,
+				duplicateSkipped: 0,
+			})),
+		};
 		const registry = new SchedulerRegistry();
 		const scheduler = new DepreciationSchedulerService(
 			registry,
 			{} as unknown as AssetDepreciationLifecycleService,
 			{} as unknown as DepreciationDiscoveryService,
 			{} as unknown as DepreciationMetrics,
-			prismaMock,
+			cwipDiscovery as unknown as CwipCapitalizationDiscoveryService,
 		);
 
-		await scheduler.postCwipCapitalizationGlEntries();
+		await scheduler.postCwipCapitalizationGlEntries("2026-08-09");
 
-		expect(findManyAssetMock).toHaveBeenCalled();
-		expect(updateAssetMock).toHaveBeenCalledWith({
-			where: { id: "asset-cwip-1" },
-			data: { status: "SUBMITTED" },
-		});
+		expect(cwipDiscovery.discover).toHaveBeenCalledWith("2026-08-09");
 	});
 
 	it("executes updateMaintenanceLogStatus daily job correctly", async () => {
@@ -187,6 +190,7 @@ describe("DepreciationSchedulerService", () => {
 			{} as unknown as AssetDepreciationLifecycleService,
 			{} as unknown as DepreciationDiscoveryService,
 			{} as unknown as DepreciationMetrics,
+			cwipDiscovery,
 			prismaMock,
 		);
 

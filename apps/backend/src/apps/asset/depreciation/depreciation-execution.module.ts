@@ -2,6 +2,7 @@ import { BullModule } from "@nestjs/bullmq";
 import { Module } from "@nestjs/common";
 import { PrismaService } from "../../../shared/prisma.service";
 import { AssetDepreciationLifecycleService } from "./asset-depreciation-lifecycle.service";
+import { AssetDepreciationRevisionService } from "./asset-depreciation-revision.service";
 import {
 	depreciationJobOptions,
 	depreciationRedisConnection,
@@ -30,6 +31,7 @@ import {
 		}),
 	],
 	providers: [
+		AssetDepreciationRevisionService,
 		DepreciationQueueClient,
 		DepreciationMetrics,
 		DepreciationQueueSignal,
@@ -91,6 +93,7 @@ import {
 	],
 	exports: [
 		AssetDepreciationLifecycleService,
+		AssetDepreciationRevisionService,
 		DepreciationDiscoveryService,
 		DepreciationBarrierService,
 		DepreciationMetrics,

@@ -88,6 +88,30 @@ describe("buildDepreciationSchedulePreview", () => {
 	});
 
 	describe("WRITTEN_DOWN_VALUE", () => {
+		it("derives ERPNext's 100 percent rate for zero salvage when no rate is supplied", async () => {
+			const result = await buildDepreciationSchedulePreview({
+				...baseInput,
+				adjustmentDate: new Date("2026-04-30T00:00:00.000Z"),
+				currentAssetValue: 100_000,
+				newAssetValue: 100_000,
+				purchaseAmount: 100_000,
+				openingAccumulatedDepreciation: 0,
+				bookedDepreciations: 0,
+				depreciationMethod: "WRITTEN_DOWN_VALUE",
+				totalNumberOfDepreciations: 3,
+				frequencyOfDepreciation: 12,
+				rateOfDepreciation: null,
+				expectedValueAfterUsefulLife: 0,
+			});
+
+			expect(result?.entries).toEqual([
+				expect.objectContaining({
+					depreciationAmount: 100_000,
+					bookValueAfterDepreciation: 0,
+				}),
+			]);
+		});
+
 		it("calculates declining depreciation based on rate", async () => {
 			const input: BuildDepreciationSchedulePreviewInput = {
 				...baseInput,

@@ -186,16 +186,11 @@ const getWDVAnnualRate = (
 		return input.rateOfDepreciation / 100;
 	}
 
-	const salvageFloor = currentAssetValue * 0.05;
-	const effectiveSalvage = Math.max(
-		input.expectedValueAfterUsefulLife ?? 0,
-		salvageFloor,
-	);
-	if (pendingYears <= 0 || currentAssetValue <= 0 || effectiveSalvage <= 0) {
+	const expectedSalvage = input.expectedValueAfterUsefulLife ?? 0;
+	if (pendingYears <= 0 || currentAssetValue <= 0) {
 		return 0;
 	}
-	const ratio = effectiveSalvage / currentAssetValue;
-	if (ratio <= 0) return 0;
+	const ratio = expectedSalvage / currentAssetValue;
 	return 1 - ratio ** (1.0 / pendingYears);
 };
 

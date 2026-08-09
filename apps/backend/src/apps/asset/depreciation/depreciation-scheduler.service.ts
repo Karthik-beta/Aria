@@ -11,6 +11,8 @@ import { CronJob } from "cron";
 import { PrismaService } from "../../../shared/prisma.service";
 // biome-ignore lint/style/useImportType: Nest resolves this runtime constructor token from decorator metadata.
 import { AssetDepreciationLifecycleService } from "./asset-depreciation-lifecycle.service";
+// biome-ignore lint/style/useImportType: Nest resolves this runtime constructor token from decorator metadata.
+import { CwipCapitalizationDiscoveryService } from "./cwip-capitalization-discovery.service";
 import {
 	businessDate,
 	depreciationReconciliationIntervalMs,
@@ -43,6 +45,7 @@ export class DepreciationSchedulerService
 		private readonly lifecycle: AssetDepreciationLifecycleService,
 		private readonly discovery: DepreciationDiscoveryService,
 		private readonly metrics: DepreciationMetrics,
+		private readonly cwipDiscovery: CwipCapitalizationDiscoveryService,
 		private readonly prisma?: PrismaService,
 	) {}
 
@@ -103,7 +106,11 @@ export class DepreciationSchedulerService
 		updateMaintLogJob.start();
 
 		const reconciliation = setInterval(
-			() => void this.runDiscovery("reconciliation"),
+			() =>
+				void Promise.all([
+					this.runDiscovery("reconciliation"),
+					this.postCwipCapitalizationGlEntries(businessDate(this.timeZone)),
+				]),
 			depreciationReconciliationIntervalMs(),
 		);
 		this.schedulerRegistry.addInterval(
@@ -111,7 +118,10 @@ export class DepreciationSchedulerService
 			reconciliation,
 		);
 
-		await this.runDiscovery("startup");
+		await Promise.all([
+			this.runDiscovery("startup"),
+			this.postCwipCapitalizationGlEntries(businessDate(this.timeZone)),
+		]);
 	}
 
 	onApplicationShutdown(): void {
@@ -238,32 +248,18 @@ export class DepreciationSchedulerService
 	}
 
 	/**
-	 * Daily cron job (00:10) that capitalizes CWIP assets reaching availableForUseDate <= today().
+	 * Discovers due CWIP assets for queue execution at startup, reconciliation,
+	 * and the daily 00:10 catch-up.
 	 */
-	async postCwipCapitalizationGlEntries(): Promise<void> {
-		if (!this.prisma) return;
-		const today = new Date();
-		today.setHours(23, 59, 59, 999);
-
+	async postCwipCapitalizationGlEntries(
+		throughDate: Date | string = businessDate(this.timeZone),
+	): Promise<void> {
 		try {
-			const cwipAssets = await this.prisma.asset.findMany({
-				where: {
-					status: "DRAFT",
-					availableForUseDate: { lte: today },
-				},
-				select: { id: true, assetName: true },
+			const result = await this.cwipDiscovery.discover(throughDate);
+			this.logger.log({
+				event: "asset_cwip_capitalization_scheduled",
+				...result,
 			});
-
-			for (const asset of cwipAssets) {
-				await this.prisma.asset.update({
-					where: { id: asset.id },
-					data: { status: "SUBMITTED" },
-				});
-			}
-
-			this.logger.log(
-				`[postCwipCapitalizationGlEntries] Capitalized ${cwipAssets.length} CWIP assets.`,
-			);
 		} catch (error) {
 			this.logger.error({
 				event: "post_cwip_capitalization_gl_entries_failed",

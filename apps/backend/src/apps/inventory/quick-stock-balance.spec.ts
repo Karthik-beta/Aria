@@ -394,6 +394,32 @@ describe("InventoryService.getQuickStockBalance", () => {
 			// stockValue = 10 qty × 500 valuationRate
 			expect(result.stockValue).toBe(5000);
 			expect(result.barcodes).toEqual(["BC-001", "BC-002"]);
+			expect(mockPrisma.stockEntryItem.findMany).toHaveBeenCalledWith(
+				expect.objectContaining({
+					where: expect.objectContaining({
+						stockEntry: expect.objectContaining({ status: "SUBMITTED" }),
+					}),
+				}),
+			);
+		});
+
+		it("excludes draft and cancelled movements at the database query", async () => {
+			mockPrisma.inventoryItem.findFirst.mockResolvedValue(MOCK_ITEM);
+			mockPrisma.stockEntryItem.findMany.mockResolvedValue([]);
+
+			await service.getQuickStockBalance({
+				warehouse: "Stores - GH",
+				date: new Date("2026-03-26"),
+				itemCode: "ITEM-001",
+			});
+
+			expect(mockPrisma.stockEntryItem.findMany).toHaveBeenCalledWith(
+				expect.objectContaining({
+					where: expect.objectContaining({
+						stockEntry: expect.objectContaining({ status: "SUBMITTED" }),
+					}),
+				}),
+			);
 		});
 
 		it("returns zero quantity and value when there are no submitted movements", async () => {

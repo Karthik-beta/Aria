@@ -1,0 +1,212 @@
+import { HttpException, Injectable } from "@nestjs/common";
+import { Prisma } from "../../../generated/prisma/client";
+import type { PrismaService } from "../../../shared/prisma.service";
+import type { AssetAccountingService } from "../asset-accounting.service";
+import type {
+	CwipCapitalizationJobData,
+	CwipCapitalizationJobResult,
+} from "./cwip-capitalization.types";
+import { normalizeDateOnly } from "./depreciation.config";
+
+interface CwipWorkerAsset {
+	id: string;
+	series: string;
+	company: string;
+	status: string;
+	availableForUseDate: Date | null;
+	netPurchaseAmount: unknown;
+	cwipAccountingEntryId: string | null;
+	assetCategory: {
+		enableCwipAccounting: boolean;
+		accounts: Array<{
+			fixedAssetAccount: string;
+			capitalWorkInProgressAccount: string | null;
+			company: { name: string };
+		}>;
+	} | null;
+}
+
+interface CwipDelegate {
+	findUnique<T>(args: unknown): Promise<T | null>;
+	updateMany(args: unknown): Promise<{ count: number }>;
+}
+
+interface CwipTransaction {
+	asset: CwipDelegate;
+	$queryRaw<T>(query: unknown): Promise<T>;
+}
+
+interface CwipDatabase extends CwipTransaction {
+	$transaction<T>(
+		callback: (transaction: CwipTransaction) => Promise<T>,
+	): Promise<T>;
+}
+
+/** Permanent worker validation error that should not consume every retry. */
+export class CwipCapitalizationValidationError extends Error {
+	constructor(message: string) {
+		super(message);
+		this.name = "CwipCapitalizationValidationError";
+	}
+}
+
+/** Revalidates and posts one CWIP asset atomically under an asset lock. */
+@Injectable()
+export class CwipCapitalizationPersistenceService {
+	private readonly db: CwipDatabase;
+
+	constructor(
+		prisma: PrismaService,
+		private readonly accounting: AssetAccountingService,
+	) {
+		this.db = prisma.client as unknown as CwipDatabase;
+	}
+
+	async post(
+		job: CwipCapitalizationJobData,
+	): Promise<CwipCapitalizationJobResult> {
+		return this.db.$transaction(async (tx) => {
+			await tx.$queryRaw(Prisma.sql`
+				SELECT pg_advisory_xact_lock(hashtext(${job.assetId})) IS NULL AS "locked"
+			`);
+
+			const asset = await tx.asset.findUnique<CwipWorkerAsset>({
+				where: { id: job.assetId },
+				select: {
+					id: true,
+					series: true,
+					company: true,
+					status: true,
+					availableForUseDate: true,
+					netPurchaseAmount: true,
+					cwipAccountingEntryId: true,
+					assetCategory: {
+						select: {
+							enableCwipAccounting: true,
+							accounts: {
+								select: {
+									fixedAssetAccount: true,
+									capitalWorkInProgressAccount: true,
+									company: { select: { name: true } },
+								},
+							},
+						},
+					},
+				},
+			});
+			if (!asset) {
+				return {
+					status: "skipped-stale",
+					reason: `Asset ${job.assetId} no longer exists`,
+				};
+			}
+			if (asset.cwipAccountingEntryId) {
+				return {
+					status: "already-posted",
+					accountingEntryId: asset.cwipAccountingEntryId,
+				};
+			}
+
+			const staleReason = this.staleReason(asset, job);
+			if (staleReason) {
+				return { status: "skipped-stale", reason: staleReason };
+			}
+
+			const categoryAccount = asset.assetCategory?.accounts.find(
+				(account) => account.company.name === asset.company,
+			);
+			const fixedAssetAccount = categoryAccount?.fixedAssetAccount.trim();
+			const cwipAccount = categoryAccount?.capitalWorkInProgressAccount?.trim();
+			if (!fixedAssetAccount || !cwipAccount) {
+				throw new CwipCapitalizationValidationError(
+					`Fixed asset and CWIP accounts are not configured for ${asset.series}.`,
+				);
+			}
+
+			const amount = Number(asset.netPurchaseAmount);
+			if (!Number.isFinite(amount) || amount <= 0) {
+				throw new CwipCapitalizationValidationError(
+					`Asset ${asset.series} must have a positive purchase amount for CWIP capitalization.`,
+				);
+			}
+
+			let accountingEntry: Awaited<
+				ReturnType<AssetAccountingService["createPostedEntry"]>
+			>;
+			try {
+				accountingEntry = await this.accounting.createPostedEntry(
+					tx as unknown as Prisma.TransactionClient,
+					{
+						company: asset.company,
+						assetId: asset.id,
+						sourceType: "CWIP_CAPITALIZATION",
+						sourceId: asset.id,
+						postingDate: asset.availableForUseDate as Date,
+						remarks: `CWIP capitalization for ${asset.series}`,
+						lines: [
+							{
+								account: fixedAssetAccount,
+								debitAmount: amount,
+								creditAmount: 0,
+							},
+							{
+								account: cwipAccount,
+								debitAmount: 0,
+								creditAmount: amount,
+							},
+						],
+					},
+				);
+			} catch (error) {
+				if (error instanceof HttpException) {
+					throw new CwipCapitalizationValidationError(error.message);
+				}
+				throw error;
+			}
+
+			const linked = await tx.asset.updateMany({
+				where: {
+					id: asset.id,
+					status: "SUBMITTED",
+					cwipAccountingEntryId: null,
+				},
+				data: {
+					cwipAccountingEntryId: accountingEntry.id,
+					cwipBookedAt: new Date(),
+				},
+			});
+			if (linked.count !== 1) {
+				throw new Error(
+					`Asset ${asset.series} changed while its CWIP accounting entry was being posted.`,
+				);
+			}
+
+			return {
+				status:
+					accountingEntry.status === "POSTED" ? "posted" : "already-posted",
+				accountingEntryId: accountingEntry.id,
+			};
+		});
+	}
+
+	private staleReason(
+		asset: CwipWorkerAsset,
+		job: CwipCapitalizationJobData,
+	): string | null {
+		if (asset.status !== "SUBMITTED") {
+			return `Asset ${asset.series} is ${asset.status}, not SUBMITTED`;
+		}
+		if (!asset.assetCategory?.enableCwipAccounting) {
+			return `CWIP accounting is no longer enabled for ${asset.series}`;
+		}
+		if (!asset.availableForUseDate) {
+			return `Asset ${asset.series} no longer has an available-for-use date`;
+		}
+		if (
+			normalizeDateOnly(asset.availableForUseDate) !== job.availableForUseDate
+		) {
+			return `Asset ${asset.series} available-for-use date changed after discovery`;
+		}
+		return null;
+	}
+}

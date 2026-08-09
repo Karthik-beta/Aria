@@ -31,7 +31,8 @@ export class FixedAssetRegisterReportService {
 		toDate.setHours(23, 59, 59, 999);
 
 		const where: Record<string, unknown> = {
-			purchaseDate: { lte: toDate },
+			purchaseDate: { gte: fromDate, lte: toDate },
+			status: { notIn: ["DRAFT", "CANCELLED"] },
 		};
 
 		if (input.company) {
@@ -56,16 +57,22 @@ export class FixedAssetRegisterReportService {
 				valueAdjustments: {
 					where: {
 						status: "SUBMITTED",
-						adjustmentDate: { lte: toDate },
+						adjustmentDate: { gte: fromDate, lte: toDate },
 					},
 					select: { differenceAmount: true, adjustmentDate: true },
 				},
 				depreciationSchedules: {
-					where: { status: "ACTIVE" },
 					include: {
 						entries: {
-							where: { scheduleDate: { lte: toDate } },
-							select: { depreciationAmount: true, scheduleDate: true },
+							where: {
+								postingId: { not: null },
+								scheduleDate: { gte: fromDate, lte: toDate },
+							},
+							select: {
+								depreciationAmount: true,
+								scheduleDate: true,
+								postingId: true,
+							},
 						},
 					},
 				},
@@ -109,6 +116,13 @@ export class FixedAssetRegisterReportService {
 			let depAmt = 0;
 			for (const sched of asset.depreciationSchedules) {
 				for (const entry of sched.entries) {
+					if (
+						!entry.postingId ||
+						entry.scheduleDate < fromDate ||
+						entry.scheduleDate > toDate
+					) {
+						continue;
+					}
 					const entryDep = Number(entry.depreciationAmount ?? 0);
 					depAmt += entryDep;
 
@@ -133,7 +147,8 @@ export class FixedAssetRegisterReportService {
 				revalAmt += Number(adj.differenceAmount ?? 0);
 			}
 
-			// NBV = netPurchaseAmount - openingAccumulatedDepreciation - depreciatedAmount + revaluationAmount
+			// ERPNext fixed-asset-register semantics: opening balance plus
+			// posted depreciation and submitted revaluations within the period.
 			const nbv = purchaseAmt - openingDep - depAmt + revalAmt;
 
 			let groupingKey = "UNGROUPED";

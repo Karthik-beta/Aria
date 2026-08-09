@@ -69,6 +69,23 @@ describe("InventoryService > Report", () => {
 					skip: 0,
 					take: 25,
 					include: { stockEntry: true },
+					where: {
+						stockEntry: { status: "SUBMITTED" },
+					},
+				}),
+			);
+		});
+
+		it("excludes draft and cancelled ledger movements by default", async () => {
+			mockPrisma.stockEntryItem.findMany.mockResolvedValue([]);
+
+			await service.findStockLedger();
+
+			expect(mockPrisma.stockEntryItem.findMany).toHaveBeenCalledWith(
+				expect.objectContaining({
+					where: {
+						stockEntry: { status: "SUBMITTED" },
+					},
 				}),
 			);
 		});
@@ -203,6 +220,7 @@ describe("InventoryService > Report", () => {
 			expect(getRawSqlCall().text).toContain(
 				`GROUP BY company, "itemCode", warehouse`,
 			);
+			expect(getRawSqlCall().values).toContain("SUBMITTED");
 		});
 
 		it("should map filters and preserve zero-balance rows only when requested", async () => {
@@ -304,6 +322,7 @@ describe("InventoryService > Report", () => {
 				company: "Aria Corp",
 				movementType: "IN",
 			});
+			expect(getRawSqlCall().values).toContain("SUBMITTED");
 		});
 
 		it("should map filters and bound pagination for warehouse-wise rows", async () => {

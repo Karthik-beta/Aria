@@ -3,7 +3,7 @@ import type { PrismaService } from "../../../shared/prisma.service";
 import { FixedAssetRegisterReportService } from "../fixed-asset-register-report";
 
 describe("FixedAssetRegisterReportService", () => {
-	it("computes Net Book Value formula (netPurchaseAmount - openingDep - depreciatedAmount + revaluationAmount) and groups by ASSET_CATEGORY", async () => {
+	it("uses opening depreciation and posted in-period movements only", async () => {
 		const mockAssets = [
 			{
 				id: "asset-1",
@@ -30,10 +30,22 @@ describe("FixedAssetRegisterReportService", () => {
 							{
 								depreciationAmount: 1000,
 								scheduleDate: new Date("2026-01-31T00:00:00.000Z"),
+								postingId: "posting-jan",
 							},
 							{
 								depreciationAmount: 1000,
 								scheduleDate: new Date("2026-02-28T00:00:00.000Z"),
+								postingId: "posting-feb",
+							},
+							{
+								depreciationAmount: 4000,
+								scheduleDate: new Date("2026-03-31T00:00:00.000Z"),
+								postingId: null,
+							},
+							{
+								depreciationAmount: 700,
+								scheduleDate: new Date("2025-12-31T00:00:00.000Z"),
+								postingId: "posting-before-period",
 							},
 						],
 					},
@@ -41,9 +53,10 @@ describe("FixedAssetRegisterReportService", () => {
 			},
 		];
 
+		const findMany = mock(async () => mockAssets);
 		const prismaMock = {
 			asset: {
-				findMany: mock(async () => mockAssets),
+				findMany,
 			},
 		} as unknown as PrismaService;
 
@@ -74,6 +87,24 @@ describe("FixedAssetRegisterReportService", () => {
 		const janPoint = result.chartPoints.find((p) => p.month === "2026-01");
 		expect(janPoint?.assetValue).toBe(100000);
 		expect(janPoint?.depreciatedAmount).toBe(1000);
+
+		const findManyInput = findMany.mock.calls[0]?.[0];
+		expect(findManyInput.where).toMatchObject({
+			purchaseDate: {
+				gte: new Date("2026-01-01T00:00:00.000Z"),
+				lte: new Date("2026-03-31T23:59:59.999Z"),
+			},
+			status: { notIn: ["DRAFT", "CANCELLED"] },
+		});
+		expect(
+			findManyInput.include.depreciationSchedules.include.entries.where,
+		).toMatchObject({
+			postingId: { not: null },
+			scheduleDate: {
+				gte: new Date("2026-01-01T00:00:00.000Z"),
+				lte: new Date("2026-03-31T23:59:59.999Z"),
+			},
+		});
 	});
 
 	it("groups assets by LOCATION and computes summary across multiple assets", async () => {
@@ -98,6 +129,7 @@ describe("FixedAssetRegisterReportService", () => {
 							{
 								depreciationAmount: 500,
 								scheduleDate: new Date("2026-01-31T00:00:00.000Z"),
+								postingId: "posting-laptop-jan",
 							},
 						],
 					},
