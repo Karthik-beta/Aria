@@ -421,7 +421,10 @@ describe("AssetService > AssetValueAdjustment", () => {
 			}),
 		);
 
-		const result = await service.submitAssetValueAdjustment({ id: "adj-001" });
+		const result = await service.submitAssetValueAdjustment(
+			{ id: "adj-001" },
+			"actor-001",
+		);
 
 		expect(mockDepreciationRevision.revise).toHaveBeenCalledWith(
 			mockTx,
@@ -439,6 +442,9 @@ describe("AssetService > AssetValueAdjustment", () => {
 				valueAfterDepreciation: "90000",
 				status: "PARTIALLY_DEPRECIATED",
 			}),
+		});
+		expect(mockTx.assetActivity.create).toHaveBeenCalledWith({
+			data: expect.objectContaining({ userId: "actor-001" }),
 		});
 		expect(result.status).toBe("SUBMITTED");
 		expect(result.revaluationEntry?.series).toBe("JE-AVA-2026-00001");

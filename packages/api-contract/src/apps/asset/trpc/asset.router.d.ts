@@ -671,7 +671,6 @@ type AssetRouterInput = {
 			assetId: string;
 			disposalDate: unknown;
 			notes?: string | null | undefined;
-			userId?: string | null | undefined;
 		};
 		output: Asset.AssetDisposal;
 		meta: object;
@@ -682,7 +681,6 @@ type AssetRouterInput = {
 			disposalDate: unknown;
 			salesAmount: number;
 			notes?: string | null | undefined;
-			userId?: string | null | undefined;
 		};
 		output: Asset.AssetDisposal;
 		meta: object;

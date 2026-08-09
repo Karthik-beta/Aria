@@ -66,12 +66,14 @@ export class FixedAssetRegisterReportService {
 						entries: {
 							where: {
 								postingId: { not: null },
+								posting: { is: { status: "POSTED" } },
 								scheduleDate: { gte: fromDate, lte: toDate },
 							},
 							select: {
 								depreciationAmount: true,
 								scheduleDate: true,
 								postingId: true,
+								posting: { select: { status: true } },
 							},
 						},
 					},
@@ -118,6 +120,7 @@ export class FixedAssetRegisterReportService {
 				for (const entry of sched.entries) {
 					if (
 						!entry.postingId ||
+						(entry.posting && entry.posting.status !== "POSTED") ||
 						entry.scheduleDate < fromDate ||
 						entry.scheduleDate > toDate
 					) {

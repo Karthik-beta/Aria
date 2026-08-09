@@ -50,6 +50,7 @@ export class AssetRouter {
 	getRouter() {
 		const svc = this.assetService;
 		const assetProcedure = orgProcedure();
+		const assetWriteProcedure = orgProcedure(["owner", "admin"]);
 
 		return router({
 			// ── Finance Books ──────────────────────────────────────────────────
@@ -57,15 +58,15 @@ export class AssetRouter {
 				.input(Asset.listFinanceBooksSchema)
 				.query(async ({ input }) => svc.findAllFinanceBooks(input)),
 
-			createFinanceBook: assetProcedure
+			createFinanceBook: assetWriteProcedure
 				.input(Asset.createFinanceBookSchema)
 				.mutation(async ({ input }) => svc.createFinanceBook(input)),
 
-			updateFinanceBook: assetProcedure
+			updateFinanceBook: assetWriteProcedure
 				.input(Asset.updateFinanceBookSchema)
 				.mutation(async ({ input }) => svc.updateFinanceBook(input)),
 
-			deleteFinanceBook: assetProcedure
+			deleteFinanceBook: assetWriteProcedure
 				.input(z.object({ id: z.string().cuid() }))
 				.mutation(async ({ input }) => svc.deleteFinanceBook(input.id)),
 
@@ -115,10 +116,10 @@ export class AssetRouter {
 					return asset;
 				}),
 
-			createAsset: assetProcedure
+			createAsset: assetWriteProcedure
 				.input(Asset.createAssetSchema)
-				.mutation(async ({ input }) => {
-					const asset = await svc.createAsset(input);
+				.mutation(async ({ input, ctx }) => {
+					const asset = await svc.createAsset(input, ctx.user.id);
 					this.eventEmitter.emit("assetsChanged", {
 						type: "created",
 						data: asset,
@@ -126,10 +127,10 @@ export class AssetRouter {
 					return asset;
 				}),
 
-			updateAsset: assetProcedure
+			updateAsset: assetWriteProcedure
 				.input(Asset.updateAssetSchema)
-				.mutation(async ({ input }) => {
-					const asset = await svc.updateAsset(input);
+				.mutation(async ({ input, ctx }) => {
+					const asset = await svc.updateAsset(input, ctx.user.id);
 					this.eventEmitter.emit("assetsChanged", {
 						type: "updated",
 						data: asset,
@@ -137,7 +138,7 @@ export class AssetRouter {
 					return asset;
 				}),
 
-			submitAsset: assetProcedure
+			submitAsset: assetWriteProcedure
 				.input(z.object({ id: z.string().cuid() }))
 				.mutation(async ({ input }) => {
 					const asset = await svc.submitAsset(input.id);
@@ -148,7 +149,7 @@ export class AssetRouter {
 					return asset;
 				}),
 
-			cancelAsset: assetProcedure
+			cancelAsset: assetWriteProcedure
 				.input(z.object({ id: z.string().cuid() }))
 				.mutation(async ({ input }) => {
 					const asset = await svc.cancelAsset(input.id);
@@ -159,7 +160,7 @@ export class AssetRouter {
 					return asset;
 				}),
 
-			deleteAsset: assetProcedure
+			deleteAsset: assetWriteProcedure
 				.input(z.object({ id: z.string().cuid() }))
 				.mutation(async ({ input }) => {
 					const result = await svc.deleteAsset(input.id);
@@ -170,7 +171,7 @@ export class AssetRouter {
 					return result;
 				}),
 
-			deleteManyAssets: assetProcedure
+			deleteManyAssets: assetWriteProcedure
 				.input(Asset.bulkDeleteAssetsSchema)
 				.mutation(async ({ input }) => {
 					const result = await svc.deleteManyAssets(input.ids);
@@ -196,7 +197,7 @@ export class AssetRouter {
 				.input(Asset.previewAssetValueAdjustmentSchema)
 				.query(async ({ input }) => svc.previewAssetValueAdjustment(input)),
 
-			createAssetValueAdjustment: assetProcedure
+			createAssetValueAdjustment: assetWriteProcedure
 				.input(Asset.createAssetValueAdjustmentSchema)
 				.mutation(async ({ input }) => {
 					const adjustment = await svc.createAssetValueAdjustment(input);
@@ -207,7 +208,7 @@ export class AssetRouter {
 					return adjustment;
 				}),
 
-			updateAssetValueAdjustment: assetProcedure
+			updateAssetValueAdjustment: assetWriteProcedure
 				.input(Asset.updateAssetValueAdjustmentSchema)
 				.mutation(async ({ input }) => {
 					const adjustment = await svc.updateAssetValueAdjustment(input);
@@ -218,10 +219,13 @@ export class AssetRouter {
 					return adjustment;
 				}),
 
-			submitAssetValueAdjustment: assetProcedure
+			submitAssetValueAdjustment: assetWriteProcedure
 				.input(Asset.submitAssetValueAdjustmentSchema)
-				.mutation(async ({ input }) => {
-					const adjustment = await svc.submitAssetValueAdjustment(input);
+				.mutation(async ({ input, ctx }) => {
+					const adjustment = await svc.submitAssetValueAdjustment(
+						input,
+						ctx.user.id,
+					);
 					this.eventEmitter.emit("assetValueAdjustmentsChanged", {
 						type: "submitted",
 						data: adjustment,
@@ -241,10 +245,13 @@ export class AssetRouter {
 					return adjustment;
 				}),
 
-			cancelAssetValueAdjustment: assetProcedure
+			cancelAssetValueAdjustment: assetWriteProcedure
 				.input(Asset.cancelAssetValueAdjustmentSchema)
-				.mutation(async ({ input }) => {
-					const adjustment = await svc.cancelAssetValueAdjustment(input);
+				.mutation(async ({ input, ctx }) => {
+					const adjustment = await svc.cancelAssetValueAdjustment(
+						input,
+						ctx.user.id,
+					);
 					this.eventEmitter.emit("assetValueAdjustmentsChanged", {
 						type: "cancelled",
 						data: adjustment,
@@ -264,7 +271,7 @@ export class AssetRouter {
 					return adjustment;
 				}),
 
-			deleteAssetValueAdjustment: assetProcedure
+			deleteAssetValueAdjustment: assetWriteProcedure
 				.input(Asset.deleteAssetValueAdjustmentSchema)
 				.mutation(async ({ input }) => {
 					const result = await svc.deleteAssetValueAdjustment(input.id);
@@ -326,7 +333,7 @@ export class AssetRouter {
 				.input(z.object({ id: z.string().cuid() }))
 				.query(async ({ input }) => svc.findAssetCategoryById(input.id)),
 
-			createAssetCategory: assetProcedure
+			createAssetCategory: assetWriteProcedure
 				.input(Asset.createAssetCategorySchema)
 				.mutation(async ({ input }) => {
 					const cat = await svc.createAssetCategory(input);
@@ -337,7 +344,7 @@ export class AssetRouter {
 					return cat;
 				}),
 
-			updateAssetCategory: assetProcedure
+			updateAssetCategory: assetWriteProcedure
 				.input(Asset.updateAssetCategorySchema)
 				.mutation(async ({ input }) => {
 					const cat = await svc.updateAssetCategory(input);
@@ -348,7 +355,7 @@ export class AssetRouter {
 					return cat;
 				}),
 
-			deleteAssetCategory: assetProcedure
+			deleteAssetCategory: assetWriteProcedure
 				.input(z.object({ id: z.string().cuid() }))
 				.mutation(async ({ input }) => {
 					const result = await svc.deleteAssetCategory(input.id);
@@ -797,31 +804,31 @@ export class AssetRouter {
 
 			// ── Phase 2 Lifecycle Procedures ─────────────────────────────────
 
-			scrapAsset: assetProcedure
+			scrapAsset: assetWriteProcedure
 				.input(Asset.scrapAssetSchema)
 				.mutation(async ({ input, ctx }) => svc.scrapAsset(input, ctx.user.id)),
 
-			sellAsset: assetProcedure
+			sellAsset: assetWriteProcedure
 				.input(Asset.sellAssetSchema)
 				.mutation(async ({ input, ctx }) => svc.sellAsset(input, ctx.user.id)),
 
-			restoreAsset: assetProcedure
+			restoreAsset: assetWriteProcedure
 				.input(Asset.restoreAssetSchema)
 				.mutation(async ({ input, ctx }) =>
 					svc.restoreAsset(input, ctx.user.id),
 				),
 
-			createAssetMovement: assetProcedure
+			createAssetMovement: assetWriteProcedure
 				.input(Asset.createAssetMovementSchema)
 				.mutation(async ({ input }) => svc.createAssetMovement(input)),
 
-			submitAssetMovement: assetProcedure
+			submitAssetMovement: assetWriteProcedure
 				.input(Asset.submitAssetMovementSchema)
 				.mutation(async ({ input, ctx }) =>
 					svc.submitAssetMovement(input, ctx.user.id),
 				),
 
-			cancelAssetMovement: assetProcedure
+			cancelAssetMovement: assetWriteProcedure
 				.input(Asset.cancelAssetMovementSchema)
 				.mutation(async ({ input, ctx }) =>
 					svc.cancelAssetMovement(input, ctx.user.id),
@@ -835,19 +842,19 @@ export class AssetRouter {
 				.input(Asset.listAssetMovementsSchema)
 				.query(async ({ input }) => svc.listMovements(input)),
 
-			createAssetRepair: assetProcedure
+			createAssetRepair: assetWriteProcedure
 				.input(Asset.createAssetRepairSchema)
 				.mutation(async ({ input, ctx }) =>
 					svc.createAssetRepair(input, ctx.user.id),
 				),
 
-			submitAssetRepair: assetProcedure
+			submitAssetRepair: assetWriteProcedure
 				.input(Asset.submitAssetRepairSchema)
 				.mutation(async ({ input, ctx }) =>
 					svc.submitAssetRepair(input, ctx.user.id),
 				),
 
-			cancelAssetRepair: assetProcedure
+			cancelAssetRepair: assetWriteProcedure
 				.input(Asset.cancelAssetRepairSchema)
 				.mutation(async ({ input, ctx }) =>
 					svc.cancelAssetRepair(input, ctx.user.id),
@@ -861,17 +868,17 @@ export class AssetRouter {
 				.input(Asset.listAssetRepairsSchema)
 				.query(async ({ input }) => svc.listRepairs(input)),
 
-			createAssetCapitalization: assetProcedure
+			createAssetCapitalization: assetWriteProcedure
 				.input(Asset.createAssetCapitalizationSchema)
 				.mutation(async ({ input }) => svc.createAssetCapitalization(input)),
 
-			submitAssetCapitalization: assetProcedure
+			submitAssetCapitalization: assetWriteProcedure
 				.input(Asset.submitAssetCapitalizationSchema)
 				.mutation(async ({ input, ctx }) =>
 					svc.submitAssetCapitalization(input, ctx.user.id),
 				),
 
-			cancelAssetCapitalization: assetProcedure
+			cancelAssetCapitalization: assetWriteProcedure
 				.input(Asset.cancelAssetCapitalizationSchema)
 				.mutation(async ({ input, ctx }) =>
 					svc.cancelAssetCapitalization(input, ctx.user.id),

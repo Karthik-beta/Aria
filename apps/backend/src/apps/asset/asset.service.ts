@@ -1166,7 +1166,10 @@ export class AssetService {
 		return asset ? toAsset(asset) : null;
 	}
 
-	async createAsset(input: Asset.CreateAssetInput): Promise<Asset.AssetItem> {
+	async createAsset(
+		input: Asset.CreateAssetInput,
+		actorId?: string | null,
+	): Promise<Asset.AssetItem> {
 		if (input.status && input.status !== "DRAFT") {
 			throw new BadRequestException(
 				"Create the asset as a draft, then use the explicit submit action",
@@ -1308,7 +1311,7 @@ export class AssetService {
 			data: {
 				assetId: created.id,
 				activity: `Asset created with series ${series}`,
-				userId: input.userId ?? null,
+				userId: actorId ?? null,
 			},
 		});
 
@@ -1321,7 +1324,10 @@ export class AssetService {
 		return toAsset(asset);
 	}
 
-	async updateAsset(input: Asset.UpdateAssetInput): Promise<Asset.AssetItem> {
+	async updateAsset(
+		input: Asset.UpdateAssetInput,
+		actorId?: string | null,
+	): Promise<Asset.AssetItem> {
 		const existing = await this.prisma.asset.findUnique({
 			where: { id: input.id },
 			select: {
@@ -1621,7 +1627,7 @@ export class AssetService {
 			data: {
 				assetId: input.id,
 				activity: "Asset updated",
-				userId: input.userId ?? null,
+				userId: actorId ?? null,
 			},
 		});
 
@@ -2441,6 +2447,7 @@ export class AssetService {
 
 	async submitAssetValueAdjustment(
 		input: Asset.SubmitAssetValueAdjustmentInput,
+		actorId?: string | null,
 	): Promise<Asset.AssetValueAdjustmentItem> {
 		const pendingAdjustment = await this.prisma.assetValueAdjustment.findUnique(
 			{
@@ -2616,7 +2623,7 @@ export class AssetService {
 				data: {
 					assetId: asset.id,
 					activity: `Asset value adjustment ${adjustment.series} submitted. Carrying value changed from ${preview.currentAssetValue.toFixed(2)} to ${preview.newAssetValue.toFixed(2)} via ${entrySeries}.`,
-					userId: input.userId ?? null,
+					userId: actorId ?? null,
 				},
 			});
 
@@ -2645,6 +2652,7 @@ export class AssetService {
 
 	async cancelAssetValueAdjustment(
 		input: Asset.CancelAssetValueAdjustmentInput,
+		actorId?: string | null,
 	): Promise<Asset.AssetValueAdjustmentItem> {
 		const pendingAdjustment = await this.prisma.assetValueAdjustment.findUnique(
 			{
@@ -2773,7 +2781,7 @@ export class AssetService {
 				data: {
 					assetId: adjustment.assetId,
 					activity: `Asset value adjustment ${adjustment.series} cancelled and the previous carrying value was restored.`,
-					userId: input.userId ?? null,
+					userId: actorId ?? null,
 				},
 			});
 

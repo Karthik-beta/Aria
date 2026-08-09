@@ -1581,6 +1581,7 @@ describe("Asset lifecycle actions", () => {
 				assetName: "Composite Machine",
 				itemCode: "COMPOSITE-MACHINE",
 				status: "DRAFT",
+				assetType: "COMPOSITE_ASSET",
 				calculateDepreciation: false,
 				assetCategory: { name: "Plant and Machinery" },
 			});
@@ -1630,6 +1631,7 @@ describe("Asset lifecycle actions", () => {
 				company: "Other Corp",
 				series: "AST-2026-00010",
 				status: "DRAFT",
+				assetType: "COMPOSITE_ASSET",
 				calculateDepreciation: false,
 			});
 			await expect(
@@ -1653,6 +1655,7 @@ describe("Asset lifecycle actions", () => {
 				assetName: "Composite Machine",
 				itemCode: "COMPOSITE-MACHINE",
 				status: "DRAFT",
+				assetType: "COMPOSITE_ASSET",
 				calculateDepreciation: false,
 				assetCategory: { name: "Plant and Machinery" },
 			});
@@ -1716,6 +1719,7 @@ describe("Asset lifecycle actions", () => {
 				company: COMPANY,
 				assetCategoryId: "category-1",
 				status: "DRAFT",
+				assetType: "COMPOSITE_ASSET",
 				calculateDepreciation: false,
 				netPurchaseAmount: 1_000,
 				valueAfterDepreciation: 1_000,

@@ -6195,7 +6195,6 @@ export namespace Asset {
 		purchaseInvoice?: string | null;
 		status?: AssetStatus;
 		financeBooks?: AssetFinanceBookInput[];
-		userId?: string | null;
 	}
 
 	export interface UpdateAssetInput {
@@ -6238,7 +6237,6 @@ export namespace Asset {
 		purchaseInvoice?: string | null;
 		status?: AssetStatus;
 		financeBooks?: AssetFinanceBookInput[];
-		userId?: string | null;
 	}
 
 	// ── Zod schemas ───────────────────────────────────────────────────────────
@@ -6378,7 +6376,6 @@ export namespace Asset {
 		purchaseInvoice: z.string().max(255).trim().optional().nullable(),
 		status: assetStatusSchema.default("DRAFT"),
 		financeBooks: z.array(assetFinanceBookInputSchema).optional(),
-		userId: z.string().max(255).optional().nullable(),
 	} satisfies z.ZodRawShape;
 
 	export const createAssetSchema = z
@@ -6454,7 +6451,6 @@ export namespace Asset {
 		purchaseInvoice: assetInputFields.purchaseInvoice,
 		status: assetStatusSchema.optional(),
 		financeBooks: assetInputFields.financeBooks,
-		userId: assetInputFields.userId,
 	});
 
 	const locationInputFields = {
@@ -7128,7 +7124,6 @@ export namespace Asset {
 
 	export const submitAssetValueAdjustmentSchema = z.object({
 		id: z.string().cuid(),
-		userId: z.string().max(255).optional().nullable(),
 	});
 	export type SubmitAssetValueAdjustmentInput = z.infer<
 		typeof submitAssetValueAdjustmentSchema
@@ -7136,7 +7131,6 @@ export namespace Asset {
 
 	export const cancelAssetValueAdjustmentSchema = z.object({
 		id: z.string().cuid(),
-		userId: z.string().max(255).optional().nullable(),
 	});
 	export type CancelAssetValueAdjustmentInput = z.infer<
 		typeof cancelAssetValueAdjustmentSchema
