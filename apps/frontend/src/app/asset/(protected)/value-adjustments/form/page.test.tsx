@@ -12,6 +12,13 @@ const mockInvalidate = vi.fn().mockResolvedValue(undefined);
 
 let currentId: string | null = null;
 let currentAssetId: string | null = null;
+let assetRows: Array<Record<string, unknown>> = [];
+
+const companyFinanceBook = {
+	id: "asset-book-001",
+	financeBookId: "finance-book-001",
+	financeBookName: "Company Books",
+};
 
 const preview = {
 	assetId: "asset-001",
@@ -19,6 +26,9 @@ const preview = {
 	assetName: "Hydraulic Pump A",
 	assetCategoryName: "Machinery",
 	company: "ACME Corp",
+	financeBookId: "finance-book-001",
+	financeBookName: "Company Books",
+	assetFinanceBookId: "asset-book-001",
 	adjustmentDate: new Date("2026-04-15"),
 	currentAssetValue: 80000,
 	newAssetValue: 90000,
@@ -39,6 +49,8 @@ const draftRecord = {
 	assetName: "Hydraulic Pump A",
 	assetCategoryName: "Machinery",
 	company: "ACME Corp",
+	financeBookId: "finance-book-001",
+	financeBookName: "Company Books",
 	adjustmentDate: new Date("2026-04-15"),
 	currentAssetValue: 80000,
 	newAssetValue: 90000,
@@ -145,16 +157,8 @@ vi.mock("@/lib/trpc", () => ({
 			listAssets: {
 				useQuery: () => ({
 					data: {
-						items: [
-							{
-								id: "asset-001",
-								series: "AST-2026-00001",
-								assetName: "Hydraulic Pump A",
-								company: "ACME Corp",
-								status: "SUBMITTED",
-							},
-						],
-						totalCount: 1,
+						items: assetRows,
+						totalCount: assetRows.length,
 					},
 					isLoading: false,
 				}),
@@ -197,6 +201,16 @@ describe("AssetValueAdjustmentFormPage", () => {
 	beforeEach(() => {
 		currentId = null;
 		currentAssetId = null;
+		assetRows = [
+			{
+				id: "asset-001",
+				series: "AST-2026-00001",
+				assetName: "Hydraulic Pump A",
+				company: "ACME Corp",
+				status: "SUBMITTED",
+				financeBooks: [companyFinanceBook],
+			},
+		];
 		mockPush.mockClear();
 		mockInvalidate.mockClear();
 		mockCreateMutateAsync.mockReset();
@@ -240,6 +254,7 @@ describe("AssetValueAdjustmentFormPage", () => {
 			expect(mockCreateMutateAsync).toHaveBeenCalledWith(
 				expect.objectContaining({
 					assetId: "asset-001",
+					financeBookId: "finance-book-001",
 					newAssetValue: 90000,
 					differenceAccount: "Asset Revaluation Reserve",
 				}),
@@ -253,6 +268,47 @@ describe("AssetValueAdjustmentFormPage", () => {
 		await waitFor(() => {
 			expect(mockPush).toHaveBeenCalledWith(
 				"/asset/value-adjustments/form?id=adj-new",
+			);
+		});
+	});
+
+	it("requires and submits the explicitly selected book for a multi-book asset", async () => {
+		currentAssetId = "asset-001";
+		assetRows = [
+			{
+				id: "asset-001",
+				series: "AST-2026-00001",
+				assetName: "Hydraulic Pump A",
+				company: "ACME Corp",
+				status: "SUBMITTED",
+				financeBooks: [
+					{
+						id: "asset-book-002",
+						financeBookId: "finance-book-002",
+						financeBookName: "Tax Books",
+					},
+					companyFinanceBook,
+				],
+			},
+		];
+		const user = userEvent.setup();
+		renderWithProviders(<AssetValueAdjustmentFormPage />);
+
+		await user.type(screen.getByLabelText(/New Asset Value/i), "90000");
+		await user.type(
+			screen.getByLabelText(/Difference Account/i),
+			"Asset Revaluation Reserve",
+		);
+		await user.click(screen.getByRole("button", { name: /Save Draft/i }));
+		expect(mockCreateMutateAsync).not.toHaveBeenCalled();
+
+		await user.click(screen.getByLabelText(/Finance Book/i));
+		await user.click(screen.getByRole("option", { name: "Tax Books" }));
+		await user.click(screen.getByRole("button", { name: /Save Draft/i }));
+
+		await waitFor(() => {
+			expect(mockCreateMutateAsync).toHaveBeenCalledWith(
+				expect.objectContaining({ financeBookId: "finance-book-002" }),
 			);
 		});
 	});

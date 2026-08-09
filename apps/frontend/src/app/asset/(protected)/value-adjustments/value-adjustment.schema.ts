@@ -2,6 +2,7 @@ import * as z from "zod";
 
 export const assetValueAdjustmentFormSchema = z.object({
 	assetId: z.string().min(1, "Asset is required"),
+	financeBookId: z.string().optional(),
 	adjustmentDate: z.string().min(1, "Adjustment date is required"),
 	newAssetValue: z
 		.string()
@@ -29,6 +30,7 @@ export const getAssetValueAdjustmentFormDefaults = (
 	assetId?: string | null,
 ): AssetValueAdjustmentFormValues => ({
 	assetId: assetId ?? "",
+	financeBookId: "",
 	adjustmentDate: new Date().toISOString().split("T")[0] ?? "",
 	newAssetValue: "",
 	differenceAccount: "",

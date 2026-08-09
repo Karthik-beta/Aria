@@ -2,8 +2,9 @@
 
 import type { Asset } from "@aria/types";
 import type { ColumnDef } from "@tanstack/react-table";
-import { ArrowRightLeft, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import * as React from "react";
+import { toast } from "sonner";
 import {
 	AdvancedDataTable,
 	useAdvancedDataTable,
@@ -11,6 +12,7 @@ import {
 import { AssetMovementDialog } from "@/components/asset/movement-dialog";
 import { Button } from "@/components/ui/button";
 import { ErrorState } from "@/components/ui/error-display";
+import { getToastMessage } from "@/lib/errors";
 import { trpc } from "@/lib/trpc";
 import { formatDateLabel } from "../reports/fixed-asset-register/fixed-asset-register.utils";
 
@@ -21,14 +23,19 @@ import { formatDateLabel } from "../reports/fixed-asset-register/fixed-asset-reg
 export default function AssetMovementsPage() {
 	const [dialogOpen, setDialogOpen] = React.useState(false);
 
-	const { data, error, refetch } = trpc.asset.listAssetMovements.useQuery({});
+	const { data, error, isLoading, refetch } =
+		trpc.asset.listAssetMovements.useQuery({});
 
 	const submitMutation = trpc.asset.submitAssetMovement.useMutation({
 		onSuccess: () => void refetch(),
+		onError: (mutationError) =>
+			toast.error(getToastMessage(mutationError, "submit")),
 	});
 
 	const cancelMutation = trpc.asset.cancelAssetMovement.useMutation({
 		onSuccess: () => void refetch(),
+		onError: (mutationError) =>
+			toast.error(getToastMessage(mutationError, "cancel")),
 	});
 
 	const movementsList: Asset.AssetMovement[] = data?.items ?? [];
@@ -130,7 +137,11 @@ export default function AssetMovementsPage() {
 				</Button>
 			</div>
 
-			{error ? (
+			{isLoading ? (
+				<p className="text-sm text-muted-foreground">
+					Loading asset movements…
+				</p>
+			) : error ? (
 				<ErrorState
 					operation="load"
 					title="Failed to load asset movements"

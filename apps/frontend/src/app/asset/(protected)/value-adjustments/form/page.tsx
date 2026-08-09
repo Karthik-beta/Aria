@@ -108,6 +108,7 @@ function AssetValueAdjustmentFormContent() {
 
 		form.reset({
 			assetId: record.assetId,
+			financeBookId: record.financeBookId ?? "",
 			adjustmentDate:
 				new Date(record.adjustmentDate).toISOString().split("T")[0] ?? "",
 			newAssetValue: String(record.newAssetValue),
@@ -133,15 +134,46 @@ function AssetValueAdjustmentFormContent() {
 	}, [isEditMode, isFetchingRecord, record, router]);
 
 	const watchedAssetId = form.watch("assetId");
+	const watchedFinanceBookId = form.watch("financeBookId");
 	const watchedAdjustmentDate = form.watch("adjustmentDate");
 	const watchedNewAssetValue = form.watch("newAssetValue");
 	const watchedDifferenceAccount = form.watch("differenceAccount");
 	const numericNewAssetValue = Number(watchedNewAssetValue);
+	const selectedAsset = useMemo(
+		() =>
+			assetsData?.items.find((asset) => asset.id === watchedAssetId) ??
+			assetsData?.items.find((asset) => asset.id === record?.assetId) ??
+			null,
+		[assetsData?.items, record?.assetId, watchedAssetId],
+	);
+	const financeBookOptions = useMemo(
+		() =>
+			[...(selectedAsset?.financeBooks ?? [])].sort(
+				(left, right) =>
+					left.financeBookName.localeCompare(right.financeBookName) ||
+					left.financeBookId.localeCompare(right.financeBookId),
+			),
+		[selectedAsset?.financeBooks],
+	);
+
+	useEffect(() => {
+		if (
+			!watchedFinanceBookId &&
+			financeBookOptions.length === 1 &&
+			financeBookOptions[0]
+		) {
+			form.setValue("financeBookId", financeBookOptions[0].financeBookId, {
+				shouldDirty: false,
+				shouldValidate: true,
+			});
+		}
+	}, [financeBookOptions, form, watchedFinanceBookId]);
 
 	const previewEnabled =
 		!isEditMode || record?.status === "DRAFT"
 			? Boolean(
 					watchedAssetId &&
+						(financeBookOptions.length <= 1 || watchedFinanceBookId) &&
 						watchedAdjustmentDate &&
 						watchedNewAssetValue &&
 						!Number.isNaN(numericNewAssetValue),
@@ -152,6 +184,7 @@ function AssetValueAdjustmentFormContent() {
 		trpc.asset.previewAssetValueAdjustment.useQuery(
 			{
 				assetId: watchedAssetId || "",
+				financeBookId: watchedFinanceBookId || null,
 				adjustmentDate: new Date(watchedAdjustmentDate || new Date()),
 				newAssetValue: Number.isNaN(numericNewAssetValue)
 					? 0
@@ -163,14 +196,6 @@ function AssetValueAdjustmentFormContent() {
 				refetchOnWindowFocus: false,
 			},
 		);
-
-	const selectedAsset = useMemo(
-		() =>
-			assetsData?.items.find((asset) => asset.id === watchedAssetId) ??
-			assetsData?.items.find((asset) => asset.id === record?.assetId) ??
-			null,
-		[assetsData?.items, record?.assetId, watchedAssetId],
-	);
 
 	const assetOptions = useMemo(() => {
 		const preservedId = record?.assetId ?? preselectedAssetId;
@@ -191,6 +216,10 @@ function AssetValueAdjustmentFormContent() {
 					assetName: record.assetName,
 					assetCategoryName: record.assetCategoryName,
 					company: record.company,
+					financeBookId: record.financeBookId,
+					financeBookName: record.financeBookName,
+					assetFinanceBookId:
+						record.depreciationSchedule?.assetFinanceBookId ?? null,
 					adjustmentDate: record.adjustmentDate,
 					currentAssetValue: record.currentAssetValue,
 					newAssetValue: record.newAssetValue,
@@ -258,6 +287,14 @@ function AssetValueAdjustmentFormContent() {
 
 	const saveAdjustment = async (mode: "save" | "submit") => {
 		const values = form.getValues();
+		if (financeBookOptions.length > 1 && !values.financeBookId) {
+			form.setError("financeBookId", {
+				type: "required",
+				message: "Finance book is required for an asset with multiple books",
+			});
+			toast.error("Select the finance book to adjust");
+			return;
+		}
 
 		if (isEditMode && id) {
 			const payload = toUpdateAssetValueAdjustmentInput(id, values);
@@ -456,12 +493,25 @@ function AssetValueAdjustmentFormContent() {
 								</Label>
 								<Select
 									value={form.watch("assetId") || undefined}
-									onValueChange={(value) =>
+									onValueChange={(value) => {
 										form.setValue("assetId", value, {
 											shouldDirty: true,
 											shouldValidate: true,
-										})
-									}
+										});
+										const selectedBooks =
+											assetsData?.items.find((asset) => asset.id === value)
+												?.financeBooks ?? [];
+										form.setValue(
+											"financeBookId",
+											selectedBooks.length === 1 && selectedBooks[0]
+												? selectedBooks[0].financeBookId
+												: "",
+											{
+												shouldDirty: true,
+												shouldValidate: true,
+											},
+										);
+									}}
 									disabled={isReadonly || isFetchingAssets}
 								>
 									<SelectTrigger id="assetId">
@@ -480,6 +530,61 @@ function AssetValueAdjustmentFormContent() {
 										{form.formState.errors.assetId.message}
 									</p>
 								)}
+							</div>
+
+							<div className="space-y-2">
+								<Label htmlFor="financeBookId">
+									Finance Book
+									{financeBookOptions.length > 1 && (
+										<span className="text-destructive"> *</span>
+									)}
+								</Label>
+								<Select
+									value={watchedFinanceBookId || undefined}
+									onValueChange={(value) =>
+										form.setValue("financeBookId", value, {
+											shouldDirty: true,
+											shouldValidate: true,
+										})
+									}
+									disabled={
+										isReadonly ||
+										isFetchingAssets ||
+										financeBookOptions.length === 0
+									}
+								>
+									<SelectTrigger id="financeBookId">
+										<SelectValue
+											placeholder={
+												financeBookOptions.length === 0
+													? "No finance book"
+													: "Select a finance book"
+											}
+										/>
+									</SelectTrigger>
+									<SelectContent>
+										{financeBookOptions.map((book) => (
+											<SelectItem
+												key={book.financeBookId}
+												value={book.financeBookId}
+											>
+												{book.financeBookName}
+											</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
+								{form.formState.errors.financeBookId && (
+									<p className="text-xs text-destructive">
+										{form.formState.errors.financeBookId.message}
+									</p>
+								)}
+								{financeBookOptions.length > 1 &&
+									!form.formState.errors.financeBookId && (
+										<p className="text-xs text-muted-foreground">
+											Only this book's carrying value and schedule will be
+											revised.
+										</p>
+									)}
 							</div>
 
 							<div className="space-y-2">
@@ -563,7 +668,7 @@ function AssetValueAdjustmentFormContent() {
 							<CardTitle>Preview</CardTitle>
 						</CardHeader>
 						<CardContent className="space-y-4">
-							<div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+							<div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
 								<PreviewStatCard
 									label="Current Carrying Value"
 									value={formatCurrency(summary?.currentAssetValue)}
@@ -590,6 +695,16 @@ function AssetValueAdjustmentFormContent() {
 										record?.assetCategoryName ??
 										"-"
 									}
+								/>
+								<PreviewStatCard
+									label="Finance Book"
+									value={
+										summary?.financeBookName ??
+										(financeBookOptions.length === 0
+											? "Not applicable"
+											: "Select a book")
+									}
+									helper="Targeted schedule only"
 								/>
 								<PreviewStatCard
 									label="Fixed Asset Account"
@@ -737,6 +852,9 @@ function AssetValueAdjustmentFormContent() {
 										<div className="space-y-3">
 											<h3 className="text-sm font-semibold">
 												Depreciation Schedule
+												{summary?.financeBookName
+													? ` · ${summary.financeBookName}`
+													: ""}
 											</h3>
 											{displayedSchedule ? (
 												<div className="rounded-lg border bg-background">

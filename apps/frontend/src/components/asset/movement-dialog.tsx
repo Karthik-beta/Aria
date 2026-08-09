@@ -1,9 +1,10 @@
 "use client";
 
-import type { Asset } from "@aria/types";
+import { Asset } from "@aria/types";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { Plus, Trash2 } from "lucide-react";
-import * as React from "react";
-import { useFieldArray, useForm } from "react-hook-form";
+import { type Resolver, useFieldArray, useForm } from "react-hook-form";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -29,6 +30,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import { getToastMessage } from "@/lib/errors";
 import { trpc } from "@/lib/trpc";
 
 type MovementDialogProps = {
@@ -37,34 +39,47 @@ type MovementDialogProps = {
 	onSuccess?: () => void;
 };
 
-/**
- * Dialog component for creating a new Asset Movement entry.
- */
+const PURPOSES: Array<{ value: Asset.AssetMovementPurpose; label: string }> = [
+	{ value: "TRANSFER", label: "Transfer" },
+	{ value: "RECEIPT", label: "Receipt" },
+	{ value: "ISSUE", label: "Issue" },
+	{ value: "TRANSFER_AND_ISSUE", label: "Transfer and Issue" },
+];
+
+function dateInputValue(value: Date): string {
+	return value.toISOString().slice(0, 10);
+}
+
+function requiresTargetLocation(purpose: Asset.AssetMovementPurpose): boolean {
+	return purpose !== "ISSUE";
+}
+
+function requiresCustodian(purpose: Asset.AssetMovementPurpose): boolean {
+	return purpose === "ISSUE" || purpose === "TRANSFER_AND_ISSUE";
+}
+
+/** Creates a movement draft from the current, server-backed asset state. */
 export function AssetMovementDialog({
 	open,
 	onOpenChange,
 	onSuccess,
 }: MovementDialogProps) {
 	const utils = trpc.useUtils();
-	const createMutation = trpc.asset.createAssetMovement.useMutation({
-		onSuccess: () => {
-			utils.asset.listAssetMovements.invalidate();
-			onOpenChange(false);
-			onSuccess?.();
-		},
-	});
-
-	const { data: assetsData } = trpc.asset.listAssets.useQuery({ take: 100 });
-	const { data: locationsData } = trpc.asset.listLocations.useQuery({
-		take: 100,
-	});
-
+	const { data: assetsData, isLoading: assetsLoading } =
+		trpc.asset.listAssets.useQuery({
+			take: 100,
+		});
+	const { data: locationsData, isLoading: locationsLoading } =
+		trpc.asset.listLocations.useQuery({ take: 100 });
 	const assetsList = assetsData?.items ?? [];
 	const locationsList = locationsData?.items ?? [];
 
 	const form = useForm<Asset.CreateAssetMovementInput>({
+		resolver: zodResolver(
+			Asset.createAssetMovementSchema,
+		) as Resolver<Asset.CreateAssetMovementInput>,
 		defaultValues: {
-			company: "Aria ERP",
+			company: "",
 			transactionDate: new Date(),
 			purpose: "TRANSFER",
 			notes: "",
@@ -73,78 +88,167 @@ export function AssetMovementDialog({
 					assetId: "",
 					sourceLocationId: null,
 					targetLocationId: null,
-					fromEmployee: "",
-					toEmployee: "",
+					fromEmployee: null,
+					toEmployee: null,
 				},
 			],
 		},
 	});
-
 	const { fields, append, remove } = useFieldArray({
 		control: form.control,
 		name: "items",
 	});
+	const purpose = form.watch("purpose");
+	const company = form.watch("company");
+
+	const createMutation = trpc.asset.createAssetMovement.useMutation({
+		onSuccess: () => {
+			void utils.asset.listAssetMovements.invalidate();
+			toast.success("Asset movement draft created");
+			onOpenChange(false);
+			onSuccess?.();
+		},
+		onError: (error) => toast.error(getToastMessage(error, "create")),
+	});
+
+	const updateSourceState = (index: number, assetId: string) => {
+		const selectedAsset = assetsList.find((asset) => asset.id === assetId);
+		form.setValue(`items.${index}.assetId`, assetId, { shouldValidate: true });
+		form.setValue(
+			`items.${index}.sourceLocationId`,
+			selectedAsset?.locationId ?? null,
+		);
+		form.setValue(
+			`items.${index}.fromEmployee`,
+			selectedAsset?.custodian ?? null,
+		);
+
+		const selectedIds = form
+			.getValues("items")
+			.map((item, itemIndex) => (itemIndex === index ? assetId : item.assetId))
+			.filter(Boolean);
+		const companies = new Set(
+			selectedIds
+				.map((id) => assetsList.find((asset) => asset.id === id)?.company)
+				.filter((name): name is string => Boolean(name)),
+		);
+		form.setValue("company", companies.size === 1 ? [...companies][0] : "", {
+			shouldValidate: true,
+		});
+	};
 
 	const onSubmit = (values: Asset.CreateAssetMovementInput) => {
-		createMutation.mutate(values);
+		const selectedAssets = values.items
+			.map((item) => assetsList.find((asset) => asset.id === item.assetId))
+			.filter((asset) => asset !== undefined);
+		if (selectedAssets.length !== values.items.length) {
+			form.setError("items", {
+				message: "Select an asset for every line item.",
+			});
+			return;
+		}
+		const selectedCompanies = selectedAssets.map((asset) => asset.company);
+		const selectedCompany = selectedCompanies[0];
+		if (!selectedCompany || new Set(selectedCompanies).size !== 1) {
+			form.setError("company", {
+				message: "All movement assets must belong to the same company.",
+			});
+			return;
+		}
+		for (const [index, item] of values.items.entries()) {
+			if (requiresTargetLocation(values.purpose) && !item.targetLocationId) {
+				form.setError(`items.${index}.targetLocationId`, {
+					message: "A target location is required for this movement.",
+				});
+				return;
+			}
+			if (requiresCustodian(values.purpose) && !item.toEmployee?.trim()) {
+				form.setError(`items.${index}.toEmployee`, {
+					message: "A target custodian is required for this movement.",
+				});
+				return;
+			}
+		}
+		createMutation.mutate({
+			...values,
+			company: selectedCompany,
+		});
 	};
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className="max-w-2xl">
+			<DialogContent className="max-w-3xl">
 				<DialogHeader>
 					<DialogTitle>New Asset Movement</DialogTitle>
 					<DialogDescription>
-						Record asset transfers, receipts, or issues across locations and
-						custodians.
+						Record asset transfers, receipts, or issues from the asset&apos;s
+						current location and custodian.
 					</DialogDescription>
 				</DialogHeader>
 
 				<Form form={form} onSubmit={onSubmit} className="space-y-4">
-					<div className="grid grid-cols-2 gap-4">
+					<div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
 						<FormField
 							control={form.control}
 							name="purpose"
 							render={({ field }) => (
 								<FormItem>
 									<FormLabel>Movement Purpose</FormLabel>
-									<Select
-										onValueChange={field.onChange}
-										defaultValue={field.value}
-									>
+									<Select value={field.value} onValueChange={field.onChange}>
 										<FormControl>
 											<SelectTrigger>
 												<SelectValue placeholder="Select purpose" />
 											</SelectTrigger>
 										</FormControl>
 										<SelectContent>
-											<SelectItem value="TRANSFER">Transfer</SelectItem>
-											<SelectItem value="RECEIPT">Receipt</SelectItem>
-											<SelectItem value="ISSUE">Issue</SelectItem>
+											{PURPOSES.map((option) => (
+												<SelectItem key={option.value} value={option.value}>
+													{option.label}
+												</SelectItem>
+											))}
 										</SelectContent>
 									</Select>
 									<FormMessage />
 								</FormItem>
 							)}
 						/>
-
 						<FormField
 							control={form.control}
-							name="company"
+							name="transactionDate"
 							render={({ field }) => (
 								<FormItem>
-									<FormLabel>Company</FormLabel>
+									<FormLabel>Transaction Date</FormLabel>
 									<FormControl>
-										<Input {...field} placeholder="Company name" />
+										<Input
+											type="date"
+											value={dateInputValue(field.value)}
+											onChange={(event) =>
+												field.onChange(
+													new Date(`${event.target.value}T00:00:00`),
+												)
+											}
+										/>
 									</FormControl>
 									<FormMessage />
 								</FormItem>
 							)}
 						/>
+						<div className="space-y-2">
+							<FormLabel>Company</FormLabel>
+							<Input
+								value={company || "Select assets to derive company"}
+								readOnly
+							/>
+							{form.formState.errors.company?.message && (
+								<p className="text-destructive text-sm">
+									{form.formState.errors.company.message}
+								</p>
+							)}
+						</div>
 					</div>
 
 					<div className="space-y-3">
-						<div className="flex items-center justify-between">
+						<div className="flex items-center justify-between gap-3">
 							<FormLabel>Movement Line Items</FormLabel>
 							<Button
 								type="button"
@@ -155,8 +259,8 @@ export function AssetMovementDialog({
 										assetId: "",
 										sourceLocationId: null,
 										targetLocationId: null,
-										fromEmployee: "",
-										toEmployee: "",
+										fromEmployee: null,
+										toEmployee: null,
 									})
 								}
 							>
@@ -164,112 +268,140 @@ export function AssetMovementDialog({
 								Add Asset Item
 							</Button>
 						</div>
+						{form.formState.errors.items?.message && (
+							<p className="text-destructive text-sm">
+								{form.formState.errors.items.message}
+							</p>
+						)}
 
-						{fields.map((fieldItem, index) => (
-							<div
-								key={fieldItem.id}
-								className="grid grid-cols-12 gap-2 items-end rounded-lg border p-3"
-							>
-								<div className="col-span-4">
-									<FormField
-										control={form.control}
-										name={`items.${index}.assetId`}
-										render={({ field: itemField }) => (
-											<FormItem>
-												<FormLabel className="text-xs">Asset</FormLabel>
-												<Select
-													onValueChange={itemField.onChange}
-													value={itemField.value}
-												>
-													<FormControl>
-														<SelectTrigger className="h-9">
-															<SelectValue placeholder="Select asset" />
-														</SelectTrigger>
-													</FormControl>
-													<SelectContent>
-														{assetsList.map((a) => (
-															<SelectItem key={a.id} value={a.id}>
-																{a.series} - {a.assetName}
-															</SelectItem>
-														))}
-													</SelectContent>
-												</Select>
-												<FormMessage />
-											</FormItem>
-										)}
-									/>
-								</div>
-
-								<div className="col-span-3">
-									<FormField
-										control={form.control}
-										name={`items.${index}.targetLocationId`}
-										render={({ field: locField }) => (
-											<FormItem>
-												<FormLabel className="text-xs">
-													Target Location
-												</FormLabel>
-												<Select
-													onValueChange={locField.onChange}
-													value={locField.value ?? ""}
-												>
-													<FormControl>
-														<SelectTrigger className="h-9">
-															<SelectValue placeholder="Target location" />
-														</SelectTrigger>
-													</FormControl>
-													<SelectContent>
-														{locationsList.map((loc) => (
-															<SelectItem key={loc.id} value={loc.id}>
-																{loc.name}
-															</SelectItem>
-														))}
-													</SelectContent>
-												</Select>
-												<FormMessage />
-											</FormItem>
-										)}
-									/>
-								</div>
-
-								<div className="col-span-4">
-									<FormField
-										control={form.control}
-										name={`items.${index}.toEmployee`}
-										render={({ field: custField }) => (
-											<FormItem>
-												<FormLabel className="text-xs">
-													Target Custodian
-												</FormLabel>
-												<FormControl>
-													<Input
-														className="h-9"
-														placeholder="Employee/Custodian"
-														{...custField}
-														value={custField.value ?? ""}
-													/>
-												</FormControl>
-												<FormMessage />
-											</FormItem>
-										)}
-									/>
-								</div>
-
-								<div className="col-span-1 flex justify-center pb-1">
-									{fields.length > 1 && (
-										<Button
-											type="button"
-											variant="ghost"
-											size="sm"
-											onClick={() => remove(index)}
-											className="h-8 w-8 p-0 text-destructive"
-										>
-											<Trash2 className="h-4 w-4" />
-										</Button>
+						{fields.map((fieldItem, index) => {
+							const selectedAsset = assetsList.find(
+								(asset) => asset.id === form.watch(`items.${index}.assetId`),
+							);
+							return (
+								<div
+									key={fieldItem.id}
+									className="grid grid-cols-1 gap-3 rounded-lg border p-3 md:grid-cols-12"
+								>
+									<div className="md:col-span-4">
+										<FormField
+											control={form.control}
+											name={`items.${index}.assetId`}
+											render={({ field }) => (
+												<FormItem>
+													<FormLabel>Asset</FormLabel>
+													<Select
+														value={field.value}
+														onValueChange={(value) =>
+															updateSourceState(index, value)
+														}
+														disabled={assetsLoading}
+													>
+														<FormControl>
+															<SelectTrigger>
+																<SelectValue
+																	placeholder={
+																		assetsLoading
+																			? "Loading assets..."
+																			: "Select asset"
+																	}
+																/>
+															</SelectTrigger>
+														</FormControl>
+														<SelectContent>
+															{assetsList.map((asset) => (
+																<SelectItem key={asset.id} value={asset.id}>
+																	{asset.series} — {asset.assetName}
+																</SelectItem>
+															))}
+														</SelectContent>
+													</Select>
+													<FormMessage />
+												</FormItem>
+											)}
+										/>
+									</div>
+									<div className="md:col-span-3">
+										<FormLabel>Current source</FormLabel>
+										<Input
+											readOnly
+											value={`${selectedAsset?.locationName ?? "No location"} · ${selectedAsset?.custodian ?? "No custodian"}`}
+										/>
+									</div>
+									{requiresTargetLocation(purpose) && (
+										<div className="md:col-span-3">
+											<FormField
+												control={form.control}
+												name={`items.${index}.targetLocationId`}
+												render={({ field }) => (
+													<FormItem>
+														<FormLabel>Target location</FormLabel>
+														<Select
+															value={field.value ?? ""}
+															onValueChange={field.onChange}
+															disabled={locationsLoading}
+														>
+															<FormControl>
+																<SelectTrigger>
+																	<SelectValue
+																		placeholder={
+																			locationsLoading
+																				? "Loading locations..."
+																				: "Select location"
+																		}
+																	/>
+																</SelectTrigger>
+															</FormControl>
+															<SelectContent>
+																{locationsList.map((location) => (
+																	<SelectItem
+																		key={location.id}
+																		value={location.id}
+																	>
+																		{location.name}
+																	</SelectItem>
+																))}
+															</SelectContent>
+														</Select>
+														<FormMessage />
+													</FormItem>
+												)}
+											/>
+										</div>
 									)}
+									{requiresCustodian(purpose) && (
+										<div className="md:col-span-2">
+											<FormField
+												control={form.control}
+												name={`items.${index}.toEmployee`}
+												render={({ field }) => (
+													<FormItem>
+														<FormLabel>Target custodian</FormLabel>
+														<FormControl>
+															<Input {...field} value={field.value ?? ""} />
+														</FormControl>
+														<FormMessage />
+													</FormItem>
+												)}
+											/>
+										</div>
+									)}
+									<div className="flex items-end justify-end md:col-span-1">
+										{fields.length > 1 && (
+											<Button
+												type="button"
+												variant="ghost"
+												size="icon"
+												onClick={() => remove(index)}
+												aria-label={`Remove movement item ${index + 1}`}
+											>
+												<Trash2 className="h-4 w-4" />
+											</Button>
+										)}
+									</div>
 								</div>
-							</div>
-						))}
+							);
+						})}
 					</div>
 
 					<DialogFooter>
@@ -280,7 +412,10 @@ export function AssetMovementDialog({
 						>
 							Cancel
 						</Button>
-						<Button type="submit" disabled={createMutation.isPending}>
+						<Button
+							type="submit"
+							disabled={createMutation.isPending || assetsLoading}
+						>
 							{createMutation.isPending ? "Saving..." : "Create Movement"}
 						</Button>
 					</DialogFooter>

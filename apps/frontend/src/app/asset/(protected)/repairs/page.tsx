@@ -2,8 +2,9 @@
 
 import type { Asset } from "@aria/types";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Plus, Wrench } from "lucide-react";
+import { Plus } from "lucide-react";
 import * as React from "react";
+import { toast } from "sonner";
 import {
 	AdvancedDataTable,
 	useAdvancedDataTable,
@@ -11,11 +12,9 @@ import {
 import { AssetRepairDialog } from "@/components/asset/repair-form";
 import { Button } from "@/components/ui/button";
 import { ErrorState } from "@/components/ui/error-display";
+import { getToastMessage } from "@/lib/errors";
 import { trpc } from "@/lib/trpc";
-import {
-	formatCurrency,
-	formatDateLabel,
-} from "../reports/fixed-asset-register/fixed-asset-register.utils";
+import { formatCurrency } from "../reports/fixed-asset-register/fixed-asset-register.utils";
 
 /**
  * Asset Repairs Page
@@ -24,14 +23,19 @@ import {
 export default function AssetRepairsPage() {
 	const [dialogOpen, setDialogOpen] = React.useState(false);
 
-	const { data, error, refetch } = trpc.asset.listAssetRepairs.useQuery({});
+	const { data, error, isLoading, refetch } =
+		trpc.asset.listAssetRepairs.useQuery({});
 
 	const submitMutation = trpc.asset.submitAssetRepair.useMutation({
 		onSuccess: () => void refetch(),
+		onError: (mutationError) =>
+			toast.error(getToastMessage(mutationError, "submit")),
 	});
 
 	const cancelMutation = trpc.asset.cancelAssetRepair.useMutation({
 		onSuccess: () => void refetch(),
+		onError: (mutationError) =>
+			toast.error(getToastMessage(mutationError, "cancel")),
 	});
 
 	const repairsList: Asset.AssetRepairItem[] = data?.items ?? [];
@@ -82,14 +86,14 @@ export default function AssetRepairsPage() {
 				header: "Actions",
 				cell: ({ row }) => {
 					const r = row.original;
-					if (r.repairStatus === "DRAFT" || r.repairStatus === "PENDING") {
+					if (r.repairStatus === "PENDING") {
 						return (
 							<Button
 								size="sm"
 								onClick={() => submitMutation.mutate({ id: r.id })}
 								disabled={submitMutation.isPending}
 							>
-								Submit
+								Complete Repair
 							</Button>
 						);
 					}
@@ -138,7 +142,9 @@ export default function AssetRepairsPage() {
 				</Button>
 			</div>
 
-			{error ? (
+			{isLoading ? (
+				<p className="text-sm text-muted-foreground">Loading asset repairs…</p>
+			) : error ? (
 				<ErrorState
 					operation="load"
 					title="Failed to load asset repairs"

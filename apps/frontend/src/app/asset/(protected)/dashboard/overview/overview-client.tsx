@@ -617,7 +617,7 @@ function RecentActivityFeed({
 				)}
 			</CardContent>
 			<CardFooter className="mt-auto">
-				<FooterLink href="/asset/asset">View all assets →</FooterLink>
+				<FooterLink href="/asset/items">View all assets →</FooterLink>
 			</CardFooter>
 		</Card>
 	);
@@ -689,7 +689,7 @@ function InsuranceExpiryTracker({
 				)}
 			</CardContent>
 			<CardFooter className="mt-auto">
-				<FooterLink href="/asset/asset">View insured assets →</FooterLink>
+				<FooterLink href="/asset/items">View insured assets →</FooterLink>
 			</CardFooter>
 		</Card>
 	);
@@ -760,7 +760,7 @@ function AdjustmentSummaryCard({
 				)}
 			</CardContent>
 			<CardFooter className="mt-auto">
-				<FooterLink href="/asset/value-adjustment">
+				<FooterLink href="/asset/value-adjustments">
 					View all adjustments →
 				</FooterLink>
 			</CardFooter>

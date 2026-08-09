@@ -1,8 +1,10 @@
 "use client";
 
-import type { Asset } from "@aria/types";
+import { Asset } from "@aria/types";
+import { zodResolver } from "@hookform/resolvers/zod";
 import * as React from "react";
-import { useForm } from "react-hook-form";
+import { type Resolver, useForm } from "react-hook-form";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -28,6 +30,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import { getToastMessage } from "@/lib/errors";
 import { trpc } from "@/lib/trpc";
 
 type DisposalDialogProps = {
@@ -53,33 +56,50 @@ export function AssetDisposalDialog({
 
 	const scrapMutation = trpc.asset.scrapAsset.useMutation({
 		onSuccess: () => {
-			utils.asset.getAssetById.invalidate({ id: asset.id });
+			void utils.asset.getAssetById.invalidate({ id: asset.id });
+			void utils.asset.listAssets.invalidate();
+			toast.success("Asset scrapped");
 			onOpenChange(false);
 			onSuccess?.();
 		},
+		onError: (error) => toast.error(getToastMessage(error, "scrap")),
 	});
 
 	const sellMutation = trpc.asset.sellAsset.useMutation({
 		onSuccess: () => {
-			utils.asset.getAssetById.invalidate({ id: asset.id });
+			void utils.asset.getAssetById.invalidate({ id: asset.id });
+			void utils.asset.listAssets.invalidate();
+			toast.success("Asset sale recorded");
 			onOpenChange(false);
 			onSuccess?.();
 		},
+		onError: (error) => toast.error(getToastMessage(error, "sell")),
 	});
 
 	const scrapForm = useForm<Asset.ScrapAssetInput>({
+		resolver: zodResolver(
+			Asset.scrapAssetSchema,
+		) as Resolver<Asset.ScrapAssetInput>,
 		defaultValues: {
 			assetId: asset.id,
 			disposalDate: new Date(),
+			gainLossAccount: "",
+			costCenter: "",
 			notes: "",
 		},
 	});
 
 	const sellForm = useForm<Asset.SellAssetInput>({
+		resolver: zodResolver(
+			Asset.sellAssetSchema,
+		) as Resolver<Asset.SellAssetInput>,
 		defaultValues: {
 			assetId: asset.id,
 			disposalDate: new Date(),
 			salesAmount: 0,
+			proceedsAccount: "",
+			gainLossAccount: "",
+			costCenter: "",
 			notes: "",
 		},
 	});
@@ -98,7 +118,8 @@ export function AssetDisposalDialog({
 				<DialogHeader>
 					<DialogTitle>Dispose Fixed Asset</DialogTitle>
 					<DialogDescription>
-						Scrap asset or record a sale with gain/loss accounting GL entries.
+						Scrap an asset or record its sale. Accounting entries are confirmed
+						by the server after submission.
 					</DialogDescription>
 				</DialogHeader>
 
@@ -125,6 +146,60 @@ export function AssetDisposalDialog({
 							onSubmit={onScrapSubmit}
 							className="space-y-4"
 						>
+							<FormField
+								control={scrapForm.control}
+								name="gainLossAccount"
+								render={({ field }) => (
+									<FormItem>
+										<FormLabel>Gain / Loss Account</FormLabel>
+										<FormControl>
+											<Input
+												placeholder="Loss on Asset Disposal - PVT"
+												{...field}
+											/>
+										</FormControl>
+										<FormMessage />
+									</FormItem>
+								)}
+							/>
+							<FormField
+								control={scrapForm.control}
+								name="costCenter"
+								render={({ field }) => (
+									<FormItem>
+										<FormLabel>Cost Center (optional)</FormLabel>
+										<FormControl>
+											<Input
+												placeholder="Main - PVT"
+												{...field}
+												value={field.value ?? ""}
+											/>
+										</FormControl>
+										<FormMessage />
+									</FormItem>
+								)}
+							/>
+							<FormField
+								control={scrapForm.control}
+								name="disposalDate"
+								render={({ field }) => (
+									<FormItem>
+										<FormLabel>Disposal Date</FormLabel>
+										<FormControl>
+											<Input
+												type="date"
+												value={field.value.toISOString().slice(0, 10)}
+												onChange={(event) =>
+													field.onChange(
+														new Date(`${event.target.value}T00:00:00`),
+													)
+												}
+											/>
+										</FormControl>
+										<FormMessage />
+									</FormItem>
+								)}
+							/>
 							<FormField
 								control={scrapForm.control}
 								name="notes"
@@ -164,10 +239,77 @@ export function AssetDisposalDialog({
 						<Form form={sellForm} onSubmit={onSellSubmit} className="space-y-4">
 							<FormField
 								control={sellForm.control}
+								name="proceedsAccount"
+								render={({ field }) => (
+									<FormItem>
+										<FormLabel>Sale Proceeds Account</FormLabel>
+										<FormControl>
+											<Input placeholder="Debtors / Bank - PVT" {...field} />
+										</FormControl>
+										<FormMessage />
+									</FormItem>
+								)}
+							/>
+							<FormField
+								control={sellForm.control}
+								name="gainLossAccount"
+								render={({ field }) => (
+									<FormItem>
+										<FormLabel>Gain / Loss Account</FormLabel>
+										<FormControl>
+											<Input
+												placeholder="Gain or Loss on Asset Disposal - PVT"
+												{...field}
+											/>
+										</FormControl>
+										<FormMessage />
+									</FormItem>
+								)}
+							/>
+							<FormField
+								control={sellForm.control}
+								name="costCenter"
+								render={({ field }) => (
+									<FormItem>
+										<FormLabel>Cost Center (optional)</FormLabel>
+										<FormControl>
+											<Input
+												placeholder="Main - PVT"
+												{...field}
+												value={field.value ?? ""}
+											/>
+										</FormControl>
+										<FormMessage />
+									</FormItem>
+								)}
+							/>
+							<FormField
+								control={sellForm.control}
+								name="disposalDate"
+								render={({ field }) => (
+									<FormItem>
+										<FormLabel>Sale Date</FormLabel>
+										<FormControl>
+											<Input
+												type="date"
+												value={field.value.toISOString().slice(0, 10)}
+												onChange={(event) =>
+													field.onChange(
+														new Date(`${event.target.value}T00:00:00`),
+													)
+												}
+											/>
+										</FormControl>
+										<FormMessage />
+									</FormItem>
+								)}
+							/>
+							<FormField
+								control={sellForm.control}
 								name="salesAmount"
 								render={({ field }) => (
 									<FormItem>
-										<FormLabel>Sale Price ($)</FormLabel>
+										<FormLabel>Sale Price</FormLabel>
 										<FormControl>
 											<Input
 												type="number"

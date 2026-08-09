@@ -36,6 +36,48 @@ const nextConfig: NextConfig = {
 	],
 	async redirects() {
 		return [
+			// Asset routes were renamed to short, stable URLs. Keep bookmarked and
+			// shared legacy links working while callers migrate to the canonical paths.
+			{
+				source: "/asset/asset-sub-module/asset/:path*",
+				destination: "/asset/items/:path*",
+				permanent: true,
+			},
+			{
+				source: "/asset/asset-sub-module/location/:path*",
+				destination: "/asset/locations/:path*",
+				permanent: true,
+			},
+			{
+				source: "/asset/asset-sub-module/asset-category/:path*",
+				destination: "/asset/categories/:path*",
+				permanent: true,
+			},
+			{
+				source: "/asset/asset-maintenance/maintenance-team/:path*",
+				destination: "/asset/maintenance-teams/:path*",
+				permanent: true,
+			},
+			{
+				source: "/asset/asset-maintenance/maintenance/:path*",
+				destination: "/asset/maintenance/:path*",
+				permanent: true,
+			},
+			{
+				source: "/asset/asset-maintenance/log/:path*",
+				destination: "/asset/maintenance/log/:path*",
+				permanent: true,
+			},
+			{
+				source: "/asset/asset-maintenance/value-adjustment/:path*",
+				destination: "/asset/value-adjustments/:path*",
+				permanent: true,
+			},
+			{
+				source: "/asset/value-adjustment/:path*",
+				destination: "/asset/value-adjustments/:path*",
+				permanent: true,
+			},
 			{
 				source: "/asset",
 				destination: "/asset/dashboard/overview",

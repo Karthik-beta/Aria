@@ -4,6 +4,7 @@ import type { Asset } from "@aria/types";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Plus } from "lucide-react";
 import * as React from "react";
+import { toast } from "sonner";
 import {
 	AdvancedDataTable,
 	useAdvancedDataTable,
@@ -11,6 +12,7 @@ import {
 import { AssetCapitalizationDialog } from "@/components/asset/capitalization-form";
 import { Button } from "@/components/ui/button";
 import { ErrorState } from "@/components/ui/error-display";
+import { getToastMessage } from "@/lib/errors";
 import { trpc } from "@/lib/trpc";
 import {
 	formatCurrency,
@@ -24,16 +26,19 @@ import {
 export default function AssetCapitalizationsPage() {
 	const [dialogOpen, setDialogOpen] = React.useState(false);
 
-	const { data, error, refetch } = trpc.asset.listAssetCapitalizations.useQuery(
-		{},
-	);
+	const { data, error, isLoading, refetch } =
+		trpc.asset.listAssetCapitalizations.useQuery({});
 
 	const submitMutation = trpc.asset.submitAssetCapitalization.useMutation({
 		onSuccess: () => void refetch(),
+		onError: (mutationError) =>
+			toast.error(getToastMessage(mutationError, "submit")),
 	});
 
 	const cancelMutation = trpc.asset.cancelAssetCapitalization.useMutation({
 		onSuccess: () => void refetch(),
+		onError: (mutationError) =>
+			toast.error(getToastMessage(mutationError, "cancel")),
 	});
 
 	const capitalizationsList: Asset.AssetCapitalizationItem[] =
@@ -143,7 +148,11 @@ export default function AssetCapitalizationsPage() {
 				</Button>
 			</div>
 
-			{error ? (
+			{isLoading ? (
+				<p className="text-sm text-muted-foreground">
+					Loading asset capitalizations…
+				</p>
+			) : error ? (
 				<ErrorState
 					operation="load"
 					title="Failed to load asset capitalizations"

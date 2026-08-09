@@ -20,6 +20,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import * as React from "react";
 import { toast } from "sonner";
+import { AssetDisposalDialog } from "@/components/asset/disposal-dialog";
 import { AlertModal } from "@/components/modal/alert-modal";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -80,6 +81,7 @@ export default function AssetDetailPage() {
 	const utils = trpc.useUtils();
 	const [_isPending, startTransition] = React.useTransition();
 	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
+	const [isDisposalDialogOpen, setIsDisposalDialogOpen] = React.useState(false);
 
 	const { data: rawData, isLoading } = trpc.asset.getAssetById.useQuery(
 		{ id: assetId },
@@ -88,6 +90,11 @@ export default function AssetDetailPage() {
 			refetchOnMount: true,
 		},
 	);
+	const {
+		data: depreciationSchedules,
+		isLoading: schedulesLoading,
+		error: schedulesError,
+	} = trpc.asset.getAssetDepreciationSchedules.useQuery({ assetId });
 
 	const asset = rawData as Asset.AssetItem | undefined;
 
@@ -118,6 +125,14 @@ export default function AssetDetailPage() {
 			toast.success("Asset cancelled");
 		},
 		onError: (error) => toast.error(getToastMessage(error, "cancel")),
+	});
+	const restoreMutation = trpc.asset.restoreAsset.useMutation({
+		onSuccess: async () => {
+			await utils.asset.getAssetById.invalidate({ id: assetId });
+			await utils.asset.listAssets.invalidate();
+			toast.success("Asset restored");
+		},
+		onError: (error) => toast.error(getToastMessage(error, "restore")),
 	});
 
 	const confirmDelete = () => {
@@ -172,6 +187,14 @@ export default function AssetDetailPage() {
 				onConfirm={confirmDelete}
 				loading={deleteMutation.isPending}
 			/>
+			<AssetDisposalDialog
+				asset={asset}
+				open={isDisposalDialogOpen}
+				onOpenChange={setIsDisposalDialogOpen}
+				onSuccess={() => {
+					void utils.asset.listAssets.invalidate();
+				}}
+			/>
 
 			<div className="container mx-auto px-4 md:px-6 py-6 space-y-6">
 				{/* Header */}
@@ -213,6 +236,29 @@ export default function AssetDetailPage() {
 								disabled={cancelMutation.isPending}
 							>
 								Cancel Asset
+							</Button>
+						)}
+						{[
+							"SUBMITTED",
+							"PARTIALLY_DEPRECIATED",
+							"FULLY_DEPRECIATED",
+						].includes(asset.status) && (
+							<Button
+								size="sm"
+								variant="destructive"
+								onClick={() => setIsDisposalDialogOpen(true)}
+							>
+								Dispose
+							</Button>
+						)}
+						{["SOLD", "SCRAPPED"].includes(asset.status) && (
+							<Button
+								size="sm"
+								variant="outline"
+								onClick={() => restoreMutation.mutate({ assetId: asset.id })}
+								disabled={restoreMutation.isPending}
+							>
+								{restoreMutation.isPending ? "Restoring..." : "Restore"}
 							</Button>
 						)}
 						<Link
@@ -301,6 +347,13 @@ export default function AssetDetailPage() {
 							</CardContent>
 						</Card>
 					)}
+
+					<DepreciationSchedulesCard
+						schedules={depreciationSchedules?.items ?? []}
+						financeBooks={asset.financeBooks ?? []}
+						isLoading={schedulesLoading}
+						errorMessage={schedulesError?.message}
+					/>
 
 					{/* Purchase & Depreciation */}
 					<Card>
@@ -436,5 +489,113 @@ export default function AssetDetailPage() {
 				</p>
 			</div>
 		</>
+	);
+}
+
+function DepreciationSchedulesCard({
+	schedules,
+	financeBooks,
+	isLoading,
+	errorMessage,
+}: {
+	schedules: Asset.AssetDepreciationSchedule[];
+	financeBooks: Asset.AssetFinanceBook[];
+	isLoading: boolean;
+	errorMessage?: string;
+}) {
+	const bookNames = new Map(
+		financeBooks.map((book) => [book.id, book.financeBookName]),
+	);
+	return (
+		<Card className="lg:col-span-2">
+			<CardHeader>
+				<CardTitle>Persisted Depreciation Schedules</CardTitle>
+				<CardDescription>
+					Active schedule rows and immutable revision history by finance book
+				</CardDescription>
+			</CardHeader>
+			<CardContent className="space-y-5">
+				{isLoading ? (
+					<Skeleton className="h-32 w-full" />
+				) : errorMessage ? (
+					<p className="text-sm text-destructive">{errorMessage}</p>
+				) : schedules.length === 0 ? (
+					<p className="text-sm text-muted-foreground">
+						No persisted schedule exists for this asset.
+					</p>
+				) : (
+					schedules.map((schedule) => (
+						<section
+							key={schedule.id}
+							className="space-y-2 rounded-lg border p-3"
+						>
+							<div className="flex flex-wrap items-center justify-between gap-2">
+								<div>
+									<p className="font-medium">
+										{bookNames.get(schedule.assetFinanceBookId) ??
+											schedule.assetFinanceBookId}
+									</p>
+									<p className="text-xs text-muted-foreground">
+										Revision {schedule.revisionNumber} ·{" "}
+										{formatStatus(schedule.depreciationMethod ?? "UNSPECIFIED")}
+									</p>
+								</div>
+								<Badge variant="outline">{formatStatus(schedule.status)}</Badge>
+							</div>
+							<div className="overflow-x-auto">
+								<table className="w-full min-w-[680px] text-sm">
+									<thead className="border-b text-left text-muted-foreground">
+										<tr>
+											<th className="py-2 pr-3 font-medium">Period</th>
+											<th className="py-2 pr-3 font-medium">Date</th>
+											<th className="py-2 pr-3 text-right font-medium">
+												Depreciation
+											</th>
+											<th className="py-2 pr-3 text-right font-medium">
+												Accumulated
+											</th>
+											<th className="py-2 text-right font-medium">
+												Book Value
+											</th>
+											<th className="py-2 pl-3 font-medium">Posting</th>
+										</tr>
+									</thead>
+									<tbody>
+										{schedule.entries.map((entry) => (
+											<tr key={entry.id} className="border-b last:border-0">
+												<td className="py-2 pr-3">{entry.sequence}</td>
+												<td className="py-2 pr-3">
+													{new Date(entry.scheduleDate).toLocaleDateString(
+														"en-IN",
+													)}
+												</td>
+												<td className="py-2 pr-3 text-right tabular-nums">
+													₹{entry.depreciationAmount.toLocaleString("en-IN")}
+												</td>
+												<td className="py-2 pr-3 text-right tabular-nums">
+													₹
+													{entry.accumulatedDepreciationAmount.toLocaleString(
+														"en-IN",
+													)}
+												</td>
+												<td className="py-2 text-right tabular-nums">
+													₹
+													{entry.bookValueAfterDepreciation.toLocaleString(
+														"en-IN",
+													)}
+												</td>
+												<td className="py-2 pl-3">
+													{entry.postingId ? "Posted" : "Pending"}
+												</td>
+											</tr>
+										))}
+									</tbody>
+								</table>
+							</div>
+						</section>
+					))
+				)}
+			</CardContent>
+		</Card>
 	);
 }

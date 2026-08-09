@@ -92,6 +92,7 @@ export function toCreateAssetValueAdjustmentInput(
 ): Asset.CreateAssetValueAdjustmentInput {
 	return {
 		assetId: values.assetId.trim(),
+		financeBookId: values.financeBookId?.trim() || null,
 		adjustmentDate: parseDateField(values.adjustmentDate),
 		newAssetValue: Number(values.newAssetValue),
 		differenceAccount: values.differenceAccount.trim(),
@@ -107,6 +108,7 @@ export function toUpdateAssetValueAdjustmentInput(
 	return {
 		id,
 		assetId: values.assetId.trim(),
+		financeBookId: values.financeBookId?.trim() || null,
 		adjustmentDate: parseDateField(values.adjustmentDate),
 		newAssetValue: Number(values.newAssetValue),
 		differenceAccount: values.differenceAccount.trim(),
