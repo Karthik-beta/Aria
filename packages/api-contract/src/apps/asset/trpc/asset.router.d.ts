@@ -73,6 +73,11 @@ type AssetRouterInput = {
 		output: Asset.AssetItem | null;
 		meta: object;
 	}>;
+	getAssetDepreciationSchedules: TRPCQueryProcedure<{
+		input: { assetId: string };
+		output: Asset.AssetDepreciationScheduleListResult;
+		meta: object;
+	}>;
 	getAssetByBarcode: TRPCQueryProcedure<{
 		input: { barcode: string };
 		output: Asset.AssetItem;
@@ -234,6 +239,7 @@ type AssetRouterInput = {
 	previewAssetValueAdjustment: TRPCQueryProcedure<{
 		input: {
 			assetId: string;
+			financeBookId?: string | null | undefined;
 			adjustmentDate: unknown;
 			newAssetValue: number;
 		};
@@ -243,6 +249,7 @@ type AssetRouterInput = {
 	createAssetValueAdjustment: TRPCMutationProcedure<{
 		input: {
 			assetId: string;
+			financeBookId?: string | null | undefined;
 			adjustmentDate: unknown;
 			newAssetValue: number;
 			differenceAccount: string;
@@ -256,6 +263,7 @@ type AssetRouterInput = {
 		input: {
 			id: string;
 			assetId?: string | undefined;
+			financeBookId?: string | null | undefined;
 			adjustmentDate?: unknown;
 			newAssetValue?: number | undefined;
 			differenceAccount?: string | undefined;

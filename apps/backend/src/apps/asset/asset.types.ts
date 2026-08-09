@@ -124,6 +124,7 @@ export function toAsset(raw: PrismaAsset): Asset.AssetItem {
 		id: raw.id,
 		series: raw.series,
 		assetName: raw.assetName,
+		assetType: raw.assetType as Asset.AssetType,
 		itemCode: raw.itemCode ?? null,
 		barcode: raw.barcode ?? null,
 		assetCategoryId: raw.assetCategoryId ?? null,
@@ -177,6 +178,7 @@ export function toAsset(raw: PrismaAsset): Asset.AssetItem {
 			financeBookName: book.financeBook.name,
 			depreciationMethod: book.depreciationMethod as Asset.DepreciationMethod,
 			totalNumberOfDepreciations: book.totalNumberOfDepreciations,
+			increaseInAssetLife: book.increaseInAssetLife,
 			frequencyOfDepreciation: book.frequencyOfDepreciation,
 			depreciationStartDate: book.depreciationStartDate,
 			dailyProrataBased: book.dailyProrataBased,
@@ -234,6 +236,7 @@ export type PrismaAssetDepreciationSchedule =
  */
 export type PrismaAssetValueAdjustment = Prisma.AssetValueAdjustmentGetPayload<{
 	include: {
+		financeBook: { select: { name: true } };
 		asset: {
 			select: {
 				id: true;
@@ -344,6 +347,8 @@ export function toAssetValueAdjustment(
 		assetName: raw.asset.assetName,
 		assetCategoryName: raw.asset.assetCategory?.name ?? null,
 		company: raw.companySnapshot,
+		financeBookId: raw.financeBookId ?? null,
+		financeBookName: raw.financeBook?.name ?? null,
 		adjustmentDate: raw.adjustmentDate,
 		currentAssetValue: Number(raw.currentAssetValue),
 		newAssetValue: Number(raw.newAssetValue),
@@ -666,6 +671,7 @@ export function toAssetRepairConsumedItem(
 		consumedAssetName: raw.consumedAsset?.assetName ?? null,
 		itemCode: raw.itemCode,
 		warehouse: raw.warehouse ?? null,
+		expenseAccount: raw.expenseAccount ?? null,
 		quantity: raw.quantity,
 		valuationRate: Number(raw.valuationRate),
 		totalAmount: Number(raw.totalAmount),
@@ -710,6 +716,8 @@ export function toAssetRepairItem(raw: PrismaAssetRepair): Asset.AssetRepair {
 		description: raw.description ?? null,
 		submittedAt: raw.submittedAt ?? null,
 		cancelledAt: raw.cancelledAt ?? null,
+		stockEntryId: raw.stockEntryId ?? null,
+		accountingEntryId: raw.accountingEntryId ?? null,
 		consumedItems: raw.consumedItems.map(toAssetRepairConsumedItem),
 		purchaseInvoices: raw.purchaseInvoices.map(toAssetRepairPurchaseInvoice),
 		createdAt: raw.createdAt,
@@ -760,6 +768,7 @@ export function toAssetCapitalizationStockItem(
 		capitalizationId: raw.capitalizationId,
 		itemCode: raw.itemCode,
 		warehouse: raw.warehouse ?? null,
+		expenseAccount: raw.expenseAccount ?? null,
 		stockQty: raw.stockQty,
 		valuationRate: Number(raw.valuationRate),
 		amount: Number(raw.amount),
@@ -817,6 +826,7 @@ export function toAssetCapitalizationItem(
 		targetAssetId: raw.targetAssetId ?? null,
 		targetAssetName: raw.targetAsset?.assetName ?? raw.targetAssetName ?? null,
 		targetAssetCategory: raw.targetAssetCategory ?? null,
+		targetItemCode: raw.targetItemCode ?? null,
 		status: raw.status as Asset.AssetCapitalizationStatus,
 		totalStockValue: Number(raw.totalStockValue),
 		totalAssetValue: Number(raw.totalAssetValue),
@@ -825,6 +835,9 @@ export function toAssetCapitalizationItem(
 		notes: raw.notes ?? null,
 		submittedAt: raw.submittedAt ?? null,
 		cancelledAt: raw.cancelledAt ?? null,
+		stockEntryId: raw.stockEntryId ?? null,
+		accountingEntryId: raw.accountingEntryId ?? null,
+		createdTargetAsset: raw.createdTargetAsset,
 		stockItems: raw.stockItems.map(toAssetCapitalizationStockItem),
 		assetItems: raw.assetItems.map(toAssetCapitalizationAssetItem),
 		serviceItems: raw.serviceItems.map(toAssetCapitalizationServiceItem),
@@ -839,6 +852,7 @@ export function toAssetCapitalizationItem(
 export type PrismaAssetDisposal = Prisma.AssetDisposalGetPayload<{
 	include: {
 		asset: { select: { assetName: true } };
+		accountingEntry: { select: { series: true } };
 	};
 }>;
 
@@ -858,7 +872,13 @@ export function toAssetDisposalItem(
 		disposalType: raw.disposalType as Asset.AssetDisposalType,
 		salesAmount: raw.salesAmount != null ? Number(raw.salesAmount) : null,
 		gainLossAmount: Number(raw.gainLossAmount),
-		journalEntrySeries: raw.journalEntrySeries ?? null,
+		fixedAssetAccount: raw.fixedAssetAccount ?? null,
+		accumulatedDepreciationAccount: raw.accumulatedDepreciationAccount ?? null,
+		proceedsAccount: raw.proceedsAccount ?? null,
+		gainLossAccount: raw.gainLossAccount ?? null,
+		costCenter: raw.costCenter ?? null,
+		accountingEntryId: raw.accountingEntryId ?? null,
+		accountingEntrySeries: raw.accountingEntry?.series ?? null,
 		status: raw.status as Asset.AssetDisposalStatus,
 		notes: raw.notes ?? null,
 		createdAt: raw.createdAt,

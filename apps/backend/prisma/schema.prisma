@@ -20,12 +20,12 @@
 generator client {
   // Prisma v7 uses "prisma-client" instead of "prisma-client-js"
   // This enables the new Rust-free TypeScript-native query engine
-  provider     = "prisma-client"
-  
+  provider = "prisma-client"
+
   // REQUIRED in v7: Custom output path for generated client
   // Import from: '../generated/prisma/client.js' (relative to src/)
-  output       = "../src/generated/prisma"
-  
+  output = "../src/generated/prisma"
+
   // Module format: "cjs" for CommonJS (NestJS), "esm" for ES Modules
   moduleFormat = "cjs"
 }
@@ -36,11 +36,10 @@ datasource db {
   provider = "postgresql"
 }
 
-
 model InventoryItem {
-  id        String   @id @default(cuid())
-  name      String   @db.VarChar(255)
-  code      String   @unique @db.VarChar(100)
+  id   String @id @default(cuid())
+  name String @db.VarChar(255)
+  code String @unique @db.VarChar(100)
 
   itemGroup   ItemGroup? @relation(fields: [itemGroupId], references: [id])
   itemGroupId String?
@@ -78,8 +77,8 @@ model InventoryItem {
   defaultMaterialRequestType String?   @db.VarChar(50)
 
   // Reorder / Procurement
-  safetyStock                Float     @default(0)
-  leadTimeDays               Int       @default(0)
+  safetyStock  Float @default(0)
+  leadTimeDays Int   @default(0)
 
   // Serial Nos and Batches
   hasBatchNo  Boolean @default(false)
@@ -90,7 +89,7 @@ model InventoryItem {
   uomConversions  ItemUomConversion[]
 
   defaultUnitOfMeasureId String?
-  defaultUnitOfMeasure   UnitOfMeasurement? @relation(fields: [defaultUnitOfMeasureId], references: [id])
+  defaultUnitOfMeasure   UnitOfMeasurement?       @relation(fields: [defaultUnitOfMeasureId], references: [id])
   batches                Batch[]
   installationNoteItems  InstallationNoteItem[]
   serialNos              SerialNo[]
@@ -136,11 +135,11 @@ model ItemReorder {
 }
 
 model ItemUomConversion {
-  id               String           @id @default(cuid())
+  id               String            @id @default(cuid())
   itemId           String
   uomId            String
-  conversionFactor Float            @default(1)
-  item             InventoryItem    @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  conversionFactor Float             @default(1)
+  item             InventoryItem     @relation(fields: [itemId], references: [id], onDelete: Cascade)
   uom              UnitOfMeasurement @relation(fields: [uomId], references: [id])
 
   @@unique([itemId, uomId])
@@ -172,7 +171,6 @@ model InventoryItemAttribute {
   @@map("inventory_item_attributes")
 }
 
-
 model ItemGroup {
   id              String             @id @default(cuid())
   groupName       String             @db.VarChar(255)
@@ -199,44 +197,44 @@ model ItemGroupDefault {
 }
 
 model StockSettings {
-  id                                                     String   @id @default(cuid())
-  singletonKey                                           String   @unique @default("default") @db.VarChar(32)
-  itemNamingBy                                           String   @db.VarChar(50) @default("ITEM_CODE")
-  defaultWarehouse                                       String?  @db.VarChar(255)
-  defaultValuationMethod                                 String   @db.VarChar(50) @default("FIFO")
-  defaultStockUom                                        String?  @db.VarChar(50)
-  autoInsertItemPriceIfMissing                           Boolean  @default(false)
-  updateExistingPriceListRate                            Boolean  @default(false)
-  allowToEditStockUomQtyForSalesDocuments                Boolean  @default(false)
-  allowToEditStockUomQtyForPurchaseDocuments             Boolean  @default(false)
-  overDeliveryReceiptAllowancePercent                    Float    @default(0)
-  allowNegativeStock                                     Boolean  @default(false)
-  showBarcodeFieldInStockTransactions                    Boolean  @default(false)
-  convertItemDescriptionToCleanHtmlInTransactions        Boolean  @default(false)
-  overTransferAllowancePercent                           Float    @default(0)
-  allowInternalTransfersAtArmsLengthPrice                Boolean  @default(false)
-  overPickingAllowancePercent                            Float    @default(0)
-  actionIfQualityInspectionIsNotSubmitted                String   @db.VarChar(20) @default("STOP")
-  actionIfQualityInspectionIsRejected                    String   @db.VarChar(20) @default("STOP")
-  enableStockReservation                                 Boolean  @default(false)
-  allowPartialReservation                                Boolean  @default(false)
-  autoReserveStockForSalesOrderOnPurchase                Boolean  @default(false)
-  autoReserveSerialAndBatchNos                           Boolean  @default(false)
-  autoCreateSerialAndBatchBundleForOutward               Boolean  @default(false)
-  disableSerialNoAndBatchSelector                        Boolean  @default(false)
-  haveDefaultNamingSeriesForBatchId                      Boolean  @default(false)
-  pickSerialBatchBasedOn                                 String   @db.VarChar(20) @default("FIFO")
-  useSerialBatchFields                                   Boolean  @default(false)
-  doNotUpdateSerialBatchOnCreationOfAutoBundle           Boolean  @default(false)
-  allowExistingSerialNoToBeManufacturedReceivedAgain     Boolean  @default(false)
-  setSerialAndBatchBundleNamingBasedOnNamingSeries       Boolean  @default(false)
-  raiseMaterialRequestWhenStockReachesReorderLevel       Boolean  @default(false)
-  notifyByEmailOnCreationOfAutomaticMaterialRequest      Boolean  @default(false)
-  allowMaterialTransferFromDeliveryNoteToSalesInvoice    Boolean  @default(false)
-  allowMaterialTransferFromPurchaseReceiptToPurchaseInvoice Boolean @default(false)
-  freezeStocksOlderThanDays                              Int      @default(60)
-  createdAt                                              DateTime @default(now())
-  updatedAt                                              DateTime @updatedAt
+  id                                                        String   @id @default(cuid())
+  singletonKey                                              String   @unique @default("default") @db.VarChar(32)
+  itemNamingBy                                              String   @default("ITEM_CODE") @db.VarChar(50)
+  defaultWarehouse                                          String?  @db.VarChar(255)
+  defaultValuationMethod                                    String   @default("FIFO") @db.VarChar(50)
+  defaultStockUom                                           String?  @db.VarChar(50)
+  autoInsertItemPriceIfMissing                              Boolean  @default(false)
+  updateExistingPriceListRate                               Boolean  @default(false)
+  allowToEditStockUomQtyForSalesDocuments                   Boolean  @default(false)
+  allowToEditStockUomQtyForPurchaseDocuments                Boolean  @default(false)
+  overDeliveryReceiptAllowancePercent                       Float    @default(0)
+  allowNegativeStock                                        Boolean  @default(false)
+  showBarcodeFieldInStockTransactions                       Boolean  @default(false)
+  convertItemDescriptionToCleanHtmlInTransactions           Boolean  @default(false)
+  overTransferAllowancePercent                              Float    @default(0)
+  allowInternalTransfersAtArmsLengthPrice                   Boolean  @default(false)
+  overPickingAllowancePercent                               Float    @default(0)
+  actionIfQualityInspectionIsNotSubmitted                   String   @default("STOP") @db.VarChar(20)
+  actionIfQualityInspectionIsRejected                       String   @default("STOP") @db.VarChar(20)
+  enableStockReservation                                    Boolean  @default(false)
+  allowPartialReservation                                   Boolean  @default(false)
+  autoReserveStockForSalesOrderOnPurchase                   Boolean  @default(false)
+  autoReserveSerialAndBatchNos                              Boolean  @default(false)
+  autoCreateSerialAndBatchBundleForOutward                  Boolean  @default(false)
+  disableSerialNoAndBatchSelector                           Boolean  @default(false)
+  haveDefaultNamingSeriesForBatchId                         Boolean  @default(false)
+  pickSerialBatchBasedOn                                    String   @default("FIFO") @db.VarChar(20)
+  useSerialBatchFields                                      Boolean  @default(false)
+  doNotUpdateSerialBatchOnCreationOfAutoBundle              Boolean  @default(false)
+  allowExistingSerialNoToBeManufacturedReceivedAgain        Boolean  @default(false)
+  setSerialAndBatchBundleNamingBasedOnNamingSeries          Boolean  @default(false)
+  raiseMaterialRequestWhenStockReachesReorderLevel          Boolean  @default(false)
+  notifyByEmailOnCreationOfAutomaticMaterialRequest         Boolean  @default(false)
+  allowMaterialTransferFromDeliveryNoteToSalesInvoice       Boolean  @default(false)
+  allowMaterialTransferFromPurchaseReceiptToPurchaseInvoice Boolean  @default(false)
+  freezeStocksOlderThanDays                                 Int      @default(60)
+  createdAt                                                 DateTime @default(now())
+  updatedAt                                                 DateTime @updatedAt
 
   @@map("stock_settings")
 }
@@ -317,17 +315,17 @@ model Brand {
 }
 
 model ItemAttribute {
-  id              String               @id @default(cuid())
-  name            String               @db.VarChar(255)
-  disabled        Boolean              @default(false)
-  numericValues   Boolean              @default(false)
-  fromRange       Float                @default(0)
-  toRange         Float                @default(0)
-  increment       Float                @default(0)
-  attributeValues ItemAttributeValue[]
+  id                      String                   @id @default(cuid())
+  name                    String                   @db.VarChar(255)
+  disabled                Boolean                  @default(false)
+  numericValues           Boolean                  @default(false)
+  fromRange               Float                    @default(0)
+  toRange                 Float                    @default(0)
+  increment               Float                    @default(0)
+  attributeValues         ItemAttributeValue[]
   inventoryItemAttributes InventoryItemAttribute[]
-  createdAt       DateTime             @default(now())
-  updatedAt       DateTime             @updatedAt
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
 
   @@index([name])
   @@index([disabled])
@@ -350,30 +348,30 @@ model ItemAttributeValue {
 }
 
 model Warehouse {
-  id                          String      @id @default(cuid())
-  name                        String      @unique @db.VarChar(255)
-  disabled                    Boolean     @default(false)
-  isGroupWarehouse            Boolean     @default(false)
+  id                          String            @id @default(cuid())
+  name                        String            @unique @db.VarChar(255)
+  disabled                    Boolean           @default(false)
+  isGroupWarehouse            Boolean           @default(false)
   parentWarehouseId           String?
-  company                     String      @db.VarChar(255)
-  isRejectedWarehouse         Boolean     @default(false)
-  phoneNo                     String?     @db.VarChar(50)
-  mobileNo                    String?     @db.VarChar(50)
-  addressLine1                String?     @db.VarChar(255)
-  addressLine2                String?     @db.VarChar(255)
-  city                        String?     @db.VarChar(255)
-  state                       String?     @db.VarChar(255)
-  pin                         String?     @db.VarChar(20)
-  warehouseType               String?     @db.VarChar(100)
+  company                     String            @db.VarChar(255)
+  isRejectedWarehouse         Boolean           @default(false)
+  phoneNo                     String?           @db.VarChar(50)
+  mobileNo                    String?           @db.VarChar(50)
+  addressLine1                String?           @db.VarChar(255)
+  addressLine2                String?           @db.VarChar(255)
+  city                        String?           @db.VarChar(255)
+  state                       String?           @db.VarChar(255)
+  pin                         String?           @db.VarChar(20)
+  warehouseType               String?           @db.VarChar(100)
   defaultInTransitWarehouseId String?
-  createdAt                   DateTime    @default(now())
-  updatedAt                   DateTime    @updatedAt
-  parentWarehouse             Warehouse?  @relation("WarehouseHierarchy", fields: [parentWarehouseId], references: [id])
-  childWarehouses             Warehouse[] @relation("WarehouseHierarchy")
-  defaultInTransitWarehouse   Warehouse?  @relation("WarehouseTransitDefault", fields: [defaultInTransitWarehouseId], references: [id])
-  transitDefaultFor           Warehouse[] @relation("WarehouseTransitDefault")
-  currentBatches              Batch[]     @relation("BatchCurrentWarehouse")
-  currentSerialNos            SerialNo[]  @relation("SerialNoCurrentWarehouse")
+  createdAt                   DateTime          @default(now())
+  updatedAt                   DateTime          @updatedAt
+  parentWarehouse             Warehouse?        @relation("WarehouseHierarchy", fields: [parentWarehouseId], references: [id])
+  childWarehouses             Warehouse[]       @relation("WarehouseHierarchy")
+  defaultInTransitWarehouse   Warehouse?        @relation("WarehouseTransitDefault", fields: [defaultInTransitWarehouseId], references: [id])
+  transitDefaultFor           Warehouse[]       @relation("WarehouseTransitDefault")
+  currentBatches              Batch[]           @relation("BatchCurrentWarehouse")
+  currentSerialNos            SerialNo[]        @relation("SerialNoCurrentWarehouse")
   serialNoStatusHistory       SerialNoHistory[]
 
   @@index([company])
@@ -450,46 +448,46 @@ model ItemManufacturer {
 }
 
 model User {
-  id              String          @id @default(cuid())
-  name            String
-  email           String          @unique
-  emailVerified   Boolean         @default(false)
-  username        String?         @unique
-  image           String?
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
-  displayUsername String?
-  department      String?         @db.VarChar(100)
-  displayName     String?         @db.VarChar(150)
-  role            String          @default("user")
-  banned          Boolean         @default(false)
-  banReason       String?
-  banExpires      DateTime?
-  managerId       String?
-  mustChangePassword Boolean      @default(false)
+  id                 String          @id @default(cuid())
+  name               String
+  email              String          @unique
+  emailVerified      Boolean         @default(false)
+  username           String?         @unique
+  image              String?
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  displayUsername    String?
+  department         String?         @db.VarChar(100)
+  displayName        String?         @db.VarChar(150)
+  role               String          @default("user")
+  banned             Boolean         @default(false)
+  banReason          String?
+  banExpires         DateTime?
+  managerId          String?
+  mustChangePassword Boolean         @default(false)
   passwordChangedAt  DateTime?
-  accounts        Account[]
-  sessions        Session[]
-  members         Member[]
-  manager         User?           @relation("ManagerSubordinate", fields: [managerId], references: [id])
-  subordinates    User[]          @relation("ManagerSubordinate")
-  assetActivities AssetActivity[]
+  accounts           Account[]
+  sessions           Session[]
+  members            Member[]
+  manager            User?           @relation("ManagerSubordinate", fields: [managerId], references: [id])
+  subordinates       User[]          @relation("ManagerSubordinate")
+  assetActivities    AssetActivity[]
 
   @@index([managerId])
   @@map("users")
 }
 
 model Session {
-  id        String   @id @default(cuid())
-  expiresAt DateTime
-  token     String   @unique
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  ipAddress String?
-  userAgent String?
+  id             String   @id @default(cuid())
+  expiresAt      DateTime
+  token          String   @unique
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  ipAddress      String?
+  userAgent      String?
   impersonatedBy String?
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   // Organization plugin fields
   activeOrganizationId String?
@@ -549,11 +547,11 @@ model Organization {
 }
 
 model Member {
-  id             String       @id @default(cuid())
+  id             String   @id @default(cuid())
   organizationId String
   userId         String
   role           String
-  createdAt      DateTime     @default(now())
+  createdAt      DateTime @default(now())
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -565,14 +563,14 @@ model Member {
 }
 
 model Invitation {
-  id             String       @id @default(cuid())
+  id             String   @id @default(cuid())
   email          String
   organizationId String
   inviterId      String
   role           String?
-  status         String       @default("pending")
+  status         String   @default("pending")
   expiresAt      DateTime
-  createdAt      DateTime     @default(now())
+  createdAt      DateTime @default(now())
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
@@ -582,21 +580,21 @@ model Invitation {
 }
 
 model MaterialRequest {
-  id              String                  @id @default(cuid())
-  series          String                  @unique @db.VarChar(50)
-  transactionDate DateTime                @default(now())
-  purpose         MaterialRequestPurpose  @default(PURCHASE)
-  company         String                  @db.VarChar(255)
+  id              String                 @id @default(cuid())
+  series          String                 @unique @db.VarChar(50)
+  transactionDate DateTime               @default(now())
+  purpose         MaterialRequestPurpose @default(PURCHASE)
+  company         String                 @db.VarChar(255)
   requiredBy      DateTime?
-  status          MaterialRequestStatus   @default(PENDING)
-  targetWarehouse String?                 @db.VarChar(255)
-  terms           String?                 @db.VarChar(255)
+  status          MaterialRequestStatus  @default(PENDING)
+  targetWarehouse String?                @db.VarChar(255)
+  terms           String?                @db.VarChar(255)
   termsContent    String?
-  letterHead      String?                 @db.VarChar(255)
-  printHeading    String?                 @db.VarChar(255)
+  letterHead      String?                @db.VarChar(255)
+  printHeading    String?                @db.VarChar(255)
   items           MaterialRequestItem[]
-  createdAt       DateTime                @default(now())
-  updatedAt       DateTime                @updatedAt
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
 
   @@index([series])
   @@index([status])
@@ -646,25 +644,27 @@ enum MaterialRequestStatus {
 }
 
 model StockEntry {
-  id                     String           @id @default(cuid())
-  series                 String           @unique @db.VarChar(50)
+  id                     String                @id @default(cuid())
+  series                 String                @unique @db.VarChar(50)
   stockEntryType         StockEntryType
-  postingDate            DateTime         @default(now())
-  company                String           @db.VarChar(255)
-  status                 StockEntryStatus @default(DRAFT)
-  project                String?          @db.VarChar(255)
-  defaultSourceWarehouse String?          @db.VarChar(255)
-  defaultTargetWarehouse String?          @db.VarChar(255)
-  isOpening              Boolean          @default(false)
+  postingDate            DateTime              @default(now())
+  company                String                @db.VarChar(255)
+  status                 StockEntryStatus      @default(DRAFT)
+  project                String?               @db.VarChar(255)
+  defaultSourceWarehouse String?               @db.VarChar(255)
+  defaultTargetWarehouse String?               @db.VarChar(255)
+  isOpening              Boolean               @default(false)
   remarks                String?
-  printHeading           String?          @db.VarChar(255)
-  letterHead             String?          @db.VarChar(255)
-  inspectionRequired     Boolean          @default(false)
+  printHeading           String?               @db.VarChar(255)
+  letterHead             String?               @db.VarChar(255)
+  inspectionRequired     Boolean               @default(false)
   items                  StockEntryItem[]
   batches                Batch[]
   serialNos              SerialNo[]
-  createdAt              DateTime         @default(now())
-  updatedAt              DateTime         @updatedAt
+  assetRepairs           AssetRepair[]         @relation("AssetRepairStockEntry")
+  assetCapitalizations   AssetCapitalization[] @relation("AssetCapitalizationStockEntry")
+  createdAt              DateTime              @default(now())
+  updatedAt              DateTime              @updatedAt
 
   @@index([series])
   @@index([status])
@@ -726,73 +726,73 @@ enum CalculationType {
 }
 
 model DeliveryNote {
-  id                       String             @id @default(cuid())
-  series                   String             @unique @db.VarChar(50)
-  postingDate              DateTime           @default(now())
-  customer                 String             @db.VarChar(255)
-  company                  String             @db.VarChar(255)
-  status                   DeliveryNoteStatus @default(DRAFT)
-  isReturn                 Boolean            @default(false)
+  id          String             @id @default(cuid())
+  series      String             @unique @db.VarChar(50)
+  postingDate DateTime           @default(now())
+  customer    String             @db.VarChar(255)
+  company     String             @db.VarChar(255)
+  status      DeliveryNoteStatus @default(DRAFT)
+  isReturn    Boolean            @default(false)
 
   // Currency and Price List
-  currency                 String?            @db.VarChar(10)
-  priceList                String?            @db.VarChar(255)
+  currency  String? @db.VarChar(10)
+  priceList String? @db.VarChar(255)
 
   // Source Warehouse (applied to all items by default)
-  sourceWarehouse          String?            @db.VarChar(255)
+  sourceWarehouse String? @db.VarChar(255)
 
   // Totals
-  totalQuantity            Float              @default(0)
-  totalAmount              Float              @default(0)
-  grandTotal               Float              @default(0)
-  roundingAdjustment       Float              @default(0)
-  roundedTotal             Float              @default(0)
+  totalQuantity      Float @default(0)
+  totalAmount        Float @default(0)
+  grandTotal         Float @default(0)
+  roundingAdjustment Float @default(0)
+  roundedTotal       Float @default(0)
 
   // Additional Discount
-  additionalDiscountOn     String?            @db.VarChar(100)
+  additionalDiscountOn      String? @db.VarChar(100)
   additionalDiscountPercent Float?
-  additionalDiscountAmount Float?
+  additionalDiscountAmount  Float?
 
   // Address & Contact
-  shippingAddress          String?            @db.VarChar(255)
-  dispatchAddress          String?            @db.VarChar(255)
-  companyAddress           String?            @db.VarChar(255)
-  companyContact           String?            @db.VarChar(255)
-  companyTRN               String?            @db.VarChar(100)
+  shippingAddress String? @db.VarChar(255)
+  dispatchAddress String? @db.VarChar(255)
+  companyAddress  String? @db.VarChar(255)
+  companyContact  String? @db.VarChar(255)
+  companyTRN      String? @db.VarChar(100)
 
   // Terms
-  terms                    String?            @db.VarChar(255)
+  terms        String? @db.VarChar(255)
   // Stored as PostgreSQL TEXT to align with Zod 65,535-character limit
-  termsContent             String?            @db.Text
+  termsContent String? @db.Text
 
   // Transporter Info
-  transporter              String?            @db.VarChar(255)
-  driverName               String?            @db.VarChar(255)
-  driver                   String?            @db.VarChar(255)
-  transportReceiptDate     DateTime?
-  transportReceiptNo       String?            @db.VarChar(255)
-  vehicleNo                String?            @db.VarChar(100)
+  transporter          String?   @db.VarChar(255)
+  driverName           String?   @db.VarChar(255)
+  driver               String?   @db.VarChar(255)
+  transportReceiptDate DateTime?
+  transportReceiptNo   String?   @db.VarChar(255)
+  vehicleNo            String?   @db.VarChar(100)
 
   // Customer PO Details
-  customerPoNo             String?
-  customerPoDate           DateTime?
+  customerPoNo   String?
+  customerPoDate DateTime?
 
   // Commission
-  salesPartner             String?            @db.VarChar(255)
-  commissionRate           Float?
+  salesPartner   String? @db.VarChar(255)
+  commissionRate Float?
 
   // Print Settings
-  letterHead               String?            @db.VarChar(255)
-  printHeading             String?            @db.VarChar(255)
-  printWithoutAmount       Boolean            @default(false)
-  groupSameItems           Boolean            @default(false)
+  letterHead         String? @db.VarChar(255)
+  printHeading       String? @db.VarChar(255)
+  printWithoutAmount Boolean @default(false)
+  groupSameItems     Boolean @default(false)
 
   // VAT Details
-  permitNumber             String?            @db.VarChar(255)
-  vatEmirate               String?            @db.VarChar(100)
+  permitNumber String? @db.VarChar(255)
+  vatEmirate   String? @db.VarChar(100)
 
   // Additional Info
-  project                  String?            @db.VarChar(255)
+  project String? @db.VarChar(255)
 
   items             DeliveryNoteItem[]
   batches           Batch[]
@@ -813,18 +813,18 @@ model DeliveryNote {
 }
 
 model DeliveryNoteItem {
-  id             String       @id @default(cuid())
-  deliveryNoteId String
-  itemCode       String       @db.VarChar(100)
-  itemName       String?      @db.VarChar(255)
-  description    String?
-  quantity       Float        @default(0)
-  packedQty      Float        @default(0)
-  uom            String?      @db.VarChar(50)
-  rate           Float        @default(0)
-  amount         Float        @default(0)
-  warehouse      String?      @db.VarChar(255)
-  deliveryNote   DeliveryNote @relation(fields: [deliveryNoteId], references: [id], onDelete: Cascade)
+  id               String            @id @default(cuid())
+  deliveryNoteId   String
+  itemCode         String            @db.VarChar(100)
+  itemName         String?           @db.VarChar(255)
+  description      String?
+  quantity         Float             @default(0)
+  packedQty        Float             @default(0)
+  uom              String?           @db.VarChar(50)
+  rate             Float             @default(0)
+  amount           Float             @default(0)
+  warehouse        String?           @db.VarChar(255)
+  deliveryNote     DeliveryNote      @relation(fields: [deliveryNoteId], references: [id], onDelete: Cascade)
   packingSlipItems PackingSlipItem[]
 
   @@index([deliveryNoteId])
@@ -884,10 +884,10 @@ model InstallationNoteItem {
   item               InventoryItem    @relation(fields: [itemId], references: [id])
   serialNo           SerialNo?        @relation(fields: [serialNoId], references: [id])
 
+  @@unique([installationNoteId, serialNoId])
   @@index([installationNoteId])
   @@index([itemId])
   @@index([serialNoId])
-  @@unique([installationNoteId, serialNoId])
   @@map("installation_note_items")
 }
 
@@ -899,59 +899,59 @@ enum InstallationNoteStatus {
 }
 
 model PurchaseReceipt {
-  id                             String                @id @default(cuid())
-  series                         String                @unique @db.VarChar(50)
-  seriesPattern                  String                @default("MAT-PRE-.YYYY.-") @db.VarChar(50)
-  postingDate                    DateTime              @default(now())
-  postingTime                    String                @default("00:00:00") @db.VarChar(8)
-  editPostingDateTime            Boolean               @default(false)
-  supplier                       String                @db.VarChar(255)
-  company                        String                @db.VarChar(255)
-  status                         PurchaseReceiptStatus @default(DRAFT)
-  isReturn                       Boolean               @default(false)
-  applyPutawayRule               Boolean               @default(false)
-  supplierDeliveryNote           String?               @db.VarChar(255)
-  acceptedWarehouse              String?               @db.VarChar(255)
-  rejectedWarehouse              String?               @db.VarChar(255)
-  isSubcontracted                Boolean               @default(false)
-  currency                       String?               @db.VarChar(10)
-  priceList                      String?               @db.VarChar(255)
-  totalQuantity                  Float                 @default(0)
-  totalAcceptedQuantity          Float                 @default(0)
-  totalRejectedQuantity          Float                 @default(0)
-  totalAmount                    Float                 @default(0)
-  taxesAndChargesAdded           Float                 @default(0)
-  taxesAndChargesDeducted        Float                 @default(0)
-  totalTaxesAndCharges           Float                 @default(0)
-  grandTotal                     Float                 @default(0)
-  roundingAdjustment             Float                 @default(0)
-  roundedTotal                   Float                 @default(0)
-  disableRoundedTotal            Boolean               @default(false)
-  supplierAddress                String?               @db.VarChar(255)
-  contactPerson                  String?               @db.VarChar(255)
-  shippingAddressTemplate        String?               @db.VarChar(255)
-  companyTRN                     String?               @db.VarChar(100)
-  billingAddress                 String?               @db.VarChar(255)
-  terms                          String?               @db.VarChar(255)
-  termsContent                   String?               @db.Text
-  letterHead                     String?               @db.VarChar(255)
-  printHeading                   String?               @db.VarChar(255)
-  groupSameItems                 Boolean               @default(false)
-  permitNumber                   String?               @db.VarChar(255)
-  recoverableStandardRatedExpenses Float               @default(0)
-  reverseChargeApplicable        String                @default("N") @db.VarChar(10)
-  transporterName                String?               @db.VarChar(255)
-  vehicleNumber                  String?               @db.VarChar(100)
-  vehicleDate                    DateTime?
-  instructions                   String?
-  remarks                        String?
-  isInternalSupplier             Boolean               @default(false)
-  items                          PurchaseReceiptItem[]
-  taxes                          PurchaseReceiptTax[]
-  batches                        Batch[]
-  serialNos                      SerialNo[]
-  createdAt                      DateTime              @default(now())
-  updatedAt                      DateTime              @updatedAt
+  id                               String                @id @default(cuid())
+  series                           String                @unique @db.VarChar(50)
+  seriesPattern                    String                @default("MAT-PRE-.YYYY.-") @db.VarChar(50)
+  postingDate                      DateTime              @default(now())
+  postingTime                      String                @default("00:00:00") @db.VarChar(8)
+  editPostingDateTime              Boolean               @default(false)
+  supplier                         String                @db.VarChar(255)
+  company                          String                @db.VarChar(255)
+  status                           PurchaseReceiptStatus @default(DRAFT)
+  isReturn                         Boolean               @default(false)
+  applyPutawayRule                 Boolean               @default(false)
+  supplierDeliveryNote             String?               @db.VarChar(255)
+  acceptedWarehouse                String?               @db.VarChar(255)
+  rejectedWarehouse                String?               @db.VarChar(255)
+  isSubcontracted                  Boolean               @default(false)
+  currency                         String?               @db.VarChar(10)
+  priceList                        String?               @db.VarChar(255)
+  totalQuantity                    Float                 @default(0)
+  totalAcceptedQuantity            Float                 @default(0)
+  totalRejectedQuantity            Float                 @default(0)
+  totalAmount                      Float                 @default(0)
+  taxesAndChargesAdded             Float                 @default(0)
+  taxesAndChargesDeducted          Float                 @default(0)
+  totalTaxesAndCharges             Float                 @default(0)
+  grandTotal                       Float                 @default(0)
+  roundingAdjustment               Float                 @default(0)
+  roundedTotal                     Float                 @default(0)
+  disableRoundedTotal              Boolean               @default(false)
+  supplierAddress                  String?               @db.VarChar(255)
+  contactPerson                    String?               @db.VarChar(255)
+  shippingAddressTemplate          String?               @db.VarChar(255)
+  companyTRN                       String?               @db.VarChar(100)
+  billingAddress                   String?               @db.VarChar(255)
+  terms                            String?               @db.VarChar(255)
+  termsContent                     String?               @db.Text
+  letterHead                       String?               @db.VarChar(255)
+  printHeading                     String?               @db.VarChar(255)
+  groupSameItems                   Boolean               @default(false)
+  permitNumber                     String?               @db.VarChar(255)
+  recoverableStandardRatedExpenses Float                 @default(0)
+  reverseChargeApplicable          String                @default("N") @db.VarChar(10)
+  transporterName                  String?               @db.VarChar(255)
+  vehicleNumber                    String?               @db.VarChar(100)
+  vehicleDate                      DateTime?
+  instructions                     String?
+  remarks                          String?
+  isInternalSupplier               Boolean               @default(false)
+  items                            PurchaseReceiptItem[]
+  taxes                            PurchaseReceiptTax[]
+  batches                          Batch[]
+  serialNos                        SerialNo[]
+  createdAt                        DateTime              @default(now())
+  updatedAt                        DateTime              @updatedAt
 
   @@index([series])
   @@index([status])
@@ -962,19 +962,19 @@ model PurchaseReceipt {
 }
 
 model PurchaseReceiptItem {
-  id               String          @id @default(cuid())
+  id                String          @id @default(cuid())
   purchaseReceiptId String
-  itemCode         String          @db.VarChar(100)
-  itemName         String?         @db.VarChar(255)
-  description      String?
-  acceptedQuantity Float           @default(0)
-  rejectedQuantity Float           @default(0)
-  rate             Float           @default(0)
-  amount           Float           @default(0)
-  uom              String?         @db.VarChar(50)
-  acceptedWarehouse String?        @db.VarChar(255)
-  rejectedWarehouse String?        @db.VarChar(255)
-  purchaseReceipt  PurchaseReceipt @relation(fields: [purchaseReceiptId], references: [id], onDelete: Cascade)
+  itemCode          String          @db.VarChar(100)
+  itemName          String?         @db.VarChar(255)
+  description       String?
+  acceptedQuantity  Float           @default(0)
+  rejectedQuantity  Float           @default(0)
+  rate              Float           @default(0)
+  amount            Float           @default(0)
+  uom               String?         @db.VarChar(50)
+  acceptedWarehouse String?         @db.VarChar(255)
+  rejectedWarehouse String?         @db.VarChar(255)
+  purchaseReceipt   PurchaseReceipt @relation(fields: [purchaseReceiptId], references: [id], onDelete: Cascade)
 
   @@index([purchaseReceiptId])
   @@index([itemCode])
@@ -985,14 +985,14 @@ model PurchaseReceiptItem {
 }
 
 model PurchaseReceiptTax {
-  id               String          @id @default(cuid())
+  id                String          @id @default(cuid())
   purchaseReceiptId String
-  type             String          @db.VarChar(255)
-  accountHead      String          @db.VarChar(255)
-  taxRate          Float           @default(0)
-  amount           Float           @default(0)
-  total            Float           @default(0)
-  purchaseReceipt  PurchaseReceipt @relation(fields: [purchaseReceiptId], references: [id], onDelete: Cascade)
+  type              String          @db.VarChar(255)
+  accountHead       String          @db.VarChar(255)
+  taxRate           Float           @default(0)
+  amount            Float           @default(0)
+  total             Float           @default(0)
+  purchaseReceipt   PurchaseReceipt @relation(fields: [purchaseReceiptId], references: [id], onDelete: Cascade)
 
   @@index([purchaseReceiptId])
   @@map("purchase_receipt_taxes")
@@ -1022,26 +1022,26 @@ enum PickListPurpose {
 }
 
 model PickList {
-  id                          String          @id @default(cuid())
-  series                      String          @unique @db.VarChar(50)
-  seriesPattern               String          @default("STO-PICK-.YYYY.-") @db.VarChar(50)
-  status                      PickListStatus  @default(DRAFT)
-  company                     String          @db.VarChar(255)
-  customer                    String?         @db.VarChar(255)
-  purpose                     PickListPurpose @default(MATERIAL_TRANSFER_FOR_MANUFACTURE)
-  workOrder                   String?         @db.VarChar(255)
-  warehouse                   String?         @db.VarChar(255)
-  considerRejectedWarehouses  Boolean         @default(false)
-  pickManually                Boolean         @default(false)
-  ignorePricingRule           Boolean         @default(false)
-  scanMode                    Boolean         @default(false)
-  promptQty                   Boolean         @default(false)
-  scanBarcode                 String?         @db.VarChar(255)
-  groupSameItems              Boolean         @default(false)
-  items                       PickListItem[]
-  serialNos                   SerialNo[]
-  createdAt                   DateTime        @default(now())
-  updatedAt                   DateTime        @updatedAt
+  id                         String          @id @default(cuid())
+  series                     String          @unique @db.VarChar(50)
+  seriesPattern              String          @default("STO-PICK-.YYYY.-") @db.VarChar(50)
+  status                     PickListStatus  @default(DRAFT)
+  company                    String          @db.VarChar(255)
+  customer                   String?         @db.VarChar(255)
+  purpose                    PickListPurpose @default(MATERIAL_TRANSFER_FOR_MANUFACTURE)
+  workOrder                  String?         @db.VarChar(255)
+  warehouse                  String?         @db.VarChar(255)
+  considerRejectedWarehouses Boolean         @default(false)
+  pickManually               Boolean         @default(false)
+  ignorePricingRule          Boolean         @default(false)
+  scanMode                   Boolean         @default(false)
+  promptQty                  Boolean         @default(false)
+  scanBarcode                String?         @db.VarChar(255)
+  groupSameItems             Boolean         @default(false)
+  items                      PickListItem[]
+  serialNos                  SerialNo[]
+  createdAt                  DateTime        @default(now())
+  updatedAt                  DateTime        @updatedAt
 
   @@index([series])
   @@index([status])
@@ -1122,33 +1122,33 @@ enum SerialNoHistoryEventType {
 }
 
 model SerialNo {
-  id                          String         @id @default(cuid())
-  serialNo                    String         @unique @db.VarChar(120)
-  itemId                      String
-  company                     String         @db.VarChar(255)
-  status                      SerialNoStatus @default(DRAFT)
-  currentWarehouseId          String?
-  purchaseReceiptId           String?
-  deliveryNoteId              String?
-  stockEntryId                String?
-  pickListId                  String?
-  workOrder                   String?        @db.VarChar(255)
-  purchaseDate                DateTime?
-  warrantyExpiryDate          DateTime?
-  serviceContractExpiryDate   DateTime?
-  maintenanceStatus           String?        @db.VarChar(255)
-  notes                       String?
-  isDisabled                  Boolean        @default(false)
-  createdAt                   DateTime       @default(now())
-  updatedAt                   DateTime       @updatedAt
-  item                        InventoryItem  @relation(fields: [itemId], references: [id])
-  currentWarehouse            Warehouse?     @relation("SerialNoCurrentWarehouse", fields: [currentWarehouseId], references: [id])
-  purchaseReceipt             PurchaseReceipt? @relation(fields: [purchaseReceiptId], references: [id])
-  deliveryNote                DeliveryNote?  @relation(fields: [deliveryNoteId], references: [id])
-  stockEntry                  StockEntry?    @relation(fields: [stockEntryId], references: [id])
-  pickList                    PickList?      @relation(fields: [pickListId], references: [id])
-  history                     SerialNoHistory[]
-  installationNoteItems       InstallationNoteItem[]
+  id                        String                 @id @default(cuid())
+  serialNo                  String                 @unique @db.VarChar(120)
+  itemId                    String
+  company                   String                 @db.VarChar(255)
+  status                    SerialNoStatus         @default(DRAFT)
+  currentWarehouseId        String?
+  purchaseReceiptId         String?
+  deliveryNoteId            String?
+  stockEntryId              String?
+  pickListId                String?
+  workOrder                 String?                @db.VarChar(255)
+  purchaseDate              DateTime?
+  warrantyExpiryDate        DateTime?
+  serviceContractExpiryDate DateTime?
+  maintenanceStatus         String?                @db.VarChar(255)
+  notes                     String?
+  isDisabled                Boolean                @default(false)
+  createdAt                 DateTime               @default(now())
+  updatedAt                 DateTime               @updatedAt
+  item                      InventoryItem          @relation(fields: [itemId], references: [id])
+  currentWarehouse          Warehouse?             @relation("SerialNoCurrentWarehouse", fields: [currentWarehouseId], references: [id])
+  purchaseReceipt           PurchaseReceipt?       @relation(fields: [purchaseReceiptId], references: [id])
+  deliveryNote              DeliveryNote?          @relation(fields: [deliveryNoteId], references: [id])
+  stockEntry                StockEntry?            @relation(fields: [stockEntryId], references: [id])
+  pickList                  PickList?              @relation(fields: [pickListId], references: [id])
+  history                   SerialNoHistory[]
+  installationNoteItems     InstallationNoteItem[]
 
   @@index([itemId])
   @@index([company])
@@ -1164,17 +1164,17 @@ model SerialNo {
 }
 
 model SerialNoHistory {
-  id                 String                   @id @default(cuid())
-  serialNoId         String
-  eventType          SerialNoHistoryEventType
-  fromStatus         SerialNoStatus?
-  toStatus           SerialNoStatus?
-  warehouseId        String?
-  transactionLabel   String?                  @db.VarChar(255)
-  notes              String?
-  createdAt          DateTime                 @default(now())
-  serialNo           SerialNo                 @relation(fields: [serialNoId], references: [id], onDelete: Cascade)
-  warehouse          Warehouse?               @relation(fields: [warehouseId], references: [id])
+  id               String                   @id @default(cuid())
+  serialNoId       String
+  eventType        SerialNoHistoryEventType
+  fromStatus       SerialNoStatus?
+  toStatus         SerialNoStatus?
+  warehouseId      String?
+  transactionLabel String?                  @db.VarChar(255)
+  notes            String?
+  createdAt        DateTime                 @default(now())
+  serialNo         SerialNo                 @relation(fields: [serialNoId], references: [id], onDelete: Cascade)
+  warehouse        Warehouse?               @relation(fields: [warehouseId], references: [id])
 
   @@index([serialNoId, createdAt])
   @@index([eventType])
@@ -1194,19 +1194,19 @@ enum DeliveryTripStatus {
 }
 
 model DeliveryTrip {
-  id                             String              @id @default(cuid())
-  series                         String              @unique @db.VarChar(50)
-  seriesPattern                  String              @default("MAT-DT-.YYYY.-") @db.VarChar(50)
-  status                         DeliveryTripStatus  @default(DRAFT)
-  company                        String              @db.VarChar(255)
-  driver                         String?             @db.VarChar(255)
-  driverAddress                  String?             @db.VarChar(500)
-  vehicle                        String?             @db.VarChar(255)
-  departureTime                  DateTime?
-  initialEmailNotificationSent   Boolean             @default(false)
-  stops                          DeliveryTripStop[]
-  createdAt                      DateTime            @default(now())
-  updatedAt                      DateTime            @updatedAt
+  id                           String             @id @default(cuid())
+  series                       String             @unique @db.VarChar(50)
+  seriesPattern                String             @default("MAT-DT-.YYYY.-") @db.VarChar(50)
+  status                       DeliveryTripStatus @default(DRAFT)
+  company                      String             @db.VarChar(255)
+  driver                       String?            @db.VarChar(255)
+  driverAddress                String?            @db.VarChar(500)
+  vehicle                      String?            @db.VarChar(255)
+  departureTime                DateTime?
+  initialEmailNotificationSent Boolean            @default(false)
+  stops                        DeliveryTripStop[]
+  createdAt                    DateTime           @default(now())
+  updatedAt                    DateTime           @updatedAt
 
   @@index([series])
   @@index([status])
@@ -1239,21 +1239,21 @@ enum PackingSlipStatus {
 }
 
 model PackingSlip {
-  id               String             @id @default(cuid())
-  series           String             @unique @db.VarChar(50)
-  status           PackingSlipStatus  @default(DRAFT)
-  deliveryNoteId   String
-  fromCaseNo       Int
-  toCaseNo         Int
-  netWeightPkg     Float              @default(0)
-  netWeightUom     String?            @db.VarChar(50)
-  grossWeightPkg   Float              @default(0)
-  grossWeightUom   String?            @db.VarChar(50)
-  letterHead       String?            @db.VarChar(255)
-  deliveryNote     DeliveryNote       @relation(fields: [deliveryNoteId], references: [id])
-  items            PackingSlipItem[]
-  createdAt        DateTime           @default(now())
-  updatedAt        DateTime           @updatedAt
+  id             String            @id @default(cuid())
+  series         String            @unique @db.VarChar(50)
+  status         PackingSlipStatus @default(DRAFT)
+  deliveryNoteId String
+  fromCaseNo     Int
+  toCaseNo       Int
+  netWeightPkg   Float             @default(0)
+  netWeightUom   String?           @db.VarChar(50)
+  grossWeightPkg Float             @default(0)
+  grossWeightUom String?           @db.VarChar(50)
+  letterHead     String?           @db.VarChar(255)
+  deliveryNote   DeliveryNote      @relation(fields: [deliveryNoteId], references: [id])
+  items          PackingSlipItem[]
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
 
   @@index([deliveryNoteId])
   @@index([status])
@@ -1261,18 +1261,18 @@ model PackingSlip {
 }
 
 model PackingSlipItem {
-  id                  String           @id @default(cuid())
-  packingSlipId       String
-  deliveryNoteItemId  String
-  itemCode            String           @db.VarChar(100)
-  itemName            String?          @db.VarChar(255)
-  description         String?
-  qty                 Float            @default(0)
-  netWeight           Float            @default(0)
-  weightUom           String?          @db.VarChar(50)
-  batchNo             String?          @db.VarChar(255)
-  packingSlip         PackingSlip      @relation(fields: [packingSlipId], references: [id], onDelete: Cascade)
-  deliveryNoteItem    DeliveryNoteItem @relation(fields: [deliveryNoteItemId], references: [id])
+  id                 String           @id @default(cuid())
+  packingSlipId      String
+  deliveryNoteItemId String
+  itemCode           String           @db.VarChar(100)
+  itemName           String?          @db.VarChar(255)
+  description        String?
+  qty                Float            @default(0)
+  netWeight          Float            @default(0)
+  weightUom          String?          @db.VarChar(50)
+  batchNo            String?          @db.VarChar(255)
+  packingSlip        PackingSlip      @relation(fields: [packingSlipId], references: [id], onDelete: Cascade)
+  deliveryNoteItem   DeliveryNoteItem @relation(fields: [deliveryNoteItemId], references: [id])
 
   @@index([packingSlipId])
   @@index([deliveryNoteItemId])
@@ -1292,14 +1292,14 @@ model QiParameterGroup {
 }
 
 model QiParameter {
-  id            String             @id @default(cuid())
-  parameter     String             @unique @db.VarChar(255)
+  id            String            @id @default(cuid())
+  parameter     String            @unique @db.VarChar(255)
   description   String?
   groupId       String?
-  group         QiParameterGroup?  @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  group         QiParameterGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)
   templateItems QiTemplateItem[]
-  createdAt     DateTime           @default(now())
-  updatedAt     DateTime           @updatedAt
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
 
   @@index([groupId])
   @@map("qi_parameters")
@@ -1338,8 +1338,8 @@ model QiTemplateItem {
 // ─── Sales Orders ─────────────────────────────────────────────────────────────
 
 model SalesOrder {
-  id             String            @id @default(cuid())
-  series         String            @unique @db.VarChar(50)
+  id              String           @id @default(cuid())
+  series          String           @unique @db.VarChar(50)
   transactionDate DateTime         @default(now())
   customer        String           @db.VarChar(255)
   company         String           @db.VarChar(255)
@@ -1358,27 +1358,27 @@ model SalesOrder {
 }
 
 model SalesOrderItem {
-  id               String      @id @default(cuid())
+  id               String     @id @default(cuid())
   salesOrderId     String
-  itemCode         String      @db.VarChar(100)
-  itemName         String?     @db.VarChar(255)
+  itemCode         String     @db.VarChar(100)
+  itemName         String?    @db.VarChar(255)
   description      String?
   deliveryDate     DateTime
-  qty              Float       @default(0)
-  deliveredQty     Float       @default(0)
-  billedQty        Float       @default(0)
-  rate             Float       @default(0)
-  baseRate         Float       @default(0)
+  qty              Float      @default(0)
+  deliveredQty     Float      @default(0)
+  billedQty        Float      @default(0)
+  rate             Float      @default(0)
+  baseRate         Float      @default(0)
   /// Order line total in the SO currency
-  amount           Float       @default(0)
+  amount           Float      @default(0)
   /// Order line total in company base currency
-  baseAmount       Float       @default(0)
+  baseAmount       Float      @default(0)
   /// Cumulative billed amount in company base currency (denormalised from invoices)
-  billedAmount     Float       @default(0)
-  warehouse        String?     @db.VarChar(255)
+  billedAmount     Float      @default(0)
+  warehouse        String?    @db.VarChar(255)
   /// Date of the latest delivery against this line; used to compute time-taken-to-deliver
   lastDeliveryDate DateTime?
-  salesOrder       SalesOrder  @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+  salesOrder       SalesOrder @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
 
   @@index([salesOrderId])
   @@index([itemCode])
@@ -1419,31 +1419,31 @@ model PurchaseOrder {
 }
 
 model PurchaseOrderItem {
-  id               String        @id @default(cuid())
-  purchaseOrderId  String
-  itemCode         String        @db.VarChar(100)
-  itemName         String?       @db.VarChar(255)
-  description      String?
+  id                String        @id @default(cuid())
+  purchaseOrderId   String
+  itemCode          String        @db.VarChar(100)
+  itemName          String?       @db.VarChar(255)
+  description       String?
   /// Required / schedule date for this line (item-level)
-  requiredDate     DateTime
-  qty              Float         @default(0)
-  receivedQty      Float         @default(0)
-  billedQty        Float         @default(0)
-  rate             Float         @default(0)
-  baseRate         Float         @default(0)
+  requiredDate      DateTime
+  qty               Float         @default(0)
+  receivedQty       Float         @default(0)
+  billedQty         Float         @default(0)
+  rate              Float         @default(0)
+  baseRate          Float         @default(0)
   /// Order line total in the PO currency
-  amount           Float         @default(0)
+  amount            Float         @default(0)
   /// Order line total in company base currency
-  baseAmount       Float         @default(0)
+  baseAmount        Float         @default(0)
   /// Cumulative billed amount in company base currency (denormalised from invoices)
-  billedAmount     Float         @default(0)
+  billedAmount      Float         @default(0)
   /// Value of quantity already received (denormalised from purchase receipts)
-  receivedQtyAmount Float        @default(0)
-  warehouse        String?       @db.VarChar(255)
-  project          String?       @db.VarChar(255)
+  receivedQtyAmount Float         @default(0)
+  warehouse         String?       @db.VarChar(255)
+  project           String?       @db.VarChar(255)
   /// Date of the latest receipt against this line
-  lastReceiptDate  DateTime?
-  purchaseOrder    PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  lastReceiptDate   DateTime?
+  purchaseOrder     PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
 
   @@index([purchaseOrderId])
   @@index([itemCode])
@@ -1465,18 +1465,18 @@ enum PurchaseOrderStatus {
 // ─── Subcontracting Order ─────────────────────────────────────────────────────
 
 model SubcontractingOrder {
-  id              String                              @id @default(cuid())
-  series          String                              @unique @db.VarChar(50)
-  transactionDate DateTime                            @default(now())
-  supplier        String                              @db.VarChar(255)
-  company         String                              @db.VarChar(255)
-  status          SubcontractingOrderStatus           @default(DRAFT)
+  id              String                            @id @default(cuid())
+  series          String                            @unique @db.VarChar(50)
+  transactionDate DateTime                          @default(now())
+  supplier        String                            @db.VarChar(255)
+  company         String                            @db.VarChar(255)
+  status          SubcontractingOrderStatus         @default(DRAFT)
   /// Percentage of finished goods received back from the subcontractor (0–100)
-  percentReceived Float                               @default(0)
+  percentReceived Float                             @default(0)
   suppliedItems   SubcontractingOrderSuppliedItem[]
   items           SubcontractingOrderItem[]
-  createdAt       DateTime                            @default(now())
-  updatedAt       DateTime                            @updatedAt
+  createdAt       DateTime                          @default(now())
+  updatedAt       DateTime                          @updatedAt
 
   @@index([status])
   @@index([transactionDate])
@@ -1535,14 +1535,14 @@ enum SubcontractingOrderStatus {
 // ============================================================================
 
 model Location {
-  id               String     @id @default(cuid())
-  name             String     @unique @db.VarChar(255)
+  id               String              @id @default(cuid())
+  name             String              @unique @db.VarChar(255)
   parentLocationId String?
-  parentLocation   Location?  @relation("LocationHierarchy", fields: [parentLocationId], references: [id])
-  childLocations   Location[] @relation("LocationHierarchy")
-  isGroup          Boolean    @default(false)
-  createdAt        DateTime   @default(now())
-  updatedAt        DateTime   @updatedAt
+  parentLocation   Location?           @relation("LocationHierarchy", fields: [parentLocationId], references: [id])
+  childLocations   Location[]          @relation("LocationHierarchy")
+  isGroup          Boolean             @default(false)
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
   assets           Asset[]
   sourceMovements  AssetMovementItem[] @relation("SourceMovements")
   targetMovements  AssetMovementItem[] @relation("TargetMovements")
@@ -1553,20 +1553,20 @@ model Location {
 }
 
 model AssetCategory {
-  id                            String              @id @default(cuid())
-  name                          String              @unique @db.VarChar(255)
-  depreciationMethod            DepreciationMethod?
-  totalNumberOfDepreciations    Int?
-  frequencyOfDepreciation       Int?
-  dailyProrataBased             Boolean             @default(false)
-  shiftBased                    Boolean             @default(false)
+  id                           String                     @id @default(cuid())
+  name                         String                     @unique @db.VarChar(255)
+  depreciationMethod           DepreciationMethod?
+  totalNumberOfDepreciations   Int?
+  frequencyOfDepreciation      Int?
+  dailyProrataBased            Boolean                    @default(false)
+  shiftBased                   Boolean                    @default(false)
   rateOfDepreciation           Float?
-  expectedValueAfterUsefulLife  Decimal?            @db.Decimal(18, 6)
-  nonDepreciableCategory       Boolean             @default(false)
-  enableCwipAccounting         Boolean             @default(false)
-  createdAt                     DateTime            @default(now())
-  updatedAt                     DateTime            @updatedAt
-  assets                        Asset[]
+  expectedValueAfterUsefulLife Decimal?                   @db.Decimal(18, 6)
+  nonDepreciableCategory       Boolean                    @default(false)
+  enableCwipAccounting         Boolean                    @default(false)
+  createdAt                    DateTime                   @default(now())
+  updatedAt                    DateTime                   @updatedAt
+  assets                       Asset[]
   financeBookDefaults          AssetCategoryFinanceBook[]
   accounts                     AssetCategoryAccount[]
 
@@ -1575,46 +1575,47 @@ model AssetCategory {
 }
 
 model Asset {
-  id                                 String              @id @default(cuid())
-  series                             String              @unique @db.VarChar(50)
-  assetName                          String              @db.VarChar(255)
-  itemCode                           String              @db.VarChar(100)
-  barcode                            String?             @unique @db.VarChar(255)
+  id                                 String                          @id @default(cuid())
+  series                             String                          @unique @db.VarChar(50)
+  assetName                          String                          @db.VarChar(255)
+  assetType                          AssetType                       @default(EXISTING_ASSET)
+  itemCode                           String                          @db.VarChar(100)
+  barcode                            String?                         @unique @db.VarChar(255)
   assetCategoryId                    String?
-  assetCategory                      AssetCategory?      @relation(fields: [assetCategoryId], references: [id])
-  company                            String              @db.VarChar(255)
+  assetCategory                      AssetCategory?                  @relation(fields: [assetCategoryId], references: [id])
+  company                            String                          @db.VarChar(255)
   locationId                         String?
-  location                           Location?           @relation(fields: [locationId], references: [id])
-  custodian                          String?             @db.VarChar(255)
-  department                         String?             @db.VarChar(255)
+  location                           Location?                       @relation(fields: [locationId], references: [id])
+  custodian                          String?                         @db.VarChar(255)
+  department                         String?                         @db.VarChar(255)
   purchaseDate                       DateTime
   availableForUseDate                DateTime?
   disposalDate                       DateTime?
-  netPurchaseAmount                  Decimal             @default(0) @db.Decimal(18, 6)
-  assetQuantity                      Int                 @default(1)
-  calculateDepreciation              Boolean             @default(false)
-  openingAccumulatedDepreciation     Decimal             @default(0) @db.Decimal(18, 6)
-  openingNumberOfBookedDepreciations Int                 @default(0)
-  isFullyDepreciated                 Boolean             @default(false)
-  valueAfterDepreciation             Decimal             @default(0) @db.Decimal(18, 6)
-  maintenanceRequired                Boolean             @default(false)
-  assetOwner                         AssetOwner          @default(COMPANY)
-  assetOwnerCompany                  String?             @db.VarChar(255)
-  supplier                           String?             @db.VarChar(255)
-  customer                           String?             @db.VarChar(255)
-  policyNumber                       String?             @db.VarChar(100)
-  insurer                            String?             @db.VarChar(255)
-  insuredValue                       Decimal?            @db.Decimal(18, 6)
+  netPurchaseAmount                  Decimal                         @default(0) @db.Decimal(18, 6)
+  assetQuantity                      Int                             @default(1)
+  calculateDepreciation              Boolean                         @default(false)
+  openingAccumulatedDepreciation     Decimal                         @default(0) @db.Decimal(18, 6)
+  openingNumberOfBookedDepreciations Int                             @default(0)
+  isFullyDepreciated                 Boolean                         @default(false)
+  valueAfterDepreciation             Decimal                         @default(0) @db.Decimal(18, 6)
+  maintenanceRequired                Boolean                         @default(false)
+  assetOwner                         AssetOwner                      @default(COMPANY)
+  assetOwnerCompany                  String?                         @db.VarChar(255)
+  supplier                           String?                         @db.VarChar(255)
+  customer                           String?                         @db.VarChar(255)
+  policyNumber                       String?                         @db.VarChar(100)
+  insurer                            String?                         @db.VarChar(255)
+  insuredValue                       Decimal?                        @db.Decimal(18, 6)
   insuranceStartDate                 DateTime?
   insuranceEndDate                   DateTime?
   depreciationMethod                 DepreciationMethod?
   totalNumberOfDepreciations         Int?
   frequencyOfDepreciation            Int?
-  expectedValueAfterUsefulLife       Decimal?            @db.Decimal(18, 6)
+  expectedValueAfterUsefulLife       Decimal?                        @db.Decimal(18, 6)
   depreciationStartDate              DateTime?
-  purchaseReceipt                    String?             @db.VarChar(100)
-  purchaseInvoice                    String?             @db.VarChar(100)
-  status                             AssetStatus         @default(DRAFT)
+  purchaseReceipt                    String?                         @db.VarChar(100)
+  purchaseInvoice                    String?                         @db.VarChar(100)
+  status                             AssetStatus                     @default(DRAFT)
   activities                         AssetActivity[]
   maintenance                        AssetMaintenance?
   valueAdjustments                   AssetValueAdjustment[]
@@ -1622,17 +1623,22 @@ model Asset {
   depreciationSchedules              AssetDepreciationSchedule[]
   financeBooks                       AssetFinanceBook[]
   depreciationJournalEntries         AssetDepreciationJournalEntry[]
-  movementItems                      AssetMovementItem[]              @relation("AssetMovementItems")
-  repairs                            AssetRepair[]                    @relation("AssetRepairs")
-  consumedInRepairs                  AssetRepairConsumedItem[]        @relation("ConsumedInRepairs")
-  capitalizationsAsTarget            AssetCapitalization[]            @relation("TargetCapitalizations")
-  capitalizationsAsSource            AssetCapitalizationAssetItem[]   @relation("SourceCapitalizationAssets")
-  disposals                          AssetDisposal[]                  @relation("AssetDisposals")
-  createdAt                          DateTime            @default(now())
-  updatedAt                          DateTime            @updatedAt
+  movementItems                      AssetMovementItem[]             @relation("AssetMovementItems")
+  repairs                            AssetRepair[]                   @relation("AssetRepairs")
+  consumedInRepairs                  AssetRepairConsumedItem[]       @relation("ConsumedInRepairs")
+  capitalizationsAsTarget            AssetCapitalization[]           @relation("TargetCapitalizations")
+  capitalizationsAsSource            AssetCapitalizationAssetItem[]  @relation("SourceCapitalizationAssets")
+  disposals                          AssetDisposal[]                 @relation("AssetDisposals")
+  accountingEntries                  AssetAccountingEntry[]          @relation("AssetAccountingEntries")
+  cwipAccountingEntryId              String?                         @unique
+  cwipAccountingEntry                AssetAccountingEntry?           @relation("AssetCwipAccountingEntry", fields: [cwipAccountingEntryId], references: [id], onDelete: SetNull)
+  cwipBookedAt                       DateTime?
+  createdAt                          DateTime                        @default(now())
+  updatedAt                          DateTime                        @updatedAt
 
   @@index([series])
   @@index([status])
+  @@index([assetType])
   @@index([itemCode])
   @@index([company])
   @@index([locationId])
@@ -1657,32 +1663,36 @@ model AssetActivity {
 }
 
 model AssetValueAdjustment {
-  id                     String                           @id @default(cuid())
-  series                 String                           @unique @db.VarChar(50)
-  assetId                String
-  asset                  Asset                            @relation(fields: [assetId], references: [id])
-  assetCategorySnapshot  String?                          @db.VarChar(255)
-  companySnapshot        String                           @db.VarChar(255)
-  adjustmentDate         DateTime
-  currentAssetValue      Decimal                          @db.Decimal(18, 6)
-  newAssetValue          Decimal                          @db.Decimal(18, 6)
-  differenceAmount       Decimal                          @db.Decimal(18, 6)
-  differenceAccount      String                           @db.VarChar(255)
-  fixedAssetAccount      String                           @db.VarChar(255)
-  costCenter             String?                          @db.VarChar(255)
-  notes                  String?                          @db.Text
-  status                 AssetValueAdjustmentStatus       @default(DRAFT)
-  direction              AssetValueAdjustmentDirection
-  previousAssetStatus    AssetStatus
-  previousIsFullyDepreciated Boolean                      @default(false)
-  submittedAt            DateTime?
-  cancelledAt            DateTime?
-  revaluationEntry       AssetRevaluationEntry?
-  depreciationSchedule   AssetDepreciationSchedule?
-  createdAt              DateTime                         @default(now())
-  updatedAt              DateTime                         @updatedAt
+  id                                  String                        @id @default(cuid())
+  series                              String                        @unique @db.VarChar(50)
+  assetId                             String
+  asset                               Asset                         @relation(fields: [assetId], references: [id])
+  financeBookId                       String?
+  financeBook                         FinanceBook?                  @relation(fields: [financeBookId], references: [id])
+  assetCategorySnapshot               String?                       @db.VarChar(255)
+  companySnapshot                     String                        @db.VarChar(255)
+  adjustmentDate                      DateTime
+  currentAssetValue                   Decimal                       @db.Decimal(18, 6)
+  newAssetValue                       Decimal                       @db.Decimal(18, 6)
+  differenceAmount                    Decimal                       @db.Decimal(18, 6)
+  differenceAccount                   String                        @db.VarChar(255)
+  fixedAssetAccount                   String                        @db.VarChar(255)
+  costCenter                          String?                       @db.VarChar(255)
+  notes                               String?                       @db.Text
+  status                              AssetValueAdjustmentStatus    @default(DRAFT)
+  direction                           AssetValueAdjustmentDirection
+  previousAssetStatus                 AssetStatus
+  previousIsFullyDepreciated          Boolean                       @default(false)
+  previousAssetValueAfterDepreciation Decimal?                      @db.Decimal(18, 6)
+  submittedAt                         DateTime?
+  cancelledAt                         DateTime?
+  revaluationEntry                    AssetRevaluationEntry?
+  depreciationSchedule                AssetDepreciationSchedule?
+  createdAt                           DateTime                      @default(now())
+  updatedAt                           DateTime                      @updatedAt
 
   @@index([assetId])
+  @@index([financeBookId])
   @@index([status])
   @@index([adjustmentDate])
   @@index([companySnapshot])
@@ -1690,20 +1700,20 @@ model AssetValueAdjustment {
 }
 
 model AssetRevaluationEntry {
-  id            String                      @id @default(cuid())
-  series        String                      @unique @db.VarChar(50)
-  adjustmentId  String                      @unique
-  adjustment    AssetValueAdjustment        @relation(fields: [adjustmentId], references: [id], onDelete: Cascade)
-  assetId       String
-  asset         Asset                       @relation(fields: [assetId], references: [id])
-  company       String                      @db.VarChar(255)
-  postingDate   DateTime
-  remarks       String                      @db.VarChar(500)
-  status        AssetRevaluationEntryStatus @default(POSTED)
-  reversedAt    DateTime?
-  lines         AssetRevaluationEntryLine[]
-  createdAt     DateTime                    @default(now())
-  updatedAt     DateTime                    @updatedAt
+  id           String                      @id @default(cuid())
+  series       String                      @unique @db.VarChar(50)
+  adjustmentId String                      @unique
+  adjustment   AssetValueAdjustment        @relation(fields: [adjustmentId], references: [id], onDelete: Cascade)
+  assetId      String
+  asset        Asset                       @relation(fields: [assetId], references: [id])
+  company      String                      @db.VarChar(255)
+  postingDate  DateTime
+  remarks      String                      @db.VarChar(500)
+  status       AssetRevaluationEntryStatus @default(POSTED)
+  reversedAt   DateTime?
+  lines        AssetRevaluationEntryLine[]
+  createdAt    DateTime                    @default(now())
+  updatedAt    DateTime                    @updatedAt
 
   @@index([assetId])
   @@index([status])
@@ -1712,16 +1722,16 @@ model AssetRevaluationEntry {
 }
 
 model AssetRevaluationEntryLine {
-  id                 String                     @id @default(cuid())
+  id                 String                   @id @default(cuid())
   revaluationEntryId String
-  revaluationEntry   AssetRevaluationEntry      @relation(fields: [revaluationEntryId], references: [id], onDelete: Cascade)
+  revaluationEntry   AssetRevaluationEntry    @relation(fields: [revaluationEntryId], references: [id], onDelete: Cascade)
   lineType           AssetRevaluationLineType
-  account            String                     @db.VarChar(255)
-  debitAmount        Decimal                    @default(0) @db.Decimal(18, 6)
-  creditAmount       Decimal                    @default(0) @db.Decimal(18, 6)
-  costCenter         String?                    @db.VarChar(255)
-  createdAt          DateTime                   @default(now())
-  updatedAt          DateTime                   @updatedAt
+  account            String                   @db.VarChar(255)
+  debitAmount        Decimal                  @default(0) @db.Decimal(18, 6)
+  creditAmount       Decimal                  @default(0) @db.Decimal(18, 6)
+  costCenter         String?                  @db.VarChar(255)
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
 
   @@index([revaluationEntryId])
   @@index([account])
@@ -1729,34 +1739,34 @@ model AssetRevaluationEntryLine {
 }
 
 model AssetDepreciationSchedule {
-  id                            String                          @id @default(cuid())
-  adjustmentId                  String?                         @unique
-  adjustment                    AssetValueAdjustment?           @relation(fields: [adjustmentId], references: [id], onDelete: SetNull)
-  assetId                       String
-  asset                         Asset                           @relation(fields: [assetId], references: [id])
-  assetFinanceBookId            String
-  assetFinanceBook              AssetFinanceBook                @relation(fields: [assetFinanceBookId], references: [id])
-  previousScheduleId            String?
-  previousSchedule              AssetDepreciationSchedule?      @relation("AssetDepreciationScheduleChain", fields: [previousScheduleId], references: [id])
-  nextSchedules                 AssetDepreciationSchedule[]     @relation("AssetDepreciationScheduleChain")
-  revisionNumber                Int
-  status                        AssetDepreciationScheduleStatus @default(ACTIVE)
-  startDate                     DateTime
-  depreciationMethod            DepreciationMethod?
-  totalNumberOfDepreciations    Int
-  frequencyOfDepreciation       Int
-  dailyProrataBased             Boolean             @default(false)
-  shiftBased                    Boolean             @default(false)
-  rateOfDepreciation           Float?
-  expectedValueAfterUsefulLife  Decimal?            @db.Decimal(18, 6)
-  bookedDepreciations           Int
-  remainingDepreciations        Int
-  openingAccumulatedDepreciation Decimal                      @default(0) @db.Decimal(18, 6)
-  baseAssetValue                Decimal                         @db.Decimal(18, 6)
-  notes                         String?                         @db.Text
-  entries                       AssetDepreciationScheduleEntry[]
-  createdAt                     DateTime                        @default(now())
-  updatedAt                     DateTime                        @updatedAt
+  id                             String                           @id @default(cuid())
+  adjustmentId                   String?                          @unique
+  adjustment                     AssetValueAdjustment?            @relation(fields: [adjustmentId], references: [id], onDelete: SetNull)
+  assetId                        String
+  asset                          Asset                            @relation(fields: [assetId], references: [id])
+  assetFinanceBookId             String
+  assetFinanceBook               AssetFinanceBook                 @relation(fields: [assetFinanceBookId], references: [id])
+  previousScheduleId             String?
+  previousSchedule               AssetDepreciationSchedule?       @relation("AssetDepreciationScheduleChain", fields: [previousScheduleId], references: [id])
+  nextSchedules                  AssetDepreciationSchedule[]      @relation("AssetDepreciationScheduleChain")
+  revisionNumber                 Int
+  status                         AssetDepreciationScheduleStatus  @default(ACTIVE)
+  startDate                      DateTime
+  depreciationMethod             DepreciationMethod?
+  totalNumberOfDepreciations     Int
+  frequencyOfDepreciation        Int
+  dailyProrataBased              Boolean                          @default(false)
+  shiftBased                     Boolean                          @default(false)
+  rateOfDepreciation             Float?
+  expectedValueAfterUsefulLife   Decimal?                         @db.Decimal(18, 6)
+  bookedDepreciations            Int
+  remainingDepreciations         Int
+  openingAccumulatedDepreciation Decimal                          @default(0) @db.Decimal(18, 6)
+  baseAssetValue                 Decimal                          @db.Decimal(18, 6)
+  notes                          String?                          @db.Text
+  entries                        AssetDepreciationScheduleEntry[]
+  createdAt                      DateTime                         @default(now())
+  updatedAt                      DateTime                         @updatedAt
 
   @@index([assetId])
   @@index([assetFinanceBookId])
@@ -1768,19 +1778,19 @@ model AssetDepreciationSchedule {
 }
 
 model AssetDepreciationScheduleEntry {
-  id                            String                    @id @default(cuid())
+  id                            String                         @id @default(cuid())
   scheduleId                    String
-  schedule                      AssetDepreciationSchedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  schedule                      AssetDepreciationSchedule      @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
   sequence                      Int
   scheduleDate                  DateTime
-  depreciationAmount            Decimal                   @db.Decimal(18, 6)
-  accumulatedDepreciationAmount Decimal                   @db.Decimal(18, 6)
-  bookValueAfterDepreciation    Decimal                   @db.Decimal(18, 6)
-  postingId                     String?                   @unique
+  depreciationAmount            Decimal                        @db.Decimal(18, 6)
+  accumulatedDepreciationAmount Decimal                        @db.Decimal(18, 6)
+  bookValueAfterDepreciation    Decimal                        @db.Decimal(18, 6)
+  postingId                     String?                        @unique
   posting                       AssetDepreciationJournalEntry? @relation(fields: [postingId], references: [id], onDelete: SetNull)
   postedAt                      DateTime?
-  createdAt                     DateTime                  @default(now())
-  updatedAt                     DateTime                  @updatedAt
+  createdAt                     DateTime                       @default(now())
+  updatedAt                     DateTime                       @updatedAt
 
   @@unique([scheduleId, sequence])
   @@index([scheduleId])
@@ -1795,6 +1805,7 @@ model FinanceBook {
   companies         Company[]                  @relation("CompanyDefaultFinanceBook")
   assetFinanceBooks AssetFinanceBook[]
   categoryDefaults  AssetCategoryFinanceBook[]
+  valueAdjustments  AssetValueAdjustment[]
   createdAt         DateTime                   @default(now())
   updatedAt         DateTime                   @updatedAt
 
@@ -1811,6 +1822,7 @@ model AssetFinanceBook {
   financeBook                        FinanceBook                     @relation(fields: [financeBookId], references: [id])
   depreciationMethod                 DepreciationMethod
   totalNumberOfDepreciations         Int
+  increaseInAssetLife                Int                             @default(0)
   frequencyOfDepreciation            Int
   dailyProrataBased                  Boolean                         @default(false)
   shiftBased                         Boolean                         @default(false)
@@ -1937,6 +1949,53 @@ model AssetDepreciationJournalEntryLine {
   @@map("asset_depreciation_journal_entry_lines")
 }
 
+/// Balanced posting in Aria's Asset-domain subledger.
+/// This is intentionally separate from authentication Account records and is
+/// not represented as a shared statutory general ledger.
+model AssetAccountingEntry {
+  id             String                     @id @default(cuid())
+  series         String                     @unique @db.VarChar(50)
+  company        String                     @db.VarChar(255)
+  assetId        String?
+  asset          Asset?                     @relation("AssetAccountingEntries", fields: [assetId], references: [id], onDelete: SetNull)
+  sourceType     AssetAccountingSourceType
+  sourceId       String                     @db.VarChar(255)
+  postingDate    DateTime
+  remarks        String                     @db.VarChar(500)
+  status         AssetAccountingEntryStatus @default(POSTED)
+  reversedAt     DateTime?
+  lines          AssetAccountingEntryLine[]
+  repair         AssetRepair?               @relation("AssetRepairAccountingEntry")
+  capitalization AssetCapitalization?       @relation("AssetCapitalizationAccountingEntry")
+  disposal       AssetDisposal?             @relation("AssetDisposalAccountingEntry")
+  cwipAsset      Asset?                     @relation("AssetCwipAccountingEntry")
+  createdAt      DateTime                   @default(now())
+  updatedAt      DateTime                   @updatedAt
+
+  @@unique([sourceType, sourceId])
+  @@index([assetId, postingDate])
+  @@index([company, postingDate, status])
+  @@map("asset_accounting_entries")
+}
+
+/// One debit or credit line in an Asset-domain subledger entry.
+model AssetAccountingEntryLine {
+  id                String                  @id @default(cuid())
+  accountingEntryId String
+  accountingEntry   AssetAccountingEntry    @relation(fields: [accountingEntryId], references: [id], onDelete: Cascade)
+  lineType          AssetAccountingLineType
+  account           String                  @db.VarChar(255)
+  debitAmount       Decimal                 @default(0) @db.Decimal(18, 6)
+  creditAmount      Decimal                 @default(0) @db.Decimal(18, 6)
+  costCenter        String?                 @db.VarChar(255)
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+
+  @@index([accountingEntryId])
+  @@index([account])
+  @@map("asset_accounting_entry_lines")
+}
+
 model AssetMaintenanceTeam {
   id                     String                       @id @default(cuid())
   name                   String                       @unique @db.VarChar(255)
@@ -1968,18 +2027,18 @@ model AssetMaintenanceTeamMember {
 }
 
 model AssetMaintenance {
-  id                     String                  @id @default(cuid())
-  assetId                String                  @unique
-  asset                  Asset                   @relation(fields: [assetId], references: [id])
-  company                String                  @db.VarChar(255)
+  id                     String                 @id @default(cuid())
+  assetId                String                 @unique
+  asset                  Asset                  @relation(fields: [assetId], references: [id])
+  company                String                 @db.VarChar(255)
   maintenanceTeamId      String
-  maintenanceTeam        AssetMaintenanceTeam    @relation(fields: [maintenanceTeamId], references: [id])
-  maintenanceManager     String?                 @db.VarChar(255)
-  maintenanceManagerName String?                 @db.VarChar(255)
+  maintenanceTeam        AssetMaintenanceTeam   @relation(fields: [maintenanceTeamId], references: [id])
+  maintenanceManager     String?                @db.VarChar(255)
+  maintenanceManagerName String?                @db.VarChar(255)
   tasks                  AssetMaintenanceTask[]
   logs                   AssetMaintenanceLog[]
-  createdAt              DateTime                @default(now())
-  updatedAt              DateTime                @updatedAt
+  createdAt              DateTime               @default(now())
+  updatedAt              DateTime               @updatedAt
 
   @@index([maintenanceTeamId])
   @@index([company])
@@ -1987,24 +2046,24 @@ model AssetMaintenance {
 }
 
 model AssetMaintenanceTask {
-  id                  String                    @id @default(cuid())
+  id                  String                      @id @default(cuid())
   maintenanceId       String
-  maintenance         AssetMaintenance          @relation(fields: [maintenanceId], references: [id], onDelete: Cascade)
-  maintenanceTask     String                    @db.VarChar(255)
+  maintenance         AssetMaintenance            @relation(fields: [maintenanceId], references: [id], onDelete: Cascade)
+  maintenanceTask     String                      @db.VarChar(255)
   maintenanceType     AssetMaintenanceTaskType?
-  maintenanceStatus   AssetMaintenanceStatus    @default(PLANNED)
+  maintenanceStatus   AssetMaintenanceStatus      @default(PLANNED)
   startDate           DateTime
   periodicity         AssetMaintenancePeriodicity
   endDate             DateTime?
-  certificateRequired Boolean                   @default(false)
-  assignTo            String?                   @db.VarChar(255)
-  assignToName        String?                   @db.VarChar(255)
+  certificateRequired Boolean                     @default(false)
+  assignTo            String?                     @db.VarChar(255)
+  assignToName        String?                     @db.VarChar(255)
   nextDueDate         DateTime?
   lastCompletionDate  DateTime?
-  description         String?                   @db.Text
+  description         String?                     @db.Text
   logs                AssetMaintenanceLog[]
-  createdAt           DateTime                  @default(now())
-  updatedAt           DateTime                  @updatedAt
+  createdAt           DateTime                    @default(now())
+  updatedAt           DateTime                    @updatedAt
 
   @@index([maintenanceId])
   @@index([maintenanceStatus])
@@ -2013,18 +2072,18 @@ model AssetMaintenanceTask {
 }
 
 model AssetMaintenanceLog {
-  id                    String                      @id @default(cuid())
+  id                    String                    @id @default(cuid())
   maintenanceId         String
-  maintenance           AssetMaintenance            @relation(fields: [maintenanceId], references: [id], onDelete: Cascade)
+  maintenance           AssetMaintenance          @relation(fields: [maintenanceId], references: [id], onDelete: Cascade)
   taskId                String
-  task                  AssetMaintenanceTask        @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  maintenanceStatus     AssetMaintenanceLogStatus   @default(PLANNED)
+  task                  AssetMaintenanceTask      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  maintenanceStatus     AssetMaintenanceLogStatus @default(PLANNED)
   completionDate        DateTime?
-  actionsPerformed      String?                     @db.Text
-  hasCertificate        Boolean                     @default(false)
-  certificateAttachment String?                     @db.VarChar(500)
-  createdAt             DateTime                    @default(now())
-  updatedAt             DateTime                    @updatedAt
+  actionsPerformed      String?                   @db.Text
+  hasCertificate        Boolean                   @default(false)
+  certificateAttachment String?                   @db.VarChar(500)
+  createdAt             DateTime                  @default(now())
+  updatedAt             DateTime                  @updatedAt
 
   @@index([maintenanceId])
   @@index([taskId])
@@ -2050,6 +2109,7 @@ model AssetMovement {
   @@index([status])
   @@index([transactionDate])
   @@index([company])
+  @@index([company, status, transactionDate])
   @@map("asset_movements")
 }
 
@@ -2068,32 +2128,42 @@ model AssetMovementItem {
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
 
+  @@unique([movementId, assetId])
   @@index([movementId])
   @@index([assetId])
+  @@index([assetId, movementId])
   @@index([sourceLocationId])
   @@index([targetLocationId])
   @@map("asset_movement_items")
 }
 
 model AssetRepair {
-  id                   String                        @id @default(cuid())
-  series               String                        @unique @db.VarChar(50)
-  assetId              String
-  asset                Asset                         @relation("AssetRepairs", fields: [assetId], references: [id])
-  company              String                        @db.VarChar(255)
-  failureDate          DateTime
-  completionDate       DateTime?
-  repairStatus         AssetRepairStatus             @default(DRAFT)
-  repairCost           Decimal                       @default(0) @db.Decimal(18, 6)
-  capitalizeRepairCost Boolean                       @default(false)
-  increaseInAssetLife  Int                           @default(0)
-  description          String?                       @db.Text
-  submittedAt          DateTime?
-  cancelledAt          DateTime?
-  consumedItems        AssetRepairConsumedItem[]
-  purchaseInvoices     AssetRepairPurchaseInvoice[]
-  createdAt            DateTime                      @default(now())
-  updatedAt            DateTime                      @updatedAt
+  id                             String                       @id @default(cuid())
+  series                         String                       @unique @db.VarChar(50)
+  assetId                        String
+  asset                          Asset                        @relation("AssetRepairs", fields: [assetId], references: [id])
+  company                        String                       @db.VarChar(255)
+  failureDate                    DateTime
+  completionDate                 DateTime?
+  repairStatus                   AssetRepairStatus            @default(DRAFT)
+  repairCost                     Decimal                      @default(0) @db.Decimal(18, 6)
+  capitalizeRepairCost           Boolean                      @default(false)
+  increaseInAssetLife            Int                          @default(0)
+  description                    String?                      @db.Text
+  submittedAt                    DateTime?
+  cancelledAt                    DateTime?
+  stockEntryId                   String?                      @unique
+  stockEntry                     StockEntry?                  @relation("AssetRepairStockEntry", fields: [stockEntryId], references: [id], onDelete: SetNull)
+  accountingEntryId              String?                      @unique
+  accountingEntry                AssetAccountingEntry?        @relation("AssetRepairAccountingEntry", fields: [accountingEntryId], references: [id], onDelete: SetNull)
+  previousAssetStatus            AssetStatus?
+  previousNetPurchaseAmount      Decimal?                     @db.Decimal(18, 6)
+  previousValueAfterDepreciation Decimal?                     @db.Decimal(18, 6)
+  previousTotalDepreciations     Int?
+  consumedItems                  AssetRepairConsumedItem[]
+  purchaseInvoices               AssetRepairPurchaseInvoice[]
+  createdAt                      DateTime                     @default(now())
+  updatedAt                      DateTime                     @updatedAt
 
   @@index([assetId])
   @@index([repairStatus])
@@ -2103,18 +2173,19 @@ model AssetRepair {
 }
 
 model AssetRepairConsumedItem {
-  id            String      @id @default(cuid())
-  repairId      String
-  repair        AssetRepair @relation(fields: [repairId], references: [id], onDelete: Cascade)
-  assetId       String?
-  consumedAsset Asset?      @relation("ConsumedInRepairs", fields: [assetId], references: [id])
-  itemCode      String      @db.VarChar(100)
-  warehouse     String?     @db.VarChar(255)
-  quantity      Int         @default(1)
-  valuationRate Decimal     @default(0) @db.Decimal(18, 6)
-  totalAmount   Decimal     @default(0) @db.Decimal(18, 6)
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  id             String      @id @default(cuid())
+  repairId       String
+  repair         AssetRepair @relation(fields: [repairId], references: [id], onDelete: Cascade)
+  assetId        String?
+  consumedAsset  Asset?      @relation("ConsumedInRepairs", fields: [assetId], references: [id])
+  itemCode       String      @db.VarChar(100)
+  warehouse      String?     @db.VarChar(255)
+  expenseAccount String?     @db.VarChar(255)
+  quantity       Int         @default(1)
+  valuationRate  Decimal     @default(0) @db.Decimal(18, 6)
+  totalAmount    Decimal     @default(0) @db.Decimal(18, 6)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
 
   @@index([repairId])
   @@index([itemCode])
@@ -2132,33 +2203,43 @@ model AssetRepairPurchaseInvoice {
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
 
+  @@unique([repairId, purchaseInvoice, expenseAccount])
   @@index([repairId])
   @@map("asset_repair_purchase_invoices")
 }
 
 model AssetCapitalization {
-  id                  String                         @id @default(cuid())
-  series              String                         @unique @db.VarChar(50)
-  company             String                         @db.VarChar(255)
-  postingDate         DateTime
-  targetType          AssetCapitalizationTargetType  @default(NEW_ASSET)
-  targetAssetId       String?
-  targetAsset         Asset?                         @relation("TargetCapitalizations", fields: [targetAssetId], references: [id])
-  targetAssetName     String?                        @db.VarChar(255)
-  targetAssetCategory String?                        @db.VarChar(255)
-  status              AssetCapitalizationStatus      @default(DRAFT)
-  totalStockValue     Decimal                        @default(0) @db.Decimal(18, 6)
-  totalAssetValue     Decimal                        @default(0) @db.Decimal(18, 6)
-  totalServiceValue   Decimal                        @default(0) @db.Decimal(18, 6)
-  totalValue          Decimal                        @default(0) @db.Decimal(18, 6)
-  notes               String?                        @db.Text
-  submittedAt         DateTime?
-  cancelledAt         DateTime?
-  stockItems          AssetCapitalizationStockItem[]
-  assetItems          AssetCapitalizationAssetItem[]
-  serviceItems        AssetCapitalizationServiceItem[]
-  createdAt           DateTime                       @default(now())
-  updatedAt           DateTime                       @updatedAt
+  id                                   String                           @id @default(cuid())
+  series                               String                           @unique @db.VarChar(50)
+  company                              String                           @db.VarChar(255)
+  postingDate                          DateTime
+  targetType                           AssetCapitalizationTargetType    @default(NEW_ASSET)
+  targetAssetId                        String?
+  targetAsset                          Asset?                           @relation("TargetCapitalizations", fields: [targetAssetId], references: [id])
+  targetAssetName                      String?                          @db.VarChar(255)
+  targetAssetCategory                  String?                          @db.VarChar(255)
+  targetItemCode                       String?                          @db.VarChar(100)
+  status                               AssetCapitalizationStatus        @default(DRAFT)
+  totalStockValue                      Decimal                          @default(0) @db.Decimal(18, 6)
+  totalAssetValue                      Decimal                          @default(0) @db.Decimal(18, 6)
+  totalServiceValue                    Decimal                          @default(0) @db.Decimal(18, 6)
+  totalValue                           Decimal                          @default(0) @db.Decimal(18, 6)
+  notes                                String?                          @db.Text
+  submittedAt                          DateTime?
+  cancelledAt                          DateTime?
+  stockEntryId                         String?                          @unique
+  stockEntry                           StockEntry?                      @relation("AssetCapitalizationStockEntry", fields: [stockEntryId], references: [id], onDelete: SetNull)
+  accountingEntryId                    String?                          @unique
+  accountingEntry                      AssetAccountingEntry?            @relation("AssetCapitalizationAccountingEntry", fields: [accountingEntryId], references: [id], onDelete: SetNull)
+  createdTargetAsset                   Boolean                          @default(false)
+  targetPreviousNetPurchaseAmount      Decimal?                         @db.Decimal(18, 6)
+  targetPreviousValueAfterDepreciation Decimal?                         @db.Decimal(18, 6)
+  targetPreviousStatus                 AssetStatus?
+  stockItems                           AssetCapitalizationStockItem[]
+  assetItems                           AssetCapitalizationAssetItem[]
+  serviceItems                         AssetCapitalizationServiceItem[]
+  createdAt                            DateTime                         @default(now())
+  updatedAt                            DateTime                         @updatedAt
 
   @@index([series])
   @@index([status])
@@ -2173,6 +2254,7 @@ model AssetCapitalizationStockItem {
   capitalization   AssetCapitalization @relation(fields: [capitalizationId], references: [id], onDelete: Cascade)
   itemCode         String              @db.VarChar(100)
   warehouse        String?             @db.VarChar(255)
+  expenseAccount   String?             @db.VarChar(255)
   stockQty         Int                 @default(1)
   valuationRate    Decimal             @default(0) @db.Decimal(18, 6)
   amount           Decimal             @default(0) @db.Decimal(18, 6)
@@ -2185,15 +2267,18 @@ model AssetCapitalizationStockItem {
 }
 
 model AssetCapitalizationAssetItem {
-  id               String              @id @default(cuid())
-  capitalizationId String
-  capitalization   AssetCapitalization @relation(fields: [capitalizationId], references: [id], onDelete: Cascade)
-  assetId          String
-  asset            Asset               @relation("SourceCapitalizationAssets", fields: [assetId], references: [id])
-  assetValue       Decimal             @default(0) @db.Decimal(18, 6)
-  createdAt        DateTime            @default(now())
-  updatedAt        DateTime            @updatedAt
+  id                   String              @id @default(cuid())
+  capitalizationId     String
+  capitalization       AssetCapitalization @relation(fields: [capitalizationId], references: [id], onDelete: Cascade)
+  assetId              String
+  asset                Asset               @relation("SourceCapitalizationAssets", fields: [assetId], references: [id])
+  assetValue           Decimal             @default(0) @db.Decimal(18, 6)
+  previousStatus       AssetStatus?
+  previousDisposalDate DateTime?
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
 
+  @@unique([capitalizationId, assetId])
   @@index([capitalizationId])
   @@index([assetId])
   @@map("asset_capitalization_asset_items")
@@ -2214,20 +2299,28 @@ model AssetCapitalizationServiceItem {
 }
 
 model AssetDisposal {
-  id                 String              @id @default(cuid())
-  series             String              @unique @db.VarChar(50)
-  assetId            String
-  asset              Asset               @relation("AssetDisposals", fields: [assetId], references: [id])
-  company            String              @db.VarChar(255)
-  disposalDate       DateTime
-  disposalType       AssetDisposalType
-  salesAmount        Decimal?            @db.Decimal(18, 6)
-  gainLossAmount     Decimal             @default(0) @db.Decimal(18, 6)
-  journalEntrySeries String?             @db.VarChar(50)
-  status             AssetDisposalStatus @default(POSTED)
-  notes              String?             @db.Text
-  createdAt          DateTime            @default(now())
-  updatedAt          DateTime            @updatedAt
+  id                             String                @id @default(cuid())
+  series                         String                @unique @db.VarChar(50)
+  assetId                        String
+  asset                          Asset                 @relation("AssetDisposals", fields: [assetId], references: [id])
+  company                        String                @db.VarChar(255)
+  disposalDate                   DateTime
+  disposalType                   AssetDisposalType
+  salesAmount                    Decimal?              @db.Decimal(18, 6)
+  gainLossAmount                 Decimal               @default(0) @db.Decimal(18, 6)
+  fixedAssetAccount              String?               @db.VarChar(255)
+  accumulatedDepreciationAccount String?               @db.VarChar(255)
+  proceedsAccount                String?               @db.VarChar(255)
+  gainLossAccount                String?               @db.VarChar(255)
+  costCenter                     String?               @db.VarChar(255)
+  accountingEntryId              String?               @unique
+  accountingEntry                AssetAccountingEntry? @relation("AssetDisposalAccountingEntry", fields: [accountingEntryId], references: [id], onDelete: SetNull)
+  previousAssetStatus            AssetStatus?
+  previousIsFullyDepreciated     Boolean?
+  status                         AssetDisposalStatus   @default(POSTED)
+  notes                          String?               @db.Text
+  createdAt                      DateTime              @default(now())
+  updatedAt                      DateTime              @updatedAt
 
   @@index([assetId])
   @@index([status])
@@ -2277,6 +2370,23 @@ enum AssetDisposalStatus {
   CANCELLED
 }
 
+enum AssetAccountingSourceType {
+  DISPOSAL
+  REPAIR
+  CAPITALIZATION
+  CWIP_CAPITALIZATION
+}
+
+enum AssetAccountingEntryStatus {
+  POSTED
+  REVERSED
+}
+
+enum AssetAccountingLineType {
+  DEBIT
+  CREDIT
+}
+
 enum AssetStatus {
   DRAFT
   SUBMITTED
@@ -2285,8 +2395,15 @@ enum AssetStatus {
   FULLY_DEPRECIATED
   SOLD
   SCRAPPED
+  CAPITALIZED
   IN_MAINTENANCE
   OUT_OF_ORDER
+}
+
+enum AssetType {
+  EXISTING_ASSET
+  COMPOSITE_ASSET
+  COMPOSITE_COMPONENT
 }
 
 enum AssetOwner {
@@ -2353,33 +2470,33 @@ model Company {
   accountsFrozenThrough          DateTime?
   assetCategoryAccounts          AssetCategoryAccount[]
   fiscalYears                    FiscalYearCompany[]
-  createdAt                      DateTime                @default(now())
-  updatedAt                      DateTime                @updatedAt
+  createdAt                      DateTime               @default(now())
+  updatedAt                      DateTime               @updatedAt
 
   @@index([parentCompanyId])
   @@index([defaultFinanceBookId])
 }
 
 model FiscalYear {
-  id            String    @id @default(cuid())
-  year          String    @unique @db.VarChar(20)
+  id            String              @id @default(cuid())
+  year          String              @unique @db.VarChar(20)
   yearStartDate DateTime
   yearEndDate   DateTime
-  disabled      Boolean   @default(false)
-  isShortYear   Boolean   @default(false)
+  disabled      Boolean             @default(false)
+  isShortYear   Boolean             @default(false)
   companies     FiscalYearCompany[]
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
 
   @@index([year])
   @@index([yearStartDate, yearEndDate])
 }
 
 model FiscalYearCompany {
-  id           String    @id @default(cuid())
+  id           String     @id @default(cuid())
   fiscalYear   FiscalYear @relation(fields: [fiscalYearId], references: [id])
   fiscalYearId String
-  company      Company   @relation(fields: [companyId], references: [id])
+  company      Company    @relation(fields: [companyId], references: [id])
   companyId    String
 
   @@unique([fiscalYearId, companyId])

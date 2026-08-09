@@ -5831,6 +5831,7 @@ export namespace Asset {
 		"FULLY_DEPRECIATED",
 		"SOLD",
 		"SCRAPPED",
+		"CAPITALIZED",
 		"IN_MAINTENANCE",
 		"OUT_OF_ORDER",
 	]);
@@ -5838,6 +5839,13 @@ export namespace Asset {
 
 	export const assetOwnerSchema = z.enum(["COMPANY", "SUPPLIER", "CUSTOMER"]);
 	export type AssetOwner = z.infer<typeof assetOwnerSchema>;
+
+	export const assetTypeSchema = z.enum([
+		"EXISTING_ASSET",
+		"COMPOSITE_ASSET",
+		"COMPOSITE_COMPONENT",
+	]);
+	export type AssetType = z.infer<typeof assetTypeSchema>;
 
 	export const depreciationMethodSchema = z.enum([
 		"STRAIGHT_LINE",
@@ -5972,6 +5980,7 @@ export namespace Asset {
 		financeBookName: string;
 		depreciationMethod: DepreciationMethod;
 		totalNumberOfDepreciations: number;
+		increaseInAssetLife: number;
 		frequencyOfDepreciation: number;
 		depreciationStartDate: Date;
 		dailyProrataBased: boolean;
@@ -5999,6 +6008,7 @@ export namespace Asset {
 		id: string;
 		series: string;
 		assetName: string;
+		assetType: AssetType;
 		itemCode?: string | null;
 		barcode?: string | null;
 		assetCategoryId?: string | null;
@@ -6150,6 +6160,7 @@ export namespace Asset {
 
 	export interface CreateAssetInput {
 		assetName: string;
+		assetType?: AssetType;
 		itemCode?: string | null;
 		barcode?: string | null;
 		assetCategoryId?: string | null;
@@ -6190,6 +6201,7 @@ export namespace Asset {
 	export interface UpdateAssetInput {
 		id: string;
 		assetName?: string;
+		assetType?: AssetType;
 		itemCode?: string | null;
 		barcode?: string | null;
 		assetCategoryId?: string | null;
@@ -6321,6 +6333,7 @@ export namespace Asset {
 
 	const assetInputFields = {
 		assetName: z.string().min(1, "Asset name is required").max(255).trim(),
+		assetType: assetTypeSchema.default("EXISTING_ASSET"),
 		itemCode: z.string().max(100).trim().optional().nullable(),
 		barcode: z.string().max(255).trim().optional().nullable(),
 		assetCategoryId: z.string().cuid().optional().nullable(),
@@ -6402,6 +6415,7 @@ export namespace Asset {
 	export const updateAssetSchema = z.object({
 		id: z.string().cuid(),
 		assetName: assetInputFields.assetName.optional(),
+		assetType: assetTypeSchema.optional(),
 		itemCode: assetInputFields.itemCode,
 		barcode: assetInputFields.barcode,
 		assetCategoryId: assetInputFields.assetCategoryId,
@@ -6953,6 +6967,17 @@ export namespace Asset {
 		updatedAt: Date;
 	}
 
+	export const getAssetDepreciationSchedulesSchema = z.object({
+		assetId: z.string().cuid(),
+	});
+	export type GetAssetDepreciationSchedulesInput = z.infer<
+		typeof getAssetDepreciationSchedulesSchema
+	>;
+
+	export interface AssetDepreciationScheduleListResult {
+		items: AssetDepreciationSchedule[];
+	}
+
 	export interface AssetDepreciationSchedulePreviewEntry {
 		sequence: number;
 		scheduleDate: Date;
@@ -6980,6 +7005,9 @@ export namespace Asset {
 		assetName: string;
 		assetCategoryName: string | null;
 		company: string;
+		financeBookId: string | null;
+		financeBookName: string | null;
+		assetFinanceBookId: string | null;
 		adjustmentDate: Date;
 		currentAssetValue: number;
 		newAssetValue: number;
@@ -7000,6 +7028,8 @@ export namespace Asset {
 		assetName: string;
 		assetCategoryName: string | null;
 		company: string;
+		financeBookId: string | null;
+		financeBookName: string | null;
 		adjustmentDate: Date;
 		currentAssetValue: number;
 		newAssetValue: number;
@@ -7047,6 +7077,7 @@ export namespace Asset {
 
 	export const previewAssetValueAdjustmentSchema = z.object({
 		assetId: z.string().cuid(),
+		financeBookId: z.string().cuid().nullable().optional(),
 		adjustmentDate: z.coerce.date(),
 		newAssetValue: z.number().finite().min(0),
 	});
@@ -7056,6 +7087,7 @@ export namespace Asset {
 
 	export const createAssetValueAdjustmentSchema = z.object({
 		assetId: z.string().cuid(),
+		financeBookId: z.string().cuid().nullable().optional(),
 		adjustmentDate: z.coerce.date(),
 		newAssetValue: z.number().finite().min(0),
 		differenceAccount: z.string().trim().min(1).max(255),
@@ -7070,6 +7102,7 @@ export namespace Asset {
 		.object({
 			id: z.string().cuid(),
 			assetId: z.string().cuid().optional(),
+			financeBookId: z.string().cuid().nullable().optional(),
 			adjustmentDate: z.coerce.date().optional(),
 			newAssetValue: z.number().finite().min(0).optional(),
 			differenceAccount: z.string().trim().min(1).max(255).optional(),
@@ -7079,6 +7112,7 @@ export namespace Asset {
 		.refine(
 			(input) =>
 				input.assetId !== undefined ||
+				input.financeBookId !== undefined ||
 				input.adjustmentDate !== undefined ||
 				input.newAssetValue !== undefined ||
 				input.differenceAccount !== undefined ||
@@ -7492,6 +7526,7 @@ export namespace Asset {
 		consumedAssetName?: string | null;
 		itemCode: string;
 		warehouse?: string | null;
+		expenseAccount?: string | null;
 		quantity: number;
 		valuationRate: number;
 		totalAmount: number;
@@ -7524,6 +7559,8 @@ export namespace Asset {
 		description?: string | null;
 		submittedAt?: Date | string | null;
 		cancelledAt?: Date | string | null;
+		stockEntryId?: string | null;
+		accountingEntryId?: string | null;
 		consumedItems: AssetRepairConsumedItem[];
 		purchaseInvoices: AssetRepairPurchaseInvoice[];
 		createdAt: Date | string;
@@ -7540,6 +7577,7 @@ export namespace Asset {
 		capitalizationId: string;
 		itemCode: string;
 		warehouse?: string | null;
+		expenseAccount?: string | null;
 		stockQty: number;
 		valuationRate: number;
 		amount: number;
@@ -7576,6 +7614,7 @@ export namespace Asset {
 		targetAssetId?: string | null;
 		targetAssetName?: string | null;
 		targetAssetCategory?: string | null;
+		targetItemCode?: string | null;
 		status: AssetCapitalizationStatus;
 		totalStockValue: number;
 		totalAssetValue: number;
@@ -7584,6 +7623,9 @@ export namespace Asset {
 		notes?: string | null;
 		submittedAt?: Date | string | null;
 		cancelledAt?: Date | string | null;
+		stockEntryId?: string | null;
+		accountingEntryId?: string | null;
+		createdTargetAsset: boolean;
 		stockItems: AssetCapitalizationStockItem[];
 		assetItems: AssetCapitalizationAssetItem[];
 		serviceItems: AssetCapitalizationServiceItem[];
@@ -7606,7 +7648,13 @@ export namespace Asset {
 		disposalType: AssetDisposalType;
 		salesAmount?: number | null;
 		gainLossAmount: number;
-		journalEntrySeries?: string | null;
+		fixedAssetAccount?: string | null;
+		accumulatedDepreciationAccount?: string | null;
+		proceedsAccount?: string | null;
+		gainLossAccount?: string | null;
+		costCenter?: string | null;
+		accountingEntryId?: string | null;
+		accountingEntrySeries?: string | null;
 		status: AssetDisposalStatus;
 		notes?: string | null;
 		createdAt: Date | string;
@@ -7627,8 +7675,9 @@ export namespace Asset {
 	export const scrapAssetSchema = z.object({
 		assetId: z.string().cuid(),
 		disposalDate: z.coerce.date(),
+		gainLossAccount: z.string().trim().min(1).max(255),
+		costCenter: z.string().trim().max(255).optional().nullable(),
 		notes: z.string().trim().max(1000).optional().nullable(),
-		userId: z.string().max(255).optional().nullable(),
 	});
 	export type ScrapAssetInput = z.infer<typeof scrapAssetSchema>;
 
@@ -7636,14 +7685,15 @@ export namespace Asset {
 		assetId: z.string().cuid(),
 		disposalDate: z.coerce.date(),
 		salesAmount: z.number().finite().min(0),
+		proceedsAccount: z.string().trim().min(1).max(255),
+		gainLossAccount: z.string().trim().min(1).max(255),
+		costCenter: z.string().trim().max(255).optional().nullable(),
 		notes: z.string().trim().max(1000).optional().nullable(),
-		userId: z.string().max(255).optional().nullable(),
 	});
 	export type SellAssetInput = z.infer<typeof sellAssetSchema>;
 
 	export const restoreAssetSchema = z.object({
 		assetId: z.string().cuid(),
-		userId: z.string().max(255).optional().nullable(),
 	});
 	export type RestoreAssetInput = z.infer<typeof restoreAssetSchema>;
 
@@ -7671,7 +7721,6 @@ export namespace Asset {
 
 	export const submitAssetMovementSchema = z.object({
 		id: z.string().cuid(),
-		userId: z.string().max(255).optional().nullable(),
 	});
 	export type SubmitAssetMovementInput = z.infer<
 		typeof submitAssetMovementSchema
@@ -7679,7 +7728,6 @@ export namespace Asset {
 
 	export const cancelAssetMovementSchema = z.object({
 		id: z.string().cuid(),
-		userId: z.string().max(255).optional().nullable(),
 	});
 	export type CancelAssetMovementInput = z.infer<
 		typeof cancelAssetMovementSchema
@@ -7705,7 +7753,8 @@ export namespace Asset {
 	export const createAssetRepairConsumedItemSchema = z.object({
 		assetId: z.string().cuid().optional().nullable(),
 		itemCode: z.string().trim().min(1).max(100),
-		warehouse: z.string().trim().max(255).optional().nullable(),
+		warehouse: z.string().trim().min(1).max(255),
+		expenseAccount: z.string().trim().max(255).optional().nullable(),
 		quantity: z.number().int().min(1).default(1),
 		valuationRate: z.number().finite().min(0).default(0),
 	});
@@ -7716,40 +7765,77 @@ export namespace Asset {
 	export const createAssetRepairPurchaseInvoiceSchema = z.object({
 		purchaseInvoice: z.string().trim().min(1).max(100),
 		expenseAccount: z.string().trim().max(255).optional().nullable(),
-		amount: z.number().finite().min(0),
+		amount: z.number().finite().positive(),
 	});
 	export type CreateAssetRepairPurchaseInvoiceInput = z.infer<
 		typeof createAssetRepairPurchaseInvoiceSchema
 	>;
 
-	export const createAssetRepairSchema = z.object({
-		assetId: z.string().cuid(),
-		company: z.string().trim().min(1).max(255),
-		failureDate: z.coerce.date(),
-		completionDate: z.coerce.date().optional().nullable(),
-		capitalizeRepairCost: z.boolean().optional().default(false),
-		increaseInAssetLife: z.number().int().min(0).optional().default(0),
-		description: z.string().trim().max(2000).optional().nullable(),
-		consumedItems: z
-			.array(createAssetRepairConsumedItemSchema)
-			.optional()
-			.default([]),
-		purchaseInvoices: z
-			.array(createAssetRepairPurchaseInvoiceSchema)
-			.optional()
-			.default([]),
-	});
+	export const createAssetRepairSchema = z
+		.object({
+			assetId: z.string().cuid(),
+			company: z.string().trim().min(1).max(255),
+			failureDate: z.coerce.date(),
+			completionDate: z.coerce.date().optional().nullable(),
+			capitalizeRepairCost: z.boolean().optional().default(false),
+			increaseInAssetLife: z.number().int().min(0).optional().default(0),
+			description: z.string().trim().max(2000).optional().nullable(),
+			consumedItems: z
+				.array(createAssetRepairConsumedItemSchema)
+				.optional()
+				.default([]),
+			purchaseInvoices: z
+				.array(createAssetRepairPurchaseInvoiceSchema)
+				.optional()
+				.default([]),
+		})
+		.superRefine((value, ctx) => {
+			if (value.completionDate && value.completionDate < value.failureDate) {
+				ctx.addIssue({
+					code: "custom",
+					path: ["completionDate"],
+					message: "Completion date cannot be before failure date",
+				});
+			}
+			if (!value.capitalizeRepairCost && value.increaseInAssetLife > 0) {
+				ctx.addIssue({
+					code: "custom",
+					path: ["increaseInAssetLife"],
+					message: "Useful life can be extended only for a capitalized repair",
+				});
+			}
+			if (value.capitalizeRepairCost) {
+				value.consumedItems.forEach((item, index) => {
+					if (!item.expenseAccount?.trim()) {
+						ctx.addIssue({
+							code: "custom",
+							path: ["consumedItems", index, "expenseAccount"],
+							message:
+								"Expense account is required for capitalized material cost",
+						});
+					}
+				});
+				value.purchaseInvoices.forEach((item, index) => {
+					if (!item.expenseAccount?.trim()) {
+						ctx.addIssue({
+							code: "custom",
+							path: ["purchaseInvoices", index, "expenseAccount"],
+							message:
+								"Expense account is required for a capitalized invoice allocation",
+						});
+					}
+				});
+			}
+		});
 	export type CreateAssetRepairInput = z.infer<typeof createAssetRepairSchema>;
 
 	export const submitAssetRepairSchema = z.object({
 		id: z.string().cuid(),
-		userId: z.string().max(255).optional().nullable(),
 	});
 	export type SubmitAssetRepairInput = z.infer<typeof submitAssetRepairSchema>;
 
 	export const cancelAssetRepairSchema = z.object({
 		id: z.string().cuid(),
-		userId: z.string().max(255).optional().nullable(),
 	});
 	export type CancelAssetRepairInput = z.infer<typeof cancelAssetRepairSchema>;
 
@@ -7770,7 +7856,8 @@ export namespace Asset {
 
 	export const createAssetCapitalizationStockItemSchema = z.object({
 		itemCode: z.string().trim().min(1).max(100),
-		warehouse: z.string().trim().max(255).optional().nullable(),
+		warehouse: z.string().trim().min(1).max(255),
+		expenseAccount: z.string().trim().min(1).max(255),
 		stockQty: z.number().int().min(1).default(1),
 		valuationRate: z.number().finite().min(0).default(0),
 	});
@@ -7789,40 +7876,74 @@ export namespace Asset {
 	export const createAssetCapitalizationServiceItemSchema = z.object({
 		itemCode: z.string().trim().max(100).optional().nullable(),
 		expenseAccount: z.string().trim().min(1).max(255),
-		amount: z.number().finite().min(0),
+		amount: z.number().finite().positive(),
 	});
 	export type CreateAssetCapitalizationServiceItemInput = z.infer<
 		typeof createAssetCapitalizationServiceItemSchema
 	>;
 
-	export const createAssetCapitalizationSchema = z.object({
-		company: z.string().trim().min(1).max(255),
-		postingDate: z.coerce.date(),
-		targetType: assetCapitalizationTargetTypeSchema,
-		targetAssetId: z.string().cuid().optional().nullable(),
-		targetAssetName: z.string().trim().max(255).optional().nullable(),
-		targetAssetCategory: z.string().trim().max(255).optional().nullable(),
-		notes: z.string().trim().max(2000).optional().nullable(),
-		stockItems: z
-			.array(createAssetCapitalizationStockItemSchema)
-			.optional()
-			.default([]),
-		assetItems: z
-			.array(createAssetCapitalizationAssetItemSchema)
-			.optional()
-			.default([]),
-		serviceItems: z
-			.array(createAssetCapitalizationServiceItemSchema)
-			.optional()
-			.default([]),
-	});
+	export const createAssetCapitalizationSchema = z
+		.object({
+			company: z.string().trim().min(1).max(255),
+			postingDate: z.coerce.date(),
+			targetType: assetCapitalizationTargetTypeSchema,
+			targetAssetId: z.string().cuid().optional().nullable(),
+			targetAssetName: z.string().trim().max(255).optional().nullable(),
+			targetAssetCategory: z.string().trim().max(255).optional().nullable(),
+			targetItemCode: z.string().trim().max(100).optional().nullable(),
+			notes: z.string().trim().max(2000).optional().nullable(),
+			stockItems: z
+				.array(createAssetCapitalizationStockItemSchema)
+				.optional()
+				.default([]),
+			assetItems: z
+				.array(createAssetCapitalizationAssetItemSchema)
+				.optional()
+				.default([]),
+			serviceItems: z
+				.array(createAssetCapitalizationServiceItemSchema)
+				.optional()
+				.default([]),
+		})
+		.superRefine((value, ctx) => {
+			if (
+				value.stockItems.length +
+					value.assetItems.length +
+					value.serviceItems.length ===
+				0
+			) {
+				ctx.addIssue({
+					code: "custom",
+					path: ["stockItems"],
+					message:
+						"At least one consumed stock, asset, or service item is required",
+				});
+			}
+			if (value.targetType === "EXISTING_ASSET" && !value.targetAssetId) {
+				ctx.addIssue({
+					code: "custom",
+					path: ["targetAssetId"],
+					message: "An existing target asset is required",
+				});
+			}
+			if (value.targetType === "NEW_ASSET") {
+				for (const [field, message] of [
+					["targetAssetName", "Target asset name is required"],
+					["targetAssetCategory", "Target asset category is required"],
+					["targetItemCode", "Target item code is required"],
+				] as const) {
+					if (!value[field]?.trim()) {
+						ctx.addIssue({ code: "custom", path: [field], message });
+					}
+				}
+			}
+		});
 	export type CreateAssetCapitalizationInput = z.infer<
 		typeof createAssetCapitalizationSchema
 	>;
 
 	export const submitAssetCapitalizationSchema = z.object({
 		id: z.string().cuid(),
-		userId: z.string().max(255).optional().nullable(),
 	});
 	export type SubmitAssetCapitalizationInput = z.infer<
 		typeof submitAssetCapitalizationSchema
@@ -7830,7 +7951,6 @@ export namespace Asset {
 
 	export const cancelAssetCapitalizationSchema = z.object({
 		id: z.string().cuid(),
-		userId: z.string().max(255).optional().nullable(),
 	});
 	export type CancelAssetCapitalizationInput = z.infer<
 		typeof cancelAssetCapitalizationSchema
