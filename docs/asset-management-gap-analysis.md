@@ -1,323 +1,463 @@
-# Asset Management Comprehensive Audit & Gap Analysis Report
-
-> **Target Workspace**: Aria ERP Suite (`apps/backend`, `apps/frontend`, `packages/types`)  
-> **Source of Truth for Business Logic**: ERPNext Assets Module (`.erpnext/erpnext/assets`)  
-> **Source of Truth for UI/UX**: Aria Monorepo (`apps/frontend/src/app/asset`)  
-> **Audit Method**: Deep static code analysis across Python controllers, SQL query builders, Prisma models, NestJS services, tRPC routers, Next.js pages, and unit/E2E test suites.
-
----
-
-## Executive Summary
-
-An exhaustive multi-agent audit was conducted comparing the reference business logic in `.erpnext/erpnext/assets` against Aria's implementation. While Aria establishes basic schemas for assets, categories, depreciation schedules, value adjustments, and preventive maintenance tasks, there are **critical functional, accounting, mathematical, and architectural gaps** when benchmarked against ERPNext.
-
-### High-Level Summary of Identified Gaps
-
-```
-ERPNext Asset Module Capabilities (25 Doctypes, 5 Reports, 4 Scheduled Jobs)
-├── 10 Doctypes 100% Missing (Asset Movement, Movement Item, Repair, Repair Item, Repair Purchase Invoice, Capitalization, Capitalization Stock/Asset/Service Item, Shift Allocation)
-├── 15 Doctypes Partially Implemented (Missing core Python hooks like scrap_asset, restore_asset, make_sales_invoice, make_gl_entries, split_asset)
-├── 1 Standard Report Missing (Fixed Asset Register completely absent; Balances report has hardcoded 0s)
-├── 3 Daily Background Jobs Missing (Update Maintenance Status, CWIP GL Posting, Update Maintenance Log Status)
-└── 3 Severe Math & Financial Bugs (WDV 0 Salvage Value 100% rate write-off, Shift Factor missing sum denominator, Non-atomic document series race conditions)
-```
-
----
-
-## 1. ERPNext Python Core Lifecycle vs Aria Implementation
-
-### 1.1 Python Class Methods & Lifecycle Hooks Audit
-
-| ERPNext Method / Function | ERPNext Source File & Line | Aria Status / Location | Description of Defect / Missing Logic |
-| :--- | :--- | :--- | :--- |
-| `scrap_asset()` | [`depreciation.py:L363-374`](file:///.erpnext/erpnext/assets/doctype/asset/depreciation.py#L363-L374) | ❌ **MISSING** | Sets `disposal_date`, posts disposal `Journal Entry`, and transitions asset status to `Scrapped`. |
-| `restore_asset()` | [`depreciation.py:L452-459`](file:///.erpnext/erpnext/assets/doctype/asset/depreciation.py#L452-L459) | ❌ **MISSING** | Restores scrapped asset, cancels disposal `Journal Entry`, reverses disposal depreciation entries, and resets status. |
-| `make_sales_invoice()` | [`asset.py:L1096-1126`](file:///.erpnext/erpnext/assets/doctype/asset/asset.py#L1096-L1126) | ❌ **MISSING** | Generates fixed asset disposal `Sales Invoice` with income account mappings. |
-| `make_gl_entries()` | [`asset.py:L923-970`](file:///.erpnext/erpnext/assets/doctype/asset/asset.py#L923-L970) | ❌ **MISSING** | Transfers asset value from `CWIP Account` to `Fixed Asset Account` on `available_for_use_date`. |
-| `make_post_gl_entry()` | [`asset.py:L1073-1088`](file:///.erpnext/erpnext/assets/doctype/asset/asset.py#L1073-L1088) | ❌ **MISSING** | Daily background worker posting CWIP capitalization GL entries when `available_for_use_date == today()`. |
-| `split_asset()` | [`asset.py:L1368-1578`](file:///.erpnext/erpnext/assets/doctype/asset/asset.py#L1368-L1578) | ❌ **MISSING** | Splits asset by quantity, proportionally scaling cost, accumulated depreciation, and JV references. |
-| `validate_linked_purchase_documents()` | [`asset.py:L494-514`](file:///.erpnext/erpnext/assets/doctype/asset/asset.py#L494-L514) | ❌ **MISSING** | Validates that linked Purchase Receipt / Invoice is submitted (`docstatus = 1`). |
-| `validate_asset_qty_with_purchase_doc()` | [`asset.py:L516-557`](file:///.erpnext/erpnext/assets/doctype/asset/asset.py#L516-L557) | ❌ **MISSING** | Ensures existing asset count + current quantity does not exceed purchase invoice quantity. |
-| `make_asset_movement()` | [`asset.py:L571-600`](file:///.erpnext/erpnext/assets/doctype/asset/asset.py#L571-L600) | ❌ **MISSING** | Auto-creates and submits an `Asset Movement` (Receipt) on asset submission (`on_submit`). |
-| `cancel_movement_entries()` | [`asset.py:L738-749`](file:///.erpnext/erpnext/assets/doctype/asset/asset.py#L738-L749) | ❌ **MISSING** | Auto-cancels linked `Asset Movement` documents when asset is cancelled (`on_cancel`). |
-| `delete_depreciation_entries()` | [`asset.py:L751-768`](file:///.erpnext/erpnext/assets/doctype/asset/asset.py#L751-L768) | ❌ **MISSING** | Auto-cancels posted depreciation `Journal Entry` documents when asset is cancelled. |
-| `update_maintenance_status()` | [`asset.py:L1058-1071`](file:///.erpnext/erpnext/assets/doctype/asset/asset.py#L1058-L1071) | ❌ **MISSING** | Daily background job updating status to `"Out of Order"` (if pending repair) or `"In Maintenance"` (if task due). |
-
----
-
-## 2. Detailed Transaction Workflows Audit
-
-### 2.1 Asset Movement (Receipt, Transfer, Issue)
-**ERPNext Reference**: [`asset_movement.py:L1-183`](file:///.erpnext/erpnext/assets/doctype/asset_movement/asset_movement.py#L1-L183) & [`asset_movement.json`](file:///.erpnext/erpnext/assets/doctype/asset_movement/asset_movement.json)  
-**Aria Status**: **100% MISSING** (No Prisma models, service endpoints, or UI views).
-
-- **Purpose Workflows**:
-  - `Issue`: Requires `to_employee`, validates `from_employee == asset.custodian`.
-  - `Receipt`: Requires `target_location`.
-  - `Transfer`: Requires `target_location`, ensures `source_location != target_location`.
-  - `Transfer and Issue`: Requires `source_location`, `target_location`, `from_employee`, `to_employee`.
-- **Chronological Date Guard** ([`L55-66`](file:///.erpnext/erpnext/assets/doctype/asset_movement/asset_movement.py#L55-L66)): Validates `transaction_date` against previous submitted movement entries to prevent out-of-order transfers.
-- **State Rollback on Cancel** ([`L122-162`](file:///.erpnext/erpnext/assets/doctype/asset_movement/asset_movement.py#L122-L162)): On cancellation (`on_cancel`), queries the database for the previous submitted movement and automatically restores asset `location` and `custodian`.
-
-### 2.2 Asset Repair & Repair Cost Capitalization
-**ERPNext Reference**: [`asset_repair.py:L1-620`](file:///.erpnext/erpnext/assets/doctype/asset_repair/asset_repair.py#L1-L620) & [`asset_repair.json`](file:///.erpnext/erpnext/assets/doctype/asset_repair/asset_repair.json)  
-**Aria Status**: **100% MISSING** (No Prisma models, service endpoints, or UI views).
-
-- **Downtime Calculation**: Computes `time_diff_in_hours(completion_date, failure_date)`.
-- **Stock Item Consumption**: Automatically creates and submits a `Stock Entry` of type `"Material Issue"` for consumed spare parts ([`L255-291`](file:///.erpnext/erpnext/assets/doctype/asset_repair/asset_repair.py#L255-L291)).
-- **Repair Capitalization**:
-  - Increments asset `total_asset_cost` and `additional_asset_cost` by `total_repair_cost` ([`L239-251`](file:///.erpnext/erpnext/assets/doctype/asset_repair/asset_repair.py#L239-L251)).
-  - Extends asset useful life (`increase_in_asset_life`) in finance books ([`L426-434`](file:///.erpnext/erpnext/assets/doctype/asset_repair/asset_repair.py#L426-L434)) and triggers schedule recalculation.
-- **Repair GL Entries** ([`L309-424`](file:///.erpnext/erpnext/assets/doctype/asset_repair/asset_repair.py#L309-L424)): Posts GL entries: Debit Fixed Asset Account / Credit Consumed Stock Expense & Purchase Invoice Expense Accounts.
-
-### 2.3 Asset Capitalization (Composite Asset Building)
-**ERPNext Reference**: [`asset_capitalization.py:L1-877`](file:///.erpnext/erpnext/assets/doctype/asset_capitalization/asset_capitalization.py#L1-L877)  
-**Aria Status**: **100% MISSING** (No Prisma models, service endpoints, or UI views).
-
-- Aggregates WIP stock items (`AssetCapitalizationStockItem`), existing WIP assets (`AssetCapitalizationAssetItem`), and service costs (`AssetCapitalizationServiceItem`).
-- Posts outward Stock Ledger Entries (SLE) for consumed stock items.
-- Posts GL Entries: Debit Target Fixed Asset/CWIP Account / Credit Inventory, Consumed Asset Disposal, and Service Expense Accounts.
-- Automatically depreciates consumed assets up to posting date and sets their status to `Capitalized`.
-
-### 2.4 Asset Value Adjustment (Revaluation)
-**ERPNext Reference**: [`asset_value_adjustment.py:L1-233`](file:///.erpnext/erpnext/assets/doctype/asset_value_adjustment/asset_value_adjustment.py#L1-L233)  
-**Aria Status**: **PARTIALLY IMPLEMENTED** ([`asset.service.ts:L1794-2256`](file:///home/dmin/Aria/apps/backend/src/apps/asset/asset.service.ts#L1794-L2256)).
-
-| Feature / Logic | ERPNext Implementation | Aria Implementation | Severity & Gap Description |
-| :--- | :--- | :--- | :--- |
-| **Purchase Date Check** | `date >= asset.purchase_date` ([`L49-57`](file:///.erpnext/erpnext/assets/doctype/asset_value_adjustment/asset_value_adjustment.py#L49-L57)) | **Missing** ([`L1863`](file:///home/dmin/Aria/apps/backend/src/apps/asset/asset.service.ts#L1863)) | Allows revaluation dates prior to asset purchase date. |
-| **Proportional Salvage Adjustment** | Adjusts `expected_value_after_useful_life` proportionally ([`L194-208`](file:///.erpnext/erpnext/assets/doctype/asset_value_adjustment/asset_value_adjustment.py#L194-L208)) | **Fixed Salvage** ([`asset-value-adjustment.utils.ts:L226`](file:///home/dmin/Aria/apps/backend/src/apps/asset/asset-value-adjustment.utils.ts#L226)) | Salvage value remains fixed during revaluation, skewing final depreciable amount. |
-| **Main GL Posting** | Submits formal ERPNext `Journal Entry` | Custom `AssetRevaluationEntry` table | Does not post GL entries to main General Ledger (`gl_entries`). |
-| **Finance Books Update** | Updates `AssetFinanceBook` child rows | Updates top-level `asset` only | Multi-finance book revaluations are incomplete. |
-
----
-
-## 3. Financial & Depreciation Math Discrepancies
-
-### 3.1 Written Down Value (WDV) Zero Salvage Value Bug
-In [`asset-value-adjustment.utils.ts:L180-L196`](file:///home/dmin/Aria/apps/backend/src/apps/asset/asset-value-adjustment.utils.ts#L180-L196) and [`depreciation-schedule-engine.ts:L198-L206`](file:///home/dmin/Aria/apps/backend/src/apps/asset/depreciation/depreciation-schedule-engine.ts#L198-L206):
-$$\text{Rate} = 1 - \left(\frac{\text{Salvage Value}}{\text{Gross Value}}\right)^{\frac{1}{n}}$$
-When `expectedValueAfterUsefulLife` is $0$ or null, ratio is $0$, resulting in an annual rate of **100%** ($1.0$).  
-**ERPNext Handling** ([`asset.py:L700-726`](file:///.erpnext/erpnext/assets/doctype/asset/asset.py#L700-L726)): Validates that `expected_value_after_useful_life` is mandatory and $>0$ for WDV, or applies a minimum salvage floor.
-
-### 3.2 Shift-Based Depreciation Formula Error
-In [`depreciation_methods.py:L48-72`](file:///.erpnext/erpnext/assets/doctype/asset_depreciation_schedule/depreciation_methods.py#L48-L72):
-$$\text{Period Amount} = \left(\frac{\text{Depreciable Value}}{\sum \text{Shift Factors}}\right) \times \text{Shift Factor}$$
-In Aria ([`depreciation-schedule-engine.ts:L368`](file:///home/dmin/Aria/apps/backend/src/apps/asset/depreciation/depreciation-schedule-engine.ts#L368)):
-$$\text{Amount} = \text{fixedPeriodAmount} \times \text{Shift Factor}$$
-**Defect**: Aria omits the denominator $\sum \text{Shift Factors}$. Multiplying fixed period amount directly by 1.5x or 2.0x exhausts carrying value prematurely without adjusting period counts, creating a ledger imbalance.
-
----
-
-## 4. Reports & Scheduled Jobs Audit
-
-### 4.1 Reports Comparison Matrix
-
-| Report Name | ERPNext Source File | Aria Status | Implementation Discrepancies |
-| :--- | :--- | :--- | :--- |
-| **Fixed Asset Register** | [`fixed_asset_register.py`](file:///.erpnext/erpnext/assets/report/fixed_asset_register/fixed_asset_register.py#L1-L557) | ❌ **MISSING** | No service, SQL query builder, Category/Location grouping, or stacked bar chart in Aria. |
-| **Asset Depreciations & Balances** | [`asset_depreciations_and_balances.py`](file:///.erpnext/erpnext/accounts/report/asset_depreciations_and_balances/asset_depreciations_and_balances.py#L1-L920) | ⚠️ **Partial** | Hardcoded `0`s for `valueOfCapitalizedAsset` and `depreciationEliminatedViaReversal`. Uses schedule entries instead of posted GL Entries. |
-| **Asset Depreciation Ledger** | [`asset_depreciation_ledger.py`](file:///.erpnext/erpnext/assets/report/asset_depreciation_ledger/asset_depreciation_ledger.py) | ✅ **Present** | Matches GL depreciation entry listings. |
-| **Asset Activity** | [`asset_activity.py`](file:///.erpnext/erpnext/assets/doctype/asset_activity/asset_activity.py) | ⚠️ **Partial** | Result formatter exists, but audit logging hooks are missing across asset movements, repairs, shift updates, and scrap/restoration actions. |
-
-### 4.2 Scheduled Jobs Matrix (4 Total)
-
-| Daily Scheduled Job | ERPNext Function & Hook | Aria Status | Details |
-| :--- | :--- | :--- | :--- |
-| **Post Depreciation Entries** | `depreciation.post_depreciation_entries` | ✅ **Present** | Runs via `DepreciationSchedulerService` (`0 0 * * *`). |
-| **Update Asset Maintenance Status** | `asset.update_maintenance_status` | ❌ **MISSING** | Daily transition of asset status to "Out of Order" or "In Maintenance". |
-| **CWIP Post GL Entry** | `asset.make_post_gl_entry` | ❌ **MISSING** | Capitalizes CWIP assets reaching `available_for_use_date == today()`. |
-| **Update Maintenance Log Status** | `asset_maintenance_log.update_status` | ❌ **MISSING** | Marks planned maintenance logs past due date as "Overdue". |
-
----
-
-## 5. Code Quality, Type Safety & Architecture Standards
-
-### 5.1 Zero `any` Policy
-- **Lint Rule**: `@typescript-eslint/no-explicit-any: "error"` enforced across all packages.
-- **Payload Handling**: Use `unknown` typed inputs with Zod schema parsing or boolean type predicates (`isAssetItem(val: unknown): val is Asset.AssetItem`).
-- **Literal Inference**: Use `satisfies` operator (`satisfies z.ZodRawShape`) to prevent type widening or unsafe casting.
-
-### 5.2 Centralized Source of Truth in `@aria/types` (`packages/types/src/index.ts`)
-- All DTO interfaces, Zod schemas, request/response contracts originate inside `export namespace Asset` in `packages/types/src/index.ts`. No inline interfaces in NestJS services or React components.
-
-### 5.3 Strict DTO-to-Prisma Mapper Functions
-All Prisma query outputs are transformed to domain entities using dedicated mapper functions with **100% explicit return typing**:
-- `toAssetItem(raw: PrismaAsset): Asset.AssetItem`
-- `toAssetMovementItem(raw: PrismaAssetMovement): Asset.AssetMovementItem`
-- `toAssetRepairItem(raw: PrismaAssetRepair): Asset.AssetRepairItem`
-- `toAssetCapitalizationItem(raw: PrismaAssetCapitalization): Asset.AssetCapitalizationItem`
-- `toAssetDisposalItem(raw: PrismaAssetDisposal): Asset.AssetDisposalItem`
-
-### 5.4 Bounded Zod Schemas & TSDoc Guidelines
-- **Bounded Strings & Numbers**: Every string specifies bounds (`.max(255)`, `.cuid()`, `.trim()`), numbers specify bounds (`.finite()`, `.positive()`, `.min(0)`).
-- **TSDoc Standard**: Every public service method, exported interface, custom React hook, and component contains structured TSDoc annotations.
-- **Pure UI Delegation**: Presentational React components receive typed props and delegate side-effects (tRPC mutations) to custom hooks.
-
----
-
-## 6. Detailed Technical Implementation Plan (Phases 1 – 4)
-
-```mermaid
-gantt
-    title Asset Management Remediation Execution Timeline
-    dateFormat  YYYY-MM-DD
-    section Phase 1: Math & Audit Fixes
-    WDV Salvage Floor & Shift Factor Denominator Fix    :active, p1_1, 2026-08-08, 2d
-    User Attribution in AssetActivity & Atomic Locks    :p1_2, 2026-08-10, 2d
-    section Phase 2: Schema & Core Workflows
-    Prisma Schema Models (Movement, Repair, Cap, Scrap) :p2_1, 2026-08-12, 3d
-    NestJS Services & tRPC Procedures for Lifecycle    :p2_2, 2026-08-15, 4d
-    section Phase 3: Reports & Scheduled Jobs
-    Fixed Asset Register Service & Next.js Page        :p3_1, 2026-08-19, 3d
-    Three Daily Background Cron Jobs                   :p3_2, 2026-08-22, 2d
-    section Phase 4: Frontend Routing & React Views
-    Canonical URL Redirects & Sidebar Nav Data         :p4_1, 2026-08-24, 2d
-    Movement, Repair, Capitalization, & Disposal UI   :p4_2, 2026-08-26, 4d
-```
-
-### Phase 1: High-Risk Financial Math, User Audit Trail & Concurrency Locks
-
-1. **WDV Salvage Floor Fix**:
-   - In `apps/backend/src/apps/asset/depreciation/depreciation-schedule-engine.ts:L198-206` and `asset-value-adjustment.utils.ts:L180-196`:
-     Enforce a 5% salvage floor (`const salvageFloor = openingBookValue * 0.05; const effectiveSalvage = Math.max(input.salvageValue ?? 0, salvageFloor);`).
-2. **Shift Factor Formula Denominator Fix**:
-   - In `depreciation-schedule-engine.ts:L296-303, L368`:
-     Compute `shiftFactorsSum = sum(shiftAllocations)` and set period amount to `(depreciableValue / shiftFactorsSum) * factor`.
-3. **User Attribution in AssetActivity**:
-   - In `apps/backend/prisma/schema.prisma`: Add `userId String? @db.VarChar(255)` and relation `user User? @relation(fields: [userId], references: [id])`.
-   - Update `asset-activity-report.ts` and `asset.service.ts` to log and display `userId` and user details.
-4. **Atomic Series Counter Locks**:
-   - In `asset.service.ts:L201-281`: Perform atomic `tx.documentSeriesCounter.update({ where: { key }, data: { value: { increment: 1 } } })` inside Prisma transactions.
-5. **Zod Schema Refinements**:
-   - In `packages/types/src/index.ts`: Enforce `frequencyOfDepreciation.min(1)` and add date refinements (`availableForUseDate >= purchaseDate`, `insuranceEndDate >= insuranceStartDate`).
-
----
-
-### Phase 2: Schema Additions & Core Lifecycle Workflows
-
-1. **Prisma Models Addition** (`apps/backend/prisma/schema.prisma`):
-   - Add models: `AssetMovement`, `AssetMovementItem`, `AssetRepair`, `AssetRepairConsumedItem`, `AssetRepairPurchaseInvoice`, `AssetCapitalization`, `AssetCapitalizationStockItem`, `AssetCapitalizationAssetItem`, `AssetCapitalizationServiceItem`, `AssetDisposal`.
-2. **NestJS Service Implementation** (`apps/backend/src/apps/asset/asset.service.ts`):
-   - `scrapAsset()` & `sellAsset()`: Calculates accumulated depreciation and gain/loss; sets status `SCRAPPED`/`SOLD`; creates `AssetDisposal`; posts disposal GL entries.
-   - `restoreAsset()`: Cancels disposal record; reverses GL entries; resets asset status.
-   - `createAssetMovement()`, `submitAssetMovement()`, `cancelAssetMovement()`: Validates `TRANSFER`/`RECEIPT`/`ISSUE` purpose; updates location & custodian; handles rollback on cancel.
-   - `createAssetRepair()`, `submitAssetRepair()`, `cancelAssetRepair()`: Creates Material Issue `StockEntry` for spare parts; capitalizes cost into `totalAssetCost`; extends asset useful life; posts GL entries.
-   - `createAssetCapitalization()`, `submitAssetCapitalization()`, `cancelAssetCapitalization()`: Aggregates WIP items/services/assets; posts outward Stock Ledger Entries; posts CWIP-to-Fixed-Asset GL entries.
-3. **tRPC Router Exposure** (`apps/backend/src/apps/asset/trpc/asset.router.ts`):
-   - Expose procedures for all Phase 2 mutations (`scrapAsset`, `sellAsset`, `restoreAsset`, `submitAssetMovement`, `submitAssetRepair`, `submitAssetCapitalization`, etc.).
-
----
-
-### Phase 3: Statutory Financial Reports & Daily Background Jobs
-
-1. **Fixed Asset Register Service** (`apps/backend/src/apps/asset/fixed-asset-register-report.ts`):
-   - Query Builder joining `Asset`, `AssetCategory`, `Location`, `AssetDepreciationScheduleEntry`, `AssetValueAdjustment`.
-   - Formula: `Net Book Value = netPurchaseAmount - openingAccumulatedDepreciation - depreciatedAmount + revaluationAmount`.
-   - Dynamic grouping by `ASSET_CATEGORY` or `LOCATION`.
-   - Monthly stacked bar chart points generation.
-2. **tRPC Router**:
-   - Expose `listFixedAssetRegisterReport` query and `exportFixedAssetRegisterExcel` mutation.
-3. **Next.js Report Page** (`apps/frontend/src/app/asset/(protected)/reports/fixed-asset-register/page.tsx`):
-   - TanStack table with grouping dropdown, Excel export, and Recharts stacked bar chart component.
-4. **Three Daily Background Jobs** (`depreciation-scheduler.service.ts`):
-   - `updateMaintenanceStatus()` (`5 0 * * *`): Updates asset status to `OUT_OF_ORDER` or `IN_MAINTENANCE`.
-   - `postCwipCapitalizationGlEntries()` (`10 0 * * *`): Capitalizes CWIP assets reaching `availableForUseDate <= today()`.
-   - `updateMaintenanceLogStatus()` (`15 0 * * *`): Marks planned maintenance logs past due date to `OVERDUE`.
-
----
-
-### Phase 4: Canonical Frontend Routing & UI Views
-
-1. **Next.js Redirects** (`apps/frontend/next.config.ts`):
-   - Add permanent 301 redirects mapping legacy paths (`/asset/asset-sub-module/*`, `/asset/asset-maintenance/*`) to clean ERP URLs (`/asset/items`, `/asset/categories`, `/asset/locations`, `/asset/maintenance`, `/asset/maintenance-teams`, `/asset/value-adjustments`).
-2. **Sidebar Navigation** (`apps/frontend/src/constants/app-nav-data.ts`):
-   - Update nav links to clean canonical URLs and new sub-modules.
-3. **New UI Views & Dialogs**:
-   - `/asset/movements` page + `movement-dialog.tsx` (Transfer/Receipt/Issue).
-   - `/asset/repairs` page + `repair-form.tsx` (Breakdown repairs & cost capitalization).
-   - `/asset/capitalizations` page + `capitalization-form.tsx` (CWIP assembly).
-   - `disposal-dialog.tsx` on `/asset/items/[assetId]` (Scrap/Sell modal with realtime gain/loss computation).
-   - `chart-of-accounts-select.tsx` (Searchable GL Account popover for Asset Category form).
-   - `depreciation-schedule-tab.tsx` on `/asset/items/[assetId]` (Posted vs projected schedule table).
-
----
-
-## 7. Comprehensive Unit, Integration & E2E Test Specifications
-
-```mermaid
-graph TD
-    A[Test Coverage Strategy] --> B[Backend Unit & Integration Tests]
-    A --> C[Frontend React Component Tests]
-    A --> D[Playwright E2E Workflow Tests]
-
-    B --> B1[depreciation-schedule-engine.spec.ts - WDV & Shift Math]
-    B --> B2[asset.service.spec.ts - Series Locks & Activity UserId]
-    B --> B3[asset-lifecycle-actions.spec.ts - Scrap/Sell/Move/Repair/Cap]
-    B --> B4[fixed-asset-register-report.spec.ts - Grouping & NBV Math]
-    B --> B5[depreciation-scheduler.service.spec.ts - 3 Daily Cron Jobs]
-
-    C --> C1[items/page.test.tsx & form/page.test.tsx]
-    C --> C2[movement-dialog.test.tsx & disposal-dialog.test.tsx]
-    C --> C3[chart-of-accounts-select.test.tsx]
-    C --> C4[reports/fixed-asset-register/page.test.tsx]
-
-    D --> D1[asset-lifecycle.spec.ts - Full Asset Lifecycle]
-    D --> D2[asset-movement.spec.ts - Location Transfer & Rollback]
-    D --> D3[asset-repair.spec.ts - Breakdown Repair & Capitalization]
-    D --> D4[asset-capitalization.spec.ts - CWIP Assembly]
-    D --> D5[fixed-asset-register.spec.ts - Grouping & Excel Export]
-```
-
-### 7.1 Backend Unit & Integration Tests (Vitest & NestJS Test Modules)
-
-1. **WDV & Shift Factor Math Tests (`depreciation-schedule-engine.spec.ts`)**:
-   - `should handle 0 salvage value under WDV without division by zero`: Asserts diminishing period amounts and floors carrying value cleanly at 5% salvage floor.
-   - `should apply shift multiplier factors (Single = 1.0, Double = 1.5, Triple = 2.0)`: Asserts period amount = `(depreciableValue / shiftFactorsSum) * factor`.
-2. **Lifecycle & Movement Service Tests (`asset-lifecycle-actions.spec.ts`)**:
-   - `scrapAsset`: Asserts status `SCRAPPED`, `isFullyDepreciated = true`, active schedule cancelled, disposal GL entries created.
-   - `sellAsset`: Asserts status `SOLD`, gain/loss on disposal calculated, GL entries created.
-   - `restoreAsset`: Asserts status reverted, disposal GL entries reversed.
-   - `submitAssetMovement`: Asserts target `locationId` & `custodian` updated.
-   - `cancelAssetMovement`: Asserts `locationId` & `custodian` rolled back to previous historical movement.
-   - `submitAssetRepair`: Asserts Material Issue `StockEntry` created, repair cost capitalized into `totalAssetCost`, useful life extended.
-   - `submitAssetCapitalization`: Asserts new target asset created, source CWIP items marked consumed, SLE & GL entries posted.
-3. **Fixed Asset Register Report Tests (`fixed-asset-register-report.spec.ts`)**:
-   - Asserts Net Book Value formula (`netPurchaseAmount - openingDepreciation - depreciatedAmount + revaluationAmount`) across category and location groupings.
-4. **Daily Background Jobs Tests (`depreciation-scheduler.service.spec.ts`)**:
-   - Asserts execution of `updateMaintenanceStatus()`, `postCwipCapitalizationGlEntries()`, and `updateMaintenanceLogStatus()`.
-
-### 7.2 Frontend React Component Tests (Vitest / React Testing Library)
-- Test `/asset/items/page.test.tsx`, `/asset/movements/page.test.tsx`, `/asset/repairs/page.test.tsx`, `/asset/capitalizations/page.test.tsx`, `/asset/reports/fixed-asset-register/page.test.tsx`.
-- Test `movement-dialog.test.tsx`, `disposal-dialog.test.tsx`, `chart-of-accounts-select.test.tsx`.
-
-### 7.3 Playwright End-to-End Tests (`apps/frontend/e2e/`)
-1. **`asset-lifecycle.spec.ts`**: Create Asset $\to$ Submit Asset $\to$ View Depreciation Schedule $\to$ Scrap/Sell Asset $\to$ Verify Disposal status.
-2. **`asset-movement.spec.ts`**: Transfer asset to new location & employee $\to$ Verify detail page update $\to$ Cancel movement $\to$ Verify location rollback.
-3. **`asset-repair.spec.ts`**: Create breakdown repair $\to$ Add consumed spare parts & invoice $\to$ Submit with capitalization $\to$ Verify useful life extension.
-4. **`asset-capitalization.spec.ts`**: Select CWIP stock & service items $\to$ Submit capitalization $\to$ Verify target asset created in `SUBMITTED` state.
-5. **`fixed-asset-register.spec.ts`**: Load report $\to$ Switch Grouping to Location $\to$ Filter date range $\to$ Verify stacked bar chart $\to$ Verify Excel export.
-
----
-
-## 8. Verification & Quality Assurance Plan
-
-### Automated Test Suite Commands
-```bash
-# 1. Run Vitest backend math & lifecycle unit tests
-bun --cwd apps/backend test
-
-# 2. Run Vitest frontend component tests
-bun --cwd apps/frontend test:run
-
-# 3. Run Playwright end-to-end spec suite
-bun --cwd apps/frontend test:e2e
-
-# 4. Full repository quality gate (build, lint, check-types, test)
-bun validate
-```
-
-### Quality Gate Enforcement
-- **Zero Compiler Errors**: `bun check-types` must return zero errors.
-- **Zero Any Lint Rule**: `bun lint` must pass with zero `@typescript-eslint/no-explicit-any` warnings/errors.
-- **100% Test Pass Rate**: All unit, integration, and E2E Playwright specs must pass.
+# Asset Management Gap Remediation: Independent Audit and Readiness Plan
+
+> Branch: `feat/asset-gap-remediation`
+>
+> Comparison base: `master`
+>
+> Business-logic reference: `.erpnext/erpnext/assets`
+>
+> UI/UX reference: established Aria application patterns
+>
+> Audit date: 2026-08-09
+
+## Executive verdict
+
+The branch is **not merge-ready at the audit baseline**. It contains useful schema,
+route, calculation, report, and workflow scaffolding, but several committed claims
+are not supported by the implementation:
+
+- the Prisma schema additions have no deployable migration;
+- disposal, repair, capitalization, and CWIP operations change document or asset
+  status without the stock, finance-book, schedule, or accounting effects claimed
+  by the UI and prior report;
+- movement submission and cancellation do not preserve ERPNext's chronological and
+  current-state invariants;
+- the Fixed Asset Register counts projected schedule rows as posted depreciation;
+- the WDV change imposes a 5% salvage floor that does not exist in ERPNext;
+- the new screens cannot collect the data required by their backend contracts, and
+  two completed-looking components are not connected to any route;
+- the new workflows have no deterministic demo coverage and their Playwright specs
+  are page-opening smoke checks rather than lifecycle tests.
+
+The remediation must keep an important architectural boundary explicit: Aria does
+not currently contain a shared chart-of-accounts or general-ledger subsystem.
+`Account` is an authentication-provider model, while existing depreciation and
+revaluation postings use asset-domain journal tables with string account labels.
+This branch can therefore implement balanced, reversible **asset accounting
+subledger entries** and submitted stock documents, but it must not describe those
+records as a statutory general ledger or claim ERPNext-wide accounting parity.
+
+## Audit scope and branch inventory
+
+The audit reviewed the ten pre-branch Asset Management feature pages across all
+three navigation groups:
+
+| Navigation group | Pre-branch pages reviewed |
+| --- | --- |
+| Assets | Assets, Asset Categories, Asset Locations |
+| Maintenance | Asset Maintenance, Maintenance Teams, Maintenance Logs, Asset Value Adjustments |
+| Reports | Depreciation Ledger, Depreciation and Balances, Asset Activity |
+
+The branch adds four operational surfaces: Asset Movements, Asset Repairs, Asset
+Capitalizations, and Fixed Asset Register. Current navigation therefore exposes 14
+index/report features. The protected route tree contains 25 `page.tsx` components
+when forms, details, redirects, dashboard, profile, and users are included.
+
+The branch was audited as ten commits over `master`, including the prior report,
+schema/types, depreciation math, lifecycle backend, schedulers/report, frontend,
+E2E smoke tests, canonical route moves, and formatting. The baseline diff contains
+91 changed paths and no Prisma migration.
+
+## Verification of the previous report
+
+### Verified findings
+
+| Previous finding | Verification |
+| --- | --- |
+| Movement, repair, capitalization, and Fixed Asset Register were absent before this branch. | Verified from `master` and the branch commit history. The branch now adds models/routes, but the workflows remain partial as detailed below. |
+| Shift-based straight-line depreciation omitted normalization by the sum of shift factors. | Verified against `.erpnext/erpnext/assets/doctype/asset_depreciation_schedule/depreciation_methods.py`. The branch's denominator fix in `depreciation-schedule-engine.ts` is correct for the non-daily path and has a focused unit fixture. |
+| Document-series allocation required an atomic increment. | Verified. The branch's transaction-scoped counter update is a sound correction. |
+| Asset value adjustments required a purchase-date guard. | Verified against ERPNext. The branch has added the guard; the old report is stale where it still calls the check missing. |
+| Asset lifecycle activity needs actor attribution. | Verified as an audit requirement, but the public contracts currently accept a spoofable `userId`; the authenticated actor must be derived server-side. |
+
+### Incorrect findings
+
+| Previous claim | Evidence and correction |
+| --- | --- |
+| ERPNext requires a positive WDV salvage value or applies a 5% floor. | Incorrect. `.erpnext/erpnext/assets/doctype/asset/asset.py:1014-1039` derives the rate from the supplied value; zero salvage produces a 100% rate. The new floor in `depreciation-schedule-engine.ts` and `asset-value-adjustment.utils.ts` must be removed. |
+| The Fixed Asset Register and three scheduled jobs remain missing. | Stale. They exist on the branch, but the register and CWIP implementation are not accounting-correct. |
+| Disposal, repair, and capitalization now post GL and stock entries. | Incorrect. `asset.service.ts` only records lifecycle/status/value changes. No shared GL exists, no asset subledger entry is created, and no submitted material-issue stock document is linked. |
+| The new E2E files exercise complete workflows. | Incorrect. They open routes/dialogs and make visibility assertions without creating, submitting, cancelling, or verifying persisted effects. |
+| Every public method/export requires new TSDoc and all UI side effects require custom hooks. | Not an established Aria requirement. Apply existing local patterns and useful documentation; do not introduce ceremony unrelated to correctness. |
+
+### Partially correct findings
+
+| Finding | Current assessment |
+| --- | --- |
+| Movement, repair, capitalization, and disposal were missing. | The branch adds models, contracts, service methods, and some screens. It does not yet implement the required invariants or accounting/stock/schedule effects. |
+| Asset Activity was partial. | New actions add activity records, but actor trust, organization/company scope, and full lifecycle coverage remain incomplete. |
+| Depreciation and Balances used incomplete data. | Some branch changes improve values, but report correctness still depends on posted-entry filtering and honest asset-subledger semantics. |
+| Maintenance/CWIP scheduled work was missing. | Maintenance status and log status jobs exist. The repair state machine makes the first unreachable, while CWIP directly mutates assets without qualified discovery, a queue worker, accounting entry, or idempotency marker. |
+
+## Independent findings
+
+Severity uses P0 for deployment/data-integrity blockers, P1 for materially incorrect
+financial or workflow behavior, and P2 for important completeness and operability
+issues.
+
+### P0 — Schema changes cannot be deployed
+
+- **Aria evidence:** `apps/backend/prisma/schema.prisma` adds
+  `AssetActivity.userId` plus movement, repair, capitalization, and disposal models,
+  relations, and enums. `git diff master...HEAD` contains no file under
+  `apps/backend/prisma/migrations`.
+- **Current behavior:** Prisma client generation succeeds against the schema, but
+  `prisma migrate deploy` cannot create any new table or column in an existing
+  environment. Runtime lifecycle calls will fail on a deployed database.
+- **Expected behavior:** every schema change has a reviewed forward migration that
+  applies cleanly to an existing Aria database.
+- **Implementation impact:** add one focused migration for the branch's net schema
+  delta, including foreign keys, indexes, uniqueness, enum values, and any new
+  subledger/linkage fields required by the completed workflows.
+- **Required tests:** Prisma schema validation, clean-database migration, migration
+  from the previous migration head, and deterministic demo load/cleanup after
+  migration.
+
+### P0 — Accounting-labelled lifecycle operations are status-only mutations
+
+- **Aria evidence:** `asset.service.ts` scrap/sell creates `AssetDisposal` and changes
+  status; repair changes top-level asset amounts; capitalization changes an existing
+  target and marks sources `SCRAPPED`; `NEW_ASSET` creates no target. None creates a
+  balanced accounting entry, submitted stock issue, or complete schedule revision.
+- **ERPNext references:**
+  `asset/depreciation.py:363-459`, `asset_repair/asset_repair.py:199-434`, and
+  `asset_capitalization/asset_capitalization.py:178-620`.
+- **Current behavior:** a successful response can imply disposal, repair
+  capitalization, or composite-asset capitalization even though the financial and
+  inventory state is incomplete. Cancellation subtracts current values or restores
+  local rows rather than reversing the exact posted transaction.
+- **Expected behavior:** each submit is atomic, balanced, idempotent, linked to its
+  stock and asset-subledger vouchers, and revises all affected finance-book
+  schedules while preserving posted history. Cancellation reverses the same
+  vouchers and creates a schedule revision; it never performs an unqualified
+  arithmetic rollback.
+- **Implementation impact:** add an asset-domain accounting entry/line model and
+  service, a transaction-aware submitted material-issue primitive, voucher links,
+  source uniqueness, `CAPITALIZED` asset status, and schedule-revision operations.
+  Do not call these records general-ledger entries.
+- **Required tests:** balanced lines, duplicate submission, mid-transaction failure,
+  stock linkage, schedule history, cancellation/retry, zero/negative/empty sources,
+  source-company mismatch, and concurrent submission.
+
+### P1 — WDV base schedules and revaluation previews diverge from ERPNext
+
+- **Aria evidence:** `depreciation-schedule-engine.ts:204-206` and
+  `asset-value-adjustment.utils.ts:189-197` force a 5% floor for rate derivation,
+  while the terminal schedule still uses the actual salvage value.
+- **ERPNext reference:** `asset/asset.py:1014-1039`.
+- **Current behavior:** a zero-salvage asset gets a rate derived toward 5% but a
+  schedule expected to depreciate toward zero. The rate and terminal value are
+  internally inconsistent.
+- **Expected behavior:** use the supplied salvage value. A valid zero value derives
+  100% WDV exactly as ERPNext does.
+- **Recommended fix:** remove the invented floor from both production paths and
+  share one rate helper to prevent preview/schedule drift.
+- **Required tests:** zero salvage, zero explicit rate, non-zero salvage, invalid
+  negative values, base schedule, and value-adjustment revision.
+
+### P1 — Movement does not enforce current state, chronology, or safe rollback
+
+- **Aria evidence:** movement contracts make source/target fields optional;
+  `createAssetMovement` only checks broad asset status; submit applies target values;
+  cancel blindly reapplies stored source values.
+- **ERPNext reference:**
+  `asset_movement/asset_movement.py:47-162`.
+- **Current behavior:** clients can submit the wrong company/source/custodian,
+  identical locations, missing purpose-specific values, or an out-of-order date.
+  Cancelling an older A-to-B movement after a B-to-C movement can incorrectly move
+  the asset back to A.
+- **Expected behavior:** derive source state from the locked asset, validate required
+  targets by purpose, validate company and chronology, reject duplicates, and on
+  cancellation reconstruct state from the latest remaining submitted movement.
+- **Implementation impact:** server-derived source fields, per-asset transaction
+  locks/conditional updates, `@@unique([movementId, assetId])`, purpose refinements,
+  and a UI that captures date and all supported purposes.
+- **Required tests:** receipt, issue, transfer, transfer-and-issue, stale source,
+  same-location rejection, cross-company rejection, out-of-order date, two-movement
+  rollback, duplicate submit, and concurrent submit.
+
+### P1 — Repair lifecycle and maintenance status are disconnected
+
+- **Aria evidence:** repairs are created `DRAFT` and submit directly to `COMPLETED`;
+  the scheduler searches only for `PENDING` repairs. No normal action creates the
+  state that should mark an asset out of order.
+- **ERPNext reference:** `asset_repair/asset_repair.py:175-184`.
+- **Current behavior:** the Out-of-Order maintenance path is unreachable. The repair
+  screen cannot capture consumed items, purchase invoices, completion date, or the
+  capitalization choice.
+- **Expected behavior:** explicit draft-to-pending-to-completed/cancelled transitions,
+  asset status derived from open repairs/maintenance work, full cost inputs, and
+  atomic stock/accounting/schedule effects when completed.
+- **Required tests:** transition matrix, pending status discovery, completion status
+  restoration, overlapping maintenance, consumed stock, invoice cost, capitalized
+  and expensed repair, cancellation, and access control.
+
+### P1 — Capitalization is structurally incomplete
+
+- **Aria evidence:** the form always requests `NEW_ASSET` with empty stock, asset,
+  and service arrays. Backend submission only updates an already-existing target;
+  the new-target path is a no-op and source assets become `SCRAPPED`.
+- **ERPNext reference:**
+  `asset_capitalization/asset_capitalization.py:178-620`.
+- **Current behavior:** an empty document can be created, no new target is produced,
+  stock is not issued, service/source costs are not posted, and source lifecycle is
+  misrepresented as scrapping.
+- **Expected behavior:** require at least one valid source, support new/existing target
+  modes, post source depreciation through the transaction date, issue stock, create
+  the target atomically, mark source assets `CAPITALIZED`, and retain prior state for
+  reversal.
+- **Required tests:** each source type, mixed sources, empty/duplicate sources,
+  source/target company mismatch, new and existing target, transaction rollback,
+  source depreciation, submit idempotency, and cancellation.
+
+### P1 — Disposal and restoration do not close or reverse accounting state
+
+- **Aria evidence:** the disposal methods update status and local disposal rows only;
+  the added dialog is not imported by the asset detail route.
+- **ERPNext references:** `asset/depreciation.py:363-459` and
+  `asset/asset.py:1096-1126`.
+- **Current behavior:** projected schedules stay open, due depreciation is not posted
+  through the disposal date, no balanced disposal entry exists, and restore cannot
+  reverse the original financial effect.
+- **Expected behavior:** lock the asset, post or reject outstanding depreciation by
+  policy, close future schedules, create a balanced asset-subledger disposal/sale
+  entry, and reverse the exact vouchers on restore. A sale is not a Sales Invoice;
+  invoicing remains outside this branch until Aria has an AP/AR ledger.
+- **Required tests:** scrap and sale at gain/loss/zero, date boundaries, outstanding
+  depreciation, repeat/restore, schedule closure/revision, and UI permissions.
+
+### P1 — Fixed Asset Register reports projections as booked depreciation
+
+- **Aria evidence:** `fixed-asset-register-report.ts` selects active schedule entries
+  through `toDate` without requiring `postingId`, `postedAt`, or a posted journal.
+  `fromDate` affects chart buckets but not the table's accounting population.
+- **ERPNext reference:**
+  `report/fixed_asset_register/fixed_asset_register.py:249-330`, which derives
+  period values from posted GL entries constrained by the requested range.
+- **Current behavior:** future/projected schedule rows understate net book value and
+  the UI mixes as-at and date-range semantics.
+- **Expected behavior:** expose explicit date-range semantics, split opening and
+  in-period posted depreciation, exclude drafts/cancelled assets and unposted rows,
+  and apply the same boundaries to table, groups, and chart.
+- **Required tests:** opening balances, in-period postings, projected rows, cancelled
+  postings, assets acquired after the end date, boundary dates, grouping totals, and
+  exported values.
+
+### P1 — Value adjustment updates one schedule but not its finance book
+
+- **Aria evidence:** the adjustment context implicitly selects a finance book;
+  submission replaces one schedule and updates only top-level
+  `Asset.valueAfterDepreciation`.
+- **ERPNext reference:**
+  `asset_value_adjustment/asset_value_adjustment.py:187-208`.
+- **Current behavior:** multi-book assets can have a revised schedule whose parent
+  finance-book carrying value and proportional salvage remain stale.
+- **Expected behavior:** adjustment explicitly identifies the finance book, updates
+  that book's value and proportional salvage atomically, chains the replacement
+  schedule, and mirrors only the default book on the top-level asset.
+- **Required tests:** default and non-default books, proportional salvage, posted
+  history, revision chain, cancellation, and concurrent adjustments.
+
+### P1 — CWIP scheduler performs an unqualified direct mutation
+
+- **Aria evidence:** `postCwipCapitalizationGlEntries` selects due `DRAFT` assets and
+  changes them to `SUBMITTED`; it creates no voucher or booked marker.
+- **ERPNext reference:** `asset/asset.py:923-970,1073-1088`.
+- **Current behavior:** there is no CWIP-category/account qualification, balanced
+  posting, idempotency, or retry recovery. The scheduler executes an accounting
+  mutation directly, unlike Aria's established depreciation discovery-to-BullMQ
+  worker boundary.
+- **Expected behavior:** the scheduler only discovers qualified submitted,
+  CWIP-enabled, unbooked assets and enqueues deterministic jobs. A worker owns the
+  locked, idempotent subledger posting and booked marker.
+- **Required tests:** discovery filters, deterministic job IDs, duplicate ticks,
+  worker retry after failure, balanced posting, and already-booked assets.
+
+### P1 — Actor, company, and authorization invariants are client-controlled
+
+- **Aria evidence:** `orgProcedure()` verifies membership but lifecycle service calls
+  do not receive organization context, financial writes have no explicit role gate,
+  records are looked up by IDs without consistent same-company checks, and public
+  contracts accept `userId`. New forms hardcode `company: "Aria ERP"` despite the
+  repository's Pivotr demo company.
+- **Current behavior:** a member can spoof activity attribution and may combine
+  records from different companies if IDs are known.
+- **Expected behavior:** derive actor from `ctx.user.id`, derive/validate approved
+  company context, require the established financial-write role, and assert that
+  every asset, location, warehouse, invoice, source, and target belongs to the same
+  company before mutation.
+- **Implementation impact:** remove actor IDs from public inputs, pass trusted context
+  from the router, add same-company service guards, and hide actions the member
+  cannot invoke. Organization-owned Company is a broader ERP architecture gap and
+  must not be faked only for Asset Management.
+- **Required tests:** actor spoof attempt, non-member, insufficient role,
+  cross-company references, and permitted member paths.
+
+### P2 — Frontend workflows are incomplete or unreachable
+
+- **Aria evidence:** movement omits date/source state and one purpose; repair and
+  capitalization omit their line editors; all three hardcode company; disposal and
+  `depreciation-schedule-tab.tsx` are dead code. The schedule tab reconstructs only a
+  client-side straight-line schedule and cannot represent WDV, shifts, revisions, or
+  posting state. New mutations lack consistent error handling and form validation.
+- **Current behavior:** users cannot create accounting-complete documents and can be
+  shown success for backend-incomplete operations.
+- **Expected behavior:** server-backed selectors and schedules, frontend Zod
+  validation matching shared contracts, meaningful pending/error states, accessible
+  controls, role-gated actions, and no unsupported claims.
+- **Required tests:** component-level invalid/valid submissions and route-level
+  create/submit/cancel flows backed by deterministic API state.
+
+### P2 — Canonical route moves leave broken links and no compatibility path
+
+- **Aria evidence:** legacy route files were moved without redirects; dashboard links
+  still reference removed asset paths, including singular `/asset/value-adjustment`.
+  Asset documentation also contains legacy URLs.
+- **Current behavior:** saved links and three dashboard actions can return 404.
+- **Expected behavior:** all first-party links use canonical routes and intentional
+  permanent redirects preserve the former public URLs.
+- **Required tests:** navigation tests for every dashboard/sidebar target and redirect
+  tests for each moved legacy route.
+
+### P2 — Demo data and tests do not prove the new behavior
+
+- **Aria evidence:** the demo loader and cleanup contain no movement, repair,
+  capitalization, or disposal records. New E2E specs only open pages/dialogs and do
+  not provision authenticated organization state.
+- **Current behavior:** new pages are empty after demo load; cleanup will become
+  foreign-key unsafe once lifecycle examples exist; tests cannot detect the core
+  financial and rollback defects above.
+- **Expected behavior:** deterministic Pivotr/Bengaluru/INR lifecycle scenarios are
+  created through production services or equivalent validated seed paths, cleanup
+  deletes them in dependency order, and tests assert persisted domain effects.
+- **Required tests:** load twice, cleanup/load recovery, stable counts/series, seeded
+  movement and cancellation history, pending/completed repair, capitalization,
+  disposal/restore, and posted-versus-projected report values.
+
+## Verified-correct branch changes to preserve
+
+- Atomic document-series counter increments are transaction-scoped.
+- Shift-factor normalization is correct for the implemented non-daily straight-line
+  calculation.
+- Asset value-adjustment dates are checked against purchase date.
+- Existing depreciation scheduling remains discovery-only, while its BullMQ worker
+  owns execution.
+- Canonical route source files and all 14 current navigation entries exist.
+- The protected Asset layout still applies authentication and `OrganizationGate`.
+- Shared contracts and tRPC inference compile without frontend TypeScript errors at
+  the audit baseline.
+
+## Executable remediation plan
+
+The following phases are dependency ordered. Tasks listed together are safe to run
+in parallel when they touch disjoint files; integration decisions and final review
+remain with the primary implementer.
+
+### Phase A — Schema and trusted transaction foundations (sequential)
+
+1. **Finalize lifecycle persistence.** Add the asset accounting entry/line models,
+   voucher/source uniqueness, stock-entry links, source prior-state fields,
+   finance-book identifiers, movement item uniqueness, CWIP booked marker, and
+   `CAPITALIZED` status in `schema.prisma` and shared types.
+   - Outcome: the schema can represent every exact submit/reverse relationship.
+   - Tests: Prisma validation and constraint-focused service tests.
+2. **Create the net forward migration.** Generate SQL from the previous migration
+   head, review destructive operations, and apply it to both empty and upgraded test
+   databases.
+   - Outcome: `prisma migrate deploy` creates the complete branch schema.
+   - Tests: clean/upgraded migration plus demo cleanup/load.
+3. **Establish trusted mutation context.** Remove client-supplied actor IDs, pass the
+   authenticated actor from tRPC, enforce financial-write roles, and centralize
+   same-company checks.
+   - Outcome: lifecycle attribution and record scope are server-controlled.
+   - Tests: actor, role, and cross-company negative cases.
+
+### Phase B — Depreciation, revaluation, and report correctness (parallel after A1)
+
+1. Remove the WDV floor and use one ERPNext-aligned rate helper in schedule and
+   revaluation paths.
+2. Add a transaction-aware finance-book schedule revision operation that preserves
+   posted history and chains replacements.
+3. Make value adjustment select and update the intended finance book, including
+   proportional salvage and default-book mirroring.
+4. Rebuild Fixed Asset Register calculations around posted entries with explicit
+   opening/in-period date-range semantics and matching export/chart totals.
+   - Tests: the edge cases specified in the four corresponding findings.
+
+### Phase C — Lifecycle services (movement can run parallel; accounting flows sequential)
+
+1. **Movement:** implement source derivation, purpose/date/company validation,
+   per-asset locking, conditional state changes, and latest-history cancellation.
+2. **Asset accounting subledger:** implement balanced posting and exact reversal with
+   deterministic series/source identity. Keep the name and documentation honest.
+3. **Submitted stock posting:** implement a transaction-aware material-issue path,
+   validate warehouse/item/company data, link the document, and make reports ignore
+   cancelled/draft entries.
+4. **Repair:** add pending/completed transitions and compose stock, subledger, asset,
+   finance-book, and schedule effects in one transaction.
+5. **Capitalization:** validate sources/target, create a new target when requested,
+   post due source depreciation, consume stock/assets/services, use `CAPITALIZED`,
+   and retain exact reversal state.
+6. **Disposal/restore:** close/revise schedules and post/reverse balanced subledger
+   entries without claiming Sales Invoice support.
+   - Tests: unit and database integration tests for valid, invalid, concurrent,
+     failure, retry, cancellation, and reversal paths.
+
+### Phase D — Scheduler/worker boundary (after C2)
+
+1. Convert CWIP scheduling to qualified discovery only, with deterministic BullMQ
+   job identity.
+2. Add an idempotent worker that locks the asset, creates the CWIP subledger entry,
+   and persists its booked marker atomically.
+3. Align maintenance status discovery with the real repair state machine and ensure
+   status restoration considers other open maintenance work.
+   - Tests: discovery filters, duplicate ticks, retries, restart recovery, and
+     scheduler/worker separation.
+
+### Phase E — Frontend integration (parallel by workflow after C contracts stabilize)
+
+1. Replace hardcoded company values with approved context and add shared-schema form
+   validation, pending/error states, accessibility, and permissions.
+2. Complete movement date/purpose/source presentation and submit/cancel behavior.
+3. Complete repair consumed-item/invoice/capitalization/completion inputs.
+4. Complete capitalization target modes and stock/asset/service line editors.
+5. Wire disposal/restore actions and render the server-backed depreciation schedule
+   on asset detail; delete the inaccurate client reconstruction.
+6. Correct dashboard links and add compatibility redirects for all route moves.
+   - Tests: meaningful component tests and authenticated, data-backed lifecycle E2E.
+
+No file under a `ui` directory may be edited in this phase; use existing primitives
+as they are.
+
+### Phase F — Demo, documentation, and integration verification (sequential)
+
+1. Add deterministic Pivotr/Bengaluru/INR examples covering submitted and reversible
+   movement, pending/completed repair, source/target capitalization, scrap/sale or
+   restore, CWIP discovery, and posted/projected register data.
+2. Update cleanup ordering, count/status reporting, and idempotent reload coverage.
+3. Replace smoke E2E expectations with authenticated seeded workflows and persisted
+   effect assertions; retain unit/API tests for failure and concurrency paths.
+4. Update user-facing Asset documentation and this report to describe final behavior,
+   supported accounting boundaries, and any genuinely broader deferred subsystem.
+5. Review the complete `master...HEAD` diff for dead code, stale claims, TODOs,
+   suppressions, warnings, contract/schema drift, and unrelated edits.
+6. Run focused checks after each phase, then run the exact final gate:
+   `bun run validate`. Completion requires exit code 0.
+
+## Broader dependencies that this branch must describe, not fake
+
+The following are not present elsewhere in Aria and cannot be made ERPNext-equivalent
+by adding Asset-only names or placeholder rows:
+
+- a company-owned chart of accounts with account validation;
+- a shared journal/general ledger, posting rules, trial balance, and statutory
+  reversal model;
+- Sales Invoice/AP/AR generation and settlement for asset sales;
+- inventory valuation, perpetual-inventory accounting, reservations, and serial or
+  batch enforcement;
+- an organization-to-company ownership model consistently applied across every ERP
+  module.
+
+The branch remains responsible for correct, balanced, reversible Asset-domain
+records and stock documents. UI, API, tests, and documentation must use that precise
+terminology and must not imply the broader subsystems already exist.
