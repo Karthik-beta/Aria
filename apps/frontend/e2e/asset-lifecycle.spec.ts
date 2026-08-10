@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 
 test.describe("Asset Lifecycle E2E Workflow", () => {
 	test("should navigate to assets page, inspect list, and load asset details", async ({

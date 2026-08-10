@@ -50,6 +50,13 @@ jobs:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/aria?schema=public
       REDIS_URL: redis://localhost:6379
       APP_TIME_ZONE: UTC
+      BETTER_AUTH_SECRET: ci-only-better-auth-secret
+      BETTER_AUTH_URL: http://localhost:3001
+      FRONTEND_URL: http://localhost:3000
+      DEFAULT_ADMIN_USERNAME: ci-admin
+      DEFAULT_ADMIN_EMAIL: ci-admin@example.test
+      DEFAULT_ADMIN_PASSWORD: ci-admin-password
+      DEFAULT_ADMIN_NAME: CI Administrator
     steps:
       - name: Checkout
         uses: actions/checkout@v5

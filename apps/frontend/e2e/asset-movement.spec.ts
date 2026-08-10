@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 
 test.describe("Asset Movement E2E Workflow", () => {
 	test("should load asset movements page and trigger new movement dialog", async ({

@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 
 test.describe("Asset Repair E2E Workflow", () => {
 	test("should load asset repairs page and open repair dialog", async ({

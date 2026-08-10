@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 
 test.describe("Fixed Asset Register Report E2E Workflow", () => {
 	test("should load register report page, filter controls, and table container", async ({

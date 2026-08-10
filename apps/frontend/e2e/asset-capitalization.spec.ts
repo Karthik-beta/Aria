@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 
 test.describe("Asset Capitalization E2E Workflow", () => {
 	test("should load asset capitalizations page and open capitalization dialog", async ({
