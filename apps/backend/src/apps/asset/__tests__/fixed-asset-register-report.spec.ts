@@ -1,9 +1,18 @@
 import { describe, expect, it, mock } from "bun:test";
 import type { Prisma } from "../../../generated/prisma/client";
-import type { PrismaService } from "../../../shared/prisma.service";
+import { PrismaService } from "../../../shared/prisma.service";
 import { FixedAssetRegisterReportService } from "../fixed-asset-register-report";
 
 describe("FixedAssetRegisterReportService", () => {
+	it("emits PrismaService as its Nest dependency token", () => {
+		const metadata = Reflect.getMetadata(
+			"design:paramtypes",
+			FixedAssetRegisterReportService,
+		) as unknown[] | undefined;
+
+		expect(metadata?.[0]).toBe(PrismaService);
+	});
+
 	it("uses opening depreciation and posted in-period movements only", async () => {
 		const mockAssets = [
 			{

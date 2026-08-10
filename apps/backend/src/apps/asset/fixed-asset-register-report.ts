@@ -1,6 +1,7 @@
 import type { Asset } from "@aria/types";
 import { Injectable } from "@nestjs/common";
-import type { PrismaService } from "../../shared/prisma.service";
+// biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
+import { PrismaService } from "../../shared/prisma.service";
 
 const CURRENCY_SCALE = 6;
 
