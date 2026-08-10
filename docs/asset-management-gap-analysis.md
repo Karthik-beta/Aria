@@ -101,10 +101,10 @@ reviewed lifecycle migration and subsequent continuation fixes.
 
 | Finding | Current assessment |
 | --- | --- |
-| Movement, repair, capitalization, and disposal were missing. | The branch adds models, contracts, service methods, and some screens. It does not yet implement the required invariants or accounting/stock/schedule effects. |
-| Asset Activity was partial. | New actions add activity records, but actor trust, organization/company scope, and full lifecycle coverage remain incomplete. |
-| Depreciation and Balances used incomplete data. | Some branch changes improve values, but report correctness still depends on posted-entry filtering and honest asset-subledger semantics. |
-| Maintenance/CWIP scheduled work was missing. | Maintenance status and log status jobs exist. The repair state machine makes the first unreachable, while CWIP directly mutates assets without qualified discovery, a queue worker, accounting entry, or idempotency marker. |
+| Movement, repair, capitalization, and disposal were missing. | Resolved within the supported Asset-domain boundary; the branch now has validated transitions, links, and reversals. Shared GL and perpetual-inventory parity remain outside scope. |
+| Asset Activity was partial. | Actor propagation is now authenticated-context based for supported writes; organization-to-company ownership remains an explicit broader dependency. |
+| Depreciation and Balances used incomplete data. | Posted-entry filtering is implemented; reports remain Asset-domain subledger reports rather than statutory GL reports. |
+| Maintenance/CWIP scheduled work was missing. | Maintenance status precedence/restoration and the qualified CWIP discovery/worker boundary are implemented; integration proof remains part of the release gate. |
 
 ## Independent findings
 
@@ -123,7 +123,7 @@ CWIP markers. Clean/upgraded migration execution remains part of the release gat
   `AssetActivity.userId` plus movement, repair, capitalization, and disposal models,
   relations, and enums. `git diff master...HEAD` contains no file under
   `apps/backend/prisma/migrations`.
-- **Current behavior:** Prisma client generation succeeds against the schema, but
+- **Audit-baseline behavior (pre-continuation):** Prisma client generation succeeds against the schema, but
   `prisma migrate deploy` cannot create any new table or column in an existing
   environment. Runtime lifecycle calls will fail on a deployed database.
 - **Expected behavior:** every schema change has a reviewed forward migration that
@@ -150,7 +150,7 @@ are not a shared statutory general ledger.
 - **ERPNext references:**
   `asset/depreciation.py:363-459`, `asset_repair/asset_repair.py:199-434`, and
   `asset_capitalization/asset_capitalization.py:178-620`.
-- **Current behavior:** a successful response can imply disposal, repair
+- **Audit-baseline behavior (pre-continuation):** a successful response can imply disposal, repair
   capitalization, or composite-asset capitalization even though the financial and
   inventory state is incomplete. Cancellation subtracts current values or restores
   local rows rather than reversing the exact posted transaction.
@@ -176,7 +176,7 @@ paths and zero-salvage regression coverage follows ERPNext's 100% WDV derivation
   `asset-value-adjustment.utils.ts:189-197` force a 5% floor for rate derivation,
   while the terminal schedule still uses the actual salvage value.
 - **ERPNext reference:** `asset/asset.py:1014-1039`.
-- **Current behavior:** a zero-salvage asset gets a rate derived toward 5% but a
+- **Audit-baseline behavior (pre-continuation):** a zero-salvage asset gets a rate derived toward 5% but a
   schedule expected to depreciate toward zero. The rate and terminal value are
   internally inconsistent.
 - **Expected behavior:** use the supplied salvage value. A valid zero value derives
@@ -197,7 +197,7 @@ and cancellation reconstructs the latest remaining submitted state.
   cancel blindly reapplies stored source values.
 - **ERPNext reference:**
   `asset_movement/asset_movement.py:47-162`.
-- **Current behavior:** clients can submit the wrong company/source/custodian,
+- **Audit-baseline behavior (pre-continuation):** clients can submit the wrong company/source/custodian,
   identical locations, missing purpose-specific values, or an out-of-order date.
   Cancelling an older A-to-B movement after a B-to-C movement can incorrectly move
   the asset back to A.
@@ -223,7 +223,7 @@ overlapping open work.
   the scheduler searches only for `PENDING` repairs. No normal action creates the
   state that should mark an asset out of order.
 - **ERPNext reference:** `asset_repair/asset_repair.py:175-184`.
-- **Current behavior:** the Out-of-Order maintenance path is unreachable. The repair
+- **Audit-baseline behavior (pre-continuation):** the Out-of-Order maintenance path is unreachable. The repair
   screen cannot capture consumed items, purchase invoices, completion date, or the
   capitalization choice.
 - **Expected behavior:** explicit draft-to-pending-to-completed/cancelled transitions,
@@ -245,7 +245,7 @@ server-owned new target, posts stock/subledger effects, marks sources
   the new-target path is a no-op and source assets become `SCRAPPED`.
 - **ERPNext reference:**
   `asset_capitalization/asset_capitalization.py:178-620`.
-- **Current behavior:** an empty document can be created, no new target is produced,
+- **Audit-baseline behavior (pre-continuation):** an empty document can be created, no new target is produced,
   stock is not issued, service/source costs are not posted, and source lifecycle is
   misrepresented as scrapping.
 - **Expected behavior:** require at least one valid source, support new/existing target
@@ -267,7 +267,7 @@ outside scope.
   the added dialog is not imported by the asset detail route.
 - **ERPNext references:** `asset/depreciation.py:363-459` and
   `asset/asset.py:1096-1126`.
-- **Current behavior:** projected schedules stay open, due depreciation is not posted
+- **Audit-baseline behavior (pre-continuation):** projected schedules stay open, due depreciation is not posted
   through the disposal date, no balanced disposal entry exists, and restore cannot
   reverse the original financial effect.
 - **Expected behavior:** lock the asset, post or reject outstanding depreciation by
@@ -290,7 +290,7 @@ statutory GL report.
 - **ERPNext reference:**
   `report/fixed_asset_register/fixed_asset_register.py:249-330`, which derives
   period values from posted GL entries constrained by the requested range.
-- **Current behavior:** future/projected schedule rows understate net book value and
+- **Audit-baseline behavior (pre-continuation):** future/projected schedule rows understate net book value and
   the UI mixes as-at and date-range semantics.
 - **Expected behavior:** expose explicit date-range semantics, split opening and
   in-period posted depreciation, exclude drafts/cancelled assets and unposted rows,
@@ -310,7 +310,7 @@ mirroring, and guarded cancellation are implemented and covered by focused tests
   `Asset.valueAfterDepreciation`.
 - **ERPNext reference:**
   `asset_value_adjustment/asset_value_adjustment.py:187-208`.
-- **Current behavior:** multi-book assets can have a revised schedule whose parent
+- **Audit-baseline behavior (pre-continuation):** multi-book assets can have a revised schedule whose parent
   finance-book carrying value and proportional salvage remain stale.
 - **Expected behavior:** adjustment explicitly identifies the finance book, updates
   that book's value and proportional salvage atomically, chains the replacement
@@ -328,7 +328,7 @@ marker.
 - **Aria evidence:** `postCwipCapitalizationGlEntries` selects due `DRAFT` assets and
   changes them to `SUBMITTED`; it creates no voucher or booked marker.
 - **ERPNext reference:** `asset/asset.py:923-970,1073-1088`.
-- **Current behavior:** there is no CWIP-category/account qualification, balanced
+- **Audit-baseline behavior (pre-continuation):** there is no CWIP-category/account qualification, balanced
   posting, idempotency, or retry recovery. The scheduler executes an accounting
   mutation directly, unlike Aria's established depreciation discovery-to-BullMQ
   worker boundary.
@@ -352,7 +352,7 @@ domain validation rather than a fabricated organization mapping.
   records are looked up by IDs without consistent same-company checks, and public
   contracts accept `userId`. New forms hardcode `company: "Aria ERP"` despite the
   repository's Pivotr demo company.
-- **Current behavior:** a member can spoof activity attribution and may combine
+- **Audit-baseline behavior (pre-continuation):** a member can spoof activity attribution and may combine
   records from different companies if IDs are known.
 - **Expected behavior:** derive actor from `ctx.user.id`, derive/validate approved
   company context, require the established financial-write role, and assert that
@@ -377,7 +377,7 @@ coverage, richer account/warehouse selectors, and role-aware action affordances.
   `depreciation-schedule-tab.tsx` are dead code. The schedule tab reconstructs only a
   client-side straight-line schedule and cannot represent WDV, shifts, revisions, or
   posting state. New mutations lack consistent error handling and form validation.
-- **Current behavior:** users cannot create accounting-complete documents and can be
+- **Audit-baseline behavior (pre-continuation):** users cannot create accounting-complete documents and can be
   shown success for backend-incomplete operations.
 - **Expected behavior:** server-backed selectors and schedules, frontend Zod
   validation matching shared contracts, meaningful pending/error states, accessible
@@ -395,7 +395,7 @@ redirects for the legacy URLs. Keep redirect coverage in the final E2E gate.
 - **Aria evidence:** legacy route files were moved without redirects; dashboard links
   still reference removed asset paths, including singular `/asset/value-adjustment`.
   Asset documentation also contains legacy URLs.
-- **Current behavior:** saved links and three dashboard actions can return 404.
+- **Audit-baseline behavior (pre-continuation):** saved links and three dashboard actions can return 404.
 - **Expected behavior:** all first-party links use canonical routes and intentional
   permanent redirects preserve the former public URLs.
 - **Required tests:** navigation tests for every dashboard/sidebar target and redirect
@@ -412,7 +412,7 @@ repeat-load proof against the final migration head.
 - **Aria evidence:** the demo loader and cleanup contain no movement, repair,
   capitalization, or disposal records. New E2E specs only open pages/dialogs and do
   not provision authenticated organization state.
-- **Current behavior:** new pages are empty after demo load; cleanup will become
+- **Audit-baseline behavior (pre-continuation):** new pages are empty after demo load; cleanup will become
   foreign-key unsafe once lifecycle examples exist; tests cannot detect the core
   financial and rollback defects above.
 - **Expected behavior:** deterministic Pivotr/Bengaluru/INR lifecycle scenarios are

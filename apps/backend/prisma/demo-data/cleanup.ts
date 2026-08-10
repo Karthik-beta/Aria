@@ -80,6 +80,19 @@ export async function cleanDemoData(
 		counts[label] = result.count;
 	}
 
+	async function delUntilStable(
+		label: string,
+		fn: () => Promise<{ count: number }>,
+	): Promise<void> {
+		let total = 0;
+		for (;;) {
+			const result = await fn();
+			total += result.count;
+			if (result.count === 0) break;
+		}
+		counts[label] = total;
+	}
+
 	// ── Transaction-level (children auto-cascade via onDelete) ────
 
 	await del("SubcontractingOrder", () =>
@@ -143,32 +156,8 @@ export async function cleanDemoData(
 
 	await del("Asset", () => prisma.asset.deleteMany({ where: { company } }));
 
-	await del("AssetCategory", () =>
-		prisma.assetCategory.deleteMany({
-			where: {
-				name: { in: DEMO_ASSET_CATEGORY_NAMES },
-				// Categories are global reference rows. Never remove one that is
-				// referenced by any company's assets or accounting defaults.
-				assets: { none: {} },
-				financeBookDefaults: { none: {} },
-				accounts: { none: {} },
-			},
-		}),
-	);
-
-	await del("Location", () =>
-		prisma.location.deleteMany({
-			where: {
-				name: { in: DEMO_ASSET_LOCATION_NAMES },
-				// Locations are shared reference rows. Preserve any row that is
-				// still attached to assets, movements, or a location hierarchy.
-				assets: { none: {} },
-				childLocations: { none: {} },
-				sourceMovements: { none: {} },
-				targetMovements: { none: {} },
-			},
-		}),
-	);
+	// Locations are global reference rows with a unique name and no company
+	// ownership. Preserve them; the seed path reuses existing rows by name.
 
 	await del("InstallationNote", () =>
 		prisma.installationNote.deleteMany({ where: { company } }),
@@ -334,7 +323,7 @@ export async function cleanDemoData(
 
 	// Item groups (self-referencing — delete leaves first, then parents)
 	// Delete in two passes: non-group then group
-	await del("ItemGroup(leaves)", () =>
+	await delUntilStable("ItemGroup(leaves)", () =>
 		prisma.itemGroup.deleteMany({
 			where: {
 				isGroup: false,
@@ -346,7 +335,7 @@ export async function cleanDemoData(
 			},
 		}),
 	);
-	await del("ItemGroup(parents)", () =>
+	await delUntilStable("ItemGroup(parents)", () =>
 		prisma.itemGroup.deleteMany({
 			where: {
 				groupName: { in: DEMO_ITEM_GROUP_NAMES },
@@ -385,6 +374,9 @@ export async function cleanDemoData(
 	await del("Company", () =>
 		prisma.company.deleteMany({ where: { name: company } }),
 	);
+
+	// Asset categories and their finance-book defaults are global reference rows
+	// with a unique name. Preserve them; the seed path reuses existing rows.
 
 	// Delete seeded fiscal years
 	const seededFiscalYears = buildIndianFiscalYears(config.dateRange.to).map(

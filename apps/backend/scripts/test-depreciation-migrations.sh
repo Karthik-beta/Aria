@@ -27,7 +27,8 @@ psql "$admin_url" -v ON_ERROR_STOP=1 \
 
 cp prisma/migrations/migration_lock.toml "$temporary_migrations/"
 for migration in prisma/migrations/*; do
-  if [ -d "$migration" ] && [ "$(basename "$migration")" != "$depreciation_migration" ]; then
+  migration_name=$(basename "$migration")
+  if [ -d "$migration" ] && ! [ "$migration_name" \> "$depreciation_migration" ]; then
     cp -R "$migration" "$temporary_migrations/"
   fi
 done
@@ -65,6 +66,16 @@ INSERT INTO "assets" (
   'SUBMITTED', CURRENT_TIMESTAMP
 );
 
+INSERT INTO "asset_finance_books" (
+  "id", "assetId", "financeBookId", "depreciationMethod",
+  "totalNumberOfDepreciations", "frequencyOfDepreciation",
+  "depreciationStartDate", "updatedAt"
+) VALUES (
+  'legacy-book', 'legacy-asset',
+  (SELECT "id" FROM "finance_books" ORDER BY "createdAt", "id" LIMIT 1),
+  'STRAIGHT_LINE', 12, 1, DATE '2025-02-01', CURRENT_TIMESTAMP
+);
+
 INSERT INTO "asset_value_adjustments" (
   "id", "series", "assetId", "companySnapshot", "adjustmentDate",
   "currentAssetValue", "newAssetValue", "differenceAmount",
@@ -77,12 +88,12 @@ INSERT INTO "asset_value_adjustments" (
 );
 
 INSERT INTO "asset_depreciation_schedules" (
-  "id", "adjustmentId", "assetId", "revisionNumber", "status", "startDate",
+  "id", "adjustmentId", "assetId", "assetFinanceBookId", "revisionNumber", "status", "startDate",
   "depreciationMethod", "totalNumberOfDepreciations",
   "frequencyOfDepreciation", "bookedDepreciations",
   "remainingDepreciations", "baseAssetValue", "updatedAt"
 ) VALUES (
-  'legacy-schedule', 'legacy-adjustment', 'legacy-asset', 1, 'ACTIVE',
+  'legacy-schedule', 'legacy-adjustment', 'legacy-asset', 'legacy-book', 1, 'ACTIVE',
   DATE '2025-02-01', 'STRAIGHT_LINE', 12, 1, 0, 12, 1200,
   CURRENT_TIMESTAMP
 );

@@ -82,13 +82,17 @@ export async function seedAssetMasterData(
 		parentLocationId: string | null,
 	): Promise<void> {
 		for (const location of locations) {
-			const created = await prisma.location.create({
-				data: {
-					name: location.name,
-					parentLocationId,
-					isGroup: location.isGroup,
-				},
-			});
+			const created =
+				(await prisma.location.findUnique({
+					where: { name: location.name },
+				})) ??
+				(await prisma.location.create({
+					data: {
+						name: location.name,
+						parentLocationId,
+						isGroup: location.isGroup,
+					},
+				}));
 			ids.assetLocationIds.set(location.name, created.id);
 
 			if (location.children) {
@@ -100,51 +104,106 @@ export async function seedAssetMasterData(
 	await createLocations(ASSET_LOCATIONS, null);
 
 	for (const category of ASSET_CATEGORIES) {
-		const created = await prisma.assetCategory.create({
-			data: {
-				name: category.name,
-				depreciationMethod: category.depreciationMethod,
-				totalNumberOfDepreciations: category.totalNumberOfDepreciations,
-				frequencyOfDepreciation: category.frequencyOfDepreciation,
-				dailyProrataBased: category.dailyProrataBased ?? false,
-				shiftBased: category.shiftBased ?? false,
-				rateOfDepreciation: category.rateOfDepreciation ?? null,
-				expectedValueAfterUsefulLife:
-					category.expectedValueAfterUsefulLife?.toString() ?? null,
-				nonDepreciableCategory: category.nonDepreciableCategory ?? false,
-				enableCwipAccounting: category.enableCwipAccounting ?? false,
-				financeBookDefaults:
-					category.nonDepreciableCategory || !category.depreciationMethod
-						? undefined
-						: {
-								create: {
-									financeBookId: financeBook.id,
-									depreciationMethod: category.depreciationMethod,
-									totalNumberOfDepreciations:
-										category.totalNumberOfDepreciations ?? 1,
-									frequencyOfDepreciation:
-										category.frequencyOfDepreciation ?? 1,
-									dailyProrataBased: category.dailyProrataBased ?? false,
-									shiftBased: category.shiftBased ?? false,
-									rateOfDepreciation: category.rateOfDepreciation ?? null,
-									expectedValueAfterUsefulLife:
-										category.expectedValueAfterUsefulLife?.toString() ?? null,
+		const existing = await prisma.assetCategory.findUnique({
+			where: { name: category.name },
+		});
+		const created =
+			existing ??
+			(await prisma.assetCategory.create({
+				data: {
+					name: category.name,
+					depreciationMethod: category.depreciationMethod,
+					totalNumberOfDepreciations: category.totalNumberOfDepreciations,
+					frequencyOfDepreciation: category.frequencyOfDepreciation,
+					dailyProrataBased: category.dailyProrataBased ?? false,
+					shiftBased: category.shiftBased ?? false,
+					rateOfDepreciation: category.rateOfDepreciation ?? null,
+					expectedValueAfterUsefulLife:
+						category.expectedValueAfterUsefulLife?.toString() ?? null,
+					nonDepreciableCategory: category.nonDepreciableCategory ?? false,
+					enableCwipAccounting: category.enableCwipAccounting ?? false,
+					financeBookDefaults:
+						category.nonDepreciableCategory || !category.depreciationMethod
+							? undefined
+							: {
+									create: {
+										financeBookId: financeBook.id,
+										depreciationMethod: category.depreciationMethod,
+										totalNumberOfDepreciations:
+											category.totalNumberOfDepreciations ?? 1,
+										frequencyOfDepreciation:
+											category.frequencyOfDepreciation ?? 1,
+										dailyProrataBased: category.dailyProrataBased ?? false,
+										shiftBased: category.shiftBased ?? false,
+										rateOfDepreciation: category.rateOfDepreciation ?? null,
+										expectedValueAfterUsefulLife:
+											category.expectedValueAfterUsefulLife?.toString() ?? null,
+									},
 								},
-							},
-				accounts: {
-					create: {
-						companyId: company.id,
-						fixedAssetAccount: `${category.name} Fixed Asset`,
-						accumulatedDepreciationAccount:
-							DEMO_DEPRECIATION_ACCOUNTS.accumulatedDepreciation,
-						depreciationExpenseAccount:
-							DEMO_DEPRECIATION_ACCOUNTS.depreciationExpense,
-						capitalWorkInProgressAccount:
-							DEMO_DEPRECIATION_ACCOUNTS.capitalWorkInProgress,
+					accounts: {
+						create: {
+							companyId: company.id,
+							fixedAssetAccount: `${category.name} Fixed Asset`,
+							accumulatedDepreciationAccount:
+								DEMO_DEPRECIATION_ACCOUNTS.accumulatedDepreciation,
+							depreciationExpenseAccount:
+								DEMO_DEPRECIATION_ACCOUNTS.depreciationExpense,
+							capitalWorkInProgressAccount:
+								DEMO_DEPRECIATION_ACCOUNTS.capitalWorkInProgress,
+						},
 					},
+				},
+			}));
+		if (category.depreciationMethod && !category.nonDepreciableCategory) {
+			const defaultBook = await prisma.assetCategoryFinanceBook.findUnique({
+				where: {
+					assetCategoryId_financeBookId: {
+						assetCategoryId: created.id,
+						financeBookId: financeBook.id,
+					},
+				},
+			});
+			if (!defaultBook) {
+				await prisma.assetCategoryFinanceBook.create({
+					data: {
+						assetCategoryId: created.id,
+						financeBookId: financeBook.id,
+						depreciationMethod: category.depreciationMethod,
+						totalNumberOfDepreciations:
+							category.totalNumberOfDepreciations ?? 1,
+						frequencyOfDepreciation: category.frequencyOfDepreciation ?? 1,
+						dailyProrataBased: category.dailyProrataBased ?? false,
+						shiftBased: category.shiftBased ?? false,
+						rateOfDepreciation: category.rateOfDepreciation ?? null,
+						expectedValueAfterUsefulLife:
+							category.expectedValueAfterUsefulLife?.toString() ?? null,
+					},
+				});
+			}
+		}
+		const existingAccounts = await prisma.assetCategoryAccount.findUnique({
+			where: {
+				assetCategoryId_companyId: {
+					assetCategoryId: created.id,
+					companyId: company.id,
 				},
 			},
 		});
+		if (!existingAccounts) {
+			await prisma.assetCategoryAccount.create({
+				data: {
+					assetCategoryId: created.id,
+					companyId: company.id,
+					fixedAssetAccount: `${category.name} Fixed Asset`,
+					accumulatedDepreciationAccount:
+						DEMO_DEPRECIATION_ACCOUNTS.accumulatedDepreciation,
+					depreciationExpenseAccount:
+						DEMO_DEPRECIATION_ACCOUNTS.depreciationExpense,
+					capitalWorkInProgressAccount:
+						DEMO_DEPRECIATION_ACCOUNTS.capitalWorkInProgress,
+				},
+			});
+		}
 		ids.assetCategoryIds.set(category.name, created.id);
 	}
 
