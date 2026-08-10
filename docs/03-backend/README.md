@@ -134,14 +134,16 @@ for the full command reference and configuration guide.
 ```bash
 cd apps/backend
 
-# Load demo data (small/medium/large scale)
-bun prisma/demo-data/cli.ts load --scale=medium
+# Load demo data (small/medium/large scale) on an isolated disposable DB
+ARIA_ALLOW_DEMO_DATA_MUTATION=true ARIA_DEMO_DATABASE_ISOLATED=true \
+  bun prisma/demo-data/cli.ts load --scale=medium
 
 # Check demo data status
 bun prisma/demo-data/cli.ts status
 
 # Clean demo data
-bun prisma/demo-data/cli.ts clean
+ARIA_ALLOW_DEMO_DATA_MUTATION=true ARIA_DEMO_DATABASE_ISOLATED=true \
+  bun prisma/demo-data/cli.ts clean
 ```
 
 Business context: **Pivotr Electronics Pvt Ltd** — a Bangalore-based SME manufacturing electronic components.

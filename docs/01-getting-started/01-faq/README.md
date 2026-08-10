@@ -139,7 +139,8 @@ cd apps/backend
 # (Removed — better-auth admin plugin handles role seeding on startup)
 
 # Load the small deployment demo explicitly
-bun run demo:load:small
+ARIA_ALLOW_DEMO_DATA_MUTATION=true ARIA_DEMO_DATABASE_ISOLATED=true \
+  bun run demo:load:small
 ```
 
 ## TypeScript

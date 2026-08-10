@@ -188,7 +188,8 @@ A **Company** record is required before creating any assets. The company name is
 ```bash
 # From the project root
 cd apps/backend
-bun prisma/demo-data/cli.ts load --scale=small
+ARIA_ALLOW_DEMO_DATA_MUTATION=true ARIA_DEMO_DATABASE_ISOLATED=true \
+  bun prisma/demo-data/cli.ts load --scale=small
 ```
 
 This creates:

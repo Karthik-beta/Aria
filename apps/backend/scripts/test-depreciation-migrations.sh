@@ -124,6 +124,29 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'open-schedule uniqueness index is missing';
   END IF;
+  IF to_regclass('public.asset_movements') IS NULL
+     OR to_regclass('public.asset_repairs') IS NULL
+     OR to_regclass('public.asset_capitalizations') IS NULL
+     OR to_regclass('public.asset_disposals') IS NULL
+     OR to_regclass('public.asset_accounting_entries') IS NULL THEN
+    RAISE EXCEPTION 'asset lifecycle tables are missing';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_attribute
+    WHERE attrelid = 'public.asset_finance_books'::regclass
+      AND attname = 'increaseInAssetLife'
+      AND NOT attisdropped
+  ) THEN
+    RAISE EXCEPTION 'asset finance-book repair-life column is missing';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_attribute
+    WHERE attrelid = 'public.asset_value_adjustments'::regclass
+      AND attname = 'financeBookId'
+      AND NOT attisdropped
+  ) THEN
+    RAISE EXCEPTION 'asset value-adjustment finance-book column is missing';
+  END IF;
 END
 \$\$;
 "

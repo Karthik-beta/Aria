@@ -30,22 +30,45 @@ flow through [`seed-master.ts`](./seed-master.ts),
 Run these commands from `apps/backend`:
 
 ```bash
-# Standard one-time small demo load used for deployments
-bun run demo:load:small
+# Standard one-time small demo load used for deployments. Both confirmations
+# are required because `load` first removes the previous demo dataset.
+ARIA_ALLOW_DEMO_DATA_MUTATION=true ARIA_DEMO_DATABASE_ISOLATED=true \
+  bun run demo:load:small
 
 # Load demo data and post every depreciation period due today
 REDIS_URL=redis://localhost:6379 APP_TIME_ZONE=Asia/Kolkata \
+ARIA_ALLOW_DEMO_DATA_MUTATION=true ARIA_DEMO_DATABASE_ISOLATED=true \
   bun prisma/demo-data/cli.ts load --scale=medium
 
 # Reproduce a fixed accounting snapshot
 REDIS_URL=redis://localhost:6379 APP_TIME_ZONE=Asia/Kolkata \
+ARIA_ALLOW_DEMO_DATA_MUTATION=true ARIA_DEMO_DATABASE_ISOLATED=true \
   bun prisma/demo-data/cli.ts load --scale=small --as-of=2026-07-22
 
 # Inspect how much demo data is present
 bun prisma/demo-data/cli.ts status
 
 # Remove the demo dataset for the configured company
-bun prisma/demo-data/cli.ts clean
+ARIA_ALLOW_DEMO_DATA_MUTATION=true ARIA_DEMO_DATABASE_ISOLATED=true \
+  bun prisma/demo-data/cli.ts clean
+
+The two safety variables are intentionally required for both `load` and
+`clean`. Set them only when `DATABASE_URL` points at a disposable database
+created for the demo. The CLI also accepts `--allow-destructive --isolated-db`
+for one-off invocations. `status` is read-only and does not require either
+confirmation.
+
+Before loading, verify the target has no pending migrations:
+
+```bash
+bun run db:verify-migrations
+```
+
+For migration smoke coverage, run `bun run test:depreciation:migrations` from
+`apps/backend`. It creates disposable fresh and legacy databases, applies the
+full migration chain, checks lifecycle tables/enums and finance-book/value-
+adjustment backfills, and removes both databases on exit. The script never
+uses the demo loader.
 ```
 
 Supported scale values:
@@ -55,34 +78,41 @@ Supported scale values:
 - `large`
 
 `load` requires PostgreSQL, Redis, and an IANA `APP_TIME_ZONE`. It starts the
-same BullMQ worker used by the backend, without starting another cron
-scheduler, and waits for every due depreciation entry to be posted before it
-reports success. Monthly, quarterly, half-yearly, and yearly schedules are
+same depreciation BullMQ worker used by the backend, without starting another
+cron scheduler, and waits for every due depreciation entry to be posted before
+it reports success. Monthly, quarterly, half-yearly, and yearly schedules are
 represented; the daily scheduler discovers due work and daily pro-rata affects
 amounts, while future schedule rows remain unposted projections.
 
 Lifecycle records are seeded only after due depreciation is posted. The loader
 does not invoke lifecycle queues and does not fabricate purchase invoices. One
 CWIP asset is already booked with balanced fixed-asset/CWIP lines; a second
-qualified asset is intentionally left unbooked so the scheduler can discover it
-and the BullMQ worker can demonstrate idempotent posting.
+qualified asset is intentionally left unbooked as a deterministic fixture. The
+loader does not invoke CWIP discovery or the BullMQ capitalization worker; run
+the dedicated discovery/worker command separately when demonstrating that
+queue-backed flow and its idempotent posting behavior.
 
 Stop the backend before replacing the demo dataset so its scheduler cannot
 discover records while cleanup and loading are in progress. A failed load exits
 non-zero. Correct the dependency or posting error and rerun `load`; the loader
-cleans the incomplete Pivotr dataset before rebuilding it.
+cleans only deterministic demo-owned records before rebuilding them.
 
-Container startup never loads demo data. For Compose, run the one-time command
-from the backend image after PostgreSQL, Redis, and migrations are ready:
+Container startup never loads demo data. For Compose, use a disposable demo
+database and run the one-time command from the backend image after PostgreSQL,
+Redis, and migrations are ready:
 
 ```bash
-docker compose --env-file .env.production -f docker-compose.production.yml run --rm backend bun run demo:load:small
+docker compose --env-file .env.production -f docker-compose.production.yml run --rm \
+  -e ARIA_ALLOW_DEMO_DATA_MUTATION=true -e ARIA_DEMO_DATABASE_ISOLATED=true \
+  backend bun run demo:load:small
 ```
 
 For Railway, wait for `/health/ready` to return `200`, then run:
 
 ```bash
-railway ssh --service <exact-backend-service-name> -- bun --cwd=/app/apps/backend run demo:load:small
+railway ssh --service <exact-backend-service-name> -- \
+  env ARIA_ALLOW_DEMO_DATA_MUTATION=true ARIA_DEMO_DATABASE_ISOLATED=true \
+  bun --cwd=/app/apps/backend run demo:load:small
 ```
 
 ## Configuration
@@ -108,8 +138,9 @@ Use the demo loader when you need:
 - sample records for QA or screenshots
 - a reproducible training dataset
 
-Prefer running it on a fresh database, or run `clean` before loading again.
-The loader is not meant to be a general-purpose import tool.
+Prefer running it on a fresh isolated database. The loader is not a general-
+purpose import tool and refuses to mutate a database unless the explicit
+safety confirmations above are present.
 
 ## Related seed scripts
 
@@ -123,4 +154,8 @@ which seeds roles, permissions, and default apps.
 - `load` also requires `REDIS_URL` and `APP_TIME_ZONE`; `clean` and `status`
   remain database-only commands.
 - If you see older docs mentioning `seed`, use `load` instead.
-- If the database already contains demo records, run `clean` first.
+- If the database already contains demo records, rerun `load` with both safety
+  confirmations; it cleans deterministic demo-owned records before loading.
+- If the CLI reports `DEMO_DATA_SAFETY_GUARD`, verify that the database is
+  disposable and set both `ARIA_ALLOW_DEMO_DATA_MUTATION=true` and
+  `ARIA_DEMO_DATABASE_ISOLATED=true` (or pass both one-off flags).

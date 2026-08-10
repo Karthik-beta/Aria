@@ -48,12 +48,13 @@ The server will start at `http://localhost:3000` with hot-reload enabled (change
 ## 📦 Demo Data Loader
 
 - Canonical file path: `apps/backend/prisma/demo-data/README.md`
-- Load the inventory demo dataset:
-  `bun prisma/demo-data/cli.ts load --scale=medium`
+- Load the inventory demo dataset on an isolated disposable database (the
+  loader deletes the prior demo dataset first):
+  `ARIA_ALLOW_DEMO_DATA_MUTATION=true ARIA_DEMO_DATABASE_ISOLATED=true bun prisma/demo-data/cli.ts load --scale=medium`
 - Inspect the demo dataset:
   `bun prisma/demo-data/cli.ts status`
 - Remove the demo dataset:
-  `bun prisma/demo-data/cli.ts clean`
+  `ARIA_ALLOW_DEMO_DATA_MUTATION=true ARIA_DEMO_DATABASE_ISOLATED=true bun prisma/demo-data/cli.ts clean`
 
 This loader creates the Pivotr Electronics sample inventory story used for
 demos, QA, and training.

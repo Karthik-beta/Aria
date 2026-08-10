@@ -1,10 +1,10 @@
 /**
  * Demo Data — Cleanup
  *
- * Deletes all demo data in reverse dependency order to avoid FK violations.
- * Uses the company name from config to scope the deletion (won't touch
- * records belonging to other companies). Settings singletons are deleted
- * unconditionally since they're shared.
+ * Deletes demo-owned data in reverse dependency order to avoid FK violations.
+ * Company-scoped documents use the configured company; shared reference tables
+ * are restricted to deterministic demo identifiers and are only reachable
+ * after the CLI safety gate confirms an isolated disposable database.
  */
 
 import { buildIndianFiscalYears } from "../../src/apps/asset/depreciation/demo-data.utils.js";
@@ -12,6 +12,18 @@ import type { Prisma } from "../../src/generated/prisma/client.js";
 import type { PrismaService } from "../../src/shared/prisma.service.js";
 import { ASSET_CATEGORIES, ASSET_LOCATIONS } from "./asset-data.js";
 import type { DemoConfig } from "./config.js";
+import {
+	BRANDS,
+	ITEM_ATTRIBUTES,
+	ITEM_GROUPS,
+	ITEMS,
+	QI_TEMPLATES,
+	SHIPPING_RULES,
+} from "./data.js";
+import {
+	assertDemoMutationSafety,
+	type DemoMutationSafetyOptions,
+} from "./safety.js";
 
 const DEMO_ASSET_CATEGORY_NAMES = ASSET_CATEGORIES.map(
 	(category) => category.name,
@@ -28,13 +40,37 @@ function flattenAssetLocationNames(
 
 const DEMO_ASSET_LOCATION_NAMES = flattenAssetLocationNames(ASSET_LOCATIONS);
 
+const DEMO_ITEM_CODES = ITEMS.map((item) => item.code);
+const DEMO_BRAND_NAMES = BRANDS.map((brand) => brand.name);
+const DEMO_ITEM_ATTRIBUTE_NAMES = ITEM_ATTRIBUTES.map(
+	(attribute) => attribute.name,
+);
+const DEMO_ITEM_GROUP_NAMES = (function flattenItemGroupNames(
+	groups: typeof ITEM_GROUPS,
+): string[] {
+	return groups.flatMap((group) => [
+		group.name,
+		...(group.children ? flattenItemGroupNames(group.children) : []),
+	]);
+})(ITEM_GROUPS);
+const DEMO_QI_TEMPLATE_NAMES = QI_TEMPLATES.map((template) => template.name);
+const DEMO_QI_PARAMETER_NAMES = QI_TEMPLATES.flatMap((template) =>
+	template.parameters.map((parameter) => parameter.name),
+);
+const DEMO_QI_PARAMETER_GROUP_NAMES = QI_TEMPLATES.flatMap((template) =>
+	template.parameters.map((parameter) => parameter.group),
+);
+const DEMO_SHIPPING_RULE_LABELS = SHIPPING_RULES.map((rule) => rule.label);
+
 /**
  * Remove all demo data. Returns a summary of deleted record counts.
  */
 export async function cleanDemoData(
 	prisma: PrismaService,
 	config: DemoConfig,
+	safety?: DemoMutationSafetyOptions,
 ): Promise<Record<string, number>> {
+	assertDemoMutationSafety("clean", safety);
 	const company = config.company;
 	const counts: Record<string, number> = {};
 
@@ -109,13 +145,28 @@ export async function cleanDemoData(
 
 	await del("AssetCategory", () =>
 		prisma.assetCategory.deleteMany({
-			where: { name: { in: DEMO_ASSET_CATEGORY_NAMES } },
+			where: {
+				name: { in: DEMO_ASSET_CATEGORY_NAMES },
+				// Categories are global reference rows. Never remove one that is
+				// referenced by any company's assets or accounting defaults.
+				assets: { none: {} },
+				financeBookDefaults: { none: {} },
+				accounts: { none: {} },
+			},
 		}),
 	);
 
 	await del("Location", () =>
 		prisma.location.deleteMany({
-			where: { name: { in: DEMO_ASSET_LOCATION_NAMES } },
+			where: {
+				name: { in: DEMO_ASSET_LOCATION_NAMES },
+				// Locations are shared reference rows. Preserve any row that is
+				// still attached to assets, movements, or a location hierarchy.
+				assets: { none: {} },
+				childLocations: { none: {} },
+				sourceMovements: { none: {} },
+				targetMovements: { none: {} },
+			},
 		}),
 	);
 
@@ -139,7 +190,9 @@ export async function cleanDemoData(
 	);
 
 	await del("InstallationNoteItem", () =>
-		prisma.installationNoteItem.deleteMany({}),
+		prisma.installationNoteItem.deleteMany({
+			where: { installationNote: { company } },
+		}),
 	);
 
 	await del("SerialNoHistory", () =>
@@ -186,49 +239,138 @@ export async function cleanDemoData(
 	);
 
 	// QI Templates (cascade items)
-	await del("QiTemplate", () => prisma.qiTemplate.deleteMany({}));
+	await del("QiTemplate", () =>
+		prisma.qiTemplate.deleteMany({
+			where: { name: { in: DEMO_QI_TEMPLATE_NAMES } },
+		}),
+	);
 
-	await del("QiParameter", () => prisma.qiParameter.deleteMany({}));
+	await del("QiParameter", () =>
+		prisma.qiParameter.deleteMany({
+			where: {
+				parameter: { in: DEMO_QI_PARAMETER_NAMES },
+				// A shared parameter may be referenced by another company's
+				// template; preserve it rather than breaking that template.
+				templateItems: {
+					none: {
+						template: { name: { notIn: DEMO_QI_TEMPLATE_NAMES } },
+					},
+				},
+			},
+		}),
+	);
 
-	await del("QiParameterGroup", () => prisma.qiParameterGroup.deleteMany({}));
+	await del("QiParameterGroup", () =>
+		prisma.qiParameterGroup.deleteMany({
+			where: {
+				name: { in: DEMO_QI_PARAMETER_GROUP_NAMES },
+				parameters: { none: {} },
+			},
+		}),
+	);
 
 	// Shipping rules
-	await del("ShippingRule", () => prisma.shippingRule.deleteMany({}));
+	await del("ShippingRule", () =>
+		prisma.shippingRule.deleteMany({
+			where: { shippingRuleLabel: { in: DEMO_SHIPPING_RULE_LABELS } },
+		}),
+	);
 
 	// Product bundles and related children must be deleted in dependency order.
-	await del("ProductBundleItem", () => prisma.productBundleItem.deleteMany({}));
-	await del("ProductBundle", () => prisma.productBundle.deleteMany({}));
+	await del("ProductBundleItem", () =>
+		prisma.productBundleItem.deleteMany({
+			where: {
+				bundle: { parentItem: { code: { in: DEMO_ITEM_CODES } } },
+			},
+		}),
+	);
+	await del("ProductBundle", () =>
+		prisma.productBundle.deleteMany({
+			where: { parentItem: { code: { in: DEMO_ITEM_CODES } } },
+		}),
+	);
 
-	await del("ItemAlternate", () => prisma.itemAlternate.deleteMany({}));
+	await del("ItemAlternate", () =>
+		prisma.itemAlternate.deleteMany({
+			where: {
+				OR: [
+					{ item: { code: { in: DEMO_ITEM_CODES } } },
+					{ alternateItem: { code: { in: DEMO_ITEM_CODES } } },
+				],
+			},
+		}),
+	);
 
-	await del("ItemManufacturer", () => prisma.itemManufacturer.deleteMany({}));
+	await del("ItemManufacturer", () =>
+		prisma.itemManufacturer.deleteMany({
+			where: { item: { code: { in: DEMO_ITEM_CODES } } },
+		}),
+	);
 
-	await del("Item", () => prisma.item.deleteMany({}));
+	await del("Item", () =>
+		prisma.item.deleteMany({ where: { code: { in: DEMO_ITEM_CODES } } }),
+	);
 
 	// Inventory items and their direct state must be deleted in dependency order.
-	// InventoryItem is not company-scoped, so remove all batches and serials first.
-	await del("Batch", () => prisma.batch.deleteMany({}));
-	await del("SerialNo", () => prisma.serialNo.deleteMany({}));
-	await del("InventoryItem", () => prisma.inventoryItem.deleteMany({}));
+	// InventoryItem is not company-scoped. Restrict cleanup to the deterministic
+	// demo codes; never delete another company's stock, batches, or serials.
+	// Batches and serials belonging to the configured company were already
+	// removed above, so no unscoped fallback is needed here.
+	await del("InventoryItem", () =>
+		prisma.inventoryItem.deleteMany({
+			where: { code: { in: DEMO_ITEM_CODES } },
+		}),
+	);
 
 	// Item attributes & values (cascade)
-	await del("ItemAttribute", () => prisma.itemAttribute.deleteMany({}));
+	await del("ItemAttribute", () =>
+		prisma.itemAttribute.deleteMany({
+			where: {
+				name: { in: DEMO_ITEM_ATTRIBUTE_NAMES },
+				inventoryItemAttributes: { none: {} },
+			},
+		}),
+	);
 
 	// Item groups (self-referencing — delete leaves first, then parents)
 	// Delete in two passes: non-group then group
 	await del("ItemGroup(leaves)", () =>
-		prisma.itemGroup.deleteMany({ where: { isGroup: false } }),
+		prisma.itemGroup.deleteMany({
+			where: {
+				isGroup: false,
+				groupName: { in: DEMO_ITEM_GROUP_NAMES },
+				items: { none: {} },
+				inventoryItems: { none: {} },
+				defaults: { none: {} },
+				children: { none: {} },
+			},
+		}),
 	);
-	await del("ItemGroup(parents)", () => prisma.itemGroup.deleteMany({}));
-
-	await del("Brand", () => prisma.brand.deleteMany({}));
-
-	// Settings singletons
-	await del("StockSettings", () => prisma.stockSettings.deleteMany({}));
-
-	await del("ItemVariantSettings", () =>
-		prisma.itemVariantSettings.deleteMany({}),
+	await del("ItemGroup(parents)", () =>
+		prisma.itemGroup.deleteMany({
+			where: {
+				groupName: { in: DEMO_ITEM_GROUP_NAMES },
+				items: { none: {} },
+				inventoryItems: { none: {} },
+				defaults: { none: {} },
+				children: { none: {} },
+			},
+		}),
 	);
+
+	await del("Brand", () =>
+		prisma.brand.deleteMany({
+			where: {
+				name: { in: DEMO_BRAND_NAMES },
+				// A same-name brand may be referenced by a non-demo item. The
+				// relation check keeps that shared reference intact.
+				items: { none: {} },
+			},
+		}),
+	);
+
+	// Settings are shared singletons, not demo-owned records. Preserve them;
+	// loading uses an upsert and an isolated target is required by the guard.
 
 	// ── Fiscal Year & Company ──────────────────────────────────────
 
@@ -250,7 +392,12 @@ export async function cleanDemoData(
 	);
 	await del("FiscalYear", () =>
 		prisma.fiscalYear.deleteMany({
-			where: { year: { in: seededFiscalYears } },
+			where: {
+				year: { in: seededFiscalYears },
+				// Fiscal years are shared by companies. Keep a year that is still
+				// linked to another company after demo-company links are removed.
+				companies: { none: {} },
+			},
 		}),
 	);
 
@@ -316,10 +463,12 @@ export async function getDemoStatus(
 		bookedCwipAssets,
 		companies,
 	] = await Promise.all([
-		prisma.brand.count(),
-		prisma.itemGroup.count(),
-		prisma.item.count(),
-		prisma.inventoryItem.count(),
+		prisma.brand.count({ where: { name: { in: DEMO_BRAND_NAMES } } }),
+		prisma.itemGroup.count({
+			where: { groupName: { in: DEMO_ITEM_GROUP_NAMES } },
+		}),
+		prisma.item.count({ where: { code: { in: DEMO_ITEM_CODES } } }),
+		prisma.inventoryItem.count({ where: { code: { in: DEMO_ITEM_CODES } } }),
 		prisma.warehouse.count({ where: { company } }),
 		prisma.purchaseOrder.count({ where: { company } }),
 		prisma.purchaseReceipt.count({ where: { company } }),
@@ -330,7 +479,7 @@ export async function getDemoStatus(
 		prisma.batch.count({ where: { company } }),
 		prisma.serialNo.count({ where: { company } }),
 		prisma.pickList.count({ where: { company } }),
-		prisma.packingSlip.count(),
+		prisma.packingSlip.count({ where: { deliveryNote: { company } } }),
 		prisma.deliveryTrip.count({ where: { company } }),
 		prisma.installationNote.count({ where: { company } }),
 		prisma.subcontractingOrder.count({ where: { company } }),

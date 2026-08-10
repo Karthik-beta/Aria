@@ -88,16 +88,20 @@ docker compose --env-file .env.production -f docker-compose.production.yml confi
 docker compose --env-file .env.production -f docker-compose.production.yml build backend frontend
 docker compose --env-file .env.production -f docker-compose.production.yml up -d postgres redis
 docker compose --env-file .env.production -f docker-compose.production.yml run --rm migrate
-docker compose --env-file .env.production -f docker-compose.production.yml run --rm backend bun run demo:load:small
+docker compose --env-file .env.production -f docker-compose.production.yml run --rm \
+  -e ARIA_ALLOW_DEMO_DATA_MUTATION=true -e ARIA_DEMO_DATABASE_ISOLATED=true \
+  backend bun run demo:load:small
 docker compose --env-file .env.production -f docker-compose.production.yml up -d backend frontend caddy
 curl --fail https://YOUR_DOMAIN/health/ready
 bash deployment/tests/health-check.sh
 docker compose -f docker-compose.production.yml logs -f backend
 ```
 
-The demo command is optional and intended for a fresh demo database. It is an
-explicit one-time operation: the backend entrypoint never migrates or loads
-demo data automatically. The commands above are one line each and work in Bash
+The demo command is optional and intended for a fresh disposable demo database.
+The two `ARIA_*` confirmations are required because loading first removes the
+previous demo dataset. It is an explicit one-time operation: the backend
+entrypoint never migrates or loads demo data automatically. The commands above
+are one line each and work in Bash
 and PowerShell. On Windows, use Linux containers in Docker Desktop and replace
 the first `cp` command with:
 
@@ -110,7 +114,9 @@ and rebuilds that dataset:
 
 ```bash
 docker compose --env-file .env.production -f docker-compose.production.yml stop backend
-docker compose --env-file .env.production -f docker-compose.production.yml run --rm backend bun run demo:load:small
+docker compose --env-file .env.production -f docker-compose.production.yml run --rm \
+  -e ARIA_ALLOW_DEMO_DATA_MUTATION=true -e ARIA_DEMO_DATABASE_ISOLATED=true \
+  backend bun run demo:load:small
 docker compose --env-file .env.production -f docker-compose.production.yml start backend
 ```
 
@@ -266,7 +272,9 @@ Then load the small Pivotr dataset exactly once on the fresh database using the
 current Railway CLI:
 
 ```bash
-railway ssh --service <exact-backend-service-name> -- bun --cwd=/app/apps/backend run demo:load:small
+railway ssh --service <exact-backend-service-name> -- \
+  env ARIA_ALLOW_DEMO_DATA_MUTATION=true ARIA_DEMO_DATABASE_ISOLATED=true \
+  bun --cwd=/app/apps/backend run demo:load:small
 ```
 
 Run `bun --cwd=/app/apps/backend prisma/demo-data/cli.ts status` through the

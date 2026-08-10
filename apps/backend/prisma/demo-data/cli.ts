@@ -24,6 +24,12 @@ import { cleanDemoData, getDemoStatus } from "./cleanup.js";
 import type { DemoScale } from "./config.js";
 import { resolveConfig } from "./config.js";
 import { seedAll } from "./index.js";
+import {
+	assertDemoMutationSafety,
+	DEMO_ISOLATION_ENV,
+	DEMO_MUTATION_ENV,
+	resolveDemoMutationSafety,
+} from "./safety.js";
 
 // ── Parse CLI arguments ───────────────────────────────────────────
 const [, , command, ...flags] = process.argv;
@@ -44,6 +50,14 @@ function parseAsOf(): string {
 	return normalizeDemoAsOf(value);
 }
 
+function parseSafety() {
+	const resolved = resolveDemoMutationSafety({
+		allowDestructive: flags.includes("--allow-destructive") || undefined,
+		isolatedDatabase: flags.includes("--isolated-db") || undefined,
+	});
+	return resolved;
+}
+
 async function withPrisma<T>(
 	callback: (prisma: PrismaService) => Promise<T>,
 ): Promise<T> {
@@ -60,6 +74,8 @@ async function withPrisma<T>(
 async function run() {
 	switch (command) {
 		case "load": {
+			const safety = parseSafety();
+			assertDemoMutationSafety("load", safety);
 			const scale = parseScale();
 			const asOf = parseAsOf();
 			const to = dateOnlyUtc(asOf);
@@ -74,7 +90,7 @@ async function run() {
 			const start = Date.now();
 			logger.info("Cleaning existing demo data before loading...");
 			await withDemoDepreciationExecution(async (prisma, depreciation) => {
-				await cleanDemoData(prisma, config);
+				await cleanDemoData(prisma, config, safety);
 				const cleanupElapsed = ((Date.now() - start) / 1000).toFixed(1);
 				logger.info(`Existing demo data cleaned in ${cleanupElapsed}s`);
 				await seedAll(prisma, config, depreciation);
@@ -85,11 +101,13 @@ async function run() {
 		}
 
 		case "clean": {
+			const safety = parseSafety();
+			assertDemoMutationSafety("clean", safety);
 			const config = resolveConfig();
 			logger.info(`Cleaning demo data for company="${config.company}"...`);
 			const start = Date.now();
 			const counts = await withPrisma((prisma) =>
-				cleanDemoData(prisma, config),
+				cleanDemoData(prisma, config, safety),
 			);
 			const elapsed = ((Date.now() - start) / 1000).toFixed(1);
 			logger.info(`Cleanup complete in ${elapsed}s`);
@@ -116,8 +134,8 @@ async function run() {
 				"Usage: bun prisma/demo-data/cli.ts <command> [options]\n\n" +
 					"Commands:\n" +
 					"  load   [--scale=small|medium|large] [--as-of=YYYY-MM-DD]\n" +
-					"                                           Load and post due demo data\n" +
-					"  clean                                Remove all demo data\n" +
+					"         --allow-destructive --isolated-db  Load and post due demo data\n" +
+					"  clean  --allow-destructive --isolated-db  Remove demo-owned data\n" +
 					"  status                               Show record counts\n",
 			);
 			process.exit(command ? 1 : 0);
@@ -126,5 +144,10 @@ async function run() {
 
 run().catch((err) => {
 	logger.error("Demo data CLI failed:", err);
+	if (err instanceof Error && err.name === "DemoDataSafetyError") {
+		logger.error(
+			`Safety: set ${DEMO_MUTATION_ENV}=true and ${DEMO_ISOLATION_ENV}=true (or pass both explicit CLI flags) only for an isolated disposable database.`,
+		);
+	}
 	process.exit(1);
 });

@@ -79,7 +79,8 @@ bun x --bun prisma studio
 # (Removed — better-auth admin plugin handles role seeding on startup)
 
 # Load inventory demo data
-bun prisma/demo-data/cli.ts load --scale=medium
+ARIA_ALLOW_DEMO_DATA_MUTATION=true ARIA_DEMO_DATABASE_ISOLATED=true \
+  bun prisma/demo-data/cli.ts load --scale=medium
 ```
 
 For the full demo-data guide, see
