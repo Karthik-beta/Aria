@@ -9,6 +9,10 @@ import { SchedulerRegistry } from "@nestjs/schedule";
 import { CronJob } from "cron";
 // biome-ignore lint/style/useImportType: Nest resolves this runtime constructor token from decorator metadata.
 import { PrismaService } from "../../../shared/prisma.service";
+import {
+	inferRestoredAssetStatus,
+	resolveMaintenanceAssetStatus,
+} from "../maintenance-status";
 // biome-ignore lint/style/useImportType: Nest resolves this runtime constructor token from decorator metadata.
 import { AssetDepreciationLifecycleService } from "./asset-depreciation-lifecycle.service";
 // biome-ignore lint/style/useImportType: Nest resolves this runtime constructor token from decorator metadata.
@@ -190,7 +194,7 @@ export class DepreciationSchedulerService
 		try {
 			// Assets with open/pending repairs -> OUT_OF_ORDER
 			const pendingRepairs = await this.prisma.assetRepair.findMany({
-				where: { repairStatus: "PENDING" },
+				where: { repairStatus: { in: ["DRAFT", "PENDING"] } },
 				select: { assetId: true },
 			});
 			const outOfOrderAssetIds = [
@@ -201,7 +205,14 @@ export class DepreciationSchedulerService
 				await this.prisma.asset.updateMany({
 					where: {
 						id: { in: outOfOrderAssetIds },
-						status: { not: "OUT_OF_ORDER" },
+						status: {
+							in: [
+								"SUBMITTED",
+								"PARTIALLY_DEPRECIATED",
+								"FULLY_DEPRECIATED",
+								"IN_MAINTENANCE",
+							],
+						},
 					},
 					data: { status: "OUT_OF_ORDER" },
 				});
@@ -210,8 +221,13 @@ export class DepreciationSchedulerService
 			// Assets with active maintenance tasks due/overdue -> IN_MAINTENANCE
 			const activeTasks = await this.prisma.assetMaintenanceTask.findMany({
 				where: {
-					maintenanceStatus: { in: ["OVERDUE", "PLANNED"] },
-					nextDueDate: { lte: today },
+					OR: [
+						{ maintenanceStatus: "OVERDUE" },
+						{
+							maintenanceStatus: "PLANNED",
+							nextDueDate: { lte: today },
+						},
+					],
 				},
 				select: { maintenance: { select: { assetId: true } } },
 			});
@@ -230,10 +246,108 @@ export class DepreciationSchedulerService
 				await this.prisma.asset.updateMany({
 					where: {
 						id: { in: inMaintenanceAssetIds },
-						status: { not: "IN_MAINTENANCE" },
+						status: {
+							in: ["SUBMITTED", "PARTIALLY_DEPRECIATED", "FULLY_DEPRECIATED"],
+						},
 					},
 					data: { status: "IN_MAINTENANCE" },
 				});
+			}
+
+			// Reconcile stale maintenance statuses after repairs/tasks are completed,
+			// cancelled, deleted, or when this job restarts. The optional shape guard
+			// keeps lightweight scheduler unit doubles compatible while Prisma always
+			// provides these delegates in production.
+			if (
+				typeof this.prisma.asset.findMany === "function" &&
+				typeof this.prisma.asset.updateMany === "function"
+			) {
+				const candidates = await this.prisma.asset.findMany({
+					where: {
+						status: {
+							in: [
+								"SUBMITTED",
+								"PARTIALLY_DEPRECIATED",
+								"FULLY_DEPRECIATED",
+								"IN_MAINTENANCE",
+								"OUT_OF_ORDER",
+							],
+						},
+						OR: [
+							{
+								id: {
+									in: [
+										...new Set([
+											...outOfOrderAssetIds,
+											...inMaintenanceAssetIds,
+										]),
+									],
+								},
+							},
+							{ status: { in: ["IN_MAINTENANCE", "OUT_OF_ORDER"] } },
+						],
+					},
+					select: {
+						id: true,
+						status: true,
+						isFullyDepreciated: true,
+						valueAfterDepreciation: true,
+						netPurchaseAmount: true,
+					},
+				});
+				// Re-read active work after the broad updates so a repair completion or
+				// maintenance cancellation racing this reconciliation cannot leave a
+				// stale status behind.
+				const [currentRepairs, currentTasks] = await Promise.all([
+					this.prisma.assetRepair.findMany({
+						where: { repairStatus: { in: ["DRAFT", "PENDING"] } },
+						select: { assetId: true },
+					}),
+					this.prisma.assetMaintenanceTask.findMany({
+						where: {
+							OR: [
+								{ maintenanceStatus: "OVERDUE" },
+								{
+									maintenanceStatus: "PLANNED",
+									nextDueDate: { lte: today },
+								},
+							],
+						},
+						select: { maintenance: { select: { assetId: true } } },
+					}),
+				]);
+				const repairs = new Set(currentRepairs.map((repair) => repair.assetId));
+				const scheduled = new Set(
+					currentTasks
+						.map((task) => task.maintenance?.assetId)
+						.filter((assetId): assetId is string => Boolean(assetId)),
+				);
+				for (const asset of candidates) {
+					const postedDepreciations =
+						typeof this.prisma.assetDepreciationJournalEntry?.count ===
+						"function"
+							? await this.prisma.assetDepreciationJournalEntry.count({
+									where: { assetId: asset.id, status: "POSTED" },
+								})
+							: 0;
+					const restoredStatus = inferRestoredAssetStatus({
+						isFullyDepreciated: asset.isFullyDepreciated,
+						valueAfterDepreciation: asset.valueAfterDepreciation,
+						netPurchaseAmount: asset.netPurchaseAmount,
+						hasPostedDepreciation: postedDepreciations > 0,
+					});
+					const desired = resolveMaintenanceAssetStatus({
+						hasOpenRepair: repairs.has(asset.id),
+						hasDueMaintenance: scheduled.has(asset.id),
+						restoredStatus,
+					});
+					if (asset.status !== desired) {
+						await this.prisma.asset.updateMany({
+							where: { id: asset.id, status: asset.status },
+							data: { status: desired },
+						});
+					}
+				}
 			}
 
 			this.logger.log(

@@ -146,6 +146,44 @@ describe("DepreciationSchedulerService", () => {
 		expect(updateManyAssetMock).toHaveBeenCalledTimes(2);
 	});
 
+	it("restores a stale maintenance status to the prior depreciation state", async () => {
+		const update = mock(async () => ({ count: 1 }));
+		const prismaMock = {
+			assetRepair: { findMany: mock(async () => []) },
+			assetMaintenanceTask: { findMany: mock(async () => []) },
+			asset: {
+				findMany: mock(async () => [
+					{
+						id: "asset-stale-1",
+						status: "IN_MAINTENANCE",
+						isFullyDepreciated: false,
+						valueAfterDepreciation: 500,
+					},
+				]),
+				updateMany: update,
+			},
+			assetDepreciationJournalEntry: {
+				count: mock(async () => 1),
+			},
+		} as unknown as PrismaService;
+
+		const scheduler = new DepreciationSchedulerService(
+			new SchedulerRegistry(),
+			{} as unknown as AssetDepreciationLifecycleService,
+			{} as unknown as DepreciationDiscoveryService,
+			{} as unknown as DepreciationMetrics,
+			cwipDiscovery,
+			prismaMock,
+		);
+
+		await scheduler.updateMaintenanceStatus();
+
+		expect(update).toHaveBeenCalledWith({
+			where: { id: "asset-stale-1", status: "IN_MAINTENANCE" },
+			data: { status: "PARTIALLY_DEPRECIATED" },
+		});
+	});
+
 	it("discovers CWIP jobs without mutating asset or stock state", async () => {
 		const cwipDiscovery = {
 			discover: mock(async () => ({

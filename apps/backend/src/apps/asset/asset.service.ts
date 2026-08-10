@@ -43,14 +43,12 @@ import {
 	toAssetValueAdjustment,
 	toMaintenanceTeam,
 } from "./asset.types";
-// biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
 import { AssetAccountingService } from "./asset-accounting.service";
 import { buildAssetActivityReportResult } from "./asset-activity-report";
 // biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
 import { AssetDashboardSubService } from "./asset-dashboard.service";
 import { buildAssetDepreciationLedgerResult } from "./asset-depreciation-ledger-report";
 import { buildAssetDepreciationsAndBalancesResult } from "./asset-depreciations-and-balances-report";
-// biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
 import { AssetStockPostingService } from "./asset-stock-posting.service";
 import {
 	buildDepreciationSchedulePreview,
@@ -69,8 +67,12 @@ import {
 } from "./depreciation/depreciation.config";
 // biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
 import { DepreciationBarrierService } from "./depreciation/depreciation-barrier.service";
-// biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
 import { FixedAssetRegisterReportService } from "./fixed-asset-register-report";
+import {
+	inferRestoredAssetStatus,
+	type RestorableAssetStatus,
+	resolveMaintenanceAssetStatus,
+} from "./maintenance-status";
 
 const LIST_TAKE_MAX = 250;
 const CURRENCY_SCALE = 6;
@@ -537,6 +539,88 @@ export class AssetService {
 			await tx.$queryRaw(Prisma.sql`
 				SELECT pg_advisory_xact_lock(hashtext(${`asset:${assetId}`})) IS NULL AS "locked"
 			`);
+		}
+	}
+
+	private async lockMaintenanceTeams(
+		tx: Prisma.TransactionClient,
+		teamIds: readonly string[],
+	): Promise<void> {
+		if (typeof tx.$queryRaw !== "function") return;
+		for (const teamId of [...new Set(teamIds)].sort()) {
+			await tx.$queryRaw(Prisma.sql`
+				SELECT pg_advisory_xact_lock(hashtext(${`maintenance-team:${teamId}`})) IS NULL AS "locked"
+			`);
+		}
+	}
+
+	/** Keeps maintenance-driven status transitions deterministic across API and scheduler paths. */
+	private async syncMaintenanceAssetStatus(
+		tx: Prisma.TransactionClient,
+		assetId: string,
+		restoredStatus?: RestorableAssetStatus,
+	): Promise<void> {
+		const asset = await tx.asset.findUnique({
+			where: { id: assetId },
+			select: {
+				status: true,
+				isFullyDepreciated: true,
+				valueAfterDepreciation: true,
+				netPurchaseAmount: true,
+			},
+		});
+		if (!asset) return;
+
+		const [openRepair, dueMaintenance, postedDepreciations] = await Promise.all(
+			[
+				tx.assetRepair.findFirst({
+					where: { assetId, repairStatus: { in: ["DRAFT", "PENDING"] } },
+					select: { id: true },
+				}),
+				tx.assetMaintenanceTask.findFirst({
+					where: {
+						maintenance: { assetId },
+						OR: [
+							{ maintenanceStatus: "OVERDUE" },
+							{
+								maintenanceStatus: "PLANNED",
+								nextDueDate: { lte: new Date() },
+							},
+						],
+					},
+					select: { id: true },
+				}),
+				tx.assetDepreciationJournalEntry.count({
+					where: { assetId, status: "POSTED" },
+				}),
+			],
+		);
+
+		const fallback =
+			restoredStatus ??
+			inferRestoredAssetStatus({
+				isFullyDepreciated: asset.isFullyDepreciated,
+				valueAfterDepreciation: asset.valueAfterDepreciation,
+				netPurchaseAmount: asset.netPurchaseAmount,
+				hasPostedDepreciation: postedDepreciations > 0,
+			});
+		const desired = resolveMaintenanceAssetStatus({
+			hasOpenRepair: Boolean(openRepair),
+			hasDueMaintenance: Boolean(dueMaintenance),
+			restoredStatus: fallback,
+		});
+		if (
+			asset.status === "IN_MAINTENANCE" ||
+			asset.status === "OUT_OF_ORDER" ||
+			openRepair ||
+			dueMaintenance
+		) {
+			if (asset.status !== desired) {
+				await tx.asset.update({
+					where: { id: assetId },
+					data: { status: desired },
+				});
+			}
 		}
 	}
 
@@ -1647,11 +1731,14 @@ export class AssetService {
 	}
 
 	/** Submits a draft asset and activates its precomputed schedules. */
-	async submitAsset(id: string): Promise<Asset.AssetItem> {
+	async submitAsset(
+		id: string,
+		actorId?: string | null,
+	): Promise<Asset.AssetItem> {
 		if (!this.depreciationLifecycle) {
 			throw new Error("Depreciation lifecycle service is unavailable");
 		}
-		await this.depreciationLifecycle.submitAsset(id);
+		await this.depreciationLifecycle.submitAsset(id, actorId);
 		const asset = await this.prisma.asset.findUniqueOrThrow({
 			where: { id },
 			include: this.assetInclude,
@@ -1660,11 +1747,14 @@ export class AssetService {
 	}
 
 	/** Cancels an unposted asset and cancels its open schedules. */
-	async cancelAsset(id: string): Promise<Asset.AssetItem> {
+	async cancelAsset(
+		id: string,
+		actorId?: string | null,
+	): Promise<Asset.AssetItem> {
 		if (!this.depreciationLifecycle) {
 			throw new Error("Depreciation lifecycle service is unavailable");
 		}
-		await this.depreciationLifecycle.cancelAsset(id);
+		await this.depreciationLifecycle.cancelAsset(id, actorId);
 		const asset = await this.prisma.asset.findUniqueOrThrow({
 			where: { id },
 			include: this.assetInclude,
@@ -3378,8 +3468,38 @@ export class AssetService {
 				);
 			}
 		}
+		if (input.company !== undefined) {
+			const conflictingMaintenance =
+				await this.prisma.assetMaintenance?.findFirst?.({
+					where: {
+						maintenanceTeamId: input.id,
+						company: { not: input.company },
+					},
+					select: { id: true },
+				});
+			if (conflictingMaintenance) {
+				throw new BadRequestException(
+					"A maintenance team cannot change company while it has maintenance records for another company.",
+				);
+			}
+		}
 
 		const updated = await this.prisma.$transaction(async (tx) => {
+			await this.lockMaintenanceTeams(tx, [input.id]);
+			if (input.company !== undefined) {
+				const conflictingMaintenance = await tx.assetMaintenance?.findFirst?.({
+					where: {
+						maintenanceTeamId: input.id,
+						company: { not: input.company },
+					},
+					select: { id: true },
+				});
+				if (conflictingMaintenance) {
+					throw new BadRequestException(
+						"A maintenance team cannot change company while it has maintenance records for another company.",
+					);
+				}
+			}
 			await tx.assetMaintenanceTeam.update({
 				where: { id: input.id },
 				data: {
@@ -3712,13 +3832,16 @@ export class AssetService {
 
 	async cancelAssetMaintenanceLog(
 		input: Asset.CancelAssetMaintenanceLogInput,
+		actorId?: string | null,
 	): Promise<Asset.AssetMaintenanceLogItem> {
 		const log = await this.prisma.assetMaintenanceLog.findUnique({
 			where: { id: input.logId },
 			select: {
 				id: true,
+				maintenanceId: true,
 				taskId: true,
 				maintenanceStatus: true,
+				maintenance: { select: { assetId: true } },
 			},
 		});
 		if (!log)
@@ -3733,6 +3856,24 @@ export class AssetService {
 		}
 
 		const updated = await this.prisma.$transaction(async (tx) => {
+			if (log.maintenance) await this.lockAssets(tx, [log.maintenance.assetId]);
+			// Re-read after the asset lock so two requests cannot both transition
+			// the same log based on the preflight status.
+			const currentLog = await tx.assetMaintenanceLog.findUnique({
+				where: { id: input.logId },
+				select: { maintenanceStatus: true },
+			});
+			if (!currentLog) {
+				throw new NotFoundException(`Maintenance log ${input.logId} not found`);
+			}
+			if (currentLog.maintenanceStatus === "COMPLETED") {
+				throw new BadRequestException(
+					"Cannot cancel a completed maintenance log",
+				);
+			}
+			if (currentLog.maintenanceStatus === "CANCELLED") {
+				throw new BadRequestException("Maintenance log is already cancelled");
+			}
 			const cancelled = await tx.assetMaintenanceLog.update({
 				where: { id: input.logId },
 				data: { maintenanceStatus: "CANCELLED" },
@@ -3742,6 +3883,18 @@ export class AssetService {
 				where: { id: log.taskId },
 				data: { maintenanceStatus: "CANCELLED" },
 			});
+			if (log.maintenance) {
+				await this.syncMaintenanceAssetStatus(tx, log.maintenance.assetId);
+			}
+			if (actorId && log.maintenance) {
+				await tx.assetActivity.create({
+					data: {
+						assetId: log.maintenance.assetId,
+						userId: actorId,
+						activity: "Asset maintenance log cancelled",
+					},
+				});
+			}
 
 			return cancelled;
 		});
@@ -3751,6 +3904,7 @@ export class AssetService {
 
 	async createAssetMaintenance(
 		input: Asset.CreateAssetMaintenanceInput,
+		actorId?: string | null,
 	): Promise<Asset.AssetMaintenanceRecord> {
 		// Verify asset exists and is not already assigned to a maintenance record
 		const asset = await this.prisma.asset.findUnique({
@@ -3759,10 +3913,16 @@ export class AssetService {
 				id: true,
 				assetName: true,
 				itemCode: true,
+				company: true,
 				maintenance: { select: { id: true } },
 			},
 		});
 		if (!asset) throw new NotFoundException(`Asset ${input.assetId} not found`);
+		if (asset.company !== input.company) {
+			throw new BadRequestException(
+				`Maintenance company must match asset company ${asset.company}.`,
+			);
+		}
 		if (asset.maintenance) {
 			throw new BadRequestException(
 				`Asset "${asset.assetName}" already has a maintenance record`,
@@ -3772,11 +3932,16 @@ export class AssetService {
 		// Verify team exists
 		const team = await this.prisma.assetMaintenanceTeam.findUnique({
 			where: { id: input.maintenanceTeamId },
-			select: { id: true },
+			select: { id: true, company: true },
 		});
 		if (!team) {
 			throw new NotFoundException(
 				`Maintenance team ${input.maintenanceTeamId} not found`,
+			);
+		}
+		if (team.company !== asset.company) {
+			throw new BadRequestException(
+				`Maintenance team company ${team.company} does not match asset company ${asset.company}.`,
 			);
 		}
 
@@ -3793,10 +3958,51 @@ export class AssetService {
 		}
 
 		const maintenance = await this.prisma.$transaction(async (tx) => {
+			await this.lockAssets(tx, [input.assetId]);
+			await this.lockMaintenanceTeams(tx, [input.maintenanceTeamId]);
+			// Re-read the asset after taking its advisory lock. Company and
+			// maintenance ownership must come from this locked snapshot rather
+			// than from the preflight read above.
+			const lockedAsset = await tx.asset.findUnique({
+				where: { id: input.assetId },
+				select: {
+					id: true,
+					assetName: true,
+					company: true,
+					maintenance: { select: { id: true } },
+				},
+			});
+			if (!lockedAsset) {
+				throw new NotFoundException(`Asset ${input.assetId} not found`);
+			}
+			if (lockedAsset.company !== input.company) {
+				throw new BadRequestException(
+					`Maintenance company must match asset company ${lockedAsset.company}.`,
+				);
+			}
+			if (lockedAsset.maintenance) {
+				throw new BadRequestException(
+					`Asset "${lockedAsset.assetName}" already has a maintenance record`,
+				);
+			}
+			const lockedTeam = await tx.assetMaintenanceTeam.findUnique({
+				where: { id: input.maintenanceTeamId },
+				select: { id: true, company: true },
+			});
+			if (!lockedTeam) {
+				throw new NotFoundException(
+					`Maintenance team ${input.maintenanceTeamId} not found`,
+				);
+			}
+			if (lockedTeam.company !== lockedAsset.company) {
+				throw new BadRequestException(
+					`Maintenance team company ${lockedTeam.company} does not match asset company ${lockedAsset.company}.`,
+				);
+			}
 			const created = await tx.assetMaintenance.create({
 				data: {
 					assetId: input.assetId,
-					company: input.company,
+					company: lockedAsset.company,
 					maintenanceTeamId: input.maintenanceTeamId,
 					maintenanceManager: input.maintenanceManager ?? null,
 					maintenanceManagerName: input.maintenanceManagerName ?? null,
@@ -3814,7 +4020,12 @@ export class AssetService {
 					);
 
 				const isOverdue = nextDueDate && nextDueDate < today;
-				const status = isOverdue ? "OVERDUE" : taskInput.maintenanceStatus;
+				const status =
+					taskInput.maintenanceStatus === "CANCELLED"
+						? "CANCELLED"
+						: isOverdue
+							? "OVERDUE"
+							: taskInput.maintenanceStatus;
 
 				const task = await tx.assetMaintenanceTask.create({
 					data: {
@@ -3839,7 +4050,22 @@ export class AssetService {
 					data: {
 						maintenanceId: created.id,
 						taskId: task.id,
-						maintenanceStatus: isOverdue ? "OVERDUE" : "PLANNED",
+						maintenanceStatus:
+							status === "CANCELLED"
+								? "CANCELLED"
+								: isOverdue
+									? "OVERDUE"
+									: "PLANNED",
+					},
+				});
+			}
+			await this.syncMaintenanceAssetStatus(tx, input.assetId);
+			if (actorId) {
+				await tx.assetActivity.create({
+					data: {
+						assetId: input.assetId,
+						userId: actorId,
+						activity: "Asset maintenance plan created",
 					},
 				});
 			}
@@ -3856,23 +4082,57 @@ export class AssetService {
 
 	async updateAssetMaintenance(
 		input: Asset.UpdateAssetMaintenanceInput,
+		actorId?: string | null,
 	): Promise<Asset.AssetMaintenanceRecord> {
 		const existing = await this.prisma.assetMaintenance.findUnique({
 			where: { id: input.id },
-			select: { id: true },
+			select: {
+				id: true,
+				assetId: true,
+				company: true,
+				maintenanceTeamId: true,
+				maintenanceTeam: { select: { company: true } },
+			},
 		});
 		if (!existing) {
 			throw new NotFoundException(`Asset maintenance ${input.id} not found`);
 		}
 
+		const asset = await this.prisma.asset.findUnique({
+			where: { id: existing.assetId },
+			select: { company: true },
+		});
+		if (!asset)
+			throw new NotFoundException(`Asset ${existing.assetId} not found`);
+		if (input.company !== undefined && input.company !== asset.company) {
+			throw new BadRequestException(
+				`Maintenance company must match asset company ${asset.company}.`,
+			);
+		}
+		if (existing.company !== asset.company) {
+			throw new BadRequestException(
+				`Maintenance company must match asset company ${asset.company}.`,
+			);
+		}
+		if (existing.maintenanceTeam.company !== asset.company) {
+			throw new BadRequestException(
+				`Maintenance team company ${existing.maintenanceTeam.company} does not match asset company ${asset.company}.`,
+			);
+		}
+
 		if (input.maintenanceTeamId !== undefined) {
 			const team = await this.prisma.assetMaintenanceTeam.findUnique({
 				where: { id: input.maintenanceTeamId },
-				select: { id: true },
+				select: { id: true, company: true },
 			});
 			if (!team) {
 				throw new NotFoundException(
 					`Maintenance team ${input.maintenanceTeamId} not found`,
+				);
+			}
+			if (team.company !== asset.company) {
+				throw new BadRequestException(
+					`Maintenance team company ${team.company} does not match asset company ${asset.company}.`,
 				);
 			}
 		}
@@ -3891,10 +4151,50 @@ export class AssetService {
 		}
 
 		const maintenance = await this.prisma.$transaction(async (tx) => {
+			await this.lockAssets(tx, [existing.assetId]);
+			await this.lockMaintenanceTeams(tx, [
+				input.maintenanceTeamId ?? existing.maintenanceTeamId,
+			]);
+			const lockedAsset = await tx.asset.findUnique({
+				where: { id: existing.assetId },
+				select: { company: true },
+			});
+			if (!lockedAsset) {
+				throw new NotFoundException(`Asset ${existing.assetId} not found`);
+			}
+			if (existing.company !== lockedAsset.company) {
+				throw new BadRequestException(
+					`Maintenance company must match asset company ${lockedAsset.company}.`,
+				);
+			}
+			if (
+				lockedAsset.company !== input.company &&
+				input.company !== undefined
+			) {
+				throw new BadRequestException(
+					`Maintenance company must match asset company ${lockedAsset.company}.`,
+				);
+			}
+			const lockedTeamId =
+				input.maintenanceTeamId ?? existing.maintenanceTeamId;
+			const lockedTeam = await tx.assetMaintenanceTeam.findUnique({
+				where: { id: lockedTeamId },
+				select: { company: true },
+			});
+			if (!lockedTeam) {
+				throw new NotFoundException(
+					`Maintenance team ${lockedTeamId} not found`,
+				);
+			}
+			if (lockedTeam.company !== lockedAsset.company) {
+				throw new BadRequestException(
+					`Maintenance team company ${lockedTeam.company} does not match asset company ${lockedAsset.company}.`,
+				);
+			}
 			await tx.assetMaintenance.update({
 				where: { id: input.id },
 				data: {
-					...(input.company !== undefined && { company: input.company }),
+					company: lockedAsset.company,
 					...(input.maintenanceTeamId !== undefined && {
 						maintenanceTeamId: input.maintenanceTeamId,
 					}),
@@ -3970,7 +4270,12 @@ export class AssetService {
 						);
 
 					const isOverdue = nextDueDate && nextDueDate < today;
-					const status = isOverdue ? "OVERDUE" : taskInput.maintenanceStatus;
+					const status =
+						taskInput.maintenanceStatus === "CANCELLED"
+							? "CANCELLED"
+							: isOverdue
+								? "OVERDUE"
+								: taskInput.maintenanceStatus;
 
 					if (taskInput.id) {
 						// Update existing task
@@ -4010,7 +4315,14 @@ export class AssetService {
 						} else {
 							await tx.assetMaintenanceLog.update({
 								where: { id: openLog.id },
-								data: { maintenanceStatus: isOverdue ? "OVERDUE" : "PLANNED" },
+								data: {
+									maintenanceStatus:
+										status === "CANCELLED"
+											? "CANCELLED"
+											: isOverdue
+												? "OVERDUE"
+												: "PLANNED",
+								},
 							});
 						}
 					} else {
@@ -4037,11 +4349,26 @@ export class AssetService {
 							data: {
 								maintenanceId: input.id,
 								taskId: newTask.id,
-								maintenanceStatus: isOverdue ? "OVERDUE" : "PLANNED",
+								maintenanceStatus:
+									status === "CANCELLED"
+										? "CANCELLED"
+										: isOverdue
+											? "OVERDUE"
+											: "PLANNED",
 							},
 						});
 					}
 				}
+			}
+			await this.syncMaintenanceAssetStatus(tx, existing.assetId);
+			if (actorId) {
+				await tx.assetActivity.create({
+					data: {
+						assetId: existing.assetId,
+						userId: actorId,
+						activity: "Asset maintenance plan updated",
+					},
+				});
 			}
 
 			return tx.assetMaintenance.findUniqueOrThrow({
@@ -4055,30 +4382,70 @@ export class AssetService {
 
 	async deleteAssetMaintenance(
 		id: string,
+		actorId?: string | null,
 	): Promise<{ success: boolean; id: string }> {
 		const existing = await this.prisma.assetMaintenance.findUnique({
 			where: { id },
-			select: { id: true },
+			select: { id: true, assetId: true },
 		});
 		if (!existing) {
 			throw new NotFoundException(`Asset maintenance ${id} not found`);
 		}
-		await this.prisma.assetMaintenance.delete({ where: { id } });
+		await this.prisma.$transaction(async (tx) => {
+			await this.lockAssets(tx, [existing.assetId]);
+			await tx.assetMaintenance.delete({ where: { id } });
+			await this.syncMaintenanceAssetStatus(tx, existing.assetId);
+			if (actorId) {
+				await tx.assetActivity.create({
+					data: {
+						assetId: existing.assetId,
+						userId: actorId,
+						activity: "Asset maintenance plan deleted",
+					},
+				});
+			}
+		});
 		return { success: true, id };
 	}
 
 	async deleteManyAssetMaintenances(
 		ids: string[],
+		actorId?: string | null,
 	): Promise<{ success: boolean; count: number; ids: string[] }> {
 		const unique = [...new Set(ids)];
-		const result = await this.prisma.assetMaintenance.deleteMany({
+		const existing = await this.prisma.assetMaintenance.findMany({
 			where: { id: { in: unique } },
+			select: { id: true, assetId: true },
+		});
+		const lockedRecords = [...existing].sort((a, b) =>
+			a.assetId.localeCompare(b.assetId),
+		);
+		const result = await this.prisma.$transaction(async (tx) => {
+			for (const record of lockedRecords)
+				await this.lockAssets(tx, [record.assetId]);
+			const deleted = await tx.assetMaintenance.deleteMany({
+				where: { id: { in: unique } },
+			});
+			for (const record of lockedRecords) {
+				await this.syncMaintenanceAssetStatus(tx, record.assetId);
+				if (actorId) {
+					await tx.assetActivity.create({
+						data: {
+							assetId: record.assetId,
+							userId: actorId,
+							activity: "Asset maintenance plan deleted",
+						},
+					});
+				}
+			}
+			return deleted;
 		});
 		return { success: true, count: result.count, ids: unique };
 	}
 
 	async completeAssetMaintenanceLog(
 		input: Asset.CompleteAssetMaintenanceLogInput,
+		actorId?: string | null,
 	): Promise<Asset.AssetMaintenanceLogItem> {
 		const log = await this.prisma.assetMaintenanceLog.findUnique({
 			where: { id: input.logId },
@@ -4087,6 +4454,7 @@ export class AssetService {
 				maintenanceId: true,
 				taskId: true,
 				maintenanceStatus: true,
+				maintenance: { select: { assetId: true } },
 			},
 		});
 		if (!log)
@@ -4101,6 +4469,28 @@ export class AssetService {
 		}
 
 		const updatedLog = await this.prisma.$transaction(async (tx) => {
+			if (log.maintenance) await this.lockAssets(tx, [log.maintenance.assetId]);
+			// Re-read after the asset lock to make completion exactly-once when
+			// duplicate requests arrive concurrently.
+			const currentLog = await tx.assetMaintenanceLog.findUnique({
+				where: { id: input.logId },
+				select: {
+					maintenanceId: true,
+					taskId: true,
+					maintenanceStatus: true,
+				},
+			});
+			if (!currentLog) {
+				throw new NotFoundException(`Maintenance log ${input.logId} not found`);
+			}
+			if (currentLog.maintenanceStatus === "COMPLETED") {
+				throw new BadRequestException("Maintenance log is already completed");
+			}
+			if (currentLog.maintenanceStatus === "CANCELLED") {
+				throw new BadRequestException(
+					"Cannot complete a cancelled maintenance log",
+				);
+			}
 			// Mark log as completed
 			const completed = await tx.assetMaintenanceLog.update({
 				where: { id: input.logId },
@@ -4115,8 +4505,13 @@ export class AssetService {
 
 			// Update task's lastCompletionDate and recalculate nextDueDate
 			const task = await tx.assetMaintenanceTask.findUniqueOrThrow({
-				where: { id: log.taskId },
+				where: { id: currentLog.taskId },
 			});
+			if (task.maintenanceStatus === "CANCELLED") {
+				throw new ConflictException(
+					"Cannot complete a maintenance log whose task is cancelled",
+				);
+			}
 
 			const newNextDueDate = this.calculateNextDueDate(
 				task.periodicity as Asset.AssetMaintenancePeriodicity,
@@ -4126,7 +4521,7 @@ export class AssetService {
 			);
 
 			await tx.assetMaintenanceTask.update({
-				where: { id: log.taskId },
+				where: { id: currentLog.taskId },
 				data: {
 					lastCompletionDate: input.completionDate,
 					nextDueDate: newNextDueDate ?? null,
@@ -4140,9 +4535,21 @@ export class AssetService {
 				today.setHours(0, 0, 0, 0);
 				await tx.assetMaintenanceLog.create({
 					data: {
-						maintenanceId: log.maintenanceId,
-						taskId: log.taskId,
+						maintenanceId: currentLog.maintenanceId,
+						taskId: currentLog.taskId,
 						maintenanceStatus: newNextDueDate < today ? "OVERDUE" : "PLANNED",
+					},
+				});
+			}
+			if (log.maintenance) {
+				await this.syncMaintenanceAssetStatus(tx, log.maintenance.assetId);
+			}
+			if (actorId && log.maintenance) {
+				await tx.assetActivity.create({
+					data: {
+						assetId: log.maintenance.assetId,
+						userId: actorId,
+						activity: "Asset maintenance log completed",
 					},
 				});
 			}
@@ -4531,6 +4938,7 @@ export class AssetService {
 	 */
 	async createAssetMovement(
 		input: Asset.CreateAssetMovementInput,
+		actorId?: string | null,
 	): Promise<Asset.AssetMovement> {
 		const assetIds = input.items.map((item) => item.assetId);
 		if (new Set(assetIds).size !== assetIds.length) {
@@ -4677,7 +5085,7 @@ export class AssetService {
 				input.transactionDate,
 				tx,
 			);
-			return tx.assetMovement.create({
+			const created = await tx.assetMovement.create({
 				data: {
 					series,
 					company: input.company,
@@ -4697,6 +5105,18 @@ export class AssetService {
 				},
 				include: this.assetMovementInclude,
 			});
+			if (actorId) {
+				for (const item of resolvedItems) {
+					await tx.assetActivity.create({
+						data: {
+							assetId: item.assetId,
+							userId: actorId,
+							activity: `Asset movement draft created for ${input.purpose.toLowerCase().replaceAll("_", " ")}`,
+						},
+					});
+				}
+			}
+			return created;
 		});
 
 		return toAssetMovement(movement);
@@ -5315,14 +5735,20 @@ export class AssetService {
 			const newValue = this.roundCurrency(
 				previousValue + (currentRepair.capitalizeRepairCost ? repairCost : 0),
 			);
-			const restoredStatus = currentRepair.previousAssetStatus ?? "SUBMITTED";
+			const restoredStatus: RestorableAssetStatus =
+				currentRepair.previousAssetStatus === "FULLY_DEPRECIATED"
+					? "FULLY_DEPRECIATED"
+					: currentRepair.previousAssetStatus === "PARTIALLY_DEPRECIATED"
+						? "PARTIALLY_DEPRECIATED"
+						: "SUBMITTED";
+			const baseRestoredStatus =
+				restoredStatus === "FULLY_DEPRECIATED" && newValue > 0
+					? "PARTIALLY_DEPRECIATED"
+					: restoredStatus;
 			await tx.asset.update({
 				where: { id: asset.id },
 				data: {
-					status:
-						restoredStatus === "FULLY_DEPRECIATED" && newValue > 0
-							? "PARTIALLY_DEPRECIATED"
-							: restoredStatus,
+					status: baseRestoredStatus,
 					netPurchaseAmount: this.roundCurrency(
 						previousNet + (currentRepair.capitalizeRepairCost ? repairCost : 0),
 					),
@@ -5346,6 +5772,7 @@ export class AssetService {
 				},
 				include: this.assetRepairInclude,
 			});
+			await this.syncMaintenanceAssetStatus(tx, asset.id, baseRestoredStatus);
 
 			await tx.assetActivity.create({
 				data: {
@@ -5405,6 +5832,12 @@ export class AssetService {
 					calculateDepreciation: true,
 				},
 			});
+			const baseRestoredStatus: RestorableAssetStatus =
+				currentRepair.previousAssetStatus === "FULLY_DEPRECIATED"
+					? "FULLY_DEPRECIATED"
+					: currentRepair.previousAssetStatus === "PARTIALLY_DEPRECIATED"
+						? "PARTIALLY_DEPRECIATED"
+						: "SUBMITTED";
 
 			if (currentRepair.repairStatus === "COMPLETED") {
 				if (
@@ -5500,7 +5933,7 @@ export class AssetService {
 				await tx.asset.update({
 					where: { id: asset.id },
 					data: {
-						status: currentRepair.previousAssetStatus ?? "SUBMITTED",
+						status: baseRestoredStatus,
 						netPurchaseAmount: currentRepair.previousNetPurchaseAmount,
 						valueAfterDepreciation:
 							currentRepair.previousValueAfterDepreciation,
@@ -5519,7 +5952,7 @@ export class AssetService {
 				await tx.asset.update({
 					where: { id: asset.id },
 					data: {
-						status: currentRepair.previousAssetStatus ?? "SUBMITTED",
+						status: baseRestoredStatus,
 					},
 				});
 			}
@@ -5532,6 +5965,7 @@ export class AssetService {
 				},
 				include: this.assetRepairInclude,
 			});
+			await this.syncMaintenanceAssetStatus(tx, asset.id, baseRestoredStatus);
 
 			await tx.assetActivity.create({
 				data: {
@@ -5612,6 +6046,7 @@ export class AssetService {
 	 */
 	async createAssetCapitalization(
 		input: Asset.CreateAssetCapitalizationInput,
+		actorId?: string | null,
 	): Promise<Asset.AssetCapitalization> {
 		this.assertValidOperationalDate(input.postingDate, "Posting date");
 		if (
@@ -5822,7 +6257,7 @@ export class AssetService {
 				input.postingDate,
 				tx,
 			);
-			return tx.assetCapitalization.create({
+			const created = await tx.assetCapitalization.create({
 				data: {
 					series,
 					company: input.company,
@@ -5844,6 +6279,27 @@ export class AssetService {
 				},
 				include: this.assetCapitalizationInclude,
 			});
+			if (actorId) {
+				for (const assetId of sourceAssetIds) {
+					await tx.assetActivity.create({
+						data: {
+							assetId,
+							userId: actorId,
+							activity: `Asset capitalization draft created for ${input.company}`,
+						},
+					});
+				}
+				if (input.targetAssetId) {
+					await tx.assetActivity.create({
+						data: {
+							assetId: input.targetAssetId,
+							userId: actorId,
+							activity: `Asset capitalization draft targets ${input.company}`,
+						},
+					});
+				}
+			}
+			return created;
 		});
 
 		return toAssetCapitalizationItem(capitalization);

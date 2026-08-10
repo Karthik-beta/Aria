@@ -11,16 +11,33 @@ import type { AssetDashboardSubService } from "../asset-dashboard.service";
 
 function createMockPrisma() {
 	const mockTx = {
+		$queryRaw: jest.fn().mockResolvedValue([{ locked: true }]),
+		asset: {
+			findUnique: jest.fn(),
+			update: jest.fn(),
+		},
+		assetActivity: { create: jest.fn() },
+		assetRepair: { findFirst: jest.fn().mockResolvedValue(null) },
+		assetDepreciationJournalEntry: {
+			count: jest.fn().mockResolvedValue(0),
+		},
 		assetMaintenance: {
 			create: jest.fn(),
 			findUniqueOrThrow: jest.fn(),
+			delete: jest.fn(),
+			deleteMany: jest.fn(),
+		},
+		assetMaintenanceTeam: {
+			findUnique: jest.fn(),
 		},
 		assetMaintenanceTask: {
 			create: jest.fn(),
 			update: jest.fn(),
+			findFirst: jest.fn().mockResolvedValue(null),
 		},
 		assetMaintenanceLog: {
 			create: jest.fn(),
+			findUnique: jest.fn(),
 			update: jest.fn(),
 		},
 	};
@@ -413,6 +430,7 @@ describe("AssetService > AssetMaintenance", () => {
 				id: "asset-001",
 				assetName: "Hydraulic Pump A",
 				itemCode: null,
+				company: "ACME Corp",
 				maintenance: { id: "existing-maint" },
 			});
 
@@ -426,6 +444,7 @@ describe("AssetService > AssetMaintenance", () => {
 				id: "asset-001",
 				assetName: "Hydraulic Pump A",
 				itemCode: null,
+				company: "ACME Corp",
 				maintenance: null,
 			});
 			mockPrisma.assetMaintenanceTeam.findUnique.mockResolvedValue(null);
@@ -435,15 +454,49 @@ describe("AssetService > AssetMaintenance", () => {
 			);
 		});
 
+		it("rejects a maintenance company that differs from the asset", async () => {
+			mockPrisma.asset.findUnique.mockResolvedValue({
+				id: "asset-001",
+				assetName: "Hydraulic Pump A",
+				itemCode: null,
+				company: "OTHER Corp",
+				maintenance: null,
+			});
+
+			await expect(service.createAssetMaintenance(createInput)).rejects.toThrow(
+				"must match asset company",
+			);
+		});
+
+		it("rejects a maintenance team from another company", async () => {
+			mockPrisma.asset.findUnique.mockResolvedValue({
+				id: "asset-001",
+				assetName: "Hydraulic Pump A",
+				itemCode: null,
+				company: "ACME Corp",
+				maintenance: null,
+			});
+			mockPrisma.assetMaintenanceTeam.findUnique.mockResolvedValue({
+				id: "team-001",
+				company: "OTHER Corp",
+			});
+
+			await expect(service.createAssetMaintenance(createInput)).rejects.toThrow(
+				"does not match asset company",
+			);
+		});
+
 		it("throws BadRequestException when task startDate >= endDate", async () => {
 			mockPrisma.asset.findUnique.mockResolvedValue({
 				id: "asset-001",
 				assetName: "Hydraulic Pump A",
 				itemCode: null,
+				company: "ACME Corp",
 				maintenance: null,
 			});
 			mockPrisma.assetMaintenanceTeam.findUnique.mockResolvedValue({
 				id: "team-001",
+				company: "ACME Corp",
 			});
 
 			await expect(
@@ -465,10 +518,22 @@ describe("AssetService > AssetMaintenance", () => {
 				id: "asset-001",
 				assetName: "Hydraulic Pump A",
 				itemCode: null,
+				company: "ACME Corp",
 				maintenance: null,
 			});
 			mockPrisma.assetMaintenanceTeam.findUnique.mockResolvedValue({
 				id: "team-001",
+				company: "ACME Corp",
+			});
+			mockTx.asset.findUnique.mockResolvedValue({
+				id: "asset-001",
+				assetName: "Hydraulic Pump A",
+				company: "ACME Corp",
+				maintenance: null,
+			});
+			mockTx.assetMaintenanceTeam.findUnique.mockResolvedValue({
+				id: "team-001",
+				company: "ACME Corp",
 			});
 			mockTx.assetMaintenance.create.mockResolvedValue({
 				id: "maint-001",
@@ -479,7 +544,10 @@ describe("AssetService > AssetMaintenance", () => {
 				mockMaintenanceRow,
 			);
 
-			const result = await service.createAssetMaintenance(createInput);
+			const result = await service.createAssetMaintenance(
+				createInput,
+				"actor-001",
+			);
 
 			expect(mockTx.assetMaintenance.create).toHaveBeenCalledWith(
 				expect.objectContaining({
@@ -491,6 +559,12 @@ describe("AssetService > AssetMaintenance", () => {
 			);
 			expect(mockTx.assetMaintenanceTask.create).toHaveBeenCalledTimes(1);
 			expect(mockTx.assetMaintenanceLog.create).toHaveBeenCalledTimes(1);
+			expect(mockTx.assetActivity.create).toHaveBeenCalledWith({
+				data: expect.objectContaining({
+					assetId: "asset-001",
+					userId: "actor-001",
+				}),
+			});
 			expect(result.assetName).toBe("Hydraulic Pump A");
 		});
 	});
@@ -503,15 +577,16 @@ describe("AssetService > AssetMaintenance", () => {
 		it("deletes an existing record and returns success", async () => {
 			mockPrisma.assetMaintenance.findUnique.mockResolvedValue({
 				id: "maint-001",
+				assetId: "asset-001",
 			});
-			mockPrisma.assetMaintenance.delete.mockResolvedValue({
+			mockTx.assetMaintenance.delete.mockResolvedValue({
 				id: "maint-001",
 			});
 
 			const result = await service.deleteAssetMaintenance("maint-001");
 
 			expect(result).toEqual({ success: true, id: "maint-001" });
-			expect(mockPrisma.assetMaintenance.delete).toHaveBeenCalledWith({
+			expect(mockTx.assetMaintenance.delete).toHaveBeenCalledWith({
 				where: { id: "maint-001" },
 			});
 		});
@@ -531,7 +606,11 @@ describe("AssetService > AssetMaintenance", () => {
 
 	describe("deleteManyAssetMaintenances", () => {
 		it("deletes multiple records and returns count", async () => {
-			mockPrisma.assetMaintenance.deleteMany.mockResolvedValue({ count: 2 });
+			mockPrisma.assetMaintenance.findMany.mockResolvedValue([
+				{ id: "maint-001", assetId: "asset-001" },
+				{ id: "maint-002", assetId: "asset-002" },
+			]);
+			mockTx.assetMaintenance.deleteMany.mockResolvedValue({ count: 2 });
 
 			const result = await service.deleteManyAssetMaintenances([
 				"maint-001",
@@ -546,7 +625,10 @@ describe("AssetService > AssetMaintenance", () => {
 		});
 
 		it("deduplicates ids before deleting", async () => {
-			mockPrisma.assetMaintenance.deleteMany.mockResolvedValue({ count: 1 });
+			mockPrisma.assetMaintenance.findMany.mockResolvedValue([
+				{ id: "maint-001", assetId: "asset-001" },
+			]);
+			mockTx.assetMaintenance.deleteMany.mockResolvedValue({ count: 1 });
 
 			const result = await service.deleteManyAssetMaintenances([
 				"maint-001",
@@ -554,7 +636,7 @@ describe("AssetService > AssetMaintenance", () => {
 			]);
 
 			expect(result.ids).toHaveLength(1);
-			expect(mockPrisma.assetMaintenance.deleteMany).toHaveBeenCalledWith({
+			expect(mockTx.assetMaintenance.deleteMany).toHaveBeenCalledWith({
 				where: { id: { in: ["maint-001"] } },
 			});
 		});
@@ -711,8 +793,10 @@ describe("AssetService > cancelAssetMaintenanceLog", () => {
 	it("throws BadRequestException for COMPLETED log", async () => {
 		mockPrisma.assetMaintenanceLog.findUnique.mockResolvedValue({
 			id: "log-001",
+			maintenanceId: "maint-001",
 			taskId: "task-001",
 			maintenanceStatus: "COMPLETED",
+			maintenance: { assetId: "asset-001" },
 		});
 
 		await expect(
@@ -723,8 +807,10 @@ describe("AssetService > cancelAssetMaintenanceLog", () => {
 	it("throws BadRequestException for already CANCELLED log", async () => {
 		mockPrisma.assetMaintenanceLog.findUnique.mockResolvedValue({
 			id: "log-001",
+			maintenanceId: "maint-001",
 			taskId: "task-001",
 			maintenanceStatus: "CANCELLED",
+			maintenance: { assetId: "asset-001" },
 		});
 
 		await expect(
@@ -735,14 +821,19 @@ describe("AssetService > cancelAssetMaintenanceLog", () => {
 	it("successfully cancels a PLANNED log", async () => {
 		mockPrisma.assetMaintenanceLog.findUnique.mockResolvedValue({
 			id: "log-001",
+			maintenanceId: "maint-001",
 			taskId: "task-001",
 			maintenanceStatus: "PLANNED",
+			maintenance: { assetId: "asset-001" },
 		});
 
 		const cancelledLog = {
 			...mockLog,
 			maintenanceStatus: "CANCELLED",
 		};
+		mockTx.assetMaintenanceLog.findUnique.mockResolvedValue({
+			maintenanceStatus: "PLANNED",
+		});
 		mockTx.assetMaintenanceLog.update.mockResolvedValue(cancelledLog);
 		mockTx.assetMaintenanceTask.update.mockResolvedValue({});
 
@@ -768,8 +859,10 @@ describe("AssetService > cancelAssetMaintenanceLog", () => {
 	it("successfully cancels an OVERDUE log", async () => {
 		mockPrisma.assetMaintenanceLog.findUnique.mockResolvedValue({
 			id: "log-002",
+			maintenanceId: "maint-001",
 			taskId: "task-001",
 			maintenanceStatus: "OVERDUE",
+			maintenance: { assetId: "asset-001" },
 		});
 
 		const cancelledLog = {
@@ -777,6 +870,9 @@ describe("AssetService > cancelAssetMaintenanceLog", () => {
 			id: "log-002",
 			maintenanceStatus: "CANCELLED",
 		};
+		mockTx.assetMaintenanceLog.findUnique.mockResolvedValue({
+			maintenanceStatus: "OVERDUE",
+		});
 		mockTx.assetMaintenanceLog.update.mockResolvedValue(cancelledLog);
 		mockTx.assetMaintenanceTask.update.mockResolvedValue({});
 
@@ -785,5 +881,47 @@ describe("AssetService > cancelAssetMaintenanceLog", () => {
 		});
 
 		expect(result.maintenanceStatus).toBe("CANCELLED");
+	});
+
+	it("rejects a cancellation that loses the asset lock to another transition", async () => {
+		mockPrisma.assetMaintenanceLog.findUnique.mockResolvedValue({
+			id: "log-001",
+			maintenanceId: "maint-001",
+			taskId: "task-001",
+			maintenanceStatus: "PLANNED",
+			maintenance: null,
+		});
+		mockTx.assetMaintenanceLog.findUnique.mockResolvedValue({
+			maintenanceStatus: "CANCELLED",
+		});
+
+		await expect(
+			service.cancelAssetMaintenanceLog({ logId: "log-001" }),
+		).rejects.toThrow("already cancelled");
+		expect(mockTx.assetMaintenanceLog.update).not.toHaveBeenCalled();
+	});
+
+	it("rejects duplicate completion after the first request commits", async () => {
+		mockPrisma.assetMaintenanceLog.findUnique.mockResolvedValue({
+			id: "log-001",
+			maintenanceId: "maint-001",
+			taskId: "task-001",
+			maintenanceStatus: "PLANNED",
+			maintenance: null,
+		});
+		mockTx.assetMaintenanceLog.findUnique.mockResolvedValue({
+			maintenanceId: "maint-001",
+			taskId: "task-001",
+			maintenanceStatus: "COMPLETED",
+		});
+
+		await expect(
+			service.completeAssetMaintenanceLog({
+				logId: "log-001",
+				completionDate: new Date("2026-02-01"),
+				hasCertificate: false,
+			}),
+		).rejects.toThrow("already completed");
+		expect(mockTx.assetMaintenanceLog.update).not.toHaveBeenCalled();
 	});
 });

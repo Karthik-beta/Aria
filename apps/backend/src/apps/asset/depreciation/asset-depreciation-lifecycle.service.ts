@@ -25,7 +25,7 @@ export class AssetDepreciationLifecycleService {
 	constructor(private readonly prisma: PrismaService) {}
 
 	/** Activates draft schedules as part of explicit asset submission. */
-	async submitAsset(assetId: string): Promise<void> {
+	async submitAsset(assetId: string, actorId?: string | null): Promise<void> {
 		await this.configureAssetBooks(assetId);
 		await this.prisma.$transaction(async (tx) => {
 			const asset = await tx.asset.findUniqueOrThrow({
@@ -53,13 +53,17 @@ export class AssetDepreciationLifecycleService {
 				data: { status: "SUBMITTED" },
 			});
 			await tx.assetActivity.create({
-				data: { assetId, activity: "Asset submitted for depreciation" },
+				data: {
+					assetId,
+					activity: "Asset submitted for depreciation",
+					userId: actorId ?? null,
+				},
 			});
 		});
 	}
 
 	/** Cancels an unposted asset and makes every open schedule immutable. */
-	async cancelAsset(assetId: string): Promise<void> {
+	async cancelAsset(assetId: string, actorId?: string | null): Promise<void> {
 		await this.prisma.$transaction(async (tx) => {
 			const posted = await tx.assetDepreciationJournalEntry.count({
 				where: { assetId, status: "POSTED" },
@@ -78,7 +82,11 @@ export class AssetDepreciationLifecycleService {
 				data: { status: "CANCELLED" },
 			});
 			await tx.assetActivity.create({
-				data: { assetId, activity: "Asset cancelled" },
+				data: {
+					assetId,
+					activity: "Asset cancelled",
+					userId: actorId ?? null,
+				},
 			});
 		});
 	}
