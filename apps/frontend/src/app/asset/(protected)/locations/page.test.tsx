@@ -3,6 +3,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithProviders, screen, userEvent, waitFor } from "@/test/utils";
 import LocationPage from "./page";
 
+vi.mock("@/hooks/use-asset-write-access", () => ({
+	useAssetWriteAccess: () => true,
+}));
+
 const mockDeleteMutate = vi.fn();
 const mockCancelQuery = vi.fn().mockResolvedValue(undefined);
 const mockGetData = vi.fn().mockReturnValue({ items: [], totalCount: 0 });

@@ -38,6 +38,7 @@ import { ErrorState } from "@/components/ui/error-display";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DataTableColumnHeader } from "@/components/ui/table/data-table-column-header";
 import { NewAssetDialog } from "@/features/asset/components/new-asset-dialog";
+import { useAssetWriteAccess } from "@/hooks/use-asset-write-access";
 import { getToastMessage } from "@/lib/errors";
 import { trpc } from "@/lib/trpc";
 
@@ -89,6 +90,7 @@ export default function AssetListPage() {
 	const router = useRouter();
 	const [scannerOpen, setScannerOpen] = React.useState(false);
 	const [_isPending, startTransition] = React.useTransition();
+	const canWrite = useAssetWriteAccess();
 
 	const handleScanSuccess = React.useCallback(
 		async (scannedCode: string) => {
@@ -475,20 +477,24 @@ export default function AssetListPage() {
 										View Details
 									</Link>
 								</DropdownMenuItem>
-								<DropdownMenuItem asChild>
-									<Link href={`/asset/items/form?id=${asset.id}`}>
-										<Edit className="mr-2 h-4 w-4" />
-										Edit Asset
-									</Link>
-								</DropdownMenuItem>
-								<DropdownMenuSeparator />
-								<DropdownMenuItem
-									onClick={() => handleDelete(asset.id)}
-									className="text-destructive focus:text-destructive"
-								>
-									<Trash className="mr-2 h-4 w-4" />
-									Delete Asset
-								</DropdownMenuItem>
+								{canWrite && (
+									<>
+										<DropdownMenuItem asChild>
+											<Link href={`/asset/items/form?id=${asset.id}`}>
+												<Edit className="mr-2 h-4 w-4" />
+												Edit Asset
+											</Link>
+										</DropdownMenuItem>
+										<DropdownMenuSeparator />
+										<DropdownMenuItem
+											onClick={() => handleDelete(asset.id)}
+											className="text-destructive focus:text-destructive"
+										>
+											<Trash className="mr-2 h-4 w-4" />
+											Delete Asset
+										</DropdownMenuItem>
+									</>
+								)}
 							</DropdownMenuContent>
 						</DropdownMenu>
 					);
@@ -500,7 +506,7 @@ export default function AssetListPage() {
 				enableGlobalFilter: false,
 			},
 		],
-		[handleDelete, getRelativeAge],
+		[canWrite, handleDelete, getRelativeAge],
 	);
 
 	const handleBulkDelete = React.useCallback(
@@ -516,18 +522,21 @@ export default function AssetListPage() {
 	);
 
 	const bulkActions = React.useMemo<BulkAction<AssetRow>[]>(
-		() => [
-			{
-				label: "Delete Selected",
-				icon: <Trash className="h-4 w-4" />,
-				action: handleBulkDelete,
-				variant: "destructive",
-				requiresConfirmation: true,
-				confirmationMessage:
-					"This will permanently delete the selected assets. This action cannot be undone.",
-			},
-		],
-		[handleBulkDelete],
+		() =>
+			canWrite
+				? [
+						{
+							label: "Delete Selected",
+							icon: <Trash className="h-4 w-4" />,
+							action: handleBulkDelete,
+							variant: "destructive",
+							requiresConfirmation: true,
+							confirmationMessage:
+								"This will permanently delete the selected assets. This action cannot be undone.",
+						},
+					]
+				: [],
+		[canWrite, handleBulkDelete],
 	);
 
 	const handleReload = React.useCallback(async () => {
@@ -697,7 +706,7 @@ export default function AssetListPage() {
 									<Scan className="mr-2 h-4 w-4" />
 									Scan Barcode
 								</Button>
-								<NewAssetDialog />
+								{canWrite && <NewAssetDialog />}
 							</div>
 						}
 						ariaLabel="Assets table"

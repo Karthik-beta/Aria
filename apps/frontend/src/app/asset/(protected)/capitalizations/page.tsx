@@ -12,6 +12,7 @@ import {
 import { AssetCapitalizationDialog } from "@/components/asset/capitalization-form";
 import { Button } from "@/components/ui/button";
 import { ErrorState } from "@/components/ui/error-display";
+import { useAssetWriteAccess } from "@/hooks/use-asset-write-access";
 import { getToastMessage } from "@/lib/errors";
 import { trpc } from "@/lib/trpc";
 import {
@@ -25,6 +26,7 @@ import {
  */
 export default function AssetCapitalizationsPage() {
 	const [dialogOpen, setDialogOpen] = React.useState(false);
+	const canWrite = useAssetWriteAccess();
 
 	const { data, error, isLoading, refetch } =
 		trpc.asset.listAssetCapitalizations.useQuery({});
@@ -90,7 +92,7 @@ export default function AssetCapitalizationsPage() {
 				header: "Actions",
 				cell: ({ row }) => {
 					const c = row.original;
-					if (c.status === "DRAFT") {
+					if (canWrite && c.status === "DRAFT") {
 						return (
 							<Button
 								size="sm"
@@ -101,7 +103,7 @@ export default function AssetCapitalizationsPage() {
 							</Button>
 						);
 					}
-					if (c.status === "SUBMITTED") {
+					if (canWrite && c.status === "SUBMITTED") {
 						return (
 							<Button
 								size="sm"
@@ -117,7 +119,7 @@ export default function AssetCapitalizationsPage() {
 				},
 			},
 		],
-		[submitMutation, cancelMutation],
+		[canWrite, submitMutation, cancelMutation],
 	);
 
 	const { table } = useAdvancedDataTable<Asset.AssetCapitalizationItem>({
@@ -139,13 +141,15 @@ export default function AssetCapitalizationsPage() {
 						into fixed asset book value.
 					</p>
 				</div>
-				<Button
-					onClick={() => setDialogOpen(true)}
-					className="flex items-center gap-2"
-				>
-					<Plus className="h-4 w-4" />
-					Capitalize Asset
-				</Button>
+				{canWrite && (
+					<Button
+						onClick={() => setDialogOpen(true)}
+						className="flex items-center gap-2"
+					>
+						<Plus className="h-4 w-4" />
+						Capitalize Asset
+					</Button>
+				)}
 			</div>
 
 			{isLoading ? (
@@ -167,10 +171,12 @@ export default function AssetCapitalizationsPage() {
 				/>
 			)}
 
-			<AssetCapitalizationDialog
-				open={dialogOpen}
-				onOpenChange={setDialogOpen}
-			/>
+			{canWrite && (
+				<AssetCapitalizationDialog
+					open={dialogOpen}
+					onOpenChange={setDialogOpen}
+				/>
+			)}
 		</div>
 	);
 }

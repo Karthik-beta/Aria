@@ -42,6 +42,7 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DataTableColumnHeader } from "@/components/ui/table/data-table-column-header";
+import { useAssetWriteAccess } from "@/hooks/use-asset-write-access";
 import { getToastMessage } from "@/lib/errors";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
@@ -77,6 +78,7 @@ function LocationRealtimeSubscription({
 
 export default function LocationPage() {
 	const utils = trpc.useUtils();
+	const canWrite = useAssetWriteAccess();
 
 	const [search, setSearch] = React.useState("");
 	const [groupFilter, setGroupFilter] = React.useState<GroupFilter>("all");
@@ -222,14 +224,17 @@ export default function LocationPage() {
 				header: ({ column }) => (
 					<DataTableColumnHeader column={column} title="Location Name" />
 				),
-				cell: ({ row }) => (
-					<Link
-						href={`/asset/locations/form?id=${row.original.id}`}
-						className="font-medium text-primary hover:underline"
-					>
-						{row.original.name}
-					</Link>
-				),
+				cell: ({ row }) =>
+					canWrite ? (
+						<Link
+							href={`/asset/locations/form?id=${row.original.id}`}
+							className="font-medium text-primary hover:underline"
+						>
+							{row.original.name}
+						</Link>
+					) : (
+						<span className="font-medium">{row.original.name}</span>
+					),
 				meta: { label: "Location Name", searchable: true, exportable: true },
 			},
 			{
@@ -287,44 +292,45 @@ export default function LocationPage() {
 			{
 				id: "actions",
 				header: "",
-				cell: ({ row }) => (
-					<DropdownMenu>
-						<DropdownMenuTrigger asChild>
-							<Button
-								variant="ghost"
-								className="h-8 w-8 p-0"
-								aria-label={`Open actions for ${row.original.name}`}
-							>
-								<span className="sr-only">
-									Open actions for {row.original.name}
-								</span>
-								<MoreHorizontal className="h-4 w-4" />
-							</Button>
-						</DropdownMenuTrigger>
-						<DropdownMenuContent align="end">
-							<DropdownMenuLabel>Actions</DropdownMenuLabel>
-							<DropdownMenuSeparator />
-							<DropdownMenuItem asChild>
-								<Link href={`/asset/locations/form?id=${row.original.id}`}>
-									<Edit className="mr-2 h-4 w-4" />
-									Edit Location
-								</Link>
-							</DropdownMenuItem>
-							<DropdownMenuSeparator />
-							<DropdownMenuItem
-								onClick={() => handleDelete(row.original.id)}
-								className="text-destructive"
-							>
-								<Trash className="mr-2 h-4 w-4" />
-								Delete Location
-							</DropdownMenuItem>
-						</DropdownMenuContent>
-					</DropdownMenu>
-				),
+				cell: ({ row }) =>
+					canWrite ? (
+						<DropdownMenu>
+							<DropdownMenuTrigger asChild>
+								<Button
+									variant="ghost"
+									className="h-8 w-8 p-0"
+									aria-label={`Open actions for ${row.original.name}`}
+								>
+									<span className="sr-only">
+										Open actions for {row.original.name}
+									</span>
+									<MoreHorizontal className="h-4 w-4" />
+								</Button>
+							</DropdownMenuTrigger>
+							<DropdownMenuContent align="end">
+								<DropdownMenuLabel>Actions</DropdownMenuLabel>
+								<DropdownMenuSeparator />
+								<DropdownMenuItem asChild>
+									<Link href={`/asset/locations/form?id=${row.original.id}`}>
+										<Edit className="mr-2 h-4 w-4" />
+										Edit Location
+									</Link>
+								</DropdownMenuItem>
+								<DropdownMenuSeparator />
+								<DropdownMenuItem
+									onClick={() => handleDelete(row.original.id)}
+									className="text-destructive"
+								>
+									<Trash className="mr-2 h-4 w-4" />
+									Delete Location
+								</DropdownMenuItem>
+							</DropdownMenuContent>
+						</DropdownMenu>
+					) : null,
 				enableSorting: false,
 			},
 		],
-		[handleDelete],
+		[canWrite, handleDelete],
 	);
 
 	const handleReload = React.useCallback(async () => {
@@ -488,6 +494,7 @@ export default function LocationPage() {
 						onReload={handleReload}
 						search={search}
 						groupFilter={groupFilter}
+						canWrite={canWrite}
 					/>
 				)}
 			</div>
@@ -504,6 +511,7 @@ function LocationTable(props: {
 	onReload: () => void | Promise<void>;
 	search: string;
 	groupFilter: GroupFilter;
+	canWrite: boolean;
 }) {
 	const { table } = useAdvancedDataTable<LocationRow>({
 		data: props.data,
@@ -530,13 +538,15 @@ function LocationTable(props: {
 			enableColumnResizing
 			ariaLabel="Location table"
 			primaryAction={
-				<Link
-					href="/asset/locations/form"
-					className={cn(buttonVariants({ variant: "default", size: "sm" }))}
-				>
-					<Plus className="mr-2 h-4 w-4" />
-					Add Location
-				</Link>
+				props.canWrite ? (
+					<Link
+						href="/asset/locations/form"
+						className={cn(buttonVariants({ variant: "default", size: "sm" }))}
+					>
+						<Plus className="mr-2 h-4 w-4" />
+						Add Location
+					</Link>
+				) : undefined
 			}
 			emptyState={
 				<div className="flex flex-col items-center gap-2 py-12">
@@ -546,7 +556,7 @@ function LocationTable(props: {
 							? "No locations match your filters"
 							: "No locations yet"}
 					</p>
-					{!props.search && props.groupFilter === "all" && (
+					{!props.search && props.groupFilter === "all" && props.canWrite && (
 						<Link
 							href="/asset/locations/form"
 							className={cn(

@@ -39,6 +39,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DataTableColumnHeader } from "@/components/ui/table/data-table-column-header";
+import { useAssetWriteAccess } from "@/hooks/use-asset-write-access";
 import { getToastMessage } from "@/lib/errors";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
@@ -72,6 +73,7 @@ function AssetCategoriesRealtimeSubscription({
 
 export default function AssetCategoryPage() {
 	const utils = trpc.useUtils();
+	const canWrite = useAssetWriteAccess();
 
 	const [search, setSearch] = React.useState("");
 	const [pagination, setPagination] = React.useState<PaginationState>({
@@ -215,14 +217,17 @@ export default function AssetCategoryPage() {
 				header: ({ column }) => (
 					<DataTableColumnHeader column={column} title="Category Name" />
 				),
-				cell: ({ row }) => (
-					<Link
-						href={`/asset/categories/form?id=${row.original.id}`}
-						className="font-medium text-primary hover:underline"
-					>
-						{row.original.name}
-					</Link>
-				),
+				cell: ({ row }) =>
+					canWrite ? (
+						<Link
+							href={`/asset/categories/form?id=${row.original.id}`}
+							className="font-medium text-primary hover:underline"
+						>
+							{row.original.name}
+						</Link>
+					) : (
+						<span className="font-medium">{row.original.name}</span>
+					),
 				meta: {
 					label: "Category Name",
 					searchable: true,
@@ -284,44 +289,45 @@ export default function AssetCategoryPage() {
 			{
 				id: "actions",
 				header: "",
-				cell: ({ row }) => (
-					<DropdownMenu>
-						<DropdownMenuTrigger asChild>
-							<Button
-								variant="ghost"
-								className="h-8 w-8 p-0"
-								aria-label={`Open actions for ${row.original.name}`}
-							>
-								<span className="sr-only">
-									Open actions for {row.original.name}
-								</span>
-								<MoreHorizontal className="h-4 w-4" />
-							</Button>
-						</DropdownMenuTrigger>
-						<DropdownMenuContent align="end">
-							<DropdownMenuLabel>Actions</DropdownMenuLabel>
-							<DropdownMenuSeparator />
-							<DropdownMenuItem asChild>
-								<Link href={`/asset/categories/form?id=${row.original.id}`}>
-									<Edit className="mr-2 h-4 w-4" />
-									Edit Category
-								</Link>
-							</DropdownMenuItem>
-							<DropdownMenuSeparator />
-							<DropdownMenuItem
-								onClick={() => handleDelete(row.original.id)}
-								className="text-destructive"
-							>
-								<Trash className="mr-2 h-4 w-4" />
-								Delete Category
-							</DropdownMenuItem>
-						</DropdownMenuContent>
-					</DropdownMenu>
-				),
+				cell: ({ row }) =>
+					canWrite ? (
+						<DropdownMenu>
+							<DropdownMenuTrigger asChild>
+								<Button
+									variant="ghost"
+									className="h-8 w-8 p-0"
+									aria-label={`Open actions for ${row.original.name}`}
+								>
+									<span className="sr-only">
+										Open actions for {row.original.name}
+									</span>
+									<MoreHorizontal className="h-4 w-4" />
+								</Button>
+							</DropdownMenuTrigger>
+							<DropdownMenuContent align="end">
+								<DropdownMenuLabel>Actions</DropdownMenuLabel>
+								<DropdownMenuSeparator />
+								<DropdownMenuItem asChild>
+									<Link href={`/asset/categories/form?id=${row.original.id}`}>
+										<Edit className="mr-2 h-4 w-4" />
+										Edit Category
+									</Link>
+								</DropdownMenuItem>
+								<DropdownMenuSeparator />
+								<DropdownMenuItem
+									onClick={() => handleDelete(row.original.id)}
+									className="text-destructive"
+								>
+									<Trash className="mr-2 h-4 w-4" />
+									Delete Category
+								</DropdownMenuItem>
+							</DropdownMenuContent>
+						</DropdownMenu>
+					) : null,
 				enableSorting: false,
 			},
 		],
-		[handleDelete],
+		[canWrite, handleDelete],
 	);
 
 	const handleReload = React.useCallback(async () => {
@@ -465,6 +471,7 @@ export default function AssetCategoryPage() {
 						onPaginationChange={setPagination}
 						onReload={handleReload}
 						search={search}
+						canWrite={canWrite}
 					/>
 				)}
 			</div>
@@ -480,6 +487,7 @@ function AssetCategoryTable(props: {
 	onPaginationChange: (pagination: PaginationState) => void;
 	onReload: () => void | Promise<void>;
 	search: string;
+	canWrite: boolean;
 }) {
 	const { table } = useAdvancedDataTable<CategoryRow>({
 		data: props.data,
@@ -506,13 +514,15 @@ function AssetCategoryTable(props: {
 			enableColumnResizing
 			ariaLabel="Asset category table"
 			primaryAction={
-				<Link
-					href="/asset/categories/form"
-					className={cn(buttonVariants({ variant: "default", size: "sm" }))}
-				>
-					<Plus className="mr-2 h-4 w-4" />
-					Add Category
-				</Link>
+				props.canWrite ? (
+					<Link
+						href="/asset/categories/form"
+						className={cn(buttonVariants({ variant: "default", size: "sm" }))}
+					>
+						<Plus className="mr-2 h-4 w-4" />
+						Add Category
+					</Link>
+				) : undefined
 			}
 			emptyState={
 				<div className="flex flex-col items-center gap-2 py-12">
@@ -522,7 +532,7 @@ function AssetCategoryTable(props: {
 							? "No categories match your filters"
 							: "No asset categories yet"}
 					</p>
-					{!props.search && (
+					{!props.search && props.canWrite && (
 						<Link
 							href="/asset/categories/form"
 							className={cn(

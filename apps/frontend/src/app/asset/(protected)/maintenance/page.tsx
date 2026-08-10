@@ -41,6 +41,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DataTableColumnHeader } from "@/components/ui/table/data-table-column-header";
+import { useAssetWriteAccess } from "@/hooks/use-asset-write-access";
 import { getToastMessage } from "@/lib/errors";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
@@ -92,6 +93,7 @@ function getOverallStatus(
 
 export default function AssetMaintenancePage() {
 	const utils = trpc.useUtils();
+	const canWrite = useAssetWriteAccess();
 
 	const [search, setSearch] = React.useState("");
 	const [pagination, setPagination] = React.useState<PaginationState>({
@@ -246,14 +248,17 @@ export default function AssetMaintenancePage() {
 				header: ({ column }) => (
 					<DataTableColumnHeader column={column} title="Asset" />
 				),
-				cell: ({ row }) => (
-					<Link
-						href={`/asset/maintenance/form?id=${row.original.id}`}
-						className="font-medium text-primary hover:underline"
-					>
-						{row.original.assetName}
-					</Link>
-				),
+				cell: ({ row }) =>
+					canWrite ? (
+						<Link
+							href={`/asset/maintenance/form?id=${row.original.id}`}
+							className="font-medium text-primary hover:underline"
+						>
+							{row.original.assetName}
+						</Link>
+					) : (
+						<span className="font-medium">{row.original.assetName}</span>
+					),
 				meta: {
 					label: "Asset",
 					searchable: true,
@@ -349,44 +354,45 @@ export default function AssetMaintenancePage() {
 			{
 				id: "actions",
 				header: "",
-				cell: ({ row }) => (
-					<DropdownMenu>
-						<DropdownMenuTrigger asChild>
-							<Button
-								variant="ghost"
-								className="h-8 w-8 p-0"
-								aria-label={`Open actions for ${row.original.assetName}`}
-							>
-								<span className="sr-only">
-									Open actions for {row.original.assetName}
-								</span>
-								<MoreHorizontal className="h-4 w-4" />
-							</Button>
-						</DropdownMenuTrigger>
-						<DropdownMenuContent align="end">
-							<DropdownMenuLabel>Actions</DropdownMenuLabel>
-							<DropdownMenuSeparator />
-							<DropdownMenuItem asChild>
-								<Link href={`/asset/maintenance/form?id=${row.original.id}`}>
-									<Edit className="mr-2 h-4 w-4" />
-									Edit Maintenance
-								</Link>
-							</DropdownMenuItem>
-							<DropdownMenuSeparator />
-							<DropdownMenuItem
-								onClick={() => handleDelete(row.original.id)}
-								className="text-destructive"
-							>
-								<Trash className="mr-2 h-4 w-4" />
-								Delete Maintenance
-							</DropdownMenuItem>
-						</DropdownMenuContent>
-					</DropdownMenu>
-				),
+				cell: ({ row }) =>
+					canWrite ? (
+						<DropdownMenu>
+							<DropdownMenuTrigger asChild>
+								<Button
+									variant="ghost"
+									className="h-8 w-8 p-0"
+									aria-label={`Open actions for ${row.original.assetName}`}
+								>
+									<span className="sr-only">
+										Open actions for {row.original.assetName}
+									</span>
+									<MoreHorizontal className="h-4 w-4" />
+								</Button>
+							</DropdownMenuTrigger>
+							<DropdownMenuContent align="end">
+								<DropdownMenuLabel>Actions</DropdownMenuLabel>
+								<DropdownMenuSeparator />
+								<DropdownMenuItem asChild>
+									<Link href={`/asset/maintenance/form?id=${row.original.id}`}>
+										<Edit className="mr-2 h-4 w-4" />
+										Edit Maintenance
+									</Link>
+								</DropdownMenuItem>
+								<DropdownMenuSeparator />
+								<DropdownMenuItem
+									onClick={() => handleDelete(row.original.id)}
+									className="text-destructive"
+								>
+									<Trash className="mr-2 h-4 w-4" />
+									Delete Maintenance
+								</DropdownMenuItem>
+							</DropdownMenuContent>
+						</DropdownMenu>
+					) : null,
 				enableSorting: false,
 			},
 		],
-		[handleDelete],
+		[canWrite, handleDelete],
 	);
 
 	const handleReload = React.useCallback(async () => {
@@ -542,6 +548,7 @@ export default function AssetMaintenancePage() {
 						onPaginationChange={setPagination}
 						onReload={handleReload}
 						search={search}
+						canWrite={canWrite}
 					/>
 				)}
 			</div>
@@ -557,6 +564,7 @@ function AssetMaintenanceTable(props: {
 	onPaginationChange: (pagination: PaginationState) => void;
 	onReload: () => void | Promise<void>;
 	search: string;
+	canWrite: boolean;
 }) {
 	const { table } = useAdvancedDataTable<MaintenanceRow>({
 		data: props.data,
@@ -583,13 +591,15 @@ function AssetMaintenanceTable(props: {
 			enableColumnResizing
 			ariaLabel="Asset maintenance table"
 			primaryAction={
-				<Link
-					href="/asset/maintenance/form"
-					className={cn(buttonVariants({ variant: "default", size: "sm" }))}
-				>
-					<Plus className="mr-2 h-4 w-4" />
-					Add Maintenance
-				</Link>
+				props.canWrite ? (
+					<Link
+						href="/asset/maintenance/form"
+						className={cn(buttonVariants({ variant: "default", size: "sm" }))}
+					>
+						<Plus className="mr-2 h-4 w-4" />
+						Add Maintenance
+					</Link>
+				) : undefined
 			}
 			emptyState={
 				<div className="flex flex-col items-center gap-2 py-12">
@@ -599,7 +609,7 @@ function AssetMaintenanceTable(props: {
 							? "No records match your filters"
 							: "No asset maintenance records yet"}
 					</p>
-					{!props.search && (
+					{!props.search && props.canWrite && (
 						<Link
 							href="/asset/maintenance/form"
 							className={cn(

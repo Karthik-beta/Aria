@@ -12,6 +12,7 @@ import {
 import { AssetMovementDialog } from "@/components/asset/movement-dialog";
 import { Button } from "@/components/ui/button";
 import { ErrorState } from "@/components/ui/error-display";
+import { useAssetWriteAccess } from "@/hooks/use-asset-write-access";
 import { getToastMessage } from "@/lib/errors";
 import { trpc } from "@/lib/trpc";
 import { formatDateLabel } from "../reports/fixed-asset-register/fixed-asset-register.utils";
@@ -22,6 +23,7 @@ import { formatDateLabel } from "../reports/fixed-asset-register/fixed-asset-reg
  */
 export default function AssetMovementsPage() {
 	const [dialogOpen, setDialogOpen] = React.useState(false);
+	const canWrite = useAssetWriteAccess();
 
 	const { data, error, isLoading, refetch } =
 		trpc.asset.listAssetMovements.useQuery({});
@@ -81,7 +83,7 @@ export default function AssetMovementsPage() {
 				header: "Actions",
 				cell: ({ row }) => {
 					const m = row.original;
-					if (m.status === "DRAFT") {
+					if (canWrite && m.status === "DRAFT") {
 						return (
 							<Button
 								size="sm"
@@ -92,7 +94,7 @@ export default function AssetMovementsPage() {
 							</Button>
 						);
 					}
-					if (m.status === "SUBMITTED") {
+					if (canWrite && m.status === "SUBMITTED") {
 						return (
 							<Button
 								size="sm"
@@ -108,7 +110,7 @@ export default function AssetMovementsPage() {
 				},
 			},
 		],
-		[submitMutation, cancelMutation],
+		[canWrite, submitMutation, cancelMutation],
 	);
 
 	const { table } = useAdvancedDataTable<Asset.AssetMovement>({
@@ -128,13 +130,15 @@ export default function AssetMovementsPage() {
 						receipts.
 					</p>
 				</div>
-				<Button
-					onClick={() => setDialogOpen(true)}
-					className="flex items-center gap-2"
-				>
-					<Plus className="h-4 w-4" />
-					New Movement
-				</Button>
+				{canWrite && (
+					<Button
+						onClick={() => setDialogOpen(true)}
+						className="flex items-center gap-2"
+					>
+						<Plus className="h-4 w-4" />
+						New Movement
+					</Button>
+				)}
 			</div>
 
 			{isLoading ? (
@@ -156,7 +160,9 @@ export default function AssetMovementsPage() {
 				/>
 			)}
 
-			<AssetMovementDialog open={dialogOpen} onOpenChange={setDialogOpen} />
+			{canWrite && (
+				<AssetMovementDialog open={dialogOpen} onOpenChange={setDialogOpen} />
+			)}
 		</div>
 	);
 }

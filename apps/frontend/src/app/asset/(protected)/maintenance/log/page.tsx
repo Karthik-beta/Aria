@@ -62,6 +62,7 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DataTableColumnHeader } from "@/components/ui/table/data-table-column-header";
+import { useAssetWriteAccess } from "@/hooks/use-asset-write-access";
 import { getToastMessage } from "@/lib/errors";
 import { trpc } from "@/lib/trpc";
 import {
@@ -269,6 +270,7 @@ function CompleteLogDialog({
 
 export default function AssetMaintenanceLogPage() {
 	const utils = trpc.useUtils();
+	const canWrite = useAssetWriteAccess();
 
 	const [search, setSearch] = React.useState("");
 	const [statusFilter, setStatusFilter] = React.useState<
@@ -542,6 +544,7 @@ export default function AssetMaintenanceLogPage() {
 				id: "actions",
 				enableHiding: false,
 				cell: ({ row }) => {
+					if (!canWrite) return null;
 					const log = row.original;
 					const canComplete = canCompleteLog(log.maintenanceStatus);
 					const canCancel = canCancelLog(log.maintenanceStatus);
@@ -589,7 +592,7 @@ export default function AssetMaintenanceLogPage() {
 				},
 			},
 		],
-		[handleCompleteLog, handleCancelLog],
+		[canWrite, handleCompleteLog, handleCancelLog],
 	);
 
 	return (
@@ -609,7 +612,7 @@ export default function AssetMaintenanceLogPage() {
 			/>
 
 			{/* Complete log dialog — only mount when there's a log to complete */}
-			{logToComplete !== null && (
+			{canWrite && logToComplete !== null && (
 				<CompleteLogDialog
 					logId={logToComplete?.id ?? null}
 					logLabel={logToComplete?.label ?? ""}

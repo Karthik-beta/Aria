@@ -12,6 +12,7 @@ import {
 import { AssetRepairDialog } from "@/components/asset/repair-form";
 import { Button } from "@/components/ui/button";
 import { ErrorState } from "@/components/ui/error-display";
+import { useAssetWriteAccess } from "@/hooks/use-asset-write-access";
 import { getToastMessage } from "@/lib/errors";
 import { trpc } from "@/lib/trpc";
 import { formatCurrency } from "../reports/fixed-asset-register/fixed-asset-register.utils";
@@ -22,6 +23,7 @@ import { formatCurrency } from "../reports/fixed-asset-register/fixed-asset-regi
  */
 export default function AssetRepairsPage() {
 	const [dialogOpen, setDialogOpen] = React.useState(false);
+	const canWrite = useAssetWriteAccess();
 
 	const { data, error, isLoading, refetch } =
 		trpc.asset.listAssetRepairs.useQuery({});
@@ -86,7 +88,7 @@ export default function AssetRepairsPage() {
 				header: "Actions",
 				cell: ({ row }) => {
 					const r = row.original;
-					if (r.repairStatus === "PENDING") {
+					if (canWrite && r.repairStatus === "PENDING") {
 						return (
 							<Button
 								size="sm"
@@ -97,7 +99,7 @@ export default function AssetRepairsPage() {
 							</Button>
 						);
 					}
-					if (r.repairStatus === "COMPLETED") {
+					if (canWrite && r.repairStatus === "COMPLETED") {
 						return (
 							<Button
 								size="sm"
@@ -113,7 +115,7 @@ export default function AssetRepairsPage() {
 				},
 			},
 		],
-		[submitMutation, cancelMutation],
+		[canWrite, submitMutation, cancelMutation],
 	);
 
 	const { table } = useAdvancedDataTable<Asset.AssetRepairItem>({
@@ -133,13 +135,15 @@ export default function AssetRepairsPage() {
 						capitalization.
 					</p>
 				</div>
-				<Button
-					onClick={() => setDialogOpen(true)}
-					className="flex items-center gap-2"
-				>
-					<Plus className="h-4 w-4" />
-					Record Repair
-				</Button>
+				{canWrite && (
+					<Button
+						onClick={() => setDialogOpen(true)}
+						className="flex items-center gap-2"
+					>
+						<Plus className="h-4 w-4" />
+						Record Repair
+					</Button>
+				)}
 			</div>
 
 			{isLoading ? (
@@ -159,7 +163,9 @@ export default function AssetRepairsPage() {
 				/>
 			)}
 
-			<AssetRepairDialog open={dialogOpen} onOpenChange={setDialogOpen} />
+			{canWrite && (
+				<AssetRepairDialog open={dialogOpen} onOpenChange={setDialogOpen} />
+			)}
 		</div>
 	);
 }

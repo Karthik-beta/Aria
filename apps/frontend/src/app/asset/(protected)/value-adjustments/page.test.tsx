@@ -3,6 +3,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithProviders, screen, userEvent, waitFor } from "@/test/utils";
 import AssetValueAdjustmentPage from "./page";
 
+vi.mock("@/hooks/use-asset-write-access", () => ({
+	useAssetWriteAccess: () => true,
+}));
+
 const mockDeleteMutate = vi.fn();
 const mockSubmitMutate = vi.fn();
 const mockInvalidate = vi.fn().mockResolvedValue(undefined);

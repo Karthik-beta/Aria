@@ -40,6 +40,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DataTableColumnHeader } from "@/components/ui/table/data-table-column-header";
+import { useAssetWriteAccess } from "@/hooks/use-asset-write-access";
 import { getToastMessage } from "@/lib/errors";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
@@ -78,6 +79,7 @@ function MaintenanceTeamsRealtimeSubscription({
 
 export default function MaintenanceTeamPage() {
 	const utils = trpc.useUtils();
+	const canWrite = useAssetWriteAccess();
 
 	const [search, setSearch] = React.useState("");
 	const [pagination, setPagination] = React.useState<PaginationState>({
@@ -224,14 +226,17 @@ export default function MaintenanceTeamPage() {
 				header: ({ column }) => (
 					<DataTableColumnHeader column={column} title="Team Name" />
 				),
-				cell: ({ row }) => (
-					<Link
-						href={`/asset/maintenance-teams/form?id=${row.original.id}`}
-						className="font-medium text-primary hover:underline"
-					>
-						{row.original.name}
-					</Link>
-				),
+				cell: ({ row }) =>
+					canWrite ? (
+						<Link
+							href={`/asset/maintenance-teams/form?id=${row.original.id}`}
+							className="font-medium text-primary hover:underline"
+						>
+							{row.original.name}
+						</Link>
+					) : (
+						<span className="font-medium">{row.original.name}</span>
+					),
 				meta: {
 					label: "Team Name",
 					searchable: true,
@@ -299,46 +304,47 @@ export default function MaintenanceTeamPage() {
 			{
 				id: "actions",
 				header: "",
-				cell: ({ row }) => (
-					<DropdownMenu>
-						<DropdownMenuTrigger asChild>
-							<Button
-								variant="ghost"
-								className="h-8 w-8 p-0"
-								aria-label={`Open actions for ${row.original.name}`}
-							>
-								<span className="sr-only">
-									Open actions for {row.original.name}
-								</span>
-								<MoreHorizontal className="h-4 w-4" />
-							</Button>
-						</DropdownMenuTrigger>
-						<DropdownMenuContent align="end">
-							<DropdownMenuLabel>Actions</DropdownMenuLabel>
-							<DropdownMenuSeparator />
-							<DropdownMenuItem asChild>
-								<Link
-									href={`/asset/maintenance-teams/form?id=${row.original.id}`}
+				cell: ({ row }) =>
+					canWrite ? (
+						<DropdownMenu>
+							<DropdownMenuTrigger asChild>
+								<Button
+									variant="ghost"
+									className="h-8 w-8 p-0"
+									aria-label={`Open actions for ${row.original.name}`}
 								>
-									<Edit className="mr-2 h-4 w-4" />
-									Edit Team
-								</Link>
-							</DropdownMenuItem>
-							<DropdownMenuSeparator />
-							<DropdownMenuItem
-								onClick={() => handleDelete(row.original.id)}
-								className="text-destructive"
-							>
-								<Trash className="mr-2 h-4 w-4" />
-								Delete Team
-							</DropdownMenuItem>
-						</DropdownMenuContent>
-					</DropdownMenu>
-				),
+									<span className="sr-only">
+										Open actions for {row.original.name}
+									</span>
+									<MoreHorizontal className="h-4 w-4" />
+								</Button>
+							</DropdownMenuTrigger>
+							<DropdownMenuContent align="end">
+								<DropdownMenuLabel>Actions</DropdownMenuLabel>
+								<DropdownMenuSeparator />
+								<DropdownMenuItem asChild>
+									<Link
+										href={`/asset/maintenance-teams/form?id=${row.original.id}`}
+									>
+										<Edit className="mr-2 h-4 w-4" />
+										Edit Team
+									</Link>
+								</DropdownMenuItem>
+								<DropdownMenuSeparator />
+								<DropdownMenuItem
+									onClick={() => handleDelete(row.original.id)}
+									className="text-destructive"
+								>
+									<Trash className="mr-2 h-4 w-4" />
+									Delete Team
+								</DropdownMenuItem>
+							</DropdownMenuContent>
+						</DropdownMenu>
+					) : null,
 				enableSorting: false,
 			},
 		],
-		[handleDelete],
+		[canWrite, handleDelete],
 	);
 
 	const handleReload = React.useCallback(async () => {
@@ -499,6 +505,7 @@ export default function MaintenanceTeamPage() {
 						onPaginationChange={setPagination}
 						onReload={handleReload}
 						search={search}
+						canWrite={canWrite}
 					/>
 				)}
 			</div>
@@ -514,6 +521,7 @@ function MaintenanceTeamTable(props: {
 	onPaginationChange: (pagination: PaginationState) => void;
 	onReload: () => void | Promise<void>;
 	search: string;
+	canWrite: boolean;
 }) {
 	const { table } = useAdvancedDataTable<TeamRow>({
 		data: props.data,
@@ -540,13 +548,15 @@ function MaintenanceTeamTable(props: {
 			enableColumnResizing
 			ariaLabel="Asset maintenance team table"
 			primaryAction={
-				<Link
-					href="/asset/maintenance-teams/form"
-					className={cn(buttonVariants({ variant: "default", size: "sm" }))}
-				>
-					<Plus className="mr-2 h-4 w-4" />
-					Add Team
-				</Link>
+				props.canWrite ? (
+					<Link
+						href="/asset/maintenance-teams/form"
+						className={cn(buttonVariants({ variant: "default", size: "sm" }))}
+					>
+						<Plus className="mr-2 h-4 w-4" />
+						Add Team
+					</Link>
+				) : undefined
 			}
 			emptyState={
 				<div className="flex flex-col items-center gap-2 py-12">
@@ -556,7 +566,7 @@ function MaintenanceTeamTable(props: {
 							? "No teams match your filters"
 							: "No maintenance teams yet"}
 					</p>
-					{!props.search && (
+					{!props.search && props.canWrite && (
 						<Link
 							href="/asset/maintenance-teams/form"
 							className={cn(

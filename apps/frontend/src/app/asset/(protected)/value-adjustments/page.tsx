@@ -35,6 +35,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DataTableColumnHeader } from "@/components/ui/table/data-table-column-header";
+import { useAssetWriteAccess } from "@/hooks/use-asset-write-access";
 import { getToastMessage } from "@/lib/errors";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
@@ -92,6 +93,7 @@ function AssetValueAdjustmentsRealtimeSubscription({
 
 export default function AssetValueAdjustmentPage() {
 	const utils = trpc.useUtils();
+	const canWrite = useAssetWriteAccess();
 	const [search, setSearch] = React.useState("");
 	const [pagination, setPagination] = React.useState<PaginationState>({
 		pageIndex: 0,
@@ -278,14 +280,17 @@ export default function AssetValueAdjustmentPage() {
 				header: ({ column }) => (
 					<DataTableColumnHeader column={column} title="Adjustment" />
 				),
-				cell: ({ row }) => (
-					<Link
-						href={`/asset/value-adjustments/form?id=${row.original.id}`}
-						className="font-medium text-primary hover:underline"
-					>
-						{row.original.series}
-					</Link>
-				),
+				cell: ({ row }) =>
+					canWrite ? (
+						<Link
+							href={`/asset/value-adjustments/form?id=${row.original.id}`}
+							className="font-medium text-primary hover:underline"
+						>
+							{row.original.series}
+						</Link>
+					) : (
+						<span className="font-medium">{row.original.series}</span>
+					),
 				meta: {
 					label: "Adjustment",
 					searchable: true,
@@ -435,73 +440,79 @@ export default function AssetValueAdjustmentPage() {
 			{
 				id: "actions",
 				header: "",
-				cell: ({ row }) => (
-					<DropdownMenu>
-						<DropdownMenuTrigger asChild>
-							<Button
-								variant="ghost"
-								className="h-8 w-8 p-0"
-								aria-label={`Open actions for ${row.original.series}`}
-							>
-								<span className="sr-only">
-									Open actions for {row.original.series}
-								</span>
-								<MoreHorizontal className="h-4 w-4" />
-							</Button>
-						</DropdownMenuTrigger>
-						<DropdownMenuContent align="end">
-							<DropdownMenuLabel>Actions</DropdownMenuLabel>
-							<DropdownMenuSeparator />
-							<DropdownMenuItem asChild>
-								<Link
-									href={`/asset/value-adjustments/form?id=${row.original.id}`}
+				cell: ({ row }) =>
+					canWrite ? (
+						<DropdownMenu>
+							<DropdownMenuTrigger asChild>
+								<Button
+									variant="ghost"
+									className="h-8 w-8 p-0"
+									aria-label={`Open actions for ${row.original.series}`}
 								>
-									<Edit className="mr-2 h-4 w-4" />
-									{row.original.status === "DRAFT"
-										? "Edit Draft"
-										: "View Adjustment"}
-								</Link>
-							</DropdownMenuItem>
-							{row.original.status === "DRAFT" && (
-								<DropdownMenuItem
-									onClick={() => submitMutation.mutate({ id: row.original.id })}
-								>
-									<Send className="mr-2 h-4 w-4" />
-									Submit Adjustment
+									<span className="sr-only">
+										Open actions for {row.original.series}
+									</span>
+									<MoreHorizontal className="h-4 w-4" />
+								</Button>
+							</DropdownMenuTrigger>
+							<DropdownMenuContent align="end">
+								<DropdownMenuLabel>Actions</DropdownMenuLabel>
+								<DropdownMenuSeparator />
+								<DropdownMenuItem asChild>
+									<Link
+										href={`/asset/value-adjustments/form?id=${row.original.id}`}
+									>
+										<Edit className="mr-2 h-4 w-4" />
+										{row.original.status === "DRAFT"
+											? "Edit Draft"
+											: "View Adjustment"}
+									</Link>
 								</DropdownMenuItem>
-							)}
-							{row.original.status === "SUBMITTED" && (
-								<DropdownMenuItem
-									onClick={() =>
-										setPendingAction({ type: "cancel", id: row.original.id })
-									}
-									className="text-amber-700"
-								>
-									<RotateCcw className="mr-2 h-4 w-4" />
-									Cancel Adjustment
-								</DropdownMenuItem>
-							)}
-							{row.original.status === "DRAFT" && (
-								<>
-									<DropdownMenuSeparator />
+								{row.original.status === "DRAFT" && (
 									<DropdownMenuItem
 										onClick={() =>
-											setPendingAction({ type: "delete", id: row.original.id })
+											submitMutation.mutate({ id: row.original.id })
 										}
-										className="text-destructive"
 									>
-										<Trash className="mr-2 h-4 w-4" />
-										Delete Draft
+										<Send className="mr-2 h-4 w-4" />
+										Submit Adjustment
 									</DropdownMenuItem>
-								</>
-							)}
-						</DropdownMenuContent>
-					</DropdownMenu>
-				),
+								)}
+								{row.original.status === "SUBMITTED" && (
+									<DropdownMenuItem
+										onClick={() =>
+											setPendingAction({ type: "cancel", id: row.original.id })
+										}
+										className="text-amber-700"
+									>
+										<RotateCcw className="mr-2 h-4 w-4" />
+										Cancel Adjustment
+									</DropdownMenuItem>
+								)}
+								{row.original.status === "DRAFT" && (
+									<>
+										<DropdownMenuSeparator />
+										<DropdownMenuItem
+											onClick={() =>
+												setPendingAction({
+													type: "delete",
+													id: row.original.id,
+												})
+											}
+											className="text-destructive"
+										>
+											<Trash className="mr-2 h-4 w-4" />
+											Delete Draft
+										</DropdownMenuItem>
+									</>
+								)}
+							</DropdownMenuContent>
+						</DropdownMenu>
+					) : null,
 				enableSorting: false,
 			},
 		],
-		[submitMutation],
+		[canWrite, submitMutation],
 	);
 
 	const pageCount = Math.max(1, Math.ceil(totalCount / pagination.pageSize));
@@ -687,6 +698,7 @@ export default function AssetValueAdjustmentPage() {
 						onPaginationChange={setPagination}
 						onReload={handleReload}
 						search={search}
+						canWrite={canWrite}
 					/>
 				)}
 			</div>
@@ -702,6 +714,7 @@ function AssetValueAdjustmentTable(props: {
 	onPaginationChange: (pagination: PaginationState) => void;
 	onReload: () => void | Promise<void>;
 	search: string;
+	canWrite: boolean;
 }) {
 	const { table } = useAdvancedDataTable<AdjustmentRow>({
 		data: props.data,
@@ -728,13 +741,15 @@ function AssetValueAdjustmentTable(props: {
 			enableColumnResizing
 			ariaLabel="Asset value adjustment table"
 			primaryAction={
-				<Link
-					href="/asset/value-adjustments/form"
-					className={cn(buttonVariants({ variant: "default", size: "sm" }))}
-				>
-					<Plus className="mr-2 h-4 w-4" />
-					New Adjustment
-				</Link>
+				props.canWrite ? (
+					<Link
+						href="/asset/value-adjustments/form"
+						className={cn(buttonVariants({ variant: "default", size: "sm" }))}
+					>
+						<Plus className="mr-2 h-4 w-4" />
+						New Adjustment
+					</Link>
+				) : undefined
 			}
 			emptyState={
 				<div className="flex flex-col items-center gap-2 py-12">
@@ -744,7 +759,7 @@ function AssetValueAdjustmentTable(props: {
 							? "No adjustments match your filters"
 							: "No asset value adjustments yet"}
 					</p>
-					{!props.search && (
+					{!props.search && props.canWrite && (
 						<Link
 							href="/asset/value-adjustments/form"
 							className={cn(

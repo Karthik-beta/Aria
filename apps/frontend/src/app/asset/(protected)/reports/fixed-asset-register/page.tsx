@@ -2,7 +2,7 @@
 
 import type { Asset } from "@aria/types";
 import type { ColumnDef } from "@tanstack/react-table";
-import { BookOpen, Download, RotateCcw } from "lucide-react";
+import { Download, RotateCcw } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
 import { Bar, BarChart, CartesianGrid, Legend, XAxis, YAxis } from "recharts";
@@ -11,7 +11,7 @@ import {
 	downloadExcelBuffer,
 	useAdvancedDataTable,
 } from "@/components/advanced-data-table";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import {
 	Card,
 	CardContent,
@@ -37,7 +37,6 @@ import {
 } from "@/components/ui/select";
 import { DataTableColumnHeader } from "@/components/ui/table/data-table-column-header";
 import { trpc } from "@/lib/trpc";
-import { cn } from "@/lib/utils";
 import {
 	buildFixedAssetRegisterInput,
 	FIXED_ASSET_REGISTER_GROUP_BY_OPTIONS,
@@ -47,7 +46,6 @@ import {
 	getDateRangeError,
 	getDefaultFromDate,
 	getDefaultToDate,
-	renderOptionalText,
 } from "./fixed-asset-register.utils";
 
 const INITIAL_FILTERS: FixedAssetRegisterFilterState = {
@@ -98,9 +96,10 @@ function SummaryCard(props: {
 /**
  * Fixed Asset Register Report Page
  *
- * Provides statutory financial reporting for fixed assets with Net Book Value
+ * Provides an Asset-domain fixed asset subledger report with Net Book Value
  * calculations, dynamic grouping (by Category or Location), stacked bar chart visual trends,
- * and Excel report export capability.
+ * and Excel report export capability. Statutory general-ledger reporting remains outside
+ * this Asset module.
  */
 export default function FixedAssetRegisterReportPage() {
 	const [filters, setFilters] =
@@ -334,8 +333,8 @@ export default function FixedAssetRegisterReportPage() {
 						Fixed Asset Register
 					</h1>
 					<p className="text-sm text-muted-foreground">
-						Statutory fixed asset register with Net Book Value calculations and
-						trend analysis.
+						Asset-domain fixed asset register with Net Book Value calculations
+						and trend analysis.
 					</p>
 				</div>
 				<div className="flex items-center gap-2">
