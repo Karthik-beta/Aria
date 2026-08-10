@@ -40,23 +40,57 @@ function revisionTransaction(
 		accumulatedDepreciationAmount: number;
 	} | null>,
 ) {
-	const findMany = mock()
+	const findMany = mock(
+		async (_args: Prisma.AssetFinanceBookFindManyArgs) =>
+			[] as Array<{ id: string } | ReturnType<typeof book>>,
+	)
 		.mockResolvedValueOnce(books.map(({ id }) => ({ id })))
 		.mockResolvedValueOnce(books);
-	const findFirst = mock();
-	for (const entry of postedEntries) findFirst.mockResolvedValueOnce(entry);
-	const countEntries = mock(async () => 1);
-	const lock = mock(async () => []);
-	const updateSchedule = mock(async () => undefined);
-	const updateBook = mock(async () => undefined);
-	const createSchedule = mock(
-		async ({ data }: { data: { assetFinanceBookId: string } }) => ({
-			id: `revision-${data.assetFinanceBookId}`,
-		}),
+	const findFirst = mock(
+		async (
+			_args: Record<string, unknown>,
+		): Promise<{
+			scheduleDate: Date;
+			accumulatedDepreciationAmount: number;
+		} | null> => null,
 	);
-	const updateMany = mock(async () => ({ count: 0 }));
-	const findSchedule = mock();
-	const findFirstSchedule = mock();
+	for (const entry of postedEntries) findFirst.mockResolvedValueOnce(entry);
+	const countEntries = mock(async (_args: Record<string, unknown>) => 1);
+	const lock = mock(async (_query: unknown) => []);
+	const updateSchedule = mock(
+		async (_args: { where: { id: string }; data: Record<string, unknown> }) =>
+			undefined,
+	);
+	const updateBook = mock(
+		async (_args: { where: { id: string }; data: Record<string, unknown> }) =>
+			undefined,
+	);
+	type ScheduleCreateArgs = {
+		data: {
+			assetFinanceBookId: string;
+			entries?: { create?: unknown[] };
+			[key: string]: unknown;
+		};
+	};
+	const createScheduleCalls: ScheduleCreateArgs[] = [];
+	const createSchedule = mock(async (args: ScheduleCreateArgs) => {
+		createScheduleCalls.push(args);
+		return {
+			id: `revision-${args.data.assetFinanceBookId}`,
+		};
+	});
+	const updateMany = mock(
+		async (_args: {
+			where: Record<string, unknown>;
+			data: Record<string, unknown>;
+		}) => ({ count: 0 }),
+	);
+	const findSchedule = mock(
+		async (_args: Record<string, unknown>): Promise<unknown> => null,
+	);
+	const findFirstSchedule = mock(
+		async (_args: Record<string, unknown>): Promise<unknown> => null,
+	);
 
 	return {
 		transaction: {
@@ -81,6 +115,7 @@ function revisionTransaction(
 		updateMany,
 		findSchedule,
 		findFirstSchedule,
+		createScheduleCalls,
 	};
 }
 
@@ -138,7 +173,7 @@ describe("AssetDepreciationRevisionService", () => {
 				postingStatus: "PENDING",
 			},
 		});
-		expect(mocked.createSchedule.mock.calls[0]?.[0].data).toMatchObject({
+		expect(mocked.createScheduleCalls[0]?.data).toMatchObject({
 			assetFinanceBookId: "book-a",
 			previousScheduleId: "schedule-book-a",
 			revisionNumber: 3,
@@ -147,9 +182,10 @@ describe("AssetDepreciationRevisionService", () => {
 			openingAccumulatedDepreciation: 200,
 			notes: "Capital improvement",
 		});
-		expect(
-			mocked.createSchedule.mock.calls[0]?.[0].data.entries.create,
-		).not.toHaveLength(0);
+		const firstCreate = mocked.createScheduleCalls.at(0);
+		expect(firstCreate).toBeDefined();
+		if (!firstCreate) throw new Error("Expected a successor schedule.");
+		expect(firstCreate.data.entries?.create).not.toHaveLength(0);
 		expect(revisions).toEqual([
 			expect.objectContaining({
 				assetFinanceBookId: "book-a",
@@ -279,7 +315,7 @@ describe("AssetDepreciationRevisionService", () => {
 				expectedValueAfterUsefulLife: 40,
 			},
 		});
-		expect(mocked.createSchedule.mock.calls[0]?.[0].data).toMatchObject({
+		expect(mocked.createScheduleCalls[0]?.data).toMatchObject({
 			adjustmentId: "adjustment-1",
 			assetFinanceBookId: "book-b",
 			expectedValueAfterUsefulLife: 40,

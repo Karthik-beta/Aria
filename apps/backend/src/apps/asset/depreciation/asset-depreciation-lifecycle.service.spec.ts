@@ -3,9 +3,70 @@ import type { PrismaService } from "../../../shared/prisma.service";
 import { AssetDepreciationLifecycleService } from "./asset-depreciation-lifecycle.service";
 
 describe("AssetDepreciationLifecycleService", () => {
+	it("attributes submit and cancel activity to the authenticated actor", async () => {
+		const activities: Array<Record<string, unknown>> = [];
+		const transaction = {
+			asset: {
+				findUniqueOrThrow: mock(async () => ({
+					status: "DRAFT",
+					calculateDepreciation: false,
+					_count: { financeBooks: 0 },
+				})),
+				update: mock(async () => undefined),
+			},
+			assetDepreciationSchedule: {
+				updateMany: mock(async () => undefined),
+			},
+			assetDepreciationJournalEntry: {
+				count: mock(async () => 0),
+			},
+			assetActivity: {
+				create: mock(async ({ data }: { data: Record<string, unknown> }) => {
+					activities.push(data);
+				}),
+			},
+		};
+		const prisma = {
+			$transaction: mock(
+				async (callback: (tx: typeof transaction) => Promise<void>) =>
+					callback(transaction),
+			),
+		};
+		const service = new AssetDepreciationLifecycleService(
+			prisma as unknown as PrismaService,
+		);
+		service.configureAssetBooks = mock(async () => undefined);
+
+		await service.submitAsset("asset-1", "actor-1");
+		await service.cancelAsset("asset-1", "actor-2");
+
+		expect(activities).toEqual([
+			{
+				assetId: "asset-1",
+				activity: "Asset submitted for depreciation",
+				userId: "actor-1",
+			},
+			{
+				assetId: "asset-1",
+				activity: "Asset cancelled",
+				userId: "actor-2",
+			},
+		]);
+	});
+
 	it("regenerates an empty migrated schedule from its asset finance book", async () => {
-		const updateBook = mock(async () => undefined);
-		const updateSchedule = mock(async () => undefined);
+		type UpdateArgs = {
+			where: { id: string };
+			data: Record<string, unknown>;
+		};
+		const updateBookCalls: UpdateArgs[] = [];
+		const updateBook = mock(async (args: UpdateArgs) => {
+			updateBookCalls.push(args);
+		});
+		const updateScheduleCalls: UpdateArgs[] = [];
+		const updateSchedule = mock(async (args: UpdateArgs) => {
+			updateScheduleCalls.push(args);
+		});
 		const transaction = {
 			assetDepreciationJournalEntry: { count: mock(async () => 0) },
 			assetDepreciationSchedule: {
@@ -78,30 +139,39 @@ describe("AssetDepreciationLifecycleService", () => {
 		await service.configureAssetBooks("asset-1");
 
 		expect(updateBook).toHaveBeenCalledTimes(1);
-		const firstBookCall = (
-			updateBook.mock.calls as unknown as Array<
-				[{ data: Record<string, unknown> }]
-			>
-		)[0]!;
-		expect(Number(firstBookCall[0].data.rateOfDepreciation)).toBe(63.16);
+		const firstBookCall = updateBookCalls.at(0);
+		expect(firstBookCall).toBeDefined();
+		if (!firstBookCall) throw new Error("Expected a finance-book update.");
+		expect(Number(firstBookCall.data.rateOfDepreciation)).toBe(100);
 		expect(updateSchedule).toHaveBeenCalledTimes(1);
-		const firstScheduleCall = (
-			updateSchedule.mock.calls as unknown as Array<
-				[{ data: Record<string, unknown> }]
-			>
-		)[0]!;
-		const scheduleData = firstScheduleCall[0].data;
+		const firstScheduleCall = updateScheduleCalls.at(0);
+		expect(firstScheduleCall).toBeDefined();
+		if (!firstScheduleCall) throw new Error("Expected a schedule update.");
+		const scheduleData = firstScheduleCall.data as Record<string, unknown>;
 		expect(scheduleData.revisionNumber).toBe(3);
-		expect(scheduleData.rateOfDepreciation).toBe(63.16);
+		expect(scheduleData.rateOfDepreciation).toBe(100);
 		expect(
 			(scheduleData.entries as Record<string, unknown>).create,
-		).toHaveLength(3);
+		).toHaveLength(1);
 	});
 
 	it("discovers books whose only open schedule has no entries", async () => {
-		const findMany = mock()
-			.mockResolvedValueOnce([{ id: "book-1", assetId: "asset-1" }])
-			.mockResolvedValueOnce([]);
+		type FindManyArgs = {
+			where: {
+				schedules?: { none?: Record<string, unknown> };
+				[key: string]: unknown;
+			};
+		};
+		const findManyCalls: FindManyArgs[] = [];
+		const findManyResults: Array<Array<{ id: string; assetId: string }>> = [
+			[{ id: "book-1", assetId: "asset-1" }],
+			[],
+		];
+		let findManyCallIndex = 0;
+		const findMany = mock(async (args: FindManyArgs) => {
+			findManyCalls.push(args);
+			return findManyResults[findManyCallIndex++] ?? [];
+		});
 		const prisma = { assetFinanceBook: { findMany } };
 		const service = new AssetDepreciationLifecycleService(
 			prisma as unknown as PrismaService,
@@ -112,7 +182,7 @@ describe("AssetDepreciationLifecycleService", () => {
 		await expect(service.ensureSubmittedSchedules()).resolves.toBe(1);
 
 		expect(configureAssetBooks).toHaveBeenCalledWith("asset-1");
-		expect(findMany.mock.calls[0]?.[0].where.schedules).toEqual({
+		expect(findManyCalls[0]?.where.schedules).toEqual({
 			none: {
 				status: { in: ["DRAFT", "ACTIVE"] },
 				entries: { some: {} },

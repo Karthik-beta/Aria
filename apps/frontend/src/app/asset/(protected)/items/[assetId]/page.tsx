@@ -33,9 +33,11 @@ import {
 } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useAssetWriteAccess } from "@/hooks/use-asset-write-access";
 import { getToastMessage } from "@/lib/errors";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
+import { normalizeDepreciationSchedules } from "./depreciation-schedule.utils";
 
 const STATUS_BADGE_CLASS: Record<string, string> = {
 	DRAFT:
@@ -82,6 +84,7 @@ export default function AssetDetailPage() {
 	const [_isPending, startTransition] = React.useTransition();
 	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
 	const [isDisposalDialogOpen, setIsDisposalDialogOpen] = React.useState(false);
+	const canWrite = useAssetWriteAccess();
 
 	const { data: rawData, isLoading } = trpc.asset.getAssetById.useQuery(
 		{ id: assetId },
@@ -97,6 +100,10 @@ export default function AssetDetailPage() {
 	} = trpc.asset.getAssetDepreciationSchedules.useQuery({ assetId });
 
 	const asset = rawData as Asset.AssetItem | undefined;
+	const schedules = React.useMemo(
+		() => normalizeDepreciationSchedules(depreciationSchedules?.items),
+		[depreciationSchedules?.items],
+	);
 
 	const deleteMutation = trpc.asset.deleteAsset.useMutation({
 		onSuccess: () => {
@@ -219,7 +226,7 @@ export default function AssetDetailPage() {
 						<Badge className={`${badgeClass} border-0`}>
 							{formatStatus(asset.status)}
 						</Badge>
-						{asset.status === "DRAFT" && (
+						{canWrite && asset.status === "DRAFT" && (
 							<Button
 								size="sm"
 								onClick={() => submitMutation.mutate({ id: asset.id })}
@@ -228,30 +235,32 @@ export default function AssetDetailPage() {
 								Submit
 							</Button>
 						)}
-						{["SUBMITTED", "PARTIALLY_DEPRECIATED"].includes(asset.status) && (
-							<Button
-								size="sm"
-								variant="outline"
-								onClick={() => cancelMutation.mutate({ id: asset.id })}
-								disabled={cancelMutation.isPending}
-							>
-								Cancel Asset
-							</Button>
-						)}
+						{canWrite &&
+							["SUBMITTED", "PARTIALLY_DEPRECIATED"].includes(asset.status) && (
+								<Button
+									size="sm"
+									variant="outline"
+									onClick={() => cancelMutation.mutate({ id: asset.id })}
+									disabled={cancelMutation.isPending}
+								>
+									Cancel Asset
+								</Button>
+							)}
 						{[
 							"SUBMITTED",
 							"PARTIALLY_DEPRECIATED",
 							"FULLY_DEPRECIATED",
-						].includes(asset.status) && (
-							<Button
-								size="sm"
-								variant="destructive"
-								onClick={() => setIsDisposalDialogOpen(true)}
-							>
-								Dispose
-							</Button>
-						)}
-						{["SOLD", "SCRAPPED"].includes(asset.status) && (
+						].includes(asset.status) &&
+							canWrite && (
+								<Button
+									size="sm"
+									variant="destructive"
+									onClick={() => setIsDisposalDialogOpen(true)}
+								>
+									Dispose
+								</Button>
+							)}
+						{canWrite && ["SOLD", "SCRAPPED"].includes(asset.status) && (
 							<Button
 								size="sm"
 								variant="outline"
@@ -261,21 +270,25 @@ export default function AssetDetailPage() {
 								{restoreMutation.isPending ? "Restoring..." : "Restore"}
 							</Button>
 						)}
-						<Link
-							href={`/asset/items/form?id=${asset.id}`}
-							className={buttonVariants({ variant: "outline", size: "sm" })}
-						>
-							<Edit className="mr-2 h-4 w-4" />
-							Edit
-						</Link>
-						<Button
-							variant="destructive"
-							size="sm"
-							onClick={() => setIsDeleteDialogOpen(true)}
-						>
-							<Trash className="mr-2 h-4 w-4" />
-							Delete
-						</Button>
+						{canWrite && (
+							<Link
+								href={`/asset/items/form?id=${asset.id}`}
+								className={buttonVariants({ variant: "outline", size: "sm" })}
+							>
+								<Edit className="mr-2 h-4 w-4" />
+								Edit
+							</Link>
+						)}
+						{canWrite && (
+							<Button
+								variant="destructive"
+								size="sm"
+								onClick={() => setIsDeleteDialogOpen(true)}
+							>
+								<Trash className="mr-2 h-4 w-4" />
+								Delete
+							</Button>
+						)}
 					</div>
 				</div>
 
@@ -349,7 +362,7 @@ export default function AssetDetailPage() {
 					)}
 
 					<DepreciationSchedulesCard
-						schedules={depreciationSchedules?.items ?? []}
+						schedules={schedules}
 						financeBooks={asset.financeBooks ?? []}
 						isLoading={schedulesLoading}
 						errorMessage={schedulesError?.message}

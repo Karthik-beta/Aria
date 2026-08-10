@@ -1,4 +1,5 @@
 import { describe, expect, it, mock } from "bun:test";
+import type { Prisma } from "../../../generated/prisma/client";
 import type { PrismaService } from "../../../shared/prisma.service";
 import { FixedAssetRegisterReportService } from "../fixed-asset-register-report";
 
@@ -63,7 +64,9 @@ describe("FixedAssetRegisterReportService", () => {
 			},
 		];
 
-		const findMany = mock(async () => mockAssets);
+		const findMany = mock(
+			async (_args: Prisma.AssetFindManyArgs) => mockAssets,
+		);
 		const prismaMock = {
 			asset: {
 				findMany,
@@ -99,6 +102,26 @@ describe("FixedAssetRegisterReportService", () => {
 		expect(janPoint?.depreciatedAmount).toBe(1000);
 
 		const findManyInput = findMany.mock.calls[0]?.[0];
+		if (
+			!findManyInput ||
+			!findManyInput.include ||
+			typeof findManyInput.include === "boolean"
+		) {
+			throw new Error("Expected an Asset include query");
+		}
+		const depreciationSchedules = findManyInput.include.depreciationSchedules;
+		if (
+			!depreciationSchedules ||
+			typeof depreciationSchedules === "boolean" ||
+			!depreciationSchedules.include ||
+			typeof depreciationSchedules.include === "boolean"
+		) {
+			throw new Error("Expected depreciation schedule entries query");
+		}
+		const entries = depreciationSchedules.include.entries;
+		if (!entries || typeof entries === "boolean" || !entries.where) {
+			throw new Error("Expected depreciation schedule entry filter");
+		}
 		expect(findManyInput.where).toMatchObject({
 			purchaseDate: {
 				gte: new Date("2026-01-01T00:00:00.000Z"),
@@ -106,9 +129,7 @@ describe("FixedAssetRegisterReportService", () => {
 			},
 			status: { notIn: ["DRAFT", "CANCELLED"] },
 		});
-		expect(
-			findManyInput.include.depreciationSchedules.include.entries.where,
-		).toMatchObject({
+		expect(entries.where).toMatchObject({
 			postingId: { not: null },
 			scheduleDate: {
 				gte: new Date("2026-01-01T00:00:00.000Z"),
