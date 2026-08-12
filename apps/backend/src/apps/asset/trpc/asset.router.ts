@@ -119,7 +119,11 @@ export class AssetRouter {
 			createAsset: assetWriteProcedure
 				.input(Asset.createAssetSchema)
 				.mutation(async ({ input, ctx }) => {
-					const asset = await svc.createAsset(input, ctx.user.id);
+					const asset = await svc.createAsset(
+						input,
+						ctx.organization.id,
+						ctx.user.id,
+					);
 					this.eventEmitter.emit("assetsChanged", {
 						type: "created",
 						data: asset,
@@ -130,7 +134,11 @@ export class AssetRouter {
 			updateAsset: assetWriteProcedure
 				.input(Asset.updateAssetSchema)
 				.mutation(async ({ input, ctx }) => {
-					const asset = await svc.updateAsset(input, ctx.user.id);
+					const asset = await svc.updateAsset(
+						input,
+						ctx.organization.id,
+						ctx.user.id,
+					);
 					this.eventEmitter.emit("assetsChanged", {
 						type: "updated",
 						data: asset,

@@ -10,6 +10,13 @@ import type { DepreciationBarrierService } from "../depreciation/depreciation-ba
 
 const ORIGINAL_APP_TIME_ZONE = process.env.APP_TIME_ZONE;
 const COMPANY = "Acme Corp";
+const COMPANY_ID = "company-1";
+const ORGANIZATION_ID = "organization-1";
+const COMPANY_RELATION = {
+	id: COMPANY_ID,
+	name: COMPANY,
+	organizationId: ORGANIZATION_ID,
+};
 const FIXED_ASSET_ACCOUNT = "Plant and Machinery - ACME";
 const ACCUMULATED_DEPRECIATION_ACCOUNT = "Accumulated Depreciation - ACME";
 const GAIN_LOSS_ACCOUNT = "Gain or Loss on Asset Disposal - ACME";
@@ -26,7 +33,8 @@ function disposalRecord(overrides: Record<string, unknown> = {}) {
 		series: "DISP-2026-00001",
 		assetId: "asset-1",
 		asset: { assetName: "CNC Machine" },
-		company: COMPANY,
+		companyId: COMPANY_ID,
+		company: COMPANY_RELATION,
 		disposalDate: new Date("2026-01-15T00:00:00.000Z"),
 		disposalType: "SELL",
 		salesAmount: 8_500,
@@ -88,7 +96,8 @@ function repairRecord(overrides: Record<string, unknown> = {}) {
 		series: "REP-2026-00001",
 		assetId: "asset-1",
 		asset: { assetName: "CNC Machine" },
-		company: COMPANY,
+		companyId: COMPANY_ID,
+		company: COMPANY_RELATION,
 		failureDate: new Date("2026-02-01T00:00:00.000Z"),
 		completionDate: new Date("2026-02-15T00:00:00.000Z"),
 		repairStatus: "PENDING",
@@ -164,7 +173,8 @@ function capitalizationRecord(overrides: Record<string, unknown> = {}) {
 	return {
 		id: "capitalization-1",
 		series: "CAP-2026-00001",
-		company: COMPANY,
+		companyId: COMPANY_ID,
+		company: COMPANY_RELATION,
 		postingDate: new Date("2026-03-01T00:00:00.000Z"),
 		targetType: "EXISTING_ASSET",
 		targetAssetId: "target-asset-1",
@@ -205,7 +215,8 @@ function assetRecord(overrides: Record<string, unknown> = {}) {
 		barcode: null,
 		assetCategoryId: "category-1",
 		assetCategory: { id: "category-1", name: "Plant and Machinery" },
-		company: COMPANY,
+		companyId: COMPANY_ID,
+		company: COMPANY_RELATION,
 		locationId: null,
 		location: null,
 		custodian: null,
@@ -511,7 +522,7 @@ describe("Asset lifecycle actions", () => {
 			expect(accounting.createPostedEntry).toHaveBeenCalledWith(
 				mockPrisma._mockTx,
 				expect.objectContaining({
-					company: COMPANY,
+					companyId: COMPANY_ID,
 					assetId: "asset-1",
 					sourceType: "DISPOSAL",
 					postingDate: disposalDate,
@@ -742,7 +753,8 @@ describe("Asset lifecycle actions", () => {
 				.mockResolvedValueOnce({
 					id: "asset-b",
 					series: "AST-2025-00002",
-					company: COMPANY,
+					companyId: COMPANY_ID,
+					company: COMPANY_RELATION,
 					status: "SUBMITTED",
 					locationId: "loc-1",
 					custodian: null,
@@ -750,7 +762,8 @@ describe("Asset lifecycle actions", () => {
 				.mockResolvedValueOnce({
 					id: "asset-a",
 					series: "AST-2025-00001",
-					company: COMPANY,
+					companyId: COMPANY_ID,
+					company: COMPANY_RELATION,
 					status: "SUBMITTED",
 					locationId: "loc-1",
 					custodian: null,
@@ -759,7 +772,8 @@ describe("Asset lifecycle actions", () => {
 			mockPrisma._mockTx.assetMovement.create.mockResolvedValue({
 				id: "movement-1",
 				series: "MOV-2026-00001",
-				company: COMPANY,
+				companyId: COMPANY_ID,
+				company: COMPANY_RELATION,
 				transactionDate: new Date("2026-01-01T00:00:00.000Z"),
 				purpose: "ISSUE",
 				status: "DRAFT",
@@ -772,7 +786,7 @@ describe("Asset lifecycle actions", () => {
 			});
 
 			await service.createAssetMovement({
-				company: COMPANY,
+				companyId: COMPANY_ID,
 				transactionDate: new Date("2026-01-01T00:00:00.000Z"),
 				purpose: "ISSUE",
 				items: [
@@ -792,7 +806,7 @@ describe("Asset lifecycle actions", () => {
 
 			await expect(
 				service.createAssetMovement({
-					company: COMPANY,
+					companyId: COMPANY_ID,
 					transactionDate: new Date("2026-01-01T00:00:00.000Z"),
 					purpose: "TRANSFER",
 					items: [
@@ -808,7 +822,8 @@ describe("Asset lifecycle actions", () => {
 			mockPrisma._mockTx.asset.findUnique.mockResolvedValue({
 				id: "asset-1",
 				series: "AST-2025-00001",
-				company: "Other Corp",
+				companyId: "company-2",
+				company: { id: "company-2", name: "Other Corp" },
 				status: "SUBMITTED",
 				locationId: "loc-1",
 				custodian: null,
@@ -816,7 +831,7 @@ describe("Asset lifecycle actions", () => {
 
 			await expect(
 				service.createAssetMovement({
-					company: COMPANY,
+					companyId: COMPANY_ID,
 					transactionDate: new Date("2026-01-01T00:00:00.000Z"),
 					purpose: "TRANSFER",
 					items: [{ assetId: "asset-1", targetLocationId: "loc-2" }],
@@ -829,7 +844,8 @@ describe("Asset lifecycle actions", () => {
 			mockPrisma._mockTx.asset.findUnique.mockResolvedValue({
 				id: "asset-1",
 				series: "AST-2025-00001",
-				company: COMPANY,
+				companyId: COMPANY_ID,
+				company: COMPANY_RELATION,
 				status: "SUBMITTED",
 				locationId: "loc-1",
 				custodian: null,
@@ -840,7 +856,7 @@ describe("Asset lifecycle actions", () => {
 
 			await expect(
 				service.createAssetMovement({
-					company: COMPANY,
+					companyId: COMPANY_ID,
 					transactionDate: new Date("2026-01-01T00:00:00.000Z"),
 					purpose: "TRANSFER",
 					items: [{ assetId: "asset-1", targetLocationId: "loc-2" }],
@@ -853,7 +869,8 @@ describe("Asset lifecycle actions", () => {
 			mockPrisma.assetMovement.findUnique.mockResolvedValue({
 				id: "movement-1",
 				series: "MOV-2026-00001",
-				company: COMPANY,
+				companyId: COMPANY_ID,
+				company: COMPANY_RELATION,
 				status: "DRAFT",
 				items: [],
 			});
@@ -871,7 +888,8 @@ describe("Asset lifecycle actions", () => {
 			mockPrisma.assetMovement.findUnique.mockResolvedValue({
 				id: "movement-1",
 				series: "MOV-2026-00001",
-				company: COMPANY,
+				companyId: COMPANY_ID,
+				company: COMPANY_RELATION,
 				status: "DRAFT",
 				items: [
 					{
@@ -885,7 +903,8 @@ describe("Asset lifecycle actions", () => {
 				],
 			});
 			mockPrisma._mockTx.asset.findUniqueOrThrow.mockResolvedValue({
-				company: COMPANY,
+				companyId: COMPANY_ID,
+				company: COMPANY_RELATION,
 				locationId: "loc-1",
 				custodian: "Emp A",
 				series: "AST-2025-00001",
@@ -893,7 +912,8 @@ describe("Asset lifecycle actions", () => {
 			mockPrisma._mockTx.assetMovement.findUniqueOrThrow.mockResolvedValue({
 				id: "movement-1",
 				series: "MOV-2026-00001",
-				company: COMPANY,
+				companyId: COMPANY_ID,
+				company: COMPANY_RELATION,
 				transactionDate: new Date("2026-01-01T00:00:00.000Z"),
 				purpose: "TRANSFER",
 				status: "SUBMITTED",
@@ -919,7 +939,8 @@ describe("Asset lifecycle actions", () => {
 			mockPrisma.assetMovement.findUnique.mockResolvedValue({
 				id: "movement-1",
 				series: "MOV-2026-00001",
-				company: COMPANY,
+				companyId: COMPANY_ID,
+				company: COMPANY_RELATION,
 				transactionDate: new Date("2026-01-01T00:00:00.000Z"),
 				purpose: "ISSUE",
 				status: "DRAFT",
@@ -935,7 +956,8 @@ describe("Asset lifecycle actions", () => {
 				],
 			});
 			mockPrisma._mockTx.asset.findUniqueOrThrow.mockResolvedValue({
-				company: COMPANY,
+				companyId: COMPANY_ID,
+				company: COMPANY_RELATION,
 				locationId: "loc-1",
 				custodian: "Emp A",
 				series: "AST-2025-00001",
@@ -945,7 +967,8 @@ describe("Asset lifecycle actions", () => {
 			mockPrisma._mockTx.assetMovement.findUniqueOrThrow.mockResolvedValue({
 				id: "movement-1",
 				series: "MOV-2026-00001",
-				company: COMPANY,
+				companyId: COMPANY_ID,
+				company: COMPANY_RELATION,
 				transactionDate: new Date("2026-01-01T00:00:00.000Z"),
 				purpose: "ISSUE",
 				status: "SUBMITTED",
@@ -970,7 +993,8 @@ describe("Asset lifecycle actions", () => {
 			mockPrisma.assetMovement.findUnique.mockResolvedValue({
 				id: "movement-1",
 				series: "MOV-2026-00001",
-				company: COMPANY,
+				companyId: COMPANY_ID,
+				company: COMPANY_RELATION,
 				status: "SUBMITTED",
 				items: [
 					{
@@ -983,14 +1007,16 @@ describe("Asset lifecycle actions", () => {
 				],
 			});
 			mockPrisma._mockTx.asset.findUniqueOrThrow.mockResolvedValue({
-				company: COMPANY,
+				companyId: COMPANY_ID,
+				company: COMPANY_RELATION,
 				series: "AST-2025-00001",
 			});
 			mockPrisma._mockTx.assetMovement.findFirst.mockResolvedValue(null);
 			mockPrisma._mockTx.assetMovement.findUniqueOrThrow.mockResolvedValue({
 				id: "movement-1",
 				series: "MOV-2026-00001",
-				company: COMPANY,
+				companyId: COMPANY_ID,
+				company: COMPANY_RELATION,
 				transactionDate: new Date("2026-01-01T00:00:00.000Z"),
 				purpose: "TRANSFER",
 				status: "CANCELLED",
@@ -1015,7 +1041,8 @@ describe("Asset lifecycle actions", () => {
 			mockPrisma.assetMovement.findUnique.mockResolvedValue({
 				id: "movement-1",
 				series: "MOV-2026-00001",
-				company: COMPANY,
+				companyId: COMPANY_ID,
+				company: COMPANY_RELATION,
 				status: "SUBMITTED",
 				items: [
 					{
@@ -1028,7 +1055,8 @@ describe("Asset lifecycle actions", () => {
 				],
 			});
 			mockPrisma._mockTx.asset.findUniqueOrThrow.mockResolvedValue({
-				company: COMPANY,
+				companyId: COMPANY_ID,
+				company: COMPANY_RELATION,
 				series: "AST-2025-00001",
 			});
 			mockPrisma._mockTx.assetMovement.findFirst.mockResolvedValue({
@@ -1037,7 +1065,8 @@ describe("Asset lifecycle actions", () => {
 			mockPrisma._mockTx.assetMovement.findUniqueOrThrow.mockResolvedValue({
 				id: "movement-1",
 				series: "MOV-2026-00001",
-				company: COMPANY,
+				companyId: COMPANY_ID,
+				company: COMPANY_RELATION,
 				transactionDate: new Date("2026-01-01T00:00:00.000Z"),
 				purpose: "TRANSFER",
 				status: "CANCELLED",
@@ -1062,7 +1091,8 @@ describe("Asset lifecycle actions", () => {
 			mockPrisma.assetMovement.findUnique.mockResolvedValue({
 				id: "movement-1",
 				series: "MOV-2026-00001",
-				company: COMPANY,
+				companyId: COMPANY_ID,
+				company: COMPANY_RELATION,
 				status: "SUBMITTED",
 				items: [
 					{
@@ -1075,7 +1105,8 @@ describe("Asset lifecycle actions", () => {
 				],
 			});
 			mockPrisma._mockTx.asset.findUniqueOrThrow.mockResolvedValue({
-				company: COMPANY,
+				companyId: COMPANY_ID,
+				company: COMPANY_RELATION,
 				series: "AST-2025-00001",
 				locationId: "loc-3",
 			});
@@ -1085,7 +1116,8 @@ describe("Asset lifecycle actions", () => {
 			mockPrisma._mockTx.assetMovement.findUniqueOrThrow.mockResolvedValue({
 				id: "movement-1",
 				series: "MOV-2026-00001",
-				company: COMPANY,
+				companyId: COMPANY_ID,
+				company: COMPANY_RELATION,
 				transactionDate: new Date("2026-01-01T00:00:00.000Z"),
 				purpose: "TRANSFER",
 				status: "CANCELLED",
@@ -1110,7 +1142,8 @@ describe("Asset lifecycle actions", () => {
 			mockPrisma.assetMovement.findUnique.mockResolvedValue({
 				id: "movement-1",
 				series: "MOV-2026-00001",
-				company: COMPANY,
+				companyId: COMPANY_ID,
+				company: COMPANY_RELATION,
 				status: "DRAFT",
 				items: [
 					{
@@ -1124,7 +1157,8 @@ describe("Asset lifecycle actions", () => {
 				],
 			});
 			mockPrisma._mockTx.asset.findUniqueOrThrow.mockResolvedValue({
-				company: COMPANY,
+				companyId: COMPANY_ID,
+				company: COMPANY_RELATION,
 				locationId: "loc-9",
 				custodian: "Emp A",
 				series: "AST-2025-00001",
@@ -1147,7 +1181,7 @@ describe("Asset lifecycle actions", () => {
 
 			const result = await service.createAssetRepair({
 				assetId: "asset-1",
-				company: COMPANY,
+				companyId: COMPANY_ID,
 				failureDate: new Date("2026-02-01T00:00:00.000Z"),
 				completionDate: new Date("2026-02-15T00:00:00.000Z"),
 				capitalizeRepairCost: true,
@@ -1189,12 +1223,15 @@ describe("Asset lifecycle actions", () => {
 		it("rejects company, chronology, and duplicate-open-repair violations", async () => {
 			const wrongCompany = createTestContext();
 			wrongCompany.mockPrisma._mockTx.asset.findUnique.mockResolvedValue(
-				assetRecord({ company: "Other Corp" }),
+				assetRecord({
+					companyId: "company-2",
+					company: { id: "company-2", name: "Other Corp" },
+				}),
 			);
 			await expect(
 				wrongCompany.service.createAssetRepair({
 					assetId: "asset-1",
-					company: COMPANY,
+					companyId: COMPANY_ID,
 					failureDate: new Date("2026-02-01T00:00:00.000Z"),
 					capitalizeRepairCost: false,
 					increaseInAssetLife: 0,
@@ -1210,7 +1247,7 @@ describe("Asset lifecycle actions", () => {
 			await expect(
 				badDate.service.createAssetRepair({
 					assetId: "asset-1",
-					company: COMPANY,
+					companyId: COMPANY_ID,
 					failureDate: new Date("2026-02-01T00:00:00.000Z"),
 					capitalizeRepairCost: false,
 					increaseInAssetLife: 0,
@@ -1229,7 +1266,7 @@ describe("Asset lifecycle actions", () => {
 			await expect(
 				duplicate.service.createAssetRepair({
 					assetId: "asset-1",
-					company: COMPANY,
+					companyId: COMPANY_ID,
 					failureDate: new Date("2026-02-01T00:00:00.000Z"),
 					capitalizeRepairCost: false,
 					increaseInAssetLife: 0,
@@ -1286,7 +1323,7 @@ describe("Asset lifecycle actions", () => {
 			expect(stockPosting.createMaterialIssue).toHaveBeenCalledWith(
 				mockPrisma._mockTx,
 				{
-					company: COMPANY,
+					companyId: COMPANY_ID,
 					postingDate: completionDate,
 					sourceType: "ASSET_REPAIR",
 					sourceId: "repair-1",
@@ -1546,7 +1583,7 @@ describe("Asset lifecycle actions", () => {
 			const duplicate = createTestContext();
 			await expect(
 				duplicate.service.createAssetCapitalization({
-					company: COMPANY,
+					companyId: COMPANY_ID,
 					postingDate: new Date("2026-03-01T00:00:00.000Z"),
 					targetType: "EXISTING_ASSET",
 					targetAssetId: "target-asset-1",
@@ -1562,7 +1599,7 @@ describe("Asset lifecycle actions", () => {
 			const sameTarget = createTestContext();
 			await expect(
 				sameTarget.service.createAssetCapitalization({
-					company: COMPANY,
+					companyId: COMPANY_ID,
 					postingDate: new Date("2026-03-01T00:00:00.000Z"),
 					targetType: "EXISTING_ASSET",
 					targetAssetId: "source-asset-1",
@@ -1576,7 +1613,8 @@ describe("Asset lifecycle actions", () => {
 		it("uses server-derived source carrying values when creating capitalization", async () => {
 			const { service, mockPrisma } = createTestContext();
 			mockPrisma._mockTx.asset.findUnique.mockResolvedValue({
-				company: COMPANY,
+				companyId: COMPANY_ID,
+				company: COMPANY_RELATION,
 				series: "AST-2026-00010",
 				assetName: "Composite Machine",
 				itemCode: "COMPOSITE-MACHINE",
@@ -1589,7 +1627,8 @@ describe("Asset lifecycle actions", () => {
 				{
 					id: "source-asset-1",
 					series: "AST-2025-00001",
-					company: COMPANY,
+					companyId: COMPANY_ID,
+					company: COMPANY_RELATION,
 					status: "PARTIALLY_DEPRECIATED",
 					purchaseDate: new Date("2025-01-01T00:00:00.000Z"),
 					availableForUseDate: new Date("2025-01-01T00:00:00.000Z"),
@@ -1601,7 +1640,7 @@ describe("Asset lifecycle actions", () => {
 			);
 
 			await service.createAssetCapitalization({
-				company: COMPANY,
+				companyId: COMPANY_ID,
 				postingDate: new Date("2026-03-01T00:00:00.000Z"),
 				targetType: "EXISTING_ASSET",
 				targetAssetId: "target-asset-1",
@@ -1628,7 +1667,8 @@ describe("Asset lifecycle actions", () => {
 		it("rejects a cross-company target and an ineligible source date", async () => {
 			const crossCompany = createTestContext();
 			crossCompany.mockPrisma._mockTx.asset.findUnique.mockResolvedValue({
-				company: "Other Corp",
+				companyId: "company-2",
+				company: { id: "company-2", name: "Other Corp" },
 				series: "AST-2026-00010",
 				status: "DRAFT",
 				assetType: "COMPOSITE_ASSET",
@@ -1636,7 +1676,7 @@ describe("Asset lifecycle actions", () => {
 			});
 			await expect(
 				crossCompany.service.createAssetCapitalization({
-					company: COMPANY,
+					companyId: COMPANY_ID,
 					postingDate: new Date("2026-03-01T00:00:00.000Z"),
 					targetType: "EXISTING_ASSET",
 					targetAssetId: "target-asset-1",
@@ -1650,7 +1690,8 @@ describe("Asset lifecycle actions", () => {
 
 			const early = createTestContext();
 			early.mockPrisma._mockTx.asset.findUnique.mockResolvedValue({
-				company: COMPANY,
+				companyId: COMPANY_ID,
+				company: COMPANY_RELATION,
 				series: "AST-2026-00010",
 				assetName: "Composite Machine",
 				itemCode: "COMPOSITE-MACHINE",
@@ -1663,7 +1704,8 @@ describe("Asset lifecycle actions", () => {
 				{
 					id: "source-asset-1",
 					series: "AST-2025-00001",
-					company: COMPANY,
+					companyId: COMPANY_ID,
+					company: COMPANY_RELATION,
 					status: "SUBMITTED",
 					purchaseDate: new Date("2026-04-01T00:00:00.000Z"),
 					availableForUseDate: new Date("2026-04-01T00:00:00.000Z"),
@@ -1672,7 +1714,7 @@ describe("Asset lifecycle actions", () => {
 			]);
 			await expect(
 				early.service.createAssetCapitalization({
-					company: COMPANY,
+					companyId: COMPANY_ID,
 					postingDate: new Date("2026-03-01T00:00:00.000Z"),
 					targetType: "EXISTING_ASSET",
 					targetAssetId: "target-asset-1",
@@ -1705,7 +1747,8 @@ describe("Asset lifecycle actions", () => {
 				{
 					id: "source-asset-1",
 					series: "AST-2025-00001",
-					company: COMPANY,
+					companyId: COMPANY_ID,
+					company: COMPANY_RELATION,
 					assetCategoryId: "category-1",
 					status: "PARTIALLY_DEPRECIATED",
 					disposalDate: null,
@@ -1716,7 +1759,8 @@ describe("Asset lifecycle actions", () => {
 			mockPrisma._mockTx.asset.findUnique.mockResolvedValue({
 				id: "target-asset-1",
 				series: "AST-2026-00010",
-				company: COMPANY,
+				companyId: COMPANY_ID,
+				company: COMPANY_RELATION,
 				assetCategoryId: "category-1",
 				status: "DRAFT",
 				assetType: "COMPOSITE_ASSET",
@@ -1846,7 +1890,8 @@ describe("Asset lifecycle actions", () => {
 			mockPrisma._mockTx.asset.create.mockResolvedValue({
 				id: "new-target-1",
 				series: "AST-2026-00020",
-				company: COMPANY,
+				companyId: COMPANY_ID,
+				company: COMPANY_RELATION,
 				assetCategoryId: "category-1",
 				status: "DRAFT",
 				calculateDepreciation: false,
@@ -1875,7 +1920,7 @@ describe("Asset lifecycle actions", () => {
 				expect.objectContaining({
 					data: expect.objectContaining({
 						itemCode: "COMPOSITE-MACHINE",
-						company: COMPANY,
+						companyId: COMPANY_ID,
 						netPurchaseAmount: 0,
 						calculateDepreciation: false,
 						status: "DRAFT",

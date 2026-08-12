@@ -16,14 +16,14 @@ import { dateOnlyUtc, normalizeDateOnly } from "./depreciation.config";
 
 interface CwipDiscoveryCandidate {
 	id: string;
-	company: string;
+	companyId: string;
 	availableForUseDate: Date;
 	assetCategory: {
 		enableCwipAccounting: boolean;
 		accounts: Array<{
 			fixedAssetAccount: string;
 			capitalWorkInProgressAccount: string | null;
-			company: { name: string };
+			companyId: string;
 		}>;
 	} | null;
 }
@@ -71,7 +71,7 @@ export class CwipCapitalizationDiscoveryService {
 				},
 				select: {
 					id: true,
-					company: true,
+					companyId: true,
 					availableForUseDate: true,
 					assetCategory: {
 						select: {
@@ -80,7 +80,7 @@ export class CwipCapitalizationDiscoveryService {
 								select: {
 									fixedAssetAccount: true,
 									capitalWorkInProgressAccount: true,
-									company: { select: { name: true } },
+									companyId: true,
 								},
 							},
 						},
@@ -140,7 +140,7 @@ export class CwipCapitalizationDiscoveryService {
 		if (!asset.assetCategory?.enableCwipAccounting) return false;
 		return asset.assetCategory.accounts.some(
 			(account) =>
-				account.company.name === asset.company &&
+				account.companyId === asset.companyId &&
 				account.fixedAssetAccount.trim().length > 0 &&
 				Boolean(account.capitalWorkInProgressAccount?.trim()),
 		);

@@ -69,7 +69,7 @@ export function AssetRepairDialog({
 		) as Resolver<Asset.CreateAssetRepairInput>,
 		defaultValues: {
 			assetId: "",
-			company: "",
+			companyId: "",
 			failureDate: new Date(),
 			completionDate: null,
 			capitalizeRepairCost: false,
@@ -107,7 +107,7 @@ export function AssetRepairDialog({
 			form.setError("assetId", { message: "Select an asset." });
 			return;
 		}
-		createMutation.mutate({ ...values, company: selectedAsset.company });
+		createMutation.mutate({ ...values, companyId: selectedAsset.companyId });
 	};
 
 	return (
@@ -133,9 +133,9 @@ export function AssetRepairDialog({
 										onValueChange={(assetId) => {
 											field.onChange(assetId);
 											form.setValue(
-												"company",
+												"companyId",
 												assetsList.find((asset) => asset.id === assetId)
-													?.company ?? "",
+													?.companyId ?? "",
 												{ shouldValidate: true },
 											);
 										}}

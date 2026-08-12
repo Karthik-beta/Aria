@@ -30,7 +30,7 @@ export function toCreateMaintenanceTeamInput(
 		name: values.name.trim(),
 		maintenanceManager: values.maintenanceManager?.trim() || null,
 		maintenanceManagerName: values.maintenanceManagerName?.trim() || null,
-		company: values.company.trim(),
+		companyId: values.companyId.trim(),
 		members: values.members.map((m) => ({
 			teamMember: m.teamMember.trim(),
 			fullName: m.fullName.trim(),
@@ -51,7 +51,7 @@ export function toUpdateMaintenanceTeamInput(
 		name: values.name.trim(),
 		maintenanceManager: values.maintenanceManager?.trim() || null,
 		maintenanceManagerName: values.maintenanceManagerName?.trim() || null,
-		company: values.company.trim(),
+		companyId: values.companyId.trim(),
 		members: values.members.map((m) => ({
 			id: m.id,
 			teamMember: m.teamMember.trim(),

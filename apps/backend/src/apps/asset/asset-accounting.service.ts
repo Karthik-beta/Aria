@@ -26,7 +26,7 @@ export interface AssetAccountingLineInput {
 }
 
 export interface CreateAssetAccountingEntryInput {
-	company: string;
+	companyId: string;
 	assetId?: string | null;
 	sourceType: AssetAccountingSourceType;
 	sourceId: string;
@@ -57,12 +57,12 @@ export class AssetAccountingService {
 		tx: Prisma.TransactionClient,
 		input: CreateAssetAccountingEntryInput,
 	): Promise<AssetAccountingEntryResult> {
-		const company = input.company.trim();
+		const companyId = input.companyId.trim();
 		const sourceId = input.sourceId.trim();
 		const remarks = input.remarks.trim();
-		if (!company || !sourceId || !remarks) {
+		if (!companyId || !sourceId || !remarks) {
 			throw new BadRequestException(
-				"Company, source document, and remarks are required for asset accounting",
+				"Company ID, source document, and remarks are required for asset accounting",
 			);
 		}
 		if (Number.isNaN(input.postingDate.getTime())) {
@@ -120,12 +120,17 @@ export class AssetAccountingService {
 		}
 
 		const companyRecord = await tx.company.findUnique({
-			where: { name: company },
-			select: { disabled: true, accountsFrozenThrough: true },
+			where: { id: companyId },
+			select: {
+				id: true,
+				name: true,
+				disabled: true,
+				accountsFrozenThrough: true,
+			},
 		});
 		if (!companyRecord || companyRecord.disabled) {
 			throw new BadRequestException(
-				`Company ${company} is missing or disabled`,
+				`Company ${companyId} is missing or disabled`,
 			);
 		}
 		if (
@@ -170,7 +175,7 @@ export class AssetAccountingService {
 		return tx.assetAccountingEntry.create({
 			data: {
 				series,
-				company,
+				companyId: companyRecord.id,
 				assetId: input.assetId ?? null,
 				sourceType: input.sourceType,
 				sourceId,
@@ -197,7 +202,8 @@ export class AssetAccountingService {
 			where: { id: entryId },
 			select: {
 				status: true,
-				company: true,
+				companyId: true,
+				company: { select: { name: true } },
 				postingDate: true,
 			},
 		});
@@ -213,11 +219,13 @@ export class AssetAccountingService {
 			);
 		}
 		const company = await tx.company.findUnique({
-			where: { name: existing.company },
+			where: { id: existing.companyId },
 			select: { accountsFrozenThrough: true },
 		});
 		if (!company) {
-			throw new BadRequestException(`Company ${existing.company} is missing`);
+			throw new BadRequestException(
+				`Company ${existing.company.name} is missing`,
+			);
 		}
 		if (
 			company.accountsFrozenThrough &&

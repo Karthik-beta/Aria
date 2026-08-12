@@ -7,6 +7,7 @@ import type { Prisma } from "../../generated/prisma/client";
 export type PrismaCompany = Prisma.CompanyGetPayload<{
 	select: {
 		id: true;
+		organizationId: true;
 		name: true;
 		abbreviation: true;
 		country: true;
@@ -34,6 +35,7 @@ export type PrismaCompany = Prisma.CompanyGetPayload<{
  */
 export const companySelect = {
 	id: true,
+	organizationId: true,
 	name: true,
 	abbreviation: true,
 	country: true,
@@ -61,6 +63,7 @@ export const companySelect = {
 export function toCompany(raw: PrismaCompany): Company.CompanyItem {
 	return {
 		id: raw.id,
+		organizationId: raw.organizationId,
 		name: raw.name,
 		abbreviation: raw.abbreviation ?? null,
 		country: raw.country ?? null,

@@ -24,7 +24,7 @@ const baseTask = {
 
 const baseFormValues = {
 	assetId: "  clh0001aaabbbccc  ",
-	company: "  ACME Corp  ",
+	companyId: "  company-acme  ",
 	maintenanceTeamId: "  clh0002aaabbbccc  ",
 	maintenanceManager: "  manager@example.com  ",
 	maintenanceManagerName: "  Manager Name  ",
@@ -99,7 +99,7 @@ describe("asset-maintenance.utils", () => {
 			const result = toCreateAssetMaintenanceInput(baseFormValues);
 
 			expect(result.assetId).toBe("clh0001aaabbbccc");
-			expect(result.company).toBe("ACME Corp");
+			expect(result.companyId).toBe("company-acme");
 			expect(result.maintenanceTeamId).toBe("clh0002aaabbbccc");
 			expect(result.maintenanceManager).toBe("manager@example.com");
 			expect(result.maintenanceManagerName).toBe("Manager Name");
@@ -143,7 +143,7 @@ describe("asset-maintenance.utils", () => {
 			);
 
 			expect(result.id).toBe("clhrecord001");
-			expect(result.company).toBe("ACME Corp");
+			expect(result.companyId).toBe("company-acme");
 		});
 
 		it("preserves task id in update payload", () => {

@@ -88,7 +88,7 @@ type AssetRouterInput = {
 			assetName: string;
 			itemCode?: string | null | undefined;
 			assetCategoryId?: string | null | undefined;
-			company: string;
+			companyId: string;
 			locationId?: string | null | undefined;
 			custodian?: string | null | undefined;
 			department?: string | null | undefined;
@@ -126,7 +126,7 @@ type AssetRouterInput = {
 			assetName?: string | undefined;
 			itemCode?: string | null | undefined;
 			assetCategoryId?: string | null | undefined;
-			company?: string | undefined;
+			companyId?: string | undefined;
 			locationId?: string | null | undefined;
 			custodian?: string | null | undefined;
 			department?: string | null | undefined;
@@ -447,7 +447,7 @@ type AssetRouterInput = {
 			name: string;
 			maintenanceManager?: string | null | undefined;
 			maintenanceManagerName?: string | null | undefined;
-			company: string;
+			companyId: string;
 			members: Array<{
 				teamMember: string;
 				fullName: string;
@@ -463,7 +463,7 @@ type AssetRouterInput = {
 			name?: string | undefined;
 			maintenanceManager?: string | null | undefined;
 			maintenanceManagerName?: string | null | undefined;
-			company?: string | undefined;
+			companyId?: string | undefined;
 			members?:
 				| Array<{
 						id?: string | undefined;
@@ -546,7 +546,7 @@ type AssetRouterInput = {
 	createAssetMaintenance: TRPCMutationProcedure<{
 		input: {
 			assetId: string;
-			company: string;
+			companyId: string;
 			maintenanceTeamId: string;
 			maintenanceManager?: string | null | undefined;
 			maintenanceManagerName?: string | null | undefined;
@@ -571,7 +571,7 @@ type AssetRouterInput = {
 	updateAssetMaintenance: TRPCMutationProcedure<{
 		input: {
 			id: string;
-			company?: string | undefined;
+			companyId?: string | undefined;
 			maintenanceTeamId?: string | undefined;
 			maintenanceManager?: string | null | undefined;
 			maintenanceManagerName?: string | null | undefined;
@@ -704,7 +704,7 @@ type AssetRouterInput = {
 	// ── Asset Movement ───────────────────────────────────────────────
 	createAssetMovement: TRPCMutationProcedure<{
 		input: {
-			company: string;
+			companyId: string;
 			transactionDate: unknown;
 			purpose: Asset.AssetMovementPurpose;
 			notes?: string | null | undefined;
@@ -744,7 +744,7 @@ type AssetRouterInput = {
 	createAssetRepair: TRPCMutationProcedure<{
 		input: {
 			assetId: string;
-			company: string;
+			companyId: string;
 			failureDate: unknown;
 			completionDate?: unknown;
 			capitalizeRepairCost?: boolean | undefined;
@@ -794,7 +794,7 @@ type AssetRouterInput = {
 	// ── Asset Capitalization ─────────────────────────────────────────
 	createAssetCapitalization: TRPCMutationProcedure<{
 		input: {
-			company: string;
+			companyId: string;
 			postingDate: unknown;
 			targetType: Asset.AssetCapitalizationTargetType;
 			targetAssetId?: string | null | undefined;

@@ -1,6 +1,6 @@
 export interface DemoDepreciationScope {
 	throughDate: Date;
-	company?: string;
+	companyId?: string;
 	assetIds?: readonly string[];
 }
 

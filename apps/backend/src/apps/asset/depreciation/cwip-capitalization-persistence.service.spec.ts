@@ -3,6 +3,8 @@ import type { PrismaService } from "../../../shared/prisma.service";
 import type { AssetAccountingService } from "../asset-accounting.service";
 import { CwipCapitalizationPersistenceService } from "./cwip-capitalization-persistence.service";
 
+const COMPANY_ID = "company-1";
+
 const job = {
 	version: 1 as const,
 	assetId: "asset-1",
@@ -13,7 +15,7 @@ function qualifiedAsset(overrides: Record<string, unknown> = {}) {
 	return {
 		id: "asset-1",
 		series: "ACC-ASS-2026-00001",
-		company: "Pivotr Technologies Private Limited",
+		companyId: COMPANY_ID,
 		status: "SUBMITTED",
 		availableForUseDate: new Date("2026-08-09T00:00:00.000Z"),
 		netPurchaseAmount: "5250.000000",
@@ -24,6 +26,7 @@ function qualifiedAsset(overrides: Record<string, unknown> = {}) {
 				{
 					fixedAssetAccount: "Plant and Machinery - PTPL",
 					capitalWorkInProgressAccount: "CWIP - PTPL",
+					companyId: COMPANY_ID,
 					company: { name: "Pivotr Technologies Private Limited" },
 				},
 			],
@@ -83,7 +86,7 @@ describe("CwipCapitalizationPersistenceService", () => {
 		});
 		expect(harness.queryRaw).toHaveBeenCalledTimes(1);
 		expect(harness.createPostedEntry).toHaveBeenCalledWith(expect.anything(), {
-			company: "Pivotr Technologies Private Limited",
+			companyId: COMPANY_ID,
 			assetId: "asset-1",
 			sourceType: "CWIP_CAPITALIZATION",
 			sourceId: "asset-1",

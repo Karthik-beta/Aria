@@ -36,6 +36,8 @@ import { seedFiscalYearData } from "./seed-fiscal-year.js";
 
 /** IDs collected during seeding, passed to transaction seeder */
 export interface MasterIds {
+	organizationId: string;
+	companyIds: Map<string, string>;
 	brandIds: Map<string, string>;
 	itemGroupIds: Map<string, string>;
 	attributeIds: Map<string, string>;
@@ -58,6 +60,8 @@ export async function seedMasterData(
 	config: DemoConfig,
 ): Promise<MasterIds> {
 	const ids: MasterIds = {
+		organizationId: "",
+		companyIds: new Map(),
 		brandIds: new Map(),
 		itemGroupIds: new Map(),
 		attributeIds: new Map(),
@@ -522,7 +526,9 @@ export async function seedMasterData(
 	});
 
 	// ── 12. Fiscal Year & Company (master data for all apps) ────
-	await seedFiscalYearData(prisma, config);
+	const fiscalYearIds = await seedFiscalYearData(prisma, config);
+	ids.organizationId = fiscalYearIds.organizationId;
+	ids.companyIds = fiscalYearIds.companyIds;
 
 	// ── 13. Asset Management Masters ───────────────────────────────
 	await seedAssetMasterData(prisma, config, ids);

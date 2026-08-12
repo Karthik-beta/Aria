@@ -37,7 +37,9 @@ export class FixedAssetRegisterReportService {
 		};
 
 		if (input.company) {
-			where.company = { contains: input.company, mode: "insensitive" };
+			where.company = {
+				is: { name: { contains: input.company, mode: "insensitive" } },
+			};
 		}
 		if (input.assetCategory) {
 			where.assetCategory = {
@@ -54,6 +56,7 @@ export class FixedAssetRegisterReportService {
 			where,
 			include: {
 				assetCategory: { select: { id: true, name: true } },
+				company: { select: { name: true } },
 				location: { select: { id: true, name: true } },
 				valueAdjustments: {
 					where: {
@@ -176,7 +179,7 @@ export class FixedAssetRegisterReportService {
 				assetCategoryName: asset.assetCategory?.name ?? null,
 				locationId: asset.location?.id ?? null,
 				locationName: asset.location?.name ?? null,
-				company: asset.company,
+				company: asset.company.name,
 				purchaseDate: asset.purchaseDate,
 				availableForUseDate: asset.availableForUseDate ?? null,
 				status: asset.status as Asset.AssetStatus,

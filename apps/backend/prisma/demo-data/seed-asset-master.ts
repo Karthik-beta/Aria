@@ -50,11 +50,19 @@ export async function seedAssetMasterData(
 ): Promise<void> {
 	const categoryDefaults = getCategoryDefaultsByName();
 	const assetSeriesCounters = new Map<number, number>();
+	const companyId = ids.companyIds.get(config.company);
+	if (!companyId) {
+		throw new Error(
+			`Company "${config.company}" was not created during fiscal-year seeding`,
+		);
+	}
 	const [financeBook, company] = await Promise.all([
 		prisma.financeBook.findUniqueOrThrow({
 			where: { name: DEMO_FINANCE_BOOK_NAME },
 		}),
-		prisma.company.findUniqueOrThrow({ where: { name: config.company } }),
+		prisma.company.findFirstOrThrow({
+			where: { id: companyId, organizationId: ids.organizationId },
+		}),
 	]);
 
 	async function getNextAssetSeries(year: number): Promise<string> {
@@ -213,7 +221,7 @@ export async function seedAssetMasterData(
 				name: team.name,
 				maintenanceManager: team.maintenanceManager,
 				maintenanceManagerName: team.maintenanceManagerName,
-				company: config.company,
+				companyId: company.id,
 				members: {
 					create: team.members.map((member) => ({
 						teamMember: member.teamMember,
@@ -326,7 +334,7 @@ export async function seedAssetMasterData(
 				barcode: `BAR-${assetSeries}`,
 				assetCategoryId:
 					ids.assetCategoryIds.get(assetDef.assetCategory) ?? null,
-				company: config.company,
+				companyId: company.id,
 				locationId: assetDef.location
 					? (ids.assetLocationIds.get(assetDef.location) ?? null)
 					: null,

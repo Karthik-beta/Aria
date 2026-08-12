@@ -14,6 +14,7 @@ const existingTeam = {
 	name: "Alpha Team",
 	maintenanceManager: "manager@example.com",
 	maintenanceManagerName: "Manager Name",
+	companyId: "comp-2",
 	company: "ACME Corp",
 	members: [
 		{
@@ -217,7 +218,7 @@ describe("MaintenanceTeamFormPage", () => {
 
 		await waitFor(() => {
 			expect(mockCreateMutate).toHaveBeenCalledWith(
-				expect.objectContaining({ name: "New Team", company: "New Corp" }),
+				expect.objectContaining({ name: "New Team", companyId: "comp-1" }),
 			);
 		});
 	});

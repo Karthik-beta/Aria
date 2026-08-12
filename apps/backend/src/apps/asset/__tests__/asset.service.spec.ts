@@ -22,6 +22,9 @@ function createMockPrisma() {
 			create: jest.fn(),
 			findMany: jest.fn(),
 		},
+		company: {
+			findFirst: jest.fn(),
+		},
 		documentSeriesCounter: {
 			findUnique: jest.fn(),
 			update: jest.fn(),
@@ -54,7 +57,8 @@ const mockAssetRow = {
 	itemCode: "LAP-001",
 	barcode: "1234567890",
 	assetCategoryId: "cat-123",
-	company: "Test Corp",
+	companyId: "company-123",
+	company: { id: "company-123", name: "Test Corp", organizationId: "org-1" },
 	locationId: "loc-123",
 	custodian: "Jane Doe",
 	department: "Engineering",
@@ -125,6 +129,11 @@ describe("AssetService > Barcode support", () => {
 
 	describe("createAsset with barcode and actor attribution", () => {
 		it("persists barcode and attributes assetActivity to the trusted actor", async () => {
+			mockPrisma.company.findFirst.mockResolvedValue({
+				id: "company-123",
+				name: "Test Corp",
+				disabled: false,
+			});
 			mockPrisma.assetCategory.findUnique.mockResolvedValue(null);
 			mockPrisma.documentSeriesCounter.findUnique.mockResolvedValue(null);
 			mockPrisma.asset.findFirst.mockResolvedValue(null);
@@ -132,16 +141,17 @@ describe("AssetService > Barcode support", () => {
 			mockPrisma.asset.findUniqueOrThrow.mockResolvedValue(mockAssetRow);
 			const input: Asset.CreateAssetInput = {
 				assetName: "Office Laptop",
-				company: "Test Corp",
+				companyId: "company-123",
 				barcode: "1234567890",
 			};
 
-			const result = await service.createAsset(input, "user-123");
+			const result = await service.createAsset(input, "org-1", "user-123");
 
 			expect(mockPrisma.asset.create).toHaveBeenCalledWith(
 				expect.objectContaining({
 					data: expect.objectContaining({
 						barcode: "1234567890",
+						companyId: "company-123",
 					}),
 				}),
 			);
@@ -155,6 +165,11 @@ describe("AssetService > Barcode support", () => {
 		});
 
 		it("atomically increments documentSeriesCounter when counter exists", async () => {
+			mockPrisma.company.findFirst.mockResolvedValue({
+				id: "company-123",
+				name: "Test Corp",
+				disabled: false,
+			});
 			mockPrisma.assetCategory.findUnique.mockResolvedValue(null);
 			mockPrisma.documentSeriesCounter.findUnique.mockResolvedValue({
 				value: 5,
@@ -169,10 +184,13 @@ describe("AssetService > Barcode support", () => {
 				series: "AST-2026-00006",
 			});
 
-			const result = await service.createAsset({
-				assetName: "Office Chair",
-				company: "Test Corp",
-			});
+			const result = await service.createAsset(
+				{
+					assetName: "Office Chair",
+					companyId: "company-123",
+				},
+				"org-1",
+			);
 
 			expect(mockPrisma.documentSeriesCounter.update).toHaveBeenCalledWith({
 				where: { key: "AST-2026-" },
@@ -184,6 +202,10 @@ describe("AssetService > Barcode support", () => {
 
 	describe("updateAsset with barcode and actor attribution", () => {
 		it("updates barcode and attributes activity to the trusted actor", async () => {
+			mockPrisma.company.findFirst.mockResolvedValue({
+				id: "company-123",
+				name: "Test Corp",
+			});
 			mockPrisma.asset.findUnique.mockResolvedValue(mockAssetRow);
 			mockPrisma.asset.update.mockResolvedValue({
 				...mockAssetRow,
@@ -195,7 +217,7 @@ describe("AssetService > Barcode support", () => {
 				barcode: "9876543210",
 			};
 
-			const result = await service.updateAsset(input, "user-456");
+			const result = await service.updateAsset(input, "org-1", "user-456");
 
 			expect(mockPrisma.asset.update).toHaveBeenCalledWith(
 				expect.objectContaining({
@@ -231,7 +253,7 @@ describe("AssetService > Barcode support", () => {
 						id: "asset-123",
 						series: "AST-2026-00001",
 						assetName: "Office Laptop",
-						company: "Test Corp",
+						company: { name: "Test Corp" },
 						status: "DRAFT",
 						assetCategory: null,
 					},

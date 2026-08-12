@@ -7,6 +7,7 @@ import type { Prisma } from "../../generated/prisma/client";
 export type PrismaAsset = Prisma.AssetGetPayload<{
 	include: {
 		assetCategory: { select: { id: true; name: true } };
+		company: { select: { id: true; name: true; organizationId: true } };
 		location: { select: { id: true; name: true } };
 		activities: {
 			include: { user: { select: { id: true; name: true } } };
@@ -129,7 +130,8 @@ export function toAsset(raw: PrismaAsset): Asset.AssetItem {
 		barcode: raw.barcode ?? null,
 		assetCategoryId: raw.assetCategoryId ?? null,
 		assetCategoryName: raw.assetCategory?.name ?? null,
-		company: raw.company,
+		companyId: raw.companyId,
+		company: raw.company.name,
 		locationId: raw.locationId ?? null,
 		locationName: raw.location?.name ?? null,
 		custodian: raw.custodian ?? null,
@@ -217,6 +219,7 @@ export function toAsset(raw: PrismaAsset): Asset.AssetItem {
 export type PrismaAssetRevaluationEntry =
 	Prisma.AssetRevaluationEntryGetPayload<{
 		include: {
+			company: { select: { id: true; name: true } };
 			lines: { orderBy: { createdAt: "asc" } };
 		};
 	}>;
@@ -242,11 +245,14 @@ export type PrismaAssetValueAdjustment = Prisma.AssetValueAdjustmentGetPayload<{
 				id: true;
 				series: true;
 				assetName: true;
+				companyId: true;
+				company: { select: { name: true } };
 				assetCategory: { select: { name: true } };
 			};
 		};
 		revaluationEntry: {
 			include: {
+				company: { select: { id: true; name: true } };
 				lines: { orderBy: { createdAt: "asc" } };
 			};
 		};
@@ -281,7 +287,8 @@ export function toAssetRevaluationEntry(
 		series: raw.series,
 		adjustmentId: raw.adjustmentId,
 		assetId: raw.assetId,
-		company: raw.company,
+		companyId: raw.companyId,
+		company: raw.company.name,
 		postingDate: raw.postingDate,
 		remarks: raw.remarks,
 		status: raw.status as Asset.AssetRevaluationEntryStatus,
@@ -346,7 +353,8 @@ export function toAssetValueAdjustment(
 		assetSeries: raw.asset.series,
 		assetName: raw.asset.assetName,
 		assetCategoryName: raw.asset.assetCategory?.name ?? null,
-		company: raw.companySnapshot,
+		companyId: raw.asset.companyId,
+		company: raw.asset.company.name,
 		financeBookId: raw.financeBookId ?? null,
 		financeBookName: raw.financeBook?.name ?? null,
 		adjustmentDate: raw.adjustmentDate,
@@ -378,7 +386,10 @@ export function toAssetValueAdjustment(
  * Prisma model type for AssetMaintenanceTeam with members relation included.
  */
 export type PrismaMaintenanceTeam = Prisma.AssetMaintenanceTeamGetPayload<{
-	include: { members: { orderBy: { createdAt: "asc" } } };
+	include: {
+		company: { select: { id: true; name: true } };
+		members: { orderBy: { createdAt: "asc" } };
+	};
 }>;
 
 /**
@@ -392,7 +403,8 @@ export function toMaintenanceTeam(
 		name: raw.name,
 		maintenanceManager: raw.maintenanceManager ?? null,
 		maintenanceManagerName: raw.maintenanceManagerName ?? null,
-		company: raw.company,
+		companyId: raw.companyId,
+		company: raw.company.name,
 		members: raw.members.map((m) => ({
 			id: m.id,
 			teamId: m.teamId,
@@ -416,6 +428,7 @@ export function toMaintenanceTeam(
  */
 export type PrismaAssetMaintenance = Prisma.AssetMaintenanceGetPayload<{
 	include: {
+		company: { select: { id: true; name: true } };
 		asset: {
 			select: {
 				assetName: true;
@@ -447,7 +460,8 @@ export function toAssetMaintenance(
 		assetName: raw.asset.assetName,
 		assetCategoryName: raw.asset.assetCategory?.name ?? null,
 		itemCode: raw.asset.itemCode ?? null,
-		company: raw.company,
+		companyId: raw.companyId,
+		company: raw.company.name,
 		maintenanceTeamId: raw.maintenanceTeamId,
 		maintenanceTeamName: raw.maintenanceTeam.name,
 		maintenanceManager: raw.maintenanceManager ?? null,
@@ -507,7 +521,8 @@ export type PrismaAssetMaintenanceLogWithContext =
 				select: {
 					id: true;
 					assetId: true;
-					company: true;
+					companyId: true;
+					company: { select: { name: true } };
 					asset: { select: { id: true; assetName: true } };
 				};
 			};
@@ -537,7 +552,8 @@ export function toAssetMaintenanceLogListItem(
 		taskId: raw.taskId,
 		assetId: raw.maintenance.assetId,
 		assetName: raw.maintenance.asset.assetName,
-		company: raw.maintenance.company,
+		companyId: raw.maintenance.companyId,
+		company: raw.maintenance.company.name,
 		maintenanceTask: raw.task.maintenanceTask,
 		maintenanceType:
 			(raw.task.maintenanceType as Asset.AssetMaintenanceTaskType | null) ??
@@ -575,6 +591,7 @@ export type PrismaAssetMovementItem = Prisma.AssetMovementItemGetPayload<{
  */
 export type PrismaAssetMovement = Prisma.AssetMovementGetPayload<{
 	include: {
+		company: { select: { id: true; name: true } };
 		items: {
 			include: {
 				sourceLocation: { select: { name: true } };
@@ -614,7 +631,8 @@ export function toAssetMovement(raw: PrismaAssetMovement): Asset.AssetMovement {
 	return {
 		id: raw.id,
 		series: raw.series,
-		company: raw.company,
+		companyId: raw.companyId,
+		company: raw.company.name,
 		transactionDate: raw.transactionDate,
 		purpose: raw.purpose as Asset.AssetMovementPurpose,
 		status: raw.status as Asset.AssetMovementStatus,
@@ -648,6 +666,7 @@ export type PrismaAssetRepairPurchaseInvoice =
  */
 export type PrismaAssetRepair = Prisma.AssetRepairGetPayload<{
 	include: {
+		company: { select: { id: true; name: true } };
 		asset: { select: { assetName: true } };
 		consumedItems: {
 			include: {
@@ -706,7 +725,8 @@ export function toAssetRepairItem(raw: PrismaAssetRepair): Asset.AssetRepair {
 		series: raw.series,
 		assetId: raw.assetId,
 		assetName: raw.asset?.assetName ?? null,
-		company: raw.company,
+		companyId: raw.companyId,
+		company: raw.company.name,
 		failureDate: raw.failureDate,
 		completionDate: raw.completionDate ?? null,
 		repairStatus: raw.repairStatus as Asset.AssetRepairStatus,
@@ -746,6 +766,7 @@ export type PrismaAssetCapitalizationServiceItem =
  */
 export type PrismaAssetCapitalization = Prisma.AssetCapitalizationGetPayload<{
 	include: {
+		company: { select: { id: true; name: true } };
 		targetAsset: { select: { assetName: true } };
 		stockItems: true;
 		assetItems: {
@@ -820,7 +841,8 @@ export function toAssetCapitalizationItem(
 	return {
 		id: raw.id,
 		series: raw.series,
-		company: raw.company,
+		companyId: raw.companyId,
+		company: raw.company.name,
 		postingDate: raw.postingDate,
 		targetType: raw.targetType as Asset.AssetCapitalizationTargetType,
 		targetAssetId: raw.targetAssetId ?? null,
@@ -851,6 +873,7 @@ export function toAssetCapitalizationItem(
  */
 export type PrismaAssetDisposal = Prisma.AssetDisposalGetPayload<{
 	include: {
+		company: { select: { id: true; name: true } };
 		asset: { select: { assetName: true } };
 		accountingEntry: { select: { series: true } };
 	};
@@ -867,7 +890,8 @@ export function toAssetDisposalItem(
 		series: raw.series,
 		assetId: raw.assetId,
 		assetName: raw.asset?.assetName ?? null,
-		company: raw.company,
+		companyId: raw.companyId,
+		company: raw.company.name,
 		disposalDate: raw.disposalDate,
 		disposalType: raw.disposalType as Asset.AssetDisposalType,
 		salesAmount: raw.salesAmount != null ? Number(raw.salesAmount) : null,

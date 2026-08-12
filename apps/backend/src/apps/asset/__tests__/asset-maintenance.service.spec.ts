@@ -5,6 +5,11 @@ import type { PrismaService } from "../../../shared/prisma.service";
 import { AssetService } from "../asset.service";
 import type { AssetDashboardSubService } from "../asset-dashboard.service";
 
+const COMPANY_ID = "company-1";
+const COMPANY = "ACME Corp";
+const COMPANY_RELATION = { id: COMPANY_ID, name: COMPANY };
+const OTHER_COMPANY_RELATION = { id: "company-2", name: "OTHER Corp" };
+
 // ---------------------------------------------------------------------------
 // Mock factory
 // ---------------------------------------------------------------------------
@@ -155,7 +160,8 @@ const mockTask = {
 const mockMaintenanceRow = {
 	id: "maint-001",
 	assetId: "asset-001",
-	company: "ACME Corp",
+	companyId: COMPANY_ID,
+	company: COMPANY_RELATION,
 	maintenanceTeamId: "team-001",
 	maintenanceManager: "manager@example.com",
 	maintenanceManagerName: "Manager Name",
@@ -321,8 +327,9 @@ describe("AssetService > AssetMaintenance", () => {
 						OR: expect.arrayContaining([
 							{
 								company: {
-									contains: "pump",
-									mode: "insensitive",
+									is: {
+										name: { contains: "pump", mode: "insensitive" },
+									},
 								},
 							},
 						]),
@@ -397,7 +404,7 @@ describe("AssetService > AssetMaintenance", () => {
 	describe("createAssetMaintenance", () => {
 		const createInput = {
 			assetId: "asset-001",
-			company: "ACME Corp",
+			companyId: COMPANY_ID,
 			maintenanceTeamId: "team-001",
 			maintenanceManager: "manager@example.com",
 			maintenanceManagerName: "Manager Name",
@@ -430,7 +437,8 @@ describe("AssetService > AssetMaintenance", () => {
 				id: "asset-001",
 				assetName: "Hydraulic Pump A",
 				itemCode: null,
-				company: "ACME Corp",
+				companyId: COMPANY_ID,
+				company: COMPANY_RELATION,
 				maintenance: { id: "existing-maint" },
 			});
 
@@ -444,7 +452,8 @@ describe("AssetService > AssetMaintenance", () => {
 				id: "asset-001",
 				assetName: "Hydraulic Pump A",
 				itemCode: null,
-				company: "ACME Corp",
+				companyId: COMPANY_ID,
+				company: COMPANY_RELATION,
 				maintenance: null,
 			});
 			mockPrisma.assetMaintenanceTeam.findUnique.mockResolvedValue(null);
@@ -459,7 +468,8 @@ describe("AssetService > AssetMaintenance", () => {
 				id: "asset-001",
 				assetName: "Hydraulic Pump A",
 				itemCode: null,
-				company: "OTHER Corp",
+				companyId: "company-2",
+				company: OTHER_COMPANY_RELATION,
 				maintenance: null,
 			});
 
@@ -473,12 +483,14 @@ describe("AssetService > AssetMaintenance", () => {
 				id: "asset-001",
 				assetName: "Hydraulic Pump A",
 				itemCode: null,
-				company: "ACME Corp",
+				companyId: COMPANY_ID,
+				company: COMPANY_RELATION,
 				maintenance: null,
 			});
 			mockPrisma.assetMaintenanceTeam.findUnique.mockResolvedValue({
 				id: "team-001",
-				company: "OTHER Corp",
+				companyId: "company-2",
+				company: OTHER_COMPANY_RELATION,
 			});
 
 			await expect(service.createAssetMaintenance(createInput)).rejects.toThrow(
@@ -491,12 +503,14 @@ describe("AssetService > AssetMaintenance", () => {
 				id: "asset-001",
 				assetName: "Hydraulic Pump A",
 				itemCode: null,
-				company: "ACME Corp",
+				companyId: COMPANY_ID,
+				company: COMPANY_RELATION,
 				maintenance: null,
 			});
 			mockPrisma.assetMaintenanceTeam.findUnique.mockResolvedValue({
 				id: "team-001",
-				company: "ACME Corp",
+				companyId: COMPANY_ID,
+				company: COMPANY_RELATION,
 			});
 
 			await expect(
@@ -518,22 +532,26 @@ describe("AssetService > AssetMaintenance", () => {
 				id: "asset-001",
 				assetName: "Hydraulic Pump A",
 				itemCode: null,
-				company: "ACME Corp",
+				companyId: COMPANY_ID,
+				company: COMPANY_RELATION,
 				maintenance: null,
 			});
 			mockPrisma.assetMaintenanceTeam.findUnique.mockResolvedValue({
 				id: "team-001",
-				company: "ACME Corp",
+				companyId: COMPANY_ID,
+				company: COMPANY_RELATION,
 			});
 			mockTx.asset.findUnique.mockResolvedValue({
 				id: "asset-001",
 				assetName: "Hydraulic Pump A",
-				company: "ACME Corp",
+				companyId: COMPANY_ID,
+				company: COMPANY_RELATION,
 				maintenance: null,
 			});
 			mockTx.assetMaintenanceTeam.findUnique.mockResolvedValue({
 				id: "team-001",
-				company: "ACME Corp",
+				companyId: COMPANY_ID,
+				company: COMPANY_RELATION,
 			});
 			mockTx.assetMaintenance.create.mockResolvedValue({
 				id: "maint-001",
@@ -553,7 +571,7 @@ describe("AssetService > AssetMaintenance", () => {
 				expect.objectContaining({
 					data: expect.objectContaining({
 						assetId: "asset-001",
-						company: "ACME Corp",
+						companyId: COMPANY_ID,
 					}),
 				}),
 			);
@@ -662,7 +680,8 @@ const mockLogWithContext = {
 	maintenance: {
 		id: "maint-001",
 		assetId: "asset-001",
-		company: "ACME Corp",
+		companyId: COMPANY_ID,
+		company: COMPANY_RELATION,
 		asset: { id: "asset-001", assetName: "Hydraulic Pump A" },
 	},
 	task: {

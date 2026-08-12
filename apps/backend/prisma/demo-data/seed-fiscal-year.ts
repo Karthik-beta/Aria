@@ -9,6 +9,7 @@ import type { DemoConfig } from "./config.js";
 export interface FiscalYearIds {
 	fiscalYearIds: Map<string, string>;
 	companyIds: Map<string, string>;
+	organizationId: string;
 }
 
 export async function seedFiscalYearData(
@@ -18,7 +19,20 @@ export async function seedFiscalYearData(
 	const ids: FiscalYearIds = {
 		fiscalYearIds: new Map(),
 		companyIds: new Map(),
+		organizationId: "",
 	};
+
+	const organizationSlug = process.env.DEFAULT_ORG_SLUG?.trim() || "aria-erp";
+	const organization = await prisma.organization.findUnique({
+		where: { slug: organizationSlug },
+		select: { id: true, name: true },
+	});
+	if (!organization) {
+		throw new Error(
+			`Cannot seed demo data because organization "${organizationSlug}" does not exist`,
+		);
+	}
+	ids.organizationId = organization.id;
 
 	const indianFiscalYears = buildIndianFiscalYears(config.dateRange.to);
 
@@ -51,10 +65,20 @@ export async function seedFiscalYearData(
 
 	// Create the demo company using config values and cron posting defaults.
 	const existingCompany = await prisma.company.findUnique({
-		where: { name: config.company },
+		where: {
+			organizationId_name: {
+				organizationId: organization.id,
+				name: config.company,
+			},
+		},
 	});
 
 	if (existingCompany) {
+		if (existingCompany.organizationId !== organization.id) {
+			throw new Error(
+				`Company "${config.company}" belongs to a different organization than "${organization.name}"`,
+			);
+		}
 		ids.companyIds.set(config.company, existingCompany.id);
 		await prisma.company.update({
 			where: { id: existingCompany.id },
@@ -71,6 +95,7 @@ export async function seedFiscalYearData(
 	} else {
 		const created = await prisma.company.create({
 			data: {
+				organizationId: organization.id,
 				name: config.company,
 				abbreviation: "PTPL",
 				country: "India",

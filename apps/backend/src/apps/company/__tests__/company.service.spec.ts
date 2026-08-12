@@ -38,8 +38,11 @@ function createTestContext() {
 // Shared fixtures
 // ---------------------------------------------------------------------------
 
+const organizationId = "org-1";
+
 const mockCompanyRow = {
 	id: "clxyz001",
+	organizationId,
 	name: "Acme Corp",
 	abbreviation: "AC",
 	country: "United States",
@@ -56,6 +59,7 @@ const mockCompanyRow = {
 
 const mockGroupCompanyRow = {
 	id: "clxyz002",
+	organizationId,
 	name: "Acme Holdings",
 	abbreviation: "AH",
 	country: "United States",
@@ -92,8 +96,14 @@ describe("CompanyService", () => {
 			mockPrisma.company.findMany.mockResolvedValue([mockCompanyRow]);
 			mockPrisma.company.count.mockResolvedValue(1);
 
-			const result = await service.findAllCompanies({ skip: 0, take: 20 });
+			const result = await service.findAllCompanies(organizationId, {
+				skip: 0,
+				take: 20,
+			});
 
+			expect(mockPrisma.company.findMany.mock.calls[0][0].where).toEqual({
+				organizationId,
+			});
 			expect(result.totalCount).toBe(1);
 			expect(result.items).toHaveLength(1);
 			expect(result.items[0]).toMatchObject({
@@ -109,7 +119,7 @@ describe("CompanyService", () => {
 			mockPrisma.company.findMany.mockResolvedValue([]);
 			mockPrisma.company.count.mockResolvedValue(0);
 
-			await service.findAllCompanies({ search: "Acme" });
+			await service.findAllCompanies(organizationId, { search: "Acme" });
 
 			const whereArg = mockPrisma.company.findMany.mock.calls[0][0].where;
 			expect(whereArg.OR).toBeDefined();
@@ -120,7 +130,7 @@ describe("CompanyService", () => {
 			mockPrisma.company.findMany.mockResolvedValue([]);
 			mockPrisma.company.count.mockResolvedValue(0);
 
-			await service.findAllCompanies({ isGroup: true });
+			await service.findAllCompanies(organizationId, { isGroup: true });
 
 			const whereArg = mockPrisma.company.findMany.mock.calls[0][0].where;
 			expect(whereArg.isGroup).toBe(true);
@@ -130,7 +140,7 @@ describe("CompanyService", () => {
 			mockPrisma.company.findMany.mockResolvedValue([]);
 			mockPrisma.company.count.mockResolvedValue(0);
 
-			await service.findAllCompanies();
+			await service.findAllCompanies(organizationId);
 
 			const callArgs = mockPrisma.company.findMany.mock.calls[0][0];
 			expect(callArgs.skip).toBe(0);
@@ -144,9 +154,9 @@ describe("CompanyService", () => {
 
 	describe("findCompanyById", () => {
 		it("returns company when found", async () => {
-			mockPrisma.company.findUnique.mockResolvedValue(mockCompanyRow);
+			mockPrisma.company.findFirst.mockResolvedValue(mockCompanyRow);
 
-			const result = await service.findCompanyById("clxyz001");
+			const result = await service.findCompanyById(organizationId, "clxyz001");
 
 			expect(result).not.toBeNull();
 			expect(result?.id).toBe("clxyz001");
@@ -154,9 +164,12 @@ describe("CompanyService", () => {
 		});
 
 		it("returns null when not found", async () => {
-			mockPrisma.company.findUnique.mockResolvedValue(null);
+			mockPrisma.company.findFirst.mockResolvedValue(null);
 
-			const result = await service.findCompanyById("nonexistent");
+			const result = await service.findCompanyById(
+				organizationId,
+				"nonexistent",
+			);
 
 			expect(result).toBeNull();
 		});
@@ -168,11 +181,10 @@ describe("CompanyService", () => {
 
 	describe("createCompany", () => {
 		it("creates a company with valid input", async () => {
-			mockPrisma.company.findUnique.mockResolvedValue(null); // name check
-			mockPrisma.company.findFirst.mockResolvedValue(null); // abbr check
+			mockPrisma.company.findFirst.mockResolvedValue(null); // name and abbr checks
 			mockPrisma.company.create.mockResolvedValue(mockCompanyRow);
 
-			const result = await service.createCompany({
+			const result = await service.createCompany(organizationId, {
 				name: "Acme Corp",
 				abbreviation: "AC",
 				country: "United States",
@@ -180,37 +192,45 @@ describe("CompanyService", () => {
 			});
 
 			expect(result.name).toBe("Acme Corp");
+			expect(mockPrisma.company.create).toHaveBeenCalledWith(
+				expect.objectContaining({
+					data: expect.objectContaining({ organizationId }),
+				}),
+			);
 			expect(mockPrisma.company.create).toHaveBeenCalledTimes(1);
 		});
 
 		it("throws ConflictException for duplicate name", async () => {
-			mockPrisma.company.findUnique.mockResolvedValue({ id: "existing" });
+			mockPrisma.company.findFirst.mockResolvedValue({ id: "existing" });
 
 			await expect(
-				service.createCompany({ name: "Acme Corp" }),
+				service.createCompany(organizationId, { name: "Acme Corp" }),
 			).rejects.toThrow(ConflictException);
 		});
 
 		it("throws ConflictException for duplicate abbreviation", async () => {
-			mockPrisma.company.findUnique.mockResolvedValue(null); // name check
+			mockPrisma.company.findFirst.mockResolvedValueOnce(null); // name check
 			mockPrisma.company.findFirst.mockResolvedValue({ id: "existing" }); // abbr check
 
 			await expect(
-				service.createCompany({ name: "New Corp", abbreviation: "AC" }),
+				service.createCompany(organizationId, {
+					name: "New Corp",
+					abbreviation: "AC",
+				}),
 			).rejects.toThrow(ConflictException);
 		});
 
 		it("validates parent company is a group", async () => {
-			mockPrisma.company.findUnique.mockResolvedValueOnce(null); // name check
-			mockPrisma.company.findFirst.mockResolvedValue(null); // abbr check
-			mockPrisma.company.findUnique.mockResolvedValueOnce({
-				id: "parent-001",
-				name: "Non-Group",
-				isGroup: false,
-			});
+			mockPrisma.company.findFirst
+				.mockResolvedValueOnce(null) // name check
+				.mockResolvedValueOnce({
+					id: "parent-001",
+					name: "Non-Group",
+					isGroup: false,
+				});
 
 			await expect(
-				service.createCompany({
+				service.createCompany(organizationId, {
 					name: "New Corp",
 					parentCompanyId: "parent-001",
 				}),
@@ -224,7 +244,7 @@ describe("CompanyService", () => {
 
 	describe("updateCompany", () => {
 		it("updates a company with valid input", async () => {
-			mockPrisma.company.findUnique
+			mockPrisma.company.findFirst
 				.mockResolvedValueOnce(mockCompanyRow) // existence check
 				.mockResolvedValueOnce(null); // name duplicate check
 			mockPrisma.company.update.mockResolvedValue({
@@ -232,7 +252,7 @@ describe("CompanyService", () => {
 				name: "Updated Corp",
 			});
 
-			const result = await service.updateCompany({
+			const result = await service.updateCompany(organizationId, {
 				id: "clxyz001",
 				name: "Updated Corp",
 			});
@@ -242,21 +262,24 @@ describe("CompanyService", () => {
 		});
 
 		it("throws NotFoundException for nonexistent id", async () => {
-			mockPrisma.company.findUnique.mockResolvedValue(null);
+			mockPrisma.company.findFirst.mockResolvedValue(null);
 
 			await expect(
-				service.updateCompany({ id: "nonexistent", name: "Test" }),
+				service.updateCompany(organizationId, {
+					id: "nonexistent",
+					name: "Test",
+				}),
 			).rejects.toThrow(NotFoundException);
 		});
 
 		it("throws ConflictException for duplicate name", async () => {
-			mockPrisma.company.findUnique.mockResolvedValue(mockCompanyRow);
-			mockPrisma.company.findUnique.mockResolvedValueOnce({
+			mockPrisma.company.findFirst.mockResolvedValueOnce(mockCompanyRow);
+			mockPrisma.company.findFirst.mockResolvedValueOnce({
 				id: "other",
 			});
 
 			await expect(
-				service.updateCompany({
+				service.updateCompany(organizationId, {
 					id: "clxyz001",
 					name: "Existing Corp",
 				}),
@@ -264,10 +287,10 @@ describe("CompanyService", () => {
 		});
 
 		it("throws BadRequestException for self-referencing parent", async () => {
-			mockPrisma.company.findUnique.mockResolvedValue(mockCompanyRow);
+			mockPrisma.company.findFirst.mockResolvedValue(mockCompanyRow);
 
 			await expect(
-				service.updateCompany({
+				service.updateCompany(organizationId, {
 					id: "clxyz001",
 					parentCompanyId: "clxyz001",
 				}),
@@ -281,12 +304,12 @@ describe("CompanyService", () => {
 
 	describe("deleteCompany", () => {
 		it("deletes when no children and no fiscal year refs", async () => {
-			mockPrisma.company.findUnique.mockResolvedValue(mockCompanyRow);
+			mockPrisma.company.findFirst.mockResolvedValue(mockCompanyRow);
 			mockPrisma.company.count.mockResolvedValue(0); // no children
 			mockPrisma.fiscalYearCompany.count.mockResolvedValue(0); // no FY refs
 			mockPrisma.company.delete.mockResolvedValue(mockCompanyRow);
 
-			const result = await service.deleteCompany("clxyz001");
+			const result = await service.deleteCompany(organizationId, "clxyz001");
 
 			expect(result.success).toBe(true);
 			expect(result.id).toBe("clxyz001");
@@ -294,30 +317,30 @@ describe("CompanyService", () => {
 		});
 
 		it("throws NotFoundException for nonexistent id", async () => {
-			mockPrisma.company.findUnique.mockResolvedValue(null);
+			mockPrisma.company.findFirst.mockResolvedValue(null);
 
-			await expect(service.deleteCompany("nonexistent")).rejects.toThrow(
-				NotFoundException,
-			);
+			await expect(
+				service.deleteCompany(organizationId, "nonexistent"),
+			).rejects.toThrow(NotFoundException);
 		});
 
 		it("throws BadRequestException when children exist", async () => {
-			mockPrisma.company.findUnique.mockResolvedValue(mockGroupCompanyRow);
+			mockPrisma.company.findFirst.mockResolvedValue(mockGroupCompanyRow);
 			mockPrisma.company.count.mockResolvedValue(2);
 
-			await expect(service.deleteCompany("clxyz002")).rejects.toThrow(
-				BadRequestException,
-			);
+			await expect(
+				service.deleteCompany(organizationId, "clxyz002"),
+			).rejects.toThrow(BadRequestException);
 		});
 
 		it("throws BadRequestException when fiscal year refs exist", async () => {
-			mockPrisma.company.findUnique.mockResolvedValue(mockCompanyRow);
+			mockPrisma.company.findFirst.mockResolvedValue(mockCompanyRow);
 			mockPrisma.company.count.mockResolvedValue(0);
 			mockPrisma.fiscalYearCompany.count.mockResolvedValue(3);
 
-			await expect(service.deleteCompany("clxyz001")).rejects.toThrow(
-				BadRequestException,
-			);
+			await expect(
+				service.deleteCompany(organizationId, "clxyz001"),
+			).rejects.toThrow(BadRequestException);
 		});
 	});
 
@@ -327,12 +350,12 @@ describe("CompanyService", () => {
 
 	describe("deleteManyCompanies", () => {
 		it("deletes multiple companies", async () => {
-			mockPrisma.company.findUnique.mockResolvedValue(mockCompanyRow);
+			mockPrisma.company.findFirst.mockResolvedValue(mockCompanyRow);
 			mockPrisma.company.count.mockResolvedValue(0);
 			mockPrisma.fiscalYearCompany.count.mockResolvedValue(0);
 			mockPrisma.company.delete.mockResolvedValue(mockCompanyRow);
 
-			const result = await service.deleteManyCompanies([
+			const result = await service.deleteManyCompanies(organizationId, [
 				"clxyz001",
 				"clxyz002",
 			]);
@@ -342,7 +365,7 @@ describe("CompanyService", () => {
 
 		it("skips companies that fail to delete", async () => {
 			// First call succeeds
-			mockPrisma.company.findUnique
+			mockPrisma.company.findFirst
 				.mockResolvedValueOnce(mockCompanyRow)
 				.mockResolvedValueOnce(mockGroupCompanyRow);
 			mockPrisma.company.count
@@ -351,55 +374,12 @@ describe("CompanyService", () => {
 			mockPrisma.fiscalYearCompany.count.mockResolvedValue(0);
 			mockPrisma.company.delete.mockResolvedValue(mockCompanyRow);
 
-			const result = await service.deleteManyCompanies([
+			const result = await service.deleteManyCompanies(organizationId, [
 				"clxyz001",
 				"clxyz002",
 			]);
 
 			expect(result.count).toBe(1);
-		});
-	});
-
-	// -------------------------------------------------------------------------
-	// Legacy methods
-	// -------------------------------------------------------------------------
-
-	describe("getCompany", () => {
-		it("returns company info when found", async () => {
-			mockPrisma.company.findUnique.mockResolvedValue(mockCompanyRow);
-
-			const result = await service.getCompany("clxyz001");
-
-			expect(result).not.toBeNull();
-			expect(result?.name).toBe("Acme Corp");
-			expect(result?.abbreviation).toBe("AC");
-		});
-
-		it("returns null when not found", async () => {
-			mockPrisma.company.findUnique.mockResolvedValue(null);
-
-			const result = await service.getCompany("nonexistent");
-
-			expect(result).toBeNull();
-		});
-	});
-
-	describe("getCompanyByName", () => {
-		it("returns company info when found", async () => {
-			mockPrisma.company.findUnique.mockResolvedValue(mockCompanyRow);
-
-			const result = await service.getCompanyByName("Acme Corp");
-
-			expect(result).not.toBeNull();
-			expect(result?.id).toBe("clxyz001");
-		});
-
-		it("returns null when not found", async () => {
-			mockPrisma.company.findUnique.mockResolvedValue(null);
-
-			const result = await service.getCompanyByName("Nonexistent");
-
-			expect(result).toBeNull();
 		});
 	});
 });

@@ -36,7 +36,7 @@ import { trpc } from "@/lib/trpc";
 
 type QuickCreateAssetValues = {
 	assetName: string;
-	company: string;
+	companyId: string;
 	assetCategoryId?: string;
 	locationId?: string;
 };
@@ -77,7 +77,7 @@ export function NewAssetDialog() {
 	const form = useForm<QuickCreateAssetValues>({
 		defaultValues: {
 			assetName: "",
-			company: "",
+			companyId: "",
 			assetCategoryId: undefined,
 			locationId: undefined,
 		},
@@ -92,7 +92,7 @@ export function NewAssetDialog() {
 	}, [form]);
 
 	const assetName = form.watch("assetName");
-	const company = form.watch("company");
+	const companyId = form.watch("companyId");
 	const selectedCategoryId = form.watch("assetCategoryId");
 	const selectedLocationId = form.watch("locationId");
 
@@ -104,18 +104,22 @@ export function NewAssetDialog() {
 		() => locations.find((l) => l.id === selectedLocationId),
 		[locations, selectedLocationId],
 	);
+	const selectedCompany = React.useMemo(
+		() => companies.find((company) => company.id === companyId),
+		[companies, companyId],
+	);
 
 	const editFullFormHref = React.useMemo(() => {
 		const params = new URLSearchParams();
 		const name = assetName.trim();
 		if (name) params.set("assetName", name);
-		if (company.trim()) params.set("company", company.trim());
+		if (companyId) params.set("companyId", companyId);
 		if (selectedCategoryId) params.set("assetCategoryId", selectedCategoryId);
 		if (selectedLocationId) params.set("locationId", selectedLocationId);
 		const query = params.toString();
 		const formUrl = query ? `/asset/items/form?${query}` : "/asset/items/form";
 		return formUrl;
-	}, [assetName, company, selectedCategoryId, selectedLocationId]);
+	}, [assetName, companyId, selectedCategoryId, selectedLocationId]);
 
 	const createMutation = trpc.asset.createAsset.useMutation({
 		onSuccess: async () => {
@@ -129,7 +133,7 @@ export function NewAssetDialog() {
 
 	const onSubmit = form.handleSubmit((values) => {
 		const name = values.assetName.trim();
-		const comp = values.company.trim();
+		const comp = values.companyId;
 		if (!name) {
 			toast.error("Asset name is required");
 			return;
@@ -141,7 +145,7 @@ export function NewAssetDialog() {
 
 		const payload = {
 			assetName: name,
-			company: comp,
+			companyId: comp,
 			assetCategoryId: values.assetCategoryId ?? null,
 			locationId: values.locationId ?? null,
 		};
@@ -212,7 +216,7 @@ export function NewAssetDialog() {
 							Company <span className="text-destructive">*</span>
 						</Label>
 						<Controller
-							name="company"
+							name="companyId"
 							control={form.control}
 							render={({ field }) => (
 								<Popover open={companyOpen} onOpenChange={setCompanyOpen}>
@@ -224,7 +228,7 @@ export function NewAssetDialog() {
 											className="h-10 w-full justify-between font-normal"
 										>
 											<span className="truncate">
-												{field.value || "Select company…"}
+												{selectedCompany?.name || "Select company…"}
 											</span>
 											<ChevronDown className="h-4 w-4 opacity-50" />
 										</Button>
@@ -242,7 +246,7 @@ export function NewAssetDialog() {
 														<CommandItem
 															key={comp.id}
 															onSelect={() => {
-																field.onChange(comp.name);
+																field.onChange(comp.id);
 																setCompanyOpen(false);
 															}}
 														>

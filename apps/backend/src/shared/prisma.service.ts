@@ -65,6 +65,9 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
 	get verification() {
 		return this.client.verification;
 	}
+	get organization() {
+		return this.client.organization;
+	}
 
 	// Inventory Domain
 	get inventoryItem() {

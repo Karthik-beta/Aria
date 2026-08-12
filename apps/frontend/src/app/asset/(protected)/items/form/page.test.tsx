@@ -77,6 +77,7 @@ const existingAsset = {
 	itemCode: "VEH-001",
 	assetCategoryId: "clh123cat",
 	assetCategoryName: "Vehicles",
+	companyId: "comp-1",
 	company: "Test Company",
 	locationId: "clh789loc",
 	locationName: "Head Office",
@@ -382,7 +383,7 @@ describe("AssetFormPage", () => {
 			expect(mockCreateMutate).toHaveBeenCalledWith(
 				expect.objectContaining({
 					assetName: "Test Asset",
-					company: "Test Company",
+					companyId: "comp-1",
 					calculateDepreciation: true,
 				}),
 			);
@@ -496,7 +497,7 @@ describe("AssetFormPage", () => {
 			expect(mockCreateMutate).toHaveBeenCalledWith(
 				expect.objectContaining({
 					assetName: "Test Asset",
-					company: "Test Company",
+					companyId: "comp-1",
 					barcode: "987654321",
 				}),
 			);

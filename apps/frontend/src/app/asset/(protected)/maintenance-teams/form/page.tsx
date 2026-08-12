@@ -126,7 +126,7 @@ function MaintenanceTeamFormContent() {
 			name: team.name,
 			maintenanceManager: team.maintenanceManager ?? "",
 			maintenanceManagerName: team.maintenanceManagerName ?? "",
-			company: team.company,
+			companyId: team.companyId,
 			members: team.members.map((m) => ({
 				id: m.id,
 				teamMember: m.teamMember,
@@ -271,7 +271,7 @@ function MaintenanceTeamFormContent() {
 								Company <span className="text-destructive">*</span>
 							</Label>
 							<Controller
-								name="company"
+								name="companyId"
 								control={form.control}
 								render={({ field }) => (
 									<Popover open={companyOpen} onOpenChange={setCompanyOpen}>
@@ -280,10 +280,12 @@ function MaintenanceTeamFormContent() {
 												id="company"
 												type="button"
 												variant="outline"
-												className={`h-10 w-full justify-between font-normal ${form.formState.errors.company ? "border-destructive" : ""}`}
+												className={`h-10 w-full justify-between font-normal ${form.formState.errors.companyId ? "border-destructive" : ""}`}
 											>
 												<span className="truncate">
-													{field.value || "Select company…"}
+													{companies.find(
+														(company) => company.id === field.value,
+													)?.name || "Select company…"}
 												</span>
 												<ChevronDown className="h-4 w-4 opacity-50" />
 											</Button>
@@ -301,7 +303,7 @@ function MaintenanceTeamFormContent() {
 															<CommandItem
 																key={comp.id}
 																onSelect={() => {
-																	field.onChange(comp.name);
+																	field.onChange(comp.id);
 																	setCompanyOpen(false);
 																}}
 															>
@@ -315,9 +317,9 @@ function MaintenanceTeamFormContent() {
 									</Popover>
 								)}
 							/>
-							{form.formState.errors.company && (
+							{form.formState.errors.companyId && (
 								<p className="text-xs text-destructive">
-									{form.formState.errors.company.message}
+									{form.formState.errors.companyId.message}
 								</p>
 							)}
 						</div>

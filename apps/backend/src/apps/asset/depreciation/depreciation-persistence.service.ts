@@ -43,11 +43,12 @@ interface DiscoveryRow {
 		assetId: string;
 		assetFinanceBookId: string;
 		assetFinanceBook: { financeBookId: string };
-		asset: { company: string };
+		asset: { companyId: string; company: { name: string } };
 	};
 }
 
 interface CompanyFreezeRow {
+	id: string;
 	name: string;
 	accountsFrozenThrough: Date | null;
 }
@@ -69,7 +70,8 @@ interface WorkerEntry {
 			series: string;
 			assetName: string;
 			assetCategoryId: string | null;
-			company: string;
+			companyId: string;
+			company: { name: string };
 			calculateDepreciation: boolean;
 			status: string;
 		};
@@ -130,7 +132,11 @@ export class DepreciationPersistenceService {
 			calculateDepreciation: true,
 			status: { in: ["SUBMITTED", "PARTIALLY_DEPRECIATED"] },
 		};
-		if (scope.company) assetFilter.company = scope.company;
+		if (scope.companyId) assetFilter.companyId = scope.companyId;
+		if (scope.company)
+			assetFilter.company = {
+				is: { name: { equals: scope.company, mode: "insensitive" } },
+			};
 		if (scope.assetIds?.length) assetFilter.id = { in: [...scope.assetIds] };
 
 		const financeBookFilter: Record<string, unknown> = {};
@@ -158,7 +164,12 @@ export class DepreciationPersistenceService {
 							assetId: true,
 							assetFinanceBookId: true,
 							assetFinanceBook: { select: { financeBookId: true } },
-							asset: { select: { company: true } },
+							asset: {
+								select: {
+									companyId: true,
+									company: { select: { name: true } },
+								},
+							},
 						},
 					},
 				},
@@ -168,23 +179,20 @@ export class DepreciationPersistenceService {
 			});
 
 		const companies = [
-			...new Set(rows.map((row) => row.schedule.asset.company)),
+			...new Set(rows.map((row) => row.schedule.asset.companyId)),
 		];
 		const companyRows = companies.length
 			? await this.db.company.findMany<CompanyFreezeRow>({
-					where: { name: { in: companies } },
-					select: { name: true, accountsFrozenThrough: true },
+					where: { id: { in: companies } },
+					select: { id: true, name: true, accountsFrozenThrough: true },
 				})
 			: [];
 		const freezes = new Map(
-			companyRows.map((company) => [
-				company.name,
-				company.accountsFrozenThrough,
-			]),
+			companyRows.map((company) => [company.id, company.accountsFrozenThrough]),
 		);
 
 		return rows.map((row) => {
-			const frozenThrough = freezes.get(row.schedule.asset.company);
+			const frozenThrough = freezes.get(row.schedule.asset.companyId);
 			return {
 				assetId: row.schedule.assetId,
 				assetFinanceBookId: row.schedule.assetFinanceBookId,
@@ -192,7 +200,8 @@ export class DepreciationPersistenceService {
 				scheduleId: row.scheduleId,
 				scheduleEntryId: row.id,
 				depreciationDate: row.scheduleDate,
-				company: row.schedule.asset.company,
+				companyId: row.schedule.asset.companyId,
+				company: row.schedule.asset.company.name,
 				blockedByFreeze:
 					frozenThrough !== null &&
 					frozenThrough !== undefined &&
@@ -296,7 +305,7 @@ export class DepreciationPersistenceService {
 			}
 
 			const company = await tx.company.findUnique<CompanyPostingConfig>({
-				where: { name: entry.schedule.asset.company },
+				where: { id: entry.schedule.asset.companyId },
 				select: {
 					id: true,
 					name: true,
@@ -310,7 +319,7 @@ export class DepreciationPersistenceService {
 			});
 			if (!company) {
 				throw new DepreciationPostingValidationError(
-					`Company ${entry.schedule.asset.company} does not exist.`,
+					`Company ${entry.schedule.asset.companyId} does not exist.`,
 				);
 			}
 			if (
@@ -360,7 +369,7 @@ export class DepreciationPersistenceService {
 					series,
 					assetId: entry.schedule.assetId,
 					assetFinanceBookId: entry.schedule.assetFinanceBookId,
-					company: company.name,
+					companyId: company.id,
 					financeBookName: entry.schedule.assetFinanceBook.financeBook.name,
 					postingDate: entry.scheduleDate,
 					depreciationAmount: entry.depreciationAmount,

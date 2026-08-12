@@ -27,16 +27,20 @@ export class CompanyRouter {
 		return router({
 			listCompanies: companyProcedure
 				.input(Company.listCompaniesSchema)
-				.query(async ({ input }) => svc.findAllCompanies(input)),
+				.query(async ({ input, ctx }) =>
+					svc.findAllCompanies(ctx.organization.id, input),
+				),
 
 			getCompanyById: companyProcedure
 				.input(z.object({ id: z.string().cuid() }))
-				.query(async ({ input }) => svc.findCompanyById(input.id)),
+				.query(async ({ input, ctx }) =>
+					svc.findCompanyById(ctx.organization.id, input.id),
+				),
 
 			createCompany: companyProcedure
 				.input(Company.createCompanySchema)
-				.mutation(async ({ input }) => {
-					const company = await svc.createCompany(input);
+				.mutation(async ({ input, ctx }) => {
+					const company = await svc.createCompany(ctx.organization.id, input);
 					this.eventEmitter.emit("companiesChanged", {
 						type: "created",
 						data: company,
@@ -46,8 +50,8 @@ export class CompanyRouter {
 
 			updateCompany: companyProcedure
 				.input(Company.updateCompanySchema)
-				.mutation(async ({ input }) => {
-					const company = await svc.updateCompany(input);
+				.mutation(async ({ input, ctx }) => {
+					const company = await svc.updateCompany(ctx.organization.id, input);
 					this.eventEmitter.emit("companiesChanged", {
 						type: "updated",
 						data: company,
@@ -57,8 +61,8 @@ export class CompanyRouter {
 
 			deleteCompany: companyProcedure
 				.input(z.object({ id: z.string().cuid() }))
-				.mutation(async ({ input }) => {
-					const result = await svc.deleteCompany(input.id);
+				.mutation(async ({ input, ctx }) => {
+					const result = await svc.deleteCompany(ctx.organization.id, input.id);
 					this.eventEmitter.emit("companiesChanged", {
 						type: "deleted",
 						data: { id: input.id },
@@ -68,8 +72,11 @@ export class CompanyRouter {
 
 			deleteManyCompanies: companyProcedure
 				.input(Company.bulkDeleteCompaniesSchema)
-				.mutation(async ({ input }) => {
-					const result = await svc.deleteManyCompanies(input.ids);
+				.mutation(async ({ input, ctx }) => {
+					const result = await svc.deleteManyCompanies(
+						ctx.organization.id,
+						input.ids,
+					);
 					for (const id of input.ids) {
 						this.eventEmitter.emit("companiesChanged", {
 							type: "deleted",

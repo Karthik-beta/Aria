@@ -212,6 +212,12 @@ async function seedMaintenanceRecord(
 	if (!asset.maintenancePlan) {
 		return sequenceBase;
 	}
+	const companyId = ids.companyIds.get(config.company);
+	if (!companyId) {
+		throw new Error(
+			`Company "${config.company}" was not created during demo seeding`,
+		);
+	}
 
 	const team = ASSET_MAINTENANCE_TEAMS.find(
 		(value) => value.key === asset.maintenancePlan?.teamKey,
@@ -239,7 +245,7 @@ async function seedMaintenanceRecord(
 	const maintenance = await prisma.assetMaintenance.create({
 		data: {
 			assetId,
-			company: config.company,
+			companyId,
 			maintenanceTeamId,
 			maintenanceManager: team.maintenanceManager,
 			maintenanceManagerName: team.maintenanceManagerName,
@@ -370,6 +376,7 @@ async function seedMaintenanceRecord(
 async function seedValueAdjustments(
 	prisma: PrismaService,
 	config: DemoConfig,
+	companyId: string,
 	assetId: string,
 	assetSeries: string,
 	asset: AssetSeedDef,
@@ -396,7 +403,7 @@ async function seedValueAdjustments(
 		if (adjustment.kind !== "draft") {
 			await depreciation.ensurePosted({
 				throughDate: adjustmentDate,
-				company: config.company,
+				companyId,
 				assetIds: [assetId],
 			});
 			await refreshEffectiveState(prisma, assetId, state);
@@ -480,7 +487,6 @@ async function seedValueAdjustments(
 				series: adjustmentSeries,
 				assetId,
 				assetCategorySnapshot: asset.assetCategory,
-				companySnapshot: config.company,
 				adjustmentDate,
 				currentAssetValue: state.currentAssetValue.toString(),
 				newAssetValue: adjustment.newAssetValue.toString(),
@@ -527,7 +533,7 @@ async function seedValueAdjustments(
 				series: revaluationSeries,
 				adjustmentId: createdAdjustment.id,
 				assetId,
-				company: config.company,
+				companyId,
 				postingDate: adjustmentDate,
 				remarks: `Asset revaluation for ${assetSeries} via ${adjustmentSeries}`,
 				status: adjustment.kind === "cancelled" ? "REVERSED" : "POSTED",
@@ -665,6 +671,12 @@ export async function seedAssetTransactions(
 	ids: MasterIds,
 	depreciation: DemoDepreciationCoordinator,
 ): Promise<void> {
+	const companyId = ids.companyIds.get(config.company);
+	if (!companyId) {
+		throw new Error(
+			`Company "${config.company}" was not created during demo seeding`,
+		);
+	}
 	const adjustmentCounters = new Map<number, number>();
 	const revaluationCounters = new Map<number, number>();
 	const fiscalYears = await prisma.fiscalYear.findMany();
@@ -767,6 +779,7 @@ export async function seedAssetTransactions(
 		activitySequence = await seedValueAdjustments(
 			prisma,
 			config,
+			companyId,
 			assetId,
 			assetRecord.series,
 			asset,
@@ -790,7 +803,7 @@ export async function seedAssetTransactions(
 			);
 			await depreciation.ensurePosted({
 				throughDate: disposalDate,
-				company: config.company,
+				companyId,
 				assetIds: [assetId],
 			});
 			await prisma.assetDepreciationSchedule.updateMany({

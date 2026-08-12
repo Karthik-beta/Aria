@@ -29,7 +29,7 @@ function createTransaction() {
 }
 
 const balancedEntry = {
-	company: "Pivotr Technologies Private Limited",
+	companyId: "company-1",
 	assetId: "asset-1",
 	sourceType: "REPAIR" as const,
 	sourceId: "repair-1",
@@ -171,7 +171,8 @@ describe("AssetAccountingService", () => {
 		const tx = createTransaction();
 		tx.assetAccountingEntry.findUnique.mockResolvedValue({
 			status: "POSTED",
-			company: "Pivotr Technologies Private Limited",
+			companyId: "company-1",
+			company: { name: "Pivotr Technologies Private Limited" },
 			postingDate: new Date("2026-08-09T00:00:00.000Z"),
 		});
 
@@ -186,7 +187,8 @@ describe("AssetAccountingService", () => {
 
 		tx.assetAccountingEntry.findUnique.mockResolvedValue({
 			status: "REVERSED",
-			company: "Pivotr Technologies Private Limited",
+			companyId: "company-1",
+			company: { name: "Pivotr Technologies Private Limited" },
 			postingDate: new Date("2026-08-09T00:00:00.000Z"),
 		});
 		await expect(

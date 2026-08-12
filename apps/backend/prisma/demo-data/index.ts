@@ -35,9 +35,15 @@ export async function seedAll(
 ): Promise<void> {
 	const ids = await seedMasterData(prisma, config);
 	await seedTransactions(prisma, config, ids, depreciation);
+	const companyId = ids.companyIds.get(config.company);
+	if (!companyId) {
+		throw new Error(
+			`Company "${config.company}" was not created during demo seeding`,
+		);
+	}
 	await depreciation.ensurePosted({
 		throughDate: config.dateRange.to,
-		company: config.company,
+		companyId,
 	});
 	await seedAssetLifecycleTransactions(prisma, config, ids);
 

@@ -19,7 +19,7 @@ export interface AssetMaterialIssueLine {
 }
 
 export interface CreateAssetMaterialIssueInput {
-	company: string;
+	companyId: string;
 	postingDate: Date;
 	sourceType: AssetStockSourceType;
 	sourceId: string;
@@ -43,9 +43,11 @@ export class AssetStockPostingService {
 		tx: Prisma.TransactionClient,
 		input: CreateAssetMaterialIssueInput,
 	): Promise<AssetMaterialIssueResult> {
-		const company = input.company.trim();
-		if (!company) {
-			throw new BadRequestException("Company is required for a material issue");
+		const companyId = input.companyId.trim();
+		if (!companyId) {
+			throw new BadRequestException(
+				"Company ID is required for a material issue",
+			);
 		}
 		if (input.lines.length === 0) {
 			throw new BadRequestException(
@@ -89,14 +91,15 @@ export class AssetStockPostingService {
 		}
 
 		const companyRecord = await tx.company.findUnique({
-			where: { name: company },
-			select: { disabled: true },
+			where: { id: companyId },
+			select: { id: true, name: true, disabled: true },
 		});
 		if (!companyRecord || companyRecord.disabled) {
 			throw new BadRequestException(
-				`Company ${company} is missing or disabled`,
+				`Company ${companyId} is missing or disabled`,
 			);
 		}
+		const company = companyRecord.name;
 
 		const warehouseNames = [...new Set(lines.map((line) => line.warehouse))];
 		const warehouses = await tx.warehouse.findMany({

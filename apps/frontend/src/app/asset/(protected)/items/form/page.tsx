@@ -78,7 +78,7 @@ function getLastDayOfMonth(date: Date): Date {
 const assetFormSchema = z
 	.object({
 		assetName: z.string().min(1, "Asset name is required").max(255),
-		company: z.string().min(1, "Company is required").max(255),
+		companyId: z.string().min(1, "Company is required").max(255),
 		itemCode: z.string().max(100).optional().nullable(),
 		barcode: z.string().max(255).optional().nullable(),
 		assetCategoryId: z.string().optional().nullable(),
@@ -266,7 +266,7 @@ type AssetFormValues = z.input<typeof assetFormSchema>;
 
 const defaultFormValues: AssetFormValues = {
 	assetName: "",
-	company: "",
+	companyId: "",
 	itemCode: "",
 	barcode: "",
 	assetCategoryId: "",
@@ -361,11 +361,11 @@ function AssetFormContent() {
 		if (isEdit) return {};
 		const defaults: Partial<AssetFormValues> = {};
 		const assetName = searchParams.get("assetName");
-		const company = searchParams.get("company");
+		const companyId = searchParams.get("companyId");
 		const assetCategoryId = searchParams.get("assetCategoryId");
 		const locationId = searchParams.get("locationId");
 		if (assetName) defaults.assetName = assetName;
-		if (company) defaults.company = company;
+		if (companyId) defaults.companyId = companyId;
 		if (assetCategoryId) defaults.assetCategoryId = assetCategoryId;
 		if (locationId) defaults.locationId = locationId;
 		return defaults;
@@ -390,7 +390,7 @@ function AssetFormContent() {
 		if (!rawAsset) return;
 		form.reset({
 			assetName: rawAsset.assetName,
-			company: rawAsset.company,
+			companyId: rawAsset.companyId,
 			itemCode: rawAsset.itemCode ?? "",
 			barcode: rawAsset.barcode ?? "",
 			assetCategoryId: rawAsset.assetCategoryId ?? "",
@@ -584,7 +584,7 @@ function AssetFormContent() {
 	const onSubmit = form.handleSubmit((values) => {
 		const common = {
 			assetName: values.assetName.trim(),
-			company: values.company.trim(),
+			companyId: values.companyId,
 			itemCode: values.itemCode?.trim() || null,
 			barcode: values.barcode?.trim() || null,
 			assetCategoryId: values.assetCategoryId || null,
@@ -841,7 +841,7 @@ function AssetFormContent() {
 								Company <span className="text-destructive">*</span>
 							</Label>
 							<Controller
-								name="company"
+								name="companyId"
 								control={form.control}
 								render={({ field }) => (
 									<Popover open={companyOpen} onOpenChange={setCompanyOpen}>
@@ -850,10 +850,12 @@ function AssetFormContent() {
 												id="company"
 												type="button"
 												variant="outline"
-												className={`h-10 w-full justify-between font-normal ${formErrors.company ? "border-destructive" : ""}`}
+												className={`h-10 w-full justify-between font-normal ${formErrors.companyId ? "border-destructive" : ""}`}
 											>
 												<span className="truncate">
-													{field.value || "Select company…"}
+													{companies.find(
+														(company) => company.id === field.value,
+													)?.name || "Select company…"}
 												</span>
 												<ChevronDown className="h-4 w-4 opacity-50" />
 											</Button>
@@ -871,7 +873,7 @@ function AssetFormContent() {
 															<CommandItem
 																key={comp.id}
 																onSelect={() => {
-																	field.onChange(comp.name);
+																	field.onChange(comp.id);
 																	setCompanyOpen(false);
 																}}
 															>
@@ -885,9 +887,9 @@ function AssetFormContent() {
 									</Popover>
 								)}
 							/>
-							{formErrors.company && (
+							{formErrors.companyId && (
 								<p className="text-sm text-destructive">
-									{formErrors.company.message}
+									{formErrors.companyId.message}
 								</p>
 							)}
 						</div>

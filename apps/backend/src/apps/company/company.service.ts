@@ -2,7 +2,7 @@
  * Company service — CRUD for Companies.
  *
  * Follows the ERPNext Company DocType core business logic:
- * - Unique name and abbreviation
+ * - Organization-scoped unique name and abbreviation
  * - Parent company must be a group company
  * - Cannot set parentCompanyId to self
  * - Cannot delete if children exist
@@ -35,15 +35,17 @@ export class CompanyService {
 	// ============================================================================
 
 	async findAllCompanies(
+		organizationId: string,
 		params?: Company.ListCompaniesInput,
 	): Promise<Company.CompanyListResult> {
+		this.assertOrganizationId(organizationId);
 		const skip = Math.max(params?.skip ?? 0, 0);
 		const take = Math.min(
 			Math.max(params?.take ?? LIST_TAKE_MAX, 1),
 			LIST_TAKE_MAX,
 		);
 
-		const where: Record<string, unknown> = {};
+		const where: Record<string, unknown> = { organizationId };
 		if (params?.isGroup !== undefined) where.isGroup = params.isGroup;
 		if (params?.search) {
 			where.OR = [
@@ -68,23 +70,29 @@ export class CompanyService {
 		return { items: items.map(toCompany), totalCount };
 	}
 
-	async findCompanyById(id: string): Promise<Company.CompanyItem | null> {
-		const company = await this.prisma.company.findUnique({
-			where: { id },
+	async findCompanyById(
+		organizationId: string,
+		id: string,
+	): Promise<Company.CompanyItem | null> {
+		this.assertOrganizationId(organizationId);
+		const company = await this.prisma.company.findFirst({
+			where: { id, organizationId },
 			select: companySelect,
 		});
 		return company ? toCompany(company) : null;
 	}
 
 	async createCompany(
+		organizationId: string,
 		input: Company.CreateCompanyInput,
 	): Promise<Company.CompanyItem> {
+		this.assertOrganizationId(organizationId);
 		const name = input.name.trim();
 		const abbreviation = input.abbreviation?.trim() || null;
 
 		// Validate unique name
-		const existingByName = await this.prisma.company.findUnique({
-			where: { name },
+		const existingByName = await this.prisma.company.findFirst({
+			where: { organizationId, name },
 			select: { id: true },
 		});
 		if (existingByName) {
@@ -94,7 +102,7 @@ export class CompanyService {
 		// Validate unique abbreviation
 		if (abbreviation) {
 			const existingByAbbr = await this.prisma.company.findFirst({
-				where: { abbreviation },
+				where: { organizationId, abbreviation },
 				select: { id: true },
 			});
 			if (existingByAbbr) {
@@ -106,11 +114,16 @@ export class CompanyService {
 
 		// Validate parent company
 		if (input.parentCompanyId) {
-			await this.validateParentCompany(input.parentCompanyId, null);
+			await this.validateParentCompany(
+				organizationId,
+				input.parentCompanyId,
+				null,
+			);
 		}
 
 		const created = await this.prisma.company.create({
 			data: {
+				organizationId,
 				name,
 				abbreviation,
 				country: input.country?.trim() || null,
@@ -135,10 +148,12 @@ export class CompanyService {
 	}
 
 	async updateCompany(
+		organizationId: string,
 		input: Company.UpdateCompanyInput,
 	): Promise<Company.CompanyItem> {
-		const existing = await this.prisma.company.findUnique({
-			where: { id: input.id },
+		this.assertOrganizationId(organizationId);
+		const existing = await this.prisma.company.findFirst({
+			where: { id: input.id, organizationId },
 			select: { id: true, name: true, abbreviation: true },
 		});
 		if (!existing) {
@@ -149,8 +164,8 @@ export class CompanyService {
 		if (input.name !== undefined) {
 			const name = input.name.trim();
 			if (name !== existing.name) {
-				const duplicate = await this.prisma.company.findUnique({
-					where: { name },
+				const duplicate = await this.prisma.company.findFirst({
+					where: { organizationId, name, id: { not: input.id } },
 					select: { id: true },
 				});
 				if (duplicate) {
@@ -166,7 +181,11 @@ export class CompanyService {
 			const abbr = input.abbreviation?.trim() || null;
 			if (abbr && abbr !== existing.abbreviation) {
 				const duplicate = await this.prisma.company.findFirst({
-					where: { abbreviation: abbr, id: { not: input.id } },
+					where: {
+						organizationId,
+						abbreviation: abbr,
+						id: { not: input.id },
+					},
 					select: { id: true },
 				});
 				if (duplicate) {
@@ -180,7 +199,11 @@ export class CompanyService {
 		// Validate parent company
 		if (input.parentCompanyId !== undefined) {
 			if (input.parentCompanyId) {
-				await this.validateParentCompany(input.parentCompanyId, input.id);
+				await this.validateParentCompany(
+					organizationId,
+					input.parentCompanyId,
+					input.id,
+				);
 			}
 		}
 
@@ -236,9 +259,13 @@ export class CompanyService {
 		return toCompany(updated);
 	}
 
-	async deleteCompany(id: string): Promise<{ success: boolean; id: string }> {
-		const existing = await this.prisma.company.findUnique({
-			where: { id },
+	async deleteCompany(
+		organizationId: string,
+		id: string,
+	): Promise<{ success: boolean; id: string }> {
+		this.assertOrganizationId(organizationId);
+		const existing = await this.prisma.company.findFirst({
+			where: { id, organizationId },
 			select: { id: true, name: true },
 		});
 		if (!existing) {
@@ -269,11 +296,15 @@ export class CompanyService {
 		return { success: true, id };
 	}
 
-	async deleteManyCompanies(ids: string[]): Promise<{ count: number }> {
+	async deleteManyCompanies(
+		organizationId: string,
+		ids: string[],
+	): Promise<{ count: number }> {
+		this.assertOrganizationId(organizationId);
 		let deleted = 0;
 		for (const id of ids) {
 			try {
-				await this.deleteCompany(id);
+				await this.deleteCompany(organizationId, id);
 				deleted++;
 			} catch (error) {
 				this.logger.warn(
@@ -285,58 +316,11 @@ export class CompanyService {
 	}
 
 	// ============================================================================
-	// Legacy methods (used by other modules)
-	// ============================================================================
-
-	async getCompany(id: string): Promise<{
-		id: string;
-		name: string;
-		abbreviation: string | null;
-		country: string | null;
-		currency: string | null;
-		disabled: boolean;
-	} | null> {
-		const company = await this.prisma.company.findUnique({
-			where: { id },
-		});
-		if (!company) return null;
-		return {
-			id: company.id,
-			name: company.name,
-			abbreviation: company.abbreviation,
-			country: company.country,
-			currency: company.currency,
-			disabled: company.disabled,
-		};
-	}
-
-	async getCompanyByName(name: string): Promise<{
-		id: string;
-		name: string;
-		abbreviation: string | null;
-		country: string | null;
-		currency: string | null;
-		disabled: boolean;
-	} | null> {
-		const company = await this.prisma.company.findUnique({
-			where: { name },
-		});
-		if (!company) return null;
-		return {
-			id: company.id,
-			name: company.name,
-			abbreviation: company.abbreviation,
-			country: company.country,
-			currency: company.currency,
-			disabled: company.disabled,
-		};
-	}
-
-	// ============================================================================
 	// Private helpers
 	// ============================================================================
 
 	private async validateParentCompany(
+		organizationId: string,
 		parentId: string,
 		selfId: string | null,
 	): Promise<void> {
@@ -344,8 +328,8 @@ export class CompanyService {
 			throw new BadRequestException("A company cannot be its own parent");
 		}
 
-		const parent = await this.prisma.company.findUnique({
-			where: { id: parentId },
+		const parent = await this.prisma.company.findFirst({
+			where: { id: parentId, organizationId },
 			select: { id: true, isGroup: true, name: true },
 		});
 
@@ -356,6 +340,14 @@ export class CompanyService {
 		if (!parent.isGroup) {
 			throw new BadRequestException(
 				`Parent company "${parent.name}" must be a group company (isGroup=true)`,
+			);
+		}
+	}
+
+	private assertOrganizationId(organizationId: string): void {
+		if (!organizationId || organizationId === "__super_admin__") {
+			throw new BadRequestException(
+				"Select an organization before accessing company data",
 			);
 		}
 	}

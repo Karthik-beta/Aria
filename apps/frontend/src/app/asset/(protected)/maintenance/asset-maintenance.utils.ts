@@ -85,7 +85,7 @@ export function toCreateAssetMaintenanceInput(
 ): Asset.CreateAssetMaintenanceInput {
 	return {
 		assetId: values.assetId.trim(),
-		company: values.company.trim(),
+		companyId: values.companyId.trim(),
 		maintenanceTeamId: values.maintenanceTeamId.trim(),
 		maintenanceManager: values.maintenanceManager?.trim() || null,
 		maintenanceManagerName: values.maintenanceManagerName?.trim() || null,
@@ -113,7 +113,7 @@ export function toUpdateAssetMaintenanceInput(
 ): Asset.UpdateAssetMaintenanceInput {
 	return {
 		id,
-		company: values.company.trim(),
+		companyId: values.companyId.trim(),
 		maintenanceTeamId: values.maintenanceTeamId.trim(),
 		maintenanceManager: values.maintenanceManager?.trim() || null,
 		maintenanceManagerName: values.maintenanceManagerName?.trim() || null,

@@ -8,13 +8,15 @@ import {
 import { CwipCapitalizationDiscoveryService } from "./cwip-capitalization-discovery.service";
 import type { CwipCapitalizationQueueClient } from "./cwip-capitalization-queue.client";
 
+const COMPANY_ID = "company-1";
+
 function candidate(
 	id: string,
 	overrides: Record<string, unknown> = {},
 ): Record<string, unknown> {
 	return {
 		id,
-		company: "Pivotr Technologies Private Limited",
+		companyId: COMPANY_ID,
 		availableForUseDate: new Date("2026-08-09T00:00:00.000Z"),
 		assetCategory: {
 			enableCwipAccounting: true,
@@ -22,6 +24,7 @@ function candidate(
 				{
 					fixedAssetAccount: "Plant and Machinery - PTPL",
 					capitalWorkInProgressAccount: "CWIP - PTPL",
+					companyId: COMPANY_ID,
 					company: { name: "Pivotr Technologies Private Limited" },
 				},
 			],
@@ -65,6 +68,7 @@ describe("CwipCapitalizationDiscoveryService", () => {
 						{
 							fixedAssetAccount: "Fixed - OTHER",
 							capitalWorkInProgressAccount: "CWIP - OTHER",
+							companyId: "company-2",
 							company: { name: "Other Company" },
 						},
 					],
@@ -77,6 +81,7 @@ describe("CwipCapitalizationDiscoveryService", () => {
 						{
 							fixedAssetAccount: "Plant and Machinery - PTPL",
 							capitalWorkInProgressAccount: null,
+							companyId: COMPANY_ID,
 							company: {
 								name: "Pivotr Technologies Private Limited",
 							},

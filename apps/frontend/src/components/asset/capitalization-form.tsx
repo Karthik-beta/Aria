@@ -70,7 +70,7 @@ export function AssetCapitalizationDialog({
 			Asset.createAssetCapitalizationSchema,
 		) as Resolver<Asset.CreateAssetCapitalizationInput>,
 		defaultValues: {
-			company: "",
+			companyId: "",
 			postingDate: new Date(),
 			targetType: "NEW_ASSET",
 			targetAssetId: null,
@@ -96,11 +96,11 @@ export function AssetCapitalizationDialog({
 		name: "serviceItems",
 	});
 	const targetType = form.watch("targetType");
-	const selectedCompany = form.watch("company");
+	const selectedCompanyId = form.watch("companyId");
 	const selectedTargetAssetId = form.watch("targetAssetId");
 	const eligibleSourceAssets = assets.filter(
 		(asset) =>
-			asset.company === selectedCompany &&
+			asset.companyId === selectedCompanyId &&
 			asset.id !== selectedTargetAssetId &&
 			["SUBMITTED", "PARTIALLY_DEPRECIATED", "FULLY_DEPRECIATED"].includes(
 				asset.status,
@@ -163,7 +163,7 @@ export function AssetCapitalizationDialog({
 					<div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
 						<FormField
 							control={form.control}
-							name="company"
+							name="companyId"
 							render={({ field }) => (
 								<FormItem>
 									<FormLabel>Company</FormLabel>
@@ -185,7 +185,7 @@ export function AssetCapitalizationDialog({
 										</FormControl>
 										<SelectContent>
 											{companies.map((company) => (
-												<SelectItem key={company.id} value={company.name}>
+												<SelectItem key={company.id} value={company.id}>
 													{company.name}
 												</SelectItem>
 											))}
@@ -254,7 +254,7 @@ export function AssetCapitalizationDialog({
 											field.onChange(assetId);
 											const asset = assets.find((item) => item.id === assetId);
 											if (asset)
-												form.setValue("company", asset.company, {
+												form.setValue("companyId", asset.companyId, {
 													shouldValidate: true,
 												});
 										}}

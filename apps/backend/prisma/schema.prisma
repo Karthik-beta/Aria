@@ -542,6 +542,7 @@ model Organization {
 
   members     Member[]
   invitations Invitation[]
+  companies   Company[]
 
   @@map("organizations")
 }
@@ -1583,7 +1584,8 @@ model Asset {
   barcode                            String?                         @unique @db.VarChar(255)
   assetCategoryId                    String?
   assetCategory                      AssetCategory?                  @relation(fields: [assetCategoryId], references: [id])
-  company                            String                          @db.VarChar(255)
+  companyId                          String
+  company                            Company                         @relation(fields: [companyId], references: [id], onDelete: Restrict)
   locationId                         String?
   location                           Location?                       @relation(fields: [locationId], references: [id])
   custodian                          String?                         @db.VarChar(255)
@@ -1640,7 +1642,8 @@ model Asset {
   @@index([status])
   @@index([assetType])
   @@index([itemCode])
-  @@index([company])
+  @@index([companyId])
+  @@index([companyId, status, purchaseDate])
   @@index([locationId])
   @@index([assetCategoryId])
   @@index([purchaseDate])
@@ -1670,7 +1673,6 @@ model AssetValueAdjustment {
   financeBookId                       String?
   financeBook                         FinanceBook?                  @relation(fields: [financeBookId], references: [id])
   assetCategorySnapshot               String?                       @db.VarChar(255)
-  companySnapshot                     String                        @db.VarChar(255)
   adjustmentDate                      DateTime
   currentAssetValue                   Decimal                       @db.Decimal(18, 6)
   newAssetValue                       Decimal                       @db.Decimal(18, 6)
@@ -1695,7 +1697,6 @@ model AssetValueAdjustment {
   @@index([financeBookId])
   @@index([status])
   @@index([adjustmentDate])
-  @@index([companySnapshot])
   @@map("asset_value_adjustments")
 }
 
@@ -1706,7 +1707,8 @@ model AssetRevaluationEntry {
   adjustment   AssetValueAdjustment        @relation(fields: [adjustmentId], references: [id], onDelete: Cascade)
   assetId      String
   asset        Asset                       @relation(fields: [assetId], references: [id])
-  company      String                      @db.VarChar(255)
+  companyId    String
+  company      Company                     @relation(fields: [companyId], references: [id], onDelete: Restrict)
   postingDate  DateTime
   remarks      String                      @db.VarChar(500)
   status       AssetRevaluationEntryStatus @default(POSTED)
@@ -1912,7 +1914,8 @@ model AssetDepreciationJournalEntry {
   asset              Asset                               @relation(fields: [assetId], references: [id])
   assetFinanceBookId String
   assetFinanceBook   AssetFinanceBook                    @relation(fields: [assetFinanceBookId], references: [id])
-  company            String                              @db.VarChar(255)
+  companyId          String
+  company            Company                             @relation(fields: [companyId], references: [id], onDelete: Restrict)
   financeBookName    String                              @db.VarChar(255)
   postingDate        DateTime
   depreciationAmount Decimal                             @db.Decimal(18, 6)
@@ -1955,7 +1958,8 @@ model AssetDepreciationJournalEntryLine {
 model AssetAccountingEntry {
   id             String                     @id @default(cuid())
   series         String                     @unique @db.VarChar(50)
-  company        String                     @db.VarChar(255)
+  companyId      String
+  company        Company                    @relation(fields: [companyId], references: [id], onDelete: Restrict)
   assetId        String?
   asset          Asset?                     @relation("AssetAccountingEntries", fields: [assetId], references: [id], onDelete: SetNull)
   sourceType     AssetAccountingSourceType
@@ -1974,7 +1978,7 @@ model AssetAccountingEntry {
 
   @@unique([sourceType, sourceId])
   @@index([assetId, postingDate])
-  @@index([company, postingDate, status])
+  @@index([companyId, postingDate, status])
   @@map("asset_accounting_entries")
 }
 
@@ -2001,14 +2005,15 @@ model AssetMaintenanceTeam {
   name                   String                       @unique @db.VarChar(255)
   maintenanceManager     String?                      @db.VarChar(255)
   maintenanceManagerName String?                      @db.VarChar(255)
-  company                String                       @db.VarChar(255)
+  companyId              String
+  company                Company                      @relation(fields: [companyId], references: [id], onDelete: Restrict)
   members                AssetMaintenanceTeamMember[]
   maintenances           AssetMaintenance[]
   createdAt              DateTime                     @default(now())
   updatedAt              DateTime                     @updatedAt
 
   @@index([name])
-  @@index([company])
+  @@index([companyId])
   @@map("asset_maintenance_teams")
 }
 
@@ -2030,7 +2035,8 @@ model AssetMaintenance {
   id                     String                 @id @default(cuid())
   assetId                String                 @unique
   asset                  Asset                  @relation(fields: [assetId], references: [id])
-  company                String                 @db.VarChar(255)
+  companyId              String
+  company                Company                @relation(fields: [companyId], references: [id], onDelete: Restrict)
   maintenanceTeamId      String
   maintenanceTeam        AssetMaintenanceTeam   @relation(fields: [maintenanceTeamId], references: [id])
   maintenanceManager     String?                @db.VarChar(255)
@@ -2041,7 +2047,7 @@ model AssetMaintenance {
   updatedAt              DateTime               @updatedAt
 
   @@index([maintenanceTeamId])
-  @@index([company])
+  @@index([companyId])
   @@map("asset_maintenances")
 }
 
@@ -2094,7 +2100,8 @@ model AssetMaintenanceLog {
 model AssetMovement {
   id              String               @id @default(cuid())
   series          String               @unique @db.VarChar(50)
-  company         String               @db.VarChar(255)
+  companyId       String
+  company         Company              @relation(fields: [companyId], references: [id], onDelete: Restrict)
   transactionDate DateTime
   purpose         AssetMovementPurpose @default(TRANSFER)
   status          AssetMovementStatus  @default(DRAFT)
@@ -2108,8 +2115,8 @@ model AssetMovement {
   @@index([series])
   @@index([status])
   @@index([transactionDate])
-  @@index([company])
-  @@index([company, status, transactionDate])
+  @@index([companyId])
+  @@index([companyId, status, transactionDate])
   @@map("asset_movements")
 }
 
@@ -2142,7 +2149,8 @@ model AssetRepair {
   series                         String                       @unique @db.VarChar(50)
   assetId                        String
   asset                          Asset                        @relation("AssetRepairs", fields: [assetId], references: [id])
-  company                        String                       @db.VarChar(255)
+  companyId                      String
+  company                        Company                      @relation(fields: [companyId], references: [id], onDelete: Restrict)
   failureDate                    DateTime
   completionDate                 DateTime?
   repairStatus                   AssetRepairStatus            @default(DRAFT)
@@ -2168,7 +2176,7 @@ model AssetRepair {
   @@index([assetId])
   @@index([repairStatus])
   @@index([failureDate])
-  @@index([company])
+  @@index([companyId])
   @@map("asset_repairs")
 }
 
@@ -2211,7 +2219,8 @@ model AssetRepairPurchaseInvoice {
 model AssetCapitalization {
   id                                   String                           @id @default(cuid())
   series                               String                           @unique @db.VarChar(50)
-  company                              String                           @db.VarChar(255)
+  companyId                            String
+  company                              Company                          @relation(fields: [companyId], references: [id], onDelete: Restrict)
   postingDate                          DateTime
   targetType                           AssetCapitalizationTargetType    @default(NEW_ASSET)
   targetAssetId                        String?
@@ -2244,7 +2253,7 @@ model AssetCapitalization {
   @@index([series])
   @@index([status])
   @@index([postingDate])
-  @@index([company])
+  @@index([companyId])
   @@map("asset_capitalizations")
 }
 
@@ -2303,7 +2312,8 @@ model AssetDisposal {
   series                         String                @unique @db.VarChar(50)
   assetId                        String
   asset                          Asset                 @relation("AssetDisposals", fields: [assetId], references: [id])
-  company                        String                @db.VarChar(255)
+  companyId                      String
+  company                        Company               @relation(fields: [companyId], references: [id], onDelete: Restrict)
   disposalDate                   DateTime
   disposalType                   AssetDisposalType
   salesAmount                    Decimal?              @db.Decimal(18, 6)
@@ -2325,7 +2335,7 @@ model AssetDisposal {
   @@index([assetId])
   @@index([status])
   @@index([disposalDate])
-  @@index([company])
+  @@index([companyId])
   @@map("asset_disposals")
 }
 
@@ -2449,31 +2459,45 @@ enum AssetMaintenancePeriodicity {
 }
 
 model Company {
-  id                             String                 @id @default(cuid())
-  name                           String                 @unique @db.VarChar(255)
-  abbreviation                   String?                @db.VarChar(50)
-  country                        String?                @db.VarChar(100)
-  currency                       String?                @db.VarChar(50)
-  taxId                          String?                @db.VarChar(100)
-  domain                         String?                @db.VarChar(100)
-  isGroup                        Boolean                @default(false)
-  parentCompanyId                String?
-  parentCompany                  Company?               @relation("CompanyHierarchy", fields: [parentCompanyId], references: [id])
-  children                       Company[]              @relation("CompanyHierarchy")
-  disabled                       Boolean                @default(false)
-  defaultFinanceBookId           String?
-  defaultFinanceBook             FinanceBook?           @relation("CompanyDefaultFinanceBook", fields: [defaultFinanceBookId], references: [id], onDelete: SetNull)
-  depreciationEntrySeries        String?                @default("DEP-.YYYY.-") @db.VarChar(50)
-  defaultCostCenter              String?                @db.VarChar(255)
-  accumulatedDepreciationAccount String?                @db.VarChar(255)
-  depreciationExpenseAccount     String?                @db.VarChar(255)
-  accountsFrozenThrough          DateTime?
-  assetCategoryAccounts          AssetCategoryAccount[]
-  fiscalYears                    FiscalYearCompany[]
-  createdAt                      DateTime               @default(now())
-  updatedAt                      DateTime               @updatedAt
+  id                              String                          @id @default(cuid())
+  organizationId                  String
+  organization                    Organization                    @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  name                            String                          @db.VarChar(255)
+  abbreviation                    String?                         @db.VarChar(50)
+  country                         String?                         @db.VarChar(100)
+  currency                        String?                         @db.VarChar(50)
+  taxId                           String?                         @db.VarChar(100)
+  domain                          String?                         @db.VarChar(100)
+  isGroup                         Boolean                         @default(false)
+  parentCompanyId                 String?
+  parentCompany                   Company?                        @relation("CompanyHierarchy", fields: [parentCompanyId], references: [id])
+  children                        Company[]                       @relation("CompanyHierarchy")
+  disabled                        Boolean                         @default(false)
+  defaultFinanceBookId            String?
+  defaultFinanceBook              FinanceBook?                    @relation("CompanyDefaultFinanceBook", fields: [defaultFinanceBookId], references: [id], onDelete: SetNull)
+  depreciationEntrySeries         String?                         @default("DEP-.YYYY.-") @db.VarChar(50)
+  defaultCostCenter               String?                         @db.VarChar(255)
+  accumulatedDepreciationAccount  String?                         @db.VarChar(255)
+  depreciationExpenseAccount      String?                         @db.VarChar(255)
+  accountsFrozenThrough           DateTime?
+  assetCategoryAccounts           AssetCategoryAccount[]
+  assets                          Asset[]
+  assetRevaluationEntries         AssetRevaluationEntry[]
+  assetDepreciationJournalEntries AssetDepreciationJournalEntry[]
+  assetAccountingEntries          AssetAccountingEntry[]
+  assetMaintenanceTeams           AssetMaintenanceTeam[]
+  assetMaintenances               AssetMaintenance[]
+  assetMovements                  AssetMovement[]
+  assetRepairs                    AssetRepair[]
+  assetCapitalizations            AssetCapitalization[]
+  assetDisposals                  AssetDisposal[]
+  fiscalYears                     FiscalYearCompany[]
+  createdAt                       DateTime                        @default(now())
+  updatedAt                       DateTime                        @updatedAt
 
+  @@unique([organizationId, name])
   @@index([parentCompanyId])
+  @@index([organizationId])
   @@index([defaultFinanceBookId])
 }
 

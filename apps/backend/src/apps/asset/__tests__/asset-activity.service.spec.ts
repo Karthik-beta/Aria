@@ -45,7 +45,7 @@ describe("AssetService > AssetActivityReport", () => {
 					id: "asset-001",
 					series: "AST-2026-00001",
 					assetName: "Hydraulic Pump A",
-					company: "ACME Corp",
+					company: { name: "ACME Corp" },
 					status: "PARTIALLY_DEPRECIATED",
 					assetCategory: {
 						id: "cat-001",
@@ -70,7 +70,11 @@ describe("AssetService > AssetActivityReport", () => {
 					activity: { contains: "updated", mode: "insensitive" },
 					asset: {
 						is: expect.objectContaining({
-							company: { contains: "ACME", mode: "insensitive" },
+							company: {
+								is: {
+									name: { contains: "ACME", mode: "insensitive" },
+								},
+							},
 							OR: [
 								{ series: { contains: "Pump", mode: "insensitive" } },
 								{ assetName: { contains: "Pump", mode: "insensitive" } },

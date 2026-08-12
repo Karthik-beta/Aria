@@ -166,7 +166,7 @@ async function createAccountingEntry(
 	tx: Prisma.TransactionClient,
 	input: {
 		series: string;
-		company: string;
+		companyId: string;
 		assetId: string;
 		sourceType: "CAPITALIZATION" | "CWIP_CAPITALIZATION" | "DISPOSAL";
 		sourceId: string;
@@ -181,7 +181,7 @@ async function createAccountingEntry(
 	return tx.assetAccountingEntry.create({
 		data: {
 			series: input.series,
-			company: input.company,
+			companyId: input.companyId,
 			assetId: input.assetId,
 			sourceType: input.sourceType,
 			sourceId: input.sourceId,
@@ -255,13 +255,13 @@ async function createMaterialIssue(
 async function categoryAccountingContext(
 	tx: Prisma.TransactionClient,
 	assetCategoryId: string | null,
-	company: string,
+	companyId: string,
 ) {
 	if (!assetCategoryId) {
 		throw new Error("Lifecycle demo asset requires an asset category");
 	}
 	const context = await tx.assetCategoryAccount.findFirst({
-		where: { assetCategoryId, company: { name: company } },
+		where: { assetCategoryId, companyId },
 		select: {
 			fixedAssetAccount: true,
 			accumulatedDepreciationAccount: true,
@@ -269,7 +269,7 @@ async function categoryAccountingContext(
 		},
 	});
 	if (!context?.fixedAssetAccount) {
-		throw new Error(`Fixed asset account is missing for company ${company}`);
+		throw new Error(`Fixed asset account is missing for company ${companyId}`);
 	}
 	return context;
 }
@@ -279,6 +279,7 @@ async function seedMovements(
 	config: DemoConfig,
 	ids: MasterIds,
 ): Promise<void> {
+	const companyId = requiredId(ids.companyIds, config.company, "Company");
 	const submittedDate = resolveRelativeDate(config, 142, 11, 0);
 	const submittedAssetId = requiredId(
 		ids.assetIds,
@@ -297,7 +298,7 @@ async function seedMovements(
 	const submittedMovement = await tx.assetMovement.create({
 		data: {
 			series: `MOV-PTPL-${seriesYear(submittedDate)}-00001`,
-			company: config.company,
+			companyId,
 			transactionDate: submittedDate,
 			purpose: "TRANSFER",
 			status: "SUBMITTED",
@@ -342,7 +343,7 @@ async function seedMovements(
 	await tx.assetMovement.create({
 		data: {
 			series: `MOV-PTPL-${seriesYear(pendingDate)}-00002`,
-			company: config.company,
+			companyId,
 			transactionDate: pendingDate,
 			purpose: "TRANSFER",
 			status: "DRAFT",
@@ -372,6 +373,7 @@ async function seedRepairs(
 	config: DemoConfig,
 	ids: MasterIds,
 ): Promise<void> {
+	const companyId = requiredId(ids.companyIds, config.company, "Company");
 	const completedAssetId = requiredId(
 		ids.assetIds,
 		"peenya-generator-panel-01",
@@ -397,7 +399,7 @@ async function seedRepairs(
 		data: {
 			series: `REP-PTPL-${seriesYear(failureDate)}-00001`,
 			assetId: completedAssetId,
-			company: config.company,
+			companyId,
 			failureDate,
 			completionDate,
 			repairStatus: "COMPLETED",
@@ -479,7 +481,7 @@ async function seedRepairs(
 		data: {
 			series: `REP-PTPL-${seriesYear(pendingFailureDate)}-00002`,
 			assetId: pendingAssetId,
-			company: config.company,
+			companyId,
 			failureDate: pendingFailureDate,
 			repairStatus: "PENDING",
 			repairCost: temperatureSensor.valuationRate,
@@ -520,6 +522,7 @@ async function seedCapitalizations(
 	config: DemoConfig,
 	ids: MasterIds,
 ): Promise<void> {
+	const companyId = requiredId(ids.companyIds, config.company, "Company");
 	const draftDate = resolveRelativeDate(config, 176, 12, 0);
 	const draftSourceId = requiredId(
 		ids.assetIds,
@@ -533,7 +536,7 @@ async function seedCapitalizations(
 	await tx.assetCapitalization.create({
 		data: {
 			series: `CAP-PTPL-${seriesYear(draftDate)}-00001`,
-			company: config.company,
+			companyId,
 			postingDate: draftDate,
 			targetType: "NEW_ASSET",
 			targetAssetName: "Whitefield Composite AOI Inspection Bench",
@@ -567,6 +570,7 @@ async function seedCapitalizations(
 		where: { id: sourceAssetId },
 		select: {
 			series: true,
+			companyId: true,
 			status: true,
 			disposalDate: true,
 			assetCategoryId: true,
@@ -586,7 +590,7 @@ async function seedCapitalizations(
 			itemCode: TARGET_FIXED_ASSET_ITEM,
 			barcode: `BAR-AST-PTPL-CAP-${seriesYear(postingDate)}-00001`,
 			assetCategoryId: targetCategoryId,
-			company: config.company,
+			companyId,
 			locationId: requiredId(
 				ids.assetLocationIds,
 				"Peenya Production Floor",
@@ -612,7 +616,7 @@ async function seedCapitalizations(
 	const capitalization = await tx.assetCapitalization.create({
 		data: {
 			series: `CAP-PTPL-${seriesYear(postingDate)}-00002`,
-			company: config.company,
+			companyId,
 			postingDate,
 			targetType: "NEW_ASSET",
 			targetAssetId: target.id,
@@ -675,8 +679,8 @@ async function seedCapitalizations(
 		],
 	});
 	const [sourceContext, targetContext] = await Promise.all([
-		categoryAccountingContext(tx, source.assetCategoryId, config.company),
-		categoryAccountingContext(tx, targetCategoryId, config.company),
+		categoryAccountingContext(tx, source.assetCategoryId, companyId),
+		categoryAccountingContext(tx, targetCategoryId, companyId),
 	]);
 	const sourceFixedBalance = roundAmount(Number(source.netPurchaseAmount));
 	const sourceAccumulatedDepreciation = roundAmount(
@@ -722,7 +726,7 @@ async function seedCapitalizations(
 	];
 	const accountingEntry = await createAccountingEntry(tx, {
 		series: `AAE-PTPL-${seriesYear(postingDate)}-00001`,
-		company: config.company,
+		companyId,
 		assetId: target.id,
 		sourceType: "CAPITALIZATION",
 		sourceId: capitalization.id,
@@ -774,6 +778,7 @@ async function seedDisposals(
 	config: DemoConfig,
 	ids: MasterIds,
 ): Promise<void> {
+	const companyId = requiredId(ids.companyIds, config.company, "Company");
 	const saleAssetId = requiredId(
 		ids.assetIds,
 		"ecity-demo-lora-rig-01",
@@ -795,7 +800,7 @@ async function seedDisposals(
 	const saleContext = await categoryAccountingContext(
 		tx,
 		saleAsset.assetCategoryId,
-		config.company,
+		companyId,
 	);
 	const saleProceeds = 215000;
 	const saleCarryingValue = roundAmount(
@@ -806,7 +811,7 @@ async function seedDisposals(
 		data: {
 			series: `DISP-PTPL-${seriesYear(saleDate)}-00001`,
 			assetId: saleAssetId,
-			company: config.company,
+			companyId,
 			disposalDate: saleDate,
 			disposalType: "SELL",
 			salesAmount: saleProceeds,
@@ -831,7 +836,7 @@ async function seedDisposals(
 	});
 	const saleEntry = await createAccountingEntry(tx, {
 		series: `AAE-PTPL-${seriesYear(saleDate)}-00002`,
-		company: config.company,
+		companyId,
 		assetId: saleAssetId,
 		sourceType: "DISPOSAL",
 		sourceId: postedDisposal.id,
@@ -876,7 +881,7 @@ async function seedDisposals(
 	const restoredContext = await categoryAccountingContext(
 		tx,
 		restoredAsset.assetCategoryId,
-		config.company,
+		companyId,
 	);
 	const restoredFixedBalance = roundAmount(
 		Number(restoredAsset.netPurchaseAmount),
@@ -888,7 +893,7 @@ async function seedDisposals(
 		data: {
 			series: `DISP-PTPL-${seriesYear(cancelledDisposalDate)}-00002`,
 			assetId: restoredAssetId,
-			company: config.company,
+			companyId,
 			disposalDate: cancelledDisposalDate,
 			disposalType: "SCRAP",
 			salesAmount: 0,
@@ -909,7 +914,7 @@ async function seedDisposals(
 	});
 	const cancelledEntry = await createAccountingEntry(tx, {
 		series: `AAE-PTPL-${seriesYear(cancelledDisposalDate)}-00003`,
-		company: config.company,
+		companyId,
 		assetId: restoredAssetId,
 		sourceType: "DISPOSAL",
 		sourceId: cancelledDisposal.id,
@@ -944,7 +949,6 @@ async function seedDisposals(
 
 async function seedCwipExamples(
 	tx: Prisma.TransactionClient,
-	config: DemoConfig,
 	ids: MasterIds,
 ): Promise<void> {
 	const bookedAssetId = requiredId(
@@ -970,10 +974,11 @@ async function seedCwipExamples(
 	) {
 		throw new Error("Booked CWIP demo asset is not in a postable state");
 	}
+	const companyId = bookedAsset.companyId;
 	const bookedContext = await categoryAccountingContext(
 		tx,
 		bookedAsset.assetCategoryId,
-		config.company,
+		companyId,
 	);
 	if (!bookedContext.capitalWorkInProgressAccount) {
 		throw new Error("Booked CWIP demo asset has no configured CWIP account");
@@ -981,7 +986,7 @@ async function seedCwipExamples(
 	const bookedAmount = roundAmount(Number(bookedAsset.netPurchaseAmount));
 	const cwipEntry = await createAccountingEntry(tx, {
 		series: `AAE-PTPL-${seriesYear(bookedAsset.availableForUseDate)}-00004`,
-		company: config.company,
+		companyId,
 		assetId: bookedAssetId,
 		sourceType: "CWIP_CAPITALIZATION",
 		sourceId: bookedAssetId,
@@ -1060,7 +1065,7 @@ export async function seedAssetLifecycleTransactions(
 			await seedRepairs(tx, config, ids);
 			await seedCapitalizations(tx, config, ids);
 			await seedDisposals(tx, config, ids);
-			await seedCwipExamples(tx, config, ids);
+			await seedCwipExamples(tx, ids);
 		},
 		{ maxWait: 10_000, timeout: 30_000 },
 	);

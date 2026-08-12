@@ -35,7 +35,7 @@ describe("maintenance-team.utils", () => {
 				name: "  Alpha Team  ",
 				maintenanceManager: "  manager@example.com  ",
 				maintenanceManagerName: "  Manager Name  ",
-				company: "  ACME Corp  ",
+				companyId: "  company-acme  ",
 				members: [
 					{
 						teamMember: "  john@example.com  ",
@@ -49,7 +49,7 @@ describe("maintenance-team.utils", () => {
 				name: "Alpha Team",
 				maintenanceManager: "manager@example.com",
 				maintenanceManagerName: "Manager Name",
-				company: "ACME Corp",
+				companyId: "company-acme",
 				members: [
 					{
 						teamMember: "john@example.com",
@@ -65,7 +65,7 @@ describe("maintenance-team.utils", () => {
 				name: "Beta Team",
 				maintenanceManager: "",
 				maintenanceManagerName: undefined,
-				company: "Beta Corp",
+				companyId: "company-beta",
 				members: [
 					{
 						teamMember: "jane@example.com",
@@ -82,7 +82,7 @@ describe("maintenance-team.utils", () => {
 		it("preserves multiple members", () => {
 			const result = toCreateMaintenanceTeamInput({
 				name: "Gamma Team",
-				company: "Gamma Corp",
+				companyId: "company-gamma",
 				members: [
 					{
 						teamMember: "a@example.com",
@@ -106,7 +106,7 @@ describe("maintenance-team.utils", () => {
 				name: "Alpha Team Updated",
 				maintenanceManager: "new@example.com",
 				maintenanceManagerName: "New Manager",
-				company: "NewCorp",
+				companyId: "company-new",
 				members: [
 					{
 						id: "mem-001",
@@ -125,7 +125,7 @@ describe("maintenance-team.utils", () => {
 		it("omits member id when not present", () => {
 			const result = toUpdateMaintenanceTeamInput("team-001", {
 				name: "Alpha Team",
-				company: "ACME Corp",
+				companyId: "company-acme",
 				members: [
 					{
 						teamMember: "new@example.com",

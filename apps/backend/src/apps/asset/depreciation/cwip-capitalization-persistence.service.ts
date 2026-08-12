@@ -11,7 +11,7 @@ import { normalizeDateOnly } from "./depreciation.config";
 interface CwipWorkerAsset {
 	id: string;
 	series: string;
-	company: string;
+	companyId: string;
 	status: string;
 	availableForUseDate: Date | null;
 	netPurchaseAmount: unknown;
@@ -21,7 +21,7 @@ interface CwipWorkerAsset {
 		accounts: Array<{
 			fixedAssetAccount: string;
 			capitalWorkInProgressAccount: string | null;
-			company: { name: string };
+			companyId: string;
 		}>;
 	} | null;
 }
@@ -75,7 +75,7 @@ export class CwipCapitalizationPersistenceService {
 				select: {
 					id: true,
 					series: true,
-					company: true,
+					companyId: true,
 					status: true,
 					availableForUseDate: true,
 					netPurchaseAmount: true,
@@ -87,7 +87,7 @@ export class CwipCapitalizationPersistenceService {
 								select: {
 									fixedAssetAccount: true,
 									capitalWorkInProgressAccount: true,
-									company: { select: { name: true } },
+									companyId: true,
 								},
 							},
 						},
@@ -113,7 +113,7 @@ export class CwipCapitalizationPersistenceService {
 			}
 
 			const categoryAccount = asset.assetCategory?.accounts.find(
-				(account) => account.company.name === asset.company,
+				(account) => account.companyId === asset.companyId,
 			);
 			const fixedAssetAccount = categoryAccount?.fixedAssetAccount.trim();
 			const cwipAccount = categoryAccount?.capitalWorkInProgressAccount?.trim();
@@ -137,7 +137,7 @@ export class CwipCapitalizationPersistenceService {
 				accountingEntry = await this.accounting.createPostedEntry(
 					tx as unknown as Prisma.TransactionClient,
 					{
-						company: asset.company,
+						companyId: asset.companyId,
 						assetId: asset.id,
 						sourceType: "CWIP_CAPITALIZATION",
 						sourceId: asset.id,

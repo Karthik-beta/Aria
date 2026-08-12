@@ -6,6 +6,19 @@ import { AssetService } from "../asset.service";
 import type { AssetDashboardSubService } from "../asset-dashboard.service";
 import type { AssetDepreciationRevisionService } from "../depreciation/asset-depreciation-revision.service";
 
+const COMPANY_ID = "company-1";
+const COMPANY = "ACME Corp";
+const COMPANY_RELATION = {
+	id: COMPANY_ID,
+	name: COMPANY,
+	organizationId: "org-1",
+};
+const OTHER_COMPANY_RELATION = {
+	id: "company-2",
+	name: "Other Corp",
+	organizationId: "org-1",
+};
+
 function createMockPrisma() {
 	const mockTx = {
 		$queryRaw: jest.fn().mockResolvedValue([{ value: 1 }]),
@@ -137,7 +150,8 @@ const baseAssetContext = {
 	id: "asset-001",
 	series: "AST-2026-00001",
 	assetName: "Hydraulic Pump A",
-	company: "ACME Corp",
+	companyId: COMPANY_ID,
+	company: COMPANY_RELATION,
 	status: "SUBMITTED",
 	purchaseDate: new Date("2026-01-01"),
 	availableForUseDate: new Date("2026-01-15"),
@@ -190,7 +204,6 @@ function createAdjustmentRow(overrides?: Record<string, unknown>) {
 		financeBookId: "finance-book-001",
 		financeBook: { name: "Company Books" },
 		assetCategorySnapshot: "Machinery",
-		companySnapshot: "ACME Corp",
 		adjustmentDate: new Date("2026-04-15"),
 		currentAssetValue: new Prisma.Decimal("80000"),
 		newAssetValue: new Prisma.Decimal("90000"),
@@ -212,6 +225,8 @@ function createAdjustmentRow(overrides?: Record<string, unknown>) {
 			id: "asset-001",
 			series: "AST-2026-00001",
 			assetName: "Hydraulic Pump A",
+			companyId: COMPANY_ID,
+			company: COMPANY_RELATION,
 			assetCategory: { name: "Machinery" },
 		},
 		revaluationEntry: null,
@@ -345,7 +360,6 @@ describe("AssetService > AssetValueAdjustment", () => {
 			series: "AVA-2026-00001",
 			assetId: "asset-001",
 			financeBookId: "finance-book-001",
-			companySnapshot: "ACME Corp",
 			adjustmentDate: new Date("2026-04-15"),
 			currentAssetValue: new Prisma.Decimal("80000"),
 			newAssetValue: new Prisma.Decimal("90000"),
@@ -366,7 +380,8 @@ describe("AssetService > AssetValueAdjustment", () => {
 					series: "JE-AVA-2026-00001",
 					adjustmentId: "adj-001",
 					assetId: "asset-001",
-					company: "ACME Corp",
+					companyId: COMPANY_ID,
+					company: COMPANY_RELATION,
 					postingDate: new Date("2026-04-15"),
 					remarks: "Asset revaluation for AST-2026-00001 via AVA-2026-00001",
 					status: "POSTED",
@@ -461,7 +476,6 @@ describe("AssetService > AssetValueAdjustment", () => {
 			series: "AVA-2026-00001",
 			assetId: "asset-001",
 			financeBookId: "finance-book-001",
-			companySnapshot: "ACME Corp",
 			currentAssetValue: new Prisma.Decimal("80000"),
 			status: "SUBMITTED",
 			previousAssetStatus: "SUBMITTED",
@@ -471,7 +485,10 @@ describe("AssetService > AssetValueAdjustment", () => {
 			revaluationEntry: { id: "entry-001" },
 			depreciationSchedule: { id: "sched-002" },
 		});
-		mockTx.asset.findUnique.mockResolvedValue({ company: "ACME Corp" });
+		mockTx.asset.findUnique.mockResolvedValue({
+			companyId: COMPANY_ID,
+			company: COMPANY_RELATION,
+		});
 		mockTx.assetValueAdjustment.count.mockResolvedValue(0);
 		mockTx.assetValueAdjustment.update.mockResolvedValue(
 			createAdjustmentRow({
@@ -482,7 +499,8 @@ describe("AssetService > AssetValueAdjustment", () => {
 					series: "JE-AVA-2026-00001",
 					adjustmentId: "adj-001",
 					assetId: "asset-001",
-					company: "ACME Corp",
+					companyId: COMPANY_ID,
+					company: COMPANY_RELATION,
 					postingDate: new Date("2026-04-15"),
 					remarks: "Asset revaluation for AST-2026-00001 via AVA-2026-00001",
 					status: "REVERSED",
@@ -553,7 +571,6 @@ describe("AssetService > AssetValueAdjustment", () => {
 			series: "AVA-2026-00001",
 			assetId: "asset-001",
 			financeBookId: "finance-book-001",
-			companySnapshot: "ACME Corp",
 			adjustmentDate: new Date("2026-04-15"),
 			currentAssetValue: new Prisma.Decimal("70000"),
 			newAssetValue: new Prisma.Decimal("90000"),
@@ -569,7 +586,7 @@ describe("AssetService > AssetValueAdjustment", () => {
 		).rejects.toBeInstanceOf(ConflictException);
 	});
 
-	it("rejects submission when the asset no longer belongs to the snapshotted company", async () => {
+	it("uses the current canonical Asset Company ID when submitting", async () => {
 		mockPrisma.assetValueAdjustment.findUnique.mockResolvedValue({
 			id: "adj-001",
 			assetId: "asset-001",
@@ -582,7 +599,6 @@ describe("AssetService > AssetValueAdjustment", () => {
 			series: "AVA-2026-00001",
 			assetId: "asset-001",
 			financeBookId: "finance-book-001",
-			companySnapshot: "ACME Corp",
 			adjustmentDate: new Date("2026-04-15"),
 			currentAssetValue: new Prisma.Decimal("80000"),
 			newAssetValue: new Prisma.Decimal("90000"),
@@ -593,13 +609,31 @@ describe("AssetService > AssetValueAdjustment", () => {
 		});
 		mockTx.asset.findUnique.mockResolvedValue({
 			...baseAssetContext,
-			company: "Other Corp",
+			companyId: OTHER_COMPANY_RELATION.id,
+			company: OTHER_COMPANY_RELATION,
 		});
 
-		await expect(
-			service.submitAssetValueAdjustment({ id: "adj-001" }),
-		).rejects.toBeInstanceOf(ConflictException);
-		expect(mockDepreciationRevision.revise).not.toHaveBeenCalled();
+		mockTx.assetValueAdjustment.update.mockResolvedValue(
+			createAdjustmentRow({
+				asset: {
+					id: "asset-001",
+					series: "AST-2026-00001",
+					assetName: "Hydraulic Pump A",
+					companyId: OTHER_COMPANY_RELATION.id,
+					company: OTHER_COMPANY_RELATION,
+					assetCategory: { name: "Machinery" },
+				},
+			}),
+		);
+
+		const result = await service.submitAssetValueAdjustment({ id: "adj-001" });
+
+		expect(mockTx.assetRevaluationEntry.create).toHaveBeenCalledWith(
+			expect.objectContaining({
+				data: expect.objectContaining({ companyId: OTHER_COMPANY_RELATION.id }),
+			}),
+		);
+		expect(result.companyId).toBe(OTHER_COMPANY_RELATION.id);
 	});
 
 	describe("fiscal year scenarios", () => {

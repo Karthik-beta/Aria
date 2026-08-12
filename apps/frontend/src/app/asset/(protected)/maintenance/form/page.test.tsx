@@ -15,6 +15,7 @@ const existingRecord = {
 	assetName: "Hydraulic Pump A",
 	assetCategoryName: "Machinery",
 	itemCode: "HYD-PMP-001",
+	companyId: "comp-2",
 	company: "ACME Corp",
 	maintenanceTeamId: "team-001",
 	maintenanceTeamName: "Alpha Team",
@@ -230,7 +231,7 @@ describe("AssetMaintenanceFormPage", () => {
 			expect(mockCreateMutate).toHaveBeenCalledWith(
 				expect.objectContaining({
 					assetId: "clhasset001",
-					company: "New Corp",
+					companyId: "comp-1",
 				}),
 			);
 		});

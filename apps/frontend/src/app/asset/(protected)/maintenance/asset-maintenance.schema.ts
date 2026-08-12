@@ -34,7 +34,7 @@ export type AssetMaintenanceTaskRow = z.infer<
 
 export const assetMaintenanceFormSchema = z.object({
 	assetId: z.string().min(1, "Asset ID is required"),
-	company: z.string().min(1, "Company is required").max(255).trim(),
+	companyId: z.string().min(1, "Company is required").max(255).trim(),
 	maintenanceTeamId: z.string().min(1, "Maintenance team is required"),
 	maintenanceManager: z.string().max(255).trim().optional(),
 	maintenanceManagerName: z.string().max(255).trim().optional(),
@@ -50,7 +50,7 @@ export type AssetMaintenanceFormValues = z.infer<
 export const getAssetMaintenanceFormDefaults =
 	(): AssetMaintenanceFormValues => ({
 		assetId: "",
-		company: "",
+		companyId: "",
 		maintenanceTeamId: "",
 		maintenanceManager: "",
 		maintenanceManagerName: "",

@@ -374,7 +374,7 @@ export class AssetDepreciationLifecycleService {
 			}));
 		}
 
-		const financeBookId = asset.companyRecord?.defaultFinanceBookId;
+		const financeBookId = asset.company.defaultFinanceBookId;
 		const method =
 			asset.depreciationMethod ?? asset.assetCategory?.depreciationMethod;
 		const total =
@@ -414,18 +414,14 @@ export class AssetDepreciationLifecycleService {
 		const asset = await this.prisma.asset.findUniqueOrThrow({
 			where: { id: assetId },
 			include: {
+				company: { select: { defaultFinanceBookId: true } },
 				assetCategory: { include: { financeBookDefaults: true } },
 				financeBooks: true,
 			},
 		});
-		const companyRecord = await this.prisma.company.findUnique({
-			where: { name: asset.company },
-			select: { defaultFinanceBookId: true },
-		});
 		return {
 			...asset,
 			netPurchaseAmount: Number(asset.netPurchaseAmount),
-			companyRecord,
 		};
 	}
 }

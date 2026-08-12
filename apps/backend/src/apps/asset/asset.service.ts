@@ -82,6 +82,7 @@ export class AssetService {
 	private readonly logger = new Logger(AssetService.name);
 	private readonly assetInclude = {
 		assetCategory: { select: { id: true, name: true } },
+		company: { select: { id: true, name: true, organizationId: true } },
 		location: { select: { id: true, name: true } },
 		activities: {
 			include: { user: { select: { id: true, name: true } } },
@@ -94,6 +95,7 @@ export class AssetService {
 	} as const;
 
 	private readonly assetMovementInclude = {
+		company: { select: { id: true, name: true } },
 		items: {
 			include: {
 				sourceLocation: { select: { name: true } },
@@ -104,6 +106,7 @@ export class AssetService {
 	} as const;
 
 	private readonly assetRepairInclude = {
+		company: { select: { id: true, name: true } },
 		asset: { select: { assetName: true } },
 		consumedItems: {
 			include: {
@@ -114,6 +117,7 @@ export class AssetService {
 	} as const;
 
 	private readonly assetCapitalizationInclude = {
+		company: { select: { id: true, name: true } },
 		targetAsset: { select: { assetName: true } },
 		stockItems: true,
 		assetItems: {
@@ -125,6 +129,7 @@ export class AssetService {
 	} as const;
 
 	private readonly assetDisposalInclude = {
+		company: { select: { id: true, name: true } },
 		asset: { select: { assetName: true } },
 		accountingEntry: { select: { series: true } },
 	} as const;
@@ -147,11 +152,14 @@ export class AssetService {
 				id: true,
 				series: true,
 				assetName: true,
+				companyId: true,
+				company: { select: { name: true } },
 				assetCategory: { select: { name: true } },
 			},
 		},
 		revaluationEntry: {
 			include: {
+				company: { select: { id: true, name: true } },
 				lines: { orderBy: { createdAt: "asc" as const } },
 			},
 		},
@@ -166,7 +174,8 @@ export class AssetService {
 		id: true,
 		series: true,
 		assetName: true,
-		company: true,
+		companyId: true,
+		company: { select: { id: true, name: true, organizationId: true } },
 		status: true,
 		purchaseDate: true,
 		availableForUseDate: true,
@@ -221,6 +230,36 @@ export class AssetService {
 			throughDate,
 			...(company ? { company } : {}),
 		});
+	}
+
+	/** Resolves a stable Company ID against the trusted active Organization. */
+	private async resolveCompanyForOrganization(
+		organizationId: string,
+		companyId: string,
+		client: PrismaService | Prisma.TransactionClient = this.prisma,
+	): Promise<{ id: string; name: string }> {
+		if (!organizationId || organizationId === "__super_admin__") {
+			throw new BadRequestException(
+				"Select an organization before accessing asset data",
+			);
+		}
+
+		const company = await client.company.findFirst({
+			where: { id: companyId, organizationId },
+			select: { id: true, name: true, disabled: true },
+		});
+		if (!company) {
+			throw new NotFoundException(
+				`Company "${companyId}" is not available in the active organization`,
+			);
+		}
+		if (company.disabled) {
+			throw new BadRequestException(
+				`Company "${company.name}" is disabled in the active organization`,
+			);
+		}
+
+		return { id: company.id, name: company.name };
 	}
 
 	// ============================================================================
@@ -628,7 +667,7 @@ export class AssetService {
 		tx: Prisma.TransactionClient,
 		asset: {
 			series: string;
-			company: string;
+			companyId: string;
 			assetCategoryId: string | null;
 		},
 		costCenter?: string | null,
@@ -643,9 +682,10 @@ export class AssetService {
 			);
 		}
 		const company = await tx.company.findUnique({
-			where: { name: asset.company },
+			where: { id: asset.companyId },
 			select: {
 				id: true,
+				name: true,
 				disabled: true,
 				defaultCostCenter: true,
 				accumulatedDepreciationAccount: true,
@@ -653,7 +693,7 @@ export class AssetService {
 		});
 		if (!company || company.disabled) {
 			throw new BadRequestException(
-				`Company ${asset.company} is missing or disabled.`,
+				`Company ${asset.companyId} is missing or disabled.`,
 			);
 		}
 		const accounts = await tx.assetCategoryAccount.findUnique({
@@ -670,7 +710,7 @@ export class AssetService {
 		});
 		if (!accounts?.fixedAssetAccount.trim()) {
 			throw new BadRequestException(
-				`A fixed asset account is required for asset ${asset.series} and company ${asset.company}.`,
+				`A fixed asset account is required for asset ${asset.series} and company ${company.name}.`,
 			);
 		}
 		return {
@@ -863,7 +903,8 @@ export class AssetService {
 			id: asset.id,
 			series: asset.series,
 			assetName: asset.assetName,
-			company: asset.company,
+			companyId: asset.companyId,
+			company: asset.company.name,
 			status: asset.status as Asset.AssetStatus,
 			purchaseDate: asset.purchaseDate,
 			availableForUseDate: asset.availableForUseDate ?? null,
@@ -974,6 +1015,7 @@ export class AssetService {
 			id: string;
 			series: string;
 			assetName: string;
+			companyId: string;
 			company: string;
 			status: Asset.AssetStatus;
 			purchaseDate: Date;
@@ -1153,6 +1195,7 @@ export class AssetService {
 
 		return {
 			assetId: asset.id,
+			companyId: asset.companyId,
 			assetSeries: asset.series,
 			assetName: asset.assetName,
 			assetCategoryName: asset.assetCategory?.name ?? null,
@@ -1191,7 +1234,9 @@ export class AssetService {
 		if (params?.assetCategoryId) where.assetCategoryId = params.assetCategoryId;
 		if (params?.locationId) where.locationId = params.locationId;
 		if (params?.company)
-			where.company = { contains: params.company, mode: "insensitive" };
+			where.company = {
+				is: { name: { contains: params.company, mode: "insensitive" } },
+			};
 		if (params?.search) {
 			where.OR = [
 				{ series: { contains: params.search, mode: "insensitive" } },
@@ -1252,6 +1297,7 @@ export class AssetService {
 
 	async createAsset(
 		input: Asset.CreateAssetInput,
+		organizationId: string,
 		actorId?: string | null,
 	): Promise<Asset.AssetItem> {
 		if (input.status && input.status !== "DRAFT") {
@@ -1259,6 +1305,10 @@ export class AssetService {
 				"Create the asset as a draft, then use the explicit submit action",
 			);
 		}
+		const company = await this.resolveCompanyForOrganization(
+			organizationId,
+			input.companyId,
+		);
 		if (input.barcode && input.barcode.trim().length > 0) {
 			const existingWithBarcode = await this.prisma.asset.findUnique({
 				where: { barcode: input.barcode.trim() },
@@ -1342,7 +1392,7 @@ export class AssetService {
 				itemCode: input.itemCode ?? "",
 				barcode: input.barcode ?? null,
 				assetCategoryId: input.assetCategoryId ?? null,
-				company: input.company,
+				companyId: company.id,
 				locationId: input.locationId ?? null,
 				custodian: input.custodian ?? null,
 				department: input.department ?? null,
@@ -1410,12 +1460,14 @@ export class AssetService {
 
 	async updateAsset(
 		input: Asset.UpdateAssetInput,
+		organizationId: string,
 		actorId?: string | null,
 	): Promise<Asset.AssetItem> {
 		const existing = await this.prisma.asset.findUnique({
 			where: { id: input.id },
 			select: {
 				id: true,
+				companyId: true,
 				status: true,
 				assetType: true,
 				assetCategoryId: true,
@@ -1431,6 +1483,27 @@ export class AssetService {
 			},
 		});
 		if (!existing) throw new NotFoundException(`Asset ${input.id} not found`);
+		const currentCompany = await this.prisma.company.findFirst({
+			where: { id: existing.companyId, organizationId },
+			select: { id: true, name: true },
+		});
+		if (!currentCompany) {
+			throw new NotFoundException(
+				`Asset ${input.id} is not available in the active organization`,
+			);
+		}
+		const nextCompany =
+			input.companyId !== undefined
+				? await this.resolveCompanyForOrganization(
+						organizationId,
+						input.companyId,
+					)
+				: currentCompany;
+		if (nextCompany.id !== currentCompany.id) {
+			throw new BadRequestException(
+				"Asset Company reassignment is not supported by ordinary Asset updates; use an explicit transfer workflow",
+			);
+		}
 
 		if (input.barcode && input.barcode.trim().length > 0) {
 			const existingWithBarcode = await this.prisma.asset.findUnique({
@@ -1451,7 +1524,7 @@ export class AssetService {
 		const depreciationCriticalEdit = [
 			input.assetType,
 			input.assetCategoryId,
-			input.company,
+			input.companyId,
 			input.purchaseDate,
 			input.availableForUseDate,
 			input.netPurchaseAmount,
@@ -1566,7 +1639,6 @@ export class AssetService {
 				...(input.assetCategoryId !== undefined && {
 					assetCategoryId: input.assetCategoryId,
 				}),
-				...(input.company !== undefined && { company: input.company }),
 				...(input.locationId !== undefined && { locationId: input.locationId }),
 				...(input.custodian !== undefined && { custodian: input.custodian }),
 				...(input.department !== undefined && { department: input.department }),
@@ -1825,8 +1897,9 @@ export class AssetService {
 
 		if (input.company) {
 			assetWhere.company = {
-				contains: input.company,
-				mode: "insensitive",
+				is: {
+					name: { contains: input.company, mode: "insensitive" },
+				},
 			};
 		}
 
@@ -1882,7 +1955,7 @@ export class AssetService {
 						id: true,
 						series: true,
 						assetName: true,
-						company: true,
+						company: { select: { name: true } },
 						status: true,
 						assetCategory: {
 							select: {
@@ -1907,7 +1980,7 @@ export class AssetService {
 							name: activity.asset.assetCategory.name,
 						}
 					: null,
-				company: activity.asset.company,
+				company: activity.asset.company.name,
 				assetStatus: activity.asset.status as Asset.AssetStatus,
 				activity: activity.activity,
 				user: activity.user
@@ -1937,8 +2010,9 @@ export class AssetService {
 
 		if (input.company) {
 			assetWhere.company = {
-				contains: input.company,
-				mode: "insensitive",
+				is: {
+					name: { contains: input.company, mode: "insensitive" },
+				},
 			};
 		}
 
@@ -1989,7 +2063,7 @@ export class AssetService {
 				id: true,
 				series: true,
 				assetName: true,
-				company: true,
+				company: { select: { name: true } },
 				purchaseDate: true,
 				netPurchaseAmount: true,
 				status: true,
@@ -2090,7 +2164,7 @@ export class AssetService {
 				id: asset.id,
 				series: asset.series,
 				assetName: asset.assetName,
-				company: asset.company,
+				company: asset.company.name,
 				purchaseDate: asset.purchaseDate ?? null,
 				netPurchaseAmount: asset.netPurchaseAmount
 					? Number(asset.netPurchaseAmount)
@@ -2158,8 +2232,9 @@ export class AssetService {
 
 		if (input.company) {
 			assetWhere.company = {
-				contains: input.company,
-				mode: "insensitive",
+				is: {
+					name: { contains: input.company, mode: "insensitive" },
+				},
 			};
 		}
 
@@ -2197,7 +2272,7 @@ export class AssetService {
 				id: true,
 				series: true,
 				assetName: true,
-				company: true,
+				company: { select: { name: true } },
 				purchaseDate: true,
 				disposalDate: true,
 				netPurchaseAmount: true,
@@ -2276,7 +2351,7 @@ export class AssetService {
 				id: asset.id,
 				series: asset.series,
 				assetName: asset.assetName,
-				company: asset.company,
+				company: asset.company.name,
 				purchaseDate: asset.purchaseDate,
 				disposalDate: asset.disposalDate ?? null,
 				netPurchaseAmount: Number(asset.netPurchaseAmount ?? 0),
@@ -2353,9 +2428,14 @@ export class AssetService {
 		if (params?.status) where.status = params.status;
 		if (params?.assetId) where.assetId = params.assetId;
 		if (params?.company) {
-			where.companySnapshot = {
-				contains: params.company,
-				mode: "insensitive",
+			where.asset = {
+				is: {
+					company: {
+						is: {
+							name: { contains: params.company, mode: "insensitive" },
+						},
+					},
+				},
 			};
 		}
 		if (params?.direction) where.direction = params.direction;
@@ -2431,7 +2511,6 @@ export class AssetService {
 				assetId: asset.id,
 				financeBookId: preview.financeBookId,
 				assetCategorySnapshot: asset.assetCategory?.name ?? null,
-				companySnapshot: asset.company,
 				adjustmentDate: input.adjustmentDate,
 				currentAssetValue: preview.currentAssetValue.toString(),
 				newAssetValue: preview.newAssetValue.toString(),
@@ -2507,7 +2586,6 @@ export class AssetService {
 				assetId: asset.id,
 				financeBookId: preview.financeBookId,
 				assetCategorySnapshot: asset.assetCategory?.name ?? null,
-				companySnapshot: asset.company,
 				adjustmentDate: draftInput.adjustmentDate,
 				currentAssetValue: preview.currentAssetValue.toString(),
 				newAssetValue: preview.newAssetValue.toString(),
@@ -2583,7 +2661,6 @@ export class AssetService {
 					series: true,
 					assetId: true,
 					financeBookId: true,
-					companySnapshot: true,
 					adjustmentDate: true,
 					currentAssetValue: true,
 					newAssetValue: true,
@@ -2608,11 +2685,6 @@ export class AssetService {
 				adjustment.assetId,
 				tx,
 			);
-			if (asset.company !== adjustment.companySnapshot) {
-				throw new ConflictException(
-					"The asset company no longer matches the adjustment company snapshot.",
-				);
-			}
 			const preview = await this.buildAssetValueAdjustmentPreview(asset, {
 				financeBookId: adjustment.financeBookId,
 				adjustmentDate: adjustment.adjustmentDate,
@@ -2646,7 +2718,7 @@ export class AssetService {
 					series: entrySeries,
 					adjustmentId: adjustment.id,
 					assetId: asset.id,
-					company: asset.company,
+					companyId: asset.companyId,
 					postingDate: adjustment.adjustmentDate,
 					remarks: `Asset revaluation for ${asset.series} via ${adjustment.series}`,
 					lines: {
@@ -2778,7 +2850,6 @@ export class AssetService {
 					series: true,
 					assetId: true,
 					financeBookId: true,
-					companySnapshot: true,
 					currentAssetValue: true,
 					status: true,
 					previousAssetStatus: true,
@@ -2796,15 +2867,10 @@ export class AssetService {
 			}
 			const asset = await tx.asset.findUnique({
 				where: { id: adjustment.assetId },
-				select: { company: true, calculateDepreciation: true },
+				select: { companyId: true, calculateDepreciation: true },
 			});
 			if (!asset) {
 				throw new NotFoundException(`Asset ${adjustment.assetId} not found`);
-			}
-			if (asset.company !== adjustment.companySnapshot) {
-				throw new ConflictException(
-					"The asset company no longer matches the adjustment company snapshot.",
-				);
 			}
 			if (
 				asset.calculateDepreciation &&
@@ -3371,7 +3437,9 @@ export class AssetService {
 
 		const where: Record<string, unknown> = {};
 		if (params?.company)
-			where.company = { contains: params.company, mode: "insensitive" };
+			where.company = {
+				is: { name: { contains: params.company, mode: "insensitive" } },
+			};
 		if (params?.search) {
 			where.OR = [
 				{ name: { contains: params.search, mode: "insensitive" } },
@@ -3384,14 +3452,21 @@ export class AssetService {
 						mode: "insensitive",
 					},
 				},
-				{ company: { contains: params.search, mode: "insensitive" } },
+				{
+					company: {
+						is: { name: { contains: params.search, mode: "insensitive" } },
+					},
+				},
 			];
 		}
 
 		const [items, totalCount] = await Promise.all([
 			this.prisma.assetMaintenanceTeam.findMany({
 				where,
-				include: { members: { orderBy: { createdAt: "asc" } } },
+				include: {
+					company: { select: { id: true, name: true } },
+					members: { orderBy: { createdAt: "asc" } },
+				},
 				orderBy: { createdAt: "desc" },
 				skip,
 				take,
@@ -3407,7 +3482,10 @@ export class AssetService {
 	): Promise<Asset.AssetMaintenanceTeam | null> {
 		const team = await this.prisma.assetMaintenanceTeam.findUnique({
 			where: { id },
-			include: { members: { orderBy: { createdAt: "asc" } } },
+			include: {
+				company: { select: { id: true, name: true } },
+				members: { orderBy: { createdAt: "asc" } },
+			},
 		});
 		return team ? toMaintenanceTeam(team) : null;
 	}
@@ -3424,13 +3502,22 @@ export class AssetService {
 				`A maintenance team with the name "${input.name}" already exists`,
 			);
 		}
+		const company = await this.prisma.company.findUnique({
+			where: { id: input.companyId },
+			select: { id: true, disabled: true },
+		});
+		if (!company || company.disabled) {
+			throw new BadRequestException(
+				`Company ${input.companyId} is missing or disabled`,
+			);
+		}
 
 		const team = await this.prisma.assetMaintenanceTeam.create({
 			data: {
 				name: input.name,
 				maintenanceManager: input.maintenanceManager ?? null,
 				maintenanceManagerName: input.maintenanceManagerName ?? null,
-				company: input.company,
+				companyId: input.companyId,
 				members: {
 					create: input.members.map((m) => ({
 						teamMember: m.teamMember,
@@ -3439,7 +3526,10 @@ export class AssetService {
 					})),
 				},
 			},
-			include: { members: { orderBy: { createdAt: "asc" } } },
+			include: {
+				company: { select: { id: true, name: true } },
+				members: { orderBy: { createdAt: "asc" } },
+			},
 		});
 
 		this.logger.log(`Created maintenance team "${team.name}"`);
@@ -3468,12 +3558,21 @@ export class AssetService {
 				);
 			}
 		}
-		if (input.company !== undefined) {
+		if (input.companyId !== undefined) {
+			const company = await this.prisma.company.findUnique({
+				where: { id: input.companyId },
+				select: { id: true, disabled: true },
+			});
+			if (!company || company.disabled) {
+				throw new BadRequestException(
+					`Company ${input.companyId} is missing or disabled`,
+				);
+			}
 			const conflictingMaintenance =
 				await this.prisma.assetMaintenance?.findFirst?.({
 					where: {
 						maintenanceTeamId: input.id,
-						company: { not: input.company },
+						companyId: { not: input.companyId },
 					},
 					select: { id: true },
 				});
@@ -3486,11 +3585,11 @@ export class AssetService {
 
 		const updated = await this.prisma.$transaction(async (tx) => {
 			await this.lockMaintenanceTeams(tx, [input.id]);
-			if (input.company !== undefined) {
+			if (input.companyId !== undefined) {
 				const conflictingMaintenance = await tx.assetMaintenance?.findFirst?.({
 					where: {
 						maintenanceTeamId: input.id,
-						company: { not: input.company },
+						companyId: { not: input.companyId },
 					},
 					select: { id: true },
 				});
@@ -3510,7 +3609,7 @@ export class AssetService {
 					...(input.maintenanceManagerName !== undefined && {
 						maintenanceManagerName: input.maintenanceManagerName,
 					}),
-					...(input.company !== undefined && { company: input.company }),
+					...(input.companyId !== undefined && { companyId: input.companyId }),
 				},
 			});
 
@@ -3568,7 +3667,10 @@ export class AssetService {
 
 			return tx.assetMaintenanceTeam.findUniqueOrThrow({
 				where: { id: input.id },
-				include: { members: { orderBy: { createdAt: "asc" } } },
+				include: {
+					company: { select: { id: true, name: true } },
+					members: { orderBy: { createdAt: "asc" } },
+				},
 			});
 		});
 
@@ -3662,6 +3764,7 @@ export class AssetService {
 	}
 
 	private readonly maintenanceInclude = {
+		company: { select: { id: true, name: true } },
 		asset: {
 			select: {
 				assetName: true,
@@ -3684,14 +3787,20 @@ export class AssetService {
 
 		const where: Record<string, unknown> = {};
 		if (params?.company)
-			where.company = { contains: params.company, mode: "insensitive" };
+			where.company = {
+				is: { name: { contains: params.company, mode: "insensitive" } },
+			};
 		if (params?.maintenanceTeamId)
 			where.maintenanceTeamId = params.maintenanceTeamId;
 		if (params?.status)
 			where.tasks = { some: { maintenanceStatus: params.status } };
 		if (params?.search) {
 			where.OR = [
-				{ company: { contains: params.search, mode: "insensitive" } },
+				{
+					company: {
+						is: { name: { contains: params.search, mode: "insensitive" } },
+					},
+				},
 				{
 					asset: {
 						assetName: { contains: params.search, mode: "insensitive" },
@@ -3754,7 +3863,8 @@ export class AssetService {
 			select: {
 				id: true,
 				assetId: true,
-				company: true,
+				companyId: true,
+				company: { select: { name: true } },
 				asset: { select: { id: true, assetName: true } },
 			},
 		},
@@ -3805,8 +3915,12 @@ export class AssetService {
 				{
 					maintenance: {
 						company: {
-							contains: params.search,
-							mode: "insensitive",
+							is: {
+								name: {
+									contains: params.search,
+									mode: "insensitive",
+								},
+							},
 						},
 					},
 				},
@@ -3913,14 +4027,15 @@ export class AssetService {
 				id: true,
 				assetName: true,
 				itemCode: true,
-				company: true,
+				companyId: true,
+				company: { select: { name: true } },
 				maintenance: { select: { id: true } },
 			},
 		});
 		if (!asset) throw new NotFoundException(`Asset ${input.assetId} not found`);
-		if (asset.company !== input.company) {
+		if (asset.companyId !== input.companyId) {
 			throw new BadRequestException(
-				`Maintenance company must match asset company ${asset.company}.`,
+				`Maintenance company must match asset company ${asset.company.name}.`,
 			);
 		}
 		if (asset.maintenance) {
@@ -3932,16 +4047,20 @@ export class AssetService {
 		// Verify team exists
 		const team = await this.prisma.assetMaintenanceTeam.findUnique({
 			where: { id: input.maintenanceTeamId },
-			select: { id: true, company: true },
+			select: {
+				id: true,
+				companyId: true,
+				company: { select: { name: true } },
+			},
 		});
 		if (!team) {
 			throw new NotFoundException(
 				`Maintenance team ${input.maintenanceTeamId} not found`,
 			);
 		}
-		if (team.company !== asset.company) {
+		if (team.companyId !== asset.companyId) {
 			throw new BadRequestException(
-				`Maintenance team company ${team.company} does not match asset company ${asset.company}.`,
+				`Maintenance team company ${team.company.name} does not match asset company ${asset.company.name}.`,
 			);
 		}
 
@@ -3968,16 +4087,17 @@ export class AssetService {
 				select: {
 					id: true,
 					assetName: true,
-					company: true,
+					companyId: true,
+					company: { select: { name: true } },
 					maintenance: { select: { id: true } },
 				},
 			});
 			if (!lockedAsset) {
 				throw new NotFoundException(`Asset ${input.assetId} not found`);
 			}
-			if (lockedAsset.company !== input.company) {
+			if (lockedAsset.companyId !== input.companyId) {
 				throw new BadRequestException(
-					`Maintenance company must match asset company ${lockedAsset.company}.`,
+					`Maintenance company must match asset company ${lockedAsset.company.name}.`,
 				);
 			}
 			if (lockedAsset.maintenance) {
@@ -3987,22 +4107,26 @@ export class AssetService {
 			}
 			const lockedTeam = await tx.assetMaintenanceTeam.findUnique({
 				where: { id: input.maintenanceTeamId },
-				select: { id: true, company: true },
+				select: {
+					id: true,
+					companyId: true,
+					company: { select: { name: true } },
+				},
 			});
 			if (!lockedTeam) {
 				throw new NotFoundException(
 					`Maintenance team ${input.maintenanceTeamId} not found`,
 				);
 			}
-			if (lockedTeam.company !== lockedAsset.company) {
+			if (lockedTeam.companyId !== lockedAsset.companyId) {
 				throw new BadRequestException(
-					`Maintenance team company ${lockedTeam.company} does not match asset company ${lockedAsset.company}.`,
+					`Maintenance team company ${lockedTeam.company.name} does not match asset company ${lockedAsset.company.name}.`,
 				);
 			}
 			const created = await tx.assetMaintenance.create({
 				data: {
 					assetId: input.assetId,
-					company: lockedAsset.company,
+					companyId: lockedAsset.companyId,
 					maintenanceTeamId: input.maintenanceTeamId,
 					maintenanceManager: input.maintenanceManager ?? null,
 					maintenanceManagerName: input.maintenanceManagerName ?? null,
@@ -4089,9 +4213,12 @@ export class AssetService {
 			select: {
 				id: true,
 				assetId: true,
-				company: true,
+				companyId: true,
+				company: { select: { name: true } },
 				maintenanceTeamId: true,
-				maintenanceTeam: { select: { company: true } },
+				maintenanceTeam: {
+					select: { companyId: true, company: { select: { name: true } } },
+				},
 			},
 		});
 		if (!existing) {
@@ -4100,39 +4227,43 @@ export class AssetService {
 
 		const asset = await this.prisma.asset.findUnique({
 			where: { id: existing.assetId },
-			select: { company: true },
+			select: { companyId: true, company: { select: { name: true } } },
 		});
 		if (!asset)
 			throw new NotFoundException(`Asset ${existing.assetId} not found`);
-		if (input.company !== undefined && input.company !== asset.company) {
+		if (input.companyId !== undefined && input.companyId !== asset.companyId) {
 			throw new BadRequestException(
-				`Maintenance company must match asset company ${asset.company}.`,
+				`Maintenance company must match asset company ${asset.company.name}.`,
 			);
 		}
-		if (existing.company !== asset.company) {
+		if (existing.companyId !== asset.companyId) {
 			throw new BadRequestException(
-				`Maintenance company must match asset company ${asset.company}.`,
+				`Maintenance company must match asset company ${asset.company.name}.`,
 			);
 		}
-		if (existing.maintenanceTeam.company !== asset.company) {
+		if (existing.maintenanceTeam.companyId !== asset.companyId) {
 			throw new BadRequestException(
-				`Maintenance team company ${existing.maintenanceTeam.company} does not match asset company ${asset.company}.`,
+				`Maintenance team company ${existing.maintenanceTeam.company.name} does not match asset company ${asset.company.name}.`,
 			);
 		}
 
 		if (input.maintenanceTeamId !== undefined) {
 			const team = await this.prisma.assetMaintenanceTeam.findUnique({
 				where: { id: input.maintenanceTeamId },
-				select: { id: true, company: true },
+				select: {
+					id: true,
+					companyId: true,
+					company: { select: { name: true } },
+				},
 			});
 			if (!team) {
 				throw new NotFoundException(
 					`Maintenance team ${input.maintenanceTeamId} not found`,
 				);
 			}
-			if (team.company !== asset.company) {
+			if (team.companyId !== asset.companyId) {
 				throw new BadRequestException(
-					`Maintenance team company ${team.company} does not match asset company ${asset.company}.`,
+					`Maintenance team company ${team.company.name} does not match asset company ${asset.company.name}.`,
 				);
 			}
 		}
@@ -4157,44 +4288,44 @@ export class AssetService {
 			]);
 			const lockedAsset = await tx.asset.findUnique({
 				where: { id: existing.assetId },
-				select: { company: true },
+				select: { companyId: true, company: { select: { name: true } } },
 			});
 			if (!lockedAsset) {
 				throw new NotFoundException(`Asset ${existing.assetId} not found`);
 			}
-			if (existing.company !== lockedAsset.company) {
+			if (existing.companyId !== lockedAsset.companyId) {
 				throw new BadRequestException(
-					`Maintenance company must match asset company ${lockedAsset.company}.`,
+					`Maintenance company must match asset company ${lockedAsset.company.name}.`,
 				);
 			}
 			if (
-				lockedAsset.company !== input.company &&
-				input.company !== undefined
+				lockedAsset.companyId !== input.companyId &&
+				input.companyId !== undefined
 			) {
 				throw new BadRequestException(
-					`Maintenance company must match asset company ${lockedAsset.company}.`,
+					`Maintenance company must match asset company ${lockedAsset.company.name}.`,
 				);
 			}
 			const lockedTeamId =
 				input.maintenanceTeamId ?? existing.maintenanceTeamId;
 			const lockedTeam = await tx.assetMaintenanceTeam.findUnique({
 				where: { id: lockedTeamId },
-				select: { company: true },
+				select: { companyId: true, company: { select: { name: true } } },
 			});
 			if (!lockedTeam) {
 				throw new NotFoundException(
 					`Maintenance team ${lockedTeamId} not found`,
 				);
 			}
-			if (lockedTeam.company !== lockedAsset.company) {
+			if (lockedTeam.companyId !== lockedAsset.companyId) {
 				throw new BadRequestException(
-					`Maintenance team company ${lockedTeam.company} does not match asset company ${lockedAsset.company}.`,
+					`Maintenance team company ${lockedTeam.company.name} does not match asset company ${lockedAsset.company.name}.`,
 				);
 			}
 			await tx.assetMaintenance.update({
 				where: { id: input.id },
 				data: {
-					company: lockedAsset.company,
+					companyId: lockedAsset.companyId,
 					...(input.maintenanceTeamId !== undefined && {
 						maintenanceTeamId: input.maintenanceTeamId,
 					}),
@@ -4633,7 +4764,8 @@ export class AssetService {
 				select: {
 					id: true,
 					series: true,
-					company: true,
+					companyId: true,
+					company: { select: { name: true } },
 					assetCategoryId: true,
 					purchaseDate: true,
 					availableForUseDate: true,
@@ -4716,7 +4848,7 @@ export class AssetService {
 				data: {
 					series,
 					assetId: asset.id,
-					company: asset.company,
+					companyId: asset.companyId,
 					disposalDate: input.disposalDate,
 					disposalType: input.disposalType,
 					salesAmount,
@@ -4779,7 +4911,7 @@ export class AssetService {
 			];
 			if (lines.length >= 2) {
 				const entry = await this.accounting.createPostedEntry(tx, {
-					company: asset.company,
+					companyId: asset.companyId,
 					assetId: asset.id,
 					sourceType: "DISPOSAL",
 					sourceId: created.id,
@@ -4963,7 +5095,8 @@ export class AssetService {
 					select: {
 						id: true,
 						series: true,
-						company: true,
+						companyId: true,
+						company: { select: { name: true } },
 						status: true,
 						locationId: true,
 						custodian: true,
@@ -4974,9 +5107,9 @@ export class AssetService {
 						`Asset with ID ${item.assetId} not found.`,
 					);
 				}
-				if (asset.company !== input.company) {
+				if (asset.companyId !== input.companyId) {
 					throw new BadRequestException(
-						`Asset ${asset.series} does not belong to company ${input.company}.`,
+						`Asset ${asset.series} does not belong to company ${input.companyId}.`,
 					);
 				}
 				if (
@@ -4993,7 +5126,7 @@ export class AssetService {
 
 				const previousMovement = await tx.assetMovement.findFirst({
 					where: {
-						company: input.company,
+						companyId: input.companyId,
 						status: "SUBMITTED",
 						items: { some: { assetId: asset.id } },
 					},
@@ -5088,7 +5221,7 @@ export class AssetService {
 			const created = await tx.assetMovement.create({
 				data: {
 					series,
-					company: input.company,
+					companyId: input.companyId,
 					transactionDate: input.transactionDate,
 					purpose: input.purpose,
 					status: "DRAFT",
@@ -5163,14 +5296,15 @@ export class AssetService {
 				const asset = await tx.asset.findUniqueOrThrow({
 					where: { id: item.assetId },
 					select: {
-						company: true,
+						companyId: true,
+						company: { select: { name: true } },
 						locationId: true,
 						custodian: true,
 						series: true,
 						status: true,
 					},
 				});
-				if (asset.company !== movement.company) {
+				if (asset.companyId !== movement.companyId) {
 					throw new BadRequestException(
 						`Asset ${asset.series} does not belong to company ${movement.company}.`,
 					);
@@ -5188,7 +5322,7 @@ export class AssetService {
 				}
 				const latestMovement = await tx.assetMovement.findFirst({
 					where: {
-						company: movement.company,
+						companyId: movement.companyId,
 						status: "SUBMITTED",
 						items: { some: { assetId: item.assetId } },
 					},
@@ -5292,19 +5426,20 @@ export class AssetService {
 				const asset = await tx.asset.findUniqueOrThrow({
 					where: { id: item.assetId },
 					select: {
-						company: true,
+						companyId: true,
+						company: { select: { name: true } },
 						series: true,
 						locationId: true,
 					},
 				});
-				if (asset.company !== movement.company) {
+				if (asset.companyId !== movement.companyId) {
 					throw new BadRequestException(
 						`Asset ${asset.series} does not belong to company ${movement.company}.`,
 					);
 				}
 				const latest = await tx.assetMovement.findFirst({
 					where: {
-						company: movement.company,
+						companyId: movement.companyId,
 						status: "SUBMITTED",
 						items: { some: { assetId: item.assetId } },
 					},
@@ -5372,7 +5507,7 @@ export class AssetService {
 		input: Asset.ListAssetMovementsInput,
 	): Promise<Asset.AssetMovementListResult> {
 		const where: Prisma.AssetMovementWhereInput = {};
-		if (input.company) where.company = input.company;
+		if (input.company) where.company = { is: { name: input.company } };
 		if (input.status) where.status = input.status;
 		if (input.purpose) where.purpose = input.purpose;
 		if (input.search) {
@@ -5479,7 +5614,8 @@ export class AssetService {
 				select: {
 					id: true,
 					series: true,
-					company: true,
+					companyId: true,
+					company: { select: { name: true } },
 					status: true,
 					purchaseDate: true,
 				},
@@ -5489,9 +5625,9 @@ export class AssetService {
 					`Asset with ID ${input.assetId} not found.`,
 				);
 			}
-			if (asset.company !== input.company) {
+			if (asset.companyId !== input.companyId) {
 				throw new BadRequestException(
-					`Asset ${asset.series} does not belong to company ${input.company}.`,
+					`Asset ${asset.series} does not belong to company ${input.companyId}.`,
 				);
 			}
 			if (dateOnlyUtc(input.failureDate) < dateOnlyUtc(asset.purchaseDate)) {
@@ -5533,7 +5669,7 @@ export class AssetService {
 			}
 			if (consumedAssetIds.length > 0) {
 				const consumedAssets = await tx.asset.findMany({
-					where: { id: { in: consumedAssetIds }, company: input.company },
+					where: { id: { in: consumedAssetIds }, companyId: input.companyId },
 					select: { id: true },
 				});
 				if (consumedAssets.length !== new Set(consumedAssetIds).size) {
@@ -5550,7 +5686,7 @@ export class AssetService {
 				data: {
 					series,
 					assetId: input.assetId,
-					company: input.company,
+					companyId: input.companyId,
 					failureDate: input.failureDate,
 					completionDate: input.completionDate ?? null,
 					repairStatus: "PENDING",
@@ -5638,7 +5774,8 @@ export class AssetService {
 				select: {
 					id: true,
 					series: true,
-					company: true,
+					companyId: true,
+					company: { select: { name: true } },
 					assetCategoryId: true,
 					status: true,
 					netPurchaseAmount: true,
@@ -5655,7 +5792,7 @@ export class AssetService {
 			let stockEntryId: string | null = null;
 			if (currentRepair.consumedItems.length > 0) {
 				const stockEntry = await this.stockPosting.createMaterialIssue(tx, {
-					company: currentRepair.company,
+					companyId: currentRepair.companyId,
 					postingDate: completionDate,
 					sourceType: "ASSET_REPAIR",
 					sourceId: currentRepair.id,
@@ -5689,7 +5826,7 @@ export class AssetService {
 					);
 				}
 				const entry = await this.accounting.createPostedEntry(tx, {
-					company: currentRepair.company,
+					companyId: currentRepair.companyId,
 					assetId: asset.id,
 					sourceType: "REPAIR",
 					sourceId: currentRepair.id,
@@ -6009,7 +6146,7 @@ export class AssetService {
 	): Promise<Asset.AssetRepairListResult> {
 		const where: Prisma.AssetRepairWhereInput = {};
 		if (input.assetId) where.assetId = input.assetId;
-		if (input.company) where.company = input.company;
+		if (input.company) where.company = { is: { name: input.company } };
 		if (input.status) where.repairStatus = input.status;
 		if (input.search) {
 			where.OR = [
@@ -6121,12 +6258,12 @@ export class AssetService {
 				...(input.targetAssetId ? [input.targetAssetId] : []),
 			]);
 			const company = await tx.company.findUnique({
-				where: { name: input.company },
-				select: { disabled: true },
+				where: { id: input.companyId },
+				select: { id: true, name: true, disabled: true },
 			});
 			if (!company || company.disabled) {
 				throw new BadRequestException(
-					`Company ${input.company} is missing or disabled.`,
+					`Company ${input.companyId} is missing or disabled.`,
 				);
 			}
 			let resolvedTargetName = input.targetAssetName ?? null;
@@ -6136,7 +6273,8 @@ export class AssetService {
 				const target = await tx.asset.findUnique({
 					where: { id: input.targetAssetId },
 					select: {
-						company: true,
+						companyId: true,
+						company: { select: { name: true } },
 						series: true,
 						assetName: true,
 						itemCode: true,
@@ -6150,9 +6288,9 @@ export class AssetService {
 						`Asset ${input.targetAssetId} not found.`,
 					);
 				}
-				if (target.company !== input.company) {
+				if (target.companyId !== input.companyId) {
 					throw new BadRequestException(
-						`Target asset ${target.series} does not belong to company ${input.company}.`,
+						`Target asset ${target.series} does not belong to company ${input.companyId}.`,
 					);
 				}
 				if (
@@ -6202,7 +6340,8 @@ export class AssetService {
 				select: {
 					id: true,
 					series: true,
-					company: true,
+					companyId: true,
+					company: { select: { name: true } },
 					status: true,
 					purchaseDate: true,
 					availableForUseDate: true,
@@ -6217,9 +6356,9 @@ export class AssetService {
 			const sourceById = new Map(sources.map((source) => [source.id, source]));
 			for (const item of assetItemsData) {
 				const source = sourceById.get(item.assetId);
-				if (!source || source.company !== input.company) {
+				if (!source || source.companyId !== input.companyId) {
 					throw new BadRequestException(
-						`Every source asset must belong to company ${input.company}.`,
+						`Every source asset must belong to company ${input.companyId}.`,
 					);
 				}
 				if (
@@ -6260,7 +6399,7 @@ export class AssetService {
 			const created = await tx.assetCapitalization.create({
 				data: {
 					series,
-					company: input.company,
+					companyId: input.companyId,
 					postingDate: input.postingDate,
 					targetType: input.targetType,
 					targetAssetId: input.targetAssetId ?? null,
@@ -6285,7 +6424,7 @@ export class AssetService {
 						data: {
 							assetId,
 							userId: actorId,
-							activity: `Asset capitalization draft created for ${input.company}`,
+							activity: `Asset capitalization draft created for ${company.name}`,
 						},
 					});
 				}
@@ -6294,7 +6433,7 @@ export class AssetService {
 						data: {
 							assetId: input.targetAssetId,
 							userId: actorId,
-							activity: `Asset capitalization draft targets ${input.company}`,
+							activity: `Asset capitalization draft targets ${company.name}`,
 						},
 					});
 				}
@@ -6374,12 +6513,12 @@ export class AssetService {
 		actorId?: string,
 	): Promise<PrismaAssetCapitalization> {
 		const company = await tx.company.findUnique({
-			where: { name: cap.company },
-			select: { disabled: true },
+			where: { id: cap.companyId },
+			select: { id: true, name: true, disabled: true },
 		});
 		if (!company || company.disabled) {
 			throw new BadRequestException(
-				`Company ${cap.company} is missing or disabled.`,
+				`Company ${cap.companyId} is missing or disabled.`,
 			);
 		}
 		const sources = await tx.asset.findMany({
@@ -6387,7 +6526,8 @@ export class AssetService {
 			select: {
 				id: true,
 				series: true,
-				company: true,
+				companyId: true,
+				company: { select: { name: true } },
 				assetCategoryId: true,
 				status: true,
 				disposalDate: true,
@@ -6414,7 +6554,7 @@ export class AssetService {
 		type TargetAsset = {
 			id: string;
 			series: string;
-			company: string;
+			companyId: string;
 			assetCategoryId: string | null;
 			status: Asset.AssetStatus;
 			assetType: Asset.AssetType;
@@ -6434,7 +6574,8 @@ export class AssetService {
 				select: {
 					id: true,
 					series: true,
-					company: true,
+					companyId: true,
+					company: { select: { name: true } },
 					assetCategoryId: true,
 					status: true,
 					assetType: true,
@@ -6448,12 +6589,12 @@ export class AssetService {
 				);
 			}
 			if (
-				existingTarget.company !== cap.company ||
+				existingTarget.companyId !== cap.companyId ||
 				existingTarget.status !== "DRAFT" ||
 				existingTarget.assetType !== "COMPOSITE_ASSET"
 			) {
 				throw new ConflictException(
-					`Target asset ${existingTarget.series} must remain a draft composite asset in ${cap.company}.`,
+					`Target asset ${existingTarget.series} must remain a draft composite asset in ${company.name}.`,
 				);
 			}
 			target = {
@@ -6493,7 +6634,7 @@ export class AssetService {
 					assetName: cap.targetAssetName ?? targetSeries,
 					itemCode: cap.targetItemCode ?? "",
 					assetCategoryId: category.id,
-					company: cap.company,
+					companyId: company.id,
 					purchaseDate: cap.postingDate,
 					availableForUseDate: cap.postingDate,
 					netPurchaseAmount: 0,
@@ -6505,7 +6646,7 @@ export class AssetService {
 				select: {
 					id: true,
 					series: true,
-					company: true,
+					companyId: true,
 					assetCategoryId: true,
 					status: true,
 					assetType: true,
@@ -6532,7 +6673,7 @@ export class AssetService {
 		let stockEntryId: string | null = null;
 		if (cap.stockItems.length > 0) {
 			const stockEntry = await this.stockPosting.createMaterialIssue(tx, {
-				company: cap.company,
+				companyId: cap.companyId,
 				postingDate: cap.postingDate,
 				sourceType: "ASSET_CAPITALIZATION",
 				sourceId: cap.id,
@@ -6587,9 +6728,9 @@ export class AssetService {
 		const sourceById = new Map(sources.map((source) => [source.id, source]));
 		for (const item of cap.assetItems) {
 			const source = sourceById.get(item.assetId);
-			if (!source || source.company !== cap.company) {
+			if (!source || source.companyId !== cap.companyId) {
 				throw new BadRequestException(
-					`Every source asset must belong to ${cap.company}.`,
+					`Every source asset must belong to ${company.name}.`,
 				);
 			}
 			if (
@@ -6667,7 +6808,7 @@ export class AssetService {
 			costCenter: targetContext.costCenter,
 		});
 		const entry = await this.accounting.createPostedEntry(tx, {
-			company: cap.company,
+			companyId: cap.companyId,
 			assetId: target.id,
 			sourceType: "CAPITALIZATION",
 			sourceId: cap.id,
@@ -6974,7 +7115,7 @@ export class AssetService {
 		input: Asset.ListAssetCapitalizationsInput,
 	): Promise<Asset.AssetCapitalizationListResult> {
 		const where: Prisma.AssetCapitalizationWhereInput = {};
-		if (input.company) where.company = input.company;
+		if (input.company) where.company = { is: { name: input.company } };
 		if (input.status) where.status = input.status;
 		if (input.search) {
 			where.OR = [
@@ -7032,7 +7173,7 @@ export class AssetService {
 	): Promise<Asset.AssetDisposalListResult> {
 		const where: Prisma.AssetDisposalWhereInput = {};
 		if (input.assetId) where.assetId = input.assetId;
-		if (input.company) where.company = input.company;
+		if (input.company) where.company = { is: { name: input.company } };
 		if (input.disposalType) where.disposalType = input.disposalType;
 		if (input.search) {
 			where.OR = [

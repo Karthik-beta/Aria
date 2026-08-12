@@ -6,7 +6,11 @@ function createTransaction() {
 	return {
 		$queryRaw: jest.fn().mockResolvedValue([{ value: 3 }]),
 		company: {
-			findUnique: jest.fn().mockResolvedValue({ disabled: false }),
+			findUnique: jest.fn().mockResolvedValue({
+				id: "company-1",
+				name: "Pivotr Technologies Private Limited",
+				disabled: false,
+			}),
 		},
 		warehouse: {
 			findMany: jest.fn().mockResolvedValue([
@@ -39,7 +43,7 @@ function createTransaction() {
 }
 
 const validInput = {
-	company: "Pivotr Technologies Private Limited",
+	companyId: "company-1",
 	postingDate: new Date("2026-08-09T00:00:00.000Z"),
 	sourceType: "ASSET_REPAIR" as const,
 	sourceId: "repair-1",

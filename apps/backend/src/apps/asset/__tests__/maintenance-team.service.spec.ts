@@ -5,6 +5,10 @@ import type { PrismaService } from "../../../shared/prisma.service";
 import { AssetService } from "../asset.service";
 import type { AssetDashboardSubService } from "../asset-dashboard.service";
 
+const COMPANY_ID = "company-1";
+const COMPANY = "ACME Corp";
+const COMPANY_RELATION = { id: COMPANY_ID, name: COMPANY };
+
 // ---------------------------------------------------------------------------
 // Mock factory
 // ---------------------------------------------------------------------------
@@ -32,6 +36,12 @@ function createMockPrisma() {
 			update: jest.fn(),
 			delete: jest.fn(),
 			count: jest.fn(),
+		},
+		company: {
+			findUnique: jest.fn().mockResolvedValue({
+				id: COMPANY_ID,
+				disabled: false,
+			}),
 		},
 		asset: {
 			findMany: jest.fn(),
@@ -117,7 +127,8 @@ const mockTeamRow = {
 	name: "Alpha Team",
 	maintenanceManager: "manager@example.com",
 	maintenanceManagerName: "Manager Name",
-	company: "ACME Corp",
+	companyId: COMPANY_ID,
+	company: COMPANY_RELATION,
 	createdAt: new Date("2026-01-01"),
 	updatedAt: new Date("2026-01-02"),
 	members: [mockMember1, mockMember2],
@@ -199,7 +210,11 @@ describe("AssetService > MaintenanceTeam", () => {
 			expect(mockPrisma.assetMaintenanceTeam.findMany).toHaveBeenCalledWith(
 				expect.objectContaining({
 					where: expect.objectContaining({
-						company: { contains: "ACME", mode: "insensitive" },
+						company: {
+							is: {
+								name: { contains: "ACME", mode: "insensitive" },
+							},
+						},
 					}),
 				}),
 			);
@@ -256,7 +271,7 @@ describe("AssetService > MaintenanceTeam", () => {
 				name: "Alpha Team",
 				maintenanceManager: "manager@example.com",
 				maintenanceManagerName: "Manager Name",
-				company: "ACME Corp",
+				companyId: COMPANY_ID,
 				members: [
 					{
 						teamMember: "john@example.com",
@@ -273,7 +288,7 @@ describe("AssetService > MaintenanceTeam", () => {
 				expect.objectContaining({
 					data: expect.objectContaining({
 						name: "Alpha Team",
-						company: "ACME Corp",
+						companyId: COMPANY_ID,
 						members: expect.objectContaining({ create: expect.any(Array) }),
 					}),
 				}),
@@ -291,7 +306,7 @@ describe("AssetService > MaintenanceTeam", () => {
 
 			const result = await service.createMaintenanceTeam({
 				name: "Alpha Team",
-				company: "ACME Corp",
+				companyId: COMPANY_ID,
 				members: [
 					{
 						teamMember: "john@example.com",
@@ -313,7 +328,7 @@ describe("AssetService > MaintenanceTeam", () => {
 			await expect(
 				service.createMaintenanceTeam({
 					name: "Alpha Team",
-					company: "ACME Corp",
+					companyId: COMPANY_ID,
 					members: [
 						{
 							teamMember: "john@example.com",
@@ -333,7 +348,7 @@ describe("AssetService > MaintenanceTeam", () => {
 			await expect(
 				service.createMaintenanceTeam({
 					name: "Alpha Team",
-					company: "ACME Corp",
+					companyId: COMPANY_ID,
 					members: [
 						{
 							teamMember: "john@example.com",

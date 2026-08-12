@@ -25,6 +25,9 @@ export interface DepreciationJobResult {
 /** Optional filters used by discovery and financial-operation barriers. */
 export interface DepreciationScope {
 	throughDate: Date | string;
+	/** Stable Company ID filter used by internal callers when available. */
+	companyId?: string;
+	/** Presentation-name filter retained for report query compatibility. */
 	company?: string;
 	assetIds?: readonly string[];
 	financeBookId?: string;
@@ -51,6 +54,7 @@ export interface PendingDepreciationPeriod {
 	scheduleId: string;
 	scheduleEntryId: string;
 	depreciationDate: Date;
+	companyId: string;
 	company: string;
 	blockedByFreeze: boolean;
 }

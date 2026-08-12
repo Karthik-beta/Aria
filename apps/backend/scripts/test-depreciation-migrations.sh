@@ -6,160 +6,213 @@ set -eu
 database_url_without_query=${DATABASE_URL%%\?*}
 database_url_prefix=${database_url_without_query%/*}
 admin_url="${database_url_prefix}/postgres"
-fresh_url="${database_url_prefix}/aria_depreciation_fresh"
-legacy_url="${database_url_prefix}/aria_depreciation_legacy"
-depreciation_migration="20260715120000_add_reliable_asset_depreciation"
-temporary_migrations=$(mktemp -d)
+fresh_url="${database_url_prefix}/aria_r001_fresh"
+upgrade_url="${database_url_prefix}/aria_r001_upgrade_empty"
+ambiguous_url="${database_url_prefix}/aria_r001_ambiguous"
+r001_migration="20260811100000_add_asset_organization_ownership"
+temporary_root=$(mktemp -d)
+previous_migrations="$temporary_root/previous-migrations"
+failure_output="$temporary_root/failure-output"
 
 cleanup() {
   psql "$admin_url" -v ON_ERROR_STOP=1 \
-    -c 'DROP DATABASE IF EXISTS aria_depreciation_fresh WITH (FORCE)' \
-    -c 'DROP DATABASE IF EXISTS aria_depreciation_legacy WITH (FORCE)' >/dev/null
-  rm -rf "$temporary_migrations"
+    -c 'DROP DATABASE IF EXISTS aria_r001_fresh WITH (FORCE)' \
+    -c 'DROP DATABASE IF EXISTS aria_r001_upgrade_empty WITH (FORCE)' \
+    -c 'DROP DATABASE IF EXISTS aria_r001_ambiguous WITH (FORCE)' >/dev/null
+  rm -rf "$temporary_root"
 }
 trap cleanup EXIT
 
 psql "$admin_url" -v ON_ERROR_STOP=1 \
-  -c 'DROP DATABASE IF EXISTS aria_depreciation_fresh WITH (FORCE)' \
-  -c 'DROP DATABASE IF EXISTS aria_depreciation_legacy WITH (FORCE)' \
-  -c 'CREATE DATABASE aria_depreciation_fresh' \
-  -c 'CREATE DATABASE aria_depreciation_legacy' >/dev/null
+  -c 'DROP DATABASE IF EXISTS aria_r001_fresh WITH (FORCE)' \
+  -c 'DROP DATABASE IF EXISTS aria_r001_upgrade_empty WITH (FORCE)' \
+  -c 'DROP DATABASE IF EXISTS aria_r001_ambiguous WITH (FORCE)' \
+  -c 'CREATE DATABASE aria_r001_fresh' \
+  -c 'CREATE DATABASE aria_r001_upgrade_empty' \
+  -c 'CREATE DATABASE aria_r001_ambiguous' >/dev/null
 
-cp prisma/migrations/migration_lock.toml "$temporary_migrations/"
+mkdir -p "$previous_migrations"
+cp prisma/migrations/migration_lock.toml "$previous_migrations/"
 for migration in prisma/migrations/*; do
   migration_name=$(basename "$migration")
-  if [ -d "$migration" ] && ! [ "$migration_name" \> "$depreciation_migration" ]; then
-    cp -R "$migration" "$temporary_migrations/"
+  if [ -d "$migration" ] && [ "$migration_name" \< "$r001_migration" ]; then
+    cp -R "$migration" "$previous_migrations/"
   fi
 done
+
+assert_final_schema() {
+  database_url=$1
+  psql "$database_url" -v ON_ERROR_STOP=1 <<'SQL'
+DO $$
+DECLARE
+  asset_domain_table TEXT;
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'Company' AND column_name = 'organizationId'
+      AND is_nullable = 'NO'
+  ) THEN
+    RAISE EXCEPTION 'Company.organizationId is not a required column';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'assets' AND column_name = 'companyId'
+      AND is_nullable = 'NO'
+  ) THEN
+    RAISE EXCEPTION 'assets.companyId is not a required column';
+  END IF;
+
+  FOREACH asset_domain_table IN ARRAY ARRAY[
+    'asset_revaluation_entries',
+    'asset_depreciation_journal_entries',
+    'asset_accounting_entries',
+    'asset_maintenance_teams',
+    'asset_maintenances',
+    'asset_movements',
+    'asset_repairs',
+    'asset_capitalizations',
+    'asset_disposals'
+  ] LOOP
+    IF NOT EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_name = asset_domain_table
+        AND column_name = 'companyId'
+        AND is_nullable = 'NO'
+    ) THEN
+      RAISE EXCEPTION '% companyId is not a required column', asset_domain_table;
+    END IF;
+    IF EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_name = asset_domain_table
+        AND column_name = 'company'
+    ) THEN
+      RAISE EXCEPTION '% retains the legacy free-text company column', asset_domain_table;
+    END IF;
+  END LOOP;
+
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'assets' AND column_name = 'company'
+  ) OR EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'asset_value_adjustments'
+      AND column_name = 'companySnapshot'
+  ) THEN
+    RAISE EXCEPTION 'legacy Asset ownership columns remain';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM pg_indexes WHERE indexname = 'Company_name_key'
+  ) THEN
+    RAISE EXCEPTION 'global Company.name uniqueness remains';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_indexes
+    WHERE indexname = 'Company_organizationId_name_key'
+  ) THEN
+    RAISE EXCEPTION 'organization-scoped Company uniqueness is missing';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'Company_organizationId_fkey'
+  ) OR NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'assets_companyId_fkey'
+  ) THEN
+    RAISE EXCEPTION 'canonical Organization -> Company -> Asset foreign keys are missing';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_indexes
+    WHERE indexname = 'assets_companyId_status_purchaseDate_idx'
+  ) THEN
+    RAISE EXCEPTION 'Asset Company query index is missing';
+  END IF;
+END
+$$;
+SQL
+}
 
 DATABASE_URL="$fresh_url" \
 PRISMA_MIGRATIONS_PATH="$(pwd)/prisma/migrations" \
   bun x --bun prisma migrate deploy --config prisma/migration-test.config.ts
+assert_final_schema "$fresh_url"
 
-DATABASE_URL="$legacy_url" \
-PRISMA_MIGRATIONS_PATH="$temporary_migrations" \
+DATABASE_URL="$upgrade_url" \
+PRISMA_MIGRATIONS_PATH="$previous_migrations" \
   bun x --bun prisma migrate deploy --config prisma/migration-test.config.ts
 
-psql "$legacy_url" -v ON_ERROR_STOP=1 <<'SQL'
-INSERT INTO "Company" ("id", "name", "updatedAt")
-VALUES ('legacy-company', 'Legacy Company', CURRENT_TIMESTAMP);
+if [ "$(psql "$upgrade_url" -tAc "SELECT COUNT(*) FROM \"_prisma_migrations\" WHERE \"migration_name\" = '$r001_migration'")" -ne 0 ]; then
+  echo "The empty upgrade database unexpectedly recorded R-001 before the final step." >&2
+  exit 1
+fi
 
-INSERT INTO "asset_categories" (
-  "id", "name", "depreciationMethod", "totalNumberOfDepreciations",
-  "frequencyOfDepreciation", "updatedAt"
-) VALUES (
-  'legacy-category', 'Legacy Category', 'STRAIGHT_LINE', 12, 1,
-  CURRENT_TIMESTAMP
-);
-
-INSERT INTO "assets" (
-  "id", "series", "assetName", "itemCode", "assetCategoryId", "company",
-  "purchaseDate", "availableForUseDate", "netPurchaseAmount",
-  "calculateDepreciation", "depreciationMethod",
-  "totalNumberOfDepreciations", "frequencyOfDepreciation",
-  "depreciationStartDate", "valueAfterDepreciation", "status", "updatedAt"
-) VALUES (
-  'legacy-asset', 'AST-LEGACY-1', 'Legacy Asset', 'LEGACY-ITEM',
-  'legacy-category', 'Legacy Company', DATE '2025-01-01', DATE '2025-01-01',
-  1200, true, 'STRAIGHT_LINE', 12, 1, DATE '2025-02-01', 1200,
-  'SUBMITTED', CURRENT_TIMESTAMP
-);
-
-INSERT INTO "asset_finance_books" (
-  "id", "assetId", "financeBookId", "depreciationMethod",
-  "totalNumberOfDepreciations", "frequencyOfDepreciation",
-  "depreciationStartDate", "updatedAt"
-) VALUES (
-  'legacy-book', 'legacy-asset',
-  (SELECT "id" FROM "finance_books" ORDER BY "createdAt", "id" LIMIT 1),
-  'STRAIGHT_LINE', 12, 1, DATE '2025-02-01', CURRENT_TIMESTAMP
-);
-
-INSERT INTO "asset_value_adjustments" (
-  "id", "series", "assetId", "companySnapshot", "adjustmentDate",
-  "currentAssetValue", "newAssetValue", "differenceAmount",
-  "differenceAccount", "fixedAssetAccount", "status", "direction",
-  "previousAssetStatus", "updatedAt"
-) VALUES (
-  'legacy-adjustment', 'AVA-LEGACY-1', 'legacy-asset', 'Legacy Company',
-  DATE '2025-01-01', 1200, 1200, 0, 'Adjustment', 'Fixed Asset',
-  'SUBMITTED', 'INCREASE', 'SUBMITTED', CURRENT_TIMESTAMP
-);
-
-INSERT INTO "asset_depreciation_schedules" (
-  "id", "adjustmentId", "assetId", "assetFinanceBookId", "revisionNumber", "status", "startDate",
-  "depreciationMethod", "totalNumberOfDepreciations",
-  "frequencyOfDepreciation", "bookedDepreciations",
-  "remainingDepreciations", "baseAssetValue", "updatedAt"
-) VALUES (
-  'legacy-schedule', 'legacy-adjustment', 'legacy-asset', 'legacy-book', 1, 'ACTIVE',
-  DATE '2025-02-01', 'STRAIGHT_LINE', 12, 1, 0, 12, 1200,
-  CURRENT_TIMESTAMP
-);
-
-INSERT INTO "asset_depreciation_schedule_entries" (
-  "id", "scheduleId", "sequence", "scheduleDate", "depreciationAmount",
-  "accumulatedDepreciationAmount", "bookValueAfterDepreciation", "updatedAt"
-) VALUES (
-  'legacy-entry', 'legacy-schedule', 1, DATE '2025-02-01', 100, 100,
-  1100, CURRENT_TIMESTAMP
-);
-SQL
-
-DATABASE_URL="$legacy_url" \
+DATABASE_URL="$upgrade_url" \
 PRISMA_MIGRATIONS_PATH="$(pwd)/prisma/migrations" \
   bun x --bun prisma migrate deploy --config prisma/migration-test.config.ts
+assert_final_schema "$upgrade_url"
 
-psql "$legacy_url" -v ON_ERROR_STOP=1 -tAc "
-DO \$\$
+DATABASE_URL="$ambiguous_url" \
+PRISMA_MIGRATIONS_PATH="$previous_migrations" \
+  bun x --bun prisma migrate deploy --config prisma/migration-test.config.ts
+
+psql "$ambiguous_url" -v ON_ERROR_STOP=1 <<'SQL'
+INSERT INTO "organizations" ("id", "name", "slug") VALUES
+  ('r001-org-a', 'R-001 Organization A', 'r001-org-a'),
+  ('r001-org-b', 'R-001 Organization B', 'r001-org-b');
+
+INSERT INTO "Company" ("id", "name", "updatedAt")
+VALUES ('r001-ambiguous-company', 'Shared Legacy Company', CURRENT_TIMESTAMP);
+SQL
+
+if DATABASE_URL="$ambiguous_url" \
+  PRISMA_MIGRATIONS_PATH="$(pwd)/prisma/migrations" \
+  bun x --bun prisma migrate deploy --config prisma/migration-test.config.ts \
+  >"$failure_output" 2>&1; then
+  cat "$failure_output"
+  echo "Non-empty/ambiguous R-001 migration unexpectedly succeeded." >&2
+  exit 1
+fi
+cat "$failure_output"
+if ! grep -Fq "R-001 failed closed" "$failure_output"; then
+  echo "R-001 did not report its fail-closed non-empty-data condition." >&2
+  exit 1
+fi
+
+psql "$ambiguous_url" -v ON_ERROR_STOP=1 <<'SQL'
+DO $$
 BEGIN
-  IF (SELECT COUNT(*) FROM \"finance_books\") <> 1 THEN
-    RAISE EXCEPTION 'default finance book was not created';
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'Company' AND column_name = 'organizationId'
+  ) OR EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'assets' AND column_name = 'companyId'
+  ) THEN
+    RAISE EXCEPTION 'failed migration left partial canonical columns behind';
   END IF;
-  IF (SELECT COUNT(*) FROM \"asset_finance_books\" WHERE \"assetId\" = 'legacy-asset') <> 1 THEN
-    RAISE EXCEPTION 'legacy asset finance book was not backfilled';
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'assets' AND column_name = 'company'
+  ) THEN
+    RAISE EXCEPTION 'failed migration did not roll back the legacy Asset column';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_indexes WHERE indexname = 'Company_name_key'
+  ) THEN
+    RAISE EXCEPTION 'failed migration did not roll back the global Company index';
   END IF;
   IF EXISTS (
-    SELECT 1 FROM \"asset_depreciation_schedules\"
-    WHERE \"id\" = 'legacy-schedule' AND \"assetFinanceBookId\" IS NULL
+    SELECT 1 FROM "_prisma_migrations"
+    WHERE "migration_name" = '20260811100000_add_asset_organization_ownership'
+      AND "finished_at" IS NOT NULL
   ) THEN
-    RAISE EXCEPTION 'legacy schedule was not linked to its finance book';
-  END IF;
-  IF (SELECT COUNT(*) FROM \"asset_depreciation_journal_entries\") <> 0 THEN
-    RAISE EXCEPTION 'migration created depreciation journals';
-  END IF;
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_indexes
-    WHERE indexname = 'asset_depreciation_schedules_one_open_per_book_key'
-  ) THEN
-    RAISE EXCEPTION 'open-schedule uniqueness index is missing';
-  END IF;
-  IF to_regclass('public.asset_movements') IS NULL
-     OR to_regclass('public.asset_repairs') IS NULL
-     OR to_regclass('public.asset_capitalizations') IS NULL
-     OR to_regclass('public.asset_disposals') IS NULL
-     OR to_regclass('public.asset_accounting_entries') IS NULL THEN
-    RAISE EXCEPTION 'asset lifecycle tables are missing';
-  END IF;
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_attribute
-    WHERE attrelid = 'public.asset_finance_books'::regclass
-      AND attname = 'increaseInAssetLife'
-      AND NOT attisdropped
-  ) THEN
-    RAISE EXCEPTION 'asset finance-book repair-life column is missing';
-  END IF;
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_attribute
-    WHERE attrelid = 'public.asset_value_adjustments'::regclass
-      AND attname = 'financeBookId'
-      AND NOT attisdropped
-  ) THEN
-    RAISE EXCEPTION 'asset value-adjustment finance-book column is missing';
+    RAISE EXCEPTION 'failed migration was recorded as successfully applied';
   END IF;
 END
-\$\$;
-"
+$$;
+SQL
 
-echo "Fresh and legacy depreciation migration tests passed."
+echo "Fresh, empty-upgrade, true-ambiguous, and rollback migration tests passed."

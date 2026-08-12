@@ -19,7 +19,7 @@ export const maintenanceTeamFormSchema = z.object({
 	name: z.string().min(1, "Team name is required").max(255).trim(),
 	maintenanceManager: z.string().max(255).trim().optional(),
 	maintenanceManagerName: z.string().max(255).trim().optional(),
-	company: z.string().min(1, "Company is required").max(255).trim(),
+	companyId: z.string().min(1, "Company is required").max(255).trim(),
 	members: z
 		.array(maintenanceTeamMemberRowSchema)
 		.min(1, "At least one team member is required"),
@@ -33,6 +33,6 @@ export const getMaintenanceTeamFormDefaults = () => ({
 	name: "",
 	maintenanceManager: "",
 	maintenanceManagerName: "",
-	company: "",
+	companyId: "",
 	members: [] as MaintenanceTeamMemberRow[],
 });

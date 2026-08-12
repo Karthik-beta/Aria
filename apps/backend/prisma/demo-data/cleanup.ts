@@ -72,6 +72,21 @@ export async function cleanDemoData(
 ): Promise<Record<string, number>> {
 	assertDemoMutationSafety("clean", safety);
 	const company = config.company;
+	const organizationSlug = process.env.DEFAULT_ORG_SLUG?.trim() || "aria-erp";
+	const demoCompany = await prisma.company.findFirst({
+		where: {
+			name: company,
+			organization: { slug: organizationSlug },
+		},
+		select: { id: true },
+	});
+	const assetCompanyId = demoCompany?.id;
+	const assetCompanyIdFilter = assetCompanyId
+		? { companyId: assetCompanyId }
+		: { companyId: { in: [] as string[] } };
+	const companyIdFilter = assetCompanyId
+		? { id: assetCompanyId }
+		: { id: { in: [] as string[] } };
 	const counts: Record<string, number> = {};
 
 	// Helper: delete by company filter and record count
@@ -103,58 +118,68 @@ export async function cleanDemoData(
 	// Lifecycle documents must be removed before their asset, stock-entry, and
 	// accounting-entry parents. Their owned line items cascade from the document.
 	await del("AssetMovement", () =>
-		prisma.assetMovement.deleteMany({ where: { company } }),
+		prisma.assetMovement.deleteMany({ where: assetCompanyIdFilter }),
 	);
 
 	await del("AssetRepair", () =>
-		prisma.assetRepair.deleteMany({ where: { company } }),
+		prisma.assetRepair.deleteMany({ where: assetCompanyIdFilter }),
 	);
 
 	await del("AssetCapitalization", () =>
-		prisma.assetCapitalization.deleteMany({ where: { company } }),
+		prisma.assetCapitalization.deleteMany({ where: assetCompanyIdFilter }),
 	);
 
 	await del("AssetDisposal", () =>
-		prisma.assetDisposal.deleteMany({ where: { company } }),
+		prisma.assetDisposal.deleteMany({ where: assetCompanyIdFilter }),
 	);
 
 	await del("AssetAccountingEntry", () =>
-		prisma.client.assetAccountingEntry.deleteMany({ where: { company } }),
+		prisma.client.assetAccountingEntry.deleteMany({
+			where: assetCompanyIdFilter,
+		}),
 	);
 
 	await del("AssetMaintenance", () =>
-		prisma.assetMaintenance.deleteMany({ where: { company } }),
+		prisma.assetMaintenance.deleteMany({ where: assetCompanyIdFilter }),
 	);
 
 	await del("AssetMaintenanceTeam", () =>
-		prisma.assetMaintenanceTeam.deleteMany({ where: { company } }),
+		prisma.assetMaintenanceTeam.deleteMany({ where: assetCompanyIdFilter }),
 	);
 
 	await del("AssetDepreciationJournalEntry", () =>
-		prisma.assetDepreciationJournalEntry.deleteMany({ where: { company } }),
+		prisma.assetDepreciationJournalEntry.deleteMany({
+			where: assetCompanyIdFilter,
+		}),
 	);
 
 	await del("AssetDepreciationSchedule", () =>
 		prisma.assetDepreciationSchedule.deleteMany({
-			where: { asset: { company } },
+			where: { asset: assetCompanyIdFilter },
 		}),
 	);
 
 	await del("AssetFinanceBook", () =>
-		prisma.assetFinanceBook.deleteMany({ where: { asset: { company } } }),
+		prisma.assetFinanceBook.deleteMany({
+			where: { asset: assetCompanyIdFilter },
+		}),
 	);
 
 	await del("AssetValueAdjustment", () =>
 		prisma.assetValueAdjustment.deleteMany({
-			where: { companySnapshot: company },
+			where: { asset: assetCompanyIdFilter },
 		}),
 	);
 
 	await del("AssetActivity", () =>
-		prisma.assetActivity.deleteMany({ where: { asset: { company } } }),
+		prisma.assetActivity.deleteMany({
+			where: { asset: assetCompanyIdFilter },
+		}),
 	);
 
-	await del("Asset", () => prisma.asset.deleteMany({ where: { company } }));
+	await del("Asset", () =>
+		prisma.asset.deleteMany({ where: assetCompanyIdFilter }),
+	);
 
 	// Locations are global reference rows with a unique name and no company
 	// ownership. Preserve them; the seed path reuses existing rows by name.
@@ -366,13 +391,13 @@ export async function cleanDemoData(
 	// Delete FiscalYearCompany links first (FK to both Company and FiscalYear)
 	await del("FiscalYearCompany", () =>
 		prisma.fiscalYearCompany.deleteMany({
-			where: { company: { name: company } },
+			where: { companyId: assetCompanyIdFilter.companyId },
 		}),
 	);
 
 	// Delete the demo Company record
 	await del("Company", () =>
-		prisma.company.deleteMany({ where: { name: company } }),
+		prisma.company.deleteMany({ where: companyIdFilter }),
 	);
 
 	// Asset categories and their finance-book defaults are global reference rows
@@ -404,6 +429,21 @@ export async function getDemoStatus(
 	config: DemoConfig,
 ): Promise<Record<string, number>> {
 	const company = config.company;
+	const organizationSlug = process.env.DEFAULT_ORG_SLUG?.trim() || "aria-erp";
+	const demoCompany = await prisma.company.findFirst({
+		where: {
+			name: company,
+			organization: { slug: organizationSlug },
+		},
+		select: { id: true },
+	});
+	const assetCompanyId = demoCompany?.id;
+	const assetCompanyIdFilter = assetCompanyId
+		? { companyId: assetCompanyId }
+		: { companyId: { in: [] as string[] } };
+	const companyIdFilter = assetCompanyId
+		? { id: assetCompanyId }
+		: { id: { in: [] as string[] } };
 
 	const [
 		brands,
@@ -481,40 +521,62 @@ export async function getDemoStatus(
 		prisma.assetCategory.count({
 			where: { name: { in: DEMO_ASSET_CATEGORY_NAMES } },
 		}),
-		prisma.asset.count({ where: { company } }),
-		prisma.assetActivity.count({ where: { asset: { company } } }),
-		prisma.assetValueAdjustment.count({ where: { companySnapshot: company } }),
-		prisma.assetRevaluationEntry.count({ where: { company } }),
-		prisma.assetDepreciationSchedule.count({ where: { asset: { company } } }),
+		prisma.asset.count({ where: assetCompanyIdFilter }),
+		prisma.assetActivity.count({ where: { asset: assetCompanyIdFilter } }),
+		prisma.assetValueAdjustment.count({
+			where: { asset: assetCompanyIdFilter },
+		}),
+		prisma.assetRevaluationEntry.count({ where: assetCompanyIdFilter }),
+		prisma.assetDepreciationSchedule.count({
+			where: { asset: assetCompanyIdFilter },
+		}),
 		prisma.assetDepreciationScheduleEntry.count({
-			where: { schedule: { asset: { company } } },
+			where: { schedule: { asset: assetCompanyIdFilter } },
 		}),
-		prisma.assetFinanceBook.count({ where: { asset: { company } } }),
-		prisma.assetDepreciationJournalEntry.count({ where: { company } }),
-		prisma.assetMaintenanceTeam.count({ where: { company } }),
-		prisma.assetMaintenance.count({ where: { company } }),
-		prisma.assetMaintenanceLog.count({ where: { maintenance: { company } } }),
-		prisma.assetMovement.count({ where: { company } }),
-		prisma.assetMovement.count({ where: { company, status: "DRAFT" } }),
-		prisma.assetMovement.count({ where: { company, status: "SUBMITTED" } }),
-		prisma.assetRepair.count({ where: { company } }),
-		prisma.assetRepair.count({ where: { company, repairStatus: "PENDING" } }),
-		prisma.assetRepair.count({ where: { company, repairStatus: "COMPLETED" } }),
-		prisma.assetCapitalization.count({ where: { company } }),
-		prisma.assetCapitalization.count({ where: { company, status: "DRAFT" } }),
+		prisma.assetFinanceBook.count({ where: { asset: assetCompanyIdFilter } }),
+		prisma.assetDepreciationJournalEntry.count({
+			where: assetCompanyIdFilter,
+		}),
+		prisma.assetMaintenanceTeam.count({ where: assetCompanyIdFilter }),
+		prisma.assetMaintenance.count({ where: assetCompanyIdFilter }),
+		prisma.assetMaintenanceLog.count({
+			where: { maintenance: assetCompanyIdFilter },
+		}),
+		prisma.assetMovement.count({ where: assetCompanyIdFilter }),
+		prisma.assetMovement.count({
+			where: { ...assetCompanyIdFilter, status: "DRAFT" },
+		}),
+		prisma.assetMovement.count({
+			where: { ...assetCompanyIdFilter, status: "SUBMITTED" },
+		}),
+		prisma.assetRepair.count({ where: assetCompanyIdFilter }),
+		prisma.assetRepair.count({
+			where: { ...assetCompanyIdFilter, repairStatus: "PENDING" },
+		}),
+		prisma.assetRepair.count({
+			where: { ...assetCompanyIdFilter, repairStatus: "COMPLETED" },
+		}),
+		prisma.assetCapitalization.count({ where: assetCompanyIdFilter }),
 		prisma.assetCapitalization.count({
-			where: { company, status: "SUBMITTED" },
+			where: { ...assetCompanyIdFilter, status: "DRAFT" },
 		}),
-		prisma.assetDisposal.count({ where: { company } }),
-		prisma.assetDisposal.count({ where: { company, status: "POSTED" } }),
-		prisma.assetDisposal.count({ where: { company, status: "CANCELLED" } }),
-		prisma.client.assetAccountingEntry.count({ where: { company } }),
+		prisma.assetCapitalization.count({
+			where: { ...assetCompanyIdFilter, status: "SUBMITTED" },
+		}),
+		prisma.assetDisposal.count({ where: assetCompanyIdFilter }),
+		prisma.assetDisposal.count({
+			where: { ...assetCompanyIdFilter, status: "POSTED" },
+		}),
+		prisma.assetDisposal.count({
+			where: { ...assetCompanyIdFilter, status: "CANCELLED" },
+		}),
+		prisma.client.assetAccountingEntry.count({ where: assetCompanyIdFilter }),
 		prisma.client.assetAccountingEntryLine.count({
-			where: { accountingEntry: { company } },
+			where: { accountingEntry: assetCompanyIdFilter },
 		}),
 		prisma.asset.count({
 			where: {
-				company,
+				...assetCompanyIdFilter,
 				status: "SUBMITTED",
 				availableForUseDate: { not: null, lte: config.dateRange.to },
 				netPurchaseAmount: { gt: 0 },
@@ -524,7 +586,7 @@ export async function getDemoStatus(
 						enableCwipAccounting: true,
 						accounts: {
 							some: {
-								company: { name: company },
+								companyId: assetCompanyIdFilter.companyId,
 								capitalWorkInProgressAccount: { not: null },
 							},
 						},
@@ -533,12 +595,15 @@ export async function getDemoStatus(
 			},
 		}),
 		prisma.asset.count({
-			where: { company, cwipAccountingEntryId: { not: null } },
+			where: {
+				...assetCompanyIdFilter,
+				cwipAccountingEntryId: { not: null },
+			},
 		}),
-		prisma.company.count({ where: { name: company } }),
+		prisma.company.count({ where: companyIdFilter }),
 	]);
 	const eligibleAsset: Prisma.AssetWhereInput = {
-		company,
+		...assetCompanyIdFilter,
 		calculateDepreciation: true,
 		status: { in: ["SUBMITTED", "PARTIALLY_DEPRECIATED"] },
 	};
@@ -552,7 +617,10 @@ export async function getDemoStatus(
 		yearlyAssetFinanceBooks,
 	] = await Promise.all([
 		prisma.assetDepreciationScheduleEntry.count({
-			where: { postingId: { not: null }, schedule: { asset: { company } } },
+			where: {
+				postingId: { not: null },
+				schedule: { asset: assetCompanyIdFilter },
+			},
 		}),
 		prisma.assetDepreciationScheduleEntry.count({
 			where: {
@@ -565,14 +633,14 @@ export async function getDemoStatus(
 			where: {
 				postingId: null,
 				scheduleDate: { gt: config.dateRange.to },
-				schedule: { status: "ACTIVE", asset: { company } },
+				schedule: { status: "ACTIVE", asset: assetCompanyIdFilter },
 			},
 		}),
 		...([1, 3, 6, 12] as const).map((frequencyOfDepreciation) =>
 			prisma.assetFinanceBook.count({
 				where: {
 					frequencyOfDepreciation,
-					asset: { company },
+					asset: assetCompanyIdFilter,
 				},
 			}),
 		),

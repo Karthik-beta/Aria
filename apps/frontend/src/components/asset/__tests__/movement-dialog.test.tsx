@@ -19,6 +19,7 @@ vi.mock("@/lib/trpc", () => ({
 								id: "asset-1",
 								series: "AST-001",
 								assetName: "Pump",
+								companyId: "company-1",
 								company: "Test Company",
 								locationId: "location-1",
 								locationName: "Warehouse",

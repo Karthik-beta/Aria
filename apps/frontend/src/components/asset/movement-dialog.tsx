@@ -79,7 +79,7 @@ export function AssetMovementDialog({
 			Asset.createAssetMovementSchema,
 		) as Resolver<Asset.CreateAssetMovementInput>,
 		defaultValues: {
-			company: "",
+			companyId: "",
 			transactionDate: new Date(),
 			purpose: "TRANSFER",
 			notes: "",
@@ -99,7 +99,7 @@ export function AssetMovementDialog({
 		name: "items",
 	});
 	const purpose = form.watch("purpose");
-	const company = form.watch("company");
+	const companyId = form.watch("companyId");
 
 	const createMutation = trpc.asset.createAssetMovement.useMutation({
 		onSuccess: () => {
@@ -127,14 +127,18 @@ export function AssetMovementDialog({
 			.getValues("items")
 			.map((item, itemIndex) => (itemIndex === index ? assetId : item.assetId))
 			.filter(Boolean);
-		const companies = new Set(
+		const companyIds = new Set(
 			selectedIds
-				.map((id) => assetsList.find((asset) => asset.id === id)?.company)
-				.filter((name): name is string => Boolean(name)),
+				.map((id) => assetsList.find((asset) => asset.id === id)?.companyId)
+				.filter((id): id is string => Boolean(id)),
 		);
-		form.setValue("company", companies.size === 1 ? [...companies][0] : "", {
-			shouldValidate: true,
-		});
+		form.setValue(
+			"companyId",
+			companyIds.size === 1 ? [...companyIds][0] : "",
+			{
+				shouldValidate: true,
+			},
+		);
 	};
 
 	const onSubmit = (values: Asset.CreateAssetMovementInput) => {
@@ -147,10 +151,10 @@ export function AssetMovementDialog({
 			});
 			return;
 		}
-		const selectedCompanies = selectedAssets.map((asset) => asset.company);
-		const selectedCompany = selectedCompanies[0];
-		if (!selectedCompany || new Set(selectedCompanies).size !== 1) {
-			form.setError("company", {
+		const selectedCompanyIds = selectedAssets.map((asset) => asset.companyId);
+		const selectedCompanyId = selectedCompanyIds[0];
+		if (!selectedCompanyId || new Set(selectedCompanyIds).size !== 1) {
+			form.setError("companyId", {
 				message: "All movement assets must belong to the same company.",
 			});
 			return;
@@ -171,7 +175,7 @@ export function AssetMovementDialog({
 		}
 		createMutation.mutate({
 			...values,
-			company: selectedCompany,
+			companyId: selectedCompanyId,
 		});
 	};
 
@@ -236,12 +240,15 @@ export function AssetMovementDialog({
 						<div className="space-y-2">
 							<FormLabel>Company</FormLabel>
 							<Input
-								value={company || "Select assets to derive company"}
+								value={
+									assetsList.find((asset) => asset.companyId === companyId)
+										?.company ?? "Select assets to derive company"
+								}
 								readOnly
 							/>
-							{form.formState.errors.company?.message && (
+							{form.formState.errors.companyId?.message && (
 								<p className="text-destructive text-sm">
-									{form.formState.errors.company.message}
+									{form.formState.errors.companyId.message}
 								</p>
 							)}
 						</div>

@@ -6013,6 +6013,7 @@ export namespace Asset {
 		barcode?: string | null;
 		assetCategoryId?: string | null;
 		assetCategoryName?: string | null;
+		companyId: string;
 		company: string;
 		locationId?: string | null;
 		locationName?: string | null;
@@ -6164,7 +6165,7 @@ export namespace Asset {
 		itemCode?: string | null;
 		barcode?: string | null;
 		assetCategoryId?: string | null;
-		company: string;
+		companyId: string;
 		locationId?: string | null;
 		custodian?: string | null;
 		department?: string | null;
@@ -6204,7 +6205,7 @@ export namespace Asset {
 		itemCode?: string | null;
 		barcode?: string | null;
 		assetCategoryId?: string | null;
-		company?: string;
+		companyId?: string;
 		locationId?: string | null;
 		custodian?: string | null;
 		department?: string | null;
@@ -6335,7 +6336,7 @@ export namespace Asset {
 		itemCode: z.string().max(100).trim().optional().nullable(),
 		barcode: z.string().max(255).trim().optional().nullable(),
 		assetCategoryId: z.string().cuid().optional().nullable(),
-		company: z.string().min(1, "Company is required").max(255).trim(),
+		companyId: z.string().cuid("Company is required"),
 		locationId: z.string().cuid().optional().nullable(),
 		custodian: z.string().max(255).trim().optional().nullable(),
 		department: z.string().max(255).trim().optional().nullable(),
@@ -6416,7 +6417,7 @@ export namespace Asset {
 		itemCode: assetInputFields.itemCode,
 		barcode: assetInputFields.barcode,
 		assetCategoryId: assetInputFields.assetCategoryId,
-		company: assetInputFields.company.optional(),
+		companyId: assetInputFields.companyId.optional(),
 		locationId: assetInputFields.locationId,
 		custodian: assetInputFields.custodian,
 		department: assetInputFields.department,
@@ -6544,6 +6545,7 @@ export namespace Asset {
 		name: string;
 		maintenanceManager: string | null;
 		maintenanceManagerName: string | null;
+		companyId: string;
 		company: string;
 		members: AssetMaintenanceTeamMember[];
 		createdAt: Date;
@@ -6559,7 +6561,7 @@ export namespace Asset {
 		name: string;
 		maintenanceManager?: string | null;
 		maintenanceManagerName?: string | null;
-		company: string;
+		companyId: string;
 		members: Array<{
 			teamMember: string;
 			fullName: string;
@@ -6572,7 +6574,7 @@ export namespace Asset {
 		name?: string;
 		maintenanceManager?: string | null;
 		maintenanceManagerName?: string | null;
-		company?: string;
+		companyId?: string;
 		members?: Array<{
 			id?: string;
 			teamMember: string;
@@ -6607,7 +6609,7 @@ export namespace Asset {
 		name: z.string().min(1, "Team name is required").max(255).trim(),
 		maintenanceManager: z.string().max(255).trim().optional().nullable(),
 		maintenanceManagerName: z.string().max(255).trim().optional().nullable(),
-		company: z.string().min(1, "Company is required").max(255).trim(),
+		companyId: z.string().cuid("Company is required"),
 		members: z
 			.array(z.object(maintenanceTeamMemberInputFields))
 			.min(1, "At least one team member is required"),
@@ -6622,7 +6624,7 @@ export namespace Asset {
 		name: maintenanceTeamInputFields.name.optional(),
 		maintenanceManager: maintenanceTeamInputFields.maintenanceManager,
 		maintenanceManagerName: maintenanceTeamInputFields.maintenanceManagerName,
-		company: maintenanceTeamInputFields.company.optional(),
+		companyId: maintenanceTeamInputFields.companyId.optional(),
 		members: z
 			.array(
 				z.object({
@@ -6719,6 +6721,7 @@ export namespace Asset {
 		assetName: string;
 		assetCategoryName: string | null;
 		itemCode: string | null;
+		companyId: string;
 		company: string;
 		maintenanceTeamId: string;
 		maintenanceTeamName: string;
@@ -6763,7 +6766,7 @@ export namespace Asset {
 
 	export const createAssetMaintenanceSchema = z.object({
 		assetId: z.string().cuid(),
-		company: z.string().min(1, "Company is required").max(255).trim(),
+		companyId: z.string().cuid("Company is required"),
 		maintenanceTeamId: z.string().cuid(),
 		maintenanceManager: z.string().max(255).trim().nullable().optional(),
 		maintenanceManagerName: z.string().max(255).trim().nullable().optional(),
@@ -6777,7 +6780,7 @@ export namespace Asset {
 
 	export const updateAssetMaintenanceSchema = z.object({
 		id: z.string().cuid(),
-		company: z.string().min(1).max(255).trim().optional(),
+		companyId: z.string().cuid().optional(),
 		maintenanceTeamId: z.string().cuid().optional(),
 		maintenanceManager: z.string().max(255).trim().nullable().optional(),
 		maintenanceManagerName: z.string().max(255).trim().nullable().optional(),
@@ -6821,6 +6824,7 @@ export namespace Asset {
 		/** Asset name from the parent maintenance record's asset. */
 		assetName: string;
 		assetId: string;
+		companyId: string;
 		company: string;
 		/** Task name (maintenanceTask field). */
 		maintenanceTask: string;
@@ -6918,6 +6922,7 @@ export namespace Asset {
 		series: string;
 		adjustmentId: string;
 		assetId: string;
+		companyId: string;
 		company: string;
 		postingDate: Date;
 		remarks: string;
@@ -6997,6 +7002,7 @@ export namespace Asset {
 
 	export interface AssetValueAdjustmentPreview {
 		assetId: string;
+		companyId: string;
 		assetSeries: string;
 		assetName: string;
 		assetCategoryName: string | null;
@@ -7020,6 +7026,7 @@ export namespace Asset {
 		id: string;
 		series: string;
 		assetId: string;
+		companyId: string;
 		assetSeries: string;
 		assetName: string;
 		assetCategoryName: string | null;
@@ -7496,6 +7503,7 @@ export namespace Asset {
 	export interface AssetMovement {
 		id: string;
 		series: string;
+		companyId: string;
 		company: string;
 		transactionDate: Date | string;
 		purpose: AssetMovementPurpose;
@@ -7543,6 +7551,7 @@ export namespace Asset {
 		series: string;
 		assetId: string;
 		assetName?: string | null;
+		companyId: string;
 		company: string;
 		failureDate: Date | string;
 		completionDate?: Date | string | null;
@@ -7602,6 +7611,7 @@ export namespace Asset {
 	export interface AssetCapitalization {
 		id: string;
 		series: string;
+		companyId: string;
 		company: string;
 		postingDate: Date | string;
 		targetType: AssetCapitalizationTargetType;
@@ -7637,6 +7647,7 @@ export namespace Asset {
 		series: string;
 		assetId: string;
 		assetName?: string | null;
+		companyId: string;
 		company: string;
 		disposalDate: Date | string;
 		disposalType: AssetDisposalType;
@@ -7703,7 +7714,7 @@ export namespace Asset {
 	>;
 
 	export const createAssetMovementSchema = z.object({
-		company: z.string().trim().min(1).max(255),
+		companyId: z.string().cuid("Company is required"),
 		transactionDate: z.coerce.date(),
 		purpose: assetMovementPurposeSchema,
 		notes: z.string().trim().max(1000).optional().nullable(),
@@ -7768,7 +7779,7 @@ export namespace Asset {
 	export const createAssetRepairSchema = z
 		.object({
 			assetId: z.string().cuid(),
-			company: z.string().trim().min(1).max(255),
+			companyId: z.string().cuid("Company is required"),
 			failureDate: z.coerce.date(),
 			completionDate: z.coerce.date().optional().nullable(),
 			capitalizeRepairCost: z.boolean().optional().default(false),
@@ -7878,7 +7889,7 @@ export namespace Asset {
 
 	export const createAssetCapitalizationSchema = z
 		.object({
-			company: z.string().trim().min(1).max(255),
+			companyId: z.string().cuid("Company is required"),
 			postingDate: z.coerce.date(),
 			targetType: assetCapitalizationTargetTypeSchema,
 			targetAssetId: z.string().cuid().optional().nullable(),
@@ -8007,6 +8018,7 @@ export namespace Company {
 	/** Domain model returned by the Company API. */
 	export interface CompanyItem {
 		id: string;
+		organizationId: string;
 		name: string;
 		abbreviation: string | null;
 		country: string | null;
