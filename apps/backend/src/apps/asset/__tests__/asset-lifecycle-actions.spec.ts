@@ -264,21 +264,26 @@ function createMockPrisma() {
 			findUnique: jest.fn(),
 			findUniqueOrThrow: jest.fn(),
 			findFirst: jest.fn(),
+			findFirstOrThrow: jest.fn(),
 			findMany: jest.fn().mockResolvedValue([]),
 			create: jest.fn(),
 			update: jest.fn(),
+			updateMany: jest.fn(),
 		},
 		assetDisposal: {
 			findFirst: jest.fn(),
+			findFirstOrThrow: jest.fn(),
 			findUnique: jest.fn(),
+			findUniqueOrThrow: jest.fn(),
 			findMany: jest.fn(),
 			create: jest.fn(),
 			update: jest.fn(),
-			updateMany: jest.fn(),
+			updateMany: jest.fn().mockResolvedValue({ count: 1 }),
 			count: jest.fn(),
 		},
 		assetMovement: {
 			findFirst: jest.fn(),
+			findFirstOrThrow: jest.fn(),
 			findUnique: jest.fn(),
 			findUniqueOrThrow: jest.fn(),
 			findMany: jest.fn(),
@@ -289,22 +294,46 @@ function createMockPrisma() {
 		},
 		assetRepair: {
 			findFirst: jest.fn(),
+			findFirstOrThrow: jest.fn(),
 			findUnique: jest.fn(),
+			findUniqueOrThrow: jest.fn(),
 			findMany: jest.fn(),
 			create: jest.fn(),
 			update: jest.fn(),
+			updateMany: jest.fn().mockResolvedValue({ count: 1 }),
 			count: jest.fn(),
 		},
 		assetCapitalization: {
 			findFirst: jest.fn(),
+			findFirstOrThrow: jest.fn(),
 			findUnique: jest.fn(),
+			findUniqueOrThrow: jest.fn(),
 			findMany: jest.fn(),
 			create: jest.fn(),
 			update: jest.fn(),
+			updateMany: jest.fn().mockResolvedValue({ count: 1 }),
 			count: jest.fn(),
+		},
+		assetMaintenanceTask: {
+			findFirst: jest.fn().mockResolvedValue(null),
+			findMany: jest.fn().mockResolvedValue([]),
+			findFirstOrThrow: jest.fn(),
+			create: jest.fn(),
+			update: jest.fn(),
+			updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+			deleteMany: jest.fn(),
+		},
+		assetMaintenanceLog: {
+			findFirst: jest.fn().mockResolvedValue(null),
+			findMany: jest.fn().mockResolvedValue([]),
+			findFirstOrThrow: jest.fn(),
+			create: jest.fn(),
+			update: jest.fn(),
+			updateMany: jest.fn().mockResolvedValue({ count: 1 }),
 		},
 		assetCapitalizationAssetItem: {
 			update: jest.fn(),
+			updateMany: jest.fn().mockResolvedValue({ count: 1 }),
 		},
 		assetActivity: {
 			create: jest.fn(),
@@ -350,15 +379,89 @@ function createMockPrisma() {
 			update: jest.fn(),
 		},
 	};
+	const legacyIdWhere = (args: {
+		where?: { id?: string; AND?: Array<{ id?: string }> };
+	}) => ({
+		...args,
+		where: {
+			id: args.where?.id ?? args.where?.AND?.find((part) => part.id)?.id,
+		},
+	});
+	mockTx.asset.findFirst.mockImplementation(
+		async (args: { where?: { id?: string; AND?: Array<{ id?: string }> } }) => {
+			const result = await mockTx.asset.findUnique(legacyIdWhere(args));
+			return result ?? mockTx.asset.findUniqueOrThrow(legacyIdWhere(args));
+		},
+	);
+	mockTx.asset.findFirstOrThrow.mockImplementation(
+		async (args: { where?: { id?: string; AND?: Array<{ id?: string }> } }) => {
+			const result = await mockTx.asset.findUniqueOrThrow(legacyIdWhere(args));
+			return result ?? mockTx.asset.findUnique(legacyIdWhere(args));
+		},
+	);
+	mockTx.asset.updateMany.mockImplementation(
+		async (args: {
+			where?: { id?: string; AND?: Array<{ id?: string }> };
+			data: unknown;
+		}) => {
+			const id = args.where?.id ?? args.where?.AND?.find((part) => part.id)?.id;
+			const result = await mockTx.asset.update({
+				where: { id },
+				data: args.data,
+			});
+			if (result !== undefined)
+				mockTx.asset.findUniqueOrThrow.mockResolvedValue(result);
+			return { count: 1 };
+		},
+	);
+	(mockTx.company as { findFirst?: jest.Mock }).findFirst = jest.fn(
+		(args: unknown) => mockTx.company.findUnique(args),
+	);
+	for (const delegate of [
+		mockTx.assetMovement,
+		mockTx.assetRepair,
+		mockTx.assetCapitalization,
+		mockTx.assetDisposal,
+	]) {
+		delegate.findFirst.mockImplementation(async (args: unknown) => {
+			const result = await delegate.findUnique(args);
+			return result ?? delegate.findUniqueOrThrow?.(args);
+		});
+		delegate.findFirstOrThrow.mockImplementation(async (args: unknown) => {
+			const result = await delegate.findUnique(args);
+			return result ?? delegate.findUniqueOrThrow?.(args);
+		});
+		delegate.updateMany.mockImplementation(async (args: unknown) => {
+			const { where, data } = args as {
+				where?: { id?: string };
+				data?: unknown;
+			};
+			const result = await delegate.update({
+				where: { id: where?.id },
+				data,
+			});
+			if (result !== undefined) delegate.findUnique.mockResolvedValue(result);
+			return { count: 1 };
+		});
+	}
+	mockTx.assetMovement.findFirstOrThrow.mockImplementation(
+		async (args: unknown) => {
+			const result = await mockTx.assetMovement.findUniqueOrThrow(args);
+			return result ?? mockTx.assetMovement.findUnique(args);
+		},
+	);
 
 	const mockPrisma = {
 		asset: {
 			findUnique: jest.fn(),
+			findUniqueOrThrow: jest.fn(),
 			findFirst: jest.fn(),
+			findFirstOrThrow: jest.fn(),
 			update: jest.fn(),
 		},
 		assetDisposal: {
 			findUnique: jest.fn(),
+			findUniqueOrThrow: jest.fn(),
 			findFirst: jest.fn(),
 			findMany: jest.fn(),
 			create: jest.fn(),
@@ -377,6 +480,7 @@ function createMockPrisma() {
 		},
 		assetRepair: {
 			findUnique: jest.fn(),
+			findUniqueOrThrow: jest.fn(),
 			findFirst: jest.fn(),
 			findMany: jest.fn(),
 			create: jest.fn(),
@@ -385,11 +489,19 @@ function createMockPrisma() {
 		},
 		assetCapitalization: {
 			findUnique: jest.fn(),
+			findUniqueOrThrow: jest.fn(),
 			findFirst: jest.fn(),
 			findMany: jest.fn(),
 			create: jest.fn(),
 			update: jest.fn(),
 			count: jest.fn(),
+		},
+		company: {
+			findUnique: jest.fn().mockResolvedValue({
+				...COMPANY_RELATION,
+				disabled: false,
+			}),
+			findFirst: jest.fn(),
 		},
 		assetActivity: { create: jest.fn() },
 		documentSeriesCounter: {
@@ -406,6 +518,37 @@ function createMockPrisma() {
 			),
 		_mockTx: mockTx,
 	};
+	mockPrisma.asset.findFirst.mockImplementation(async (args: unknown) => {
+		const result = await mockPrisma.asset.findUnique(args);
+		return result ?? mockPrisma.asset.findUniqueOrThrow?.(args);
+	});
+	mockPrisma.asset.findFirstOrThrow.mockImplementation((args: unknown) =>
+		mockPrisma.asset.findUnique(args),
+	);
+	mockPrisma.company.findFirst.mockImplementation((args: unknown) =>
+		mockPrisma.company.findUnique(args),
+	);
+	for (const [txDelegate, prismaDelegate] of [
+		[mockTx.assetMovement, mockPrisma.assetMovement],
+		[mockTx.assetRepair, mockPrisma.assetRepair],
+		[mockTx.assetCapitalization, mockPrisma.assetCapitalization],
+		[mockTx.assetDisposal, mockPrisma.assetDisposal],
+	] as const) {
+		txDelegate.findUnique.mockImplementation((args: unknown) =>
+			prismaDelegate.findUnique(args),
+		);
+	}
+	for (const delegate of [
+		mockPrisma.assetMovement,
+		mockPrisma.assetRepair,
+		mockPrisma.assetCapitalization,
+		mockPrisma.assetDisposal,
+	]) {
+		delegate.findFirst.mockImplementation(async (args: unknown) => {
+			const result = await delegate.findUnique(args);
+			return result ?? delegate.findUniqueOrThrow?.(args);
+		});
+	}
 
 	return mockPrisma;
 }
@@ -505,12 +648,15 @@ describe("Asset lifecycle actions", () => {
 					gainLossAccount: GAIN_LOSS_ACCOUNT,
 					costCenter: COST_CENTER,
 				},
+				"org-1",
 				"user-1",
 			);
 
 			expect(result.status).toBe("POSTED");
 			expect(depreciationBarrier.ensureDepreciationPosted).toHaveBeenCalledWith(
 				{
+					kind: "organization",
+					organizationId: "org-1",
 					throughDate: disposalDate,
 					assetIds: ["asset-1"],
 				},
@@ -521,6 +667,7 @@ describe("Asset lifecycle actions", () => {
 			);
 			expect(accounting.createPostedEntry).toHaveBeenCalledWith(
 				mockPrisma._mockTx,
+				"org-1",
 				expect.objectContaining({
 					companyId: COMPANY_ID,
 					assetId: "asset-1",
@@ -556,6 +703,7 @@ describe("Asset lifecycle actions", () => {
 			);
 			expect(depreciationRevision.closeOpenSchedules).toHaveBeenCalledWith(
 				mockPrisma._mockTx,
+				"org-1",
 				"asset-1",
 			);
 			expect(mockPrisma._mockTx.asset.update).toHaveBeenCalledWith({
@@ -586,14 +734,17 @@ describe("Asset lifecycle actions", () => {
 				}),
 			);
 
-			await service.scrapAsset({
-				assetId: "asset-1",
-				disposalDate: new Date("2026-01-15T00:00:00.000Z"),
-				gainLossAccount: GAIN_LOSS_ACCOUNT,
-				costCenter: COST_CENTER,
-			});
+			await service.scrapAsset(
+				{
+					assetId: "asset-1",
+					disposalDate: new Date("2026-01-15T00:00:00.000Z"),
+					gainLossAccount: GAIN_LOSS_ACCOUNT,
+					costCenter: COST_CENTER,
+				},
+				"org-1",
+			);
 
-			const postingInput = accounting.createPostedEntry.mock.calls[0]?.[1];
+			const postingInput = accounting.createPostedEntry.mock.calls[0]?.[2];
 			expect(postingInput?.lines).toContainEqual({
 				account: GAIN_LOSS_ACCOUNT,
 				debitAmount: 7_000,
@@ -606,11 +757,14 @@ describe("Asset lifecycle actions", () => {
 			const { service, depreciationBarrier } = createTestContext();
 
 			await expect(
-				service.scrapAsset({
-					assetId: "asset-1",
-					disposalDate: new Date("2100-01-01T00:00:00.000Z"),
-					gainLossAccount: GAIN_LOSS_ACCOUNT,
-				}),
+				service.scrapAsset(
+					{
+						assetId: "asset-1",
+						disposalDate: new Date("2100-01-01T00:00:00.000Z"),
+						gainLossAccount: GAIN_LOSS_ACCOUNT,
+					},
+					"org-1",
+				),
 			).rejects.toThrow("cannot be in the future");
 			expect(
 				depreciationBarrier.ensureDepreciationPosted,
@@ -624,11 +778,14 @@ describe("Asset lifecycle actions", () => {
 			);
 
 			await expect(
-				service.scrapAsset({
-					assetId: "asset-1",
-					disposalDate: new Date("2026-01-15T00:00:00.000Z"),
-					gainLossAccount: GAIN_LOSS_ACCOUNT,
-				}),
+				service.scrapAsset(
+					{
+						assetId: "asset-1",
+						disposalDate: new Date("2026-01-15T00:00:00.000Z"),
+						gainLossAccount: GAIN_LOSS_ACCOUNT,
+					},
+					"org-1",
+				),
 			).rejects.toThrow("cannot be disposed");
 			expect(mockPrisma._mockTx.$queryRaw).toHaveBeenCalled();
 			expect(accounting.createPostedEntry).not.toHaveBeenCalled();
@@ -643,11 +800,14 @@ describe("Asset lifecycle actions", () => {
 				}),
 			);
 			await expect(
-				first.service.scrapAsset({
-					assetId: "asset-1",
-					disposalDate: new Date("2026-02-01T00:00:00.000Z"),
-					gainLossAccount: GAIN_LOSS_ACCOUNT,
-				}),
+				first.service.scrapAsset(
+					{
+						assetId: "asset-1",
+						disposalDate: new Date("2026-02-01T00:00:00.000Z"),
+						gainLossAccount: GAIN_LOSS_ACCOUNT,
+					},
+					"org-1",
+				),
 			).rejects.toThrow("available-for-use date");
 
 			const second = createTestContext();
@@ -658,11 +818,14 @@ describe("Asset lifecycle actions", () => {
 				1,
 			);
 			await expect(
-				second.service.scrapAsset({
-					assetId: "asset-1",
-					disposalDate: new Date("2026-02-01T00:00:00.000Z"),
-					gainLossAccount: GAIN_LOSS_ACCOUNT,
-				}),
+				second.service.scrapAsset(
+					{
+						assetId: "asset-1",
+						disposalDate: new Date("2026-02-01T00:00:00.000Z"),
+						gainLossAccount: GAIN_LOSS_ACCOUNT,
+					},
+					"org-1",
+				),
 			).rejects.toThrow("latest posted depreciation");
 		});
 
@@ -687,17 +850,19 @@ describe("Asset lifecycle actions", () => {
 
 			const restored = await service.restoreAsset(
 				{ assetId: "asset-1" },
+				"org-1",
 				"user-1",
 			);
 
 			expect(restored.status).toBe("FULLY_DEPRECIATED");
 			expect(accounting.reversePostedEntry).toHaveBeenCalledWith(
 				mockPrisma._mockTx,
+				"org-1",
 				"accounting-1",
 			);
 			expect(
 				depreciationRevision.reactivateLatestClosedSchedules,
-			).toHaveBeenCalledWith(mockPrisma._mockTx, "asset-1");
+			).toHaveBeenCalledWith(mockPrisma._mockTx, "org-1", "asset-1");
 			expect(mockPrisma._mockTx.assetDisposal.update).toHaveBeenCalledWith({
 				where: { id: "disposal-1" },
 				data: { status: "CANCELLED" },
@@ -726,7 +891,7 @@ describe("Asset lifecycle actions", () => {
 			mockPrisma._mockTx.assetAccountingEntry.count.mockResolvedValue(1);
 
 			await expect(
-				service.restoreAsset({ assetId: "asset-1" }),
+				service.restoreAsset({ assetId: "asset-1" }, "org-1"),
 			).rejects.toThrow(ConflictException);
 			expect(accounting.reversePostedEntry).not.toHaveBeenCalled();
 			expect(
@@ -741,7 +906,7 @@ describe("Asset lifecycle actions", () => {
 			);
 
 			await expect(
-				service.restoreAsset({ assetId: "asset-1" }),
+				service.restoreAsset({ assetId: "asset-1" }, "org-1"),
 			).rejects.toThrow(BadRequestException);
 		});
 	});
@@ -785,15 +950,18 @@ describe("Asset lifecycle actions", () => {
 				updatedAt: new Date("2026-01-01T00:00:00.000Z"),
 			});
 
-			await service.createAssetMovement({
-				companyId: COMPANY_ID,
-				transactionDate: new Date("2026-01-01T00:00:00.000Z"),
-				purpose: "ISSUE",
-				items: [
-					{ assetId: "asset-b", toEmployee: "Employee B" },
-					{ assetId: "asset-a", toEmployee: "Employee A" },
-				],
-			});
+			await service.createAssetMovement(
+				{
+					companyId: COMPANY_ID,
+					transactionDate: new Date("2026-01-01T00:00:00.000Z"),
+					purpose: "ISSUE",
+					items: [
+						{ assetId: "asset-b", toEmployee: "Employee B" },
+						{ assetId: "asset-a", toEmployee: "Employee A" },
+					],
+				},
+				"org-1",
+			);
 
 			const firstLockValues = mockPrisma._mockTx.$queryRaw.mock.calls
 				.slice(0, 2)
@@ -805,15 +973,18 @@ describe("Asset lifecycle actions", () => {
 			const { service } = createTestContext();
 
 			await expect(
-				service.createAssetMovement({
-					companyId: COMPANY_ID,
-					transactionDate: new Date("2026-01-01T00:00:00.000Z"),
-					purpose: "TRANSFER",
-					items: [
-						{ assetId: "asset-1", targetLocationId: "loc-2" },
-						{ assetId: "asset-1", targetLocationId: "loc-3" },
-					],
-				}),
+				service.createAssetMovement(
+					{
+						companyId: COMPANY_ID,
+						transactionDate: new Date("2026-01-01T00:00:00.000Z"),
+						purpose: "TRANSFER",
+						items: [
+							{ assetId: "asset-1", targetLocationId: "loc-2" },
+							{ assetId: "asset-1", targetLocationId: "loc-3" },
+						],
+					},
+					"org-1",
+				),
 			).rejects.toThrow("only once");
 		});
 
@@ -830,12 +1001,15 @@ describe("Asset lifecycle actions", () => {
 			});
 
 			await expect(
-				service.createAssetMovement({
-					companyId: COMPANY_ID,
-					transactionDate: new Date("2026-01-01T00:00:00.000Z"),
-					purpose: "TRANSFER",
-					items: [{ assetId: "asset-1", targetLocationId: "loc-2" }],
-				}),
+				service.createAssetMovement(
+					{
+						companyId: COMPANY_ID,
+						transactionDate: new Date("2026-01-01T00:00:00.000Z"),
+						purpose: "TRANSFER",
+						items: [{ assetId: "asset-1", targetLocationId: "loc-2" }],
+					},
+					"org-1",
+				),
 			).rejects.toThrow("does not belong");
 		});
 
@@ -855,12 +1029,15 @@ describe("Asset lifecycle actions", () => {
 			});
 
 			await expect(
-				service.createAssetMovement({
-					companyId: COMPANY_ID,
-					transactionDate: new Date("2026-01-01T00:00:00.000Z"),
-					purpose: "TRANSFER",
-					items: [{ assetId: "asset-1", targetLocationId: "loc-2" }],
-				}),
+				service.createAssetMovement(
+					{
+						companyId: COMPANY_ID,
+						transactionDate: new Date("2026-01-01T00:00:00.000Z"),
+						purpose: "TRANSFER",
+						items: [{ assetId: "asset-1", targetLocationId: "loc-2" }],
+					},
+					"org-1",
+				),
 			).rejects.toThrow("cannot be earlier");
 		});
 
@@ -879,7 +1056,7 @@ describe("Asset lifecycle actions", () => {
 			});
 
 			await expect(
-				service.submitAssetMovement({ id: "movement-1" }),
+				service.submitAssetMovement({ id: "movement-1" }, "org-1"),
 			).rejects.toThrow(ConflictException);
 		});
 
@@ -925,7 +1102,10 @@ describe("Asset lifecycle actions", () => {
 				updatedAt: new Date("2026-01-01T00:00:00.000Z"),
 			});
 
-			const result = await service.submitAssetMovement({ id: "movement-1" });
+			const result = await service.submitAssetMovement(
+				{ id: "movement-1" },
+				"org-1",
+			);
 
 			expect(result.status).toBe("SUBMITTED");
 			expect(mockPrisma._mockTx.asset.update).toHaveBeenCalledWith({
@@ -963,7 +1143,6 @@ describe("Asset lifecycle actions", () => {
 				series: "AST-2025-00001",
 				status: "SUBMITTED",
 			});
-			mockPrisma._mockTx.assetMovement.findFirst.mockResolvedValue(null);
 			mockPrisma._mockTx.assetMovement.findUniqueOrThrow.mockResolvedValue({
 				id: "movement-1",
 				series: "MOV-2026-00001",
@@ -980,7 +1159,7 @@ describe("Asset lifecycle actions", () => {
 				updatedAt: new Date("2026-01-01T00:00:00.000Z"),
 			});
 
-			await service.submitAssetMovement({ id: "movement-1" });
+			await service.submitAssetMovement({ id: "movement-1" }, "org-1");
 
 			expect(mockPrisma._mockTx.asset.update).toHaveBeenCalledWith({
 				where: { id: "asset-1" },
@@ -1010,8 +1189,13 @@ describe("Asset lifecycle actions", () => {
 				companyId: COMPANY_ID,
 				company: COMPANY_RELATION,
 				series: "AST-2025-00001",
+				locationId: "loc-2",
 			});
-			mockPrisma._mockTx.assetMovement.findFirst.mockResolvedValue(null);
+			mockPrisma._mockTx.assetMovement.findFirst
+				.mockImplementationOnce((args: unknown) =>
+					mockPrisma.assetMovement.findUnique(args),
+				)
+				.mockResolvedValueOnce(null);
 			mockPrisma._mockTx.assetMovement.findUniqueOrThrow.mockResolvedValue({
 				id: "movement-1",
 				series: "MOV-2026-00001",
@@ -1028,7 +1212,7 @@ describe("Asset lifecycle actions", () => {
 				updatedAt: new Date("2026-01-02T00:00:00.000Z"),
 			});
 
-			await service.cancelAssetMovement({ id: "movement-1" });
+			await service.cancelAssetMovement({ id: "movement-1" }, "org-1");
 
 			expect(mockPrisma._mockTx.asset.update).toHaveBeenCalledWith({
 				where: { id: "asset-1" },
@@ -1058,10 +1242,15 @@ describe("Asset lifecycle actions", () => {
 				companyId: COMPANY_ID,
 				company: COMPANY_RELATION,
 				series: "AST-2025-00001",
+				locationId: "loc-2",
 			});
-			mockPrisma._mockTx.assetMovement.findFirst.mockResolvedValue({
-				items: [{ targetLocationId: "loc-3", toEmployee: "Emp C" }],
-			});
+			mockPrisma._mockTx.assetMovement.findFirst
+				.mockImplementationOnce((args: unknown) =>
+					mockPrisma.assetMovement.findUnique(args),
+				)
+				.mockResolvedValueOnce({
+					items: [{ targetLocationId: "loc-3", toEmployee: "Emp C" }],
+				});
 			mockPrisma._mockTx.assetMovement.findUniqueOrThrow.mockResolvedValue({
 				id: "movement-1",
 				series: "MOV-2026-00001",
@@ -1078,7 +1267,7 @@ describe("Asset lifecycle actions", () => {
 				updatedAt: new Date("2026-01-02T00:00:00.000Z"),
 			});
 
-			await service.cancelAssetMovement({ id: "movement-1" });
+			await service.cancelAssetMovement({ id: "movement-1" }, "org-1");
 
 			expect(mockPrisma._mockTx.asset.update).toHaveBeenCalledWith({
 				where: { id: "asset-1" },
@@ -1110,9 +1299,13 @@ describe("Asset lifecycle actions", () => {
 				series: "AST-2025-00001",
 				locationId: "loc-3",
 			});
-			mockPrisma._mockTx.assetMovement.findFirst.mockResolvedValue({
-				items: [{ targetLocationId: null, toEmployee: "Emp C" }],
-			});
+			mockPrisma._mockTx.assetMovement.findFirst
+				.mockImplementationOnce((args: unknown) =>
+					mockPrisma.assetMovement.findUnique(args),
+				)
+				.mockResolvedValueOnce({
+					items: [{ targetLocationId: null, toEmployee: "Emp C" }],
+				});
 			mockPrisma._mockTx.assetMovement.findUniqueOrThrow.mockResolvedValue({
 				id: "movement-1",
 				series: "MOV-2026-00001",
@@ -1129,7 +1322,7 @@ describe("Asset lifecycle actions", () => {
 				updatedAt: new Date("2026-01-02T00:00:00.000Z"),
 			});
 
-			await service.cancelAssetMovement({ id: "movement-1" });
+			await service.cancelAssetMovement({ id: "movement-1" }, "org-1");
 
 			expect(mockPrisma._mockTx.asset.update).toHaveBeenCalledWith({
 				where: { id: "asset-1" },
@@ -1165,7 +1358,7 @@ describe("Asset lifecycle actions", () => {
 			});
 
 			await expect(
-				service.submitAssetMovement({ id: "movement-1" }),
+				service.submitAssetMovement({ id: "movement-1" }, "org-1"),
 			).rejects.toThrow("changed after movement");
 		});
 	});
@@ -1179,30 +1372,33 @@ describe("Asset lifecycle actions", () => {
 			mockPrisma._mockTx.assetRepair.findFirst.mockResolvedValue(null);
 			mockPrisma._mockTx.assetRepair.create.mockResolvedValue(repairRecord());
 
-			const result = await service.createAssetRepair({
-				assetId: "asset-1",
-				companyId: COMPANY_ID,
-				failureDate: new Date("2026-02-01T00:00:00.000Z"),
-				completionDate: new Date("2026-02-15T00:00:00.000Z"),
-				capitalizeRepairCost: true,
-				increaseInAssetLife: 2,
-				consumedItems: [
-					{
-						itemCode: "BEARING-001",
-						warehouse: "Stores - ACME",
-						expenseAccount: STOCK_EXPENSE_ACCOUNT,
-						quantity: 2,
-						valuationRate: 250,
-					},
-				],
-				purchaseInvoices: [
-					{
-						purchaseInvoice: "PINV-2026-00001",
-						expenseAccount: REPAIR_EXPENSE_ACCOUNT,
-						amount: 1_000,
-					},
-				],
-			});
+			const result = await service.createAssetRepair(
+				{
+					assetId: "asset-1",
+					companyId: COMPANY_ID,
+					failureDate: new Date("2026-02-01T00:00:00.000Z"),
+					completionDate: new Date("2026-02-15T00:00:00.000Z"),
+					capitalizeRepairCost: true,
+					increaseInAssetLife: 2,
+					consumedItems: [
+						{
+							itemCode: "BEARING-001",
+							warehouse: "Stores - ACME",
+							expenseAccount: STOCK_EXPENSE_ACCOUNT,
+							quantity: 2,
+							valuationRate: 250,
+						},
+					],
+					purchaseInvoices: [
+						{
+							purchaseInvoice: "PINV-2026-00001",
+							expenseAccount: REPAIR_EXPENSE_ACCOUNT,
+							amount: 1_000,
+						},
+					],
+				},
+				"org-1",
+			);
 
 			expect(result.repairStatus).toBe("PENDING");
 			expect(mockPrisma._mockTx.assetRepair.create).toHaveBeenCalledWith(
@@ -1229,15 +1425,18 @@ describe("Asset lifecycle actions", () => {
 				}),
 			);
 			await expect(
-				wrongCompany.service.createAssetRepair({
-					assetId: "asset-1",
-					companyId: COMPANY_ID,
-					failureDate: new Date("2026-02-01T00:00:00.000Z"),
-					capitalizeRepairCost: false,
-					increaseInAssetLife: 0,
-					consumedItems: [],
-					purchaseInvoices: [],
-				}),
+				wrongCompany.service.createAssetRepair(
+					{
+						assetId: "asset-1",
+						companyId: COMPANY_ID,
+						failureDate: new Date("2026-02-01T00:00:00.000Z"),
+						capitalizeRepairCost: false,
+						increaseInAssetLife: 0,
+						consumedItems: [],
+						purchaseInvoices: [],
+					},
+					"org-1",
+				),
 			).rejects.toThrow("does not belong");
 
 			const badDate = createTestContext();
@@ -1245,15 +1444,18 @@ describe("Asset lifecycle actions", () => {
 				assetRecord({ purchaseDate: new Date("2026-02-10T00:00:00.000Z") }),
 			);
 			await expect(
-				badDate.service.createAssetRepair({
-					assetId: "asset-1",
-					companyId: COMPANY_ID,
-					failureDate: new Date("2026-02-01T00:00:00.000Z"),
-					capitalizeRepairCost: false,
-					increaseInAssetLife: 0,
-					consumedItems: [],
-					purchaseInvoices: [],
-				}),
+				badDate.service.createAssetRepair(
+					{
+						assetId: "asset-1",
+						companyId: COMPANY_ID,
+						failureDate: new Date("2026-02-01T00:00:00.000Z"),
+						capitalizeRepairCost: false,
+						increaseInAssetLife: 0,
+						consumedItems: [],
+						purchaseInvoices: [],
+					},
+					"org-1",
+				),
 			).rejects.toThrow("before the asset purchase date");
 
 			const duplicate = createTestContext();
@@ -1264,15 +1466,18 @@ describe("Asset lifecycle actions", () => {
 				series: "REP-2026-00000",
 			});
 			await expect(
-				duplicate.service.createAssetRepair({
-					assetId: "asset-1",
-					companyId: COMPANY_ID,
-					failureDate: new Date("2026-02-01T00:00:00.000Z"),
-					capitalizeRepairCost: false,
-					increaseInAssetLife: 0,
-					consumedItems: [],
-					purchaseInvoices: [],
-				}),
+				duplicate.service.createAssetRepair(
+					{
+						assetId: "asset-1",
+						companyId: COMPANY_ID,
+						failureDate: new Date("2026-02-01T00:00:00.000Z"),
+						capitalizeRepairCost: false,
+						increaseInAssetLife: 0,
+						consumedItems: [],
+						purchaseInvoices: [],
+					},
+					"org-1",
+				),
 			).rejects.toThrow(ConflictException);
 		});
 
@@ -1310,18 +1515,22 @@ describe("Asset lifecycle actions", () => {
 
 			const result = await service.submitAssetRepair(
 				{ id: "repair-1" },
+				"org-1",
 				"user-1",
 			);
 
 			expect(result.repairStatus).toBe("COMPLETED");
 			expect(depreciationBarrier.ensureDepreciationPosted).toHaveBeenCalledWith(
 				{
+					kind: "organization",
+					organizationId: "org-1",
 					throughDate: completionDate,
 					assetIds: ["asset-1"],
 				},
 			);
 			expect(stockPosting.createMaterialIssue).toHaveBeenCalledWith(
 				mockPrisma._mockTx,
+				"org-1",
 				{
 					companyId: COMPANY_ID,
 					postingDate: completionDate,
@@ -1339,6 +1548,7 @@ describe("Asset lifecycle actions", () => {
 			);
 			expect(accounting.createPostedEntry).toHaveBeenCalledWith(
 				mockPrisma._mockTx,
+				"org-1",
 				expect.objectContaining({
 					sourceType: "REPAIR",
 					lines: [
@@ -1365,6 +1575,7 @@ describe("Asset lifecycle actions", () => {
 			);
 			expect(depreciationRevision.revise).toHaveBeenCalledWith(
 				mockPrisma._mockTx,
+				"org-1",
 				expect.objectContaining({
 					assetId: "asset-1",
 					effectiveDate: completionDate,
@@ -1394,7 +1605,7 @@ describe("Asset lifecycle actions", () => {
 				capitalizeRepairCost: false,
 			});
 			await expect(
-				badDate.service.submitAssetRepair({ id: "repair-1" }),
+				badDate.service.submitAssetRepair({ id: "repair-1" }, "org-1"),
 			).rejects.toThrow("before the failure date");
 
 			const stale = createTestContext();
@@ -1412,7 +1623,7 @@ describe("Asset lifecycle actions", () => {
 				assetRecord({ status: "SUBMITTED" }),
 			);
 			await expect(
-				stale.service.submitAssetRepair({ id: "repair-1" }),
+				stale.service.submitAssetRepair({ id: "repair-1" }, "org-1"),
 			).rejects.toThrow(ConflictException);
 		});
 
@@ -1441,7 +1652,7 @@ describe("Asset lifecycle actions", () => {
 				repairRecord({ repairStatus: "CANCELLED" }),
 			);
 
-			await service.cancelAssetRepair({ id: "repair-1" });
+			await service.cancelAssetRepair({ id: "repair-1" }, "org-1");
 
 			expect(mockPrisma._mockTx.asset.update).toHaveBeenCalledWith({
 				where: { id: "asset-1" },
@@ -1489,20 +1700,27 @@ describe("Asset lifecycle actions", () => {
 
 			const result = await service.cancelAssetRepair(
 				{ id: "repair-1" },
+				"org-1",
 				"user-1",
 			);
 
 			expect(result.repairStatus).toBe("CANCELLED");
 			expect(accounting.reversePostedEntry).toHaveBeenCalledWith(
 				mockPrisma._mockTx,
+				"org-1",
 				"accounting-1",
 			);
 			expect(stockPosting.cancelMaterialIssue).toHaveBeenCalledWith(
 				mockPrisma._mockTx,
+				"org-1",
+				COMPANY_ID,
 				"stock-entry-1",
+				"ASSET_REPAIR",
+				"repair-1",
 			);
 			expect(depreciationRevision.revise).toHaveBeenCalledWith(
 				mockPrisma._mockTx,
+				"org-1",
 				expect.objectContaining({
 					assetId: "asset-1",
 					valueDelta: -1_500,
@@ -1544,7 +1762,7 @@ describe("Asset lifecycle actions", () => {
 				}),
 			);
 			await expect(
-				stale.service.cancelAssetRepair({ id: "repair-1" }),
+				stale.service.cancelAssetRepair({ id: "repair-1" }, "org-1"),
 			).rejects.toThrow("changed after repair");
 
 			const downstream = createTestContext();
@@ -1572,7 +1790,7 @@ describe("Asset lifecycle actions", () => {
 				1,
 			);
 			await expect(
-				downstream.service.cancelAssetRepair({ id: "repair-1" }),
+				downstream.service.cancelAssetRepair({ id: "repair-1" }, "org-1"),
 			).rejects.toThrow("blocked by later depreciation");
 			expect(downstream.accounting.reversePostedEntry).not.toHaveBeenCalled();
 		});
@@ -1582,31 +1800,37 @@ describe("Asset lifecycle actions", () => {
 		it("validates source and target identities before creating a document", async () => {
 			const duplicate = createTestContext();
 			await expect(
-				duplicate.service.createAssetCapitalization({
-					companyId: COMPANY_ID,
-					postingDate: new Date("2026-03-01T00:00:00.000Z"),
-					targetType: "EXISTING_ASSET",
-					targetAssetId: "target-asset-1",
-					stockItems: [],
-					assetItems: [
-						{ assetId: "source-asset-1", assetValue: 1 },
-						{ assetId: "source-asset-1", assetValue: 2 },
-					],
-					serviceItems: [],
-				}),
+				duplicate.service.createAssetCapitalization(
+					{
+						companyId: COMPANY_ID,
+						postingDate: new Date("2026-03-01T00:00:00.000Z"),
+						targetType: "EXISTING_ASSET",
+						targetAssetId: "target-asset-1",
+						stockItems: [],
+						assetItems: [
+							{ assetId: "source-asset-1", assetValue: 1 },
+							{ assetId: "source-asset-1", assetValue: 2 },
+						],
+						serviceItems: [],
+					},
+					"org-1",
+				),
 			).rejects.toThrow("only once");
 
 			const sameTarget = createTestContext();
 			await expect(
-				sameTarget.service.createAssetCapitalization({
-					companyId: COMPANY_ID,
-					postingDate: new Date("2026-03-01T00:00:00.000Z"),
-					targetType: "EXISTING_ASSET",
-					targetAssetId: "source-asset-1",
-					stockItems: [],
-					assetItems: [{ assetId: "source-asset-1", assetValue: 1 }],
-					serviceItems: [],
-				}),
+				sameTarget.service.createAssetCapitalization(
+					{
+						companyId: COMPANY_ID,
+						postingDate: new Date("2026-03-01T00:00:00.000Z"),
+						targetType: "EXISTING_ASSET",
+						targetAssetId: "source-asset-1",
+						stockItems: [],
+						assetItems: [{ assetId: "source-asset-1", assetValue: 1 }],
+						serviceItems: [],
+					},
+					"org-1",
+				),
 			).rejects.toThrow("target asset cannot also be a consumed asset");
 		});
 
@@ -1639,15 +1863,18 @@ describe("Asset lifecycle actions", () => {
 				capitalizationRecord(),
 			);
 
-			await service.createAssetCapitalization({
-				companyId: COMPANY_ID,
-				postingDate: new Date("2026-03-01T00:00:00.000Z"),
-				targetType: "EXISTING_ASSET",
-				targetAssetId: "target-asset-1",
-				stockItems: [],
-				assetItems: [{ assetId: "source-asset-1", assetValue: 99_999 }],
-				serviceItems: [],
-			});
+			await service.createAssetCapitalization(
+				{
+					companyId: COMPANY_ID,
+					postingDate: new Date("2026-03-01T00:00:00.000Z"),
+					targetType: "EXISTING_ASSET",
+					targetAssetId: "target-asset-1",
+					stockItems: [],
+					assetItems: [{ assetId: "source-asset-1", assetValue: 99_999 }],
+					serviceItems: [],
+				},
+				"org-1",
+			);
 
 			expect(
 				mockPrisma._mockTx.assetCapitalization.create,
@@ -1675,17 +1902,20 @@ describe("Asset lifecycle actions", () => {
 				calculateDepreciation: false,
 			});
 			await expect(
-				crossCompany.service.createAssetCapitalization({
-					companyId: COMPANY_ID,
-					postingDate: new Date("2026-03-01T00:00:00.000Z"),
-					targetType: "EXISTING_ASSET",
-					targetAssetId: "target-asset-1",
-					stockItems: [],
-					assetItems: [],
-					serviceItems: [
-						{ expenseAccount: SERVICE_EXPENSE_ACCOUNT, amount: 200 },
-					],
-				}),
+				crossCompany.service.createAssetCapitalization(
+					{
+						companyId: COMPANY_ID,
+						postingDate: new Date("2026-03-01T00:00:00.000Z"),
+						targetType: "EXISTING_ASSET",
+						targetAssetId: "target-asset-1",
+						stockItems: [],
+						assetItems: [],
+						serviceItems: [
+							{ expenseAccount: SERVICE_EXPENSE_ACCOUNT, amount: 200 },
+						],
+					},
+					"org-1",
+				),
 			).rejects.toThrow("does not belong");
 
 			const early = createTestContext();
@@ -1713,15 +1943,18 @@ describe("Asset lifecycle actions", () => {
 				},
 			]);
 			await expect(
-				early.service.createAssetCapitalization({
-					companyId: COMPANY_ID,
-					postingDate: new Date("2026-03-01T00:00:00.000Z"),
-					targetType: "EXISTING_ASSET",
-					targetAssetId: "target-asset-1",
-					stockItems: [],
-					assetItems: [{ assetId: "source-asset-1", assetValue: 3_000 }],
-					serviceItems: [],
-				}),
+				early.service.createAssetCapitalization(
+					{
+						companyId: COMPANY_ID,
+						postingDate: new Date("2026-03-01T00:00:00.000Z"),
+						targetType: "EXISTING_ASSET",
+						targetAssetId: "target-asset-1",
+						stockItems: [],
+						assetItems: [{ assetId: "source-asset-1", assetValue: 3_000 }],
+						serviceItems: [],
+					},
+					"org-1",
+				),
 			).rejects.toThrow("became available");
 		});
 
@@ -1782,27 +2015,31 @@ describe("Asset lifecycle actions", () => {
 
 			const result = await service.submitAssetCapitalization(
 				{ id: "capitalization-1" },
+				"org-1",
 				"user-1",
 			);
 
 			expect(result.status).toBe("SUBMITTED");
 			expect(depreciationBarrier.ensureDepreciationPosted).toHaveBeenCalledWith(
 				{
+					kind: "organization",
+					organizationId: "org-1",
 					throughDate: postingDate,
 					assetIds: ["source-asset-1"],
 				},
 			);
 			expect(stockPosting.createMaterialIssue).toHaveBeenCalledWith(
 				mockPrisma._mockTx,
+				"org-1",
 				expect.objectContaining({
 					sourceType: "ASSET_CAPITALIZATION",
 					sourceId: "capitalization-1",
 				}),
 			);
 			expect(
-				mockPrisma._mockTx.assetCapitalizationAssetItem.update,
+				mockPrisma._mockTx.assetCapitalizationAssetItem.updateMany,
 			).toHaveBeenCalledWith({
-				where: { id: "cap-asset-1" },
+				where: expect.objectContaining({ id: "cap-asset-1" }),
 				data: {
 					assetValue: 3_000,
 					previousStatus: "PARTIALLY_DEPRECIATED",
@@ -1811,6 +2048,7 @@ describe("Asset lifecycle actions", () => {
 			});
 			expect(accounting.createPostedEntry).toHaveBeenCalledWith(
 				mockPrisma._mockTx,
+				"org-1",
 				expect.objectContaining({
 					sourceType: "CAPITALIZATION",
 					assetId: "target-asset-1",
@@ -1858,6 +2096,7 @@ describe("Asset lifecycle actions", () => {
 			});
 			expect(depreciationRevision.closeOpenSchedules).toHaveBeenCalledWith(
 				mockPrisma._mockTx,
+				"org-1",
 				"source-asset-1",
 			);
 			expect(mockPrisma._mockTx.asset.update).toHaveBeenCalledWith({
@@ -1914,7 +2153,10 @@ describe("Asset lifecycle actions", () => {
 				}),
 			);
 
-			await service.submitAssetCapitalization({ id: "capitalization-1" });
+			await service.submitAssetCapitalization(
+				{ id: "capitalization-1" },
+				"org-1",
+			);
 
 			expect(mockPrisma._mockTx.asset.create).toHaveBeenCalledWith(
 				expect.objectContaining({
@@ -1929,6 +2171,7 @@ describe("Asset lifecycle actions", () => {
 			);
 			expect(accounting.createPostedEntry).toHaveBeenCalledWith(
 				mockPrisma._mockTx,
+				"org-1",
 				expect.objectContaining({ assetId: "new-target-1" }),
 			);
 			expect(
@@ -1997,17 +2240,23 @@ describe("Asset lifecycle actions", () => {
 
 			const result = await service.cancelAssetCapitalization(
 				{ id: "capitalization-1" },
+				"org-1",
 				"user-1",
 			);
 
 			expect(result.status).toBe("CANCELLED");
 			expect(accounting.reversePostedEntry).toHaveBeenCalledWith(
 				mockPrisma._mockTx,
+				"org-1",
 				"accounting-1",
 			);
 			expect(stockPosting.cancelMaterialIssue).toHaveBeenCalledWith(
 				mockPrisma._mockTx,
+				"org-1",
+				COMPANY_ID,
 				"stock-entry-1",
+				"ASSET_CAPITALIZATION",
+				"capitalization-1",
 			);
 			expect(mockPrisma._mockTx.asset.update).toHaveBeenCalledWith({
 				where: { id: "target-asset-1" },
@@ -2020,7 +2269,7 @@ describe("Asset lifecycle actions", () => {
 			});
 			expect(
 				depreciationRevision.reactivateLatestClosedSchedules,
-			).toHaveBeenCalledWith(mockPrisma._mockTx, "source-asset-1");
+			).toHaveBeenCalledWith(mockPrisma._mockTx, "org-1", "source-asset-1");
 			expect(mockPrisma._mockTx.asset.update).toHaveBeenCalledWith({
 				where: { id: "source-asset-1" },
 				data: {
@@ -2073,7 +2322,7 @@ describe("Asset lifecycle actions", () => {
 			mockPrisma._mockTx.assetAccountingEntry.count.mockResolvedValue(1);
 
 			await expect(
-				service.cancelAssetCapitalization({ id: "capitalization-1" }),
+				service.cancelAssetCapitalization({ id: "capitalization-1" }, "org-1"),
 			).rejects.toThrow("blocked by later depreciation");
 			expect(accounting.reversePostedEntry).not.toHaveBeenCalled();
 			expect(
@@ -2119,7 +2368,10 @@ describe("Asset lifecycle actions", () => {
 				capitalizationRecord({ status: "CANCELLED" }),
 			);
 
-			await service.cancelAssetCapitalization({ id: "capitalization-1" });
+			await service.cancelAssetCapitalization(
+				{ id: "capitalization-1" },
+				"org-1",
+			);
 
 			expect(mockPrisma._mockTx.asset.update).toHaveBeenCalledWith({
 				where: { id: "new-target-1" },

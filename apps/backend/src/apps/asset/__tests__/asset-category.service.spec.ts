@@ -109,7 +109,7 @@ describe("AssetService > AssetCategory", () => {
 			mockPrisma.assetCategory.findMany.mockResolvedValue([mockCategoryRow]);
 			mockPrisma.assetCategory.count.mockResolvedValue(1);
 
-			const result = await service.findAllAssetCategories({
+			const result = await service.findAllAssetCategories("org-1", {
 				skip: 0,
 				take: 20,
 			});
@@ -131,7 +131,7 @@ describe("AssetService > AssetCategory", () => {
 			mockPrisma.assetCategory.findMany.mockResolvedValue([]);
 			mockPrisma.assetCategory.count.mockResolvedValue(0);
 
-			const result = await service.findAllAssetCategories({});
+			const result = await service.findAllAssetCategories("org-1", {});
 
 			expect(result.totalCount).toBe(0);
 			expect(result.items).toHaveLength(0);
@@ -141,7 +141,7 @@ describe("AssetService > AssetCategory", () => {
 			mockPrisma.assetCategory.findMany.mockResolvedValue([]);
 			mockPrisma.assetCategory.count.mockResolvedValue(0);
 
-			await service.findAllAssetCategories({ search: "vehicles" });
+			await service.findAllAssetCategories("org-1", { search: "vehicles" });
 
 			expect(mockPrisma.assetCategory.findMany).toHaveBeenCalledWith(
 				expect.objectContaining({
@@ -159,7 +159,7 @@ describe("AssetService > AssetCategory", () => {
 			mockPrisma.assetCategory.findMany.mockResolvedValue([]);
 			mockPrisma.assetCategory.count.mockResolvedValue(0);
 
-			await service.findAllAssetCategories({ take: 9999 });
+			await service.findAllAssetCategories("org-1", { take: 9999 });
 
 			expect(mockPrisma.assetCategory.findMany).toHaveBeenCalledWith(
 				expect.objectContaining({ take: 250 }),
@@ -172,7 +172,7 @@ describe("AssetService > AssetCategory", () => {
 			]);
 			mockPrisma.assetCategory.count.mockResolvedValue(1);
 
-			const result = await service.findAllAssetCategories({});
+			const result = await service.findAllAssetCategories("org-1", {});
 
 			expect(result.items[0]).toMatchObject({
 				name: "Land",
@@ -193,7 +193,10 @@ describe("AssetService > AssetCategory", () => {
 		it("returns the category when found", async () => {
 			mockPrisma.assetCategory.findUnique.mockResolvedValue(mockCategoryRow);
 
-			const result = await service.findAssetCategoryById("cat-abc-001");
+			const result = await service.findAssetCategoryById(
+				"cat-abc-001",
+				"org-1",
+			);
 
 			expect(result).toMatchObject({
 				id: "cat-abc-001",
@@ -204,7 +207,7 @@ describe("AssetService > AssetCategory", () => {
 		it("returns null when category does not exist", async () => {
 			mockPrisma.assetCategory.findUnique.mockResolvedValue(null);
 
-			const result = await service.findAssetCategoryById("missing-id");
+			const result = await service.findAssetCategoryById("missing-id", "org-1");
 
 			expect(result).toBeNull();
 		});
@@ -219,14 +222,17 @@ describe("AssetService > AssetCategory", () => {
 			mockPrisma.assetCategory.findUnique.mockResolvedValue(null);
 			mockPrisma.assetCategory.create.mockResolvedValue(mockCategoryRow);
 
-			const result = await service.createAssetCategory({
-				name: "Vehicles",
-				depreciationMethod: "STRAIGHT_LINE",
-				totalNumberOfDepreciations: 60,
-				frequencyOfDepreciation: 12,
-				nonDepreciableCategory: false,
-				enableCwipAccounting: false,
-			});
+			const result = await service.createAssetCategory(
+				{
+					name: "Vehicles",
+					depreciationMethod: "STRAIGHT_LINE",
+					totalNumberOfDepreciations: 60,
+					frequencyOfDepreciation: 12,
+					nonDepreciableCategory: false,
+					enableCwipAccounting: false,
+				},
+				"org-1",
+			);
 
 			expect(result.name).toBe("Vehicles");
 			expect(result.depreciationMethod).toBe("STRAIGHT_LINE");
@@ -248,11 +254,14 @@ describe("AssetService > AssetCategory", () => {
 			mockPrisma.assetCategory.findUnique.mockResolvedValue(null);
 			mockPrisma.assetCategory.create.mockResolvedValue(mockNonDepreciableRow);
 
-			const result = await service.createAssetCategory({
-				name: "Land",
-				nonDepreciableCategory: true,
-				enableCwipAccounting: true,
-			});
+			const result = await service.createAssetCategory(
+				{
+					name: "Land",
+					nonDepreciableCategory: true,
+					enableCwipAccounting: true,
+				},
+				"org-1",
+			);
 
 			expect(result.name).toBe("Land");
 			expect(result.nonDepreciableCategory).toBe(true);
@@ -264,9 +273,12 @@ describe("AssetService > AssetCategory", () => {
 			});
 
 			await expect(
-				service.createAssetCategory({
-					name: "Vehicles",
-				}),
+				service.createAssetCategory(
+					{
+						name: "Vehicles",
+					},
+					"org-1",
+				),
 			).rejects.toThrow(BadRequestException);
 		});
 
@@ -276,7 +288,7 @@ describe("AssetService > AssetCategory", () => {
 			});
 
 			await expect(
-				service.createAssetCategory({ name: "Vehicles" }),
+				service.createAssetCategory({ name: "Vehicles" }, "org-1"),
 			).rejects.toThrow('Asset category "Vehicles" already exists');
 		});
 	});
@@ -295,10 +307,13 @@ describe("AssetService > AssetCategory", () => {
 				name: "Fleet Vehicles",
 			});
 
-			const result = await service.updateAssetCategory({
-				id: "cat-abc-001",
-				name: "Fleet Vehicles",
-			});
+			const result = await service.updateAssetCategory(
+				{
+					id: "cat-abc-001",
+					name: "Fleet Vehicles",
+				},
+				"org-1",
+			);
 
 			expect(result.name).toBe("Fleet Vehicles");
 		});
@@ -313,11 +328,14 @@ describe("AssetService > AssetCategory", () => {
 				totalNumberOfDepreciations: 36,
 			});
 
-			const result = await service.updateAssetCategory({
-				id: "cat-abc-001",
-				depreciationMethod: "WRITTEN_DOWN_VALUE",
-				totalNumberOfDepreciations: 36,
-			});
+			const result = await service.updateAssetCategory(
+				{
+					id: "cat-abc-001",
+					depreciationMethod: "WRITTEN_DOWN_VALUE",
+					totalNumberOfDepreciations: 36,
+				},
+				"org-1",
+			);
 
 			expect(result.depreciationMethod).toBe("WRITTEN_DOWN_VALUE");
 			expect(result.totalNumberOfDepreciations).toBe(36);
@@ -332,10 +350,13 @@ describe("AssetService > AssetCategory", () => {
 				enableCwipAccounting: true,
 			});
 
-			const result = await service.updateAssetCategory({
-				id: "cat-abc-001",
-				enableCwipAccounting: true,
-			});
+			const result = await service.updateAssetCategory(
+				{
+					id: "cat-abc-001",
+					enableCwipAccounting: true,
+				},
+				"org-1",
+			);
 
 			expect(result.enableCwipAccounting).toBe(true);
 		});
@@ -344,10 +365,13 @@ describe("AssetService > AssetCategory", () => {
 			mockPrisma.assetCategory.findUnique.mockResolvedValue(null);
 
 			await expect(
-				service.updateAssetCategory({
-					id: "nonexistent",
-					name: "X",
-				}),
+				service.updateAssetCategory(
+					{
+						id: "nonexistent",
+						name: "X",
+					},
+					"org-1",
+				),
 			).rejects.toThrow(NotFoundException);
 		});
 
@@ -363,13 +387,16 @@ describe("AssetService > AssetCategory", () => {
 				nonDepreciableCategory: true,
 			});
 
-			const result = await service.updateAssetCategory({
-				id: "cat-abc-001",
-				nonDepreciableCategory: true,
-				depreciationMethod: null,
-				totalNumberOfDepreciations: null,
-				frequencyOfDepreciation: null,
-			});
+			const result = await service.updateAssetCategory(
+				{
+					id: "cat-abc-001",
+					nonDepreciableCategory: true,
+					depreciationMethod: null,
+					totalNumberOfDepreciations: null,
+					frequencyOfDepreciation: null,
+				},
+				"org-1",
+			);
 
 			expect(result.nonDepreciableCategory).toBe(true);
 			expect(result.depreciationMethod).toBeNull();
@@ -390,7 +417,7 @@ describe("AssetService > AssetCategory", () => {
 				id: "cat-abc-001",
 			});
 
-			const result = await service.deleteAssetCategory("cat-abc-001");
+			const result = await service.deleteAssetCategory("cat-abc-001", "org-1");
 
 			expect(result).toEqual({ success: true, id: "cat-abc-001" });
 			expect(mockPrisma.assetCategory.delete).toHaveBeenCalledWith({
@@ -404,9 +431,9 @@ describe("AssetService > AssetCategory", () => {
 				_count: { assets: 5 },
 			});
 
-			await expect(service.deleteAssetCategory("cat-abc-001")).rejects.toThrow(
-				BadRequestException,
-			);
+			await expect(
+				service.deleteAssetCategory("cat-abc-001", "org-1"),
+			).rejects.toThrow(BadRequestException);
 		});
 
 		it("throws BadRequestException with a meaningful message on assigned assets", async () => {
@@ -415,7 +442,9 @@ describe("AssetService > AssetCategory", () => {
 				_count: { assets: 2 },
 			});
 
-			await expect(service.deleteAssetCategory("cat-abc-001")).rejects.toThrow(
+			await expect(
+				service.deleteAssetCategory("cat-abc-001", "org-1"),
+			).rejects.toThrow(
 				"Cannot delete an asset category that is assigned to assets",
 			);
 		});
@@ -423,9 +452,9 @@ describe("AssetService > AssetCategory", () => {
 		it("throws NotFoundException when category does not exist", async () => {
 			mockPrisma.assetCategory.findUnique.mockResolvedValue(null);
 
-			await expect(service.deleteAssetCategory("nonexistent")).rejects.toThrow(
-				NotFoundException,
-			);
+			await expect(
+				service.deleteAssetCategory("nonexistent", "org-1"),
+			).rejects.toThrow(NotFoundException);
 		});
 	});
 });

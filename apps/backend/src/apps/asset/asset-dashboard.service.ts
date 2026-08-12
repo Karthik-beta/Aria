@@ -12,6 +12,10 @@ import { Injectable } from "@nestjs/common";
 import { Prisma } from "../../generated/prisma/client";
 // biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
 import { PrismaService } from "../../shared/prisma.service";
+import {
+	type AssetOrganizationId,
+	assetWhereForOrganization,
+} from "./asset-organization-scope";
 
 const ACTIVE_STATUSES: Asset.AssetStatus[] = [
 	"SUBMITTED",
@@ -30,11 +34,13 @@ const NON_DISPOSED_STATUSES: Asset.AssetStatus[] = [
 export class AssetDashboardSubService {
 	constructor(private readonly prisma: PrismaService) {}
 
-	async getDashboardData(): Promise<Asset.AssetDashboardData> {
-		const overviewData = await this.getDashboardOverviewData();
+	async getDashboardData(
+		organizationId: AssetOrganizationId,
+	): Promise<Asset.AssetDashboardData> {
+		const overviewData = await this.getDashboardOverviewData(organizationId);
 		const [topChartsData, bottomChartsData] = await Promise.all([
-			this.getDashboardTopChartsData(),
-			this.getDashboardBottomChartsData(),
+			this.getDashboardTopChartsData(organizationId),
+			this.getDashboardBottomChartsData(organizationId),
 		]);
 
 		return {
@@ -44,7 +50,9 @@ export class AssetDashboardSubService {
 		};
 	}
 
-	async getDashboardOverviewData(): Promise<Asset.AssetDashboardOverviewData> {
+	async getDashboardOverviewData(
+		organizationId: AssetOrganizationId,
+	): Promise<Asset.AssetDashboardOverviewData> {
 		const now = new Date();
 		const ninetyDaysFromNow = new Date(now);
 		ninetyDaysFromNow.setDate(ninetyDaysFromNow.getDate() + 90);
@@ -56,11 +64,11 @@ export class AssetDashboardSubService {
 			adjustmentSummary,
 			insuranceExpiry,
 		] = await Promise.all([
-			this.getKpis(),
-			this.getMaintenanceDue(now, ninetyDaysFromNow),
-			this.getRecentActivity(),
-			this.getAdjustmentSummary(),
-			this.getInsuranceExpiry(now, ninetyDaysFromNow),
+			this.getKpis(organizationId),
+			this.getMaintenanceDue(organizationId, now, ninetyDaysFromNow),
+			this.getRecentActivity(organizationId),
+			this.getAdjustmentSummary(organizationId),
+			this.getInsuranceExpiry(organizationId, now, ninetyDaysFromNow),
 		]);
 
 		return {
@@ -72,10 +80,12 @@ export class AssetDashboardSubService {
 		};
 	}
 
-	async getDashboardTopChartsData(): Promise<Asset.AssetDashboardTopChartsData> {
+	async getDashboardTopChartsData(
+		organizationId: AssetOrganizationId,
+	): Promise<Asset.AssetDashboardTopChartsData> {
 		const [statusDistribution, depreciationTrend] = await Promise.all([
-			this.getStatusDistribution(),
-			this.getDepreciationTrend(),
+			this.getStatusDistribution(organizationId),
+			this.getDepreciationTrend(organizationId),
 		]);
 
 		return {
@@ -84,10 +94,12 @@ export class AssetDashboardSubService {
 		};
 	}
 
-	async getDashboardBottomChartsData(): Promise<Asset.AssetDashboardBottomChartsData> {
+	async getDashboardBottomChartsData(
+		organizationId: AssetOrganizationId,
+	): Promise<Asset.AssetDashboardBottomChartsData> {
 		const [categoryValues, locationDistribution] = await Promise.all([
-			this.getCategoryValues(),
-			this.getLocationDistribution(),
+			this.getCategoryValues(organizationId),
+			this.getLocationDistribution(organizationId),
 		]);
 
 		return {
@@ -96,7 +108,9 @@ export class AssetDashboardSubService {
 		};
 	}
 
-	private async getKpis(): Promise<Asset.AssetDashboardKpi> {
+	private async getKpis(
+		organizationId: AssetOrganizationId,
+	): Promise<Asset.AssetDashboardKpi> {
 		const [
 			totalAssets,
 			activeAssets,
@@ -106,13 +120,19 @@ export class AssetDashboardSubService {
 			locationCount,
 		] = await Promise.all([
 			this.prisma.asset.count({
-				where: { status: { in: NON_DISPOSED_STATUSES } },
+				where: assetWhereForOrganization(organizationId, {
+					status: { in: NON_DISPOSED_STATUSES },
+				}),
 			}),
 			this.prisma.asset.count({
-				where: { status: { in: ACTIVE_STATUSES } },
+				where: assetWhereForOrganization(organizationId, {
+					status: { in: ACTIVE_STATUSES },
+				}),
 			}),
 			this.prisma.asset.aggregate({
-				where: { status: { in: NON_DISPOSED_STATUSES } },
+				where: assetWhereForOrganization(organizationId, {
+					status: { in: NON_DISPOSED_STATUSES },
+				}),
 				_sum: {
 					valueAfterDepreciation: true,
 					netPurchaseAmount: true,
@@ -121,17 +141,29 @@ export class AssetDashboardSubService {
 			}),
 			this.prisma.assetMaintenanceTask.count({
 				where: {
+					maintenance: {
+						is: {
+							asset: { is: assetWhereForOrganization(organizationId) },
+						},
+					},
 					maintenanceStatus: { in: ["PLANNED", "OVERDUE"] },
 					nextDueDate: { not: null, lte: new Date() },
 				},
 			}),
 			this.prisma.assetValueAdjustment.count({
-				where: { status: "DRAFT" },
+				where: {
+					status: "DRAFT",
+					asset: { is: assetWhereForOrganization(organizationId) },
+				},
 			}),
 			this.prisma.location.count({
 				where: {
 					isGroup: false,
-					assets: { some: { status: { in: NON_DISPOSED_STATUSES } } },
+					assets: {
+						some: assetWhereForOrganization(organizationId, {
+							status: { in: NON_DISPOSED_STATUSES },
+						}),
+					},
 				},
 			}),
 		]);
@@ -154,11 +186,12 @@ export class AssetDashboardSubService {
 		};
 	}
 
-	private async getStatusDistribution(): Promise<
-		Asset.AssetDashboardStatusDistribution[]
-	> {
+	private async getStatusDistribution(
+		organizationId: AssetOrganizationId,
+	): Promise<Asset.AssetDashboardStatusDistribution[]> {
 		const groups = await this.prisma.asset.groupBy({
 			by: ["status"],
+			where: assetWhereForOrganization(organizationId),
 			_count: true,
 			_sum: { valueAfterDepreciation: true },
 		});
@@ -172,9 +205,9 @@ export class AssetDashboardSubService {
 			.sort((a, b) => b.count - a.count);
 	}
 
-	private async getDepreciationTrend(): Promise<
-		Asset.AssetDashboardDepreciationTrend[]
-	> {
+	private async getDepreciationTrend(
+		organizationId: AssetOrganizationId,
+	): Promise<Asset.AssetDashboardDepreciationTrend[]> {
 		const rows = await this.prisma.client.$queryRaw<
 			Array<{ month: string; amount: number | null }>
 		>(Prisma.sql`
@@ -184,7 +217,12 @@ export class AssetDashboardSubService {
 			FROM asset_depreciation_schedule_entries adse
 			INNER JOIN asset_depreciation_schedules ads
 				ON ads.id = adse."scheduleId"
+			INNER JOIN assets a
+				ON a.id = ads."assetId"
+			INNER JOIN "Company" c
+				ON c.id = a."companyId"
 			WHERE ads.status = 'ACTIVE'
+				AND c."organizationId" = ${organizationId}
 			GROUP BY DATE_TRUNC('month', adse."scheduleDate")
 			ORDER BY DATE_TRUNC('month', adse."scheduleDate") ASC
 		`);
@@ -195,9 +233,9 @@ export class AssetDashboardSubService {
 		}));
 	}
 
-	private async getCategoryValues(): Promise<
-		Asset.AssetDashboardCategoryValue[]
-	> {
+	private async getCategoryValues(
+		organizationId: AssetOrganizationId,
+	): Promise<Asset.AssetDashboardCategoryValue[]> {
 		const rows = await this.prisma.client.$queryRaw<
 			Array<{
 				category: string;
@@ -212,8 +250,10 @@ export class AssetDashboardSubService {
 				SUM(a."valueAfterDepreciation") AS "currentValue",
 				COUNT(*) AS "assetCount"
 			FROM assets a
+			INNER JOIN "Company" c ON c.id = a."companyId"
 			LEFT JOIN asset_categories ac ON ac.id = a."assetCategoryId"
 			WHERE a.status IN (${Prisma.join(NON_DISPOSED_STATUSES)})
+				AND c."organizationId" = ${organizationId}
 			GROUP BY COALESCE(ac.name, 'Uncategorised')
 			ORDER BY SUM(a."valueAfterDepreciation") DESC
 			LIMIT 10
@@ -227,9 +267,9 @@ export class AssetDashboardSubService {
 		}));
 	}
 
-	private async getLocationDistribution(): Promise<
-		Asset.AssetDashboardLocationDistribution[]
-	> {
+	private async getLocationDistribution(
+		organizationId: AssetOrganizationId,
+	): Promise<Asset.AssetDashboardLocationDistribution[]> {
 		const rows = await this.prisma.client.$queryRaw<
 			Array<{
 				location: string;
@@ -242,9 +282,11 @@ export class AssetDashboardSubService {
 				COUNT(*) AS "assetCount",
 				SUM(a."valueAfterDepreciation") AS "totalValue"
 			FROM assets a
+			INNER JOIN "Company" c ON c.id = a."companyId"
 			LEFT JOIN locations l ON l.id = a."locationId"
 			WHERE a.status IN (${Prisma.join(NON_DISPOSED_STATUSES)})
 				AND a."locationId" IS NOT NULL
+				AND c."organizationId" = ${organizationId}
 			GROUP BY COALESCE(l.name, 'Unassigned')
 			ORDER BY SUM(a."valueAfterDepreciation") DESC
 			LIMIT 10
@@ -258,11 +300,17 @@ export class AssetDashboardSubService {
 	}
 
 	private async getMaintenanceDue(
+		organizationId: AssetOrganizationId,
 		now: Date,
 		to: Date,
 	): Promise<Asset.AssetDashboardMaintenanceDue[]> {
 		const tasks = await this.prisma.assetMaintenanceTask.findMany({
 			where: {
+				maintenance: {
+					is: {
+						asset: { is: assetWhereForOrganization(organizationId) },
+					},
+				},
 				maintenanceStatus: { in: ["PLANNED", "OVERDUE"] },
 				nextDueDate: { not: null, lte: to },
 			},
@@ -299,10 +347,11 @@ export class AssetDashboardSubService {
 		}));
 	}
 
-	private async getRecentActivity(): Promise<
-		Asset.AssetDashboardRecentActivity[]
-	> {
+	private async getRecentActivity(
+		organizationId: AssetOrganizationId,
+	): Promise<Asset.AssetDashboardRecentActivity[]> {
 		const activities = await this.prisma.assetActivity.findMany({
+			where: { asset: { is: assetWhereForOrganization(organizationId) } },
 			orderBy: { createdAt: "desc" },
 			take: 10,
 			select: {
@@ -324,11 +373,12 @@ export class AssetDashboardSubService {
 		}));
 	}
 
-	private async getAdjustmentSummary(): Promise<
-		Asset.AssetDashboardAdjustmentSummary[]
-	> {
+	private async getAdjustmentSummary(
+		organizationId: AssetOrganizationId,
+	): Promise<Asset.AssetDashboardAdjustmentSummary[]> {
 		const groups = await this.prisma.assetValueAdjustment.groupBy({
 			by: ["status"],
+			where: { asset: { is: assetWhereForOrganization(organizationId) } },
 			_count: true,
 			_sum: { differenceAmount: true },
 		});
@@ -341,11 +391,13 @@ export class AssetDashboardSubService {
 	}
 
 	private async getInsuranceExpiry(
+		organizationId: AssetOrganizationId,
 		now: Date,
 		to: Date,
 	): Promise<Asset.AssetDashboardInsuranceExpiry[]> {
 		const assets = await this.prisma.asset.findMany({
 			where: {
+				...assetWhereForOrganization(organizationId),
 				status: { in: NON_DISPOSED_STATUSES },
 				insurer: { not: null },
 				policyNumber: { not: null },

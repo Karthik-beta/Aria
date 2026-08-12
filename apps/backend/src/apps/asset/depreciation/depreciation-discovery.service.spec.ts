@@ -14,6 +14,7 @@ describe("DepreciationDiscoveryService", () => {
 		const persistence = {
 			pendingPage: mock(async () => [
 				{
+					organizationId: "org-1",
 					assetId: "asset-1",
 					assetFinanceBookId: "asset-book-1",
 					financeBookId: "book-1",
@@ -24,6 +25,7 @@ describe("DepreciationDiscoveryService", () => {
 					blockedByFreeze: false,
 				},
 				{
+					organizationId: "org-1",
 					assetId: "asset-2",
 					assetFinanceBookId: "asset-book-2",
 					financeBookId: "book-1",
@@ -45,7 +47,7 @@ describe("DepreciationDiscoveryService", () => {
 			queue,
 			persistence,
 			metrics,
-		).discover({ throughDate: "2026-07-10" }, "startup");
+		).discover({ kind: "system", throughDate: "2026-07-10" }, "startup");
 
 		expect(result).toMatchObject({
 			discovered: 2,
@@ -58,6 +60,7 @@ describe("DepreciationDiscoveryService", () => {
 				name: "post-asset-depreciation",
 				data: {
 					version: 1,
+					organizationId: "org-1",
 					assetId: "asset-1",
 					assetFinanceBookId: "asset-book-1",
 					scheduleId: "schedule-1",
@@ -79,6 +82,7 @@ describe("DepreciationDiscoveryService", () => {
 		const persistence = {
 			pendingPage: mock(async () => [
 				{
+					organizationId: "org-1",
 					assetId: "asset-1",
 					assetFinanceBookId: "asset-book-1",
 					financeBookId: "book-1",
@@ -100,7 +104,7 @@ describe("DepreciationDiscoveryService", () => {
 			queue,
 			persistence,
 			metrics,
-		).discover({ throughDate: "2026-07-10" });
+		).discover({ kind: "system", throughDate: "2026-07-10" });
 
 		expect(result.enqueued).toBe(0);
 		expect(result.duplicateSkipped).toBe(1);
@@ -115,6 +119,7 @@ describe("DepreciationDiscoveryService", () => {
 		const persistence = {
 			pendingPage: mock(async () => [
 				{
+					organizationId: "org-1",
 					assetId: "asset-1",
 					assetFinanceBookId: "asset-book-1",
 					financeBookId: "book-1",
@@ -125,6 +130,7 @@ describe("DepreciationDiscoveryService", () => {
 					blockedByFreeze: false,
 				},
 				{
+					organizationId: "org-1",
 					assetId: "asset-1",
 					assetFinanceBookId: "asset-book-1",
 					financeBookId: "book-1",
@@ -146,7 +152,7 @@ describe("DepreciationDiscoveryService", () => {
 			queue,
 			persistence,
 			metrics,
-		).discover({ throughDate: "2026-07-31" });
+		).discover({ kind: "system", throughDate: "2026-07-31" });
 
 		expect(result.discovered).toBe(2);
 		expect(result.enqueued).toBe(1);
@@ -171,6 +177,7 @@ describe("DepreciationDiscoveryService", () => {
 		const persistence = {
 			pendingPage: mock(async () => [
 				{
+					organizationId: "org-1",
 					assetId: "asset-1",
 					assetFinanceBookId: "asset-book-1",
 					financeBookId: "book-1",
@@ -192,7 +199,7 @@ describe("DepreciationDiscoveryService", () => {
 			queue,
 			persistence,
 			metrics,
-		).discover({ throughDate: "2026-07-10" }, "reconciliation");
+		).discover({ kind: "system", throughDate: "2026-07-10" }, "reconciliation");
 
 		expect(result.enqueued).toBe(0);
 		expect(remove).not.toHaveBeenCalled();

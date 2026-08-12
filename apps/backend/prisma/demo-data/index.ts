@@ -43,6 +43,7 @@ export async function seedAll(
 	}
 	await depreciation.ensurePosted({
 		throughDate: config.dateRange.to,
+		organizationId: ids.organizationId,
 		companyId,
 	});
 	await seedAssetLifecycleTransactions(prisma, config, ids);

@@ -24,7 +24,10 @@ describe("DepreciationBarrierService", () => {
 		);
 
 		await expect(
-			service.ensureDepreciationPosted({ throughDate: "2026-07-10" }),
+			service.ensureDepreciationPosted({
+				kind: "system",
+				throughDate: "2026-07-10",
+			}),
 		).resolves.toMatchObject({ throughDate: "2026-07-10", posted: true });
 	});
 
@@ -45,7 +48,10 @@ describe("DepreciationBarrierService", () => {
 		);
 
 		try {
-			await service.ensureDepreciationPosted({ throughDate: "2026-07-10" });
+			await service.ensureDepreciationPosted({
+				kind: "system",
+				throughDate: "2026-07-10",
+			});
 			throw new Error("Expected the depreciation barrier to fail.");
 		} catch (error) {
 			expect(error).toBeInstanceOf(DepreciationBarrierError);
@@ -57,6 +63,7 @@ describe("DepreciationBarrierService", () => {
 
 	it("fails closed when BullMQ has a terminal worker failure", async () => {
 		const period = {
+			organizationId: "org-1",
 			assetId: "asset-1",
 			assetFinanceBookId: "asset-book-1",
 			financeBookId: "book-1",
@@ -87,7 +94,10 @@ describe("DepreciationBarrierService", () => {
 		);
 
 		try {
-			await service.ensureDepreciationPosted({ throughDate: "2026-07-10" });
+			await service.ensureDepreciationPosted({
+				kind: "system",
+				throughDate: "2026-07-10",
+			});
 			throw new Error("Expected the depreciation barrier to fail.");
 		} catch (error) {
 			expect(error).toBeInstanceOf(DepreciationBarrierError);

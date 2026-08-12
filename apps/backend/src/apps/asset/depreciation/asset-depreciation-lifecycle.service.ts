@@ -3,6 +3,11 @@ import { BadRequestException, Injectable, Logger } from "@nestjs/common";
 import { Prisma } from "../../../generated/prisma/client";
 import type { PrismaService } from "../../../shared/prisma.service";
 import {
+	type AssetOrganizationId,
+	assertAssetOrganizationId,
+	assetWhereForOrganization,
+} from "../asset-organization-scope";
+import {
 	buildDepreciationSchedule,
 	type DepreciationBookInput,
 } from "./depreciation-schedule-engine";
@@ -25,17 +30,27 @@ export class AssetDepreciationLifecycleService {
 	constructor(private readonly prisma: PrismaService) {}
 
 	/** Activates draft schedules as part of explicit asset submission. */
-	async submitAsset(assetId: string, actorId?: string | null): Promise<void> {
-		await this.configureAssetBooks(assetId);
+	async submitAsset(
+		assetId: string,
+		organizationId: AssetOrganizationId,
+		actorId?: string | null,
+	): Promise<void> {
+		assertAssetOrganizationId(organizationId);
+		await this.configureAssetBooks(assetId, undefined, organizationId);
 		await this.prisma.$transaction(async (tx) => {
-			const asset = await tx.asset.findUniqueOrThrow({
-				where: { id: assetId },
+			const asset = await tx.asset.findFirst({
+				where: assetWhereForOrganization(organizationId, { id: assetId }),
 				select: {
 					status: true,
 					calculateDepreciation: true,
 					_count: { select: { financeBooks: true } },
 				},
 			});
+			if (!asset) {
+				throw new BadRequestException(
+					"Asset is not available in the active organization",
+				);
+			}
 			if (asset.status !== "DRAFT") {
 				throw new BadRequestException("Only draft assets can be submitted");
 			}
@@ -45,13 +60,23 @@ export class AssetDepreciationLifecycleService {
 				);
 			}
 			await tx.assetDepreciationSchedule.updateMany({
-				where: { assetId, status: "DRAFT" },
+				where: {
+					assetId,
+					status: "DRAFT",
+					asset: { is: assetWhereForOrganization(organizationId) },
+				},
 				data: { status: "ACTIVE" },
 			});
-			await tx.asset.update({
-				where: { id: assetId },
+			const transitioned = await tx.asset.updateMany({
+				where: assetWhereForOrganization(organizationId, {
+					id: assetId,
+					status: "DRAFT",
+				}),
 				data: { status: "SUBMITTED" },
 			});
+			if (transitioned.count !== 1) {
+				throw new BadRequestException("Only draft assets can be submitted");
+			}
 			await tx.assetActivity.create({
 				data: {
 					assetId,
@@ -63,10 +88,19 @@ export class AssetDepreciationLifecycleService {
 	}
 
 	/** Cancels an unposted asset and makes every open schedule immutable. */
-	async cancelAsset(assetId: string, actorId?: string | null): Promise<void> {
+	async cancelAsset(
+		assetId: string,
+		organizationId: AssetOrganizationId,
+		actorId?: string | null,
+	): Promise<void> {
+		assertAssetOrganizationId(organizationId);
 		await this.prisma.$transaction(async (tx) => {
 			const posted = await tx.assetDepreciationJournalEntry.count({
-				where: { assetId, status: "POSTED" },
+				where: {
+					assetId,
+					status: "POSTED",
+					asset: { is: assetWhereForOrganization(organizationId) },
+				},
 			});
 			if (posted > 0) {
 				throw new BadRequestException(
@@ -74,13 +108,22 @@ export class AssetDepreciationLifecycleService {
 				);
 			}
 			await tx.assetDepreciationSchedule.updateMany({
-				where: { assetId, status: { in: ["DRAFT", "ACTIVE"] } },
+				where: {
+					assetId,
+					status: { in: ["DRAFT", "ACTIVE"] },
+					asset: { is: assetWhereForOrganization(organizationId) },
+				},
 				data: { status: "CANCELLED" },
 			});
-			await tx.asset.update({
-				where: { id: assetId },
+			const transitioned = await tx.asset.updateMany({
+				where: assetWhereForOrganization(organizationId, { id: assetId }),
 				data: { status: "CANCELLED" },
 			});
+			if (transitioned.count !== 1) {
+				throw new BadRequestException(
+					"Asset is not available in the active organization",
+				);
+			}
 			await tx.assetActivity.create({
 				data: {
 					assetId,
@@ -94,9 +137,11 @@ export class AssetDepreciationLifecycleService {
 	/** Replaces draft book configuration and generates immutable schedule rows. */
 	async configureAssetBooks(
 		assetId: string,
-		books?: readonly BookConfiguration[],
+		books: readonly BookConfiguration[] | undefined,
+		organizationId: AssetOrganizationId,
 	): Promise<void> {
-		const asset = await this.loadAsset(assetId);
+		assertAssetOrganizationId(organizationId);
+		const asset = await this.loadAsset(assetId, organizationId);
 		const configurations = books?.length
 			? [...books]
 			: this.resolveDefaultBooks(asset);
@@ -124,26 +169,47 @@ export class AssetDepreciationLifecycleService {
 		}
 
 		await this.prisma.$transaction(async (tx) => {
+			const ownedAsset = await tx.asset.findFirst({
+				where: assetWhereForOrganization(organizationId, { id: assetId }),
+				select: { id: true },
+			});
+			if (!ownedAsset) {
+				throw new BadRequestException(
+					"Asset is not available in the active organization",
+				);
+			}
 			if (books !== undefined) {
 				const postedCount = await tx.assetDepreciationJournalEntry.count({
-					where: { assetId },
+					where: {
+						assetId,
+						asset: { is: assetWhereForOrganization(organizationId) },
+					},
 				});
 				if (postedCount > 0) {
 					throw new BadRequestException(
 						"Posted depreciation exists; use a supported rescheduling or value-adjustment workflow",
 					);
 				}
-				await tx.assetDepreciationSchedule.deleteMany({ where: { assetId } });
-				await tx.assetFinanceBook.deleteMany({ where: { assetId } });
+				await tx.assetDepreciationSchedule.deleteMany({
+					where: {
+						assetId,
+						asset: { is: assetWhereForOrganization(organizationId) },
+					},
+				});
+				await tx.assetFinanceBook.deleteMany({
+					where: {
+						assetId,
+						asset: { is: assetWhereForOrganization(organizationId) },
+					},
+				});
 			}
 
 			for (const configuration of configurations) {
-				const existing = await tx.assetFinanceBook.findUnique({
+				const existing = await tx.assetFinanceBook.findFirst({
 					where: {
-						assetId_financeBookId: {
-							assetId,
-							financeBookId: configuration.financeBookId,
-						},
+						assetId,
+						financeBookId: configuration.financeBookId,
+						asset: { is: assetWhereForOrganization(organizationId) },
 					},
 					include: {
 						schedules: {
@@ -206,10 +272,18 @@ export class AssetDepreciationLifecycleService {
 					(existing.rateOfDepreciation == null ||
 						Number(existing.rateOfDepreciation) !== effectiveRate)
 				) {
-					await tx.assetFinanceBook.update({
-						where: { id: existing.id },
+					const updatedBook = await tx.assetFinanceBook.updateMany({
+						where: {
+							id: existing.id,
+							asset: { is: assetWhereForOrganization(organizationId) },
+						},
 						data: { rateOfDepreciation: new Prisma.Decimal(effectiveRate) },
 					});
+					if (updatedBook.count !== 1) {
+						throw new BadRequestException(
+							"Asset finance book is not available in the active organization",
+						);
+					}
 				}
 
 				const scheduleData: Prisma.AssetDepreciationScheduleUncheckedCreateInput =
@@ -247,7 +321,10 @@ export class AssetDepreciationLifecycleService {
 					};
 				if (existingSchedule) {
 					await tx.assetDepreciationSchedule.update({
-						where: { id: existingSchedule.id },
+						where: {
+							id: existingSchedule.id,
+							asset: { is: assetWhereForOrganization(organizationId) },
+						},
 						data: scheduleData,
 					});
 				} else {
@@ -275,14 +352,22 @@ export class AssetDepreciationLifecycleService {
 						},
 					},
 				},
-				select: { id: true, assetId: true },
+				select: {
+					id: true,
+					assetId: true,
+					asset: { select: { company: { select: { organizationId: true } } } },
+				},
 				orderBy: { id: "asc" },
 				take: BACKFILL_PAGE_SIZE,
 				...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
 			});
 			if (books.length === 0) break;
 			for (const book of books) {
-				await this.configureAssetBooks(book.assetId);
+				await this.configureAssetBooks(
+					book.assetId,
+					undefined,
+					book.asset.company.organizationId,
+				);
 				generated += 1;
 			}
 			cursor = books.at(-1)?.id;
@@ -410,15 +495,23 @@ export class AssetDepreciationLifecycleService {
 		];
 	}
 
-	private async loadAsset(assetId: string) {
-		const asset = await this.prisma.asset.findUniqueOrThrow({
-			where: { id: assetId },
+	private async loadAsset(
+		assetId: string,
+		organizationId: AssetOrganizationId,
+	) {
+		const asset = await this.prisma.asset.findFirst({
+			where: assetWhereForOrganization(organizationId, { id: assetId }),
 			include: {
 				company: { select: { defaultFinanceBookId: true } },
 				assetCategory: { include: { financeBookDefaults: true } },
 				financeBooks: true,
 			},
 		});
+		if (!asset) {
+			throw new BadRequestException(
+				"Asset is not available in the active organization",
+			);
+		}
 		return {
 			...asset,
 			netPurchaseAmount: Number(asset.netPurchaseAmount),

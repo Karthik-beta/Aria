@@ -95,7 +95,10 @@ describe("AssetService > Location", () => {
 			mockPrisma.location.findMany.mockResolvedValue([mockLocationRow]);
 			mockPrisma.location.count.mockResolvedValue(1);
 
-			const result = await service.findAllLocations({ skip: 0, take: 20 });
+			const result = await service.findAllLocations("org-1", {
+				skip: 0,
+				take: 20,
+			});
 
 			expect(result.totalCount).toBe(1);
 			expect(result.items).toHaveLength(1);
@@ -112,7 +115,7 @@ describe("AssetService > Location", () => {
 			mockPrisma.location.findMany.mockResolvedValue([]);
 			mockPrisma.location.count.mockResolvedValue(0);
 
-			await service.findAllLocations({ isGroup: true });
+			await service.findAllLocations("org-1", { isGroup: true });
 
 			expect(mockPrisma.location.findMany).toHaveBeenCalledWith(
 				expect.objectContaining({ where: { isGroup: true } }),
@@ -123,7 +126,7 @@ describe("AssetService > Location", () => {
 			mockPrisma.location.findMany.mockResolvedValue([]);
 			mockPrisma.location.count.mockResolvedValue(0);
 
-			await service.findAllLocations({ search: "Office" });
+			await service.findAllLocations("org-1", { search: "Office" });
 
 			expect(mockPrisma.location.findMany).toHaveBeenCalledWith(
 				expect.objectContaining({
@@ -138,7 +141,7 @@ describe("AssetService > Location", () => {
 			mockPrisma.location.findMany.mockResolvedValue([]);
 			mockPrisma.location.count.mockResolvedValue(0);
 
-			await service.findAllLocations({ take: 9999 });
+			await service.findAllLocations("org-1", { take: 9999 });
 
 			expect(mockPrisma.location.findMany).toHaveBeenCalledWith(
 				expect.objectContaining({ take: 250 }),
@@ -157,7 +160,7 @@ describe("AssetService > Location", () => {
 			mockPrisma.location.findMany.mockResolvedValue([rowWithParent]);
 			mockPrisma.location.count.mockResolvedValue(1);
 
-			const result = await service.findAllLocations({});
+			const result = await service.findAllLocations("org-1", {});
 
 			expect(result.items[0].parentLocationName).toBe("Head Office");
 			expect(result.items[0].parentLocationId).toBe("loc-abc-001");
@@ -172,7 +175,7 @@ describe("AssetService > Location", () => {
 		it("returns the location when found", async () => {
 			mockPrisma.location.findUnique.mockResolvedValue(mockLocationRow);
 
-			const result = await service.findLocationById("loc-abc-001");
+			const result = await service.findLocationById("loc-abc-001", "org-1");
 
 			expect(result).toMatchObject({ id: "loc-abc-001", name: "Head Office" });
 		});
@@ -180,7 +183,7 @@ describe("AssetService > Location", () => {
 		it("returns null when location does not exist", async () => {
 			mockPrisma.location.findUnique.mockResolvedValue(null);
 
-			const result = await service.findLocationById("missing-id");
+			const result = await service.findLocationById("missing-id", "org-1");
 
 			expect(result).toBeNull();
 		});
@@ -195,11 +198,14 @@ describe("AssetService > Location", () => {
 			mockPrisma.location.findUnique.mockResolvedValue(null); // no existing
 			mockPrisma.location.create.mockResolvedValue(mockLocationRow);
 
-			const result = await service.createLocation({
-				name: "Head Office",
-				parentLocationId: null,
-				isGroup: true,
-			});
+			const result = await service.createLocation(
+				{
+					name: "Head Office",
+					parentLocationId: null,
+					isGroup: true,
+				},
+				"org-1",
+			);
 
 			expect(result.name).toBe("Head Office");
 			expect(mockPrisma.location.create).toHaveBeenCalledWith(
@@ -218,7 +224,10 @@ describe("AssetService > Location", () => {
 			mockPrisma.location.findUnique.mockResolvedValue({ id: "dup-id" });
 
 			await expect(
-				service.createLocation({ name: "Head Office", isGroup: false }),
+				service.createLocation(
+					{ name: "Head Office", isGroup: false },
+					"org-1",
+				),
 			).rejects.toThrow(BadRequestException);
 		});
 	});
@@ -235,10 +244,13 @@ describe("AssetService > Location", () => {
 				name: "Head Office Renamed",
 			});
 
-			const result = await service.updateLocation({
-				id: "loc-abc-001",
-				name: "Head Office Renamed",
-			});
+			const result = await service.updateLocation(
+				{
+					id: "loc-abc-001",
+					name: "Head Office Renamed",
+				},
+				"org-1",
+			);
 
 			expect(result.name).toBe("Head Office Renamed");
 		});
@@ -247,7 +259,7 @@ describe("AssetService > Location", () => {
 			mockPrisma.location.findUnique.mockResolvedValue(null);
 
 			await expect(
-				service.updateLocation({ id: "nonexistent", name: "X" }),
+				service.updateLocation({ id: "nonexistent", name: "X" }, "org-1"),
 			).rejects.toThrow(NotFoundException);
 		});
 	});
@@ -264,7 +276,7 @@ describe("AssetService > Location", () => {
 			});
 			mockPrisma.location.delete.mockResolvedValue({ id: "loc-abc-001" });
 
-			const result = await service.deleteLocation("loc-abc-001");
+			const result = await service.deleteLocation("loc-abc-001", "org-1");
 
 			expect(result).toEqual({ success: true, id: "loc-abc-001" });
 			expect(mockPrisma.location.delete).toHaveBeenCalledWith({
@@ -278,17 +290,17 @@ describe("AssetService > Location", () => {
 				_count: { assets: 3 },
 			});
 
-			await expect(service.deleteLocation("loc-abc-001")).rejects.toThrow(
-				BadRequestException,
-			);
+			await expect(
+				service.deleteLocation("loc-abc-001", "org-1"),
+			).rejects.toThrow(BadRequestException);
 		});
 
 		it("throws NotFoundException when location does not exist", async () => {
 			mockPrisma.location.findUnique.mockResolvedValue(null);
 
-			await expect(service.deleteLocation("nonexistent")).rejects.toThrow(
-				NotFoundException,
-			);
+			await expect(
+				service.deleteLocation("nonexistent", "org-1"),
+			).rejects.toThrow(NotFoundException);
 		});
 	});
 });

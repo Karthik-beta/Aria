@@ -55,14 +55,17 @@ describe("AssetService > AssetActivityReport", () => {
 			},
 		]);
 
-		const result = await service.findAssetActivityReport({
-			fromDate: new Date("2026-04-01T00:00:00.000Z"),
-			toDate: new Date("2026-04-30T00:00:00.000Z"),
-			company: "ACME",
-			asset: "Pump",
-			assetCategory: "Mach",
-			activity: "updated",
-		});
+		const result = await service.findAssetActivityReport(
+			{
+				fromDate: new Date("2026-04-01T00:00:00.000Z"),
+				toDate: new Date("2026-04-30T00:00:00.000Z"),
+				company: "ACME",
+				asset: "Pump",
+				assetCategory: "Mach",
+				activity: "updated",
+			},
+			"org-1",
+		);
 
 		expect(mockPrisma.assetActivity.findMany).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -70,20 +73,25 @@ describe("AssetService > AssetActivityReport", () => {
 					activity: { contains: "updated", mode: "insensitive" },
 					asset: {
 						is: expect.objectContaining({
-							company: {
-								is: {
-									name: { contains: "ACME", mode: "insensitive" },
-								},
-							},
-							OR: [
-								{ series: { contains: "Pump", mode: "insensitive" } },
-								{ assetName: { contains: "Pump", mode: "insensitive" } },
-							],
-							assetCategory: {
-								is: {
-									name: { contains: "Mach", mode: "insensitive" },
-								},
-							},
+							AND: expect.arrayContaining([
+								{ company: { is: { organizationId: "org-1" } } },
+								expect.objectContaining({
+									company: {
+										is: {
+											name: { contains: "ACME", mode: "insensitive" },
+										},
+									},
+									OR: [
+										{ series: { contains: "Pump", mode: "insensitive" } },
+										{ assetName: { contains: "Pump", mode: "insensitive" } },
+									],
+									assetCategory: {
+										is: {
+											name: { contains: "Mach", mode: "insensitive" },
+										},
+									},
+								}),
+							]),
 						}),
 					},
 				}),

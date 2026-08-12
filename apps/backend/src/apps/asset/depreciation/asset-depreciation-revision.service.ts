@@ -1,5 +1,10 @@
 import { Injectable } from "@nestjs/common";
 import { Prisma } from "../../../generated/prisma/client";
+import {
+	type AssetOrganizationId,
+	assertAssetOrganizationId,
+	assetWhereForOrganization,
+} from "../asset-organization-scope";
 import { dateOnlyUtc, normalizeDateOnly } from "./depreciation.config";
 import {
 	buildDepreciationSchedule,
@@ -102,12 +107,15 @@ const laterDate = (left: Date | null, right: Date | null): Date | null => {
 export class AssetDepreciationRevisionService {
 	async revise(
 		tx: RevisionTransaction,
+		organizationId: AssetOrganizationId,
 		input: AssetDepreciationRevisionInput,
 	): Promise<AssetDepreciationRevisionResult[]> {
+		assertAssetOrganizationId(organizationId);
 		this.validateInput(input);
 		const effectiveDate = dateOnlyUtc(input.effectiveDate);
 		const books = await this.loadLockedBooks(
 			tx,
+			organizationId,
 			input.assetId,
 			input.financeBookId,
 		);
@@ -118,7 +126,10 @@ export class AssetDepreciationRevisionService {
 			const latestPosted = (await tx.assetDepreciationScheduleEntry.findFirst({
 				where: {
 					postingId: { not: null },
-					schedule: { assetFinanceBookId: book.id },
+					schedule: {
+						assetFinanceBookId: book.id,
+						asset: { is: assetWhereForOrganization(organizationId) },
+					},
 				},
 				select: {
 					scheduleDate: true,
@@ -205,12 +216,23 @@ export class AssetDepreciationRevisionService {
 							dailyProrata: book.dailyProrataBased,
 						});
 
-			await tx.assetDepreciationSchedule.update({
-				where: { id: activeSchedule.id },
+			const cancelledSchedule = await tx.assetDepreciationSchedule.updateMany({
+				where: {
+					id: activeSchedule.id,
+					asset: { is: assetWhereForOrganization(organizationId) },
+				},
 				data: { status: "CANCELLED" },
 			});
-			await tx.assetFinanceBook.update({
-				where: { id: book.id },
+			if (cancelledSchedule.count !== 1) {
+				throw new AssetDepreciationRevisionError(
+					`The active depreciation schedule for finance book ${book.financeBookId} is not available in the active organization.`,
+				);
+			}
+			const updatedBook = await tx.assetFinanceBook.updateMany({
+				where: {
+					id: book.id,
+					asset: { is: assetWhereForOrganization(organizationId) },
+				},
 				data: {
 					increaseInAssetLife,
 					valueAfterDepreciation: carryingValue,
@@ -225,6 +247,11 @@ export class AssetDepreciationRevisionService {
 								: "PENDING",
 				},
 			});
+			if (updatedBook.count !== 1) {
+				throw new AssetDepreciationRevisionError(
+					`Finance book ${book.financeBookId} is not available in the active organization.`,
+				);
+			}
 			const successor = await tx.assetDepreciationSchedule.create({
 				data: {
 					adjustmentId: input.adjustmentId,
@@ -280,8 +307,10 @@ export class AssetDepreciationRevisionService {
 	 */
 	async restoreRevision(
 		tx: RevisionTransaction,
+		organizationId: AssetOrganizationId,
 		input: RestoreAssetDepreciationRevisionInput,
 	): Promise<void> {
+		assertAssetOrganizationId(organizationId);
 		if (!input.assetId.trim() || !input.financeBookId.trim()) {
 			throw new AssetDepreciationRevisionError(
 				"assetId and financeBookId are required to restore a revision.",
@@ -293,6 +322,7 @@ export class AssetDepreciationRevisionService {
 		);
 		const books = await this.loadLockedBooks(
 			tx,
+			organizationId,
 			input.assetId,
 			input.financeBookId,
 		);
@@ -303,8 +333,14 @@ export class AssetDepreciationRevisionService {
 			);
 		}
 
-		const revision = await tx.assetDepreciationSchedule.findUnique({
-			where: { id: input.scheduleId },
+		const revision = await tx.assetDepreciationSchedule.findFirst({
+			where: {
+				id: input.scheduleId,
+				asset: { is: assetWhereForOrganization(organizationId) },
+				assetFinanceBook: {
+					asset: { is: assetWhereForOrganization(organizationId) },
+				},
+			},
 			select: {
 				id: true,
 				assetId: true,
@@ -333,7 +369,11 @@ export class AssetDepreciationRevisionService {
 						baseAssetValue: true,
 					},
 				},
-				nextSchedules: { select: { id: true }, take: 1 },
+				nextSchedules: {
+					where: { asset: { is: assetWhereForOrganization(organizationId) } },
+					select: { id: true },
+					take: 1,
+				},
 			},
 		});
 		if (
@@ -376,18 +416,39 @@ export class AssetDepreciationRevisionService {
 			where: {
 				scheduleId: predecessor.id,
 				postingId: null,
+				schedule: { asset: { is: assetWhereForOrganization(organizationId) } },
 			},
 		});
-		await tx.assetDepreciationSchedule.update({
-			where: { id: revision.id },
+		const cancelledRevision = await tx.assetDepreciationSchedule.updateMany({
+			where: {
+				id: revision.id,
+				asset: { is: assetWhereForOrganization(organizationId) },
+			},
 			data: { status: "CANCELLED" },
 		});
-		await tx.assetDepreciationSchedule.update({
-			where: { id: predecessor.id },
-			data: { status: "ACTIVE" },
-		});
-		await tx.assetFinanceBook.update({
-			where: { id: book.id },
+		if (cancelledRevision.count !== 1) {
+			throw new AssetDepreciationRevisionError(
+				"The depreciation revision is no longer available in the active organization.",
+			);
+		}
+		const reactivatedPredecessor =
+			await tx.assetDepreciationSchedule.updateMany({
+				where: {
+					id: predecessor.id,
+					asset: { is: assetWhereForOrganization(organizationId) },
+				},
+				data: { status: "ACTIVE" },
+			});
+		if (reactivatedPredecessor.count !== 1) {
+			throw new AssetDepreciationRevisionError(
+				"The predecessor depreciation schedule is no longer available in the active organization.",
+			);
+		}
+		const restoredBook = await tx.assetFinanceBook.updateMany({
+			where: {
+				id: book.id,
+				asset: { is: assetWhereForOrganization(organizationId) },
+			},
 			data: {
 				depreciationMethod: predecessor.depreciationMethod,
 				totalNumberOfDepreciations: predecessor.totalNumberOfDepreciations,
@@ -407,19 +468,35 @@ export class AssetDepreciationRevisionService {
 							: "PENDING",
 			},
 		});
+		if (restoredBook.count !== 1) {
+			throw new AssetDepreciationRevisionError(
+				`Finance book ${book.financeBookId} is no longer available in the active organization.`,
+			);
+		}
 	}
 
 	/** Cancels active schedules for disposal while retaining every schedule row. */
 	async closeOpenSchedules(
 		tx: RevisionTransaction,
+		organizationId: AssetOrganizationId,
 		assetId: string,
 		financeBookId?: string,
 	): Promise<number> {
-		const books = await this.loadLockedBooks(tx, assetId, financeBookId);
+		assertAssetOrganizationId(organizationId);
+		const books = await this.loadLockedBooks(
+			tx,
+			organizationId,
+			assetId,
+			financeBookId,
+		);
 		let closed = 0;
 		for (const book of books) {
 			const result = await tx.assetDepreciationSchedule.updateMany({
-				where: { assetFinanceBookId: book.id, status: "ACTIVE" },
+				where: {
+					assetFinanceBookId: book.id,
+					status: "ACTIVE",
+					asset: { is: assetWhereForOrganization(organizationId) },
+				},
 				data: { status: "CANCELLED" },
 			});
 			closed += result.count;
@@ -430,10 +507,17 @@ export class AssetDepreciationRevisionService {
 	/** Reactivates the latest closed schedule after a reversible lifecycle close. */
 	async reactivateLatestClosedSchedules(
 		tx: RevisionTransaction,
+		organizationId: AssetOrganizationId,
 		assetId: string,
 		financeBookId?: string,
 	): Promise<number> {
-		const books = await this.loadLockedBooks(tx, assetId, financeBookId);
+		assertAssetOrganizationId(organizationId);
+		const books = await this.loadLockedBooks(
+			tx,
+			organizationId,
+			assetId,
+			financeBookId,
+		);
 		let reactivated = 0;
 		for (const book of books) {
 			if (book.schedules.length > 0) {
@@ -442,7 +526,11 @@ export class AssetDepreciationRevisionService {
 				);
 			}
 			const latestClosed = await tx.assetDepreciationSchedule.findFirst({
-				where: { assetFinanceBookId: book.id, status: "CANCELLED" },
+				where: {
+					assetFinanceBookId: book.id,
+					status: "CANCELLED",
+					asset: { is: assetWhereForOrganization(organizationId) },
+				},
 				select: { id: true, revisionNumber: true },
 				orderBy: [{ revisionNumber: "desc" }, { createdAt: "desc" }],
 			});
@@ -455,6 +543,7 @@ export class AssetDepreciationRevisionService {
 				where: {
 					assetFinanceBookId: book.id,
 					revisionNumber: { gt: latestClosed.revisionNumber },
+					asset: { is: assetWhereForOrganization(organizationId) },
 				},
 				select: { id: true },
 			});
@@ -463,10 +552,18 @@ export class AssetDepreciationRevisionService {
 					`The latest closed schedule for finance book ${book.financeBookId} has a newer successor.`,
 				);
 			}
-			await tx.assetDepreciationSchedule.update({
-				where: { id: latestClosed.id },
+			const reactivation = await tx.assetDepreciationSchedule.updateMany({
+				where: {
+					id: latestClosed.id,
+					asset: { is: assetWhereForOrganization(organizationId) },
+				},
 				data: { status: "ACTIVE" },
 			});
+			if (reactivation.count !== 1) {
+				throw new AssetDepreciationRevisionError(
+					`The closed depreciation schedule for finance book ${book.financeBookId} is no longer available in the active organization.`,
+				);
+			}
 			reactivated += 1;
 		}
 		return reactivated;
@@ -491,11 +588,16 @@ export class AssetDepreciationRevisionService {
 
 	private async loadLockedBooks(
 		tx: RevisionTransaction,
+		organizationId: AssetOrganizationId,
 		assetId: string,
 		financeBookId?: string,
 	): Promise<RevisionBook[]> {
 		const bookIds = await tx.assetFinanceBook.findMany({
-			where: { assetId, ...(financeBookId ? { financeBookId } : {}) },
+			where: {
+				assetId,
+				asset: { is: assetWhereForOrganization(organizationId) },
+				...(financeBookId ? { financeBookId } : {}),
+			},
 			select: { id: true },
 			orderBy: { id: "asc" },
 		});
@@ -510,7 +612,11 @@ export class AssetDepreciationRevisionService {
 			`);
 		}
 		return tx.assetFinanceBook.findMany({
-			where: { assetId, ...(financeBookId ? { financeBookId } : {}) },
+			where: {
+				assetId,
+				asset: { is: assetWhereForOrganization(organizationId) },
+				...(financeBookId ? { financeBookId } : {}),
+			},
 			include: {
 				schedules: {
 					where: { status: "ACTIVE" },

@@ -17,6 +17,7 @@ function candidate(
 	return {
 		id,
 		companyId: COMPANY_ID,
+		company: { organizationId: "org-1" },
 		availableForUseDate: new Date("2026-08-09T00:00:00.000Z"),
 		assetCategory: {
 			enableCwipAccounting: true,
@@ -91,7 +92,9 @@ describe("CwipCapitalizationDiscoveryService", () => {
 			}),
 		]);
 
-		await expect(service.discover("2026-08-09")).resolves.toEqual({
+		await expect(
+			service.discover("2026-08-09", { kind: "system" }),
+		).resolves.toEqual({
 			discovered: 3,
 			qualified: 1,
 			enqueued: 1,
@@ -111,6 +114,7 @@ describe("CwipCapitalizationDiscoveryService", () => {
 				name: POST_ASSET_CWIP_CAPITALIZATION_JOB,
 				data: {
 					version: CWIP_CAPITALIZATION_JOB_VERSION,
+					organizationId: "org-1",
 					assetId: "asset-qualified",
 					availableForUseDate: "2026-08-09",
 				},
@@ -125,7 +129,9 @@ describe("CwipCapitalizationDiscoveryService", () => {
 			getJob: mock(async () => existing),
 		});
 
-		await expect(service.discover("2026-08-09")).resolves.toEqual({
+		await expect(
+			service.discover("2026-08-09", { kind: "system" }),
+		).resolves.toEqual({
 			discovered: 1,
 			qualified: 1,
 			enqueued: 0,
@@ -144,7 +150,9 @@ describe("CwipCapitalizationDiscoveryService", () => {
 			getJob: mock(async () => existing),
 		});
 
-		await expect(service.discover("2026-08-09")).resolves.toEqual({
+		await expect(
+			service.discover("2026-08-09", { kind: "system" }),
+		).resolves.toEqual({
 			discovered: 1,
 			qualified: 1,
 			enqueued: 1,
@@ -164,7 +172,9 @@ describe("CwipCapitalizationDiscoveryService", () => {
 			getJob: mock(async () => existing),
 		});
 
-		await expect(service.discover("2026-08-09")).resolves.toEqual({
+		await expect(
+			service.discover("2026-08-09", { kind: "system" }),
+		).resolves.toEqual({
 			discovered: 1,
 			qualified: 1,
 			enqueued: 1,

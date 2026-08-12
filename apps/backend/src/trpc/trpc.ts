@@ -193,43 +193,6 @@ function requireOrgMembership(requiredRoles?: string[]) {
 			});
 		}
 
-		// Super admins bypass organization checks entirely. Resolve the first
-		// available organization for context consistency; if none exists, inject
-		// a minimal placeholder so downstream procedures don't crash.
-		const globalUser = await prisma.user.findUnique({
-			where: { id: userId },
-			select: { role: true },
-		});
-		const isSuperAdmin = globalUser?.role === "super_admin";
-
-		if (isSuperAdmin) {
-			let organization = activeOrganizationId
-				? await prisma.organization.findUnique({
-						where: { id: activeOrganizationId },
-						select: { id: true, name: true, slug: true },
-					})
-				: await prisma.organization.findFirst({
-						select: { id: true, name: true, slug: true },
-						orderBy: { createdAt: "asc" },
-					});
-
-			if (!organization) {
-				organization = {
-					id: "__super_admin__",
-					name: "Super Admin",
-					slug: "super-admin",
-				};
-			}
-
-			return next({
-				ctx: {
-					...ctx,
-					orgMember: null,
-					organization,
-				} as unknown as OrgProtectedContext,
-			});
-		}
-
 		if (!activeOrganizationId) {
 			throw new TRPCError({
 				code: "UNAUTHORIZED",
@@ -246,6 +209,24 @@ function requireOrgMembership(requiredRoles?: string[]) {
 			throw new TRPCError({
 				code: "NOT_FOUND",
 				message: "Active organization not found",
+			});
+		}
+
+		// Super admins bypass membership checks only after an explicit active
+		// organization has been resolved.
+		const globalUser = await prisma.user.findUnique({
+			where: { id: userId },
+			select: { role: true },
+		});
+		const isSuperAdmin = globalUser?.role === "super_admin";
+
+		if (isSuperAdmin) {
+			return next({
+				ctx: {
+					...ctx,
+					orgMember: null,
+					organization,
+				} as unknown as OrgProtectedContext,
 			});
 		}
 

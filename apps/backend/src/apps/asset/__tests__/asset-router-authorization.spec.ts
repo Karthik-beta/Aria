@@ -36,13 +36,17 @@ describe("Asset router write authorization", () => {
 	});
 
 	it("keeps actor identity outside public input schemas", () => {
-		expect(routerSource).toContain(
-			"svc.createAssetMovement(input, ctx.user.id)",
+		expect(routerSource).toMatch(
+			/svc\.createAssetMovement\(input,\s*ctx\.organization\.id,\s*ctx\.user\.id\)/,
 		);
-		expect(routerSource).toContain(
-			"svc.createAssetCapitalization(input, ctx.user.id)",
+		expect(routerSource).toMatch(
+			/svc\.createAssetCapitalization\(\s*input,\s*ctx\.organization\.id,\s*ctx\.user\.id,?\s*\)/,
 		);
-		expect(routerSource).toContain("svc.submitAsset(input.id, ctx.user.id)");
-		expect(routerSource).toContain("svc.cancelAsset(input.id, ctx.user.id)");
+		expect(routerSource).toMatch(
+			/svc\.submitAsset\(\s*input\.id,\s*ctx\.organization\.id,\s*ctx\.user\.id/,
+		);
+		expect(routerSource).toMatch(
+			/svc\.cancelAsset\(\s*input\.id,\s*ctx\.organization\.id,\s*ctx\.user\.id/,
+		);
 	});
 });

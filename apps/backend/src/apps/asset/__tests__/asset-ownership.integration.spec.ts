@@ -3,6 +3,7 @@ import { PrismaService } from "../../../shared/prisma.service";
 import { AssetService } from "../asset.service";
 import { AssetAccountingService } from "../asset-accounting.service";
 import { AssetDashboardSubService } from "../asset-dashboard.service";
+import type { AssetDepreciationLifecycleService } from "../depreciation/asset-depreciation-lifecycle.service";
 import { DEPRECIATION_JOB_VERSION } from "../depreciation/depreciation.constants";
 import { DepreciationPersistenceService } from "../depreciation/depreciation-persistence.service";
 
@@ -20,6 +21,8 @@ describe("Asset ownership integration", () => {
 	let companyA2Id: string;
 	let companyBId: string;
 	let assetAId: string;
+	let assetBId: string;
+	let assetBBarcode: string;
 	let accountingEntryId: string;
 	let financeBookId: string;
 	let assetFinanceBookId: string;
@@ -72,10 +75,16 @@ describe("Asset ownership integration", () => {
 		companyA2Id = companyA2.id;
 		companyBId = companyB.id;
 
+		const lifecycle = {
+			configureAssetBooks: async () => undefined,
+			submitAsset: async () => undefined,
+			cancelAsset: async () => undefined,
+		} as unknown as AssetDepreciationLifecycleService;
 		service = new AssetService(
 			prisma,
 			new AssetDashboardSubService(prisma),
 			new FiscalYearService(prisma),
+			lifecycle,
 		);
 	});
 
@@ -107,11 +116,15 @@ describe("Asset ownership integration", () => {
 		if (assetAId) {
 			await prisma.asset.delete({ where: { id: assetAId } });
 		}
-		if (companyAId || companyA2Id || companyBId) {
+		if (assetBId) {
+			await prisma.asset.delete({ where: { id: assetBId } });
+		}
+		const testOrganizationIds = [organizationAId, organizationBId].filter(
+			(id): id is string => Boolean(id),
+		);
+		if (testOrganizationIds.length > 0) {
 			await prisma.company.deleteMany({
-				where: {
-					id: { in: [companyAId, companyA2Id, companyBId].filter(Boolean) },
-				},
+				where: { organizationId: { in: testOrganizationIds } },
 			});
 		}
 		if (organizationAId || organizationBId) {
@@ -153,6 +166,125 @@ describe("Asset ownership integration", () => {
 		});
 	});
 
+	it("enforces organization isolation across reads, writes, schedules, dashboards, and reports", async () => {
+		assetBBarcode = `R002-BARCODE-${Date.now()}`;
+		const foreignAsset = await service.createAsset(
+			{
+				assetName: "R-002 Organization B Asset",
+				companyId: companyBId,
+				itemCode: `R002-ASSET-B-${Date.now()}`,
+				barcode: assetBBarcode,
+				purchaseDate: new Date("2026-08-01T00:00:00.000Z"),
+				netPurchaseAmount: 200,
+			},
+			organizationBId,
+		);
+		assetBId = foreignAsset.id;
+
+		// Use operational records so the dashboard and fixed-asset register have
+		// observable rows in both organizations without bypassing the service reads.
+		await prisma.asset.updateMany({
+			where: { id: { in: [assetAId, assetBId] } },
+			data: { status: "SUBMITTED" },
+		});
+
+		const ownAssets = await service.findAllAssets(organizationAId);
+		const foreignAssets = await service.findAllAssets(organizationBId);
+		expect(ownAssets.items.map((asset) => asset.id)).toEqual([assetAId]);
+		expect(foreignAssets.items.map((asset) => asset.id)).toEqual([assetBId]);
+		expect(await service.findAssetById(assetAId, organizationBId)).toBeNull();
+		expect(await service.findAssetById(assetBId, organizationAId)).toBeNull();
+		expect(
+			await service.findAssetByBarcode(assetBBarcode, organizationBId),
+		).not.toBeNull();
+		expect(
+			await service.findAssetByBarcode(assetBBarcode, organizationAId),
+		).toBeNull();
+
+		const updated = await service.updateAsset(
+			{ id: assetAId, assetName: "R-002 Organization A Updated" },
+			organizationAId,
+		);
+		expect(updated.assetName).toBe("R-002 Organization A Updated");
+		await expect(
+			service.updateAsset(
+				{ id: assetAId, assetName: "R-002 Foreign Update" },
+				organizationBId,
+			),
+		).rejects.toThrow(/not found/);
+		await expect(
+			service.deleteAsset(assetBId, organizationAId),
+		).rejects.toThrow(/not found/);
+		await expect(
+			service.submitAsset(assetBId, organizationAId),
+		).rejects.toThrow(/not found/);
+
+		await expect(
+			service.listAssetDepreciationSchedules(assetBId, organizationAId),
+		).rejects.toThrow(/not found/);
+		await expect(
+			service.previewAssetValueAdjustment(
+				{
+					assetId: assetAId,
+					adjustmentDate: new Date("2026-08-12T00:00:00.000Z"),
+					newAssetValue: 150,
+				},
+				organizationBId,
+			),
+		).rejects.toThrow(/not found/);
+		await expect(
+			service.createAssetMovement(
+				{
+					companyId: companyBId,
+					transactionDate: new Date("2026-08-12T00:00:00.000Z"),
+					purpose: "ISSUE",
+					items: [{ assetId: assetBId }],
+				},
+				organizationAId,
+			),
+		).rejects.toThrow(/not available in the active organization/);
+		await expect(
+			service.scrapAsset(
+				{
+					assetId: assetAId,
+					disposalDate: new Date("2026-08-12T00:00:00.000Z"),
+					gainLossAccount: "Gain Loss - R002",
+				},
+				organizationBId,
+			),
+		).rejects.toThrow(/not found/);
+
+		const reportInput = {
+			fromDate: new Date("2026-01-01T00:00:00.000Z"),
+			toDate: new Date("2026-12-31T00:00:00.000Z"),
+			groupBy: "ASSET_CATEGORY" as const,
+		};
+		const register = await service.findFixedAssetRegisterReport(
+			reportInput,
+			organizationAId,
+		);
+		expect(register.rows.map((row) => row.assetId)).toEqual([assetAId]);
+		expect(register.rows.some((row) => row.assetId === assetBId)).toBe(false);
+
+		const balances = await service.findAssetDepreciationsAndBalances(
+			{ ...reportInput, groupBy: "ASSET" },
+			organizationAId,
+		);
+		expect(balances.rows.every((row) => row.assetId !== assetBId)).toBe(true);
+		expect(balances.summary.matchedAssetCount).toBe(1);
+
+		const dashboard = await service.getDashboardData(organizationAId);
+		expect(dashboard.kpis.totalAssets).toBe(1);
+		expect(
+			dashboard.statusDistribution.reduce((total, row) => total + row.count, 0),
+		).toBe(1);
+		expect(
+			dashboard.recentActivity.every(
+				(activity) => activity.assetId !== assetBId,
+			),
+		).toBe(true);
+	});
+
 	it("rejects a Company and Asset CUID from another organization", async () => {
 		const companyA = await prisma.company.findUniqueOrThrow({
 			where: { id: companyAId },
@@ -176,7 +308,7 @@ describe("Asset ownership integration", () => {
 				{ id: assetAId, assetName: "R-001 Foreign Asset Update" },
 				organizationBId,
 			),
-		).rejects.toThrow(/not available in the active organization/);
+		).rejects.toThrow(/not found/);
 
 		await expect(
 			service.updateAsset(
@@ -198,7 +330,7 @@ describe("Asset ownership integration", () => {
 		});
 		expect(persisted).toEqual({
 			companyId: companyAId,
-			assetName: "R-001 Organization A Asset",
+			assetName: "R-002 Organization A Updated",
 		});
 	});
 
@@ -250,7 +382,7 @@ describe("Asset ownership integration", () => {
 
 		const accounting = new AssetAccountingService();
 		const accountingEntry = await prisma.client.$transaction((tx) =>
-			accounting.createPostedEntry(tx, {
+			accounting.createPostedEntry(tx, organizationAId, {
 				companyId: companyAId,
 				assetId: assetAId,
 				sourceType: "REPAIR",
@@ -328,6 +460,7 @@ describe("Asset ownership integration", () => {
 		const depreciation = new DepreciationPersistenceService(prisma);
 		const posted = await depreciation.post({
 			version: DEPRECIATION_JOB_VERSION,
+			organizationId: organizationAId,
 			assetId: assetAId,
 			assetFinanceBookId: assetFinanceBook.id,
 			scheduleId: schedule.id,

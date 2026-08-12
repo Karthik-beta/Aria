@@ -22,7 +22,13 @@ export async function runWithDemoDepreciationApplication<T>(
 		const barrier = application.get(DepreciationBarrierService);
 		return await callback(prisma, {
 			async ensurePosted(scope) {
-				await barrier.ensureDepreciationPosted(scope);
+				await barrier.ensureDepreciationPosted({
+					kind: "organization",
+					organizationId: scope.organizationId,
+					throughDate: scope.throughDate,
+					...(scope.companyId ? { companyId: scope.companyId } : {}),
+					...(scope.assetIds ? { assetIds: scope.assetIds } : {}),
+				});
 			},
 		});
 	} finally {

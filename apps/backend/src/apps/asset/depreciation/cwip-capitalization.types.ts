@@ -12,8 +12,15 @@ export type CwipCapitalizationJobName =
 /** Serializable payload for one asset's deferred CWIP posting. */
 export interface CwipCapitalizationJobData {
 	version: typeof CWIP_CAPITALIZATION_JOB_VERSION;
+	/** Organization persisted on the Asset's Company at discovery time. */
+	organizationId: string;
 	assetId: string;
 	availableForUseDate: string;
+}
+
+/** Explicit trusted boundary for scheduler-owned all-organization discovery. */
+export interface CwipCapitalizationSystemScope {
+	kind: "system";
 }
 
 export type CwipCapitalizationJobResult =

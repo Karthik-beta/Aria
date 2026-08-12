@@ -12,6 +12,7 @@ interface CwipWorkerAsset {
 	id: string;
 	series: string;
 	companyId: string;
+	company: { organizationId: string };
 	status: string;
 	availableForUseDate: Date | null;
 	netPurchaseAmount: unknown;
@@ -28,6 +29,7 @@ interface CwipWorkerAsset {
 
 interface CwipDelegate {
 	findUnique<T>(args: unknown): Promise<T | null>;
+	findFirst<T>(args: unknown): Promise<T | null>;
 	updateMany(args: unknown): Promise<{ count: number }>;
 }
 
@@ -70,12 +72,16 @@ export class CwipCapitalizationPersistenceService {
 				SELECT pg_advisory_xact_lock(hashtext(${job.assetId})) IS NULL AS "locked"
 			`);
 
-			const asset = await tx.asset.findUnique<CwipWorkerAsset>({
-				where: { id: job.assetId },
+			const asset = await tx.asset.findFirst<CwipWorkerAsset>({
+				where: {
+					id: job.assetId,
+					company: { is: { organizationId: job.organizationId } },
+				},
 				select: {
 					id: true,
 					series: true,
 					companyId: true,
+					company: { select: { organizationId: true } },
 					status: true,
 					availableForUseDate: true,
 					netPurchaseAmount: true,
@@ -99,6 +105,11 @@ export class CwipCapitalizationPersistenceService {
 					status: "skipped-stale",
 					reason: `Asset ${job.assetId} no longer exists`,
 				};
+			}
+			if (asset.company.organizationId !== job.organizationId) {
+				throw new CwipCapitalizationValidationError(
+					`Asset ${job.assetId} does not belong to organization ${job.organizationId}.`,
+				);
 			}
 			if (asset.cwipAccountingEntryId) {
 				return {
@@ -136,6 +147,7 @@ export class CwipCapitalizationPersistenceService {
 			try {
 				accountingEntry = await this.accounting.createPostedEntry(
 					tx as unknown as Prisma.TransactionClient,
+					job.organizationId,
 					{
 						companyId: asset.companyId,
 						assetId: asset.id,
@@ -167,6 +179,7 @@ export class CwipCapitalizationPersistenceService {
 			const linked = await tx.asset.updateMany({
 				where: {
 					id: asset.id,
+					company: { is: { organizationId: job.organizationId } },
 					status: "SUBMITTED",
 					cwipAccountingEntryId: null,
 				},

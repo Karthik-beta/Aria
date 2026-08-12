@@ -7,12 +7,12 @@ describe("AssetDepreciationLifecycleService", () => {
 		const activities: Array<Record<string, unknown>> = [];
 		const transaction = {
 			asset: {
-				findUniqueOrThrow: mock(async () => ({
+				findFirst: mock(async () => ({
 					status: "DRAFT",
 					calculateDepreciation: false,
 					_count: { financeBooks: 0 },
 				})),
-				update: mock(async () => undefined),
+				updateMany: mock(async () => ({ count: 1 })),
 			},
 			assetDepreciationSchedule: {
 				updateMany: mock(async () => undefined),
@@ -37,8 +37,8 @@ describe("AssetDepreciationLifecycleService", () => {
 		);
 		service.configureAssetBooks = mock(async () => undefined);
 
-		await service.submitAsset("asset-1", "actor-1");
-		await service.cancelAsset("asset-1", "actor-2");
+		await service.submitAsset("asset-1", "org-1", "actor-1");
+		await service.cancelAsset("asset-1", "org-1", "actor-2");
 
 		expect(activities).toEqual([
 			{
@@ -62,12 +62,16 @@ describe("AssetDepreciationLifecycleService", () => {
 		const updateBookCalls: UpdateArgs[] = [];
 		const updateBook = mock(async (args: UpdateArgs) => {
 			updateBookCalls.push(args);
+			return { count: 1 };
 		});
 		const updateScheduleCalls: UpdateArgs[] = [];
 		const updateSchedule = mock(async (args: UpdateArgs) => {
 			updateScheduleCalls.push(args);
 		});
 		const transaction = {
+			asset: {
+				findFirst: mock(async () => ({ id: "asset-1" })),
+			},
 			assetDepreciationJournalEntry: { count: mock(async () => 0) },
 			assetDepreciationSchedule: {
 				deleteMany: mock(async () => undefined),
@@ -77,8 +81,8 @@ describe("AssetDepreciationLifecycleService", () => {
 			assetFinanceBook: {
 				deleteMany: mock(async () => undefined),
 				create: mock(async () => undefined),
-				update: updateBook,
-				findUnique: mock(async () => ({
+				updateMany: updateBook,
+				findFirst: mock(async () => ({
 					id: "asset-book-1",
 					rateOfDepreciation: null,
 					schedules: [
@@ -93,7 +97,7 @@ describe("AssetDepreciationLifecycleService", () => {
 		};
 		const prisma = {
 			asset: {
-				findUniqueOrThrow: mock(async () => ({
+				findFirst: mock(async () => ({
 					id: "asset-1",
 					status: "SUBMITTED",
 					calculateDepreciation: true,
@@ -136,7 +140,7 @@ describe("AssetDepreciationLifecycleService", () => {
 			prisma as unknown as PrismaService,
 		);
 
-		await service.configureAssetBooks("asset-1");
+		await service.configureAssetBooks("asset-1", undefined, "org-1");
 
 		expect(updateBook).toHaveBeenCalledTimes(1);
 		const firstBookCall = updateBookCalls.at(0);
@@ -163,8 +167,20 @@ describe("AssetDepreciationLifecycleService", () => {
 			};
 		};
 		const findManyCalls: FindManyArgs[] = [];
-		const findManyResults: Array<Array<{ id: string; assetId: string }>> = [
-			[{ id: "book-1", assetId: "asset-1" }],
+		const findManyResults: Array<
+			Array<{
+				id: string;
+				assetId: string;
+				asset: { company: { organizationId: string } };
+			}>
+		> = [
+			[
+				{
+					id: "book-1",
+					assetId: "asset-1",
+					asset: { company: { organizationId: "org-1" } },
+				},
+			],
 			[],
 		];
 		let findManyCallIndex = 0;
@@ -181,7 +197,11 @@ describe("AssetDepreciationLifecycleService", () => {
 
 		await expect(service.ensureSubmittedSchedules()).resolves.toBe(1);
 
-		expect(configureAssetBooks).toHaveBeenCalledWith("asset-1");
+		expect(configureAssetBooks).toHaveBeenCalledWith(
+			"asset-1",
+			undefined,
+			"org-1",
+		);
 		expect(findManyCalls[0]?.where.schedules).toEqual({
 			none: {
 				status: { in: ["DRAFT", "ACTIVE"] },

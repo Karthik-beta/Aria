@@ -9,6 +9,12 @@ import {
 	allocateDocumentSeries,
 	getSeriesSeedValue,
 } from "../../shared/document-series";
+import {
+	type AssetOrganizationId,
+	assertAssetOrganizationId,
+	assetWhereForOrganization,
+	companyWhereForOrganization,
+} from "./asset-organization-scope";
 
 const AMOUNT_SCALE = 6;
 
@@ -55,8 +61,10 @@ const roundAmount = (amount: number): number =>
 export class AssetAccountingService {
 	async createPostedEntry(
 		tx: Prisma.TransactionClient,
+		organizationId: AssetOrganizationId,
 		input: CreateAssetAccountingEntryInput,
 	): Promise<AssetAccountingEntryResult> {
+		assertAssetOrganizationId(organizationId);
 		const companyId = input.companyId.trim();
 		const sourceId = input.sourceId.trim();
 		const remarks = input.remarks.trim();
@@ -119,8 +127,8 @@ export class AssetAccountingService {
 			);
 		}
 
-		const companyRecord = await tx.company.findUnique({
-			where: { id: companyId },
+		const companyRecord = await tx.company.findFirst({
+			where: companyWhereForOrganization(organizationId, { id: companyId }),
 			select: {
 				id: true,
 				name: true,
@@ -133,6 +141,20 @@ export class AssetAccountingService {
 				`Company ${companyId} is missing or disabled`,
 			);
 		}
+		if (input.assetId) {
+			const asset = await tx.asset.findFirst({
+				where: assetWhereForOrganization(organizationId, {
+					id: input.assetId,
+					companyId: companyRecord.id,
+				}),
+				select: { id: true },
+			});
+			if (!asset) {
+				throw new NotFoundException(
+					`Asset ${input.assetId} is not available in the active organization`,
+				);
+			}
+		}
 		if (
 			companyRecord.accountsFrozenThrough &&
 			input.postingDate <= companyRecord.accountsFrozenThrough
@@ -142,12 +164,28 @@ export class AssetAccountingService {
 			);
 		}
 
-		const existing = await tx.assetAccountingEntry.findUnique({
+		const scopedAssetRelation = input.assetId
+			? {
+					asset: {
+						is: assetWhereForOrganization(organizationId, {
+							id: input.assetId,
+							companyId: companyRecord.id,
+						}),
+					},
+				}
+			: {
+					OR: [
+						{ assetId: null },
+						{ asset: { is: assetWhereForOrganization(organizationId) } },
+					],
+				};
+		const existing = await tx.assetAccountingEntry.findFirst({
 			where: {
-				sourceType_sourceId: {
-					sourceType: input.sourceType,
-					sourceId,
-				},
+				AND: [
+					{ sourceType: input.sourceType, sourceId },
+					{ company: { is: { organizationId } } },
+					scopedAssetRelation,
+				],
 			},
 			select: { id: true, series: true, status: true },
 		});
@@ -161,7 +199,13 @@ export class AssetAccountingService {
 		const year = input.postingDate.getUTCFullYear();
 		const prefix = `AAE-${year}-`;
 		const lastEntry = await tx.assetAccountingEntry.findFirst({
-			where: { series: { startsWith: prefix } },
+			where: {
+				AND: [
+					{ series: { startsWith: prefix } },
+					{ company: { is: { organizationId } } },
+					scopedAssetRelation,
+				],
+			},
 			orderBy: { series: "desc" },
 			select: { series: true },
 		});
@@ -196,10 +240,23 @@ export class AssetAccountingService {
 
 	async reversePostedEntry(
 		tx: Prisma.TransactionClient,
+		organizationId: AssetOrganizationId,
 		entryId: string,
 	): Promise<void> {
-		const existing = await tx.assetAccountingEntry.findUnique({
-			where: { id: entryId },
+		assertAssetOrganizationId(organizationId);
+		const existing = await tx.assetAccountingEntry.findFirst({
+			where: {
+				AND: [
+					{ id: entryId },
+					{ company: { is: { organizationId } } },
+					{
+						OR: [
+							{ assetId: null },
+							{ asset: { is: assetWhereForOrganization(organizationId) } },
+						],
+					},
+				],
+			},
 			select: {
 				status: true,
 				companyId: true,
@@ -218,8 +275,10 @@ export class AssetAccountingService {
 				`Asset accounting entry ${entryId} cannot be reversed from ${existing.status}`,
 			);
 		}
-		const company = await tx.company.findUnique({
-			where: { id: existing.companyId },
+		const company = await tx.company.findFirst({
+			where: companyWhereForOrganization(organizationId, {
+				id: existing.companyId,
+			}),
 			select: { accountsFrozenThrough: true },
 		});
 		if (!company) {
@@ -238,13 +297,35 @@ export class AssetAccountingService {
 
 		const reversedAt = new Date();
 		const result = await tx.assetAccountingEntry.updateMany({
-			where: { id: entryId, status: "POSTED" },
+			where: {
+				AND: [
+					{ id: entryId, status: "POSTED" },
+					{ company: { is: { organizationId } } },
+					{
+						OR: [
+							{ assetId: null },
+							{ asset: { is: assetWhereForOrganization(organizationId) } },
+						],
+					},
+				],
+			},
 			data: { status: "REVERSED", reversedAt },
 		});
 		if (result.count === 1) return;
 
-		const current = await tx.assetAccountingEntry.findUnique({
-			where: { id: entryId },
+		const current = await tx.assetAccountingEntry.findFirst({
+			where: {
+				AND: [
+					{ id: entryId },
+					{ company: { is: { organizationId } } },
+					{
+						OR: [
+							{ assetId: null },
+							{ asset: { is: assetWhereForOrganization(organizationId) } },
+						],
+					},
+				],
+			},
 			select: { status: true },
 		});
 		if (!current) {

@@ -6,7 +6,10 @@ import {
 	cwipCapitalizationJobId,
 	POST_ASSET_CWIP_CAPITALIZATION_JOB,
 } from "./cwip-capitalization.constants";
-import type { CwipCapitalizationDiscoveryResult } from "./cwip-capitalization.types";
+import type {
+	CwipCapitalizationDiscoveryResult,
+	CwipCapitalizationSystemScope,
+} from "./cwip-capitalization.types";
 import type {
 	CwipCapitalizationBulkJob,
 	CwipCapitalizationJob,
@@ -17,6 +20,7 @@ import { dateOnlyUtc, normalizeDateOnly } from "./depreciation.config";
 interface CwipDiscoveryCandidate {
 	id: string;
 	companyId: string;
+	company: { organizationId: string };
 	availableForUseDate: Date;
 	assetCategory: {
 		enableCwipAccounting: boolean;
@@ -49,7 +53,11 @@ export class CwipCapitalizationDiscoveryService {
 
 	async discover(
 		throughDate: Date | string,
+		scope: CwipCapitalizationSystemScope,
 	): Promise<CwipCapitalizationDiscoveryResult> {
+		if (scope.kind !== "system") {
+			throw new Error("CWIP discovery requires the trusted system scope");
+		}
 		const normalizedThroughDate = normalizeDateOnly(throughDate);
 		const throughEnd = dateOnlyUtc(normalizedThroughDate);
 		throughEnd.setUTCHours(23, 59, 59, 999);
@@ -72,6 +80,7 @@ export class CwipCapitalizationDiscoveryService {
 				select: {
 					id: true,
 					companyId: true,
+					company: { select: { organizationId: true } },
 					availableForUseDate: true,
 					assetCategory: {
 						select: {
@@ -105,6 +114,7 @@ export class CwipCapitalizationDiscoveryService {
 						name: POST_ASSET_CWIP_CAPITALIZATION_JOB,
 						data: {
 							version: CWIP_CAPITALIZATION_JOB_VERSION,
+							organizationId: asset.company.organizationId,
 							assetId: asset.id,
 							availableForUseDate: normalizeDateOnly(asset.availableForUseDate),
 						},

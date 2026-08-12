@@ -2,11 +2,13 @@ import { BadRequestException, NotFoundException } from "@nestjs/common";
 import type { Prisma } from "../../../generated/prisma/client";
 import { AssetStockPostingService } from "../asset-stock-posting.service";
 
+const ORGANIZATION_ID = "organization-1";
+
 function createTransaction() {
 	return {
 		$queryRaw: jest.fn().mockResolvedValue([{ value: 3 }]),
 		company: {
-			findUnique: jest.fn().mockResolvedValue({
+			findFirst: jest.fn().mockResolvedValue({
 				id: "company-1",
 				name: "Pivotr Technologies Private Limited",
 				disabled: false,
@@ -64,6 +66,7 @@ describe("AssetStockPostingService", () => {
 
 		const result = await service.createMaterialIssue(
 			tx as unknown as Prisma.TransactionClient,
+			ORGANIZATION_ID,
 			validInput,
 		);
 
@@ -98,10 +101,14 @@ describe("AssetStockPostingService", () => {
 		const tx = createTransaction();
 
 		await expect(
-			service.createMaterialIssue(tx as unknown as Prisma.TransactionClient, {
-				...validInput,
-				lines: [...validInput.lines, ...validInput.lines],
-			}),
+			service.createMaterialIssue(
+				tx as unknown as Prisma.TransactionClient,
+				ORGANIZATION_ID,
+				{
+					...validInput,
+					lines: [...validInput.lines, ...validInput.lines],
+				},
+			),
 		).rejects.toThrow(BadRequestException);
 		expect(tx.stockEntry.create).not.toHaveBeenCalled();
 	});
@@ -114,6 +121,7 @@ describe("AssetStockPostingService", () => {
 		await expect(
 			service.createMaterialIssue(
 				tx as unknown as Prisma.TransactionClient,
+				ORGANIZATION_ID,
 				validInput,
 			),
 		).rejects.toThrow("does not belong");
@@ -127,6 +135,7 @@ describe("AssetStockPostingService", () => {
 		await expect(
 			service.createMaterialIssue(
 				tx as unknown as Prisma.TransactionClient,
+				ORGANIZATION_ID,
 				validInput,
 			),
 		).rejects.toThrow("does not maintain stock");
@@ -138,19 +147,32 @@ describe("AssetStockPostingService", () => {
 
 		await service.cancelMaterialIssue(
 			tx as unknown as Prisma.TransactionClient,
+			ORGANIZATION_ID,
+			"company-1",
 			"stock-entry-1",
+			"ASSET_REPAIR",
+			"repair-1",
 		);
 		expect(tx.stockEntry.updateMany).toHaveBeenCalledWith({
-			where: { id: "stock-entry-1", status: "SUBMITTED" },
+			where: expect.objectContaining({
+				AND: expect.arrayContaining([
+					{ id: "stock-entry-1", status: "SUBMITTED" },
+					{ company: "Pivotr Technologies Private Limited" },
+				]),
+			}),
 			data: { status: "CANCELLED" },
 		});
 
 		tx.stockEntry.updateMany.mockResolvedValue({ count: 0 });
-		tx.stockEntry.findUnique.mockResolvedValue({ status: "CANCELLED" });
+		tx.stockEntry.findFirst.mockResolvedValue({ status: "CANCELLED" });
 		await expect(
 			service.cancelMaterialIssue(
 				tx as unknown as Prisma.TransactionClient,
+				ORGANIZATION_ID,
+				"company-1",
 				"stock-entry-1",
+				"ASSET_REPAIR",
+				"repair-1",
 			),
 		).resolves.toBeUndefined();
 	});
@@ -159,12 +181,16 @@ describe("AssetStockPostingService", () => {
 		const service = new AssetStockPostingService();
 		const tx = createTransaction();
 		tx.stockEntry.updateMany.mockResolvedValue({ count: 0 });
-		tx.stockEntry.findUnique.mockResolvedValue(null);
+		tx.stockEntry.findFirst.mockResolvedValue(null);
 
 		await expect(
 			service.cancelMaterialIssue(
 				tx as unknown as Prisma.TransactionClient,
+				ORGANIZATION_ID,
+				"company-1",
 				"missing",
+				"ASSET_REPAIR",
+				"repair-1",
 			),
 		).rejects.toThrow(NotFoundException);
 	});

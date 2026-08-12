@@ -377,6 +377,7 @@ async function seedValueAdjustments(
 	prisma: PrismaService,
 	config: DemoConfig,
 	companyId: string,
+	organizationId: string,
 	assetId: string,
 	assetSeries: string,
 	asset: AssetSeedDef,
@@ -403,6 +404,7 @@ async function seedValueAdjustments(
 		if (adjustment.kind !== "draft") {
 			await depreciation.ensurePosted({
 				throughDate: adjustmentDate,
+				organizationId,
 				companyId,
 				assetIds: [assetId],
 			});
@@ -780,6 +782,7 @@ export async function seedAssetTransactions(
 			prisma,
 			config,
 			companyId,
+			ids.organizationId,
 			assetId,
 			assetRecord.series,
 			asset,
@@ -803,6 +806,7 @@ export async function seedAssetTransactions(
 			);
 			await depreciation.ensurePosted({
 				throughDate: disposalDate,
+				organizationId: ids.organizationId,
 				companyId,
 				assetIds: [assetId],
 			});

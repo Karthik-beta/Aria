@@ -10,6 +10,8 @@ export type DepreciationJobName = typeof POST_ASSET_DEPRECIATION_JOB;
 /** Serializable payload for one asset, finance-book, and schedule period. */
 export interface DepreciationJobData {
 	version: typeof DEPRECIATION_JOB_VERSION;
+	/** Organization persisted on the Asset's Company at discovery time. */
+	organizationId: string;
 	assetId: string;
 	assetFinanceBookId: string;
 	scheduleId: string;
@@ -22,8 +24,7 @@ export interface DepreciationJobResult {
 	postingId: string;
 }
 
-/** Optional filters used by discovery and financial-operation barriers. */
-export interface DepreciationScope {
+interface DepreciationScopeFilters {
 	throughDate: Date | string;
 	/** Stable Company ID filter used by internal callers when available. */
 	companyId?: string;
@@ -32,6 +33,22 @@ export interface DepreciationScope {
 	assetIds?: readonly string[];
 	financeBookId?: string;
 }
+
+/** Authenticated organization scope for user-triggered depreciation work. */
+export interface OrganizationDepreciationScope
+	extends DepreciationScopeFilters {
+	kind: "organization";
+	organizationId: string;
+}
+
+/** Explicit scheduler/demo boundary for trusted all-organization processing. */
+export interface SystemDepreciationScope extends DepreciationScopeFilters {
+	kind: "system";
+}
+
+export type DepreciationScope =
+	| OrganizationDepreciationScope
+	| SystemDepreciationScope;
 
 export interface DepreciationDiscoveryResult {
 	discovered: number;
@@ -48,6 +65,7 @@ export interface EnsureDepreciationPostedResult {
 }
 
 export interface PendingDepreciationPeriod {
+	organizationId: string;
 	assetId: string;
 	assetFinanceBookId: string;
 	financeBookId: string;

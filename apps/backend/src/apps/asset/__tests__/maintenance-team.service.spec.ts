@@ -16,18 +16,22 @@ const COMPANY_RELATION = { id: COMPANY_ID, name: COMPANY };
 function createMockPrisma() {
 	const mockTx = {
 		assetMaintenanceTeam: {
+			findFirst: jest.fn(),
+			findFirstOrThrow: jest.fn(),
 			update: jest.fn(),
+			updateMany: jest.fn().mockResolvedValue({ count: 1 }),
 			findUniqueOrThrow: jest.fn(),
 		},
 		assetMaintenanceTeamMember: {
 			findMany: jest.fn(),
 			deleteMany: jest.fn(),
 			update: jest.fn(),
+			updateMany: jest.fn().mockResolvedValue({ count: 1 }),
 			create: jest.fn(),
 		},
 	};
 
-	return {
+	const mockPrisma = {
 		location: {
 			findMany: jest.fn(),
 			findUnique: jest.fn(),
@@ -39,6 +43,10 @@ function createMockPrisma() {
 		},
 		company: {
 			findUnique: jest.fn().mockResolvedValue({
+				id: COMPANY_ID,
+				disabled: false,
+			}),
+			findFirst: jest.fn().mockResolvedValue({
 				id: COMPANY_ID,
 				disabled: false,
 			}),
@@ -66,6 +74,7 @@ function createMockPrisma() {
 		},
 		assetMaintenanceTeam: {
 			findMany: jest.fn(),
+			findFirst: jest.fn(),
 			findUnique: jest.fn(),
 			create: jest.fn(),
 			update: jest.fn(),
@@ -82,6 +91,19 @@ function createMockPrisma() {
 		$transaction: jest.fn().mockImplementation(async (fn) => fn(mockTx)),
 		_mockTx: mockTx,
 	};
+	mockPrisma.assetMaintenanceTeam.findFirst.mockImplementation(
+		(args: unknown) => mockPrisma.assetMaintenanceTeam.findUnique(args),
+	);
+	mockPrisma.company.findFirst.mockImplementation((args: unknown) =>
+		mockPrisma.company.findUnique(args),
+	);
+	mockTx.assetMaintenanceTeam.findFirst.mockImplementation((args: unknown) =>
+		mockTx.assetMaintenanceTeam.findUniqueOrThrow(args),
+	);
+	mockTx.assetMaintenanceTeam.findFirstOrThrow.mockImplementation(
+		(args: unknown) => mockTx.assetMaintenanceTeam.findUniqueOrThrow(args),
+	);
+	return mockPrisma;
 }
 
 function createTestContext() {
@@ -157,7 +179,7 @@ describe("AssetService > MaintenanceTeam", () => {
 			mockPrisma.assetMaintenanceTeam.findMany.mockResolvedValue([mockTeamRow]);
 			mockPrisma.assetMaintenanceTeam.count.mockResolvedValue(1);
 
-			const result = await service.findAllMaintenanceTeams({
+			const result = await service.findAllMaintenanceTeams("org-1", {
 				skip: 0,
 				take: 20,
 			});
@@ -178,7 +200,7 @@ describe("AssetService > MaintenanceTeam", () => {
 			mockPrisma.assetMaintenanceTeam.findMany.mockResolvedValue([]);
 			mockPrisma.assetMaintenanceTeam.count.mockResolvedValue(0);
 
-			const result = await service.findAllMaintenanceTeams({});
+			const result = await service.findAllMaintenanceTeams("org-1", {});
 
 			expect(result.totalCount).toBe(0);
 			expect(result.items).toHaveLength(0);
@@ -188,7 +210,7 @@ describe("AssetService > MaintenanceTeam", () => {
 			mockPrisma.assetMaintenanceTeam.findMany.mockResolvedValue([]);
 			mockPrisma.assetMaintenanceTeam.count.mockResolvedValue(0);
 
-			await service.findAllMaintenanceTeams({ search: "alpha" });
+			await service.findAllMaintenanceTeams("org-1", { search: "alpha" });
 
 			expect(mockPrisma.assetMaintenanceTeam.findMany).toHaveBeenCalledWith(
 				expect.objectContaining({
@@ -205,13 +227,14 @@ describe("AssetService > MaintenanceTeam", () => {
 			mockPrisma.assetMaintenanceTeam.findMany.mockResolvedValue([]);
 			mockPrisma.assetMaintenanceTeam.count.mockResolvedValue(0);
 
-			await service.findAllMaintenanceTeams({ company: "ACME" });
+			await service.findAllMaintenanceTeams("org-1", { company: "ACME" });
 
 			expect(mockPrisma.assetMaintenanceTeam.findMany).toHaveBeenCalledWith(
 				expect.objectContaining({
 					where: expect.objectContaining({
 						company: {
 							is: {
+								organizationId: "org-1",
 								name: { contains: "ACME", mode: "insensitive" },
 							},
 						},
@@ -224,7 +247,7 @@ describe("AssetService > MaintenanceTeam", () => {
 			mockPrisma.assetMaintenanceTeam.findMany.mockResolvedValue([]);
 			mockPrisma.assetMaintenanceTeam.count.mockResolvedValue(0);
 
-			await service.findAllMaintenanceTeams({ take: 9999 });
+			await service.findAllMaintenanceTeams("org-1", { take: 9999 });
 
 			expect(mockPrisma.assetMaintenanceTeam.findMany).toHaveBeenCalledWith(
 				expect.objectContaining({ take: 250 }),
@@ -240,7 +263,7 @@ describe("AssetService > MaintenanceTeam", () => {
 		it("returns the team when found", async () => {
 			mockPrisma.assetMaintenanceTeam.findUnique.mockResolvedValue(mockTeamRow);
 
-			const result = await service.findMaintenanceTeamById("team-001");
+			const result = await service.findMaintenanceTeamById("team-001", "org-1");
 
 			expect(result).toMatchObject({
 				id: "team-001",
@@ -252,7 +275,10 @@ describe("AssetService > MaintenanceTeam", () => {
 		it("returns null when team does not exist", async () => {
 			mockPrisma.assetMaintenanceTeam.findUnique.mockResolvedValue(null);
 
-			const result = await service.findMaintenanceTeamById("missing-id");
+			const result = await service.findMaintenanceTeamById(
+				"missing-id",
+				"org-1",
+			);
 
 			expect(result).toBeNull();
 		});
@@ -267,19 +293,22 @@ describe("AssetService > MaintenanceTeam", () => {
 			mockPrisma.assetMaintenanceTeam.findUnique.mockResolvedValue(null);
 			mockPrisma.assetMaintenanceTeam.create.mockResolvedValue(mockTeamRow);
 
-			const result = await service.createMaintenanceTeam({
-				name: "Alpha Team",
-				maintenanceManager: "manager@example.com",
-				maintenanceManagerName: "Manager Name",
-				companyId: COMPANY_ID,
-				members: [
-					{
-						teamMember: "john@example.com",
-						fullName: "John Doe",
-						maintenanceRole: "Technician",
-					},
-				],
-			});
+			const result = await service.createMaintenanceTeam(
+				{
+					name: "Alpha Team",
+					maintenanceManager: "manager@example.com",
+					maintenanceManagerName: "Manager Name",
+					companyId: COMPANY_ID,
+					members: [
+						{
+							teamMember: "john@example.com",
+							fullName: "John Doe",
+							maintenanceRole: "Technician",
+						},
+					],
+				},
+				"org-1",
+			);
 
 			expect(result.name).toBe("Alpha Team");
 			expect(result.company).toBe("ACME Corp");
@@ -304,17 +333,20 @@ describe("AssetService > MaintenanceTeam", () => {
 			mockPrisma.assetMaintenanceTeam.findUnique.mockResolvedValue(null);
 			mockPrisma.assetMaintenanceTeam.create.mockResolvedValue(noManagerRow);
 
-			const result = await service.createMaintenanceTeam({
-				name: "Alpha Team",
-				companyId: COMPANY_ID,
-				members: [
-					{
-						teamMember: "john@example.com",
-						fullName: "John Doe",
-						maintenanceRole: "Technician",
-					},
-				],
-			});
+			const result = await service.createMaintenanceTeam(
+				{
+					name: "Alpha Team",
+					companyId: COMPANY_ID,
+					members: [
+						{
+							teamMember: "john@example.com",
+							fullName: "John Doe",
+							maintenanceRole: "Technician",
+						},
+					],
+				},
+				"org-1",
+			);
 
 			expect(result.maintenanceManager).toBeNull();
 			expect(result.maintenanceManagerName).toBeNull();
@@ -326,17 +358,20 @@ describe("AssetService > MaintenanceTeam", () => {
 			});
 
 			await expect(
-				service.createMaintenanceTeam({
-					name: "Alpha Team",
-					companyId: COMPANY_ID,
-					members: [
-						{
-							teamMember: "john@example.com",
-							fullName: "John Doe",
-							maintenanceRole: "Technician",
-						},
-					],
-				}),
+				service.createMaintenanceTeam(
+					{
+						name: "Alpha Team",
+						companyId: COMPANY_ID,
+						members: [
+							{
+								teamMember: "john@example.com",
+								fullName: "John Doe",
+								maintenanceRole: "Technician",
+							},
+						],
+					},
+					"org-1",
+				),
 			).rejects.toThrow(BadRequestException);
 		});
 
@@ -346,17 +381,20 @@ describe("AssetService > MaintenanceTeam", () => {
 			});
 
 			await expect(
-				service.createMaintenanceTeam({
-					name: "Alpha Team",
-					companyId: COMPANY_ID,
-					members: [
-						{
-							teamMember: "john@example.com",
-							fullName: "John Doe",
-							maintenanceRole: "Technician",
-						},
-					],
-				}),
+				service.createMaintenanceTeam(
+					{
+						name: "Alpha Team",
+						companyId: COMPANY_ID,
+						members: [
+							{
+								teamMember: "john@example.com",
+								fullName: "John Doe",
+								maintenanceRole: "Technician",
+							},
+						],
+					},
+					"org-1",
+				),
 			).rejects.toThrow("already exists");
 		});
 	});
@@ -370,10 +408,13 @@ describe("AssetService > MaintenanceTeam", () => {
 			mockPrisma.assetMaintenanceTeam.findUnique.mockResolvedValue(null);
 
 			await expect(
-				service.updateMaintenanceTeam({
-					id: "nonexistent",
-					name: "New Name",
-				}),
+				service.updateMaintenanceTeam(
+					{
+						id: "nonexistent",
+						name: "New Name",
+					},
+					"org-1",
+				),
 			).rejects.toThrow(NotFoundException);
 		});
 
@@ -383,10 +424,13 @@ describe("AssetService > MaintenanceTeam", () => {
 				.mockResolvedValueOnce({ id: "other-team" }); // name conflict
 
 			await expect(
-				service.updateMaintenanceTeam({
-					id: "team-001",
-					name: "Taken Name",
-				}),
+				service.updateMaintenanceTeam(
+					{
+						id: "team-001",
+						name: "Taken Name",
+					},
+					"org-1",
+				),
 			).rejects.toThrow(BadRequestException);
 		});
 
@@ -404,10 +448,13 @@ describe("AssetService > MaintenanceTeam", () => {
 				mockTeamRow,
 			);
 
-			const result = await service.updateMaintenanceTeam({
-				id: "team-001",
-				name: "Alpha Team",
-			});
+			const result = await service.updateMaintenanceTeam(
+				{
+					id: "team-001",
+					name: "Alpha Team",
+				},
+				"org-1",
+			);
 
 			expect(result.name).toBe("Alpha Team");
 		});
@@ -423,17 +470,20 @@ describe("AssetService > MaintenanceTeam", () => {
 			mockTx.assetMaintenanceTeamMember.findMany.mockResolvedValue([]);
 
 			await expect(
-				service.updateMaintenanceTeam({
-					id: "team-001",
-					members: [
-						{
-							id: "foreign-mem",
-							teamMember: "x@example.com",
-							fullName: "X",
-							maintenanceRole: "Tech",
-						},
-					],
-				}),
+				service.updateMaintenanceTeam(
+					{
+						id: "team-001",
+						members: [
+							{
+								id: "foreign-mem",
+								teamMember: "x@example.com",
+								fullName: "X",
+								maintenanceRole: "Tech",
+							},
+						],
+					},
+					"org-1",
+				),
 			).rejects.toThrow(BadRequestException);
 		});
 
@@ -451,16 +501,19 @@ describe("AssetService > MaintenanceTeam", () => {
 				members: [mockMember1],
 			});
 
-			const result = await service.updateMaintenanceTeam({
-				id: "team-001",
-				members: [
-					{
-						teamMember: "new@example.com",
-						fullName: "New guy",
-						maintenanceRole: "Tech",
-					},
-				],
-			});
+			const result = await service.updateMaintenanceTeam(
+				{
+					id: "team-001",
+					members: [
+						{
+							teamMember: "new@example.com",
+							fullName: "New guy",
+							maintenanceRole: "Tech",
+						},
+					],
+				},
+				"org-1",
+			);
 
 			expect(mockTx.assetMaintenanceTeamMember.create).toHaveBeenCalled();
 			expect(result).toBeDefined();
@@ -476,15 +529,18 @@ describe("AssetService > MaintenanceTeam", () => {
 			mockPrisma.assetMaintenanceTeam.findUnique.mockResolvedValue({
 				id: "team-001",
 			});
-			mockPrisma.assetMaintenanceTeam.delete.mockResolvedValue({
-				id: "team-001",
+			mockPrisma.assetMaintenanceTeam.deleteMany.mockResolvedValue({
+				count: 1,
 			});
 
-			const result = await service.deleteMaintenanceTeam("team-001");
+			const result = await service.deleteMaintenanceTeam("team-001", "org-1");
 
 			expect(result).toEqual({ success: true, id: "team-001" });
-			expect(mockPrisma.assetMaintenanceTeam.delete).toHaveBeenCalledWith({
-				where: { id: "team-001" },
+			expect(mockPrisma.assetMaintenanceTeam.deleteMany).toHaveBeenCalledWith({
+				where: expect.objectContaining({
+					id: "team-001",
+					company: { is: { organizationId: "org-1" } },
+				}),
 			});
 		});
 
@@ -492,7 +548,7 @@ describe("AssetService > MaintenanceTeam", () => {
 			mockPrisma.assetMaintenanceTeam.findUnique.mockResolvedValue(null);
 
 			await expect(
-				service.deleteMaintenanceTeam("nonexistent"),
+				service.deleteMaintenanceTeam("nonexistent", "org-1"),
 			).rejects.toThrow(NotFoundException);
 		});
 	});
@@ -503,14 +559,18 @@ describe("AssetService > MaintenanceTeam", () => {
 
 	describe("deleteManyMaintenanceTeams", () => {
 		it("bulk-deletes teams and returns count", async () => {
+			mockPrisma.assetMaintenanceTeam.findMany.mockResolvedValue([
+				{ id: "team-001" },
+				{ id: "team-002" },
+			]);
 			mockPrisma.assetMaintenanceTeam.deleteMany.mockResolvedValue({
 				count: 2,
 			});
 
-			const result = await service.deleteManyMaintenanceTeams([
-				"team-001",
-				"team-002",
-			]);
+			const result = await service.deleteManyMaintenanceTeams(
+				["team-001", "team-002"],
+				"org-1",
+			);
 
 			expect(result.success).toBe(true);
 			expect(result.count).toBe(2);
@@ -518,18 +578,24 @@ describe("AssetService > MaintenanceTeam", () => {
 		});
 
 		it("deduplicates ids before deleting", async () => {
+			mockPrisma.assetMaintenanceTeam.findMany.mockResolvedValue([
+				{ id: "team-001" },
+			]);
 			mockPrisma.assetMaintenanceTeam.deleteMany.mockResolvedValue({
 				count: 1,
 			});
 
-			const result = await service.deleteManyMaintenanceTeams([
-				"team-001",
-				"team-001",
-			]);
+			const result = await service.deleteManyMaintenanceTeams(
+				["team-001", "team-001"],
+				"org-1",
+			);
 
 			expect(result.ids).toEqual(["team-001"]);
 			expect(mockPrisma.assetMaintenanceTeam.deleteMany).toHaveBeenCalledWith({
-				where: { id: { in: ["team-001"] } },
+				where: expect.objectContaining({
+					id: { in: ["team-001"] },
+					company: { is: { organizationId: "org-1" } },
+				}),
 			});
 		});
 	});

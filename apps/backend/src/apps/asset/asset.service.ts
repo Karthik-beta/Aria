@@ -49,6 +49,12 @@ import { buildAssetActivityReportResult } from "./asset-activity-report";
 import { AssetDashboardSubService } from "./asset-dashboard.service";
 import { buildAssetDepreciationLedgerResult } from "./asset-depreciation-ledger-report";
 import { buildAssetDepreciationsAndBalancesResult } from "./asset-depreciations-and-balances-report";
+import {
+	type AssetOrganizationId,
+	assertAssetOrganizationId,
+	assetWhereForOrganization,
+	companyWhereForOrganization,
+} from "./asset-organization-scope";
 import { AssetStockPostingService } from "./asset-stock-posting.service";
 import {
 	buildDepreciationSchedulePreview,
@@ -222,14 +228,52 @@ export class AssetService {
 
 	private async ensureReportDepreciation(
 		toDate: Date,
+		organizationId: AssetOrganizationId,
 		company?: string,
 	): Promise<void> {
+		assertAssetOrganizationId(organizationId);
 		const today = dateOnlyUtc(businessDate(depreciationTimeZone()));
 		const throughDate = toDate < today ? toDate : today;
 		await this.depreciationBarrier?.ensureDepreciationPosted({
+			kind: "organization",
+			organizationId,
 			throughDate,
 			...(company ? { company } : {}),
 		});
+	}
+
+	private assertOrganizationScope(organizationId: AssetOrganizationId): void {
+		assertAssetOrganizationId(organizationId);
+	}
+
+	/** Applies organization ownership to a capitalization and every linked asset. */
+	private assetCapitalizationWhereForOrganization(
+		organizationId: AssetOrganizationId,
+		where: Prisma.AssetCapitalizationWhereInput = {},
+	): Prisma.AssetCapitalizationWhereInput {
+		return {
+			AND: [
+				{ company: { is: { organizationId } } },
+				{
+					assetItems: {
+						every: {
+							asset: { is: assetWhereForOrganization(organizationId) },
+						},
+					},
+				},
+				{
+					OR: [
+						{ targetAssetId: null },
+						{
+							targetAsset: {
+								is: assetWhereForOrganization(organizationId),
+							},
+						},
+					],
+				},
+				where,
+			],
+		};
 	}
 
 	/** Resolves a stable Company ID against the trusted active Organization. */
@@ -266,20 +310,32 @@ export class AssetService {
 	// Dashboard
 	// ============================================================================
 
-	async getDashboardData(): Promise<Asset.AssetDashboardData> {
-		return this.dashboard.getDashboardData();
+	async getDashboardData(
+		organizationId: AssetOrganizationId,
+	): Promise<Asset.AssetDashboardData> {
+		this.assertOrganizationScope(organizationId);
+		return this.dashboard.getDashboardData(organizationId);
 	}
 
-	async getDashboardOverviewData(): Promise<Asset.AssetDashboardOverviewData> {
-		return this.dashboard.getDashboardOverviewData();
+	async getDashboardOverviewData(
+		organizationId: AssetOrganizationId,
+	): Promise<Asset.AssetDashboardOverviewData> {
+		this.assertOrganizationScope(organizationId);
+		return this.dashboard.getDashboardOverviewData(organizationId);
 	}
 
-	async getDashboardTopChartsData(): Promise<Asset.AssetDashboardTopChartsData> {
-		return this.dashboard.getDashboardTopChartsData();
+	async getDashboardTopChartsData(
+		organizationId: AssetOrganizationId,
+	): Promise<Asset.AssetDashboardTopChartsData> {
+		this.assertOrganizationScope(organizationId);
+		return this.dashboard.getDashboardTopChartsData(organizationId);
 	}
 
-	async getDashboardBottomChartsData(): Promise<Asset.AssetDashboardBottomChartsData> {
-		return this.dashboard.getDashboardBottomChartsData();
+	async getDashboardBottomChartsData(
+		organizationId: AssetOrganizationId,
+	): Promise<Asset.AssetDashboardBottomChartsData> {
+		this.assertOrganizationScope(organizationId);
+		return this.dashboard.getDashboardBottomChartsData(organizationId);
 	}
 
 	// ============================================================================
@@ -296,6 +352,7 @@ export class AssetService {
 	 */
 	private async generateAssetSeries(
 		date: Date,
+		organizationId: AssetOrganizationId,
 		tx?: Prisma.TransactionClient,
 	): Promise<string> {
 		const client = tx ?? this.prisma;
@@ -315,7 +372,9 @@ export class AssetService {
 		}
 
 		const last = await client.asset.findFirst({
-			where: { series: { startsWith: prefix } },
+			where: assetWhereForOrganization(organizationId, {
+				series: { startsWith: prefix },
+			}),
 			orderBy: { series: "desc" },
 			select: { series: true },
 		});
@@ -334,6 +393,7 @@ export class AssetService {
 	 */
 	private async generateAssetValueAdjustmentSeries(
 		date: Date,
+		organizationId: AssetOrganizationId,
 		tx?: Prisma.TransactionClient,
 	): Promise<string> {
 		const client = tx ?? this.prisma;
@@ -353,7 +413,12 @@ export class AssetService {
 		}
 
 		const last = await client.assetValueAdjustment.findFirst({
-			where: { series: { startsWith: prefix } },
+			where: {
+				AND: [
+					{ asset: { is: assetWhereForOrganization(organizationId) } },
+					{ series: { startsWith: prefix } },
+				],
+			},
 			orderBy: { series: "desc" },
 			select: { series: true },
 		});
@@ -372,6 +437,7 @@ export class AssetService {
 	 */
 	private async generateAssetRevaluationEntrySeries(
 		date: Date,
+		organizationId: AssetOrganizationId,
 		tx?: Prisma.TransactionClient,
 	): Promise<string> {
 		const client = tx ?? this.prisma;
@@ -391,7 +457,13 @@ export class AssetService {
 		}
 
 		const last = await client.assetRevaluationEntry.findFirst({
-			where: { series: { startsWith: prefix } },
+			where: {
+				AND: [
+					{ company: { is: { organizationId } } },
+					{ asset: { is: assetWhereForOrganization(organizationId) } },
+					{ series: { startsWith: prefix } },
+				],
+			},
 			orderBy: { series: "desc" },
 			select: { series: true },
 		});
@@ -410,6 +482,7 @@ export class AssetService {
 	 */
 	private async generateAssetMovementSeries(
 		date: Date,
+		organizationId: AssetOrganizationId,
 		tx?: Prisma.TransactionClient,
 	): Promise<string> {
 		const client = tx ?? this.prisma;
@@ -429,7 +502,12 @@ export class AssetService {
 		}
 
 		const last = await client.assetMovement.findFirst({
-			where: { series: { startsWith: prefix } },
+			where: {
+				AND: [
+					{ company: { is: { organizationId } } },
+					{ series: { startsWith: prefix } },
+				],
+			},
 			orderBy: { series: "desc" },
 			select: { series: true },
 		});
@@ -448,6 +526,7 @@ export class AssetService {
 	 */
 	private async generateAssetRepairSeries(
 		date: Date,
+		organizationId: AssetOrganizationId,
 		tx?: Prisma.TransactionClient,
 	): Promise<string> {
 		const client = tx ?? this.prisma;
@@ -467,7 +546,13 @@ export class AssetService {
 		}
 
 		const last = await client.assetRepair.findFirst({
-			where: { series: { startsWith: prefix } },
+			where: {
+				AND: [
+					{ company: { is: { organizationId } } },
+					{ asset: { is: assetWhereForOrganization(organizationId) } },
+					{ series: { startsWith: prefix } },
+				],
+			},
 			orderBy: { series: "desc" },
 			select: { series: true },
 		});
@@ -486,6 +571,7 @@ export class AssetService {
 	 */
 	private async generateAssetCapitalizationSeries(
 		date: Date,
+		organizationId: AssetOrganizationId,
 		tx?: Prisma.TransactionClient,
 	): Promise<string> {
 		const client = tx ?? this.prisma;
@@ -505,7 +591,9 @@ export class AssetService {
 		}
 
 		const last = await client.assetCapitalization.findFirst({
-			where: { series: { startsWith: prefix } },
+			where: this.assetCapitalizationWhereForOrganization(organizationId, {
+				series: { startsWith: prefix },
+			}),
 			orderBy: { series: "desc" },
 			select: { series: true },
 		});
@@ -524,6 +612,7 @@ export class AssetService {
 	 */
 	private async generateAssetDisposalSeries(
 		date: Date,
+		organizationId: AssetOrganizationId,
 		tx?: Prisma.TransactionClient,
 	): Promise<string> {
 		const client = tx ?? this.prisma;
@@ -543,7 +632,13 @@ export class AssetService {
 		}
 
 		const last = await client.assetDisposal.findFirst({
-			where: { series: { startsWith: prefix } },
+			where: {
+				AND: [
+					{ company: { is: { organizationId } } },
+					{ asset: { is: assetWhereForOrganization(organizationId) } },
+					{ series: { startsWith: prefix } },
+				],
+			},
 			orderBy: { series: "desc" },
 			select: { series: true },
 		});
@@ -597,10 +692,11 @@ export class AssetService {
 	private async syncMaintenanceAssetStatus(
 		tx: Prisma.TransactionClient,
 		assetId: string,
+		organizationId: AssetOrganizationId,
 		restoredStatus?: RestorableAssetStatus,
 	): Promise<void> {
-		const asset = await tx.asset.findUnique({
-			where: { id: assetId },
+		const asset = await tx.asset.findFirst({
+			where: assetWhereForOrganization(organizationId, { id: assetId }),
 			select: {
 				status: true,
 				isFullyDepreciated: true,
@@ -613,12 +709,21 @@ export class AssetService {
 		const [openRepair, dueMaintenance, postedDepreciations] = await Promise.all(
 			[
 				tx.assetRepair.findFirst({
-					where: { assetId, repairStatus: { in: ["DRAFT", "PENDING"] } },
+					where: {
+						assetId,
+						asset: { is: assetWhereForOrganization(organizationId) },
+						repairStatus: { in: ["DRAFT", "PENDING"] },
+					},
 					select: { id: true },
 				}),
 				tx.assetMaintenanceTask.findFirst({
 					where: {
-						maintenance: { assetId },
+						maintenance: {
+							is: {
+								assetId,
+								asset: { is: assetWhereForOrganization(organizationId) },
+							},
+						},
 						OR: [
 							{ maintenanceStatus: "OVERDUE" },
 							{
@@ -630,7 +735,11 @@ export class AssetService {
 					select: { id: true },
 				}),
 				tx.assetDepreciationJournalEntry.count({
-					where: { assetId, status: "POSTED" },
+					where: {
+						assetId,
+						asset: { is: assetWhereForOrganization(organizationId) },
+						status: "POSTED",
+					},
 				}),
 			],
 		);
@@ -655,16 +764,32 @@ export class AssetService {
 			dueMaintenance
 		) {
 			if (asset.status !== desired) {
-				await tx.asset.update({
-					where: { id: assetId },
-					data: { status: desired },
+				await this.updateOwnedAsset(tx, organizationId, assetId, {
+					status: desired,
 				});
 			}
 		}
 	}
 
+	/** Mutates an Asset only when its Company still belongs to the trusted organization. */
+	private async updateOwnedAsset(
+		tx: Prisma.TransactionClient,
+		organizationId: AssetOrganizationId,
+		assetId: string,
+		data: Prisma.AssetUpdateManyArgs["data"],
+	): Promise<void> {
+		const updated = await tx.asset.updateMany({
+			where: assetWhereForOrganization(organizationId, { id: assetId }),
+			data,
+		});
+		if (updated.count !== 1) {
+			throw new NotFoundException(`Asset ${assetId} not found`);
+		}
+	}
+
 	private async getAssetAccountingContext(
 		tx: Prisma.TransactionClient,
+		organizationId: AssetOrganizationId,
 		asset: {
 			series: string;
 			companyId: string;
@@ -681,8 +806,10 @@ export class AssetService {
 				`Asset ${asset.series} requires an asset category before accounting can be posted.`,
 			);
 		}
-		const company = await tx.company.findUnique({
-			where: { id: asset.companyId },
+		const company = await tx.company.findFirst({
+			where: companyWhereForOrganization(organizationId, {
+				id: asset.companyId,
+			}),
 			select: {
 				id: true,
 				name: true,
@@ -726,11 +853,16 @@ export class AssetService {
 
 	private async getFixedAssetBalance(
 		tx: Prisma.TransactionClient,
+		organizationId: AssetOrganizationId,
 		assetId: string,
 		netPurchaseAmount: number,
 	): Promise<number> {
 		const adjustments = await tx.assetValueAdjustment.aggregate({
-			where: { assetId, status: "SUBMITTED" },
+			where: {
+				assetId,
+				status: "SUBMITTED",
+				asset: { is: assetWhereForOrganization(organizationId) },
+			},
 			_sum: { differenceAmount: true },
 		});
 		return this.roundCurrency(
@@ -886,12 +1018,42 @@ export class AssetService {
 		});
 	}
 
+	/** Validates company-owned category accounts while keeping shared masters global. */
+	private async validateAssetCategoryReferences(
+		organizationId: AssetOrganizationId,
+		accounts?: readonly { companyId: string }[] | null,
+		financeBooks?: readonly { financeBookId: string }[] | null,
+	): Promise<void> {
+		this.assertOrganizationScope(organizationId);
+		for (const companyId of new Set(
+			(accounts ?? []).map((account) => account.companyId),
+		)) {
+			await this.resolveCompanyForOrganization(organizationId, companyId);
+		}
+
+		const financeBookIds = [
+			...new Set((financeBooks ?? []).map((book) => book.financeBookId)),
+		];
+		if (financeBookIds.length === 0) return;
+		const existingFinanceBooks = await this.prisma.financeBook.findMany({
+			where: { id: { in: financeBookIds } },
+			select: { id: true },
+		});
+		if (existingFinanceBooks.length !== financeBookIds.length) {
+			throw new NotFoundException(
+				"One or more finance books referenced by the asset category do not exist",
+			);
+		}
+	}
+
 	private async getAssetAdjustmentContextOrThrow(
 		assetId: string,
+		organizationId: AssetOrganizationId,
 		client: Pick<Prisma.TransactionClient, "asset"> = this.prisma,
 	) {
-		const asset = await client.asset.findUnique({
-			where: { id: assetId },
+		this.assertOrganizationScope(organizationId);
+		const asset = await client.asset.findFirst({
+			where: assetWhereForOrganization(organizationId, { id: assetId }),
 			select: this.assetAdjustmentContextSelect,
 		});
 
@@ -1221,21 +1383,26 @@ export class AssetService {
 	// ============================================================================
 
 	async findAllAssets(
+		organizationId: AssetOrganizationId,
 		params?: Asset.ListAssetsInput,
 	): Promise<Asset.AssetListResult> {
+		this.assertOrganizationScope(organizationId);
 		const skip = Math.max(params?.skip ?? 0, 0);
 		const take = Math.min(
 			Math.max(params?.take ?? LIST_TAKE_MAX, 1),
 			LIST_TAKE_MAX,
 		);
 
-		const where: Record<string, unknown> = {};
+		const where: Prisma.AssetWhereInput = {};
 		if (params?.status) where.status = params.status;
 		if (params?.assetCategoryId) where.assetCategoryId = params.assetCategoryId;
 		if (params?.locationId) where.locationId = params.locationId;
 		if (params?.company)
 			where.company = {
-				is: { name: { contains: params.company, mode: "insensitive" } },
+				is: {
+					organizationId,
+					name: { contains: params.company, mode: "insensitive" },
+				},
 			};
 		if (params?.search) {
 			where.OR = [
@@ -1247,23 +1414,28 @@ export class AssetService {
 			];
 		}
 
+		const scopedWhere = assetWhereForOrganization(organizationId, where);
 		const [items, totalCount] = await Promise.all([
 			this.prisma.asset.findMany({
-				where,
+				where: scopedWhere,
 				include: this.assetInclude,
 				orderBy: { createdAt: "desc" },
 				skip,
 				take,
 			}),
-			this.prisma.asset.count({ where }),
+			this.prisma.asset.count({ where: scopedWhere }),
 		]);
 
 		return { items: items.map(toAsset), totalCount };
 	}
 
-	async findAssetById(id: string): Promise<Asset.AssetItem | null> {
-		const asset = await this.prisma.asset.findUnique({
-			where: { id },
+	async findAssetById(
+		id: string,
+		organizationId: AssetOrganizationId,
+	): Promise<Asset.AssetItem | null> {
+		this.assertOrganizationScope(organizationId);
+		const asset = await this.prisma.asset.findFirst({
+			where: assetWhereForOrganization(organizationId, { id }),
 			include: this.assetInclude,
 		});
 		return asset ? toAsset(asset) : null;
@@ -1271,25 +1443,34 @@ export class AssetService {
 
 	async listAssetDepreciationSchedules(
 		assetId: string,
+		organizationId: AssetOrganizationId,
 	): Promise<Asset.AssetDepreciationScheduleListResult> {
-		const exists = await this.prisma.asset.findUnique({
-			where: { id: assetId },
+		this.assertOrganizationScope(organizationId);
+		const exists = await this.prisma.asset.findFirst({
+			where: assetWhereForOrganization(organizationId, { id: assetId }),
 			select: { id: true },
 		});
 		if (!exists) {
 			throw new NotFoundException(`Asset ${assetId} not found`);
 		}
 		const schedules = await this.prisma.assetDepreciationSchedule.findMany({
-			where: { assetId },
+			where: {
+				assetId,
+				asset: { is: assetWhereForOrganization(organizationId) },
+			},
 			include: { entries: { orderBy: { sequence: "asc" } } },
 			orderBy: [{ assetFinanceBookId: "asc" }, { revisionNumber: "desc" }],
 		});
 		return { items: schedules.map(toAssetDepreciationSchedule) };
 	}
 
-	async findAssetByBarcode(barcode: string): Promise<Asset.AssetItem | null> {
-		const asset = await this.prisma.asset.findUnique({
-			where: { barcode },
+	async findAssetByBarcode(
+		barcode: string,
+		organizationId: AssetOrganizationId,
+	): Promise<Asset.AssetItem | null> {
+		this.assertOrganizationScope(organizationId);
+		const asset = await this.prisma.asset.findFirst({
+			where: assetWhereForOrganization(organizationId, { barcode }),
 			include: this.assetInclude,
 		});
 		return asset ? toAsset(asset) : null;
@@ -1300,6 +1481,7 @@ export class AssetService {
 		organizationId: string,
 		actorId?: string | null,
 	): Promise<Asset.AssetItem> {
+		this.assertOrganizationScope(organizationId);
 		if (input.status && input.status !== "DRAFT") {
 			throw new BadRequestException(
 				"Create the asset as a draft, then use the explicit submit action",
@@ -1310,8 +1492,10 @@ export class AssetService {
 			input.companyId,
 		);
 		if (input.barcode && input.barcode.trim().length > 0) {
-			const existingWithBarcode = await this.prisma.asset.findUnique({
-				where: { barcode: input.barcode.trim() },
+			const existingWithBarcode = await this.prisma.asset.findFirst({
+				where: assetWhereForOrganization(organizationId, {
+					barcode: input.barcode.trim(),
+				}),
 				select: { id: true, assetName: true },
 			});
 			if (existingWithBarcode) {
@@ -1323,7 +1507,7 @@ export class AssetService {
 
 		const purchaseDate =
 			input.purchaseDate instanceof Date ? input.purchaseDate : new Date();
-		const series = await this.generateAssetSeries(purchaseDate);
+		const series = await this.generateAssetSeries(purchaseDate, organizationId);
 		const categoryDefaults = await this.getAssetCategoryDefaults(
 			input.assetCategoryId,
 		);
@@ -1439,6 +1623,7 @@ export class AssetService {
 		await this.depreciationLifecycle?.configureAssetBooks(
 			created.id,
 			input.financeBooks,
+			organizationId,
 		);
 
 		await this.prisma.assetActivity.create({
@@ -1449,8 +1634,8 @@ export class AssetService {
 			},
 		});
 
-		const asset = await this.prisma.asset.findUniqueOrThrow({
-			where: { id: created.id },
+		const asset = await this.prisma.asset.findFirstOrThrow({
+			where: assetWhereForOrganization(organizationId, { id: created.id }),
 			include: this.assetInclude,
 		});
 
@@ -1463,8 +1648,9 @@ export class AssetService {
 		organizationId: string,
 		actorId?: string | null,
 	): Promise<Asset.AssetItem> {
-		const existing = await this.prisma.asset.findUnique({
-			where: { id: input.id },
+		this.assertOrganizationScope(organizationId);
+		const existing = await this.prisma.asset.findFirst({
+			where: assetWhereForOrganization(organizationId, { id: input.id }),
 			select: {
 				id: true,
 				companyId: true,
@@ -1506,8 +1692,10 @@ export class AssetService {
 		}
 
 		if (input.barcode && input.barcode.trim().length > 0) {
-			const existingWithBarcode = await this.prisma.asset.findUnique({
-				where: { barcode: input.barcode.trim() },
+			const existingWithBarcode = await this.prisma.asset.findFirst({
+				where: assetWhereForOrganization(organizationId, {
+					barcode: input.barcode.trim(),
+				}),
 				select: { id: true, assetName: true },
 			});
 			if (existingWithBarcode && existingWithBarcode.id !== input.id) {
@@ -1629,171 +1817,190 @@ export class AssetService {
 			calculateDepreciation,
 		);
 
-		const asset = await this.prisma.asset.update({
-			where: { id: input.id },
-			data: {
-				...(input.assetName !== undefined && { assetName: input.assetName }),
-				...(input.assetType !== undefined && { assetType: input.assetType }),
-				...(input.itemCode !== undefined && { itemCode: input.itemCode ?? "" }),
-				...(input.barcode !== undefined && { barcode: input.barcode }),
-				...(input.assetCategoryId !== undefined && {
-					assetCategoryId: input.assetCategoryId,
-				}),
-				...(input.locationId !== undefined && { locationId: input.locationId }),
-				...(input.custodian !== undefined && { custodian: input.custodian }),
-				...(input.department !== undefined && { department: input.department }),
-				...(input.purchaseDate instanceof Date && {
-					purchaseDate: input.purchaseDate,
-				}),
-				...(input.availableForUseDate !== undefined && {
-					availableForUseDate:
-						input.availableForUseDate instanceof Date
-							? input.availableForUseDate
-							: null,
-				}),
-				...(input.disposalDate !== undefined && {
-					disposalDate:
-						input.disposalDate instanceof Date ? input.disposalDate : null,
-				}),
-				...(input.netPurchaseAmount !== undefined &&
-					input.netPurchaseAmount !== null && {
-						netPurchaseAmount: input.netPurchaseAmount.toString(),
+		const asset = await this.prisma.$transaction(async (tx) => {
+			const transitioned = await tx.asset.updateMany({
+				where: assetWhereForOrganization(organizationId, { id: input.id }),
+				data: {
+					...(input.assetName !== undefined && { assetName: input.assetName }),
+					...(input.assetType !== undefined && { assetType: input.assetType }),
+					...(input.itemCode !== undefined && {
+						itemCode: input.itemCode ?? "",
 					}),
-				...(input.assetQuantity !== undefined && {
-					assetQuantity: input.assetQuantity,
-				}),
-				...(input.calculateDepreciation !== undefined ||
-				input.assetCategoryId !== undefined
-					? {
-							calculateDepreciation,
-						}
-					: {}),
-				...(input.openingAccumulatedDepreciation !== undefined &&
-					input.openingAccumulatedDepreciation !== null && {
-						openingAccumulatedDepreciation:
-							input.openingAccumulatedDepreciation.toString(),
+					...(input.barcode !== undefined && { barcode: input.barcode }),
+					...(input.assetCategoryId !== undefined && {
+						assetCategoryId: input.assetCategoryId,
 					}),
-				...(input.openingNumberOfBookedDepreciations !== undefined &&
-					input.openingNumberOfBookedDepreciations !== null && {
-						openingNumberOfBookedDepreciations:
-							input.openingNumberOfBookedDepreciations,
+					...(input.locationId !== undefined && {
+						locationId: input.locationId,
 					}),
-				...(input.isFullyDepreciated !== undefined ||
-				shouldRecalculateValueAfterDepreciation
-					? {
-							isFullyDepreciated:
-								input.isFullyDepreciated ?? nextValueAfterDepreciation <= 0,
-						}
-					: {}),
-				...(input.valueAfterDepreciation !== undefined ||
-				shouldRecalculateValueAfterDepreciation
-					? {
-							valueAfterDepreciation: nextValueAfterDepreciation.toString(),
-						}
-					: {}),
-				...(input.maintenanceRequired !== undefined && {
-					maintenanceRequired: input.maintenanceRequired,
-				}),
-				...(input.assetOwner !== undefined && { assetOwner: input.assetOwner }),
-				...(input.assetOwnerCompany !== undefined && {
-					assetOwnerCompany: input.assetOwnerCompany,
-				}),
-				...(input.supplier !== undefined && { supplier: input.supplier }),
-				...(input.customer !== undefined && { customer: input.customer }),
-				...(input.policyNumber !== undefined && {
-					policyNumber: input.policyNumber,
-				}),
-				...(input.insurer !== undefined && { insurer: input.insurer }),
-				...(input.insuredValue !== undefined && {
-					insuredValue:
-						input.insuredValue !== null ? input.insuredValue.toString() : null,
-				}),
-				...(input.insuranceStartDate !== undefined && {
-					insuranceStartDate:
-						input.insuranceStartDate instanceof Date
-							? input.insuranceStartDate
-							: null,
-				}),
-				...(input.insuranceEndDate !== undefined && {
-					insuranceEndDate:
-						input.insuranceEndDate instanceof Date
-							? input.insuranceEndDate
-							: null,
-				}),
-				...(input.depreciationMethod !== undefined && {
-					depreciationMethod: input.depreciationMethod,
-				}),
-				...(shouldInheritDepreciationSettings && {
-					depreciationMethod:
-						(categoryDefaults?.depreciationMethod as Asset.DepreciationMethod | null) ??
-						null,
-				}),
-				...(input.totalNumberOfDepreciations !== undefined && {
-					totalNumberOfDepreciations: input.totalNumberOfDepreciations,
-				}),
-				...(shouldInheritTotalDepreciations && {
-					totalNumberOfDepreciations:
-						categoryDefaults?.totalNumberOfDepreciations ?? null,
-				}),
-				...(input.frequencyOfDepreciation !== undefined && {
-					frequencyOfDepreciation: input.frequencyOfDepreciation,
-				}),
-				...(shouldInheritFrequency && {
-					frequencyOfDepreciation:
-						categoryDefaults?.frequencyOfDepreciation ?? null,
-				}),
-				...(input.expectedValueAfterUsefulLife !== undefined && {
-					expectedValueAfterUsefulLife:
-						input.expectedValueAfterUsefulLife !== null
-							? input.expectedValueAfterUsefulLife.toString()
-							: null,
-				}),
-				...(shouldInheritExpectedValueAfterUsefulLife &&
-				categoryDefaults?.expectedValueAfterUsefulLife != null
-					? {
-							expectedValueAfterUsefulLife:
-								categoryDefaults.expectedValueAfterUsefulLife.toString(),
-						}
-					: {}),
-				...(input.depreciationStartDate !== undefined && {
-					depreciationStartDate:
-						input.depreciationStartDate instanceof Date
-							? input.depreciationStartDate
-							: null,
-				}),
-				...(shouldInheritDepreciationStartDate && nextAvailableForUseDate
-					? {
-							depreciationStartDate: this.getLastDayOfMonth(
-								nextAvailableForUseDate,
-							),
-						}
-					: {}),
-				...(input.purchaseReceipt !== undefined && {
-					purchaseReceipt: input.purchaseReceipt,
-				}),
-				...(input.purchaseInvoice !== undefined && {
-					purchaseInvoice: input.purchaseInvoice,
-				}),
-				...(input.status !== undefined && { status: input.status }),
-			},
-			include: this.assetInclude,
-		});
-
-		await this.prisma.assetActivity.create({
-			data: {
-				assetId: input.id,
-				activity: "Asset updated",
-				userId: actorId ?? null,
-			},
+					...(input.custodian !== undefined && { custodian: input.custodian }),
+					...(input.department !== undefined && {
+						department: input.department,
+					}),
+					...(input.purchaseDate instanceof Date && {
+						purchaseDate: input.purchaseDate,
+					}),
+					...(input.availableForUseDate !== undefined && {
+						availableForUseDate:
+							input.availableForUseDate instanceof Date
+								? input.availableForUseDate
+								: null,
+					}),
+					...(input.disposalDate !== undefined && {
+						disposalDate:
+							input.disposalDate instanceof Date ? input.disposalDate : null,
+					}),
+					...(input.netPurchaseAmount !== undefined &&
+						input.netPurchaseAmount !== null && {
+							netPurchaseAmount: input.netPurchaseAmount.toString(),
+						}),
+					...(input.assetQuantity !== undefined && {
+						assetQuantity: input.assetQuantity,
+					}),
+					...(input.calculateDepreciation !== undefined ||
+					input.assetCategoryId !== undefined
+						? {
+								calculateDepreciation,
+							}
+						: {}),
+					...(input.openingAccumulatedDepreciation !== undefined &&
+						input.openingAccumulatedDepreciation !== null && {
+							openingAccumulatedDepreciation:
+								input.openingAccumulatedDepreciation.toString(),
+						}),
+					...(input.openingNumberOfBookedDepreciations !== undefined &&
+						input.openingNumberOfBookedDepreciations !== null && {
+							openingNumberOfBookedDepreciations:
+								input.openingNumberOfBookedDepreciations,
+						}),
+					...(input.isFullyDepreciated !== undefined ||
+					shouldRecalculateValueAfterDepreciation
+						? {
+								isFullyDepreciated:
+									input.isFullyDepreciated ?? nextValueAfterDepreciation <= 0,
+							}
+						: {}),
+					...(input.valueAfterDepreciation !== undefined ||
+					shouldRecalculateValueAfterDepreciation
+						? {
+								valueAfterDepreciation: nextValueAfterDepreciation.toString(),
+							}
+						: {}),
+					...(input.maintenanceRequired !== undefined && {
+						maintenanceRequired: input.maintenanceRequired,
+					}),
+					...(input.assetOwner !== undefined && {
+						assetOwner: input.assetOwner,
+					}),
+					...(input.assetOwnerCompany !== undefined && {
+						assetOwnerCompany: input.assetOwnerCompany,
+					}),
+					...(input.supplier !== undefined && { supplier: input.supplier }),
+					...(input.customer !== undefined && { customer: input.customer }),
+					...(input.policyNumber !== undefined && {
+						policyNumber: input.policyNumber,
+					}),
+					...(input.insurer !== undefined && { insurer: input.insurer }),
+					...(input.insuredValue !== undefined && {
+						insuredValue:
+							input.insuredValue !== null
+								? input.insuredValue.toString()
+								: null,
+					}),
+					...(input.insuranceStartDate !== undefined && {
+						insuranceStartDate:
+							input.insuranceStartDate instanceof Date
+								? input.insuranceStartDate
+								: null,
+					}),
+					...(input.insuranceEndDate !== undefined && {
+						insuranceEndDate:
+							input.insuranceEndDate instanceof Date
+								? input.insuranceEndDate
+								: null,
+					}),
+					...(input.depreciationMethod !== undefined && {
+						depreciationMethod: input.depreciationMethod,
+					}),
+					...(shouldInheritDepreciationSettings && {
+						depreciationMethod:
+							(categoryDefaults?.depreciationMethod as Asset.DepreciationMethod | null) ??
+							null,
+					}),
+					...(input.totalNumberOfDepreciations !== undefined && {
+						totalNumberOfDepreciations: input.totalNumberOfDepreciations,
+					}),
+					...(shouldInheritTotalDepreciations && {
+						totalNumberOfDepreciations:
+							categoryDefaults?.totalNumberOfDepreciations ?? null,
+					}),
+					...(input.frequencyOfDepreciation !== undefined && {
+						frequencyOfDepreciation: input.frequencyOfDepreciation,
+					}),
+					...(shouldInheritFrequency && {
+						frequencyOfDepreciation:
+							categoryDefaults?.frequencyOfDepreciation ?? null,
+					}),
+					...(input.expectedValueAfterUsefulLife !== undefined && {
+						expectedValueAfterUsefulLife:
+							input.expectedValueAfterUsefulLife !== null
+								? input.expectedValueAfterUsefulLife.toString()
+								: null,
+					}),
+					...(shouldInheritExpectedValueAfterUsefulLife &&
+					categoryDefaults?.expectedValueAfterUsefulLife != null
+						? {
+								expectedValueAfterUsefulLife:
+									categoryDefaults.expectedValueAfterUsefulLife.toString(),
+							}
+						: {}),
+					...(input.depreciationStartDate !== undefined && {
+						depreciationStartDate:
+							input.depreciationStartDate instanceof Date
+								? input.depreciationStartDate
+								: null,
+					}),
+					...(shouldInheritDepreciationStartDate && nextAvailableForUseDate
+						? {
+								depreciationStartDate: this.getLastDayOfMonth(
+									nextAvailableForUseDate,
+								),
+							}
+						: {}),
+					...(input.purchaseReceipt !== undefined && {
+						purchaseReceipt: input.purchaseReceipt,
+					}),
+					...(input.purchaseInvoice !== undefined && {
+						purchaseInvoice: input.purchaseInvoice,
+					}),
+					...(input.status !== undefined && { status: input.status }),
+				},
+			});
+			if (transitioned.count !== 1) {
+				throw new NotFoundException(`Asset ${input.id} not found`);
+			}
+			const updated = await tx.asset.findFirstOrThrow({
+				where: assetWhereForOrganization(organizationId, { id: input.id }),
+				include: this.assetInclude,
+			});
+			await tx.assetActivity.create({
+				data: {
+					assetId: input.id,
+					activity: "Asset updated",
+					userId: actorId ?? null,
+				},
+			});
+			return updated;
 		});
 
 		if (existing.status === "DRAFT" && input.financeBooks !== undefined) {
 			await this.depreciationLifecycle?.configureAssetBooks(
 				input.id,
 				input.financeBooks,
+				organizationId,
 			);
-			const refreshed = await this.prisma.asset.findUniqueOrThrow({
-				where: { id: input.id },
+			const refreshed = await this.prisma.asset.findFirstOrThrow({
+				where: assetWhereForOrganization(organizationId, { id: input.id }),
 				include: this.assetInclude,
 			});
 			return toAsset(refreshed);
@@ -1805,14 +2012,24 @@ export class AssetService {
 	/** Submits a draft asset and activates its precomputed schedules. */
 	async submitAsset(
 		id: string,
+		organizationId: AssetOrganizationId,
 		actorId?: string | null,
 	): Promise<Asset.AssetItem> {
+		this.assertOrganizationScope(organizationId);
 		if (!this.depreciationLifecycle) {
 			throw new Error("Depreciation lifecycle service is unavailable");
 		}
-		await this.depreciationLifecycle.submitAsset(id, actorId);
-		const asset = await this.prisma.asset.findUniqueOrThrow({
-			where: { id },
+		if (
+			!(await this.prisma.asset.findFirst({
+				where: assetWhereForOrganization(organizationId, { id }),
+				select: { id: true },
+			}))
+		) {
+			throw new NotFoundException(`Asset ${id} not found`);
+		}
+		await this.depreciationLifecycle.submitAsset(id, organizationId, actorId);
+		const asset = await this.prisma.asset.findFirstOrThrow({
+			where: assetWhereForOrganization(organizationId, { id }),
 			include: this.assetInclude,
 		});
 		return toAsset(asset);
@@ -1821,22 +2038,36 @@ export class AssetService {
 	/** Cancels an unposted asset and cancels its open schedules. */
 	async cancelAsset(
 		id: string,
+		organizationId: AssetOrganizationId,
 		actorId?: string | null,
 	): Promise<Asset.AssetItem> {
+		this.assertOrganizationScope(organizationId);
 		if (!this.depreciationLifecycle) {
 			throw new Error("Depreciation lifecycle service is unavailable");
 		}
-		await this.depreciationLifecycle.cancelAsset(id, actorId);
-		const asset = await this.prisma.asset.findUniqueOrThrow({
-			where: { id },
+		if (
+			!(await this.prisma.asset.findFirst({
+				where: assetWhereForOrganization(organizationId, { id }),
+				select: { id: true },
+			}))
+		) {
+			throw new NotFoundException(`Asset ${id} not found`);
+		}
+		await this.depreciationLifecycle.cancelAsset(id, organizationId, actorId);
+		const asset = await this.prisma.asset.findFirstOrThrow({
+			where: assetWhereForOrganization(organizationId, { id }),
 			include: this.assetInclude,
 		});
 		return toAsset(asset);
 	}
 
-	async deleteAsset(id: string): Promise<{ success: boolean; id: string }> {
-		const existing = await this.prisma.asset.findUnique({
-			where: { id },
+	async deleteAsset(
+		id: string,
+		organizationId: AssetOrganizationId,
+	): Promise<{ success: boolean; id: string }> {
+		this.assertOrganizationScope(organizationId);
+		const existing = await this.prisma.asset.findFirst({
+			where: assetWhereForOrganization(organizationId, { id }),
 			select: { id: true, status: true },
 		});
 		if (!existing) throw new NotFoundException(`Asset ${id} not found`);
@@ -1847,17 +2078,31 @@ export class AssetService {
 			);
 		}
 
-		await this.prisma.asset.delete({ where: { id } });
+		const deleted = await this.prisma.asset.deleteMany({
+			where: assetWhereForOrganization(organizationId, { id }),
+		});
+		if (deleted.count !== 1)
+			throw new NotFoundException(`Asset ${id} not found`);
 		return { success: true, id };
 	}
 
 	async deleteManyAssets(
 		ids: string[],
+		organizationId: AssetOrganizationId,
 	): Promise<{ success: boolean; count: number; ids: string[] }> {
+		this.assertOrganizationScope(organizationId);
+		const uniqueIds = [...new Set(ids)];
 		const assets = await this.prisma.asset.findMany({
-			where: { id: { in: ids } },
+			where: assetWhereForOrganization(organizationId, {
+				id: { in: uniqueIds },
+			}),
 			select: { id: true, status: true },
 		});
+		if (assets.length !== uniqueIds.length) {
+			throw new NotFoundException(
+				"One or more assets are not available in the active organization",
+			);
+		}
 
 		const submitted = assets.filter((a) => a.status === "SUBMITTED");
 		if (submitted.length > 0) {
@@ -1866,13 +2111,19 @@ export class AssetService {
 			);
 		}
 
-		await this.prisma.asset.deleteMany({ where: { id: { in: ids } } });
-		return { success: true, count: ids.length, ids };
+		await this.prisma.asset.deleteMany({
+			where: assetWhereForOrganization(organizationId, {
+				id: { in: uniqueIds },
+			}),
+		});
+		return { success: true, count: uniqueIds.length, ids: uniqueIds };
 	}
 
 	async findAssetActivityReport(
 		input: Asset.ListAssetActivityReportInput,
+		organizationId: AssetOrganizationId,
 	): Promise<Asset.AssetActivityReportResult> {
+		this.assertOrganizationScope(organizationId);
 		const fromDate = new Date(input.fromDate);
 		fromDate.setHours(0, 0, 0, 0);
 
@@ -1931,9 +2182,9 @@ export class AssetService {
 			};
 		}
 
-		if (Object.keys(assetWhere).length > 0) {
-			where.asset = { is: assetWhere };
-		}
+		where.asset = {
+			is: assetWhereForOrganization(organizationId, assetWhere),
+		};
 
 		const activities = await this.prisma.assetActivity.findMany({
 			where,
@@ -1998,13 +2249,15 @@ export class AssetService {
 
 	async findAssetDepreciationLedger(
 		input: Asset.ListAssetDepreciationLedgerInput,
+		organizationId: AssetOrganizationId,
 	): Promise<Asset.AssetDepreciationLedgerResult> {
+		this.assertOrganizationScope(organizationId);
 		const fromDate = new Date(input.fromDate);
 		fromDate.setHours(0, 0, 0, 0);
 
 		const toDate = new Date(input.toDate);
 		toDate.setHours(23, 59, 59, 999);
-		await this.ensureReportDepreciation(toDate, input.company);
+		await this.ensureReportDepreciation(toDate, organizationId, input.company);
 
 		const assetWhere: Prisma.AssetWhereInput = {};
 
@@ -2058,7 +2311,7 @@ export class AssetService {
 		}
 
 		const assets = await this.prisma.asset.findMany({
-			where: assetWhere,
+			where: assetWhereForOrganization(organizationId, assetWhere),
 			select: {
 				id: true,
 				series: true,
@@ -2216,13 +2469,15 @@ export class AssetService {
 
 	async findAssetDepreciationsAndBalances(
 		input: Asset.ListAssetDepreciationsAndBalancesInput,
+		organizationId: AssetOrganizationId,
 	): Promise<Asset.AssetDepreciationsAndBalancesResult> {
+		this.assertOrganizationScope(organizationId);
 		const fromDate = new Date(input.fromDate);
 		fromDate.setHours(0, 0, 0, 0);
 
 		const toDate = new Date(input.toDate);
 		toDate.setHours(23, 59, 59, 999);
-		await this.ensureReportDepreciation(toDate, input.company);
+		await this.ensureReportDepreciation(toDate, organizationId, input.company);
 
 		const assetWhere: Prisma.AssetWhereInput = {
 			purchaseDate: {
@@ -2267,7 +2522,7 @@ export class AssetService {
 		}
 
 		const assets = await this.prisma.asset.findMany({
-			where: assetWhere,
+			where: assetWhereForOrganization(organizationId, assetWhere),
 			select: {
 				id: true,
 				series: true,
@@ -2404,20 +2659,24 @@ export class AssetService {
 
 	async findFixedAssetRegisterReport(
 		input: Asset.ListFixedAssetRegisterReportInput,
+		organizationId: AssetOrganizationId,
 	): Promise<Asset.FixedAssetRegisterReportResult> {
+		this.assertOrganizationScope(organizationId);
 		const toDate = new Date(input.toDate);
 		toDate.setHours(23, 59, 59, 999);
-		await this.ensureReportDepreciation(toDate, input.company);
+		await this.ensureReportDepreciation(toDate, organizationId, input.company);
 
 		const reportService =
 			this.fixedAssetRegisterReportService ??
 			new FixedAssetRegisterReportService(this.prisma);
-		return reportService.generateReport(input);
+		return reportService.generateReport(input, organizationId);
 	}
 
 	async findAllAssetValueAdjustments(
+		organizationId: AssetOrganizationId,
 		params?: Asset.ListAssetValueAdjustmentsInput,
 	): Promise<Asset.AssetValueAdjustmentListResult> {
+		this.assertOrganizationScope(organizationId);
 		const skip = Math.max(params?.skip ?? 0, 0);
 		const take = Math.min(
 			Math.max(params?.take ?? LIST_TAKE_MAX, 1),
@@ -2461,15 +2720,21 @@ export class AssetService {
 			];
 		}
 
+		const scopedWhere: Prisma.AssetValueAdjustmentWhereInput = {
+			AND: [
+				{ asset: { is: assetWhereForOrganization(organizationId) } },
+				where,
+			],
+		};
 		const [items, totalCount] = await Promise.all([
 			this.prisma.assetValueAdjustment.findMany({
-				where,
+				where: scopedWhere,
 				include: this.assetAdjustmentInclude,
 				orderBy: [{ adjustmentDate: "desc" }, { createdAt: "desc" }],
 				skip,
 				take,
 			}),
-			this.prisma.assetValueAdjustment.count({ where }),
+			this.prisma.assetValueAdjustment.count({ where: scopedWhere }),
 		]);
 
 		return {
@@ -2480,9 +2745,14 @@ export class AssetService {
 
 	async findAssetValueAdjustmentById(
 		id: string,
+		organizationId: AssetOrganizationId,
 	): Promise<Asset.AssetValueAdjustmentItem | null> {
-		const adjustment = await this.prisma.assetValueAdjustment.findUnique({
-			where: { id },
+		this.assertOrganizationScope(organizationId);
+		const adjustment = await this.prisma.assetValueAdjustment.findFirst({
+			where: {
+				id,
+				asset: { is: assetWhereForOrganization(organizationId) },
+			},
 			include: this.assetAdjustmentInclude,
 		});
 
@@ -2491,15 +2761,23 @@ export class AssetService {
 
 	async previewAssetValueAdjustment(
 		input: Asset.PreviewAssetValueAdjustmentInput,
+		organizationId: AssetOrganizationId,
 	): Promise<Asset.AssetValueAdjustmentPreview> {
-		const asset = await this.getAssetAdjustmentContextOrThrow(input.assetId);
+		const asset = await this.getAssetAdjustmentContextOrThrow(
+			input.assetId,
+			organizationId,
+		);
 		return this.buildAssetValueAdjustmentPreview(asset, input);
 	}
 
 	async createAssetValueAdjustment(
 		input: Asset.CreateAssetValueAdjustmentInput,
+		organizationId: AssetOrganizationId,
 	): Promise<Asset.AssetValueAdjustmentItem> {
-		const asset = await this.getAssetAdjustmentContextOrThrow(input.assetId);
+		const asset = await this.getAssetAdjustmentContextOrThrow(
+			input.assetId,
+			organizationId,
+		);
 		const preview = await this.buildAssetValueAdjustmentPreview(asset, input);
 		this.assertAssetValueAdjustmentPreviewIsValid(preview);
 
@@ -2507,6 +2785,7 @@ export class AssetService {
 			data: {
 				series: await this.generateAssetValueAdjustmentSeries(
 					input.adjustmentDate,
+					organizationId,
 				),
 				assetId: asset.id,
 				financeBookId: preview.financeBookId,
@@ -2534,9 +2813,14 @@ export class AssetService {
 
 	async updateAssetValueAdjustment(
 		input: Asset.UpdateAssetValueAdjustmentInput,
+		organizationId: AssetOrganizationId,
 	): Promise<Asset.AssetValueAdjustmentItem> {
-		const existing = await this.prisma.assetValueAdjustment.findUnique({
-			where: { id: input.id },
+		this.assertOrganizationScope(organizationId);
+		const existing = await this.prisma.assetValueAdjustment.findFirst({
+			where: {
+				id: input.id,
+				asset: { is: assetWhereForOrganization(organizationId) },
+			},
 			select: {
 				id: true,
 				status: true,
@@ -2568,7 +2852,10 @@ export class AssetService {
 				: targetAssetId !== existing.assetId
 					? null
 					: existing.financeBookId;
-		const asset = await this.getAssetAdjustmentContextOrThrow(targetAssetId);
+		const asset = await this.getAssetAdjustmentContextOrThrow(
+			targetAssetId,
+			organizationId,
+		);
 		const draftInput = {
 			adjustmentDate: input.adjustmentDate ?? existing.adjustmentDate,
 			newAssetValue: input.newAssetValue ?? Number(existing.newAssetValue),
@@ -2580,34 +2867,51 @@ export class AssetService {
 		);
 		this.assertAssetValueAdjustmentPreviewIsValid(preview);
 
-		const updated = await this.prisma.assetValueAdjustment.update({
-			where: { id: input.id },
-			data: {
-				assetId: asset.id,
-				financeBookId: preview.financeBookId,
-				assetCategorySnapshot: asset.assetCategory?.name ?? null,
-				adjustmentDate: draftInput.adjustmentDate,
-				currentAssetValue: preview.currentAssetValue.toString(),
-				newAssetValue: preview.newAssetValue.toString(),
-				differenceAmount: preview.differenceAmount.toString(),
-				differenceAccount:
-					input.differenceAccount?.trim() ?? existing.differenceAccount,
-				fixedAssetAccount: preview.fixedAssetAccount,
-				costCenter:
-					input.costCenter !== undefined
-						? this.normalizeOptionalText(input.costCenter)
-						: existing.costCenter,
-				notes:
-					input.notes !== undefined
-						? this.normalizeOptionalText(input.notes)
-						: existing.notes,
-				direction: preview.direction,
-				previousAssetStatus: asset.status,
-				previousIsFullyDepreciated: asset.isFullyDepreciated,
-				previousAssetValueAfterDepreciation:
-					this.resolveCurrentAssetValue(asset).toString(),
-			},
-			include: this.assetAdjustmentInclude,
+		const updateData = {
+			assetId: asset.id,
+			financeBookId: preview.financeBookId,
+			assetCategorySnapshot: asset.assetCategory?.name ?? null,
+			adjustmentDate: draftInput.adjustmentDate,
+			currentAssetValue: preview.currentAssetValue.toString(),
+			newAssetValue: preview.newAssetValue.toString(),
+			differenceAmount: preview.differenceAmount.toString(),
+			differenceAccount:
+				input.differenceAccount?.trim() ?? existing.differenceAccount,
+			fixedAssetAccount: preview.fixedAssetAccount,
+			costCenter:
+				input.costCenter !== undefined
+					? this.normalizeOptionalText(input.costCenter)
+					: existing.costCenter,
+			notes:
+				input.notes !== undefined
+					? this.normalizeOptionalText(input.notes)
+					: existing.notes,
+			direction: preview.direction,
+			previousAssetStatus: asset.status,
+			previousIsFullyDepreciated: asset.isFullyDepreciated,
+			previousAssetValueAfterDepreciation:
+				this.resolveCurrentAssetValue(asset).toString(),
+		};
+		const updated = await this.prisma.$transaction(async (tx) => {
+			const transition = await tx.assetValueAdjustment.updateMany({
+				where: {
+					id: input.id,
+					asset: { is: assetWhereForOrganization(organizationId) },
+				},
+				data: updateData,
+			});
+			if (transition.count !== 1) {
+				throw new NotFoundException(
+					`Asset value adjustment ${input.id} not found`,
+				);
+			}
+			return tx.assetValueAdjustment.findFirstOrThrow({
+				where: {
+					id: input.id,
+					asset: { is: assetWhereForOrganization(organizationId) },
+				},
+				include: this.assetAdjustmentInclude,
+			});
 		});
 
 		return toAssetValueAdjustment(updated);
@@ -2615,20 +2919,23 @@ export class AssetService {
 
 	async submitAssetValueAdjustment(
 		input: Asset.SubmitAssetValueAdjustmentInput,
+		organizationId: AssetOrganizationId,
 		actorId?: string | null,
 	): Promise<Asset.AssetValueAdjustmentItem> {
-		const pendingAdjustment = await this.prisma.assetValueAdjustment.findUnique(
-			{
-				where: { id: input.id },
-				select: {
-					id: true,
-					assetId: true,
-					financeBookId: true,
-					adjustmentDate: true,
-					status: true,
-				},
+		this.assertOrganizationScope(organizationId);
+		const pendingAdjustment = await this.prisma.assetValueAdjustment.findFirst({
+			where: {
+				id: input.id,
+				asset: { is: assetWhereForOrganization(organizationId) },
 			},
-		);
+			select: {
+				id: true,
+				assetId: true,
+				financeBookId: true,
+				adjustmentDate: true,
+				status: true,
+			},
+		});
 
 		if (!pendingAdjustment) {
 			throw new NotFoundException(
@@ -2642,6 +2949,8 @@ export class AssetService {
 		}
 
 		await this.depreciationBarrier?.ensureDepreciationPosted({
+			kind: "organization",
+			organizationId,
 			throughDate: pendingAdjustment.adjustmentDate,
 			assetIds: [pendingAdjustment.assetId],
 			...(pendingAdjustment.financeBookId
@@ -2654,8 +2963,11 @@ export class AssetService {
 			await tx.$queryRaw(Prisma.sql`
 				SELECT pg_advisory_xact_lock(hashtext(${`asset-value-adjustment:${input.id}`})) IS NULL AS "locked"
 			`);
-			const adjustment = await tx.assetValueAdjustment.findUnique({
-				where: { id: input.id },
+			const adjustment = await tx.assetValueAdjustment.findFirst({
+				where: {
+					id: input.id,
+					asset: { is: assetWhereForOrganization(organizationId) },
+				},
 				select: {
 					id: true,
 					series: true,
@@ -2683,6 +2995,7 @@ export class AssetService {
 
 			const asset = await this.getAssetAdjustmentContextOrThrow(
 				adjustment.assetId,
+				organizationId,
 				tx,
 			);
 			const preview = await this.buildAssetValueAdjustmentPreview(asset, {
@@ -2710,6 +3023,7 @@ export class AssetService {
 			const now = new Date();
 			const entrySeries = await this.generateAssetRevaluationEntrySeries(
 				adjustment.adjustmentDate,
+				organizationId,
 				tx,
 			);
 
@@ -2747,7 +3061,7 @@ export class AssetService {
 					preview.newAssetValue,
 					selectedFinanceBook.expectedValueAfterUsefulLife,
 				);
-				await this.depreciationRevision.revise(tx, {
+				await this.depreciationRevision.revise(tx, organizationId, {
 					assetId: asset.id,
 					financeBookId: preview.financeBookId,
 					effectiveDate: adjustment.adjustmentDate,
@@ -2772,13 +3086,10 @@ export class AssetService {
 				asset.status,
 				resultingRootValue,
 			);
-			await tx.asset.update({
-				where: { id: asset.id },
-				data: {
-					valueAfterDepreciation: resultingRootValue.toString(),
-					isFullyDepreciated: resultState.isFullyDepreciated,
-					status: resultState.status,
-				},
+			await this.updateOwnedAsset(tx, organizationId, asset.id, {
+				valueAfterDepreciation: resultingRootValue.toString(),
+				isFullyDepreciated: resultState.isFullyDepreciated,
+				status: resultState.status,
 			});
 
 			await tx.assetActivity.create({
@@ -2789,8 +3100,11 @@ export class AssetService {
 				},
 			});
 
-			return tx.assetValueAdjustment.update({
-				where: { id: adjustment.id },
+			const submitted = await tx.assetValueAdjustment.updateMany({
+				where: {
+					id: adjustment.id,
+					asset: { is: assetWhereForOrganization(organizationId) },
+				},
 				data: {
 					financeBookId: preview.financeBookId,
 					currentAssetValue: preview.currentAssetValue.toString(),
@@ -2805,6 +3119,17 @@ export class AssetService {
 					submittedAt: now,
 					cancelledAt: null,
 				},
+			});
+			if (submitted.count !== 1) {
+				throw new NotFoundException(
+					`Asset value adjustment ${adjustment.id} not found`,
+				);
+			}
+			return tx.assetValueAdjustment.findFirstOrThrow({
+				where: {
+					id: adjustment.id,
+					asset: { is: assetWhereForOrganization(organizationId) },
+				},
 				include: this.assetAdjustmentInclude,
 			});
 		});
@@ -2814,18 +3139,21 @@ export class AssetService {
 
 	async cancelAssetValueAdjustment(
 		input: Asset.CancelAssetValueAdjustmentInput,
+		organizationId: AssetOrganizationId,
 		actorId?: string | null,
 	): Promise<Asset.AssetValueAdjustmentItem> {
-		const pendingAdjustment = await this.prisma.assetValueAdjustment.findUnique(
-			{
-				where: { id: input.id },
-				select: {
-					id: true,
-					assetId: true,
-					status: true,
-				},
+		this.assertOrganizationScope(organizationId);
+		const pendingAdjustment = await this.prisma.assetValueAdjustment.findFirst({
+			where: {
+				id: input.id,
+				asset: { is: assetWhereForOrganization(organizationId) },
 			},
-		);
+			select: {
+				id: true,
+				assetId: true,
+				status: true,
+			},
+		});
 
 		if (!pendingAdjustment) {
 			throw new NotFoundException(
@@ -2843,8 +3171,11 @@ export class AssetService {
 			await tx.$queryRaw(Prisma.sql`
 				SELECT pg_advisory_xact_lock(hashtext(${`asset-value-adjustment:${input.id}`})) IS NULL AS "locked"
 			`);
-			const adjustment = await tx.assetValueAdjustment.findUnique({
-				where: { id: input.id },
+			const adjustment = await tx.assetValueAdjustment.findFirst({
+				where: {
+					id: input.id,
+					asset: { is: assetWhereForOrganization(organizationId) },
+				},
 				select: {
 					id: true,
 					series: true,
@@ -2865,8 +3196,10 @@ export class AssetService {
 					"The asset value adjustment changed before it could be cancelled.",
 				);
 			}
-			const asset = await tx.asset.findUnique({
-				where: { id: adjustment.assetId },
+			const asset = await tx.asset.findFirst({
+				where: assetWhereForOrganization(organizationId, {
+					id: adjustment.assetId,
+				}),
 				select: { companyId: true, calculateDepreciation: true },
 			});
 			if (!asset) {
@@ -2884,6 +3217,7 @@ export class AssetService {
 			const newerSubmittedAdjustments = await tx.assetValueAdjustment.count({
 				where: {
 					assetId: adjustment.assetId,
+					asset: { is: assetWhereForOrganization(organizationId) },
 					status: "SUBMITTED",
 					submittedAt: { gt: adjustment.submittedAt ?? new Date(0) },
 				},
@@ -2905,7 +3239,7 @@ export class AssetService {
 						"The adjustment's finance book identity is missing.",
 					);
 				}
-				await this.depreciationRevision.restoreRevision(tx, {
+				await this.depreciationRevision.restoreRevision(tx, organizationId, {
 					assetId: adjustment.assetId,
 					financeBookId: adjustment.financeBookId,
 					scheduleId: adjustment.depreciationSchedule.id,
@@ -2913,24 +3247,30 @@ export class AssetService {
 				});
 			}
 
-			await tx.assetRevaluationEntry.update({
-				where: { id: adjustment.revaluationEntry.id },
+			const reversedRevaluation = await tx.assetRevaluationEntry.updateMany({
+				where: {
+					id: adjustment.revaluationEntry.id,
+					company: { is: { organizationId } },
+					asset: { is: assetWhereForOrganization(organizationId) },
+				},
 				data: {
 					status: "REVERSED",
 					reversedAt: new Date(),
 				},
 			});
+			if (reversedRevaluation.count !== 1) {
+				throw new NotFoundException(
+					`Asset revaluation entry ${adjustment.revaluationEntry.id} not found`,
+				);
+			}
 
-			await tx.asset.update({
-				where: { id: adjustment.assetId },
-				data: {
-					valueAfterDepreciation: Number(
-						adjustment.previousAssetValueAfterDepreciation ??
-							adjustment.currentAssetValue,
-					).toString(),
-					status: adjustment.previousAssetStatus,
-					isFullyDepreciated: adjustment.previousIsFullyDepreciated,
-				},
+			await this.updateOwnedAsset(tx, organizationId, adjustment.assetId, {
+				valueAfterDepreciation: Number(
+					adjustment.previousAssetValueAfterDepreciation ??
+						adjustment.currentAssetValue,
+				).toString(),
+				status: adjustment.previousAssetStatus,
+				isFullyDepreciated: adjustment.previousIsFullyDepreciated,
 			});
 
 			await tx.assetActivity.create({
@@ -2941,11 +3281,25 @@ export class AssetService {
 				},
 			});
 
-			return tx.assetValueAdjustment.update({
-				where: { id: adjustment.id },
+			const cancelled = await tx.assetValueAdjustment.updateMany({
+				where: {
+					id: adjustment.id,
+					asset: { is: assetWhereForOrganization(organizationId) },
+				},
 				data: {
 					status: "CANCELLED",
 					cancelledAt: new Date(),
+				},
+			});
+			if (cancelled.count !== 1) {
+				throw new NotFoundException(
+					`Asset value adjustment ${adjustment.id} not found`,
+				);
+			}
+			return tx.assetValueAdjustment.findFirstOrThrow({
+				where: {
+					id: adjustment.id,
+					asset: { is: assetWhereForOrganization(organizationId) },
 				},
 				include: this.assetAdjustmentInclude,
 			});
@@ -2956,9 +3310,14 @@ export class AssetService {
 
 	async deleteAssetValueAdjustment(
 		id: string,
+		organizationId: AssetOrganizationId,
 	): Promise<{ success: boolean; id: string }> {
-		const existing = await this.prisma.assetValueAdjustment.findUnique({
-			where: { id },
+		this.assertOrganizationScope(organizationId);
+		const existing = await this.prisma.assetValueAdjustment.findFirst({
+			where: {
+				id,
+				asset: { is: assetWhereForOrganization(organizationId) },
+			},
 			select: { id: true, status: true },
 		});
 
@@ -2971,7 +3330,15 @@ export class AssetService {
 			);
 		}
 
-		await this.prisma.assetValueAdjustment.delete({ where: { id } });
+		const deleted = await this.prisma.assetValueAdjustment.deleteMany({
+			where: {
+				id,
+				asset: { is: assetWhereForOrganization(organizationId) },
+			},
+		});
+		if (deleted.count !== 1) {
+			throw new NotFoundException(`Asset value adjustment ${id} not found`);
+		}
 		return { success: true, id };
 	}
 
@@ -2980,8 +3347,10 @@ export class AssetService {
 	// ============================================================================
 
 	async findAllLocations(
+		organizationId: AssetOrganizationId,
 		params?: Asset.ListLocationsInput,
 	): Promise<Asset.LocationListResult> {
+		this.assertOrganizationScope(organizationId);
 		const skip = Math.max(params?.skip ?? 0, 0);
 		const take = Math.min(
 			Math.max(params?.take ?? LIST_TAKE_MAX, 1),
@@ -3018,7 +3387,11 @@ export class AssetService {
 		return { items: items.map(toAssetLocation), totalCount };
 	}
 
-	async findLocationById(id: string): Promise<Asset.Location | null> {
+	async findLocationById(
+		id: string,
+		organizationId: AssetOrganizationId,
+	): Promise<Asset.Location | null> {
+		this.assertOrganizationScope(organizationId);
 		const loc = await this.prisma.location.findUnique({
 			where: { id },
 			select: {
@@ -3036,7 +3409,9 @@ export class AssetService {
 
 	async createLocation(
 		input: Asset.CreateLocationInput,
+		organizationId: AssetOrganizationId,
 	): Promise<Asset.Location> {
+		this.assertOrganizationScope(organizationId);
 		const existing = await this.prisma.location.findUnique({
 			where: { name: input.name },
 			select: { id: true },
@@ -3070,7 +3445,9 @@ export class AssetService {
 
 	async updateLocation(
 		input: Asset.UpdateLocationInput,
+		organizationId: AssetOrganizationId,
 	): Promise<Asset.Location> {
+		this.assertOrganizationScope(organizationId);
 		const existing = await this.prisma.location.findUnique({
 			where: { id: input.id },
 			select: { id: true },
@@ -3100,7 +3477,11 @@ export class AssetService {
 		return toAssetLocation(loc);
 	}
 
-	async deleteLocation(id: string): Promise<{ success: boolean; id: string }> {
+	async deleteLocation(
+		id: string,
+		organizationId: AssetOrganizationId,
+	): Promise<{ success: boolean; id: string }> {
+		this.assertOrganizationScope(organizationId);
 		const existing = await this.prisma.location.findUnique({
 			where: { id },
 			select: { id: true, _count: { select: { assets: true } } },
@@ -3120,11 +3501,15 @@ export class AssetService {
 	// ============================================================================
 
 	/** Lists named finance books used by independent depreciation schedules. */
-	async findAllFinanceBooks(params?: {
-		skip?: number;
-		take?: number;
-		search?: string;
-	}): Promise<Asset.FinanceBookListResult> {
+	async findAllFinanceBooks(
+		organizationId: AssetOrganizationId,
+		params?: {
+			skip?: number;
+			take?: number;
+			search?: string;
+		},
+	): Promise<Asset.FinanceBookListResult> {
+		this.assertOrganizationScope(organizationId);
 		const skip = Math.max(params?.skip ?? 0, 0);
 		const take = Math.min(
 			Math.max(params?.take ?? LIST_TAKE_MAX, 1),
@@ -3146,7 +3531,11 @@ export class AssetService {
 	}
 
 	/** Creates a uniquely named finance book. */
-	async createFinanceBook(input: { name: string }): Promise<Asset.FinanceBook> {
+	async createFinanceBook(
+		input: { name: string },
+		organizationId: AssetOrganizationId,
+	): Promise<Asset.FinanceBook> {
+		this.assertOrganizationScope(organizationId);
 		const name = input.name.trim();
 		const existing = await this.prisma.financeBook.findUnique({
 			where: { name },
@@ -3159,10 +3548,14 @@ export class AssetService {
 	}
 
 	/** Renames an existing finance book. */
-	async updateFinanceBook(input: {
-		id: string;
-		name: string;
-	}): Promise<Asset.FinanceBook> {
+	async updateFinanceBook(
+		input: {
+			id: string;
+			name: string;
+		},
+		organizationId: AssetOrganizationId,
+	): Promise<Asset.FinanceBook> {
+		this.assertOrganizationScope(organizationId);
 		const existing = await this.prisma.financeBook.findUnique({
 			where: { id: input.id },
 			select: { id: true },
@@ -3176,7 +3569,11 @@ export class AssetService {
 	}
 
 	/** Deletes an unused finance book. */
-	async deleteFinanceBook(id: string): Promise<{ success: true; id: string }> {
+	async deleteFinanceBook(
+		id: string,
+		organizationId: AssetOrganizationId,
+	): Promise<{ success: true; id: string }> {
+		this.assertOrganizationScope(organizationId);
 		const existing = await this.prisma.financeBook.findUnique({
 			where: { id },
 			select: {
@@ -3209,8 +3606,10 @@ export class AssetService {
 	// ============================================================================
 
 	async findAllAssetCategories(
+		organizationId: AssetOrganizationId,
 		params?: Asset.ListAssetCategoriesInput,
 	): Promise<Asset.AssetCategoryListResult> {
+		this.assertOrganizationScope(organizationId);
 		const skip = Math.max(params?.skip ?? 0, 0);
 		const take = Math.min(
 			Math.max(params?.take ?? LIST_TAKE_MAX, 1),
@@ -3236,7 +3635,11 @@ export class AssetService {
 		return { items: items.map(toAssetCategory), totalCount };
 	}
 
-	async findAssetCategoryById(id: string): Promise<Asset.AssetCategory | null> {
+	async findAssetCategoryById(
+		id: string,
+		organizationId: AssetOrganizationId,
+	): Promise<Asset.AssetCategory | null> {
+		this.assertOrganizationScope(organizationId);
 		const cat = await this.prisma.assetCategory.findUnique({
 			where: { id },
 			include: this.assetCategoryInclude,
@@ -3246,7 +3649,14 @@ export class AssetService {
 
 	async createAssetCategory(
 		input: Asset.CreateAssetCategoryInput,
+		organizationId: AssetOrganizationId,
 	): Promise<Asset.AssetCategory> {
+		this.assertOrganizationScope(organizationId);
+		await this.validateAssetCategoryReferences(
+			organizationId,
+			input.accounts,
+			input.financeBooks,
+		);
 		const existing = await this.prisma.assetCategory.findUnique({
 			where: { name: input.name },
 			select: { id: true },
@@ -3316,7 +3726,14 @@ export class AssetService {
 
 	async updateAssetCategory(
 		input: Asset.UpdateAssetCategoryInput,
+		organizationId: AssetOrganizationId,
 	): Promise<Asset.AssetCategory> {
+		this.assertOrganizationScope(organizationId);
+		await this.validateAssetCategoryReferences(
+			organizationId,
+			input.accounts,
+			input.financeBooks,
+		);
 		const existing = await this.prisma.assetCategory.findUnique({
 			where: { id: input.id },
 			select: { id: true },
@@ -3405,7 +3822,9 @@ export class AssetService {
 
 	async deleteAssetCategory(
 		id: string,
+		organizationId: AssetOrganizationId,
 	): Promise<{ success: boolean; id: string }> {
+		this.assertOrganizationScope(organizationId);
 		const existing = await this.prisma.assetCategory.findUnique({
 			where: { id },
 			select: { id: true, _count: { select: { assets: true } } },
@@ -3427,18 +3846,25 @@ export class AssetService {
 	// ============================================================================
 
 	async findAllMaintenanceTeams(
+		organizationId: AssetOrganizationId,
 		params?: Asset.ListMaintenanceTeamsInput,
 	): Promise<Asset.AssetMaintenanceTeamListResult> {
+		this.assertOrganizationScope(organizationId);
 		const skip = Math.max(params?.skip ?? 0, 0);
 		const take = Math.min(
 			Math.max(params?.take ?? LIST_TAKE_MAX, 1),
 			LIST_TAKE_MAX,
 		);
 
-		const where: Record<string, unknown> = {};
+		const where: Prisma.AssetMaintenanceTeamWhereInput = {
+			company: { is: { organizationId } },
+		};
 		if (params?.company)
 			where.company = {
-				is: { name: { contains: params.company, mode: "insensitive" } },
+				is: {
+					organizationId,
+					name: { contains: params.company, mode: "insensitive" },
+				},
 			};
 		if (params?.search) {
 			where.OR = [
@@ -3479,9 +3905,11 @@ export class AssetService {
 
 	async findMaintenanceTeamById(
 		id: string,
+		organizationId: AssetOrganizationId,
 	): Promise<Asset.AssetMaintenanceTeam | null> {
-		const team = await this.prisma.assetMaintenanceTeam.findUnique({
-			where: { id },
+		this.assertOrganizationScope(organizationId);
+		const team = await this.prisma.assetMaintenanceTeam.findFirst({
+			where: { id, company: { is: { organizationId } } },
 			include: {
 				company: { select: { id: true, name: true } },
 				members: { orderBy: { createdAt: "asc" } },
@@ -3492,7 +3920,9 @@ export class AssetService {
 
 	async createMaintenanceTeam(
 		input: Asset.CreateAssetMaintenanceTeamInput,
+		organizationId: AssetOrganizationId,
 	): Promise<Asset.AssetMaintenanceTeam> {
+		this.assertOrganizationScope(organizationId);
 		const existing = await this.prisma.assetMaintenanceTeam.findUnique({
 			where: { name: input.name },
 			select: { id: true },
@@ -3502,8 +3932,10 @@ export class AssetService {
 				`A maintenance team with the name "${input.name}" already exists`,
 			);
 		}
-		const company = await this.prisma.company.findUnique({
-			where: { id: input.companyId },
+		const company = await this.prisma.company.findFirst({
+			where: companyWhereForOrganization(organizationId, {
+				id: input.companyId,
+			}),
 			select: { id: true, disabled: true },
 		});
 		if (!company || company.disabled) {
@@ -3538,9 +3970,11 @@ export class AssetService {
 
 	async updateMaintenanceTeam(
 		input: Asset.UpdateAssetMaintenanceTeamInput,
+		organizationId: AssetOrganizationId,
 	): Promise<Asset.AssetMaintenanceTeam> {
-		const existing = await this.prisma.assetMaintenanceTeam.findUnique({
-			where: { id: input.id },
+		this.assertOrganizationScope(organizationId);
+		const existing = await this.prisma.assetMaintenanceTeam.findFirst({
+			where: { id: input.id, company: { is: { organizationId } } },
 			select: { id: true },
 		});
 		if (!existing) {
@@ -3548,8 +3982,8 @@ export class AssetService {
 		}
 
 		if (input.name !== undefined) {
-			const nameConflict = await this.prisma.assetMaintenanceTeam.findUnique({
-				where: { name: input.name },
+			const nameConflict = await this.prisma.assetMaintenanceTeam.findFirst({
+				where: { name: input.name, company: { is: { organizationId } } },
 				select: { id: true },
 			});
 			if (nameConflict && nameConflict.id !== input.id) {
@@ -3559,8 +3993,10 @@ export class AssetService {
 			}
 		}
 		if (input.companyId !== undefined) {
-			const company = await this.prisma.company.findUnique({
-				where: { id: input.companyId },
+			const company = await this.prisma.company.findFirst({
+				where: companyWhereForOrganization(organizationId, {
+					id: input.companyId,
+				}),
 				select: { id: true, disabled: true },
 			});
 			if (!company || company.disabled) {
@@ -3573,6 +4009,9 @@ export class AssetService {
 					where: {
 						maintenanceTeamId: input.id,
 						companyId: { not: input.companyId },
+						maintenanceTeam: {
+							is: { company: { is: { organizationId } } },
+						},
 					},
 					select: { id: true },
 				});
@@ -3590,6 +4029,9 @@ export class AssetService {
 					where: {
 						maintenanceTeamId: input.id,
 						companyId: { not: input.companyId },
+						maintenanceTeam: {
+							is: { company: { is: { organizationId } } },
+						},
 					},
 					select: { id: true },
 				});
@@ -3599,8 +4041,8 @@ export class AssetService {
 					);
 				}
 			}
-			await tx.assetMaintenanceTeam.update({
-				where: { id: input.id },
+			const teamTransition = await tx.assetMaintenanceTeam.updateMany({
+				where: { id: input.id, company: { is: { organizationId } } },
 				data: {
 					...(input.name !== undefined && { name: input.name }),
 					...(input.maintenanceManager !== undefined && {
@@ -3612,6 +4054,9 @@ export class AssetService {
 					...(input.companyId !== undefined && { companyId: input.companyId }),
 				},
 			});
+			if (teamTransition.count !== 1) {
+				throw new NotFoundException(`Maintenance team ${input.id} not found`);
+			}
 
 			if (input.members !== undefined) {
 				const keptIds = input.members
@@ -3620,7 +4065,13 @@ export class AssetService {
 
 				if (keptIds.length > 0) {
 					const owned = await tx.assetMaintenanceTeamMember.findMany({
-						where: { id: { in: keptIds }, teamId: input.id },
+						where: {
+							id: { in: keptIds },
+							teamId: input.id,
+							team: {
+								is: { company: { is: { organizationId } } },
+							},
+						},
 						select: { id: true },
 					});
 					const ownedIds = new Set(owned.map((m) => m.id));
@@ -3634,24 +4085,48 @@ export class AssetService {
 
 				if (keptIds.length === 0) {
 					await tx.assetMaintenanceTeamMember.deleteMany({
-						where: { teamId: input.id },
+						where: {
+							teamId: input.id,
+							team: {
+								is: { company: { is: { organizationId } } },
+							},
+						},
 					});
 				} else {
 					await tx.assetMaintenanceTeamMember.deleteMany({
-						where: { teamId: input.id, id: { notIn: keptIds } },
+						where: {
+							teamId: input.id,
+							id: { notIn: keptIds },
+							team: {
+								is: { company: { is: { organizationId } } },
+							},
+						},
 					});
 				}
 
 				for (const member of input.members) {
 					if (member.id) {
-						await tx.assetMaintenanceTeamMember.update({
-							where: { id: member.id },
-							data: {
-								teamMember: member.teamMember,
-								fullName: member.fullName,
-								maintenanceRole: member.maintenanceRole,
+						const memberUpdate = await tx.assetMaintenanceTeamMember.updateMany(
+							{
+								where: {
+									id: member.id,
+									teamId: input.id,
+									team: {
+										is: { company: { is: { organizationId } } },
+									},
+								},
+								data: {
+									teamMember: member.teamMember,
+									fullName: member.fullName,
+									maintenanceRole: member.maintenanceRole,
+								},
 							},
-						});
+						);
+						if (memberUpdate.count !== 1) {
+							throw new BadRequestException(
+								`Team member with ID ${member.id} does not belong to this team`,
+							);
+						}
 					} else {
 						await tx.assetMaintenanceTeamMember.create({
 							data: {
@@ -3665,8 +4140,8 @@ export class AssetService {
 				}
 			}
 
-			return tx.assetMaintenanceTeam.findUniqueOrThrow({
-				where: { id: input.id },
+			return tx.assetMaintenanceTeam.findFirstOrThrow({
+				where: { id: input.id, company: { is: { organizationId } } },
 				include: {
 					company: { select: { id: true, name: true } },
 					members: { orderBy: { createdAt: "asc" } },
@@ -3679,24 +4154,48 @@ export class AssetService {
 
 	async deleteMaintenanceTeam(
 		id: string,
+		organizationId: AssetOrganizationId,
 	): Promise<{ success: boolean; id: string }> {
-		const existing = await this.prisma.assetMaintenanceTeam.findUnique({
-			where: { id },
+		this.assertOrganizationScope(organizationId);
+		const existing = await this.prisma.assetMaintenanceTeam.findFirst({
+			where: { id, company: { is: { organizationId } } },
 			select: { id: true },
 		});
 		if (!existing) {
 			throw new NotFoundException(`Maintenance team ${id} not found`);
 		}
-		await this.prisma.assetMaintenanceTeam.delete({ where: { id } });
+		const deleted = await this.prisma.assetMaintenanceTeam.deleteMany({
+			where: { id, company: { is: { organizationId } } },
+		});
+		if (deleted.count !== 1) {
+			throw new NotFoundException(`Maintenance team ${id} not found`);
+		}
 		return { success: true, id };
 	}
 
 	async deleteManyMaintenanceTeams(
 		ids: string[],
+		organizationId: AssetOrganizationId,
 	): Promise<{ success: boolean; count: number; ids: string[] }> {
+		this.assertOrganizationScope(organizationId);
 		const unique = [...new Set(ids)];
+		const existing = await this.prisma.assetMaintenanceTeam.findMany({
+			where: {
+				id: { in: unique },
+				company: { is: { organizationId } },
+			},
+			select: { id: true },
+		});
+		if (existing.length !== unique.length) {
+			throw new NotFoundException(
+				"One or more maintenance teams are not available in the active organization",
+			);
+		}
 		const result = await this.prisma.assetMaintenanceTeam.deleteMany({
-			where: { id: { in: unique } },
+			where: {
+				id: { in: unique },
+				company: { is: { organizationId } },
+			},
 		});
 		return { success: true, count: result.count, ids: unique };
 	}
@@ -3777,18 +4276,26 @@ export class AssetService {
 	};
 
 	async findAllAssetMaintenances(
+		organizationId: AssetOrganizationId,
 		params?: Asset.ListAssetMaintenancesInput,
 	): Promise<Asset.AssetMaintenanceListResult> {
+		this.assertOrganizationScope(organizationId);
 		const skip = Math.max(params?.skip ?? 0, 0);
 		const take = Math.min(
 			Math.max(params?.take ?? LIST_TAKE_MAX, 1),
 			LIST_TAKE_MAX,
 		);
 
-		const where: Record<string, unknown> = {};
+		const where: Prisma.AssetMaintenanceWhereInput = {
+			company: { is: { organizationId } },
+			asset: { is: assetWhereForOrganization(organizationId) },
+		};
 		if (params?.company)
 			where.company = {
-				is: { name: { contains: params.company, mode: "insensitive" } },
+				is: {
+					organizationId,
+					name: { contains: params.company, mode: "insensitive" },
+				},
 			};
 		if (params?.maintenanceTeamId)
 			where.maintenanceTeamId = params.maintenanceTeamId;
@@ -3830,9 +4337,15 @@ export class AssetService {
 
 	async findAssetMaintenanceById(
 		id: string,
+		organizationId: AssetOrganizationId,
 	): Promise<Asset.AssetMaintenanceRecord | null> {
-		const record = await this.prisma.assetMaintenance.findUnique({
-			where: { id },
+		this.assertOrganizationScope(organizationId);
+		const record = await this.prisma.assetMaintenance.findFirst({
+			where: {
+				id,
+				company: { is: { organizationId } },
+				asset: { is: assetWhereForOrganization(organizationId) },
+			},
 			include: this.maintenanceInclude,
 		});
 		return record ? toAssetMaintenance(record) : null;
@@ -3840,9 +4353,14 @@ export class AssetService {
 
 	async findAssetMaintenanceByAssetId(
 		assetId: string,
+		organizationId: AssetOrganizationId,
 	): Promise<Asset.AssetMaintenanceRecord | null> {
-		const record = await this.prisma.assetMaintenance.findUnique({
-			where: { assetId },
+		this.assertOrganizationScope(organizationId);
+		const record = await this.prisma.assetMaintenance.findFirst({
+			where: {
+				assetId,
+				asset: { is: assetWhereForOrganization(organizationId) },
+			},
 			include: this.maintenanceInclude,
 		});
 		return record ? toAssetMaintenance(record) : null;
@@ -3850,9 +4368,19 @@ export class AssetService {
 
 	async findAssetMaintenanceLogs(
 		maintenanceId: string,
+		organizationId: AssetOrganizationId,
 	): Promise<Asset.AssetMaintenanceLogItem[]> {
+		this.assertOrganizationScope(organizationId);
 		const logs = await this.prisma.assetMaintenanceLog.findMany({
-			where: { maintenanceId },
+			where: {
+				maintenanceId,
+				maintenance: {
+					is: {
+						company: { is: { organizationId } },
+						asset: { is: assetWhereForOrganization(organizationId) },
+					},
+				},
+			},
 			orderBy: { createdAt: "desc" },
 		});
 		return logs.map(toAssetMaintenanceLog);
@@ -3881,15 +4409,24 @@ export class AssetService {
 	} as const;
 
 	async findAllAssetMaintenanceLogs(
+		organizationId: AssetOrganizationId,
 		params?: Asset.ListAssetMaintenanceLogsInput,
 	): Promise<Asset.AssetMaintenanceLogListResult> {
+		this.assertOrganizationScope(organizationId);
 		const skip = Math.max(params?.skip ?? 0, 0);
 		const take = Math.min(
 			Math.max(params?.take ?? LIST_TAKE_MAX, 1),
 			LIST_TAKE_MAX,
 		);
 
-		const where: Record<string, unknown> = {};
+		const where: Prisma.AssetMaintenanceLogWhereInput = {
+			maintenance: {
+				is: {
+					company: { is: { organizationId } },
+					asset: { is: assetWhereForOrganization(organizationId) },
+				},
+			},
+		};
 		if (params?.maintenanceId) where.maintenanceId = params.maintenanceId;
 		if (params?.status) where.maintenanceStatus = params.status;
 		if (params?.search) {
@@ -3946,10 +4483,20 @@ export class AssetService {
 
 	async cancelAssetMaintenanceLog(
 		input: Asset.CancelAssetMaintenanceLogInput,
+		organizationId: AssetOrganizationId,
 		actorId?: string | null,
 	): Promise<Asset.AssetMaintenanceLogItem> {
-		const log = await this.prisma.assetMaintenanceLog.findUnique({
-			where: { id: input.logId },
+		this.assertOrganizationScope(organizationId);
+		const log = await this.prisma.assetMaintenanceLog.findFirst({
+			where: {
+				id: input.logId,
+				maintenance: {
+					is: {
+						company: { is: { organizationId } },
+						asset: { is: assetWhereForOrganization(organizationId) },
+					},
+				},
+			},
 			select: {
 				id: true,
 				maintenanceId: true,
@@ -3973,8 +4520,16 @@ export class AssetService {
 			if (log.maintenance) await this.lockAssets(tx, [log.maintenance.assetId]);
 			// Re-read after the asset lock so two requests cannot both transition
 			// the same log based on the preflight status.
-			const currentLog = await tx.assetMaintenanceLog.findUnique({
-				where: { id: input.logId },
+			const currentLog = await tx.assetMaintenanceLog.findFirst({
+				where: {
+					id: input.logId,
+					maintenance: {
+						is: {
+							company: { is: { organizationId } },
+							asset: { is: assetWhereForOrganization(organizationId) },
+						},
+					},
+				},
 				select: { maintenanceStatus: true },
 			});
 			if (!currentLog) {
@@ -3988,17 +4543,43 @@ export class AssetService {
 			if (currentLog.maintenanceStatus === "CANCELLED") {
 				throw new BadRequestException("Maintenance log is already cancelled");
 			}
-			const cancelled = await tx.assetMaintenanceLog.update({
-				where: { id: input.logId },
+			const cancelledTransition = await tx.assetMaintenanceLog.updateMany({
+				where: {
+					id: input.logId,
+					maintenance: {
+						is: {
+							company: { is: { organizationId } },
+							asset: { is: assetWhereForOrganization(organizationId) },
+						},
+					},
+				},
 				data: { maintenanceStatus: "CANCELLED" },
 			});
+			if (cancelledTransition.count !== 1) {
+				throw new NotFoundException(`Maintenance log ${input.logId} not found`);
+			}
 
-			await tx.assetMaintenanceTask.update({
-				where: { id: log.taskId },
+			const taskTransition = await tx.assetMaintenanceTask.updateMany({
+				where: {
+					id: log.taskId,
+					maintenance: {
+						is: {
+							company: { is: { organizationId } },
+							asset: { is: assetWhereForOrganization(organizationId) },
+						},
+					},
+				},
 				data: { maintenanceStatus: "CANCELLED" },
 			});
+			if (taskTransition.count !== 1) {
+				throw new NotFoundException(`Maintenance task ${log.taskId} not found`);
+			}
 			if (log.maintenance) {
-				await this.syncMaintenanceAssetStatus(tx, log.maintenance.assetId);
+				await this.syncMaintenanceAssetStatus(
+					tx,
+					log.maintenance.assetId,
+					organizationId,
+				);
 			}
 			if (actorId && log.maintenance) {
 				await tx.assetActivity.create({
@@ -4010,7 +4591,17 @@ export class AssetService {
 				});
 			}
 
-			return cancelled;
+			return tx.assetMaintenanceLog.findFirstOrThrow({
+				where: {
+					id: input.logId,
+					maintenance: {
+						is: {
+							company: { is: { organizationId } },
+							asset: { is: assetWhereForOrganization(organizationId) },
+						},
+					},
+				},
+			});
 		});
 
 		return toAssetMaintenanceLog(updated);
@@ -4018,11 +4609,13 @@ export class AssetService {
 
 	async createAssetMaintenance(
 		input: Asset.CreateAssetMaintenanceInput,
+		organizationId: AssetOrganizationId,
 		actorId?: string | null,
 	): Promise<Asset.AssetMaintenanceRecord> {
+		this.assertOrganizationScope(organizationId);
 		// Verify asset exists and is not already assigned to a maintenance record
-		const asset = await this.prisma.asset.findUnique({
-			where: { id: input.assetId },
+		const asset = await this.prisma.asset.findFirst({
+			where: assetWhereForOrganization(organizationId, { id: input.assetId }),
 			select: {
 				id: true,
 				assetName: true,
@@ -4045,8 +4638,11 @@ export class AssetService {
 		}
 
 		// Verify team exists
-		const team = await this.prisma.assetMaintenanceTeam.findUnique({
-			where: { id: input.maintenanceTeamId },
+		const team = await this.prisma.assetMaintenanceTeam.findFirst({
+			where: {
+				id: input.maintenanceTeamId,
+				company: { is: { organizationId } },
+			},
 			select: {
 				id: true,
 				companyId: true,
@@ -4082,8 +4678,8 @@ export class AssetService {
 			// Re-read the asset after taking its advisory lock. Company and
 			// maintenance ownership must come from this locked snapshot rather
 			// than from the preflight read above.
-			const lockedAsset = await tx.asset.findUnique({
-				where: { id: input.assetId },
+			const lockedAsset = await tx.asset.findFirst({
+				where: assetWhereForOrganization(organizationId, { id: input.assetId }),
 				select: {
 					id: true,
 					assetName: true,
@@ -4105,8 +4701,11 @@ export class AssetService {
 					`Asset "${lockedAsset.assetName}" already has a maintenance record`,
 				);
 			}
-			const lockedTeam = await tx.assetMaintenanceTeam.findUnique({
-				where: { id: input.maintenanceTeamId },
+			const lockedTeam = await tx.assetMaintenanceTeam.findFirst({
+				where: {
+					id: input.maintenanceTeamId,
+					company: { is: { organizationId } },
+				},
 				select: {
 					id: true,
 					companyId: true,
@@ -4183,7 +4782,7 @@ export class AssetService {
 					},
 				});
 			}
-			await this.syncMaintenanceAssetStatus(tx, input.assetId);
+			await this.syncMaintenanceAssetStatus(tx, input.assetId, organizationId);
 			if (actorId) {
 				await tx.assetActivity.create({
 					data: {
@@ -4194,8 +4793,12 @@ export class AssetService {
 				});
 			}
 
-			return tx.assetMaintenance.findUniqueOrThrow({
-				where: { id: created.id },
+			return tx.assetMaintenance.findFirstOrThrow({
+				where: {
+					id: created.id,
+					company: { is: { organizationId } },
+					asset: { is: assetWhereForOrganization(organizationId) },
+				},
 				include: this.maintenanceInclude,
 			});
 		});
@@ -4206,10 +4809,16 @@ export class AssetService {
 
 	async updateAssetMaintenance(
 		input: Asset.UpdateAssetMaintenanceInput,
+		organizationId: AssetOrganizationId,
 		actorId?: string | null,
 	): Promise<Asset.AssetMaintenanceRecord> {
-		const existing = await this.prisma.assetMaintenance.findUnique({
-			where: { id: input.id },
+		this.assertOrganizationScope(organizationId);
+		const existing = await this.prisma.assetMaintenance.findFirst({
+			where: {
+				id: input.id,
+				company: { is: { organizationId } },
+				asset: { is: assetWhereForOrganization(organizationId) },
+			},
 			select: {
 				id: true,
 				assetId: true,
@@ -4225,8 +4834,10 @@ export class AssetService {
 			throw new NotFoundException(`Asset maintenance ${input.id} not found`);
 		}
 
-		const asset = await this.prisma.asset.findUnique({
-			where: { id: existing.assetId },
+		const asset = await this.prisma.asset.findFirst({
+			where: assetWhereForOrganization(organizationId, {
+				id: existing.assetId,
+			}),
 			select: { companyId: true, company: { select: { name: true } } },
 		});
 		if (!asset)
@@ -4248,8 +4859,11 @@ export class AssetService {
 		}
 
 		if (input.maintenanceTeamId !== undefined) {
-			const team = await this.prisma.assetMaintenanceTeam.findUnique({
-				where: { id: input.maintenanceTeamId },
+			const team = await this.prisma.assetMaintenanceTeam.findFirst({
+				where: {
+					id: input.maintenanceTeamId,
+					company: { is: { organizationId } },
+				},
 				select: {
 					id: true,
 					companyId: true,
@@ -4286,8 +4900,10 @@ export class AssetService {
 			await this.lockMaintenanceTeams(tx, [
 				input.maintenanceTeamId ?? existing.maintenanceTeamId,
 			]);
-			const lockedAsset = await tx.asset.findUnique({
-				where: { id: existing.assetId },
+			const lockedAsset = await tx.asset.findFirst({
+				where: assetWhereForOrganization(organizationId, {
+					id: existing.assetId,
+				}),
 				select: { companyId: true, company: { select: { name: true } } },
 			});
 			if (!lockedAsset) {
@@ -4308,8 +4924,11 @@ export class AssetService {
 			}
 			const lockedTeamId =
 				input.maintenanceTeamId ?? existing.maintenanceTeamId;
-			const lockedTeam = await tx.assetMaintenanceTeam.findUnique({
-				where: { id: lockedTeamId },
+			const lockedTeam = await tx.assetMaintenanceTeam.findFirst({
+				where: {
+					id: lockedTeamId,
+					company: { is: { organizationId } },
+				},
 				select: { companyId: true, company: { select: { name: true } } },
 			});
 			if (!lockedTeam) {
@@ -4322,8 +4941,12 @@ export class AssetService {
 					`Maintenance team company ${lockedTeam.company.name} does not match asset company ${lockedAsset.company.name}.`,
 				);
 			}
-			await tx.assetMaintenance.update({
-				where: { id: input.id },
+			const maintenanceTransition = await tx.assetMaintenance.updateMany({
+				where: {
+					id: input.id,
+					company: { is: { organizationId } },
+					asset: { is: assetWhereForOrganization(organizationId) },
+				},
 				data: {
 					companyId: lockedAsset.companyId,
 					...(input.maintenanceTeamId !== undefined && {
@@ -4337,6 +4960,9 @@ export class AssetService {
 					}),
 				},
 			});
+			if (maintenanceTransition.count !== 1) {
+				throw new NotFoundException(`Asset maintenance ${input.id} not found`);
+			}
 
 			if (input.tasks !== undefined) {
 				const keptIds = input.tasks
@@ -4346,7 +4972,16 @@ export class AssetService {
 				// Verify kept task IDs belong to this maintenance record
 				if (keptIds.length > 0) {
 					const ownedTasks = await tx.assetMaintenanceTask.findMany({
-						where: { id: { in: keptIds }, maintenanceId: input.id },
+						where: {
+							id: { in: keptIds },
+							maintenanceId: input.id,
+							maintenance: {
+								is: {
+									company: { is: { organizationId } },
+									asset: { is: assetWhereForOrganization(organizationId) },
+								},
+							},
+						},
 						select: { id: true },
 					});
 					const ownedIds = new Set(ownedTasks.map((t) => t.id));
@@ -4362,11 +4997,28 @@ export class AssetService {
 				const removedTasks =
 					keptIds.length === 0
 						? await tx.assetMaintenanceTask.findMany({
-								where: { maintenanceId: input.id },
+								where: {
+									maintenanceId: input.id,
+									maintenance: {
+										is: {
+											company: { is: { organizationId } },
+											asset: { is: assetWhereForOrganization(organizationId) },
+										},
+									},
+								},
 								select: { id: true },
 							})
 						: await tx.assetMaintenanceTask.findMany({
-								where: { maintenanceId: input.id, id: { notIn: keptIds } },
+								where: {
+									maintenanceId: input.id,
+									id: { notIn: keptIds },
+									maintenance: {
+										is: {
+											company: { is: { organizationId } },
+											asset: { is: assetWhereForOrganization(organizationId) },
+										},
+									},
+								},
 								select: { id: true },
 							});
 
@@ -4375,6 +5027,13 @@ export class AssetService {
 						where: {
 							taskId: rt.id,
 							maintenanceStatus: { in: ["PLANNED", "OVERDUE"] },
+							maintenance: {
+								is: {
+									id: input.id,
+									company: { is: { organizationId } },
+									asset: { is: assetWhereForOrganization(organizationId) },
+								},
+							},
 						},
 						data: { maintenanceStatus: "CANCELLED" },
 					});
@@ -4382,11 +5041,28 @@ export class AssetService {
 
 				if (keptIds.length === 0) {
 					await tx.assetMaintenanceTask.deleteMany({
-						where: { maintenanceId: input.id },
+						where: {
+							maintenanceId: input.id,
+							maintenance: {
+								is: {
+									company: { is: { organizationId } },
+									asset: { is: assetWhereForOrganization(organizationId) },
+								},
+							},
+						},
 					});
 				} else {
 					await tx.assetMaintenanceTask.deleteMany({
-						where: { maintenanceId: input.id, id: { notIn: keptIds } },
+						where: {
+							maintenanceId: input.id,
+							id: { notIn: keptIds },
+							maintenance: {
+								is: {
+									company: { is: { organizationId } },
+									asset: { is: assetWhereForOrganization(organizationId) },
+								},
+							},
+						},
 					});
 				}
 
@@ -4410,8 +5086,17 @@ export class AssetService {
 
 					if (taskInput.id) {
 						// Update existing task
-						await tx.assetMaintenanceTask.update({
-							where: { id: taskInput.id },
+						const taskTransition = await tx.assetMaintenanceTask.updateMany({
+							where: {
+								id: taskInput.id,
+								maintenance: {
+									is: {
+										id: input.id,
+										company: { is: { organizationId } },
+										asset: { is: assetWhereForOrganization(organizationId) },
+									},
+								},
+							},
 							data: {
 								maintenanceTask: taskInput.maintenanceTask,
 								maintenanceType: taskInput.maintenanceType ?? null,
@@ -4427,12 +5112,24 @@ export class AssetService {
 								description: taskInput.description ?? null,
 							},
 						});
+						if (taskTransition.count !== 1) {
+							throw new NotFoundException(
+								`Task with ID ${taskInput.id} does not belong to this maintenance record`,
+							);
+						}
 
 						// Ensure there is an open log for this task; create if missing
 						const openLog = await tx.assetMaintenanceLog.findFirst({
 							where: {
 								taskId: taskInput.id,
 								maintenanceStatus: { in: ["PLANNED", "OVERDUE"] },
+								maintenance: {
+									is: {
+										id: input.id,
+										company: { is: { organizationId } },
+										asset: { is: assetWhereForOrganization(organizationId) },
+									},
+								},
 							},
 						});
 						if (!openLog) {
@@ -4444,8 +5141,17 @@ export class AssetService {
 								},
 							});
 						} else {
-							await tx.assetMaintenanceLog.update({
-								where: { id: openLog.id },
+							const logTransition = await tx.assetMaintenanceLog.updateMany({
+								where: {
+									id: openLog.id,
+									maintenance: {
+										is: {
+											id: input.id,
+											company: { is: { organizationId } },
+											asset: { is: assetWhereForOrganization(organizationId) },
+										},
+									},
+								},
 								data: {
 									maintenanceStatus:
 										status === "CANCELLED"
@@ -4455,6 +5161,11 @@ export class AssetService {
 												: "PLANNED",
 								},
 							});
+							if (logTransition.count !== 1) {
+								throw new NotFoundException(
+									`Maintenance log ${openLog.id} not found`,
+								);
+							}
 						}
 					} else {
 						// Create new task
@@ -4491,7 +5202,11 @@ export class AssetService {
 					}
 				}
 			}
-			await this.syncMaintenanceAssetStatus(tx, existing.assetId);
+			await this.syncMaintenanceAssetStatus(
+				tx,
+				existing.assetId,
+				organizationId,
+			);
 			if (actorId) {
 				await tx.assetActivity.create({
 					data: {
@@ -4502,8 +5217,12 @@ export class AssetService {
 				});
 			}
 
-			return tx.assetMaintenance.findUniqueOrThrow({
-				where: { id: input.id },
+			return tx.assetMaintenance.findFirstOrThrow({
+				where: {
+					id: input.id,
+					company: { is: { organizationId } },
+					asset: { is: assetWhereForOrganization(organizationId) },
+				},
 				include: this.maintenanceInclude,
 			});
 		});
@@ -4513,10 +5232,16 @@ export class AssetService {
 
 	async deleteAssetMaintenance(
 		id: string,
+		organizationId: AssetOrganizationId,
 		actorId?: string | null,
 	): Promise<{ success: boolean; id: string }> {
-		const existing = await this.prisma.assetMaintenance.findUnique({
-			where: { id },
+		this.assertOrganizationScope(organizationId);
+		const existing = await this.prisma.assetMaintenance.findFirst({
+			where: {
+				id,
+				company: { is: { organizationId } },
+				asset: { is: assetWhereForOrganization(organizationId) },
+			},
 			select: { id: true, assetId: true },
 		});
 		if (!existing) {
@@ -4524,8 +5249,21 @@ export class AssetService {
 		}
 		await this.prisma.$transaction(async (tx) => {
 			await this.lockAssets(tx, [existing.assetId]);
-			await tx.assetMaintenance.delete({ where: { id } });
-			await this.syncMaintenanceAssetStatus(tx, existing.assetId);
+			const deleted = await tx.assetMaintenance.deleteMany({
+				where: {
+					id,
+					company: { is: { organizationId } },
+					asset: { is: assetWhereForOrganization(organizationId) },
+				},
+			});
+			if (deleted.count !== 1) {
+				throw new NotFoundException(`Asset maintenance ${id} not found`);
+			}
+			await this.syncMaintenanceAssetStatus(
+				tx,
+				existing.assetId,
+				organizationId,
+			);
 			if (actorId) {
 				await tx.assetActivity.create({
 					data: {
@@ -4541,24 +5279,43 @@ export class AssetService {
 
 	async deleteManyAssetMaintenances(
 		ids: string[],
+		organizationId: AssetOrganizationId,
 		actorId?: string | null,
 	): Promise<{ success: boolean; count: number; ids: string[] }> {
+		this.assertOrganizationScope(organizationId);
 		const unique = [...new Set(ids)];
 		const existing = await this.prisma.assetMaintenance.findMany({
-			where: { id: { in: unique } },
+			where: {
+				id: { in: unique },
+				company: { is: { organizationId } },
+				asset: { is: assetWhereForOrganization(organizationId) },
+			},
 			select: { id: true, assetId: true },
 		});
 		const lockedRecords = [...existing].sort((a, b) =>
 			a.assetId.localeCompare(b.assetId),
 		);
+		if (lockedRecords.length !== unique.length) {
+			throw new NotFoundException(
+				"One or more maintenance records are not available in the active organization",
+			);
+		}
 		const result = await this.prisma.$transaction(async (tx) => {
 			for (const record of lockedRecords)
 				await this.lockAssets(tx, [record.assetId]);
 			const deleted = await tx.assetMaintenance.deleteMany({
-				where: { id: { in: unique } },
+				where: {
+					id: { in: unique },
+					company: { is: { organizationId } },
+					asset: { is: assetWhereForOrganization(organizationId) },
+				},
 			});
 			for (const record of lockedRecords) {
-				await this.syncMaintenanceAssetStatus(tx, record.assetId);
+				await this.syncMaintenanceAssetStatus(
+					tx,
+					record.assetId,
+					organizationId,
+				);
 				if (actorId) {
 					await tx.assetActivity.create({
 						data: {
@@ -4576,10 +5333,20 @@ export class AssetService {
 
 	async completeAssetMaintenanceLog(
 		input: Asset.CompleteAssetMaintenanceLogInput,
+		organizationId: AssetOrganizationId,
 		actorId?: string | null,
 	): Promise<Asset.AssetMaintenanceLogItem> {
-		const log = await this.prisma.assetMaintenanceLog.findUnique({
-			where: { id: input.logId },
+		this.assertOrganizationScope(organizationId);
+		const log = await this.prisma.assetMaintenanceLog.findFirst({
+			where: {
+				id: input.logId,
+				maintenance: {
+					is: {
+						company: { is: { organizationId } },
+						asset: { is: assetWhereForOrganization(organizationId) },
+					},
+				},
+			},
 			select: {
 				id: true,
 				maintenanceId: true,
@@ -4603,8 +5370,16 @@ export class AssetService {
 			if (log.maintenance) await this.lockAssets(tx, [log.maintenance.assetId]);
 			// Re-read after the asset lock to make completion exactly-once when
 			// duplicate requests arrive concurrently.
-			const currentLog = await tx.assetMaintenanceLog.findUnique({
-				where: { id: input.logId },
+			const currentLog = await tx.assetMaintenanceLog.findFirst({
+				where: {
+					id: input.logId,
+					maintenance: {
+						is: {
+							company: { is: { organizationId } },
+							asset: { is: assetWhereForOrganization(organizationId) },
+						},
+					},
+				},
 				select: {
 					maintenanceId: true,
 					taskId: true,
@@ -4623,8 +5398,16 @@ export class AssetService {
 				);
 			}
 			// Mark log as completed
-			const completed = await tx.assetMaintenanceLog.update({
-				where: { id: input.logId },
+			const completedTransition = await tx.assetMaintenanceLog.updateMany({
+				where: {
+					id: input.logId,
+					maintenance: {
+						is: {
+							company: { is: { organizationId } },
+							asset: { is: assetWhereForOrganization(organizationId) },
+						},
+					},
+				},
 				data: {
 					maintenanceStatus: "COMPLETED",
 					completionDate: input.completionDate,
@@ -4633,10 +5416,21 @@ export class AssetService {
 					certificateAttachment: input.certificateAttachment ?? null,
 				},
 			});
+			if (completedTransition.count !== 1) {
+				throw new NotFoundException(`Maintenance log ${input.logId} not found`);
+			}
 
 			// Update task's lastCompletionDate and recalculate nextDueDate
-			const task = await tx.assetMaintenanceTask.findUniqueOrThrow({
-				where: { id: currentLog.taskId },
+			const task = await tx.assetMaintenanceTask.findFirstOrThrow({
+				where: {
+					id: currentLog.taskId,
+					maintenance: {
+						is: {
+							company: { is: { organizationId } },
+							asset: { is: assetWhereForOrganization(organizationId) },
+						},
+					},
+				},
 			});
 			if (task.maintenanceStatus === "CANCELLED") {
 				throw new ConflictException(
@@ -4651,14 +5445,27 @@ export class AssetService {
 				input.completionDate,
 			);
 
-			await tx.assetMaintenanceTask.update({
-				where: { id: currentLog.taskId },
+			const taskTransition = await tx.assetMaintenanceTask.updateMany({
+				where: {
+					id: currentLog.taskId,
+					maintenance: {
+						is: {
+							company: { is: { organizationId } },
+							asset: { is: assetWhereForOrganization(organizationId) },
+						},
+					},
+				},
 				data: {
 					lastCompletionDate: input.completionDate,
 					nextDueDate: newNextDueDate ?? null,
 					maintenanceStatus: newNextDueDate ? "PLANNED" : "CANCELLED",
 				},
 			});
+			if (taskTransition.count !== 1) {
+				throw new NotFoundException(
+					`Maintenance task ${currentLog.taskId} not found`,
+				);
+			}
 
 			// Create next open log if there is a next due date
 			if (newNextDueDate) {
@@ -4673,7 +5480,11 @@ export class AssetService {
 				});
 			}
 			if (log.maintenance) {
-				await this.syncMaintenanceAssetStatus(tx, log.maintenance.assetId);
+				await this.syncMaintenanceAssetStatus(
+					tx,
+					log.maintenance.assetId,
+					organizationId,
+				);
 			}
 			if (actorId && log.maintenance) {
 				await tx.assetActivity.create({
@@ -4685,7 +5496,17 @@ export class AssetService {
 				});
 			}
 
-			return completed;
+			return tx.assetMaintenanceLog.findFirstOrThrow({
+				where: {
+					id: input.logId,
+					maintenance: {
+						is: {
+							company: { is: { organizationId } },
+							asset: { is: assetWhereForOrganization(organizationId) },
+						},
+					},
+				},
+			});
 		});
 
 		return toAssetMaintenanceLog(updatedLog);
@@ -4703,10 +5524,13 @@ export class AssetService {
 	 */
 	async scrapAsset(
 		input: Asset.ScrapAssetInput,
+		organizationId: AssetOrganizationId,
 		actorId?: string,
 	): Promise<Asset.AssetDisposal> {
+		this.assertOrganizationScope(organizationId);
 		return this.postAssetDisposal({
 			assetId: input.assetId,
+			organizationId,
 			disposalDate: input.disposalDate,
 			disposalType: "SCRAP",
 			salesAmount: 0,
@@ -4725,10 +5549,13 @@ export class AssetService {
 	 */
 	async sellAsset(
 		input: Asset.SellAssetInput,
+		organizationId: AssetOrganizationId,
 		actorId?: string,
 	): Promise<Asset.AssetDisposal> {
+		this.assertOrganizationScope(organizationId);
 		return this.postAssetDisposal({
 			assetId: input.assetId,
+			organizationId,
 			disposalDate: input.disposalDate,
 			disposalType: "SELL",
 			salesAmount: input.salesAmount,
@@ -4742,6 +5569,7 @@ export class AssetService {
 
 	private async postAssetDisposal(input: {
 		assetId: string;
+		organizationId: AssetOrganizationId;
 		disposalDate: Date;
 		disposalType: "SCRAP" | "SELL";
 		salesAmount: number;
@@ -4751,16 +5579,21 @@ export class AssetService {
 		notes?: string | null;
 		actorId?: string;
 	}): Promise<Asset.AssetDisposal> {
+		this.assertOrganizationScope(input.organizationId);
 		this.assertValidOperationalDate(input.disposalDate, "Disposal date");
 		await this.depreciationBarrier?.ensureDepreciationPosted({
+			kind: "organization",
+			organizationId: input.organizationId,
 			throughDate: input.disposalDate,
 			assetIds: [input.assetId],
 		});
 
 		const disposal = await this.prisma.$transaction(async (tx) => {
 			await this.lockAssets(tx, [input.assetId]);
-			const asset = await tx.asset.findUnique({
-				where: { id: input.assetId },
+			const asset = await tx.asset.findFirst({
+				where: assetWhereForOrganization(input.organizationId, {
+					id: input.assetId,
+				}),
 				select: {
 					id: true,
 					series: true,
@@ -4801,6 +5634,7 @@ export class AssetService {
 					assetId: asset.id,
 					status: "POSTED",
 					postingDate: { gt: input.disposalDate },
+					asset: { is: assetWhereForOrganization(input.organizationId) },
 				},
 			});
 			if (laterDepreciation > 0) {
@@ -4811,6 +5645,7 @@ export class AssetService {
 
 			const context = await this.getAssetAccountingContext(
 				tx,
+				input.organizationId,
 				asset,
 				input.costCenter,
 			);
@@ -4819,6 +5654,7 @@ export class AssetService {
 			);
 			const fixedAssetBalance = await this.getFixedAssetBalance(
 				tx,
+				input.organizationId,
 				asset.id,
 				Number(asset.netPurchaseAmount),
 			);
@@ -4842,6 +5678,7 @@ export class AssetService {
 			const gainLossAmount = this.roundCurrency(salesAmount - carryingValue);
 			const series = await this.generateAssetDisposalSeries(
 				input.disposalDate,
+				input.organizationId,
 				tx,
 			);
 			let created = await tx.assetDisposal.create({
@@ -4910,29 +5747,48 @@ export class AssetService {
 					: []),
 			];
 			if (lines.length >= 2) {
-				const entry = await this.accounting.createPostedEntry(tx, {
-					companyId: asset.companyId,
-					assetId: asset.id,
-					sourceType: "DISPOSAL",
-					sourceId: created.id,
-					postingDate: input.disposalDate,
-					remarks: `Asset ${asset.series} ${input.disposalType === "SELL" ? "sold" : "scrapped"} via ${series}`,
-					lines,
-				});
-				created = await tx.assetDisposal.update({
-					where: { id: created.id },
+				const entry = await this.accounting.createPostedEntry(
+					tx,
+					input.organizationId,
+					{
+						companyId: asset.companyId,
+						assetId: asset.id,
+						sourceType: "DISPOSAL",
+						sourceId: created.id,
+						postingDate: input.disposalDate,
+						remarks: `Asset ${asset.series} ${input.disposalType === "SELL" ? "sold" : "scrapped"} via ${series}`,
+						lines,
+					},
+				);
+				const linkedDisposal = await tx.assetDisposal.updateMany({
+					where: {
+						id: created.id,
+						company: { is: { organizationId: input.organizationId } },
+						asset: { is: assetWhereForOrganization(input.organizationId) },
+					},
 					data: { accountingEntryId: entry.id },
+				});
+				if (linkedDisposal.count !== 1) {
+					throw new NotFoundException(`Disposal ${created.id} not found`);
+				}
+				created = await tx.assetDisposal.findFirstOrThrow({
+					where: {
+						id: created.id,
+						company: { is: { organizationId: input.organizationId } },
+						asset: { is: assetWhereForOrganization(input.organizationId) },
+					},
 					include: this.assetDisposalInclude,
 				});
 			}
 
-			await this.depreciationRevision.closeOpenSchedules(tx, asset.id);
-			await tx.asset.update({
-				where: { id: asset.id },
-				data: {
-					status: input.disposalType === "SELL" ? "SOLD" : "SCRAPPED",
-					disposalDate: input.disposalDate,
-				},
+			await this.depreciationRevision.closeOpenSchedules(
+				tx,
+				input.organizationId,
+				asset.id,
+			);
+			await this.updateOwnedAsset(tx, input.organizationId, asset.id, {
+				status: input.disposalType === "SELL" ? "SOLD" : "SCRAPPED",
+				disposalDate: input.disposalDate,
 			});
 			await tx.assetActivity.create({
 				data: {
@@ -4955,12 +5811,16 @@ export class AssetService {
 	 */
 	async restoreAsset(
 		input: Asset.RestoreAssetInput,
+		organizationId: AssetOrganizationId,
 		actorId?: string,
 	): Promise<Asset.AssetItem> {
+		this.assertOrganizationScope(organizationId);
 		const updatedAsset = await this.prisma.$transaction(async (tx) => {
 			await this.lockAssets(tx, [input.assetId]);
-			const asset = await tx.asset.findUnique({
-				where: { id: input.assetId },
+			const asset = await tx.asset.findFirst({
+				where: assetWhereForOrganization(organizationId, {
+					id: input.assetId,
+				}),
 				include: this.assetInclude,
 			});
 			if (!asset) {
@@ -4974,7 +5834,11 @@ export class AssetService {
 				);
 			}
 			const disposal = await tx.assetDisposal.findFirst({
-				where: { assetId: asset.id, status: "POSTED" },
+				where: {
+					assetId: asset.id,
+					status: "POSTED",
+					asset: { is: assetWhereForOrganization(organizationId) },
+				},
 				orderBy: { createdAt: "desc" },
 				select: {
 					id: true,
@@ -5018,17 +5882,26 @@ export class AssetService {
 			if (disposal.accountingEntryId) {
 				await this.accounting.reversePostedEntry(
 					tx,
+					organizationId,
 					disposal.accountingEntryId,
 				);
 			}
 			await this.depreciationRevision.reactivateLatestClosedSchedules(
 				tx,
+				organizationId,
 				asset.id,
 			);
-			await tx.assetDisposal.update({
-				where: { id: disposal.id },
+			const cancelledDisposal = await tx.assetDisposal.updateMany({
+				where: {
+					id: disposal.id,
+					company: { is: { organizationId } },
+					asset: { is: assetWhereForOrganization(organizationId) },
+				},
 				data: { status: "CANCELLED" },
 			});
+			if (cancelledDisposal.count !== 1) {
+				throw new NotFoundException(`Disposal ${disposal.id} not found`);
+			}
 			const restoredStatus =
 				disposal.previousAssetStatus ??
 				(asset.isFullyDepreciated
@@ -5037,14 +5910,14 @@ export class AssetService {
 							Number(asset.netPurchaseAmount)
 						? "PARTIALLY_DEPRECIATED"
 						: "SUBMITTED");
-			const updated = await tx.asset.update({
-				where: { id: asset.id },
-				data: {
-					status: restoredStatus,
-					isFullyDepreciated:
-						disposal.previousIsFullyDepreciated ?? asset.isFullyDepreciated,
-					disposalDate: null,
-				},
+			await this.updateOwnedAsset(tx, organizationId, asset.id, {
+				status: restoredStatus,
+				isFullyDepreciated:
+					disposal.previousIsFullyDepreciated ?? asset.isFullyDepreciated,
+				disposalDate: null,
+			});
+			const updated = await tx.asset.findFirstOrThrow({
+				where: assetWhereForOrganization(organizationId, { id: asset.id }),
 				include: this.assetInclude,
 			});
 
@@ -5070,8 +5943,11 @@ export class AssetService {
 	 */
 	async createAssetMovement(
 		input: Asset.CreateAssetMovementInput,
+		organizationId: AssetOrganizationId,
 		actorId?: string | null,
 	): Promise<Asset.AssetMovement> {
+		this.assertOrganizationScope(organizationId);
+		await this.resolveCompanyForOrganization(organizationId, input.companyId);
 		const assetIds = input.items.map((item) => item.assetId);
 		if (new Set(assetIds).size !== assetIds.length) {
 			throw new BadRequestException(
@@ -5090,8 +5966,10 @@ export class AssetService {
 			}> = [];
 
 			for (const item of input.items) {
-				const asset = await tx.asset.findUnique({
-					where: { id: item.assetId },
+				const asset = await tx.asset.findFirst({
+					where: assetWhereForOrganization(organizationId, {
+						id: item.assetId,
+					}),
 					select: {
 						id: true,
 						series: true,
@@ -5127,8 +6005,14 @@ export class AssetService {
 				const previousMovement = await tx.assetMovement.findFirst({
 					where: {
 						companyId: input.companyId,
+						company: { is: { organizationId } },
 						status: "SUBMITTED",
-						items: { some: { assetId: asset.id } },
+						items: {
+							some: {
+								assetId: asset.id,
+								asset: { is: assetWhereForOrganization(organizationId) },
+							},
+						},
 					},
 					select: { transactionDate: true },
 					orderBy: [{ transactionDate: "desc" }, { submittedAt: "desc" }],
@@ -5216,6 +6100,7 @@ export class AssetService {
 
 			const series = await this.generateAssetMovementSeries(
 				input.transactionDate,
+				organizationId,
 				tx,
 			);
 			const created = await tx.assetMovement.create({
@@ -5263,10 +6148,18 @@ export class AssetService {
 	 */
 	async submitAssetMovement(
 		input: Asset.SubmitAssetMovementInput,
+		organizationId: AssetOrganizationId,
 		actorId?: string,
 	): Promise<Asset.AssetMovement> {
-		const movement = await this.prisma.assetMovement.findUnique({
-			where: { id: input.id },
+		this.assertOrganizationScope(organizationId);
+		const movement = await this.prisma.assetMovement.findFirst({
+			where: {
+				id: input.id,
+				company: { is: { organizationId } },
+				items: {
+					every: { asset: { is: assetWhereForOrganization(organizationId) } },
+				},
+			},
 			include: this.assetMovementInclude,
 		});
 		if (!movement) {
@@ -5279,22 +6172,44 @@ export class AssetService {
 		}
 
 		const submitted = await this.prisma.$transaction(async (tx) => {
+			const currentMovement = await tx.assetMovement.findFirst({
+				where: {
+					id: input.id,
+					company: { is: { organizationId } },
+					items: {
+						every: { asset: { is: assetWhereForOrganization(organizationId) } },
+					},
+				},
+				include: this.assetMovementInclude,
+			});
+			if (!currentMovement) {
+				throw new NotFoundException(`AssetMovement ${input.id} not found.`);
+			}
 			await this.lockAssets(
 				tx,
-				movement.items.map((item) => item.assetId),
+				currentMovement.items.map((item) => item.assetId),
 			);
 			const transition = await tx.assetMovement.updateMany({
-				where: { id: input.id, status: "DRAFT" },
+				where: {
+					id: input.id,
+					status: "DRAFT",
+					company: { is: { organizationId } },
+					items: {
+						every: { asset: { is: assetWhereForOrganization(organizationId) } },
+					},
+				},
 				data: { status: "SUBMITTED", submittedAt: new Date() },
 			});
 			if (transition.count !== 1) {
 				throw new ConflictException(
-					`AssetMovement ${movement.series} was submitted by another request.`,
+					`AssetMovement ${currentMovement.series} was submitted by another request.`,
 				);
 			}
-			for (const item of movement.items) {
-				const asset = await tx.asset.findUniqueOrThrow({
-					where: { id: item.assetId },
+			for (const item of currentMovement.items) {
+				const asset = await tx.asset.findFirst({
+					where: assetWhereForOrganization(organizationId, {
+						id: item.assetId,
+					}),
 					select: {
 						companyId: true,
 						company: { select: { name: true } },
@@ -5304,9 +6219,12 @@ export class AssetService {
 						status: true,
 					},
 				});
-				if (asset.companyId !== movement.companyId) {
+				if (!asset) {
+					throw new NotFoundException(`Asset ${item.assetId} not found.`);
+				}
+				if (asset.companyId !== currentMovement.companyId) {
 					throw new BadRequestException(
-						`Asset ${asset.series} does not belong to company ${movement.company}.`,
+						`Asset ${asset.series} does not belong to company ${currentMovement.company}.`,
 					);
 				}
 				if (
@@ -5322,16 +6240,22 @@ export class AssetService {
 				}
 				const latestMovement = await tx.assetMovement.findFirst({
 					where: {
-						companyId: movement.companyId,
+						companyId: currentMovement.companyId,
+						company: { is: { organizationId } },
 						status: "SUBMITTED",
-						items: { some: { assetId: item.assetId } },
+						items: {
+							some: {
+								assetId: item.assetId,
+								asset: { is: assetWhereForOrganization(organizationId) },
+							},
+						},
 					},
 					select: { transactionDate: true },
 					orderBy: [{ transactionDate: "desc" }, { submittedAt: "desc" }],
 				});
 				if (
 					latestMovement &&
-					movement.transactionDate < latestMovement.transactionDate
+					currentMovement.transactionDate < latestMovement.transactionDate
 				) {
 					throw new BadRequestException(
 						"Transaction date cannot be earlier than the latest submitted movement for this asset.",
@@ -5342,7 +6266,7 @@ export class AssetService {
 					asset.custodian !== item.fromEmployee
 				) {
 					throw new ConflictException(
-						`Asset ${asset.series} changed after movement ${movement.series} was created.`,
+						`Asset ${asset.series} changed after movement ${currentMovement.series} was created.`,
 					);
 				}
 				if (
@@ -5352,17 +6276,14 @@ export class AssetService {
 					!item.targetLocationId
 				) {
 					throw new ConflictException(
-						`Asset movement ${movement.series} no longer has its required target location.`,
+						`Asset movement ${currentMovement.series} no longer has its required target location.`,
 					);
 				}
-				await tx.asset.update({
-					where: { id: item.assetId },
-					data: {
-						...(item.targetLocationId
-							? { locationId: item.targetLocationId }
-							: {}),
-						custodian: item.toEmployee,
-					},
+				await this.updateOwnedAsset(tx, organizationId, item.assetId, {
+					...(item.targetLocationId
+						? { locationId: item.targetLocationId }
+						: {}),
+					custodian: item.toEmployee,
 				});
 
 				await tx.assetActivity.create({
@@ -5376,8 +6297,14 @@ export class AssetService {
 				});
 			}
 
-			return tx.assetMovement.findUniqueOrThrow({
-				where: { id: input.id },
+			return tx.assetMovement.findFirstOrThrow({
+				where: {
+					id: input.id,
+					company: { is: { organizationId } },
+					items: {
+						every: { asset: { is: assetWhereForOrganization(organizationId) } },
+					},
+				},
 				include: this.assetMovementInclude,
 			});
 		});
@@ -5393,10 +6320,18 @@ export class AssetService {
 	 */
 	async cancelAssetMovement(
 		input: Asset.CancelAssetMovementInput,
+		organizationId: AssetOrganizationId,
 		actorId?: string,
 	): Promise<Asset.AssetMovement> {
-		const movement = await this.prisma.assetMovement.findUnique({
-			where: { id: input.id },
+		this.assertOrganizationScope(organizationId);
+		const movement = await this.prisma.assetMovement.findFirst({
+			where: {
+				id: input.id,
+				company: { is: { organizationId } },
+				items: {
+					every: { asset: { is: assetWhereForOrganization(organizationId) } },
+				},
+			},
 			include: this.assetMovementInclude,
 		});
 		if (!movement) {
@@ -5409,22 +6344,44 @@ export class AssetService {
 		}
 
 		const cancelled = await this.prisma.$transaction(async (tx) => {
+			const currentMovement = await tx.assetMovement.findFirst({
+				where: {
+					id: input.id,
+					company: { is: { organizationId } },
+					items: {
+						every: { asset: { is: assetWhereForOrganization(organizationId) } },
+					},
+				},
+				include: this.assetMovementInclude,
+			});
+			if (!currentMovement) {
+				throw new NotFoundException(`AssetMovement ${input.id} not found.`);
+			}
 			await this.lockAssets(
 				tx,
-				movement.items.map((item) => item.assetId),
+				currentMovement.items.map((item) => item.assetId),
 			);
 			const transition = await tx.assetMovement.updateMany({
-				where: { id: input.id, status: "SUBMITTED" },
+				where: {
+					id: input.id,
+					status: "SUBMITTED",
+					company: { is: { organizationId } },
+					items: {
+						every: { asset: { is: assetWhereForOrganization(organizationId) } },
+					},
+				},
 				data: { status: "CANCELLED", cancelledAt: new Date() },
 			});
 			if (transition.count !== 1) {
 				throw new ConflictException(
-					`AssetMovement ${movement.series} was cancelled by another request.`,
+					`AssetMovement ${currentMovement.series} was cancelled by another request.`,
 				);
 			}
-			for (const item of movement.items) {
-				const asset = await tx.asset.findUniqueOrThrow({
-					where: { id: item.assetId },
+			for (const item of currentMovement.items) {
+				const asset = await tx.asset.findFirst({
+					where: assetWhereForOrganization(organizationId, {
+						id: item.assetId,
+					}),
 					select: {
 						companyId: true,
 						company: { select: { name: true } },
@@ -5432,16 +6389,25 @@ export class AssetService {
 						locationId: true,
 					},
 				});
-				if (asset.companyId !== movement.companyId) {
+				if (!asset) {
+					throw new NotFoundException(`Asset ${item.assetId} not found.`);
+				}
+				if (asset.companyId !== currentMovement.companyId) {
 					throw new BadRequestException(
-						`Asset ${asset.series} does not belong to company ${movement.company}.`,
+						`Asset ${asset.series} does not belong to company ${currentMovement.company}.`,
 					);
 				}
 				const latest = await tx.assetMovement.findFirst({
 					where: {
-						companyId: movement.companyId,
+						companyId: currentMovement.companyId,
+						company: { is: { organizationId } },
 						status: "SUBMITTED",
-						items: { some: { assetId: item.assetId } },
+						items: {
+							some: {
+								assetId: item.assetId,
+								asset: { is: assetWhereForOrganization(organizationId) },
+							},
+						},
 					},
 					include: {
 						items: {
@@ -5452,14 +6418,11 @@ export class AssetService {
 					orderBy: [{ transactionDate: "desc" }, { submittedAt: "desc" }],
 				});
 				const latestItem = latest?.items[0];
-				await tx.asset.update({
-					where: { id: item.assetId },
-					data: {
-						locationId: latestItem
-							? (latestItem.targetLocationId ?? asset.locationId)
-							: item.sourceLocationId,
-						custodian: latestItem ? latestItem.toEmployee : item.fromEmployee,
-					},
+				await this.updateOwnedAsset(tx, organizationId, item.assetId, {
+					locationId: latestItem
+						? (latestItem.targetLocationId ?? asset.locationId)
+						: item.sourceLocationId,
+					custodian: latestItem ? latestItem.toEmployee : item.fromEmployee,
 				});
 
 				await tx.assetActivity.create({
@@ -5471,8 +6434,14 @@ export class AssetService {
 				});
 			}
 
-			return tx.assetMovement.findUniqueOrThrow({
-				where: { id: input.id },
+			return tx.assetMovement.findFirstOrThrow({
+				where: {
+					id: input.id,
+					company: { is: { organizationId } },
+					items: {
+						every: { asset: { is: assetWhereForOrganization(organizationId) } },
+					},
+				},
 				include: this.assetMovementInclude,
 			});
 		});
@@ -5486,9 +6455,19 @@ export class AssetService {
 	 * @param id Unique CUID of the movement
 	 * @returns The AssetMovement domain object
 	 */
-	async findMovementById(id: string): Promise<Asset.AssetMovement> {
-		const movement = await this.prisma.assetMovement.findUnique({
-			where: { id },
+	async findMovementById(
+		id: string,
+		organizationId: AssetOrganizationId,
+	): Promise<Asset.AssetMovement> {
+		this.assertOrganizationScope(organizationId);
+		const movement = await this.prisma.assetMovement.findFirst({
+			where: {
+				id,
+				company: { is: { organizationId } },
+				items: {
+					every: { asset: { is: assetWhereForOrganization(organizationId) } },
+				},
+			},
 			include: this.assetMovementInclude,
 		});
 		if (!movement) {
@@ -5505,9 +6484,20 @@ export class AssetService {
 	 */
 	async listMovements(
 		input: Asset.ListAssetMovementsInput,
+		organizationId: AssetOrganizationId,
 	): Promise<Asset.AssetMovementListResult> {
-		const where: Prisma.AssetMovementWhereInput = {};
-		if (input.company) where.company = { is: { name: input.company } };
+		this.assertOrganizationScope(organizationId);
+		const where: Prisma.AssetMovementWhereInput = {
+			company: {
+				is: {
+					organizationId,
+					...(input.company ? { name: input.company } : {}),
+				},
+			},
+			items: {
+				every: { asset: { is: assetWhereForOrganization(organizationId) } },
+			},
+		};
 		if (input.status) where.status = input.status;
 		if (input.purpose) where.purpose = input.purpose;
 		if (input.search) {
@@ -5545,8 +6535,11 @@ export class AssetService {
 	 */
 	async createAssetRepair(
 		input: Asset.CreateAssetRepairInput,
+		organizationId: AssetOrganizationId,
 		actorId?: string,
 	): Promise<Asset.AssetRepair> {
+		this.assertOrganizationScope(organizationId);
+		await this.resolveCompanyForOrganization(organizationId, input.companyId);
 		this.assertValidOperationalDate(input.failureDate, "Failure date");
 		if (input.completionDate) {
 			this.assertValidOperationalDate(input.completionDate, "Completion date");
@@ -5609,8 +6602,10 @@ export class AssetService {
 
 		const repair = await this.prisma.$transaction(async (tx) => {
 			await this.lockAssets(tx, [input.assetId]);
-			const asset = await tx.asset.findUnique({
-				where: { id: input.assetId },
+			const asset = await tx.asset.findFirst({
+				where: assetWhereForOrganization(organizationId, {
+					id: input.assetId,
+				}),
 				select: {
 					id: true,
 					series: true,
@@ -5650,6 +6645,7 @@ export class AssetService {
 			const openRepair = await tx.assetRepair.findFirst({
 				where: {
 					assetId: asset.id,
+					asset: { is: assetWhereForOrganization(organizationId) },
 					repairStatus: { in: ["DRAFT", "PENDING"] },
 				},
 				select: { series: true },
@@ -5669,7 +6665,10 @@ export class AssetService {
 			}
 			if (consumedAssetIds.length > 0) {
 				const consumedAssets = await tx.asset.findMany({
-					where: { id: { in: consumedAssetIds }, companyId: input.companyId },
+					where: assetWhereForOrganization(organizationId, {
+						id: { in: consumedAssetIds },
+						companyId: input.companyId,
+					}),
 					select: { id: true },
 				});
 				if (consumedAssets.length !== new Set(consumedAssetIds).size) {
@@ -5680,6 +6679,7 @@ export class AssetService {
 			}
 			const series = await this.generateAssetRepairSeries(
 				input.failureDate,
+				organizationId,
 				tx,
 			);
 			const created = await tx.assetRepair.create({
@@ -5700,9 +6700,8 @@ export class AssetService {
 				},
 				include: this.assetRepairInclude,
 			});
-			await tx.asset.update({
-				where: { id: asset.id },
-				data: { status: "OUT_OF_ORDER" },
+			await this.updateOwnedAsset(tx, organizationId, asset.id, {
+				status: "OUT_OF_ORDER",
 			});
 			await tx.assetActivity.create({
 				data: {
@@ -5725,10 +6724,16 @@ export class AssetService {
 	 */
 	async submitAssetRepair(
 		input: Asset.SubmitAssetRepairInput,
+		organizationId: AssetOrganizationId,
 		actorId?: string,
 	): Promise<Asset.AssetRepair> {
-		const repair = await this.prisma.assetRepair.findUnique({
-			where: { id: input.id },
+		this.assertOrganizationScope(organizationId);
+		const repair = await this.prisma.assetRepair.findFirst({
+			where: {
+				id: input.id,
+				company: { is: { organizationId } },
+				asset: { is: assetWhereForOrganization(organizationId) },
+			},
 			select: {
 				id: true,
 				assetId: true,
@@ -5750,6 +6755,8 @@ export class AssetService {
 		}
 		if (repair.capitalizeRepairCost) {
 			await this.depreciationBarrier?.ensureDepreciationPosted({
+				kind: "organization",
+				organizationId,
 				throughDate: completionDate,
 				assetIds: [repair.assetId],
 			});
@@ -5757,8 +6764,12 @@ export class AssetService {
 
 		const submitted = await this.prisma.$transaction(async (tx) => {
 			await this.lockAssets(tx, [repair.assetId]);
-			const currentRepair = await tx.assetRepair.findUnique({
-				where: { id: input.id },
+			const currentRepair = await tx.assetRepair.findFirst({
+				where: {
+					id: input.id,
+					company: { is: { organizationId } },
+					asset: { is: assetWhereForOrganization(organizationId) },
+				},
 				include: this.assetRepairInclude,
 			});
 			if (!currentRepair) {
@@ -5769,8 +6780,10 @@ export class AssetService {
 					`AssetRepair ${currentRepair.series} cannot be completed because status is ${currentRepair.repairStatus}.`,
 				);
 			}
-			const asset = await tx.asset.findUniqueOrThrow({
-				where: { id: currentRepair.assetId },
+			const asset = await tx.asset.findFirst({
+				where: assetWhereForOrganization(organizationId, {
+					id: currentRepair.assetId,
+				}),
 				select: {
 					id: true,
 					series: true,
@@ -5784,6 +6797,11 @@ export class AssetService {
 					calculateDepreciation: true,
 				},
 			});
+			if (!asset) {
+				throw new NotFoundException(
+					`Asset ${currentRepair.assetId} not found.`,
+				);
+			}
 			if (asset.status !== "OUT_OF_ORDER") {
 				throw new ConflictException(
 					`Asset ${asset.series} changed state while repair ${currentRepair.series} was pending.`,
@@ -5791,25 +6809,33 @@ export class AssetService {
 			}
 			let stockEntryId: string | null = null;
 			if (currentRepair.consumedItems.length > 0) {
-				const stockEntry = await this.stockPosting.createMaterialIssue(tx, {
-					companyId: currentRepair.companyId,
-					postingDate: completionDate,
-					sourceType: "ASSET_REPAIR",
-					sourceId: currentRepair.id,
-					lines: currentRepair.consumedItems.map((item) => ({
-						itemCode: item.itemCode,
-						warehouse: item.warehouse ?? "",
-						quantity: item.quantity,
-						valuationRate: Number(item.valuationRate),
-					})),
-				});
+				const stockEntry = await this.stockPosting.createMaterialIssue(
+					tx,
+					organizationId,
+					{
+						companyId: currentRepair.companyId,
+						postingDate: completionDate,
+						sourceType: "ASSET_REPAIR",
+						sourceId: currentRepair.id,
+						lines: currentRepair.consumedItems.map((item) => ({
+							itemCode: item.itemCode,
+							warehouse: item.warehouse ?? "",
+							quantity: item.quantity,
+							valuationRate: Number(item.valuationRate),
+						})),
+					},
+				);
 				stockEntryId = stockEntry.id;
 			}
 
 			const repairCost = this.roundCurrency(Number(currentRepair.repairCost));
 			let accountingEntryId: string | null = null;
 			if (currentRepair.capitalizeRepairCost && repairCost > 0) {
-				const context = await this.getAssetAccountingContext(tx, asset);
+				const context = await this.getAssetAccountingContext(
+					tx,
+					organizationId,
+					asset,
+				);
 				const creditLines = [
 					...currentRepair.consumedItems.map((item) => ({
 						account: item.expenseAccount?.trim() ?? "",
@@ -5825,28 +6851,32 @@ export class AssetService {
 						"Every capitalized repair cost requires an expense account.",
 					);
 				}
-				const entry = await this.accounting.createPostedEntry(tx, {
-					companyId: currentRepair.companyId,
-					assetId: asset.id,
-					sourceType: "REPAIR",
-					sourceId: currentRepair.id,
-					postingDate: completionDate,
-					remarks: `Capitalized repair ${currentRepair.series} for ${asset.series}`,
-					lines: [
-						{
-							account: context.fixedAssetAccount,
-							debitAmount: repairCost,
-							creditAmount: 0,
-							costCenter: context.costCenter,
-						},
-						...creditLines.map((line) => ({
-							account: line.account,
-							debitAmount: 0,
-							creditAmount: this.roundCurrency(line.amount),
-							costCenter: context.costCenter,
-						})),
-					],
-				});
+				const entry = await this.accounting.createPostedEntry(
+					tx,
+					organizationId,
+					{
+						companyId: currentRepair.companyId,
+						assetId: asset.id,
+						sourceType: "REPAIR",
+						sourceId: currentRepair.id,
+						postingDate: completionDate,
+						remarks: `Capitalized repair ${currentRepair.series} for ${asset.series}`,
+						lines: [
+							{
+								account: context.fixedAssetAccount,
+								debitAmount: repairCost,
+								creditAmount: 0,
+								costCenter: context.costCenter,
+							},
+							...creditLines.map((line) => ({
+								account: line.account,
+								debitAmount: 0,
+								creditAmount: this.roundCurrency(line.amount),
+								costCenter: context.costCenter,
+							})),
+						],
+					},
+				);
 				accountingEntryId = entry.id;
 			}
 
@@ -5861,7 +6891,7 @@ export class AssetService {
 				asset.calculateDepreciation &&
 				(repairCost !== 0 || lifeDelta !== 0)
 			) {
-				await this.depreciationRevision.revise(tx, {
+				await this.depreciationRevision.revise(tx, organizationId, {
 					assetId: asset.id,
 					effectiveDate: completionDate,
 					valueDelta: repairCost,
@@ -5882,21 +6912,22 @@ export class AssetService {
 				restoredStatus === "FULLY_DEPRECIATED" && newValue > 0
 					? "PARTIALLY_DEPRECIATED"
 					: restoredStatus;
-			await tx.asset.update({
-				where: { id: asset.id },
-				data: {
-					status: baseRestoredStatus,
-					netPurchaseAmount: this.roundCurrency(
-						previousNet + (currentRepair.capitalizeRepairCost ? repairCost : 0),
-					),
-					valueAfterDepreciation: newValue,
-					totalNumberOfDepreciations: previousTotal,
-					isFullyDepreciated: newValue <= 0,
-				},
+			await this.updateOwnedAsset(tx, organizationId, asset.id, {
+				status: baseRestoredStatus,
+				netPurchaseAmount: this.roundCurrency(
+					previousNet + (currentRepair.capitalizeRepairCost ? repairCost : 0),
+				),
+				valueAfterDepreciation: newValue,
+				totalNumberOfDepreciations: previousTotal,
+				isFullyDepreciated: newValue <= 0,
 			});
 
-			const updated = await tx.assetRepair.update({
-				where: { id: input.id },
+			const transition = await tx.assetRepair.updateMany({
+				where: {
+					id: input.id,
+					company: { is: { organizationId } },
+					asset: { is: assetWhereForOrganization(organizationId) },
+				},
 				data: {
 					repairStatus: "COMPLETED",
 					submittedAt: new Date(),
@@ -5907,9 +6938,24 @@ export class AssetService {
 					previousValueAfterDepreciation: previousValue,
 					previousTotalDepreciations: previousTotal,
 				},
+			});
+			if (transition.count !== 1) {
+				throw new NotFoundException(`AssetRepair ${input.id} not found.`);
+			}
+			const updated = await tx.assetRepair.findFirstOrThrow({
+				where: {
+					id: input.id,
+					company: { is: { organizationId } },
+					asset: { is: assetWhereForOrganization(organizationId) },
+				},
 				include: this.assetRepairInclude,
 			});
-			await this.syncMaintenanceAssetStatus(tx, asset.id, baseRestoredStatus);
+			await this.syncMaintenanceAssetStatus(
+				tx,
+				asset.id,
+				organizationId,
+				baseRestoredStatus,
+			);
 
 			await tx.assetActivity.create({
 				data: {
@@ -5933,10 +6979,16 @@ export class AssetService {
 	 */
 	async cancelAssetRepair(
 		input: Asset.CancelAssetRepairInput,
+		organizationId: AssetOrganizationId,
 		actorId?: string,
 	): Promise<Asset.AssetRepair> {
-		const repair = await this.prisma.assetRepair.findUnique({
-			where: { id: input.id },
+		this.assertOrganizationScope(organizationId);
+		const repair = await this.prisma.assetRepair.findFirst({
+			where: {
+				id: input.id,
+				company: { is: { organizationId } },
+				asset: { is: assetWhereForOrganization(organizationId) },
+			},
 			select: { id: true, assetId: true },
 		});
 		if (!repair) {
@@ -5945,8 +6997,12 @@ export class AssetService {
 
 		const cancelled = await this.prisma.$transaction(async (tx) => {
 			await this.lockAssets(tx, [repair.assetId]);
-			const currentRepair = await tx.assetRepair.findUnique({
-				where: { id: input.id },
+			const currentRepair = await tx.assetRepair.findFirst({
+				where: {
+					id: input.id,
+					company: { is: { organizationId } },
+					asset: { is: assetWhereForOrganization(organizationId) },
+				},
 				include: this.assetRepairInclude,
 			});
 			if (!currentRepair) {
@@ -5957,8 +7013,10 @@ export class AssetService {
 					`AssetRepair ${currentRepair.series} is already cancelled.`,
 				);
 			}
-			const asset = await tx.asset.findUniqueOrThrow({
-				where: { id: currentRepair.assetId },
+			const asset = await tx.asset.findFirst({
+				where: assetWhereForOrganization(organizationId, {
+					id: currentRepair.assetId,
+				}),
 				select: {
 					id: true,
 					series: true,
@@ -5969,6 +7027,11 @@ export class AssetService {
 					calculateDepreciation: true,
 				},
 			});
+			if (!asset) {
+				throw new NotFoundException(
+					`Asset ${currentRepair.assetId} not found.`,
+				);
+			}
 			const baseRestoredStatus: RestorableAssetStatus =
 				currentRepair.previousAssetStatus === "FULLY_DEPRECIATED"
 					? "FULLY_DEPRECIATED"
@@ -6013,6 +7076,7 @@ export class AssetService {
 								assetId: asset.id,
 								status: "POSTED",
 								createdAt: { gt: currentRepair.submittedAt },
+								asset: { is: assetWhereForOrganization(organizationId) },
 							},
 						}),
 						tx.assetValueAdjustment.count({
@@ -6020,6 +7084,7 @@ export class AssetService {
 								assetId: asset.id,
 								status: "SUBMITTED",
 								submittedAt: { gt: currentRepair.submittedAt },
+								asset: { is: assetWhereForOrganization(organizationId) },
 							},
 						}),
 						tx.assetAccountingEntry.count({
@@ -6027,6 +7092,8 @@ export class AssetService {
 								assetId: asset.id,
 								status: "POSTED",
 								createdAt: { gt: currentRepair.submittedAt },
+								company: { is: { organizationId } },
+								asset: { is: assetWhereForOrganization(organizationId) },
 								...(currentRepair.accountingEntryId
 									? { id: { not: currentRepair.accountingEntryId } }
 									: {}),
@@ -6045,13 +7112,18 @@ export class AssetService {
 				if (currentRepair.accountingEntryId) {
 					await this.accounting.reversePostedEntry(
 						tx,
+						organizationId,
 						currentRepair.accountingEntryId,
 					);
 				}
 				if (currentRepair.stockEntryId) {
 					await this.stockPosting.cancelMaterialIssue(
 						tx,
+						organizationId,
+						currentRepair.companyId,
 						currentRepair.stockEntryId,
+						"ASSET_REPAIR",
+						currentRepair.id,
 					);
 				}
 				if (
@@ -6059,7 +7131,7 @@ export class AssetService {
 					asset.calculateDepreciation &&
 					(repairCost !== 0 || currentRepair.increaseInAssetLife !== 0)
 				) {
-					await this.depreciationRevision.revise(tx, {
+					await this.depreciationRevision.revise(tx, organizationId, {
 						assetId: asset.id,
 						effectiveDate: dateOnlyUtc(businessDate(depreciationTimeZone())),
 						valueDelta: -repairCost,
@@ -6067,18 +7139,13 @@ export class AssetService {
 						notes: `Schedule revised after cancellation of repair ${currentRepair.series}`,
 					});
 				}
-				await tx.asset.update({
-					where: { id: asset.id },
-					data: {
-						status: baseRestoredStatus,
-						netPurchaseAmount: currentRepair.previousNetPurchaseAmount,
-						valueAfterDepreciation:
-							currentRepair.previousValueAfterDepreciation,
-						totalNumberOfDepreciations:
-							currentRepair.previousTotalDepreciations,
-						isFullyDepreciated:
-							currentRepair.previousAssetStatus === "FULLY_DEPRECIATED",
-					},
+				await this.updateOwnedAsset(tx, organizationId, asset.id, {
+					status: baseRestoredStatus,
+					netPurchaseAmount: currentRepair.previousNetPurchaseAmount,
+					valueAfterDepreciation: currentRepair.previousValueAfterDepreciation,
+					totalNumberOfDepreciations: currentRepair.previousTotalDepreciations,
+					isFullyDepreciated:
+						currentRepair.previousAssetStatus === "FULLY_DEPRECIATED",
 				});
 			} else {
 				if (asset.status !== "OUT_OF_ORDER") {
@@ -6086,23 +7153,39 @@ export class AssetService {
 						`Asset ${asset.series} changed state while repair ${currentRepair.series} was pending.`,
 					);
 				}
-				await tx.asset.update({
-					where: { id: asset.id },
-					data: {
-						status: baseRestoredStatus,
-					},
+				await this.updateOwnedAsset(tx, organizationId, asset.id, {
+					status: baseRestoredStatus,
 				});
 			}
 
-			const updated = await tx.assetRepair.update({
-				where: { id: input.id },
+			const transition = await tx.assetRepair.updateMany({
+				where: {
+					id: input.id,
+					company: { is: { organizationId } },
+					asset: { is: assetWhereForOrganization(organizationId) },
+				},
 				data: {
 					repairStatus: "CANCELLED",
 					cancelledAt: new Date(),
 				},
+			});
+			if (transition.count !== 1) {
+				throw new NotFoundException(`AssetRepair ${input.id} not found.`);
+			}
+			const updated = await tx.assetRepair.findFirstOrThrow({
+				where: {
+					id: input.id,
+					company: { is: { organizationId } },
+					asset: { is: assetWhereForOrganization(organizationId) },
+				},
 				include: this.assetRepairInclude,
 			});
-			await this.syncMaintenanceAssetStatus(tx, asset.id, baseRestoredStatus);
+			await this.syncMaintenanceAssetStatus(
+				tx,
+				asset.id,
+				organizationId,
+				baseRestoredStatus,
+			);
 
 			await tx.assetActivity.create({
 				data: {
@@ -6124,9 +7207,17 @@ export class AssetService {
 	 * @param id Unique CUID of the repair
 	 * @returns The AssetRepair domain object
 	 */
-	async findRepairById(id: string): Promise<Asset.AssetRepair> {
-		const repair = await this.prisma.assetRepair.findUnique({
-			where: { id },
+	async findRepairById(
+		id: string,
+		organizationId: AssetOrganizationId,
+	): Promise<Asset.AssetRepair> {
+		this.assertOrganizationScope(organizationId);
+		const repair = await this.prisma.assetRepair.findFirst({
+			where: {
+				id,
+				company: { is: { organizationId } },
+				asset: { is: assetWhereForOrganization(organizationId) },
+			},
 			include: this.assetRepairInclude,
 		});
 		if (!repair) {
@@ -6143,10 +7234,23 @@ export class AssetService {
 	 */
 	async listRepairs(
 		input: Asset.ListAssetRepairsInput,
+		organizationId: AssetOrganizationId,
 	): Promise<Asset.AssetRepairListResult> {
-		const where: Prisma.AssetRepairWhereInput = {};
-		if (input.assetId) where.assetId = input.assetId;
-		if (input.company) where.company = { is: { name: input.company } };
+		this.assertOrganizationScope(organizationId);
+		const where: Prisma.AssetRepairWhereInput = {
+			company: {
+				is: {
+					organizationId,
+					...(input.company ? { name: input.company } : {}),
+				},
+			},
+			asset: { is: assetWhereForOrganization(organizationId) },
+		};
+		if (input.assetId) {
+			where.asset = {
+				is: assetWhereForOrganization(organizationId, { id: input.assetId }),
+			};
+		}
 		if (input.status) where.repairStatus = input.status;
 		if (input.search) {
 			where.OR = [
@@ -6183,8 +7287,11 @@ export class AssetService {
 	 */
 	async createAssetCapitalization(
 		input: Asset.CreateAssetCapitalizationInput,
+		organizationId: AssetOrganizationId,
 		actorId?: string | null,
 	): Promise<Asset.AssetCapitalization> {
+		this.assertOrganizationScope(organizationId);
+		await this.resolveCompanyForOrganization(organizationId, input.companyId);
 		this.assertValidOperationalDate(input.postingDate, "Posting date");
 		if (
 			(input.stockItems?.length ?? 0) === 0 &&
@@ -6257,8 +7364,10 @@ export class AssetService {
 				...sourceAssetIds,
 				...(input.targetAssetId ? [input.targetAssetId] : []),
 			]);
-			const company = await tx.company.findUnique({
-				where: { id: input.companyId },
+			const company = await tx.company.findFirst({
+				where: companyWhereForOrganization(organizationId, {
+					id: input.companyId,
+				}),
 				select: { id: true, name: true, disabled: true },
 			});
 			if (!company || company.disabled) {
@@ -6270,8 +7379,10 @@ export class AssetService {
 			let resolvedTargetCategory = input.targetAssetCategory ?? null;
 			let resolvedTargetItemCode = input.targetItemCode ?? null;
 			if (input.targetAssetId) {
-				const target = await tx.asset.findUnique({
-					where: { id: input.targetAssetId },
+				const target = await tx.asset.findFirst({
+					where: assetWhereForOrganization(organizationId, {
+						id: input.targetAssetId,
+					}),
 					select: {
 						companyId: true,
 						company: { select: { name: true } },
@@ -6336,7 +7447,9 @@ export class AssetService {
 				}
 			}
 			const sources = await tx.asset.findMany({
-				where: { id: { in: sourceAssetIds } },
+				where: assetWhereForOrganization(organizationId, {
+					id: { in: sourceAssetIds },
+				}),
 				select: {
 					id: true,
 					series: true,
@@ -6394,6 +7507,7 @@ export class AssetService {
 			}
 			const series = await this.generateAssetCapitalizationSeries(
 				input.postingDate,
+				organizationId,
 				tx,
 			);
 			const created = await tx.assetCapitalization.create({
@@ -6452,10 +7566,14 @@ export class AssetService {
 	 */
 	async submitAssetCapitalization(
 		input: Asset.SubmitAssetCapitalizationInput,
+		organizationId: AssetOrganizationId,
 		actorId?: string,
 	): Promise<Asset.AssetCapitalization> {
-		const cap = await this.prisma.assetCapitalization.findUnique({
-			where: { id: input.id },
+		this.assertOrganizationScope(organizationId);
+		const cap = await this.prisma.assetCapitalization.findFirst({
+			where: this.assetCapitalizationWhereForOrganization(organizationId, {
+				id: input.id,
+			}),
 			select: {
 				postingDate: true,
 				targetAssetId: true,
@@ -6468,6 +7586,8 @@ export class AssetService {
 		const sourceAssetIds = cap.assetItems.map((item) => item.assetId);
 		if (sourceAssetIds.length > 0) {
 			await this.depreciationBarrier?.ensureDepreciationPosted({
+				kind: "organization",
+				organizationId,
 				throughDate: cap.postingDate,
 				assetIds: sourceAssetIds,
 			});
@@ -6481,8 +7601,10 @@ export class AssetService {
 				...sourceAssetIds,
 				...(cap.targetAssetId ? [cap.targetAssetId] : []),
 			]);
-			const currentCap = await tx.assetCapitalization.findUnique({
-				where: { id: input.id },
+			const currentCap = await tx.assetCapitalization.findFirst({
+				where: this.assetCapitalizationWhereForOrganization(organizationId, {
+					id: input.id,
+				}),
 				include: this.assetCapitalizationInclude,
 			});
 			if (!currentCap) {
@@ -6499,6 +7621,7 @@ export class AssetService {
 				tx,
 				currentCap,
 				sourceAssetIds,
+				organizationId,
 				actorId,
 			);
 		});
@@ -6510,10 +7633,11 @@ export class AssetService {
 		tx: Prisma.TransactionClient,
 		cap: PrismaAssetCapitalization,
 		sourceAssetIds: readonly string[],
+		organizationId: AssetOrganizationId,
 		actorId?: string,
 	): Promise<PrismaAssetCapitalization> {
-		const company = await tx.company.findUnique({
-			where: { id: cap.companyId },
+		const company = await tx.company.findFirst({
+			where: companyWhereForOrganization(organizationId, { id: cap.companyId }),
 			select: { id: true, name: true, disabled: true },
 		});
 		if (!company || company.disabled) {
@@ -6522,7 +7646,9 @@ export class AssetService {
 			);
 		}
 		const sources = await tx.asset.findMany({
-			where: { id: { in: [...sourceAssetIds] } },
+			where: assetWhereForOrganization(organizationId, {
+				id: { in: [...sourceAssetIds] },
+			}),
 			select: {
 				id: true,
 				series: true,
@@ -6541,6 +7667,7 @@ export class AssetService {
 		const laterDepreciation = await tx.assetDepreciationJournalEntry.count({
 			where: {
 				assetId: { in: [...sourceAssetIds] },
+				asset: { is: assetWhereForOrganization(organizationId) },
 				status: "POSTED",
 				postingDate: { gt: cap.postingDate },
 			},
@@ -6569,8 +7696,10 @@ export class AssetService {
 					"An existing target asset is required for capitalization.",
 				);
 			}
-			const existingTarget = await tx.asset.findUnique({
-				where: { id: cap.targetAssetId },
+			const existingTarget = await tx.asset.findFirst({
+				where: assetWhereForOrganization(organizationId, {
+					id: cap.targetAssetId,
+				}),
 				select: {
 					id: true,
 					series: true,
@@ -6627,7 +7756,11 @@ export class AssetService {
 					`Target item ${cap.targetItemCode} must remain an active fixed-asset item.`,
 				);
 			}
-			const targetSeries = await this.generateAssetSeries(cap.postingDate, tx);
+			const targetSeries = await this.generateAssetSeries(
+				cap.postingDate,
+				organizationId,
+				tx,
+			);
 			const created = await tx.asset.create({
 				data: {
 					series: targetSeries,
@@ -6672,22 +7805,30 @@ export class AssetService {
 
 		let stockEntryId: string | null = null;
 		if (cap.stockItems.length > 0) {
-			const stockEntry = await this.stockPosting.createMaterialIssue(tx, {
-				companyId: cap.companyId,
-				postingDate: cap.postingDate,
-				sourceType: "ASSET_CAPITALIZATION",
-				sourceId: cap.id,
-				lines: cap.stockItems.map((item) => ({
-					itemCode: item.itemCode,
-					warehouse: item.warehouse ?? "",
-					quantity: item.stockQty,
-					valuationRate: Number(item.valuationRate),
-				})),
-			});
+			const stockEntry = await this.stockPosting.createMaterialIssue(
+				tx,
+				organizationId,
+				{
+					companyId: cap.companyId,
+					postingDate: cap.postingDate,
+					sourceType: "ASSET_CAPITALIZATION",
+					sourceId: cap.id,
+					lines: cap.stockItems.map((item) => ({
+						itemCode: item.itemCode,
+						warehouse: item.warehouse ?? "",
+						quantity: item.stockQty,
+						valuationRate: Number(item.valuationRate),
+					})),
+				},
+			);
 			stockEntryId = stockEntry.id;
 		}
 
-		const targetContext = await this.getAssetAccountingContext(tx, target);
+		const targetContext = await this.getAssetAccountingContext(
+			tx,
+			organizationId,
+			target,
+		);
 		const accountingLines: Array<{
 			account: string;
 			debitAmount: number;
@@ -6747,6 +7888,7 @@ export class AssetService {
 			);
 			const fixedAssetBalance = await this.getFixedAssetBalance(
 				tx,
+				organizationId,
 				source.id,
 				Number(source.netPurchaseAmount),
 			);
@@ -6758,7 +7900,11 @@ export class AssetService {
 					`Source asset ${source.series} has inconsistent book values.`,
 				);
 			}
-			const sourceContext = await this.getAssetAccountingContext(tx, source);
+			const sourceContext = await this.getAssetAccountingContext(
+				tx,
+				organizationId,
+				source,
+			);
 			if (
 				accumulatedDepreciation > 0 &&
 				!sourceContext.accumulatedDepreciationAccount
@@ -6784,14 +7930,24 @@ export class AssetService {
 				});
 			}
 			totalAssetValue = this.roundCurrency(totalAssetValue + carryingValue);
-			await tx.assetCapitalizationAssetItem.update({
-				where: { id: item.id },
+			const itemTransition = await tx.assetCapitalizationAssetItem.updateMany({
+				where: {
+					id: item.id,
+					capitalization: {
+						is: this.assetCapitalizationWhereForOrganization(organizationId),
+					},
+				},
 				data: {
 					assetValue: carryingValue,
 					previousStatus: source.status,
 					previousDisposalDate: source.disposalDate,
 				},
 			});
+			if (itemTransition.count !== 1) {
+				throw new NotFoundException(
+					`Capitalization asset item ${item.id} not found.`,
+				);
+			}
 		}
 		const totalValue = this.roundCurrency(
 			totalStockValue + totalServiceValue + totalAssetValue,
@@ -6807,7 +7963,7 @@ export class AssetService {
 			creditAmount: 0,
 			costCenter: targetContext.costCenter,
 		});
-		const entry = await this.accounting.createPostedEntry(tx, {
+		const entry = await this.accounting.createPostedEntry(tx, organizationId, {
 			companyId: cap.companyId,
 			assetId: target.id,
 			sourceType: "CAPITALIZATION",
@@ -6819,15 +7975,12 @@ export class AssetService {
 
 		const targetPreviousNet = Number(target.netPurchaseAmount);
 		const targetPreviousValue = Number(target.valueAfterDepreciation);
-		await tx.asset.update({
-			where: { id: target.id },
-			data: {
-				netPurchaseAmount: this.roundCurrency(targetPreviousNet + totalValue),
-				valueAfterDepreciation: this.roundCurrency(
-					targetPreviousValue + totalValue,
-				),
-				isFullyDepreciated: false,
-			},
+		await this.updateOwnedAsset(tx, organizationId, target.id, {
+			netPurchaseAmount: this.roundCurrency(targetPreviousNet + totalValue),
+			valueAfterDepreciation: this.roundCurrency(
+				targetPreviousValue + totalValue,
+			),
+			isFullyDepreciated: false,
 		});
 		await tx.assetActivity.create({
 			data: {
@@ -6837,10 +7990,14 @@ export class AssetService {
 			},
 		});
 		for (const source of sources) {
-			await this.depreciationRevision.closeOpenSchedules(tx, source.id);
-			await tx.asset.update({
-				where: { id: source.id },
-				data: { status: "CAPITALIZED", disposalDate: cap.postingDate },
+			await this.depreciationRevision.closeOpenSchedules(
+				tx,
+				organizationId,
+				source.id,
+			);
+			await this.updateOwnedAsset(tx, organizationId, source.id, {
+				status: "CAPITALIZED",
+				disposalDate: cap.postingDate,
 			});
 			await tx.assetActivity.create({
 				data: {
@@ -6851,8 +8008,10 @@ export class AssetService {
 			});
 		}
 
-		return tx.assetCapitalization.update({
-			where: { id: cap.id },
+		const capitalizationTransition = await tx.assetCapitalization.updateMany({
+			where: this.assetCapitalizationWhereForOrganization(organizationId, {
+				id: cap.id,
+			}),
 			data: {
 				status: "SUBMITTED",
 				submittedAt: new Date(),
@@ -6868,6 +8027,14 @@ export class AssetService {
 				totalServiceValue,
 				totalValue,
 			},
+		});
+		if (capitalizationTransition.count !== 1) {
+			throw new NotFoundException(`AssetCapitalization ${cap.id} not found.`);
+		}
+		return tx.assetCapitalization.findFirstOrThrow({
+			where: this.assetCapitalizationWhereForOrganization(organizationId, {
+				id: cap.id,
+			}),
 			include: this.assetCapitalizationInclude,
 		});
 	}
@@ -6880,10 +8047,14 @@ export class AssetService {
 	 */
 	async cancelAssetCapitalization(
 		input: Asset.CancelAssetCapitalizationInput,
+		organizationId: AssetOrganizationId,
 		actorId?: string,
 	): Promise<Asset.AssetCapitalization> {
-		const cap = await this.prisma.assetCapitalization.findUnique({
-			where: { id: input.id },
+		this.assertOrganizationScope(organizationId);
+		const cap = await this.prisma.assetCapitalization.findFirst({
+			where: this.assetCapitalizationWhereForOrganization(organizationId, {
+				id: input.id,
+			}),
 			select: {
 				targetAssetId: true,
 				assetItems: { select: { assetId: true } },
@@ -6902,8 +8073,10 @@ export class AssetService {
 				...(cap.targetAssetId ? [cap.targetAssetId] : []),
 			];
 			await this.lockAssets(tx, assetIds);
-			const currentCap = await tx.assetCapitalization.findUnique({
-				where: { id: input.id },
+			const currentCap = await tx.assetCapitalization.findFirst({
+				where: this.assetCapitalizationWhereForOrganization(organizationId, {
+					id: input.id,
+				}),
 				include: this.assetCapitalizationInclude,
 			});
 			if (!currentCap) {
@@ -6916,7 +8089,12 @@ export class AssetService {
 					`AssetCapitalization ${currentCap.series} cannot be cancelled because status is ${currentCap.status}.`,
 				);
 			}
-			return this.reverseAssetCapitalization(tx, currentCap, actorId);
+			return this.reverseAssetCapitalization(
+				tx,
+				currentCap,
+				organizationId,
+				actorId,
+			);
 		});
 
 		return toAssetCapitalizationItem(cancelled);
@@ -6925,6 +8103,7 @@ export class AssetService {
 	private async reverseAssetCapitalization(
 		tx: Prisma.TransactionClient,
 		cap: PrismaAssetCapitalization,
+		organizationId: AssetOrganizationId,
 		actorId?: string,
 	): Promise<PrismaAssetCapitalization> {
 		if (
@@ -6938,8 +8117,10 @@ export class AssetService {
 				`Capitalization ${cap.series} is missing its reversal snapshot.`,
 			);
 		}
-		const target = await tx.asset.findUnique({
-			where: { id: cap.targetAssetId },
+		const target = await tx.asset.findFirst({
+			where: assetWhereForOrganization(organizationId, {
+				id: cap.targetAssetId,
+			}),
 			select: {
 				id: true,
 				series: true,
@@ -6974,7 +8155,9 @@ export class AssetService {
 
 		const sourceIds = cap.assetItems.map((item) => item.assetId);
 		const sources = await tx.asset.findMany({
-			where: { id: { in: sourceIds } },
+			where: assetWhereForOrganization(organizationId, {
+				id: { in: sourceIds },
+			}),
 			select: { id: true, series: true, status: true, disposalDate: true },
 		});
 		if (sources.length !== sourceIds.length) {
@@ -7006,6 +8189,7 @@ export class AssetService {
 				tx.assetDepreciationJournalEntry.count({
 					where: {
 						assetId: { in: allAssetIds },
+						asset: { is: assetWhereForOrganization(organizationId) },
 						status: "POSTED",
 						createdAt: { gt: cap.submittedAt },
 					},
@@ -7013,6 +8197,7 @@ export class AssetService {
 				tx.assetValueAdjustment.count({
 					where: {
 						assetId: { in: allAssetIds },
+						asset: { is: assetWhereForOrganization(organizationId) },
 						status: "SUBMITTED",
 						submittedAt: { gt: cap.submittedAt },
 					},
@@ -7020,6 +8205,7 @@ export class AssetService {
 				tx.assetAccountingEntry.count({
 					where: {
 						assetId: { in: allAssetIds },
+						asset: { is: assetWhereForOrganization(organizationId) },
 						status: "POSTED",
 						createdAt: { gt: cap.submittedAt },
 						...(cap.accountingEntryId
@@ -7038,18 +8224,26 @@ export class AssetService {
 				`Capitalization ${cap.series} has no accounting entry to reverse.`,
 			);
 		}
-		await this.accounting.reversePostedEntry(tx, cap.accountingEntryId);
+		await this.accounting.reversePostedEntry(
+			tx,
+			organizationId,
+			cap.accountingEntryId,
+		);
 		if (cap.stockEntryId) {
-			await this.stockPosting.cancelMaterialIssue(tx, cap.stockEntryId);
+			await this.stockPosting.cancelMaterialIssue(
+				tx,
+				organizationId,
+				cap.companyId,
+				cap.stockEntryId,
+				"ASSET_CAPITALIZATION",
+				cap.id,
+			);
 		}
-		await tx.asset.update({
-			where: { id: target.id },
-			data: {
-				status: cap.createdTargetAsset ? "CANCELLED" : cap.targetPreviousStatus,
-				netPurchaseAmount: cap.targetPreviousNetPurchaseAmount,
-				valueAfterDepreciation: cap.targetPreviousValueAfterDepreciation,
-				isFullyDepreciated: false,
-			},
+		await this.updateOwnedAsset(tx, organizationId, target.id, {
+			status: cap.createdTargetAsset ? "CANCELLED" : cap.targetPreviousStatus,
+			netPurchaseAmount: cap.targetPreviousNetPurchaseAmount,
+			valueAfterDepreciation: cap.targetPreviousValueAfterDepreciation,
+			isFullyDepreciated: false,
 		});
 		await tx.assetActivity.create({
 			data: {
@@ -7063,14 +8257,12 @@ export class AssetService {
 			if (!snapshot?.previousStatus) continue;
 			await this.depreciationRevision.reactivateLatestClosedSchedules(
 				tx,
+				organizationId,
 				source.id,
 			);
-			await tx.asset.update({
-				where: { id: source.id },
-				data: {
-					status: snapshot.previousStatus,
-					disposalDate: snapshot.previousDisposalDate,
-				},
+			await this.updateOwnedAsset(tx, organizationId, source.id, {
+				status: snapshot.previousStatus,
+				disposalDate: snapshot.previousDisposalDate,
 			});
 			await tx.assetActivity.create({
 				data: {
@@ -7081,9 +8273,19 @@ export class AssetService {
 			});
 		}
 
-		return tx.assetCapitalization.update({
-			where: { id: cap.id },
+		const capitalizationTransition = await tx.assetCapitalization.updateMany({
+			where: this.assetCapitalizationWhereForOrganization(organizationId, {
+				id: cap.id,
+			}),
 			data: { status: "CANCELLED", cancelledAt: new Date() },
+		});
+		if (capitalizationTransition.count !== 1) {
+			throw new NotFoundException(`AssetCapitalization ${cap.id} not found.`);
+		}
+		return tx.assetCapitalization.findFirstOrThrow({
+			where: this.assetCapitalizationWhereForOrganization(organizationId, {
+				id: cap.id,
+			}),
 			include: this.assetCapitalizationInclude,
 		});
 	}
@@ -7094,9 +8296,15 @@ export class AssetService {
 	 * @param id Unique CUID of the capitalization
 	 * @returns The AssetCapitalization domain object
 	 */
-	async findCapitalizationById(id: string): Promise<Asset.AssetCapitalization> {
-		const cap = await this.prisma.assetCapitalization.findUnique({
-			where: { id },
+	async findCapitalizationById(
+		id: string,
+		organizationId: AssetOrganizationId,
+	): Promise<Asset.AssetCapitalization> {
+		this.assertOrganizationScope(organizationId);
+		const cap = await this.prisma.assetCapitalization.findFirst({
+			where: this.assetCapitalizationWhereForOrganization(organizationId, {
+				id,
+			}),
 			include: this.assetCapitalizationInclude,
 		});
 		if (!cap) {
@@ -7113,9 +8321,20 @@ export class AssetService {
 	 */
 	async listCapitalizations(
 		input: Asset.ListAssetCapitalizationsInput,
+		organizationId: AssetOrganizationId,
 	): Promise<Asset.AssetCapitalizationListResult> {
-		const where: Prisma.AssetCapitalizationWhereInput = {};
-		if (input.company) where.company = { is: { name: input.company } };
+		this.assertOrganizationScope(organizationId);
+		const where: Prisma.AssetCapitalizationWhereInput = {
+			company: {
+				is: {
+					organizationId,
+					...(input.company ? { name: input.company } : {}),
+				},
+			},
+			assetItems: {
+				every: { asset: { is: assetWhereForOrganization(organizationId) } },
+			},
+		};
 		if (input.status) where.status = input.status;
 		if (input.search) {
 			where.OR = [
@@ -7128,15 +8347,19 @@ export class AssetService {
 		const take = Math.min(input.take ?? 50, LIST_TAKE_MAX);
 		const skip = input.skip ?? 0;
 
+		const scopedWhere = this.assetCapitalizationWhereForOrganization(
+			organizationId,
+			where,
+		);
 		const [items, totalCount] = await Promise.all([
 			this.prisma.assetCapitalization.findMany({
-				where,
+				where: scopedWhere,
 				include: this.assetCapitalizationInclude,
 				orderBy: { createdAt: "desc" },
 				take,
 				skip,
 			}),
-			this.prisma.assetCapitalization.count({ where }),
+			this.prisma.assetCapitalization.count({ where: scopedWhere }),
 		]);
 
 		return {
@@ -7151,9 +8374,17 @@ export class AssetService {
 	 * @param id Unique CUID of the disposal
 	 * @returns The AssetDisposal domain object
 	 */
-	async findDisposalById(id: string): Promise<Asset.AssetDisposal> {
-		const disposal = await this.prisma.assetDisposal.findUnique({
-			where: { id },
+	async findDisposalById(
+		id: string,
+		organizationId: AssetOrganizationId,
+	): Promise<Asset.AssetDisposal> {
+		this.assertOrganizationScope(organizationId);
+		const disposal = await this.prisma.assetDisposal.findFirst({
+			where: {
+				id,
+				company: { is: { organizationId } },
+				asset: { is: assetWhereForOrganization(organizationId) },
+			},
 			include: this.assetDisposalInclude,
 		});
 		if (!disposal) {
@@ -7170,10 +8401,23 @@ export class AssetService {
 	 */
 	async listDisposals(
 		input: Asset.ListAssetDisposalsInput,
+		organizationId: AssetOrganizationId,
 	): Promise<Asset.AssetDisposalListResult> {
-		const where: Prisma.AssetDisposalWhereInput = {};
-		if (input.assetId) where.assetId = input.assetId;
-		if (input.company) where.company = { is: { name: input.company } };
+		this.assertOrganizationScope(organizationId);
+		const where: Prisma.AssetDisposalWhereInput = {
+			company: {
+				is: {
+					organizationId,
+					...(input.company ? { name: input.company } : {}),
+				},
+			},
+			asset: { is: assetWhereForOrganization(organizationId) },
+		};
+		if (input.assetId) {
+			where.asset = {
+				is: assetWhereForOrganization(organizationId, { id: input.assetId }),
+			};
+		}
 		if (input.disposalType) where.disposalType = input.disposalType;
 		if (input.search) {
 			where.OR = [

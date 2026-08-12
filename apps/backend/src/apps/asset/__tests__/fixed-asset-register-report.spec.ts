@@ -84,11 +84,14 @@ describe("FixedAssetRegisterReportService", () => {
 
 		const service = new FixedAssetRegisterReportService(prismaMock);
 
-		const result = await service.generateReport({
-			fromDate: new Date("2026-01-01T00:00:00.000Z"),
-			toDate: new Date("2026-03-31T00:00:00.000Z"),
-			groupBy: "ASSET_CATEGORY",
-		});
+		const result = await service.generateReport(
+			{
+				fromDate: new Date("2026-01-01T00:00:00.000Z"),
+				toDate: new Date("2026-03-31T00:00:00.000Z"),
+				groupBy: "ASSET_CATEGORY",
+			},
+			"org-1",
+		);
 
 		expect(result.rows).toHaveLength(1);
 		const row = result.rows[0];
@@ -131,13 +134,20 @@ describe("FixedAssetRegisterReportService", () => {
 		if (!entries || typeof entries === "boolean" || !entries.where) {
 			throw new Error("Expected depreciation schedule entry filter");
 		}
-		expect(findManyInput.where).toMatchObject({
-			purchaseDate: {
-				gte: new Date("2026-01-01T00:00:00.000Z"),
-				lte: new Date("2026-03-31T23:59:59.999Z"),
-			},
-			status: { notIn: ["DRAFT", "CANCELLED"] },
-		});
+		expect(findManyInput.where).toEqual(
+			expect.objectContaining({
+				AND: expect.arrayContaining([
+					{ company: { is: { organizationId: "org-1" } } },
+					expect.objectContaining({
+						purchaseDate: {
+							gte: new Date("2026-01-01T00:00:00.000Z"),
+							lte: new Date("2026-03-31T23:59:59.999Z"),
+						},
+						status: { notIn: ["DRAFT", "CANCELLED"] },
+					}),
+				]),
+			}),
+		);
 		expect(entries.where).toMatchObject({
 			postingId: { not: null },
 			scheduleDate: {
@@ -206,11 +216,14 @@ describe("FixedAssetRegisterReportService", () => {
 
 		const service = new FixedAssetRegisterReportService(prismaMock);
 
-		const result = await service.generateReport({
-			fromDate: new Date("2026-01-01T00:00:00.000Z"),
-			toDate: new Date("2026-02-28T00:00:00.000Z"),
-			groupBy: "LOCATION",
-		});
+		const result = await service.generateReport(
+			{
+				fromDate: new Date("2026-01-01T00:00:00.000Z"),
+				toDate: new Date("2026-02-28T00:00:00.000Z"),
+				groupBy: "LOCATION",
+			},
+			"org-1",
+		);
 
 		expect(result.rows).toHaveLength(2);
 		expect(result.rows[0].groupingLabel).toBe("HQ Office");

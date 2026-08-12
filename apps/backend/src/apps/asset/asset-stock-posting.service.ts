@@ -8,6 +8,11 @@ import {
 	allocateDocumentSeries,
 	getSeriesSeedValue,
 } from "../../shared/document-series";
+import {
+	type AssetOrganizationId,
+	assertAssetOrganizationId,
+	companyWhereForOrganization,
+} from "./asset-organization-scope";
 
 export type AssetStockSourceType = "ASSET_CAPITALIZATION" | "ASSET_REPAIR";
 
@@ -41,8 +46,10 @@ export interface AssetMaterialIssueResult {
 export class AssetStockPostingService {
 	async createMaterialIssue(
 		tx: Prisma.TransactionClient,
+		organizationId: AssetOrganizationId,
 		input: CreateAssetMaterialIssueInput,
 	): Promise<AssetMaterialIssueResult> {
+		assertAssetOrganizationId(organizationId);
 		const companyId = input.companyId.trim();
 		if (!companyId) {
 			throw new BadRequestException(
@@ -90,8 +97,8 @@ export class AssetStockPostingService {
 			);
 		}
 
-		const companyRecord = await tx.company.findUnique({
-			where: { id: companyId },
+		const companyRecord = await tx.company.findFirst({
+			where: companyWhereForOrganization(organizationId, { id: companyId }),
 			select: { id: true, name: true, disabled: true },
 		});
 		if (!companyRecord || companyRecord.disabled) {
@@ -190,16 +197,69 @@ export class AssetStockPostingService {
 
 	async cancelMaterialIssue(
 		tx: Prisma.TransactionClient,
+		organizationId: AssetOrganizationId,
+		companyId: string,
 		stockEntryId: string,
+		sourceType: AssetStockSourceType,
+		sourceId: string,
 	): Promise<void> {
+		assertAssetOrganizationId(organizationId);
+		const companyRecord = await tx.company.findFirst({
+			where: companyWhereForOrganization(organizationId, { id: companyId }),
+			select: { name: true },
+		});
+		if (!companyRecord) {
+			throw new NotFoundException(
+				`Company ${companyId} is not available in the active organization`,
+			);
+		}
+		const sourceRelation =
+			sourceType === "ASSET_REPAIR"
+				? {
+						assetRepairs: {
+							some: {
+								id: sourceId,
+								company: {
+									is: companyWhereForOrganization(organizationId, {
+										id: companyId,
+									}),
+								},
+							},
+						},
+					}
+				: {
+						assetCapitalizations: {
+							some: {
+								id: sourceId,
+								company: {
+									is: companyWhereForOrganization(organizationId, {
+										id: companyId,
+									}),
+								},
+							},
+						},
+					};
+		const scopedWhere = {
+			AND: [
+				{ id: stockEntryId, status: "SUBMITTED" as const },
+				{ company: companyRecord.name },
+				sourceRelation,
+			],
+		};
 		const result = await tx.stockEntry.updateMany({
-			where: { id: stockEntryId, status: "SUBMITTED" },
+			where: scopedWhere,
 			data: { status: "CANCELLED" },
 		});
 		if (result.count === 1) return;
 
-		const existing = await tx.stockEntry.findUnique({
-			where: { id: stockEntryId },
+		const existing = await tx.stockEntry.findFirst({
+			where: {
+				AND: [
+					{ id: stockEntryId },
+					{ company: companyRecord.name },
+					sourceRelation,
+				],
+			},
 			select: { status: true },
 		});
 		if (!existing) {

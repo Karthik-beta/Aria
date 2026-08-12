@@ -6,6 +6,7 @@ import {
 } from "./asset-depreciation-revision.service";
 
 const effectiveDate = new Date("2026-02-01T00:00:00.000Z");
+const ORGANIZATION_ID = "organization-1";
 
 function book(
 	id: string,
@@ -83,7 +84,13 @@ function revisionTransaction(
 		async (_args: {
 			where: Record<string, unknown>;
 			data: Record<string, unknown>;
-		}) => ({ count: 0 }),
+		}) => ({ count: 1 }),
+	);
+	const updateBookMany = mock(
+		async (_args: {
+			where: Record<string, unknown>;
+			data: Record<string, unknown>;
+		}) => ({ count: 1 }),
 	);
 	const findSchedule = mock(
 		async (_args: Record<string, unknown>): Promise<unknown> => null,
@@ -95,7 +102,11 @@ function revisionTransaction(
 	return {
 		transaction: {
 			$queryRaw: lock,
-			assetFinanceBook: { findMany, update: updateBook },
+			assetFinanceBook: {
+				findMany,
+				update: updateBook,
+				updateMany: updateBookMany,
+			},
 			assetDepreciationScheduleEntry: { findFirst, count: countEntries },
 			assetDepreciationSchedule: {
 				update: updateSchedule,
@@ -113,6 +124,7 @@ function revisionTransaction(
 		updateBook,
 		createSchedule,
 		updateMany,
+		updateBookMany,
 		findSchedule,
 		findFirstSchedule,
 		createScheduleCalls,
@@ -142,6 +154,7 @@ describe("AssetDepreciationRevisionService", () => {
 
 		const revisions = await service.revise(
 			mocked.transaction as unknown as Prisma.TransactionClient,
+			ORGANIZATION_ID,
 			{
 				assetId: "asset-1",
 				effectiveDate,
@@ -152,12 +165,17 @@ describe("AssetDepreciationRevisionService", () => {
 		);
 
 		expect(mocked.lock).toHaveBeenCalledTimes(2);
-		expect(mocked.updateSchedule.mock.calls).toEqual([
-			[{ where: { id: "schedule-book-a" }, data: { status: "CANCELLED" } }],
-			[{ where: { id: "schedule-book-b" }, data: { status: "CANCELLED" } }],
-		]);
-		expect(mocked.updateBook.mock.calls).toHaveLength(2);
-		expect(mocked.updateBook.mock.calls[0]?.[0]).toMatchObject({
+		expect(mocked.updateMany.mock.calls).toHaveLength(2);
+		expect(mocked.updateMany.mock.calls[0]?.[0]).toMatchObject({
+			where: { id: "schedule-book-a" },
+			data: { status: "CANCELLED" },
+		});
+		expect(mocked.updateMany.mock.calls[1]?.[0]).toMatchObject({
+			where: { id: "schedule-book-b" },
+			data: { status: "CANCELLED" },
+		});
+		expect(mocked.updateBookMany.mock.calls).toHaveLength(2);
+		expect(mocked.updateBookMany.mock.calls[0]?.[0]).toMatchObject({
 			where: { id: "book-a" },
 			data: {
 				increaseInAssetLife: 24,
@@ -165,7 +183,7 @@ describe("AssetDepreciationRevisionService", () => {
 				postingStatus: "PARTIALLY_DEPRECIATED",
 			},
 		});
-		expect(mocked.updateBook.mock.calls[1]?.[0]).toMatchObject({
+		expect(mocked.updateBookMany.mock.calls[1]?.[0]).toMatchObject({
 			where: { id: "book-b" },
 			data: {
 				increaseInAssetLife: 24,
@@ -217,6 +235,7 @@ describe("AssetDepreciationRevisionService", () => {
 		await expect(
 			service.revise(
 				mocked.transaction as unknown as Prisma.TransactionClient,
+				ORGANIZATION_ID,
 				{
 					assetId: "asset-1",
 					effectiveDate,
@@ -226,7 +245,7 @@ describe("AssetDepreciationRevisionService", () => {
 			),
 		).rejects.toThrow(AssetDepreciationRevisionError);
 
-		expect(mocked.updateSchedule).not.toHaveBeenCalled();
+		expect(mocked.updateMany).not.toHaveBeenCalled();
 		expect(mocked.createSchedule).not.toHaveBeenCalled();
 	});
 
@@ -245,6 +264,7 @@ describe("AssetDepreciationRevisionService", () => {
 		await expect(
 			service.revise(
 				mocked.transaction as unknown as Prisma.TransactionClient,
+				ORGANIZATION_ID,
 				{
 					assetId: "asset-1",
 					effectiveDate,
@@ -254,7 +274,7 @@ describe("AssetDepreciationRevisionService", () => {
 			),
 		).rejects.toThrow("must leave at least one unbooked period");
 
-		expect(mocked.updateSchedule).not.toHaveBeenCalled();
+		expect(mocked.updateMany).not.toHaveBeenCalled();
 	});
 
 	it("rejects a carrying-value reduction below salvage before cancelling the active schedule", async () => {
@@ -272,6 +292,7 @@ describe("AssetDepreciationRevisionService", () => {
 		await expect(
 			service.revise(
 				mocked.transaction as unknown as Prisma.TransactionClient,
+				ORGANIZATION_ID,
 				{
 					assetId: "asset-1",
 					effectiveDate,
@@ -281,7 +302,7 @@ describe("AssetDepreciationRevisionService", () => {
 			),
 		).rejects.toThrow("cannot be below salvage value");
 
-		expect(mocked.updateSchedule).not.toHaveBeenCalled();
+		expect(mocked.updateMany).not.toHaveBeenCalled();
 	});
 
 	it("revises only the explicitly selected finance book and adjusts salvage proportionally", async () => {
@@ -294,6 +315,7 @@ describe("AssetDepreciationRevisionService", () => {
 
 		await service.revise(
 			mocked.transaction as unknown as Prisma.TransactionClient,
+			ORGANIZATION_ID,
 			{
 				assetId: "asset-1",
 				financeBookId: "finance-b",
@@ -308,7 +330,7 @@ describe("AssetDepreciationRevisionService", () => {
 		expect(mocked.findMany.mock.calls[0]?.[0]).toMatchObject({
 			where: { assetId: "asset-1", financeBookId: "finance-b" },
 		});
-		expect(mocked.updateBook.mock.calls[0]?.[0]).toMatchObject({
+		expect(mocked.updateBookMany.mock.calls[0]?.[0]).toMatchObject({
 			where: { id: "book-b" },
 			data: {
 				valueAfterDepreciation: 480,
@@ -325,7 +347,7 @@ describe("AssetDepreciationRevisionService", () => {
 	it("restores only an unposted active successor and its finance-book cursor", async () => {
 		const selected = book("book-a", "finance-a");
 		const mocked = revisionTransaction([selected], []);
-		mocked.findSchedule.mockResolvedValue({
+		mocked.findFirstSchedule.mockResolvedValue({
 			id: "revision-book-a",
 			assetId: "asset-1",
 			assetFinanceBookId: "book-a",
@@ -353,6 +375,7 @@ describe("AssetDepreciationRevisionService", () => {
 
 		await service.restoreRevision(
 			mocked.transaction as unknown as Prisma.TransactionClient,
+			ORGANIZATION_ID,
 			{
 				assetId: "asset-1",
 				financeBookId: "finance-a",
@@ -361,21 +384,16 @@ describe("AssetDepreciationRevisionService", () => {
 			},
 		);
 
-		expect(mocked.updateSchedule.mock.calls).toEqual([
-			[
-				{
-					where: { id: "revision-book-a" },
-					data: { status: "CANCELLED" },
-				},
-			],
-			[
-				{
-					where: { id: "schedule-book-a" },
-					data: { status: "ACTIVE" },
-				},
-			],
-		]);
-		expect(mocked.updateBook.mock.calls[0]?.[0]).toMatchObject({
+		expect(mocked.updateMany.mock.calls).toHaveLength(2);
+		expect(mocked.updateMany.mock.calls[0]?.[0]).toMatchObject({
+			where: { id: "revision-book-a" },
+			data: { status: "CANCELLED" },
+		});
+		expect(mocked.updateMany.mock.calls[1]?.[0]).toMatchObject({
+			where: { id: "schedule-book-a" },
+			data: { status: "ACTIVE" },
+		});
+		expect(mocked.updateBookMany.mock.calls[0]?.[0]).toMatchObject({
 			where: { id: "book-a" },
 			data: {
 				valueAfterDepreciation: 725,
@@ -383,7 +401,7 @@ describe("AssetDepreciationRevisionService", () => {
 				postingStatus: "PARTIALLY_DEPRECIATED",
 			},
 		});
-		expect(mocked.countEntries).toHaveBeenCalledWith({
+		expect(mocked.countEntries.mock.calls[0]?.[0]).toMatchObject({
 			where: { scheduleId: "schedule-book-a", postingId: null },
 		});
 	});
@@ -400,25 +418,20 @@ describe("AssetDepreciationRevisionService", () => {
 		await expect(
 			service.closeOpenSchedules(
 				mocked.transaction as unknown as Prisma.TransactionClient,
+				ORGANIZATION_ID,
 				"asset-1",
 			),
 		).resolves.toBe(3);
 
 		expect(mocked.lock).toHaveBeenCalledTimes(2);
-		expect(mocked.updateMany.mock.calls).toEqual([
-			[
-				{
-					where: { assetFinanceBookId: "book-a", status: "ACTIVE" },
-					data: { status: "CANCELLED" },
-				},
-			],
-			[
-				{
-					where: { assetFinanceBookId: "book-b", status: "ACTIVE" },
-					data: { status: "CANCELLED" },
-				},
-			],
-		]);
+		expect(mocked.updateMany.mock.calls[0]?.[0]).toMatchObject({
+			where: { assetFinanceBookId: "book-a", status: "ACTIVE" },
+			data: { status: "CANCELLED" },
+		});
+		expect(mocked.updateMany.mock.calls[1]?.[0]).toMatchObject({
+			where: { assetFinanceBookId: "book-b", status: "ACTIVE" },
+			data: { status: "CANCELLED" },
+		});
 	});
 
 	it("reactivates the latest closed schedule when no active or newer successor exists", async () => {
@@ -434,13 +447,16 @@ describe("AssetDepreciationRevisionService", () => {
 		await expect(
 			service.reactivateLatestClosedSchedules(
 				mocked.transaction as unknown as Prisma.TransactionClient,
+				ORGANIZATION_ID,
 				"asset-1",
 			),
 		).resolves.toBe(1);
 
-		expect(mocked.updateSchedule).toHaveBeenCalledWith({
-			where: { id: "schedule-book-a" },
-			data: { status: "ACTIVE" },
-		});
+		expect(mocked.updateMany).toHaveBeenCalledWith(
+			expect.objectContaining({
+				where: { id: "schedule-book-a", asset: expect.anything() },
+				data: { status: "ACTIVE" },
+			}),
+		);
 	});
 });

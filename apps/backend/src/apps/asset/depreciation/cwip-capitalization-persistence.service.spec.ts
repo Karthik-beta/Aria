@@ -7,6 +7,7 @@ const COMPANY_ID = "company-1";
 
 const job = {
 	version: 1 as const,
+	organizationId: "org-1",
 	assetId: "asset-1",
 	availableForUseDate: "2026-08-09",
 };
@@ -16,6 +17,7 @@ function qualifiedAsset(overrides: Record<string, unknown> = {}) {
 		id: "asset-1",
 		series: "ACC-ASS-2026-00001",
 		companyId: COMPANY_ID,
+		company: { organizationId: "org-1" },
 		status: "SUBMITTED",
 		availableForUseDate: new Date("2026-08-09T00:00:00.000Z"),
 		netPurchaseAmount: "5250.000000",
@@ -38,13 +40,13 @@ function qualifiedAsset(overrides: Record<string, unknown> = {}) {
 function createHarness(asset: Record<string, unknown>) {
 	const events: string[] = [];
 	const queryRaw = mock(async () => [{ locked: true }]);
-	const findUnique = mock(async () => asset);
+	const findFirst = mock(async () => asset);
 	const updateMany = mock(async () => {
 		events.push("asset-linked");
 		return { count: 1 };
 	});
 	const transaction = {
-		asset: { findUnique, updateMany },
+		asset: { findFirst, updateMany },
 		$queryRaw: queryRaw,
 	};
 	const prisma = {
@@ -69,7 +71,7 @@ function createHarness(asset: Record<string, unknown>) {
 	return {
 		service: new CwipCapitalizationPersistenceService(prisma, accounting),
 		queryRaw,
-		findUnique,
+		findFirst,
 		updateMany,
 		createPostedEntry,
 		events,
@@ -85,30 +87,35 @@ describe("CwipCapitalizationPersistenceService", () => {
 			accountingEntryId: "accounting-1",
 		});
 		expect(harness.queryRaw).toHaveBeenCalledTimes(1);
-		expect(harness.createPostedEntry).toHaveBeenCalledWith(expect.anything(), {
-			companyId: COMPANY_ID,
-			assetId: "asset-1",
-			sourceType: "CWIP_CAPITALIZATION",
-			sourceId: "asset-1",
-			postingDate: new Date("2026-08-09T00:00:00.000Z"),
-			remarks: "CWIP capitalization for ACC-ASS-2026-00001",
-			lines: [
-				{
-					account: "Plant and Machinery - PTPL",
-					debitAmount: 5250,
-					creditAmount: 0,
-				},
-				{
-					account: "CWIP - PTPL",
-					debitAmount: 0,
-					creditAmount: 5250,
-				},
-			],
-		});
+		expect(harness.createPostedEntry).toHaveBeenCalledWith(
+			expect.anything(),
+			"org-1",
+			{
+				companyId: COMPANY_ID,
+				assetId: "asset-1",
+				sourceType: "CWIP_CAPITALIZATION",
+				sourceId: "asset-1",
+				postingDate: new Date("2026-08-09T00:00:00.000Z"),
+				remarks: "CWIP capitalization for ACC-ASS-2026-00001",
+				lines: [
+					{
+						account: "Plant and Machinery - PTPL",
+						debitAmount: 5250,
+						creditAmount: 0,
+					},
+					{
+						account: "CWIP - PTPL",
+						debitAmount: 0,
+						creditAmount: 5250,
+					},
+				],
+			},
+		);
 		expect(harness.events).toEqual(["accounting-posted", "asset-linked"]);
 		expect(harness.updateMany).toHaveBeenCalledWith({
 			where: {
 				id: "asset-1",
+				company: { is: { organizationId: "org-1" } },
 				status: "SUBMITTED",
 				cwipAccountingEntryId: null,
 			},

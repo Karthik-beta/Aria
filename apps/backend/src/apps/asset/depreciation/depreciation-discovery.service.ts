@@ -128,6 +128,7 @@ export class DepreciationDiscoveryService {
 	private toJobData(period: PendingDepreciationPeriod): DepreciationJobData {
 		return {
 			version: DEPRECIATION_JOB_VERSION,
+			organizationId: period.organizationId,
 			assetId: period.assetId,
 			assetFinanceBookId: period.assetFinanceBookId,
 			scheduleId: period.scheduleId,

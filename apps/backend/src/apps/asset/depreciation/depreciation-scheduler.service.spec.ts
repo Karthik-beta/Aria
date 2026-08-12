@@ -55,7 +55,9 @@ describe("DepreciationSchedulerService", () => {
 			"cron",
 			"reconciliation",
 		]);
-		expect(cwipDiscovery.discover).toHaveBeenCalledWith(expect.any(String));
+		expect(cwipDiscovery.discover).toHaveBeenCalledWith(expect.any(String), {
+			kind: "system",
+		});
 
 		// Verify all 4 daily cron jobs were registered
 		expect(
@@ -204,7 +206,9 @@ describe("DepreciationSchedulerService", () => {
 
 		await scheduler.postCwipCapitalizationGlEntries("2026-08-09");
 
-		expect(cwipDiscovery.discover).toHaveBeenCalledWith("2026-08-09");
+		expect(cwipDiscovery.discover).toHaveBeenCalledWith("2026-08-09", {
+			kind: "system",
+		});
 	});
 
 	it("executes updateMaintenanceLogStatus daily job correctly", async () => {

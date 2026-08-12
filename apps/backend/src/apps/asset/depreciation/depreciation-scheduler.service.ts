@@ -170,7 +170,7 @@ export class DepreciationSchedulerService
 		try {
 			await this.lifecycle.ensureSubmittedSchedules();
 			await this.discovery.discover(
-				{ throughDate: businessDate(this.timeZone) },
+				{ kind: "system", throughDate: businessDate(this.timeZone) },
 				trigger,
 			);
 		} catch (error) {
@@ -369,7 +369,9 @@ export class DepreciationSchedulerService
 		throughDate: Date | string = businessDate(this.timeZone),
 	): Promise<void> {
 		try {
-			const result = await this.cwipDiscovery.discover(throughDate);
+			const result = await this.cwipDiscovery.discover(throughDate, {
+				kind: "system",
+			});
 			this.logger.log({
 				event: "asset_cwip_capitalization_scheduled",
 				...result,

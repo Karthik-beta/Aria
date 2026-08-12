@@ -31,19 +31,23 @@ function createMockPrisma() {
 			findUnique: jest.fn(),
 			create: jest.fn(),
 			update: jest.fn(),
+			updateMany: jest.fn(),
 		},
 		asset: {
 			findUnique: jest.fn(),
 			findFirst: jest.fn(),
 			update: jest.fn(),
+			updateMany: jest.fn(),
 		},
 		assetActivity: {
 			create: jest.fn(),
 		},
 		assetValueAdjustment: {
 			findFirst: jest.fn(),
+			findFirstOrThrow: jest.fn(),
 			findUnique: jest.fn(),
 			update: jest.fn(),
+			updateMany: jest.fn(),
 			count: jest.fn(),
 		},
 		documentSeriesCounter: {
@@ -52,7 +56,7 @@ function createMockPrisma() {
 		},
 	};
 
-	return {
+	const result = {
 		asset: {
 			findUnique: jest.fn(),
 			findFirst: jest.fn(),
@@ -90,6 +94,53 @@ function createMockPrisma() {
 		$transaction: jest.fn().mockImplementation(async (fn) => fn(mockTx)),
 		_mockTx: mockTx,
 	};
+
+	mockTx.asset.findFirst.mockImplementation((args: unknown) =>
+		mockTx.asset.findUnique(args),
+	);
+	mockTx.asset.updateMany.mockImplementation(
+		async (args: { data: unknown }) => {
+			await mockTx.asset.update({
+				where: { id: "asset-001" },
+				data: args.data,
+			});
+			return { count: 1 };
+		},
+	);
+
+	const rootAsset = result.asset;
+	rootAsset.findFirst.mockImplementation((args: unknown) =>
+		rootAsset.findUnique(args),
+	);
+	const rootAdjustment = result.assetValueAdjustment;
+	rootAdjustment.findFirst.mockImplementation((args: unknown) =>
+		rootAdjustment.findUnique(args),
+	);
+	mockTx.assetValueAdjustment.findFirst.mockImplementation((args: unknown) =>
+		mockTx.assetValueAdjustment.findUnique(args),
+	);
+	mockTx.assetValueAdjustment.findFirstOrThrow.mockImplementation(
+		(args: unknown) => mockTx.assetValueAdjustment.findUnique(args),
+	);
+	for (const delegate of [
+		mockTx.assetValueAdjustment,
+		mockTx.assetRevaluationEntry,
+	] as const) {
+		delegate.updateMany.mockImplementation(async (args: unknown) => {
+			const { where, data } = args as {
+				where?: { id?: string };
+				data?: unknown;
+			};
+			const result = await delegate.update({
+				where: { id: where?.id },
+				data,
+			});
+			if (result !== undefined) delegate.findUnique.mockResolvedValue(result);
+			return { count: 1 };
+		});
+	}
+
+	return result;
 }
 
 function createTestContext() {
@@ -252,11 +303,14 @@ describe("AssetService > AssetValueAdjustment", () => {
 	it("builds a value-adjustment preview with revaluation direction and schedule entries", async () => {
 		mockPrisma.asset.findUnique.mockResolvedValue(baseAssetContext);
 
-		const result = await service.previewAssetValueAdjustment({
-			assetId: "asset-001",
-			adjustmentDate: new Date("2026-04-15"),
-			newAssetValue: 90000,
-		});
+		const result = await service.previewAssetValueAdjustment(
+			{
+				assetId: "asset-001",
+				adjustmentDate: new Date("2026-04-15"),
+				newAssetValue: 90000,
+			},
+			"org-1",
+		);
 
 		expect(result.currentAssetValue).toBe(80000);
 		expect(result.differenceAmount).toBe(10000);
@@ -276,14 +330,17 @@ describe("AssetService > AssetValueAdjustment", () => {
 			createAdjustmentRow(),
 		);
 
-		const result = await service.createAssetValueAdjustment({
-			assetId: "asset-001",
-			adjustmentDate: new Date("2026-04-15"),
-			newAssetValue: 90000,
-			differenceAccount: "Asset Revaluation Reserve",
-			costCenter: "Main Plant",
-			notes: "Annual valuation uplift",
-		});
+		const result = await service.createAssetValueAdjustment(
+			{
+				assetId: "asset-001",
+				adjustmentDate: new Date("2026-04-15"),
+				newAssetValue: 90000,
+				differenceAccount: "Asset Revaluation Reserve",
+				costCenter: "Main Plant",
+				notes: "Annual valuation uplift",
+			},
+			"org-1",
+		);
 
 		expect(mockPrisma.assetValueAdjustment.create).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -315,21 +372,27 @@ describe("AssetService > AssetValueAdjustment", () => {
 		};
 		mockPrisma.asset.findUnique.mockResolvedValue(multiBookAsset);
 
-		const missingSelection = await service.previewAssetValueAdjustment({
-			assetId: "asset-001",
-			adjustmentDate: new Date("2026-04-15"),
-			newAssetValue: 70000,
-		});
+		const missingSelection = await service.previewAssetValueAdjustment(
+			{
+				assetId: "asset-001",
+				adjustmentDate: new Date("2026-04-15"),
+				newAssetValue: 70000,
+			},
+			"org-1",
+		);
 		expect(missingSelection.validationMessages).toContain(
 			"Select the finance book whose carrying value and schedule should be revised.",
 		);
 
-		const selected = await service.previewAssetValueAdjustment({
-			assetId: "asset-001",
-			financeBookId: "finance-book-002",
-			adjustmentDate: new Date("2026-04-15"),
-			newAssetValue: 70000,
-		});
+		const selected = await service.previewAssetValueAdjustment(
+			{
+				assetId: "asset-001",
+				financeBookId: "finance-book-002",
+				adjustmentDate: new Date("2026-04-15"),
+				newAssetValue: 70000,
+			},
+			"org-1",
+		);
 		expect(selected.currentAssetValue).toBe(60000);
 		expect(selected.financeBookName).toBe("Tax Books");
 	});
@@ -338,12 +401,15 @@ describe("AssetService > AssetValueAdjustment", () => {
 		mockPrisma.asset.findUnique.mockResolvedValue(baseAssetContext);
 
 		await expect(
-			service.previewAssetValueAdjustment({
-				assetId: "asset-001",
-				financeBookId: "finance-book-other",
-				adjustmentDate: new Date("2026-04-15"),
-				newAssetValue: 90000,
-			}),
+			service.previewAssetValueAdjustment(
+				{
+					assetId: "asset-001",
+					financeBookId: "finance-book-other",
+					adjustmentDate: new Date("2026-04-15"),
+					newAssetValue: 90000,
+				},
+				"org-1",
+			),
 		).rejects.toBeInstanceOf(BadRequestException);
 	});
 
@@ -438,11 +504,13 @@ describe("AssetService > AssetValueAdjustment", () => {
 
 		const result = await service.submitAssetValueAdjustment(
 			{ id: "adj-001" },
+			"org-1",
 			"actor-001",
 		);
 
 		expect(mockDepreciationRevision.revise).toHaveBeenCalledWith(
 			mockTx,
+			"org-1",
 			expect.objectContaining({
 				assetId: "asset-001",
 				financeBookId: "finance-book-001",
@@ -533,10 +601,14 @@ describe("AssetService > AssetValueAdjustment", () => {
 			}),
 		);
 
-		const result = await service.cancelAssetValueAdjustment({ id: "adj-001" });
+		const result = await service.cancelAssetValueAdjustment(
+			{ id: "adj-001" },
+			"org-1",
+		);
 
 		expect(mockDepreciationRevision.restoreRevision).toHaveBeenCalledWith(
 			mockTx,
+			"org-1",
 			{
 				assetId: "asset-001",
 				financeBookId: "finance-book-001",
@@ -582,7 +654,7 @@ describe("AssetService > AssetValueAdjustment", () => {
 		mockTx.asset.findUnique.mockResolvedValue(baseAssetContext);
 
 		await expect(
-			service.submitAssetValueAdjustment({ id: "adj-001" }),
+			service.submitAssetValueAdjustment({ id: "adj-001" }, "org-1"),
 		).rejects.toBeInstanceOf(ConflictException);
 	});
 
@@ -626,7 +698,10 @@ describe("AssetService > AssetValueAdjustment", () => {
 			}),
 		);
 
-		const result = await service.submitAssetValueAdjustment({ id: "adj-001" });
+		const result = await service.submitAssetValueAdjustment(
+			{ id: "adj-001" },
+			"org-1",
+		);
 
 		expect(mockTx.assetRevaluationEntry.create).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -660,11 +735,14 @@ describe("AssetService > AssetValueAdjustment", () => {
 			};
 			mockPrisma.asset.findUnique.mockResolvedValue(assetContextApril);
 
-			const result = await service.previewAssetValueAdjustment({
-				assetId: "asset-001",
-				adjustmentDate: new Date("2025-04-15"),
-				newAssetValue: 100000,
-			});
+			const result = await service.previewAssetValueAdjustment(
+				{
+					assetId: "asset-001",
+					adjustmentDate: new Date("2025-04-15"),
+					newAssetValue: 100000,
+				},
+				"org-1",
+			);
 
 			expect(result.depreciationSchedule).not.toBeNull();
 			expect(result.depreciationSchedule?.entries.length).toBeGreaterThan(0);
@@ -682,11 +760,14 @@ describe("AssetService > AssetValueAdjustment", () => {
 			};
 			mockPrisma.asset.findUnique.mockResolvedValue(assetWithSalvage);
 
-			const result = await service.previewAssetValueAdjustment({
-				assetId: "asset-001",
-				adjustmentDate: new Date("2026-04-15"),
-				newAssetValue: 40000,
-			});
+			const result = await service.previewAssetValueAdjustment(
+				{
+					assetId: "asset-001",
+					adjustmentDate: new Date("2026-04-15"),
+					newAssetValue: 40000,
+				},
+				"org-1",
+			);
 
 			expect(result.depreciationSchedule).not.toBeNull();
 			const lastEntry =
@@ -724,11 +805,14 @@ describe("AssetService > AssetValueAdjustment", () => {
 			};
 			mockPrisma.asset.findUnique.mockResolvedValue(wdvAssetContext);
 
-			const result = await service.previewAssetValueAdjustment({
-				assetId: "asset-001",
-				adjustmentDate: new Date("2024-11-01"),
-				newAssetValue: 100000,
-			});
+			const result = await service.previewAssetValueAdjustment(
+				{
+					assetId: "asset-001",
+					adjustmentDate: new Date("2024-11-01"),
+					newAssetValue: 100000,
+				},
+				"org-1",
+			);
 
 			expect(result.depreciationSchedule).not.toBeNull();
 			expect(result.depreciationSchedule?.depreciationMethod).toBe(

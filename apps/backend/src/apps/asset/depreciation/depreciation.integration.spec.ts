@@ -53,13 +53,17 @@ it("boots PostgreSQL, Redis, queue events, and the depreciation worker", async (
 	expect(status.workers).toBeGreaterThanOrEqual(1);
 	await expect(
 		barrier.ensureDepreciationPosted({
+			kind: "system",
 			throughDate: businessDate(depreciationTimeZone()),
 		}),
 	).resolves.toMatchObject({ posted: true });
-	const report = await reportService.generateReport({
-		fromDate: new Date("2026-01-01T00:00:00.000Z"),
-		toDate: new Date("2026-12-31T00:00:00.000Z"),
-		groupBy: "ASSET_CATEGORY",
-	});
+	const report = await reportService.generateReport(
+		{
+			fromDate: new Date("2026-01-01T00:00:00.000Z"),
+			toDate: new Date("2026-12-31T00:00:00.000Z"),
+			groupBy: "ASSET_CATEGORY",
+		},
+		"org-1",
+	);
 	expect(report.summary.totalAssets).toBeGreaterThanOrEqual(0);
 }, 30_000);

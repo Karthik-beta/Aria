@@ -11,8 +11,10 @@ function createMockPrisma() {
 		asset: {
 			findUnique: jest.fn(),
 			findFirst: jest.fn(),
+			findFirstOrThrow: jest.fn(),
 			create: jest.fn(),
 			update: jest.fn(),
+			updateMany: jest.fn(),
 			findUniqueOrThrow: jest.fn(),
 		},
 		assetCategory: {
@@ -32,12 +34,16 @@ function createMockPrisma() {
 		client: {
 			$queryRaw: jest.fn(),
 		},
+		$transaction: jest.fn(),
 	};
 }
 
 function createTestContext() {
 	const mockPrisma = createMockPrisma();
 	mockPrisma.client.$queryRaw.mockResolvedValue([{ value: 1 }]);
+	mockPrisma.$transaction.mockImplementation(
+		(callback: (tx: typeof mockPrisma) => unknown) => callback(mockPrisma),
+	);
 	const mockDashboard = {} as unknown as AssetDashboardSubService;
 	const mockFiscalYear = {
 		getFiscalYearEndDate: jest.fn().mockResolvedValue(null),
@@ -106,12 +112,17 @@ describe("AssetService > Barcode support", () => {
 
 	describe("findAssetByBarcode", () => {
 		it("returns mapped asset if found", async () => {
-			mockPrisma.asset.findUnique.mockResolvedValue(mockAssetRow);
+			mockPrisma.asset.findFirst.mockResolvedValue(mockAssetRow);
 
-			const result = await service.findAssetByBarcode("1234567890");
+			const result = await service.findAssetByBarcode("1234567890", "org-1");
 
-			expect(mockPrisma.asset.findUnique).toHaveBeenCalledWith({
-				where: { barcode: "1234567890" },
+			expect(mockPrisma.asset.findFirst).toHaveBeenCalledWith({
+				where: {
+					AND: [
+						{ company: { is: { organizationId: "org-1" } } },
+						{ barcode: "1234567890" },
+					],
+				},
 				include: expect.any(Object),
 			});
 			expect(result).not.toBeNull();
@@ -119,9 +130,9 @@ describe("AssetService > Barcode support", () => {
 		});
 
 		it("returns null if not found", async () => {
-			mockPrisma.asset.findUnique.mockResolvedValue(null);
+			mockPrisma.asset.findFirst.mockResolvedValue(null);
 
-			const result = await service.findAssetByBarcode("unknown");
+			const result = await service.findAssetByBarcode("unknown", "org-1");
 
 			expect(result).toBeNull();
 		});
@@ -138,7 +149,7 @@ describe("AssetService > Barcode support", () => {
 			mockPrisma.documentSeriesCounter.findUnique.mockResolvedValue(null);
 			mockPrisma.asset.findFirst.mockResolvedValue(null);
 			mockPrisma.asset.create.mockResolvedValue(mockAssetRow);
-			mockPrisma.asset.findUniqueOrThrow.mockResolvedValue(mockAssetRow);
+			mockPrisma.asset.findFirstOrThrow.mockResolvedValue(mockAssetRow);
 			const input: Asset.CreateAssetInput = {
 				assetName: "Office Laptop",
 				companyId: "company-123",
@@ -179,7 +190,7 @@ describe("AssetService > Barcode support", () => {
 				...mockAssetRow,
 				series: "AST-2026-00006",
 			});
-			mockPrisma.asset.findUniqueOrThrow.mockResolvedValue({
+			mockPrisma.asset.findFirstOrThrow.mockResolvedValue({
 				...mockAssetRow,
 				series: "AST-2026-00006",
 			});
@@ -206,8 +217,9 @@ describe("AssetService > Barcode support", () => {
 				id: "company-123",
 				name: "Test Corp",
 			});
-			mockPrisma.asset.findUnique.mockResolvedValue(mockAssetRow);
-			mockPrisma.asset.update.mockResolvedValue({
+			mockPrisma.asset.findFirst.mockResolvedValue(mockAssetRow);
+			mockPrisma.asset.updateMany.mockResolvedValue({ count: 1 });
+			mockPrisma.asset.findFirstOrThrow.mockResolvedValue({
 				...mockAssetRow,
 				barcode: "9876543210",
 			});
@@ -219,9 +231,14 @@ describe("AssetService > Barcode support", () => {
 
 			const result = await service.updateAsset(input, "org-1", "user-456");
 
-			expect(mockPrisma.asset.update).toHaveBeenCalledWith(
+			expect(mockPrisma.asset.updateMany).toHaveBeenCalledWith(
 				expect.objectContaining({
-					where: { id: "asset-123" },
+					where: {
+						AND: [
+							{ company: { is: { organizationId: "org-1" } } },
+							{ id: "asset-123" },
+						],
+					},
 					data: expect.objectContaining({
 						barcode: "9876543210",
 					}),
@@ -260,10 +277,13 @@ describe("AssetService > Barcode support", () => {
 				},
 			]);
 
-			const result = await service.findAssetActivityReport({
-				fromDate: new Date("2026-01-01"),
-				toDate: new Date("2026-01-31"),
-			});
+			const result = await service.findAssetActivityReport(
+				{
+					fromDate: new Date("2026-01-01"),
+					toDate: new Date("2026-01-31"),
+				},
+				"org-1",
+			);
 
 			expect(result.rows).toHaveLength(1);
 			expect(result.rows[0]).toMatchObject({

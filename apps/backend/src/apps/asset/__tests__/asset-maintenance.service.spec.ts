@@ -18,8 +18,10 @@ function createMockPrisma() {
 	const mockTx = {
 		$queryRaw: jest.fn().mockResolvedValue([{ locked: true }]),
 		asset: {
+			findFirst: jest.fn(),
 			findUnique: jest.fn(),
 			update: jest.fn(),
+			updateMany: jest.fn().mockResolvedValue({ count: 1 }),
 		},
 		assetActivity: { create: jest.fn() },
 		assetRepair: { findFirst: jest.fn().mockResolvedValue(null) },
@@ -28,26 +30,37 @@ function createMockPrisma() {
 		},
 		assetMaintenance: {
 			create: jest.fn(),
+			findFirst: jest.fn(),
+			findFirstOrThrow: jest.fn(),
+			findUnique: jest.fn(),
 			findUniqueOrThrow: jest.fn(),
 			delete: jest.fn(),
 			deleteMany: jest.fn(),
+			updateMany: jest.fn().mockResolvedValue({ count: 1 }),
 		},
 		assetMaintenanceTeam: {
+			findFirst: jest.fn(),
 			findUnique: jest.fn(),
 		},
 		assetMaintenanceTask: {
 			create: jest.fn(),
+			findMany: jest.fn().mockResolvedValue([]),
 			update: jest.fn(),
+			updateMany: jest.fn().mockResolvedValue({ count: 1 }),
 			findFirst: jest.fn().mockResolvedValue(null),
+			deleteMany: jest.fn(),
 		},
 		assetMaintenanceLog: {
 			create: jest.fn(),
+			findFirst: jest.fn(),
+			findFirstOrThrow: jest.fn(),
 			findUnique: jest.fn(),
 			update: jest.fn(),
+			updateMany: jest.fn().mockResolvedValue({ count: 1 }),
 		},
 	};
 
-	return {
+	const mockPrisma = {
 		asset: {
 			findMany: jest.fn(),
 			findUnique: jest.fn(),
@@ -80,6 +93,7 @@ function createMockPrisma() {
 		},
 		assetMaintenanceTeam: {
 			findMany: jest.fn(),
+			findFirst: jest.fn(),
 			findUnique: jest.fn(),
 			create: jest.fn(),
 			update: jest.fn(),
@@ -95,9 +109,13 @@ function createMockPrisma() {
 		},
 		assetMaintenance: {
 			findMany: jest.fn(),
+			findFirst: jest.fn(),
+			findFirstOrThrow: jest.fn(),
 			findUnique: jest.fn(),
+			findUniqueOrThrow: jest.fn(),
 			create: jest.fn(),
 			update: jest.fn(),
+			updateMany: jest.fn().mockResolvedValue({ count: 1 }),
 			delete: jest.fn(),
 			deleteMany: jest.fn(),
 			count: jest.fn(),
@@ -110,14 +128,77 @@ function createMockPrisma() {
 		},
 		assetMaintenanceLog: {
 			findMany: jest.fn(),
+			findFirst: jest.fn(),
+			findFirstOrThrow: jest.fn(),
 			findUnique: jest.fn(),
 			create: jest.fn(),
 			update: jest.fn(),
 			count: jest.fn(),
 		},
+		company: {
+			findFirst: jest.fn().mockResolvedValue({
+				id: COMPANY_ID,
+				disabled: false,
+			}),
+		},
 		$transaction: jest.fn().mockImplementation(async (fn) => fn(mockTx)),
 		_mockTx: mockTx,
 	};
+	mockPrisma.asset.findFirst.mockImplementation((args: unknown) =>
+		mockPrisma.asset.findUnique(args),
+	);
+	mockPrisma.assetMaintenance.findFirst.mockImplementation((args: unknown) =>
+		mockPrisma.assetMaintenance.findUnique(args),
+	);
+	mockPrisma.assetMaintenance.findFirstOrThrow.mockImplementation(
+		(args: unknown) => mockPrisma.assetMaintenance.findUniqueOrThrow(args),
+	);
+	mockPrisma.assetMaintenanceTeam.findFirst.mockImplementation(
+		(args: unknown) => mockPrisma.assetMaintenanceTeam.findUnique(args),
+	);
+	mockPrisma.assetMaintenanceLog.findFirst.mockImplementation((args: unknown) =>
+		mockPrisma.assetMaintenanceLog.findUnique(args),
+	);
+	mockTx.asset.findFirst.mockImplementation((args: unknown) =>
+		mockTx.asset.findUnique(args),
+	);
+	mockTx.assetMaintenance.findFirst.mockImplementation((args: unknown) =>
+		mockTx.assetMaintenance.findUnique(args),
+	);
+	mockTx.assetMaintenance.findFirstOrThrow.mockImplementation((args: unknown) =>
+		mockTx.assetMaintenance.findUniqueOrThrow(args),
+	);
+	mockTx.assetMaintenanceTeam.findFirst.mockImplementation((args: unknown) =>
+		mockTx.assetMaintenanceTeam.findUnique(args),
+	);
+	mockTx.assetMaintenanceLog.findFirst.mockImplementation((args: unknown) =>
+		mockTx.assetMaintenanceLog.findUnique(args),
+	);
+	mockTx.assetMaintenanceLog.findFirstOrThrow.mockImplementation(
+		(args: unknown) => mockTx.assetMaintenanceLog.findUnique(args),
+	);
+	mockTx.assetMaintenanceLog.updateMany.mockImplementation(
+		async (args: unknown) => {
+			const result = await mockTx.assetMaintenanceLog.update(args);
+			if (result !== undefined) {
+				mockTx.assetMaintenanceLog.findUnique.mockResolvedValue(result);
+			}
+			return { count: 1 };
+		},
+	);
+	mockTx.assetMaintenance.deleteMany.mockImplementation(
+		async (args: unknown) => {
+			await mockTx.assetMaintenance.delete(args);
+			return { count: 1 };
+		},
+	);
+	mockTx.assetMaintenanceTask.updateMany.mockImplementation(
+		async (args: unknown) => {
+			await mockTx.assetMaintenanceTask.update(args);
+			return { count: 1 };
+		},
+	);
+	return mockPrisma;
 }
 
 function createTestContext() {
@@ -290,7 +371,7 @@ describe("AssetService > AssetMaintenance", () => {
 			]);
 			mockPrisma.assetMaintenance.count.mockResolvedValue(1);
 
-			const result = await service.findAllAssetMaintenances({
+			const result = await service.findAllAssetMaintenances("org-1", {
 				skip: 0,
 				take: 20,
 			});
@@ -309,7 +390,7 @@ describe("AssetService > AssetMaintenance", () => {
 			mockPrisma.assetMaintenance.findMany.mockResolvedValue([]);
 			mockPrisma.assetMaintenance.count.mockResolvedValue(0);
 
-			const result = await service.findAllAssetMaintenances({});
+			const result = await service.findAllAssetMaintenances("org-1", {});
 
 			expect(result.totalCount).toBe(0);
 			expect(result.items).toHaveLength(0);
@@ -319,7 +400,7 @@ describe("AssetService > AssetMaintenance", () => {
 			mockPrisma.assetMaintenance.findMany.mockResolvedValue([]);
 			mockPrisma.assetMaintenance.count.mockResolvedValue(0);
 
-			await service.findAllAssetMaintenances({ search: "pump" });
+			await service.findAllAssetMaintenances("org-1", { search: "pump" });
 
 			expect(mockPrisma.assetMaintenance.findMany).toHaveBeenCalledWith(
 				expect.objectContaining({
@@ -342,7 +423,7 @@ describe("AssetService > AssetMaintenance", () => {
 			mockPrisma.assetMaintenance.findMany.mockResolvedValue([]);
 			mockPrisma.assetMaintenance.count.mockResolvedValue(0);
 
-			await service.findAllAssetMaintenances({ take: 9999 });
+			await service.findAllAssetMaintenances("org-1", { take: 9999 });
 
 			expect(mockPrisma.assetMaintenance.findMany).toHaveBeenCalledWith(
 				expect.objectContaining({ take: 250 }),
@@ -360,7 +441,10 @@ describe("AssetService > AssetMaintenance", () => {
 				mockMaintenanceRow,
 			);
 
-			const result = await service.findAssetMaintenanceById("maint-001");
+			const result = await service.findAssetMaintenanceById(
+				"maint-001",
+				"org-1",
+			);
 
 			expect(result).toMatchObject({
 				id: "maint-001",
@@ -372,7 +456,10 @@ describe("AssetService > AssetMaintenance", () => {
 		it("returns null when record does not exist", async () => {
 			mockPrisma.assetMaintenance.findUnique.mockResolvedValue(null);
 
-			const result = await service.findAssetMaintenanceById("missing-id");
+			const result = await service.findAssetMaintenanceById(
+				"missing-id",
+				"org-1",
+			);
 
 			expect(result).toBeNull();
 		});
@@ -386,7 +473,10 @@ describe("AssetService > AssetMaintenance", () => {
 		it("returns logs for a maintenance record", async () => {
 			mockPrisma.assetMaintenanceLog.findMany.mockResolvedValue([mockLog]);
 
-			const result = await service.findAssetMaintenanceLogs("maint-001");
+			const result = await service.findAssetMaintenanceLogs(
+				"maint-001",
+				"org-1",
+			);
 
 			expect(result).toHaveLength(1);
 			expect(result[0]).toMatchObject({
@@ -427,9 +517,9 @@ describe("AssetService > AssetMaintenance", () => {
 		it("throws NotFoundException when asset does not exist", async () => {
 			mockPrisma.asset.findUnique.mockResolvedValue(null);
 
-			await expect(service.createAssetMaintenance(createInput)).rejects.toThrow(
-				NotFoundException,
-			);
+			await expect(
+				service.createAssetMaintenance(createInput, "org-1"),
+			).rejects.toThrow(NotFoundException);
 		});
 
 		it("throws BadRequestException when asset already has a maintenance record", async () => {
@@ -442,9 +532,9 @@ describe("AssetService > AssetMaintenance", () => {
 				maintenance: { id: "existing-maint" },
 			});
 
-			await expect(service.createAssetMaintenance(createInput)).rejects.toThrow(
-				BadRequestException,
-			);
+			await expect(
+				service.createAssetMaintenance(createInput, "org-1"),
+			).rejects.toThrow(BadRequestException);
 		});
 
 		it("throws NotFoundException when maintenance team does not exist", async () => {
@@ -458,9 +548,9 @@ describe("AssetService > AssetMaintenance", () => {
 			});
 			mockPrisma.assetMaintenanceTeam.findUnique.mockResolvedValue(null);
 
-			await expect(service.createAssetMaintenance(createInput)).rejects.toThrow(
-				NotFoundException,
-			);
+			await expect(
+				service.createAssetMaintenance(createInput, "org-1"),
+			).rejects.toThrow(NotFoundException);
 		});
 
 		it("rejects a maintenance company that differs from the asset", async () => {
@@ -473,9 +563,9 @@ describe("AssetService > AssetMaintenance", () => {
 				maintenance: null,
 			});
 
-			await expect(service.createAssetMaintenance(createInput)).rejects.toThrow(
-				"must match asset company",
-			);
+			await expect(
+				service.createAssetMaintenance(createInput, "org-1"),
+			).rejects.toThrow("must match asset company");
 		});
 
 		it("rejects a maintenance team from another company", async () => {
@@ -493,9 +583,9 @@ describe("AssetService > AssetMaintenance", () => {
 				company: OTHER_COMPANY_RELATION,
 			});
 
-			await expect(service.createAssetMaintenance(createInput)).rejects.toThrow(
-				"does not match asset company",
-			);
+			await expect(
+				service.createAssetMaintenance(createInput, "org-1"),
+			).rejects.toThrow("does not match asset company");
 		});
 
 		it("throws BadRequestException when task startDate >= endDate", async () => {
@@ -514,16 +604,19 @@ describe("AssetService > AssetMaintenance", () => {
 			});
 
 			await expect(
-				service.createAssetMaintenance({
-					...createInput,
-					tasks: [
-						{
-							...createInput.tasks[0],
-							startDate: new Date("2026-06-01"),
-							endDate: new Date("2026-01-01"),
-						},
-					],
-				}),
+				service.createAssetMaintenance(
+					{
+						...createInput,
+						tasks: [
+							{
+								...createInput.tasks[0],
+								startDate: new Date("2026-06-01"),
+								endDate: new Date("2026-01-01"),
+							},
+						],
+					},
+					"org-1",
+				),
 			).rejects.toThrow(BadRequestException);
 		});
 
@@ -564,6 +657,7 @@ describe("AssetService > AssetMaintenance", () => {
 
 			const result = await service.createAssetMaintenance(
 				createInput,
+				"org-1",
 				"actor-001",
 			);
 
@@ -601,11 +695,14 @@ describe("AssetService > AssetMaintenance", () => {
 				id: "maint-001",
 			});
 
-			const result = await service.deleteAssetMaintenance("maint-001");
+			const result = await service.deleteAssetMaintenance("maint-001", "org-1");
 
 			expect(result).toEqual({ success: true, id: "maint-001" });
 			expect(mockTx.assetMaintenance.delete).toHaveBeenCalledWith({
-				where: { id: "maint-001" },
+				where: expect.objectContaining({
+					id: "maint-001",
+					company: { is: { organizationId: "org-1" } },
+				}),
 			});
 		});
 
@@ -613,7 +710,7 @@ describe("AssetService > AssetMaintenance", () => {
 			mockPrisma.assetMaintenance.findUnique.mockResolvedValue(null);
 
 			await expect(
-				service.deleteAssetMaintenance("missing-id"),
+				service.deleteAssetMaintenance("missing-id", "org-1"),
 			).rejects.toThrow(NotFoundException);
 		});
 	});
@@ -630,10 +727,10 @@ describe("AssetService > AssetMaintenance", () => {
 			]);
 			mockTx.assetMaintenance.deleteMany.mockResolvedValue({ count: 2 });
 
-			const result = await service.deleteManyAssetMaintenances([
-				"maint-001",
-				"maint-002",
-			]);
+			const result = await service.deleteManyAssetMaintenances(
+				["maint-001", "maint-002"],
+				"org-1",
+			);
 
 			expect(result).toEqual({
 				success: true,
@@ -648,14 +745,17 @@ describe("AssetService > AssetMaintenance", () => {
 			]);
 			mockTx.assetMaintenance.deleteMany.mockResolvedValue({ count: 1 });
 
-			const result = await service.deleteManyAssetMaintenances([
-				"maint-001",
-				"maint-001",
-			]);
+			const result = await service.deleteManyAssetMaintenances(
+				["maint-001", "maint-001"],
+				"org-1",
+			);
 
 			expect(result.ids).toHaveLength(1);
 			expect(mockTx.assetMaintenance.deleteMany).toHaveBeenCalledWith({
-				where: { id: { in: ["maint-001"] } },
+				where: expect.objectContaining({
+					id: { in: ["maint-001"] },
+					company: { is: { organizationId: "org-1" } },
+				}),
 			});
 		});
 	});
@@ -713,7 +813,7 @@ describe("AssetService > findAllAssetMaintenanceLogs", () => {
 		]);
 		mockPrisma.assetMaintenanceLog.count.mockResolvedValue(1);
 
-		const result = await service.findAllAssetMaintenanceLogs({});
+		const result = await service.findAllAssetMaintenanceLogs("org-1", {});
 
 		expect(result.totalCount).toBe(1);
 		expect(result.items).toHaveLength(1);
@@ -729,7 +829,7 @@ describe("AssetService > findAllAssetMaintenanceLogs", () => {
 		mockPrisma.assetMaintenanceLog.findMany.mockResolvedValue([]);
 		mockPrisma.assetMaintenanceLog.count.mockResolvedValue(0);
 
-		const result = await service.findAllAssetMaintenanceLogs({});
+		const result = await service.findAllAssetMaintenanceLogs("org-1", {});
 
 		expect(result.totalCount).toBe(0);
 		expect(result.items).toHaveLength(0);
@@ -739,7 +839,7 @@ describe("AssetService > findAllAssetMaintenanceLogs", () => {
 		mockPrisma.assetMaintenanceLog.findMany.mockResolvedValue([]);
 		mockPrisma.assetMaintenanceLog.count.mockResolvedValue(0);
 
-		await service.findAllAssetMaintenanceLogs({ search: "pump" });
+		await service.findAllAssetMaintenanceLogs("org-1", { search: "pump" });
 
 		expect(mockPrisma.assetMaintenanceLog.findMany).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -764,7 +864,7 @@ describe("AssetService > findAllAssetMaintenanceLogs", () => {
 		mockPrisma.assetMaintenanceLog.findMany.mockResolvedValue([]);
 		mockPrisma.assetMaintenanceLog.count.mockResolvedValue(0);
 
-		await service.findAllAssetMaintenanceLogs({ status: "PLANNED" });
+		await service.findAllAssetMaintenanceLogs("org-1", { status: "PLANNED" });
 
 		expect(mockPrisma.assetMaintenanceLog.findMany).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -779,7 +879,7 @@ describe("AssetService > findAllAssetMaintenanceLogs", () => {
 		mockPrisma.assetMaintenanceLog.findMany.mockResolvedValue([]);
 		mockPrisma.assetMaintenanceLog.count.mockResolvedValue(0);
 
-		await service.findAllAssetMaintenanceLogs({ take: 9999 });
+		await service.findAllAssetMaintenanceLogs("org-1", { take: 9999 });
 
 		expect(mockPrisma.assetMaintenanceLog.findMany).toHaveBeenCalledWith(
 			expect.objectContaining({ take: 250 }),
@@ -805,7 +905,7 @@ describe("AssetService > cancelAssetMaintenanceLog", () => {
 		mockPrisma.assetMaintenanceLog.findUnique.mockResolvedValue(null);
 
 		await expect(
-			service.cancelAssetMaintenanceLog({ logId: "missing-log" }),
+			service.cancelAssetMaintenanceLog({ logId: "missing-log" }, "org-1"),
 		).rejects.toThrow(NotFoundException);
 	});
 
@@ -819,7 +919,7 @@ describe("AssetService > cancelAssetMaintenanceLog", () => {
 		});
 
 		await expect(
-			service.cancelAssetMaintenanceLog({ logId: "log-001" }),
+			service.cancelAssetMaintenanceLog({ logId: "log-001" }, "org-1"),
 		).rejects.toThrow(BadRequestException);
 	});
 
@@ -833,7 +933,7 @@ describe("AssetService > cancelAssetMaintenanceLog", () => {
 		});
 
 		await expect(
-			service.cancelAssetMaintenanceLog({ logId: "log-001" }),
+			service.cancelAssetMaintenanceLog({ logId: "log-001" }, "org-1"),
 		).rejects.toThrow(BadRequestException);
 	});
 
@@ -856,19 +956,22 @@ describe("AssetService > cancelAssetMaintenanceLog", () => {
 		mockTx.assetMaintenanceLog.update.mockResolvedValue(cancelledLog);
 		mockTx.assetMaintenanceTask.update.mockResolvedValue({});
 
-		const result = await service.cancelAssetMaintenanceLog({
-			logId: "log-001",
-		});
+		const result = await service.cancelAssetMaintenanceLog(
+			{
+				logId: "log-001",
+			},
+			"org-1",
+		);
 
 		expect(mockTx.assetMaintenanceLog.update).toHaveBeenCalledWith(
 			expect.objectContaining({
-				where: { id: "log-001" },
+				where: expect.objectContaining({ id: "log-001" }),
 				data: { maintenanceStatus: "CANCELLED" },
 			}),
 		);
 		expect(mockTx.assetMaintenanceTask.update).toHaveBeenCalledWith(
 			expect.objectContaining({
-				where: { id: "task-001" },
+				where: expect.objectContaining({ id: "task-001" }),
 				data: { maintenanceStatus: "CANCELLED" },
 			}),
 		);
@@ -895,9 +998,12 @@ describe("AssetService > cancelAssetMaintenanceLog", () => {
 		mockTx.assetMaintenanceLog.update.mockResolvedValue(cancelledLog);
 		mockTx.assetMaintenanceTask.update.mockResolvedValue({});
 
-		const result = await service.cancelAssetMaintenanceLog({
-			logId: "log-002",
-		});
+		const result = await service.cancelAssetMaintenanceLog(
+			{
+				logId: "log-002",
+			},
+			"org-1",
+		);
 
 		expect(result.maintenanceStatus).toBe("CANCELLED");
 	});
@@ -915,7 +1021,7 @@ describe("AssetService > cancelAssetMaintenanceLog", () => {
 		});
 
 		await expect(
-			service.cancelAssetMaintenanceLog({ logId: "log-001" }),
+			service.cancelAssetMaintenanceLog({ logId: "log-001" }, "org-1"),
 		).rejects.toThrow("already cancelled");
 		expect(mockTx.assetMaintenanceLog.update).not.toHaveBeenCalled();
 	});
@@ -935,11 +1041,14 @@ describe("AssetService > cancelAssetMaintenanceLog", () => {
 		});
 
 		await expect(
-			service.completeAssetMaintenanceLog({
-				logId: "log-001",
-				completionDate: new Date("2026-02-01"),
-				hasCertificate: false,
-			}),
+			service.completeAssetMaintenanceLog(
+				{
+					logId: "log-001",
+					completionDate: new Date("2026-02-01"),
+					hasCertificate: false,
+				},
+				"org-1",
+			),
 		).rejects.toThrow("already completed");
 		expect(mockTx.assetMaintenanceLog.update).not.toHaveBeenCalled();
 	});

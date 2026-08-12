@@ -16,6 +16,7 @@ interface Delegate {
 	count(args: unknown): Promise<number>;
 	create<T>(args: unknown): Promise<T>;
 	update<T>(args: unknown): Promise<T>;
+	updateMany(args: unknown): Promise<{ count: number }>;
 }
 
 interface DepreciationTransaction {
@@ -43,7 +44,10 @@ interface DiscoveryRow {
 		assetId: string;
 		assetFinanceBookId: string;
 		assetFinanceBook: { financeBookId: string };
-		asset: { companyId: string; company: { name: string } };
+		asset: {
+			companyId: string;
+			company: { name: string; organizationId: string };
+		};
 	};
 }
 
@@ -71,7 +75,7 @@ interface WorkerEntry {
 			assetName: string;
 			assetCategoryId: string | null;
 			companyId: string;
-			company: { name: string };
+			company: { name: string; organizationId: string };
 			calculateDepreciation: boolean;
 			status: string;
 		};
@@ -133,10 +137,16 @@ export class DepreciationPersistenceService {
 			status: { in: ["SUBMITTED", "PARTIALLY_DEPRECIATED"] },
 		};
 		if (scope.companyId) assetFilter.companyId = scope.companyId;
-		if (scope.company)
-			assetFilter.company = {
-				is: { name: { equals: scope.company, mode: "insensitive" } },
-			};
+		const companyFilter: Record<string, unknown> = {};
+		if (scope.kind === "organization") {
+			companyFilter.organizationId = scope.organizationId;
+		}
+		if (scope.company) {
+			companyFilter.name = { equals: scope.company, mode: "insensitive" };
+		}
+		if (Object.keys(companyFilter).length > 0) {
+			assetFilter.company = { is: companyFilter };
+		}
 		if (scope.assetIds?.length) assetFilter.id = { in: [...scope.assetIds] };
 
 		const financeBookFilter: Record<string, unknown> = {};
@@ -167,7 +177,9 @@ export class DepreciationPersistenceService {
 							asset: {
 								select: {
 									companyId: true,
-									company: { select: { name: true } },
+									company: {
+										select: { name: true, organizationId: true },
+									},
 								},
 							},
 						},
@@ -183,7 +195,12 @@ export class DepreciationPersistenceService {
 		];
 		const companyRows = companies.length
 			? await this.db.company.findMany<CompanyFreezeRow>({
-					where: { id: { in: companies } },
+					where: {
+						id: { in: companies },
+						...(scope.kind === "organization"
+							? { organizationId: scope.organizationId }
+							: {}),
+					},
 					select: { id: true, name: true, accountsFrozenThrough: true },
 				})
 			: [];
@@ -194,6 +211,7 @@ export class DepreciationPersistenceService {
 		return rows.map((row) => {
 			const frozenThrough = freezes.get(row.schedule.asset.companyId);
 			return {
+				organizationId: row.schedule.asset.company.organizationId,
 				assetId: row.schedule.assetId,
 				assetFinanceBookId: row.schedule.assetFinanceBookId,
 				financeBookId: row.schedule.assetFinanceBook.financeBookId,
@@ -244,12 +262,25 @@ export class DepreciationPersistenceService {
 			`);
 
 			const entry =
-				await tx.assetDepreciationScheduleEntry.findUnique<WorkerEntry>({
-					where: { id: job.scheduleEntryId },
+				await tx.assetDepreciationScheduleEntry.findFirst<WorkerEntry>({
+					where: {
+						id: job.scheduleEntryId,
+						schedule: {
+							asset: {
+								company: { is: { organizationId: job.organizationId } },
+							},
+						},
+					},
 					include: {
 						schedule: {
 							include: {
-								asset: true,
+								asset: {
+									include: {
+										company: {
+											select: { name: true, organizationId: true },
+										},
+									},
+								},
 								assetFinanceBook: { include: { financeBook: true } },
 							},
 						},
@@ -266,22 +297,36 @@ export class DepreciationPersistenceService {
 				return { status: "already-posted", postingId: entry.postingId };
 			}
 
-			const existing = await tx.assetDepreciationJournalEntry.findUnique<{
+			const existing = await tx.assetDepreciationJournalEntry.findFirst<{
 				id: string;
 			}>({
 				where: {
-					assetFinanceBookId_postingDate: {
-						assetFinanceBookId: job.assetFinanceBookId,
-						postingDate: entry.scheduleDate,
+					assetFinanceBookId: job.assetFinanceBookId,
+					postingDate: entry.scheduleDate,
+					asset: {
+						is: { company: { is: { organizationId: job.organizationId } } },
 					},
+					company: { is: { organizationId: job.organizationId } },
 				},
 				select: { id: true },
 			});
 			if (existing) {
-				await tx.assetDepreciationScheduleEntry.update({
-					where: { id: entry.id },
+				const linkedEntry = await tx.assetDepreciationScheduleEntry.updateMany({
+					where: {
+						id: entry.id,
+						schedule: {
+							asset: {
+								company: { is: { organizationId: job.organizationId } },
+							},
+						},
+					},
 					data: { postingId: existing.id, postedAt: new Date() },
 				});
+				if (linkedEntry.count !== 1) {
+					throw new DepreciationPostingValidationError(
+						`Depreciation schedule entry ${entry.id} changed ownership while linking.`,
+					);
+				}
 				return { status: "already-posted", postingId: existing.id };
 			}
 			this.validatePostingEligibility(entry);
@@ -295,6 +340,7 @@ export class DepreciationPersistenceService {
 					schedule: {
 						status: "ACTIVE",
 						assetFinanceBookId: job.assetFinanceBookId,
+						asset: { company: { is: { organizationId: job.organizationId } } },
 					},
 				},
 				select: { id: true },
@@ -304,8 +350,11 @@ export class DepreciationPersistenceService {
 				return { status: "out-of-order", earlierScheduleEntryId: earlier.id };
 			}
 
-			const company = await tx.company.findUnique<CompanyPostingConfig>({
-				where: { id: entry.schedule.asset.companyId },
+			const company = await tx.company.findFirst<CompanyPostingConfig>({
+				where: {
+					id: entry.schedule.asset.companyId,
+					organizationId: job.organizationId,
+				},
 				select: {
 					id: true,
 					name: true,
@@ -397,10 +446,20 @@ export class DepreciationPersistenceService {
 				select: { id: true },
 			});
 
-			await tx.assetDepreciationScheduleEntry.update({
-				where: { id: entry.id },
+			const linkedEntry = await tx.assetDepreciationScheduleEntry.updateMany({
+				where: {
+					id: entry.id,
+					schedule: {
+						asset: { company: { is: { organizationId: job.organizationId } } },
+					},
+				},
 				data: { postingId: posting.id, postedAt: new Date() },
 			});
+			if (linkedEntry.count !== 1) {
+				throw new DepreciationPostingValidationError(
+					`Depreciation schedule entry ${entry.id} changed ownership while posting.`,
+				);
+			}
 			const [remaining, booked] = await Promise.all([
 				tx.assetDepreciationScheduleEntry.count({
 					where: {
@@ -408,19 +467,30 @@ export class DepreciationPersistenceService {
 						schedule: {
 							status: "ACTIVE",
 							assetFinanceBookId: job.assetFinanceBookId,
+							asset: {
+								company: { is: { organizationId: job.organizationId } },
+							},
 						},
 					},
 				}),
 				tx.assetDepreciationScheduleEntry.count({
 					where: {
 						postingId: { not: null },
-						schedule: { assetFinanceBookId: job.assetFinanceBookId },
+						schedule: {
+							assetFinanceBookId: job.assetFinanceBookId,
+							asset: {
+								company: { is: { organizationId: job.organizationId } },
+							},
+						},
 					},
 				}),
 			]);
 			const fullyDepreciated = remaining === 0;
-			await tx.assetFinanceBook.update({
-				where: { id: job.assetFinanceBookId },
+			const updatedBook = await tx.assetFinanceBook.updateMany({
+				where: {
+					id: job.assetFinanceBookId,
+					asset: { company: { is: { organizationId: job.organizationId } } },
+				},
 				data: {
 					valueAfterDepreciation: entry.bookValueAfterDepreciation,
 					totalNumberOfBookedDepreciations: booked,
@@ -430,13 +500,21 @@ export class DepreciationPersistenceService {
 					lastPostedDepreciationDate: entry.scheduleDate,
 				},
 			});
+			if (updatedBook.count !== 1) {
+				throw new DepreciationPostingValidationError(
+					`Asset finance book ${job.assetFinanceBookId} changed ownership while posting.`,
+				);
+			}
 
 			if (
 				company.defaultFinanceBookId ===
 				entry.schedule.assetFinanceBook.financeBookId
 			) {
-				await tx.asset.update({
-					where: { id: entry.schedule.assetId },
+				const updatedAsset = await tx.asset.updateMany({
+					where: {
+						id: entry.schedule.assetId,
+						company: { is: { organizationId: job.organizationId } },
+					},
 					data: {
 						valueAfterDepreciation: entry.bookValueAfterDepreciation,
 						isFullyDepreciated: fullyDepreciated,
@@ -445,6 +523,11 @@ export class DepreciationPersistenceService {
 							: "PARTIALLY_DEPRECIATED",
 					},
 				});
+				if (updatedAsset.count !== 1) {
+					throw new DepreciationPostingValidationError(
+						`Asset ${entry.schedule.assetId} changed ownership while posting.`,
+					);
+				}
 			}
 			await tx.assetActivity.create({
 				data: {
@@ -464,6 +547,7 @@ export class DepreciationPersistenceService {
 			entry.scheduleId !== job.scheduleId ||
 			entry.schedule.assetId !== job.assetId ||
 			entry.schedule.assetFinanceBookId !== job.assetFinanceBookId ||
+			entry.schedule.asset.company.organizationId !== job.organizationId ||
 			normalizeDateOnly(entry.scheduleDate) !== job.depreciationDate
 		) {
 			throw new DepreciationPostingValidationError(

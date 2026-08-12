@@ -9,6 +9,7 @@ import {
 
 const jobData = {
 	version: 1 as const,
+	organizationId: "org-1",
 	assetId: "asset-1",
 	assetFinanceBookId: "asset-book-1",
 	scheduleId: "schedule-1",

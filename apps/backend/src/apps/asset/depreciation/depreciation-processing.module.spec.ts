@@ -87,6 +87,7 @@ describe("DepreciationProcessingModule", () => {
 				async (_prisma, depreciation) => {
 					await depreciation.ensurePosted({
 						throughDate: new Date("2026-07-22T00:00:00.000Z"),
+						organizationId: "org-1",
 					});
 				},
 			),

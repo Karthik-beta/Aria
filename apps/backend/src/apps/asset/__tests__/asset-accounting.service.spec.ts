@@ -6,18 +6,36 @@ import {
 import type { Prisma } from "../../../generated/prisma/client";
 import { AssetAccountingService } from "../asset-accounting.service";
 
+const ORGANIZATION_ID = "organization-1";
+
 function createTransaction() {
 	return {
 		$queryRaw: jest.fn().mockResolvedValue([{ value: 8 }]),
 		company: {
-			findUnique: jest.fn().mockResolvedValue({
+			findFirst: jest.fn().mockResolvedValue({
+				id: "company-1",
+				name: "Pivotr Technologies Private Limited",
 				disabled: false,
 				accountsFrozenThrough: null,
 			}),
 		},
+		asset: {
+			findFirst: jest.fn().mockResolvedValue({ id: "asset-1" }),
+		},
 		assetAccountingEntry: {
-			findUnique: jest.fn().mockResolvedValue(null),
-			findFirst: jest.fn().mockResolvedValue({ series: "AAE-2026-00007" }),
+			findFirst: jest
+				.fn()
+				.mockImplementation(async (args: { where?: { AND?: unknown[] } }) => {
+					const where = args.where;
+					if (
+						where?.AND?.some((part) => {
+							if (!part || typeof part !== "object") return false;
+							return "sourceType" in part || "id" in part;
+						})
+					)
+						return null;
+					return { series: "AAE-2026-00007" };
+				}),
 			create: jest.fn().mockResolvedValue({
 				id: "entry-1",
 				series: "AAE-2026-00008",
@@ -56,6 +74,7 @@ describe("AssetAccountingService", () => {
 
 		const result = await service.createPostedEntry(
 			tx as unknown as Prisma.TransactionClient,
+			ORGANIZATION_ID,
 			balancedEntry,
 		);
 
@@ -89,7 +108,7 @@ describe("AssetAccountingService", () => {
 	it("returns an existing posted source entry on an idempotent retry", async () => {
 		const service = new AssetAccountingService();
 		const tx = createTransaction();
-		tx.assetAccountingEntry.findUnique.mockResolvedValue({
+		tx.assetAccountingEntry.findFirst.mockResolvedValue({
 			id: "existing",
 			series: "AAE-2026-00001",
 			status: "POSTED",
@@ -98,6 +117,7 @@ describe("AssetAccountingService", () => {
 		await expect(
 			service.createPostedEntry(
 				tx as unknown as Prisma.TransactionClient,
+				ORGANIZATION_ID,
 				balancedEntry,
 			),
 		).resolves.toEqual({
@@ -113,30 +133,40 @@ describe("AssetAccountingService", () => {
 		const tx = createTransaction();
 
 		await expect(
-			service.createPostedEntry(tx as unknown as Prisma.TransactionClient, {
-				...balancedEntry,
-				lines: [
-					{ account: "Asset", debitAmount: 100, creditAmount: 0 },
-					{ account: "Expense", debitAmount: 0, creditAmount: 99 },
-				],
-			}),
+			service.createPostedEntry(
+				tx as unknown as Prisma.TransactionClient,
+				ORGANIZATION_ID,
+				{
+					...balancedEntry,
+					lines: [
+						{ account: "Asset", debitAmount: 100, creditAmount: 0 },
+						{ account: "Expense", debitAmount: 0, creditAmount: 99 },
+					],
+				},
+			),
 		).rejects.toThrow(BadRequestException);
 
 		await expect(
-			service.createPostedEntry(tx as unknown as Prisma.TransactionClient, {
-				...balancedEntry,
-				lines: [
-					{ account: "Asset", debitAmount: 100, creditAmount: 100 },
-					{ account: "Expense", debitAmount: 0, creditAmount: 100 },
-				],
-			}),
+			service.createPostedEntry(
+				tx as unknown as Prisma.TransactionClient,
+				ORGANIZATION_ID,
+				{
+					...balancedEntry,
+					lines: [
+						{ account: "Asset", debitAmount: 100, creditAmount: 100 },
+						{ account: "Expense", debitAmount: 0, creditAmount: 100 },
+					],
+				},
+			),
 		).rejects.toThrow("exactly one");
 	});
 
 	it("rejects entries in a frozen accounting period", async () => {
 		const service = new AssetAccountingService();
 		const tx = createTransaction();
-		tx.company.findUnique.mockResolvedValue({
+		tx.company.findFirst.mockResolvedValue({
+			id: "company-1",
+			name: "Pivotr Technologies Private Limited",
 			disabled: false,
 			accountsFrozenThrough: new Date("2026-08-31T00:00:00.000Z"),
 		});
@@ -144,6 +174,7 @@ describe("AssetAccountingService", () => {
 		await expect(
 			service.createPostedEntry(
 				tx as unknown as Prisma.TransactionClient,
+				ORGANIZATION_ID,
 				balancedEntry,
 			),
 		).rejects.toThrow("frozen through");
@@ -152,7 +183,7 @@ describe("AssetAccountingService", () => {
 	it("rejects reuse of a reversed source entry", async () => {
 		const service = new AssetAccountingService();
 		const tx = createTransaction();
-		tx.assetAccountingEntry.findUnique.mockResolvedValue({
+		tx.assetAccountingEntry.findFirst.mockResolvedValue({
 			id: "existing",
 			series: "AAE-2026-00001",
 			status: "REVERSED",
@@ -161,6 +192,7 @@ describe("AssetAccountingService", () => {
 		await expect(
 			service.createPostedEntry(
 				tx as unknown as Prisma.TransactionClient,
+				ORGANIZATION_ID,
 				balancedEntry,
 			),
 		).rejects.toThrow(ConflictException);
@@ -169,7 +201,7 @@ describe("AssetAccountingService", () => {
 	it("reverses once and treats repeated reversal as idempotent", async () => {
 		const service = new AssetAccountingService();
 		const tx = createTransaction();
-		tx.assetAccountingEntry.findUnique.mockResolvedValue({
+		tx.assetAccountingEntry.findFirst.mockResolvedValue({
 			status: "POSTED",
 			companyId: "company-1",
 			company: { name: "Pivotr Technologies Private Limited" },
@@ -178,14 +210,22 @@ describe("AssetAccountingService", () => {
 
 		await service.reversePostedEntry(
 			tx as unknown as Prisma.TransactionClient,
+			ORGANIZATION_ID,
 			"entry-1",
 		);
-		expect(tx.assetAccountingEntry.updateMany).toHaveBeenCalledWith({
-			where: { id: "entry-1", status: "POSTED" },
-			data: { status: "REVERSED", reversedAt: expect.any(Date) },
-		});
+		expect(tx.assetAccountingEntry.updateMany).toHaveBeenCalledWith(
+			expect.objectContaining({
+				where: expect.objectContaining({
+					AND: expect.arrayContaining([
+						{ id: "entry-1", status: "POSTED" },
+						{ company: { is: { organizationId: ORGANIZATION_ID } } },
+					]),
+				}),
+				data: { status: "REVERSED", reversedAt: expect.any(Date) },
+			}),
+		);
 
-		tx.assetAccountingEntry.findUnique.mockResolvedValue({
+		tx.assetAccountingEntry.findFirst.mockResolvedValue({
 			status: "REVERSED",
 			companyId: "company-1",
 			company: { name: "Pivotr Technologies Private Limited" },
@@ -194,6 +234,7 @@ describe("AssetAccountingService", () => {
 		await expect(
 			service.reversePostedEntry(
 				tx as unknown as Prisma.TransactionClient,
+				ORGANIZATION_ID,
 				"entry-1",
 			),
 		).resolves.toBeUndefined();
@@ -202,11 +243,12 @@ describe("AssetAccountingService", () => {
 	it("rejects reversal when the entry does not exist", async () => {
 		const service = new AssetAccountingService();
 		const tx = createTransaction();
-		tx.assetAccountingEntry.findUnique.mockResolvedValue(null);
+		tx.assetAccountingEntry.findFirst.mockResolvedValue(null);
 
 		await expect(
 			service.reversePostedEntry(
 				tx as unknown as Prisma.TransactionClient,
+				ORGANIZATION_ID,
 				"missing",
 			),
 		).rejects.toThrow(NotFoundException);
@@ -215,18 +257,21 @@ describe("AssetAccountingService", () => {
 	it("rejects reversal of an entry in a frozen accounting period", async () => {
 		const service = new AssetAccountingService();
 		const tx = createTransaction();
-		tx.assetAccountingEntry.findUnique.mockResolvedValue({
+		tx.assetAccountingEntry.findFirst.mockResolvedValue({
 			status: "POSTED",
 			company: "Pivotr Technologies Private Limited",
 			postingDate: new Date("2026-08-09T00:00:00.000Z"),
 		});
-		tx.company.findUnique.mockResolvedValue({
+		tx.company.findFirst.mockResolvedValue({
+			id: "company-1",
+			name: "Pivotr Technologies Private Limited",
 			accountsFrozenThrough: new Date("2026-08-31T00:00:00.000Z"),
 		});
 
 		await expect(
 			service.reversePostedEntry(
 				tx as unknown as Prisma.TransactionClient,
+				ORGANIZATION_ID,
 				"entry-1",
 			),
 		).rejects.toThrow("frozen through");

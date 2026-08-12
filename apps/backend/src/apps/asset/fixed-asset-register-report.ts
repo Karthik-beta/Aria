@@ -1,7 +1,12 @@
 import type { Asset } from "@aria/types";
 import { Injectable } from "@nestjs/common";
+import type { Prisma } from "../../generated/prisma/client";
 // biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
 import { PrismaService } from "../../shared/prisma.service";
+import {
+	type AssetOrganizationId,
+	assetWhereForOrganization,
+} from "./asset-organization-scope";
 
 const CURRENCY_SCALE = 6;
 
@@ -24,6 +29,7 @@ export class FixedAssetRegisterReportService {
 	 */
 	async generateReport(
 		input: Asset.ListFixedAssetRegisterReportInput,
+		organizationId: AssetOrganizationId,
 	): Promise<Asset.FixedAssetRegisterReportResult> {
 		const fromDate = new Date(input.fromDate);
 		fromDate.setHours(0, 0, 0, 0);
@@ -31,7 +37,7 @@ export class FixedAssetRegisterReportService {
 		const toDate = new Date(input.toDate);
 		toDate.setHours(23, 59, 59, 999);
 
-		const where: Record<string, unknown> = {
+		const where: Prisma.AssetWhereInput = {
 			purchaseDate: { gte: fromDate, lte: toDate },
 			status: { notIn: ["DRAFT", "CANCELLED"] },
 		};
@@ -53,7 +59,7 @@ export class FixedAssetRegisterReportService {
 		}
 
 		const assets = await this.prisma.asset.findMany({
-			where,
+			where: assetWhereForOrganization(organizationId, where),
 			include: {
 				assetCategory: { select: { id: true, name: true } },
 				company: { select: { name: true } },
