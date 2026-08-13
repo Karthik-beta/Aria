@@ -140,17 +140,6 @@ export class AssetService {
 		accountingEntry: { select: { series: true } },
 	} as const;
 
-	private readonly assetCategoryInclude = {
-		financeBookDefaults: {
-			include: { financeBook: { select: { name: true } } },
-			orderBy: { createdAt: "asc" as const },
-		},
-		accounts: {
-			include: { company: { select: { name: true } } },
-			orderBy: { createdAt: "asc" as const },
-		},
-	} as const;
-
 	private readonly assetAdjustmentInclude = {
 		financeBook: { select: { name: true } },
 		asset: {
@@ -1044,6 +1033,50 @@ export class AssetService {
 				"One or more finance books referenced by the asset category do not exist",
 			);
 		}
+	}
+
+	/**
+	 * Builds the canonical Company ownership predicate for category accounts.
+	 * The category remains shared; only rows whose Company belongs to the
+	 * trusted active Organization may be read or replaced.
+	 */
+	private assetCategoryAccountsWhereForOrganization(
+		organizationId: AssetOrganizationId,
+	): Prisma.AssetCategoryAccountWhereInput {
+		return {
+			company: { is: companyWhereForOrganization(organizationId) },
+		};
+	}
+
+	/**
+	 * Hydrates shared category fields and only this Organization's account
+	 * defaults. Finance-book defaults remain shared under the current model.
+	 */
+	private assetCategoryIncludeForOrganization(
+		organizationId: AssetOrganizationId,
+	) {
+		return {
+			financeBookDefaults: {
+				include: { financeBook: { select: { name: true } } },
+				orderBy: { createdAt: "asc" as const },
+			},
+			accounts: {
+				where: this.assetCategoryAccountsWhereForOrganization(organizationId),
+				include: { company: { select: { name: true } } },
+				orderBy: { createdAt: "asc" as const },
+			},
+		} as const;
+	}
+
+	/** Resolves every Company ID owned by the trusted Organization for writes. */
+	private async findOrganizationCompanyIds(
+		organizationId: AssetOrganizationId,
+	): Promise<string[]> {
+		const companies = await this.prisma.company.findMany({
+			where: companyWhereForOrganization(organizationId),
+			select: { id: true },
+		});
+		return companies.map((company) => company.id);
 	}
 
 	private async getAssetAdjustmentContextOrThrow(
@@ -3624,7 +3657,7 @@ export class AssetService {
 		const [items, totalCount] = await Promise.all([
 			this.prisma.assetCategory.findMany({
 				where,
-				include: this.assetCategoryInclude,
+				include: this.assetCategoryIncludeForOrganization(organizationId),
 				orderBy: { name: "asc" },
 				skip,
 				take,
@@ -3642,7 +3675,7 @@ export class AssetService {
 		this.assertOrganizationScope(organizationId);
 		const cat = await this.prisma.assetCategory.findUnique({
 			where: { id },
-			include: this.assetCategoryInclude,
+			include: this.assetCategoryIncludeForOrganization(organizationId),
 		});
 		return cat ? toAssetCategory(cat) : null;
 	}
@@ -3719,7 +3752,7 @@ export class AssetService {
 						}
 					: undefined,
 			},
-			include: this.assetCategoryInclude,
+			include: this.assetCategoryIncludeForOrganization(organizationId),
 		});
 		return toAssetCategory(cat);
 	}
@@ -3734,6 +3767,10 @@ export class AssetService {
 			input.accounts,
 			input.financeBooks,
 		);
+		const organizationCompanyIds =
+			input.accounts === undefined
+				? undefined
+				: await this.findOrganizationCompanyIds(organizationId);
 		const existing = await this.prisma.assetCategory.findUnique({
 			where: { id: input.id },
 			select: { id: true },
@@ -3798,7 +3835,9 @@ export class AssetService {
 				}),
 				...(input.accounts !== undefined && {
 					accounts: {
-						deleteMany: {},
+						deleteMany: {
+							companyId: { in: organizationCompanyIds ?? [] },
+						},
 						create: input.accounts.map((account) => ({
 							companyId: account.companyId,
 							fixedAssetAccount: account.fixedAssetAccount,
@@ -3815,7 +3854,7 @@ export class AssetService {
 					},
 				}),
 			},
-			include: this.assetCategoryInclude,
+			include: this.assetCategoryIncludeForOrganization(organizationId),
 		});
 		return toAssetCategory(cat);
 	}

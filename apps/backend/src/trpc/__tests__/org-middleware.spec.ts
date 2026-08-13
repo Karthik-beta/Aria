@@ -155,6 +155,12 @@ function configureOrganizationLookup(organizations: Organization[]): void {
 beforeAll(async () => {
 	const { auth } = await import("../../auth/auth.config.js");
 	const { prismaClient } = await import("../../shared/prisma-client.js");
+	if (!auth.api) {
+		Object.assign(auth, { api: { getSession: mockGetSession } });
+	}
+	if (!("organization" in prismaClient)) {
+		Object.assign(prismaClient, mockPrisma);
+	}
 	overrideMethod(auth.api, "getSession", mockGetSession);
 	overrideMethod(
 		prismaClient.organization,
@@ -309,6 +315,10 @@ describe("Organization scoped tRPC middleware", () => {
 
 		const procedures: Array<[string, unknown]> = [
 			["listAssets", undefined],
+			["onAssetsChanged", undefined],
+			["onAssetValueAdjustmentsChanged", undefined],
+			["onMaintenanceTeamsChanged", undefined],
+			["onAssetMaintenancesChanged", undefined],
 			["getAssetById", { id: ASSET_CUID }],
 			["createAsset", { assetName: "Unscoped asset", companyId: ASSET_CUID }],
 			["updateAsset", { id: ASSET_CUID }],

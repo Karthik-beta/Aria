@@ -9,7 +9,6 @@
 
 "use client";
 
-import type { Asset } from "@aria/types";
 import type { ColumnDef, Row } from "@tanstack/react-table";
 import { Edit, Eye, MoreHorizontal, Scan, Trash } from "lucide-react";
 import Link from "next/link";
@@ -44,7 +43,7 @@ import { trpc } from "@/lib/trpc";
 
 type AssetSubscriptionEvent = {
 	type: "created" | "updated" | "deleted";
-	data: Asset.AssetItem | { id: string };
+	data: { id: string };
 };
 
 function AssetRealtimeSubscription({

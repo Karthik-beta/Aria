@@ -9,35 +9,16 @@ import { z } from "zod";
 import { orgProcedure, router } from "../../../trpc/trpc";
 // biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
 import { AssetService } from "../asset.service";
-
-type AssetsChangedEvent = {
-	type: "created" | "updated" | "deleted";
-	data: Asset.AssetItem | { id: string };
-};
+import {
+	createAssetCategoryRealtimeObservable,
+	createAssetRealtimeObservable,
+	emitAssetCategoryRealtimeEvent,
+	emitAssetRealtimeEvent,
+} from "../asset-realtime";
 
 type LocationsChangedEvent = {
 	type: "created" | "updated" | "deleted";
 	data: Asset.Location | { id: string };
-};
-
-type AssetCategoriesChangedEvent = {
-	type: "created" | "updated" | "deleted";
-	data: Asset.AssetCategory | { id: string };
-};
-
-type AssetValueAdjustmentsChangedEvent = {
-	type: "created" | "updated" | "submitted" | "cancelled" | "deleted";
-	data: Asset.AssetValueAdjustmentItem | { id: string };
-};
-
-type MaintenanceTeamsChangedEvent = {
-	type: "created" | "updated" | "deleted";
-	data: Asset.AssetMaintenanceTeam | { id: string };
-};
-
-type AssetMaintenancesChangedEvent = {
-	type: "created" | "updated" | "deleted" | "log_completed";
-	data: Asset.AssetMaintenanceRecord | { id: string };
 };
 
 @Injectable()
@@ -148,10 +129,13 @@ export class AssetRouter {
 						ctx.organization.id,
 						ctx.user.id,
 					);
-					this.eventEmitter.emit("assetsChanged", {
-						type: "created",
-						data: asset,
-					} satisfies AssetsChangedEvent);
+					emitAssetRealtimeEvent(
+						this.eventEmitter,
+						ctx.organization.id,
+						"assets",
+						"created",
+						asset.id,
+					);
 					return asset;
 				}),
 
@@ -163,10 +147,13 @@ export class AssetRouter {
 						ctx.organization.id,
 						ctx.user.id,
 					);
-					this.eventEmitter.emit("assetsChanged", {
-						type: "updated",
-						data: asset,
-					} satisfies AssetsChangedEvent);
+					emitAssetRealtimeEvent(
+						this.eventEmitter,
+						ctx.organization.id,
+						"assets",
+						"updated",
+						asset.id,
+					);
 					return asset;
 				}),
 
@@ -178,10 +165,13 @@ export class AssetRouter {
 						ctx.organization.id,
 						ctx.user.id,
 					);
-					this.eventEmitter.emit("assetsChanged", {
-						type: "updated",
-						data: asset,
-					} satisfies AssetsChangedEvent);
+					emitAssetRealtimeEvent(
+						this.eventEmitter,
+						ctx.organization.id,
+						"assets",
+						"updated",
+						asset.id,
+					);
 					return asset;
 				}),
 
@@ -193,10 +183,13 @@ export class AssetRouter {
 						ctx.organization.id,
 						ctx.user.id,
 					);
-					this.eventEmitter.emit("assetsChanged", {
-						type: "updated",
-						data: asset,
-					} satisfies AssetsChangedEvent);
+					emitAssetRealtimeEvent(
+						this.eventEmitter,
+						ctx.organization.id,
+						"assets",
+						"updated",
+						asset.id,
+					);
 					return asset;
 				}),
 
@@ -204,10 +197,13 @@ export class AssetRouter {
 				.input(z.object({ id: z.string().cuid() }))
 				.mutation(async ({ input, ctx }) => {
 					const result = await svc.deleteAsset(input.id, ctx.organization.id);
-					this.eventEmitter.emit("assetsChanged", {
-						type: "deleted",
-						data: { id: input.id },
-					} satisfies AssetsChangedEvent);
+					emitAssetRealtimeEvent(
+						this.eventEmitter,
+						ctx.organization.id,
+						"assets",
+						"deleted",
+						result.id,
+					);
 					return result;
 				}),
 
@@ -218,11 +214,14 @@ export class AssetRouter {
 						input.ids,
 						ctx.organization.id,
 					);
-					for (const id of input.ids) {
-						this.eventEmitter.emit("assetsChanged", {
-							type: "deleted",
-							data: { id },
-						} satisfies AssetsChangedEvent);
+					for (const id of result.ids) {
+						emitAssetRealtimeEvent(
+							this.eventEmitter,
+							ctx.organization.id,
+							"assets",
+							"deleted",
+							id,
+						);
 					}
 					return result;
 				}),
@@ -253,10 +252,13 @@ export class AssetRouter {
 						input,
 						ctx.organization.id,
 					);
-					this.eventEmitter.emit("assetValueAdjustmentsChanged", {
-						type: "created",
-						data: adjustment,
-					} satisfies AssetValueAdjustmentsChangedEvent);
+					emitAssetRealtimeEvent(
+						this.eventEmitter,
+						ctx.organization.id,
+						"valueAdjustments",
+						"created",
+						adjustment.id,
+					);
 					return adjustment;
 				}),
 
@@ -267,10 +269,13 @@ export class AssetRouter {
 						input,
 						ctx.organization.id,
 					);
-					this.eventEmitter.emit("assetValueAdjustmentsChanged", {
-						type: "updated",
-						data: adjustment,
-					} satisfies AssetValueAdjustmentsChangedEvent);
+					emitAssetRealtimeEvent(
+						this.eventEmitter,
+						ctx.organization.id,
+						"valueAdjustments",
+						"updated",
+						adjustment.id,
+					);
 					return adjustment;
 				}),
 
@@ -282,24 +287,20 @@ export class AssetRouter {
 						ctx.organization.id,
 						ctx.user.id,
 					);
-					this.eventEmitter.emit("assetValueAdjustmentsChanged", {
-						type: "submitted",
-						data: adjustment,
-					} satisfies AssetValueAdjustmentsChangedEvent);
-					this.eventEmitter.emit("assetsChanged", {
-						type: "updated",
-						data: await svc
-							.findAssetById(adjustment.assetId, ctx.organization.id)
-							.then((asset) => {
-								if (!asset) {
-									throw new TRPCError({
-										code: "NOT_FOUND",
-										message: `Asset ${adjustment.assetId} not found after submitting adjustment`,
-									});
-								}
-								return asset;
-							}),
-					} satisfies AssetsChangedEvent);
+					emitAssetRealtimeEvent(
+						this.eventEmitter,
+						ctx.organization.id,
+						"valueAdjustments",
+						"submitted",
+						adjustment.id,
+					);
+					emitAssetRealtimeEvent(
+						this.eventEmitter,
+						ctx.organization.id,
+						"assets",
+						"updated",
+						adjustment.assetId,
+					);
 					return adjustment;
 				}),
 
@@ -311,24 +312,20 @@ export class AssetRouter {
 						ctx.organization.id,
 						ctx.user.id,
 					);
-					this.eventEmitter.emit("assetValueAdjustmentsChanged", {
-						type: "cancelled",
-						data: adjustment,
-					} satisfies AssetValueAdjustmentsChangedEvent);
-					this.eventEmitter.emit("assetsChanged", {
-						type: "updated",
-						data: await svc
-							.findAssetById(adjustment.assetId, ctx.organization.id)
-							.then((asset) => {
-								if (!asset) {
-									throw new TRPCError({
-										code: "NOT_FOUND",
-										message: `Asset ${adjustment.assetId} not found after cancelling adjustment`,
-									});
-								}
-								return asset;
-							}),
-					} satisfies AssetsChangedEvent);
+					emitAssetRealtimeEvent(
+						this.eventEmitter,
+						ctx.organization.id,
+						"valueAdjustments",
+						"cancelled",
+						adjustment.id,
+					);
+					emitAssetRealtimeEvent(
+						this.eventEmitter,
+						ctx.organization.id,
+						"assets",
+						"updated",
+						adjustment.assetId,
+					);
 					return adjustment;
 				}),
 
@@ -339,10 +336,13 @@ export class AssetRouter {
 						input.id,
 						ctx.organization.id,
 					);
-					this.eventEmitter.emit("assetValueAdjustmentsChanged", {
-						type: "deleted",
-						data: { id: input.id },
-					} satisfies AssetValueAdjustmentsChangedEvent);
+					emitAssetRealtimeEvent(
+						this.eventEmitter,
+						ctx.organization.id,
+						"valueAdjustments",
+						"deleted",
+						result.id,
+					);
 					return result;
 				}),
 
@@ -412,10 +412,7 @@ export class AssetRouter {
 				.input(Asset.createAssetCategorySchema)
 				.mutation(async ({ input, ctx }) => {
 					const cat = await svc.createAssetCategory(input, ctx.organization.id);
-					this.eventEmitter.emit("assetCategoriesChanged", {
-						type: "created",
-						data: cat,
-					} satisfies AssetCategoriesChangedEvent);
+					emitAssetCategoryRealtimeEvent(this.eventEmitter, "created", cat.id);
 					return cat;
 				}),
 
@@ -423,10 +420,7 @@ export class AssetRouter {
 				.input(Asset.updateAssetCategorySchema)
 				.mutation(async ({ input, ctx }) => {
 					const cat = await svc.updateAssetCategory(input, ctx.organization.id);
-					this.eventEmitter.emit("assetCategoriesChanged", {
-						type: "updated",
-						data: cat,
-					} satisfies AssetCategoriesChangedEvent);
+					emitAssetCategoryRealtimeEvent(this.eventEmitter, "updated", cat.id);
 					return cat;
 				}),
 
@@ -437,10 +431,11 @@ export class AssetRouter {
 						input.id,
 						ctx.organization.id,
 					);
-					this.eventEmitter.emit("assetCategoriesChanged", {
-						type: "deleted",
-						data: { id: input.id },
-					} satisfies AssetCategoriesChangedEvent);
+					emitAssetCategoryRealtimeEvent(
+						this.eventEmitter,
+						"deleted",
+						result.id,
+					);
 					return result;
 				}),
 
@@ -459,12 +454,12 @@ export class AssetRouter {
 			),
 
 			// ── Subscriptions ─────────────────────────────────────────────────
-			onAssetsChanged: assetProcedure.subscription(() =>
-				observable<AssetsChangedEvent>((emit) => {
-					const handler = (event: AssetsChangedEvent) => emit.next(event);
-					this.eventEmitter.on("assetsChanged", handler);
-					return () => this.eventEmitter.off("assetsChanged", handler);
-				}),
+			onAssetsChanged: assetProcedure.subscription(({ ctx }) =>
+				createAssetRealtimeObservable(
+					this.eventEmitter,
+					ctx.organization.id,
+					"assets",
+				),
 			),
 
 			onLocationsChanged: assetProcedure.subscription(() =>
@@ -476,22 +471,15 @@ export class AssetRouter {
 			),
 
 			onAssetCategoriesChanged: assetProcedure.subscription(() =>
-				observable<AssetCategoriesChangedEvent>((emit) => {
-					const handler = (event: AssetCategoriesChangedEvent) =>
-						emit.next(event);
-					this.eventEmitter.on("assetCategoriesChanged", handler);
-					return () => this.eventEmitter.off("assetCategoriesChanged", handler);
-				}),
+				createAssetCategoryRealtimeObservable(this.eventEmitter),
 			),
 
-			onAssetValueAdjustmentsChanged: assetProcedure.subscription(() =>
-				observable<AssetValueAdjustmentsChangedEvent>((emit) => {
-					const handler = (event: AssetValueAdjustmentsChangedEvent) =>
-						emit.next(event);
-					this.eventEmitter.on("assetValueAdjustmentsChanged", handler);
-					return () =>
-						this.eventEmitter.off("assetValueAdjustmentsChanged", handler);
-				}),
+			onAssetValueAdjustmentsChanged: assetProcedure.subscription(({ ctx }) =>
+				createAssetRealtimeObservable(
+					this.eventEmitter,
+					ctx.organization.id,
+					"valueAdjustments",
+				),
 			),
 
 			// ── Asset Maintenance Team CRUD ───────────────────────────────────
@@ -514,10 +502,13 @@ export class AssetRouter {
 						input,
 						ctx.organization.id,
 					);
-					this.eventEmitter.emit("maintenanceTeamsChanged", {
-						type: "created",
-						data: team,
-					} satisfies MaintenanceTeamsChangedEvent);
+					emitAssetRealtimeEvent(
+						this.eventEmitter,
+						ctx.organization.id,
+						"maintenanceTeams",
+						"created",
+						team.id,
+					);
 					return team;
 				}),
 
@@ -528,10 +519,13 @@ export class AssetRouter {
 						input,
 						ctx.organization.id,
 					);
-					this.eventEmitter.emit("maintenanceTeamsChanged", {
-						type: "updated",
-						data: team,
-					} satisfies MaintenanceTeamsChangedEvent);
+					emitAssetRealtimeEvent(
+						this.eventEmitter,
+						ctx.organization.id,
+						"maintenanceTeams",
+						"updated",
+						team.id,
+					);
 					return team;
 				}),
 
@@ -542,10 +536,13 @@ export class AssetRouter {
 						input.id,
 						ctx.organization.id,
 					);
-					this.eventEmitter.emit("maintenanceTeamsChanged", {
-						type: "deleted",
-						data: { id: input.id },
-					} satisfies MaintenanceTeamsChangedEvent);
+					emitAssetRealtimeEvent(
+						this.eventEmitter,
+						ctx.organization.id,
+						"maintenanceTeams",
+						"deleted",
+						result.id,
+					);
 					return result;
 				}),
 
@@ -556,23 +553,24 @@ export class AssetRouter {
 						input.ids,
 						ctx.organization.id,
 					);
-					for (const id of input.ids) {
-						this.eventEmitter.emit("maintenanceTeamsChanged", {
-							type: "deleted",
-							data: { id },
-						} satisfies MaintenanceTeamsChangedEvent);
+					for (const id of result.ids) {
+						emitAssetRealtimeEvent(
+							this.eventEmitter,
+							ctx.organization.id,
+							"maintenanceTeams",
+							"deleted",
+							id,
+						);
 					}
 					return result;
 				}),
 
-			onMaintenanceTeamsChanged: assetProcedure.subscription(() =>
-				observable<MaintenanceTeamsChangedEvent>((emit) => {
-					const handler = (event: MaintenanceTeamsChangedEvent) =>
-						emit.next(event);
-					this.eventEmitter.on("maintenanceTeamsChanged", handler);
-					return () =>
-						this.eventEmitter.off("maintenanceTeamsChanged", handler);
-				}),
+			onMaintenanceTeamsChanged: assetProcedure.subscription(({ ctx }) =>
+				createAssetRealtimeObservable(
+					this.eventEmitter,
+					ctx.organization.id,
+					"maintenanceTeams",
+				),
 			),
 
 			// ── Asset Maintenance CRUD ─────────────────────────────────────────
@@ -617,10 +615,13 @@ export class AssetRouter {
 						ctx.organization.id,
 						ctx.user.id,
 					);
-					this.eventEmitter.emit("assetMaintenancesChanged", {
-						type: "log_completed",
-						data: { id: input.logId },
-					} satisfies AssetMaintenancesChangedEvent);
+					emitAssetRealtimeEvent(
+						this.eventEmitter,
+						ctx.organization.id,
+						"maintenances",
+						"log_completed",
+						input.logId,
+					);
 					return log;
 				}),
 
@@ -632,10 +633,13 @@ export class AssetRouter {
 						ctx.organization.id,
 						ctx.user.id,
 					);
-					this.eventEmitter.emit("assetMaintenancesChanged", {
-						type: "created",
-						data: record,
-					} satisfies AssetMaintenancesChangedEvent);
+					emitAssetRealtimeEvent(
+						this.eventEmitter,
+						ctx.organization.id,
+						"maintenances",
+						"created",
+						record.id,
+					);
 					return record;
 				}),
 
@@ -647,10 +651,13 @@ export class AssetRouter {
 						ctx.organization.id,
 						ctx.user.id,
 					);
-					this.eventEmitter.emit("assetMaintenancesChanged", {
-						type: "updated",
-						data: record,
-					} satisfies AssetMaintenancesChangedEvent);
+					emitAssetRealtimeEvent(
+						this.eventEmitter,
+						ctx.organization.id,
+						"maintenances",
+						"updated",
+						record.id,
+					);
 					return record;
 				}),
 
@@ -662,10 +669,13 @@ export class AssetRouter {
 						ctx.organization.id,
 						ctx.user.id,
 					);
-					this.eventEmitter.emit("assetMaintenancesChanged", {
-						type: "deleted",
-						data: { id: input.id },
-					} satisfies AssetMaintenancesChangedEvent);
+					emitAssetRealtimeEvent(
+						this.eventEmitter,
+						ctx.organization.id,
+						"maintenances",
+						"deleted",
+						result.id,
+					);
 					return result;
 				}),
 
@@ -677,11 +687,14 @@ export class AssetRouter {
 						ctx.organization.id,
 						ctx.user.id,
 					);
-					for (const id of input.ids) {
-						this.eventEmitter.emit("assetMaintenancesChanged", {
-							type: "deleted",
-							data: { id },
-						} satisfies AssetMaintenancesChangedEvent);
+					for (const id of result.ids) {
+						emitAssetRealtimeEvent(
+							this.eventEmitter,
+							ctx.organization.id,
+							"maintenances",
+							"deleted",
+							id,
+						);
 					}
 					return result;
 				}),
@@ -694,21 +707,22 @@ export class AssetRouter {
 						ctx.organization.id,
 						ctx.user.id,
 					);
-					this.eventEmitter.emit("assetMaintenancesChanged", {
-						type: "log_completed",
-						data: { id: input.logId },
-					} satisfies AssetMaintenancesChangedEvent);
+					emitAssetRealtimeEvent(
+						this.eventEmitter,
+						ctx.organization.id,
+						"maintenances",
+						"log_completed",
+						input.logId,
+					);
 					return log;
 				}),
 
-			onAssetMaintenancesChanged: assetProcedure.subscription(() =>
-				observable<AssetMaintenancesChangedEvent>((emit) => {
-					const handler = (event: AssetMaintenancesChangedEvent) =>
-						emit.next(event);
-					this.eventEmitter.on("assetMaintenancesChanged", handler);
-					return () =>
-						this.eventEmitter.off("assetMaintenancesChanged", handler);
-				}),
+			onAssetMaintenancesChanged: assetProcedure.subscription(({ ctx }) =>
+				createAssetRealtimeObservable(
+					this.eventEmitter,
+					ctx.organization.id,
+					"maintenances",
+				),
 			),
 
 			// ── Excel Export Procedures ──────────────────────────────────────

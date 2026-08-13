@@ -63,7 +63,7 @@ type TeamRow = Omit<Asset.AssetMaintenanceTeam, "createdAt" | "updatedAt"> & {
 
 type MaintenanceTeamsChangedEvent = {
 	type: "created" | "updated" | "deleted";
-	data: Asset.AssetMaintenanceTeam | { id: string };
+	data: { id: string };
 };
 
 function MaintenanceTeamsRealtimeSubscription({

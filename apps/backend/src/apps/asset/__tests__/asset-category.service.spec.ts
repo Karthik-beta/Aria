@@ -38,6 +38,10 @@ function createMockPrisma() {
 			delete: jest.fn(),
 			count: jest.fn(),
 		},
+		company: {
+			findFirst: jest.fn(),
+			findMany: jest.fn(),
+		},
 		assetActivity: {
 			create: jest.fn(),
 		},
@@ -87,6 +91,26 @@ const mockNonDepreciableRow = {
 	updatedAt: new Date("2026-02-01"),
 };
 
+const categoryAccountA = {
+	id: "account-a",
+	companyId: "company-a",
+	company: { name: "Acme" },
+	fixedAssetAccount: "Fixed Asset - A",
+	accumulatedDepreciationAccount: "Accumulated Depreciation - A",
+	depreciationExpenseAccount: "Depreciation Expense - A",
+	capitalWorkInProgressAccount: "CWIP - A",
+};
+
+const categoryAccountB = {
+	id: "account-b",
+	companyId: "company-b",
+	company: { name: "Acme" },
+	fixedAssetAccount: "Fixed Asset - B",
+	accumulatedDepreciationAccount: "Accumulated Depreciation - B",
+	depreciationExpenseAccount: "Depreciation Expense - B",
+	capitalWorkInProgressAccount: "CWIP - B",
+};
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -125,6 +149,26 @@ describe("AssetService > AssetCategory", () => {
 				nonDepreciableCategory: false,
 				enableCwipAccounting: false,
 			});
+		});
+
+		it("scopes nested account reads through Company organization ownership", async () => {
+			mockPrisma.assetCategory.findMany.mockResolvedValue([
+				{ ...mockCategoryRow, accounts: [categoryAccountA] },
+			]);
+			mockPrisma.assetCategory.count.mockResolvedValue(1);
+
+			const result = await service.findAllAssetCategories("org-a", {});
+			const findManyArgs = mockPrisma.assetCategory.findMany.mock.calls[0][0];
+
+			expect(findManyArgs.include.accounts.where.company.is.AND).toContainEqual(
+				{ organizationId: "org-a" },
+			);
+			expect(result.items[0]?.accounts).toEqual([
+				expect.objectContaining({
+					companyId: "company-a",
+					fixedAssetAccount: "Fixed Asset - A",
+				}),
+			]);
 		});
 
 		it("returns empty list when no categories exist", async () => {
@@ -210,6 +254,30 @@ describe("AssetService > AssetCategory", () => {
 			const result = await service.findAssetCategoryById("missing-id", "org-1");
 
 			expect(result).toBeNull();
+		});
+
+		it("uses the trusted organization for detail account reads", async () => {
+			mockPrisma.assetCategory.findUnique.mockResolvedValue({
+				...mockCategoryRow,
+				accounts: [categoryAccountB],
+			});
+
+			const result = await service.findAssetCategoryById(
+				"cat-abc-001",
+				"org-b",
+			);
+			const findUniqueArgs =
+				mockPrisma.assetCategory.findUnique.mock.calls[0][0];
+
+			expect(
+				findUniqueArgs.include.accounts.where.company.is.AND,
+			).toContainEqual({ organizationId: "org-b" });
+			expect(result?.accounts).toEqual([
+				expect.objectContaining({
+					companyId: "company-b",
+					fixedAssetAccount: "Fixed Asset - B",
+				}),
+			]);
 		});
 	});
 
@@ -359,6 +427,76 @@ describe("AssetService > AssetCategory", () => {
 			);
 
 			expect(result.enableCwipAccounting).toBe(true);
+		});
+
+		it("replaces only the active organization's account rows", async () => {
+			mockPrisma.company.findFirst.mockResolvedValue({
+				id: "company-a",
+				name: "Acme",
+				disabled: false,
+			});
+			mockPrisma.company.findMany.mockResolvedValue([
+				{ id: "company-a" },
+				{ id: "company-a2" },
+			]);
+			mockPrisma.assetCategory.findUnique.mockResolvedValue({
+				id: "cat-abc-001",
+			});
+			mockPrisma.assetCategory.update.mockResolvedValue({
+				...mockCategoryRow,
+				accounts: [categoryAccountA],
+			});
+
+			await service.updateAssetCategory(
+				{
+					id: "cat-abc-001",
+					accounts: [
+						{
+							companyId: "company-a",
+							fixedAssetAccount: "Fixed Asset - A2",
+							accumulatedDepreciationAccount: "Accumulated Depreciation - A2",
+							depreciationExpenseAccount: "Depreciation Expense - A2",
+							capitalWorkInProgressAccount: "CWIP - A2",
+						},
+					],
+				},
+				"org-a",
+			);
+
+			const updateArgs = mockPrisma.assetCategory.update.mock.calls[0][0];
+			expect(updateArgs.data.accounts.deleteMany.companyId).toEqual({
+				in: ["company-a", "company-a2"],
+			});
+			expect(updateArgs.data.accounts.create).toEqual([
+				{
+					companyId: "company-a",
+					fixedAssetAccount: "Fixed Asset - A2",
+					accumulatedDepreciationAccount: "Accumulated Depreciation - A2",
+					depreciationExpenseAccount: "Depreciation Expense - A2",
+					capitalWorkInProgressAccount: "CWIP - A2",
+				},
+			]);
+		});
+
+		it("rejects a foreign Company account before any category write", async () => {
+			mockPrisma.company.findFirst.mockResolvedValue(null);
+
+			await expect(
+				service.updateAssetCategory(
+					{
+						id: "cat-abc-001",
+						accounts: [
+							{
+								companyId: "company-b",
+								fixedAssetAccount: "Fixed Asset - B",
+							},
+						],
+					},
+					"org-a",
+				),
+			).rejects.toThrow(NotFoundException);
+			expect(mockPrisma.assetCategory.findUnique).not.toHaveBeenCalled();
+			expect(mockPrisma.assetCategory.update).not.toHaveBeenCalled();
 		});
 
 		it("throws NotFoundException when category does not exist", async () => {

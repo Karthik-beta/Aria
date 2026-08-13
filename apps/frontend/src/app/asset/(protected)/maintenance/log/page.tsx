@@ -105,7 +105,7 @@ type LogRow = Omit<
 
 type MaintenanceLogsChangedEvent = {
 	type: "created" | "updated" | "deleted" | "log_completed";
-	data: Asset.AssetMaintenanceRecord | { id: string };
+	data: { id: string };
 };
 
 // ──────────────────────────────────────────────────────────────────────────────

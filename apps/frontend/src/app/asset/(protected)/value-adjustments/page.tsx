@@ -72,7 +72,7 @@ type AdjustmentRow = Omit<
 
 type AssetValueAdjustmentsChangedEvent = {
 	type: "created" | "updated" | "submitted" | "cancelled" | "deleted";
-	data: Asset.AssetValueAdjustmentItem | { id: string };
+	data: { id: string };
 };
 
 type PendingAction = {

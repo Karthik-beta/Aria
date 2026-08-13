@@ -11,7 +11,7 @@ import type { accountRouter } from "../../../trpc/routers/account.router";
 
 type AssetsChangedEvent = {
 	type: "created" | "updated" | "deleted";
-	data: Asset.AssetItem | { id: string };
+	data: { id: string };
 };
 
 type LocationsChangedEvent = {
@@ -21,12 +21,12 @@ type LocationsChangedEvent = {
 
 type AssetCategoriesChangedEvent = {
 	type: "created" | "updated" | "deleted";
-	data: Asset.AssetCategory | { id: string };
+	data: { id: string };
 };
 
 type AssetValueAdjustmentsChangedEvent = {
 	type: "created" | "updated" | "submitted" | "cancelled" | "deleted";
-	data: Asset.AssetValueAdjustmentItem | { id: string };
+	data: { id: string };
 };
 
 type AssetRouterInput = {
@@ -490,7 +490,7 @@ type AssetRouterInput = {
 		input: void;
 		output: {
 			type: "created" | "updated" | "deleted";
-			data: Asset.AssetMaintenanceTeam | { id: string };
+			data: { id: string };
 		};
 		meta: object;
 	}>;
@@ -621,7 +621,7 @@ type AssetRouterInput = {
 		input: void;
 		output: {
 			type: "created" | "updated" | "deleted" | "log_completed";
-			data: Asset.AssetMaintenanceRecord | { id: string };
+			data: { id: string };
 		};
 		meta: object;
 	}>;

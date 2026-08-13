@@ -57,7 +57,7 @@ type CategoryRow = Omit<Asset.AssetCategory, "createdAt" | "updatedAt"> & {
 
 type AssetCategoriesChangedEvent = {
 	type: "created" | "updated" | "deleted";
-	data: Asset.AssetCategory | { id: string };
+	data: { id: string };
 };
 
 function AssetCategoriesRealtimeSubscription({
