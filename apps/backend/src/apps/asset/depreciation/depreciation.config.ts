@@ -1,3 +1,17 @@
+import type { DateOnly } from "@aria/types";
+import {
+	addDateOnly as canonicalAddDateOnly,
+	addDateOnlyUtc as canonicalAddDateOnlyUtc,
+	addMonthsDateOnly as canonicalAddMonthsDateOnly,
+	businessDate as canonicalBusinessDate,
+	dateOnlyFromInstant as canonicalDateOnlyFromInstant,
+	dateOnlyFromPersistedDateTime as canonicalDateOnlyFromPersistedDateTime,
+	dateOnlyUtc as canonicalDateOnlyUtc,
+	dateOnlyUtcRange as canonicalDateOnlyUtcRange,
+	differenceInDateOnlyDays as canonicalDifferenceInDateOnlyDays,
+	endOfMonthDateOnly as canonicalEndOfMonthDateOnly,
+	normalizeDateOnly as canonicalNormalizeDateOnly,
+} from "@aria/types";
 import type { JobsOptions, RedisOptions } from "bullmq";
 import {
 	DEPRECIATION_COMPLETED_RETENTION_COUNT,
@@ -143,28 +157,60 @@ export function depreciationJobOptions(): JobsOptions {
 
 /** Returns the current date in the configured business timezone as YYYY-MM-DD. */
 export function businessDate(timeZone: string, now = new Date()): string {
-	const parts = new Intl.DateTimeFormat("en-CA", {
-		timeZone,
-		year: "numeric",
-		month: "2-digit",
-		day: "2-digit",
-	}).formatToParts(now);
-	const value = Object.fromEntries(
-		parts.map((part) => [part.type, part.value]),
-	);
-	return `${value.year}-${value.month}-${value.day}`;
+	return canonicalBusinessDate(timeZone, now);
 }
 
-export function normalizeDateOnly(value: Date | string): string {
-	if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
-		return value;
-	}
-	const date = value instanceof Date ? value : new Date(value);
-	if (Number.isNaN(date.getTime()))
-		throw new Error("Invalid depreciation date.");
-	return date.toISOString().slice(0, 10);
-}
+/**
+ * Converts a true instant to the configured business calendar date.
+ *
+ * This adapter is for timestamps whose meaning is an instant. Persisted
+ * DateTime-backed date-only columns must use `dateOnlyFromPersistedDateTime`
+ * before reaching date-only logic.
+ */
+export const dateOnlyFromInstant = canonicalDateOnlyFromInstant;
 
-export function dateOnlyUtc(value: Date | string): Date {
-	return new Date(`${normalizeDateOnly(value)}T00:00:00.000Z`);
+/** Converts a persisted DateTime-backed date-only column to its calendar date. */
+export const dateOnlyFromPersistedDateTime =
+	canonicalDateOnlyFromPersistedDateTime;
+
+/** Canonicalizes the narrow date-only boundary before business logic uses it. */
+export const normalizeDateOnly = canonicalNormalizeDateOnly;
+
+/** Converts a date-only value to the UTC-midnight representation used by Prisma. */
+export const dateOnlyUtc = canonicalDateOnlyUtc;
+
+/** Builds a half-open UTC query window for inclusive date-only report bounds. */
+export const dateOnlyUtcRange = canonicalDateOnlyUtcRange;
+
+/** Adds calendar days using UTC components after date-only normalization. */
+export const addDateOnly = canonicalAddDateOnly;
+
+/** Adds calendar days and returns a UTC-midnight date. */
+export const addDateOnlyUtc = canonicalAddDateOnlyUtc;
+
+/** Adds calendar months with end-of-month clamping. */
+export const addMonthsDateOnly = canonicalAddMonthsDateOnly;
+
+/** Returns the last UTC-midnight date in a calendar month. */
+export const endOfMonthDateOnly = canonicalEndOfMonthDateOnly;
+
+/** Counts whole calendar days between date-only boundaries. */
+export const differenceInDateOnlyDays = canonicalDifferenceInDateOnlyDays;
+
+/**
+ * Returns the series year for a canonical business date or a true instant.
+ *
+ * A `Date` is interpreted in the validated `APP_TIME_ZONE`; this keeps series
+ * allocation correct for instants around a year boundary. Date-only database
+ * fields must first be adapted with `dateOnlyFromPersistedDateTime`.
+ */
+export function businessYearForSeries(
+	value: DateOnly | Date,
+	timeZone = depreciationTimeZone(),
+): string {
+	const canonicalDate =
+		typeof value === "string"
+			? normalizeDateOnly(value)
+			: canonicalDateOnlyFromInstant(timeZone, value);
+	return canonicalDate.slice(0, 4);
 }

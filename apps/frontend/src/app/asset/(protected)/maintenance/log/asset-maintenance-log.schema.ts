@@ -8,10 +8,11 @@
  * - certificateAttachment: URL/path; required when hasCertificate is true
  */
 import * as z from "zod";
+import { todayDateInputValue } from "@/lib/asset-date-only";
 
 export const completeMaintenanceLogFormSchema = z
 	.object({
-		completionDate: z.string().min(1, "Completion date is required"),
+		completionDate: z.iso.date("Completion date is required"),
 		actionsPerformed: z.string().trim().optional(),
 		hasCertificate: z.boolean().default(false),
 		certificateAttachment: z.string().trim().optional(),
@@ -33,7 +34,7 @@ export type CompleteMaintenanceLogFormValues = z.infer<
 
 export function getCompleteLogFormDefaults(): CompleteMaintenanceLogFormValues {
 	return {
-		completionDate: new Date().toISOString().split("T")[0] ?? "",
+		completionDate: todayDateInputValue(),
 		actionsPerformed: "",
 		hasCertificate: false,
 		certificateAttachment: "",

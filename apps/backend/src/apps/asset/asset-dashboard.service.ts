@@ -16,6 +16,14 @@ import {
 	type AssetOrganizationId,
 	assetWhereForOrganization,
 } from "./asset-organization-scope";
+import {
+	addDateOnlyUtc,
+	businessDate,
+	dateOnlyFromPersistedDateTime,
+	dateOnlyUtc,
+	depreciationTimeZone,
+	differenceInDateOnlyDays,
+} from "./depreciation/depreciation.config";
 
 const ACTIVE_STATUSES: Asset.AssetStatus[] = [
 	"SUBMITTED",
@@ -53,9 +61,9 @@ export class AssetDashboardSubService {
 	async getDashboardOverviewData(
 		organizationId: AssetOrganizationId,
 	): Promise<Asset.AssetDashboardOverviewData> {
-		const now = new Date();
-		const ninetyDaysFromNow = new Date(now);
-		ninetyDaysFromNow.setDate(ninetyDaysFromNow.getDate() + 90);
+		const today = businessDate(depreciationTimeZone());
+		const now = dateOnlyUtc(today);
+		const ninetyDaysFromNow = addDateOnlyUtc(today, 90);
 
 		const [
 			kpis,
@@ -64,7 +72,7 @@ export class AssetDashboardSubService {
 			adjustmentSummary,
 			insuranceExpiry,
 		] = await Promise.all([
-			this.getKpis(organizationId),
+			this.getKpis(organizationId, now),
 			this.getMaintenanceDue(organizationId, now, ninetyDaysFromNow),
 			this.getRecentActivity(organizationId),
 			this.getAdjustmentSummary(organizationId),
@@ -110,6 +118,7 @@ export class AssetDashboardSubService {
 
 	private async getKpis(
 		organizationId: AssetOrganizationId,
+		today: Date,
 	): Promise<Asset.AssetDashboardKpi> {
 		const [
 			totalAssets,
@@ -147,7 +156,10 @@ export class AssetDashboardSubService {
 						},
 					},
 					maintenanceStatus: { in: ["PLANNED", "OVERDUE"] },
-					nextDueDate: { not: null, lte: new Date() },
+					nextDueDate: {
+						not: null,
+						lt: addDateOnlyUtc(dateOnlyFromPersistedDateTime(today), 1),
+					},
 				},
 			}),
 			this.prisma.assetValueAdjustment.count({
@@ -312,7 +324,10 @@ export class AssetDashboardSubService {
 					},
 				},
 				maintenanceStatus: { in: ["PLANNED", "OVERDUE"] },
-				nextDueDate: { not: null, lte: to },
+				nextDueDate: {
+					not: null,
+					lt: addDateOnlyUtc(dateOnlyFromPersistedDateTime(to), 1),
+				},
 			},
 			orderBy: { nextDueDate: "asc" },
 			take: 15,
@@ -331,17 +346,16 @@ export class AssetDashboardSubService {
 			},
 		});
 
-		const nowMs = now.getTime();
-
 		return tasks.map((task) => ({
 			taskId: task.id,
 			assetName: task.maintenance.asset.assetName,
 			maintenanceTask: task.maintenanceTask,
 			maintenanceType: task.maintenanceType,
 			assignToName: task.assignToName,
-			nextDueDate: (task.nextDueDate ?? now).toISOString(),
-			daysUntilDue: Math.ceil(
-				((task.nextDueDate ?? now).getTime() - nowMs) / (1000 * 60 * 60 * 24),
+			nextDueDate: dateOnlyFromPersistedDateTime(task.nextDueDate ?? now),
+			daysUntilDue: differenceInDateOnlyDays(
+				dateOnlyFromPersistedDateTime(now),
+				dateOnlyFromPersistedDateTime(task.nextDueDate ?? now),
 			),
 			periodicity: task.periodicity,
 		}));
@@ -401,7 +415,10 @@ export class AssetDashboardSubService {
 				status: { in: NON_DISPOSED_STATUSES },
 				insurer: { not: null },
 				policyNumber: { not: null },
-				insuranceEndDate: { not: null, lte: to },
+				insuranceEndDate: {
+					not: null,
+					lt: addDateOnlyUtc(dateOnlyFromPersistedDateTime(to), 1),
+				},
 			},
 			orderBy: { insuranceEndDate: "asc" },
 			take: 15,
@@ -415,17 +432,18 @@ export class AssetDashboardSubService {
 			},
 		});
 
-		const nowMs = now.getTime();
-
 		return assets.map((a) => ({
 			assetId: a.id,
 			assetName: a.assetName,
 			insurer: a.insurer ?? "",
 			policyNumber: a.policyNumber ?? "",
 			insuredValue: Math.round(Number(a.insuredValue ?? 0)),
-			insuranceEndDate: (a.insuranceEndDate ?? now).toISOString(),
-			daysUntilExpiry: Math.ceil(
-				((a.insuranceEndDate ?? now).getTime() - nowMs) / (1000 * 60 * 60 * 24),
+			insuranceEndDate: dateOnlyFromPersistedDateTime(
+				a.insuranceEndDate ?? now,
+			),
+			daysUntilExpiry: differenceInDateOnlyDays(
+				dateOnlyFromPersistedDateTime(now),
+				dateOnlyFromPersistedDateTime(a.insuranceEndDate ?? now),
 			),
 		}));
 	}

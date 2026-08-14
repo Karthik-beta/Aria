@@ -59,6 +59,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
+import { dateInputValue } from "@/lib/asset-date-only";
 import { getToastMessage } from "@/lib/errors";
 import { trpc } from "@/lib/trpc";
 import {
@@ -140,11 +141,9 @@ function AssetMaintenanceFormContent() {
 				maintenanceTask: t.maintenanceTask,
 				maintenanceType: t.maintenanceType ?? undefined,
 				maintenanceStatus: t.maintenanceStatus,
-				startDate: new Date(t.startDate).toISOString().split("T")[0] ?? "",
+				startDate: dateInputValue(t.startDate),
 				periodicity: t.periodicity,
-				endDate: t.endDate
-					? new Date(t.endDate).toISOString().split("T")[0]
-					: null,
+				endDate: t.endDate ? dateInputValue(t.endDate) : null,
 				certificateRequired: t.certificateRequired,
 				assignTo: t.assignTo ?? null,
 				assignToName: t.assignToName ?? null,

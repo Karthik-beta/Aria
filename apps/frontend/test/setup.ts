@@ -7,6 +7,23 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup } from "@testing-library/react";
 import { afterEach, vi } from "vitest";
 
+// Vitest does not execute next.config.ts, so reproduce its build-time contract
+// from the same authoritative application setting used by backend and Next.
+const applicationTimeZone = process.env.APP_TIME_ZONE?.trim();
+const publicApplicationTimeZone = process.env.NEXT_PUBLIC_APP_TIME_ZONE?.trim();
+if (
+	applicationTimeZone &&
+	publicApplicationTimeZone &&
+	applicationTimeZone !== publicApplicationTimeZone
+) {
+	throw new Error(
+		"APP_TIME_ZONE and NEXT_PUBLIC_APP_TIME_ZONE must agree in frontend tests.",
+	);
+}
+if (applicationTimeZone && !publicApplicationTimeZone) {
+	process.env.NEXT_PUBLIC_APP_TIME_ZONE = applicationTimeZone;
+}
+
 // Cleanup after each test
 afterEach(() => {
 	cleanup();

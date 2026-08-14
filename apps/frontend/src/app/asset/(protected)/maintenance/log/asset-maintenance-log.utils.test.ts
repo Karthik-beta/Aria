@@ -209,7 +209,7 @@ describe("asset-maintenance-log.utils", () => {
 			});
 
 			expect(result.logId).toBe("log-001");
-			expect(result.completionDate).toBeInstanceOf(Date);
+			expect(result.completionDate).toBe("2026-03-15");
 			expect(result.actionsPerformed).toBe("Replaced filter");
 			expect(result.hasCertificate).toBe(false);
 			expect(result.certificateAttachment).toBeNull();

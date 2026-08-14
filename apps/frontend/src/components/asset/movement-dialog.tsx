@@ -30,6 +30,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import { dateInputValue, todayDateInputValue } from "@/lib/asset-date-only";
 import { getToastMessage } from "@/lib/errors";
 import { trpc } from "@/lib/trpc";
 
@@ -45,10 +46,6 @@ const PURPOSES: Array<{ value: Asset.AssetMovementPurpose; label: string }> = [
 	{ value: "ISSUE", label: "Issue" },
 	{ value: "TRANSFER_AND_ISSUE", label: "Transfer and Issue" },
 ];
-
-function dateInputValue(value: Date): string {
-	return value.toISOString().slice(0, 10);
-}
 
 function requiresTargetLocation(purpose: Asset.AssetMovementPurpose): boolean {
 	return purpose !== "ISSUE";
@@ -80,7 +77,7 @@ export function AssetMovementDialog({
 		) as Resolver<Asset.CreateAssetMovementInput>,
 		defaultValues: {
 			companyId: "",
-			transactionDate: new Date(),
+			transactionDate: todayDateInputValue(),
 			purpose: "TRANSFER",
 			notes: "",
 			items: [
@@ -226,11 +223,7 @@ export function AssetMovementDialog({
 										<Input
 											type="date"
 											value={dateInputValue(field.value)}
-											onChange={(event) =>
-												field.onChange(
-													new Date(`${event.target.value}T00:00:00`),
-												)
-											}
+											onChange={(event) => field.onChange(event.target.value)}
 										/>
 									</FormControl>
 									<FormMessage />

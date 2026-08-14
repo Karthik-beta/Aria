@@ -1,4 +1,5 @@
 import type { Asset } from "@aria/types";
+import { formatAssetDate } from "@/lib/asset-date-only";
 import type { CompleteMaintenanceLogFormValues } from "./asset-maintenance-log.schema";
 
 export const LOG_PAGE_SIZE = 20;
@@ -79,9 +80,9 @@ export function getRelativeAge(date: Date): string {
 /**
  * Formats a Date to a locale date string (YYYY-MM-DD for input fields).
  */
-export function formatDate(date: Date | null | undefined): string {
+export function formatDate(date: Date | string | null | undefined): string {
 	if (!date) return "—";
-	return date.toLocaleDateString("en-CA"); // YYYY-MM-DD
+	return formatAssetDate(date, "en-CA");
 }
 
 /**
@@ -111,7 +112,7 @@ export function toCompleteMaintenanceLogInput(
 ): Asset.CompleteAssetMaintenanceLogInput {
 	return {
 		logId,
-		completionDate: new Date(values.completionDate),
+		completionDate: values.completionDate,
 		actionsPerformed: values.actionsPerformed?.trim() || null,
 		hasCertificate: values.hasCertificate,
 		certificateAttachment:

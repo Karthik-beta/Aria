@@ -42,6 +42,7 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DataTableColumnHeader } from "@/components/ui/table/data-table-column-header";
 import { useAssetWriteAccess } from "@/hooks/use-asset-write-access";
+import { dateInputValue } from "@/lib/asset-date-only";
 import { getToastMessage } from "@/lib/errors";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
@@ -148,11 +149,11 @@ export default function AssetMaintenancePage() {
 				updatedAt: new Date(record.updatedAt),
 				tasks: record.tasks.map((t) => ({
 					...t,
-					startDate: new Date(t.startDate),
-					endDate: t.endDate ? new Date(t.endDate) : null,
-					nextDueDate: t.nextDueDate ? new Date(t.nextDueDate) : null,
+					startDate: dateInputValue(t.startDate),
+					endDate: t.endDate ? dateInputValue(t.endDate) : null,
+					nextDueDate: t.nextDueDate ? dateInputValue(t.nextDueDate) : null,
 					lastCompletionDate: t.lastCompletionDate
-						? new Date(t.lastCompletionDate)
+						? dateInputValue(t.lastCompletionDate)
 						: null,
 					createdAt: new Date(t.createdAt),
 					updatedAt: new Date(t.updatedAt),

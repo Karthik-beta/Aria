@@ -59,8 +59,8 @@ it("boots PostgreSQL, Redis, queue events, and the depreciation worker", async (
 	).resolves.toMatchObject({ posted: true });
 	const report = await reportService.generateReport(
 		{
-			fromDate: new Date("2026-01-01T00:00:00.000Z"),
-			toDate: new Date("2026-12-31T00:00:00.000Z"),
+			fromDate: "2026-01-01",
+			toDate: "2026-12-31",
 			groupBy: "ASSET_CATEGORY",
 		},
 		"org-1",

@@ -1,4 +1,8 @@
-import type { Asset } from "@aria/types";
+import {
+	type Asset,
+	type DateOnly,
+	dateOnlyFromPersistedDateTime,
+} from "@aria/types";
 import type { Prisma } from "../../generated/prisma/client";
 
 /**
@@ -19,6 +23,13 @@ export type PrismaAsset = Prisma.AssetGetPayload<{
 		};
 	};
 }>;
+
+/** Maps a Prisma DateTime-backed date-only column to the public calendar-date contract. */
+const toDateOnly = (value: Date | null | undefined): DateOnly | null =>
+	value == null ? null : dateOnlyFromPersistedDateTime(value);
+
+const toRequiredDateOnly = (value: Date): DateOnly =>
+	dateOnlyFromPersistedDateTime(value);
 
 /**
  * Prisma model type for Location (with optional parent name).
@@ -136,9 +147,9 @@ export function toAsset(raw: PrismaAsset): Asset.AssetItem {
 		locationName: raw.location?.name ?? null,
 		custodian: raw.custodian ?? null,
 		department: raw.department ?? null,
-		purchaseDate: raw.purchaseDate ?? null,
-		availableForUseDate: raw.availableForUseDate ?? null,
-		disposalDate: raw.disposalDate ?? null,
+		purchaseDate: toRequiredDateOnly(raw.purchaseDate),
+		availableForUseDate: toDateOnly(raw.availableForUseDate),
+		disposalDate: toDateOnly(raw.disposalDate),
 		netPurchaseAmount: raw.netPurchaseAmount
 			? Number(raw.netPurchaseAmount)
 			: null,
@@ -161,8 +172,8 @@ export function toAsset(raw: PrismaAsset): Asset.AssetItem {
 		policyNumber: raw.policyNumber ?? null,
 		insurer: raw.insurer ?? null,
 		insuredValue: raw.insuredValue ? Number(raw.insuredValue) : null,
-		insuranceStartDate: raw.insuranceStartDate ?? null,
-		insuranceEndDate: raw.insuranceEndDate ?? null,
+		insuranceStartDate: toDateOnly(raw.insuranceStartDate),
+		insuranceEndDate: toDateOnly(raw.insuranceEndDate),
 		depreciationMethod:
 			(raw.depreciationMethod as Asset.DepreciationMethod | null) ?? null,
 		totalNumberOfDepreciations: raw.totalNumberOfDepreciations ?? null,
@@ -170,7 +181,7 @@ export function toAsset(raw: PrismaAsset): Asset.AssetItem {
 		expectedValueAfterUsefulLife: raw.expectedValueAfterUsefulLife
 			? Number(raw.expectedValueAfterUsefulLife)
 			: null,
-		depreciationStartDate: raw.depreciationStartDate ?? null,
+		depreciationStartDate: toDateOnly(raw.depreciationStartDate),
 		purchaseReceipt: raw.purchaseReceipt ?? null,
 		purchaseInvoice: raw.purchaseInvoice ?? null,
 		status: raw.status as Asset.AssetStatus,
@@ -182,7 +193,7 @@ export function toAsset(raw: PrismaAsset): Asset.AssetItem {
 			totalNumberOfDepreciations: book.totalNumberOfDepreciations,
 			increaseInAssetLife: book.increaseInAssetLife,
 			frequencyOfDepreciation: book.frequencyOfDepreciation,
-			depreciationStartDate: book.depreciationStartDate,
+			depreciationStartDate: toRequiredDateOnly(book.depreciationStartDate),
 			dailyProrataBased: book.dailyProrataBased,
 			shiftBased: book.shiftBased,
 			rateOfDepreciation:
@@ -197,7 +208,7 @@ export function toAsset(raw: PrismaAsset): Asset.AssetItem {
 				book.openingNumberOfBookedDepreciations,
 			valueAfterDepreciation: Number(book.valueAfterDepreciation),
 			totalNumberOfBookedDepreciations: book.totalNumberOfBookedDepreciations,
-			lastPostedDepreciationDate: book.lastPostedDepreciationDate ?? null,
+			lastPostedDepreciationDate: toDateOnly(book.lastPostedDepreciationDate),
 			postingStatus: book.postingStatus as Asset.DepreciationPostingStatus,
 		})),
 		activities: raw.activities.map((a) => ({
@@ -289,7 +300,7 @@ export function toAssetRevaluationEntry(
 		assetId: raw.assetId,
 		companyId: raw.companyId,
 		company: raw.company.name,
-		postingDate: raw.postingDate,
+		postingDate: toRequiredDateOnly(raw.postingDate),
 		remarks: raw.remarks,
 		status: raw.status as Asset.AssetRevaluationEntryStatus,
 		reversedAt: raw.reversedAt ?? null,
@@ -305,7 +316,7 @@ export function toAssetDepreciationScheduleEntry(
 	return {
 		id: raw.id,
 		sequence: raw.sequence,
-		scheduleDate: raw.scheduleDate,
+		scheduleDate: toRequiredDateOnly(raw.scheduleDate),
 		depreciationAmount: Number(raw.depreciationAmount),
 		accumulatedDepreciationAmount: Number(raw.accumulatedDepreciationAmount),
 		bookValueAfterDepreciation: Number(raw.bookValueAfterDepreciation),
@@ -327,7 +338,7 @@ export function toAssetDepreciationSchedule(
 		previousScheduleId: raw.previousScheduleId ?? null,
 		revisionNumber: raw.revisionNumber,
 		status: raw.status as Asset.AssetDepreciationScheduleStatus,
-		startDate: raw.startDate,
+		startDate: toRequiredDateOnly(raw.startDate),
 		depreciationMethod:
 			(raw.depreciationMethod as Asset.DepreciationMethod | null) ?? null,
 		totalNumberOfDepreciations: raw.totalNumberOfDepreciations,
@@ -357,7 +368,7 @@ export function toAssetValueAdjustment(
 		company: raw.asset.company.name,
 		financeBookId: raw.financeBookId ?? null,
 		financeBookName: raw.financeBook?.name ?? null,
-		adjustmentDate: raw.adjustmentDate,
+		adjustmentDate: toRequiredDateOnly(raw.adjustmentDate),
 		currentAssetValue: Number(raw.currentAssetValue),
 		newAssetValue: Number(raw.newAssetValue),
 		differenceAmount: Number(raw.differenceAmount),
@@ -473,14 +484,14 @@ export function toAssetMaintenance(
 			maintenanceType:
 				(t.maintenanceType as Asset.AssetMaintenanceTaskType | null) ?? null,
 			maintenanceStatus: t.maintenanceStatus as Asset.AssetMaintenanceStatus,
-			startDate: t.startDate,
+			startDate: toRequiredDateOnly(t.startDate),
 			periodicity: t.periodicity as Asset.AssetMaintenancePeriodicity,
-			endDate: t.endDate ?? null,
+			endDate: toDateOnly(t.endDate),
 			certificateRequired: t.certificateRequired,
 			assignTo: t.assignTo ?? null,
 			assignToName: t.assignToName ?? null,
-			nextDueDate: t.nextDueDate ?? null,
-			lastCompletionDate: t.lastCompletionDate ?? null,
+			nextDueDate: toDateOnly(t.nextDueDate),
+			lastCompletionDate: toDateOnly(t.lastCompletionDate),
 			description: t.description ?? null,
 			createdAt: t.createdAt,
 			updatedAt: t.updatedAt,
@@ -501,7 +512,7 @@ export function toAssetMaintenanceLog(
 		maintenanceId: raw.maintenanceId,
 		taskId: raw.taskId,
 		maintenanceStatus: raw.maintenanceStatus as Asset.AssetMaintenanceLogStatus,
-		completionDate: raw.completionDate ?? null,
+		completionDate: toDateOnly(raw.completionDate),
 		actionsPerformed: raw.actionsPerformed ?? null,
 		hasCertificate: raw.hasCertificate,
 		certificateAttachment: raw.certificateAttachment ?? null,
@@ -560,9 +571,9 @@ export function toAssetMaintenanceLogListItem(
 			null,
 		periodicity: raw.task.periodicity as Asset.AssetMaintenancePeriodicity,
 		assignToName: raw.task.assignToName ?? null,
-		taskDueDate: raw.task.nextDueDate ?? null,
+		taskDueDate: toDateOnly(raw.task.nextDueDate),
 		maintenanceStatus: raw.maintenanceStatus as Asset.AssetMaintenanceLogStatus,
-		completionDate: raw.completionDate ?? null,
+		completionDate: toDateOnly(raw.completionDate),
 		actionsPerformed: raw.actionsPerformed ?? null,
 		hasCertificate: raw.hasCertificate,
 		certificateAttachment: raw.certificateAttachment ?? null,
@@ -633,7 +644,7 @@ export function toAssetMovement(raw: PrismaAssetMovement): Asset.AssetMovement {
 		series: raw.series,
 		companyId: raw.companyId,
 		company: raw.company.name,
-		transactionDate: raw.transactionDate,
+		transactionDate: toRequiredDateOnly(raw.transactionDate),
 		purpose: raw.purpose as Asset.AssetMovementPurpose,
 		status: raw.status as Asset.AssetMovementStatus,
 		notes: raw.notes ?? null,
@@ -727,8 +738,8 @@ export function toAssetRepairItem(raw: PrismaAssetRepair): Asset.AssetRepair {
 		assetName: raw.asset?.assetName ?? null,
 		companyId: raw.companyId,
 		company: raw.company.name,
-		failureDate: raw.failureDate,
-		completionDate: raw.completionDate ?? null,
+		failureDate: toRequiredDateOnly(raw.failureDate),
+		completionDate: toDateOnly(raw.completionDate),
 		repairStatus: raw.repairStatus as Asset.AssetRepairStatus,
 		repairCost: Number(raw.repairCost),
 		capitalizeRepairCost: raw.capitalizeRepairCost,
@@ -843,7 +854,7 @@ export function toAssetCapitalizationItem(
 		series: raw.series,
 		companyId: raw.companyId,
 		company: raw.company.name,
-		postingDate: raw.postingDate,
+		postingDate: toRequiredDateOnly(raw.postingDate),
 		targetType: raw.targetType as Asset.AssetCapitalizationTargetType,
 		targetAssetId: raw.targetAssetId ?? null,
 		targetAssetName: raw.targetAsset?.assetName ?? raw.targetAssetName ?? null,
@@ -892,7 +903,7 @@ export function toAssetDisposalItem(
 		assetName: raw.asset?.assetName ?? null,
 		companyId: raw.companyId,
 		company: raw.company.name,
-		disposalDate: raw.disposalDate,
+		disposalDate: toRequiredDateOnly(raw.disposalDate),
 		disposalType: raw.disposalType as Asset.AssetDisposalType,
 		salesAmount: raw.salesAmount != null ? Number(raw.salesAmount) : null,
 		gainLossAmount: Number(raw.gainLossAmount),

@@ -36,6 +36,7 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DataTableColumnHeader } from "@/components/ui/table/data-table-column-header";
 import { useAssetWriteAccess } from "@/hooks/use-asset-write-access";
+import { dateInputValue } from "@/lib/asset-date-only";
 import { getToastMessage } from "@/lib/errors";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
@@ -61,7 +62,7 @@ type AdjustmentRow = Omit<
 	| "revaluationEntry"
 	| "depreciationSchedule"
 > & {
-	adjustmentDate: Date;
+	adjustmentDate: string;
 	submittedAt: Date | null;
 	cancelledAt: Date | null;
 	createdAt: Date;
@@ -178,7 +179,7 @@ export default function AssetValueAdjustmentPage() {
 		() =>
 			rawItems.map((item) => ({
 				...item,
-				adjustmentDate: new Date(item.adjustmentDate),
+				adjustmentDate: dateInputValue(item.adjustmentDate),
 				submittedAt: item.submittedAt ? new Date(item.submittedAt) : null,
 				cancelledAt: item.cancelledAt ? new Date(item.cancelledAt) : null,
 				createdAt: new Date(item.createdAt),
@@ -186,7 +187,7 @@ export default function AssetValueAdjustmentPage() {
 				revaluationEntry: item.revaluationEntry
 					? {
 							...item.revaluationEntry,
-							postingDate: new Date(item.revaluationEntry.postingDate),
+							postingDate: dateInputValue(item.revaluationEntry.postingDate),
 							reversedAt: item.revaluationEntry.reversedAt
 								? new Date(item.revaluationEntry.reversedAt)
 								: null,
@@ -202,12 +203,12 @@ export default function AssetValueAdjustmentPage() {
 				depreciationSchedule: item.depreciationSchedule
 					? {
 							...item.depreciationSchedule,
-							startDate: new Date(item.depreciationSchedule.startDate),
+							startDate: dateInputValue(item.depreciationSchedule.startDate),
 							createdAt: new Date(item.depreciationSchedule.createdAt),
 							updatedAt: new Date(item.depreciationSchedule.updatedAt),
 							entries: item.depreciationSchedule.entries.map((entry) => ({
 								...entry,
-								scheduleDate: new Date(entry.scheduleDate),
+								scheduleDate: dateInputValue(entry.scheduleDate),
 								createdAt: new Date(entry.createdAt),
 								updatedAt: new Date(entry.updatedAt),
 							})),

@@ -8,13 +8,16 @@ import {
 	assetWhereForOrganization,
 } from "../asset-organization-scope";
 import {
+	dateOnlyFromPersistedDateTime,
+	dateOnlyUtc,
+	normalizeDateOnly,
+} from "./depreciation.config";
+import {
 	buildDepreciationSchedule,
 	type DepreciationBookInput,
 } from "./depreciation-schedule-engine";
 
 const BACKFILL_PAGE_SIZE = 100;
-
-const dateOnly = (date: Date): string => date.toISOString().slice(0, 10);
 
 type BookConfiguration = Asset.AssetFinanceBookInput;
 
@@ -250,7 +253,9 @@ export class AssetDepreciationLifecycleService {
 							expectedValueAfterUsefulLife: new Prisma.Decimal(
 								configuration.expectedValueAfterUsefulLife ?? 0,
 							),
-							depreciationStartDate: configuration.depreciationStartDate,
+							depreciationStartDate: dateOnlyUtc(
+								normalizeDateOnly(configuration.depreciationStartDate),
+							),
 							openingAccumulatedDepreciation: new Prisma.Decimal(
 								configuration.openingAccumulatedDepreciation ?? 0,
 							),
@@ -292,7 +297,9 @@ export class AssetDepreciationLifecycleService {
 						assetFinanceBookId: book.id,
 						revisionNumber: existingSchedule?.revisionNumber ?? 1,
 						status: asset.status === "DRAFT" ? "DRAFT" : "ACTIVE",
-						startDate: configuration.depreciationStartDate,
+						startDate: dateOnlyUtc(
+							normalizeDateOnly(configuration.depreciationStartDate),
+						),
 						depreciationMethod: configuration.depreciationMethod,
 						totalNumberOfDepreciations:
 							configuration.totalNumberOfDepreciations,
@@ -312,7 +319,7 @@ export class AssetDepreciationLifecycleService {
 						entries: {
 							create: schedule.entries.map((entry) => ({
 								sequence: entry.periodNumber,
-								scheduleDate: new Date(`${entry.date}T00:00:00.000Z`),
+								scheduleDate: dateOnlyUtc(entry.date),
 								depreciationAmount: entry.depreciationAmount,
 								accumulatedDepreciationAmount: entry.accumulatedDepreciation,
 								bookValueAfterDepreciation: entry.bookValueAfterDepreciation,
@@ -386,10 +393,10 @@ export class AssetDepreciationLifecycleService {
 			financeBookId: book.financeBookId,
 			method: book.depreciationMethod,
 			grossBookValue: asset.netPurchaseAmount,
-			availableForUseDate: dateOnly(
+			availableForUseDate: dateOnlyFromPersistedDateTime(
 				asset.availableForUseDate ?? asset.purchaseDate,
 			),
-			depreciationStartDate: dateOnly(book.depreciationStartDate),
+			depreciationStartDate: normalizeDateOnly(book.depreciationStartDate),
 			totalPeriods: book.totalNumberOfDepreciations,
 			frequencyMonths: book.frequencyOfDepreciation,
 			salvageValue: book.expectedValueAfterUsefulLife ?? 0,
@@ -398,7 +405,7 @@ export class AssetDepreciationLifecycleService {
 			ratePercent: book.rateOfDepreciation ?? undefined,
 			dailyProrata: book.dailyProrataBased ?? false,
 			manualEntries: book.manualEntries?.map((entry) => ({
-				date: dateOnly(entry.date),
+				date: normalizeDateOnly(entry.date),
 				amount: entry.amount,
 				shift: entry.shift,
 			})),
@@ -415,7 +422,9 @@ export class AssetDepreciationLifecycleService {
 				depreciationMethod: book.depreciationMethod as Asset.DepreciationMethod,
 				totalNumberOfDepreciations: book.totalNumberOfDepreciations,
 				frequencyOfDepreciation: book.frequencyOfDepreciation,
-				depreciationStartDate: book.depreciationStartDate,
+				depreciationStartDate: dateOnlyFromPersistedDateTime(
+					book.depreciationStartDate,
+				),
 				dailyProrataBased: book.dailyProrataBased,
 				shiftBased: book.shiftBased,
 				rateOfDepreciation:
@@ -437,10 +446,11 @@ export class AssetDepreciationLifecycleService {
 				depreciationMethod: book.depreciationMethod as Asset.DepreciationMethod,
 				totalNumberOfDepreciations: book.totalNumberOfDepreciations,
 				frequencyOfDepreciation: book.frequencyOfDepreciation,
-				depreciationStartDate:
-					asset.depreciationStartDate ??
-					asset.availableForUseDate ??
-					asset.purchaseDate,
+				depreciationStartDate: asset.depreciationStartDate
+					? dateOnlyFromPersistedDateTime(asset.depreciationStartDate)
+					: asset.availableForUseDate
+						? dateOnlyFromPersistedDateTime(asset.availableForUseDate)
+						: dateOnlyFromPersistedDateTime(asset.purchaseDate),
 				dailyProrataBased: book.dailyProrataBased,
 				shiftBased: book.shiftBased,
 				rateOfDepreciation:
@@ -475,10 +485,11 @@ export class AssetDepreciationLifecycleService {
 				depreciationMethod: method as Asset.DepreciationMethod,
 				totalNumberOfDepreciations: total,
 				frequencyOfDepreciation: frequency,
-				depreciationStartDate:
-					asset.depreciationStartDate ??
-					asset.availableForUseDate ??
-					asset.purchaseDate,
+				depreciationStartDate: asset.depreciationStartDate
+					? dateOnlyFromPersistedDateTime(asset.depreciationStartDate)
+					: asset.availableForUseDate
+						? dateOnlyFromPersistedDateTime(asset.availableForUseDate)
+						: dateOnlyFromPersistedDateTime(asset.purchaseDate),
 				dailyProrataBased: asset.assetCategory?.dailyProrataBased ?? false,
 				shiftBased: asset.assetCategory?.shiftBased ?? false,
 				rateOfDepreciation: asset.assetCategory?.rateOfDepreciation ?? null,

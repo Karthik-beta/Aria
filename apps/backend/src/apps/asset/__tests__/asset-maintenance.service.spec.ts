@@ -282,29 +282,28 @@ describe("AssetService > calculateNextDueDate", () => {
 	});
 
 	it("calculates MONTHLY from start date", () => {
-		const start = new Date("2026-01-01");
+		const start = "2026-01-01";
 		const result = service.calculateNextDueDate("MONTHLY", start, null, null);
-		expect(result?.getFullYear()).toBe(2026);
-		expect(result?.getMonth()).toBe(1); // February = 1
+		expect(result).toBe("2026-02-01");
 	});
 
 	it("calculates YEARLY from start date", () => {
-		const start = new Date("2026-01-01");
+		const start = "2026-01-01";
 		const result = service.calculateNextDueDate("YEARLY", start, null, null);
-		expect(result?.getFullYear()).toBe(2027);
+		expect(result).toBe("2027-01-01");
 	});
 
 	it("uses lastCompletionDate when it is more recent than startDate", () => {
-		const start = new Date("2026-01-01");
-		const last = new Date("2026-03-01");
+		const start = "2026-01-01";
+		const last = "2026-03-01";
 		const result = service.calculateNextDueDate("MONTHLY", start, null, last);
 		// Should add 1 month to lastCompletionDate = April
-		expect(result?.getMonth()).toBe(3);
+		expect(result).toBe("2026-04-01");
 	});
 
 	it("returns null when nextDueDate would be after endDate", () => {
-		const start = new Date("2026-01-01");
-		const endDate = new Date("2026-01-15");
+		const start = "2026-01-01";
+		const endDate = "2026-01-15";
 		const result = service.calculateNextDueDate(
 			"MONTHLY",
 			start,
@@ -315,34 +314,47 @@ describe("AssetService > calculateNextDueDate", () => {
 	});
 
 	it("returns null when base is already at or after endDate", () => {
-		const start = new Date("2026-06-01");
-		const endDate = new Date("2026-05-01");
+		const start = "2026-06-01";
+		const endDate = "2026-05-01";
 		const result = service.calculateNextDueDate("DAILY", start, endDate, null);
 		expect(result).toBeNull();
 	});
 
 	it("calculates DAILY correctly", () => {
-		const start = new Date("2026-01-01");
+		const start = "2026-01-01";
 		const result = service.calculateNextDueDate("DAILY", start, null, null);
-		expect(result?.getDate()).toBe(2);
-		expect(result?.getMonth()).toBe(0);
+		expect(result).toBe("2026-01-02");
 	});
 
 	it("calculates QUARTERLY (3 months)", () => {
-		const start = new Date("2026-01-01");
+		const start = "2026-01-01";
 		const result = service.calculateNextDueDate("QUARTERLY", start, null, null);
-		expect(result?.getMonth()).toBe(3); // April
+		expect(result).toBe("2026-04-01");
 	});
 
 	it("calculates TWO_YEARLY (2 years)", () => {
-		const start = new Date("2026-01-01");
+		const start = "2026-01-01";
 		const result = service.calculateNextDueDate(
 			"TWO_YEARLY",
 			start,
 			null,
 			null,
 		);
-		expect(result?.getFullYear()).toBe(2028);
+		expect(result).toBe("2028-01-01");
+	});
+
+	it("rejects an arbitrary JavaScript Date at the DateOnly service boundary", () => {
+		expect(() =>
+			service.calculateNextDueDate(
+				"DAILY",
+				new Date(2027, 0, 1) as unknown as string,
+				null,
+				null,
+			),
+		).toThrow("Start date must be a valid calendar date.");
+		expect(
+			service.calculateNextDueDate("DAILY", "2027-01-01", null, null),
+		).toBe("2027-01-02");
 	});
 });
 
@@ -503,7 +515,7 @@ describe("AssetService > AssetMaintenance", () => {
 					maintenanceTask: "Lubrication Check",
 					maintenanceType: "PREVENTIVE_MAINTENANCE" as const,
 					maintenanceStatus: "PLANNED" as const,
-					startDate: new Date("2026-01-01"),
+					startDate: "2026-01-01",
 					periodicity: "MONTHLY" as const,
 					endDate: null,
 					certificateRequired: false,
@@ -610,8 +622,8 @@ describe("AssetService > AssetMaintenance", () => {
 						tasks: [
 							{
 								...createInput.tasks[0],
-								startDate: new Date("2026-06-01"),
-								endDate: new Date("2026-01-01"),
+								startDate: "2026-06-01",
+								endDate: "2026-01-01",
 							},
 						],
 					},
@@ -1044,7 +1056,7 @@ describe("AssetService > cancelAssetMaintenanceLog", () => {
 			service.completeAssetMaintenanceLog(
 				{
 					logId: "log-001",
-					completionDate: new Date("2026-02-01"),
+					completionDate: "2026-02-01",
 					hasCertificate: false,
 				},
 				"org-1",

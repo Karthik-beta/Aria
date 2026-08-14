@@ -1,5 +1,12 @@
 import type { Asset } from "@aria/types";
-import { addDays, addMonths, differenceInDays, endOfMonth } from "date-fns";
+import {
+	addDateOnlyUtc,
+	addMonthsDateOnly,
+	dateOnlyFromPersistedDateTime,
+	dateOnlyUtc,
+	differenceInDateOnlyDays,
+	endOfMonthDateOnly,
+} from "./depreciation/depreciation.config";
 
 const CURRENCY_SCALE = 6;
 const OPERATIONAL_ASSET_STATUSES = new Set<Asset.AssetStatus>([
@@ -149,7 +156,7 @@ const _getPeriodicRate = (
 };
 
 const _getTotalDaysInYear = (date: Date): number => {
-	const year = date.getFullYear();
+	const year = date.getUTCFullYear();
 	return (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0 ? 366 : 365;
 };
 
@@ -159,12 +166,12 @@ const _getDaysBetween = (start: Date, end: Date): number => {
 };
 
 const getDefaultFiscalYearEndDate = (date: Date): Date => {
-	const year = date.getFullYear();
-	const month = date.getMonth();
+	const year = date.getUTCFullYear();
+	const month = date.getUTCMonth();
 	if (month >= 3) {
-		return new Date(year + 1, 2, 31);
+		return new Date(Date.UTC(year + 1, 2, 31));
 	}
-	return new Date(year, 2, 31);
+	return new Date(Date.UTC(year, 2, 31));
 };
 
 const getDDBAnnualRate = (
@@ -223,7 +230,12 @@ export const buildDepreciationSchedulePreview = async (
 	);
 
 	const expectedSalvage = input.expectedValueAfterUsefulLife ?? 0;
-	let scheduleDate = endOfMonth(input.adjustmentDate);
+	const adjustmentDate = dateOnlyUtc(
+		dateOnlyFromPersistedDateTime(input.adjustmentDate),
+	);
+	let scheduleDate = endOfMonthDateOnly(
+		dateOnlyFromPersistedDateTime(adjustmentDate),
+	);
 
 	// Check pro-rata for new asset (row_idx === 0)
 	let hasProRata = false;
@@ -231,14 +243,20 @@ export const buildDepreciationSchedulePreview = async (
 	let firstPeriodStandardDays = 0;
 
 	if (bookedDepreciations === 0) {
-		const standardStartDate = addMonths(
-			scheduleDate,
+		const standardStartDate = addMonthsDateOnly(
+			dateOnlyFromPersistedDateTime(scheduleDate),
 			-input.frequencyOfDepreciation,
 		);
-		firstPeriodStandardDays = differenceInDays(scheduleDate, standardStartDate);
+		firstPeriodStandardDays = differenceInDateOnlyDays(
+			dateOnlyFromPersistedDateTime(scheduleDate),
+			dateOnlyFromPersistedDateTime(standardStartDate),
+		);
 		// Period starts from adjustmentDate (availableForUseDate equivalent for preview)
 		firstPeriodActualDays =
-			differenceInDays(scheduleDate, input.adjustmentDate) + 1;
+			differenceInDateOnlyDays(
+				dateOnlyFromPersistedDateTime(scheduleDate),
+				dateOnlyFromPersistedDateTime(adjustmentDate),
+			) + 1;
 		if (firstPeriodActualDays < firstPeriodStandardDays) {
 			hasProRata = true;
 			remainingDepreciations += 1; // Extra period at the end
@@ -288,7 +306,7 @@ export const buildDepreciationSchedulePreview = async (
 	let yearlyAmount = carryingValueAtStartOfFY * annualRate;
 	let prevDepreciationAmount = 0;
 
-	let previousScheduleDate = input.adjustmentDate;
+	let previousScheduleDate = adjustmentDate;
 
 	for (let sequence = 1; sequence <= remainingDepreciations; sequence += 1) {
 		// Check if fiscal year changed
@@ -312,9 +330,18 @@ export const buildDepreciationSchedulePreview = async (
 		const periodsLeft = remainingDepreciations - sequence + 1;
 
 		const periodStartDate =
-			sequence === 1 ? input.adjustmentDate : addDays(previousScheduleDate, 1);
+			sequence === 1
+				? adjustmentDate
+				: addDateOnlyUtc(
+						dateOnlyFromPersistedDateTime(previousScheduleDate),
+						1,
+					);
 		const periodEndDate = scheduleDate;
-		const daysInPeriod = differenceInDays(periodEndDate, periodStartDate) + 1;
+		const daysInPeriod =
+			differenceInDateOnlyDays(
+				dateOnlyFromPersistedDateTime(periodEndDate),
+				dateOnlyFromPersistedDateTime(periodStartDate),
+			) + 1;
 
 		let depreciationAmount = 0;
 
@@ -329,8 +356,17 @@ export const buildDepreciationSchedulePreview = async (
 
 				// Get fiscal year containing scheduleDate
 				const fyEndDate = currentFiscalYearEndDate;
-				const fyStartDate = addDays(addMonths(fyEndDate, -12), 1);
-				const totalDaysInFY = differenceInDays(fyEndDate, fyStartDate) + 1;
+				const fyStartDate = addDateOnlyUtc(
+					dateOnlyFromPersistedDateTime(
+						addMonthsDateOnly(dateOnlyFromPersistedDateTime(fyEndDate), -12),
+					),
+					1,
+				);
+				const totalDaysInFY =
+					differenceInDateOnlyDays(
+						dateOnlyFromPersistedDateTime(fyEndDate),
+						dateOnlyFromPersistedDateTime(fyStartDate),
+					) + 1;
 
 				const dailyDepr = yearlySLMAmount / totalDaysInFY;
 				depreciationAmount = roundCurrency(dailyDepr * daysInPeriod);
@@ -360,8 +396,17 @@ export const buildDepreciationSchedulePreview = async (
 
 			if (input.dailyProrataBased) {
 				const fyEndDate = currentFiscalYearEndDate;
-				const fyStartDate = addDays(addMonths(fyEndDate, -12), 1);
-				const totalDaysInFY = differenceInDays(fyEndDate, fyStartDate) + 1;
+				const fyStartDate = addDateOnlyUtc(
+					dateOnlyFromPersistedDateTime(
+						addMonthsDateOnly(dateOnlyFromPersistedDateTime(fyEndDate), -12),
+					),
+					1,
+				);
+				const totalDaysInFY =
+					differenceInDateOnlyDays(
+						dateOnlyFromPersistedDateTime(fyEndDate),
+						dateOnlyFromPersistedDateTime(fyStartDate),
+					) + 1;
 
 				const dailyRate = yearlyAmount / totalDaysInFY;
 				depreciationAmount = roundCurrency(dailyRate * daysInPeriod);
@@ -403,14 +448,17 @@ export const buildDepreciationSchedulePreview = async (
 
 		entries.push({
 			sequence,
-			scheduleDate: new Date(scheduleDate),
+			scheduleDate: dateOnlyFromPersistedDateTime(scheduleDate),
 			depreciationAmount,
 			accumulatedDepreciationAmount: accumulatedDepreciation,
 			bookValueAfterDepreciation: remainingValue,
 		});
 
 		previousScheduleDate = scheduleDate;
-		scheduleDate = addMonths(scheduleDate, input.frequencyOfDepreciation);
+		scheduleDate = addMonthsDateOnly(
+			dateOnlyFromPersistedDateTime(scheduleDate),
+			input.frequencyOfDepreciation,
+		);
 	}
 
 	return {

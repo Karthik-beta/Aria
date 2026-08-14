@@ -43,6 +43,7 @@ function createMockPrisma() {
 			create: jest.fn(),
 		},
 		assetValueAdjustment: {
+			create: jest.fn(),
 			findFirst: jest.fn(),
 			findFirstOrThrow: jest.fn(),
 			findUnique: jest.fn(),
@@ -306,7 +307,7 @@ describe("AssetService > AssetValueAdjustment", () => {
 		const result = await service.previewAssetValueAdjustment(
 			{
 				assetId: "asset-001",
-				adjustmentDate: new Date("2026-04-15"),
+				adjustmentDate: "2026-04-15",
 				newAssetValue: 90000,
 			},
 			"org-1",
@@ -324,16 +325,15 @@ describe("AssetService > AssetValueAdjustment", () => {
 
 	it("creates a draft asset value adjustment with computed snapshot values", async () => {
 		mockPrisma.asset.findUnique.mockResolvedValue(baseAssetContext);
+		mockTx.asset.findUnique.mockResolvedValue(baseAssetContext);
 		mockPrisma.assetValueAdjustment.findFirst.mockResolvedValue(null);
 		mockPrisma.assetValueAdjustment.findUnique.mockResolvedValue(null);
-		mockPrisma.assetValueAdjustment.create.mockResolvedValue(
-			createAdjustmentRow(),
-		);
+		mockTx.assetValueAdjustment.create.mockResolvedValue(createAdjustmentRow());
 
 		const result = await service.createAssetValueAdjustment(
 			{
 				assetId: "asset-001",
-				adjustmentDate: new Date("2026-04-15"),
+				adjustmentDate: "2026-04-15",
 				newAssetValue: 90000,
 				differenceAccount: "Asset Revaluation Reserve",
 				costCenter: "Main Plant",
@@ -342,7 +342,7 @@ describe("AssetService > AssetValueAdjustment", () => {
 			"org-1",
 		);
 
-		expect(mockPrisma.assetValueAdjustment.create).toHaveBeenCalledWith(
+		expect(mockTx.assetValueAdjustment.create).toHaveBeenCalledWith(
 			expect.objectContaining({
 				data: expect.objectContaining({
 					series: "AVA-2026-00001",
@@ -375,7 +375,7 @@ describe("AssetService > AssetValueAdjustment", () => {
 		const missingSelection = await service.previewAssetValueAdjustment(
 			{
 				assetId: "asset-001",
-				adjustmentDate: new Date("2026-04-15"),
+				adjustmentDate: "2026-04-15",
 				newAssetValue: 70000,
 			},
 			"org-1",
@@ -388,7 +388,7 @@ describe("AssetService > AssetValueAdjustment", () => {
 			{
 				assetId: "asset-001",
 				financeBookId: "finance-book-002",
-				adjustmentDate: new Date("2026-04-15"),
+				adjustmentDate: "2026-04-15",
 				newAssetValue: 70000,
 			},
 			"org-1",
@@ -405,7 +405,7 @@ describe("AssetService > AssetValueAdjustment", () => {
 				{
 					assetId: "asset-001",
 					financeBookId: "finance-book-other",
-					adjustmentDate: new Date("2026-04-15"),
+					adjustmentDate: "2026-04-15",
 					newAssetValue: 90000,
 				},
 				"org-1",
@@ -738,7 +738,7 @@ describe("AssetService > AssetValueAdjustment", () => {
 			const result = await service.previewAssetValueAdjustment(
 				{
 					assetId: "asset-001",
-					adjustmentDate: new Date("2025-04-15"),
+					adjustmentDate: "2025-04-15",
 					newAssetValue: 100000,
 				},
 				"org-1",
@@ -763,7 +763,7 @@ describe("AssetService > AssetValueAdjustment", () => {
 			const result = await service.previewAssetValueAdjustment(
 				{
 					assetId: "asset-001",
-					adjustmentDate: new Date("2026-04-15"),
+					adjustmentDate: "2026-04-15",
 					newAssetValue: 40000,
 				},
 				"org-1",
@@ -808,7 +808,7 @@ describe("AssetService > AssetValueAdjustment", () => {
 			const result = await service.previewAssetValueAdjustment(
 				{
 					assetId: "asset-001",
-					adjustmentDate: new Date("2024-11-01"),
+					adjustmentDate: "2024-11-01",
 					newAssetValue: 100000,
 				},
 				"org-1",

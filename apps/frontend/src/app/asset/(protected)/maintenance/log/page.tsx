@@ -15,7 +15,7 @@
  */
 "use client";
 
-import type { Asset } from "@aria/types";
+import type { Asset, DateOnly } from "@aria/types";
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { ColumnDef, PaginationState } from "@tanstack/react-table";
 import {
@@ -63,6 +63,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { DataTableColumnHeader } from "@/components/ui/table/data-table-column-header";
 import { useAssetWriteAccess } from "@/hooks/use-asset-write-access";
+import { dateInputValue } from "@/lib/asset-date-only";
 import { getToastMessage } from "@/lib/errors";
 import { trpc } from "@/lib/trpc";
 import {
@@ -99,8 +100,8 @@ type LogRow = Omit<
 > & {
 	createdAt: Date;
 	updatedAt: Date;
-	taskDueDate: Date | null;
-	completionDate: Date | null;
+	taskDueDate: DateOnly | null;
+	completionDate: DateOnly | null;
 };
 
 type MaintenanceLogsChangedEvent = {
@@ -330,9 +331,9 @@ export default function AssetMaintenanceLogPage() {
 		() =>
 			rawItems.map((item) => ({
 				...item,
-				taskDueDate: item.taskDueDate ? new Date(item.taskDueDate) : null,
+				taskDueDate: item.taskDueDate ? dateInputValue(item.taskDueDate) : null,
 				completionDate: item.completionDate
-					? new Date(item.completionDate)
+					? dateInputValue(item.completionDate)
 					: null,
 				createdAt: new Date(item.createdAt),
 				updatedAt: new Date(item.updatedAt),

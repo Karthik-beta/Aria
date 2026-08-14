@@ -62,6 +62,8 @@ services:
       # For browser WebSocket: ws://localhost/trpc-ws (proxied by Caddy)
       # See: https://trpc.io/docs/client/links/wsLink
       - NEXT_PUBLIC_API_URL=
+      # Derived from the same authoritative APP_TIME_ZONE used by backend.
+      - APP_TIME_ZONE=${APP_TIME_ZONE:?APP_TIME_ZONE is required}
       # Flag to disable Next.js rewrites in Docker (Caddy handles all proxying)
       - DOCKER=true
       - NEXT_TELEMETRY_DISABLED=1
@@ -111,7 +113,7 @@ services:
       - NODE_ENV=development
       - DATABASE_URL=postgresql://aria_dev:${POSTGRES_PASSWORD:-dev_password}@postgres:5432/aria_dev
       - REDIS_URL=redis://redis:6379
-      - APP_TIME_ZONE=${APP_TIME_ZONE:-UTC}
+      - APP_TIME_ZONE=${APP_TIME_ZONE:?APP_TIME_ZONE is required}
       - ASSET_DEPRECIATION_QUEUE_CONCURRENCY=${ASSET_DEPRECIATION_QUEUE_CONCURRENCY:-5}
       - ASSET_DEPRECIATION_BARRIER_TIMEOUT_MS=${ASSET_DEPRECIATION_BARRIER_TIMEOUT_MS:-120000}
       - PORT=3001

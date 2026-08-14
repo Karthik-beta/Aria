@@ -1,4 +1,5 @@
 import type { Asset } from "@aria/types";
+import { formatAssetDate } from "@/lib/asset-date-only";
 import type { AssetValueAdjustmentFormValues } from "./value-adjustment.schema";
 
 export const ASSET_VALUE_ADJUSTMENT_PAGE_SIZE = 20;
@@ -20,10 +21,6 @@ const DIRECTION_LABELS: Record<Asset.AssetValueAdjustmentDirection, string> = {
 	INCREASE: "Increase",
 	DECREASE: "Decrease",
 };
-
-function parseDateField(value: string | null | undefined): Date {
-	return new Date(value ?? "");
-}
 
 export function formatAdjustmentStatus(
 	status: Asset.AssetValueAdjustmentStatus,
@@ -50,16 +47,11 @@ export function formatDate(value: Date | string | null | undefined): string {
 		return "-";
 	}
 
-	const date = value instanceof Date ? value : new Date(value);
-	if (Number.isNaN(date.getTime())) {
+	try {
+		return formatAssetDate(value);
+	} catch {
 		return "-";
 	}
-
-	return date.toLocaleDateString("en-IN", {
-		year: "numeric",
-		month: "short",
-		day: "2-digit",
-	});
 }
 
 export function getRelativeAge(date: Date): string {
@@ -93,7 +85,7 @@ export function toCreateAssetValueAdjustmentInput(
 	return {
 		assetId: values.assetId.trim(),
 		financeBookId: values.financeBookId?.trim() || null,
-		adjustmentDate: parseDateField(values.adjustmentDate),
+		adjustmentDate: values.adjustmentDate,
 		newAssetValue: Number(values.newAssetValue),
 		differenceAccount: values.differenceAccount.trim(),
 		costCenter: values.costCenter?.trim() || null,
@@ -109,7 +101,7 @@ export function toUpdateAssetValueAdjustmentInput(
 		id,
 		assetId: values.assetId.trim(),
 		financeBookId: values.financeBookId?.trim() || null,
-		adjustmentDate: parseDateField(values.adjustmentDate),
+		adjustmentDate: values.adjustmentDate,
 		newAssetValue: Number(values.newAssetValue),
 		differenceAccount: values.differenceAccount.trim(),
 		costCenter: values.costCenter?.trim() || null,

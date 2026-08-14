@@ -1,5 +1,9 @@
+import {
+	addMonthsDateOnly,
+	dateOnlyFromPersistedDateTime,
+	dateOnlyUtc,
+} from "@aria/types";
 import { Injectable } from "@nestjs/common";
-import { addYears } from "date-fns";
 // biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
 import { PrismaService } from "../prisma.service";
 
@@ -26,7 +30,8 @@ export class FiscalYearService {
 	 * Falls back to default India FY (April 1 - March 31) if no record found.
 	 */
 	async getFiscalYear(date: Date): Promise<FiscalYearInfo | null> {
-		const dateStr = date.toISOString();
+		const canonicalDate = dateOnlyUtc(dateOnlyFromPersistedDateTime(date));
+		const dateStr = canonicalDate.toISOString();
 
 		// Try to find a fiscal year that contains this date
 		const fiscalYear = await this.prisma.fiscalYear.findFirst({
@@ -42,15 +47,19 @@ export class FiscalYearService {
 			return {
 				id: fiscalYear.id,
 				year: fiscalYear.year,
-				yearStartDate: fiscalYear.yearStartDate,
-				yearEndDate: fiscalYear.yearEndDate,
+				yearStartDate: dateOnlyUtc(
+					dateOnlyFromPersistedDateTime(fiscalYear.yearStartDate),
+				),
+				yearEndDate: dateOnlyUtc(
+					dateOnlyFromPersistedDateTime(fiscalYear.yearEndDate),
+				),
 				disabled: fiscalYear.disabled,
 				isShortYear: fiscalYear.isShortYear,
 			};
 		}
 
 		// Fallback: default India fiscal year (April 1 - March 31)
-		return this.getDefaultIndiaFiscalYear(date);
+		return this.getDefaultIndiaFiscalYear(canonicalDate);
 	}
 
 	/**
@@ -69,7 +78,9 @@ export class FiscalYearService {
 			});
 
 			if (companyFY?.fiscalYear) {
-				return companyFY.fiscalYear.yearEndDate;
+				return dateOnlyUtc(
+					dateOnlyFromPersistedDateTime(companyFY.fiscalYear.yearEndDate),
+				);
 			}
 		}
 
@@ -86,35 +97,54 @@ export class FiscalYearService {
 		previousFYEndDate: Date | null,
 		_companyId?: string,
 	): Promise<DetectFiscalYearChangeResult> {
-		if (!previousFYEndDate) {
+		const canonicalScheduleDate = dateOnlyUtc(
+			dateOnlyFromPersistedDateTime(scheduleDate),
+		);
+		const canonicalPreviousFYEndDate = previousFYEndDate
+			? dateOnlyUtc(dateOnlyFromPersistedDateTime(previousFYEndDate))
+			: null;
+
+		if (!canonicalPreviousFYEndDate) {
 			// First schedule - get FY from date
-			const fy = await this.getFiscalYear(scheduleDate);
+			const fy = await this.getFiscalYear(canonicalScheduleDate);
 			return {
 				changed: true,
-				newFiscalYearEndDate: fy?.yearEndDate ?? scheduleDate,
+				newFiscalYearEndDate: fy?.yearEndDate ?? canonicalScheduleDate,
 			};
 		}
 
 		// Check if schedule date exceeds current FY end
-		if (scheduleDate > previousFYEndDate) {
+		if (canonicalScheduleDate > canonicalPreviousFYEndDate) {
 			// Need to find the next fiscal year
-			const nextYearDate = addYears(previousFYEndDate, 1);
+			const nextYearDate = addMonthsDateOnly(
+				dateOnlyFromPersistedDateTime(canonicalPreviousFYEndDate),
+				12,
+			);
 			const fy = await this.getFiscalYear(nextYearDate);
 
 			// If we have a fiscal year record for around that time, use it
 			if (
 				fy &&
-				Math.abs(fy.yearStartDate.getTime() - nextYearDate.getTime()) <
+				Math.abs(
+					dateOnlyUtc(
+						dateOnlyFromPersistedDateTime(fy.yearStartDate),
+					).getTime() - nextYearDate.getTime(),
+				) <
 					365 * 24 * 60 * 60 * 1000
 			) {
 				return {
 					changed: true,
-					newFiscalYearEndDate: fy.yearEndDate,
+					newFiscalYearEndDate: dateOnlyUtc(
+						dateOnlyFromPersistedDateTime(fy.yearEndDate),
+					),
 				};
 			}
 
 			// Otherwise advance by 1 year from previous FY end
-			const inferredEndDate = addYears(previousFYEndDate, 1);
+			const inferredEndDate = addMonthsDateOnly(
+				dateOnlyFromPersistedDateTime(canonicalPreviousFYEndDate),
+				12,
+			);
 			return {
 				changed: true,
 				newFiscalYearEndDate: inferredEndDate,
@@ -123,7 +153,7 @@ export class FiscalYearService {
 
 		return {
 			changed: false,
-			newFiscalYearEndDate: previousFYEndDate,
+			newFiscalYearEndDate: canonicalPreviousFYEndDate,
 		};
 	}
 
@@ -133,8 +163,9 @@ export class FiscalYearService {
 	 * Otherwise FY starts April of previous year.
 	 */
 	private getDefaultIndiaFiscalYear(date: Date): FiscalYearInfo | null {
-		const month = date.getMonth(); // 0-indexed: March = 2, April = 3
-		const year = date.getFullYear();
+		const canonicalDate = dateOnlyUtc(dateOnlyFromPersistedDateTime(date));
+		const month = canonicalDate.getUTCMonth(); // 0-indexed: March = 2, April = 3
+		const year = canonicalDate.getUTCFullYear();
 
 		let fyStartYear: number;
 		if (month >= 3) {
@@ -145,8 +176,8 @@ export class FiscalYearService {
 			fyStartYear = year - 1;
 		}
 
-		const fyStart = new Date(fyStartYear, 3, 1); // April 1
-		const fyEnd = new Date(fyStartYear + 1, 2, 31); // March 31
+		const fyStart = new Date(Date.UTC(fyStartYear, 3, 1)); // April 1
+		const fyEnd = new Date(Date.UTC(fyStartYear + 1, 2, 31)); // March 31
 
 		return {
 			id: "default-india-fy",

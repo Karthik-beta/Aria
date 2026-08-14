@@ -1,3 +1,4 @@
+import { dateOnlyFromPersistedDateTime } from "@aria/types";
 import { FiscalYearService } from "../../../shared/fiscal-year/fiscal-year.service";
 import { PrismaService } from "../../../shared/prisma.service";
 import { AssetService } from "../asset.service";
@@ -144,16 +145,23 @@ describe("Asset ownership integration", () => {
 				companyId: companyAId,
 				itemCode: "R001-ASSET-A",
 				netPurchaseAmount: 100,
+				purchaseDate: "2026-08-10",
+				availableForUseDate: "2026-08-11",
 			},
 			organizationAId,
 		);
 		assetAId = created.id;
+		expect(created.purchaseDate).toBe("2026-08-10");
+		expect(created.availableForUseDate).toBe("2026-08-11");
+		expect(created.series).toMatch(/^AST-2026-\d{5}$/);
 
 		const persisted = await prisma.asset.findUniqueOrThrow({
 			where: { id: created.id },
 			select: {
 				companyId: true,
 				company: { select: { id: true, name: true } },
+				purchaseDate: true,
+				availableForUseDate: true,
 			},
 		});
 
@@ -163,6 +171,8 @@ describe("Asset ownership integration", () => {
 				id: companyAId,
 				name: created.company,
 			},
+			purchaseDate: new Date("2026-08-10T00:00:00.000Z"),
+			availableForUseDate: new Date("2026-08-11T00:00:00.000Z"),
 		});
 	});
 
@@ -174,7 +184,7 @@ describe("Asset ownership integration", () => {
 				companyId: companyBId,
 				itemCode: `R002-ASSET-B-${Date.now()}`,
 				barcode: assetBBarcode,
-				purchaseDate: new Date("2026-08-01T00:00:00.000Z"),
+				purchaseDate: "2026-08-01",
 				netPurchaseAmount: 200,
 			},
 			organizationBId,
@@ -226,7 +236,7 @@ describe("Asset ownership integration", () => {
 			service.previewAssetValueAdjustment(
 				{
 					assetId: assetAId,
-					adjustmentDate: new Date("2026-08-12T00:00:00.000Z"),
+					adjustmentDate: "2026-08-12",
 					newAssetValue: 150,
 				},
 				organizationBId,
@@ -236,7 +246,7 @@ describe("Asset ownership integration", () => {
 			service.createAssetMovement(
 				{
 					companyId: companyBId,
-					transactionDate: new Date("2026-08-12T00:00:00.000Z"),
+					transactionDate: "2026-08-12",
 					purpose: "ISSUE",
 					items: [{ assetId: assetBId }],
 				},
@@ -247,7 +257,7 @@ describe("Asset ownership integration", () => {
 			service.scrapAsset(
 				{
 					assetId: assetAId,
-					disposalDate: new Date("2026-08-12T00:00:00.000Z"),
+					disposalDate: "2026-08-12",
 					gainLossAccount: "Gain Loss - R002",
 				},
 				organizationBId,
@@ -255,8 +265,8 @@ describe("Asset ownership integration", () => {
 		).rejects.toThrow(/not found/);
 
 		const reportInput = {
-			fromDate: new Date("2026-01-01T00:00:00.000Z"),
-			toDate: new Date("2026-12-31T00:00:00.000Z"),
+			fromDate: "2026-01-01",
+			toDate: "2026-12-31",
 			groupBy: "ASSET_CATEGORY" as const,
 		};
 		const register = await service.findFixedAssetRegisterReport(
@@ -387,7 +397,7 @@ describe("Asset ownership integration", () => {
 				assetId: assetAId,
 				sourceType: "REPAIR",
 				sourceId: `R-001-RENAME-ACCOUNTING-${Date.now()}`,
-				postingDate: new Date("2026-08-10T00:00:00.000Z"),
+				postingDate: "2026-08-10",
 				remarks: "R-001 rename accounting proof",
 				lines: [
 					{
@@ -419,7 +429,7 @@ describe("Asset ownership integration", () => {
 				assetId: assetAId,
 				financeBookId: financeBook.id,
 				depreciationMethod: "STRAIGHT_LINE",
-				totalNumberOfDepreciations: 1,
+				totalNumberOfDepreciations: 4,
 				frequencyOfDepreciation: 1,
 				depreciationStartDate: new Date("2026-08-10T00:00:00.000Z"),
 				valueAfterDepreciation: 100,
@@ -435,41 +445,108 @@ describe("Asset ownership integration", () => {
 				status: "ACTIVE",
 				startDate: new Date("2026-08-10T00:00:00.000Z"),
 				depreciationMethod: "STRAIGHT_LINE",
-				totalNumberOfDepreciations: 1,
+				totalNumberOfDepreciations: 4,
 				frequencyOfDepreciation: 1,
 				bookedDepreciations: 0,
-				remainingDepreciations: 1,
+				remainingDepreciations: 4,
 				baseAssetValue: 100,
 				entries: {
-					create: {
-						sequence: 1,
-						scheduleDate: new Date("2026-08-10T00:00:00.000Z"),
-						depreciationAmount: 10,
-						accumulatedDepreciationAmount: 10,
-						bookValueAfterDepreciation: 90,
-					},
+					create: [
+						{
+							sequence: 1,
+							scheduleDate: new Date("2026-08-10T00:00:00.000Z"),
+							depreciationAmount: 10,
+							accumulatedDepreciationAmount: 10,
+							bookValueAfterDepreciation: 90,
+						},
+						{
+							sequence: 2,
+							scheduleDate: new Date("2026-08-10T12:00:00.000Z"),
+							depreciationAmount: 10,
+							accumulatedDepreciationAmount: 20,
+							bookValueAfterDepreciation: 80,
+						},
+						{
+							sequence: 3,
+							scheduleDate: new Date("2026-08-10T23:59:59.999Z"),
+							depreciationAmount: 10,
+							accumulatedDepreciationAmount: 30,
+							bookValueAfterDepreciation: 70,
+						},
+						{
+							sequence: 4,
+							scheduleDate: new Date("2026-08-11T00:00:00.000Z"),
+							depreciationAmount: 10,
+							accumulatedDepreciationAmount: 40,
+							bookValueAfterDepreciation: 60,
+						},
+					],
 				},
 			},
 		});
 		scheduleId = schedule.id;
-		const scheduleEntry =
-			await prisma.assetDepreciationScheduleEntry.findFirstOrThrow({
-				where: { scheduleId: schedule.id },
-			});
 
 		const depreciation = new DepreciationPersistenceService(prisma);
+		const pendingBeforePost = await depreciation.pendingPage(
+			{
+				kind: "organization",
+				organizationId: organizationAId,
+				assetIds: [assetAId],
+				throughDate: "2026-08-10",
+			},
+			undefined,
+			10,
+		);
+		expect(pendingBeforePost).toHaveLength(3);
+		expect(
+			pendingBeforePost.map((period) =>
+				dateOnlyFromPersistedDateTime(period.depreciationDate),
+			),
+		).toEqual(["2026-08-10", "2026-08-10", "2026-08-10"]);
+
+		const scheduleEntry = pendingBeforePost[0];
+		expect(scheduleEntry).toBeDefined();
+		if (!scheduleEntry) return;
 		const posted = await depreciation.post({
 			version: DEPRECIATION_JOB_VERSION,
 			organizationId: organizationAId,
 			assetId: assetAId,
-			assetFinanceBookId: assetFinanceBook.id,
-			scheduleId: schedule.id,
-			scheduleEntryId: scheduleEntry.id,
-			depreciationDate: "2026-08-10",
+			assetFinanceBookId: scheduleEntry.assetFinanceBookId,
+			scheduleId: scheduleEntry.scheduleId,
+			scheduleEntryId: scheduleEntry.scheduleEntryId,
+			depreciationDate: dateOnlyFromPersistedDateTime(
+				scheduleEntry.depreciationDate,
+			),
 		});
 		expect(posted.status).toBe("posted");
 		if (posted.status !== "posted") return;
 		journalEntryId = posted.postingId;
+		const retried = await depreciation.post({
+			version: DEPRECIATION_JOB_VERSION,
+			organizationId: organizationAId,
+			assetId: assetAId,
+			assetFinanceBookId: scheduleEntry.assetFinanceBookId,
+			scheduleId: scheduleEntry.scheduleId,
+			scheduleEntryId: scheduleEntry.scheduleEntryId,
+			depreciationDate: dateOnlyFromPersistedDateTime(
+				scheduleEntry.depreciationDate,
+			),
+		});
+		expect(retried).toEqual({
+			status: "already-posted",
+			postingId: posted.postingId,
+		});
+		const pendingAfterPost = await depreciation.pendingPage(
+			{
+				kind: "organization",
+				organizationId: organizationAId,
+				assetIds: [assetAId],
+				throughDate: "2026-08-10",
+			},
+			undefined,
+			10,
+		);
+		expect(pendingAfterPost).toHaveLength(2);
 
 		const [persistedAccounting, persistedJournal] = await Promise.all([
 			prisma.client.assetAccountingEntry.findUniqueOrThrow({

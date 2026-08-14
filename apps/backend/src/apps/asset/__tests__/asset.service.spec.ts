@@ -188,26 +188,27 @@ describe("AssetService > Barcode support", () => {
 			mockPrisma.documentSeriesCounter.update.mockResolvedValue({ value: 6 });
 			mockPrisma.asset.create.mockResolvedValue({
 				...mockAssetRow,
-				series: "AST-2026-00006",
+				series: "AST-2027-00006",
 			});
 			mockPrisma.asset.findFirstOrThrow.mockResolvedValue({
 				...mockAssetRow,
-				series: "AST-2026-00006",
+				series: "AST-2027-00006",
 			});
 
 			const result = await service.createAsset(
 				{
 					assetName: "Office Chair",
 					companyId: "company-123",
+					purchaseDate: "2027-01-01",
 				},
 				"org-1",
 			);
 
 			expect(mockPrisma.documentSeriesCounter.update).toHaveBeenCalledWith({
-				where: { key: "AST-2026-" },
+				where: { key: "AST-2027-" },
 				data: { value: { increment: 1 } },
 			});
-			expect(result.series).toBe("AST-2026-00006");
+			expect(result.series).toBe("AST-2027-00006");
 		});
 	});
 
@@ -279,8 +280,8 @@ describe("AssetService > Barcode support", () => {
 
 			const result = await service.findAssetActivityReport(
 				{
-					fromDate: new Date("2026-01-01"),
-					toDate: new Date("2026-01-31"),
+					fromDate: "2026-01-01",
+					toDate: "2026-01-31",
 				},
 				"org-1",
 			);

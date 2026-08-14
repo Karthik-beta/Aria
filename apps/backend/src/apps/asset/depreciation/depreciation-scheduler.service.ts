@@ -18,7 +18,9 @@ import { AssetDepreciationLifecycleService } from "./asset-depreciation-lifecycl
 // biome-ignore lint/style/useImportType: Nest resolves this runtime constructor token from decorator metadata.
 import { CwipCapitalizationDiscoveryService } from "./cwip-capitalization-discovery.service";
 import {
+	addDateOnlyUtc,
 	businessDate,
+	dateOnlyUtc,
 	depreciationReconciliationIntervalMs,
 	depreciationTimeZone,
 } from "./depreciation.config";
@@ -162,15 +164,24 @@ export class DepreciationSchedulerService
 		}
 	}
 
-	async runDailyDiscovery(): Promise<void> {
-		await this.runDiscovery("cron");
+	async runDailyDiscovery(now = new Date()): Promise<void> {
+		await this.runDiscovery("cron", now);
 	}
 
-	async runDiscovery(trigger: DepreciationDiscoveryTrigger): Promise<void> {
+	async runDiscovery(
+		trigger: DepreciationDiscoveryTrigger,
+		now = new Date(),
+	): Promise<void> {
 		try {
 			await this.lifecycle.ensureSubmittedSchedules();
 			await this.discovery.discover(
-				{ kind: "system", throughDate: businessDate(this.timeZone) },
+				{
+					kind: "system",
+					throughDate: businessDate(
+						this.timeZone || depreciationTimeZone(),
+						now,
+					),
+				},
 				trigger,
 			);
 		} catch (error) {
@@ -186,10 +197,11 @@ export class DepreciationSchedulerService
 	/**
 	 * Daily cron job (00:05) that updates asset status to OUT_OF_ORDER or IN_MAINTENANCE.
 	 */
-	async updateMaintenanceStatus(): Promise<void> {
+	async updateMaintenanceStatus(now = new Date()): Promise<void> {
 		if (!this.prisma) return;
-		const today = new Date();
-		today.setHours(0, 0, 0, 0);
+		const timeZone = this.timeZone || depreciationTimeZone();
+		const todayDateOnly = businessDate(timeZone, now);
+		const tomorrow = addDateOnlyUtc(todayDateOnly, 1);
 
 		try {
 			// Assets with open/pending repairs -> OUT_OF_ORDER
@@ -225,7 +237,7 @@ export class DepreciationSchedulerService
 						{ maintenanceStatus: "OVERDUE" },
 						{
 							maintenanceStatus: "PLANNED",
-							nextDueDate: { lte: today },
+							nextDueDate: { lt: tomorrow },
 						},
 					],
 				},
@@ -309,7 +321,7 @@ export class DepreciationSchedulerService
 								{ maintenanceStatus: "OVERDUE" },
 								{
 									maintenanceStatus: "PLANNED",
-									nextDueDate: { lte: today },
+									nextDueDate: { lt: tomorrow },
 								},
 							],
 						},
@@ -366,12 +378,17 @@ export class DepreciationSchedulerService
 	 * and the daily 00:10 catch-up.
 	 */
 	async postCwipCapitalizationGlEntries(
-		throughDate: Date | string = businessDate(this.timeZone),
+		throughDate?: Date | string,
+		now = new Date(),
 	): Promise<void> {
 		try {
-			const result = await this.cwipDiscovery.discover(throughDate, {
-				kind: "system",
-			});
+			const result = await this.cwipDiscovery.discover(
+				throughDate ??
+					businessDate(this.timeZone || depreciationTimeZone(), now),
+				{
+					kind: "system",
+				},
+			);
 			this.logger.log({
 				event: "asset_cwip_capitalization_scheduled",
 				...result,
@@ -387,10 +404,10 @@ export class DepreciationSchedulerService
 	/**
 	 * Daily cron job (00:15) that marks planned maintenance logs past due date to OVERDUE.
 	 */
-	async updateMaintenanceLogStatus(): Promise<void> {
+	async updateMaintenanceLogStatus(now = new Date()): Promise<void> {
 		if (!this.prisma) return;
-		const today = new Date();
-		today.setHours(0, 0, 0, 0);
+		const timeZone = this.timeZone || depreciationTimeZone();
+		const today = dateOnlyUtc(businessDate(timeZone, now));
 
 		try {
 			const overdueTasks = await this.prisma.assetMaintenanceTask.findMany({

@@ -186,6 +186,80 @@ describe("DepreciationSchedulerService", () => {
 		});
 	});
 
+	it("uses APP_TIME_ZONE for the maintenance business-day boundary", async () => {
+		process.env.APP_TIME_ZONE = "Asia/Kolkata";
+		const findManyRepair = mock(async (_args: unknown) => []);
+		const findManyTask = mock(async (_args: unknown) => []);
+		const prismaMock = {
+			assetRepair: { findMany: findManyRepair },
+			assetMaintenanceTask: { findMany: findManyTask },
+			asset: { updateMany: mock(async () => ({ count: 0 })) },
+		} as unknown as PrismaService;
+		const scheduler = new DepreciationSchedulerService(
+			new SchedulerRegistry(),
+			{} as unknown as AssetDepreciationLifecycleService,
+			{} as unknown as DepreciationDiscoveryService,
+			{} as unknown as DepreciationMetrics,
+			cwipDiscovery,
+			prismaMock,
+		);
+
+		await scheduler.updateMaintenanceStatus(
+			new Date("2026-08-09T18:29:59.999Z"),
+		);
+		await scheduler.updateMaintenanceStatus(
+			new Date("2026-08-09T18:30:00.000Z"),
+		);
+
+		expect(findManyTask.mock.calls[0]?.[0]).toMatchObject({
+			where: {
+				OR: [
+					{ maintenanceStatus: "OVERDUE" },
+					{
+						maintenanceStatus: "PLANNED",
+						nextDueDate: {
+							lt: new Date("2026-08-10T00:00:00.000Z"),
+						},
+					},
+				],
+			},
+		});
+		expect(findManyTask.mock.calls[1]?.[0]).toMatchObject({
+			where: {
+				OR: [
+					{ maintenanceStatus: "OVERDUE" },
+					{
+						maintenanceStatus: "PLANNED",
+						nextDueDate: {
+							lt: new Date("2026-08-11T00:00:00.000Z"),
+						},
+					},
+				],
+			},
+		});
+	});
+
+	it("passes the injected business instant through discovery", async () => {
+		process.env.APP_TIME_ZONE = "Asia/Kolkata";
+		const discover = mock(async () => undefined);
+		const scheduler = new DepreciationSchedulerService(
+			new SchedulerRegistry(),
+			{
+				ensureSubmittedSchedules: mock(async () => undefined),
+			} as unknown as AssetDepreciationLifecycleService,
+			{ discover } as unknown as DepreciationDiscoveryService,
+			{} as unknown as DepreciationMetrics,
+			cwipDiscovery,
+		);
+
+		await scheduler.runDiscovery("cron", new Date("2026-12-31T20:00:00.000Z"));
+
+		expect(discover).toHaveBeenCalledWith(
+			{ kind: "system", throughDate: "2027-01-01" },
+			"cron",
+		);
+	});
+
 	it("discovers CWIP jobs without mutating asset or stock state", async () => {
 		const cwipDiscovery = {
 			discover: mock(async () => ({

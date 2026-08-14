@@ -5,7 +5,7 @@ const revaluedMachine = {
 	series: "AST-2026-00001",
 	assetName: "Hydraulic Pump A",
 	company: "ACME Corp",
-	purchaseDate: new Date("2026-01-01T00:00:00.000Z"),
+	purchaseDate: "2026-01-01",
 	disposalDate: null,
 	netPurchaseAmount: 100000,
 	openingAccumulatedDepreciation: 0,
@@ -17,18 +17,18 @@ const revaluedMachine = {
 	adjustments: [
 		{
 			id: "adj-001",
-			adjustmentDate: new Date("2026-01-15T00:00:00.000Z"),
+			adjustmentDate: "2026-01-15",
 			differenceAmount: 10000,
 			schedule: {
 				id: "sched-001",
 				revisionNumber: 1,
-				startDate: new Date("2026-01-15T00:00:00.000Z"),
+				startDate: "2026-01-15",
 				openingAccumulatedDepreciation: 0,
 				entries: [
 					{
 						id: "entry-001",
 						sequence: 1,
-						scheduleDate: new Date("2026-01-31T00:00:00.000Z"),
+						scheduleDate: "2026-01-31",
 						depreciationAmount: 10000,
 						accumulatedDepreciationAmount: 10000,
 						bookValueAfterDepreciation: 100000,
@@ -36,7 +36,7 @@ const revaluedMachine = {
 					{
 						id: "entry-002",
 						sequence: 2,
-						scheduleDate: new Date("2026-02-28T00:00:00.000Z"),
+						scheduleDate: "2026-02-28",
 						depreciationAmount: 10000,
 						accumulatedDepreciationAmount: 20000,
 						bookValueAfterDepreciation: 90000,
@@ -46,18 +46,18 @@ const revaluedMachine = {
 		},
 		{
 			id: "adj-002",
-			adjustmentDate: new Date("2026-03-15T00:00:00.000Z"),
+			adjustmentDate: "2026-03-15",
 			differenceAmount: -5000,
 			schedule: {
 				id: "sched-002",
 				revisionNumber: 2,
-				startDate: new Date("2026-03-15T00:00:00.000Z"),
+				startDate: "2026-03-15",
 				openingAccumulatedDepreciation: 20000,
 				entries: [
 					{
 						id: "entry-003",
 						sequence: 1,
-						scheduleDate: new Date("2026-03-31T00:00:00.000Z"),
+						scheduleDate: "2026-03-31",
 						depreciationAmount: 15000,
 						accumulatedDepreciationAmount: 35000,
 						bookValueAfterDepreciation: 80000,
@@ -65,10 +65,18 @@ const revaluedMachine = {
 					{
 						id: "entry-004",
 						sequence: 2,
-						scheduleDate: new Date("2026-04-30T00:00:00.000Z"),
+						scheduleDate: "2026-04-30",
 						depreciationAmount: 15000,
 						accumulatedDepreciationAmount: 50000,
 						bookValueAfterDepreciation: 65000,
+					},
+					{
+						id: "entry-005",
+						sequence: 3,
+						scheduleDate: "2026-05-01",
+						depreciationAmount: 99999,
+						accumulatedDepreciationAmount: 149999,
+						bookValueAfterDepreciation: -34999,
 					},
 				],
 			},
@@ -81,8 +89,8 @@ const soldMachine = {
 	series: "AST-2026-00002",
 	assetName: "Forklift B",
 	company: "ACME Corp",
-	purchaseDate: new Date("2025-12-01T00:00:00.000Z"),
-	disposalDate: new Date("2026-04-15T00:00:00.000Z"),
+	purchaseDate: "2025-12-01",
+	disposalDate: "2026-04-15",
 	netPurchaseAmount: 60000,
 	openingAccumulatedDepreciation: 10000,
 	status: "SOLD" as const,
@@ -97,8 +105,8 @@ describe("buildAssetDepreciationsAndBalancesResult", () => {
 	it("aggregates asset balances by category with revaluation deltas and disposal elimination", () => {
 		const result = buildAssetDepreciationsAndBalancesResult({
 			assets: [revaluedMachine, soldMachine],
-			fromDate: new Date("2026-03-01T00:00:00.000Z"),
-			toDate: new Date("2026-04-30T23:59:59.999Z"),
+			fromDate: "2026-03-01",
+			endExclusive: "2026-05-01",
 			groupBy: "ASSET_CATEGORY",
 		});
 
@@ -135,7 +143,7 @@ describe("buildAssetDepreciationsAndBalancesResult", () => {
 			series: "AST-2026-00003",
 			assetName: "Compressor C",
 			company: "ACME Corp",
-			purchaseDate: new Date("2026-04-10T00:00:00.000Z"),
+			purchaseDate: "2026-04-10",
 			disposalDate: null,
 			netPurchaseAmount: 45000,
 			openingAccumulatedDepreciation: 0,
@@ -149,8 +157,8 @@ describe("buildAssetDepreciationsAndBalancesResult", () => {
 
 		const result = buildAssetDepreciationsAndBalancesResult({
 			assets: [newAsset],
-			fromDate: new Date("2026-04-01T00:00:00.000Z"),
-			toDate: new Date("2026-04-30T23:59:59.999Z"),
+			fromDate: "2026-04-01",
+			endExclusive: "2026-05-01",
 			groupBy: "ASSET",
 		});
 
@@ -166,5 +174,60 @@ describe("buildAssetDepreciationsAndBalancesResult", () => {
 				netAssetValueAsOnToDate: 45000,
 			}),
 		]);
+	});
+
+	it("uses a half-open calendar range when disposal is persisted at a non-midnight instant", () => {
+		const result = buildAssetDepreciationsAndBalancesResult({
+			assets: [
+				{
+					id: "asset-boundary",
+					series: "AST-2026-00004",
+					assetName: "Boundary Asset",
+					company: "ACME Corp",
+					purchaseDate: "2026-01-01",
+					disposalDate: "2026-07-24",
+					netPurchaseAmount: 1000,
+					openingAccumulatedDepreciation: 0,
+					status: "SOLD",
+					assetCategory: null,
+					adjustments: [
+						{
+							id: "schedule-boundary",
+							adjustmentDate: "2026-01-01",
+							differenceAmount: 0,
+							schedule: {
+								id: "schedule-boundary",
+								revisionNumber: 1,
+								startDate: "2026-01-01",
+								openingAccumulatedDepreciation: 0,
+								entries: [
+									{
+										id: "same-business-day",
+										sequence: 1,
+										scheduleDate: "2026-07-24",
+										depreciationAmount: 20,
+										accumulatedDepreciationAmount: 20,
+										bookValueAfterDepreciation: 980,
+									},
+									{
+										id: "next-business-day",
+										sequence: 2,
+										scheduleDate: "2026-07-25",
+										depreciationAmount: 40,
+										accumulatedDepreciationAmount: 60,
+										bookValueAfterDepreciation: 940,
+									},
+								],
+							},
+						},
+					],
+				},
+			],
+			fromDate: "2026-07-24",
+			endExclusive: "2026-07-25",
+			groupBy: "ASSET",
+		});
+
+		expect(result.summary.totalDepreciationAmountDuringPeriod).toBe(20);
 	});
 });

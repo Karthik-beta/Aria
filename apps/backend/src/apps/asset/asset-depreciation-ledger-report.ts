@@ -1,4 +1,4 @@
-import type { Asset } from "@aria/types";
+import type { Asset, DateOnly } from "@aria/types";
 
 const CURRENCY_SCALE = 6;
 
@@ -10,7 +10,7 @@ export interface AssetDepreciationLedgerAssetInput {
 	series: string;
 	assetName: string;
 	company: string;
-	purchaseDate: Date | null;
+	purchaseDate: DateOnly | null;
 	netPurchaseAmount: number | null;
 	status: Asset.AssetStatus;
 	assetCategory: {
@@ -23,7 +23,7 @@ export interface AssetDepreciationLedgerAssetInput {
 export interface AssetDepreciationLedgerAdjustmentInput {
 	id: string;
 	series: string;
-	adjustmentDate: Date;
+	adjustmentDate: DateOnly;
 	costCenter: string | null;
 	revaluationEntrySeries: string | null;
 	schedule: AssetDepreciationLedgerScheduleInput | null;
@@ -32,7 +32,7 @@ export interface AssetDepreciationLedgerAdjustmentInput {
 export interface AssetDepreciationLedgerScheduleInput {
 	id: string;
 	revisionNumber: number;
-	startDate: Date;
+	startDate: DateOnly;
 	depreciationMethod: Asset.DepreciationMethod | null;
 	openingAccumulatedDepreciation: number;
 	entries: AssetDepreciationLedgerScheduleEntryInput[];
@@ -41,7 +41,7 @@ export interface AssetDepreciationLedgerScheduleInput {
 export interface AssetDepreciationLedgerScheduleEntryInput {
 	id: string;
 	sequence: number;
-	scheduleDate: Date;
+	scheduleDate: DateOnly;
 	depreciationAmount: number;
 	accumulatedDepreciationAmount: number;
 	bookValueAfterDepreciation: number;
@@ -49,8 +49,9 @@ export interface AssetDepreciationLedgerScheduleEntryInput {
 
 export interface BuildAssetDepreciationLedgerResultInput {
 	assets: AssetDepreciationLedgerAssetInput[];
-	fromDate: Date;
-	toDate: Date;
+	fromDate: DateOnly;
+	/** Exclusive canonical boundary for the inclusive date-only report range. */
+	endExclusive: DateOnly;
 }
 
 export function buildAssetDepreciationLedgerResult(
@@ -70,15 +71,16 @@ export function buildAssetDepreciationLedgerResult(
 				} => adjustment.schedule !== null,
 			)
 			.sort((left, right) => {
-				const byStartDate =
-					left.schedule.startDate.getTime() -
-					right.schedule.startDate.getTime();
+				const byStartDate = left.schedule.startDate.localeCompare(
+					right.schedule.startDate,
+				);
 				if (byStartDate !== 0) {
 					return byStartDate;
 				}
 
-				const byAdjustmentDate =
-					left.adjustmentDate.getTime() - right.adjustmentDate.getTime();
+				const byAdjustmentDate = left.adjustmentDate.localeCompare(
+					right.adjustmentDate,
+				);
 				if (byAdjustmentDate !== 0) {
 					return byAdjustmentDate;
 				}
@@ -101,7 +103,7 @@ export function buildAssetDepreciationLedgerResult(
 						return bySequence;
 					}
 
-					return left.scheduleDate.getTime() - right.scheduleDate.getTime();
+					return left.scheduleDate.localeCompare(right.scheduleDate);
 				},
 			);
 
@@ -109,16 +111,13 @@ export function buildAssetDepreciationLedgerResult(
 				const entry = entries[entryIndex];
 
 				if (
-					entry.scheduleDate.getTime() < input.fromDate.getTime() ||
-					entry.scheduleDate.getTime() > input.toDate.getTime()
+					entry.scheduleDate < input.fromDate ||
+					entry.scheduleDate >= input.endExclusive
 				) {
 					continue;
 				}
 
-				if (
-					nextStartDate &&
-					entry.scheduleDate.getTime() >= nextStartDate.getTime()
-				) {
+				if (nextStartDate && entry.scheduleDate >= nextStartDate) {
 					continue;
 				}
 
@@ -166,8 +165,7 @@ export function buildAssetDepreciationLedgerResult(
 	}
 
 	rows.sort((left, right) => {
-		const byDate =
-			right.depreciationDate.getTime() - left.depreciationDate.getTime();
+		const byDate = right.depreciationDate.localeCompare(left.depreciationDate);
 		if (byDate !== 0) {
 			return byDate;
 		}

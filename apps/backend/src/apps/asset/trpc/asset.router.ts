@@ -1,5 +1,5 @@
 import { ReportTemplateService } from "@aria/report-export";
-import { Asset } from "@aria/types";
+import { Asset, normalizeDateOnly } from "@aria/types";
 import { Injectable } from "@nestjs/common";
 // biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
 import { EventEmitter2 } from "@nestjs/event-emitter";
@@ -763,11 +763,11 @@ export class AssetRouter {
 						filters.push({ label: "Category", value: input.assetCategory });
 					filters.push({
 						label: "From",
-						value: input.fromDate.toLocaleDateString("en-IN"),
+						value: normalizeDateOnly(input.fromDate),
 					});
 					filters.push({
 						label: "To",
-						value: input.toDate.toLocaleDateString("en-IN"),
+						value: normalizeDateOnly(input.toDate),
 					});
 
 					const metadata = {
@@ -827,11 +827,11 @@ export class AssetRouter {
 						filters.push({ label: "Cost Center", value: input.costCenter });
 					filters.push({
 						label: "From",
-						value: input.fromDate.toLocaleDateString("en-IN"),
+						value: normalizeDateOnly(input.fromDate),
 					});
 					filters.push({
 						label: "To",
-						value: input.toDate.toLocaleDateString("en-IN"),
+						value: normalizeDateOnly(input.toDate),
 					});
 
 					const metadata = {
@@ -876,11 +876,11 @@ export class AssetRouter {
 						filters.push({ label: "Activity", value: input.activity });
 					filters.push({
 						label: "From",
-						value: input.fromDate.toLocaleDateString("en-IN"),
+						value: normalizeDateOnly(input.fromDate),
 					});
 					filters.push({
 						label: "To",
-						value: input.toDate.toLocaleDateString("en-IN"),
+						value: normalizeDateOnly(input.toDate),
 					});
 
 					const metadata = {
@@ -935,11 +935,11 @@ export class AssetRouter {
 						filters.push({ label: "Location", value: input.location });
 					filters.push({
 						label: "From",
-						value: input.fromDate.toLocaleDateString("en-IN"),
+						value: normalizeDateOnly(input.fromDate),
 					});
 					filters.push({
 						label: "To",
-						value: input.toDate.toLocaleDateString("en-IN"),
+						value: normalizeDateOnly(input.toDate),
 					});
 
 					const metadata = {

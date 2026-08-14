@@ -40,9 +40,9 @@ describe("normalizeDepreciationSchedules", () => {
 	it("normalizes schedule and entry date strings", () => {
 		const [normalized] = normalizeDepreciationSchedules([schedule]);
 
-		expect(normalized?.startDate).toBeInstanceOf(Date);
+		expect(normalized?.startDate).toBe("2026-01-01");
 		expect(normalized?.createdAt).toBeInstanceOf(Date);
-		expect(normalized?.entries[0]?.scheduleDate).toBeInstanceOf(Date);
+		expect(normalized?.entries[0]?.scheduleDate).toBe("2026-02-01");
 	});
 
 	it("handles an empty or missing schedule collection", () => {

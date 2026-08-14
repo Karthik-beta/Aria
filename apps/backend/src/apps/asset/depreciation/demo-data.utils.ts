@@ -1,3 +1,5 @@
+import { dateOnlyUtc, normalizeDateOnly } from "./depreciation.config";
+
 export interface IndianFiscalYearDef {
 	year: string;
 	yearStartDate: Date;
@@ -17,13 +19,13 @@ export const DEMO_ASSET_DEPRECIATION_CADENCES = {
 /** Validates and normalizes the demo loader's date-only accounting cutoff. */
 export function normalizeDemoAsOf(value: string): string {
 	if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-		throw new Error("--as-of must use YYYY-MM-DD format");
+		throw new Error(`--as-of must use YYYY-MM-DD: ${value}`);
 	}
-	const parsed = new Date(`${value}T00:00:00.000Z`);
-	if (parsed.toISOString().slice(0, 10) !== value) {
+	try {
+		return normalizeDateOnly(value);
+	} catch {
 		throw new Error(`--as-of is not a valid calendar date: ${value}`);
 	}
-	return value;
 }
 
 /** Builds Indian April-to-March fiscal years around the supplied as-of date. */
@@ -45,13 +47,8 @@ export function getIndianFiscalYear(date: string): {
 	startDate: string;
 	endDate: string;
 } {
-	if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-		throw new Error(`Invalid date-only value: ${date}`);
-	}
-	const parsed = new Date(`${date}T00:00:00.000Z`);
-	if (parsed.toISOString().slice(0, 10) !== date) {
-		throw new Error(`Invalid calendar date: ${date}`);
-	}
+	const normalized = normalizeDateOnly(date);
+	const parsed = dateOnlyUtc(normalized);
 	const year = parsed.getUTCFullYear();
 	const startYear = parsed.getUTCMonth() >= 3 ? year : year - 1;
 	return {

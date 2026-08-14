@@ -1,5 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import {
+	dateOnlyFromPersistedDateTime,
 	depreciationBarrierTimeoutMs,
 	normalizeDateOnly,
 } from "./depreciation.config";
@@ -52,7 +53,10 @@ export class DepreciationBarrierService {
 			}
 			if (snapshot.periods.length === 0) {
 				return {
-					throughDate: normalizeDateOnly(scope.throughDate),
+					throughDate:
+						typeof scope.throughDate === "string"
+							? normalizeDateOnly(scope.throughDate)
+							: dateOnlyFromPersistedDateTime(scope.throughDate),
 					posted: true,
 					waitedMs: Date.now() - startedAt,
 				};

@@ -149,6 +149,23 @@ vi.mock("@/components/barcode-scanner-dialog", () => ({
 }));
 
 vi.mock("@aria/types", () => ({
+	dateOnlyFromPersistedDateTime: (value: Date) =>
+		value.toISOString().slice(0, 10),
+	normalizeDateOnly: (value: Date | string) =>
+		value instanceof Date
+			? value.toISOString().slice(0, 10)
+			: value.slice(0, 10),
+	parseDateOnly: (value: string) => value,
+	endOfMonthDateOnly: (value: Date | string) => {
+		const normalized =
+			value instanceof Date
+				? value.toISOString().slice(0, 10)
+				: value.slice(0, 10);
+		const [year, month] = normalized.split("-").map(Number);
+		return `${year}-${String(month).padStart(2, "0")}-${String(
+			new Date(Date.UTC(year, month, 0)).getUTCDate(),
+		).padStart(2, "0")}`;
+	},
 	Asset: {
 		assetOwnerSchema: {
 			parse: vi.fn(() => "COMPANY"),

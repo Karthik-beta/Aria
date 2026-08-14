@@ -51,7 +51,7 @@ const balancedEntry = {
 	assetId: "asset-1",
 	sourceType: "REPAIR" as const,
 	sourceId: "repair-1",
-	postingDate: new Date("2026-08-09T00:00:00.000Z"),
+	postingDate: "2026-08-09",
 	remarks: "Capitalized repair REP-2026-00001",
 	lines: [
 		{
@@ -103,6 +103,30 @@ describe("AssetAccountingService", () => {
 			}),
 			select: { id: true, series: true, status: true },
 		});
+	});
+
+	it("uses the canonical posting date year for document series", async () => {
+		const service = new AssetAccountingService();
+		const tx = createTransaction();
+
+		await service.createPostedEntry(
+			tx as unknown as Prisma.TransactionClient,
+			ORGANIZATION_ID,
+			{
+				...balancedEntry,
+				postingDate: "2027-01-01",
+				sourceId: "repair-year-boundary",
+			},
+		);
+
+		expect(tx.assetAccountingEntry.create).toHaveBeenCalledWith(
+			expect.objectContaining({
+				data: expect.objectContaining({
+					series: "AAE-2027-00008",
+					postingDate: new Date("2027-01-01T00:00:00.000Z"),
+				}),
+			}),
+		);
 	});
 
 	it("returns an existing posted source entry on an idempotent retry", async () => {

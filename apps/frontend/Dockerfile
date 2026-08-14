@@ -90,6 +90,12 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ARG NEXT_PUBLIC_API_URL=
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 
+# APP_TIME_ZONE is the backend-owned business-date authority. next.config.ts
+# validates it and embeds the same value as NEXT_PUBLIC_APP_TIME_ZONE.
+ARG APP_TIME_ZONE
+ENV APP_TIME_ZONE=${APP_TIME_ZONE}
+RUN test -n "$APP_TIME_ZONE"
+
 # Prisma config uses env("DATABASE_URL"), so provide a build-time placeholder.
 ARG DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres?schema=public
 ENV DATABASE_URL=${DATABASE_URL}

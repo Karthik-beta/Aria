@@ -1,4 +1,9 @@
-import type { Asset } from "@aria/types";
+import {
+	type Asset,
+	dateOnlyFromPersistedDateTime,
+	dateOnlyUtc,
+	normalizeDateOnly,
+} from "@aria/types";
 import { Injectable } from "@nestjs/common";
 import type { Prisma } from "../../generated/prisma/client";
 // biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
@@ -7,6 +12,7 @@ import {
 	type AssetOrganizationId,
 	assetWhereForOrganization,
 } from "./asset-organization-scope";
+import { dateOnlyUtcRange } from "./depreciation/depreciation.config";
 
 const CURRENCY_SCALE = 6;
 
@@ -31,14 +37,13 @@ export class FixedAssetRegisterReportService {
 		input: Asset.ListFixedAssetRegisterReportInput,
 		organizationId: AssetOrganizationId,
 	): Promise<Asset.FixedAssetRegisterReportResult> {
-		const fromDate = new Date(input.fromDate);
-		fromDate.setHours(0, 0, 0, 0);
-
-		const toDate = new Date(input.toDate);
-		toDate.setHours(23, 59, 59, 999);
+		const reportWindow = dateOnlyUtcRange(input.fromDate, input.toDate);
+		const fromDate = reportWindow.startInclusive;
+		const endExclusive = reportWindow.endExclusive;
+		const lastReportDate = dateOnlyUtc(normalizeDateOnly(input.toDate));
 
 		const where: Prisma.AssetWhereInput = {
-			purchaseDate: { gte: fromDate, lte: toDate },
+			purchaseDate: { gte: fromDate, lt: endExclusive },
 			status: { notIn: ["DRAFT", "CANCELLED"] },
 		};
 
@@ -67,7 +72,7 @@ export class FixedAssetRegisterReportService {
 				valueAdjustments: {
 					where: {
 						status: "SUBMITTED",
-						adjustmentDate: { gte: fromDate, lte: toDate },
+						adjustmentDate: { gte: fromDate, lt: endExclusive },
 					},
 					select: { differenceAmount: true, adjustmentDate: true },
 				},
@@ -77,7 +82,7 @@ export class FixedAssetRegisterReportService {
 							where: {
 								postingId: { not: null },
 								posting: { is: { status: "POSTED" } },
-								scheduleDate: { gte: fromDate, lte: toDate },
+								scheduleDate: { gte: fromDate, lt: endExclusive },
 							},
 							select: {
 								depreciationAmount: true,
@@ -105,20 +110,28 @@ export class FixedAssetRegisterReportService {
 		>();
 
 		const getMonthKey = (d: Date): string => {
-			const year = d.getFullYear();
-			const month = String(d.getMonth() + 1).padStart(2, "0");
+			const year = d.getUTCFullYear();
+			const month = String(d.getUTCMonth() + 1).padStart(2, "0");
 			return `${year}-${month}`;
 		};
 
 		// Initialize chart map for each month between fromDate and toDate
-		const currMonth = new Date(fromDate.getFullYear(), fromDate.getMonth(), 1);
-		const endMonth = new Date(toDate.getFullYear(), toDate.getMonth(), 1);
+		const currMonth = new Date(
+			Date.UTC(fromDate.getUTCFullYear(), fromDate.getUTCMonth(), 1),
+		);
+		const endMonth = new Date(
+			Date.UTC(
+				lastReportDate.getUTCFullYear(),
+				lastReportDate.getUTCMonth(),
+				1,
+			),
+		);
 		while (currMonth <= endMonth) {
 			monthlyChartMap.set(getMonthKey(currMonth), {
 				assetValue: 0,
 				depreciatedAmount: 0,
 			});
-			currMonth.setMonth(currMonth.getMonth() + 1);
+			currMonth.setUTCMonth(currMonth.getUTCMonth() + 1);
 		}
 
 		for (const asset of assets) {
@@ -132,7 +145,7 @@ export class FixedAssetRegisterReportService {
 						!entry.postingId ||
 						(entry.posting && entry.posting.status !== "POSTED") ||
 						entry.scheduleDate < fromDate ||
-						entry.scheduleDate > toDate
+						entry.scheduleDate >= endExclusive
 					) {
 						continue;
 					}
@@ -186,8 +199,10 @@ export class FixedAssetRegisterReportService {
 				locationId: asset.location?.id ?? null,
 				locationName: asset.location?.name ?? null,
 				company: asset.company.name,
-				purchaseDate: asset.purchaseDate,
-				availableForUseDate: asset.availableForUseDate ?? null,
+				purchaseDate: dateOnlyFromPersistedDateTime(asset.purchaseDate),
+				availableForUseDate: asset.availableForUseDate
+					? dateOnlyFromPersistedDateTime(asset.availableForUseDate)
+					: null,
 				status: asset.status as Asset.AssetStatus,
 				netPurchaseAmount: roundCurrency(purchaseAmt),
 				openingAccumulatedDepreciation: roundCurrency(openingDep),

@@ -34,6 +34,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAssetWriteAccess } from "@/hooks/use-asset-write-access";
+import { formatAssetDate } from "@/lib/asset-date-only";
 import { getToastMessage } from "@/lib/errors";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
@@ -383,7 +384,7 @@ export default function AssetDetailPage() {
 									asset.purchaseDate ? (
 										<span className="flex items-center gap-1">
 											<Calendar className="h-3 w-3" />
-											{new Date(asset.purchaseDate).toLocaleDateString()}
+											{formatAssetDate(asset.purchaseDate)}
 										</span>
 									) : null
 								}
@@ -392,7 +393,7 @@ export default function AssetDetailPage() {
 								label="Available For Use"
 								value={
 									asset.availableForUseDate
-										? new Date(asset.availableForUseDate).toLocaleDateString()
+										? formatAssetDate(asset.availableForUseDate)
 										: null
 								}
 							/>
@@ -452,7 +453,7 @@ export default function AssetDetailPage() {
 								label="Insurance Start"
 								value={
 									asset.insuranceStartDate
-										? new Date(asset.insuranceStartDate).toLocaleDateString()
+										? formatAssetDate(asset.insuranceStartDate)
 										: null
 								}
 							/>
@@ -460,7 +461,7 @@ export default function AssetDetailPage() {
 								label="Insurance End"
 								value={
 									asset.insuranceEndDate
-										? new Date(asset.insuranceEndDate).toLocaleDateString()
+										? formatAssetDate(asset.insuranceEndDate)
 										: null
 								}
 							/>
@@ -578,9 +579,7 @@ function DepreciationSchedulesCard({
 											<tr key={entry.id} className="border-b last:border-0">
 												<td className="py-2 pr-3">{entry.sequence}</td>
 												<td className="py-2 pr-3">
-													{new Date(entry.scheduleDate).toLocaleDateString(
-														"en-IN",
-													)}
+													{formatAssetDate(entry.scheduleDate)}
 												</td>
 												<td className="py-2 pr-3 text-right tabular-nums">
 													₹{entry.depreciationAmount.toLocaleString("en-IN")}

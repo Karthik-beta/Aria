@@ -105,7 +105,7 @@ describe("asset-maintenance.utils", () => {
 			expect(result.maintenanceManagerName).toBe("Manager Name");
 			expect(result.tasks).toHaveLength(1);
 			expect(result.tasks[0]?.maintenanceTask).toBe("Lubrication Check");
-			expect(result.tasks[0]?.startDate).toBeInstanceOf(Date);
+			expect(result.tasks[0]?.startDate).toBe("2026-01-01");
 		});
 
 		it("sets maintenanceManager to null when empty string", () => {
@@ -125,7 +125,7 @@ describe("asset-maintenance.utils", () => {
 				tasks: [{ ...baseTask, endDate: "2026-12-31" }],
 			});
 
-			expect(result.tasks[0]?.endDate).toBeInstanceOf(Date);
+			expect(result.tasks[0]?.endDate).toBe("2026-12-31");
 		});
 
 		it("sets endDate to null when not provided", () => {

@@ -5,7 +5,10 @@ import {
 	assertAssetOrganizationId,
 	assetWhereForOrganization,
 } from "../asset-organization-scope";
-import { dateOnlyUtc, normalizeDateOnly } from "./depreciation.config";
+import {
+	dateOnlyFromPersistedDateTime,
+	dateOnlyUtc,
+} from "./depreciation.config";
 import {
 	buildDepreciationSchedule,
 	type DepreciationBookInput,
@@ -112,7 +115,10 @@ export class AssetDepreciationRevisionService {
 	): Promise<AssetDepreciationRevisionResult[]> {
 		assertAssetOrganizationId(organizationId);
 		this.validateInput(input);
-		const effectiveDate = dateOnlyUtc(input.effectiveDate);
+		const effectiveDateOnly = dateOnlyFromPersistedDateTime(
+			input.effectiveDate,
+		);
+		const effectiveDate = dateOnlyUtc(effectiveDateOnly);
 		const books = await this.loadLockedBooks(
 			tx,
 			organizationId,
@@ -143,7 +149,7 @@ export class AssetDepreciationRevisionService {
 			);
 			if (
 				lastPostedDate &&
-				normalizeDateOnly(effectiveDate) < normalizeDateOnly(lastPostedDate)
+				effectiveDateOnly < dateOnlyFromPersistedDateTime(lastPostedDate)
 			) {
 				throw new AssetDepreciationRevisionError(
 					`Effective date cannot be before the last posted depreciation for finance book ${book.financeBookId}.`,
@@ -204,8 +210,8 @@ export class AssetDepreciationRevisionService {
 							financeBookId: book.financeBookId,
 							method: book.depreciationMethod,
 							grossBookValue: carryingValue,
-							availableForUseDate: normalizeDateOnly(effectiveDate),
-							depreciationStartDate: normalizeDateOnly(effectiveDate),
+							availableForUseDate: effectiveDateOnly,
+							depreciationStartDate: effectiveDateOnly,
 							totalPeriods: remainingPeriods,
 							frequencyMonths: book.frequencyOfDepreciation,
 							salvageValue,
@@ -276,7 +282,7 @@ export class AssetDepreciationRevisionService {
 					entries: {
 						create: schedule.entries.map((entry) => ({
 							sequence: bookedPeriods + entry.periodNumber,
-							scheduleDate: new Date(`${entry.date}T00:00:00.000Z`),
+							scheduleDate: dateOnlyUtc(entry.date),
 							depreciationAmount: entry.depreciationAmount,
 							accumulatedDepreciationAmount:
 								openingAccumulatedDepreciation + entry.accumulatedDepreciation,

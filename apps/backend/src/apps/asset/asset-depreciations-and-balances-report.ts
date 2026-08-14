@@ -1,4 +1,5 @@
-import type { Asset } from "@aria/types";
+import type { Asset, DateOnly } from "@aria/types";
+import { addDateOnly } from "@aria/types";
 
 const CURRENCY_SCALE = 6;
 
@@ -8,20 +9,19 @@ const roundCurrency = (value: number): number =>
 const addCurrency = (current: number, delta: number): number =>
 	roundCurrency(current + delta);
 
-const isBetweenInclusive = (
-	value: Date,
-	fromDate: Date,
-	toDate: Date,
-): boolean =>
-	value.getTime() >= fromDate.getTime() && value.getTime() <= toDate.getTime();
+const isInDateRange = (
+	value: DateOnly,
+	fromDate: DateOnly,
+	endExclusive: DateOnly,
+): boolean => value >= fromDate && value < endExclusive;
 
 export interface AssetDepreciationsAndBalancesAssetInput {
 	id: string;
 	series: string;
 	assetName: string;
 	company: string;
-	purchaseDate: Date;
-	disposalDate: Date | null;
+	purchaseDate: DateOnly;
+	disposalDate: DateOnly | null;
 	netPurchaseAmount: number;
 	openingAccumulatedDepreciation: number;
 	status: Asset.AssetStatus;
@@ -34,7 +34,7 @@ export interface AssetDepreciationsAndBalancesAssetInput {
 
 export interface AssetDepreciationsAndBalancesAdjustmentInput {
 	id: string;
-	adjustmentDate: Date;
+	adjustmentDate: DateOnly;
 	differenceAmount: number;
 	schedule: AssetDepreciationsAndBalancesScheduleInput | null;
 }
@@ -42,7 +42,7 @@ export interface AssetDepreciationsAndBalancesAdjustmentInput {
 export interface AssetDepreciationsAndBalancesScheduleInput {
 	id: string;
 	revisionNumber: number;
-	startDate: Date;
+	startDate: DateOnly;
 	openingAccumulatedDepreciation: number;
 	entries: AssetDepreciationsAndBalancesScheduleEntryInput[];
 }
@@ -50,7 +50,7 @@ export interface AssetDepreciationsAndBalancesScheduleInput {
 export interface AssetDepreciationsAndBalancesScheduleEntryInput {
 	id: string;
 	sequence: number;
-	scheduleDate: Date;
+	scheduleDate: DateOnly;
 	depreciationAmount: number;
 	accumulatedDepreciationAmount: number;
 	bookValueAfterDepreciation: number;
@@ -58,8 +58,9 @@ export interface AssetDepreciationsAndBalancesScheduleEntryInput {
 
 export interface BuildAssetDepreciationsAndBalancesResultInput {
 	assets: AssetDepreciationsAndBalancesAssetInput[];
-	fromDate: Date;
-	toDate: Date;
+	fromDate: DateOnly;
+	/** Exclusive calendar-date boundary for the inclusive report range. */
+	endExclusive: DateOnly;
 	groupBy: Asset.AssetDepreciationsAndBalancesGroupBy;
 }
 
@@ -89,14 +90,16 @@ const compareScheduleAdjustments = (
 	left: ScheduleAdjustment,
 	right: ScheduleAdjustment,
 ): number => {
-	const byStartDate =
-		left.schedule.startDate.getTime() - right.schedule.startDate.getTime();
+	const byStartDate = left.schedule.startDate.localeCompare(
+		right.schedule.startDate,
+	);
 	if (byStartDate !== 0) {
 		return byStartDate;
 	}
 
-	const byAdjustmentDate =
-		left.adjustmentDate.getTime() - right.adjustmentDate.getTime();
+	const byAdjustmentDate = left.adjustmentDate.localeCompare(
+		right.adjustmentDate,
+	);
 	if (byAdjustmentDate !== 0) {
 		return byAdjustmentDate;
 	}
@@ -113,7 +116,7 @@ const compareScheduleEntries = (
 		return bySequence;
 	}
 
-	return left.scheduleDate.getTime() - right.scheduleDate.getTime();
+	return left.scheduleDate.localeCompare(right.scheduleDate);
 };
 
 function getScheduleAdjustments(
@@ -130,17 +133,20 @@ function getScheduleAdjustments(
 		.sort(compareScheduleAdjustments);
 }
 
-function getAccumulatedDepreciationAsOf(
+function getAccumulatedDepreciation(
 	asset: AssetDepreciationsAndBalancesAssetInput,
-	asOfDate: Date,
+	asOfDate: DateOnly,
+	inclusive: boolean,
 ): number {
-	if (asset.purchaseDate.getTime() > asOfDate.getTime()) {
+	const isIncluded = (value: DateOnly): boolean =>
+		inclusive ? value <= asOfDate : value < asOfDate;
+
+	if (!isIncluded(asset.purchaseDate)) {
 		return 0;
 	}
 
-	const schedules = getScheduleAdjustments(asset).filter(
-		(adjustment) =>
-			adjustment.schedule.startDate.getTime() <= asOfDate.getTime(),
+	const schedules = getScheduleAdjustments(asset).filter((adjustment) =>
+		isIncluded(adjustment.schedule.startDate),
 	);
 
 	if (schedules.length === 0) {
@@ -150,7 +156,7 @@ function getAccumulatedDepreciationAsOf(
 	const currentSchedule = schedules[schedules.length - 1].schedule;
 	const matchingEntries = [...currentSchedule.entries]
 		.sort(compareScheduleEntries)
-		.filter((entry) => entry.scheduleDate.getTime() <= asOfDate.getTime());
+		.filter((entry) => isIncluded(entry.scheduleDate));
 
 	if (matchingEntries.length === 0) {
 		return roundCurrency(currentSchedule.openingAccumulatedDepreciation);
@@ -161,17 +167,31 @@ function getAccumulatedDepreciationAsOf(
 	);
 }
 
+function getAccumulatedDepreciationAsOf(
+	asset: AssetDepreciationsAndBalancesAssetInput,
+	asOfDate: DateOnly,
+): number {
+	return getAccumulatedDepreciation(asset, asOfDate, true);
+}
+
+function getAccumulatedDepreciationBefore(
+	asset: AssetDepreciationsAndBalancesAssetInput,
+	boundaryDate: DateOnly,
+): number {
+	return getAccumulatedDepreciation(asset, boundaryDate, false);
+}
+
 function getDepreciationAmountDuringPeriod(
 	asset: AssetDepreciationsAndBalancesAssetInput,
-	fromDate: Date,
-	toDate: Date,
+	fromDate: DateOnly,
+	endExclusive: DateOnly,
 ): number {
-	const effectiveToDate =
-		asset.disposalDate && asset.disposalDate.getTime() < toDate.getTime()
-			? asset.disposalDate
-			: toDate;
+	const effectiveEndExclusive =
+		asset.disposalDate && asset.disposalDate < endExclusive
+			? addDateOnly(asset.disposalDate, 1)
+			: endExclusive;
 
-	if (effectiveToDate.getTime() < fromDate.getTime()) {
+	if (effectiveEndExclusive <= fromDate) {
 		return 0;
 	}
 
@@ -190,14 +210,11 @@ function getDepreciationAmountDuringPeriod(
 		for (const entry of [...currentSchedule.schedule.entries].sort(
 			compareScheduleEntries,
 		)) {
-			if (!isBetweenInclusive(entry.scheduleDate, fromDate, effectiveToDate)) {
+			if (!isInDateRange(entry.scheduleDate, fromDate, effectiveEndExclusive)) {
 				continue;
 			}
 
-			if (
-				nextStartDate &&
-				entry.scheduleDate.getTime() >= nextStartDate.getTime()
-			) {
+			if (nextStartDate && entry.scheduleDate >= nextStartDate) {
 				continue;
 			}
 
@@ -213,8 +230,8 @@ function getDepreciationAmountDuringPeriod(
 
 function getValueAdjustments(
 	asset: AssetDepreciationsAndBalancesAssetInput,
-	fromDate: Date,
-	toDate: Date,
+	fromDate: DateOnly,
+	endExclusive: DateOnly,
 ): {
 	adjustmentBeforeFromDate: number;
 	adjustmentDuringPeriod: number;
@@ -223,29 +240,27 @@ function getValueAdjustments(
 	let adjustmentTillToDate = 0;
 
 	for (const adjustment of [...asset.adjustments].sort((left, right) => {
-		const byAdjustmentDate =
-			left.adjustmentDate.getTime() - right.adjustmentDate.getTime();
+		const byAdjustmentDate = left.adjustmentDate.localeCompare(
+			right.adjustmentDate,
+		);
 		if (byAdjustmentDate !== 0) {
 			return byAdjustmentDate;
 		}
 
 		return left.id.localeCompare(right.id);
 	})) {
-		if (
-			asset.disposalDate &&
-			adjustment.adjustmentDate.getTime() > asset.disposalDate.getTime()
-		) {
+		if (asset.disposalDate && adjustment.adjustmentDate > asset.disposalDate) {
 			continue;
 		}
 
-		if (adjustment.adjustmentDate.getTime() < fromDate.getTime()) {
+		if (adjustment.adjustmentDate < fromDate) {
 			adjustmentBeforeFromDate = addCurrency(
 				adjustmentBeforeFromDate,
 				adjustment.differenceAmount,
 			);
 		}
 
-		if (adjustment.adjustmentDate.getTime() <= toDate.getTime()) {
+		if (adjustment.adjustmentDate < endExclusive) {
 			adjustmentTillToDate = addCurrency(
 				adjustmentTillToDate,
 				adjustment.differenceAmount,
@@ -263,55 +278,54 @@ function getValueAdjustments(
 
 function hasReportPresence(
 	asset: AssetDepreciationsAndBalancesAssetInput,
-	fromDate: Date,
-	toDate: Date,
+	fromDate: DateOnly,
+	endExclusive: DateOnly,
 ): boolean {
 	if (asset.status === "DRAFT" || asset.status === "CANCELLED") {
 		return false;
 	}
 
 	const activeAtPeriodStart =
-		asset.purchaseDate.getTime() < fromDate.getTime() &&
-		(!asset.disposalDate || asset.disposalDate.getTime() >= fromDate.getTime());
-	const purchasedDuringPeriod = isBetweenInclusive(
+		asset.purchaseDate < fromDate &&
+		(!asset.disposalDate || asset.disposalDate >= fromDate);
+	const purchasedDuringPeriod = isInDateRange(
 		asset.purchaseDate,
 		fromDate,
-		toDate,
+		endExclusive,
 	);
 	const disposedDuringPeriod =
 		asset.disposalDate !== null &&
-		isBetweenInclusive(asset.disposalDate, fromDate, toDate);
+		isInDateRange(asset.disposalDate, fromDate, endExclusive);
 
 	return activeAtPeriodStart || purchasedDuringPeriod || disposedDuringPeriod;
 }
 
 function buildAssetBalanceMetrics(
 	asset: AssetDepreciationsAndBalancesAssetInput,
-	fromDate: Date,
-	toDate: Date,
+	fromDate: DateOnly,
+	endExclusive: DateOnly,
 ): AssetBalanceMetrics | null {
-	if (!hasReportPresence(asset, fromDate, toDate)) {
+	if (!hasReportPresence(asset, fromDate, endExclusive)) {
 		return null;
 	}
 
 	const purchaseAmount = roundCurrency(asset.netPurchaseAmount);
-	const dayBeforeFromDate = new Date(fromDate.getTime() - 1);
 	const activeAtPeriodStart =
-		asset.purchaseDate.getTime() < fromDate.getTime() &&
-		(!asset.disposalDate || asset.disposalDate.getTime() >= fromDate.getTime());
-	const purchasedDuringPeriod = isBetweenInclusive(
+		asset.purchaseDate < fromDate &&
+		(!asset.disposalDate || asset.disposalDate >= fromDate);
+	const purchasedDuringPeriod = isInDateRange(
 		asset.purchaseDate,
 		fromDate,
-		toDate,
+		endExclusive,
 	);
 	const disposedDuringPeriod =
 		asset.disposalDate !== null &&
-		isBetweenInclusive(asset.disposalDate, fromDate, toDate);
+		isInDateRange(asset.disposalDate, fromDate, endExclusive);
 	const soldDuringPeriod = disposedDuringPeriod && asset.status === "SOLD";
 	const scrappedDuringPeriod =
 		disposedDuringPeriod && asset.status === "SCRAPPED";
 	const { adjustmentBeforeFromDate, adjustmentDuringPeriod } =
-		getValueAdjustments(asset, fromDate, toDate);
+		getValueAdjustments(asset, fromDate, endExclusive);
 
 	const valueAsOnFromDate = activeAtPeriodStart
 		? roundCurrency(purchaseAmount + adjustmentBeforeFromDate)
@@ -321,12 +335,12 @@ function buildAssetBalanceMetrics(
 	const valueOfScrappedAsset = scrappedDuringPeriod ? purchaseAmount : 0;
 	const valueOfCapitalizedAsset = 0;
 	const accumulatedDepreciationAsOnFromDate = activeAtPeriodStart
-		? getAccumulatedDepreciationAsOf(asset, dayBeforeFromDate)
+		? getAccumulatedDepreciationBefore(asset, fromDate)
 		: 0;
 	const depreciationAmountDuringPeriod = getDepreciationAmountDuringPeriod(
 		asset,
 		fromDate,
-		toDate,
+		endExclusive,
 	);
 	const depreciationEliminatedDuringPeriod =
 		disposedDuringPeriod && asset.disposalDate
@@ -439,7 +453,7 @@ export function buildAssetDepreciationsAndBalancesResult(
 		const metrics = buildAssetBalanceMetrics(
 			asset,
 			input.fromDate,
-			input.toDate,
+			input.endExclusive,
 		);
 		if (!metrics) {
 			continue;

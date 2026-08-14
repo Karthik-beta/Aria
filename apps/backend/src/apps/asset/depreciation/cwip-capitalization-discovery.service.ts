@@ -15,7 +15,11 @@ import type {
 	CwipCapitalizationJob,
 	CwipCapitalizationQueueClient,
 } from "./cwip-capitalization-queue.client";
-import { dateOnlyUtc, normalizeDateOnly } from "./depreciation.config";
+import {
+	dateOnlyFromPersistedDateTime,
+	dateOnlyUtcRange,
+	normalizeDateOnly,
+} from "./depreciation.config";
 
 interface CwipDiscoveryCandidate {
 	id: string;
@@ -58,9 +62,14 @@ export class CwipCapitalizationDiscoveryService {
 		if (scope.kind !== "system") {
 			throw new Error("CWIP discovery requires the trusted system scope");
 		}
-		const normalizedThroughDate = normalizeDateOnly(throughDate);
-		const throughEnd = dateOnlyUtc(normalizedThroughDate);
-		throughEnd.setUTCHours(23, 59, 59, 999);
+		const normalizedThroughDate =
+			typeof throughDate === "string"
+				? normalizeDateOnly(throughDate)
+				: dateOnlyFromPersistedDateTime(throughDate);
+		const throughWindow = dateOnlyUtcRange(
+			normalizedThroughDate,
+			normalizedThroughDate,
+		);
 
 		let cursor: string | undefined;
 		let discovered = 0;
@@ -72,7 +81,10 @@ export class CwipCapitalizationDiscoveryService {
 			const page = await this.db.asset.findMany<CwipDiscoveryCandidate>({
 				where: {
 					status: "SUBMITTED",
-					availableForUseDate: { not: null, lte: throughEnd },
+					availableForUseDate: {
+						not: null,
+						lt: throughWindow.endExclusive,
+					},
 					netPurchaseAmount: { gt: 0 },
 					cwipAccountingEntryId: null,
 					assetCategory: { is: { enableCwipAccounting: true } },
@@ -116,7 +128,9 @@ export class CwipCapitalizationDiscoveryService {
 							version: CWIP_CAPITALIZATION_JOB_VERSION,
 							organizationId: asset.company.organizationId,
 							assetId: asset.id,
-							availableForUseDate: normalizeDateOnly(asset.availableForUseDate),
+							availableForUseDate: dateOnlyFromPersistedDateTime(
+								asset.availableForUseDate,
+							),
 						},
 						opts: { jobId },
 					} satisfies CwipCapitalizationBulkJob;

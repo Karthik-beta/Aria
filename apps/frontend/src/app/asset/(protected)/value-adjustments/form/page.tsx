@@ -37,6 +37,7 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
+import { dateInputValue, todayDateInputValue } from "@/lib/asset-date-only";
 import { getToastMessage } from "@/lib/errors";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
@@ -109,8 +110,7 @@ function AssetValueAdjustmentFormContent() {
 		form.reset({
 			assetId: record.assetId,
 			financeBookId: record.financeBookId ?? "",
-			adjustmentDate:
-				new Date(record.adjustmentDate).toISOString().split("T")[0] ?? "",
+			adjustmentDate: dateInputValue(record.adjustmentDate),
 			newAssetValue: String(record.newAssetValue),
 			differenceAccount: record.differenceAccount,
 			costCenter: record.costCenter ?? "",
@@ -185,7 +185,7 @@ function AssetValueAdjustmentFormContent() {
 			{
 				assetId: watchedAssetId || "",
 				financeBookId: watchedFinanceBookId || null,
-				adjustmentDate: new Date(watchedAdjustmentDate || new Date()),
+				adjustmentDate: watchedAdjustmentDate || todayDateInputValue(),
 				newAssetValue: Number.isNaN(numericNewAssetValue)
 					? 0
 					: numericNewAssetValue,
@@ -240,7 +240,7 @@ function AssetValueAdjustmentFormContent() {
 		() =>
 			displayedSchedule?.entries.map((entry) => ({
 				sequence: entry.sequence,
-				scheduleDate: new Date(entry.scheduleDate),
+				scheduleDate: dateInputValue(entry.scheduleDate),
 				depreciationAmount: entry.depreciationAmount,
 				accumulatedDepreciationAmount: entry.accumulatedDepreciationAmount,
 				bookValueAfterDepreciation: entry.bookValueAfterDepreciation,

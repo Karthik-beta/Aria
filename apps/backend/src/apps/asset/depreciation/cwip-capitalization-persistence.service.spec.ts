@@ -95,7 +95,7 @@ describe("CwipCapitalizationPersistenceService", () => {
 				assetId: "asset-1",
 				sourceType: "CWIP_CAPITALIZATION",
 				sourceId: "asset-1",
-				postingDate: new Date("2026-08-09T00:00:00.000Z"),
+				postingDate: "2026-08-09",
 				remarks: "CWIP capitalization for ACC-ASS-2026-00001",
 				lines: [
 					{

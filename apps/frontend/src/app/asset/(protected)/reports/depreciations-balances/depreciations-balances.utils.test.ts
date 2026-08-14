@@ -28,8 +28,8 @@ describe("depreciations-balances.utils", () => {
 			asset: "AST-2026-00001",
 			assetCategory: "Machinery",
 		});
-		expect(result.fromDate.toISOString()).toBe("2026-03-01T00:00:00.000Z");
-		expect(result.toDate.toISOString()).toBe("2026-04-30T23:59:59.999Z");
+		expect(result.fromDate).toBe("2026-03-01");
+		expect(result.toDate).toBe("2026-04-30");
 	});
 
 	it("validates the requested date range", () => {

@@ -4,8 +4,33 @@ import type { NextConfig } from "next";
 
 const isDev = process.env.NODE_ENV !== "production";
 
+/**
+ * APP_TIME_ZONE is the single application business-timezone authority. Next
+ * embeds the validated value into the browser bundle; the Asset date helpers
+ * must never guess a timezone when this build contract is missing.
+ */
+function requiredApplicationTimeZone(): string {
+	const timeZone = process.env.APP_TIME_ZONE?.trim();
+	if (!timeZone) {
+		throw new Error(
+			"APP_TIME_ZONE is required to build the frontend business-date contract.",
+		);
+	}
+	try {
+		new Intl.DateTimeFormat("en", { timeZone }).format();
+	} catch {
+		throw new Error(`APP_TIME_ZONE is not a valid IANA timezone: ${timeZone}`);
+	}
+	return timeZone;
+}
+
+const applicationTimeZone = requiredApplicationTimeZone();
+
 const nextConfig: NextConfig = {
 	output: "standalone",
+	env: {
+		NEXT_PUBLIC_APP_TIME_ZONE: applicationTimeZone,
+	},
 	transpilePackages: ["@aria/api-contract", "@aria/types", "@aria/utils"],
 	turbopack: {
 		root: path.join(__dirname, "../.."),

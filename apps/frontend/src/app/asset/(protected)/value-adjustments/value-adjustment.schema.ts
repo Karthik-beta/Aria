@@ -1,9 +1,10 @@
 import * as z from "zod";
+import { todayDateInputValue } from "@/lib/asset-date-only";
 
 export const assetValueAdjustmentFormSchema = z.object({
 	assetId: z.string().min(1, "Asset is required"),
 	financeBookId: z.string().optional(),
-	adjustmentDate: z.string().min(1, "Adjustment date is required"),
+	adjustmentDate: z.iso.date("Adjustment date is required"),
 	newAssetValue: z
 		.string()
 		.min(1, "New asset value is required")
@@ -31,7 +32,7 @@ export const getAssetValueAdjustmentFormDefaults = (
 ): AssetValueAdjustmentFormValues => ({
 	assetId: assetId ?? "",
 	financeBookId: "",
-	adjustmentDate: new Date().toISOString().split("T")[0] ?? "",
+	adjustmentDate: todayDateInputValue(),
 	newAssetValue: "",
 	differenceAccount: "",
 	costCenter: "",

@@ -1,7 +1,12 @@
 import { Injectable } from "@nestjs/common";
 import { Prisma } from "../../../generated/prisma/client";
 import type { PrismaService } from "../../../shared/prisma.service";
-import { dateOnlyUtc, normalizeDateOnly } from "./depreciation.config";
+import {
+	businessYearForSeries,
+	dateOnlyFromPersistedDateTime,
+	dateOnlyUtcRange,
+	normalizeDateOnly,
+} from "./depreciation.config";
 import type {
 	DepreciationJobData,
 	DepreciationScope,
@@ -131,7 +136,14 @@ export class DepreciationPersistenceService {
 		cursor: string | undefined,
 		take: number,
 	): Promise<PendingDepreciationPeriod[]> {
-		const throughDate = dateOnlyUtc(scope.throughDate);
+		const normalizedThroughDate =
+			typeof scope.throughDate === "string"
+				? normalizeDateOnly(scope.throughDate)
+				: dateOnlyFromPersistedDateTime(scope.throughDate);
+		const throughWindow = dateOnlyUtcRange(
+			normalizedThroughDate,
+			normalizedThroughDate,
+		);
 		const assetFilter: Record<string, unknown> = {
 			calculateDepreciation: true,
 			status: { in: ["SUBMITTED", "PARTIALLY_DEPRECIATED"] },
@@ -158,7 +170,7 @@ export class DepreciationPersistenceService {
 			await this.db.assetDepreciationScheduleEntry.findMany<DiscoveryRow>({
 				where: {
 					postingId: null,
-					scheduleDate: { lte: throughDate },
+					scheduleDate: { lt: throughWindow.endExclusive },
 					schedule: {
 						status: "ACTIVE",
 						asset: assetFilter,
@@ -223,7 +235,8 @@ export class DepreciationPersistenceService {
 				blockedByFreeze:
 					frozenThrough !== null &&
 					frozenThrough !== undefined &&
-					row.scheduleDate.getTime() <= frozenThrough.getTime(),
+					dateOnlyFromPersistedDateTime(row.scheduleDate) <=
+						dateOnlyFromPersistedDateTime(frozenThrough),
 			};
 		});
 	}
@@ -373,10 +386,11 @@ export class DepreciationPersistenceService {
 			}
 			if (
 				company.accountsFrozenThrough &&
-				entry.scheduleDate <= company.accountsFrozenThrough
+				dateOnlyFromPersistedDateTime(entry.scheduleDate) <=
+					dateOnlyFromPersistedDateTime(company.accountsFrozenThrough)
 			) {
 				throw new DepreciationPostingValidationError(
-					`Accounting is frozen through ${normalizeDateOnly(company.accountsFrozenThrough)} for ${company.name}.`,
+					`Accounting is frozen through ${dateOnlyFromPersistedDateTime(company.accountsFrozenThrough)} for ${company.name}.`,
 				);
 			}
 
@@ -409,7 +423,7 @@ export class DepreciationPersistenceService {
 			const series = await this.allocateSeries(
 				tx,
 				company.depreciationEntrySeries ?? "DEP-.YYYY.-",
-				entry.scheduleDate,
+				dateOnlyFromPersistedDateTime(entry.scheduleDate),
 			);
 			const posting = await tx.assetDepreciationJournalEntry.create<{
 				id: string;
@@ -422,7 +436,7 @@ export class DepreciationPersistenceService {
 					financeBookName: entry.schedule.assetFinanceBook.financeBook.name,
 					postingDate: entry.scheduleDate,
 					depreciationAmount: entry.depreciationAmount,
-					remarks: `Depreciation for ${entry.schedule.asset.series} on ${normalizeDateOnly(entry.scheduleDate)}`,
+					remarks: `Depreciation for ${entry.schedule.asset.series} on ${dateOnlyFromPersistedDateTime(entry.scheduleDate)}`,
 					status: "POSTED",
 					lines: {
 						create: [
@@ -532,7 +546,7 @@ export class DepreciationPersistenceService {
 			await tx.assetActivity.create({
 				data: {
 					assetId: entry.schedule.assetId,
-					activity: `Depreciation ${series} posted for ${normalizeDateOnly(entry.scheduleDate)} in ${entry.schedule.assetFinanceBook.financeBook.name}.`,
+					activity: `Depreciation ${series} posted for ${dateOnlyFromPersistedDateTime(entry.scheduleDate)} in ${entry.schedule.assetFinanceBook.financeBook.name}.`,
 				},
 			});
 			return { status: "posted", postingId: posting.id };
@@ -548,7 +562,7 @@ export class DepreciationPersistenceService {
 			entry.schedule.assetId !== job.assetId ||
 			entry.schedule.assetFinanceBookId !== job.assetFinanceBookId ||
 			entry.schedule.asset.company.organizationId !== job.organizationId ||
-			normalizeDateOnly(entry.scheduleDate) !== job.depreciationDate
+			dateOnlyFromPersistedDateTime(entry.scheduleDate) !== job.depreciationDate
 		) {
 			throw new DepreciationPostingValidationError(
 				`Depreciation job payload does not match schedule entry ${entry.id}.`,
@@ -577,9 +591,9 @@ export class DepreciationPersistenceService {
 	private async allocateSeries(
 		tx: DepreciationTransaction,
 		pattern: string,
-		postingDate: Date,
+		postingDate: string,
 	): Promise<string> {
-		const year = String(postingDate.getUTCFullYear());
+		const year = businessYearForSeries(postingDate);
 		const prefix = pattern.replace(/\.YYYY\./g, year);
 		const rows = await tx.$queryRaw<Array<{ value: number }>>(Prisma.sql`
 			INSERT INTO "document_series_counters" ("key", "value", "createdAt", "updatedAt")

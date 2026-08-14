@@ -56,6 +56,12 @@ describe("FixedAssetRegisterReportService", () => {
 								posting: null,
 							},
 							{
+								depreciationAmount: 99999,
+								scheduleDate: new Date("2026-04-01T00:00:00.000Z"),
+								postingId: "posting-apr-boundary",
+								posting: { status: "POSTED" },
+							},
+							{
 								depreciationAmount: 2500,
 								scheduleDate: new Date("2026-02-15T00:00:00.000Z"),
 								postingId: "posting-reversed",
@@ -86,8 +92,8 @@ describe("FixedAssetRegisterReportService", () => {
 
 		const result = await service.generateReport(
 			{
-				fromDate: new Date("2026-01-01T00:00:00.000Z"),
-				toDate: new Date("2026-03-31T00:00:00.000Z"),
+				fromDate: "2026-01-01",
+				toDate: "2026-03-31",
 				groupBy: "ASSET_CATEGORY",
 			},
 			"org-1",
@@ -141,7 +147,7 @@ describe("FixedAssetRegisterReportService", () => {
 					expect.objectContaining({
 						purchaseDate: {
 							gte: new Date("2026-01-01T00:00:00.000Z"),
-							lte: new Date("2026-03-31T23:59:59.999Z"),
+							lt: new Date("2026-04-01T00:00:00.000Z"),
 						},
 						status: { notIn: ["DRAFT", "CANCELLED"] },
 					}),
@@ -152,7 +158,7 @@ describe("FixedAssetRegisterReportService", () => {
 			postingId: { not: null },
 			scheduleDate: {
 				gte: new Date("2026-01-01T00:00:00.000Z"),
-				lte: new Date("2026-03-31T23:59:59.999Z"),
+				lt: new Date("2026-04-01T00:00:00.000Z"),
 			},
 		});
 	});
@@ -218,8 +224,8 @@ describe("FixedAssetRegisterReportService", () => {
 
 		const result = await service.generateReport(
 			{
-				fromDate: new Date("2026-01-01T00:00:00.000Z"),
-				toDate: new Date("2026-02-28T00:00:00.000Z"),
+				fromDate: "2026-01-01",
+				toDate: "2026-02-28",
 				groupBy: "LOCATION",
 			},
 			"org-1",

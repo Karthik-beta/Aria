@@ -65,6 +65,12 @@ vi.mock("@hookform/resolvers/zod", () => ({
 }));
 
 vi.mock("@aria/types", () => ({
+	dateOnlyFromPersistedDateTime: (value: Date) =>
+		value.toISOString().slice(0, 10),
+	normalizeDateOnly: (value: Date | string) =>
+		value instanceof Date
+			? value.toISOString().slice(0, 10)
+			: value.slice(0, 10),
 	Asset: {
 		createAssetMaintenanceSchema: {
 			safeParse: (input: unknown) => ({

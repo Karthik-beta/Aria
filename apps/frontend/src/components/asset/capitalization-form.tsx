@@ -37,6 +37,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import { dateInputValue, todayDateInputValue } from "@/lib/asset-date-only";
 import { getToastMessage } from "@/lib/errors";
 import { trpc } from "@/lib/trpc";
 
@@ -45,10 +46,6 @@ type CapitalizationDialogProps = {
 	onOpenChange: (open: boolean) => void;
 	onSuccess?: () => void;
 };
-
-function dateInputValue(value: Date): string {
-	return value.toISOString().slice(0, 10);
-}
 
 /** Captures only data represented by the current capitalization API contract. */
 export function AssetCapitalizationDialog({
@@ -71,7 +68,7 @@ export function AssetCapitalizationDialog({
 		) as Resolver<Asset.CreateAssetCapitalizationInput>,
 		defaultValues: {
 			companyId: "",
-			postingDate: new Date(),
+			postingDate: todayDateInputValue(),
 			targetType: "NEW_ASSET",
 			targetAssetId: null,
 			targetAssetName: "",
@@ -205,11 +202,7 @@ export function AssetCapitalizationDialog({
 										<Input
 											type="date"
 											value={dateInputValue(field.value)}
-											onChange={(event) =>
-												field.onChange(
-													new Date(`${event.target.value}T00:00:00`),
-												)
-											}
+											onChange={(event) => field.onChange(event.target.value)}
 										/>
 									</FormControl>
 									<FormMessage />

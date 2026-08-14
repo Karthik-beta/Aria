@@ -1,4 +1,5 @@
 import type { Asset } from "@aria/types";
+import { dateInputValue } from "@/lib/asset-date-only";
 
 type DateLike = Date | string;
 
@@ -36,9 +37,8 @@ function toValidDate(value: unknown): Date | null {
 /**
  * Normalize dates returned by the JSON tRPC transformer before rendering.
  *
- * The API contract uses Date values, while a JSON transport can deliver date
- * fields as strings. Invalid schedules/entries are omitted so the detail page
- * never renders an invalid date or throws while formatting a schedule.
+ * Date-only schedule fields remain canonical strings; true timestamps are
+ * hydrated as Date values for the existing detail-page rendering paths.
  */
 export function normalizeDepreciationSchedules(
 	value: readonly DepreciationScheduleInput[] | null | undefined,
@@ -46,16 +46,26 @@ export function normalizeDepreciationSchedules(
 	if (!value) return [];
 
 	return value.flatMap((schedule) => {
-		const startDate = toValidDate(schedule.startDate);
+		let startDate: string;
+		try {
+			startDate = dateInputValue(schedule.startDate);
+		} catch {
+			return [];
+		}
 		const createdAt = toValidDate(schedule.createdAt);
 		const updatedAt = toValidDate(schedule.updatedAt);
 		if (!startDate || !createdAt || !updatedAt) return [];
 
 		const entries = schedule.entries.flatMap((entry) => {
-			const scheduleDate = toValidDate(entry.scheduleDate);
+			let scheduleDate: string;
+			try {
+				scheduleDate = dateInputValue(entry.scheduleDate);
+			} catch {
+				return [];
+			}
 			const entryCreatedAt = toValidDate(entry.createdAt);
 			const entryUpdatedAt = toValidDate(entry.updatedAt);
-			if (!scheduleDate || !entryCreatedAt || !entryUpdatedAt) return [];
+			if (!entryCreatedAt || !entryUpdatedAt) return [];
 			const postedAt =
 				entry.postedAt == null ? null : toValidDate(entry.postedAt);
 

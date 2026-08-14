@@ -1,6 +1,9 @@
 import { Injectable, Logger } from "@nestjs/common";
 import type { Job } from "bullmq";
-import { normalizeDateOnly } from "./depreciation.config";
+import {
+	dateOnlyFromPersistedDateTime,
+	normalizeDateOnly,
+} from "./depreciation.config";
 import {
 	DEPRECIATION_COMPLETED_REDISCOVERY_COOLDOWN_MS,
 	DEPRECIATION_DISCOVERY_PAGE_SIZE,
@@ -109,7 +112,10 @@ export class DepreciationDiscoveryService {
 		this.logger.log({
 			event: "asset_depreciation_discovery_completed",
 			trigger,
-			throughDate: normalizeDateOnly(scope.throughDate),
+			throughDate:
+				typeof scope.throughDate === "string"
+					? normalizeDateOnly(scope.throughDate)
+					: dateOnlyFromPersistedDateTime(scope.throughDate),
 			discovered,
 			enqueued,
 			duplicateSkipped,
@@ -133,7 +139,7 @@ export class DepreciationDiscoveryService {
 			assetFinanceBookId: period.assetFinanceBookId,
 			scheduleId: period.scheduleId,
 			scheduleEntryId: period.scheduleEntryId,
-			depreciationDate: normalizeDateOnly(period.depreciationDate),
+			depreciationDate: dateOnlyFromPersistedDateTime(period.depreciationDate),
 		};
 	}
 

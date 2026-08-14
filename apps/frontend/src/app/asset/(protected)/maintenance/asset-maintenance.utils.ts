@@ -70,13 +70,6 @@ export function formatMaintenanceTaskType(
 	return TASK_TYPE_LABELS[type] ?? type;
 }
 
-/** Parses a YYYY-MM-DD date string to a Date, or returns null. */
-function parseDateField(value: string | null | undefined): Date | null {
-	if (!value) return null;
-	const d = new Date(value);
-	return Number.isNaN(d.getTime()) ? null : d;
-}
-
 /**
  * Converts form values to the create mutation payload.
  */
@@ -93,9 +86,9 @@ export function toCreateAssetMaintenanceInput(
 			maintenanceTask: t.maintenanceTask.trim(),
 			maintenanceType: t.maintenanceType ?? null,
 			maintenanceStatus: t.maintenanceStatus ?? "PLANNED",
-			startDate: new Date(t.startDate),
+			startDate: t.startDate,
 			periodicity: t.periodicity,
-			endDate: parseDateField(t.endDate),
+			endDate: t.endDate || null,
 			certificateRequired: t.certificateRequired,
 			assignTo: t.assignTo?.trim() || null,
 			assignToName: t.assignToName?.trim() || null,
@@ -122,9 +115,9 @@ export function toUpdateAssetMaintenanceInput(
 			maintenanceTask: t.maintenanceTask.trim(),
 			maintenanceType: t.maintenanceType ?? null,
 			maintenanceStatus: t.maintenanceStatus ?? "PLANNED",
-			startDate: new Date(t.startDate),
+			startDate: t.startDate,
 			periodicity: t.periodicity,
-			endDate: parseDateField(t.endDate),
+			endDate: t.endDate || null,
 			certificateRequired: t.certificateRequired,
 			assignTo: t.assignTo?.trim() || null,
 			assignToName: t.assignToName?.trim() || null,

@@ -1,5 +1,48 @@
 import { describe, expect, test } from "bun:test";
-import { Inventory } from "./index";
+import {
+	businessDate,
+	dateOnlyFromInstant,
+	dateOnlyFromPersistedDateTime,
+	dateOnlyInputSchema,
+	Inventory,
+	normalizeDateOnly,
+} from "./index";
+
+describe("canonical Asset date-only contract", () => {
+	test("does not accept a JavaScript Date as a date-only value", () => {
+		const browserLocalMidnight = new Date(2027, 0, 1, 0, 0, 0);
+
+		expect(() => normalizeDateOnly(browserLocalMidnight as never)).toThrow(
+			"Invalid date-only value",
+		);
+		expect(dateOnlyInputSchema.safeParse(browserLocalMidnight).success).toBe(
+			false,
+		);
+	});
+
+	test("adapts persisted DateTime-backed date-only rows by UTC calendar date", () => {
+		for (const timestamp of [
+			"2026-08-10T00:00:00.000Z",
+			"2026-08-10T12:00:00.000Z",
+			"2026-08-10T23:59:59.999Z",
+		]) {
+			expect(dateOnlyFromPersistedDateTime(new Date(timestamp))).toBe(
+				"2026-08-10",
+			);
+		}
+		expect(
+			dateOnlyFromPersistedDateTime(new Date("2026-08-11T00:00:00.000Z")),
+		).toBe("2026-08-11");
+	});
+
+	test("derives true instants in the requested business timezone", () => {
+		const instant = new Date("2026-12-31T20:00:00.000Z");
+		expect(dateOnlyFromInstant("UTC", instant)).toBe("2026-12-31");
+		expect(dateOnlyFromInstant("Asia/Kolkata", instant)).toBe("2027-01-01");
+		expect(dateOnlyFromInstant("America/New_York", instant)).toBe("2026-12-31");
+		expect(businessDate("Asia/Kolkata", instant)).toBe("2027-01-01");
+	});
+});
 
 // ---------------------------------------------------------------------------
 // Batch Status Schema

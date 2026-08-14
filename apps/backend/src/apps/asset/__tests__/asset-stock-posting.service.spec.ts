@@ -46,7 +46,7 @@ function createTransaction() {
 
 const validInput = {
 	companyId: "company-1",
-	postingDate: new Date("2026-08-09T00:00:00.000Z"),
+	postingDate: "2026-08-09",
 	sourceType: "ASSET_REPAIR" as const,
 	sourceId: "repair-1",
 	lines: [
@@ -94,6 +94,30 @@ describe("AssetStockPostingService", () => {
 			}),
 			select: { id: true, series: true },
 		});
+	});
+
+	it("uses the canonical posting date year for document series", async () => {
+		const service = new AssetStockPostingService();
+		const tx = createTransaction();
+
+		await service.createMaterialIssue(
+			tx as unknown as Prisma.TransactionClient,
+			ORGANIZATION_ID,
+			{
+				...validInput,
+				postingDate: "2027-01-01",
+				sourceId: "repair-year-boundary",
+			},
+		);
+
+		expect(tx.stockEntry.create).toHaveBeenCalledWith(
+			expect.objectContaining({
+				data: expect.objectContaining({
+					series: "MAT-STE-2027-00003",
+					postingDate: new Date("2027-01-01T00:00:00.000Z"),
+				}),
+			}),
+		);
 	});
 
 	it("rejects duplicate item and warehouse lines", async () => {

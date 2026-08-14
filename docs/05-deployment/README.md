@@ -152,7 +152,11 @@ set the same runtime values in the service configuration instead.
 |--------|-----------|
 | Self-hosted Compose | `POSTGRES_PASSWORD`, `REDIS_PASSWORD`, `APP_TIME_ZONE`, `BETTER_AUTH_SECRET`, `FRONTEND_URL`, `BETTER_AUTH_URL`, `DOMAIN` |
 | Railway backend | `DATABASE_URL`, `REDIS_URL`, `APP_TIME_ZONE`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `FRONTEND_URL` |
-| Railway frontend build | `NEXT_PUBLIC_API_URL` |
+| Railway frontend build | `NEXT_PUBLIC_API_URL`, `APP_TIME_ZONE` |
+
+`APP_TIME_ZONE` is the single business-timezone authority for both backend and
+frontend. The frontend Docker build validates and embeds that same value; it
+does not accept an independently managed timezone or default to UTC.
 
 `BETTER_AUTH_URL` is the public backend URL. `FRONTEND_URL` is the public
 frontend origin used for trusted origins and CORS. `JWT_SECRET` is not used by

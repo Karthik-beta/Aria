@@ -9,7 +9,7 @@
  * @module AssetService
  * @see {@link https://docs.erpnext.com/docs/user/manual/en/asset | ERPNext Asset}
  */
-import type { Asset } from "@aria/types";
+import type { Asset, DateOnly } from "@aria/types";
 import {
 	BadRequestException,
 	ConflictException,
@@ -67,9 +67,17 @@ import {
 import { AssetDepreciationLifecycleService } from "./depreciation/asset-depreciation-lifecycle.service";
 import { AssetDepreciationRevisionService } from "./depreciation/asset-depreciation-revision.service";
 import {
+	addDateOnly,
+	addDateOnlyUtc,
+	addMonthsDateOnly,
 	businessDate,
+	businessYearForSeries,
+	dateOnlyFromPersistedDateTime,
 	dateOnlyUtc,
+	dateOnlyUtcRange,
 	depreciationTimeZone,
+	endOfMonthDateOnly,
+	normalizeDateOnly,
 } from "./depreciation/depreciation.config";
 // biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
 import { DepreciationBarrierService } from "./depreciation/depreciation-barrier.service";
@@ -216,13 +224,15 @@ export class AssetService {
 	) {}
 
 	private async ensureReportDepreciation(
-		toDate: Date,
+		toDate: DateOnly,
 		organizationId: AssetOrganizationId,
 		company?: string,
 	): Promise<void> {
 		assertAssetOrganizationId(organizationId);
+		const reportToDateOnly = normalizeDateOnly(toDate);
+		const reportToDate = dateOnlyUtc(reportToDateOnly);
 		const today = dateOnlyUtc(businessDate(depreciationTimeZone()));
-		const throughDate = toDate < today ? toDate : today;
+		const throughDate = reportToDate < today ? reportToDate : today;
 		await this.depreciationBarrier?.ensureDepreciationPosted({
 			kind: "organization",
 			organizationId,
@@ -340,12 +350,12 @@ export class AssetService {
 	 * Format: AST-YYYY-NNNNN
 	 */
 	private async generateAssetSeries(
-		date: Date,
+		date: DateOnly,
 		organizationId: AssetOrganizationId,
 		tx?: Prisma.TransactionClient,
 	): Promise<string> {
 		const client = tx ?? this.prisma;
-		const year = date.getFullYear();
+		const year = businessYearForSeries(date, depreciationTimeZone());
 		const prefix = `AST-${year}-`;
 		const existingCounter = await client.documentSeriesCounter.findUnique({
 			where: { key: prefix },
@@ -381,12 +391,12 @@ export class AssetService {
 	 * Format: AVA-YYYY-NNNNN
 	 */
 	private async generateAssetValueAdjustmentSeries(
-		date: Date,
+		date: DateOnly,
 		organizationId: AssetOrganizationId,
 		tx?: Prisma.TransactionClient,
 	): Promise<string> {
 		const client = tx ?? this.prisma;
-		const year = date.getFullYear();
+		const year = businessYearForSeries(date, depreciationTimeZone());
 		const prefix = `AVA-${year}-`;
 		const existingCounter = await client.documentSeriesCounter.findUnique({
 			where: { key: prefix },
@@ -425,12 +435,12 @@ export class AssetService {
 	 * Format: JE-AVA-YYYY-NNNNN
 	 */
 	private async generateAssetRevaluationEntrySeries(
-		date: Date,
+		date: DateOnly,
 		organizationId: AssetOrganizationId,
 		tx?: Prisma.TransactionClient,
 	): Promise<string> {
 		const client = tx ?? this.prisma;
-		const year = date.getFullYear();
+		const year = businessYearForSeries(date, depreciationTimeZone());
 		const prefix = `JE-AVA-${year}-`;
 		const existingCounter = await client.documentSeriesCounter.findUnique({
 			where: { key: prefix },
@@ -470,12 +480,12 @@ export class AssetService {
 	 * Format: MOV-YYYY-NNNNN
 	 */
 	private async generateAssetMovementSeries(
-		date: Date,
+		date: DateOnly,
 		organizationId: AssetOrganizationId,
 		tx?: Prisma.TransactionClient,
 	): Promise<string> {
 		const client = tx ?? this.prisma;
-		const year = date.getFullYear();
+		const year = businessYearForSeries(date, depreciationTimeZone());
 		const prefix = `MOV-${year}-`;
 		const existingCounter = await client.documentSeriesCounter.findUnique({
 			where: { key: prefix },
@@ -514,12 +524,12 @@ export class AssetService {
 	 * Format: REP-YYYY-NNNNN
 	 */
 	private async generateAssetRepairSeries(
-		date: Date,
+		date: DateOnly,
 		organizationId: AssetOrganizationId,
 		tx?: Prisma.TransactionClient,
 	): Promise<string> {
 		const client = tx ?? this.prisma;
-		const year = date.getFullYear();
+		const year = businessYearForSeries(date, depreciationTimeZone());
 		const prefix = `REP-${year}-`;
 		const existingCounter = await client.documentSeriesCounter.findUnique({
 			where: { key: prefix },
@@ -559,12 +569,12 @@ export class AssetService {
 	 * Format: CAP-YYYY-NNNNN
 	 */
 	private async generateAssetCapitalizationSeries(
-		date: Date,
+		date: DateOnly,
 		organizationId: AssetOrganizationId,
 		tx?: Prisma.TransactionClient,
 	): Promise<string> {
 		const client = tx ?? this.prisma;
-		const year = date.getFullYear();
+		const year = businessYearForSeries(date, depreciationTimeZone());
 		const prefix = `CAP-${year}-`;
 		const existingCounter = await client.documentSeriesCounter.findUnique({
 			where: { key: prefix },
@@ -600,12 +610,12 @@ export class AssetService {
 	 * Format: DISP-YYYY-NNNNN
 	 */
 	private async generateAssetDisposalSeries(
-		date: Date,
+		date: DateOnly,
 		organizationId: AssetOrganizationId,
 		tx?: Prisma.TransactionClient,
 	): Promise<string> {
 		const client = tx ?? this.prisma;
-		const year = date.getFullYear();
+		const year = businessYearForSeries(date, depreciationTimeZone());
 		const prefix = `DISP-${year}-`;
 		const existingCounter = await client.documentSeriesCounter.findUnique({
 			where: { key: prefix },
@@ -644,12 +654,37 @@ export class AssetService {
 		return Number(value.toFixed(CURRENCY_SCALE));
 	}
 
+	/** Validates a canonical Asset business date at a user/domain input boundary. */
+	private parseAssetDateOnly(
+		value: DateOnly | null | undefined,
+		label: string,
+	): DateOnly | null {
+		if (value == null) return null;
+		try {
+			return normalizeDateOnly(value);
+		} catch {
+			throw new BadRequestException(`${label} must be a valid calendar date.`);
+		}
+	}
+
+	/**
+	 * Converts a validated user/domain DateOnly to the UTC-midnight value used
+	 * by Prisma DateTime-backed business-date columns.
+	 */
+	private normalizeAssetDateOnly(
+		value: DateOnly | null | undefined,
+		label: string,
+	): Date | null {
+		const dateOnly = this.parseAssetDateOnly(value, label);
+		return dateOnly ? dateOnlyUtc(dateOnly) : null;
+	}
+
 	private assertValidOperationalDate(date: Date, label: string): void {
 		if (Number.isNaN(date.getTime())) {
 			throw new BadRequestException(`${label} must be a valid date.`);
 		}
 		const today = dateOnlyUtc(businessDate(depreciationTimeZone()));
-		if (dateOnlyUtc(date) > today) {
+		if (dateOnlyUtc(dateOnlyFromPersistedDateTime(date)) > today) {
 			throw new BadRequestException(`${label} cannot be in the future.`);
 		}
 	}
@@ -717,7 +752,9 @@ export class AssetService {
 							{ maintenanceStatus: "OVERDUE" },
 							{
 								maintenanceStatus: "PLANNED",
-								nextDueDate: { lte: new Date() },
+								nextDueDate: {
+									lt: addDateOnlyUtc(businessDate(depreciationTimeZone()), 1),
+								},
 							},
 						],
 					},
@@ -879,10 +916,7 @@ export class AssetService {
 	}
 
 	private getLastDayOfMonth(date: Date): Date {
-		const d = new Date(date);
-		d.setMonth(d.getMonth() + 1, 0);
-		d.setHours(0, 0, 0, 0);
-		return d;
+		return endOfMonthDateOnly(dateOnlyFromPersistedDateTime(date));
 	}
 
 	private validateDepreciationFields(
@@ -1259,6 +1293,7 @@ export class AssetService {
 			"adjustmentDate" | "financeBookId" | "newAssetValue"
 		>,
 	): Promise<Asset.AssetValueAdjustmentPreview> {
+		const adjustmentDate = dateOnlyUtc(normalizeDateOnly(input.adjustmentDate));
 		const selectedFinanceBook = this.resolveAssetAdjustmentFinanceBook(
 			asset,
 			input.financeBookId,
@@ -1279,7 +1314,7 @@ export class AssetService {
 		const schedulePreview =
 			asset.calculateDepreciation && selectedFinanceBook
 				? await buildDepreciationSchedulePreview({
-						adjustmentDate: input.adjustmentDate,
+						adjustmentDate,
 						currentAssetValue,
 						newAssetValue: input.newAssetValue,
 						purchaseAmount: asset.netPurchaseAmount
@@ -1334,8 +1369,8 @@ export class AssetService {
 		}
 
 		if (
-			dateOnlyUtc(input.adjustmentDate).getTime() <
-			dateOnlyUtc(asset.purchaseDate).getTime()
+			adjustmentDate.getTime() <
+			dateOnlyUtc(dateOnlyFromPersistedDateTime(asset.purchaseDate)).getTime()
 		) {
 			validationMessages.push(
 				"The adjustment date cannot be earlier than the asset purchase date.",
@@ -1344,8 +1379,12 @@ export class AssetService {
 
 		if (
 			selectedFinanceBook?.lastPostedDepreciationDate &&
-			dateOnlyUtc(input.adjustmentDate).getTime() <
-				dateOnlyUtc(selectedFinanceBook.lastPostedDepreciationDate).getTime()
+			adjustmentDate.getTime() <
+				dateOnlyUtc(
+					dateOnlyFromPersistedDateTime(
+						selectedFinanceBook.lastPostedDepreciationDate,
+					),
+				).getTime()
 		) {
 			validationMessages.push(
 				"The adjustment date cannot be earlier than the selected finance book's last posted depreciation date.",
@@ -1398,7 +1437,7 @@ export class AssetService {
 			financeBookId: selectedFinanceBook?.financeBookId ?? null,
 			financeBookName: selectedFinanceBook?.financeBookName ?? null,
 			assetFinanceBookId: selectedFinanceBook?.id ?? null,
-			adjustmentDate: input.adjustmentDate,
+			adjustmentDate: dateOnlyFromPersistedDateTime(adjustmentDate),
 			currentAssetValue,
 			newAssetValue: this.roundCurrency(input.newAssetValue),
 			differenceAmount,
@@ -1538,9 +1577,10 @@ export class AssetService {
 			}
 		}
 
-		const purchaseDate =
-			input.purchaseDate instanceof Date ? input.purchaseDate : new Date();
-		const series = await this.generateAssetSeries(purchaseDate, organizationId);
+		const purchaseDateOnly = normalizeDateOnly(
+			input.purchaseDate ?? businessDate(depreciationTimeZone()),
+		);
+		const purchaseDate = dateOnlyUtc(purchaseDateOnly);
 		const categoryDefaults = await this.getAssetCategoryDefaults(
 			input.assetCategoryId,
 		);
@@ -1578,12 +1618,23 @@ export class AssetService {
 			(categoryDefaults?.expectedValueAfterUsefulLife != null
 				? Number(categoryDefaults.expectedValueAfterUsefulLife)
 				: null);
-		const availableForUseDate =
-			input.availableForUseDate instanceof Date
-				? input.availableForUseDate
-				: null;
+		const availableForUseDate = this.normalizeAssetDateOnly(
+			input.availableForUseDate,
+			"Available for use date",
+		);
+		const insuranceStartDate = this.normalizeAssetDateOnly(
+			input.insuranceStartDate,
+			"Insurance start date",
+		);
+		const insuranceEndDate = this.normalizeAssetDateOnly(
+			input.insuranceEndDate,
+			"Insurance end date",
+		);
 		const depreciationStartDate =
-			input.depreciationStartDate ??
+			this.normalizeAssetDateOnly(
+				input.depreciationStartDate,
+				"Depreciation start date",
+			) ??
 			(availableForUseDate
 				? this.getLastDayOfMonth(availableForUseDate)
 				: null);
@@ -1601,57 +1652,59 @@ export class AssetService {
 			calculateDepreciation,
 		);
 
-		const created = await this.prisma.asset.create({
-			data: {
-				series,
-				assetName: input.assetName,
-				assetType: input.assetType ?? "EXISTING_ASSET",
-				itemCode: input.itemCode ?? "",
-				barcode: input.barcode ?? null,
-				assetCategoryId: input.assetCategoryId ?? null,
-				companyId: company.id,
-				locationId: input.locationId ?? null,
-				custodian: input.custodian ?? null,
-				department: input.department ?? null,
-				purchaseDate,
-				availableForUseDate,
-				netPurchaseAmount: netPurchaseAmount.toString(),
-				assetQuantity: input.assetQuantity ?? 1,
-				calculateDepreciation,
-				openingAccumulatedDepreciation:
-					openingAccumulatedDepreciation.toString(),
-				openingNumberOfBookedDepreciations:
-					input.openingNumberOfBookedDepreciations ?? undefined,
-				isFullyDepreciated:
-					input.isFullyDepreciated ?? valueAfterDepreciation <= 0,
-				valueAfterDepreciation: valueAfterDepreciation.toString(),
-				maintenanceRequired: input.maintenanceRequired ?? false,
-				assetOwner: input.assetOwner ?? "COMPANY",
-				assetOwnerCompany: input.assetOwnerCompany ?? null,
-				supplier: input.supplier ?? null,
-				customer: input.customer ?? null,
-				policyNumber: input.policyNumber ?? null,
-				insurer: input.insurer ?? null,
-				insuredValue: input.insuredValue?.toString() ?? null,
-				insuranceStartDate:
-					input.insuranceStartDate instanceof Date
-						? input.insuranceStartDate
-						: null,
-				insuranceEndDate:
-					input.insuranceEndDate instanceof Date
-						? input.insuranceEndDate
-						: null,
-				depreciationMethod,
-				totalNumberOfDepreciations,
-				frequencyOfDepreciation,
-				expectedValueAfterUsefulLife:
-					expectedValueAfterUsefulLife?.toString() ?? null,
-				depreciationStartDate,
-				purchaseReceipt: input.purchaseReceipt ?? null,
-				purchaseInvoice: input.purchaseInvoice ?? null,
-				status: "DRAFT",
-			},
+		const created = await this.prisma.$transaction(async (tx) => {
+			const series = await this.generateAssetSeries(
+				purchaseDateOnly,
+				organizationId,
+				tx,
+			);
+			return tx.asset.create({
+				data: {
+					series,
+					assetName: input.assetName,
+					assetType: input.assetType ?? "EXISTING_ASSET",
+					itemCode: input.itemCode ?? "",
+					barcode: input.barcode ?? null,
+					assetCategoryId: input.assetCategoryId ?? null,
+					companyId: company.id,
+					locationId: input.locationId ?? null,
+					custodian: input.custodian ?? null,
+					department: input.department ?? null,
+					purchaseDate,
+					availableForUseDate,
+					netPurchaseAmount: netPurchaseAmount.toString(),
+					assetQuantity: input.assetQuantity ?? 1,
+					calculateDepreciation,
+					openingAccumulatedDepreciation:
+						openingAccumulatedDepreciation.toString(),
+					openingNumberOfBookedDepreciations:
+						input.openingNumberOfBookedDepreciations ?? undefined,
+					isFullyDepreciated:
+						input.isFullyDepreciated ?? valueAfterDepreciation <= 0,
+					valueAfterDepreciation: valueAfterDepreciation.toString(),
+					maintenanceRequired: input.maintenanceRequired ?? false,
+					assetOwner: input.assetOwner ?? "COMPANY",
+					assetOwnerCompany: input.assetOwnerCompany ?? null,
+					supplier: input.supplier ?? null,
+					customer: input.customer ?? null,
+					policyNumber: input.policyNumber ?? null,
+					insurer: input.insurer ?? null,
+					insuredValue: input.insuredValue?.toString() ?? null,
+					insuranceStartDate,
+					insuranceEndDate,
+					depreciationMethod,
+					totalNumberOfDepreciations,
+					frequencyOfDepreciation,
+					expectedValueAfterUsefulLife:
+						expectedValueAfterUsefulLife?.toString() ?? null,
+					depreciationStartDate,
+					purchaseReceipt: input.purchaseReceipt ?? null,
+					purchaseInvoice: input.purchaseInvoice ?? null,
+					status: "DRAFT",
+				},
+			});
 		});
+		const series = created.series;
 
 		await this.depreciationLifecycle?.configureAssetBooks(
 			created.id,
@@ -1690,6 +1743,12 @@ export class AssetService {
 				status: true,
 				assetType: true,
 				assetCategoryId: true,
+				purchaseDate: true,
+				availableForUseDate: true,
+				disposalDate: true,
+				insuranceStartDate: true,
+				insuranceEndDate: true,
+				depreciationStartDate: true,
 				netPurchaseAmount: true,
 				openingAccumulatedDepreciation: true,
 				calculateDepreciation: true,
@@ -1820,15 +1879,47 @@ export class AssetService {
 			(input.assetCategoryId !== undefined && categoryDefaults
 				? !categoryDefaults.nonDepreciableCategory
 				: existing.calculateDepreciation);
+		const nextPurchaseDate =
+			input.purchaseDate !== undefined && input.purchaseDate !== null
+				? (this.normalizeAssetDateOnly(input.purchaseDate, "Purchase date") ??
+					existing.purchaseDate)
+				: existing.purchaseDate;
 		const nextAvailableForUseDate =
-			input.availableForUseDate instanceof Date
-				? input.availableForUseDate
-				: null;
+			input.availableForUseDate !== undefined
+				? this.normalizeAssetDateOnly(
+						input.availableForUseDate,
+						"Available for use date",
+					)
+				: existing.availableForUseDate;
 		const nextDepreciationStartDate =
-			input.depreciationStartDate ??
-			(nextAvailableForUseDate
-				? this.getLastDayOfMonth(nextAvailableForUseDate)
-				: null);
+			input.depreciationStartDate !== undefined
+				? this.normalizeAssetDateOnly(
+						input.depreciationStartDate,
+						"Depreciation start date",
+					)
+				: shouldInheritDepreciationStartDate
+					? nextAvailableForUseDate
+						? this.getLastDayOfMonth(nextAvailableForUseDate)
+						: null
+					: existing.depreciationStartDate;
+		const nextDisposalDate =
+			input.disposalDate !== undefined
+				? this.normalizeAssetDateOnly(input.disposalDate, "Disposal date")
+				: undefined;
+		const nextInsuranceStartDate =
+			input.insuranceStartDate !== undefined
+				? this.normalizeAssetDateOnly(
+						input.insuranceStartDate,
+						"Insurance start date",
+					)
+				: undefined;
+		const nextInsuranceEndDate =
+			input.insuranceEndDate !== undefined
+				? this.normalizeAssetDateOnly(
+						input.insuranceEndDate,
+						"Insurance end date",
+					)
+				: undefined;
 		const nextExpectedValueAfterUsefulLife =
 			input.expectedValueAfterUsefulLife ??
 			(shouldInheritExpectedValueAfterUsefulLife &&
@@ -1840,7 +1931,7 @@ export class AssetService {
 			nextNetPurchaseAmount,
 			nextExpectedValueAfterUsefulLife,
 			nextDepreciationStartDate,
-			input.purchaseDate instanceof Date ? input.purchaseDate : new Date(),
+			nextPurchaseDate,
 			nextAvailableForUseDate,
 			input.totalNumberOfDepreciations ?? existing.totalNumberOfDepreciations,
 			input.frequencyOfDepreciation ?? existing.frequencyOfDepreciation,
@@ -1860,9 +1951,9 @@ export class AssetService {
 						itemCode: input.itemCode ?? "",
 					}),
 					...(input.barcode !== undefined && { barcode: input.barcode }),
-					...(input.assetCategoryId !== undefined && {
-						assetCategoryId: input.assetCategoryId,
-					}),
+					...(input.assetCategoryId !== undefined
+						? { assetCategoryId: input.assetCategoryId }
+						: {}),
 					...(input.locationId !== undefined && {
 						locationId: input.locationId,
 					}),
@@ -1870,18 +1961,15 @@ export class AssetService {
 					...(input.department !== undefined && {
 						department: input.department,
 					}),
-					...(input.purchaseDate instanceof Date && {
-						purchaseDate: input.purchaseDate,
-					}),
+					...(input.purchaseDate !== undefined &&
+						input.purchaseDate !== null && {
+							purchaseDate: nextPurchaseDate,
+						}),
 					...(input.availableForUseDate !== undefined && {
-						availableForUseDate:
-							input.availableForUseDate instanceof Date
-								? input.availableForUseDate
-								: null,
+						availableForUseDate: nextAvailableForUseDate,
 					}),
 					...(input.disposalDate !== undefined && {
-						disposalDate:
-							input.disposalDate instanceof Date ? input.disposalDate : null,
+						disposalDate: nextDisposalDate,
 					}),
 					...(input.netPurchaseAmount !== undefined &&
 						input.netPurchaseAmount !== null && {
@@ -1941,16 +2029,10 @@ export class AssetService {
 								: null,
 					}),
 					...(input.insuranceStartDate !== undefined && {
-						insuranceStartDate:
-							input.insuranceStartDate instanceof Date
-								? input.insuranceStartDate
-								: null,
+						insuranceStartDate: nextInsuranceStartDate,
 					}),
 					...(input.insuranceEndDate !== undefined && {
-						insuranceEndDate:
-							input.insuranceEndDate instanceof Date
-								? input.insuranceEndDate
-								: null,
+						insuranceEndDate: nextInsuranceEndDate,
 					}),
 					...(input.depreciationMethod !== undefined && {
 						depreciationMethod: input.depreciationMethod,
@@ -1988,10 +2070,7 @@ export class AssetService {
 							}
 						: {}),
 					...(input.depreciationStartDate !== undefined && {
-						depreciationStartDate:
-							input.depreciationStartDate instanceof Date
-								? input.depreciationStartDate
-								: null,
+						depreciationStartDate: nextDepreciationStartDate,
 					}),
 					...(shouldInheritDepreciationStartDate && nextAvailableForUseDate
 						? {
@@ -2157,16 +2236,15 @@ export class AssetService {
 		organizationId: AssetOrganizationId,
 	): Promise<Asset.AssetActivityReportResult> {
 		this.assertOrganizationScope(organizationId);
-		const fromDate = new Date(input.fromDate);
-		fromDate.setHours(0, 0, 0, 0);
-
-		const toDate = new Date(input.toDate);
-		toDate.setHours(23, 59, 59, 999);
+		const { startInclusive, endExclusive } = dateOnlyUtcRange(
+			input.fromDate,
+			input.toDate,
+		);
 
 		const where: Prisma.AssetActivityWhereInput = {
 			createdAt: {
-				gte: fromDate,
-				lte: toDate,
+				gte: startInclusive,
+				lt: endExclusive,
 			},
 		};
 
@@ -2285,12 +2363,15 @@ export class AssetService {
 		organizationId: AssetOrganizationId,
 	): Promise<Asset.AssetDepreciationLedgerResult> {
 		this.assertOrganizationScope(organizationId);
-		const fromDate = new Date(input.fromDate);
-		fromDate.setHours(0, 0, 0, 0);
-
-		const toDate = new Date(input.toDate);
-		toDate.setHours(23, 59, 59, 999);
-		await this.ensureReportDepreciation(toDate, organizationId, input.company);
+		const reportWindow = dateOnlyUtcRange(input.fromDate, input.toDate);
+		const fromDate = normalizeDateOnly(input.fromDate);
+		const reportToDate = normalizeDateOnly(input.toDate);
+		const endExclusive = addDateOnly(reportToDate, 1);
+		await this.ensureReportDepreciation(
+			reportToDate,
+			organizationId,
+			input.company,
+		);
 
 		const assetWhere: Prisma.AssetWhereInput = {};
 
@@ -2334,7 +2415,7 @@ export class AssetService {
 			assetWhere.valueAdjustments = {
 				some: {
 					status: "SUBMITTED",
-					adjustmentDate: { lte: toDate },
+					adjustmentDate: { lt: reportWindow.endExclusive },
 					costCenter: {
 						contains: input.costCenter,
 						mode: "insensitive",
@@ -2362,7 +2443,7 @@ export class AssetService {
 				valueAdjustments: {
 					where: {
 						status: "SUBMITTED",
-						adjustmentDate: { lte: toDate },
+						adjustmentDate: { lt: reportWindow.endExclusive },
 						...(input.costCenter
 							? {
 									costCenter: {
@@ -2445,13 +2526,15 @@ export class AssetService {
 
 		return buildAssetDepreciationLedgerResult({
 			fromDate,
-			toDate,
+			endExclusive,
 			assets: assets.map((asset) => ({
 				id: asset.id,
 				series: asset.series,
 				assetName: asset.assetName,
 				company: asset.company.name,
-				purchaseDate: asset.purchaseDate ?? null,
+				purchaseDate: asset.purchaseDate
+					? dateOnlyFromPersistedDateTime(asset.purchaseDate)
+					: null,
 				netPurchaseAmount: asset.netPurchaseAmount
 					? Number(asset.netPurchaseAmount)
 					: null,
@@ -2467,15 +2550,16 @@ export class AssetService {
 					series:
 						schedule.adjustment?.series ??
 						`DEP-SCHEDULE-${schedule.revisionNumber}`,
-					adjustmentDate:
-						schedule.adjustment?.adjustmentDate ?? schedule.startDate,
+					adjustmentDate: schedule.adjustment?.adjustmentDate
+						? dateOnlyFromPersistedDateTime(schedule.adjustment.adjustmentDate)
+						: dateOnlyFromPersistedDateTime(schedule.startDate),
 					costCenter: schedule.adjustment?.costCenter ?? null,
 					revaluationEntrySeries:
 						schedule.adjustment?.revaluationEntry?.series ?? null,
 					schedule: {
 						id: schedule.id,
 						revisionNumber: schedule.revisionNumber,
-						startDate: schedule.startDate,
+						startDate: dateOnlyFromPersistedDateTime(schedule.startDate),
 						depreciationMethod:
 							(schedule.depreciationMethod as Asset.DepreciationMethod | null) ??
 							null,
@@ -2485,7 +2569,7 @@ export class AssetService {
 						entries: schedule.entries.map((entry) => ({
 							id: entry.id,
 							sequence: entry.sequence,
-							scheduleDate: entry.scheduleDate,
+							scheduleDate: dateOnlyFromPersistedDateTime(entry.scheduleDate),
 							depreciationAmount: Number(entry.depreciationAmount),
 							accumulatedDepreciationAmount: Number(
 								entry.accumulatedDepreciationAmount,
@@ -2505,16 +2589,19 @@ export class AssetService {
 		organizationId: AssetOrganizationId,
 	): Promise<Asset.AssetDepreciationsAndBalancesResult> {
 		this.assertOrganizationScope(organizationId);
-		const fromDate = new Date(input.fromDate);
-		fromDate.setHours(0, 0, 0, 0);
-
-		const toDate = new Date(input.toDate);
-		toDate.setHours(23, 59, 59, 999);
-		await this.ensureReportDepreciation(toDate, organizationId, input.company);
+		const reportWindow = dateOnlyUtcRange(input.fromDate, input.toDate);
+		const fromDate = normalizeDateOnly(input.fromDate);
+		const reportToDate = normalizeDateOnly(input.toDate);
+		const endExclusive = addDateOnly(reportToDate, 1);
+		await this.ensureReportDepreciation(
+			reportToDate,
+			organizationId,
+			input.company,
+		);
 
 		const assetWhere: Prisma.AssetWhereInput = {
 			purchaseDate: {
-				lte: toDate,
+				lt: reportWindow.endExclusive,
 			},
 		};
 
@@ -2575,7 +2662,7 @@ export class AssetService {
 				valueAdjustments: {
 					where: {
 						status: "SUBMITTED",
-						adjustmentDate: { lte: toDate },
+						adjustmentDate: { lt: reportWindow.endExclusive },
 					},
 					orderBy: [{ adjustmentDate: "asc" }, { createdAt: "asc" }],
 					select: {
@@ -2633,15 +2720,17 @@ export class AssetService {
 
 		return buildAssetDepreciationsAndBalancesResult({
 			fromDate,
-			toDate,
+			endExclusive,
 			groupBy: input.groupBy,
 			assets: assets.map((asset) => ({
 				id: asset.id,
 				series: asset.series,
 				assetName: asset.assetName,
 				company: asset.company.name,
-				purchaseDate: asset.purchaseDate,
-				disposalDate: asset.disposalDate ?? null,
+				purchaseDate: dateOnlyFromPersistedDateTime(asset.purchaseDate),
+				disposalDate: asset.disposalDate
+					? dateOnlyFromPersistedDateTime(asset.disposalDate)
+					: null,
 				netPurchaseAmount: Number(asset.netPurchaseAmount ?? 0),
 				openingAccumulatedDepreciation: Number(
 					asset.openingAccumulatedDepreciation ?? 0,
@@ -2656,25 +2745,27 @@ export class AssetService {
 				adjustments: [
 					...asset.valueAdjustments.map((adjustment) => ({
 						id: adjustment.id,
-						adjustmentDate: adjustment.adjustmentDate,
+						adjustmentDate: dateOnlyFromPersistedDateTime(
+							adjustment.adjustmentDate,
+						),
 						differenceAmount: Number(adjustment.differenceAmount),
 						schedule: null,
 					})),
 					...asset.depreciationSchedules.map((schedule) => ({
 						id: schedule.id,
-						adjustmentDate: schedule.startDate,
+						adjustmentDate: dateOnlyFromPersistedDateTime(schedule.startDate),
 						differenceAmount: 0,
 						schedule: {
 							id: schedule.id,
 							revisionNumber: schedule.revisionNumber,
-							startDate: schedule.startDate,
+							startDate: dateOnlyFromPersistedDateTime(schedule.startDate),
 							openingAccumulatedDepreciation: Number(
 								schedule.openingAccumulatedDepreciation,
 							),
 							entries: schedule.entries.map((entry) => ({
 								id: entry.id,
 								sequence: entry.sequence,
-								scheduleDate: entry.scheduleDate,
+								scheduleDate: dateOnlyFromPersistedDateTime(entry.scheduleDate),
 								depreciationAmount: Number(entry.depreciationAmount),
 								accumulatedDepreciationAmount: Number(
 									entry.accumulatedDepreciationAmount,
@@ -2695,9 +2786,12 @@ export class AssetService {
 		organizationId: AssetOrganizationId,
 	): Promise<Asset.FixedAssetRegisterReportResult> {
 		this.assertOrganizationScope(organizationId);
-		const toDate = new Date(input.toDate);
-		toDate.setHours(23, 59, 59, 999);
-		await this.ensureReportDepreciation(toDate, organizationId, input.company);
+		const reportToDate = normalizeDateOnly(input.toDate);
+		await this.ensureReportDepreciation(
+			reportToDate,
+			organizationId,
+			input.company,
+		);
 
 		const reportService =
 			this.fixedAssetRegisterReportService ??
@@ -2807,38 +2901,52 @@ export class AssetService {
 		input: Asset.CreateAssetValueAdjustmentInput,
 		organizationId: AssetOrganizationId,
 	): Promise<Asset.AssetValueAdjustmentItem> {
-		const asset = await this.getAssetAdjustmentContextOrThrow(
-			input.assetId,
-			organizationId,
-		);
-		const preview = await this.buildAssetValueAdjustmentPreview(asset, input);
-		this.assertAssetValueAdjustmentPreviewIsValid(preview);
-
-		const created = await this.prisma.assetValueAdjustment.create({
-			data: {
-				series: await this.generateAssetValueAdjustmentSeries(
+		const created = await this.prisma.$transaction(async (tx) => {
+			const asset = await this.getAssetAdjustmentContextOrThrow(
+				input.assetId,
+				organizationId,
+				tx,
+			);
+			const normalizedInput = {
+				...input,
+				adjustmentDate: this.parseAssetDateOnly(
 					input.adjustmentDate,
-					organizationId,
-				),
-				assetId: asset.id,
-				financeBookId: preview.financeBookId,
-				assetCategorySnapshot: asset.assetCategory?.name ?? null,
-				adjustmentDate: input.adjustmentDate,
-				currentAssetValue: preview.currentAssetValue.toString(),
-				newAssetValue: preview.newAssetValue.toString(),
-				differenceAmount: preview.differenceAmount.toString(),
-				differenceAccount: input.differenceAccount.trim(),
-				fixedAssetAccount: preview.fixedAssetAccount,
-				costCenter: this.normalizeOptionalText(input.costCenter),
-				notes: this.normalizeOptionalText(input.notes),
-				status: "DRAFT",
-				direction: preview.direction,
-				previousAssetStatus: asset.status,
-				previousIsFullyDepreciated: asset.isFullyDepreciated,
-				previousAssetValueAfterDepreciation:
-					this.resolveCurrentAssetValue(asset).toString(),
-			},
-			include: this.assetAdjustmentInclude,
+					"Adjustment date",
+				) as DateOnly,
+			};
+			const preview = await this.buildAssetValueAdjustmentPreview(
+				asset,
+				normalizedInput,
+			);
+			this.assertAssetValueAdjustmentPreviewIsValid(preview);
+
+			return tx.assetValueAdjustment.create({
+				data: {
+					series: await this.generateAssetValueAdjustmentSeries(
+						normalizedInput.adjustmentDate,
+						organizationId,
+						tx,
+					),
+					assetId: asset.id,
+					financeBookId: preview.financeBookId,
+					assetCategorySnapshot: asset.assetCategory?.name ?? null,
+					adjustmentDate: dateOnlyUtc(normalizedInput.adjustmentDate),
+					currentAssetValue: preview.currentAssetValue.toString(),
+					newAssetValue: preview.newAssetValue.toString(),
+					differenceAmount: preview.differenceAmount.toString(),
+					differenceAccount: input.differenceAccount.trim(),
+					fixedAssetAccount: preview.fixedAssetAccount,
+					costCenter: this.normalizeOptionalText(input.costCenter),
+					notes: this.normalizeOptionalText(input.notes),
+					status: "DRAFT",
+					direction: preview.direction,
+					previousAssetStatus: asset.status,
+					previousIsFullyDepreciated: asset.isFullyDepreciated,
+					previousAssetValueAfterDepreciation:
+						this.resolveCurrentAssetValue(asset).toString(),
+				},
+				include: this.assetAdjustmentInclude,
+			});
 		});
 
 		return toAssetValueAdjustment(created);
@@ -2890,7 +2998,13 @@ export class AssetService {
 			organizationId,
 		);
 		const draftInput = {
-			adjustmentDate: input.adjustmentDate ?? existing.adjustmentDate,
+			adjustmentDate:
+				input.adjustmentDate !== undefined
+					? (this.parseAssetDateOnly(
+							input.adjustmentDate,
+							"Adjustment date",
+						) as DateOnly)
+					: dateOnlyFromPersistedDateTime(existing.adjustmentDate),
 			newAssetValue: input.newAssetValue ?? Number(existing.newAssetValue),
 			financeBookId: requestedFinanceBookId,
 		};
@@ -2904,7 +3018,7 @@ export class AssetService {
 			assetId: asset.id,
 			financeBookId: preview.financeBookId,
 			assetCategorySnapshot: asset.assetCategory?.name ?? null,
-			adjustmentDate: draftInput.adjustmentDate,
+			adjustmentDate: dateOnlyUtc(draftInput.adjustmentDate),
 			currentAssetValue: preview.currentAssetValue.toString(),
 			newAssetValue: preview.newAssetValue.toString(),
 			differenceAmount: preview.differenceAmount.toString(),
@@ -3033,7 +3147,9 @@ export class AssetService {
 			);
 			const preview = await this.buildAssetValueAdjustmentPreview(asset, {
 				financeBookId: adjustment.financeBookId,
-				adjustmentDate: adjustment.adjustmentDate,
+				adjustmentDate: dateOnlyFromPersistedDateTime(
+					adjustment.adjustmentDate,
+				),
 				newAssetValue: Number(adjustment.newAssetValue),
 			});
 			this.assertAssetValueAdjustmentPreviewIsValid(preview);
@@ -3055,7 +3171,7 @@ export class AssetService {
 			});
 			const now = new Date();
 			const entrySeries = await this.generateAssetRevaluationEntrySeries(
-				adjustment.adjustmentDate,
+				dateOnlyFromPersistedDateTime(adjustment.adjustmentDate),
 				organizationId,
 				tx,
 			);
@@ -4254,50 +4370,63 @@ export class AssetService {
 	 */
 	calculateNextDueDate(
 		periodicity: Asset.AssetMaintenancePeriodicity,
-		startDate: Date,
-		endDate: Date | null | undefined,
-		lastCompletionDate: Date | null | undefined,
-	): Date | null {
+		startDate: DateOnly,
+		endDate: DateOnly | null | undefined,
+		lastCompletionDate: DateOnly | null | undefined,
+	): DateOnly | null {
+		const canonicalStartDate = this.parseAssetDateOnly(
+			startDate,
+			"Start date",
+		) as DateOnly;
+		const canonicalEndDate = endDate
+			? (this.parseAssetDateOnly(endDate, "End date") as DateOnly)
+			: null;
+		const canonicalLastCompletionDate = lastCompletionDate
+			? (this.parseAssetDateOnly(
+					lastCompletionDate,
+					"Last completion date",
+				) as DateOnly)
+			: null;
 		const base =
-			lastCompletionDate && lastCompletionDate > startDate
-				? lastCompletionDate
-				: startDate;
+			canonicalLastCompletionDate &&
+			canonicalLastCompletionDate > canonicalStartDate
+				? canonicalLastCompletionDate
+				: canonicalStartDate;
 
-		if (endDate && base >= endDate) return null;
+		if (canonicalEndDate && base >= canonicalEndDate) return null;
 
-		let next: Date;
-		const d = new Date(base);
+		let next: DateOnly;
 
 		switch (periodicity) {
 			case "DAILY":
-				next = new Date(d.setDate(d.getDate() + 1));
+				next = addDateOnly(base, 1);
 				break;
 			case "WEEKLY":
-				next = new Date(d.setDate(d.getDate() + 7));
+				next = addDateOnly(base, 7);
 				break;
 			case "MONTHLY":
-				next = new Date(d.setMonth(d.getMonth() + 1));
+				next = dateOnlyFromPersistedDateTime(addMonthsDateOnly(base, 1));
 				break;
 			case "QUARTERLY":
-				next = new Date(d.setMonth(d.getMonth() + 3));
+				next = dateOnlyFromPersistedDateTime(addMonthsDateOnly(base, 3));
 				break;
 			case "HALF_YEARLY":
-				next = new Date(d.setMonth(d.getMonth() + 6));
+				next = dateOnlyFromPersistedDateTime(addMonthsDateOnly(base, 6));
 				break;
 			case "YEARLY":
-				next = new Date(d.setFullYear(d.getFullYear() + 1));
+				next = dateOnlyFromPersistedDateTime(addMonthsDateOnly(base, 12));
 				break;
 			case "TWO_YEARLY":
-				next = new Date(d.setFullYear(d.getFullYear() + 2));
+				next = dateOnlyFromPersistedDateTime(addMonthsDateOnly(base, 24));
 				break;
 			case "THREE_YEARLY":
-				next = new Date(d.setFullYear(d.getFullYear() + 3));
+				next = dateOnlyFromPersistedDateTime(addMonthsDateOnly(base, 36));
 				break;
 			default:
 				return null;
 		}
 
-		if (endDate && next >= endDate) return null;
+		if (canonicalEndDate && next >= canonicalEndDate) return null;
 		return next;
 	}
 
@@ -4313,6 +4442,38 @@ export class AssetService {
 		maintenanceTeam: { select: { name: true } },
 		tasks: { orderBy: { createdAt: "asc" as const } },
 	};
+
+	private normalizeMaintenanceTaskDates<
+		T extends {
+			startDate: DateOnly;
+			endDate?: DateOnly | null;
+			nextDueDate?: DateOnly | null;
+			lastCompletionDate?: DateOnly | null;
+		},
+	>(task: T): T {
+		return {
+			...task,
+			startDate: this.parseAssetDateOnly(
+				task.startDate,
+				"Start date",
+			) as DateOnly,
+			endDate:
+				task.endDate === undefined
+					? undefined
+					: this.parseAssetDateOnly(task.endDate, "End date"),
+			nextDueDate:
+				task.nextDueDate === undefined
+					? undefined
+					: this.parseAssetDateOnly(task.nextDueDate, "Next due date"),
+			lastCompletionDate:
+				task.lastCompletionDate === undefined
+					? undefined
+					: this.parseAssetDateOnly(
+							task.lastCompletionDate,
+							"Last completion date",
+						),
+		};
+	}
 
 	async findAllAssetMaintenances(
 		organizationId: AssetOrganizationId,
@@ -4699,11 +4860,13 @@ export class AssetService {
 			);
 		}
 
-		const today = new Date();
-		today.setHours(0, 0, 0, 0);
+		const today = businessDate(depreciationTimeZone());
+		const tasks = input.tasks.map((task) =>
+			this.normalizeMaintenanceTaskDates(task),
+		);
 
 		// Validate tasks
-		for (const task of input.tasks) {
+		for (const task of tasks) {
 			if (task.endDate && task.startDate >= task.endDate) {
 				throw new BadRequestException(
 					`Start date must be before end date for task "${task.maintenanceTask}"`,
@@ -4771,7 +4934,7 @@ export class AssetService {
 				},
 			});
 
-			for (const taskInput of input.tasks) {
+			for (const taskInput of tasks) {
 				const nextDueDate =
 					taskInput.nextDueDate ??
 					this.calculateNextDueDate(
@@ -4795,14 +4958,16 @@ export class AssetService {
 						maintenanceTask: taskInput.maintenanceTask,
 						maintenanceType: taskInput.maintenanceType ?? null,
 						maintenanceStatus: status,
-						startDate: taskInput.startDate,
+						startDate: dateOnlyUtc(taskInput.startDate),
 						periodicity: taskInput.periodicity,
-						endDate: taskInput.endDate ?? null,
+						endDate: taskInput.endDate ? dateOnlyUtc(taskInput.endDate) : null,
 						certificateRequired: taskInput.certificateRequired ?? false,
 						assignTo: taskInput.assignTo ?? null,
 						assignToName: taskInput.assignToName ?? null,
-						nextDueDate: nextDueDate ?? null,
-						lastCompletionDate: taskInput.lastCompletionDate ?? null,
+						nextDueDate: nextDueDate ? dateOnlyUtc(nextDueDate) : null,
+						lastCompletionDate: taskInput.lastCompletionDate
+							? dateOnlyUtc(taskInput.lastCompletionDate)
+							: null,
 						description: taskInput.description ?? null,
 					},
 				});
@@ -4921,11 +5086,13 @@ export class AssetService {
 			}
 		}
 
-		const today = new Date();
-		today.setHours(0, 0, 0, 0);
+		const today = businessDate(depreciationTimeZone());
+		const tasks = input.tasks?.map((task) =>
+			this.normalizeMaintenanceTaskDates(task),
+		);
 
-		if (input.tasks) {
-			for (const task of input.tasks) {
+		if (tasks) {
+			for (const task of tasks) {
 				if (task.endDate && task.startDate >= task.endDate) {
 					throw new BadRequestException(
 						`Start date must be before end date for task "${task.maintenanceTask}"`,
@@ -5003,8 +5170,8 @@ export class AssetService {
 				throw new NotFoundException(`Asset maintenance ${input.id} not found`);
 			}
 
-			if (input.tasks !== undefined) {
-				const keptIds = input.tasks
+			if (tasks !== undefined) {
+				const keptIds = tasks
 					.filter((t): t is typeof t & { id: string } => Boolean(t.id))
 					.map((t) => t.id);
 
@@ -5105,7 +5272,7 @@ export class AssetService {
 					});
 				}
 
-				for (const taskInput of input.tasks) {
+				for (const taskInput of tasks) {
 					const nextDueDate =
 						taskInput.nextDueDate ??
 						this.calculateNextDueDate(
@@ -5140,14 +5307,18 @@ export class AssetService {
 								maintenanceTask: taskInput.maintenanceTask,
 								maintenanceType: taskInput.maintenanceType ?? null,
 								maintenanceStatus: status,
-								startDate: taskInput.startDate,
+								startDate: dateOnlyUtc(taskInput.startDate),
 								periodicity: taskInput.periodicity,
-								endDate: taskInput.endDate ?? null,
+								endDate: taskInput.endDate
+									? dateOnlyUtc(taskInput.endDate)
+									: null,
 								certificateRequired: taskInput.certificateRequired ?? false,
 								assignTo: taskInput.assignTo ?? null,
 								assignToName: taskInput.assignToName ?? null,
-								nextDueDate: nextDueDate ?? null,
-								lastCompletionDate: taskInput.lastCompletionDate ?? null,
+								nextDueDate: nextDueDate ? dateOnlyUtc(nextDueDate) : null,
+								lastCompletionDate: taskInput.lastCompletionDate
+									? dateOnlyUtc(taskInput.lastCompletionDate)
+									: null,
 								description: taskInput.description ?? null,
 							},
 						});
@@ -5214,14 +5385,18 @@ export class AssetService {
 								maintenanceTask: taskInput.maintenanceTask,
 								maintenanceType: taskInput.maintenanceType ?? null,
 								maintenanceStatus: status,
-								startDate: taskInput.startDate,
+								startDate: dateOnlyUtc(taskInput.startDate),
 								periodicity: taskInput.periodicity,
-								endDate: taskInput.endDate ?? null,
+								endDate: taskInput.endDate
+									? dateOnlyUtc(taskInput.endDate)
+									: null,
 								certificateRequired: taskInput.certificateRequired ?? false,
 								assignTo: taskInput.assignTo ?? null,
 								assignToName: taskInput.assignToName ?? null,
-								nextDueDate: nextDueDate ?? null,
-								lastCompletionDate: taskInput.lastCompletionDate ?? null,
+								nextDueDate: nextDueDate ? dateOnlyUtc(nextDueDate) : null,
+								lastCompletionDate: taskInput.lastCompletionDate
+									? dateOnlyUtc(taskInput.lastCompletionDate)
+									: null,
 								description: taskInput.description ?? null,
 							},
 						});
@@ -5376,6 +5551,11 @@ export class AssetService {
 		actorId?: string | null,
 	): Promise<Asset.AssetMaintenanceLogItem> {
 		this.assertOrganizationScope(organizationId);
+		const completionDateOnly = this.parseAssetDateOnly(
+			input.completionDate,
+			"Completion date",
+		) as DateOnly;
+		const completionDate = dateOnlyUtc(completionDateOnly);
 		const log = await this.prisma.assetMaintenanceLog.findFirst({
 			where: {
 				id: input.logId,
@@ -5449,7 +5629,7 @@ export class AssetService {
 				},
 				data: {
 					maintenanceStatus: "COMPLETED",
-					completionDate: input.completionDate,
+					completionDate,
 					actionsPerformed: input.actionsPerformed ?? null,
 					hasCertificate: input.hasCertificate ?? false,
 					certificateAttachment: input.certificateAttachment ?? null,
@@ -5479,9 +5659,9 @@ export class AssetService {
 
 			const newNextDueDate = this.calculateNextDueDate(
 				task.periodicity as Asset.AssetMaintenancePeriodicity,
-				task.startDate,
-				task.endDate ?? null,
-				input.completionDate,
+				dateOnlyFromPersistedDateTime(task.startDate),
+				task.endDate ? dateOnlyFromPersistedDateTime(task.endDate) : null,
+				completionDateOnly,
 			);
 
 			const taskTransition = await tx.assetMaintenanceTask.updateMany({
@@ -5495,8 +5675,8 @@ export class AssetService {
 					},
 				},
 				data: {
-					lastCompletionDate: input.completionDate,
-					nextDueDate: newNextDueDate ?? null,
+					lastCompletionDate: completionDate,
+					nextDueDate: newNextDueDate ? dateOnlyUtc(newNextDueDate) : null,
 					maintenanceStatus: newNextDueDate ? "PLANNED" : "CANCELLED",
 				},
 			});
@@ -5508,8 +5688,7 @@ export class AssetService {
 
 			// Create next open log if there is a next due date
 			if (newNextDueDate) {
-				const today = new Date();
-				today.setHours(0, 0, 0, 0);
+				const today = businessDate(depreciationTimeZone());
 				await tx.assetMaintenanceLog.create({
 					data: {
 						maintenanceId: currentLog.maintenanceId,
@@ -5570,7 +5749,7 @@ export class AssetService {
 		return this.postAssetDisposal({
 			assetId: input.assetId,
 			organizationId,
-			disposalDate: input.disposalDate,
+			disposalDate: dateOnlyUtc(normalizeDateOnly(input.disposalDate)),
 			disposalType: "SCRAP",
 			salesAmount: 0,
 			gainLossAccount: input.gainLossAccount,
@@ -5595,7 +5774,7 @@ export class AssetService {
 		return this.postAssetDisposal({
 			assetId: input.assetId,
 			organizationId,
-			disposalDate: input.disposalDate,
+			disposalDate: dateOnlyUtc(normalizeDateOnly(input.disposalDate)),
 			disposalType: "SELL",
 			salesAmount: input.salesAmount,
 			proceedsAccount: input.proceedsAccount,
@@ -5663,7 +5842,10 @@ export class AssetService {
 			}
 			const firstOperationalDate =
 				asset.availableForUseDate ?? asset.purchaseDate;
-			if (dateOnlyUtc(input.disposalDate) < dateOnlyUtc(firstOperationalDate)) {
+			if (
+				dateOnlyUtc(dateOnlyFromPersistedDateTime(input.disposalDate)) <
+				dateOnlyUtc(dateOnlyFromPersistedDateTime(firstOperationalDate))
+			) {
 				throw new BadRequestException(
 					"Disposal date cannot be before the asset's purchase or available-for-use date.",
 				);
@@ -5672,7 +5854,12 @@ export class AssetService {
 				where: {
 					assetId: asset.id,
 					status: "POSTED",
-					postingDate: { gt: input.disposalDate },
+					postingDate: {
+						gte: addDateOnlyUtc(
+							dateOnlyFromPersistedDateTime(input.disposalDate),
+							1,
+						),
+					},
 					asset: { is: assetWhereForOrganization(input.organizationId) },
 				},
 			});
@@ -5716,7 +5903,7 @@ export class AssetService {
 			const salesAmount = this.roundCurrency(input.salesAmount);
 			const gainLossAmount = this.roundCurrency(salesAmount - carryingValue);
 			const series = await this.generateAssetDisposalSeries(
-				input.disposalDate,
+				dateOnlyFromPersistedDateTime(input.disposalDate),
 				input.organizationId,
 				tx,
 			);
@@ -5794,7 +5981,7 @@ export class AssetService {
 						assetId: asset.id,
 						sourceType: "DISPOSAL",
 						sourceId: created.id,
-						postingDate: input.disposalDate,
+						postingDate: dateOnlyFromPersistedDateTime(input.disposalDate),
 						remarks: `Asset ${asset.series} ${input.disposalType === "SELL" ? "sold" : "scrapped"} via ${series}`,
 						lines,
 					},
@@ -5986,6 +6173,10 @@ export class AssetService {
 		actorId?: string | null,
 	): Promise<Asset.AssetMovement> {
 		this.assertOrganizationScope(organizationId);
+		const transactionDate = this.normalizeAssetDateOnly(
+			input.transactionDate,
+			"Transaction date",
+		) as Date;
 		await this.resolveCompanyForOrganization(organizationId, input.companyId);
 		const assetIds = input.items.map((item) => item.assetId);
 		if (new Set(assetIds).size !== assetIds.length) {
@@ -6058,7 +6249,8 @@ export class AssetService {
 				});
 				if (
 					previousMovement &&
-					input.transactionDate < previousMovement.transactionDate
+					dateOnlyFromPersistedDateTime(transactionDate) <
+						dateOnlyFromPersistedDateTime(previousMovement.transactionDate)
 				) {
 					throw new BadRequestException(
 						"Transaction date cannot be earlier than the latest submitted movement for this asset.",
@@ -6138,7 +6330,7 @@ export class AssetService {
 			}
 
 			const series = await this.generateAssetMovementSeries(
-				input.transactionDate,
+				dateOnlyFromPersistedDateTime(transactionDate),
 				organizationId,
 				tx,
 			);
@@ -6146,7 +6338,7 @@ export class AssetService {
 				data: {
 					series,
 					companyId: input.companyId,
-					transactionDate: input.transactionDate,
+					transactionDate,
 					purpose: input.purpose,
 					status: "DRAFT",
 					notes: input.notes ?? null,
@@ -6294,7 +6486,8 @@ export class AssetService {
 				});
 				if (
 					latestMovement &&
-					currentMovement.transactionDate < latestMovement.transactionDate
+					dateOnlyFromPersistedDateTime(currentMovement.transactionDate) <
+						dateOnlyFromPersistedDateTime(latestMovement.transactionDate)
 				) {
 					throw new BadRequestException(
 						"Transaction date cannot be earlier than the latest submitted movement for this asset.",
@@ -6578,11 +6771,21 @@ export class AssetService {
 		actorId?: string,
 	): Promise<Asset.AssetRepair> {
 		this.assertOrganizationScope(organizationId);
+		const failureDate = this.normalizeAssetDateOnly(
+			input.failureDate,
+			"Failure date",
+		) as Date;
+		const completionDate = input.completionDate
+			? (this.normalizeAssetDateOnly(
+					input.completionDate,
+					"Completion date",
+				) as Date)
+			: null;
 		await this.resolveCompanyForOrganization(organizationId, input.companyId);
-		this.assertValidOperationalDate(input.failureDate, "Failure date");
-		if (input.completionDate) {
-			this.assertValidOperationalDate(input.completionDate, "Completion date");
-			if (dateOnlyUtc(input.completionDate) < dateOnlyUtc(input.failureDate)) {
+		this.assertValidOperationalDate(failureDate, "Failure date");
+		if (completionDate) {
+			this.assertValidOperationalDate(completionDate, "Completion date");
+			if (completionDate < failureDate) {
 				throw new BadRequestException(
 					"Completion date cannot be before the failure date.",
 				);
@@ -6664,7 +6867,10 @@ export class AssetService {
 					`Asset ${asset.series} does not belong to company ${input.companyId}.`,
 				);
 			}
-			if (dateOnlyUtc(input.failureDate) < dateOnlyUtc(asset.purchaseDate)) {
+			if (
+				failureDate <
+				dateOnlyUtc(dateOnlyFromPersistedDateTime(asset.purchaseDate))
+			) {
 				throw new BadRequestException(
 					"Failure date cannot be before the asset purchase date.",
 				);
@@ -6717,7 +6923,7 @@ export class AssetService {
 				}
 			}
 			const series = await this.generateAssetRepairSeries(
-				input.failureDate,
+				dateOnlyFromPersistedDateTime(failureDate),
 				organizationId,
 				tx,
 			);
@@ -6726,8 +6932,8 @@ export class AssetService {
 					series,
 					assetId: input.assetId,
 					companyId: input.companyId,
-					failureDate: input.failureDate,
-					completionDate: input.completionDate ?? null,
+					failureDate,
+					completionDate,
 					repairStatus: "PENDING",
 					repairCost: totalRepairCost,
 					capitalizeRepairCost: input.capitalizeRepairCost ?? false,
@@ -6787,7 +6993,10 @@ export class AssetService {
 		const completionDate =
 			repair.completionDate ??
 			dateOnlyUtc(businessDate(depreciationTimeZone()));
-		if (dateOnlyUtc(completionDate) < dateOnlyUtc(repair.failureDate)) {
+		if (
+			dateOnlyUtc(dateOnlyFromPersistedDateTime(completionDate)) <
+			dateOnlyUtc(dateOnlyFromPersistedDateTime(repair.failureDate))
+		) {
 			throw new BadRequestException(
 				"Completion date cannot be before the failure date.",
 			);
@@ -6796,7 +7005,7 @@ export class AssetService {
 			await this.depreciationBarrier?.ensureDepreciationPosted({
 				kind: "organization",
 				organizationId,
-				throughDate: completionDate,
+				throughDate: dateOnlyFromPersistedDateTime(completionDate),
 				assetIds: [repair.assetId],
 			});
 		}
@@ -6853,7 +7062,7 @@ export class AssetService {
 					organizationId,
 					{
 						companyId: currentRepair.companyId,
-						postingDate: completionDate,
+						postingDate: dateOnlyFromPersistedDateTime(completionDate),
 						sourceType: "ASSET_REPAIR",
 						sourceId: currentRepair.id,
 						lines: currentRepair.consumedItems.map((item) => ({
@@ -6898,7 +7107,7 @@ export class AssetService {
 						assetId: asset.id,
 						sourceType: "REPAIR",
 						sourceId: currentRepair.id,
-						postingDate: completionDate,
+						postingDate: dateOnlyFromPersistedDateTime(completionDate),
 						remarks: `Capitalized repair ${currentRepair.series} for ${asset.series}`,
 						lines: [
 							{
@@ -7330,8 +7539,12 @@ export class AssetService {
 		actorId?: string | null,
 	): Promise<Asset.AssetCapitalization> {
 		this.assertOrganizationScope(organizationId);
+		const postingDate = this.normalizeAssetDateOnly(
+			input.postingDate,
+			"Posting date",
+		) as Date;
 		await this.resolveCompanyForOrganization(organizationId, input.companyId);
-		this.assertValidOperationalDate(input.postingDate, "Posting date");
+		this.assertValidOperationalDate(postingDate, "Posting date");
 		if (
 			(input.stockItems?.length ?? 0) === 0 &&
 			(input.assetItems?.length ?? 0) === 0 &&
@@ -7478,7 +7691,7 @@ export class AssetService {
 					!item ||
 					!item.isFixedAsset ||
 					item.disabled ||
-					(item.endOfLife && item.endOfLife < input.postingDate)
+					(item.endOfLife && item.endOfLife < postingDate)
 				) {
 					throw new BadRequestException(
 						`Target item ${input.targetItemCode} must be an active fixed-asset item.`,
@@ -7524,7 +7737,10 @@ export class AssetService {
 				}
 				const operationalDate =
 					source.availableForUseDate ?? source.purchaseDate;
-				if (dateOnlyUtc(input.postingDate) < dateOnlyUtc(operationalDate)) {
+				if (
+					postingDate <
+					dateOnlyUtc(dateOnlyFromPersistedDateTime(operationalDate))
+				) {
 					throw new BadRequestException(
 						`Posting date cannot be before source asset ${source.series} became available.`,
 					);
@@ -7545,7 +7761,7 @@ export class AssetService {
 				);
 			}
 			const series = await this.generateAssetCapitalizationSeries(
-				input.postingDate,
+				dateOnlyFromPersistedDateTime(postingDate),
 				organizationId,
 				tx,
 			);
@@ -7553,7 +7769,7 @@ export class AssetService {
 				data: {
 					series,
 					companyId: input.companyId,
-					postingDate: input.postingDate,
+					postingDate,
 					targetType: input.targetType,
 					targetAssetId: input.targetAssetId ?? null,
 					targetAssetName: resolvedTargetName,
@@ -7708,7 +7924,12 @@ export class AssetService {
 				assetId: { in: [...sourceAssetIds] },
 				asset: { is: assetWhereForOrganization(organizationId) },
 				status: "POSTED",
-				postingDate: { gt: cap.postingDate },
+				postingDate: {
+					gte: addDateOnlyUtc(
+						dateOnlyFromPersistedDateTime(cap.postingDate),
+						1,
+					),
+				},
 			},
 		});
 		if (laterDepreciation > 0) {
@@ -7796,7 +8017,7 @@ export class AssetService {
 				);
 			}
 			const targetSeries = await this.generateAssetSeries(
-				cap.postingDate,
+				dateOnlyFromPersistedDateTime(cap.postingDate),
 				organizationId,
 				tx,
 			);
@@ -7849,7 +8070,7 @@ export class AssetService {
 				organizationId,
 				{
 					companyId: cap.companyId,
-					postingDate: cap.postingDate,
+					postingDate: dateOnlyFromPersistedDateTime(cap.postingDate),
 					sourceType: "ASSET_CAPITALIZATION",
 					sourceId: cap.id,
 					lines: cap.stockItems.map((item) => ({
@@ -8007,7 +8228,7 @@ export class AssetService {
 			assetId: target.id,
 			sourceType: "CAPITALIZATION",
 			sourceId: cap.id,
-			postingDate: cap.postingDate,
+			postingDate: dateOnlyFromPersistedDateTime(cap.postingDate),
 			remarks: `Capitalization ${cap.series} into ${target.series}`,
 			lines: accountingLines,
 		});
@@ -8213,8 +8434,10 @@ export class AssetService {
 				!snapshot?.previousStatus ||
 				source.status !== "CAPITALIZED" ||
 				!source.disposalDate ||
-				dateOnlyUtc(source.disposalDate).getTime() !==
-					dateOnlyUtc(cap.postingDate).getTime()
+				dateOnlyUtc(
+					dateOnlyFromPersistedDateTime(source.disposalDate),
+				).getTime() !==
+					dateOnlyUtc(dateOnlyFromPersistedDateTime(cap.postingDate)).getTime()
 			) {
 				throw new ConflictException(
 					`Source asset ${source.series} changed after capitalization ${cap.series}.`,

@@ -1,4 +1,10 @@
 import type { Asset } from "@aria/types";
+import {
+	addMonthsDateOnly,
+	dateOnlyFromPersistedDateTime,
+	normalizeDateOnly,
+} from "@aria/types";
+import { formatAssetDate, todayDateInputValue } from "@/lib/asset-date-only";
 
 export type AssetDepreciationLedgerFilterState = {
 	company: string;
@@ -23,18 +29,6 @@ const DEPRECIATION_METHOD_LABELS: Record<Asset.DepreciationMethod, string> = {
 	MANUAL: "Manual",
 };
 
-function toDateInputValue(date: Date): string {
-	const year = date.getFullYear();
-	const month = String(date.getMonth() + 1).padStart(2, "0");
-	const day = String(date.getDate()).padStart(2, "0");
-
-	return `${year}-${month}-${day}`;
-}
-
-function parseDateField(value: string, endOfDay = false): Date {
-	return new Date(`${value}T${endOfDay ? "23:59:59.999" : "00:00:00.000"}Z`);
-}
-
 function titleCaseSegments(value: string): string {
 	return value
 		.toLowerCase()
@@ -45,22 +39,21 @@ function titleCaseSegments(value: string): string {
 }
 
 export function getDefaultFromDate(): string {
-	const date = new Date();
-	date.setMonth(date.getMonth() - 1);
-
-	return toDateInputValue(date);
+	return dateOnlyFromPersistedDateTime(
+		addMonthsDateOnly(todayDateInputValue(), -1),
+	);
 }
 
 export function getDefaultToDate(): string {
-	return toDateInputValue(new Date());
+	return todayDateInputValue();
 }
 
 export function buildAssetDepreciationLedgerInput(
 	filters: AssetDepreciationLedgerFilterState,
 ): Asset.ListAssetDepreciationLedgerInput {
 	return {
-		fromDate: parseDateField(filters.fromDate),
-		toDate: parseDateField(filters.toDate, true),
+		fromDate: normalizeDateOnly(filters.fromDate),
+		toDate: normalizeDateOnly(filters.toDate),
 		company: filters.company.trim() || undefined,
 		asset: filters.asset.trim() || undefined,
 		assetCategory: filters.assetCategory.trim() || undefined,
@@ -75,15 +68,14 @@ export function getDateRangeError(
 		return "From date and to date are required.";
 	}
 
-	const fromDate = parseDateField(filters.fromDate);
-	const toDate = parseDateField(filters.toDate, true);
-
-	if (Number.isNaN(fromDate.getTime()) || Number.isNaN(toDate.getTime())) {
+	try {
+		const fromDate = normalizeDateOnly(filters.fromDate);
+		const toDate = normalizeDateOnly(filters.toDate);
+		if (fromDate > toDate) {
+			return "From date must be on or before to date.";
+		}
+	} catch {
 		return "Enter a valid date range.";
-	}
-
-	if (fromDate.getTime() > toDate.getTime()) {
-		return "From date must be on or before to date.";
 	}
 
 	return null;
@@ -102,16 +94,11 @@ export function formatDate(value: Date | string | null | undefined): string {
 		return "-";
 	}
 
-	const date = value instanceof Date ? value : new Date(value);
-	if (Number.isNaN(date.getTime())) {
+	try {
+		return formatAssetDate(value);
+	} catch {
 		return "-";
 	}
-
-	return date.toLocaleDateString("en-IN", {
-		year: "numeric",
-		month: "short",
-		day: "2-digit",
-	});
 }
 
 export function formatDepreciationMethod(

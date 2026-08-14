@@ -45,6 +45,7 @@ services:
       target: runner
       args:
         - NODE_ENV=production
+        - APP_TIME_ZONE=${APP_TIME_ZONE:?APP_TIME_ZONE is required}
         # Empty NEXT_PUBLIC_API_URL = same-origin requests via reverse proxy
         - NEXT_PUBLIC_API_URL=
     image: aria-frontend:${VERSION:-latest}

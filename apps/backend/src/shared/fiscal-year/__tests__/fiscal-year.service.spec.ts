@@ -46,8 +46,8 @@ describe("FiscalYearService", () => {
 		const result = await service.getFiscalYear(new Date("2024-07-15"));
 
 		expect(result?.year).toBe("2024-25");
-		expect(result?.yearStartDate).toEqual(new Date(2024, 3, 1));
-		expect(result?.yearEndDate).toEqual(new Date(2025, 2, 31));
+		expect(result?.yearStartDate).toEqual(new Date("2024-04-01T00:00:00.000Z"));
+		expect(result?.yearEndDate).toEqual(new Date("2025-03-31T00:00:00.000Z"));
 	});
 
 	it("getFiscalYear returns default India FY for January date", async () => {
@@ -58,8 +58,21 @@ describe("FiscalYearService", () => {
 		const result = await service.getFiscalYear(new Date("2025-01-15"));
 
 		expect(result?.year).toBe("2024-25");
-		expect(result?.yearStartDate).toEqual(new Date(2024, 3, 1));
-		expect(result?.yearEndDate).toEqual(new Date(2025, 2, 31));
+		expect(result?.yearStartDate).toEqual(new Date("2024-04-01T00:00:00.000Z"));
+		expect(result?.yearEndDate).toEqual(new Date("2025-03-31T00:00:00.000Z"));
+	});
+
+	it("keeps an April 1 date in the correct fiscal year across host timezones", async () => {
+		const mockPrisma = createMockPrisma();
+		const service = new FiscalYearService(mockPrisma as never);
+		mockPrisma.fiscalYear.findFirst = jest.fn().mockResolvedValue(null);
+
+		const result = await service.getFiscalYear(
+			new Date("2026-04-01T00:00:00.000Z"),
+		);
+
+		expect(result?.year).toBe("2026-27");
+		expect(result?.yearStartDate).toEqual(new Date("2026-04-01T00:00:00.000Z"));
 	});
 
 	it("detectFiscalYearChange returns changed=true for first schedule (null previous)", async () => {
@@ -72,13 +85,15 @@ describe("FiscalYearService", () => {
 		);
 
 		expect(result.changed).toBe(true);
-		expect(result.newFiscalYearEndDate).toEqual(new Date(2025, 2, 31));
+		expect(result.newFiscalYearEndDate).toEqual(
+			new Date("2025-03-31T00:00:00.000Z"),
+		);
 	});
 
 	it("detectFiscalYearChange returns changed=false when schedule date is within current FY", async () => {
 		const mockPrisma = createMockPrisma();
 		const service = new FiscalYearService(mockPrisma as never);
-		const currentFYEnd = new Date(2025, 2, 31);
+		const currentFYEnd = new Date("2025-03-31T00:00:00.000Z");
 
 		const result = await service.detectFiscalYearChange(
 			new Date("2024-07-15"),
@@ -92,7 +107,7 @@ describe("FiscalYearService", () => {
 	it("detectFiscalYearChange returns changed=true when schedule date exceeds current FY end", async () => {
 		const mockPrisma = createMockPrisma();
 		const service = new FiscalYearService(mockPrisma as never);
-		const currentFYEnd = new Date(2025, 2, 31);
+		const currentFYEnd = new Date("2025-03-31T00:00:00.000Z");
 
 		const result = await service.detectFiscalYearChange(
 			new Date("2025-04-15"),
@@ -100,6 +115,8 @@ describe("FiscalYearService", () => {
 		);
 
 		expect(result.changed).toBe(true);
-		expect(result.newFiscalYearEndDate).toEqual(new Date(2026, 2, 31));
+		expect(result.newFiscalYearEndDate).toEqual(
+			new Date("2026-03-31T00:00:00.000Z"),
+		);
 	});
 });

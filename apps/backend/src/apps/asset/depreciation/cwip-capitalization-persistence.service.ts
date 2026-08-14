@@ -6,7 +6,7 @@ import type {
 	CwipCapitalizationJobData,
 	CwipCapitalizationJobResult,
 } from "./cwip-capitalization.types";
-import { normalizeDateOnly } from "./depreciation.config";
+import { dateOnlyFromPersistedDateTime } from "./depreciation.config";
 
 interface CwipWorkerAsset {
 	id: string;
@@ -153,7 +153,9 @@ export class CwipCapitalizationPersistenceService {
 						assetId: asset.id,
 						sourceType: "CWIP_CAPITALIZATION",
 						sourceId: asset.id,
-						postingDate: asset.availableForUseDate as Date,
+						postingDate: dateOnlyFromPersistedDateTime(
+							asset.availableForUseDate as Date,
+						),
 						remarks: `CWIP capitalization for ${asset.series}`,
 						lines: [
 							{
@@ -216,7 +218,8 @@ export class CwipCapitalizationPersistenceService {
 			return `Asset ${asset.series} no longer has an available-for-use date`;
 		}
 		if (
-			normalizeDateOnly(asset.availableForUseDate) !== job.availableForUseDate
+			dateOnlyFromPersistedDateTime(asset.availableForUseDate) !==
+			job.availableForUseDate
 		) {
 			return `Asset ${asset.series} available-for-use date changed after discovery`;
 		}

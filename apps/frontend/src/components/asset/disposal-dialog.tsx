@@ -30,6 +30,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import { dateInputValue, todayDateInputValue } from "@/lib/asset-date-only";
 import { getToastMessage } from "@/lib/errors";
 import { trpc } from "@/lib/trpc";
 
@@ -82,7 +83,7 @@ export function AssetDisposalDialog({
 		) as Resolver<Asset.ScrapAssetInput>,
 		defaultValues: {
 			assetId: asset.id,
-			disposalDate: new Date(),
+			disposalDate: todayDateInputValue(),
 			gainLossAccount: "",
 			costCenter: "",
 			notes: "",
@@ -95,7 +96,7 @@ export function AssetDisposalDialog({
 		) as Resolver<Asset.SellAssetInput>,
 		defaultValues: {
 			assetId: asset.id,
-			disposalDate: new Date(),
+			disposalDate: todayDateInputValue(),
 			salesAmount: 0,
 			proceedsAccount: "",
 			gainLossAccount: "",
@@ -188,12 +189,8 @@ export function AssetDisposalDialog({
 										<FormControl>
 											<Input
 												type="date"
-												value={field.value.toISOString().slice(0, 10)}
-												onChange={(event) =>
-													field.onChange(
-														new Date(`${event.target.value}T00:00:00`),
-													)
-												}
+												value={dateInputValue(field.value)}
+												onChange={(event) => field.onChange(event.target.value)}
 											/>
 										</FormControl>
 										<FormMessage />
@@ -292,12 +289,8 @@ export function AssetDisposalDialog({
 										<FormControl>
 											<Input
 												type="date"
-												value={field.value.toISOString().slice(0, 10)}
-												onChange={(event) =>
-													field.onChange(
-														new Date(`${event.target.value}T00:00:00`),
-													)
-												}
+												value={dateInputValue(field.value)}
+												onChange={(event) => field.onChange(event.target.value)}
 											/>
 										</FormControl>
 										<FormMessage />

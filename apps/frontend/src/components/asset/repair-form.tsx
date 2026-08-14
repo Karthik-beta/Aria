@@ -38,6 +38,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import { dateInputValue, todayDateInputValue } from "@/lib/asset-date-only";
 import { getToastMessage } from "@/lib/errors";
 import { trpc } from "@/lib/trpc";
 
@@ -46,10 +47,6 @@ type RepairDialogProps = {
 	onOpenChange: (open: boolean) => void;
 	onSuccess?: () => void;
 };
-
-function dateInputValue(value: Date | null | undefined): string {
-	return value ? value.toISOString().slice(0, 10) : "";
-}
 
 /** Records the complete repair cost inputs supported by the current API contract. */
 export function AssetRepairDialog({
@@ -70,7 +67,7 @@ export function AssetRepairDialog({
 		defaultValues: {
 			assetId: "",
 			companyId: "",
-			failureDate: new Date(),
+			failureDate: todayDateInputValue(),
 			completionDate: null,
 			capitalizeRepairCost: false,
 			increaseInAssetLife: 0,
@@ -179,11 +176,7 @@ export function AssetRepairDialog({
 										<Input
 											type="date"
 											value={dateInputValue(field.value)}
-											onChange={(event) =>
-												field.onChange(
-													new Date(`${event.target.value}T00:00:00`),
-												)
-											}
+											onChange={(event) => field.onChange(event.target.value)}
 										/>
 									</FormControl>
 									<FormMessage />
@@ -222,11 +215,7 @@ export function AssetRepairDialog({
 											type="date"
 											value={dateInputValue(field.value)}
 											onChange={(event) =>
-												field.onChange(
-													event.target.value
-														? new Date(`${event.target.value}T00:00:00`)
-														: null,
-												)
+												field.onChange(event.target.value || null)
 											}
 										/>
 									</FormControl>

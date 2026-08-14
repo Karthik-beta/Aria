@@ -642,7 +642,7 @@ describe("Asset lifecycle actions", () => {
 			const result = await service.sellAsset(
 				{
 					assetId: "asset-1",
-					disposalDate,
+					disposalDate: "2026-01-15",
 					salesAmount: 8_500,
 					proceedsAccount: PROCEEDS_ACCOUNT,
 					gainLossAccount: GAIN_LOSS_ACCOUNT,
@@ -672,7 +672,7 @@ describe("Asset lifecycle actions", () => {
 					companyId: COMPANY_ID,
 					assetId: "asset-1",
 					sourceType: "DISPOSAL",
-					postingDate: disposalDate,
+					postingDate: "2026-01-15",
 					lines: [
 						{
 							account: FIXED_ASSET_ACCOUNT,
@@ -737,7 +737,7 @@ describe("Asset lifecycle actions", () => {
 			await service.scrapAsset(
 				{
 					assetId: "asset-1",
-					disposalDate: new Date("2026-01-15T00:00:00.000Z"),
+					disposalDate: "2026-01-15",
 					gainLossAccount: GAIN_LOSS_ACCOUNT,
 					costCenter: COST_CENTER,
 				},
@@ -760,7 +760,7 @@ describe("Asset lifecycle actions", () => {
 				service.scrapAsset(
 					{
 						assetId: "asset-1",
-						disposalDate: new Date("2100-01-01T00:00:00.000Z"),
+						disposalDate: "2100-01-01",
 						gainLossAccount: GAIN_LOSS_ACCOUNT,
 					},
 					"org-1",
@@ -781,7 +781,7 @@ describe("Asset lifecycle actions", () => {
 				service.scrapAsset(
 					{
 						assetId: "asset-1",
-						disposalDate: new Date("2026-01-15T00:00:00.000Z"),
+						disposalDate: "2026-01-15",
 						gainLossAccount: GAIN_LOSS_ACCOUNT,
 					},
 					"org-1",
@@ -803,7 +803,7 @@ describe("Asset lifecycle actions", () => {
 				first.service.scrapAsset(
 					{
 						assetId: "asset-1",
-						disposalDate: new Date("2026-02-01T00:00:00.000Z"),
+						disposalDate: "2026-02-01",
 						gainLossAccount: GAIN_LOSS_ACCOUNT,
 					},
 					"org-1",
@@ -821,7 +821,7 @@ describe("Asset lifecycle actions", () => {
 				second.service.scrapAsset(
 					{
 						assetId: "asset-1",
-						disposalDate: new Date("2026-02-01T00:00:00.000Z"),
+						disposalDate: "2026-02-01",
 						gainLossAccount: GAIN_LOSS_ACCOUNT,
 					},
 					"org-1",
@@ -953,7 +953,7 @@ describe("Asset lifecycle actions", () => {
 			await service.createAssetMovement(
 				{
 					companyId: COMPANY_ID,
-					transactionDate: new Date("2026-01-01T00:00:00.000Z"),
+					transactionDate: "2026-01-01",
 					purpose: "ISSUE",
 					items: [
 						{ assetId: "asset-b", toEmployee: "Employee B" },
@@ -976,7 +976,7 @@ describe("Asset lifecycle actions", () => {
 				service.createAssetMovement(
 					{
 						companyId: COMPANY_ID,
-						transactionDate: new Date("2026-01-01T00:00:00.000Z"),
+						transactionDate: "2026-01-01",
 						purpose: "TRANSFER",
 						items: [
 							{ assetId: "asset-1", targetLocationId: "loc-2" },
@@ -1004,7 +1004,7 @@ describe("Asset lifecycle actions", () => {
 				service.createAssetMovement(
 					{
 						companyId: COMPANY_ID,
-						transactionDate: new Date("2026-01-01T00:00:00.000Z"),
+						transactionDate: "2026-01-01",
 						purpose: "TRANSFER",
 						items: [{ assetId: "asset-1", targetLocationId: "loc-2" }],
 					},
@@ -1032,7 +1032,7 @@ describe("Asset lifecycle actions", () => {
 				service.createAssetMovement(
 					{
 						companyId: COMPANY_ID,
-						transactionDate: new Date("2026-01-01T00:00:00.000Z"),
+						transactionDate: "2026-01-01",
 						purpose: "TRANSFER",
 						items: [{ assetId: "asset-1", targetLocationId: "loc-2" }],
 					},
@@ -1048,6 +1048,7 @@ describe("Asset lifecycle actions", () => {
 				series: "MOV-2026-00001",
 				companyId: COMPANY_ID,
 				company: COMPANY_RELATION,
+				transactionDate: new Date("2026-01-01T00:00:00.000Z"),
 				status: "DRAFT",
 				items: [],
 			});
@@ -1067,6 +1068,7 @@ describe("Asset lifecycle actions", () => {
 				series: "MOV-2026-00001",
 				companyId: COMPANY_ID,
 				company: COMPANY_RELATION,
+				transactionDate: new Date("2026-01-01T00:00:00.000Z"),
 				status: "DRAFT",
 				items: [
 					{
@@ -1337,6 +1339,7 @@ describe("Asset lifecycle actions", () => {
 				series: "MOV-2026-00001",
 				companyId: COMPANY_ID,
 				company: COMPANY_RELATION,
+				transactionDate: new Date("2026-01-01T00:00:00.000Z"),
 				status: "DRAFT",
 				items: [
 					{
@@ -1376,8 +1379,8 @@ describe("Asset lifecycle actions", () => {
 				{
 					assetId: "asset-1",
 					companyId: COMPANY_ID,
-					failureDate: new Date("2026-02-01T00:00:00.000Z"),
-					completionDate: new Date("2026-02-15T00:00:00.000Z"),
+					failureDate: "2026-02-01",
+					completionDate: "2026-02-15",
 					capitalizeRepairCost: true,
 					increaseInAssetLife: 2,
 					consumedItems: [
@@ -1429,7 +1432,7 @@ describe("Asset lifecycle actions", () => {
 					{
 						assetId: "asset-1",
 						companyId: COMPANY_ID,
-						failureDate: new Date("2026-02-01T00:00:00.000Z"),
+						failureDate: "2026-02-01",
 						capitalizeRepairCost: false,
 						increaseInAssetLife: 0,
 						consumedItems: [],
@@ -1448,7 +1451,7 @@ describe("Asset lifecycle actions", () => {
 					{
 						assetId: "asset-1",
 						companyId: COMPANY_ID,
-						failureDate: new Date("2026-02-01T00:00:00.000Z"),
+						failureDate: "2026-02-01",
 						capitalizeRepairCost: false,
 						increaseInAssetLife: 0,
 						consumedItems: [],
@@ -1470,7 +1473,7 @@ describe("Asset lifecycle actions", () => {
 					{
 						assetId: "asset-1",
 						companyId: COMPANY_ID,
-						failureDate: new Date("2026-02-01T00:00:00.000Z"),
+						failureDate: "2026-02-01",
 						capitalizeRepairCost: false,
 						increaseInAssetLife: 0,
 						consumedItems: [],
@@ -1524,7 +1527,7 @@ describe("Asset lifecycle actions", () => {
 				{
 					kind: "organization",
 					organizationId: "org-1",
-					throughDate: completionDate,
+					throughDate: "2026-02-15",
 					assetIds: ["asset-1"],
 				},
 			);
@@ -1533,7 +1536,7 @@ describe("Asset lifecycle actions", () => {
 				"org-1",
 				{
 					companyId: COMPANY_ID,
-					postingDate: completionDate,
+					postingDate: "2026-02-15",
 					sourceType: "ASSET_REPAIR",
 					sourceId: "repair-1",
 					lines: [
@@ -1803,7 +1806,7 @@ describe("Asset lifecycle actions", () => {
 				duplicate.service.createAssetCapitalization(
 					{
 						companyId: COMPANY_ID,
-						postingDate: new Date("2026-03-01T00:00:00.000Z"),
+						postingDate: "2026-03-01",
 						targetType: "EXISTING_ASSET",
 						targetAssetId: "target-asset-1",
 						stockItems: [],
@@ -1822,7 +1825,7 @@ describe("Asset lifecycle actions", () => {
 				sameTarget.service.createAssetCapitalization(
 					{
 						companyId: COMPANY_ID,
-						postingDate: new Date("2026-03-01T00:00:00.000Z"),
+						postingDate: "2026-03-01",
 						targetType: "EXISTING_ASSET",
 						targetAssetId: "source-asset-1",
 						stockItems: [],
@@ -1866,7 +1869,7 @@ describe("Asset lifecycle actions", () => {
 			await service.createAssetCapitalization(
 				{
 					companyId: COMPANY_ID,
-					postingDate: new Date("2026-03-01T00:00:00.000Z"),
+					postingDate: "2026-03-01",
 					targetType: "EXISTING_ASSET",
 					targetAssetId: "target-asset-1",
 					stockItems: [],
@@ -1905,7 +1908,7 @@ describe("Asset lifecycle actions", () => {
 				crossCompany.service.createAssetCapitalization(
 					{
 						companyId: COMPANY_ID,
-						postingDate: new Date("2026-03-01T00:00:00.000Z"),
+						postingDate: "2026-03-01",
 						targetType: "EXISTING_ASSET",
 						targetAssetId: "target-asset-1",
 						stockItems: [],
@@ -1946,7 +1949,7 @@ describe("Asset lifecycle actions", () => {
 				early.service.createAssetCapitalization(
 					{
 						companyId: COMPANY_ID,
-						postingDate: new Date("2026-03-01T00:00:00.000Z"),
+						postingDate: "2026-03-01",
 						targetType: "EXISTING_ASSET",
 						targetAssetId: "target-asset-1",
 						stockItems: [],

@@ -1,7 +1,7 @@
 "use client";
 
 import type { AppRouter } from "@aria/api-contract";
-import { Asset } from "@aria/types";
+import { Asset, endOfMonthDateOnly, normalizeDateOnly } from "@aria/types";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { TRPCClientError } from "@trpc/client";
 import {
@@ -58,6 +58,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import { dateInputValue } from "@/lib/asset-date-only";
 import { getToastMessage } from "@/lib/errors";
 import { trpc } from "@/lib/trpc";
 import { DEPRECIATION_METHOD_OPTIONS } from "../../categories/asset-category.schema";
@@ -66,13 +67,6 @@ function isTRPCClientError(
 	error: unknown,
 ): error is TRPCClientError<AppRouter> {
 	return error instanceof TRPCClientError;
-}
-
-function getLastDayOfMonth(date: Date): Date {
-	const d = new Date(date);
-	d.setMonth(d.getMonth() + 1, 0);
-	d.setHours(0, 0, 0, 0);
-	return d;
 }
 
 const assetFormSchema = z
@@ -91,15 +85,15 @@ const assetFormSchema = z
 		maintenanceRequired: z.boolean(),
 		status: z.string(),
 		netPurchaseAmount: z.string().optional().nullable(),
-		purchaseDate: z.string().optional().nullable(),
-		availableForUseDate: z.string().optional().nullable(),
+		purchaseDate: z.iso.date().optional().nullable(),
+		availableForUseDate: z.iso.date().optional().nullable(),
 		purchaseReceipt: z.string().max(255).optional().nullable(),
 		purchaseInvoice: z.string().max(255).optional().nullable(),
 		policyNumber: z.string().max(255).optional().nullable(),
 		insurer: z.string().max(255).optional().nullable(),
 		insuredValue: z.string().optional().nullable(),
-		insuranceStartDate: z.string().optional().nullable(),
-		insuranceEndDate: z.string().optional().nullable(),
+		insuranceStartDate: z.iso.date().optional().nullable(),
+		insuranceEndDate: z.iso.date().optional().nullable(),
 		assetOwner: z.string(),
 		assetOwnerCompany: z.string().max(255).optional().nullable(),
 		supplier: z.string().max(255).optional().nullable(),
@@ -108,7 +102,7 @@ const assetFormSchema = z
 		totalNumberOfDepreciations: z.string().optional().nullable(),
 		frequencyOfDepreciation: z.string().optional().nullable(),
 		expectedValueAfterUsefulLife: z.string().optional().nullable(),
-		depreciationStartDate: z.string().optional().nullable(),
+		depreciationStartDate: z.iso.date().optional().nullable(),
 		openingAccumulatedDepreciation: z.string().optional().nullable(),
 		openingNumberOfBookedDepreciations: z.string().optional().nullable(),
 		financeBooks: z
@@ -118,7 +112,7 @@ const assetFormSchema = z
 					depreciationMethod: Asset.depreciationMethodSchema,
 					totalNumberOfDepreciations: z.string().min(1),
 					frequencyOfDepreciation: z.string().min(1),
-					depreciationStartDate: z.string().min(1),
+					depreciationStartDate: z.iso.date(),
 					expectedValueAfterUsefulLife: z.string().optional(),
 					openingAccumulatedDepreciation: z.string().optional(),
 					openingNumberOfBookedDepreciations: z.string().optional(),
@@ -194,9 +188,10 @@ const assetFormSchema = z
 		}
 
 		if (data.depreciationStartDate && data.purchaseDate) {
-			const depStart = new Date(data.depreciationStartDate);
-			const purchase = new Date(data.purchaseDate);
-			if (depStart < purchase) {
+			if (
+				normalizeDateOnly(data.depreciationStartDate) <
+				normalizeDateOnly(data.purchaseDate)
+			) {
 				ctx.addIssue({
 					path: ["depreciationStartDate"],
 					code: z.ZodIssueCode.custom,
@@ -206,9 +201,10 @@ const assetFormSchema = z
 		}
 
 		if (data.depreciationStartDate && data.availableForUseDate) {
-			const depStart = new Date(data.depreciationStartDate);
-			const available = new Date(data.availableForUseDate);
-			if (depStart < available) {
+			if (
+				normalizeDateOnly(data.depreciationStartDate) <
+				normalizeDateOnly(data.availableForUseDate)
+			) {
 				ctx.addIssue({
 					path: ["depreciationStartDate"],
 					code: z.ZodIssueCode.custom,
@@ -407,27 +403,16 @@ function AssetFormContent() {
 				rawAsset.netPurchaseAmount != null
 					? String(rawAsset.netPurchaseAmount)
 					: "",
-			purchaseDate: rawAsset.purchaseDate
-				? (new Date(rawAsset.purchaseDate).toISOString().split("T")[0] ?? "")
-				: "",
-			availableForUseDate: rawAsset.availableForUseDate
-				? (new Date(rawAsset.availableForUseDate).toISOString().split("T")[0] ??
-					"")
-				: "",
+			purchaseDate: dateInputValue(rawAsset.purchaseDate),
+			availableForUseDate: dateInputValue(rawAsset.availableForUseDate),
 			purchaseReceipt: rawAsset.purchaseReceipt ?? "",
 			purchaseInvoice: rawAsset.purchaseInvoice ?? "",
 			policyNumber: rawAsset.policyNumber ?? "",
 			insurer: rawAsset.insurer ?? "",
 			insuredValue:
 				rawAsset.insuredValue != null ? String(rawAsset.insuredValue) : "",
-			insuranceStartDate: rawAsset.insuranceStartDate
-				? (new Date(rawAsset.insuranceStartDate).toISOString().split("T")[0] ??
-					"")
-				: "",
-			insuranceEndDate: rawAsset.insuranceEndDate
-				? (new Date(rawAsset.insuranceEndDate).toISOString().split("T")[0] ??
-					"")
-				: "",
+			insuranceStartDate: dateInputValue(rawAsset.insuranceStartDate),
+			insuranceEndDate: dateInputValue(rawAsset.insuranceEndDate),
 			assetOwnerCompany: rawAsset.assetOwnerCompany ?? "",
 			supplier: rawAsset.supplier ?? "",
 			customer: rawAsset.customer ?? "",
@@ -444,11 +429,7 @@ function AssetFormContent() {
 				rawAsset.expectedValueAfterUsefulLife != null
 					? String(rawAsset.expectedValueAfterUsefulLife)
 					: "",
-			depreciationStartDate: rawAsset.depreciationStartDate
-				? (new Date(rawAsset.depreciationStartDate)
-						.toISOString()
-						.split("T")[0] ?? "")
-				: "",
+			depreciationStartDate: dateInputValue(rawAsset.depreciationStartDate),
 			openingAccumulatedDepreciation:
 				rawAsset.openingAccumulatedDepreciation != null
 					? String(rawAsset.openingAccumulatedDepreciation)
@@ -462,9 +443,7 @@ function AssetFormContent() {
 				depreciationMethod: book.depreciationMethod,
 				totalNumberOfDepreciations: String(book.totalNumberOfDepreciations),
 				frequencyOfDepreciation: String(book.frequencyOfDepreciation),
-				depreciationStartDate:
-					new Date(book.depreciationStartDate).toISOString().split("T")[0] ??
-					"",
+				depreciationStartDate: dateInputValue(book.depreciationStartDate),
 				expectedValueAfterUsefulLife: String(book.expectedValueAfterUsefulLife),
 				openingAccumulatedDepreciation: String(
 					book.openingAccumulatedDepreciation,
@@ -541,8 +520,9 @@ function AssetFormContent() {
 
 	React.useEffect(() => {
 		if (watchedCalculateDepreciation && watchedAvailableForUseDate) {
-			const lastDay = getLastDayOfMonth(new Date(watchedAvailableForUseDate));
-			const formatted = lastDay.toISOString().split("T")[0];
+			const formatted = dateInputValue(
+				endOfMonthDateOnly(watchedAvailableForUseDate),
+			);
 			if (formatted) {
 				form.setValue("depreciationStartDate", formatted, {
 					shouldDirty: true,
@@ -613,19 +593,13 @@ function AssetFormContent() {
 			policyNumber: values.policyNumber?.trim() || null,
 			insurer: values.insurer?.trim() || null,
 			insuredValue: values.insuredValue ? Number(values.insuredValue) : null,
-			insuranceStartDate: values.insuranceStartDate
-				? new Date(values.insuranceStartDate)
-				: null,
-			insuranceEndDate: values.insuranceEndDate
-				? new Date(values.insuranceEndDate)
-				: null,
+			insuranceStartDate: values.insuranceStartDate || null,
+			insuranceEndDate: values.insuranceEndDate || null,
 			netPurchaseAmount: values.netPurchaseAmount
 				? Number(values.netPurchaseAmount)
 				: null,
-			purchaseDate: values.purchaseDate ? new Date(values.purchaseDate) : null,
-			availableForUseDate: values.availableForUseDate
-				? new Date(values.availableForUseDate)
-				: null,
+			purchaseDate: values.purchaseDate || null,
+			availableForUseDate: values.availableForUseDate || null,
 			depreciationMethod: values.depreciationMethod || null,
 			totalNumberOfDepreciations: values.totalNumberOfDepreciations
 				? parseInt(values.totalNumberOfDepreciations, 10)
@@ -636,9 +610,7 @@ function AssetFormContent() {
 			expectedValueAfterUsefulLife: values.expectedValueAfterUsefulLife
 				? Number(values.expectedValueAfterUsefulLife)
 				: null,
-			depreciationStartDate: values.depreciationStartDate
-				? new Date(values.depreciationStartDate)
-				: null,
+			depreciationStartDate: values.depreciationStartDate || null,
 			openingAccumulatedDepreciation: values.openingAccumulatedDepreciation
 				? Number(values.openingAccumulatedDepreciation)
 				: null,
@@ -651,7 +623,7 @@ function AssetFormContent() {
 				depreciationMethod: book.depreciationMethod,
 				totalNumberOfDepreciations: Number(book.totalNumberOfDepreciations),
 				frequencyOfDepreciation: Number(book.frequencyOfDepreciation),
-				depreciationStartDate: new Date(book.depreciationStartDate),
+				depreciationStartDate: book.depreciationStartDate,
 				expectedValueAfterUsefulLife:
 					Number(book.expectedValueAfterUsefulLife) || 0,
 				openingAccumulatedDepreciation:
@@ -664,7 +636,7 @@ function AssetFormContent() {
 					.filter(Boolean)
 					.map((row) => {
 						const [date, amount] = row.split(":");
-						return { date: new Date(date ?? ""), amount: Number(amount) };
+						return { date: date?.trim() ?? "", amount: Number(amount) };
 					}),
 			})),
 		};

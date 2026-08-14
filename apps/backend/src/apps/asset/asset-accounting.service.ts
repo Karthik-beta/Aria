@@ -1,3 +1,4 @@
+import type { DateOnlyInput } from "@aria/types";
 import {
 	BadRequestException,
 	ConflictException,
@@ -15,6 +16,11 @@ import {
 	assetWhereForOrganization,
 	companyWhereForOrganization,
 } from "./asset-organization-scope";
+import {
+	dateOnlyFromPersistedDateTime,
+	dateOnlyUtc,
+	normalizeDateOnly,
+} from "./depreciation/depreciation.config";
 
 const AMOUNT_SCALE = 6;
 
@@ -36,7 +42,7 @@ export interface CreateAssetAccountingEntryInput {
 	assetId?: string | null;
 	sourceType: AssetAccountingSourceType;
 	sourceId: string;
-	postingDate: Date;
+	postingDate: DateOnlyInput;
 	remarks: string;
 	lines: readonly AssetAccountingLineInput[];
 }
@@ -65,6 +71,7 @@ export class AssetAccountingService {
 		input: CreateAssetAccountingEntryInput,
 	): Promise<AssetAccountingEntryResult> {
 		assertAssetOrganizationId(organizationId);
+		const postingDate = dateOnlyUtc(normalizeDateOnly(input.postingDate));
 		const companyId = input.companyId.trim();
 		const sourceId = input.sourceId.trim();
 		const remarks = input.remarks.trim();
@@ -72,9 +79,6 @@ export class AssetAccountingService {
 			throw new BadRequestException(
 				"Company ID, source document, and remarks are required for asset accounting",
 			);
-		}
-		if (Number.isNaN(input.postingDate.getTime())) {
-			throw new BadRequestException("A valid posting date is required");
 		}
 		if (input.lines.length < 2) {
 			throw new BadRequestException(
@@ -157,10 +161,11 @@ export class AssetAccountingService {
 		}
 		if (
 			companyRecord.accountsFrozenThrough &&
-			input.postingDate <= companyRecord.accountsFrozenThrough
+			dateOnlyFromPersistedDateTime(postingDate) <=
+				dateOnlyFromPersistedDateTime(companyRecord.accountsFrozenThrough)
 		) {
 			throw new BadRequestException(
-				`Asset accounting is frozen through ${companyRecord.accountsFrozenThrough.toISOString().slice(0, 10)}`,
+				`Asset accounting is frozen through ${dateOnlyFromPersistedDateTime(companyRecord.accountsFrozenThrough)}`,
 			);
 		}
 
@@ -196,7 +201,7 @@ export class AssetAccountingService {
 			);
 		}
 
-		const year = input.postingDate.getUTCFullYear();
+		const year = dateOnlyFromPersistedDateTime(postingDate).slice(0, 4);
 		const prefix = `AAE-${year}-`;
 		const lastEntry = await tx.assetAccountingEntry.findFirst({
 			where: {
@@ -223,7 +228,7 @@ export class AssetAccountingService {
 				assetId: input.assetId ?? null,
 				sourceType: input.sourceType,
 				sourceId,
-				postingDate: input.postingDate,
+				postingDate,
 				remarks,
 				status: "POSTED",
 				lines: {
@@ -288,10 +293,11 @@ export class AssetAccountingService {
 		}
 		if (
 			company.accountsFrozenThrough &&
-			existing.postingDate <= company.accountsFrozenThrough
+			dateOnlyFromPersistedDateTime(existing.postingDate) <=
+				dateOnlyFromPersistedDateTime(company.accountsFrozenThrough)
 		) {
 			throw new BadRequestException(
-				`Asset accounting is frozen through ${company.accountsFrozenThrough.toISOString().slice(0, 10)}`,
+				`Asset accounting is frozen through ${dateOnlyFromPersistedDateTime(company.accountsFrozenThrough)}`,
 			);
 		}
 

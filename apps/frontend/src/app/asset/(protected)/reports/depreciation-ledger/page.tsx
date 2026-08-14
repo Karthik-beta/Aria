@@ -39,14 +39,7 @@ import {
 	renderOptionalText,
 } from "./depreciation-ledger.utils";
 
-type LedgerRow = Omit<
-	Asset.AssetDepreciationLedgerRow,
-	"purchaseDate" | "depreciationDate" | "adjustmentDate"
-> & {
-	purchaseDate: Date | null;
-	depreciationDate: Date;
-	adjustmentDate: Date;
-};
+type LedgerRow = Asset.AssetDepreciationLedgerRow;
 
 const INITIAL_FILTERS: AssetDepreciationLedgerFilterState = {
 	company: "",
@@ -133,16 +126,7 @@ export default function AssetDepreciationLedgerPage() {
 		staleTime: 30_000,
 	});
 
-	const rows = React.useMemo<LedgerRow[]>(
-		() =>
-			(data?.rows ?? []).map((row) => ({
-				...row,
-				purchaseDate: row.purchaseDate ? new Date(row.purchaseDate) : null,
-				depreciationDate: new Date(row.depreciationDate),
-				adjustmentDate: new Date(row.adjustmentDate),
-			})),
-		[data?.rows],
-	);
+	const rows = React.useMemo<LedgerRow[]>(() => data?.rows ?? [], [data?.rows]);
 
 	const summary =
 		data?.summary ??
@@ -366,7 +350,7 @@ export default function AssetDepreciationLedgerPage() {
 		enableGlobalFilter: false,
 		onReload: handleReload,
 		getRowId: (row) =>
-			`${row.scheduleId}:${row.assetId}:${row.depreciationDate.toISOString()}`,
+			`${row.scheduleId}:${row.assetId}:${row.depreciationDate}`,
 	});
 
 	const exportAssetDepreciationLedgerExcel =

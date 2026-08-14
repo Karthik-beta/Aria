@@ -1,6 +1,195 @@
 import * as z from "zod";
 
 // ============================================================================
+// Canonical Asset date-only contract
+// ============================================================================
+
+/**
+ * A calendar date with no time-of-day or timezone component.
+ *
+ * Date-only values are transported as `YYYY-MM-DD`. Persistence adapters may
+ * represent them as UTC-midnight `Date` values for existing Prisma DateTime
+ * columns, but business rules must operate on this contract instead of on a
+ * process-local instant.
+ */
+export type DateOnly = string;
+
+/** String-only alias retained for existing public contract names. */
+export type DateOnlyInput = DateOnly;
+
+const DATE_ONLY_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+function dateOnlyError(value: unknown): Error {
+	return new Error(`Invalid date-only value: ${String(value)}`);
+}
+
+function dateOnlyFromParts(year: number, month: number, day: number): DateOnly {
+	const candidate = new Date(0);
+	candidate.setUTCHours(0, 0, 0, 0);
+	candidate.setUTCFullYear(year, month - 1, day);
+	if (
+		candidate.getUTCFullYear() !== year ||
+		candidate.getUTCMonth() !== month - 1 ||
+		candidate.getUTCDate() !== day
+	) {
+		throw dateOnlyError(
+			`${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`,
+		);
+	}
+	return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+/** Validates a canonical `YYYY-MM-DD` value without normalizing invalid dates. */
+export function parseDateOnly(value: string): DateOnly {
+	if (typeof value !== "string") throw dateOnlyError(value);
+	const match = DATE_ONLY_PATTERN.exec(value);
+	if (!match) throw dateOnlyError(value);
+	return dateOnlyFromParts(
+		Number(match[1]),
+		Number(match[2]),
+		Number(match[3]),
+	);
+}
+
+/**
+ * Validates a canonical date-only value.
+ *
+ * Instants and Prisma `DateTime`-backed date-only values must be converted
+ * with an explicitly named adapter before entering date-only business logic.
+ */
+export function normalizeDateOnly(value: DateOnly): DateOnly {
+	return parseDateOnly(value);
+}
+
+/**
+ * Converts a persisted Prisma `DateTime` value representing a date-only field
+ * into the canonical calendar date stored by the application.
+ *
+ * This is deliberately distinct from instant-to-business-date conversion:
+ * persisted date-only rows use UTC calendar components, while true instants
+ * must be interpreted in an application timezone.
+ */
+export function dateOnlyFromPersistedDateTime(value: Date): DateOnly {
+	if (!(value instanceof Date) || Number.isNaN(value.getTime())) {
+		throw dateOnlyError(value);
+	}
+	return dateOnlyFromParts(
+		value.getUTCFullYear(),
+		value.getUTCMonth() + 1,
+		value.getUTCDate(),
+	);
+}
+
+/** Converts a canonical calendar date to the existing Prisma UTC-midnight representation. */
+export function dateOnlyUtc(value: DateOnly): Date {
+	const normalized = normalizeDateOnly(value);
+	const [year, month, day] = normalized.split("-").map(Number);
+	const date = new Date(0);
+	date.setUTCHours(0, 0, 0, 0);
+	date.setUTCFullYear(year, month - 1, day);
+	return date;
+}
+
+/** Returns the half-open UTC query window for inclusive calendar dates. */
+export function dateOnlyUtcRange(
+	from: DateOnly,
+	to: DateOnly,
+): { startInclusive: Date; endExclusive: Date } {
+	const fromDate = normalizeDateOnly(from);
+	const toDate = normalizeDateOnly(to);
+	if (fromDate > toDate) {
+		throw new Error("Date-only range start must be on or before its end.");
+	}
+	const end = dateOnlyUtc(toDate);
+	end.setUTCDate(end.getUTCDate() + 1);
+	return { startInclusive: dateOnlyUtc(fromDate), endExclusive: end };
+}
+
+/** Adds calendar days without consulting the host process timezone. */
+export function addDateOnly(value: DateOnly, days: number): DateOnly {
+	if (!Number.isInteger(days)) {
+		throw new Error("Date-only day offset must be an integer.");
+	}
+	const date = dateOnlyUtc(value);
+	date.setUTCDate(date.getUTCDate() + days);
+	return dateOnlyFromParts(
+		date.getUTCFullYear(),
+		date.getUTCMonth() + 1,
+		date.getUTCDate(),
+	);
+}
+
+/** Adds calendar days and returns the UTC-midnight persistence representation. */
+export function addDateOnlyUtc(value: DateOnly, days: number): Date {
+	return dateOnlyUtc(addDateOnly(value, days));
+}
+
+/** Adds calendar months with end-of-month clamping and no host-timezone access. */
+export function addMonthsDateOnly(value: DateOnly, months: number): Date {
+	if (!Number.isInteger(months)) {
+		throw new Error("Date-only month offset must be an integer.");
+	}
+	const date = dateOnlyUtc(value);
+	const originalDay = date.getUTCDate();
+	date.setUTCDate(1);
+	date.setUTCMonth(date.getUTCMonth() + months);
+	const lastDay = new Date(date);
+	lastDay.setUTCMonth(lastDay.getUTCMonth() + 1, 0);
+	date.setUTCDate(Math.min(originalDay, lastDay.getUTCDate()));
+	return date;
+}
+
+/** Returns the final UTC-midnight date in the supplied calendar month. */
+export function endOfMonthDateOnly(value: DateOnly): Date {
+	const date = dateOnlyUtc(value);
+	date.setUTCDate(1);
+	date.setUTCMonth(date.getUTCMonth() + 1, 0);
+	return date;
+}
+
+/** Returns whole calendar days between two canonical UTC date boundaries. */
+export function differenceInDateOnlyDays(
+	start: DateOnly,
+	end: DateOnly,
+): number {
+	return Math.round(
+		(dateOnlyUtc(end).getTime() - dateOnlyUtc(start).getTime()) /
+			(24 * 60 * 60 * 1000),
+	);
+}
+
+/** Returns the current business calendar date for a valid IANA timezone. */
+export function businessDate(timeZone: string, now = new Date()): DateOnly {
+	try {
+		new Intl.DateTimeFormat("en", { timeZone }).format(now);
+	} catch {
+		throw new Error(`Invalid IANA timezone: ${timeZone}`);
+	}
+	if (Number.isNaN(now.getTime())) throw dateOnlyError(now);
+	const parts = new Intl.DateTimeFormat("en-CA", {
+		timeZone,
+		year: "numeric",
+		month: "2-digit",
+		day: "2-digit",
+	}).formatToParts(now);
+	const values = Object.fromEntries(
+		parts.map((part) => [part.type, part.value]),
+	) as Record<string, string>;
+	return parseDateOnly(`${values.year}-${values.month}-${values.day}`);
+}
+
+/** Converts an instant to the calendar date observed in the supplied timezone. */
+export function dateOnlyFromInstant(timeZone: string, value: Date): DateOnly {
+	if (!(value instanceof Date) || Number.isNaN(value.getTime())) {
+		throw dateOnlyError(value);
+	}
+	return businessDate(timeZone, value);
+}
+
+/** Schema for canonical date-only API fields. */
+export const dateOnlyInputSchema = z.iso.date();
+
+// ============================================================================
 // API Response Contracts
 // ============================================================================
 
@@ -5982,7 +6171,7 @@ export namespace Asset {
 		totalNumberOfDepreciations: number;
 		increaseInAssetLife: number;
 		frequencyOfDepreciation: number;
-		depreciationStartDate: Date;
+		depreciationStartDate: DateOnly;
 		dailyProrataBased: boolean;
 		shiftBased: boolean;
 		rateOfDepreciation: number | null;
@@ -5991,7 +6180,7 @@ export namespace Asset {
 		openingNumberOfBookedDepreciations: number;
 		valueAfterDepreciation: number;
 		totalNumberOfBookedDepreciations: number;
-		lastPostedDepreciationDate: Date | null;
+		lastPostedDepreciationDate: DateOnly | null;
 		postingStatus: DepreciationPostingStatus;
 	}
 
@@ -6019,9 +6208,9 @@ export namespace Asset {
 		locationName?: string | null;
 		custodian?: string | null;
 		department?: string | null;
-		purchaseDate?: Date | null;
-		availableForUseDate?: Date | null;
-		disposalDate?: Date | null;
+		purchaseDate?: DateOnly | null;
+		availableForUseDate?: DateOnly | null;
+		disposalDate?: DateOnly | null;
 		netPurchaseAmount?: number | null;
 		assetQuantity: number;
 		calculateDepreciation: boolean;
@@ -6037,13 +6226,13 @@ export namespace Asset {
 		policyNumber?: string | null;
 		insurer?: string | null;
 		insuredValue?: number | null;
-		insuranceStartDate?: Date | null;
-		insuranceEndDate?: Date | null;
+		insuranceStartDate?: DateOnly | null;
+		insuranceEndDate?: DateOnly | null;
 		depreciationMethod?: DepreciationMethod | null;
 		totalNumberOfDepreciations?: number | null;
 		frequencyOfDepreciation?: number | null;
 		expectedValueAfterUsefulLife?: number | null;
-		depreciationStartDate?: Date | null;
+		depreciationStartDate?: DateOnly | null;
 		financeBooks?: AssetFinanceBook[];
 		purchaseReceipt?: string | null;
 		purchaseInvoice?: string | null;
@@ -6145,7 +6334,7 @@ export namespace Asset {
 		depreciationMethod: DepreciationMethod;
 		totalNumberOfDepreciations: number;
 		frequencyOfDepreciation: number;
-		depreciationStartDate: Date;
+		depreciationStartDate: DateOnlyInput;
 		dailyProrataBased?: boolean;
 		shiftBased?: boolean;
 		rateOfDepreciation?: number | null;
@@ -6153,7 +6342,7 @@ export namespace Asset {
 		openingAccumulatedDepreciation?: number;
 		openingNumberOfBookedDepreciations?: number;
 		manualEntries?: Array<{
-			date: Date;
+			date: DateOnlyInput;
 			amount: number;
 			shift?: string | null;
 		}>;
@@ -6169,8 +6358,8 @@ export namespace Asset {
 		locationId?: string | null;
 		custodian?: string | null;
 		department?: string | null;
-		purchaseDate?: Date | null;
-		availableForUseDate?: Date | null;
+		purchaseDate?: DateOnlyInput | null;
+		availableForUseDate?: DateOnlyInput | null;
 		netPurchaseAmount?: number | null;
 		assetQuantity?: number;
 		calculateDepreciation?: boolean;
@@ -6185,13 +6374,13 @@ export namespace Asset {
 		policyNumber?: string | null;
 		insurer?: string | null;
 		insuredValue?: number | null;
-		insuranceStartDate?: Date | null;
-		insuranceEndDate?: Date | null;
+		insuranceStartDate?: DateOnlyInput | null;
+		insuranceEndDate?: DateOnlyInput | null;
 		depreciationMethod?: DepreciationMethod | null;
 		totalNumberOfDepreciations?: number | null;
 		frequencyOfDepreciation?: number | null;
 		expectedValueAfterUsefulLife?: number | null;
-		depreciationStartDate?: Date | null;
+		depreciationStartDate?: DateOnlyInput | null;
 		purchaseReceipt?: string | null;
 		purchaseInvoice?: string | null;
 		status?: AssetStatus;
@@ -6209,9 +6398,9 @@ export namespace Asset {
 		locationId?: string | null;
 		custodian?: string | null;
 		department?: string | null;
-		purchaseDate?: Date | null;
-		availableForUseDate?: Date | null;
-		disposalDate?: Date | null;
+		purchaseDate?: DateOnlyInput | null;
+		availableForUseDate?: DateOnlyInput | null;
+		disposalDate?: DateOnlyInput | null;
 		netPurchaseAmount?: number | null;
 		assetQuantity?: number;
 		calculateDepreciation?: boolean;
@@ -6227,13 +6416,13 @@ export namespace Asset {
 		policyNumber?: string | null;
 		insurer?: string | null;
 		insuredValue?: number | null;
-		insuranceStartDate?: Date | null;
-		insuranceEndDate?: Date | null;
+		insuranceStartDate?: DateOnlyInput | null;
+		insuranceEndDate?: DateOnlyInput | null;
 		depreciationMethod?: DepreciationMethod | null;
 		totalNumberOfDepreciations?: number | null;
 		frequencyOfDepreciation?: number | null;
 		expectedValueAfterUsefulLife?: number | null;
-		depreciationStartDate?: Date | null;
+		depreciationStartDate?: DateOnlyInput | null;
 		purchaseReceipt?: string | null;
 		purchaseInvoice?: string | null;
 		status?: AssetStatus;
@@ -6281,7 +6470,7 @@ export namespace Asset {
 		depreciationMethod: depreciationMethodSchema,
 		totalNumberOfDepreciations: z.number().int().min(1),
 		frequencyOfDepreciation: z.number().int().min(1),
-		depreciationStartDate: z.coerce.date(),
+		depreciationStartDate: dateOnlyInputSchema,
 		dailyProrataBased: z.boolean().default(false),
 		shiftBased: z.boolean().default(false),
 		rateOfDepreciation: z.number().min(0).optional().nullable(),
@@ -6291,7 +6480,7 @@ export namespace Asset {
 		manualEntries: z
 			.array(
 				z.object({
-					date: z.coerce.date(),
+					date: dateOnlyInputSchema,
 					amount: z.number().positive(),
 					shift: z.string().max(100).trim().optional().nullable(),
 				}),
@@ -6340,8 +6529,8 @@ export namespace Asset {
 		locationId: z.string().cuid().optional().nullable(),
 		custodian: z.string().max(255).trim().optional().nullable(),
 		department: z.string().max(255).trim().optional().nullable(),
-		purchaseDate: z.coerce.date().optional().nullable(),
-		availableForUseDate: z.coerce.date().optional().nullable(),
+		purchaseDate: dateOnlyInputSchema.optional().nullable(),
+		availableForUseDate: dateOnlyInputSchema.optional().nullable(),
 		netPurchaseAmount: z.number().min(0).optional().nullable(),
 		assetQuantity: z.number().int().min(1).default(1),
 		calculateDepreciation: z.boolean().default(false),
@@ -6361,8 +6550,8 @@ export namespace Asset {
 		policyNumber: z.string().max(255).trim().optional().nullable(),
 		insurer: z.string().max(255).trim().optional().nullable(),
 		insuredValue: z.number().min(0).optional().nullable(),
-		insuranceStartDate: z.coerce.date().optional().nullable(),
-		insuranceEndDate: z.coerce.date().optional().nullable(),
+		insuranceStartDate: dateOnlyInputSchema.optional().nullable(),
+		insuranceEndDate: dateOnlyInputSchema.optional().nullable(),
 		depreciationMethod: depreciationMethodSchema.optional().nullable(),
 		totalNumberOfDepreciations: z.number().int().min(0).optional().nullable(),
 		frequencyOfDepreciation: z
@@ -6372,7 +6561,7 @@ export namespace Asset {
 			.optional()
 			.nullable(),
 		expectedValueAfterUsefulLife: z.number().min(0).optional().nullable(),
-		depreciationStartDate: z.coerce.date().optional().nullable(),
+		depreciationStartDate: dateOnlyInputSchema.optional().nullable(),
 		purchaseReceipt: z.string().max(255).trim().optional().nullable(),
 		purchaseInvoice: z.string().max(255).trim().optional().nullable(),
 		status: assetStatusSchema.default("DRAFT"),
@@ -6385,7 +6574,8 @@ export namespace Asset {
 			(data) => {
 				if (data.purchaseDate && data.availableForUseDate) {
 					return (
-						data.availableForUseDate.getTime() >= data.purchaseDate.getTime()
+						normalizeDateOnly(data.availableForUseDate) >=
+						normalizeDateOnly(data.purchaseDate)
 					);
 				}
 				return true;
@@ -6399,7 +6589,8 @@ export namespace Asset {
 			(data) => {
 				if (data.insuranceStartDate && data.insuranceEndDate) {
 					return (
-						data.insuranceEndDate.getTime() >= data.insuranceStartDate.getTime()
+						normalizeDateOnly(data.insuranceEndDate) >=
+						normalizeDateOnly(data.insuranceStartDate)
 					);
 				}
 				return true;
@@ -6423,7 +6614,7 @@ export namespace Asset {
 		department: assetInputFields.department,
 		purchaseDate: assetInputFields.purchaseDate,
 		availableForUseDate: assetInputFields.availableForUseDate,
-		disposalDate: z.coerce.date().optional().nullable(),
+		disposalDate: dateOnlyInputSchema.optional().nullable(),
 		netPurchaseAmount: assetInputFields.netPurchaseAmount,
 		assetQuantity: z.number().int().min(1).optional(),
 		calculateDepreciation: z.boolean().optional(),
@@ -6689,14 +6880,14 @@ export namespace Asset {
 		maintenanceTask: string;
 		maintenanceType: AssetMaintenanceTaskType | null;
 		maintenanceStatus: AssetMaintenanceStatus;
-		startDate: Date;
+		startDate: DateOnly;
 		periodicity: AssetMaintenancePeriodicity;
-		endDate: Date | null;
+		endDate: DateOnly | null;
 		certificateRequired: boolean;
 		assignTo: string | null;
 		assignToName: string | null;
-		nextDueDate: Date | null;
-		lastCompletionDate: Date | null;
+		nextDueDate: DateOnly | null;
+		lastCompletionDate: DateOnly | null;
 		description: string | null;
 		createdAt: Date;
 		updatedAt: Date;
@@ -6707,7 +6898,7 @@ export namespace Asset {
 		maintenanceId: string;
 		taskId: string;
 		maintenanceStatus: AssetMaintenanceLogStatus;
-		completionDate: Date | null;
+		completionDate: DateOnly | null;
 		actionsPerformed: string | null;
 		hasCertificate: boolean;
 		certificateAttachment: string | null;
@@ -6753,14 +6944,14 @@ export namespace Asset {
 		maintenanceTask: z.string().min(1, "Task name is required").max(255).trim(),
 		maintenanceType: assetMaintenanceTaskTypeSchema.nullable().optional(),
 		maintenanceStatus: assetMaintenanceStatusSchema.default("PLANNED"),
-		startDate: z.coerce.date(),
+		startDate: dateOnlyInputSchema,
 		periodicity: assetMaintenancePeriodicitySchema,
-		endDate: z.coerce.date().nullable().optional(),
+		endDate: dateOnlyInputSchema.nullable().optional(),
 		certificateRequired: z.boolean().default(false),
 		assignTo: z.string().max(255).trim().nullable().optional(),
 		assignToName: z.string().max(255).trim().nullable().optional(),
-		nextDueDate: z.coerce.date().nullable().optional(),
-		lastCompletionDate: z.coerce.date().nullable().optional(),
+		nextDueDate: dateOnlyInputSchema.nullable().optional(),
+		lastCompletionDate: dateOnlyInputSchema.nullable().optional(),
 		description: z.string().trim().nullable().optional(),
 	};
 
@@ -6804,7 +6995,7 @@ export namespace Asset {
 
 	export const completeAssetMaintenanceLogSchema = z.object({
 		logId: z.string().cuid(),
-		completionDate: z.coerce.date(),
+		completionDate: dateOnlyInputSchema,
 		actionsPerformed: z.string().trim().nullable().optional(),
 		hasCertificate: z.boolean().default(false),
 		certificateAttachment: z.string().max(500).trim().nullable().optional(),
@@ -6832,9 +7023,9 @@ export namespace Asset {
 		periodicity: AssetMaintenancePeriodicity;
 		assignToName: string | null;
 		/** The task's current nextDueDate — relevant for PLANNED/OVERDUE logs. */
-		taskDueDate: Date | null;
+		taskDueDate: DateOnly | null;
 		maintenanceStatus: AssetMaintenanceLogStatus;
-		completionDate: Date | null;
+		completionDate: DateOnly | null;
 		actionsPerformed: string | null;
 		hasCertificate: boolean;
 		certificateAttachment: string | null;
@@ -6924,7 +7115,7 @@ export namespace Asset {
 		assetId: string;
 		companyId: string;
 		company: string;
-		postingDate: Date;
+		postingDate: DateOnly;
 		remarks: string;
 		status: AssetRevaluationEntryStatus;
 		reversedAt: Date | null;
@@ -6936,7 +7127,7 @@ export namespace Asset {
 	export interface AssetDepreciationScheduleEntry {
 		id: string;
 		sequence: number;
-		scheduleDate: Date;
+		scheduleDate: DateOnly;
 		depreciationAmount: number;
 		accumulatedDepreciationAmount: number;
 		bookValueAfterDepreciation: number;
@@ -6954,7 +7145,7 @@ export namespace Asset {
 		previousScheduleId: string | null;
 		revisionNumber: number;
 		status: AssetDepreciationScheduleStatus;
-		startDate: Date;
+		startDate: DateOnly;
 		depreciationMethod: DepreciationMethod | null;
 		totalNumberOfDepreciations: number;
 		frequencyOfDepreciation: number;
@@ -6981,7 +7172,7 @@ export namespace Asset {
 
 	export interface AssetDepreciationSchedulePreviewEntry {
 		sequence: number;
-		scheduleDate: Date;
+		scheduleDate: DateOnly;
 		depreciationAmount: number;
 		accumulatedDepreciationAmount: number;
 		bookValueAfterDepreciation: number;
@@ -7010,7 +7201,7 @@ export namespace Asset {
 		financeBookId: string | null;
 		financeBookName: string | null;
 		assetFinanceBookId: string | null;
-		adjustmentDate: Date;
+		adjustmentDate: DateOnly;
 		currentAssetValue: number;
 		newAssetValue: number;
 		differenceAmount: number;
@@ -7033,7 +7224,7 @@ export namespace Asset {
 		company: string;
 		financeBookId: string | null;
 		financeBookName: string | null;
-		adjustmentDate: Date;
+		adjustmentDate: DateOnly;
 		currentAssetValue: number;
 		newAssetValue: number;
 		differenceAmount: number;
@@ -7081,7 +7272,7 @@ export namespace Asset {
 	export const previewAssetValueAdjustmentSchema = z.object({
 		assetId: z.string().cuid(),
 		financeBookId: z.string().cuid().nullable().optional(),
-		adjustmentDate: z.coerce.date(),
+		adjustmentDate: dateOnlyInputSchema,
 		newAssetValue: z.number().finite().min(0),
 	});
 	export type PreviewAssetValueAdjustmentInput = z.infer<
@@ -7091,7 +7282,7 @@ export namespace Asset {
 	export const createAssetValueAdjustmentSchema = z.object({
 		assetId: z.string().cuid(),
 		financeBookId: z.string().cuid().nullable().optional(),
-		adjustmentDate: z.coerce.date(),
+		adjustmentDate: dateOnlyInputSchema,
 		newAssetValue: z.number().finite().min(0),
 		differenceAccount: z.string().trim().min(1).max(255),
 		costCenter: z.string().trim().max(255).nullable().optional(),
@@ -7106,7 +7297,7 @@ export namespace Asset {
 			id: z.string().cuid(),
 			assetId: z.string().cuid().optional(),
 			financeBookId: z.string().cuid().nullable().optional(),
-			adjustmentDate: z.coerce.date().optional(),
+			adjustmentDate: dateOnlyInputSchema.optional(),
 			newAssetValue: z.number().finite().min(0).optional(),
 			differenceAccount: z.string().trim().min(1).max(255).optional(),
 			costCenter: z.string().trim().max(255).nullable().optional(),
@@ -7179,17 +7370,21 @@ export namespace Asset {
 
 	export const listAssetActivityReportSchema = z
 		.object({
-			fromDate: z.coerce.date(),
-			toDate: z.coerce.date(),
+			fromDate: dateOnlyInputSchema,
+			toDate: dateOnlyInputSchema,
 			company: z.string().trim().max(255).optional(),
 			asset: z.string().trim().max(255).optional(),
 			assetCategory: z.string().trim().max(255).optional(),
 			activity: z.string().trim().max(500).optional(),
 		})
-		.refine((input) => input.fromDate <= input.toDate, {
-			message: "From date must be on or before to date.",
-			path: ["toDate"],
-		});
+		.refine(
+			(input) =>
+				normalizeDateOnly(input.fromDate) <= normalizeDateOnly(input.toDate),
+			{
+				message: "From date must be on or before to date.",
+				path: ["toDate"],
+			},
+		);
 	export type ListAssetActivityReportInput = z.infer<
 		typeof listAssetActivityReportSchema
 	>;
@@ -7201,16 +7396,16 @@ export namespace Asset {
 		assetCategoryId: string | null;
 		assetCategoryName: string | null;
 		company: string;
-		purchaseDate: Date | null;
+		purchaseDate: DateOnly | null;
 		purchaseAmount: number | null;
-		depreciationDate: Date;
+		depreciationDate: DateOnly;
 		openingAccumulatedDepreciation: number;
 		depreciationAmount: number;
 		accumulatedDepreciationAmount: number;
 		valueAfterDepreciation: number;
 		adjustmentId: string;
 		adjustmentSeries: string;
-		adjustmentDate: Date;
+		adjustmentDate: DateOnly;
 		revaluationEntrySeries: string | null;
 		scheduleId: string;
 		scheduleRevisionNumber: number;
@@ -7285,34 +7480,42 @@ export namespace Asset {
 
 	export const listAssetDepreciationsAndBalancesSchema = z
 		.object({
-			fromDate: z.coerce.date(),
-			toDate: z.coerce.date(),
+			fromDate: dateOnlyInputSchema,
+			toDate: dateOnlyInputSchema,
 			company: z.string().trim().max(255).optional(),
 			groupBy: assetDepreciationsAndBalancesGroupBySchema,
 			asset: z.string().trim().max(255).optional(),
 			assetCategory: z.string().trim().max(255).optional(),
 		})
-		.refine((input) => input.fromDate <= input.toDate, {
-			message: "From date must be on or before to date.",
-			path: ["toDate"],
-		});
+		.refine(
+			(input) =>
+				normalizeDateOnly(input.fromDate) <= normalizeDateOnly(input.toDate),
+			{
+				message: "From date must be on or before to date.",
+				path: ["toDate"],
+			},
+		);
 	export type ListAssetDepreciationsAndBalancesInput = z.infer<
 		typeof listAssetDepreciationsAndBalancesSchema
 	>;
 
 	export const listAssetDepreciationLedgerSchema = z
 		.object({
-			fromDate: z.coerce.date(),
-			toDate: z.coerce.date(),
+			fromDate: dateOnlyInputSchema,
+			toDate: dateOnlyInputSchema,
 			company: z.string().trim().max(255).optional(),
 			asset: z.string().trim().max(255).optional(),
 			assetCategory: z.string().trim().max(255).optional(),
 			costCenter: z.string().trim().max(255).optional(),
 		})
-		.refine((input) => input.fromDate <= input.toDate, {
-			message: "From date must be on or before to date.",
-			path: ["toDate"],
-		});
+		.refine(
+			(input) =>
+				normalizeDateOnly(input.fromDate) <= normalizeDateOnly(input.toDate),
+			{
+				message: "From date must be on or before to date.",
+				path: ["toDate"],
+			},
+		);
 	export type ListAssetDepreciationLedgerInput = z.infer<
 		typeof listAssetDepreciationLedgerSchema
 	>;
@@ -7340,8 +7543,8 @@ export namespace Asset {
 		locationId: string | null;
 		locationName: string | null;
 		company: string;
-		purchaseDate: Date | string | null;
-		availableForUseDate: Date | string | null;
+		purchaseDate: DateOnly | null;
+		availableForUseDate: DateOnly | null;
 		status: AssetStatus;
 		netPurchaseAmount: number;
 		openingAccumulatedDepreciation: number;
@@ -7372,17 +7575,21 @@ export namespace Asset {
 
 	export const listFixedAssetRegisterReportSchema = z
 		.object({
-			fromDate: z.coerce.date(),
-			toDate: z.coerce.date(),
+			fromDate: dateOnlyInputSchema,
+			toDate: dateOnlyInputSchema,
 			company: z.string().trim().max(255).optional(),
 			groupBy: fixedAssetRegisterGroupBySchema,
 			assetCategory: z.string().trim().max(255).optional(),
 			location: z.string().trim().max(255).optional(),
 		})
-		.refine((input) => input.fromDate <= input.toDate, {
-			message: "From date must be on or before to date.",
-			path: ["toDate"],
-		});
+		.refine(
+			(input) =>
+				normalizeDateOnly(input.fromDate) <= normalizeDateOnly(input.toDate),
+			{
+				message: "From date must be on or before to date.",
+				path: ["toDate"],
+			},
+		);
 	export type ListFixedAssetRegisterReportInput = z.infer<
 		typeof listFixedAssetRegisterReportSchema
 	>;
@@ -7505,7 +7712,7 @@ export namespace Asset {
 		series: string;
 		companyId: string;
 		company: string;
-		transactionDate: Date | string;
+		transactionDate: DateOnly;
 		purpose: AssetMovementPurpose;
 		status: AssetMovementStatus;
 		notes?: string | null;
@@ -7553,8 +7760,8 @@ export namespace Asset {
 		assetName?: string | null;
 		companyId: string;
 		company: string;
-		failureDate: Date | string;
-		completionDate?: Date | string | null;
+		failureDate: DateOnly;
+		completionDate?: DateOnly | null;
 		repairStatus: AssetRepairStatus;
 		repairCost: number;
 		capitalizeRepairCost: boolean;
@@ -7613,7 +7820,7 @@ export namespace Asset {
 		series: string;
 		companyId: string;
 		company: string;
-		postingDate: Date | string;
+		postingDate: DateOnly;
 		targetType: AssetCapitalizationTargetType;
 		targetAssetId?: string | null;
 		targetAssetName?: string | null;
@@ -7649,7 +7856,7 @@ export namespace Asset {
 		assetName?: string | null;
 		companyId: string;
 		company: string;
-		disposalDate: Date | string;
+		disposalDate: DateOnly;
 		disposalType: AssetDisposalType;
 		salesAmount?: number | null;
 		gainLossAmount: number;
@@ -7679,7 +7886,7 @@ export namespace Asset {
 
 	export const scrapAssetSchema = z.object({
 		assetId: z.string().cuid(),
-		disposalDate: z.coerce.date(),
+		disposalDate: dateOnlyInputSchema,
 		gainLossAccount: z.string().trim().min(1).max(255),
 		costCenter: z.string().trim().max(255).optional().nullable(),
 		notes: z.string().trim().max(1000).optional().nullable(),
@@ -7688,7 +7895,7 @@ export namespace Asset {
 
 	export const sellAssetSchema = z.object({
 		assetId: z.string().cuid(),
-		disposalDate: z.coerce.date(),
+		disposalDate: dateOnlyInputSchema,
 		salesAmount: z.number().finite().min(0),
 		proceedsAccount: z.string().trim().min(1).max(255),
 		gainLossAccount: z.string().trim().min(1).max(255),
@@ -7715,7 +7922,7 @@ export namespace Asset {
 
 	export const createAssetMovementSchema = z.object({
 		companyId: z.string().cuid("Company is required"),
-		transactionDate: z.coerce.date(),
+		transactionDate: dateOnlyInputSchema,
 		purpose: assetMovementPurposeSchema,
 		notes: z.string().trim().max(1000).optional().nullable(),
 		items: z.array(createAssetMovementItemSchema).min(1),
@@ -7780,8 +7987,8 @@ export namespace Asset {
 		.object({
 			assetId: z.string().cuid(),
 			companyId: z.string().cuid("Company is required"),
-			failureDate: z.coerce.date(),
-			completionDate: z.coerce.date().optional().nullable(),
+			failureDate: dateOnlyInputSchema,
+			completionDate: dateOnlyInputSchema.optional().nullable(),
 			capitalizeRepairCost: z.boolean().optional().default(false),
 			increaseInAssetLife: z.number().int().min(0).optional().default(0),
 			description: z.string().trim().max(2000).optional().nullable(),
@@ -7795,7 +8002,11 @@ export namespace Asset {
 				.default([]),
 		})
 		.superRefine((value, ctx) => {
-			if (value.completionDate && value.completionDate < value.failureDate) {
+			if (
+				value.completionDate &&
+				normalizeDateOnly(value.completionDate) <
+					normalizeDateOnly(value.failureDate)
+			) {
 				ctx.addIssue({
 					code: "custom",
 					path: ["completionDate"],
@@ -7890,7 +8101,7 @@ export namespace Asset {
 	export const createAssetCapitalizationSchema = z
 		.object({
 			companyId: z.string().cuid("Company is required"),
-			postingDate: z.coerce.date(),
+			postingDate: dateOnlyInputSchema,
 			targetType: assetCapitalizationTargetTypeSchema,
 			targetAssetId: z.string().cuid().optional().nullable(),
 			targetAssetName: z.string().trim().max(255).optional().nullable(),

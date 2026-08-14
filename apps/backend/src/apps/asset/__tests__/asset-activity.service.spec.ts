@@ -57,8 +57,8 @@ describe("AssetService > AssetActivityReport", () => {
 
 		const result = await service.findAssetActivityReport(
 			{
-				fromDate: new Date("2026-04-01T00:00:00.000Z"),
-				toDate: new Date("2026-04-30T00:00:00.000Z"),
+				fromDate: "2026-04-01",
+				toDate: "2026-04-30",
 				company: "ACME",
 				asset: "Pump",
 				assetCategory: "Mach",

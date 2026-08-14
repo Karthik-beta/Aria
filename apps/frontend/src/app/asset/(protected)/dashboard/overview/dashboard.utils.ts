@@ -60,8 +60,12 @@ export function formatShortDate(date: string): string {
 
 export function formatMonth(month: string): string {
 	const [year, m] = month.split("-");
-	const date = new Date(Number(year), Number(m) - 1);
-	return date.toLocaleDateString("en-IN", { month: "short", year: "2-digit" });
+	const date = new Date(Date.UTC(Number(year), Number(m) - 1, 1));
+	return date.toLocaleDateString("en-IN", {
+		month: "short",
+		year: "2-digit",
+		timeZone: "UTC",
+	});
 }
 
 // ── Asset Status Labels ───────────────────────────────────────────────

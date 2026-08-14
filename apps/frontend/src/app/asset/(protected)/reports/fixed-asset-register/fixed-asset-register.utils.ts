@@ -1,4 +1,6 @@
 import type { Asset } from "@aria/types";
+import { normalizeDateOnly } from "@aria/types";
+import { formatAssetDate, todayDateInputValue } from "@/lib/asset-date-only";
 
 export type FixedAssetRegisterFilterState = {
 	company: string;
@@ -27,36 +29,20 @@ const CURRENCY_FORMATTER = new Intl.NumberFormat("en-IN", {
 	maximumFractionDigits: 2,
 });
 
-function toDateInputValue(date: Date): string {
-	const year = date.getFullYear();
-	const month = String(date.getMonth() + 1).padStart(2, "0");
-	const day = String(date.getDate()).padStart(2, "0");
-
-	return `${year}-${month}-${day}`;
-}
-
-function parseDateField(value: string, endOfDay = false): Date {
-	return new Date(`${value}T${endOfDay ? "23:59:59.999" : "00:00:00.000"}Z`);
-}
-
 export function getDefaultFromDate(): string {
-	const date = new Date();
-	date.setMonth(0, 1);
-	date.setHours(0, 0, 0, 0);
-
-	return toDateInputValue(date);
+	return `${todayDateInputValue().slice(0, 4)}-01-01`;
 }
 
 export function getDefaultToDate(): string {
-	return toDateInputValue(new Date());
+	return todayDateInputValue();
 }
 
 export function buildFixedAssetRegisterInput(
 	filters: FixedAssetRegisterFilterState,
 ): Asset.ListFixedAssetRegisterReportInput {
 	return {
-		fromDate: parseDateField(filters.fromDate),
-		toDate: parseDateField(filters.toDate, true),
+		fromDate: normalizeDateOnly(filters.fromDate),
+		toDate: normalizeDateOnly(filters.toDate),
 		company: filters.company.trim() || undefined,
 		groupBy: filters.groupBy,
 		assetCategory: filters.assetCategory.trim() || undefined,
@@ -71,15 +57,14 @@ export function getDateRangeError(
 		return "From date and to date are required.";
 	}
 
-	const fromDate = parseDateField(filters.fromDate);
-	const toDate = parseDateField(filters.toDate, true);
-
-	if (Number.isNaN(fromDate.getTime()) || Number.isNaN(toDate.getTime())) {
+	try {
+		const fromDate = normalizeDateOnly(filters.fromDate);
+		const toDate = normalizeDateOnly(filters.toDate);
+		if (fromDate > toDate) {
+			return "From date must be on or before to date.";
+		}
+	} catch {
 		return "Enter a valid date range.";
-	}
-
-	if (fromDate.getTime() > toDate.getTime()) {
-		return "From date must be on or before to date.";
 	}
 
 	return null;
@@ -97,16 +82,11 @@ export function formatDateLabel(
 	value: Date | string | null | undefined,
 ): string {
 	if (!value) return "-";
-	const date = value instanceof Date ? value : new Date(value);
-	if (Number.isNaN(date.getTime())) {
+	try {
+		return formatAssetDate(value);
+	} catch {
 		return "-";
 	}
-
-	return date.toLocaleDateString("en-IN", {
-		year: "numeric",
-		month: "short",
-		day: "2-digit",
-	});
 }
 
 export function renderOptionalText(value: string | null | undefined): string {

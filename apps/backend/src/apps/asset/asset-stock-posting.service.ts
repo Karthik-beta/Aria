@@ -1,3 +1,4 @@
+import type { DateOnlyInput } from "@aria/types";
 import {
 	BadRequestException,
 	Injectable,
@@ -13,6 +14,11 @@ import {
 	assertAssetOrganizationId,
 	companyWhereForOrganization,
 } from "./asset-organization-scope";
+import {
+	dateOnlyFromPersistedDateTime,
+	dateOnlyUtc,
+	normalizeDateOnly,
+} from "./depreciation/depreciation.config";
 
 export type AssetStockSourceType = "ASSET_CAPITALIZATION" | "ASSET_REPAIR";
 
@@ -25,7 +31,7 @@ export interface AssetMaterialIssueLine {
 
 export interface CreateAssetMaterialIssueInput {
 	companyId: string;
-	postingDate: Date;
+	postingDate: DateOnlyInput;
 	sourceType: AssetStockSourceType;
 	sourceId: string;
 	lines: readonly AssetMaterialIssueLine[];
@@ -50,6 +56,7 @@ export class AssetStockPostingService {
 		input: CreateAssetMaterialIssueInput,
 	): Promise<AssetMaterialIssueResult> {
 		assertAssetOrganizationId(organizationId);
+		const postingDate = dateOnlyUtc(normalizeDateOnly(input.postingDate));
 		const companyId = input.companyId.trim();
 		if (!companyId) {
 			throw new BadRequestException(
@@ -152,7 +159,7 @@ export class AssetStockPostingService {
 			}
 		}
 
-		const year = input.postingDate.getUTCFullYear();
+		const year = dateOnlyFromPersistedDateTime(postingDate).slice(0, 4);
 		const prefix = `MAT-STE-${year}-`;
 		const lastEntry = await tx.stockEntry.findFirst({
 			where: { series: { startsWith: prefix } },
@@ -170,7 +177,7 @@ export class AssetStockPostingService {
 			data: {
 				series,
 				stockEntryType: "MATERIAL_ISSUE",
-				postingDate: input.postingDate,
+				postingDate,
 				company,
 				status: "SUBMITTED",
 				remarks: `${input.sourceType} ${input.sourceId}`,

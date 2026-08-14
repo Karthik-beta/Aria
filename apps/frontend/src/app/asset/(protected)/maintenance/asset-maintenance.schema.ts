@@ -10,7 +10,7 @@ export const assetMaintenanceTaskRowSchema = z.object({
 	maintenanceStatus: z
 		.enum(["PLANNED", "OVERDUE", "CANCELLED"])
 		.default("PLANNED"),
-	startDate: z.string().min(1, "Start date is required"),
+	startDate: z.iso.date("Start date is required"),
 	periodicity: z.enum([
 		"DAILY",
 		"WEEKLY",
@@ -21,7 +21,7 @@ export const assetMaintenanceTaskRowSchema = z.object({
 		"TWO_YEARLY",
 		"THREE_YEARLY",
 	]),
-	endDate: z.string().optional().nullable(),
+	endDate: z.iso.date().optional().nullable(),
 	certificateRequired: z.boolean().default(false),
 	assignTo: z.string().max(255).trim().optional().nullable(),
 	assignToName: z.string().max(255).trim().optional().nullable(),
