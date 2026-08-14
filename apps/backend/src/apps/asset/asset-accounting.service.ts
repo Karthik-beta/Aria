@@ -40,6 +40,8 @@ export interface AssetAccountingLineInput {
 export interface CreateAssetAccountingEntryInput {
 	companyId: string;
 	assetId?: string | null;
+	/** The finance book whose asset state this entry consumes, when applicable. */
+	financeBookId?: string | null;
 	sourceType: AssetAccountingSourceType;
 	sourceId: string;
 	postingDate: DateOnlyInput;
@@ -159,6 +161,37 @@ export class AssetAccountingService {
 				);
 			}
 		}
+		const financeBookId = input.financeBookId?.trim() || null;
+		if (financeBookId) {
+			const financeBook = await tx.financeBook.findUnique({
+				where: { id: financeBookId },
+				select: { id: true },
+			});
+			if (!financeBook) {
+				throw new BadRequestException(
+					`Finance book ${financeBookId} does not exist`,
+				);
+			}
+			if (input.assetId) {
+				const assetBook = await tx.assetFinanceBook.findFirst({
+					where: {
+						assetId: input.assetId,
+						financeBookId,
+						asset: {
+							is: assetWhereForOrganization(organizationId, {
+								companyId: companyRecord.id,
+							}),
+						},
+					},
+					select: { id: true },
+				});
+				if (!assetBook) {
+					throw new BadRequestException(
+						`Finance book ${financeBookId} is not configured for asset ${input.assetId}`,
+					);
+				}
+			}
+		}
 		if (
 			companyRecord.accountsFrozenThrough &&
 			dateOnlyFromPersistedDateTime(postingDate) <=
@@ -226,6 +259,7 @@ export class AssetAccountingService {
 				series,
 				companyId: companyRecord.id,
 				assetId: input.assetId ?? null,
+				financeBookId,
 				sourceType: input.sourceType,
 				sourceId,
 				postingDate,

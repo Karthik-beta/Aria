@@ -6,6 +6,7 @@ describe("AssetDepreciationLifecycleService", () => {
 	it("attributes submit and cancel activity to the authenticated actor", async () => {
 		const activities: Array<Record<string, unknown>> = [];
 		const transaction = {
+			$queryRaw: mock(async () => [{ locked: true }]),
 			asset: {
 				findFirst: mock(async () => ({
 					status: "DRAFT",
@@ -19,6 +20,9 @@ describe("AssetDepreciationLifecycleService", () => {
 			},
 			assetDepreciationJournalEntry: {
 				count: mock(async () => 0),
+			},
+			assetFinanceBook: {
+				findMany: mock(async () => []),
 			},
 			assetActivity: {
 				create: mock(async ({ data }: { data: Record<string, unknown> }) => {
@@ -69,8 +73,37 @@ describe("AssetDepreciationLifecycleService", () => {
 			updateScheduleCalls.push(args);
 		});
 		const transaction = {
+			$queryRaw: mock(async () => [{ locked: true }]),
 			asset: {
-				findFirst: mock(async () => ({ id: "asset-1" })),
+				findFirst: mock(async () => ({
+					id: "asset-1",
+					status: "SUBMITTED",
+					calculateDepreciation: true,
+					company: { defaultFinanceBookId: "finance-book-1" },
+					purchaseDate: new Date("2030-01-01T00:00:00.000Z"),
+					availableForUseDate: new Date("2030-01-01T00:00:00.000Z"),
+					depreciationStartDate: new Date("2030-12-31T00:00:00.000Z"),
+					netPurchaseAmount: 100_000,
+					openingAccumulatedDepreciation: 0,
+					openingNumberOfBookedDepreciations: 0,
+					assetCategory: { financeBookDefaults: [] },
+					financeBooks: [
+						{
+							financeBookId: "finance-book-1",
+							depreciationMethod: "WRITTEN_DOWN_VALUE",
+							totalNumberOfDepreciations: 3,
+							frequencyOfDepreciation: 12,
+							depreciationStartDate: new Date("2030-12-31T00:00:00.000Z"),
+							dailyProrataBased: false,
+							shiftBased: false,
+							rateOfDepreciation: null,
+							expectedValueAfterUsefulLife: 0,
+							openingAccumulatedDepreciation: 0,
+							openingNumberOfBookedDepreciations: 0,
+						},
+					],
+				})),
+				updateMany: mock(async () => ({ count: 1 })),
 			},
 			assetDepreciationJournalEntry: { count: mock(async () => 0) },
 			assetDepreciationSchedule: {
@@ -82,6 +115,7 @@ describe("AssetDepreciationLifecycleService", () => {
 				deleteMany: mock(async () => undefined),
 				create: mock(async () => undefined),
 				updateMany: updateBook,
+				findMany: mock(async () => [{ id: "asset-book-1" }]),
 				findFirst: mock(async () => ({
 					id: "asset-book-1",
 					rateOfDepreciation: null,

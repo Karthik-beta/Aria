@@ -1,6 +1,8 @@
 import { Injectable } from "@nestjs/common";
 import { Prisma } from "../../../generated/prisma/client";
 import type { PrismaService } from "../../../shared/prisma.service";
+import { isEffectiveProjectionFinanceBook } from "../asset-finance-book";
+import { lockAssetAndFinanceBooks } from "../asset-locking";
 import {
 	businessYearForSeries,
 	dateOnlyFromPersistedDateTime,
@@ -83,6 +85,7 @@ interface WorkerEntry {
 			company: { name: string; organizationId: string };
 			calculateDepreciation: boolean;
 			status: string;
+			financeBooks: Array<{ financeBookId: string }>;
 		};
 		assetFinanceBook: {
 			id: string;
@@ -270,9 +273,35 @@ export class DepreciationPersistenceService {
 
 	async post(job: DepreciationJobData): Promise<PostDepreciationResult> {
 		return this.db.$transaction(async (tx) => {
-			await tx.$queryRaw(Prisma.sql`
-				SELECT pg_advisory_xact_lock(hashtext(${job.assetFinanceBookId})) IS NULL AS "locked"
-			`);
+			// The queue payload carries both stable lock identities. Acquire the
+			// canonical Asset -> AssetFinanceBook order before reading the schedule
+			// row; the identity query below then validates that the payload is still
+			// attached to those locked rows.
+			await lockAssetAndFinanceBooks(
+				tx,
+				[job.assetId],
+				[job.assetFinanceBookId],
+			);
+			const identity = await tx.assetDepreciationScheduleEntry.findFirst<{
+				schedule: { assetId: string; assetFinanceBookId: string };
+			}>({
+				where: {
+					id: job.scheduleEntryId,
+					schedule: {
+						asset: {
+							company: { is: { organizationId: job.organizationId } },
+						},
+					},
+				},
+				select: {
+					schedule: { select: { assetId: true, assetFinanceBookId: true } },
+				},
+			});
+			if (!identity) {
+				throw new DepreciationPostingValidationError(
+					`Depreciation schedule entry ${job.scheduleEntryId} does not exist.`,
+				);
+			}
 
 			const entry =
 				await tx.assetDepreciationScheduleEntry.findFirst<WorkerEntry>({
@@ -292,6 +321,7 @@ export class DepreciationPersistenceService {
 										company: {
 											select: { name: true, organizationId: true },
 										},
+										financeBooks: { select: { financeBookId: true } },
 									},
 								},
 								assetFinanceBook: { include: { financeBook: true } },
@@ -521,8 +551,11 @@ export class DepreciationPersistenceService {
 			}
 
 			if (
-				company.defaultFinanceBookId ===
-				entry.schedule.assetFinanceBook.financeBookId
+				isEffectiveProjectionFinanceBook(
+					company.defaultFinanceBookId,
+					entry.schedule.asset.financeBooks,
+					entry.schedule.assetFinanceBook.financeBookId,
+				)
 			) {
 				const updatedAsset = await tx.asset.updateMany({
 					where: {

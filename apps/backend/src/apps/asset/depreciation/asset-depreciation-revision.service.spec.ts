@@ -164,7 +164,7 @@ describe("AssetDepreciationRevisionService", () => {
 			},
 		);
 
-		expect(mocked.lock).toHaveBeenCalledTimes(2);
+		expect(mocked.lock).toHaveBeenCalledTimes(4);
 		expect(mocked.updateMany.mock.calls).toHaveLength(2);
 		expect(mocked.updateMany.mock.calls[0]?.[0]).toMatchObject({
 			where: { id: "schedule-book-a" },
@@ -423,7 +423,7 @@ describe("AssetDepreciationRevisionService", () => {
 			),
 		).resolves.toBe(3);
 
-		expect(mocked.lock).toHaveBeenCalledTimes(2);
+		expect(mocked.lock).toHaveBeenCalledTimes(4);
 		expect(mocked.updateMany.mock.calls[0]?.[0]).toMatchObject({
 			where: { assetFinanceBookId: "book-a", status: "ACTIVE" },
 			data: { status: "CANCELLED" },

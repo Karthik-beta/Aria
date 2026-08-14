@@ -39,6 +39,9 @@ function createMockPrisma() {
 			update: jest.fn(),
 			updateMany: jest.fn(),
 		},
+		assetFinanceBook: {
+			findFirst: jest.fn().mockResolvedValue({ id: "asset-book-001" }),
+		},
 		assetActivity: {
 			create: jest.fn(),
 		},
@@ -203,7 +206,7 @@ const baseAssetContext = {
 	series: "AST-2026-00001",
 	assetName: "Hydraulic Pump A",
 	companyId: COMPANY_ID,
-	company: COMPANY_RELATION,
+	company: { ...COMPANY_RELATION, defaultFinanceBookId: "finance-book-001" },
 	status: "SUBMITTED",
 	purchaseDate: new Date("2026-01-01"),
 	availableForUseDate: new Date("2026-01-15"),
@@ -359,6 +362,7 @@ describe("AssetService > AssetValueAdjustment", () => {
 	it("requires an explicit configured finance book when the asset has multiple books", async () => {
 		const multiBookAsset = {
 			...baseAssetContext,
+			company: { ...baseAssetContext.company, defaultFinanceBookId: null },
 			financeBooks: [
 				...baseAssetContext.financeBooks,
 				{
@@ -395,6 +399,90 @@ describe("AssetService > AssetValueAdjustment", () => {
 		);
 		expect(selected.currentAssetValue).toBe(60000);
 		expect(selected.financeBookName).toBe("Tax Books");
+	});
+
+	it("uses the Company default and keeps secondary-book changes out of the root projection", async () => {
+		const multiBookAsset = {
+			...baseAssetContext,
+			company: {
+				...COMPANY_RELATION,
+				defaultFinanceBookId: "finance-book-001",
+			},
+			financeBooks: [
+				...baseAssetContext.financeBooks,
+				{
+					...baseAssetContext.financeBooks[0],
+					id: "asset-book-002",
+					financeBookId: "finance-book-002",
+					financeBook: { name: "Tax Books" },
+					valueAfterDepreciation: new Prisma.Decimal("60000"),
+				},
+			],
+		};
+		mockPrisma.asset.findUnique.mockResolvedValue(multiBookAsset);
+
+		const defaultPreview = await service.previewAssetValueAdjustment(
+			{
+				assetId: "asset-001",
+				adjustmentDate: "2026-04-15",
+				newAssetValue: 90000,
+			},
+			"org-1",
+		);
+		expect(defaultPreview.financeBookId).toBe("finance-book-001");
+		expect(defaultPreview.currentAssetValue).toBe(80000);
+
+		mockPrisma.assetValueAdjustment.findUnique.mockResolvedValue({
+			id: "adj-secondary",
+			assetId: "asset-001",
+			financeBookId: "finance-book-002",
+			adjustmentDate: new Date("2026-04-15"),
+			status: "DRAFT",
+		});
+		mockTx.assetValueAdjustment.findUnique.mockResolvedValue({
+			id: "adj-secondary",
+			series: "AVA-2026-00002",
+			assetId: "asset-001",
+			financeBookId: "finance-book-002",
+			adjustmentDate: new Date("2026-04-15"),
+			currentAssetValue: new Prisma.Decimal("60000"),
+			newAssetValue: new Prisma.Decimal("70000"),
+			differenceAccount: "Asset Revaluation Reserve",
+			costCenter: "Main Plant",
+			notes: null,
+			status: "DRAFT",
+		});
+		mockTx.asset.findUnique.mockResolvedValue(multiBookAsset);
+		mockTx.assetRevaluationEntry.findFirst.mockResolvedValue(null);
+		mockTx.assetRevaluationEntry.findUnique.mockResolvedValue(null);
+		mockTx.assetValueAdjustment.update.mockResolvedValue(
+			createAdjustmentRow({
+				id: "adj-secondary",
+				series: "AVA-2026-00002",
+				financeBookId: "finance-book-002",
+				currentAssetValue: new Prisma.Decimal("60000"),
+				newAssetValue: new Prisma.Decimal("70000"),
+				differenceAmount: new Prisma.Decimal("10000"),
+				status: "SUBMITTED",
+			}),
+		);
+
+		await service.submitAssetValueAdjustment(
+			{ id: "adj-secondary" },
+			"org-1",
+			"actor-001",
+		);
+
+		expect(mockDepreciationRevision.revise).toHaveBeenCalledWith(
+			mockTx,
+			"org-1",
+			expect.objectContaining({
+				assetId: "asset-001",
+				financeBookId: "finance-book-002",
+				valueDelta: 10000,
+			}),
+		);
+		expect(mockTx.asset.update).not.toHaveBeenCalled();
 	});
 
 	it("rejects a finance book that is not configured for the selected asset", async () => {
@@ -555,7 +643,14 @@ describe("AssetService > AssetValueAdjustment", () => {
 		});
 		mockTx.asset.findUnique.mockResolvedValue({
 			companyId: COMPANY_ID,
-			company: COMPANY_RELATION,
+			calculateDepreciation: true,
+			company: {
+				...COMPANY_RELATION,
+				defaultFinanceBookId: "finance-book-001",
+			},
+			financeBooks: [
+				{ id: "asset-book-001", financeBookId: "finance-book-001" },
+			],
 		});
 		mockTx.assetValueAdjustment.count.mockResolvedValue(0);
 		mockTx.assetValueAdjustment.update.mockResolvedValue(

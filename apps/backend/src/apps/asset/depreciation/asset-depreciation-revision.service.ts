@@ -1,5 +1,6 @@
 import { Injectable } from "@nestjs/common";
-import { Prisma } from "../../../generated/prisma/client";
+import type { Prisma } from "../../../generated/prisma/client";
+import { lockAssetAndFinanceBooks } from "../asset-locking";
 import {
 	type AssetOrganizationId,
 	assertAssetOrganizationId,
@@ -598,6 +599,7 @@ export class AssetDepreciationRevisionService {
 		assetId: string,
 		financeBookId?: string,
 	): Promise<RevisionBook[]> {
+		await lockAssetAndFinanceBooks(tx, [assetId], []);
 		const bookIds = await tx.assetFinanceBook.findMany({
 			where: {
 				assetId,
@@ -612,11 +614,11 @@ export class AssetDepreciationRevisionService {
 				`Finance book ${financeBookId} is not configured for this asset.`,
 			);
 		}
-		for (const book of bookIds) {
-			await tx.$queryRaw(Prisma.sql`
-				SELECT pg_advisory_xact_lock(hashtext(${book.id})) IS NULL AS "locked"
-			`);
-		}
+		await lockAssetAndFinanceBooks(
+			tx,
+			[assetId],
+			bookIds.map((book) => book.id),
+		);
 		return tx.assetFinanceBook.findMany({
 			where: {
 				assetId,

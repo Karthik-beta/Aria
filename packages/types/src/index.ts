@@ -7115,6 +7115,7 @@ export namespace Asset {
 		assetId: string;
 		companyId: string;
 		company: string;
+		financeBookId: string | null;
 		postingDate: DateOnly;
 		remarks: string;
 		status: AssetRevaluationEntryStatus;
@@ -7799,6 +7800,7 @@ export namespace Asset {
 		id: string;
 		capitalizationId: string;
 		assetId: string;
+		financeBookId: string | null;
 		assetName?: string | null;
 		assetValue: number;
 		createdAt: Date | string;
@@ -7820,6 +7822,7 @@ export namespace Asset {
 		series: string;
 		companyId: string;
 		company: string;
+		financeBookId: string | null;
 		postingDate: DateOnly;
 		targetType: AssetCapitalizationTargetType;
 		targetAssetId?: string | null;
@@ -7856,6 +7859,7 @@ export namespace Asset {
 		assetName?: string | null;
 		companyId: string;
 		company: string;
+		financeBookId: string | null;
 		disposalDate: DateOnly;
 		disposalType: AssetDisposalType;
 		salesAmount?: number | null;
@@ -7886,6 +7890,7 @@ export namespace Asset {
 
 	export const scrapAssetSchema = z.object({
 		assetId: z.string().cuid(),
+		financeBookId: z.string().cuid().optional().nullable(),
 		disposalDate: dateOnlyInputSchema,
 		gainLossAccount: z.string().trim().min(1).max(255),
 		costCenter: z.string().trim().max(255).optional().nullable(),
@@ -7895,6 +7900,7 @@ export namespace Asset {
 
 	export const sellAssetSchema = z.object({
 		assetId: z.string().cuid(),
+		financeBookId: z.string().cuid().optional().nullable(),
 		disposalDate: dateOnlyInputSchema,
 		salesAmount: z.number().finite().min(0),
 		proceedsAccount: z.string().trim().min(1).max(255),
@@ -8083,6 +8089,7 @@ export namespace Asset {
 
 	export const createAssetCapitalizationAssetItemSchema = z.object({
 		assetId: z.string().cuid(),
+		financeBookId: z.string().cuid().optional().nullable(),
 		assetValue: z.number().finite().min(0),
 	});
 	export type CreateAssetCapitalizationAssetItemInput = z.infer<
@@ -8101,6 +8108,7 @@ export namespace Asset {
 	export const createAssetCapitalizationSchema = z
 		.object({
 			companyId: z.string().cuid("Company is required"),
+			financeBookId: z.string().cuid().optional().nullable(),
 			postingDate: dateOnlyInputSchema,
 			targetType: assetCapitalizationTargetTypeSchema,
 			targetAssetId: z.string().cuid().optional().nullable(),

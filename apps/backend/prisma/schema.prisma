@@ -1701,23 +1701,26 @@ model AssetValueAdjustment {
 }
 
 model AssetRevaluationEntry {
-  id           String                      @id @default(cuid())
-  series       String                      @unique @db.VarChar(50)
-  adjustmentId String                      @unique
-  adjustment   AssetValueAdjustment        @relation(fields: [adjustmentId], references: [id], onDelete: Cascade)
-  assetId      String
-  asset        Asset                       @relation(fields: [assetId], references: [id])
-  companyId    String
-  company      Company                     @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  postingDate  DateTime
-  remarks      String                      @db.VarChar(500)
-  status       AssetRevaluationEntryStatus @default(POSTED)
-  reversedAt   DateTime?
-  lines        AssetRevaluationEntryLine[]
-  createdAt    DateTime                    @default(now())
-  updatedAt    DateTime                    @updatedAt
+  id            String                      @id @default(cuid())
+  series        String                      @unique @db.VarChar(50)
+  adjustmentId  String                      @unique
+  adjustment    AssetValueAdjustment        @relation(fields: [adjustmentId], references: [id], onDelete: Cascade)
+  assetId       String
+  asset         Asset                       @relation(fields: [assetId], references: [id])
+  companyId     String
+  company       Company                     @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  financeBookId String?
+  financeBook   FinanceBook?                @relation(fields: [financeBookId], references: [id], onDelete: Restrict)
+  postingDate   DateTime
+  remarks       String                      @db.VarChar(500)
+  status        AssetRevaluationEntryStatus @default(POSTED)
+  reversedAt    DateTime?
+  lines         AssetRevaluationEntryLine[]
+  createdAt     DateTime                    @default(now())
+  updatedAt     DateTime                    @updatedAt
 
   @@index([assetId])
+  @@index([financeBookId])
   @@index([status])
   @@index([postingDate])
   @@map("asset_revaluation_entries")
@@ -1802,14 +1805,19 @@ model AssetDepreciationScheduleEntry {
 
 /// A named accounting book used to maintain an independent asset valuation.
 model FinanceBook {
-  id                String                     @id @default(cuid())
-  name              String                     @unique @db.VarChar(255)
-  companies         Company[]                  @relation("CompanyDefaultFinanceBook")
-  assetFinanceBooks AssetFinanceBook[]
-  categoryDefaults  AssetCategoryFinanceBook[]
-  valueAdjustments  AssetValueAdjustment[]
-  createdAt         DateTime                   @default(now())
-  updatedAt         DateTime                   @updatedAt
+  id                       String                         @id @default(cuid())
+  name                     String                         @unique @db.VarChar(255)
+  companies                Company[]                      @relation("CompanyDefaultFinanceBook")
+  assetFinanceBooks        AssetFinanceBook[]
+  categoryDefaults         AssetCategoryFinanceBook[]
+  valueAdjustments         AssetValueAdjustment[]
+  revaluationEntries       AssetRevaluationEntry[]
+  accountingEntries        AssetAccountingEntry[]
+  capitalizations          AssetCapitalization[]
+  capitalizationAssetItems AssetCapitalizationAssetItem[]
+  disposals                AssetDisposal[]
+  createdAt                DateTime                       @default(now())
+  updatedAt                DateTime                       @updatedAt
 
   @@index([name])
   @@map("finance_books")
@@ -1962,6 +1970,8 @@ model AssetAccountingEntry {
   company        Company                    @relation(fields: [companyId], references: [id], onDelete: Restrict)
   assetId        String?
   asset          Asset?                     @relation("AssetAccountingEntries", fields: [assetId], references: [id], onDelete: SetNull)
+  financeBookId  String?
+  financeBook    FinanceBook?               @relation(fields: [financeBookId], references: [id], onDelete: Restrict)
   sourceType     AssetAccountingSourceType
   sourceId       String                     @db.VarChar(255)
   postingDate    DateTime
@@ -1978,6 +1988,7 @@ model AssetAccountingEntry {
 
   @@unique([sourceType, sourceId])
   @@index([assetId, postingDate])
+  @@index([financeBookId])
   @@index([companyId, postingDate, status])
   @@map("asset_accounting_entries")
 }
@@ -2221,6 +2232,8 @@ model AssetCapitalization {
   series                               String                           @unique @db.VarChar(50)
   companyId                            String
   company                              Company                          @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  financeBookId                        String?
+  financeBook                          FinanceBook?                     @relation(fields: [financeBookId], references: [id], onDelete: Restrict)
   postingDate                          DateTime
   targetType                           AssetCapitalizationTargetType    @default(NEW_ASSET)
   targetAssetId                        String?
@@ -2243,6 +2256,10 @@ model AssetCapitalization {
   createdTargetAsset                   Boolean                          @default(false)
   targetPreviousNetPurchaseAmount      Decimal?                         @db.Decimal(18, 6)
   targetPreviousValueAfterDepreciation Decimal?                         @db.Decimal(18, 6)
+  targetPreviousFinanceBookValue       Decimal?                         @db.Decimal(18, 6)
+  targetPreviousCalculateDepreciation  Boolean?
+  targetFinanceBookCreated             Boolean                          @default(false)
+  targetFinanceBookScheduleCreated     Boolean                          @default(false)
   targetPreviousStatus                 AssetStatus?
   stockItems                           AssetCapitalizationStockItem[]
   assetItems                           AssetCapitalizationAssetItem[]
@@ -2254,6 +2271,7 @@ model AssetCapitalization {
   @@index([status])
   @@index([postingDate])
   @@index([companyId])
+  @@index([financeBookId])
   @@map("asset_capitalizations")
 }
 
@@ -2281,6 +2299,8 @@ model AssetCapitalizationAssetItem {
   capitalization       AssetCapitalization @relation(fields: [capitalizationId], references: [id], onDelete: Cascade)
   assetId              String
   asset                Asset               @relation("SourceCapitalizationAssets", fields: [assetId], references: [id])
+  financeBookId        String?
+  financeBook          FinanceBook?        @relation(fields: [financeBookId], references: [id], onDelete: Restrict)
   assetValue           Decimal             @default(0) @db.Decimal(18, 6)
   previousStatus       AssetStatus?
   previousDisposalDate DateTime?
@@ -2290,6 +2310,7 @@ model AssetCapitalizationAssetItem {
   @@unique([capitalizationId, assetId])
   @@index([capitalizationId])
   @@index([assetId])
+  @@index([financeBookId])
   @@map("asset_capitalization_asset_items")
 }
 
@@ -2314,6 +2335,8 @@ model AssetDisposal {
   asset                          Asset                 @relation("AssetDisposals", fields: [assetId], references: [id])
   companyId                      String
   company                        Company               @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  financeBookId                  String?
+  financeBook                    FinanceBook?          @relation(fields: [financeBookId], references: [id], onDelete: Restrict)
   disposalDate                   DateTime
   disposalType                   AssetDisposalType
   salesAmount                    Decimal?              @db.Decimal(18, 6)
@@ -2336,6 +2359,7 @@ model AssetDisposal {
   @@index([status])
   @@index([disposalDate])
   @@index([companyId])
+  @@index([financeBookId])
   @@map("asset_disposals")
 }
 

@@ -35,6 +35,7 @@ function disposalRecord(overrides: Record<string, unknown> = {}) {
 		asset: { assetName: "CNC Machine" },
 		companyId: COMPANY_ID,
 		company: COMPANY_RELATION,
+		financeBookId: "finance-book-1",
 		disposalDate: new Date("2026-01-15T00:00:00.000Z"),
 		disposalType: "SELL",
 		salesAmount: 8_500,
@@ -144,6 +145,7 @@ function capitalizationAssetItem(overrides: Record<string, unknown> = {}) {
 		id: "cap-asset-1",
 		capitalizationId: "capitalization-1",
 		assetId: "source-asset-1",
+		financeBookId: null,
 		asset: { assetName: "Source Machine" },
 		assetValue: 999,
 		previousStatus: null,
@@ -178,6 +180,7 @@ function capitalizationRecord(overrides: Record<string, unknown> = {}) {
 		postingDate: new Date("2026-03-01T00:00:00.000Z"),
 		targetType: "EXISTING_ASSET",
 		targetAssetId: "target-asset-1",
+		financeBookId: null,
 		targetAsset: { assetName: "Composite Machine" },
 		targetAssetName: "Composite Machine",
 		targetAssetCategory: "Plant and Machinery",
@@ -216,7 +219,7 @@ function assetRecord(overrides: Record<string, unknown> = {}) {
 		assetCategoryId: "category-1",
 		assetCategory: { id: "category-1", name: "Plant and Machinery" },
 		companyId: COMPANY_ID,
-		company: COMPANY_RELATION,
+		company: { ...COMPANY_RELATION, defaultFinanceBookId: "finance-book-1" },
 		locationId: null,
 		location: null,
 		custodian: null,
@@ -249,7 +252,28 @@ function assetRecord(overrides: Record<string, unknown> = {}) {
 		purchaseReceipt: null,
 		purchaseInvoice: null,
 		status: "PARTIALLY_DEPRECIATED",
-		financeBooks: [],
+		financeBooks: [
+			{
+				id: "asset-book-1",
+				financeBookId: "finance-book-1",
+				financeBook: { name: "Company Books" },
+				depreciationMethod: "STRAIGHT_LINE",
+				totalNumberOfDepreciations: 10,
+				increaseInAssetLife: 0,
+				frequencyOfDepreciation: 12,
+				depreciationStartDate: now,
+				dailyProrataBased: false,
+				shiftBased: false,
+				rateOfDepreciation: null,
+				expectedValueAfterUsefulLife: 0,
+				openingAccumulatedDepreciation: 3_000,
+				openingNumberOfBookedDepreciations: 3,
+				valueAfterDepreciation: 7_000,
+				totalNumberOfBookedDepreciations: 3,
+				lastPostedDepreciationDate: null,
+				postingStatus: "PARTIALLY_DEPRECIATED",
+			},
+		],
 		activities: [],
 		createdAt: now,
 		updatedAt: now,
@@ -335,11 +359,19 @@ function createMockPrisma() {
 			update: jest.fn(),
 			updateMany: jest.fn().mockResolvedValue({ count: 1 }),
 		},
+		assetFinanceBook: {
+			findFirst: jest.fn().mockResolvedValue({ id: "asset-book-1" }),
+			findMany: jest.fn().mockResolvedValue([]),
+			findUnique: jest.fn(),
+		},
 		assetActivity: {
 			create: jest.fn(),
 		},
 		assetDepreciationJournalEntry: {
 			count: jest.fn().mockResolvedValue(0),
+			aggregate: jest
+				.fn()
+				.mockResolvedValue({ _sum: { depreciationAmount: null } }),
 		},
 		assetAccountingEntry: {
 			count: jest.fn().mockResolvedValue(0),
@@ -354,9 +386,13 @@ function createMockPrisma() {
 			findUnique: jest.fn().mockResolvedValue({
 				id: "company-1",
 				disabled: false,
+				defaultFinanceBookId: "finance-book-1",
 				defaultCostCenter: COST_CENTER,
 				accumulatedDepreciationAccount: ACCUMULATED_DEPRECIATION_ACCOUNT,
 			}),
+		},
+		financeBook: {
+			findUnique: jest.fn().mockResolvedValue({ id: "finance-book-2" }),
 		},
 		assetCategoryAccount: {
 			findUnique: jest.fn().mockResolvedValue({
@@ -500,6 +536,7 @@ function createMockPrisma() {
 			findUnique: jest.fn().mockResolvedValue({
 				...COMPANY_RELATION,
 				disabled: false,
+				defaultFinanceBookId: "finance-book-1",
 			}),
 			findFirst: jest.fn(),
 		},
@@ -629,6 +666,9 @@ describe("Asset lifecycle actions", () => {
 				depreciationBarrier,
 			} = createTestContext();
 			const disposalDate = new Date("2026-01-15T00:00:00.000Z");
+			mockPrisma.asset.findUnique.mockResolvedValue(
+				assetRecord({ status: "PARTIALLY_DEPRECIATED" }),
+			);
 			mockPrisma._mockTx.asset.findUnique.mockResolvedValue(
 				assetRecord({ status: "PARTIALLY_DEPRECIATED" }),
 			);
@@ -659,6 +699,7 @@ describe("Asset lifecycle actions", () => {
 					organizationId: "org-1",
 					throughDate: disposalDate,
 					assetIds: ["asset-1"],
+					financeBookId: "finance-book-1",
 				},
 			);
 			expect(mockPrisma._mockTx.$queryRaw).toHaveBeenCalled();
@@ -705,6 +746,7 @@ describe("Asset lifecycle actions", () => {
 				mockPrisma._mockTx,
 				"org-1",
 				"asset-1",
+				"finance-book-1",
 			);
 			expect(mockPrisma._mockTx.asset.update).toHaveBeenCalledWith({
 				where: { id: "asset-1" },
@@ -714,6 +756,7 @@ describe("Asset lifecycle actions", () => {
 
 		it("records a disposal loss as a debit when scrapping", async () => {
 			const { service, mockPrisma, accounting } = createTestContext();
+			mockPrisma.asset.findUnique.mockResolvedValue(assetRecord());
 			mockPrisma._mockTx.asset.findUnique.mockResolvedValue(assetRecord());
 			mockPrisma._mockTx.assetDisposal.create.mockResolvedValue(
 				disposalRecord({
@@ -773,6 +816,9 @@ describe("Asset lifecycle actions", () => {
 
 		it("rejects a duplicate or stale disposal after taking the asset lock", async () => {
 			const { service, mockPrisma, accounting } = createTestContext();
+			mockPrisma.asset.findUnique.mockResolvedValue(
+				assetRecord({ status: "SOLD" }),
+			);
 			mockPrisma._mockTx.asset.findUnique.mockResolvedValue(
 				assetRecord({ status: "SOLD" }),
 			);
@@ -793,6 +839,12 @@ describe("Asset lifecycle actions", () => {
 
 		it("rejects disposal before availability or after later posted depreciation", async () => {
 			const first = createTestContext();
+			first.mockPrisma.asset.findUnique.mockResolvedValue(
+				assetRecord({
+					purchaseDate: new Date("2026-02-01T00:00:00.000Z"),
+					availableForUseDate: new Date("2026-02-05T00:00:00.000Z"),
+				}),
+			);
 			first.mockPrisma._mockTx.asset.findUnique.mockResolvedValue(
 				assetRecord({
 					purchaseDate: new Date("2026-02-01T00:00:00.000Z"),
@@ -811,6 +863,7 @@ describe("Asset lifecycle actions", () => {
 			).rejects.toThrow("available-for-use date");
 
 			const second = createTestContext();
+			second.mockPrisma.asset.findUnique.mockResolvedValue(assetRecord());
 			second.mockPrisma._mockTx.asset.findUnique.mockResolvedValue(
 				assetRecord(),
 			);
@@ -862,7 +915,12 @@ describe("Asset lifecycle actions", () => {
 			);
 			expect(
 				depreciationRevision.reactivateLatestClosedSchedules,
-			).toHaveBeenCalledWith(mockPrisma._mockTx, "org-1", "asset-1");
+			).toHaveBeenCalledWith(
+				mockPrisma._mockTx,
+				"org-1",
+				"asset-1",
+				"finance-book-1",
+			);
 			expect(mockPrisma._mockTx.assetDisposal.update).toHaveBeenCalledWith({
 				where: { id: "disposal-1" },
 				data: { status: "CANCELLED" },
@@ -1800,6 +1858,49 @@ describe("Asset lifecycle actions", () => {
 	});
 
 	describe("asset capitalization workflow", () => {
+		it("accepts an explicit secondary book without changing the root projection", async () => {
+			const { service, mockPrisma } = createTestContext();
+			mockPrisma._mockTx.asset.findUnique.mockResolvedValue({
+				companyId: COMPANY_ID,
+				company: COMPANY_RELATION,
+				series: "AST-2026-00010",
+				assetName: "Composite Machine",
+				itemCode: "COMPOSITE-MACHINE",
+				status: "DRAFT",
+				assetType: "COMPOSITE_ASSET",
+				assetCategory: { name: "Plant and Machinery" },
+			});
+			mockPrisma._mockTx.assetCapitalization.create.mockResolvedValue(
+				capitalizationRecord({
+					financeBookId: "finance-book-2",
+					totalStockValue: 0,
+					totalAssetValue: 0,
+					totalServiceValue: 200,
+					totalValue: 200,
+					stockItems: [],
+					assetItems: [],
+				}),
+			);
+
+			const result = await service.createAssetCapitalization(
+				{
+					companyId: COMPANY_ID,
+					financeBookId: "finance-book-2",
+					postingDate: "2026-03-01",
+					targetType: "EXISTING_ASSET",
+					targetAssetId: "target-asset-1",
+					stockItems: [],
+					assetItems: [],
+					serviceItems: [
+						{ expenseAccount: SERVICE_EXPENSE_ACCOUNT, amount: 200 },
+					],
+				},
+				"org-1",
+			);
+
+			expect(result.financeBookId).toBe("finance-book-2");
+		});
+
 		it("validates source and target identities before creating a document", async () => {
 			const duplicate = createTestContext();
 			await expect(
@@ -1855,11 +1956,12 @@ describe("Asset lifecycle actions", () => {
 					id: "source-asset-1",
 					series: "AST-2025-00001",
 					companyId: COMPANY_ID,
-					company: COMPANY_RELATION,
+					company: { ...COMPANY_RELATION, defaultFinanceBookId: null },
 					status: "PARTIALLY_DEPRECIATED",
 					purchaseDate: new Date("2025-01-01T00:00:00.000Z"),
 					availableForUseDate: new Date("2025-01-01T00:00:00.000Z"),
 					valueAfterDepreciation: 3_000,
+					financeBooks: [],
 				},
 			]);
 			mockPrisma._mockTx.assetCapitalization.create.mockResolvedValue(
@@ -1887,7 +1989,13 @@ describe("Asset lifecycle actions", () => {
 						totalAssetValue: 3_000,
 						totalValue: 3_000,
 						assetItems: {
-							create: [{ assetId: "source-asset-1", assetValue: 3_000 }],
+							create: [
+								{
+									assetId: "source-asset-1",
+									financeBookId: null,
+									assetValue: 3_000,
+								},
+							],
 						},
 					}),
 				}),
@@ -1938,11 +2046,12 @@ describe("Asset lifecycle actions", () => {
 					id: "source-asset-1",
 					series: "AST-2025-00001",
 					companyId: COMPANY_ID,
-					company: COMPANY_RELATION,
+					company: { ...COMPANY_RELATION, defaultFinanceBookId: null },
 					status: "SUBMITTED",
 					purchaseDate: new Date("2026-04-01T00:00:00.000Z"),
 					availableForUseDate: new Date("2026-04-01T00:00:00.000Z"),
 					valueAfterDepreciation: 3_000,
+					financeBooks: [],
 				},
 			]);
 			await expect(
@@ -1979,31 +2088,55 @@ describe("Asset lifecycle actions", () => {
 			mockPrisma._mockTx.assetCapitalization.findUnique.mockResolvedValue(
 				capitalizationRecord(),
 			);
-			mockPrisma._mockTx.asset.findMany.mockResolvedValue([
-				{
-					id: "source-asset-1",
-					series: "AST-2025-00001",
-					companyId: COMPANY_ID,
-					company: COMPANY_RELATION,
-					assetCategoryId: "category-1",
-					status: "PARTIALLY_DEPRECIATED",
-					disposalDate: null,
-					netPurchaseAmount: 5_000,
-					valueAfterDepreciation: 3_000,
+			const sourceAsset = {
+				id: "source-asset-1",
+				series: "AST-2025-00001",
+				companyId: COMPANY_ID,
+				company: {
+					...COMPANY_RELATION,
+					defaultFinanceBookId: "finance-book-1",
 				},
-			]);
-			mockPrisma._mockTx.asset.findUnique.mockResolvedValue({
+				assetCategoryId: "category-1",
+				status: "PARTIALLY_DEPRECIATED",
+				disposalDate: null,
+				netPurchaseAmount: 5_000,
+				valueAfterDepreciation: 3_000,
+				calculateDepreciation: true,
+				financeBooks: [
+					{
+						id: "source-asset-book-1",
+						financeBookId: "finance-book-1",
+						openingAccumulatedDepreciation: 2_000,
+					},
+				],
+			};
+			const targetAsset = {
 				id: "target-asset-1",
 				series: "AST-2026-00010",
 				companyId: COMPANY_ID,
-				company: COMPANY_RELATION,
+				company: { ...COMPANY_RELATION, defaultFinanceBookId: null },
 				assetCategoryId: "category-1",
 				status: "DRAFT",
 				assetType: "COMPOSITE_ASSET",
 				calculateDepreciation: false,
 				netPurchaseAmount: 1_000,
 				valueAfterDepreciation: 1_000,
-			});
+			};
+			// A secondary-book adjustment exists, but the default-book capitalization
+			// must not include it in the selected source balance.
+			mockPrisma._mockTx.assetValueAdjustment.aggregate.mockImplementation(
+				async (args: { where?: { financeBookId?: string } }) => ({
+					_sum: {
+						differenceAmount:
+							args.where?.financeBookId === "finance-book-1" ? 0 : 2_000,
+					},
+				}),
+			);
+			mockPrisma._mockTx.asset.findMany.mockResolvedValue([sourceAsset]);
+			mockPrisma._mockTx.asset.findUnique.mockImplementation(
+				async (args: { where?: { id?: string } }) =>
+					args.where?.id === sourceAsset.id ? sourceAsset : targetAsset,
+			);
 			mockPrisma._mockTx.assetCapitalization.update.mockResolvedValue(
 				capitalizationRecord({
 					status: "SUBMITTED",
@@ -2045,6 +2178,7 @@ describe("Asset lifecycle actions", () => {
 				where: expect.objectContaining({ id: "cap-asset-1" }),
 				data: {
 					assetValue: 3_000,
+					financeBookId: "finance-book-1",
 					previousStatus: "PARTIALLY_DEPRECIATED",
 					previousDisposalDate: null,
 				},
@@ -2101,6 +2235,7 @@ describe("Asset lifecycle actions", () => {
 				mockPrisma._mockTx,
 				"org-1",
 				"source-asset-1",
+				"finance-book-1",
 			);
 			expect(mockPrisma._mockTx.asset.update).toHaveBeenCalledWith({
 				where: { id: "source-asset-1" },
@@ -2206,6 +2341,7 @@ describe("Asset lifecycle actions", () => {
 			mockPrisma._mockTx.assetCapitalization.findUnique.mockResolvedValue(
 				capitalizationRecord({
 					status: "SUBMITTED",
+					financeBookId: "finance-book-1",
 					postingDate,
 					submittedAt,
 					stockEntryId: "stock-entry-1",
@@ -2215,6 +2351,7 @@ describe("Asset lifecycle actions", () => {
 					targetPreviousStatus: "DRAFT",
 					assetItems: [
 						capitalizationAssetItem({
+							financeBookId: "finance-book-1",
 							assetValue: 3_000,
 							previousStatus: "PARTIALLY_DEPRECIATED",
 							previousDisposalDate: null,
@@ -2233,6 +2370,12 @@ describe("Asset lifecycle actions", () => {
 				{
 					id: "source-asset-1",
 					series: "AST-2025-00001",
+					calculateDepreciation: true,
+					company: {
+						...COMPANY_RELATION,
+						defaultFinanceBookId: "finance-book-1",
+					},
+					financeBooks: [{ financeBookId: "finance-book-1" }],
 					status: "CAPITALIZED",
 					disposalDate: postingDate,
 				},
@@ -2272,7 +2415,12 @@ describe("Asset lifecycle actions", () => {
 			});
 			expect(
 				depreciationRevision.reactivateLatestClosedSchedules,
-			).toHaveBeenCalledWith(mockPrisma._mockTx, "org-1", "source-asset-1");
+			).toHaveBeenCalledWith(
+				mockPrisma._mockTx,
+				"org-1",
+				"source-asset-1",
+				"finance-book-1",
+			);
 			expect(mockPrisma._mockTx.asset.update).toHaveBeenCalledWith({
 				where: { id: "source-asset-1" },
 				data: {
@@ -2293,6 +2441,7 @@ describe("Asset lifecycle actions", () => {
 			mockPrisma._mockTx.assetCapitalization.findUnique.mockResolvedValue(
 				capitalizationRecord({
 					status: "SUBMITTED",
+					financeBookId: "finance-book-1",
 					postingDate,
 					submittedAt: new Date("2026-03-01T01:00:00.000Z"),
 					accountingEntryId: "accounting-1",
@@ -2318,6 +2467,12 @@ describe("Asset lifecycle actions", () => {
 				{
 					id: "source-asset-1",
 					series: "AST-2025-00001",
+					calculateDepreciation: true,
+					company: {
+						...COMPANY_RELATION,
+						defaultFinanceBookId: "finance-book-1",
+					},
+					financeBooks: [{ financeBookId: "finance-book-1" }],
 					status: "CAPITALIZED",
 					disposalDate: postingDate,
 				},

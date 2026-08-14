@@ -2,6 +2,7 @@ import type { Asset } from "@aria/types";
 import { BadRequestException, Injectable, Logger } from "@nestjs/common";
 import { Prisma } from "../../../generated/prisma/client";
 import type { PrismaService } from "../../../shared/prisma.service";
+import { lockAssetAndFinanceBooks } from "../asset-locking";
 import {
 	type AssetOrganizationId,
 	assertAssetOrganizationId,
@@ -41,6 +42,7 @@ export class AssetDepreciationLifecycleService {
 		assertAssetOrganizationId(organizationId);
 		await this.configureAssetBooks(assetId, undefined, organizationId);
 		await this.prisma.$transaction(async (tx) => {
+			await this.lockAssetBooks(tx, assetId);
 			const asset = await tx.asset.findFirst({
 				where: assetWhereForOrganization(organizationId, { id: assetId }),
 				select: {
@@ -98,6 +100,7 @@ export class AssetDepreciationLifecycleService {
 	): Promise<void> {
 		assertAssetOrganizationId(organizationId);
 		await this.prisma.$transaction(async (tx) => {
+			await this.lockAssetBooks(tx, assetId);
 			const posted = await tx.assetDepreciationJournalEntry.count({
 				where: {
 					assetId,
@@ -144,34 +147,35 @@ export class AssetDepreciationLifecycleService {
 		organizationId: AssetOrganizationId,
 	): Promise<void> {
 		assertAssetOrganizationId(organizationId);
-		const asset = await this.loadAsset(assetId, organizationId);
-		const configurations = books?.length
-			? [...books]
-			: this.resolveDefaultBooks(asset);
+		await this.prisma.$transaction(async (tx) => {
+			await this.lockAssetBooks(tx, assetId);
+			const asset = await this.loadAsset(assetId, organizationId, tx);
+			const configurations = books?.length
+				? [...books]
+				: this.resolveDefaultBooks(asset);
 
-		if (!asset.calculateDepreciation) return;
-		if (configurations.length === 0) {
-			if (asset.status !== "DRAFT") {
+			if (!asset.calculateDepreciation) return;
+			if (configurations.length === 0) {
+				if (asset.status !== "DRAFT") {
+					throw new BadRequestException(
+						"A default finance book and depreciation configuration are required before submitting this asset",
+					);
+				}
+				return;
+			}
+
+			const duplicateBook = configurations.find(
+				(book, index) =>
+					configurations.findIndex(
+						(candidate) => candidate.financeBookId === book.financeBookId,
+					) !== index,
+			);
+			if (duplicateBook) {
 				throw new BadRequestException(
-					"A default finance book and depreciation configuration are required before submitting this asset",
+					`Finance book ${duplicateBook.financeBookId} is configured more than once`,
 				);
 			}
-			return;
-		}
 
-		const duplicateBook = configurations.find(
-			(book, index) =>
-				configurations.findIndex(
-					(candidate) => candidate.financeBookId === book.financeBookId,
-				) !== index,
-		);
-		if (duplicateBook) {
-			throw new BadRequestException(
-				`Finance book ${duplicateBook.financeBookId} is configured more than once`,
-			);
-		}
-
-		await this.prisma.$transaction(async (tx) => {
 			const ownedAsset = await tx.asset.findFirst({
 				where: assetWhereForOrganization(organizationId, { id: assetId }),
 				select: { id: true },
@@ -337,6 +341,54 @@ export class AssetDepreciationLifecycleService {
 				} else {
 					await tx.assetDepreciationSchedule.create({ data: scheduleData });
 				}
+			}
+
+			// Asset.valueAfterDepreciation is a compatibility projection, never a
+			// cross-book aggregate. Keep it synchronized in this same transaction so
+			// a secondary book can never overwrite the Company's presentation book.
+			const projectionState = await tx.asset.findFirst({
+				where: assetWhereForOrganization(organizationId, { id: assetId }),
+				select: {
+					status: true,
+					calculateDepreciation: true,
+					company: { select: { defaultFinanceBookId: true } },
+					financeBooks: {
+						select: {
+							financeBookId: true,
+							valueAfterDepreciation: true,
+							postingStatus: true,
+						},
+						orderBy: { createdAt: "asc" },
+					},
+				},
+			});
+			if (!projectionState?.calculateDepreciation) return;
+			const projectionBook = projectionState.company.defaultFinanceBookId
+				? projectionState.financeBooks.find(
+						(book) =>
+							book.financeBookId ===
+							projectionState.company.defaultFinanceBookId,
+					)
+				: projectionState.financeBooks.length === 1
+					? projectionState.financeBooks[0]
+					: null;
+			if (!projectionBook) {
+				throw new BadRequestException(
+					`A Company default finance book is required to project asset ${assetId}.`,
+				);
+			}
+			const projected = await tx.asset.updateMany({
+				where: assetWhereForOrganization(organizationId, { id: assetId }),
+				data: {
+					valueAfterDepreciation: projectionBook.valueAfterDepreciation,
+					isFullyDepreciated:
+						projectionBook.postingStatus === "FULLY_DEPRECIATED",
+				},
+			});
+			if (projected.count !== 1) {
+				throw new BadRequestException(
+					"Asset is no longer available in the active organization",
+				);
 			}
 		});
 	}
@@ -509,8 +561,10 @@ export class AssetDepreciationLifecycleService {
 	private async loadAsset(
 		assetId: string,
 		organizationId: AssetOrganizationId,
+		client: Pick<Prisma.TransactionClient, "asset"> | PrismaService = this
+			.prisma,
 	) {
-		const asset = await this.prisma.asset.findFirst({
+		const asset = await client.asset.findFirst({
 			where: assetWhereForOrganization(organizationId, { id: assetId }),
 			include: {
 				company: { select: { defaultFinanceBookId: true } },
@@ -527,5 +581,22 @@ export class AssetDepreciationLifecycleService {
 			...asset,
 			netPurchaseAmount: Number(asset.netPurchaseAmount),
 		};
+	}
+
+	/** Locks the canonical Asset row, then every currently configured book row. */
+	private async lockAssetBooks(
+		tx: Prisma.TransactionClient,
+		assetId: string,
+	): Promise<void> {
+		await lockAssetAndFinanceBooks(tx, [assetId], []);
+		const books = await tx.assetFinanceBook.findMany({
+			where: { assetId },
+			select: { id: true },
+		});
+		await lockAssetAndFinanceBooks(
+			tx,
+			[assetId],
+			books.map((book) => book.id),
+		);
 	}
 }
