@@ -14,6 +14,8 @@ import {
 	normalizeDateOnly,
 } from "./depreciation.config";
 import {
+	assertFiniteDepreciationSchedule,
+	assertFiniteDepreciationValue,
 	buildDepreciationSchedule,
 	type DepreciationBookInput,
 } from "./depreciation-schedule-engine";
@@ -234,10 +236,18 @@ export class AssetDepreciationLifecycleService {
 				if ((existingSchedule?._count.entries ?? 0) > 0) continue;
 
 				const schedule = this.calculateSchedule(asset, configuration);
+				assertFiniteDepreciationSchedule(schedule);
 				const effectiveRate = schedule.ratePercent;
 				const carryingValue =
 					asset.netPurchaseAmount -
 					(configuration.openingAccumulatedDepreciation ?? 0);
+				assertFiniteDepreciationValue("carrying value", carryingValue);
+				const postingStatus =
+					schedule.entries.length === 0
+						? "FULLY_DEPRECIATED"
+						: (configuration.openingNumberOfBookedDepreciations ?? 0) > 0
+							? "PARTIALLY_DEPRECIATED"
+							: "PENDING";
 				const book =
 					existing ??
 					(await tx.assetFinanceBook.create({
@@ -268,25 +278,23 @@ export class AssetDepreciationLifecycleService {
 							valueAfterDepreciation: new Prisma.Decimal(carryingValue),
 							totalNumberOfBookedDepreciations:
 								configuration.openingNumberOfBookedDepreciations ?? 0,
-							postingStatus:
-								(configuration.openingNumberOfBookedDepreciations ?? 0) > 0
-									? "PARTIALLY_DEPRECIATED"
-									: "PENDING",
+							postingStatus,
 						},
 					}));
 
-				if (
-					existing &&
-					effectiveRate != null &&
-					(existing.rateOfDepreciation == null ||
-						Number(existing.rateOfDepreciation) !== effectiveRate)
-				) {
+				if (existing) {
 					const updatedBook = await tx.assetFinanceBook.updateMany({
 						where: {
 							id: existing.id,
 							asset: { is: assetWhereForOrganization(organizationId) },
 						},
-						data: { rateOfDepreciation: new Prisma.Decimal(effectiveRate) },
+						data: {
+							rateOfDepreciation: effectiveRate,
+							valueAfterDepreciation: new Prisma.Decimal(carryingValue),
+							totalNumberOfBookedDepreciations:
+								configuration.openingNumberOfBookedDepreciations ?? 0,
+							postingStatus,
+						},
 					});
 					if (updatedBook.count !== 1) {
 						throw new BadRequestException(

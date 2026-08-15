@@ -2,6 +2,7 @@ import {
 	buildDepreciationSchedule,
 	buildDepreciationSchedules,
 	type DepreciationBookInput,
+	DepreciationScheduleCalculationError,
 } from "../depreciation-schedule-engine";
 
 const baseBook: DepreciationBookInput = {
@@ -112,6 +113,32 @@ describe("buildDepreciationSchedule", () => {
 		]);
 	});
 
+	it("uses the remaining carrying basis for opening straight-line depreciation", () => {
+		const result = buildDepreciationSchedule({
+			financeBookId: "opening-sl-book",
+			method: "STRAIGHT_LINE",
+			grossBookValue: 1_000,
+			availableForUseDate: "2030-01-01",
+			depreciationStartDate: "2031-12-31",
+			totalPeriods: 3,
+			frequencyMonths: 12,
+			salvageValue: 100,
+			openingBookedPeriods: 1,
+			openingAccumulatedDepreciation: 200,
+		});
+
+		expect(
+			result.entries.map((entry) => [
+				entry.depreciationAmount,
+				entry.accumulatedDepreciation,
+				entry.bookValueAfterDepreciation,
+			]),
+		).toEqual([
+			[350, 550, 450],
+			[350, 900, 100],
+		]);
+	});
+
 	it("ports ERPNext's double-declining-balance fixture and salvage cap", () => {
 		const result = buildDepreciationSchedule({
 			...baseBook,
@@ -172,6 +199,94 @@ describe("buildDepreciationSchedule", () => {
 				bookValueAfterDepreciation: 0,
 			}),
 		]);
+	});
+
+	it("returns a finite terminal state for a fully depreciated zero-salvage WDV book", () => {
+		const result = buildDepreciationSchedule({
+			financeBookId: "fully-depreciated-wdv-book",
+			method: "WRITTEN_DOWN_VALUE",
+			grossBookValue: 1_000,
+			availableForUseDate: "2030-01-01",
+			depreciationStartDate: "2030-12-31",
+			totalPeriods: 12,
+			frequencyMonths: 1,
+			salvageValue: 0,
+			openingBookedPeriods: 11,
+			openingAccumulatedDepreciation: 1_000,
+		});
+
+		expect(result.ratePercent).toBeNull();
+		expect(result.entries).toEqual([]);
+	});
+
+	it("keeps a residual-value WDV book terminal without adding depreciation", () => {
+		const result = buildDepreciationSchedule({
+			financeBookId: "residual-wdv-book",
+			method: "WRITTEN_DOWN_VALUE",
+			grossBookValue: 1_000,
+			availableForUseDate: "2030-01-01",
+			depreciationStartDate: "2030-12-31",
+			totalPeriods: 12,
+			frequencyMonths: 1,
+			salvageValue: 100,
+			openingBookedPeriods: 11,
+			openingAccumulatedDepreciation: 900,
+		});
+
+		expect(result.ratePercent).toBe(0);
+		expect(result.entries).toEqual([]);
+	});
+
+	it("rejects an over-accumulated WDV book with positive salvage", () => {
+		expect(() =>
+			buildDepreciationSchedule({
+				financeBookId: "invalid-wdv-book",
+				method: "WRITTEN_DOWN_VALUE",
+				grossBookValue: 1_000,
+				availableForUseDate: "2030-01-01",
+				depreciationStartDate: "2030-12-31",
+				totalPeriods: 12,
+				frequencyMonths: 1,
+				salvageValue: 100,
+				openingBookedPeriods: 11,
+				openingAccumulatedDepreciation: 1_000,
+			}),
+		).toThrow("opening accumulated depreciation exceeds depreciable value");
+	});
+
+	it("rejects negative and non-finite business inputs before depreciation math", () => {
+		expect(() =>
+			buildDepreciationSchedule({
+				...baseBook,
+				salvageValue: -1,
+			}),
+		).toThrow("salvageValue must be between zero and grossBookValue");
+		expect(() =>
+			buildDepreciationSchedule({
+				...baseBook,
+				grossBookValue: Number.NaN,
+			}),
+		).toThrow("grossBookValue must be finite");
+		expect(() =>
+			buildDepreciationSchedule({
+				...baseBook,
+				openingAccumulatedDepreciation: Number.POSITIVE_INFINITY,
+			}),
+		).toThrow("openingAccumulatedDepreciation must be finite");
+		expect(() =>
+			buildDepreciationSchedule({
+				...baseBook,
+				method: "WRITTEN_DOWN_VALUE",
+				ratePercent: Number.NaN,
+			}),
+		).toThrow("ratePercent must be finite");
+		expect(() =>
+			buildDepreciationSchedule({
+				...baseBook,
+				method: "WRITTEN_DOWN_VALUE",
+				ratePercent: -5,
+			}),
+		).toThrow(DepreciationScheduleCalculationError);
 	});
 
 	it("ports ERPNext's daily pro-rata WDV fixture across fiscal years", () => {
@@ -295,6 +410,42 @@ describe("buildDepreciationSchedule", () => {
 		]);
 		expect(schedules[0]?.entries[0]?.depreciationAmount).toBe(30_000);
 		expect(schedules[1]?.entries[0]?.depreciationAmount).toBe(50_000);
+	});
+
+	it("does not share opening depreciation state between finance books", () => {
+		const schedules = buildDepreciationSchedules([
+			{
+				financeBookId: "book-a",
+				method: "STRAIGHT_LINE",
+				grossBookValue: 1_000,
+				availableForUseDate: "2030-01-01",
+				depreciationStartDate: "2031-12-31",
+				totalPeriods: 3,
+				frequencyMonths: 12,
+				salvageValue: 100,
+				openingBookedPeriods: 1,
+				openingAccumulatedDepreciation: 200,
+			},
+			{
+				financeBookId: "book-b",
+				method: "STRAIGHT_LINE",
+				grossBookValue: 1_000,
+				availableForUseDate: "2030-01-01",
+				depreciationStartDate: "2031-12-31",
+				totalPeriods: 3,
+				frequencyMonths: 12,
+				salvageValue: 100,
+				openingBookedPeriods: 1,
+				openingAccumulatedDepreciation: 400,
+			},
+		]);
+
+		expect(
+			schedules[0]?.entries.map((entry) => entry.depreciationAmount),
+		).toEqual([350, 350]);
+		expect(
+			schedules[1]?.entries.map((entry) => entry.depreciationAmount),
+		).toEqual([250, 250]);
 	});
 
 	it("uses the supplied fiscal-year callback for declining-balance refreshes", () => {

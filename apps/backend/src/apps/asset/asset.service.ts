@@ -83,7 +83,10 @@ import {
 } from "./depreciation/depreciation.config";
 // biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
 import { DepreciationBarrierService } from "./depreciation/depreciation-barrier.service";
-import { buildDepreciationSchedule } from "./depreciation/depreciation-schedule-engine";
+import {
+	assertFiniteDepreciationSchedule,
+	buildDepreciationSchedule,
+} from "./depreciation/depreciation-schedule-engine";
 import { FixedAssetRegisterReportService } from "./fixed-asset-register-report";
 import {
 	inferRestoredAssetStatus,
@@ -8976,6 +8979,7 @@ export class AssetService {
 					categoryTemplateFallback?.dailyProrataBased ??
 					false,
 			});
+			assertFiniteDepreciationSchedule(schedule);
 			const book = existingTargetBook
 				? await tx.assetFinanceBook.update({
 						where: { id: existingTargetBook.id },

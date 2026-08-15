@@ -91,6 +91,7 @@ interface WorkerEntry {
 			id: string;
 			financeBookId: string;
 			financeBook: { name: string };
+			openingNumberOfBookedDepreciations: number;
 		};
 	};
 }
@@ -121,6 +122,22 @@ export class DepreciationPostingValidationError extends Error {
 		this.name = "DepreciationPostingValidationError";
 	}
 }
+
+/** Rejects non-finite persisted values before journal or cursor mutation. */
+export const assertFinitePostingAmount = (
+	name: string,
+	value: unknown,
+): void => {
+	if (
+		value === null ||
+		value === undefined ||
+		!Number.isFinite(Number(value))
+	) {
+		throw new DepreciationPostingValidationError(
+			`Depreciation ${name} must be finite before posting.`,
+		);
+	}
+};
 
 /**
  * Isolates the queue layer from generated Prisma types while schema generation
@@ -335,6 +352,8 @@ export class DepreciationPersistenceService {
 				);
 			}
 			this.validatePayloadIdentity(job, entry);
+			assertFinitePostingAmount("amount", entry.depreciationAmount);
+			assertFinitePostingAmount("book value", entry.bookValueAfterDepreciation);
 
 			if (entry.postingId) {
 				return { status: "already-posted", postingId: entry.postingId };
@@ -530,6 +549,13 @@ export class DepreciationPersistenceService {
 				}),
 			]);
 			const fullyDepreciated = remaining === 0;
+			const totalBookedDepreciations =
+				entry.schedule.assetFinanceBook.openingNumberOfBookedDepreciations +
+				booked;
+			assertFinitePostingAmount(
+				"total booked depreciations",
+				totalBookedDepreciations,
+			);
 			const updatedBook = await tx.assetFinanceBook.updateMany({
 				where: {
 					id: job.assetFinanceBookId,
@@ -537,7 +563,7 @@ export class DepreciationPersistenceService {
 				},
 				data: {
 					valueAfterDepreciation: entry.bookValueAfterDepreciation,
-					totalNumberOfBookedDepreciations: booked,
+					totalNumberOfBookedDepreciations: totalBookedDepreciations,
 					postingStatus: fullyDepreciated
 						? "FULLY_DEPRECIATED"
 						: "PARTIALLY_DEPRECIATED",

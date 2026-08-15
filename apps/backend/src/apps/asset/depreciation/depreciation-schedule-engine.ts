@@ -71,6 +71,54 @@ export interface DepreciationSchedule {
 	entries: readonly DepreciationScheduleEntry[];
 }
 
+/**
+ * Raised when a finance-book depreciation configuration cannot produce a
+ * finite, internally consistent schedule.
+ */
+export class DepreciationScheduleCalculationError extends Error {
+	constructor(message: string) {
+		super(message);
+		this.name = "DepreciationScheduleCalculationError";
+	}
+}
+
+/** Rejects a numeric value before it can participate in depreciation math. */
+export const assertFiniteDepreciationValue = (
+	name: string,
+	value: number,
+): void => {
+	if (!Number.isFinite(value)) {
+		throw new DepreciationScheduleCalculationError(`${name} must be finite.`);
+	}
+};
+
+/**
+ * Verifies the complete engine result before a caller can expose or persist it.
+ * This is intentionally separate from input validation so callers that persist
+ * a schedule can repeat the boundary check immediately before writing rows.
+ */
+export const assertFiniteDepreciationSchedule = (
+	schedule: DepreciationSchedule,
+): void => {
+	if (schedule.ratePercent !== null) {
+		assertFiniteDepreciationValue("ratePercent", schedule.ratePercent);
+	}
+	for (const [index, entry] of schedule.entries.entries()) {
+		assertFiniteDepreciationValue(
+			`entries[${index}].depreciationAmount`,
+			entry.depreciationAmount,
+		);
+		assertFiniteDepreciationValue(
+			`entries[${index}].accumulatedDepreciation`,
+			entry.accumulatedDepreciation,
+		);
+		assertFiniteDepreciationValue(
+			`entries[${index}].bookValueAfterDepreciation`,
+			entry.bookValueAfterDepreciation,
+		);
+	}
+};
+
 const MILLISECONDS_PER_DAY = 86_400_000;
 
 const parseDate = (value: string): Date => {
@@ -127,8 +175,12 @@ const isEndOfMonth = (date: Date): boolean =>
 const differenceInDays = (later: Date, earlier: Date): number =>
 	Math.round((later.getTime() - earlier.getTime()) / MILLISECONDS_PER_DAY);
 
-const round = (value: number, precision: number): number =>
-	Number(value.toFixed(precision));
+const round = (value: number, precision: number): number => {
+	assertFiniteDepreciationValue("calculation value", value);
+	const rounded = Number(value.toFixed(precision));
+	assertFiniteDepreciationValue("rounded calculation value", rounded);
+	return rounded;
+};
 
 const defaultFiscalYear = (date: string): FiscalYearRange => {
 	const parsed = parseDate(date);
@@ -146,10 +198,83 @@ const getScheduleDate = (
 	return preserveMonthEnd ? endOfMonth(date) : date;
 };
 
+/**
+ * Mirrors ERPNext's pending-month calculation for an existing Asset. The
+ * opening period count is a configured history count, while the date span from
+ * available-for-use to the last booked period can be fractional; both inputs
+ * are needed to preserve the final partial-period amount.
+ */
+const getPendingMonths = (
+	input: DepreciationBookInput,
+	startDate: Date,
+	availableDate: Date,
+): { pendingMonths: number; lastBookedDate: Date | null } => {
+	const totalMonths = input.totalPeriods * input.frequencyMonths;
+	const openingPeriods = input.openingBookedPeriods ?? 0;
+	if (openingPeriods === 0) {
+		return { pendingMonths: totalMonths, lastBookedDate: null };
+	}
+
+	const lastBookedDate = addMonths(startDate, -input.frequencyMonths);
+	const computedAvailableDate = addDays(
+		addMonths(startDate, -input.frequencyMonths * (1 + openingPeriods)),
+		1,
+	);
+	const effectiveAvailableDate =
+		computedAvailableDate < availableDate
+			? availableDate
+			: computedAvailableDate;
+	const bookedMonths =
+		(differenceInDays(lastBookedDate, effectiveAvailableDate) + 1) / (365 / 12);
+	const pendingMonths = totalMonths - bookedMonths;
+	assertFiniteDepreciationValue("pending months", pendingMonths);
+	if (pendingMonths <= 0) {
+		throw new DepreciationScheduleCalculationError(
+			"pending months must be greater than zero",
+		);
+	}
+	return { pendingMonths, lastBookedDate };
+};
+
 const validateInput = (input: DepreciationBookInput): void => {
 	parseDate(input.availableForUseDate);
 	parseDate(input.depreciationStartDate);
-	if (!Number.isFinite(input.grossBookValue) || input.grossBookValue <= 0) {
+	const salvageValue = input.salvageValue ?? 0;
+	const openingAccumulated = input.openingAccumulatedDepreciation ?? 0;
+	const openingPeriods = input.openingBookedPeriods ?? 0;
+	const precision = input.precision ?? 2;
+	const ratePrecision = input.ratePrecision ?? 2;
+	assertFiniteDepreciationValue("grossBookValue", input.grossBookValue);
+	assertFiniteDepreciationValue("salvageValue", salvageValue);
+	assertFiniteDepreciationValue(
+		"openingAccumulatedDepreciation",
+		openingAccumulated,
+	);
+	assertFiniteDepreciationValue("precision", precision);
+	assertFiniteDepreciationValue("ratePrecision", ratePrecision);
+	if (input.ratePercent !== null && input.ratePercent !== undefined) {
+		assertFiniteDepreciationValue("ratePercent", input.ratePercent);
+		if (input.ratePercent < 0) {
+			throw new DepreciationScheduleCalculationError(
+				"ratePercent must be non-negative",
+			);
+		}
+	}
+	if (!Number.isInteger(precision) || precision < 0 || precision > 100) {
+		throw new DepreciationScheduleCalculationError(
+			"precision must be an integer between zero and 100",
+		);
+	}
+	if (
+		!Number.isInteger(ratePrecision) ||
+		ratePrecision < 0 ||
+		ratePrecision > 100
+	) {
+		throw new DepreciationScheduleCalculationError(
+			"ratePrecision must be an integer between zero and 100",
+		);
+	}
+	if (input.grossBookValue <= 0) {
 		throw new Error("grossBookValue must be greater than zero");
 	}
 	if (!Number.isInteger(input.totalPeriods) || input.totalPeriods <= 0) {
@@ -159,9 +284,6 @@ const validateInput = (input: DepreciationBookInput): void => {
 		throw new Error("frequencyMonths must be a positive integer");
 	}
 
-	const salvageValue = input.salvageValue ?? 0;
-	const openingAccumulated = input.openingAccumulatedDepreciation ?? 0;
-	const openingPeriods = input.openingBookedPeriods ?? 0;
 	if (salvageValue < 0 || salvageValue > input.grossBookValue) {
 		throw new Error("salvageValue must be between zero and grossBookValue");
 	}
@@ -183,6 +305,31 @@ const validateInput = (input: DepreciationBookInput): void => {
 	if (input.method === "MANUAL" && !input.manualEntries?.length) {
 		throw new Error("Manual depreciation requires at least one manual entry");
 	}
+	for (const [index, allocation] of (input.shiftAllocations ?? []).entries()) {
+		if (
+			!Number.isInteger(allocation.periodIndex) ||
+			allocation.periodIndex < 0
+		) {
+			throw new DepreciationScheduleCalculationError(
+				`shiftAllocations[${index}].periodIndex must be a non-negative integer`,
+			);
+		}
+		assertFiniteDepreciationValue(
+			`shiftAllocations[${index}].factor`,
+			allocation.factor,
+		);
+		if (allocation.factor <= 0) {
+			throw new DepreciationScheduleCalculationError(
+				`shiftAllocations[${index}].factor must be greater than zero`,
+			);
+		}
+	}
+	for (const [index, manual] of (input.manualEntries ?? []).entries()) {
+		assertFiniteDepreciationValue(
+			`manualEntries[${index}].amount`,
+			manual.amount,
+		);
+	}
 };
 
 const calculateRate = (
@@ -192,16 +339,37 @@ const calculateRate = (
 	const ratePrecision = input.ratePrecision ?? 2;
 	if (input.method === "DOUBLE_DECLINING_BALANCE") {
 		const usefulLifeYears = (input.totalPeriods * input.frequencyMonths) / 12;
+		assertFiniteDepreciationValue("usefulLifeYears", usefulLifeYears);
+		if (usefulLifeYears <= 0) {
+			throw new DepreciationScheduleCalculationError(
+				"usefulLifeYears must be greater than zero",
+			);
+		}
 		return round(200 / usefulLifeYears, ratePrecision);
 	}
 	if (input.method !== "WRITTEN_DOWN_VALUE") return null;
 	if ((input.ratePercent ?? 0) > 0) {
 		return input.ratePercent ?? null;
 	}
+	if (openingBookValue === 0 && (input.salvageValue ?? 0) === 0) {
+		return null;
+	}
 
 	const pendingPeriods = input.totalPeriods - (input.openingBookedPeriods ?? 0);
 	const pendingYears = (pendingPeriods * input.frequencyMonths) / 12;
+	assertFiniteDepreciationValue("pendingYears", pendingYears);
+	if (pendingYears <= 0) {
+		throw new DepreciationScheduleCalculationError(
+			"pendingYears must be greater than zero",
+		);
+	}
 	const ratio = (input.salvageValue ?? 0) / openingBookValue;
+	assertFiniteDepreciationValue("written-down-value salvage ratio", ratio);
+	if (ratio < 0 || ratio > 1) {
+		throw new DepreciationScheduleCalculationError(
+			"written-down-value salvage ratio must be between zero and one",
+		);
+	}
 	return round(100 * (1 - ratio ** (1 / pendingYears)), ratePrecision);
 };
 
@@ -240,12 +408,14 @@ const buildManualSchedule = (
 		};
 	});
 
-	return Object.freeze({
+	const schedule = Object.freeze({
 		financeBookId: input.financeBookId,
 		method: input.method,
 		ratePercent: null,
 		entries: Object.freeze(entries),
 	});
+	assertFiniteDepreciationSchedule(schedule);
+	return schedule;
 };
 
 /**
@@ -272,11 +442,47 @@ export const buildDepreciationSchedule = (
 	const availableDate = parseDate(input.availableForUseDate);
 	const preserveMonthEnd = isEndOfMonth(startDate);
 	const remainingPeriods = input.totalPeriods - openingPeriods;
+	const { pendingMonths, lastBookedDate } = getPendingMonths(
+		input,
+		startDate,
+		availableDate,
+	);
+	const pendingPeriods = pendingMonths / input.frequencyMonths;
+	assertFiniteDepreciationValue("pending periods", pendingPeriods);
+	if (pendingPeriods <= 0) {
+		throw new DepreciationScheduleCalculationError(
+			"pending periods must be greater than zero",
+		);
+	}
 	const openingBookValue = round(
 		input.grossBookValue - openingAccumulated,
 		precision,
 	);
+	if (openingBookValue < salvage) {
+		throw new DepreciationScheduleCalculationError(
+			"opening carrying value cannot be below salvage value",
+		);
+	}
 	const ratePercent = calculateRate(input, openingBookValue);
+	const remainingDepreciableValue = round(
+		openingBookValue - salvage,
+		precision,
+	);
+	if (remainingDepreciableValue < 0) {
+		throw new DepreciationScheduleCalculationError(
+			"remaining depreciable value cannot be negative",
+		);
+	}
+	if (remainingDepreciableValue === 0) {
+		const terminalSchedule = Object.freeze({
+			financeBookId: input.financeBookId,
+			method: input.method,
+			ratePercent,
+			entries: Object.freeze([] as DepreciationScheduleEntry[]),
+		});
+		assertFiniteDepreciationSchedule(terminalSchedule);
+		return terminalSchedule;
+	}
 	const usefulLifeEndBase = addMonths(
 		availableDate,
 		input.totalPeriods * input.frequencyMonths,
@@ -293,7 +499,6 @@ export const buildDepreciationSchedule = (
 	);
 	const hasFinalPartialPeriod = usefulLifeEnd > lastNominalDate;
 	const generatedPeriods = remainingPeriods + (hasFinalPartialPeriod ? 1 : 0);
-	const depreciableValue = round(input.grossBookValue - salvage, precision);
 	const shiftByIndex = new Map(
 		(input.shiftAllocations ?? []).map((allocation) => [
 			allocation.periodIndex,
@@ -302,13 +507,37 @@ export const buildDepreciationSchedule = (
 	);
 	const shiftFactorsSum = input.shiftAllocations?.length
 		? Array.from(
-				{ length: input.totalPeriods },
-				(_, i) => shiftByIndex.get(i)?.factor ?? 1,
+				{ length: remainingPeriods },
+				(_, i) => shiftByIndex.get(openingPeriods + i)?.factor ?? 1,
 			).reduce((a, b) => a + b, 0)
-		: input.totalPeriods;
-	const fixedPeriodAmount = depreciableValue / shiftFactorsSum;
+		: remainingPeriods;
+	assertFiniteDepreciationValue("shift factors sum", shiftFactorsSum);
+	if (shiftFactorsSum <= 0) {
+		throw new DepreciationScheduleCalculationError(
+			"shift factors sum must be greater than zero",
+		);
+	}
+	const fixedPeriodAmount =
+		remainingDepreciableValue /
+		(input.shiftAllocations?.length ? shiftFactorsSum : pendingPeriods);
+	assertFiniteDepreciationValue("fixed period amount", fixedPeriodAmount);
 	const fiscalYearFor = input.getFiscalYear ?? defaultFiscalYear;
-	const totalLifeDays = differenceInDays(usefulLifeEndBase, availableDate);
+	const totalLifeDays = lastBookedDate
+		? differenceInDays(usefulLifeEndBase, lastBookedDate) - 1
+		: differenceInDays(usefulLifeEndBase, availableDate);
+	assertFiniteDepreciationValue("total life days", totalLifeDays);
+	if (totalLifeDays <= 0) {
+		throw new DepreciationScheduleCalculationError(
+			"total life days must be greater than zero",
+		);
+	}
+	const pendingLifeYears = pendingMonths / 12;
+	assertFiniteDepreciationValue("pending life years", pendingLifeYears);
+	if (pendingLifeYears <= 0) {
+		throw new DepreciationScheduleCalculationError(
+			"pending life years must be greater than zero",
+		);
+	}
 
 	let accumulated = openingAccumulated;
 	let carrying = openingBookValue;
@@ -328,7 +557,7 @@ export const buildDepreciationSchedule = (
 					input.frequencyMonths,
 					preserveMonthEnd,
 				);
-		const allocation = shiftByIndex.get(index);
+		const allocation = shiftByIndex.get(openingPeriods + index);
 		const fiscalYear = fiscalYearFor(formatDate(scheduleDate));
 		parseDate(fiscalYear.startDate);
 		parseDate(fiscalYear.endDate);
@@ -336,8 +565,7 @@ export const buildDepreciationSchedule = (
 			activeFiscalYearStart = fiscalYear.startDate;
 			fiscalYearAnnualAmount =
 				input.method === "STRAIGHT_LINE"
-					? depreciableValue /
-						((input.totalPeriods * input.frequencyMonths) / 12)
+					? remainingDepreciableValue / pendingLifeYears
 					: carrying * ((ratePercent ?? 0) / 100);
 			fiscalYearPeriodicAmount =
 				(fiscalYearAnnualAmount * input.frequencyMonths) / 12;
@@ -359,7 +587,7 @@ export const buildDepreciationSchedule = (
 					: availableDate;
 			const coveredDays = differenceInDays(scheduleDate, coverageStart) + 1;
 			if (input.calculateUsingTotalDays && input.method === "STRAIGHT_LINE") {
-				amount = (depreciableValue / totalLifeDays) * coveredDays;
+				amount = (remainingDepreciableValue / totalLifeDays) * coveredDays;
 			} else {
 				const fiscalDays =
 					differenceInDays(
@@ -389,8 +617,19 @@ export const buildDepreciationSchedule = (
 			}
 		}
 
-		amount = round(Math.min(amount, carrying - salvage), precision);
-		if (amount <= 0) break;
+		assertFiniteDepreciationValue("depreciation amount before cap", amount);
+		const remainingBeforePeriod = carrying - salvage;
+		assertFiniteDepreciationValue(
+			"remaining depreciable value before period",
+			remainingBeforePeriod,
+		);
+		amount = round(Math.min(amount, remainingBeforePeriod), precision);
+		if (amount < 0) {
+			throw new DepreciationScheduleCalculationError(
+				"depreciation amount cannot be negative",
+			);
+		}
+		if (amount === 0) break;
 		accumulated = round(accumulated + amount, precision);
 		carrying = round(input.grossBookValue - accumulated, precision);
 		if (carrying < salvage) {
@@ -426,12 +665,14 @@ export const buildDepreciationSchedule = (
 		}
 	}
 
-	return Object.freeze({
+	const schedule = Object.freeze({
 		financeBookId: input.financeBookId,
 		method: input.method,
 		ratePercent,
 		entries: Object.freeze(entries),
 	});
+	assertFiniteDepreciationSchedule(schedule);
+	return schedule;
 };
 
 /** Generates independent schedules for every supplied finance book. */
