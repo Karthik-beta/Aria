@@ -15,6 +15,10 @@ import type {
 	PendingDepreciationPeriod,
 	PendingDepreciationSnapshot,
 } from "./depreciation.types";
+import {
+	getDepreciationScheduleCapacity,
+	resolveEffectiveDepreciationAvailableForUseDate,
+} from "./depreciation-calendar";
 
 interface Delegate {
 	findMany<T>(args: unknown): Promise<T[]>;
@@ -67,6 +71,7 @@ interface CompanyFreezeRow {
 interface WorkerEntry {
 	id: string;
 	scheduleId: string;
+	sequence: number;
 	scheduleDate: Date;
 	depreciationAmount: unknown;
 	bookValueAfterDepreciation: unknown;
@@ -76,6 +81,11 @@ interface WorkerEntry {
 		status: string;
 		assetId: string;
 		assetFinanceBookId: string;
+		startDate: Date;
+		previousScheduleId: string | null;
+		bookedDepreciations: number;
+		totalNumberOfDepreciations: number;
+		frequencyOfDepreciation: number;
 		asset: {
 			id: string;
 			series: string;
@@ -85,6 +95,12 @@ interface WorkerEntry {
 			company: { name: string; organizationId: string };
 			calculateDepreciation: boolean;
 			status: string;
+			purchaseDate: Date;
+			availableForUseDate: Date | null;
+			capitalizationsAsTarget: Array<{
+				financeBookId: string | null;
+				postingDate: Date;
+			}>;
 			financeBooks: Array<{ financeBookId: string }>;
 		};
 		assetFinanceBook: {
@@ -92,6 +108,8 @@ interface WorkerEntry {
 			financeBookId: string;
 			financeBook: { name: string };
 			openingNumberOfBookedDepreciations: number;
+			increaseInAssetLife: number;
+			totalNumberOfBookedDepreciations: number;
 		};
 	};
 }
@@ -339,6 +357,14 @@ export class DepreciationPersistenceService {
 											select: { name: true, organizationId: true },
 										},
 										financeBooks: { select: { financeBookId: true } },
+										capitalizationsAsTarget: {
+											where: {
+												status: "SUBMITTED",
+												targetFinanceBookScheduleCreated: true,
+											},
+											select: { financeBookId: true, postingDate: true },
+											orderBy: { postingDate: "desc" },
+										},
 									},
 								},
 								assetFinanceBook: { include: { financeBook: true } },
@@ -358,6 +384,7 @@ export class DepreciationPersistenceService {
 			if (entry.postingId) {
 				return { status: "already-posted", postingId: entry.postingId };
 			}
+			this.validateCursorCapacity(entry);
 
 			const existing = await tx.assetDepreciationJournalEntry.findFirst<{
 				id: string;
@@ -643,6 +670,48 @@ export class DepreciationPersistenceService {
 		) {
 			throw new DepreciationPostingValidationError(
 				`Asset ${entry.schedule.asset.series} is not eligible for depreciation.`,
+			);
+		}
+	}
+
+	private validateCursorCapacity(entry: WorkerEntry): void {
+		const capitalizationPostingDate =
+			entry.schedule.asset.capitalizationsAsTarget.find(
+				(capitalization) =>
+					capitalization.financeBookId ===
+					entry.schedule.assetFinanceBook.financeBookId,
+			)?.postingDate;
+		const capacity = getDepreciationScheduleCapacity({
+			availableForUseDate: resolveEffectiveDepreciationAvailableForUseDate({
+				assetAvailableForUseDate: dateOnlyFromPersistedDateTime(
+					entry.schedule.asset.availableForUseDate ??
+						entry.schedule.asset.purchaseDate,
+				),
+				capitalizationPostingDate: capitalizationPostingDate
+					? dateOnlyFromPersistedDateTime(capitalizationPostingDate)
+					: null,
+			}),
+			depreciationStartDate: dateOnlyFromPersistedDateTime(
+				entry.schedule.startDate,
+			),
+			totalPeriods: entry.schedule.totalNumberOfDepreciations,
+			frequencyMonths: entry.schedule.frequencyOfDepreciation,
+			usefulLifeExtensionMonths:
+				entry.schedule.assetFinanceBook.increaseInAssetLife,
+			periodsAlreadyBooked: entry.schedule.bookedDepreciations,
+			periodMode: entry.schedule.previousScheduleId ? "absolute" : "remaining",
+		});
+		if (
+			entry.schedule.assetFinanceBook.totalNumberOfBookedDepreciations >=
+			capacity.totalBookablePeriods
+		) {
+			throw new DepreciationPostingValidationError(
+				`Depreciation cursor for finance book ${entry.schedule.assetFinanceBook.financeBookId} is already at the maximum bookable schedule capacity.`,
+			);
+		}
+		if (entry.sequence > capacity.totalBookablePeriods) {
+			throw new DepreciationPostingValidationError(
+				`Depreciation schedule entry ${entry.id} exceeds the maximum bookable schedule capacity.`,
 			);
 		}
 	}

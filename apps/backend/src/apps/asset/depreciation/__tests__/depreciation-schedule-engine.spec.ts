@@ -1,3 +1,4 @@
+import { getDepreciationScheduleCapacity } from "../depreciation-calendar";
 import {
 	buildDepreciationSchedule,
 	buildDepreciationSchedules,
@@ -153,6 +154,142 @@ describe("buildDepreciationSchedule", () => {
 			["2031-12-31", 22_221.11],
 			["2032-12-31", 1108.89],
 		]);
+	});
+
+	it("keeps DDB's original-life rate while generating only the unbooked cadence", () => {
+		const result = buildDepreciationSchedule({
+			financeBookId: "revision-ddb-book",
+			method: "DOUBLE_DECLINING_BALANCE",
+			grossBookValue: 800,
+			availableForUseDate: "2020-01-01",
+			depreciationStartDate: "2020-01-31",
+			totalPeriods: 10,
+			frequencyMonths: 12,
+			periodsAlreadyBooked: 2,
+			salvageValue: 100,
+		});
+
+		expect(result.ratePercent).toBe(20);
+		expect(result.entries[0]).toMatchObject({
+			periodNumber: 3,
+			date: "2022-01-31",
+		});
+		expect(result.entries.at(-1)).toMatchObject({
+			periodNumber: 11,
+			date: "2029-12-31",
+			bookValueAfterDepreciation: 100,
+		});
+	});
+
+	it("derives revised WDV from current value, salvage, and exact extension months", () => {
+		const result = buildDepreciationSchedule({
+			financeBookId: "revision-wdv-book",
+			method: "WRITTEN_DOWN_VALUE",
+			grossBookValue: 1_000,
+			availableForUseDate: "2020-01-01",
+			depreciationStartDate: "2020-01-31",
+			totalPeriods: 5,
+			frequencyMonths: 12,
+			periodsAlreadyBooked: 2,
+			usefulLifeExtensionMonths: 2,
+			salvageValue: 100,
+			ratePercent: 50,
+			recalculateWrittenDownValueRate: true,
+		});
+
+		const expectedRate = Number(
+			(100 * (1 - (100 / 1_000) ** (1 / (((5 - 2) * 12 + 2) / 12)))).toFixed(2),
+		);
+		expect(result.ratePercent).toBe(expectedRate);
+		expect(result.ratePercent).not.toBe(50);
+		expect(result.entries.at(-1)).toMatchObject({
+			periodNumber: 6,
+			date: "2025-02-28",
+			bookValueAfterDepreciation: 100,
+		});
+	});
+
+	it("retains an explicit WDV rate when ERPNext's zero-salvage rule permits it", () => {
+		const result = buildDepreciationSchedule({
+			financeBookId: "explicit-zero-salvage-wdv-book",
+			method: "WRITTEN_DOWN_VALUE",
+			grossBookValue: 1_000,
+			availableForUseDate: "2020-01-01",
+			depreciationStartDate: "2020-01-31",
+			totalPeriods: 5,
+			frequencyMonths: 12,
+			periodsAlreadyBooked: 1,
+			salvageValue: 0,
+			ratePercent: 25,
+			recalculateWrittenDownValueRate: true,
+		});
+
+		expect(result.ratePercent).toBe(25);
+	});
+
+	it("counts whole-period useful-life extensions exactly once", () => {
+		const result = buildDepreciationSchedule({
+			financeBookId: "full-extension-book",
+			method: "STRAIGHT_LINE",
+			grossBookValue: 1_000,
+			availableForUseDate: "2020-01-01",
+			depreciationStartDate: "2020-12-31",
+			totalPeriods: 5,
+			frequencyMonths: 12,
+			periodsAlreadyBooked: 2,
+			usefulLifeExtensionMonths: 24,
+			salvageValue: 0,
+		});
+
+		expect(result.entries).toHaveLength(5);
+		expect(result.entries.map((entry) => entry.periodNumber)).toEqual([
+			3, 4, 5, 6, 7,
+		]);
+		expect(result.entries.at(-1)).toMatchObject({
+			date: "2026-12-31",
+			bookValueAfterDepreciation: 0,
+		});
+		expect(
+			result.entries.reduce(
+				(total, entry) => total + entry.depreciationAmount,
+				0,
+			),
+		).toBe(1_000);
+	});
+
+	it("keeps the residual final period bookable after full extension cadence rows", () => {
+		const capacity = getDepreciationScheduleCapacity({
+			availableForUseDate: "2030-01-01",
+			depreciationStartDate: "2030-01-31",
+			totalPeriods: 3,
+			frequencyMonths: 12,
+			usefulLifeExtensionMonths: 12,
+		});
+
+		expect(capacity.totalBookablePeriods).toBe(5);
+		expect(capacity.remainingBookablePeriods(4)).toBe(1);
+		expect(capacity.pendingMonths(4)).toBeGreaterThan(0);
+		expect(capacity.pendingMonths(5)).toBe(0);
+
+		const result = buildDepreciationSchedule({
+			financeBookId: "residual-extension-book",
+			method: "STRAIGHT_LINE",
+			grossBookValue: 1_000,
+			availableForUseDate: "2030-01-01",
+			depreciationStartDate: "2030-01-31",
+			totalPeriods: 3,
+			frequencyMonths: 12,
+			periodsAlreadyBooked: 4,
+			usefulLifeExtensionMonths: 12,
+			salvageValue: 0,
+		});
+
+		expect(result.entries).toHaveLength(1);
+		expect(result.entries[0]).toMatchObject({
+			periodNumber: 5,
+			date: "2033-12-31",
+			bookValueAfterDepreciation: 0,
+		});
 	});
 
 	it("ports ERPNext's monthly written-down-value fixture", () => {
@@ -479,6 +616,11 @@ describe("buildDepreciationSchedule", () => {
 			bookValueAfterDepreciation: 0,
 			shift: "Single",
 		});
+		expect(result.entries.map((entry) => entry.shift)).toEqual([
+			...Array.from({ length: 4 }, () => "Single"),
+			"Double",
+			...Array.from({ length: 8 }, () => "Single"),
+		]);
 	});
 
 	it("rejects incomplete or conflicting persisted depreciation options", () => {

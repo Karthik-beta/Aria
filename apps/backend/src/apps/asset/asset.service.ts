@@ -229,6 +229,14 @@ export class AssetService {
 			},
 			orderBy: { createdAt: "asc" as const },
 		},
+		capitalizationsAsTarget: {
+			where: {
+				status: "SUBMITTED",
+				targetFinanceBookScheduleCreated: true,
+			},
+			select: { financeBookId: true, postingDate: true },
+			orderBy: { postingDate: "desc" as const },
+		},
 	} as const;
 
 	constructor(
@@ -1478,6 +1486,7 @@ export class AssetService {
 				financeBookName: book.financeBook.name,
 				depreciationMethod: book.depreciationMethod as Asset.DepreciationMethod,
 				totalNumberOfDepreciations: book.totalNumberOfDepreciations,
+				increaseInAssetLife: book.increaseInAssetLife,
 				frequencyOfDepreciation: book.frequencyOfDepreciation,
 				depreciationStartDate: book.depreciationStartDate,
 				dailyProrataBased: book.dailyProrataBased,
@@ -1505,6 +1514,7 @@ export class AssetService {
 				lastPostedDepreciationDate: book.lastPostedDepreciationDate ?? null,
 				postingStatus: book.postingStatus as Asset.DepreciationPostingStatus,
 			})),
+			capitalizationsAsTarget: asset.capitalizationsAsTarget ?? [],
 		};
 	}
 
@@ -1591,6 +1601,7 @@ export class AssetService {
 			defaultFinanceBookId: string | null;
 			status: Asset.AssetStatus;
 			purchaseDate: Date;
+			availableForUseDate: Date | null;
 			netPurchaseAmount: Prisma.Decimal | null;
 			openingAccumulatedDepreciation: Prisma.Decimal | null;
 			openingNumberOfBookedDepreciations: number;
@@ -1617,6 +1628,7 @@ export class AssetService {
 				financeBookName: string;
 				depreciationMethod: Asset.DepreciationMethod;
 				totalNumberOfDepreciations: number;
+				increaseInAssetLife: number;
 				frequencyOfDepreciation: number;
 				depreciationStartDate: Date;
 				dailyProrataBased: boolean;
@@ -1633,6 +1645,10 @@ export class AssetService {
 				totalNumberOfBookedDepreciations: number;
 				lastPostedDepreciationDate: Date | null;
 				postingStatus: Asset.DepreciationPostingStatus;
+			}>;
+			capitalizationsAsTarget: Array<{
+				financeBookId: string | null;
+				postingDate: Date;
 			}>;
 		},
 		input: Pick<
@@ -1662,6 +1678,15 @@ export class AssetService {
 			asset.calculateDepreciation && selectedFinanceBook
 				? await buildDepreciationSchedulePreview({
 						adjustmentDate,
+						availableForUseDate:
+							asset.availableForUseDate ?? asset.purchaseDate,
+						capitalizationPostingDate: (
+							asset.capitalizationsAsTarget ?? []
+						).find(
+							(capitalization) =>
+								capitalization.financeBookId ===
+								selectedFinanceBook.financeBookId,
+						)?.postingDate,
 						currentAssetValue,
 						newAssetValue: input.newAssetValue,
 						purchaseAmount: asset.netPurchaseAmount
@@ -1677,6 +1702,7 @@ export class AssetService {
 						frequencyOfDepreciation:
 							selectedFinanceBook.frequencyOfDepreciation,
 						depreciationStartDate: selectedFinanceBook.depreciationStartDate,
+						usefulLifeExtensionMonths: selectedFinanceBook.increaseInAssetLife,
 						dailyProrataBased: selectedFinanceBook.dailyProrataBased,
 						shiftBased: selectedFinanceBook.shiftBased,
 						precision: selectedFinanceBook.precision,
@@ -3621,6 +3647,8 @@ export class AssetService {
 					),
 					usefulLifeDeltaMonths: 0,
 					adjustmentId: adjustment.id,
+					getFiscalYearEndDate: (date: Date) =>
+						this.fiscalYearService.getFiscalYearEndDate(date),
 					notes:
 						this.normalizeOptionalText(adjustment.notes) ??
 						`Projected from adjustment ${adjustment.series}`,

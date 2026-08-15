@@ -107,7 +107,11 @@ describe("buildDepreciationSchedulePreview", () => {
 
 			expect(result?.entries).toEqual([
 				expect.objectContaining({
-					depreciationAmount: 100_000,
+					depreciationAmount: 273.972603,
+					bookValueAfterDepreciation: 99_726.027397,
+				}),
+				expect.objectContaining({
+					depreciationAmount: 99_726.027397,
 					bookValueAfterDepreciation: 0,
 				}),
 			]);
@@ -145,7 +149,7 @@ describe("buildDepreciationSchedulePreview", () => {
 			const result = await buildDepreciationSchedulePreview(input);
 
 			expect(result).not.toBeNull();
-			expect(result?.entries.length).toBeLessThanOrEqual(8);
+			expect(result?.entries.length).toBeLessThan(10);
 		});
 
 		it("resets pendingDepreciationAmount on fiscal year change", async () => {
@@ -202,7 +206,7 @@ describe("buildDepreciationSchedulePreview", () => {
 			const result = await buildDepreciationSchedulePreview(input);
 
 			expect(result).not.toBeNull();
-			expect(result?.entries.length).toBeLessThanOrEqual(8);
+			expect(result?.entries.length).toBeLessThan(10);
 		});
 	});
 

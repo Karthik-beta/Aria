@@ -209,15 +209,121 @@ describe("AssetDepreciationRevisionService", () => {
 				assetFinanceBookId: "book-a",
 				previousScheduleId: "schedule-book-a",
 				carryingValue: 900,
-				totalNumberOfDepreciations: 7,
+				totalNumberOfDepreciations: 5,
 			}),
 			expect.objectContaining({
 				assetFinanceBookId: "book-b",
 				previousScheduleId: "schedule-book-b",
 				carryingValue: 700,
-				totalNumberOfDepreciations: 7,
+				totalNumberOfDepreciations: 5,
 			}),
 		]);
+	});
+
+	it("revises DDB from original life and keeps the stored cadence anchor", async () => {
+		const revisionBook = book("book-ddb", "finance-ddb", {
+			depreciationMethod: "DOUBLE_DECLINING_BALANCE",
+			totalNumberOfDepreciations: 10,
+			frequencyOfDepreciation: 12,
+			expectedValueAfterUsefulLife: 100,
+			valueAfterDepreciation: 800,
+			totalNumberOfBookedDepreciations: 2,
+			lastPostedDepreciationDate: new Date("2022-01-31T00:00:00.000Z"),
+			depreciationStartDate: new Date("2020-01-31T00:00:00.000Z"),
+			asset: {
+				availableForUseDate: new Date("2020-01-01T00:00:00.000Z"),
+				purchaseDate: new Date("2020-01-01T00:00:00.000Z"),
+			},
+		});
+		const mocked = revisionTransaction(
+			[revisionBook],
+			[
+				{
+					scheduleDate: new Date("2022-01-31T00:00:00.000Z"),
+					accumulatedDepreciationAmount: 200,
+				},
+			],
+		);
+
+		await new AssetDepreciationRevisionService().revise(
+			mocked.transaction as unknown as Prisma.TransactionClient,
+			ORGANIZATION_ID,
+			{
+				assetId: "asset-1",
+				financeBookId: "finance-ddb",
+				effectiveDate: new Date("2022-02-01T00:00:00.000Z"),
+				valueDelta: 0,
+				usefulLifeDeltaMonths: 0,
+			},
+		);
+
+		const created = mocked.createScheduleCalls[0]?.data;
+		expect(created).toMatchObject({
+			startDate: new Date("2020-01-31T00:00:00.000Z"),
+			totalNumberOfDepreciations: 10,
+			rateOfDepreciation: 20,
+			bookedDepreciations: 2,
+		});
+		expect(created?.entries?.create?.[0]).toMatchObject({
+			sequence: 3,
+			scheduleDate: new Date("2022-01-31T00:00:00.000Z"),
+		});
+		expect(created?.entries?.create?.at(-1)).toMatchObject({
+			sequence: 11,
+			scheduleDate: new Date("2029-12-31T00:00:00.000Z"),
+		});
+	});
+
+	it("recalculates revised WDV from the current book basis and exact month extension", async () => {
+		const revisionBook = book("book-wdv", "finance-wdv", {
+			depreciationMethod: "WRITTEN_DOWN_VALUE",
+			totalNumberOfDepreciations: 5,
+			frequencyOfDepreciation: 12,
+			rateOfDepreciation: 50,
+			expectedValueAfterUsefulLife: 100,
+			valueAfterDepreciation: 1_000,
+			totalNumberOfBookedDepreciations: 2,
+			lastPostedDepreciationDate: new Date("2022-01-31T00:00:00.000Z"),
+			depreciationStartDate: new Date("2020-01-31T00:00:00.000Z"),
+			asset: {
+				availableForUseDate: new Date("2020-01-01T00:00:00.000Z"),
+				purchaseDate: new Date("2020-01-01T00:00:00.000Z"),
+			},
+		});
+		const mocked = revisionTransaction(
+			[revisionBook],
+			[
+				{
+					scheduleDate: new Date("2022-01-31T00:00:00.000Z"),
+					accumulatedDepreciationAmount: 0,
+				},
+			],
+		);
+
+		await new AssetDepreciationRevisionService().revise(
+			mocked.transaction as unknown as Prisma.TransactionClient,
+			ORGANIZATION_ID,
+			{
+				assetId: "asset-1",
+				financeBookId: "finance-wdv",
+				effectiveDate: new Date("2022-02-01T00:00:00.000Z"),
+				valueDelta: 0,
+				usefulLifeDeltaMonths: 2,
+			},
+		);
+
+		const created = mocked.createScheduleCalls[0]?.data;
+		const expectedRate = Number(
+			(100 * (1 - (100 / 1_000) ** (1 / (((5 - 2) * 12 + 2) / 12)))).toFixed(2),
+		);
+		expect(created).toMatchObject({
+			totalNumberOfDepreciations: 5,
+			rateOfDepreciation: expectedRate,
+		});
+		expect(created?.entries?.create?.at(-1)).toMatchObject({
+			sequence: 6,
+			scheduleDate: new Date("2025-02-28T00:00:00.000Z"),
+		});
 	});
 
 	it("rejects an effective date before a posted depreciation without cancelling the active schedule", async () => {
@@ -255,6 +361,11 @@ describe("AssetDepreciationRevisionService", () => {
 				book("book-a", "finance-a", {
 					totalNumberOfDepreciations: 3,
 					totalNumberOfBookedDepreciations: 3,
+					depreciationStartDate: new Date("2026-12-31T00:00:00.000Z"),
+					asset: {
+						availableForUseDate: new Date("2026-01-01T00:00:00.000Z"),
+						purchaseDate: new Date("2026-01-01T00:00:00.000Z"),
+					},
 				}),
 			],
 			[null],

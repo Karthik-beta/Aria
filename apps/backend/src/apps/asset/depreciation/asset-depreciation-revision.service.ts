@@ -7,12 +7,21 @@ import {
 	assetWhereForOrganization,
 } from "../asset-organization-scope";
 import {
+	addDateOnlyUtc,
+	addMonthsDateOnly,
 	dateOnlyFromPersistedDateTime,
 	dateOnlyUtc,
 } from "./depreciation.config";
 import {
+	createDepreciationCalendar,
+	getDepreciationScheduleCapacity,
+	resolveEffectiveDepreciationAvailableForUseDate,
+} from "./depreciation-calendar";
+import {
+	assertNonNegativeDepreciationRate,
 	buildDepreciationSchedule,
 	type DepreciationBookInput,
+	type FiscalYearRange,
 } from "./depreciation-schedule-engine";
 
 export interface AssetDepreciationRevisionInput {
@@ -29,6 +38,8 @@ export interface AssetDepreciationRevisionInput {
 	/** Link the successor schedule to the document that caused the revision. */
 	adjustmentId?: string;
 	notes?: string | null;
+	/** Optional fiscal-year lookup used to keep preview and persisted rows aligned. */
+	getFiscalYearEndDate?: (date: Date) => Promise<Date | null>;
 }
 
 export interface AssetDepreciationRevisionResult {
@@ -70,6 +81,15 @@ type RevisionBook = {
 	totalNumberOfDepreciations: number;
 	increaseInAssetLife: number;
 	frequencyOfDepreciation: number;
+	depreciationStartDate?: Date;
+	asset?: {
+		availableForUseDate: Date | null;
+		purchaseDate: Date;
+		capitalizationsAsTarget?: Array<{
+			financeBookId: string | null;
+			postingDate: Date;
+		}>;
+	};
 	dailyProrataBased: boolean;
 	shiftBased: boolean;
 	precision: number;
@@ -127,7 +147,6 @@ export class AssetDepreciationRevisionService {
 		const effectiveDateOnly = dateOnlyFromPersistedDateTime(
 			input.effectiveDate,
 		);
-		const effectiveDate = dateOnlyUtc(effectiveDateOnly);
 		const books = await this.loadLockedBooks(
 			tx,
 			organizationId,
@@ -138,6 +157,22 @@ export class AssetDepreciationRevisionService {
 		const revisions: AssetDepreciationRevisionResult[] = [];
 		for (const book of books) {
 			const activeSchedule = this.requireSingleActiveSchedule(book);
+			if (
+				book.depreciationMethod === "WRITTEN_DOWN_VALUE" &&
+				book.rateOfDepreciation != null
+			) {
+				try {
+					assertNonNegativeDepreciationRate(
+						decimalNumber(book.rateOfDepreciation),
+					);
+				} catch (error) {
+					throw new AssetDepreciationRevisionError(
+						error instanceof Error
+							? error.message
+							: `Invalid persisted WDV rate for finance book ${book.financeBookId}.`,
+					);
+				}
+			}
 			const latestPosted = (await tx.assetDepreciationScheduleEntry.findFirst({
 				where: {
 					postingId: { not: null },
@@ -188,20 +223,70 @@ export class AssetDepreciationRevisionService {
 					`Revised useful-life extension cannot be negative for finance book ${book.financeBookId}.`,
 				);
 			}
-			const addedPeriods = Math.ceil(
-				increaseInAssetLife / book.frequencyOfDepreciation,
-			);
-			const totalPeriods = book.totalNumberOfDepreciations + addedPeriods;
+			const totalPeriods = book.totalNumberOfDepreciations;
 			const bookedPeriods = book.totalNumberOfBookedDepreciations;
-			if (totalPeriods <= bookedPeriods) {
+			const baseAvailableForUseDate = dateOnlyFromPersistedDateTime(
+				book.asset?.availableForUseDate ??
+					book.asset?.purchaseDate ??
+					book.depreciationStartDate ??
+					input.effectiveDate,
+			);
+			const capitalizationPostingDate =
+				book.asset?.capitalizationsAsTarget?.find(
+					(capitalization) =>
+						capitalization.financeBookId === book.financeBookId,
+				)?.postingDate;
+			const capacity = getDepreciationScheduleCapacity({
+				availableForUseDate: resolveEffectiveDepreciationAvailableForUseDate({
+					assetAvailableForUseDate: baseAvailableForUseDate,
+					capitalizationPostingDate: capitalizationPostingDate
+						? dateOnlyFromPersistedDateTime(capitalizationPostingDate)
+						: null,
+				}),
+				depreciationStartDate: dateOnlyFromPersistedDateTime(
+					book.depreciationStartDate ?? input.effectiveDate,
+				),
+				totalPeriods,
+				frequencyMonths: book.frequencyOfDepreciation,
+				usefulLifeExtensionMonths: increaseInAssetLife,
+				periodsAlreadyBooked: bookedPeriods,
+				periodMode: "absolute",
+			});
+			if (bookedPeriods > capacity.totalBookablePeriods) {
+				throw new AssetDepreciationRevisionError(
+					`Booked depreciation periods exceed the maximum bookable useful life for finance book ${book.financeBookId}.`,
+				);
+			}
+			const remainingBookablePeriods =
+				capacity.remainingBookablePeriods(bookedPeriods);
+			const pendingMonths = capacity.pendingMonths(bookedPeriods);
+			if (
+				(remainingBookablePeriods <= 0 && carryingValue !== salvageValue) ||
+				(remainingBookablePeriods > 0 && pendingMonths <= 0)
+			) {
 				throw new AssetDepreciationRevisionError(
 					`Revised useful life must leave at least one unbooked period for finance book ${book.financeBookId}.`,
 				);
 			}
-			const remainingPeriods = totalPeriods - bookedPeriods;
 			const openingAccumulatedDepreciation = latestPosted
 				? decimalNumber(latestPosted.accumulatedDepreciationAmount)
 				: decimalNumber(book.openingAccumulatedDepreciation);
+			const depreciationStartDate = dateOnlyFromPersistedDateTime(
+				book.depreciationStartDate ?? input.effectiveDate,
+			);
+			const assetAvailableForUseDate =
+				resolveEffectiveDepreciationAvailableForUseDate({
+					assetAvailableForUseDate: baseAvailableForUseDate,
+					capitalizationPostingDate: capitalizationPostingDate
+						? dateOnlyFromPersistedDateTime(capitalizationPostingDate)
+						: null,
+				});
+			if (effectiveDateOnly < assetAvailableForUseDate) {
+				throw new AssetDepreciationRevisionError(
+					`Effective date cannot be before the asset's available-for-use date for finance book ${book.financeBookId}.`,
+				);
+			}
+			const availableForUseDate = assetAvailableForUseDate;
 
 			if (book.depreciationMethod === "MANUAL") {
 				throw new AssetDepreciationRevisionError(
@@ -209,8 +294,9 @@ export class AssetDepreciationRevisionService {
 				);
 			}
 
-			// The engine receives the revised carrying value and remaining life as a
-			// fresh basis. History remains on the cancelled predecessor; its opening
+			// The engine receives the selected book's current carrying basis, while
+			// the original life and absolute booked-period offset retain ERPNext's
+			// cadence. History remains on the cancelled predecessor; its opening
 			// accumulation is re-applied to successor entries before persistence.
 			const schedule =
 				carryingValue === salvageValue
@@ -219,10 +305,15 @@ export class AssetDepreciationRevisionService {
 							financeBookId: book.financeBookId,
 							method: book.depreciationMethod,
 							grossBookValue: carryingValue,
-							availableForUseDate: effectiveDateOnly,
-							depreciationStartDate: effectiveDateOnly,
-							totalPeriods: remainingPeriods,
+							availableForUseDate,
+							depreciationStartDate,
+							totalPeriods,
 							frequencyMonths: book.frequencyOfDepreciation,
+							usefulLifeExtensionMonths: increaseInAssetLife,
+							periodsAlreadyBooked: bookedPeriods,
+							rateBasisTotalPeriods: book.totalNumberOfDepreciations,
+							recalculateWrittenDownValueRate:
+								book.depreciationMethod === "WRITTEN_DOWN_VALUE",
 							salvageValue,
 							ratePercent:
 								book.rateOfDepreciation == null
@@ -233,13 +324,22 @@ export class AssetDepreciationRevisionService {
 							calculateUsingTotalDays: book.calculateUsingTotalDays,
 							precision: book.precision,
 							ratePrecision: book.ratePrecision,
-							shiftAllocations: (book.shiftAllocations ?? [])
-								.filter((allocation) => allocation.periodIndex >= bookedPeriods)
-								.map((allocation) => ({
-									periodIndex: allocation.periodIndex - bookedPeriods,
+							shiftAllocations: (book.shiftAllocations ?? []).map(
+								(allocation) => ({
+									periodIndex: allocation.periodIndex,
 									shift: allocation.shift,
 									factor: decimalNumber(allocation.factor),
-								})),
+								}),
+							),
+							getFiscalYear: await this.buildFiscalYearResolver(
+								input.getFiscalYearEndDate,
+								availableForUseDate,
+								depreciationStartDate,
+								totalPeriods,
+								book.frequencyOfDepreciation,
+								bookedPeriods,
+								increaseInAssetLife,
+							),
 						});
 
 			const cancelledSchedule = await tx.assetDepreciationSchedule.updateMany({
@@ -263,7 +363,6 @@ export class AssetDepreciationRevisionService {
 					increaseInAssetLife,
 					valueAfterDepreciation: carryingValue,
 					expectedValueAfterUsefulLife: salvageValue,
-					depreciationStartDate: effectiveDate,
 					rateOfDepreciation: schedule.ratePercent,
 					postingStatus:
 						schedule.entries.length === 0
@@ -286,7 +385,7 @@ export class AssetDepreciationRevisionService {
 					previousScheduleId: activeSchedule.id,
 					revisionNumber: activeSchedule.revisionNumber + 1,
 					status: "ACTIVE",
-					startDate: effectiveDate,
+					startDate: dateOnlyUtc(depreciationStartDate),
 					depreciationMethod: book.depreciationMethod,
 					totalNumberOfDepreciations: totalPeriods,
 					frequencyOfDepreciation: book.frequencyOfDepreciation,
@@ -304,7 +403,7 @@ export class AssetDepreciationRevisionService {
 					notes: input.notes ?? null,
 					entries: {
 						create: schedule.entries.map((entry) => ({
-							sequence: bookedPeriods + entry.periodNumber,
+							sequence: entry.periodNumber,
 							scheduleDate: dateOnlyUtc(entry.date),
 							depreciationAmount: entry.depreciationAmount,
 							accumulatedDepreciationAmount:
@@ -622,6 +721,66 @@ export class AssetDepreciationRevisionService {
 		}
 	}
 
+	/**
+	 * Resolves fiscal-year boundaries before the synchronous schedule engine runs.
+	 * The worker persists calculated rows, so a revision must use the same
+	 * precomputed boundaries as its preview instead of awaiting during math.
+	 */
+	private async buildFiscalYearResolver(
+		getFiscalYearEndDate: AssetDepreciationRevisionInput["getFiscalYearEndDate"],
+		availableForUseDate: string,
+		depreciationStartDate: string,
+		totalPeriods: number,
+		frequencyMonths: number,
+		periodsAlreadyBooked: number,
+		usefulLifeExtensionMonths: number,
+	): Promise<(date: string) => FiscalYearRange> {
+		const defaultFiscalYear = (date: string): FiscalYearRange => {
+			const year = date.slice(0, 4);
+			return { startDate: `${year}-01-01`, endDate: `${year}-12-31` };
+		};
+		if (!getFiscalYearEndDate) return defaultFiscalYear;
+
+		const calendar = createDepreciationCalendar({
+			availableForUseDate,
+			depreciationStartDate,
+			totalPeriods,
+			frequencyMonths,
+			usefulLifeExtensionMonths,
+		});
+		const dates = new Set<string>();
+		const extensionPeriods = Math.floor(
+			usefulLifeExtensionMonths / frequencyMonths,
+		);
+		const schedulePeriods = totalPeriods + extensionPeriods;
+		for (
+			let periodIndex = periodsAlreadyBooked;
+			periodIndex < schedulePeriods;
+			periodIndex += 1
+		) {
+			dates.add(calendar.scheduleDate(periodIndex));
+		}
+		dates.add(calendar.usefulLifeEndDate);
+
+		const fiscalYearRanges = new Map<string, FiscalYearRange>();
+		for (const date of dates) {
+			const fiscalYearEndDate = await getFiscalYearEndDate(dateOnlyUtc(date));
+			if (!fiscalYearEndDate) {
+				fiscalYearRanges.set(date, defaultFiscalYear(date));
+				continue;
+			}
+			const endDate = dateOnlyFromPersistedDateTime(fiscalYearEndDate);
+			const startDate = dateOnlyFromPersistedDateTime(
+				addDateOnlyUtc(
+					dateOnlyFromPersistedDateTime(addMonthsDateOnly(endDate, -12)),
+					1,
+				),
+			);
+			fiscalYearRanges.set(date, { startDate, endDate });
+		}
+		return (date) => fiscalYearRanges.get(date) ?? defaultFiscalYear(date);
+	}
+
 	private async loadLockedBooks(
 		tx: RevisionTransaction,
 		organizationId: AssetOrganizationId,
@@ -655,6 +814,20 @@ export class AssetDepreciationRevisionService {
 				...(financeBookId ? { financeBookId } : {}),
 			},
 			include: {
+				asset: {
+					select: {
+						availableForUseDate: true,
+						purchaseDate: true,
+						capitalizationsAsTarget: {
+							where: {
+								status: "SUBMITTED",
+								targetFinanceBookScheduleCreated: true,
+							},
+							select: { financeBookId: true, postingDate: true },
+							orderBy: { postingDate: "desc" },
+						},
+					},
+				},
 				shiftAllocations: { orderBy: { periodIndex: "asc" } },
 				schedules: {
 					where: { status: "ACTIVE" },
