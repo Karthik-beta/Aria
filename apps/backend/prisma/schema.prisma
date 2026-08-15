@@ -1762,6 +1762,9 @@ model AssetDepreciationSchedule {
   frequencyOfDepreciation        Int
   dailyProrataBased              Boolean                          @default(false)
   shiftBased                     Boolean                          @default(false)
+  precision                      Int                              @default(2)
+  ratePrecision                  Int                              @default(2)
+  calculateUsingTotalDays        Boolean                          @default(false)
   rateOfDepreciation             Float?
   expectedValueAfterUsefulLife   Decimal?                         @db.Decimal(18, 6)
   bookedDepreciations            Int
@@ -1791,6 +1794,7 @@ model AssetDepreciationScheduleEntry {
   depreciationAmount            Decimal                        @db.Decimal(18, 6)
   accumulatedDepreciationAmount Decimal                        @db.Decimal(18, 6)
   bookValueAfterDepreciation    Decimal                        @db.Decimal(18, 6)
+  shift                         String?                        @db.VarChar(100)
   postingId                     String?                        @unique
   posting                       AssetDepreciationJournalEntry? @relation(fields: [postingId], references: [id], onDelete: SetNull)
   postedAt                      DateTime?
@@ -1836,6 +1840,9 @@ model AssetFinanceBook {
   frequencyOfDepreciation            Int
   dailyProrataBased                  Boolean                         @default(false)
   shiftBased                         Boolean                         @default(false)
+  precision                          Int                             @default(2)
+  ratePrecision                      Int                             @default(2)
+  calculateUsingTotalDays            Boolean                         @default(false)
   rateOfDepreciation                 Decimal?                        @db.Decimal(9, 6)
   expectedValueAfterUsefulLife       Decimal                         @default(0) @db.Decimal(18, 6)
   depreciationStartDate              DateTime
@@ -1846,6 +1853,7 @@ model AssetFinanceBook {
   postingStatus                      AssetFinanceBookPostingStatus   @default(PENDING)
   lastPostedDepreciationDate         DateTime?
   schedules                          AssetDepreciationSchedule[]
+  shiftAllocations                   AssetFinanceBookShiftAllocation[]
   journalEntries                     AssetDepreciationJournalEntry[]
   createdAt                          DateTime                        @default(now())
   updatedAt                          DateTime                        @updatedAt
@@ -1870,8 +1878,12 @@ model AssetCategoryFinanceBook {
   frequencyOfDepreciation      Int
   dailyProrataBased            Boolean            @default(false)
   shiftBased                   Boolean            @default(false)
+  precision                    Int                @default(2)
+  ratePrecision                Int                @default(2)
+  calculateUsingTotalDays      Boolean            @default(false)
   rateOfDepreciation           Decimal?           @db.Decimal(9, 6)
   expectedValueAfterUsefulLife Decimal?           @db.Decimal(18, 6)
+  shiftAllocations             AssetCategoryFinanceBookShiftAllocation[]
   createdAt                    DateTime           @default(now())
   updatedAt                    DateTime           @updatedAt
 
@@ -1879,6 +1891,38 @@ model AssetCategoryFinanceBook {
   @@index([assetCategoryId])
   @@index([financeBookId])
   @@map("asset_category_finance_books")
+}
+
+/// Immutable per-period shift configuration copied into an asset finance book.
+model AssetFinanceBookShiftAllocation {
+  id                String          @id @default(cuid())
+  assetFinanceBookId String
+  assetFinanceBook  AssetFinanceBook @relation(fields: [assetFinanceBookId], references: [id], onDelete: Cascade)
+  periodIndex       Int
+  shift             String          @db.VarChar(100)
+  factor            Decimal         @db.Decimal(9, 6)
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  @@unique([assetFinanceBookId, periodIndex], map: "asset_finance_book_shift_period_key")
+  @@index([assetFinanceBookId], map: "asset_finance_book_shift_book_idx")
+  @@map("asset_finance_book_shift_allocations")
+}
+
+/// Shift configuration supplied by an asset-category finance-book template.
+model AssetCategoryFinanceBookShiftAllocation {
+  id                      String                   @id @default(cuid())
+  assetCategoryFinanceBookId String
+  assetCategoryFinanceBook  AssetCategoryFinanceBook @relation(fields: [assetCategoryFinanceBookId], references: [id], onDelete: Cascade)
+  periodIndex             Int
+  shift                   String                   @db.VarChar(100)
+  factor                  Decimal                  @db.Decimal(9, 6)
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
+
+  @@unique([assetCategoryFinanceBookId, periodIndex], map: "asset_category_shift_period_key")
+  @@index([assetCategoryFinanceBookId], map: "asset_category_shift_book_idx")
+  @@map("asset_category_finance_book_shift_allocations")
 }
 
 /// Company-specific accounting defaults for an asset category.

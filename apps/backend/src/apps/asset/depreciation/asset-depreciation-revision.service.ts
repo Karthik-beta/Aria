@@ -72,6 +72,14 @@ type RevisionBook = {
 	frequencyOfDepreciation: number;
 	dailyProrataBased: boolean;
 	shiftBased: boolean;
+	precision: number;
+	ratePrecision: number;
+	calculateUsingTotalDays: boolean;
+	shiftAllocations: Array<{
+		periodIndex: number;
+		shift: string;
+		factor: unknown;
+	}>;
 	rateOfDepreciation: unknown;
 	expectedValueAfterUsefulLife: unknown;
 	openingAccumulatedDepreciation: unknown;
@@ -221,6 +229,17 @@ export class AssetDepreciationRevisionService {
 									? undefined
 									: decimalNumber(book.rateOfDepreciation),
 							dailyProrata: book.dailyProrataBased,
+							shiftBased: book.shiftBased,
+							calculateUsingTotalDays: book.calculateUsingTotalDays,
+							precision: book.precision,
+							ratePrecision: book.ratePrecision,
+							shiftAllocations: (book.shiftAllocations ?? [])
+								.filter((allocation) => allocation.periodIndex >= bookedPeriods)
+								.map((allocation) => ({
+									periodIndex: allocation.periodIndex - bookedPeriods,
+									shift: allocation.shift,
+									factor: decimalNumber(allocation.factor),
+								})),
 						});
 
 			const cancelledSchedule = await tx.assetDepreciationSchedule.updateMany({
@@ -273,6 +292,9 @@ export class AssetDepreciationRevisionService {
 					frequencyOfDepreciation: book.frequencyOfDepreciation,
 					dailyProrataBased: book.dailyProrataBased,
 					shiftBased: book.shiftBased,
+					precision: book.precision,
+					ratePrecision: book.ratePrecision,
+					calculateUsingTotalDays: book.calculateUsingTotalDays,
 					rateOfDepreciation: schedule.ratePercent,
 					expectedValueAfterUsefulLife: salvageValue,
 					bookedDepreciations: bookedPeriods,
@@ -288,6 +310,7 @@ export class AssetDepreciationRevisionService {
 							accumulatedDepreciationAmount:
 								openingAccumulatedDepreciation + entry.accumulatedDepreciation,
 							bookValueAfterDepreciation: entry.bookValueAfterDepreciation,
+							shift: entry.shift,
 						})),
 					},
 				},
@@ -369,6 +392,9 @@ export class AssetDepreciationRevisionService {
 						frequencyOfDepreciation: true,
 						dailyProrataBased: true,
 						shiftBased: true,
+						precision: true,
+						ratePrecision: true,
+						calculateUsingTotalDays: true,
 						rateOfDepreciation: true,
 						expectedValueAfterUsefulLife: true,
 						bookedDepreciations: true,
@@ -463,6 +489,9 @@ export class AssetDepreciationRevisionService {
 				depreciationStartDate: predecessor.startDate,
 				dailyProrataBased: predecessor.dailyProrataBased,
 				shiftBased: predecessor.shiftBased,
+				precision: predecessor.precision,
+				ratePrecision: predecessor.ratePrecision,
+				calculateUsingTotalDays: predecessor.calculateUsingTotalDays,
 				rateOfDepreciation: predecessor.rateOfDepreciation,
 				expectedValueAfterUsefulLife:
 					predecessor.expectedValueAfterUsefulLife ?? 0,
@@ -626,6 +655,7 @@ export class AssetDepreciationRevisionService {
 				...(financeBookId ? { financeBookId } : {}),
 			},
 			include: {
+				shiftAllocations: { orderBy: { periodIndex: "asc" } },
 				schedules: {
 					where: { status: "ACTIVE" },
 					select: { id: true, revisionNumber: true },

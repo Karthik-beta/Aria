@@ -18,7 +18,10 @@ export type PrismaAsset = Prisma.AssetGetPayload<{
 			orderBy: { createdAt: "desc" };
 		};
 		financeBooks: {
-			include: { financeBook: { select: { name: true } } };
+			include: {
+				financeBook: { select: { name: true } };
+				shiftAllocations: { orderBy: { periodIndex: "asc" } };
+			};
 			orderBy: { createdAt: "asc" };
 		};
 	};
@@ -52,7 +55,10 @@ export type PrismaLocation = Prisma.LocationGetPayload<{
 export type PrismaAssetCategory = Prisma.AssetCategoryGetPayload<{
 	include: {
 		financeBookDefaults: {
-			include: { financeBook: { select: { name: true } } };
+			include: {
+				financeBook: { select: { name: true } };
+				shiftAllocations: { orderBy: { periodIndex: "asc" } };
+			};
 			orderBy: { createdAt: "asc" };
 		};
 		accounts: {
@@ -103,6 +109,14 @@ export function toAssetCategory(cat: PrismaAssetCategory): Asset.AssetCategory {
 			frequencyOfDepreciation: book.frequencyOfDepreciation,
 			dailyProrataBased: book.dailyProrataBased,
 			shiftBased: book.shiftBased,
+			precision: book.precision,
+			ratePrecision: book.ratePrecision,
+			calculateUsingTotalDays: book.calculateUsingTotalDays,
+			shiftAllocations: (book.shiftAllocations ?? []).map((allocation) => ({
+				periodIndex: allocation.periodIndex,
+				shift: allocation.shift,
+				factor: Number(allocation.factor),
+			})),
 			rateOfDepreciation:
 				book.rateOfDepreciation == null
 					? null
@@ -196,6 +210,14 @@ export function toAsset(raw: PrismaAsset): Asset.AssetItem {
 			depreciationStartDate: toRequiredDateOnly(book.depreciationStartDate),
 			dailyProrataBased: book.dailyProrataBased,
 			shiftBased: book.shiftBased,
+			precision: book.precision,
+			ratePrecision: book.ratePrecision,
+			calculateUsingTotalDays: book.calculateUsingTotalDays,
+			shiftAllocations: (book.shiftAllocations ?? []).map((allocation) => ({
+				periodIndex: allocation.periodIndex,
+				shift: allocation.shift,
+				factor: Number(allocation.factor),
+			})),
 			rateOfDepreciation:
 				book.rateOfDepreciation == null
 					? null
@@ -321,6 +343,7 @@ export function toAssetDepreciationScheduleEntry(
 		depreciationAmount: Number(raw.depreciationAmount),
 		accumulatedDepreciationAmount: Number(raw.accumulatedDepreciationAmount),
 		bookValueAfterDepreciation: Number(raw.bookValueAfterDepreciation),
+		shift: raw.shift ?? null,
 		postingId: raw.postingId ?? null,
 		postedAt: raw.postedAt ?? null,
 		createdAt: raw.createdAt,
@@ -344,6 +367,11 @@ export function toAssetDepreciationSchedule(
 			(raw.depreciationMethod as Asset.DepreciationMethod | null) ?? null,
 		totalNumberOfDepreciations: raw.totalNumberOfDepreciations,
 		frequencyOfDepreciation: raw.frequencyOfDepreciation,
+		dailyProrataBased: raw.dailyProrataBased,
+		shiftBased: raw.shiftBased,
+		precision: raw.precision,
+		ratePrecision: raw.ratePrecision,
+		calculateUsingTotalDays: raw.calculateUsingTotalDays,
 		bookedDepreciations: raw.bookedDepreciations,
 		remainingDepreciations: raw.remainingDepreciations,
 		openingAccumulatedDepreciation: Number(raw.openingAccumulatedDepreciation),

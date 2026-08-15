@@ -42,6 +42,8 @@ export interface CreateAssetAccountingEntryInput {
 	assetId?: string | null;
 	/** The finance book whose asset state this entry consumes, when applicable. */
 	financeBookId?: string | null;
+	/** Currency precision captured from the selected depreciation book. */
+	precision?: number;
 	sourceType: AssetAccountingSourceType;
 	sourceId: string;
 	postingDate: DateOnlyInput;
@@ -55,8 +57,8 @@ export interface AssetAccountingEntryResult {
 	status: "POSTED" | "REVERSED";
 }
 
-const roundAmount = (amount: number): number =>
-	Number(amount.toFixed(AMOUNT_SCALE));
+const roundAmount = (amount: number, scale: number): number =>
+	Number(amount.toFixed(scale));
 
 /**
  * Posts balanced, reversible entries to Aria's Asset-domain subledger.
@@ -87,11 +89,17 @@ export class AssetAccountingService {
 				"An asset accounting entry requires at least two lines",
 			);
 		}
+		const amountScale = input.precision ?? AMOUNT_SCALE;
+		if (!Number.isInteger(amountScale) || amountScale < 0 || amountScale > 6) {
+			throw new BadRequestException(
+				"Asset accounting precision must be an integer between zero and 6",
+			);
+		}
 
 		const lines = input.lines.map((line) => {
 			const account = line.account.trim();
-			const debitAmount = roundAmount(line.debitAmount);
-			const creditAmount = roundAmount(line.creditAmount);
+			const debitAmount = roundAmount(line.debitAmount, amountScale);
+			const creditAmount = roundAmount(line.creditAmount, amountScale);
 			if (!account) {
 				throw new BadRequestException(
 					"Every asset accounting line requires an account label",
@@ -123,9 +131,11 @@ export class AssetAccountingService {
 
 		const totalDebit = roundAmount(
 			lines.reduce((total, line) => total + line.debitAmount, 0),
+			amountScale,
 		);
 		const totalCredit = roundAmount(
 			lines.reduce((total, line) => total + line.creditAmount, 0),
+			amountScale,
 		);
 		if (totalDebit <= 0 || totalDebit !== totalCredit) {
 			throw new BadRequestException(

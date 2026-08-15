@@ -128,6 +128,10 @@ describe("AssetDepreciationLifecycleService", () => {
 					],
 				})),
 			},
+			assetFinanceBookShiftAllocation: {
+				deleteMany: mock(async () => undefined),
+				createMany: mock(async () => undefined),
+			},
 		};
 		const prisma = {
 			asset: {

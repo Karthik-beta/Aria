@@ -279,8 +279,14 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
 	get assetFinanceBook() {
 		return this.client.assetFinanceBook;
 	}
+	get assetFinanceBookShiftAllocation() {
+		return this.client.assetFinanceBookShiftAllocation;
+	}
 	get assetCategoryFinanceBook() {
 		return this.client.assetCategoryFinanceBook;
+	}
+	get assetCategoryFinanceBookShiftAllocation() {
+		return this.client.assetCategoryFinanceBookShiftAllocation;
 	}
 	get assetCategoryAccount() {
 		return this.client.assetCategoryAccount;

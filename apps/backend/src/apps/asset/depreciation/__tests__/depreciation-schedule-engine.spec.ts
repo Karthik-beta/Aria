@@ -180,6 +180,23 @@ describe("buildDepreciationSchedule", () => {
 		]);
 	});
 
+	it("rounds declining-balance rates at the persisted rate precision", () => {
+		const result = buildDepreciationSchedule({
+			financeBookId: "rate-precision-book",
+			method: "WRITTEN_DOWN_VALUE",
+			grossBookValue: 10_000,
+			availableForUseDate: "2022-02-15",
+			depreciationStartDate: "2022-02-28",
+			totalPeriods: 5,
+			frequencyMonths: 1,
+			salvageValue: 5_000,
+			ratePercent: 81.054321,
+			ratePrecision: 3,
+		});
+
+		expect(result.ratePercent).toBe(81.054);
+	});
+
 	it("mirrors ERPNext's 100 percent WDV rate for zero salvage without an explicit rate", () => {
 		const result = buildDepreciationSchedule({
 			financeBookId: "zero-salvage-book",
@@ -320,7 +337,7 @@ describe("buildDepreciationSchedule", () => {
 	});
 
 	it("uses total-life days when daily total-days accounting is enabled", () => {
-		const result = buildDepreciationSchedule({
+		const input: DepreciationBookInput = {
 			financeBookId: "daily-book",
 			method: "STRAIGHT_LINE",
 			grossBookValue: 1096,
@@ -330,15 +347,45 @@ describe("buildDepreciationSchedule", () => {
 			frequencyMonths: 1,
 			dailyProrata: true,
 			calculateUsingTotalDays: true,
+		};
+		const result = buildDepreciationSchedule(input);
+		const fiscalYearResult = buildDepreciationSchedule({
+			...input,
+			calculateUsingTotalDays: false,
 		});
 
 		expect(result.entries[0]?.depreciationAmount).toBe(17);
 		expect(result.entries[1]?.depreciationAmount).toBe(29);
+		expect(fiscalYearResult.entries[0]?.depreciationAmount).not.toBe(17);
 		expect(result.entries.at(-1)).toMatchObject({
 			date: "2023-01-15",
 			depreciationAmount: 14,
 			bookValueAfterDepreciation: 0,
 		});
+	});
+
+	it("rounds the final residual at the selected currency precision", () => {
+		const precision3 = buildDepreciationSchedule({
+			...baseBook,
+			grossBookValue: 1_000,
+			salvageValue: 0,
+			totalPeriods: 3,
+			precision: 3,
+		});
+		const precision6 = buildDepreciationSchedule({
+			...baseBook,
+			grossBookValue: 1_000,
+			salvageValue: 0,
+			totalPeriods: 3,
+			precision: 6,
+		});
+
+		expect(precision3.entries.map((entry) => entry.depreciationAmount)).toEqual(
+			[333.333, 333.333, 333.334],
+		);
+		expect(precision6.entries.map((entry) => entry.depreciationAmount)).toEqual(
+			[333.333333, 333.333333, 333.333334],
+		);
 	});
 
 	it("retains caller-authored manual rows", () => {
@@ -372,6 +419,11 @@ describe("buildDepreciationSchedule", () => {
 	});
 
 	it("applies supplied shift factors using sum of shift factors formula", () => {
+		const shiftAllocations = Array.from({ length: 12 }, (_, periodIndex) => ({
+			periodIndex,
+			shift: periodIndex === 4 ? "Triple" : "Single",
+			factor: periodIndex === 4 ? 2 : 1,
+		}));
 		const result = buildDepreciationSchedule({
 			financeBookId: "shift-book",
 			method: "STRAIGHT_LINE",
@@ -380,16 +432,76 @@ describe("buildDepreciationSchedule", () => {
 			depreciationStartDate: "2023-01-31",
 			totalPeriods: 12,
 			frequencyMonths: 1,
-			shiftAllocations: [{ periodIndex: 4, shift: "Triple", factor: 2 }],
+			precision: 3,
+			shiftBased: true,
+			shiftAllocations,
 		});
 
 		expect(result.entries).toHaveLength(12);
 		expect(result.entries[4]).toMatchObject({
 			date: "2023-05-31",
-			depreciationAmount: 18461.54,
+			depreciationAmount: 18461.538,
 			shift: "Triple",
 		});
+		expect(
+			result.entries.reduce(
+				(total, entry) => total + entry.depreciationAmount,
+				0,
+			),
+		).toBe(120_000);
 		expect(result.entries.at(-1)?.bookValueAfterDepreciation).toBe(0);
+	});
+
+	it("retains the default shift identity on a final pro-rata tail", () => {
+		const shiftAllocations = Array.from({ length: 12 }, (_, periodIndex) => ({
+			periodIndex,
+			shift: periodIndex === 4 ? "Double" : "Single",
+			factor: periodIndex === 4 ? 2 : 1,
+		}));
+		const result = buildDepreciationSchedule({
+			financeBookId: "shift-tail-book",
+			method: "STRAIGHT_LINE",
+			grossBookValue: 120_000,
+			availableForUseDate: "2023-01-15",
+			depreciationStartDate: "2023-01-31",
+			totalPeriods: 12,
+			frequencyMonths: 1,
+			precision: 2,
+			shiftBased: true,
+			shiftAllocations,
+		});
+
+		expect(result.entries).toHaveLength(13);
+		expect(result.entries.at(-1)).toMatchObject({
+			periodNumber: 13,
+			date: "2024-01-15",
+			depreciationAmount: 4168.73,
+			bookValueAfterDepreciation: 0,
+			shift: "Single",
+		});
+	});
+
+	it("rejects incomplete or conflicting persisted depreciation options", () => {
+		expect(() =>
+			buildDepreciationSchedule({
+				...baseBook,
+				shiftBased: true,
+				shiftAllocations: [{ periodIndex: 4, shift: "Double", factor: 2 }],
+			}),
+		).toThrow("one persisted shift allocation for every period");
+		expect(() =>
+			buildDepreciationSchedule({
+				...baseBook,
+				shiftBased: false,
+				shiftAllocations: [{ periodIndex: 0, shift: "Single", factor: 1 }],
+			}),
+		).toThrow("shift allocations require shiftBased depreciation");
+		expect(() =>
+			buildDepreciationSchedule({
+				...baseBook,
+				calculateUsingTotalDays: true,
+			}),
+		).toThrow("calculateUsingTotalDays requires daily straight-line");
 	});
 
 	it("calculates multiple finance books independently", () => {

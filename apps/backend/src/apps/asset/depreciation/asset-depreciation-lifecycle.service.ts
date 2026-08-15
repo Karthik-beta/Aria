@@ -16,6 +16,7 @@ import {
 import {
 	assertFiniteDepreciationSchedule,
 	assertFiniteDepreciationValue,
+	assertSupportedDepreciationOptions,
 	buildDepreciationSchedule,
 	type DepreciationBookInput,
 } from "./depreciation-schedule-engine";
@@ -214,6 +215,7 @@ export class AssetDepreciationLifecycleService {
 			}
 
 			for (const configuration of configurations) {
+				this.validateBookConfiguration(configuration);
 				const existing = await tx.assetFinanceBook.findFirst({
 					where: {
 						assetId,
@@ -260,6 +262,10 @@ export class AssetDepreciationLifecycleService {
 							frequencyOfDepreciation: configuration.frequencyOfDepreciation,
 							dailyProrataBased: configuration.dailyProrataBased ?? false,
 							shiftBased: configuration.shiftBased ?? false,
+							precision: configuration.precision ?? 2,
+							ratePrecision: configuration.ratePrecision ?? 2,
+							calculateUsingTotalDays:
+								configuration.calculateUsingTotalDays ?? false,
 							rateOfDepreciation:
 								effectiveRate == null
 									? null
@@ -289,7 +295,13 @@ export class AssetDepreciationLifecycleService {
 							asset: { is: assetWhereForOrganization(organizationId) },
 						},
 						data: {
+							dailyProrataBased: configuration.dailyProrataBased ?? false,
+							shiftBased: configuration.shiftBased ?? false,
 							rateOfDepreciation: effectiveRate,
+							precision: configuration.precision ?? 2,
+							ratePrecision: configuration.ratePrecision ?? 2,
+							calculateUsingTotalDays:
+								configuration.calculateUsingTotalDays ?? false,
 							valueAfterDepreciation: new Prisma.Decimal(carryingValue),
 							totalNumberOfBookedDepreciations:
 								configuration.openingNumberOfBookedDepreciations ?? 0,
@@ -301,6 +313,19 @@ export class AssetDepreciationLifecycleService {
 							"Asset finance book is not available in the active organization",
 						);
 					}
+				}
+				await tx.assetFinanceBookShiftAllocation.deleteMany({
+					where: { assetFinanceBookId: book.id },
+				});
+				if (configuration.shiftAllocations?.length) {
+					await tx.assetFinanceBookShiftAllocation.createMany({
+						data: configuration.shiftAllocations.map((allocation) => ({
+							assetFinanceBookId: book.id,
+							periodIndex: allocation.periodIndex,
+							shift: allocation.shift.trim(),
+							factor: new Prisma.Decimal(allocation.factor),
+						})),
+					});
 				}
 
 				const scheduleData: Prisma.AssetDepreciationScheduleUncheckedCreateInput =
@@ -318,6 +343,10 @@ export class AssetDepreciationLifecycleService {
 						frequencyOfDepreciation: configuration.frequencyOfDepreciation,
 						dailyProrataBased: configuration.dailyProrataBased ?? false,
 						shiftBased: configuration.shiftBased ?? false,
+						precision: configuration.precision ?? 2,
+						ratePrecision: configuration.ratePrecision ?? 2,
+						calculateUsingTotalDays:
+							configuration.calculateUsingTotalDays ?? false,
 						rateOfDepreciation: effectiveRate,
 						expectedValueAfterUsefulLife:
 							configuration.expectedValueAfterUsefulLife ?? 0,
@@ -335,6 +364,7 @@ export class AssetDepreciationLifecycleService {
 								depreciationAmount: entry.depreciationAmount,
 								accumulatedDepreciationAmount: entry.accumulatedDepreciation,
 								bookValueAfterDepreciation: entry.bookValueAfterDepreciation,
+								shift: entry.shift,
 							})),
 						},
 					};
@@ -445,6 +475,34 @@ export class AssetDepreciationLifecycleService {
 		return generated;
 	}
 
+	/** Rejects unsupported option combinations before any book row is written. */
+	private validateBookConfiguration(book: BookConfiguration): void {
+		try {
+			for (const [name, value] of [
+				["precision", book.precision ?? 2],
+				["ratePrecision", book.ratePrecision ?? 2],
+			] as const) {
+				if (!Number.isInteger(value) || value < 0 || value > 6) {
+					throw new Error(`${name} must be an integer between zero and 6`);
+				}
+			}
+			assertSupportedDepreciationOptions({
+				method: book.depreciationMethod,
+				totalPeriods: book.totalNumberOfDepreciations,
+				dailyProrata: book.dailyProrataBased ?? false,
+				shiftBased: book.shiftBased ?? false,
+				calculateUsingTotalDays: book.calculateUsingTotalDays ?? false,
+				shiftAllocations: book.shiftAllocations,
+			});
+		} catch (error) {
+			throw new BadRequestException(
+				error instanceof Error
+					? error.message
+					: "Unsupported depreciation options",
+			);
+		}
+	}
+
 	private calculateSchedule(
 		asset: Awaited<ReturnType<AssetDepreciationLifecycleService["loadAsset"]>>,
 		book: BookConfiguration,
@@ -464,6 +522,11 @@ export class AssetDepreciationLifecycleService {
 			openingAccumulatedDepreciation: book.openingAccumulatedDepreciation ?? 0,
 			ratePercent: book.rateOfDepreciation ?? undefined,
 			dailyProrata: book.dailyProrataBased ?? false,
+			shiftBased: book.shiftBased ?? false,
+			calculateUsingTotalDays: book.calculateUsingTotalDays ?? false,
+			precision: book.precision ?? 2,
+			ratePrecision: book.ratePrecision ?? 2,
+			shiftAllocations: book.shiftAllocations,
 			manualEntries: book.manualEntries?.map((entry) => ({
 				date: normalizeDateOnly(entry.date),
 				amount: entry.amount,
@@ -487,6 +550,14 @@ export class AssetDepreciationLifecycleService {
 				),
 				dailyProrataBased: book.dailyProrataBased,
 				shiftBased: book.shiftBased,
+				precision: book.precision,
+				ratePrecision: book.ratePrecision,
+				calculateUsingTotalDays: book.calculateUsingTotalDays,
+				shiftAllocations: (book.shiftAllocations ?? []).map((allocation) => ({
+					periodIndex: allocation.periodIndex,
+					shift: allocation.shift,
+					factor: Number(allocation.factor),
+				})),
 				rateOfDepreciation:
 					book.rateOfDepreciation == null
 						? null
@@ -513,6 +584,14 @@ export class AssetDepreciationLifecycleService {
 						: dateOnlyFromPersistedDateTime(asset.purchaseDate),
 				dailyProrataBased: book.dailyProrataBased,
 				shiftBased: book.shiftBased,
+				precision: book.precision,
+				ratePrecision: book.ratePrecision,
+				calculateUsingTotalDays: book.calculateUsingTotalDays,
+				shiftAllocations: (book.shiftAllocations ?? []).map((allocation) => ({
+					periodIndex: allocation.periodIndex,
+					shift: allocation.shift,
+					factor: Number(allocation.factor),
+				})),
 				rateOfDepreciation:
 					book.rateOfDepreciation == null
 						? null
@@ -552,6 +631,10 @@ export class AssetDepreciationLifecycleService {
 						: dateOnlyFromPersistedDateTime(asset.purchaseDate),
 				dailyProrataBased: asset.assetCategory?.dailyProrataBased ?? false,
 				shiftBased: asset.assetCategory?.shiftBased ?? false,
+				precision: 2,
+				ratePrecision: 2,
+				calculateUsingTotalDays: false,
+				shiftAllocations: [],
 				rateOfDepreciation: asset.assetCategory?.rateOfDepreciation ?? null,
 				expectedValueAfterUsefulLife:
 					asset.expectedValueAfterUsefulLife == null
@@ -576,8 +659,12 @@ export class AssetDepreciationLifecycleService {
 			where: assetWhereForOrganization(organizationId, { id: assetId }),
 			include: {
 				company: { select: { defaultFinanceBookId: true } },
-				assetCategory: { include: { financeBookDefaults: true } },
-				financeBooks: true,
+				assetCategory: {
+					include: {
+						financeBookDefaults: { include: { shiftAllocations: true } },
+					},
+				},
+				financeBooks: { include: { shiftAllocations: true } },
 			},
 		});
 		if (!asset) {

@@ -6129,6 +6129,13 @@ export namespace Asset {
 		updatedAt: Date;
 	}
 
+	/** A persisted per-period operating-shift multiplier for depreciation. */
+	export interface AssetShiftAllocation {
+		periodIndex: number;
+		shift: string;
+		factor: number;
+	}
+
 	/** Named accounting book used to maintain an independent depreciation schedule. */
 	export interface FinanceBook {
 		id: string;
@@ -6147,6 +6154,10 @@ export namespace Asset {
 		frequencyOfDepreciation: number;
 		dailyProrataBased: boolean;
 		shiftBased: boolean;
+		precision: number;
+		ratePrecision: number;
+		calculateUsingTotalDays: boolean;
+		shiftAllocations: AssetShiftAllocation[];
 		rateOfDepreciation: number | null;
 		expectedValueAfterUsefulLife: number | null;
 	}
@@ -6174,6 +6185,10 @@ export namespace Asset {
 		depreciationStartDate: DateOnly;
 		dailyProrataBased: boolean;
 		shiftBased: boolean;
+		precision: number;
+		ratePrecision: number;
+		calculateUsingTotalDays: boolean;
+		shiftAllocations: AssetShiftAllocation[];
 		rateOfDepreciation: number | null;
 		expectedValueAfterUsefulLife: number;
 		openingAccumulatedDepreciation: number;
@@ -6317,6 +6332,10 @@ export namespace Asset {
 		frequencyOfDepreciation: number;
 		dailyProrataBased?: boolean;
 		shiftBased?: boolean;
+		precision?: number;
+		ratePrecision?: number;
+		calculateUsingTotalDays?: boolean;
+		shiftAllocations?: AssetShiftAllocation[];
 		rateOfDepreciation?: number | null;
 		expectedValueAfterUsefulLife?: number | null;
 	}
@@ -6337,6 +6356,10 @@ export namespace Asset {
 		depreciationStartDate: DateOnlyInput;
 		dailyProrataBased?: boolean;
 		shiftBased?: boolean;
+		precision?: number;
+		ratePrecision?: number;
+		calculateUsingTotalDays?: boolean;
+		shiftAllocations?: AssetShiftAllocation[];
 		rateOfDepreciation?: number | null;
 		expectedValueAfterUsefulLife?: number | null;
 		openingAccumulatedDepreciation?: number;
@@ -6465,6 +6488,12 @@ export namespace Asset {
 		typeof listAssetCategoriesSchema
 	>;
 
+	const assetShiftAllocationSchema = z.object({
+		periodIndex: z.number().int().min(0),
+		shift: z.string().min(1).max(100).trim(),
+		factor: z.number().positive(),
+	});
+
 	export const assetFinanceBookInputSchema = z.object({
 		financeBookId: z.string().cuid(),
 		depreciationMethod: depreciationMethodSchema,
@@ -6473,6 +6502,10 @@ export namespace Asset {
 		depreciationStartDate: dateOnlyInputSchema,
 		dailyProrataBased: z.boolean().default(false),
 		shiftBased: z.boolean().default(false),
+		precision: z.number().int().min(0).max(6).default(2),
+		ratePrecision: z.number().int().min(0).max(6).default(2),
+		calculateUsingTotalDays: z.boolean().default(false),
+		shiftAllocations: z.array(assetShiftAllocationSchema).optional(),
 		rateOfDepreciation: z.number().min(0).optional().nullable(),
 		expectedValueAfterUsefulLife: z.number().min(0).optional().nullable(),
 		openingAccumulatedDepreciation: z.number().min(0).default(0),
@@ -7132,6 +7165,7 @@ export namespace Asset {
 		depreciationAmount: number;
 		accumulatedDepreciationAmount: number;
 		bookValueAfterDepreciation: number;
+		shift: string | null;
 		postingId: string | null;
 		postedAt: Date | string | null;
 		createdAt: Date;
@@ -7150,6 +7184,11 @@ export namespace Asset {
 		depreciationMethod: DepreciationMethod | null;
 		totalNumberOfDepreciations: number;
 		frequencyOfDepreciation: number;
+		dailyProrataBased: boolean;
+		shiftBased: boolean;
+		precision: number;
+		ratePrecision: number;
+		calculateUsingTotalDays: boolean;
 		bookedDepreciations: number;
 		remainingDepreciations: number;
 		openingAccumulatedDepreciation: number;
@@ -7185,6 +7224,9 @@ export namespace Asset {
 		frequencyOfDepreciation: number;
 		dailyProrataBased?: boolean | null;
 		shiftBased?: boolean | null;
+		precision?: number;
+		ratePrecision?: number;
+		calculateUsingTotalDays?: boolean;
 		rateOfDepreciation?: number | null;
 		expectedValueAfterUsefulLife?: number | null;
 		bookedDepreciations: number;

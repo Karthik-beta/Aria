@@ -105,6 +105,50 @@ describe("AssetAccountingService", () => {
 		});
 	});
 
+	it("rounds accounting lines at the selected finance-book precision", async () => {
+		const service = new AssetAccountingService();
+		const tx = createTransaction();
+
+		await service.createPostedEntry(
+			tx as unknown as Prisma.TransactionClient,
+			ORGANIZATION_ID,
+			{
+				...balancedEntry,
+				precision: 3,
+				lines: [
+					{
+						account: "Plant and Machinery - PTPL",
+						debitAmount: 1.23456,
+						creditAmount: 0,
+					},
+					{
+						account: "Repairs and Maintenance - PTPL",
+						debitAmount: 0,
+						creditAmount: 1.23456,
+					},
+				],
+			},
+		);
+
+		const createCall = tx.assetAccountingEntry.create.mock.calls[0]?.[0];
+		const persistedLines = createCall?.data.lines.create as
+			| Array<{
+					debitAmount: { toString: () => string };
+					creditAmount: { toString: () => string };
+			  }>
+			| undefined;
+		expect(persistedLines).toHaveLength(2);
+		expect(
+			persistedLines?.map(({ debitAmount, creditAmount }) => ({
+				debitAmount: debitAmount.toString(),
+				creditAmount: creditAmount.toString(),
+			})),
+		).toEqual([
+			{ debitAmount: "1.235", creditAmount: "0" },
+			{ debitAmount: "0", creditAmount: "1.235" },
+		]);
+	});
+
 	it("uses the canonical posting date year for document series", async () => {
 		const service = new AssetAccountingService();
 		const tx = createTransaction();

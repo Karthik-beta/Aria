@@ -85,6 +85,7 @@ import {
 import { DepreciationBarrierService } from "./depreciation/depreciation-barrier.service";
 import {
 	assertFiniteDepreciationSchedule,
+	assertSupportedDepreciationOptions,
 	buildDepreciationSchedule,
 } from "./depreciation/depreciation-schedule-engine";
 import { FixedAssetRegisterReportService } from "./fixed-asset-register-report";
@@ -109,7 +110,10 @@ export class AssetService {
 			orderBy: { createdAt: "desc" as const },
 		},
 		financeBooks: {
-			include: { financeBook: { select: { name: true } } },
+			include: {
+				financeBook: { select: { name: true } },
+				shiftAllocations: { orderBy: { periodIndex: "asc" as const } },
+			},
 			orderBy: { createdAt: "asc" as const },
 		},
 	} as const;
@@ -219,7 +223,10 @@ export class AssetService {
 			},
 		},
 		financeBooks: {
-			include: { financeBook: { select: { name: true } } },
+			include: {
+				financeBook: { select: { name: true } },
+				shiftAllocations: { orderBy: { periodIndex: "asc" as const } },
+			},
 			orderBy: { createdAt: "asc" as const },
 		},
 	} as const;
@@ -976,6 +983,7 @@ export class AssetService {
 	): Promise<{
 		financeBookId: string | null;
 		assetFinanceBookId: string | null;
+		precision: number;
 		grossValue: number;
 		carryingValue: number;
 		accumulatedDepreciation: number;
@@ -996,6 +1004,7 @@ export class AssetService {
 					select: {
 						id: true,
 						financeBookId: true,
+						precision: true,
 						openingAccumulatedDepreciation: true,
 					},
 					orderBy: { createdAt: "asc" },
@@ -1044,6 +1053,7 @@ export class AssetService {
 					select: {
 						id: true,
 						financeBookId: true,
+						precision: true,
 						openingAccumulatedDepreciation: true,
 					},
 					orderBy: { createdAt: "asc" },
@@ -1148,6 +1158,7 @@ export class AssetService {
 		return {
 			financeBookId: selected?.financeBookId ?? null,
 			assetFinanceBookId: selected?.id ?? null,
+			precision: selected?.precision ?? 6,
 			grossValue: Math.max(grossValue, 0),
 			carryingValue: Math.max(carryingValue, 0),
 			accumulatedDepreciation: Math.max(accumulatedDepreciation, 0),
@@ -1327,6 +1338,38 @@ export class AssetService {
 		}
 	}
 
+	/** Rejects category templates that could lose depreciation options on copy. */
+	private validateAssetCategoryDepreciationOptions(
+		financeBooks?: readonly Asset.AssetCategoryFinanceBookInput[] | null,
+	): void {
+		for (const book of financeBooks ?? []) {
+			try {
+				for (const [name, value] of [
+					["precision", book.precision ?? 2],
+					["ratePrecision", book.ratePrecision ?? 2],
+				] as const) {
+					if (!Number.isInteger(value) || value < 0 || value > 6) {
+						throw new Error(`${name} must be an integer between zero and 6`);
+					}
+				}
+				assertSupportedDepreciationOptions({
+					method: book.depreciationMethod,
+					totalPeriods: book.totalNumberOfDepreciations,
+					dailyProrata: book.dailyProrataBased ?? false,
+					shiftBased: book.shiftBased ?? false,
+					calculateUsingTotalDays: book.calculateUsingTotalDays ?? false,
+					shiftAllocations: book.shiftAllocations,
+				});
+			} catch (error) {
+				throw new BadRequestException(
+					error instanceof Error
+						? error.message
+						: "Unsupported depreciation options",
+				);
+			}
+		}
+	}
+
 	/**
 	 * Builds the canonical Company ownership predicate for category accounts.
 	 * The category remains shared; only rows whose Company belongs to the
@@ -1349,7 +1392,10 @@ export class AssetService {
 	) {
 		return {
 			financeBookDefaults: {
-				include: { financeBook: { select: { name: true } } },
+				include: {
+					financeBook: { select: { name: true } },
+					shiftAllocations: { orderBy: { periodIndex: "asc" as const } },
+				},
 				orderBy: { createdAt: "asc" as const },
 			},
 			accounts: {
@@ -1436,6 +1482,14 @@ export class AssetService {
 				depreciationStartDate: book.depreciationStartDate,
 				dailyProrataBased: book.dailyProrataBased,
 				shiftBased: book.shiftBased,
+				precision: book.precision,
+				ratePrecision: book.ratePrecision,
+				calculateUsingTotalDays: book.calculateUsingTotalDays,
+				shiftAllocations: (book.shiftAllocations ?? []).map((allocation) => ({
+					periodIndex: allocation.periodIndex,
+					shift: allocation.shift,
+					factor: Number(allocation.factor),
+				})),
 				rateOfDepreciation:
 					book.rateOfDepreciation == null
 						? null
@@ -1567,6 +1621,10 @@ export class AssetService {
 				depreciationStartDate: Date;
 				dailyProrataBased: boolean;
 				shiftBased: boolean;
+				precision: number;
+				ratePrecision: number;
+				calculateUsingTotalDays: boolean;
+				shiftAllocations: Asset.AssetShiftAllocation[];
 				rateOfDepreciation: number | null;
 				expectedValueAfterUsefulLife: number;
 				openingAccumulatedDepreciation: number;
@@ -1618,8 +1676,14 @@ export class AssetService {
 							selectedFinanceBook.totalNumberOfDepreciations,
 						frequencyOfDepreciation:
 							selectedFinanceBook.frequencyOfDepreciation,
+						depreciationStartDate: selectedFinanceBook.depreciationStartDate,
 						dailyProrataBased: selectedFinanceBook.dailyProrataBased,
 						shiftBased: selectedFinanceBook.shiftBased,
+						precision: selectedFinanceBook.precision,
+						ratePrecision: selectedFinanceBook.ratePrecision,
+						calculateUsingTotalDays:
+							selectedFinanceBook.calculateUsingTotalDays,
+						shiftAllocations: selectedFinanceBook.shiftAllocations,
 						rateOfDepreciation: selectedFinanceBook.rateOfDepreciation,
 						expectedValueAfterUsefulLife: adjustedSalvageValue,
 						getFiscalYearEndDate: (date: Date) =>
@@ -4193,6 +4257,7 @@ export class AssetService {
 			input.accounts,
 			input.financeBooks,
 		);
+		this.validateAssetCategoryDepreciationOptions(input.financeBooks);
 		const existing = await this.prisma.assetCategory.findUnique({
 			where: { name: input.name },
 			select: { id: true },
@@ -4226,6 +4291,9 @@ export class AssetService {
 								frequencyOfDepreciation: book.frequencyOfDepreciation,
 								dailyProrataBased: book.dailyProrataBased ?? false,
 								shiftBased: book.shiftBased ?? false,
+								precision: book.precision ?? 2,
+								ratePrecision: book.ratePrecision ?? 2,
+								calculateUsingTotalDays: book.calculateUsingTotalDays ?? false,
 								rateOfDepreciation:
 									book.rateOfDepreciation == null
 										? null
@@ -4234,6 +4302,15 @@ export class AssetService {
 									book.expectedValueAfterUsefulLife == null
 										? null
 										: new Prisma.Decimal(book.expectedValueAfterUsefulLife),
+								shiftAllocations: book.shiftAllocations?.length
+									? {
+											create: book.shiftAllocations.map((allocation) => ({
+												periodIndex: allocation.periodIndex,
+												shift: allocation.shift.trim(),
+												factor: new Prisma.Decimal(allocation.factor),
+											})),
+										}
+									: undefined,
 							})),
 						}
 					: undefined,
@@ -4270,6 +4347,7 @@ export class AssetService {
 			input.accounts,
 			input.financeBooks,
 		);
+		this.validateAssetCategoryDepreciationOptions(input.financeBooks);
 		const organizationCompanyIds =
 			input.accounts === undefined
 				? undefined
@@ -4325,6 +4403,9 @@ export class AssetService {
 							frequencyOfDepreciation: book.frequencyOfDepreciation,
 							dailyProrataBased: book.dailyProrataBased ?? false,
 							shiftBased: book.shiftBased ?? false,
+							precision: book.precision ?? 2,
+							ratePrecision: book.ratePrecision ?? 2,
+							calculateUsingTotalDays: book.calculateUsingTotalDays ?? false,
 							rateOfDepreciation:
 								book.rateOfDepreciation == null
 									? null
@@ -4333,6 +4414,15 @@ export class AssetService {
 								book.expectedValueAfterUsefulLife == null
 									? null
 									: new Prisma.Decimal(book.expectedValueAfterUsefulLife),
+							shiftAllocations: book.shiftAllocations?.length
+								? {
+										create: book.shiftAllocations.map((allocation) => ({
+											periodIndex: allocation.periodIndex,
+											shift: allocation.shift.trim(),
+											factor: new Prisma.Decimal(allocation.factor),
+										})),
+									}
+								: undefined,
 						})),
 					},
 				}),
@@ -6381,6 +6471,7 @@ export class AssetService {
 						companyId: asset.companyId,
 						assetId: asset.id,
 						financeBookId: bookBalance.financeBookId,
+						precision: bookBalance.precision,
 						sourceType: "DISPOSAL",
 						sourceId: created.id,
 						postingDate: dateOnlyFromPersistedDateTime(input.disposalDate),
@@ -8497,7 +8588,7 @@ export class AssetService {
 				disposalDate: true,
 				netPurchaseAmount: true,
 				valueAfterDepreciation: true,
-				financeBooks: true,
+				financeBooks: { include: { shiftAllocations: true } },
 			},
 		});
 		if (sources.length !== sourceAssetIds.length) {
@@ -8517,6 +8608,7 @@ export class AssetService {
 				id: string;
 				financeBookId: string;
 				valueAfterDepreciation: Prisma.Decimal;
+				precision: number;
 			}>;
 		};
 		let target: TargetAsset;
@@ -8547,6 +8639,7 @@ export class AssetService {
 							id: true,
 							financeBookId: true,
 							valueAfterDepreciation: true,
+							precision: true,
 						},
 						orderBy: { createdAt: "asc" },
 					},
@@ -8647,16 +8740,17 @@ export class AssetService {
 				"The target asset cannot also be a consumed source asset.",
 			);
 		}
+		const targetFinanceBooks = target.financeBooks ?? [];
 		const projectsRootAsset =
 			!cap.financeBookId ||
 			isEffectiveProjectionFinanceBook(
 				company.defaultFinanceBookId,
-				target.financeBooks,
+				targetFinanceBooks,
 				cap.financeBookId,
 			) ||
 			(Boolean(cap.financeBookId) &&
 				!company.defaultFinanceBookId &&
-				target.financeBooks.length === 0);
+				targetFinanceBooks.length === 0);
 
 		let stockEntryId: string | null = null;
 		if (cap.stockItems.length > 0) {
@@ -8851,6 +8945,14 @@ export class AssetService {
 		let targetPreviousFinanceBookValue: number | null = null;
 		let targetFinanceBookCreated = false;
 		let targetFinanceBookScheduleCreated = false;
+		const selectedTargetFinanceBookId =
+			cap.financeBookId ?? company.defaultFinanceBookId;
+		const selectedTargetFinanceBook = selectedTargetFinanceBookId
+			? targetFinanceBooks.find(
+					(book) => book.financeBookId === selectedTargetFinanceBookId,
+				)
+			: undefined;
+		let accountingPrecision = selectedTargetFinanceBook?.precision ?? 6;
 		const targetPreviousCalculateDepreciation = target.calculateDepreciation;
 		const requiresIndependentTargetBook =
 			Boolean(cap.financeBookId) &&
@@ -8864,6 +8966,27 @@ export class AssetService {
 				select: {
 					id: true,
 					valueAfterDepreciation: true,
+					depreciationMethod: true,
+					totalNumberOfDepreciations: true,
+					increaseInAssetLife: true,
+					frequencyOfDepreciation: true,
+					dailyProrataBased: true,
+					shiftBased: true,
+					precision: true,
+					ratePrecision: true,
+					calculateUsingTotalDays: true,
+					rateOfDepreciation: true,
+					expectedValueAfterUsefulLife: true,
+					depreciationStartDate: true,
+					openingAccumulatedDepreciation: true,
+					openingNumberOfBookedDepreciations: true,
+					totalNumberOfBookedDepreciations: true,
+					postingStatus: true,
+					lastPostedDepreciationDate: true,
+					shiftAllocations: {
+						select: { periodIndex: true, shift: true, factor: true },
+						orderBy: { periodIndex: "asc" },
+					},
 					_count: { select: { schedules: true, journalEntries: true } },
 				},
 			});
@@ -8900,6 +9023,12 @@ export class AssetService {
 							frequencyOfDepreciation: true,
 							dailyProrataBased: true,
 							shiftBased: true,
+							precision: true,
+							ratePrecision: true,
+							calculateUsingTotalDays: true,
+							shiftAllocations: {
+								orderBy: { periodIndex: "asc" as const },
+							},
 							rateOfDepreciation: true,
 							expectedValueAfterUsefulLife: true,
 						},
@@ -8954,60 +9083,124 @@ export class AssetService {
 			const depreciationStartDate = dateOnlyFromPersistedDateTime(
 				cap.postingDate,
 			);
-			const schedule = buildDepreciationSchedule({
-				financeBookId: cap.financeBookId,
+			const configuredRateOfDepreciation =
+				sourceTemplate?.rateOfDepreciation ??
+				categoryTemplate?.rateOfDepreciation ??
+				categoryTemplateFallback?.rateOfDepreciation;
+			const shiftAllocations = (
+				sourceTemplate?.shiftAllocations ??
+				categoryTemplate?.shiftAllocations ??
+				[]
+			).map((allocation) => ({
+				periodIndex: allocation.periodIndex,
+				shift: allocation.shift,
+				factor: Number(allocation.factor),
+			}));
+			const scheduleConfiguration = {
 				method,
-				grossBookValue: targetBookValue,
-				availableForUseDate: depreciationStartDate,
-				depreciationStartDate,
 				totalPeriods,
 				frequencyMonths,
-				salvageValue: expectedValueAfterUsefulLife,
-				ratePercent:
-					sourceTemplate?.rateOfDepreciation == null &&
-					categoryTemplate?.rateOfDepreciation == null &&
-					categoryTemplateFallback?.rateOfDepreciation == null
-						? undefined
-						: Number(
-								sourceTemplate?.rateOfDepreciation ??
-									categoryTemplate?.rateOfDepreciation ??
-									categoryTemplateFallback?.rateOfDepreciation,
-							),
-				dailyProrata:
+				depreciationStartDate,
+				precision:
+					sourceTemplate?.precision ?? categoryTemplate?.precision ?? 2,
+				ratePrecision:
+					sourceTemplate?.ratePrecision ?? categoryTemplate?.ratePrecision ?? 2,
+				calculateUsingTotalDays:
+					sourceTemplate?.calculateUsingTotalDays ??
+					categoryTemplate?.calculateUsingTotalDays ??
+					false,
+				dailyProrataBased:
 					sourceTemplate?.dailyProrataBased ??
 					categoryTemplate?.dailyProrataBased ??
 					categoryTemplateFallback?.dailyProrataBased ??
 					false,
+				shiftBased:
+					sourceTemplate?.shiftBased ??
+					categoryTemplate?.shiftBased ??
+					categoryTemplateFallback?.shiftBased ??
+					false,
+				ratePercent:
+					configuredRateOfDepreciation == null
+						? undefined
+						: Number(configuredRateOfDepreciation),
+				expectedValueAfterUsefulLife,
+				shiftAllocations,
+			};
+			assertSupportedDepreciationOptions({
+				method: scheduleConfiguration.method,
+				totalPeriods: scheduleConfiguration.totalPeriods,
+				dailyProrata: scheduleConfiguration.dailyProrataBased,
+				shiftBased: scheduleConfiguration.shiftBased,
+				calculateUsingTotalDays: scheduleConfiguration.calculateUsingTotalDays,
+				shiftAllocations: scheduleConfiguration.shiftAllocations,
+			});
+			const schedule = buildDepreciationSchedule({
+				financeBookId: cap.financeBookId,
+				method: scheduleConfiguration.method,
+				grossBookValue: targetBookValue,
+				availableForUseDate: scheduleConfiguration.depreciationStartDate,
+				depreciationStartDate: scheduleConfiguration.depreciationStartDate,
+				totalPeriods: scheduleConfiguration.totalPeriods,
+				frequencyMonths: scheduleConfiguration.frequencyMonths,
+				salvageValue: scheduleConfiguration.expectedValueAfterUsefulLife,
+				ratePercent: scheduleConfiguration.ratePercent,
+				dailyProrata: scheduleConfiguration.dailyProrataBased,
+				shiftBased: scheduleConfiguration.shiftBased,
+				calculateUsingTotalDays: scheduleConfiguration.calculateUsingTotalDays,
+				precision: scheduleConfiguration.precision,
+				ratePrecision: scheduleConfiguration.ratePrecision,
+				shiftAllocations: scheduleConfiguration.shiftAllocations,
 			});
 			assertFiniteDepreciationSchedule(schedule);
+			accountingPrecision = scheduleConfiguration.precision;
+			const targetFinanceBookData = {
+				valueAfterDepreciation: targetBookValue,
+				depreciationMethod: scheduleConfiguration.method,
+				totalNumberOfDepreciations: scheduleConfiguration.totalPeriods,
+				increaseInAssetLife: 0,
+				frequencyOfDepreciation: scheduleConfiguration.frequencyMonths,
+				dailyProrataBased: scheduleConfiguration.dailyProrataBased,
+				shiftBased: scheduleConfiguration.shiftBased,
+				precision: scheduleConfiguration.precision,
+				ratePrecision: scheduleConfiguration.ratePrecision,
+				calculateUsingTotalDays: scheduleConfiguration.calculateUsingTotalDays,
+				rateOfDepreciation: schedule.ratePercent,
+				expectedValueAfterUsefulLife:
+					scheduleConfiguration.expectedValueAfterUsefulLife,
+				depreciationStartDate: dateOnlyUtc(
+					scheduleConfiguration.depreciationStartDate,
+				),
+				openingAccumulatedDepreciation: 0,
+				openingNumberOfBookedDepreciations: 0,
+				totalNumberOfBookedDepreciations: 0,
+				postingStatus: "PENDING" as const,
+				lastPostedDepreciationDate: null,
+			};
 			const book = existingTargetBook
 				? await tx.assetFinanceBook.update({
 						where: { id: existingTargetBook.id },
-						data: { valueAfterDepreciation: targetBookValue },
+						data: targetFinanceBookData,
 					})
 				: await tx.assetFinanceBook.create({
 						data: {
 							assetId: target.id,
 							financeBookId: cap.financeBookId,
-							depreciationMethod: method,
-							totalNumberOfDepreciations: totalPeriods,
-							frequencyOfDepreciation: frequencyMonths,
-							dailyProrataBased:
-								sourceTemplate?.dailyProrataBased ??
-								categoryTemplate?.dailyProrataBased ??
-								categoryTemplateFallback?.dailyProrataBased ??
-								false,
-							shiftBased:
-								sourceTemplate?.shiftBased ??
-								categoryTemplate?.shiftBased ??
-								categoryTemplateFallback?.shiftBased ??
-								false,
-							rateOfDepreciation: schedule.ratePercent,
-							expectedValueAfterUsefulLife,
-							depreciationStartDate: dateOnlyUtc(depreciationStartDate),
-							valueAfterDepreciation: targetBookValue,
+							...targetFinanceBookData,
 						},
 					});
+			await tx.assetFinanceBookShiftAllocation.deleteMany({
+				where: { assetFinanceBookId: book.id },
+			});
+			if (shiftAllocations.length > 0) {
+				await tx.assetFinanceBookShiftAllocation.createMany({
+					data: shiftAllocations.map((allocation) => ({
+						assetFinanceBookId: book.id,
+						periodIndex: allocation.periodIndex,
+						shift: allocation.shift,
+						factor: allocation.factor,
+					})),
+				});
+			}
 			targetFinanceBookScheduleCreated = true;
 			const scheduleStatus =
 				projectsRootAsset && target.status === "DRAFT" ? "DRAFT" : "ACTIVE";
@@ -9017,22 +9210,21 @@ export class AssetService {
 					assetFinanceBookId: book.id,
 					revisionNumber: 1,
 					status: scheduleStatus,
-					startDate: dateOnlyUtc(depreciationStartDate),
-					depreciationMethod: method,
-					totalNumberOfDepreciations: totalPeriods,
-					frequencyOfDepreciation: frequencyMonths,
-					dailyProrataBased:
-						sourceTemplate?.dailyProrataBased ??
-						categoryTemplate?.dailyProrataBased ??
-						categoryTemplateFallback?.dailyProrataBased ??
-						false,
-					shiftBased:
-						sourceTemplate?.shiftBased ??
-						categoryTemplate?.shiftBased ??
-						categoryTemplateFallback?.shiftBased ??
-						false,
+					startDate: targetFinanceBookData.depreciationStartDate,
+					depreciationMethod: targetFinanceBookData.depreciationMethod,
+					totalNumberOfDepreciations:
+						targetFinanceBookData.totalNumberOfDepreciations,
+					frequencyOfDepreciation:
+						targetFinanceBookData.frequencyOfDepreciation,
+					dailyProrataBased: targetFinanceBookData.dailyProrataBased,
+					shiftBased: targetFinanceBookData.shiftBased,
+					precision: targetFinanceBookData.precision,
+					ratePrecision: targetFinanceBookData.ratePrecision,
+					calculateUsingTotalDays:
+						targetFinanceBookData.calculateUsingTotalDays,
 					rateOfDepreciation: schedule.ratePercent,
-					expectedValueAfterUsefulLife,
+					expectedValueAfterUsefulLife:
+						targetFinanceBookData.expectedValueAfterUsefulLife,
 					bookedDepreciations: 0,
 					remainingDepreciations: schedule.entries.length,
 					openingAccumulatedDepreciation: 0,
@@ -9045,6 +9237,7 @@ export class AssetService {
 							depreciationAmount: entry.depreciationAmount,
 							accumulatedDepreciationAmount: entry.accumulatedDepreciation,
 							bookValueAfterDepreciation: entry.bookValueAfterDepreciation,
+							shift: entry.shift,
 						})),
 					},
 				},
@@ -9060,6 +9253,7 @@ export class AssetService {
 			companyId: cap.companyId,
 			assetId: target.id,
 			financeBookId: cap.financeBookId,
+			precision: accountingPrecision,
 			sourceType: "CAPITALIZATION",
 			sourceId: cap.id,
 			postingDate: dateOnlyFromPersistedDateTime(cap.postingDate),

@@ -1,3 +1,8 @@
+import {
+	createDepreciationCalendar,
+	DEFAULT_DEPRECIATION_SHIFT,
+} from "./depreciation-calendar";
+
 /** Supported ERPNext depreciation calculation methods. */
 export type DepreciationMethod =
 	| "STRAIGHT_LINE"
@@ -45,6 +50,8 @@ export interface DepreciationBookInput {
 	openingAccumulatedDepreciation?: number;
 	ratePercent?: number;
 	dailyProrata?: boolean;
+	/** Explicitly selects ERPNext's persisted shift branch for this book. */
+	shiftBased?: boolean;
 	calculateUsingTotalDays?: boolean;
 	precision?: number;
 	ratePrecision?: number;
@@ -169,9 +176,6 @@ const endOfMonth = (date: Date): Date =>
 		),
 	);
 
-const isEndOfMonth = (date: Date): boolean =>
-	date.getUTCDate() === daysInMonth(date.getUTCFullYear(), date.getUTCMonth());
-
 const differenceInDays = (later: Date, earlier: Date): number =>
 	Math.round((later.getTime() - earlier.getTime()) / MILLISECONDS_PER_DAY);
 
@@ -186,16 +190,6 @@ const defaultFiscalYear = (date: string): FiscalYearRange => {
 	const parsed = parseDate(date);
 	const year = parsed.getUTCFullYear();
 	return { startDate: `${year}-01-01`, endDate: `${year}-12-31` };
-};
-
-const getScheduleDate = (
-	startDate: Date,
-	periodIndex: number,
-	frequencyMonths: number,
-	preserveMonthEnd: boolean,
-): Date => {
-	const date = addMonths(startDate, periodIndex * frequencyMonths);
-	return preserveMonthEnd ? endOfMonth(date) : date;
 };
 
 /**
@@ -236,6 +230,81 @@ const getPendingMonths = (
 	return { pendingMonths, lastBookedDate };
 };
 
+/**
+ * Validates the persisted option combinations before a schedule is generated
+ * or a category template is written. Missing shift rows are never interpreted
+ * as an implicit operating shift when the shift branch is selected.
+ */
+export const assertSupportedDepreciationOptions = (input: {
+	method: DepreciationMethod;
+	totalPeriods: number;
+	dailyProrata?: boolean;
+	shiftBased?: boolean;
+	calculateUsingTotalDays?: boolean;
+	shiftAllocations?: readonly DepreciationShiftAllocation[];
+}): void => {
+	const allocations = input.shiftAllocations ?? [];
+	if (
+		input.calculateUsingTotalDays &&
+		(input.method !== "STRAIGHT_LINE" || !input.dailyProrata)
+	) {
+		throw new DepreciationScheduleCalculationError(
+			"calculateUsingTotalDays requires daily straight-line depreciation",
+		);
+	}
+	if (
+		input.shiftBased &&
+		(input.method !== "STRAIGHT_LINE" ||
+			allocations.length !== input.totalPeriods)
+	) {
+		throw new DepreciationScheduleCalculationError(
+			"shiftBased straight-line depreciation requires one persisted shift allocation for every period",
+		);
+	}
+	if (input.shiftBased === false && allocations.length > 0) {
+		throw new DepreciationScheduleCalculationError(
+			"shift allocations require shiftBased depreciation",
+		);
+	}
+	if (allocations.length > 0 && input.method !== "STRAIGHT_LINE") {
+		throw new DepreciationScheduleCalculationError(
+			"shift allocations are supported only for straight-line depreciation",
+		);
+	}
+	const allocationIndices = new Set<number>();
+	for (const [index, allocation] of allocations.entries()) {
+		if (
+			!Number.isInteger(allocation.periodIndex) ||
+			allocation.periodIndex < 0 ||
+			allocation.periodIndex >= input.totalPeriods
+		) {
+			throw new DepreciationScheduleCalculationError(
+				`shiftAllocations[${index}].periodIndex must be an integer in the configured depreciation periods`,
+			);
+		}
+		if (allocationIndices.has(allocation.periodIndex)) {
+			throw new DepreciationScheduleCalculationError(
+				`shiftAllocations[${index}].periodIndex is duplicated`,
+			);
+		}
+		allocationIndices.add(allocation.periodIndex);
+		if (!allocation.shift.trim()) {
+			throw new DepreciationScheduleCalculationError(
+				`shiftAllocations[${index}].shift is required`,
+			);
+		}
+		assertFiniteDepreciationValue(
+			`shiftAllocations[${index}].factor`,
+			allocation.factor,
+		);
+		if (allocation.factor <= 0) {
+			throw new DepreciationScheduleCalculationError(
+				`shiftAllocations[${index}].factor must be greater than zero`,
+			);
+		}
+	}
+};
+
 const validateInput = (input: DepreciationBookInput): void => {
 	parseDate(input.availableForUseDate);
 	parseDate(input.depreciationStartDate);
@@ -260,18 +329,18 @@ const validateInput = (input: DepreciationBookInput): void => {
 			);
 		}
 	}
-	if (!Number.isInteger(precision) || precision < 0 || precision > 100) {
+	if (!Number.isInteger(precision) || precision < 0 || precision > 6) {
 		throw new DepreciationScheduleCalculationError(
-			"precision must be an integer between zero and 100",
+			"precision must be an integer between zero and 6",
 		);
 	}
 	if (
 		!Number.isInteger(ratePrecision) ||
 		ratePrecision < 0 ||
-		ratePrecision > 100
+		ratePrecision > 6
 	) {
 		throw new DepreciationScheduleCalculationError(
-			"ratePrecision must be an integer between zero and 100",
+			"ratePrecision must be an integer between zero and 6",
 		);
 	}
 	if (input.grossBookValue <= 0) {
@@ -305,25 +374,7 @@ const validateInput = (input: DepreciationBookInput): void => {
 	if (input.method === "MANUAL" && !input.manualEntries?.length) {
 		throw new Error("Manual depreciation requires at least one manual entry");
 	}
-	for (const [index, allocation] of (input.shiftAllocations ?? []).entries()) {
-		if (
-			!Number.isInteger(allocation.periodIndex) ||
-			allocation.periodIndex < 0
-		) {
-			throw new DepreciationScheduleCalculationError(
-				`shiftAllocations[${index}].periodIndex must be a non-negative integer`,
-			);
-		}
-		assertFiniteDepreciationValue(
-			`shiftAllocations[${index}].factor`,
-			allocation.factor,
-		);
-		if (allocation.factor <= 0) {
-			throw new DepreciationScheduleCalculationError(
-				`shiftAllocations[${index}].factor must be greater than zero`,
-			);
-		}
-	}
+	assertSupportedDepreciationOptions(input);
 	for (const [index, manual] of (input.manualEntries ?? []).entries()) {
 		assertFiniteDepreciationValue(
 			`manualEntries[${index}].amount`,
@@ -349,7 +400,7 @@ const calculateRate = (
 	}
 	if (input.method !== "WRITTEN_DOWN_VALUE") return null;
 	if ((input.ratePercent ?? 0) > 0) {
-		return input.ratePercent ?? null;
+		return round(input.ratePercent ?? 0, ratePrecision);
 	}
 	if (openingBookValue === 0 && (input.salvageValue ?? 0) === 0) {
 		return null;
@@ -440,7 +491,13 @@ export const buildDepreciationSchedule = (
 	const salvage = round(input.salvageValue ?? 0, precision);
 	const startDate = parseDate(input.depreciationStartDate);
 	const availableDate = parseDate(input.availableForUseDate);
-	const preserveMonthEnd = isEndOfMonth(startDate);
+	const calendar = createDepreciationCalendar({
+		availableForUseDate: input.availableForUseDate,
+		depreciationStartDate: input.depreciationStartDate,
+		totalPeriods: input.totalPeriods,
+		frequencyMonths: input.frequencyMonths,
+	});
+	const preserveMonthEnd = calendar.preserveMonthEnd;
 	const remainingPeriods = input.totalPeriods - openingPeriods;
 	const { pendingMonths, lastBookedDate } = getPendingMonths(
 		input,
@@ -483,19 +540,10 @@ export const buildDepreciationSchedule = (
 		assertFiniteDepreciationSchedule(terminalSchedule);
 		return terminalSchedule;
 	}
-	const usefulLifeEndBase = addMonths(
-		availableDate,
-		input.totalPeriods * input.frequencyMonths,
-	);
-	const usefulLifeEnd =
-		availableDate.getUTCDate() === 1 && preserveMonthEnd
-			? addDays(usefulLifeEndBase, -1)
-			: usefulLifeEndBase;
-	const lastNominalDate = getScheduleDate(
-		startDate,
-		remainingPeriods - 1,
-		input.frequencyMonths,
-		preserveMonthEnd,
+	const usefulLifeEndBase = parseDate(calendar.usefulLifeEndBaseDate);
+	const usefulLifeEnd = parseDate(calendar.usefulLifeEndDate);
+	const lastNominalDate = parseDate(
+		calendar.scheduleDate(remainingPeriods - 1),
 	);
 	const hasFinalPartialPeriod = usefulLifeEnd > lastNominalDate;
 	const generatedPeriods = remainingPeriods + (hasFinalPartialPeriod ? 1 : 0);
@@ -505,7 +553,9 @@ export const buildDepreciationSchedule = (
 			allocation,
 		]),
 	);
-	const shiftFactorsSum = input.shiftAllocations?.length
+	const shiftEnabled =
+		input.shiftBased === true || Boolean(input.shiftAllocations?.length);
+	const shiftFactorsSum = shiftEnabled
 		? Array.from(
 				{ length: remainingPeriods },
 				(_, i) => shiftByIndex.get(openingPeriods + i)?.factor ?? 1,
@@ -519,7 +569,7 @@ export const buildDepreciationSchedule = (
 	}
 	const fixedPeriodAmount =
 		remainingDepreciableValue /
-		(input.shiftAllocations?.length ? shiftFactorsSum : pendingPeriods);
+		(shiftEnabled ? shiftFactorsSum : pendingPeriods);
 	assertFiniteDepreciationValue("fixed period amount", fixedPeriodAmount);
 	const fiscalYearFor = input.getFiscalYear ?? defaultFiscalYear;
 	const totalLifeDays = lastBookedDate
@@ -551,12 +601,7 @@ export const buildDepreciationSchedule = (
 		const isFinalPartial = index >= remainingPeriods;
 		const scheduleDate = isFinalPartial
 			? usefulLifeEnd
-			: getScheduleDate(
-					startDate,
-					index,
-					input.frequencyMonths,
-					preserveMonthEnd,
-				);
+			: parseDate(calendar.scheduleDate(index));
 		const allocation = shiftByIndex.get(openingPeriods + index);
 		const fiscalYear = fiscalYearFor(formatDate(scheduleDate));
 		parseDate(fiscalYear.startDate);
@@ -574,6 +619,22 @@ export const buildDepreciationSchedule = (
 		let amount: number;
 		if (isFinalPartial) {
 			amount = carrying - salvage;
+		} else if (shiftEnabled) {
+			const factor = allocation?.factor ?? 1;
+			amount = fixedPeriodAmount * factor;
+
+			if (index === 0 && openingPeriods === 0) {
+				const previousPeriodEnd = preserveMonthEnd
+					? endOfMonth(addMonths(startDate, -input.frequencyMonths))
+					: addMonths(startDate, -input.frequencyMonths);
+				const fullPeriodStart = addDays(previousPeriodEnd, 1);
+				if (availableDate > fullPeriodStart) {
+					const usedDays = differenceInDays(scheduleDate, availableDate) + 1;
+					const periodDays =
+						differenceInDays(scheduleDate, fullPeriodStart) + 1;
+					amount = (amount * usedDays) / periodDays;
+				}
+			}
 		} else if (input.dailyProrata) {
 			const coverageStart = previousScheduleDate
 				? addDays(previousScheduleDate, 1)
@@ -643,7 +704,9 @@ export const buildDepreciationSchedule = (
 			depreciationAmount: amount,
 			accumulatedDepreciation: accumulated,
 			bookValueAfterDepreciation: carrying,
-			shift: allocation?.shift ?? null,
+			shift:
+				allocation?.shift ??
+				(isFinalPartial && shiftEnabled ? DEFAULT_DEPRECIATION_SHIFT : null),
 		});
 		previousScheduleDate = scheduleDate;
 		if (carrying <= salvage) break;
