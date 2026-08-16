@@ -7,6 +7,7 @@ import { AssetDashboardSubService } from "../asset-dashboard.service";
 type AssetBookBalance = {
 	financeBookId: string | null;
 	assetFinanceBookId: string | null;
+	precision: number;
 	grossValue: number;
 	carryingValue: number;
 	accumulatedDepreciation: number;
@@ -302,6 +303,7 @@ describe("Asset finance book correctness integration", () => {
 		expect(defaultBalance).toEqual({
 			financeBookId: defaultFinanceBookId,
 			assetFinanceBookId: defaultAssetFinanceBookId,
+			precision: 2,
 			grossValue: 105,
 			carryingValue: 70,
 			accumulatedDepreciation: 35,
@@ -314,6 +316,7 @@ describe("Asset finance book correctness integration", () => {
 		expect(secondaryBalance).toEqual({
 			financeBookId: secondaryFinanceBookId,
 			assetFinanceBookId: secondaryAssetFinanceBookId,
+			precision: 2,
 			grossValue: 140,
 			carryingValue: 120,
 			accumulatedDepreciation: 20,
