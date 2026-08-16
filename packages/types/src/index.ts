@@ -6745,6 +6745,7 @@ export namespace Asset {
 			skip: z.number().int().min(0).optional(),
 			take: z.number().int().min(1).max(250).optional(),
 			search: z.string().max(255).trim().optional(),
+			companyId: z.string().cuid().optional(),
 		})
 		.optional();
 
@@ -7575,6 +7576,14 @@ export namespace Asset {
 		typeof fixedAssetRegisterGroupBySchema
 	>;
 
+	export const fixedAssetRegisterStatusSchema = z.enum([
+		"IN_LOCATION",
+		"DISPOSED",
+	]);
+	export type FixedAssetRegisterStatus = z.infer<
+		typeof fixedAssetRegisterStatusSchema
+	>;
+
 	export interface FixedAssetRegisterRow {
 		groupingKey: string;
 		groupingLabel: string;
@@ -7585,6 +7594,7 @@ export namespace Asset {
 		assetCategoryName: string | null;
 		locationId: string | null;
 		locationName: string | null;
+		companyId: string;
 		company: string;
 		purchaseDate: DateOnly | null;
 		availableForUseDate: DateOnly | null;
@@ -7592,6 +7602,7 @@ export namespace Asset {
 		netPurchaseAmount: number;
 		openingAccumulatedDepreciation: number;
 		depreciatedAmount: number;
+		accumulatedDepreciation: number;
 		revaluationAmount: number;
 		netBookValue: number;
 	}
@@ -7606,24 +7617,46 @@ export namespace Asset {
 		totalAssets: number;
 		totalPurchaseAmount: number;
 		totalDepreciatedAmount: number;
+		totalAccumulatedDepreciation: number;
 		totalRevaluationAmount: number;
 		totalNetBookValue: number;
+	}
+
+	export interface FixedAssetRegisterReportScope {
+		organizationId: string;
+		companyId: string;
+		company: string;
+		financeBookId: string | null;
+		financeBook: string | null;
+		financeBookSelection:
+			| "EXPLICIT"
+			| "COMPANY_DEFAULT"
+			| "ASSET_SINGLETON"
+			| "NONE";
+		fromDate: DateOnly;
+		toDate: DateOnly;
+		asOfDate: DateOnly;
+		status: FixedAssetRegisterStatus;
 	}
 
 	export interface FixedAssetRegisterReportResult {
 		rows: FixedAssetRegisterRow[];
 		chartPoints: FixedAssetRegisterChartPoint[];
 		summary: FixedAssetRegisterSummary;
+		scope: FixedAssetRegisterReportScope;
 	}
 
 	export const listFixedAssetRegisterReportSchema = z
 		.object({
+			companyId: z.string().cuid(),
+			financeBookId: z.string().cuid().optional().nullable(),
 			fromDate: dateOnlyInputSchema,
 			toDate: dateOnlyInputSchema,
-			company: z.string().trim().max(255).optional(),
 			groupBy: fixedAssetRegisterGroupBySchema,
 			assetCategory: z.string().trim().max(255).optional(),
 			location: z.string().trim().max(255).optional(),
+			assetId: z.string().cuid().optional(),
+			status: fixedAssetRegisterStatusSchema.optional(),
 		})
 		.refine(
 			(input) =>

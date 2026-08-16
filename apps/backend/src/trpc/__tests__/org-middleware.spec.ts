@@ -326,6 +326,7 @@ describe("Organization scoped tRPC middleware", () => {
 			[
 				"listFixedAssetRegisterReport",
 				{
+					companyId: ASSET_CUID,
 					fromDate: "2026-01-01T00:00:00.000Z",
 					toDate: "2026-12-31T00:00:00.000Z",
 					groupBy: "ASSET_CATEGORY",

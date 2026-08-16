@@ -32,7 +32,14 @@ type AssetValueAdjustmentsChangedEvent = {
 type AssetRouterInput = {
 	// ── Finance Books ────────────────────────────────────────────────────────
 	listFinanceBooks: TRPCQueryProcedure<{
-		input: { skip?: number; take?: number; search?: string } | undefined;
+		input:
+			| {
+					skip?: number;
+					take?: number;
+					search?: string;
+					companyId?: string;
+			  }
+			| undefined;
 		output: Asset.FinanceBookListResult;
 		meta: object;
 	}>;
@@ -642,24 +649,30 @@ type AssetRouterInput = {
 	}>;
 	listFixedAssetRegisterReport: TRPCQueryProcedure<{
 		input: {
+			companyId: string;
+			financeBookId?: string | null | undefined;
 			fromDate: unknown;
 			toDate: unknown;
 			groupBy: "ASSET_CATEGORY" | "LOCATION";
-			company?: string | undefined;
 			assetCategory?: string | undefined;
 			location?: string | undefined;
+			assetId?: string | undefined;
+			status?: Asset.FixedAssetRegisterStatus | undefined;
 		};
 		output: Asset.FixedAssetRegisterReportResult;
 		meta: object;
 	}>;
 	exportFixedAssetRegisterExcel: TRPCMutationProcedure<{
 		input: {
+			companyId: string;
+			financeBookId?: string | null | undefined;
 			fromDate: unknown;
 			toDate: unknown;
 			groupBy: "ASSET_CATEGORY" | "LOCATION";
-			company?: string | undefined;
 			assetCategory?: string | undefined;
 			location?: string | undefined;
+			assetId?: string | undefined;
+			status?: Asset.FixedAssetRegisterStatus | undefined;
 		};
 		output: string;
 		meta: object;

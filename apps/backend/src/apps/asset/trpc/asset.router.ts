@@ -21,6 +21,78 @@ type LocationsChangedEvent = {
 	data: Asset.Location | { id: string };
 };
 
+const fixedAssetRegisterExportColumns = [
+	{ key: "groupingLabel", header: "Group" },
+	{ key: "assetSeries", header: "Asset Series" },
+	{ key: "assetName", header: "Asset Name" },
+	{ key: "assetCategoryName", header: "Category" },
+	{ key: "locationName", header: "Location" },
+	{ key: "company", header: "Company" },
+	{ key: "purchaseDate", header: "Purchase Date" },
+	{ key: "status", header: "Status" },
+	{ key: "netPurchaseAmount", header: "Purchase Amount" },
+	{
+		key: "openingAccumulatedDepreciation",
+		header: "Opening Depreciation",
+	},
+	{ key: "depreciatedAmount", header: "Depreciated Amount" },
+	{
+		key: "accumulatedDepreciation",
+		header: "Accumulated Depreciation",
+	},
+	{ key: "revaluationAmount", header: "Revaluation Amount" },
+	{ key: "netBookValue", header: "Net Book Value" },
+];
+
+/**
+ * Builds the Fixed Asset Register workbook from a trusted report scope.
+ * Organization metadata comes from authenticated tRPC context, never input.
+ */
+export function buildFixedAssetRegisterExcel(
+	input: Asset.ListFixedAssetRegisterReportInput,
+	result: Asset.FixedAssetRegisterReportResult,
+	organization: { id: string; name: string },
+): string {
+	const reportTemplateService = new ReportTemplateService();
+	const filters: Array<{ label: string; value: string }> = [
+		{ label: "Organization", value: organization.name },
+		{ label: "Organization ID", value: organization.id },
+		{ label: "Company", value: result.scope.company },
+		{ label: "Company ID", value: result.scope.companyId },
+		{
+			label: "Finance Book",
+			value: result.scope.financeBook ?? "Unassigned / none",
+		},
+		{
+			label: "Finance Book ID",
+			value: result.scope.financeBookId ?? "Unassigned / none",
+		},
+		{ label: "Group By", value: input.groupBy },
+		{ label: "Status", value: result.scope.status },
+	];
+
+	if (input.assetCategory)
+		filters.push({ label: "Category", value: input.assetCategory });
+	if (input.location)
+		filters.push({ label: "Location", value: input.location });
+	if (input.assetId) filters.push({ label: "Asset ID", value: input.assetId });
+	filters.push(
+		{ label: "From", value: result.scope.fromDate },
+		{ label: "To", value: result.scope.toDate },
+		{ label: "As Of", value: result.scope.asOfDate },
+	);
+
+	return reportTemplateService.buildExcelBuffer(
+		{
+			title: "Fixed Asset Register Report",
+			generatedAt: new Date(),
+			filters,
+		},
+		result.rows as unknown as Record<string, unknown>[],
+		fixedAssetRegisterExportColumns,
+	);
+}
+
 @Injectable()
 export class AssetRouter {
 	constructor(
@@ -899,60 +971,11 @@ export class AssetRouter {
 			exportFixedAssetRegisterExcel: assetProcedure
 				.input(Asset.listFixedAssetRegisterReportSchema)
 				.mutation(async ({ input, ctx }) => {
-					const reportTemplateService = new ReportTemplateService();
 					const result = await svc.findFixedAssetRegisterReport(
 						input,
 						ctx.organization.id,
 					);
-
-					const columns = [
-						{ key: "groupingLabel", header: "Group" },
-						{ key: "assetSeries", header: "Asset Series" },
-						{ key: "assetName", header: "Asset Name" },
-						{ key: "assetCategoryName", header: "Category" },
-						{ key: "locationName", header: "Location" },
-						{ key: "company", header: "Company" },
-						{ key: "purchaseDate", header: "Purchase Date" },
-						{ key: "status", header: "Status" },
-						{ key: "netPurchaseAmount", header: "Purchase Amount" },
-						{
-							key: "openingAccumulatedDepreciation",
-							header: "Opening Depreciation",
-						},
-						{ key: "depreciatedAmount", header: "Depreciated Amount" },
-						{ key: "revaluationAmount", header: "Revaluation Amount" },
-						{ key: "netBookValue", header: "Net Book Value" },
-					];
-
-					const filters: Array<{ label: string; value: string }> = [];
-					if (input.company)
-						filters.push({ label: "Company", value: input.company });
-					if (input.groupBy)
-						filters.push({ label: "Group By", value: input.groupBy });
-					if (input.assetCategory)
-						filters.push({ label: "Category", value: input.assetCategory });
-					if (input.location)
-						filters.push({ label: "Location", value: input.location });
-					filters.push({
-						label: "From",
-						value: normalizeDateOnly(input.fromDate),
-					});
-					filters.push({
-						label: "To",
-						value: normalizeDateOnly(input.toDate),
-					});
-
-					const metadata = {
-						title: "Fixed Asset Register Report",
-						generatedAt: new Date(),
-						filters,
-					};
-
-					return reportTemplateService.buildExcelBuffer(
-						metadata,
-						result.rows as unknown as Record<string, unknown>[],
-						columns,
-					);
+					return buildFixedAssetRegisterExcel(input, result, ctx.organization);
 				}),
 
 			// ── Phase 2 Lifecycle Procedures ─────────────────────────────────

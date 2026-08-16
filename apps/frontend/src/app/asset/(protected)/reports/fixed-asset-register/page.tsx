@@ -46,16 +46,21 @@ import {
 	getDateRangeError,
 	getDefaultFromDate,
 	getDefaultToDate,
+	selectFixedAssetRegisterCompany,
 } from "./fixed-asset-register.utils";
 
 const INITIAL_FILTERS: FixedAssetRegisterFilterState = {
-	company: "",
+	companyId: "",
+	financeBookId: "",
+	status: "IN_LOCATION",
 	fromDate: getDefaultFromDate(),
 	toDate: getDefaultToDate(),
 	groupBy: "ASSET_CATEGORY",
 	assetCategory: "",
 	location: "",
 };
+
+const COMPANY_DEFAULT_FINANCE_BOOK_VALUE = "__company_default__";
 
 const chartConfig = {
 	assetValue: {
@@ -104,6 +109,24 @@ function SummaryCard(props: {
 export default function FixedAssetRegisterReportPage() {
 	const [filters, setFilters] =
 		React.useState<FixedAssetRegisterFilterState>(INITIAL_FILTERS);
+	const { data: companiesData } = trpc.company.listCompanies.useQuery(
+		undefined,
+		{ staleTime: 30_000 },
+	);
+	const companies = React.useMemo(
+		() => companiesData?.items.filter((company) => !company.disabled) ?? [],
+		[companiesData?.items],
+	);
+	const { data: financeBooksData } = trpc.asset.listFinanceBooks.useQuery(
+		{ companyId: filters.companyId || undefined, take: 250 },
+		{ enabled: Boolean(filters.companyId), staleTime: 30_000 },
+	);
+	const financeBooks = financeBooksData?.items ?? [];
+
+	React.useEffect(() => {
+		if (filters.companyId || companies.length === 0) return;
+		setFilters((current) => ({ ...current, companyId: companies[0].id }));
+	}, [companies, filters.companyId]);
 
 	const updateFilter = React.useCallback(
 		<Key extends keyof FixedAssetRegisterFilterState>(
@@ -114,6 +137,12 @@ export default function FixedAssetRegisterReportPage() {
 		},
 		[],
 	);
+
+	const handleCompanyChange = React.useCallback((companyId: string) => {
+		setFilters((current) =>
+			selectFixedAssetRegisterCompany(current, companyId),
+		);
+	}, []);
 
 	const handleGroupByChange = React.useCallback(
 		(value: Asset.FixedAssetRegisterGroupBy) => {
@@ -158,7 +187,7 @@ export default function FixedAssetRegisterReportPage() {
 		error: queryError,
 		refetch,
 	} = trpc.asset.listFixedAssetRegisterReport.useQuery(queryInput, {
-		enabled: dateError === null,
+		enabled: dateError === null && Boolean(filters.companyId),
 		refetchOnWindowFocus: false,
 		retry: 2,
 		staleTime: 30_000,
@@ -174,9 +203,9 @@ export default function FixedAssetRegisterReportPage() {
 	});
 
 	const handleExportExcel = React.useCallback(() => {
-		if (dateError !== null) return;
+		if (dateError !== null || !filters.companyId) return;
 		exportMutation.mutate(queryInput);
-	}, [dateError, exportMutation, queryInput]);
+	}, [dateError, exportMutation, filters.companyId, queryInput]);
 
 	const rows: Asset.FixedAssetRegisterRow[] = data?.rows ?? [];
 	const chartPoints: Asset.FixedAssetRegisterChartPoint[] =
@@ -187,6 +216,7 @@ export default function FixedAssetRegisterReportPage() {
 			totalAssets: 0,
 			totalPurchaseAmount: 0,
 			totalDepreciatedAmount: 0,
+			totalAccumulatedDepreciation: 0,
 			totalRevaluationAmount: 0,
 			totalNetBookValue: 0,
 		} satisfies Asset.FixedAssetRegisterSummary);
@@ -295,6 +325,14 @@ export default function FixedAssetRegisterReportPage() {
 				meta: { label: "Depreciated Amount", exportable: true },
 			},
 			{
+				accessorKey: "accumulatedDepreciation",
+				header: ({ column }) => (
+					<DataTableColumnHeader column={column} title="Accumulated Dep." />
+				),
+				cell: ({ row }) => formatCurrency(row.original.accumulatedDepreciation),
+				meta: { label: "Accumulated Depreciation", exportable: true },
+			},
+			{
 				accessorKey: "revaluationAmount",
 				header: ({ column }) => (
 					<DataTableColumnHeader column={column} title="Revaluation" />
@@ -336,13 +374,24 @@ export default function FixedAssetRegisterReportPage() {
 						Asset-domain fixed asset register with Net Book Value calculations
 						and trend analysis.
 					</p>
+					{data?.scope && (
+						<p className="text-xs text-muted-foreground">
+							Scope: {data.scope.company} ·{" "}
+							{data.scope.financeBook ?? "No finance book"} · as of{" "}
+							{data.scope.asOfDate}
+						</p>
+					)}
 				</div>
 				<div className="flex items-center gap-2">
 					<Button
 						variant="outline"
 						size="sm"
 						onClick={handleExportExcel}
-						disabled={exportMutation.isPending || dateError !== null}
+						disabled={
+							exportMutation.isPending ||
+							dateError !== null ||
+							!filters.companyId
+						}
 					>
 						<Download className="mr-2 h-4 w-4" />
 						{exportMutation.isPending ? "Exporting..." : "Export Excel"}
@@ -358,7 +407,7 @@ export default function FixedAssetRegisterReportPage() {
 					</CardTitle>
 				</CardHeader>
 				<CardContent>
-					<div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-6">
+					<div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-8">
 						<div className="flex flex-col gap-1.5">
 							<Label htmlFor="groupBy" className="text-xs">
 								Group By
@@ -386,13 +435,75 @@ export default function FixedAssetRegisterReportPage() {
 							<Label htmlFor="company" className="text-xs">
 								Company
 							</Label>
-							<Input
-								id="company"
-								className="h-9"
-								placeholder="Filter company..."
-								value={filters.company}
-								onChange={(e) => updateFilter("company", e.target.value)}
-							/>
+							<Select
+								value={filters.companyId || undefined}
+								onValueChange={handleCompanyChange}
+							>
+								<SelectTrigger id="company" className="h-9">
+									<SelectValue placeholder="Select Company" />
+								</SelectTrigger>
+								<SelectContent>
+									{companies.map((company) => (
+										<SelectItem key={company.id} value={company.id}>
+											{company.name}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</div>
+
+						<div className="flex flex-col gap-1.5">
+							<Label htmlFor="financeBook" className="text-xs">
+								Finance Book
+							</Label>
+							<Select
+								value={
+									filters.financeBookId || COMPANY_DEFAULT_FINANCE_BOOK_VALUE
+								}
+								onValueChange={(value) =>
+									updateFilter(
+										"financeBookId",
+										value === COMPANY_DEFAULT_FINANCE_BOOK_VALUE ? "" : value,
+									)
+								}
+							>
+								<SelectTrigger id="financeBook" className="h-9">
+									<SelectValue placeholder="Company default" />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value={COMPANY_DEFAULT_FINANCE_BOOK_VALUE}>
+										Company default
+									</SelectItem>
+									{financeBooks.map((financeBook) => (
+										<SelectItem key={financeBook.id} value={financeBook.id}>
+											{financeBook.name}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</div>
+
+						<div className="flex flex-col gap-1.5">
+							<Label htmlFor="status" className="text-xs">
+								Status
+							</Label>
+							<Select
+								value={filters.status}
+								onValueChange={(value) =>
+									updateFilter(
+										"status",
+										value as Asset.FixedAssetRegisterStatus,
+									)
+								}
+							>
+								<SelectTrigger id="status" className="h-9">
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="IN_LOCATION">In location</SelectItem>
+									<SelectItem value="DISPOSED">Disposed</SelectItem>
+								</SelectContent>
+							</Select>
 						</div>
 
 						<div className="flex flex-col gap-1.5">

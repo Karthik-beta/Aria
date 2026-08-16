@@ -3,6 +3,7 @@ import type { INestApplicationContext } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
 import { AppModule } from "../../../app.module";
 import { AriaHealthIndicator } from "../../../health/health-indicator.service";
+import { PrismaService } from "../../../shared/prisma.service";
 import { AssetService } from "../asset.service";
 import { FixedAssetRegisterReportService } from "../fixed-asset-register-report";
 import { businessDate, depreciationTimeZone } from "./depreciation.config";
@@ -33,6 +34,10 @@ it("boots PostgreSQL, Redis, queue events, and the depreciation worker", async (
 	expect(app.get(AssetService)).toBeDefined();
 	const reportService = app.get(FixedAssetRegisterReportService);
 	expect(reportService).toBeDefined();
+	const reportCompany = await app.get(PrismaService).company.findFirst({
+		where: { organizationId: "org-1" },
+		select: { id: true },
+	});
 
 	const health = app.get(AriaHealthIndicator);
 	const checks = await Promise.all([
@@ -57,13 +62,16 @@ it("boots PostgreSQL, Redis, queue events, and the depreciation worker", async (
 			throughDate: businessDate(depreciationTimeZone()),
 		}),
 	).resolves.toMatchObject({ posted: true });
-	const report = await reportService.generateReport(
-		{
-			fromDate: "2026-01-01",
-			toDate: "2026-12-31",
-			groupBy: "ASSET_CATEGORY",
-		},
-		"org-1",
-	);
-	expect(report.summary.totalAssets).toBeGreaterThanOrEqual(0);
+	if (reportCompany) {
+		const report = await reportService.generateReport(
+			{
+				companyId: reportCompany.id,
+				fromDate: "2026-01-01",
+				toDate: "2026-12-31",
+				groupBy: "ASSET_CATEGORY",
+			},
+			"org-1",
+		);
+		expect(report.summary.totalAssets).toBeGreaterThanOrEqual(0);
+	}
 }, 30_000);

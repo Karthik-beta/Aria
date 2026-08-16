@@ -49,7 +49,10 @@ import { buildAssetActivityReportResult } from "./asset-activity-report";
 import { AssetDashboardSubService } from "./asset-dashboard.service";
 import { buildAssetDepreciationLedgerResult } from "./asset-depreciation-ledger-report";
 import { buildAssetDepreciationsAndBalancesResult } from "./asset-depreciations-and-balances-report";
-import { isEffectiveProjectionFinanceBook } from "./asset-finance-book";
+import {
+	financeBookEligibilityWhereForCompany,
+	isEffectiveProjectionFinanceBook,
+} from "./asset-finance-book";
 import { lockAssetAndFinanceBooks } from "./asset-locking";
 import {
 	type AssetOrganizationId,
@@ -3177,12 +3180,6 @@ export class AssetService {
 		organizationId: AssetOrganizationId,
 	): Promise<Asset.FixedAssetRegisterReportResult> {
 		this.assertOrganizationScope(organizationId);
-		const reportToDate = normalizeDateOnly(input.toDate);
-		await this.ensureReportDepreciation(
-			reportToDate,
-			organizationId,
-			input.company,
-		);
 
 		const reportService =
 			this.fixedAssetRegisterReportService ??
@@ -4123,6 +4120,7 @@ export class AssetService {
 			skip?: number;
 			take?: number;
 			search?: string;
+			companyId?: string;
 		},
 	): Promise<Asset.FinanceBookListResult> {
 		this.assertOrganizationScope(organizationId);
@@ -4131,9 +4129,31 @@ export class AssetService {
 			Math.max(params?.take ?? LIST_TAKE_MAX, 1),
 			LIST_TAKE_MAX,
 		);
-		const where = params?.search
+		let where: Prisma.FinanceBookWhereInput = params?.search
 			? { name: { contains: params.search, mode: "insensitive" as const } }
 			: {};
+		if (params?.companyId) {
+			const company = await this.prisma.company.findFirst({
+				where: companyWhereForOrganization(organizationId, {
+					id: params.companyId,
+				}),
+				select: { id: true, defaultFinanceBookId: true },
+			});
+			if (!company) {
+				throw new NotFoundException(
+					`Company ${params.companyId} is not available in the active organization.`,
+				);
+			}
+			where = {
+				AND: [
+					where,
+					financeBookEligibilityWhereForCompany(
+						company.id,
+						company.defaultFinanceBookId,
+					),
+				],
+			};
+		}
 		const [items, totalCount] = await Promise.all([
 			this.prisma.financeBook.findMany({
 				where,

@@ -265,6 +265,7 @@ describe("Asset ownership integration", () => {
 		).rejects.toThrow(/not found/);
 
 		const reportInput = {
+			companyId: companyAId,
 			fromDate: "2026-01-01",
 			toDate: "2026-12-31",
 			groupBy: "ASSET_CATEGORY" as const,

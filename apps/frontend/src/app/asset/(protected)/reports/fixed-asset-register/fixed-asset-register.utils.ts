@@ -3,7 +3,9 @@ import { normalizeDateOnly } from "@aria/types";
 import { formatAssetDate, todayDateInputValue } from "@/lib/asset-date-only";
 
 export type FixedAssetRegisterFilterState = {
-	company: string;
+	companyId: string;
+	financeBookId: string;
+	status: Asset.FixedAssetRegisterStatus;
 	fromDate: string;
 	toDate: string;
 	groupBy: Asset.FixedAssetRegisterGroupBy;
@@ -41,12 +43,30 @@ export function buildFixedAssetRegisterInput(
 	filters: FixedAssetRegisterFilterState,
 ): Asset.ListFixedAssetRegisterReportInput {
 	return {
+		companyId: filters.companyId,
+		financeBookId: filters.financeBookId.trim() || undefined,
+		status: filters.status,
 		fromDate: normalizeDateOnly(filters.fromDate),
 		toDate: normalizeDateOnly(filters.toDate),
-		company: filters.company.trim() || undefined,
 		groupBy: filters.groupBy,
 		assetCategory: filters.assetCategory.trim() || undefined,
 		location: filters.location.trim() || undefined,
+	};
+}
+
+/**
+ * Changes the report Company and clears the prior explicit book. FinanceBook
+ * options are Company-scoped server data, so a previous selection cannot be
+ * retained while the new option set is loading.
+ */
+export function selectFixedAssetRegisterCompany(
+	filters: FixedAssetRegisterFilterState,
+	companyId: string,
+): FixedAssetRegisterFilterState {
+	return {
+		...filters,
+		companyId,
+		financeBookId: "",
 	};
 }
 
