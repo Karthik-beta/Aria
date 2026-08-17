@@ -46,6 +46,8 @@ export interface AssetDepreciationRevisionResult {
 	assetFinanceBookId: string;
 	previousScheduleId: string;
 	scheduleId: string;
+	/** Monotonic selected-book state version after this revision. */
+	stateVersion: number;
 	carryingValue: number;
 	totalNumberOfDepreciations: number;
 	increaseInAssetLife: number;
@@ -77,6 +79,7 @@ type ActiveSchedule = {
 type RevisionBook = {
 	id: string;
 	financeBookId: string;
+	stateVersion: number;
 	depreciationMethod: DepreciationBookInput["method"];
 	totalNumberOfDepreciations: number;
 	increaseInAssetLife: number;
@@ -364,6 +367,7 @@ export class AssetDepreciationRevisionService {
 					valueAfterDepreciation: carryingValue,
 					expectedValueAfterUsefulLife: salvageValue,
 					rateOfDepreciation: schedule.ratePercent,
+					stateVersion: { increment: 1 },
 					postingStatus:
 						schedule.entries.length === 0
 							? "FULLY_DEPRECIATED"
@@ -419,6 +423,7 @@ export class AssetDepreciationRevisionService {
 				assetFinanceBookId: book.id,
 				previousScheduleId: activeSchedule.id,
 				scheduleId: successor.id,
+				stateVersion: (book.stateVersion ?? 0) + 1,
 				carryingValue,
 				totalNumberOfDepreciations: totalPeriods,
 				increaseInAssetLife,
@@ -474,6 +479,7 @@ export class AssetDepreciationRevisionService {
 				id: true,
 				assetId: true,
 				assetFinanceBookId: true,
+				revisionNumber: true,
 				status: true,
 				previousScheduleId: true,
 				entries: {
@@ -484,6 +490,9 @@ export class AssetDepreciationRevisionService {
 				previousSchedule: {
 					select: {
 						id: true,
+						assetId: true,
+						assetFinanceBookId: true,
+						revisionNumber: true,
 						status: true,
 						startDate: true,
 						depreciationMethod: true,
@@ -534,6 +543,19 @@ export class AssetDepreciationRevisionService {
 		}
 
 		const predecessor = revision.previousSchedule;
+		if (
+			revision.revisionNumber <= 1 ||
+			revision.previousScheduleId !== predecessor.id ||
+			predecessor.assetId !== revision.assetId ||
+			predecessor.assetId !== input.assetId ||
+			predecessor.assetFinanceBookId !== revision.assetFinanceBookId ||
+			predecessor.assetFinanceBookId !== book.id ||
+			predecessor.revisionNumber + 1 !== revision.revisionNumber
+		) {
+			throw new AssetDepreciationRevisionError(
+				"The depreciation revision predecessor is not the exact adjacent schedule for the selected asset finance book.",
+			);
+		}
 		if (predecessor.status !== "CANCELLED") {
 			throw new AssetDepreciationRevisionError(
 				"The predecessor depreciation schedule is not closed.",
@@ -595,6 +617,7 @@ export class AssetDepreciationRevisionService {
 				expectedValueAfterUsefulLife:
 					predecessor.expectedValueAfterUsefulLife ?? 0,
 				valueAfterDepreciation: input.previousValueAfterDepreciation,
+				stateVersion: { increment: 1 },
 				postingStatus:
 					remainingEntries === 0
 						? "FULLY_DEPRECIATED"
@@ -634,6 +657,20 @@ export class AssetDepreciationRevisionService {
 				},
 				data: { status: "CANCELLED" },
 			});
+			if (result.count > 0) {
+				const updatedBook = await tx.assetFinanceBook.updateMany({
+					where: {
+						id: book.id,
+						asset: { is: assetWhereForOrganization(organizationId) },
+					},
+					data: { stateVersion: { increment: 1 } },
+				});
+				if (updatedBook.count !== 1) {
+					throw new AssetDepreciationRevisionError(
+						`Finance book ${book.financeBookId} is no longer available in the active organization.`,
+					);
+				}
+			}
 			closed += result.count;
 		}
 		return closed;
@@ -697,6 +734,18 @@ export class AssetDepreciationRevisionService {
 			if (reactivation.count !== 1) {
 				throw new AssetDepreciationRevisionError(
 					`The closed depreciation schedule for finance book ${book.financeBookId} is no longer available in the active organization.`,
+				);
+			}
+			const updatedBook = await tx.assetFinanceBook.updateMany({
+				where: {
+					id: book.id,
+					asset: { is: assetWhereForOrganization(organizationId) },
+				},
+				data: { stateVersion: { increment: 1 } },
+			});
+			if (updatedBook.count !== 1) {
+				throw new AssetDepreciationRevisionError(
+					`Finance book ${book.financeBookId} is no longer available in the active organization.`,
 				);
 			}
 			reactivated += 1;

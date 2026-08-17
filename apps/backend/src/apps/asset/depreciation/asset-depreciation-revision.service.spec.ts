@@ -462,12 +462,16 @@ describe("AssetDepreciationRevisionService", () => {
 			id: "revision-book-a",
 			assetId: "asset-1",
 			assetFinanceBookId: "book-a",
+			revisionNumber: 2,
 			status: "ACTIVE",
 			previousScheduleId: "schedule-book-a",
 			entries: [],
 			nextSchedules: [],
 			previousSchedule: {
 				id: "schedule-book-a",
+				assetId: "asset-1",
+				assetFinanceBookId: "book-a",
+				revisionNumber: 1,
 				status: "CANCELLED",
 				startDate: new Date("2025-01-01T00:00:00.000Z"),
 				depreciationMethod: "STRAIGHT_LINE",
@@ -515,6 +519,44 @@ describe("AssetDepreciationRevisionService", () => {
 		expect(mocked.countEntries.mock.calls[0]?.[0]).toMatchObject({
 			where: { scheduleId: "schedule-book-a", postingId: null },
 		});
+	});
+
+	it("rejects a predecessor with mismatched ownership before any restore write", async () => {
+		const selected = book("book-a", "finance-a");
+		const mocked = revisionTransaction([selected], []);
+		mocked.findFirstSchedule.mockResolvedValue({
+			id: "revision-book-a",
+			assetId: "asset-1",
+			assetFinanceBookId: "book-a",
+			revisionNumber: 2,
+			status: "ACTIVE",
+			previousScheduleId: "schedule-book-b",
+			entries: [],
+			nextSchedules: [],
+			previousSchedule: {
+				id: "schedule-book-b",
+				assetId: "asset-2",
+				assetFinanceBookId: "book-b",
+				revisionNumber: 1,
+				status: "CANCELLED",
+				depreciationMethod: "STRAIGHT_LINE",
+			},
+		});
+
+		await expect(
+			new AssetDepreciationRevisionService().restoreRevision(
+				mocked.transaction as unknown as Prisma.TransactionClient,
+				ORGANIZATION_ID,
+				{
+					assetId: "asset-1",
+					financeBookId: "finance-a",
+					scheduleId: "revision-book-a",
+					previousValueAfterDepreciation: 725,
+				},
+			),
+		).rejects.toThrow(AssetDepreciationRevisionError);
+		expect(mocked.updateMany).not.toHaveBeenCalled();
+		expect(mocked.updateBookMany).not.toHaveBeenCalled();
 	});
 
 	it("closes active schedules under the same per-book advisory locks without deleting history", async () => {

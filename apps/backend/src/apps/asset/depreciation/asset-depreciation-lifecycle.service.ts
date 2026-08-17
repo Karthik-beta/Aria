@@ -385,6 +385,7 @@ export class AssetDepreciationLifecycleService {
 						valueAfterDepreciation: new Prisma.Decimal(carryingValue),
 						totalNumberOfBookedDepreciations:
 							configuration.openingNumberOfBookedDepreciations ?? 0,
+						stateVersion: { increment: 1 },
 						postingStatus,
 					},
 				});

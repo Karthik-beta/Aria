@@ -1686,6 +1686,8 @@ model AssetValueAdjustment {
   previousAssetStatus                 AssetStatus
   previousIsFullyDepreciated          Boolean                       @default(false)
   previousAssetValueAfterDepreciation Decimal?                      @db.Decimal(18, 6)
+  previousFinanceBookStateVersion     Int?
+  submittedFinanceBookStateVersion    Int?
   submittedAt                         DateTime?
   cancelledAt                         DateTime?
   revaluationEntry                    AssetRevaluationEntry?
@@ -1851,6 +1853,7 @@ model AssetFinanceBook {
   valueAfterDepreciation             Decimal                         @default(0) @db.Decimal(18, 6)
   totalNumberOfBookedDepreciations   Int                             @default(0)
   postingStatus                      AssetFinanceBookPostingStatus   @default(PENDING)
+  stateVersion                       Int                             @default(0)
   lastPostedDepreciationDate         DateTime?
   schedules                          AssetDepreciationSchedule[]
   shiftAllocations                   AssetFinanceBookShiftAllocation[]

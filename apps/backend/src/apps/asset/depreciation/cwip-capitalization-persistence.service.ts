@@ -1,7 +1,8 @@
 import { HttpException, Injectable } from "@nestjs/common";
-import { Prisma } from "../../../generated/prisma/client";
+import type { Prisma } from "../../../generated/prisma/client";
 import type { PrismaService } from "../../../shared/prisma.service";
 import type { AssetAccountingService } from "../asset-accounting.service";
+import { lockAssetAndFinanceBooks } from "../asset-locking";
 import type {
 	CwipCapitalizationJobData,
 	CwipCapitalizationJobResult,
@@ -68,9 +69,7 @@ export class CwipCapitalizationPersistenceService {
 		job: CwipCapitalizationJobData,
 	): Promise<CwipCapitalizationJobResult> {
 		return this.db.$transaction(async (tx) => {
-			await tx.$queryRaw(Prisma.sql`
-				SELECT pg_advisory_xact_lock(hashtext(${job.assetId})) IS NULL AS "locked"
-			`);
+			await lockAssetAndFinanceBooks(tx, [job.assetId], []);
 
 			const asset = await tx.asset.findFirst<CwipWorkerAsset>({
 				where: {

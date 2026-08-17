@@ -101,6 +101,37 @@ import {
 const LIST_TAKE_MAX = 250;
 const CURRENCY_SCALE = 6;
 
+type AssetLineageEvent = {
+	id: string;
+	effectiveDate: Date;
+	committedAt: Date | null;
+};
+
+/**
+ * Treats an event as later when either its business date is later or its
+ * committed lineage advanced after the adjustment. The second rule protects
+ * against a backdated document being committed after the snapshot was taken.
+ */
+const isLaterAssetLineageEvent = (
+	current: AssetLineageEvent,
+	candidate: AssetLineageEvent,
+): boolean => {
+	const currentDate = dateOnlyFromPersistedDateTime(current.effectiveDate);
+	const candidateDate = dateOnlyFromPersistedDateTime(candidate.effectiveDate);
+	if (candidateDate > currentDate) return true;
+	if (candidateDate < currentDate) {
+		return Boolean(
+			current.committedAt &&
+				candidate.committedAt &&
+				candidate.committedAt > current.committedAt,
+		);
+	}
+	if (!current.committedAt || !candidate.committedAt) return true;
+	return (
+		candidate.committedAt >= current.committedAt && candidate.id !== current.id
+	);
+};
+
 @Injectable()
 export class AssetService {
 	private readonly logger = new Logger(AssetService.name);
@@ -725,6 +756,325 @@ export class AssetService {
 		assetIds: readonly string[],
 	): Promise<void> {
 		await lockAssetAndFinanceBooks(tx, assetIds, []);
+	}
+
+	/**
+	 * Locks the value-adjustment document and every selected-book lineage row
+	 * before cancellation reads the state it may restore.
+	 */
+	private async lockAssetValueAdjustmentLineage(
+		tx: Prisma.TransactionClient,
+		adjustmentId: string,
+		assetId: string,
+		financeBookId: string | null,
+		assetFinanceBookId: string | null,
+	): Promise<void> {
+		await tx.$queryRaw(Prisma.sql`
+			SELECT "id"
+			FROM "asset_value_adjustments"
+			WHERE "id" = ${adjustmentId} AND "assetId" = ${assetId}
+			FOR UPDATE
+		`);
+		await tx.$queryRaw(Prisma.sql`
+			SELECT "id"
+			FROM "asset_revaluation_entries"
+			WHERE "adjustmentId" = ${adjustmentId} AND "assetId" = ${assetId}
+			FOR UPDATE
+		`);
+		await tx.$queryRaw(Prisma.sql`
+			SELECT "id"
+			FROM "asset_repairs"
+			WHERE "assetId" = ${assetId}
+			FOR UPDATE
+		`);
+		await tx.$queryRaw(Prisma.sql`
+			SELECT "id"
+			FROM "asset_disposals"
+			WHERE "assetId" = ${assetId}
+			FOR UPDATE
+		`);
+		await tx.$queryRaw(Prisma.sql`
+			SELECT "id"
+			FROM "asset_capitalizations"
+			WHERE "targetAssetId" = ${assetId}
+			   OR EXISTS (
+					SELECT 1
+					FROM "asset_capitalization_asset_items" AS "item"
+					WHERE "item"."capitalizationId" = "asset_capitalizations"."id"
+					  AND "item"."assetId" = ${assetId}
+				)
+			FOR UPDATE
+		`);
+		if (financeBookId) {
+			await tx.$queryRaw(Prisma.sql`
+				SELECT "id"
+				FROM "asset_accounting_entries"
+				WHERE "assetId" = ${assetId}
+				  AND ("financeBookId" = ${financeBookId} OR "financeBookId" IS NULL)
+				FOR UPDATE
+			`);
+		} else {
+			await tx.$queryRaw(Prisma.sql`
+				SELECT "id"
+				FROM "asset_accounting_entries"
+				WHERE "assetId" = ${assetId} AND "financeBookId" IS NULL
+				FOR UPDATE
+			`);
+		}
+
+		if (!financeBookId || !assetFinanceBookId) return;
+
+		await tx.$queryRaw(Prisma.sql`
+			SELECT "id"
+			FROM "asset_depreciation_schedules"
+			WHERE "assetId" = ${assetId}
+			  AND "assetFinanceBookId" = ${assetFinanceBookId}
+			FOR UPDATE
+		`);
+		await tx.$queryRaw(Prisma.sql`
+			SELECT "id"
+			FROM "asset_depreciation_journal_entries"
+			WHERE "assetId" = ${assetId}
+			  AND "assetFinanceBookId" = ${assetFinanceBookId}
+			FOR UPDATE
+		`);
+	}
+
+	/**
+	 * Rejects cancellation once any compatible event has advanced the selected
+	 * book or the asset's dependent document lineage.
+	 */
+	private async assertNoLaterAssetValueAdjustmentEffects(
+		tx: Prisma.TransactionClient,
+		organizationId: AssetOrganizationId,
+		adjustment: {
+			id: string;
+			series: string;
+			assetId: string;
+			financeBookId: string | null;
+			adjustmentDate: Date;
+			submittedAt: Date;
+			submittedFinanceBookStateVersion: number | null;
+		},
+		asset: {
+			financeBooks: ReadonlyArray<{
+				financeBookId: string;
+				stateVersion: number;
+			}>;
+		},
+	): Promise<void> {
+		const selectedBook = adjustment.financeBookId
+			? asset.financeBooks.find(
+					(book) => book.financeBookId === adjustment.financeBookId,
+				)
+			: null;
+		if (adjustment.financeBookId) {
+			if (!selectedBook) {
+				throw new ConflictException(
+					`Asset value adjustment ${adjustment.series} has no selected finance-book lineage.`,
+				);
+			}
+			if (
+				adjustment.submittedFinanceBookStateVersion == null ||
+				selectedBook.stateVersion !==
+					adjustment.submittedFinanceBookStateVersion
+			) {
+				throw new ConflictException(
+					`Asset value adjustment ${adjustment.series} cannot be cancelled because the selected finance book changed after submission.`,
+				);
+			}
+		}
+
+		const [
+			laterAdjustments,
+			laterDepreciation,
+			laterAccounting,
+			laterRepairs,
+			laterCapitalizations,
+			laterDisposals,
+		] = await Promise.all([
+			tx.assetValueAdjustment.findMany({
+				where: {
+					id: { not: adjustment.id },
+					assetId: adjustment.assetId,
+					status: "SUBMITTED",
+					asset: { is: assetWhereForOrganization(organizationId) },
+				},
+				select: {
+					id: true,
+					financeBookId: true,
+					adjustmentDate: true,
+					submittedAt: true,
+				},
+			}),
+			adjustment.financeBookId
+				? tx.assetDepreciationJournalEntry.findMany({
+						where: {
+							assetId: adjustment.assetId,
+							status: "POSTED",
+							assetFinanceBook: {
+								financeBookId: adjustment.financeBookId,
+							},
+							asset: {
+								is: assetWhereForOrganization(organizationId),
+							},
+						},
+						select: { id: true, postingDate: true, createdAt: true },
+					})
+				: Promise.resolve([]),
+			tx.assetAccountingEntry.findMany({
+				where: {
+					assetId: adjustment.assetId,
+					status: "POSTED",
+					company: { is: { organizationId } },
+					asset: { is: assetWhereForOrganization(organizationId) },
+				},
+				select: {
+					id: true,
+					financeBookId: true,
+					postingDate: true,
+					createdAt: true,
+				},
+			}),
+			tx.assetRepair.findMany({
+				where: {
+					assetId: adjustment.assetId,
+					repairStatus: "COMPLETED",
+					company: { is: { organizationId } },
+					asset: { is: assetWhereForOrganization(organizationId) },
+				},
+				select: {
+					id: true,
+					completionDate: true,
+					submittedAt: true,
+					createdAt: true,
+				},
+			}),
+			tx.assetCapitalization.findMany({
+				where: {
+					status: "SUBMITTED",
+					company: { is: { organizationId } },
+					OR: [
+						{ targetAssetId: adjustment.assetId },
+						{
+							assetItems: { some: { assetId: adjustment.assetId } },
+						},
+					],
+				},
+				select: {
+					id: true,
+					financeBookId: true,
+					postingDate: true,
+					submittedAt: true,
+					createdAt: true,
+					assetItems: {
+						where: { assetId: adjustment.assetId },
+						select: { financeBookId: true },
+					},
+				},
+			}),
+			tx.assetDisposal.findMany({
+				where: {
+					assetId: adjustment.assetId,
+					status: "POSTED",
+					company: { is: { organizationId } },
+					asset: { is: assetWhereForOrganization(organizationId) },
+				},
+				select: {
+					id: true,
+					financeBookId: true,
+					disposalDate: true,
+					createdAt: true,
+				},
+			}),
+		]);
+
+		const currentEvent: AssetLineageEvent = {
+			id: adjustment.id,
+			effectiveDate: adjustment.adjustmentDate,
+			committedAt: adjustment.submittedAt,
+		};
+		const assertNoLater = (
+			kind: string,
+			candidate: AssetLineageEvent,
+		): void => {
+			if (isLaterAssetLineageEvent(currentEvent, candidate)) {
+				throw new ConflictException(
+					`Asset value adjustment ${adjustment.series} cannot be cancelled because later ${kind} ${candidate.id} advanced the asset lineage.`,
+				);
+			}
+		};
+
+		for (const candidate of laterAdjustments) {
+			const affectsSelectedBook =
+				candidate.financeBookId == null ||
+				candidate.financeBookId === adjustment.financeBookId;
+			if (affectsSelectedBook) {
+				if (!candidate.submittedAt) {
+					throw new ConflictException(
+						`Asset value adjustment ${adjustment.series} cannot be cancelled because later value adjustment ${candidate.id} has incomplete chronology lineage.`,
+					);
+				}
+				assertNoLater("value adjustment", {
+					id: candidate.id,
+					effectiveDate: candidate.adjustmentDate,
+					committedAt: candidate.submittedAt,
+				});
+			}
+		}
+		for (const candidate of laterDepreciation) {
+			assertNoLater("depreciation posting", {
+				id: candidate.id,
+				effectiveDate: candidate.postingDate,
+				committedAt: candidate.createdAt,
+			});
+		}
+		for (const candidate of laterAccounting) {
+			if (
+				candidate.financeBookId == null ||
+				candidate.financeBookId === adjustment.financeBookId
+			) {
+				assertNoLater("accounting entry", {
+					id: candidate.id,
+					effectiveDate: candidate.postingDate,
+					committedAt: candidate.createdAt,
+				});
+			}
+		}
+		for (const candidate of laterRepairs) {
+			assertNoLater("repair", {
+				id: candidate.id,
+				effectiveDate: candidate.completionDate ?? candidate.createdAt,
+				committedAt: candidate.submittedAt ?? candidate.createdAt,
+			});
+		}
+		for (const candidate of laterCapitalizations) {
+			const affectsSelectedBook =
+				candidate.financeBookId == null ||
+				candidate.assetItems.some((item) => item.financeBookId == null) ||
+				candidate.financeBookId === adjustment.financeBookId ||
+				candidate.assetItems.some(
+					(item) => item.financeBookId === adjustment.financeBookId,
+				);
+			if (!affectsSelectedBook) continue;
+			assertNoLater("capitalization", {
+				id: candidate.id,
+				effectiveDate: candidate.postingDate,
+				committedAt: candidate.submittedAt ?? candidate.createdAt,
+			});
+		}
+		for (const candidate of laterDisposals) {
+			if (
+				candidate.financeBookId == null ||
+				candidate.financeBookId === adjustment.financeBookId
+			) {
+				assertNoLater("disposal", {
+					id: candidate.id,
+					effectiveDate: candidate.disposalDate,
+					committedAt: candidate.createdAt,
+				});
+			}
+		}
 	}
 
 	private async lockMaintenanceTeams(
@@ -1489,6 +1839,7 @@ export class AssetService {
 			financeBooks: asset.financeBooks.map((book) => ({
 				id: book.id,
 				financeBookId: book.financeBookId,
+				stateVersion: book.stateVersion,
 				financeBookName: book.financeBook.name,
 				depreciationMethod: book.depreciationMethod as Asset.DepreciationMethod,
 				totalNumberOfDepreciations: book.totalNumberOfDepreciations,
@@ -1631,6 +1982,7 @@ export class AssetService {
 			financeBooks: Array<{
 				id: string;
 				financeBookId: string;
+				stateVersion: number;
 				financeBookName: string;
 				depreciationMethod: Asset.DepreciationMethod;
 				totalNumberOfDepreciations: number;
@@ -3350,6 +3702,10 @@ export class AssetService {
 					previousIsFullyDepreciated: asset.isFullyDepreciated,
 					previousAssetValueAfterDepreciation:
 						this.resolveCurrentAssetValue(asset).toString(),
+					previousFinanceBookStateVersion:
+						asset.financeBooks.find(
+							(book) => book.financeBookId === preview.financeBookId,
+						)?.stateVersion ?? null,
 				},
 				include: this.assetAdjustmentInclude,
 			});
@@ -3444,6 +3800,10 @@ export class AssetService {
 			previousIsFullyDepreciated: asset.isFullyDepreciated,
 			previousAssetValueAfterDepreciation:
 				this.resolveCurrentAssetValue(asset).toString(),
+			previousFinanceBookStateVersion:
+				asset.financeBooks.find(
+					(book) => book.financeBookId === preview.financeBookId,
+				)?.stateVersion ?? null,
 		};
 		const updated = await this.prisma.$transaction(async (tx) => {
 			const transition = await tx.assetValueAdjustment.updateMany({
@@ -3533,6 +3893,7 @@ export class AssetService {
 					costCenter: true,
 					notes: true,
 					status: true,
+					previousFinanceBookStateVersion: true,
 				},
 			});
 			if (!adjustment || adjustment.status !== "DRAFT") {
@@ -3545,17 +3906,29 @@ export class AssetService {
 					"The adjustment asset changed before submission. Refresh the draft and try again.",
 				);
 			}
+			let selectedFinanceBookStateVersion: number | null = null;
+			let submittedFinanceBookStateVersion: number | null = null;
 			if (adjustment.financeBookId) {
 				const selectedBook = await tx.assetFinanceBook.findFirst({
 					where: {
 						assetId: adjustment.assetId,
 						financeBookId: adjustment.financeBookId,
 					},
-					select: { id: true },
+					select: { id: true, stateVersion: true },
 				});
 				if (!selectedBook) {
 					throw new ConflictException(
 						"The selected finance book is no longer configured for this asset.",
+					);
+				}
+				selectedFinanceBookStateVersion = selectedBook.stateVersion;
+				if (
+					adjustment.previousFinanceBookStateVersion != null &&
+					adjustment.previousFinanceBookStateVersion !==
+						selectedFinanceBookStateVersion
+				) {
+					throw new ConflictException(
+						"The selected finance book changed while this adjustment was in draft. Refresh the draft before submitting it.",
 					);
 				}
 				await lockAssetAndFinanceBooks(
@@ -3636,23 +4009,35 @@ export class AssetService {
 					preview.newAssetValue,
 					selectedFinanceBook.expectedValueAfterUsefulLife,
 				);
-				await this.depreciationRevision.revise(tx, organizationId, {
-					assetId: asset.id,
-					financeBookId: preview.financeBookId,
-					effectiveDate: adjustment.adjustmentDate,
-					valueDelta: preview.differenceAmount,
-					salvageValueDelta: this.roundCurrency(
-						adjustedSalvageValue -
-							selectedFinanceBook.expectedValueAfterUsefulLife,
-					),
-					usefulLifeDeltaMonths: 0,
-					adjustmentId: adjustment.id,
-					getFiscalYearEndDate: (date: Date) =>
-						this.fiscalYearService.getFiscalYearEndDate(date),
-					notes:
-						this.normalizeOptionalText(adjustment.notes) ??
-						`Projected from adjustment ${adjustment.series}`,
-				});
+				const revisions = await this.depreciationRevision.revise(
+					tx,
+					organizationId,
+					{
+						assetId: asset.id,
+						financeBookId: preview.financeBookId,
+						effectiveDate: adjustment.adjustmentDate,
+						valueDelta: preview.differenceAmount,
+						salvageValueDelta: this.roundCurrency(
+							adjustedSalvageValue -
+								selectedFinanceBook.expectedValueAfterUsefulLife,
+						),
+						usefulLifeDeltaMonths: 0,
+						adjustmentId: adjustment.id,
+						getFiscalYearEndDate: (date: Date) =>
+							this.fiscalYearService.getFiscalYearEndDate(date),
+						notes:
+							this.normalizeOptionalText(adjustment.notes) ??
+							`Projected from adjustment ${adjustment.series}`,
+					},
+				);
+				submittedFinanceBookStateVersion =
+					revisions.find(
+						(revision) =>
+							revision.assetFinanceBookId === selectedFinanceBook.id,
+					)?.stateVersion ?? (selectedFinanceBookStateVersion ?? 0) + 1;
+			}
+			if (submittedFinanceBookStateVersion === null) {
+				submittedFinanceBookStateVersion = selectedFinanceBookStateVersion;
 			}
 
 			const previousRootValue = this.resolveCurrentAssetValue(asset);
@@ -3696,6 +4081,8 @@ export class AssetService {
 					previousAssetStatus: asset.status,
 					previousIsFullyDepreciated: asset.isFullyDepreciated,
 					previousAssetValueAfterDepreciation: previousRootValue.toString(),
+					previousFinanceBookStateVersion: selectedFinanceBookStateVersion,
+					submittedFinanceBookStateVersion,
 					status: "SUBMITTED",
 					submittedAt: now,
 					cancelledAt: null,
@@ -3762,14 +4149,37 @@ export class AssetService {
 					series: true,
 					assetId: true,
 					financeBookId: true,
+					adjustmentDate: true,
 					currentAssetValue: true,
+					newAssetValue: true,
+					differenceAmount: true,
 					status: true,
 					previousAssetStatus: true,
 					previousIsFullyDepreciated: true,
 					previousAssetValueAfterDepreciation: true,
+					previousFinanceBookStateVersion: true,
+					submittedFinanceBookStateVersion: true,
 					submittedAt: true,
-					revaluationEntry: { select: { id: true } },
-					depreciationSchedule: { select: { id: true } },
+					revaluationEntry: {
+						select: {
+							id: true,
+							adjustmentId: true,
+							assetId: true,
+							companyId: true,
+							financeBookId: true,
+							postingDate: true,
+							status: true,
+						},
+					},
+					depreciationSchedule: {
+						select: {
+							id: true,
+							assetId: true,
+							assetFinanceBookId: true,
+							previousScheduleId: true,
+							status: true,
+						},
+					},
 				},
 			});
 			if (!adjustment || adjustment.status !== "SUBMITTED") {
@@ -3777,67 +4187,185 @@ export class AssetService {
 					"The asset value adjustment changed before it could be cancelled.",
 				);
 			}
+			if (!adjustment.submittedAt) {
+				throw new ConflictException(
+					`Asset value adjustment ${adjustment.series} has no submission lineage and cannot be cancelled safely.`,
+				);
+			}
+
 			const asset = await tx.asset.findFirst({
 				where: assetWhereForOrganization(organizationId, {
 					id: adjustment.assetId,
 				}),
 				select: {
+					id: true,
 					companyId: true,
+					status: true,
 					calculateDepreciation: true,
+					isFullyDepreciated: true,
+					valueAfterDepreciation: true,
 					company: { select: { defaultFinanceBookId: true } },
-					financeBooks: { select: { id: true, financeBookId: true } },
+					financeBooks: {
+						select: {
+							id: true,
+							financeBookId: true,
+							stateVersion: true,
+							valueAfterDepreciation: true,
+						},
+					},
 				},
 			});
 			if (!asset) {
 				throw new NotFoundException(`Asset ${adjustment.assetId} not found`);
 			}
+			await lockAssetAndFinanceBooks(
+				tx,
+				[asset.id],
+				asset.financeBooks.map((book) => book.id),
+			);
+
+			const selectedBook = adjustment.financeBookId
+				? asset.financeBooks.find(
+						(book) => book.financeBookId === adjustment.financeBookId,
+					)
+				: null;
+			if (adjustment.financeBookId && !selectedBook) {
+				throw new ConflictException(
+					"The adjustment's finance book is no longer configured for this asset.",
+				);
+			}
 			if (
 				asset.calculateDepreciation &&
 				(!adjustment.financeBookId || !adjustment.depreciationSchedule)
 			) {
-				throw new BadRequestException(
+				throw new ConflictException(
 					"This depreciating adjustment has incomplete finance-book history and cannot be cancelled safely.",
 				);
 			}
-			if (adjustment.financeBookId) {
-				const selectedBook = asset.financeBooks.find(
-					(book) => book.financeBookId === adjustment.financeBookId,
+			if (
+				selectedBook &&
+				(adjustment.submittedFinanceBookStateVersion == null ||
+					selectedBook.stateVersion !==
+						adjustment.submittedFinanceBookStateVersion)
+			) {
+				throw new ConflictException(
+					`Asset value adjustment ${adjustment.series} cannot be cancelled because the selected finance book changed after submission.`,
 				);
-				if (!selectedBook) {
-					throw new BadRequestException(
-						"The adjustment's finance book is no longer configured for this asset.",
-					);
-				}
-				await lockAssetAndFinanceBooks(
-					tx,
-					[adjustment.assetId],
-					[selectedBook.id],
+			}
+			if (
+				asset.calculateDepreciation &&
+				selectedBook &&
+				(adjustment.previousFinanceBookStateVersion == null ||
+					adjustment.submittedFinanceBookStateVersion == null ||
+					adjustment.submittedFinanceBookStateVersion !==
+						adjustment.previousFinanceBookStateVersion + 1)
+			) {
+				throw new ConflictException(
+					`Asset value adjustment ${adjustment.series} has an incomplete finance-book version lineage.`,
+				);
+			}
+			if (
+				!adjustment.revaluationEntry ||
+				adjustment.revaluationEntry.status !== "POSTED" ||
+				adjustment.revaluationEntry.adjustmentId !== adjustment.id ||
+				adjustment.revaluationEntry.assetId !== adjustment.assetId ||
+				adjustment.revaluationEntry.companyId !== asset.companyId ||
+				adjustment.revaluationEntry.financeBookId !==
+					adjustment.financeBookId ||
+				dateOnlyFromPersistedDateTime(
+					adjustment.revaluationEntry.postingDate,
+				) !== dateOnlyFromPersistedDateTime(adjustment.adjustmentDate)
+			) {
+				throw new ConflictException(
+					`Asset value adjustment ${adjustment.series} has an incomplete or mismatched revaluation lineage.`,
+				);
+			}
+			if (
+				adjustment.depreciationSchedule &&
+				(adjustment.depreciationSchedule.assetId !== adjustment.assetId ||
+					adjustment.depreciationSchedule.assetFinanceBookId !==
+						selectedBook?.id ||
+					adjustment.depreciationSchedule.status !== "ACTIVE")
+			) {
+				throw new ConflictException(
+					`Asset value adjustment ${adjustment.series} has an incomplete depreciation schedule lineage.`,
 				);
 			}
 
-			const newerSubmittedAdjustments = await tx.assetValueAdjustment.count({
-				where: {
-					assetId: adjustment.assetId,
-					asset: { is: assetWhereForOrganization(organizationId) },
-					status: "SUBMITTED",
-					financeBookId: adjustment.financeBookId,
-					submittedAt: { gt: adjustment.submittedAt ?? new Date(0) },
+			await this.lockAssetValueAdjustmentLineage(
+				tx,
+				adjustment.id,
+				adjustment.assetId,
+				adjustment.financeBookId,
+				selectedBook?.id ?? null,
+			);
+			const adjustmentLineage = {
+				id: adjustment.id,
+				series: adjustment.series,
+				assetId: adjustment.assetId,
+				financeBookId: adjustment.financeBookId,
+				adjustmentDate: adjustment.adjustmentDate,
+				submittedAt: adjustment.submittedAt,
+				submittedFinanceBookStateVersion:
+					adjustment.submittedFinanceBookStateVersion,
+			};
+			await this.assertNoLaterAssetValueAdjustmentEffects(
+				tx,
+				organizationId,
+				adjustmentLineage,
+				asset,
+			);
+
+			const previousRootValue = Number(
+				adjustment.previousAssetValueAfterDepreciation ??
+					adjustment.currentAssetValue,
+			);
+			const adjustmentBook = adjustment.financeBookId
+				? { financeBookId: adjustment.financeBookId }
+				: null;
+			const projectsRoot = this.isDefaultProjectionFinanceBook(
+				{
+					calculateDepreciation: asset.calculateDepreciation,
+					defaultFinanceBookId: asset.company.defaultFinanceBookId,
+					financeBooks: asset.financeBooks,
 				},
-			});
-			if (newerSubmittedAdjustments > 0) {
-				throw new BadRequestException(
-					"Only the latest submitted asset value adjustment can be cancelled.",
+				adjustmentBook,
+			);
+			const expectedRootValue = this.roundCurrency(
+				selectedBook && asset.calculateDepreciation && projectsRoot
+					? Number(adjustment.newAssetValue)
+					: projectsRoot
+						? previousRootValue + Number(adjustment.differenceAmount)
+						: previousRootValue,
+			);
+			const expectedState = getAssetValueAdjustmentResultState(
+				adjustment.previousAssetStatus,
+				expectedRootValue,
+			);
+			if (
+				this.roundCurrency(Number(asset.valueAfterDepreciation)) !==
+					expectedRootValue ||
+				asset.status !== expectedState.status ||
+				asset.isFullyDepreciated !== expectedState.isFullyDepreciated
+			) {
+				throw new ConflictException(
+					`Asset ${adjustment.assetId} changed after value adjustment ${adjustment.series}; cancellation would overwrite later state.`,
 				);
 			}
-			if (!adjustment.revaluationEntry) {
-				throw new BadRequestException(
-					"The revaluation entry for this asset value adjustment is missing.",
+			if (
+				selectedBook &&
+				asset.calculateDepreciation &&
+				this.roundCurrency(Number(selectedBook.valueAfterDepreciation)) !==
+					this.roundCurrency(Number(adjustment.newAssetValue))
+			) {
+				throw new ConflictException(
+					`Finance book ${adjustment.financeBookId} changed after value adjustment ${adjustment.series}; cancellation would overwrite later state.`,
 				);
 			}
 
 			if (adjustment.depreciationSchedule) {
 				if (!adjustment.financeBookId) {
-					throw new BadRequestException(
+					throw new ConflictException(
 						"The adjustment's finance book identity is missing.",
 					);
 				}
@@ -3852,8 +4380,11 @@ export class AssetService {
 			const reversedRevaluation = await tx.assetRevaluationEntry.updateMany({
 				where: {
 					id: adjustment.revaluationEntry.id,
-					company: { is: { organizationId } },
-					asset: { is: assetWhereForOrganization(organizationId) },
+					adjustmentId: adjustment.id,
+					assetId: adjustment.assetId,
+					companyId: asset.companyId,
+					financeBookId: adjustment.financeBookId,
+					status: "POSTED",
 				},
 				data: {
 					status: "REVERSED",
@@ -3861,29 +4392,14 @@ export class AssetService {
 				},
 			});
 			if (reversedRevaluation.count !== 1) {
-				throw new NotFoundException(
-					`Asset revaluation entry ${adjustment.revaluationEntry.id} not found`,
+				throw new ConflictException(
+					`Asset revaluation entry ${adjustment.revaluationEntry.id} changed before cancellation.`,
 				);
 			}
 
-			const adjustmentBook = adjustment.financeBookId
-				? { financeBookId: adjustment.financeBookId }
-				: null;
-			if (
-				this.isDefaultProjectionFinanceBook(
-					{
-						calculateDepreciation: asset.calculateDepreciation,
-						defaultFinanceBookId: asset.company.defaultFinanceBookId,
-						financeBooks: asset.financeBooks,
-					},
-					adjustmentBook,
-				)
-			) {
+			if (projectsRoot) {
 				await this.updateOwnedAsset(tx, organizationId, adjustment.assetId, {
-					valueAfterDepreciation: Number(
-						adjustment.previousAssetValueAfterDepreciation ??
-							adjustment.currentAssetValue,
-					).toString(),
+					valueAfterDepreciation: previousRootValue.toString(),
 					status: adjustment.previousAssetStatus,
 					isFullyDepreciated: adjustment.previousIsFullyDepreciated,
 				});
@@ -3900,6 +4416,7 @@ export class AssetService {
 			const cancelled = await tx.assetValueAdjustment.updateMany({
 				where: {
 					id: adjustment.id,
+					status: "SUBMITTED",
 					asset: { is: assetWhereForOrganization(organizationId) },
 				},
 				data: {
@@ -3908,8 +4425,8 @@ export class AssetService {
 				},
 			});
 			if (cancelled.count !== 1) {
-				throw new NotFoundException(
-					`Asset value adjustment ${adjustment.id} not found`,
+				throw new ConflictException(
+					`Asset value adjustment ${adjustment.id} changed before cancellation.`,
 				);
 			}
 			return tx.assetValueAdjustment.findFirstOrThrow({
@@ -9230,7 +9747,10 @@ export class AssetService {
 			const book = existingTargetBook
 				? await tx.assetFinanceBook.update({
 						where: { id: existingTargetBook.id },
-						data: targetFinanceBookData,
+						data: {
+							...targetFinanceBookData,
+							stateVersion: { increment: 1 },
+						},
 					})
 				: await tx.assetFinanceBook.create({
 						data: {
@@ -9732,6 +10252,7 @@ export class AssetService {
 					where: { id: targetBook.id },
 					data: {
 						valueAfterDepreciation: cap.targetPreviousFinanceBookValue ?? 0,
+						stateVersion: { increment: 1 },
 					},
 				});
 			}

@@ -591,6 +591,7 @@ export class DepreciationPersistenceService {
 				data: {
 					valueAfterDepreciation: entry.bookValueAfterDepreciation,
 					totalNumberOfBookedDepreciations: totalBookedDepreciations,
+					stateVersion: { increment: 1 },
 					postingStatus: fullyDepreciated
 						? "FULLY_DEPRECIATED"
 						: "PARTIALLY_DEPRECIATED",

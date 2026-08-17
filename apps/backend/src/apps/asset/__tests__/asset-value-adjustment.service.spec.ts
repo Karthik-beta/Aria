@@ -26,6 +26,21 @@ function createMockPrisma() {
 			update: jest.fn(),
 			create: jest.fn(),
 		},
+		assetDepreciationJournalEntry: {
+			findMany: jest.fn().mockResolvedValue([]),
+		},
+		assetAccountingEntry: {
+			findMany: jest.fn().mockResolvedValue([]),
+		},
+		assetRepair: {
+			findMany: jest.fn().mockResolvedValue([]),
+		},
+		assetCapitalization: {
+			findMany: jest.fn().mockResolvedValue([]),
+		},
+		assetDisposal: {
+			findMany: jest.fn().mockResolvedValue([]),
+		},
 		assetRevaluationEntry: {
 			findFirst: jest.fn(),
 			findUnique: jest.fn(),
@@ -40,7 +55,9 @@ function createMockPrisma() {
 			updateMany: jest.fn(),
 		},
 		assetFinanceBook: {
-			findFirst: jest.fn().mockResolvedValue({ id: "asset-book-001" }),
+			findFirst: jest
+				.fn()
+				.mockResolvedValue({ id: "asset-book-001", stateVersion: 0 }),
 		},
 		assetActivity: {
 			create: jest.fn(),
@@ -50,6 +67,7 @@ function createMockPrisma() {
 			findFirst: jest.fn(),
 			findFirstOrThrow: jest.fn(),
 			findUnique: jest.fn(),
+			findMany: jest.fn().mockResolvedValue([]),
 			update: jest.fn(),
 			updateMany: jest.fn(),
 			count: jest.fn(),
@@ -178,6 +196,7 @@ function createTestContext() {
 				carryingValue: 90000,
 				totalNumberOfDepreciations: 10,
 				remainingDepreciations: 8,
+				stateVersion: 1,
 			},
 		]),
 		restoreRevision: jest.fn().mockResolvedValue(undefined),
@@ -247,6 +266,7 @@ const baseAssetContext = {
 			totalNumberOfBookedDepreciations: 2,
 			lastPostedDepreciationDate: new Date("2026-03-31"),
 			postingStatus: "PARTIALLY_DEPRECIATED",
+			stateVersion: 0,
 		},
 	],
 };
@@ -272,6 +292,8 @@ function createAdjustmentRow(overrides?: Record<string, unknown>) {
 		previousAssetStatus: "SUBMITTED",
 		previousIsFullyDepreciated: false,
 		previousAssetValueAfterDepreciation: new Prisma.Decimal("80000"),
+		previousFinanceBookStateVersion: 0,
+		submittedFinanceBookStateVersion: null,
 		submittedAt: null,
 		cancelledAt: null,
 		createdAt: new Date("2026-04-15T10:00:00Z"),
@@ -288,6 +310,140 @@ function createAdjustmentRow(overrides?: Record<string, unknown>) {
 		depreciationSchedule: null,
 		...overrides,
 	};
+}
+
+type CancellationTestContext = ReturnType<typeof createTestContext>;
+
+function configureLaterLineageFixture(
+	context: CancellationTestContext,
+	kind:
+		| "adjustment"
+		| "depreciation"
+		| "accounting"
+		| "repair"
+		| "capitalization"
+		| "disposal",
+): void {
+	const { mockPrisma, mockTx } = context;
+	mockPrisma.assetValueAdjustment.findUnique.mockResolvedValue({
+		id: "adj-001",
+		assetId: "asset-001",
+		status: "SUBMITTED",
+	});
+	mockTx.assetValueAdjustment.findUnique.mockResolvedValue({
+		id: "adj-001",
+		series: "AVA-2026-00001",
+		assetId: "asset-001",
+		financeBookId: "finance-book-001",
+		adjustmentDate: new Date("2026-04-15"),
+		currentAssetValue: new Prisma.Decimal("80000"),
+		newAssetValue: new Prisma.Decimal("90000"),
+		differenceAmount: new Prisma.Decimal("10000"),
+		status: "SUBMITTED",
+		previousAssetStatus: "SUBMITTED",
+		previousIsFullyDepreciated: false,
+		previousAssetValueAfterDepreciation: new Prisma.Decimal("80000"),
+		previousFinanceBookStateVersion: 0,
+		submittedFinanceBookStateVersion: 1,
+		submittedAt: new Date("2026-04-15T12:00:00Z"),
+		revaluationEntry: {
+			id: "entry-001",
+			adjustmentId: "adj-001",
+			assetId: "asset-001",
+			companyId: COMPANY_ID,
+			financeBookId: "finance-book-001",
+			postingDate: new Date("2026-04-15"),
+			status: "POSTED",
+		},
+		depreciationSchedule: {
+			id: "sched-002",
+			assetId: "asset-001",
+			assetFinanceBookId: "asset-book-001",
+			previousScheduleId: "sched-prev",
+			status: "ACTIVE",
+		},
+	});
+	mockTx.asset.findUnique.mockResolvedValue({
+		id: "asset-001",
+		status: "PARTIALLY_DEPRECIATED",
+		valueAfterDepreciation: new Prisma.Decimal("90000"),
+		isFullyDepreciated: false,
+		companyId: COMPANY_ID,
+		calculateDepreciation: true,
+		company: {
+			...COMPANY_RELATION,
+			defaultFinanceBookId: "finance-book-001",
+		},
+		financeBooks: [
+			{
+				id: "asset-book-001",
+				financeBookId: "finance-book-001",
+				stateVersion: 1,
+				valueAfterDepreciation: new Prisma.Decimal("90000"),
+			},
+		],
+	});
+	const laterDate = new Date("2026-04-16T12:00:00Z");
+	switch (kind) {
+		case "adjustment":
+			mockTx.assetValueAdjustment.findMany.mockResolvedValue([
+				{
+					id: "adj-later",
+					adjustmentDate: new Date("2026-04-16"),
+					submittedAt: laterDate,
+				},
+			]);
+			break;
+		case "depreciation":
+			mockTx.assetDepreciationJournalEntry.findMany.mockResolvedValue([
+				{
+					id: "dep-later",
+					postingDate: new Date("2026-04-16"),
+					createdAt: laterDate,
+				},
+			]);
+			break;
+		case "accounting":
+			mockTx.assetAccountingEntry.findMany.mockResolvedValue([
+				{
+					id: "accounting-later",
+					postingDate: new Date("2026-04-16"),
+					createdAt: laterDate,
+				},
+			]);
+			break;
+		case "repair":
+			mockTx.assetRepair.findMany.mockResolvedValue([
+				{
+					id: "repair-later",
+					completionDate: new Date("2026-04-16"),
+					submittedAt: laterDate,
+					createdAt: laterDate,
+				},
+			]);
+			break;
+		case "capitalization":
+			mockTx.assetCapitalization.findMany.mockResolvedValue([
+				{
+					id: "capitalization-later",
+					financeBookId: "finance-book-001",
+					postingDate: new Date("2026-04-16"),
+					submittedAt: laterDate,
+					createdAt: laterDate,
+					assetItems: [],
+				},
+			]);
+			break;
+		case "disposal":
+			mockTx.assetDisposal.findMany.mockResolvedValue([
+				{
+					id: "disposal-later",
+					disposalDate: new Date("2026-04-16"),
+					createdAt: laterDate,
+				},
+			]);
+			break;
+	}
 }
 
 describe("AssetService > AssetValueAdjustment", () => {
@@ -632,16 +788,39 @@ describe("AssetService > AssetValueAdjustment", () => {
 			series: "AVA-2026-00001",
 			assetId: "asset-001",
 			financeBookId: "finance-book-001",
+			adjustmentDate: new Date("2026-04-15"),
 			currentAssetValue: new Prisma.Decimal("80000"),
+			newAssetValue: new Prisma.Decimal("90000"),
+			differenceAmount: new Prisma.Decimal("10000"),
 			status: "SUBMITTED",
 			previousAssetStatus: "SUBMITTED",
 			previousIsFullyDepreciated: false,
 			previousAssetValueAfterDepreciation: new Prisma.Decimal("80000"),
+			previousFinanceBookStateVersion: 0,
+			submittedFinanceBookStateVersion: 1,
 			submittedAt: new Date("2026-04-15T12:00:00Z"),
-			revaluationEntry: { id: "entry-001" },
-			depreciationSchedule: { id: "sched-002" },
+			revaluationEntry: {
+				id: "entry-001",
+				adjustmentId: "adj-001",
+				assetId: "asset-001",
+				companyId: COMPANY_ID,
+				financeBookId: "finance-book-001",
+				postingDate: new Date("2026-04-15"),
+				status: "POSTED",
+			},
+			depreciationSchedule: {
+				id: "sched-002",
+				assetId: "asset-001",
+				assetFinanceBookId: "asset-book-001",
+				previousScheduleId: "sched-prev",
+				status: "ACTIVE",
+			},
 		});
 		mockTx.asset.findUnique.mockResolvedValue({
+			id: "asset-001",
+			status: "PARTIALLY_DEPRECIATED",
+			valueAfterDepreciation: new Prisma.Decimal("90000"),
+			isFullyDepreciated: false,
 			companyId: COMPANY_ID,
 			calculateDepreciation: true,
 			company: {
@@ -649,7 +828,12 @@ describe("AssetService > AssetValueAdjustment", () => {
 				defaultFinanceBookId: "finance-book-001",
 			},
 			financeBooks: [
-				{ id: "asset-book-001", financeBookId: "finance-book-001" },
+				{
+					id: "asset-book-001",
+					financeBookId: "finance-book-001",
+					stateVersion: 1,
+					valueAfterDepreciation: new Prisma.Decimal("90000"),
+				},
 			],
 		});
 		mockTx.assetValueAdjustment.count.mockResolvedValue(0);
@@ -723,6 +907,71 @@ describe("AssetService > AssetValueAdjustment", () => {
 			}),
 		});
 		expect(result.status).toBe("CANCELLED");
+	});
+
+	it("rejects every later compatible lineage event before performing any reversal write", async () => {
+		const kinds: Array<
+			| "adjustment"
+			| "depreciation"
+			| "accounting"
+			| "repair"
+			| "capitalization"
+			| "disposal"
+		> = [
+			"adjustment",
+			"depreciation",
+			"accounting",
+			"repair",
+			"capitalization",
+			"disposal",
+		];
+
+		for (const kind of kinds) {
+			const context = createTestContext();
+			configureLaterLineageFixture(context, kind);
+			await expect(
+				context.service.cancelAssetValueAdjustment({ id: "adj-001" }, "org-1"),
+			).rejects.toBeInstanceOf(ConflictException);
+			expect(
+				context.mockDepreciationRevision.restoreRevision,
+			).not.toHaveBeenCalled();
+			expect(
+				context.mockTx.assetRevaluationEntry.updateMany,
+			).not.toHaveBeenCalled();
+			expect(context.mockTx.asset.update).not.toHaveBeenCalled();
+			expect(context.mockTx.assetActivity.create).not.toHaveBeenCalled();
+			expect(
+				context.mockTx.assetValueAdjustment.updateMany,
+			).not.toHaveBeenCalled();
+		}
+	});
+
+	it("fails closed for a compatible submitted adjustment with missing chronology", async () => {
+		const context = createTestContext();
+		configureLaterLineageFixture(context, "adjustment");
+		context.mockTx.assetValueAdjustment.findMany.mockResolvedValue([
+			{
+				id: "adj-ambiguous",
+				financeBookId: "finance-book-001",
+				adjustmentDate: new Date("2026-04-16"),
+				submittedAt: null,
+			},
+		]);
+
+		await expect(
+			context.service.cancelAssetValueAdjustment({ id: "adj-001" }, "org-1"),
+		).rejects.toBeInstanceOf(ConflictException);
+		expect(
+			context.mockDepreciationRevision.restoreRevision,
+		).not.toHaveBeenCalled();
+		expect(
+			context.mockTx.assetRevaluationEntry.updateMany,
+		).not.toHaveBeenCalled();
+		expect(context.mockTx.asset.update).not.toHaveBeenCalled();
+		expect(context.mockTx.assetActivity.create).not.toHaveBeenCalled();
+		expect(
+			context.mockTx.assetValueAdjustment.updateMany,
+		).not.toHaveBeenCalled();
 	});
 
 	it("rejects submission when the draft snapshot is stale", async () => {
