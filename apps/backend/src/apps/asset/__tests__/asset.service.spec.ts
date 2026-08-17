@@ -20,6 +20,9 @@ function createMockPrisma() {
 		assetCategory: {
 			findUnique: jest.fn(),
 		},
+		assetFinanceBook: {
+			findMany: jest.fn(),
+		},
 		assetActivity: {
 			create: jest.fn(),
 			findMany: jest.fn(),
@@ -34,6 +37,7 @@ function createMockPrisma() {
 		client: {
 			$queryRaw: jest.fn(),
 		},
+		$queryRaw: jest.fn(),
 		$transaction: jest.fn(),
 	};
 }
@@ -41,6 +45,8 @@ function createMockPrisma() {
 function createTestContext() {
 	const mockPrisma = createMockPrisma();
 	mockPrisma.client.$queryRaw.mockResolvedValue([{ value: 1 }]);
+	mockPrisma.$queryRaw.mockResolvedValue([{ locked: true }]);
+	mockPrisma.assetFinanceBook.findMany.mockResolvedValue([]);
 	mockPrisma.$transaction.mockImplementation(
 		(callback: (tx: typeof mockPrisma) => unknown) => callback(mockPrisma),
 	);
@@ -237,7 +243,7 @@ describe("AssetService > Barcode support", () => {
 					where: {
 						AND: [
 							{ company: { is: { organizationId: "org-1" } } },
-							{ id: "asset-123" },
+							{ id: "asset-123", status: "DRAFT" },
 						],
 					},
 					data: expect.objectContaining({

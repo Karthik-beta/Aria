@@ -1302,12 +1302,15 @@ export class AssetService {
 		);
 	}
 
-	private async getAssetCategoryDefaults(assetCategoryId?: string | null) {
+	private async getAssetCategoryDefaults(
+		assetCategoryId?: string | null,
+		client: PrismaService | Prisma.TransactionClient = this.prisma,
+	) {
 		if (!assetCategoryId) {
 			return null;
 		}
 
-		return this.prisma.assetCategory.findUnique({
+		return client.assetCategory.findUnique({
 			where: { id: assetCategoryId },
 			select: {
 				id: true,
@@ -2129,215 +2132,231 @@ export class AssetService {
 		actorId?: string | null,
 	): Promise<Asset.AssetItem> {
 		this.assertOrganizationScope(organizationId);
-		const existing = await this.prisma.asset.findFirst({
-			where: assetWhereForOrganization(organizationId, { id: input.id }),
-			select: {
-				id: true,
-				companyId: true,
-				status: true,
-				assetType: true,
-				assetCategoryId: true,
-				purchaseDate: true,
-				availableForUseDate: true,
-				disposalDate: true,
-				insuranceStartDate: true,
-				insuranceEndDate: true,
-				depreciationStartDate: true,
-				netPurchaseAmount: true,
-				openingAccumulatedDepreciation: true,
-				calculateDepreciation: true,
-				depreciationMethod: true,
-				totalNumberOfDepreciations: true,
-				frequencyOfDepreciation: true,
-				valueAfterDepreciation: true,
-				isFullyDepreciated: true,
-				openingNumberOfBookedDepreciations: true,
-			},
-		});
-		if (!existing) throw new NotFoundException(`Asset ${input.id} not found`);
-		const currentCompany = await this.prisma.company.findFirst({
-			where: { id: existing.companyId, organizationId },
-			select: { id: true, name: true },
-		});
-		if (!currentCompany) {
-			throw new NotFoundException(
-				`Asset ${input.id} is not available in the active organization`,
-			);
-		}
-		const nextCompany =
-			input.companyId !== undefined
-				? await this.resolveCompanyForOrganization(
-						organizationId,
-						input.companyId,
-					)
-				: currentCompany;
-		if (nextCompany.id !== currentCompany.id) {
-			throw new BadRequestException(
-				"Asset Company reassignment is not supported by ordinary Asset updates; use an explicit transfer workflow",
-			);
-		}
-
-		if (input.barcode && input.barcode.trim().length > 0) {
-			const existingWithBarcode = await this.prisma.asset.findFirst({
-				where: assetWhereForOrganization(organizationId, {
-					barcode: input.barcode.trim(),
-				}),
-				select: { id: true, assetName: true },
+		const asset = await this.prisma.$transaction(async (tx) => {
+			await this.lockAssets(tx, [input.id]);
+			const configuredBooks = await tx.assetFinanceBook.findMany({
+				where: { assetId: input.id },
+				select: { id: true },
 			});
-			if (existingWithBarcode && existingWithBarcode.id !== input.id) {
-				throw new ConflictException(
-					`Barcode "${input.barcode}" is already registered to asset "${existingWithBarcode.assetName}"`,
+			await lockAssetAndFinanceBooks(
+				tx,
+				[input.id],
+				configuredBooks.map((book) => book.id),
+			);
+
+			const existing = await tx.asset.findFirst({
+				where: assetWhereForOrganization(organizationId, { id: input.id }),
+				select: {
+					id: true,
+					companyId: true,
+					status: true,
+					assetType: true,
+					assetCategoryId: true,
+					purchaseDate: true,
+					availableForUseDate: true,
+					disposalDate: true,
+					insuranceStartDate: true,
+					insuranceEndDate: true,
+					depreciationStartDate: true,
+					netPurchaseAmount: true,
+					openingAccumulatedDepreciation: true,
+					calculateDepreciation: true,
+					depreciationMethod: true,
+					totalNumberOfDepreciations: true,
+					frequencyOfDepreciation: true,
+					valueAfterDepreciation: true,
+					isFullyDepreciated: true,
+					openingNumberOfBookedDepreciations: true,
+				},
+			});
+			if (!existing) throw new NotFoundException(`Asset ${input.id} not found`);
+			const currentCompany = await tx.company.findFirst({
+				where: { id: existing.companyId, organizationId },
+				select: { id: true, name: true },
+			});
+			if (!currentCompany) {
+				throw new NotFoundException(
+					`Asset ${input.id} is not available in the active organization`,
 				);
 			}
-		}
+			const nextCompany =
+				input.companyId !== undefined
+					? await this.resolveCompanyForOrganization(
+							organizationId,
+							input.companyId,
+							tx,
+						)
+					: currentCompany;
+			if (nextCompany.id !== currentCompany.id) {
+				throw new BadRequestException(
+					"Asset Company reassignment is not supported by ordinary Asset updates; use an explicit transfer workflow",
+				);
+			}
 
-		if (existing.status === "CANCELLED") {
-			throw new BadRequestException("Cannot update a cancelled asset");
-		}
+			if (input.barcode && input.barcode.trim().length > 0) {
+				const existingWithBarcode = await tx.asset.findFirst({
+					where: assetWhereForOrganization(organizationId, {
+						barcode: input.barcode.trim(),
+					}),
+					select: { id: true, assetName: true },
+				});
+				if (existingWithBarcode && existingWithBarcode.id !== input.id) {
+					throw new ConflictException(
+						`Barcode "${input.barcode}" is already registered to asset "${existingWithBarcode.assetName}"`,
+					);
+				}
+			}
 
-		const depreciationCriticalEdit = [
-			input.assetType,
-			input.assetCategoryId,
-			input.companyId,
-			input.purchaseDate,
-			input.availableForUseDate,
-			input.netPurchaseAmount,
-			input.calculateDepreciation,
-			input.openingAccumulatedDepreciation,
-			input.openingNumberOfBookedDepreciations,
-			input.depreciationMethod,
-			input.totalNumberOfDepreciations,
-			input.frequencyOfDepreciation,
-			input.expectedValueAfterUsefulLife,
-			input.depreciationStartDate,
-			input.financeBooks,
-		].some((value) => value !== undefined);
-		if (existing.status !== "DRAFT" && depreciationCriticalEdit) {
-			throw new BadRequestException(
-				"Depreciation-critical fields cannot be edited after submission; use a supported rescheduling or value-adjustment workflow",
+			if (existing.status === "CANCELLED") {
+				throw new BadRequestException("Cannot update a cancelled asset");
+			}
+
+			const depreciationCriticalEdit = [
+				input.assetType,
+				input.assetCategoryId,
+				input.companyId,
+				input.purchaseDate,
+				input.availableForUseDate,
+				input.netPurchaseAmount,
+				input.calculateDepreciation,
+				input.openingAccumulatedDepreciation,
+				input.openingNumberOfBookedDepreciations,
+				input.depreciationMethod,
+				input.totalNumberOfDepreciations,
+				input.frequencyOfDepreciation,
+				input.expectedValueAfterUsefulLife,
+				input.depreciationStartDate,
+				input.financeBooks,
+			].some((value) => value !== undefined);
+			if (existing.status !== "DRAFT" && depreciationCriticalEdit) {
+				throw new BadRequestException(
+					"Depreciation-critical fields cannot be edited after submission; use a supported rescheduling or value-adjustment workflow",
+				);
+			}
+			if (input.status !== undefined) {
+				throw new BadRequestException(
+					"Use the explicit submit or cancel asset action to change lifecycle status",
+				);
+			}
+
+			const categoryDefaults = await this.getAssetCategoryDefaults(
+				input.assetCategoryId !== undefined
+					? input.assetCategoryId
+					: existing.assetCategoryId,
+				tx,
 			);
-		}
-		if (input.status !== undefined) {
-			throw new BadRequestException(
-				"Use the explicit submit or cancel asset action to change lifecycle status",
+
+			if (input.assetCategoryId && !categoryDefaults) {
+				throw new NotFoundException(
+					`Asset category ${input.assetCategoryId} not found`,
+				);
+			}
+
+			const nextNetPurchaseAmount =
+				input.netPurchaseAmount ?? Number(existing.netPurchaseAmount);
+			const nextOpeningAccumulatedDepreciation =
+				input.openingAccumulatedDepreciation ??
+				Number(existing.openingAccumulatedDepreciation);
+			const shouldRecalculateValueAfterDepreciation =
+				input.valueAfterDepreciation === undefined &&
+				(input.netPurchaseAmount !== undefined ||
+					input.openingAccumulatedDepreciation !== undefined);
+			const derivedValueAfterDepreciation = this.getOpeningAssetValue(
+				nextNetPurchaseAmount,
+				nextOpeningAccumulatedDepreciation,
 			);
-		}
+			const nextValueAfterDepreciation =
+				input.valueAfterDepreciation ??
+				(shouldRecalculateValueAfterDepreciation
+					? derivedValueAfterDepreciation
+					: Number(existing.valueAfterDepreciation));
+			const shouldInheritDepreciationSettings =
+				input.assetCategoryId !== undefined &&
+				input.depreciationMethod === undefined;
+			const shouldInheritTotalDepreciations =
+				input.assetCategoryId !== undefined &&
+				input.totalNumberOfDepreciations === undefined;
+			const shouldInheritFrequency =
+				input.assetCategoryId !== undefined &&
+				input.frequencyOfDepreciation === undefined;
+			const shouldInheritExpectedValueAfterUsefulLife =
+				input.assetCategoryId !== undefined &&
+				input.expectedValueAfterUsefulLife === undefined;
+			const shouldInheritDepreciationStartDate =
+				input.assetCategoryId !== undefined &&
+				input.depreciationStartDate === undefined;
+			const calculateDepreciation =
+				input.calculateDepreciation ??
+				(input.assetCategoryId !== undefined && categoryDefaults
+					? !categoryDefaults.nonDepreciableCategory
+					: existing.calculateDepreciation);
+			const nextPurchaseDate =
+				input.purchaseDate !== undefined && input.purchaseDate !== null
+					? (this.normalizeAssetDateOnly(input.purchaseDate, "Purchase date") ??
+						existing.purchaseDate)
+					: existing.purchaseDate;
+			const nextAvailableForUseDate =
+				input.availableForUseDate !== undefined
+					? this.normalizeAssetDateOnly(
+							input.availableForUseDate,
+							"Available for use date",
+						)
+					: existing.availableForUseDate;
+			const nextDepreciationStartDate =
+				input.depreciationStartDate !== undefined
+					? this.normalizeAssetDateOnly(
+							input.depreciationStartDate,
+							"Depreciation start date",
+						)
+					: shouldInheritDepreciationStartDate
+						? nextAvailableForUseDate
+							? this.getLastDayOfMonth(nextAvailableForUseDate)
+							: null
+						: existing.depreciationStartDate;
+			const nextDisposalDate =
+				input.disposalDate !== undefined
+					? this.normalizeAssetDateOnly(input.disposalDate, "Disposal date")
+					: undefined;
+			const nextInsuranceStartDate =
+				input.insuranceStartDate !== undefined
+					? this.normalizeAssetDateOnly(
+							input.insuranceStartDate,
+							"Insurance start date",
+						)
+					: undefined;
+			const nextInsuranceEndDate =
+				input.insuranceEndDate !== undefined
+					? this.normalizeAssetDateOnly(
+							input.insuranceEndDate,
+							"Insurance end date",
+						)
+					: undefined;
+			const nextExpectedValueAfterUsefulLife =
+				input.expectedValueAfterUsefulLife ??
+				(shouldInheritExpectedValueAfterUsefulLife &&
+				categoryDefaults?.expectedValueAfterUsefulLife != null
+					? Number(categoryDefaults.expectedValueAfterUsefulLife)
+					: null);
 
-		const categoryDefaults = await this.getAssetCategoryDefaults(
-			input.assetCategoryId !== undefined
-				? input.assetCategoryId
-				: existing.assetCategoryId,
-		);
-
-		if (input.assetCategoryId && !categoryDefaults) {
-			throw new NotFoundException(
-				`Asset category ${input.assetCategoryId} not found`,
+			this.validateDepreciationFields(
+				nextNetPurchaseAmount,
+				nextExpectedValueAfterUsefulLife,
+				nextDepreciationStartDate,
+				nextPurchaseDate,
+				nextAvailableForUseDate,
+				input.totalNumberOfDepreciations ?? existing.totalNumberOfDepreciations,
+				input.frequencyOfDepreciation ?? existing.frequencyOfDepreciation,
+				nextOpeningAccumulatedDepreciation,
+				input.openingNumberOfBookedDepreciations ??
+					existing.openingNumberOfBookedDepreciations,
+				calculateDepreciation,
 			);
-		}
 
-		const nextNetPurchaseAmount =
-			input.netPurchaseAmount ?? Number(existing.netPurchaseAmount);
-		const nextOpeningAccumulatedDepreciation =
-			input.openingAccumulatedDepreciation ??
-			Number(existing.openingAccumulatedDepreciation);
-		const shouldRecalculateValueAfterDepreciation =
-			input.valueAfterDepreciation === undefined &&
-			(input.netPurchaseAmount !== undefined ||
-				input.openingAccumulatedDepreciation !== undefined);
-		const derivedValueAfterDepreciation = this.getOpeningAssetValue(
-			nextNetPurchaseAmount,
-			nextOpeningAccumulatedDepreciation,
-		);
-		const nextValueAfterDepreciation =
-			input.valueAfterDepreciation ??
-			(shouldRecalculateValueAfterDepreciation
-				? derivedValueAfterDepreciation
-				: Number(existing.valueAfterDepreciation));
-		const shouldInheritDepreciationSettings =
-			input.assetCategoryId !== undefined &&
-			input.depreciationMethod === undefined;
-		const shouldInheritTotalDepreciations =
-			input.assetCategoryId !== undefined &&
-			input.totalNumberOfDepreciations === undefined;
-		const shouldInheritFrequency =
-			input.assetCategoryId !== undefined &&
-			input.frequencyOfDepreciation === undefined;
-		const shouldInheritExpectedValueAfterUsefulLife =
-			input.assetCategoryId !== undefined &&
-			input.expectedValueAfterUsefulLife === undefined;
-		const shouldInheritDepreciationStartDate =
-			input.assetCategoryId !== undefined &&
-			input.depreciationStartDate === undefined;
-		const calculateDepreciation =
-			input.calculateDepreciation ??
-			(input.assetCategoryId !== undefined && categoryDefaults
-				? !categoryDefaults.nonDepreciableCategory
-				: existing.calculateDepreciation);
-		const nextPurchaseDate =
-			input.purchaseDate !== undefined && input.purchaseDate !== null
-				? (this.normalizeAssetDateOnly(input.purchaseDate, "Purchase date") ??
-					existing.purchaseDate)
-				: existing.purchaseDate;
-		const nextAvailableForUseDate =
-			input.availableForUseDate !== undefined
-				? this.normalizeAssetDateOnly(
-						input.availableForUseDate,
-						"Available for use date",
-					)
-				: existing.availableForUseDate;
-		const nextDepreciationStartDate =
-			input.depreciationStartDate !== undefined
-				? this.normalizeAssetDateOnly(
-						input.depreciationStartDate,
-						"Depreciation start date",
-					)
-				: shouldInheritDepreciationStartDate
-					? nextAvailableForUseDate
-						? this.getLastDayOfMonth(nextAvailableForUseDate)
-						: null
-					: existing.depreciationStartDate;
-		const nextDisposalDate =
-			input.disposalDate !== undefined
-				? this.normalizeAssetDateOnly(input.disposalDate, "Disposal date")
-				: undefined;
-		const nextInsuranceStartDate =
-			input.insuranceStartDate !== undefined
-				? this.normalizeAssetDateOnly(
-						input.insuranceStartDate,
-						"Insurance start date",
-					)
-				: undefined;
-		const nextInsuranceEndDate =
-			input.insuranceEndDate !== undefined
-				? this.normalizeAssetDateOnly(
-						input.insuranceEndDate,
-						"Insurance end date",
-					)
-				: undefined;
-		const nextExpectedValueAfterUsefulLife =
-			input.expectedValueAfterUsefulLife ??
-			(shouldInheritExpectedValueAfterUsefulLife &&
-			categoryDefaults?.expectedValueAfterUsefulLife != null
-				? Number(categoryDefaults.expectedValueAfterUsefulLife)
-				: null);
-
-		this.validateDepreciationFields(
-			nextNetPurchaseAmount,
-			nextExpectedValueAfterUsefulLife,
-			nextDepreciationStartDate,
-			nextPurchaseDate,
-			nextAvailableForUseDate,
-			input.totalNumberOfDepreciations ?? existing.totalNumberOfDepreciations,
-			input.frequencyOfDepreciation ?? existing.frequencyOfDepreciation,
-			nextOpeningAccumulatedDepreciation,
-			input.openingNumberOfBookedDepreciations ??
-				existing.openingNumberOfBookedDepreciations,
-			calculateDepreciation,
-		);
-
-		const asset = await this.prisma.$transaction(async (tx) => {
 			const transitioned = await tx.asset.updateMany({
-				where: assetWhereForOrganization(organizationId, { id: input.id }),
+				where: assetWhereForOrganization(organizationId, {
+					id: input.id,
+					status: existing.status,
+				}),
 				data: {
 					...(input.assetName !== undefined && { assetName: input.assetName }),
 					...(input.assetType !== undefined && { assetType: input.assetType }),
@@ -2483,9 +2502,11 @@ export class AssetService {
 				},
 			});
 			if (transitioned.count !== 1) {
-				throw new NotFoundException(`Asset ${input.id} not found`);
+				throw new ConflictException(
+					`Asset ${input.id} changed before its update could be applied`,
+				);
 			}
-			const updated = await tx.asset.findFirstOrThrow({
+			let updated = await tx.asset.findFirstOrThrow({
 				where: assetWhereForOrganization(organizationId, { id: input.id }),
 				include: this.assetInclude,
 			});
@@ -2496,22 +2517,20 @@ export class AssetService {
 					userId: actorId ?? null,
 				},
 			});
+			if (existing.status === "DRAFT" && input.financeBooks !== undefined) {
+				await this.depreciationLifecycle?.configureAssetBooksWithTransaction(
+					tx,
+					input.id,
+					input.financeBooks,
+					organizationId,
+				);
+				updated = await tx.asset.findFirstOrThrow({
+					where: assetWhereForOrganization(organizationId, { id: input.id }),
+					include: this.assetInclude,
+				});
+			}
 			return updated;
 		});
-
-		if (existing.status === "DRAFT" && input.financeBooks !== undefined) {
-			await this.depreciationLifecycle?.configureAssetBooks(
-				input.id,
-				input.financeBooks,
-				organizationId,
-			);
-			const refreshed = await this.prisma.asset.findFirstOrThrow({
-				where: assetWhereForOrganization(organizationId, { id: input.id }),
-				include: this.assetInclude,
-			});
-			return toAsset(refreshed);
-		}
-
 		return toAsset(asset);
 	}
 
@@ -2524,14 +2543,6 @@ export class AssetService {
 		this.assertOrganizationScope(organizationId);
 		if (!this.depreciationLifecycle) {
 			throw new Error("Depreciation lifecycle service is unavailable");
-		}
-		if (
-			!(await this.prisma.asset.findFirst({
-				where: assetWhereForOrganization(organizationId, { id }),
-				select: { id: true },
-			}))
-		) {
-			throw new NotFoundException(`Asset ${id} not found`);
 		}
 		await this.depreciationLifecycle.submitAsset(id, organizationId, actorId);
 		const asset = await this.prisma.asset.findFirstOrThrow({
@@ -2550,14 +2561,6 @@ export class AssetService {
 		this.assertOrganizationScope(organizationId);
 		if (!this.depreciationLifecycle) {
 			throw new Error("Depreciation lifecycle service is unavailable");
-		}
-		if (
-			!(await this.prisma.asset.findFirst({
-				where: assetWhereForOrganization(organizationId, { id }),
-				select: { id: true },
-			}))
-		) {
-			throw new NotFoundException(`Asset ${id} not found`);
 		}
 		await this.depreciationLifecycle.cancelAsset(id, organizationId, actorId);
 		const asset = await this.prisma.asset.findFirstOrThrow({

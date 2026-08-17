@@ -2,18 +2,107 @@ import { describe, expect, it, mock } from "bun:test";
 import type { PrismaService } from "../../../shared/prisma.service";
 import { AssetDepreciationLifecycleService } from "./asset-depreciation-lifecycle.service";
 
+function createLifecycleContext(options?: {
+	asset?: Record<string, unknown>;
+	activeCapitalization?: boolean;
+	counts?: Partial<Record<string, number>>;
+}) {
+	let currentAsset: Record<string, unknown> = {
+		id: "asset-1",
+		series: "AST-2026-00001",
+		status: "DRAFT",
+		assetType: "EXISTING_ASSET",
+		calculateDepreciation: false,
+		purchaseDate: new Date("2026-01-01T00:00:00.000Z"),
+		availableForUseDate: new Date("2026-01-02T00:00:00.000Z"),
+		company: { defaultFinanceBookId: null },
+		assetCategory: { financeBookDefaults: [] },
+		financeBooks: [],
+		depreciationSchedules: [],
+		...options?.asset,
+	};
+	const activities: Array<Record<string, unknown>> = [];
+	const count = (name: string) =>
+		mock(async () => options?.counts?.[name] ?? 0);
+	const transaction = {
+		$queryRaw: mock(async () => [{ locked: true }]),
+		asset: {
+			findFirst: mock(async () => currentAsset),
+			updateMany: mock(async ({ data }: { data: Record<string, unknown> }) => {
+				currentAsset = { ...currentAsset, ...data };
+				return { count: 1 };
+			}),
+		},
+		assetDepreciationSchedule: {
+			updateMany: mock(async () => undefined),
+			deleteMany: mock(async () => undefined),
+		},
+		assetDepreciationJournalEntry: { count: count("depreciation") },
+		assetFinanceBook: {
+			findMany: mock(async () => []),
+			findFirst: mock(async () => null),
+			deleteMany: mock(async () => undefined),
+		},
+		assetRepair: { count: count("repair") },
+		assetMaintenanceTask: { count: count("maintenance") },
+		assetMovement: { count: count("movement") },
+		assetCapitalization: {
+			count: count("capitalization"),
+			findFirst: mock(async () =>
+				options?.activeCapitalization ? { id: "capitalization-1" } : null,
+			),
+		},
+		assetDisposal: { count: count("disposal") },
+		assetValueAdjustment: { count: count("adjustment") },
+		assetRevaluationEntry: { count: count("revaluation") },
+		assetAccountingEntry: { count: count("accounting") },
+		assetActivity: {
+			create: mock(async ({ data }: { data: Record<string, unknown> }) => {
+				activities.push(data);
+			}),
+		},
+	};
+	const prisma = {
+		$transaction: mock(
+			async (callback: (tx: typeof transaction) => Promise<void>) =>
+				callback(transaction),
+		),
+	};
+	return {
+		service: new AssetDepreciationLifecycleService(
+			prisma as unknown as PrismaService,
+		),
+		transaction,
+		activities,
+	};
+}
+
 describe("AssetDepreciationLifecycleService", () => {
-	it("attributes submit and cancel activity to the authenticated actor", async () => {
+	it("runs submit/cancel atomically and makes successful retries no-ops", async () => {
 		const activities: Array<Record<string, unknown>> = [];
+		let status: "DRAFT" | "SUBMITTED" | "CANCELLED" = "DRAFT";
 		const transaction = {
 			$queryRaw: mock(async () => [{ locked: true }]),
 			asset: {
 				findFirst: mock(async () => ({
-					status: "DRAFT",
+					id: "asset-1",
+					series: "AST-2026-00001",
+					status,
+					assetType: "EXISTING_ASSET",
 					calculateDepreciation: false,
-					_count: { financeBooks: 0 },
+					purchaseDate: new Date("2026-01-01T00:00:00.000Z"),
+					availableForUseDate: new Date("2026-01-02T00:00:00.000Z"),
+					company: { defaultFinanceBookId: null },
+					assetCategory: { financeBookDefaults: [] },
+					financeBooks: [],
+					depreciationSchedules: [],
 				})),
-				updateMany: mock(async () => ({ count: 1 })),
+				updateMany: mock(
+					async ({ data }: { data: { status: typeof status } }) => {
+						status = data.status;
+						return { count: 1 };
+					},
+				),
 			},
 			assetDepreciationSchedule: {
 				updateMany: mock(async () => undefined),
@@ -24,6 +113,17 @@ describe("AssetDepreciationLifecycleService", () => {
 			assetFinanceBook: {
 				findMany: mock(async () => []),
 			},
+			assetRepair: { count: mock(async () => 0) },
+			assetMaintenanceTask: { count: mock(async () => 0) },
+			assetMovement: { count: mock(async () => 0) },
+			assetCapitalization: {
+				count: mock(async () => 0),
+				findFirst: mock(async () => null),
+			},
+			assetDisposal: { count: mock(async () => 0) },
+			assetValueAdjustment: { count: mock(async () => 0) },
+			assetRevaluationEntry: { count: mock(async () => 0) },
+			assetAccountingEntry: { count: mock(async () => 0) },
 			assetActivity: {
 				create: mock(async ({ data }: { data: Record<string, unknown> }) => {
 					activities.push(data);
@@ -39,9 +139,10 @@ describe("AssetDepreciationLifecycleService", () => {
 		const service = new AssetDepreciationLifecycleService(
 			prisma as unknown as PrismaService,
 		);
-		service.configureAssetBooks = mock(async () => undefined);
 
 		await service.submitAsset("asset-1", "org-1", "actor-1");
+		await service.submitAsset("asset-1", "org-1", "actor-1");
+		await service.cancelAsset("asset-1", "org-1", "actor-2");
 		await service.cancelAsset("asset-1", "org-1", "actor-2");
 
 		expect(activities).toEqual([
@@ -56,6 +157,66 @@ describe("AssetDepreciationLifecycleService", () => {
 				userId: "actor-2",
 			},
 		]);
+	});
+
+	it("rejects composite submission without an active capitalization", async () => {
+		const { service, transaction } = createLifecycleContext({
+			asset: { assetType: "COMPOSITE_ASSET" },
+		});
+
+		await expect(
+			service.submitAsset("asset-1", "org-1", "actor-1"),
+		).rejects.toThrow("Please capitalize this asset before submitting it");
+		expect(transaction.asset.updateMany).not.toHaveBeenCalled();
+	});
+
+	it("rejects an ordinary submission without an available-for-use date", async () => {
+		const { service, transaction } = createLifecycleContext({
+			asset: { availableForUseDate: null },
+		});
+
+		await expect(
+			service.submitAsset("asset-1", "org-1", "actor-1"),
+		).rejects.toThrow("Available-for-use date is required");
+		expect(transaction.asset.updateMany).not.toHaveBeenCalled();
+	});
+
+	it("rejects a depreciation start date before available-for-use", async () => {
+		const { service, transaction } = createLifecycleContext({
+			asset: {
+				calculateDepreciation: true,
+				netPurchaseAmount: 1_000,
+			},
+		});
+
+		await expect(
+			service.configureAssetBooks(
+				"asset-1",
+				[
+					{
+						financeBookId: "finance-book-1",
+						depreciationMethod: "STRAIGHT_LINE",
+						totalNumberOfDepreciations: 12,
+						frequencyOfDepreciation: 1,
+						depreciationStartDate: "2026-01-01",
+					},
+				],
+				"org-1",
+			),
+		).rejects.toThrow("cannot be before available-for-use date");
+		expect(transaction.assetFinanceBook.deleteMany).not.toHaveBeenCalled();
+	});
+
+	it("blocks cancellation when a linked posted effect remains", async () => {
+		const { service, transaction } = createLifecycleContext({
+			asset: { status: "SUBMITTED" },
+			counts: { depreciation: 1 },
+		});
+
+		await expect(
+			service.cancelAsset("asset-1", "org-1", "actor-1"),
+		).rejects.toThrow("Posted depreciation must be reversed");
+		expect(transaction.asset.updateMany).not.toHaveBeenCalled();
 	});
 
 	it("regenerates an empty migrated schedule from its asset finance book", async () => {
