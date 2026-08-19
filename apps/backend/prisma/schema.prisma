@@ -1753,6 +1753,8 @@ model AssetDepreciationSchedule {
   sourceCapitalization          AssetCapitalization?              @relation("CapitalizationGeneratedSchedules", fields: [sourceCapitalizationId], references: [id], onDelete: Restrict)
   closedByCapitalizationId      String?
   closedByCapitalization        AssetCapitalization?              @relation("CapitalizationClosedSchedules", fields: [closedByCapitalizationId], references: [id], onDelete: Restrict)
+  closedByDisposalId            String?
+  closedByDisposal              AssetDisposal?                    @relation("DisposalClosedSchedules", fields: [closedByDisposalId], references: [id], onDelete: Restrict)
   assetId                        String
   asset                          Asset                            @relation(fields: [assetId], references: [id])
   assetFinanceBookId             String
@@ -1790,6 +1792,7 @@ model AssetDepreciationSchedule {
   @@index([previousScheduleId])
   @@index([sourceCapitalizationId])
   @@index([closedByCapitalizationId])
+  @@index([closedByDisposalId])
   @@map("asset_depreciation_schedules")
 }
 
@@ -1969,32 +1972,35 @@ model AssetShiftFactor {
 
 /// Asset-specific accounting document created for one posted depreciation period.
 model AssetDepreciationJournalEntry {
-  id                 String                              @id @default(cuid())
-  series             String                              @unique @db.VarChar(50)
+  id                   String                              @id @default(cuid())
+  series               String                              @unique @db.VarChar(50)
   sourceCapitalizationId String?
-  sourceCapitalization AssetCapitalization?              @relation("CapitalizationDepreciationPostings", fields: [sourceCapitalizationId], references: [id], onDelete: Restrict)
-  assetId            String
-  asset              Asset                               @relation(fields: [assetId], references: [id])
-  assetFinanceBookId String
-  assetFinanceBook   AssetFinanceBook                    @relation(fields: [assetFinanceBookId], references: [id])
-  companyId          String
-  company            Company                             @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  financeBookName    String                              @db.VarChar(255)
-  postingDate        DateTime
-  depreciationAmount Decimal                             @db.Decimal(18, 6)
-  remarks            String?                             @db.VarChar(500)
-  status             AssetDepreciationJournalEntryStatus @default(POSTED)
-  reversedAt         DateTime?
-  scheduleEntry      AssetDepreciationScheduleEntry?
-  lines              AssetDepreciationJournalEntryLine[]
-  createdAt          DateTime                            @default(now())
-  updatedAt          DateTime                            @updatedAt
+  sourceCapitalization AssetCapitalization?                @relation("CapitalizationDepreciationPostings", fields: [sourceCapitalizationId], references: [id], onDelete: Restrict)
+  sourceDisposalId     String?
+  sourceDisposal       AssetDisposal?                      @relation("DisposalDepreciationPostings", fields: [sourceDisposalId], references: [id], onDelete: Restrict)
+  assetId              String
+  asset                Asset                               @relation(fields: [assetId], references: [id])
+  assetFinanceBookId   String
+  assetFinanceBook     AssetFinanceBook                    @relation(fields: [assetFinanceBookId], references: [id])
+  companyId            String
+  company              Company                             @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  financeBookName      String                              @db.VarChar(255)
+  postingDate          DateTime
+  depreciationAmount   Decimal                             @db.Decimal(18, 6)
+  remarks              String?                             @db.VarChar(500)
+  status               AssetDepreciationJournalEntryStatus @default(POSTED)
+  reversedAt           DateTime?
+  scheduleEntry        AssetDepreciationScheduleEntry?
+  lines                AssetDepreciationJournalEntryLine[]
+  createdAt            DateTime                            @default(now())
+  updatedAt            DateTime                            @updatedAt
 
   @@unique([assetFinanceBookId, postingDate], map: "asset_depreciation_journal_entries_assetFinanceBookId_postingDa")
   @@index([assetId])
   @@index([postingDate])
   @@index([status])
   @@index([sourceCapitalizationId])
+  @@index([sourceDisposalId])
   @@map("asset_depreciation_journal_entries")
 }
 
@@ -2413,8 +2419,11 @@ model AssetDisposal {
   costCenter                     String?               @db.VarChar(255)
   accountingEntryId              String?               @unique
   accountingEntry                AssetAccountingEntry? @relation("AssetDisposalAccountingEntry", fields: [accountingEntryId], references: [id], onDelete: SetNull)
+  depreciationPostings           AssetDepreciationJournalEntry[] @relation("DisposalDepreciationPostings")
+  closedSchedules                AssetDepreciationSchedule[]     @relation("DisposalClosedSchedules")
   previousAssetStatus            AssetStatus?
   previousIsFullyDepreciated     Boolean?
+  submittedFinanceBookStateVersion Int?
   status                         AssetDisposalStatus   @default(POSTED)
   notes                          String?               @db.Text
   createdAt                      DateTime              @default(now())

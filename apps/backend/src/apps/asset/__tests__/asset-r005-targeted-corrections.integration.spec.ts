@@ -9,11 +9,15 @@ import { AssetStockPostingService } from "../asset-stock-posting.service";
 import { AssetDepreciationLifecycleService } from "../depreciation/asset-depreciation-lifecycle.service";
 import { AssetDepreciationRevisionService } from "../depreciation/asset-depreciation-revision.service";
 import type {
+	DepreciationJobData,
 	DepreciationScope,
 	EnsureDepreciationPostedResult,
 } from "../depreciation/depreciation.types";
 import type { DepreciationBarrierService } from "../depreciation/depreciation-barrier.service";
-import { DepreciationPersistenceService } from "../depreciation/depreciation-persistence.service";
+import {
+	DepreciationPersistenceService,
+	type PostDepreciationResult,
+} from "../depreciation/depreciation-persistence.service";
 
 type AssetBookBalance = {
 	financeBookId: string | null;
@@ -38,6 +42,10 @@ type BarrierStub = {
 	ensureDepreciationPosted(
 		scope: DepreciationScope,
 	): Promise<EnsureDepreciationPostedResult>;
+	postDisposalBarrier(
+		tx: Prisma.TransactionClient,
+		job: DepreciationJobData,
+	): Promise<PostDepreciationResult>;
 };
 
 type Deferred<T> = {
@@ -363,6 +371,8 @@ describe("R-005 targeted corrections integration", () => {
 					waitedMs: 0,
 				};
 			},
+			postDisposalBarrier: async (tx, job) =>
+				worker.postDisposalBarrier(tx, job),
 		};
 		lifecycle = new AssetDepreciationLifecycleService(prisma);
 		service = new AssetService(
@@ -396,11 +406,11 @@ describe("R-005 targeted corrections integration", () => {
 			await prisma.client.assetValueAdjustment.deleteMany({
 				where: { assetId: { in: assetIds } },
 			});
-			await prisma.client.assetDisposal.deleteMany({
-				where: { assetId: { in: assetIds } },
-			});
 			await prisma.client.assetDepreciationJournalEntry.deleteMany({
 				where: { companyId: { in: [companyId, singletonCompanyId] } },
+			});
+			await prisma.client.assetDisposal.deleteMany({
+				where: { assetId: { in: assetIds } },
 			});
 			const capitalizationRows =
 				await prisma.client.assetCapitalization.findMany({
@@ -938,6 +948,22 @@ describe("R-005 targeted corrections integration", () => {
 			rootValue: 100,
 			secondaryValue: 80,
 		});
+		const secondarySchedule =
+			await prisma.client.assetDepreciationSchedule.findFirstOrThrow({
+				where: { assetFinanceBookId: fixture.secondaryAssetFinanceBookId },
+				include: { entries: { orderBy: { sequence: "asc" } } },
+			});
+		const firstEntry = secondarySchedule.entries[0];
+		if (!firstEntry) throw new Error("Expected the first disposal period");
+		await worker.post({
+			version: 1,
+			organizationId,
+			assetId: fixture.assetId,
+			assetFinanceBookId: fixture.secondaryAssetFinanceBookId,
+			scheduleId: secondarySchedule.id,
+			scheduleEntryId: firstEntry.id,
+			depreciationDate: firstEntry.scheduleDate.toISOString().slice(0, 10),
+		});
 		barrier.calls.length = 0;
 		const disposal = await service.sellAsset(
 			{
@@ -981,6 +1007,13 @@ describe("R-005 targeted corrections integration", () => {
 		expect(postedState.status).toBe("SOLD");
 		expect(Number(postedState.valueAfterDepreciation)).toBe(100);
 		expect(
+			Number(
+				postedState.financeBooks.find(
+					(book) => book.financeBookId === secondaryFinanceBookId,
+				)?.valueAfterDepreciation,
+			),
+		).toBe(67.1);
+		expect(
 			postedState.financeBooks.find(
 				(book) => book.financeBookId === defaultFinanceBookId,
 			)?.schedules[0]?.status,
@@ -1008,6 +1041,13 @@ describe("R-005 targeted corrections integration", () => {
 		});
 		expect(restored.status).toBe("PARTIALLY_DEPRECIATED");
 		expect(Number(restored.valueAfterDepreciation)).toBe(100);
+		expect(
+			Number(
+				restored.financeBooks.find(
+					(book) => book.financeBookId === secondaryFinanceBookId,
+				)?.valueAfterDepreciation,
+			),
+		).toBe(70);
 		expect(
 			restored.financeBooks.find(
 				(book) => book.financeBookId === secondaryFinanceBookId,

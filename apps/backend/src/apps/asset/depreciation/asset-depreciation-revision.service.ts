@@ -644,6 +644,7 @@ export class AssetDepreciationRevisionService {
 		assetId: string,
 		financeBookId?: string,
 		sourceCapitalizationId?: string,
+		sourceDisposalId?: string,
 	): Promise<number> {
 		assertAssetOrganizationId(organizationId);
 		const books = await this.loadLockedBooks(
@@ -667,6 +668,7 @@ export class AssetDepreciationRevisionService {
 				data: {
 					status: "CANCELLED",
 					closedByCapitalizationId: sourceCapitalizationId ?? null,
+					closedByDisposalId: sourceDisposalId ?? null,
 				},
 			});
 			if (result.count > 0) {

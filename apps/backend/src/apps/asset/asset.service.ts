@@ -81,6 +81,7 @@ import {
 	dateOnlyUtc,
 	dateOnlyUtcRange,
 	depreciationTimeZone,
+	differenceInDateOnlyDays,
 	endOfMonthDateOnly,
 	normalizeDateOnly,
 } from "./depreciation/depreciation.config";
@@ -130,6 +131,165 @@ const isLaterAssetLineageEvent = (
 	return (
 		candidate.committedAt >= current.committedAt && candidate.id !== current.id
 	);
+};
+
+/**
+ * Reproduces ERPNext's original cadence check from persisted schedule fields.
+ * Sequence values are one-based in Aria, while ERPNext's schedule index is
+ * zero-based; month-end schedules retain their original month-end anchor.
+ */
+const isOriginalDisposalScheduleDate = (input: {
+	startDate: Date;
+	sequence: number;
+	frequencyOfDepreciation: number;
+	disposalDate: Date;
+}): boolean => {
+	if (
+		!Number.isInteger(input.sequence) ||
+		input.sequence < 1 ||
+		!Number.isInteger(input.frequencyOfDepreciation) ||
+		input.frequencyOfDepreciation < 1
+	) {
+		return false;
+	}
+	const startDate = dateOnlyFromPersistedDateTime(input.startDate);
+	let originalDate = dateOnlyFromPersistedDateTime(
+		addMonthsDateOnly(
+			startDate,
+			(input.sequence - 1) * input.frequencyOfDepreciation,
+		),
+	);
+	if (
+		dateOnlyFromPersistedDateTime(endOfMonthDateOnly(startDate)) === startDate
+	) {
+		originalDate = dateOnlyFromPersistedDateTime(
+			endOfMonthDateOnly(originalDate),
+		);
+	}
+	return originalDate === dateOnlyFromPersistedDateTime(input.disposalDate);
+};
+
+type DisposalBarrierScheduleEntry = {
+	id: string;
+	sequence: number;
+	scheduleDate: Date;
+	depreciationAmount: unknown;
+	accumulatedDepreciationAmount: unknown;
+	bookValueAfterDepreciation: unknown;
+	postingId: string | null;
+	shift: string | null;
+};
+
+type DisposalBarrierPlan = {
+	sequence: number;
+	scheduleDate: Date;
+	depreciationAmount: number;
+	accumulatedDepreciationAmount: number;
+	bookValueAfterDepreciation: number;
+	previousBookValue: number;
+	shift: string | null;
+};
+
+/**
+ * Calculates ERPNext's final disposal-period pro-rata row from the next
+ * unposted original schedule row. The original row remains untouched so a
+ * restore can remove only this disposal-created entry.
+ */
+const calculateDisposalBarrierPlan = (input: {
+	disposalDate: Date;
+	availableForUseDate: Date;
+	frequencyOfDepreciation: number;
+	precision: number;
+	entries: readonly DisposalBarrierScheduleEntry[];
+}): DisposalBarrierPlan | null => {
+	const disposalDate = dateOnlyFromPersistedDateTime(input.disposalDate);
+	const entries = [...input.entries].sort(
+		(left, right) =>
+			dateOnlyFromPersistedDateTime(left.scheduleDate).localeCompare(
+				dateOnlyFromPersistedDateTime(right.scheduleDate),
+			) || left.sequence - right.sequence,
+	);
+	const dueUnposted = entries.find(
+		(entry) =>
+			entry.postingId === null &&
+			dateOnlyFromPersistedDateTime(entry.scheduleDate) <= disposalDate,
+	);
+	if (dueUnposted) {
+		throw new ConflictException(
+			`Depreciation schedule entry ${dueUnposted.id} is still unposted before disposal date ${disposalDate}.`,
+		);
+	}
+
+	const next = entries.find(
+		(entry) =>
+			entry.postingId === null &&
+			dateOnlyFromPersistedDateTime(entry.scheduleDate) > disposalDate,
+	);
+	if (!next) return null;
+
+	const originalScheduleDate = dateOnlyFromPersistedDateTime(next.scheduleDate);
+	const previousPosted = entries
+		.filter(
+			(entry) =>
+				entry.postingId !== null &&
+				dateOnlyFromPersistedDateTime(entry.scheduleDate) <
+					originalScheduleDate,
+		)
+		.at(-1);
+	const fromDate = previousPosted
+		? addDateOnly(dateOnlyFromPersistedDateTime(previousPosted.scheduleDate), 1)
+		: dateOnlyFromPersistedDateTime(input.availableForUseDate);
+	const periodStart = dateOnlyFromPersistedDateTime(
+		dateOnlyFromPersistedDateTime(endOfMonthDateOnly(originalScheduleDate)) ===
+			originalScheduleDate
+			? endOfMonthDateOnly(
+					dateOnlyFromPersistedDateTime(
+						addMonthsDateOnly(
+							originalScheduleDate,
+							-input.frequencyOfDepreciation,
+						),
+					),
+				)
+			: addMonthsDateOnly(originalScheduleDate, -input.frequencyOfDepreciation),
+	);
+	const totalDays = differenceInDateOnlyDays(periodStart, originalScheduleDate);
+	const coveredDays = differenceInDateOnlyDays(fromDate, disposalDate) + 1;
+	if (totalDays <= 0 || coveredDays <= 0 || coveredDays > totalDays) {
+		throw new ConflictException(
+			`Disposal date ${disposalDate} does not fit the next depreciation period.`,
+		);
+	}
+
+	const round = (value: number): number =>
+		Number(value.toFixed(input.precision));
+	const originalAmount = Number(next.depreciationAmount);
+	const amount = round((originalAmount * coveredDays) / totalDays);
+	if (!Number.isFinite(amount) || amount <= 0) return null;
+	const previousBookValue = previousPosted
+		? Number(previousPosted.bookValueAfterDepreciation)
+		: Number(next.bookValueAfterDepreciation) + originalAmount;
+	const previousAccumulated = previousPosted
+		? Number(previousPosted.accumulatedDepreciationAmount)
+		: Number(next.accumulatedDepreciationAmount) - originalAmount;
+	if (
+		!Number.isFinite(previousBookValue) ||
+		!Number.isFinite(previousAccumulated)
+	) {
+		throw new ConflictException(
+			`Depreciation schedule ${next.id} has invalid persisted barrier inputs.`,
+		);
+	}
+
+	return {
+		sequence:
+			Math.max(...entries.map((entry) => entry.sequence), next.sequence) + 1,
+		scheduleDate: dateOnlyUtc(disposalDate),
+		depreciationAmount: amount,
+		accumulatedDepreciationAmount: round(previousAccumulated + amount),
+		bookValueAfterDepreciation: round(previousBookValue - amount),
+		previousBookValue: round(previousBookValue),
+		shift: next.shift,
+	};
 };
 
 type AssetFinanceBookSnapshot = {
@@ -7159,6 +7319,200 @@ export class AssetService {
 					"Asset cannot be disposed before its latest posted depreciation.",
 				);
 			}
+			const disposalDateOnly = dateOnlyFromPersistedDateTime(
+				input.disposalDate,
+			);
+			const disposalDateWindow = dateOnlyUtcRange(
+				disposalDateOnly,
+				disposalDateOnly,
+			);
+			const activeDisposalSchedules = bookBalance.assetFinanceBookId
+				? await tx.assetDepreciationSchedule.findMany({
+						where: {
+							assetId: asset.id,
+							assetFinanceBookId: bookBalance.assetFinanceBookId,
+							status: "ACTIVE",
+							asset: {
+								is: assetWhereForOrganization(input.organizationId, {
+									id: asset.id,
+								}),
+							},
+							assetFinanceBook: { is: { assetId: asset.id } },
+						},
+						select: {
+							id: true,
+							assetId: true,
+							assetFinanceBookId: true,
+							status: true,
+							startDate: true,
+							frequencyOfDepreciation: true,
+							entries: {
+								select: {
+									id: true,
+									sequence: true,
+									scheduleDate: true,
+									depreciationAmount: true,
+									accumulatedDepreciationAmount: true,
+									bookValueAfterDepreciation: true,
+									postingId: true,
+									shift: true,
+								},
+								orderBy: [{ scheduleDate: "asc" }, { sequence: "asc" }],
+							},
+						},
+					})
+				: [];
+			if (activeDisposalSchedules.length > 1) {
+				throw new ConflictException(
+					`Asset ${asset.series} has ambiguous active depreciation schedule lineage for disposal.`,
+				);
+			}
+			const activeDisposalSchedule = activeDisposalSchedules[0] ?? null;
+			const hasCanonicalDisposalDateEntry = Boolean(
+				activeDisposalSchedule?.entries.some(
+					(entry) =>
+						dateOnlyFromPersistedDateTime(entry.scheduleDate) ===
+						disposalDateOnly,
+				),
+			);
+			const disposalBook = bookBalance.assetFinanceBookId
+				? await tx.assetFinanceBook.findFirst({
+						where: {
+							id: bookBalance.assetFinanceBookId,
+							assetId: asset.id,
+							asset: {
+								is: assetWhereForOrganization(input.organizationId, {
+									id: asset.id,
+								}),
+							},
+						},
+						select: {
+							id: true,
+							financeBookId: true,
+							precision: true,
+							valueAfterDepreciation: true,
+						},
+					})
+				: null;
+			if (bookBalance.assetFinanceBookId && !disposalBook) {
+				throw new ConflictException(
+					`Finance-book lineage for asset ${asset.series} is no longer available.`,
+				);
+			}
+			const disposalBarrierJournals =
+				bookBalance.assetFinanceBookId && hasCanonicalDisposalDateEntry
+					? await tx.assetDepreciationJournalEntry.findMany({
+							where: {
+								assetId: asset.id,
+								assetFinanceBookId: bookBalance.assetFinanceBookId,
+								status: "POSTED",
+								postingDate: {
+									gte: disposalDateWindow.startInclusive,
+									lt: disposalDateWindow.endExclusive,
+								},
+								asset: {
+									is: assetWhereForOrganization(input.organizationId, {
+										id: asset.id,
+									}),
+								},
+							},
+							select: {
+								id: true,
+								assetId: true,
+								assetFinanceBookId: true,
+								companyId: true,
+								sourceCapitalizationId: true,
+								sourceDisposalId: true,
+								postingDate: true,
+								depreciationAmount: true,
+								status: true,
+								scheduleEntry: {
+									select: {
+										id: true,
+										postingId: true,
+										sequence: true,
+										scheduleDate: true,
+										depreciationAmount: true,
+										accumulatedDepreciationAmount: true,
+										bookValueAfterDepreciation: true,
+										schedule: {
+											select: {
+												id: true,
+												assetId: true,
+												assetFinanceBookId: true,
+												status: true,
+												startDate: true,
+												frequencyOfDepreciation: true,
+												assetFinanceBook: { select: { assetId: true } },
+											},
+										},
+									},
+								},
+							},
+						})
+					: [];
+			if (disposalBarrierJournals.length > 1) {
+				throw new ConflictException(
+					`Asset ${asset.series} has ambiguous disposal-date depreciation lineage.`,
+				);
+			}
+			const disposalBarrierJournal = disposalBarrierJournals[0] ?? null;
+			if (disposalBarrierJournal) {
+				const scheduleEntry = disposalBarrierJournal.scheduleEntry;
+				if (
+					disposalBarrierJournal.companyId !== asset.companyId ||
+					disposalBarrierJournal.sourceDisposalId !== null ||
+					!scheduleEntry ||
+					scheduleEntry.postingId !== disposalBarrierJournal.id ||
+					dateOnlyFromPersistedDateTime(scheduleEntry.scheduleDate) !==
+						disposalDateOnly ||
+					scheduleEntry.schedule.assetId !== asset.id ||
+					scheduleEntry.schedule.assetFinanceBookId !==
+						disposalBarrierJournal.assetFinanceBookId ||
+					scheduleEntry.schedule.assetFinanceBook.assetId !== asset.id ||
+					scheduleEntry.schedule.status !== "ACTIVE"
+				) {
+					throw new ConflictException(
+						`Asset ${asset.series} has incomplete disposal-date depreciation lineage.`,
+					);
+				}
+			}
+			const disposalBarrierScheduleEntry =
+				disposalBarrierJournal?.scheduleEntry;
+			const disposalBarrierIsOriginalDate = disposalBarrierScheduleEntry
+				? isOriginalDisposalScheduleDate({
+						startDate: disposalBarrierScheduleEntry.schedule.startDate,
+						sequence: disposalBarrierScheduleEntry.sequence,
+						frequencyOfDepreciation:
+							disposalBarrierScheduleEntry.schedule.frequencyOfDepreciation,
+						disposalDate: input.disposalDate,
+					})
+				: false;
+			const disposalBarrierMustReverse =
+				!disposalBarrierIsOriginalDate ||
+				dateOnlyFromPersistedDateTime(input.disposalDate) >
+					businessDate(depreciationTimeZone());
+			if (
+				disposalBarrierJournal &&
+				disposalBarrierMustReverse &&
+				disposalBarrierJournal.sourceCapitalizationId !== null
+			) {
+				throw new ConflictException(
+					`Asset ${asset.series} has an unrelated disposal-date depreciation entry.`,
+				);
+			}
+			const disposalBarrierPlan =
+				!disposalBarrierJournal && activeDisposalSchedule && disposalBook
+					? calculateDisposalBarrierPlan({
+							disposalDate: input.disposalDate,
+							availableForUseDate:
+								asset.availableForUseDate ?? asset.purchaseDate,
+							frequencyOfDepreciation:
+								activeDisposalSchedule.frequencyOfDepreciation,
+							precision: disposalBook.precision,
+							entries: activeDisposalSchedules[0].entries,
+						})
+					: null;
 
 			const context = await this.getAssetAccountingContext(
 				tx,
@@ -7166,9 +7520,33 @@ export class AssetService {
 				asset,
 				input.costCenter,
 			);
-			const carryingValue = bookBalance.carryingValue;
+			const currencyTolerance = 10 ** -bookBalance.precision;
+			const carryingValue = disposalBarrierPlan
+				? disposalBarrierPlan.bookValueAfterDepreciation
+				: bookBalance.carryingValue;
 			const fixedAssetBalance = bookBalance.grossValue;
-			const accumulatedDepreciation = bookBalance.accumulatedDepreciation;
+			const accumulatedDepreciation = disposalBarrierPlan
+				? this.roundCurrency(
+						bookBalance.accumulatedDepreciation +
+							disposalBarrierPlan.depreciationAmount,
+					)
+				: bookBalance.accumulatedDepreciation;
+			if (disposalBarrierPlan) {
+				const expectedAccumulatedDepreciation = this.roundCurrency(
+					fixedAssetBalance - disposalBarrierPlan.bookValueAfterDepreciation,
+				);
+				if (
+					Math.abs(
+						bookBalance.carryingValue - disposalBarrierPlan.previousBookValue,
+					) > currencyTolerance ||
+					Math.abs(accumulatedDepreciation - expectedAccumulatedDepreciation) >
+						currencyTolerance
+				) {
+					throw new ConflictException(
+						`Asset ${asset.series} finance-book balance does not match its disposal barrier schedule lineage.`,
+					);
+				}
+			}
 			if (carryingValue < 0 || accumulatedDepreciation < 0) {
 				throw new BadRequestException(
 					`Asset ${asset.series} has an inconsistent carrying value and cannot be disposed.`,
@@ -7207,11 +7585,77 @@ export class AssetService {
 					costCenter: context.costCenter,
 					previousAssetStatus: asset.status,
 					previousIsFullyDepreciated: asset.isFullyDepreciated,
+					submittedFinanceBookStateVersion: null,
 					status: "POSTED",
 					notes: input.notes ?? null,
 				},
 				include: this.assetDisposalInclude,
 			});
+			if (disposalBarrierJournal && disposalBarrierMustReverse) {
+				const linkedBarrier = await tx.assetDepreciationJournalEntry.updateMany(
+					{
+						where: {
+							id: disposalBarrierJournal.id,
+							assetId: asset.id,
+							assetFinanceBookId: disposalBarrierJournal.assetFinanceBookId,
+							status: "POSTED",
+							sourceDisposalId: null,
+							asset: {
+								is: assetWhereForOrganization(input.organizationId, {
+									id: asset.id,
+								}),
+							},
+						},
+						data: { sourceDisposalId: created.id },
+					},
+				);
+				if (linkedBarrier.count !== 1) {
+					throw new ConflictException(
+						`Disposal ${created.series} could not claim its exact disposal-date depreciation entry.`,
+					);
+				}
+			}
+			if (disposalBarrierPlan && activeDisposalSchedule && disposalBook) {
+				const barrierEntry = await tx.assetDepreciationScheduleEntry.create({
+					data: {
+						scheduleId: activeDisposalSchedule.id,
+						sequence: disposalBarrierPlan.sequence,
+						scheduleDate: disposalBarrierPlan.scheduleDate,
+						depreciationAmount: disposalBarrierPlan.depreciationAmount,
+						accumulatedDepreciationAmount:
+							disposalBarrierPlan.accumulatedDepreciationAmount,
+						bookValueAfterDepreciation:
+							disposalBarrierPlan.bookValueAfterDepreciation,
+						shift: disposalBarrierPlan.shift,
+					},
+				});
+				const postDisposalBarrier =
+					this.depreciationBarrier?.postDisposalBarrier;
+				if (!postDisposalBarrier) {
+					throw new ConflictException(
+						`Asset ${asset.series} cannot create a disposal barrier without the depreciation posting service.`,
+					);
+				}
+				const barrierResult = await postDisposalBarrier.call(
+					this.depreciationBarrier,
+					tx,
+					{
+						version: 1,
+						organizationId: input.organizationId,
+						sourceDisposalId: created.id,
+						assetId: asset.id,
+						assetFinanceBookId: disposalBook.id,
+						scheduleId: activeDisposalSchedule.id,
+						scheduleEntryId: barrierEntry.id,
+						depreciationDate: disposalDateOnly,
+					},
+				);
+				if (barrierResult.status !== "posted") {
+					throw new ConflictException(
+						`Disposal ${created.series} could not post its exact disposal-date depreciation barrier.`,
+					);
+				}
+			}
 
 			const lines = [
 				...(fixedAssetBalance > 0
@@ -7292,12 +7736,61 @@ export class AssetService {
 				});
 			}
 
-			await this.depreciationRevision.closeOpenSchedules(
-				tx,
-				input.organizationId,
-				asset.id,
-				bookBalance.financeBookId ?? undefined,
-			);
+			const closedDisposalSchedules =
+				await this.depreciationRevision.closeOpenSchedules(
+					tx,
+					input.organizationId,
+					asset.id,
+					bookBalance.financeBookId ?? undefined,
+					undefined,
+					created.id,
+				);
+			if (closedDisposalSchedules !== activeDisposalSchedules.length) {
+				throw new ConflictException(
+					`Disposal ${created.series} did not close its exact depreciation schedule lineage.`,
+				);
+			}
+			if (bookBalance.assetFinanceBookId) {
+				const book = await tx.assetFinanceBook.findFirst({
+					where: {
+						id: bookBalance.assetFinanceBookId,
+						assetId: asset.id,
+						asset: {
+							is: assetWhereForOrganization(input.organizationId, {
+								id: asset.id,
+							}),
+						},
+					},
+					select: { stateVersion: true },
+				});
+				if (!book) {
+					throw new ConflictException(
+						`Finance-book lineage for disposal ${created.series} is no longer available.`,
+					);
+				}
+				const versionedDisposal = await tx.assetDisposal.updateMany({
+					where: {
+						id: created.id,
+						assetId: asset.id,
+						company: { is: { organizationId: input.organizationId } },
+						status: "POSTED",
+					},
+					data: { submittedFinanceBookStateVersion: book.stateVersion },
+				});
+				if (versionedDisposal.count !== 1) {
+					throw new ConflictException(
+						`Disposal ${created.series} changed before its finance-book lineage was recorded.`,
+					);
+				}
+				created = await tx.assetDisposal.findFirstOrThrow({
+					where: {
+						id: created.id,
+						company: { is: { organizationId: input.organizationId } },
+						asset: { is: assetWhereForOrganization(input.organizationId) },
+					},
+					include: this.assetDisposalInclude,
+				});
+			}
 			await this.updateOwnedAsset(tx, input.organizationId, asset.id, {
 				status: input.disposalType === "SELL" ? "SOLD" : "SCRAPPED",
 				disposalDate: input.disposalDate,
@@ -7330,9 +7823,7 @@ export class AssetService {
 		const updatedAsset = await this.prisma.$transaction(async (tx) => {
 			await this.lockAssets(tx, [input.assetId]);
 			const assetIdentity = await tx.asset.findFirst({
-				where: assetWhereForOrganization(organizationId, {
-					id: input.assetId,
-				}),
+				where: assetWhereForOrganization(organizationId, { id: input.assetId }),
 				select: { id: true, series: true, status: true },
 			});
 			if (!assetIdentity) {
@@ -7348,26 +7839,43 @@ export class AssetService {
 					`Asset ${assetIdentity.series} is not scrapped or sold (current status: ${assetIdentity.status}).`,
 				);
 			}
-			const disposalIdentity = await tx.assetDisposal.findFirst({
+
+			const postedDisposals = await tx.assetDisposal.findMany({
 				where: {
 					assetId: assetIdentity.id,
 					status: "POSTED",
 					asset: { is: assetWhereForOrganization(organizationId) },
 				},
-				orderBy: { createdAt: "desc" },
 				select: { id: true, financeBookId: true },
 			});
-			if (!disposalIdentity) {
+			if (postedDisposals.length === 0) {
 				throw new BadRequestException(
 					`The posted disposal for asset ${assetIdentity.series} is missing.`,
 				);
 			}
+			if (postedDisposals.length !== 1) {
+				throw new ConflictException(
+					`Asset ${assetIdentity.series} has ambiguous posted disposal lineage.`,
+				);
+			}
+			const disposalIdentity = postedDisposals[0];
+			if (!disposalIdentity) {
+				throw new ConflictException(
+					`Asset ${assetIdentity.series} has incomplete disposal lineage.`,
+				);
+			}
+
 			let selectedBookId: string | null = null;
 			if (disposalIdentity.financeBookId) {
 				const selectedBook = await tx.assetFinanceBook.findFirst({
 					where: {
 						assetId: assetIdentity.id,
 						financeBookId: disposalIdentity.financeBookId,
+						asset: {
+							is: assetWhereForOrganization(organizationId, {
+								id: assetIdentity.id,
+							}),
+						},
 					},
 					select: { id: true },
 				});
@@ -7384,6 +7892,50 @@ export class AssetService {
 				selectedBookId ? [selectedBookId] : [],
 			);
 
+			// Advisory locks serialize the workflow; these row locks keep the exact
+			// disposal, schedule, journal, and accounting rows stable for the reads
+			// below and for a queue worker using the same canonical lock order.
+			await tx.$queryRaw(Prisma.sql`
+				SELECT "id"
+				FROM "asset_disposals"
+				WHERE "id" = ${disposalIdentity.id}
+				FOR UPDATE
+			`);
+			if (selectedBookId) {
+				await tx.$queryRaw(Prisma.sql`
+					SELECT "id"
+					FROM "asset_depreciation_schedules"
+					WHERE "assetId" = ${assetIdentity.id}
+					  AND "assetFinanceBookId" = ${selectedBookId}
+					FOR UPDATE
+				`);
+				await tx.$queryRaw(Prisma.sql`
+					SELECT "id"
+					FROM "asset_depreciation_schedule_entries"
+					WHERE "scheduleId" IN (
+						SELECT "id"
+						FROM "asset_depreciation_schedules"
+						WHERE "assetId" = ${assetIdentity.id}
+						  AND "assetFinanceBookId" = ${selectedBookId}
+					)
+					FOR UPDATE
+				`);
+				await tx.$queryRaw(Prisma.sql`
+					SELECT "id"
+					FROM "asset_depreciation_journal_entries"
+					WHERE "assetId" = ${assetIdentity.id}
+					  AND "assetFinanceBookId" = ${selectedBookId}
+					FOR UPDATE
+				`);
+				await tx.$queryRaw(Prisma.sql`
+					SELECT "id"
+					FROM "asset_accounting_entries"
+					WHERE "assetId" = ${assetIdentity.id}
+					  AND ("financeBookId" = ${disposalIdentity.financeBookId} OR "financeBookId" IS NULL)
+					FOR UPDATE
+				`);
+			}
+
 			const asset = await tx.asset.findFirst({
 				where: assetWhereForOrganization(organizationId, {
 					id: assetIdentity.id,
@@ -7397,79 +7949,524 @@ export class AssetService {
 			}
 			const disposal = await tx.assetDisposal.findFirst({
 				where: {
+					id: disposalIdentity.id,
 					assetId: asset.id,
 					status: "POSTED",
+					company: { is: { organizationId } },
 					asset: { is: assetWhereForOrganization(organizationId) },
 				},
-				orderBy: { createdAt: "desc" },
 				select: {
 					id: true,
 					series: true,
+					assetId: true,
+					companyId: true,
 					createdAt: true,
 					disposalDate: true,
 					accountingEntryId: true,
 					financeBookId: true,
 					previousAssetStatus: true,
 					previousIsFullyDepreciated: true,
+					submittedFinanceBookStateVersion: true,
+					status: true,
 				},
 			});
 			if (!disposal) {
-				throw new BadRequestException(
-					`The posted disposal for asset ${asset.series} is missing.`,
-				);
-			}
-			if (asset.status !== "SCRAPPED" && asset.status !== "SOLD") {
-				throw new BadRequestException(
-					`Asset ${asset.series} is not scrapped or sold (current status: ${asset.status}).`,
+				throw new ConflictException(
+					`The posted disposal for asset ${asset.series} changed before restore.`,
 				);
 			}
 			if (!disposal.financeBookId && asset.financeBooks.length > 0) {
-				throw new BadRequestException(
+				throw new ConflictException(
 					`The posted disposal for asset ${asset.series} has no finance book lineage and cannot be restored safely.`,
 				);
 			}
 			if (
 				disposal.financeBookId &&
-				!asset.financeBooks.some(
-					(book) => book.financeBookId === disposal.financeBookId,
-				)
+				(!selectedBookId ||
+					!asset.financeBooks.some(
+						(book) => book.financeBookId === disposal.financeBookId,
+					))
 			) {
-				throw new BadRequestException(
+				throw new ConflictException(
 					`The posted disposal for asset ${asset.series} references a finance book that is no longer configured.`,
 				);
 			}
-			const [laterDepreciation, laterAccounting] = await Promise.all([
-				tx.assetDepreciationJournalEntry.count({
-					where: {
-						assetId: asset.id,
-						...(disposal.financeBookId
-							? {
-									assetFinanceBook: {
-										financeBookId: disposal.financeBookId,
-									},
-								}
-							: {}),
-						status: "POSTED",
-						createdAt: { gt: disposal.createdAt },
-					},
-				}),
-				tx.assetAccountingEntry.count({
-					where: {
-						assetId: asset.id,
-						financeBookId: disposal.financeBookId,
-						status: "POSTED",
-						createdAt: { gt: disposal.createdAt },
-						...(disposal.accountingEntryId
-							? { id: { not: disposal.accountingEntryId } }
-							: {}),
-					},
-				}),
-			]);
-			if (laterDepreciation > 0 || laterAccounting > 0) {
+
+			const book = selectedBookId
+				? await tx.assetFinanceBook.findFirst({
+						where: {
+							id: selectedBookId,
+							assetId: asset.id,
+							financeBookId: disposal.financeBookId as string,
+							asset: {
+								is: assetWhereForOrganization(organizationId, {
+									id: asset.id,
+								}),
+							},
+						},
+						select: {
+							id: true,
+							stateVersion: true,
+							precision: true,
+							valueAfterDepreciation: true,
+							openingNumberOfBookedDepreciations: true,
+							totalNumberOfBookedDepreciations: true,
+							postingStatus: true,
+							lastPostedDepreciationDate: true,
+						},
+					})
+				: null;
+			if (selectedBookId && !book) {
 				throw new ConflictException(
-					"The disposal cannot be restored after later depreciation or asset accounting has been posted.",
+					`The selected finance book for asset ${asset.series} is no longer available.`,
 				);
 			}
+			if (
+				book &&
+				(disposal.submittedFinanceBookStateVersion === null ||
+					disposal.submittedFinanceBookStateVersion !== book.stateVersion)
+			) {
+				throw new ConflictException(
+					`The disposal for asset ${asset.series} has finance-book state changes after posting and cannot be restored safely.`,
+				);
+			}
+
+			const closedSchedules = selectedBookId
+				? await tx.assetDepreciationSchedule.findMany({
+						where: {
+							assetId: asset.id,
+							assetFinanceBookId: selectedBookId,
+							status: "CANCELLED",
+							closedByDisposalId: disposal.id,
+							asset: { is: assetWhereForOrganization(organizationId) },
+							assetFinanceBook: { is: { assetId: asset.id } },
+						},
+						select: {
+							id: true,
+							assetId: true,
+							assetFinanceBookId: true,
+							status: true,
+							closedByDisposalId: true,
+							closedByCapitalizationId: true,
+							startDate: true,
+							frequencyOfDepreciation: true,
+							entries: {
+								select: {
+									id: true,
+									sequence: true,
+									scheduleDate: true,
+									depreciationAmount: true,
+									accumulatedDepreciationAmount: true,
+									bookValueAfterDepreciation: true,
+									postingId: true,
+									posting: { select: { id: true, status: true } },
+								},
+								orderBy: [{ scheduleDate: "asc" }, { sequence: "asc" }],
+							},
+						},
+					})
+				: [];
+			if (closedSchedules.length > 1) {
+				throw new ConflictException(
+					`Disposal ${disposal.series} has ambiguous closed schedule lineage.`,
+				);
+			}
+			if (
+				asset.calculateDepreciation &&
+				selectedBookId &&
+				closedSchedules.length !== 1
+			) {
+				throw new ConflictException(
+					`Disposal ${disposal.series} does not have exactly one closed schedule lineage.`,
+				);
+			}
+			const closedSchedule = closedSchedules[0] ?? null;
+			if (closedSchedule?.closedByCapitalizationId !== null) {
+				throw new ConflictException(
+					`Disposal ${disposal.series} has mixed capitalization and disposal schedule lineage.`,
+				);
+			}
+
+			const disposalJournalSelect = {
+				id: true,
+				assetId: true,
+				companyId: true,
+				assetFinanceBookId: true,
+				postingDate: true,
+				depreciationAmount: true,
+				sourceCapitalizationId: true,
+				sourceDisposalId: true,
+				status: true,
+				createdAt: true,
+				reversedAt: true,
+				scheduleEntry: {
+					select: {
+						id: true,
+						postingId: true,
+						sequence: true,
+						scheduleDate: true,
+						depreciationAmount: true,
+						accumulatedDepreciationAmount: true,
+						bookValueAfterDepreciation: true,
+						schedule: {
+							select: {
+								id: true,
+								assetId: true,
+								assetFinanceBookId: true,
+								status: true,
+								startDate: true,
+								frequencyOfDepreciation: true,
+								closedByDisposalId: true,
+								assetFinanceBook: { select: { assetId: true } },
+							},
+						},
+					},
+				},
+			} as const;
+			const linkedDepreciation =
+				await tx.assetDepreciationJournalEntry.findMany({
+					where: {
+						sourceDisposalId: disposal.id,
+						company: { is: { organizationId } },
+					},
+					select: disposalJournalSelect,
+				});
+			if (linkedDepreciation.length > 1) {
+				throw new ConflictException(
+					`Disposal ${disposal.series} has ambiguous linked depreciation postings.`,
+				);
+			}
+			const linkedBarrier = linkedDepreciation[0] ?? null;
+			const disposalDateWindow = dateOnlyUtcRange(
+				dateOnlyFromPersistedDateTime(disposal.disposalDate),
+				dateOnlyFromPersistedDateTime(disposal.disposalDate),
+			);
+			const exactDateDepreciation = selectedBookId
+				? await tx.assetDepreciationJournalEntry.findMany({
+						where: {
+							assetId: asset.id,
+							assetFinanceBookId: selectedBookId,
+							postingDate: {
+								gte: disposalDateWindow.startInclusive,
+								lt: disposalDateWindow.endExclusive,
+							},
+							status: { in: ["POSTED", "REVERSED"] },
+							company: { is: { organizationId } },
+						},
+						select: disposalJournalSelect,
+					})
+				: [];
+			if (exactDateDepreciation.length > 1) {
+				throw new ConflictException(
+					`Disposal ${disposal.series} has ambiguous disposal-date depreciation postings.`,
+				);
+			}
+			const exactDateJournal = exactDateDepreciation[0] ?? null;
+			const validateScheduleLineage = (
+				journal: typeof linkedBarrier | typeof exactDateJournal,
+				label: string,
+			): NonNullable<typeof journal>["scheduleEntry"] => {
+				if (
+					!journal ||
+					!selectedBookId ||
+					!closedSchedule ||
+					journal.assetId !== asset.id ||
+					journal.companyId !== disposal.companyId ||
+					journal.assetFinanceBookId !== selectedBookId ||
+					journal.status !== "POSTED" ||
+					journal.sourceCapitalizationId !== null ||
+					!journal.scheduleEntry ||
+					journal.scheduleEntry.postingId !== journal.id ||
+					journal.scheduleEntry.schedule.id !== closedSchedule.id ||
+					journal.scheduleEntry.schedule.assetId !== asset.id ||
+					journal.scheduleEntry.schedule.assetFinanceBookId !==
+						selectedBookId ||
+					journal.scheduleEntry.schedule.assetFinanceBook.assetId !==
+						asset.id ||
+					journal.scheduleEntry.schedule.status !== "CANCELLED" ||
+					journal.scheduleEntry.schedule.closedByDisposalId !== disposal.id ||
+					dateOnlyFromPersistedDateTime(journal.postingDate) !==
+						dateOnlyFromPersistedDateTime(disposal.disposalDate) ||
+					dateOnlyFromPersistedDateTime(journal.scheduleEntry.scheduleDate) !==
+						dateOnlyFromPersistedDateTime(disposal.disposalDate)
+				) {
+					throw new ConflictException(
+						`Disposal ${disposal.series} has incomplete ${label} depreciation lineage.`,
+					);
+				}
+				return journal.scheduleEntry;
+			};
+
+			let linkedBarrierEntry = linkedBarrier
+				? validateScheduleLineage(linkedBarrier, "linked")
+				: null;
+			if (
+				exactDateJournal?.sourceDisposalId &&
+				exactDateJournal.sourceDisposalId !== disposal.id
+			) {
+				throw new ConflictException(
+					`Disposal ${disposal.series} shares its disposal-date depreciation entry with another disposal.`,
+				);
+			}
+			const dateLineageEntry =
+				linkedBarrierEntry ?? exactDateJournal?.scheduleEntry;
+			const originalScheduleDate = dateLineageEntry
+				? isOriginalDisposalScheduleDate({
+						startDate: dateLineageEntry.schedule.startDate,
+						sequence: dateLineageEntry.sequence,
+						frequencyOfDepreciation:
+							dateLineageEntry.schedule.frequencyOfDepreciation,
+						disposalDate: disposal.disposalDate,
+					})
+				: false;
+			const disposalIsFuture =
+				dateOnlyFromPersistedDateTime(disposal.disposalDate) >
+				businessDate(depreciationTimeZone());
+			const shouldReverseBarrier = !originalScheduleDate || disposalIsFuture;
+			if (linkedBarrier && !shouldReverseBarrier) {
+				throw new ConflictException(
+					`Disposal ${disposal.series} incorrectly owns an original-schedule-date depreciation entry.`,
+				);
+			}
+			if (!linkedBarrier && exactDateJournal && !originalScheduleDate) {
+				throw new ConflictException(
+					`Disposal ${disposal.series} is missing source lineage for its disposal-date depreciation entry.`,
+				);
+			}
+			if (
+				!linkedBarrier &&
+				!exactDateJournal &&
+				selectedBookId &&
+				asset.calculateDepreciation
+			) {
+				const futureScheduleEntry = closedSchedule?.entries.some(
+					(entry) =>
+						dateOnlyFromPersistedDateTime(entry.scheduleDate) >
+						dateOnlyFromPersistedDateTime(disposal.disposalDate),
+				);
+				if (futureScheduleEntry) {
+					throw new ConflictException(
+						`Disposal ${disposal.series} is missing its disposal-date barrier lineage.`,
+					);
+				}
+			}
+			if (
+				exactDateJournal &&
+				exactDateJournal.sourceDisposalId === disposal.id
+			) {
+				linkedBarrierEntry = validateScheduleLineage(
+					exactDateJournal,
+					"disposal",
+				);
+			}
+
+			const currentEvent: AssetLineageEvent = {
+				id: disposal.id,
+				effectiveDate: disposal.disposalDate,
+				committedAt: disposal.createdAt,
+			};
+			const depreciationCandidates = selectedBookId
+				? await tx.assetDepreciationJournalEntry.findMany({
+						where: {
+							assetId: asset.id,
+							assetFinanceBookId: selectedBookId,
+							status: "POSTED",
+							company: { is: { organizationId } },
+						},
+						select: { id: true, postingDate: true, createdAt: true },
+					})
+				: [];
+			for (const candidate of depreciationCandidates) {
+				if (
+					candidate.id !== linkedBarrier?.id &&
+					isLaterAssetLineageEvent(currentEvent, {
+						id: candidate.id,
+						effectiveDate: candidate.postingDate,
+						committedAt: candidate.createdAt,
+					})
+				) {
+					throw new ConflictException(
+						`The disposal cannot be restored after later depreciation ${candidate.id} advanced the asset lineage.`,
+					);
+				}
+			}
+
+			const disposalAccountingEntries = await tx.assetAccountingEntry.findMany({
+				where: {
+					sourceType: "DISPOSAL",
+					sourceId: disposal.id,
+					company: { is: { organizationId } },
+				},
+				select: {
+					id: true,
+					companyId: true,
+					assetId: true,
+					financeBookId: true,
+					postingDate: true,
+					status: true,
+					createdAt: true,
+				},
+			});
+			if (
+				(disposal.accountingEntryId &&
+					disposalAccountingEntries.length !== 1) ||
+				(!disposal.accountingEntryId && disposalAccountingEntries.length > 0)
+			) {
+				throw new ConflictException(
+					`Disposal ${disposal.series} has incomplete accounting lineage.`,
+				);
+			}
+			const disposalAccounting = disposalAccountingEntries[0] ?? null;
+			if (
+				disposal.accountingEntryId &&
+				(!disposalAccounting ||
+					disposalAccounting.id !== disposal.accountingEntryId ||
+					disposalAccounting.status !== "POSTED" ||
+					disposalAccounting.assetId !== asset.id ||
+					disposalAccounting.companyId !== disposal.companyId ||
+					disposalAccounting.financeBookId !== disposal.financeBookId ||
+					dateOnlyFromPersistedDateTime(disposalAccounting.postingDate) !==
+						dateOnlyFromPersistedDateTime(disposal.disposalDate))
+			) {
+				throw new ConflictException(
+					`Disposal ${disposal.series} has mismatched accounting lineage.`,
+				);
+			}
+			const accountingCandidates = await tx.assetAccountingEntry.findMany({
+				where: {
+					assetId: asset.id,
+					company: { is: { organizationId } },
+					OR: [
+						{ financeBookId: disposal.financeBookId },
+						{ financeBookId: null },
+					],
+					status: "POSTED",
+				},
+				select: { id: true, postingDate: true, createdAt: true },
+			});
+			for (const candidate of accountingCandidates) {
+				if (
+					candidate.id !== disposal.accountingEntryId &&
+					isLaterAssetLineageEvent(currentEvent, {
+						id: candidate.id,
+						effectiveDate: candidate.postingDate,
+						committedAt: candidate.createdAt,
+					})
+				) {
+					throw new ConflictException(
+						`The disposal cannot be restored after later accounting ${candidate.id} advanced the asset lineage.`,
+					);
+				}
+			}
+
+			const projectionContext = await tx.asset.findFirst({
+				where: assetWhereForOrganization(organizationId, { id: asset.id }),
+				select: {
+					company: { select: { defaultFinanceBookId: true } },
+					financeBooks: { select: { financeBookId: true } },
+				},
+			});
+			if (!projectionContext) {
+				throw new ConflictException(
+					`Asset ${asset.series} changed ownership while restore was being validated.`,
+				);
+			}
+			const restoresRootProjection = Boolean(
+				book &&
+					disposal.financeBookId &&
+					isEffectiveProjectionFinanceBook(
+						projectionContext.company.defaultFinanceBookId,
+						projectionContext.financeBooks,
+						disposal.financeBookId,
+					),
+			);
+			let restoredBookValue: number | null = null;
+			let restoredPostingStatus:
+				| "PENDING"
+				| "PARTIALLY_DEPRECIATED"
+				| "FULLY_DEPRECIATED"
+				| null = null;
+			if (book && closedSchedule) {
+				const postedScheduleEntryCount =
+					await tx.assetDepreciationScheduleEntry.count({
+						where: {
+							postingId: { not: null },
+							schedule: {
+								assetId: asset.id,
+								assetFinanceBookId: selectedBookId as string,
+								asset: { is: assetWhereForOrganization(organizationId) },
+							},
+						},
+					});
+				const expectedBooked =
+					book.openingNumberOfBookedDepreciations + postedScheduleEntryCount;
+				if (book.totalNumberOfBookedDepreciations !== expectedBooked) {
+					throw new ConflictException(
+						`Finance book ${disposal.financeBookId} has a drifted depreciation cursor.`,
+					);
+				}
+				if (linkedBarrier && linkedBarrierEntry) {
+					const currentValue = Number(book.valueAfterDepreciation);
+					const barrierValue = Number(
+						linkedBarrierEntry.bookValueAfterDepreciation,
+					);
+					const barrierAmount = Number(linkedBarrier.depreciationAmount);
+					if (
+						!Number.isFinite(currentValue) ||
+						!Number.isFinite(barrierValue) ||
+						!Number.isFinite(barrierAmount) ||
+						Math.abs(currentValue - barrierValue) > 10 ** -book.precision ||
+						Math.abs(
+							Number(linkedBarrierEntry.depreciationAmount) - barrierAmount,
+						) >
+							10 ** -book.precision ||
+						dateOnlyFromPersistedDateTime(
+							book.lastPostedDepreciationDate ?? new Date(0),
+						) !== dateOnlyFromPersistedDateTime(disposal.disposalDate)
+					) {
+						throw new ConflictException(
+							`Finance book ${disposal.financeBookId} does not match its disposal barrier snapshot.`,
+						);
+					}
+					const previousEntry = closedSchedule.entries
+						.filter(
+							(entry) =>
+								entry.id !== linkedBarrierEntry?.id && entry.postingId !== null,
+						)
+						.at(-1);
+					const round = (value: number): number =>
+						Number(value.toFixed(book.precision));
+					restoredBookValue = previousEntry
+						? Number(previousEntry.bookValueAfterDepreciation)
+						: round(currentValue + barrierAmount);
+					if (
+						!Number.isFinite(restoredBookValue) ||
+						(previousEntry &&
+							Math.abs(restoredBookValue - barrierAmount - currentValue) >
+								10 ** -book.precision)
+					) {
+						throw new ConflictException(
+							`Finance book ${disposal.financeBookId} cannot reconstruct its pre-disposal value.`,
+						);
+					}
+					if (book.totalNumberOfBookedDepreciations <= 0) {
+						throw new ConflictException(
+							`Finance book ${disposal.financeBookId} has an invalid disposal cursor.`,
+						);
+					}
+					const remainingEntries = closedSchedule.entries.filter(
+						(entry) => entry.postingId === null,
+					).length;
+					restoredPostingStatus =
+						remainingEntries === 0
+							? "FULLY_DEPRECIATED"
+							: book.totalNumberOfBookedDepreciations - 1 >
+									book.openingNumberOfBookedDepreciations
+								? "PARTIALLY_DEPRECIATED"
+								: "PENDING";
+				}
+			}
+
 			if (disposal.accountingEntryId) {
 				await this.accounting.reversePostedEntry(
 					tx,
@@ -7477,23 +8474,111 @@ export class AssetService {
 					disposal.accountingEntryId,
 				);
 			}
-			await this.depreciationRevision.reactivateLatestClosedSchedules(
-				tx,
-				organizationId,
-				asset.id,
-				disposal.financeBookId ?? undefined,
-			);
+			if (book && disposal.submittedFinanceBookStateVersion !== null) {
+				const restoredBook = await tx.assetFinanceBook.updateMany({
+					where: {
+						id: book.id,
+						assetId: asset.id,
+						stateVersion: disposal.submittedFinanceBookStateVersion,
+						asset: {
+							is: assetWhereForOrganization(organizationId, { id: asset.id }),
+						},
+					},
+					data: {
+						...(restoredBookValue === null
+							? {}
+							: {
+									valueAfterDepreciation: restoredBookValue,
+									totalNumberOfBookedDepreciations:
+										book.totalNumberOfBookedDepreciations - 1,
+									postingStatus: restoredPostingStatus as
+										| "PENDING"
+										| "PARTIALLY_DEPRECIATED"
+										| "FULLY_DEPRECIATED",
+									lastPostedDepreciationDate:
+										closedSchedule?.entries
+											.filter(
+												(entry) =>
+													entry.postingId !== null &&
+													entry.id !== linkedBarrierEntry?.id,
+											)
+											.at(-1)?.scheduleDate ?? null,
+								}),
+						stateVersion: { increment: 1 },
+					},
+				});
+				if (restoredBook.count !== 1) {
+					throw new ConflictException(
+						`Finance book ${disposal.financeBookId} changed while restore was being applied.`,
+					);
+				}
+			}
+			if (linkedBarrier && linkedBarrierEntry) {
+				const reversedBarrier =
+					await tx.assetDepreciationJournalEntry.updateMany({
+						where: {
+							id: linkedBarrier.id,
+							assetId: asset.id,
+							assetFinanceBookId: selectedBookId as string,
+							sourceDisposalId: disposal.id,
+							status: "POSTED",
+							company: { is: { organizationId } },
+						},
+						data: { status: "REVERSED", reversedAt: new Date() },
+					});
+				if (reversedBarrier.count !== 1) {
+					throw new ConflictException(
+						`Disposal ${disposal.series} barrier changed while restore was being applied.`,
+					);
+				}
+				const removedBarrierEntry =
+					await tx.assetDepreciationScheduleEntry.deleteMany({
+						where: {
+							id: linkedBarrierEntry.id,
+							scheduleId: closedSchedule?.id,
+							postingId: linkedBarrier.id,
+						},
+					});
+				if (removedBarrierEntry.count !== 1) {
+					throw new ConflictException(
+						`Disposal ${disposal.series} barrier schedule linkage changed while restore was being applied.`,
+					);
+				}
+			}
+			if (closedSchedule) {
+				const reactivatedSchedule =
+					await tx.assetDepreciationSchedule.updateMany({
+						where: {
+							id: closedSchedule.id,
+							assetId: asset.id,
+							assetFinanceBookId: selectedBookId as string,
+							status: "CANCELLED",
+							closedByDisposalId: disposal.id,
+							asset: { is: assetWhereForOrganization(organizationId) },
+						},
+						data: { status: "ACTIVE" },
+					});
+				if (reactivatedSchedule.count !== 1) {
+					throw new ConflictException(
+						`Disposal ${disposal.series} schedule changed while restore was being applied.`,
+					);
+				}
+			}
 			const cancelledDisposal = await tx.assetDisposal.updateMany({
 				where: {
 					id: disposal.id,
+					status: "POSTED",
+					assetId: asset.id,
 					company: { is: { organizationId } },
-					asset: { is: assetWhereForOrganization(organizationId) },
 				},
 				data: { status: "CANCELLED" },
 			});
 			if (cancelledDisposal.count !== 1) {
-				throw new NotFoundException(`Disposal ${disposal.id} not found`);
+				throw new ConflictException(
+					`Disposal ${disposal.series} changed while restore was being applied.`,
+				);
 			}
+
 			const restoredStatus =
 				disposal.previousAssetStatus ??
 				(asset.isFullyDepreciated
@@ -7502,17 +8587,28 @@ export class AssetService {
 							Number(asset.netPurchaseAmount)
 						? "PARTIALLY_DEPRECIATED"
 						: "SUBMITTED");
-			await this.updateOwnedAsset(tx, organizationId, asset.id, {
+			const restoredIsFullyDepreciated =
+				restoresRootProjection && restoredPostingStatus !== null
+					? restoredPostingStatus === "FULLY_DEPRECIATED"
+					: (disposal.previousIsFullyDepreciated ?? asset.isFullyDepreciated);
+			const assetRestoreData: Prisma.AssetUpdateManyArgs["data"] = {
 				status: restoredStatus,
-				isFullyDepreciated:
-					disposal.previousIsFullyDepreciated ?? asset.isFullyDepreciated,
+				isFullyDepreciated: restoredIsFullyDepreciated,
 				disposalDate: null,
-			});
+				...(restoresRootProjection && restoredBookValue !== null
+					? { valueAfterDepreciation: restoredBookValue }
+					: {}),
+			};
+			await this.updateOwnedAsset(
+				tx,
+				organizationId,
+				asset.id,
+				assetRestoreData,
+			);
 			const updated = await tx.asset.findFirstOrThrow({
 				where: assetWhereForOrganization(organizationId, { id: asset.id }),
 				include: this.assetInclude,
 			});
-
 			await tx.assetActivity.create({
 				data: {
 					assetId: asset.id,
@@ -7520,7 +8616,6 @@ export class AssetService {
 					activity: `Disposal ${disposal.series} reversed; asset restored to ${restoredStatus}`,
 				},
 			});
-
 			return updated;
 		});
 

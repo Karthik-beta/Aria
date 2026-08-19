@@ -49,6 +49,7 @@ function disposalRecord(overrides: Record<string, unknown> = {}) {
 		accountingEntry: { series: "AAE-2026-00001" },
 		previousAssetStatus: "PARTIALLY_DEPRECIATED",
 		previousIsFullyDepreciated: false,
+		submittedFinanceBookStateVersion: 2,
 		status: "POSTED",
 		notes: null,
 		createdAt: now,
@@ -276,6 +277,7 @@ function assetRecord(overrides: Record<string, unknown> = {}) {
 				expectedValueAfterUsefulLife: 0,
 				openingAccumulatedDepreciation: 3_000,
 				openingNumberOfBookedDepreciations: 3,
+				precision: 2,
 				valueAfterDepreciation: 7_000,
 				totalNumberOfBookedDepreciations: 3,
 				lastPostedDepreciationDate: null,
@@ -372,6 +374,8 @@ function createMockPrisma() {
 				id: "source-asset-book-1",
 				financeBookId: "finance-book-1",
 				stateVersion: 2,
+				precision: 2,
+				openingNumberOfBookedDepreciations: 3,
 				valueAfterDepreciation: 7_000,
 				totalNumberOfBookedDepreciations: 3,
 				postingStatus: "PARTIALLY_DEPRECIATED",
@@ -384,12 +388,14 @@ function createMockPrisma() {
 		assetDepreciationSchedule: {
 			findFirst: jest.fn().mockResolvedValue(null),
 			findMany: jest.fn().mockResolvedValue([]),
+			updateMany: jest.fn().mockResolvedValue({ count: 1 }),
 			deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
 		},
 		assetDepreciationScheduleEntry: {
 			findMany: jest.fn().mockResolvedValue([]),
 			count: jest.fn().mockResolvedValue(0),
 			updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+			deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
 		},
 		assetFinanceBookShiftAllocation: {
 			deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
@@ -646,7 +652,7 @@ function createTestContext() {
 	};
 	const depreciationRevision = {
 		revise: jest.fn().mockResolvedValue([]),
-		closeOpenSchedules: jest.fn().mockResolvedValue(1),
+		closeOpenSchedules: jest.fn().mockResolvedValue(0),
 		reactivateLatestClosedSchedules: jest.fn().mockResolvedValue(1),
 		reactivateSchedulesClosedByCapitalization: jest.fn().mockResolvedValue(0),
 	};
@@ -784,6 +790,8 @@ describe("Asset lifecycle actions", () => {
 				"org-1",
 				"asset-1",
 				"finance-book-1",
+				undefined,
+				expect.any(String),
 			);
 			expect(mockPrisma._mockTx.asset.update).toHaveBeenCalledWith({
 				where: { id: "asset-1" },
@@ -920,13 +928,19 @@ describe("Asset lifecycle actions", () => {
 		});
 
 		it("restores the exact prior state, reverses accounting, and reactivates schedules", async () => {
-			const { service, mockPrisma, accounting, depreciationRevision } =
-				createTestContext();
+			const { service, mockPrisma, accounting } = createTestContext();
 			const disposedAsset = assetRecord({
 				status: "SOLD",
 				disposalDate: new Date("2026-01-15T00:00:00.000Z"),
 			});
 			mockPrisma._mockTx.asset.findUnique.mockResolvedValue(disposedAsset);
+			mockPrisma._mockTx.assetDisposal.findMany.mockResolvedValue([
+				disposalRecord({
+					createdAt: new Date("2026-01-15T00:00:00.000Z"),
+					previousAssetStatus: "FULLY_DEPRECIATED",
+					previousIsFullyDepreciated: true,
+				}),
+			]);
 			mockPrisma._mockTx.assetDisposal.findFirst.mockResolvedValue(
 				disposalRecord({
 					createdAt: new Date("2026-01-15T00:00:00.000Z"),
@@ -937,6 +951,30 @@ describe("Asset lifecycle actions", () => {
 			mockPrisma._mockTx.asset.update.mockResolvedValue(
 				assetRecord({ status: "FULLY_DEPRECIATED", isFullyDepreciated: true }),
 			);
+			mockPrisma._mockTx.assetDepreciationSchedule.findMany.mockResolvedValue([
+				{
+					id: "schedule-1",
+					assetId: "asset-1",
+					assetFinanceBookId: "source-asset-book-1",
+					status: "CANCELLED",
+					closedByDisposalId: "disposal-1",
+					closedByCapitalizationId: null,
+					startDate: new Date("2025-01-01T00:00:00.000Z"),
+					frequencyOfDepreciation: 12,
+					entries: [],
+				},
+			]);
+			mockPrisma._mockTx.assetAccountingEntry.findMany.mockResolvedValue([
+				{
+					id: "accounting-1",
+					companyId: COMPANY_ID,
+					assetId: "asset-1",
+					financeBookId: "finance-book-1",
+					postingDate: new Date("2026-01-15T00:00:00.000Z"),
+					status: "POSTED",
+					createdAt: new Date("2026-01-15T00:00:00.000Z"),
+				},
+			]);
 
 			const restored = await service.restoreAsset(
 				{ assetId: "asset-1" },
@@ -951,12 +989,15 @@ describe("Asset lifecycle actions", () => {
 				"accounting-1",
 			);
 			expect(
-				depreciationRevision.reactivateLatestClosedSchedules,
+				mockPrisma._mockTx.assetDepreciationSchedule.updateMany,
 			).toHaveBeenCalledWith(
-				mockPrisma._mockTx,
-				"org-1",
-				"asset-1",
-				"finance-book-1",
+				expect.objectContaining({
+					where: expect.objectContaining({
+						id: "schedule-1",
+						closedByDisposalId: "disposal-1",
+					}),
+					data: { status: "ACTIVE" },
+				}),
 			);
 			expect(mockPrisma._mockTx.assetDisposal.update).toHaveBeenCalledWith({
 				where: { id: "disposal-1" },
@@ -980,6 +1021,9 @@ describe("Asset lifecycle actions", () => {
 			mockPrisma._mockTx.asset.findUnique.mockResolvedValue(
 				assetRecord({ status: "SCRAPPED" }),
 			);
+			mockPrisma._mockTx.assetDisposal.findMany.mockResolvedValue([
+				disposalRecord(),
+			]);
 			mockPrisma._mockTx.assetDisposal.findFirst.mockResolvedValue(
 				disposalRecord(),
 			);
@@ -2135,6 +2179,7 @@ describe("Asset lifecycle actions", () => {
 				depreciationRevision,
 				depreciationBarrier,
 			} = createTestContext();
+			depreciationRevision.closeOpenSchedules.mockResolvedValue(1);
 			const postingDate = new Date("2026-03-01T00:00:00.000Z");
 			mockPrisma.assetCapitalization.findUnique.mockResolvedValue({
 				postingDate,

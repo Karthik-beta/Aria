@@ -1,4 +1,5 @@
 import { Injectable } from "@nestjs/common";
+import type { Prisma } from "../../../generated/prisma/client";
 import {
 	dateOnlyFromPersistedDateTime,
 	depreciationBarrierTimeoutMs,
@@ -10,12 +11,16 @@ import {
 } from "./depreciation.constants";
 import {
 	DepreciationBarrierError,
+	type DepreciationJobData,
 	type DepreciationScope,
 	type EnsureDepreciationPostedResult,
 	type PendingDepreciationPeriod,
 } from "./depreciation.types";
 import type { DepreciationDiscoveryService } from "./depreciation-discovery.service";
-import type { DepreciationPersistenceService } from "./depreciation-persistence.service";
+import type {
+	DepreciationPersistenceService,
+	PostDepreciationResult,
+} from "./depreciation-persistence.service";
 import type { DepreciationQueueClient } from "./depreciation-queue.client";
 import type { DepreciationQueueSignal } from "./depreciation-queue-events";
 
@@ -86,6 +91,14 @@ export class DepreciationBarrierService {
 			await this.signal.wait(Math.min(1_000, remainingMs));
 			await this.discovery.discover(scope, "barrier");
 		}
+	}
+
+	/** Posts one disposal-date barrier while the owning disposal is still locked. */
+	async postDisposalBarrier(
+		tx: Prisma.TransactionClient,
+		job: DepreciationJobData,
+	): Promise<PostDepreciationResult> {
+		return this.persistence.postDisposalBarrier(tx, job);
 	}
 
 	private async failedPeriods(

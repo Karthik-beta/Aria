@@ -36,6 +36,7 @@ interface DepreciationTransaction {
 	assetCategoryAccount: Delegate;
 	assetDepreciationJournalEntry: Delegate;
 	assetDepreciationScheduleEntry: Delegate;
+	assetDisposal: Delegate;
 	assetFinanceBook: Delegate;
 	company: Delegate;
 	$queryRaw<T>(query: unknown): Promise<T>;
@@ -310,19 +311,63 @@ export class DepreciationPersistenceService {
 	}
 
 	async post(job: DepreciationJobData): Promise<PostDepreciationResult> {
-		return this.db.$transaction(async (tx) => {
-			// The queue payload carries both stable lock identities. Acquire the
-			// canonical Asset -> AssetFinanceBook order before reading the schedule
-			// row; the identity query below then validates that the payload is still
-			// attached to those locked rows.
-			await lockAssetAndFinanceBooks(
-				tx,
-				[job.assetId],
-				[job.assetFinanceBookId],
+		return this.db.$transaction((tx) => this.postInTransaction(tx, job));
+	}
+
+	/**
+	 * Posts a disposal-date barrier inside the disposal transaction.
+	 *
+	 * The schedule row and its owning disposal are created by AssetService before
+	 * this method is called. Reusing the worker posting path keeps journal lines,
+	 * finance-book cursors, and the root projection on the same transaction.
+	 */
+	async postDisposalBarrier(
+		tx: Prisma.TransactionClient,
+		job: DepreciationJobData,
+	): Promise<PostDepreciationResult> {
+		if (!job.sourceDisposalId) {
+			throw new DepreciationPostingValidationError(
+				"A disposal barrier posting requires disposal lineage.",
 			);
-			const identity = await tx.assetDepreciationScheduleEntry.findFirst<{
-				schedule: { assetId: string; assetFinanceBookId: string };
-			}>({
+		}
+		return this.postInTransaction(
+			tx as unknown as DepreciationTransaction,
+			job,
+		);
+	}
+
+	private async postInTransaction(
+		tx: DepreciationTransaction,
+		job: DepreciationJobData,
+	): Promise<PostDepreciationResult> {
+		// The queue payload carries both stable lock identities. Acquire the
+		// canonical Asset -> AssetFinanceBook order before reading the schedule
+		// row; the identity query below then validates that the payload is still
+		// attached to those locked rows.
+		await lockAssetAndFinanceBooks(tx, [job.assetId], [job.assetFinanceBookId]);
+		const identity = await tx.assetDepreciationScheduleEntry.findFirst<{
+			schedule: { assetId: string; assetFinanceBookId: string };
+		}>({
+			where: {
+				id: job.scheduleEntryId,
+				schedule: {
+					asset: {
+						company: { is: { organizationId: job.organizationId } },
+					},
+				},
+			},
+			select: {
+				schedule: { select: { assetId: true, assetFinanceBookId: true } },
+			},
+		});
+		if (!identity) {
+			throw new DepreciationPostingValidationError(
+				`Depreciation schedule entry ${job.scheduleEntryId} does not exist.`,
+			);
+		}
+
+		const entry =
+			await tx.assetDepreciationScheduleEntry.findFirst<WorkerEntry>({
 				where: {
 					id: job.scheduleEntryId,
 					schedule: {
@@ -331,335 +376,458 @@ export class DepreciationPersistenceService {
 						},
 					},
 				},
-				select: {
-					schedule: { select: { assetId: true, assetFinanceBookId: true } },
-				},
-			});
-			if (!identity) {
-				throw new DepreciationPostingValidationError(
-					`Depreciation schedule entry ${job.scheduleEntryId} does not exist.`,
-				);
-			}
-
-			const entry =
-				await tx.assetDepreciationScheduleEntry.findFirst<WorkerEntry>({
-					where: {
-						id: job.scheduleEntryId,
-						schedule: {
+				include: {
+					schedule: {
+						include: {
 							asset: {
-								company: { is: { organizationId: job.organizationId } },
-							},
-						},
-					},
-					include: {
-						schedule: {
-							include: {
-								asset: {
-									include: {
-										company: {
-											select: { name: true, organizationId: true },
+								include: {
+									company: {
+										select: { name: true, organizationId: true },
+									},
+									financeBooks: { select: { financeBookId: true } },
+									capitalizationsAsTarget: {
+										where: {
+											status: "SUBMITTED",
+											targetFinanceBookScheduleCreated: true,
 										},
-										financeBooks: { select: { financeBookId: true } },
-										capitalizationsAsTarget: {
-											where: {
-												status: "SUBMITTED",
-												targetFinanceBookScheduleCreated: true,
-											},
-											select: { financeBookId: true, postingDate: true },
-											orderBy: { postingDate: "desc" },
-										},
+										select: { financeBookId: true, postingDate: true },
+										orderBy: { postingDate: "desc" },
 									},
 								},
-								assetFinanceBook: { include: { financeBook: true } },
 							},
+							assetFinanceBook: { include: { financeBook: true } },
 						},
 					},
-				});
-			if (!entry) {
-				throw new DepreciationPostingValidationError(
-					`Depreciation schedule entry ${job.scheduleEntryId} does not exist.`,
-				);
-			}
-			this.validatePayloadIdentity(job, entry);
-			const persistedCapitalizationId = entry.schedule.sourceCapitalizationId;
-			const jobCapitalizationId = job.sourceCapitalizationId ?? null;
-			if (jobCapitalizationId !== persistedCapitalizationId) {
-				throw new DepreciationPostingValidationError(
-					`Depreciation job ${job.scheduleEntryId} has mismatched capitalization lineage.`,
-				);
-			}
-			assertFinitePostingAmount("amount", entry.depreciationAmount);
-			assertFinitePostingAmount("book value", entry.bookValueAfterDepreciation);
-
-			if (entry.postingId) {
-				return { status: "already-posted", postingId: entry.postingId };
-			}
-			this.validateCursorCapacity(entry);
-
-			const expectedCapitalizationId = persistedCapitalizationId;
-			const existing = await tx.assetDepreciationJournalEntry.findFirst<{
-				id: string;
-				sourceCapitalizationId: string | null;
+				},
+			});
+		if (!entry) {
+			throw new DepreciationPostingValidationError(
+				`Depreciation schedule entry ${job.scheduleEntryId} does not exist.`,
+			);
+		}
+		this.validatePayloadIdentity(job, entry);
+		if (job.sourceDisposalId) {
+			const disposal = await tx.assetDisposal.findFirst<{
+				assetId: string;
+				financeBookId: string | null;
+				status: string;
 			}>({
 				where: {
+					id: job.sourceDisposalId,
 					assetId: entry.schedule.assetId,
-					assetFinanceBookId: job.assetFinanceBookId,
-					postingDate: entry.scheduleDate,
-					assetFinanceBook: {
-						is: { assetId: entry.schedule.assetId },
-					},
-					asset: {
-						is: { company: { is: { organizationId: job.organizationId } } },
-					},
+					status: "POSTED",
 					company: { is: { organizationId: job.organizationId } },
 				},
-				select: { id: true, sourceCapitalizationId: true },
+				select: { assetId: true, financeBookId: true, status: true },
 			});
-			if (existing) {
-				if (existing.sourceCapitalizationId !== expectedCapitalizationId) {
-					throw new DepreciationPostingValidationError(
-						`Depreciation journal ${existing.id} has mismatched capitalization lineage.`,
-					);
-				}
-				const linkedEntry = await tx.assetDepreciationScheduleEntry.updateMany({
-					where: {
-						id: entry.id,
-						schedule: {
-							asset: {
-								company: { is: { organizationId: job.organizationId } },
-							},
-						},
-					},
-					data: { postingId: existing.id, postedAt: new Date() },
-				});
-				if (linkedEntry.count !== 1) {
-					throw new DepreciationPostingValidationError(
-						`Depreciation schedule entry ${entry.id} changed ownership while linking.`,
-					);
-				}
-				return { status: "already-posted", postingId: existing.id };
-			}
-			this.validatePostingEligibility(entry);
-
-			const earlier = await tx.assetDepreciationScheduleEntry.findFirst<{
-				id: string;
-			}>({
-				where: {
-					postingId: null,
-					scheduleDate: { lt: entry.scheduleDate },
-					schedule: {
-						status: "ACTIVE",
-						assetFinanceBookId: job.assetFinanceBookId,
-						asset: { company: { is: { organizationId: job.organizationId } } },
-					},
-				},
-				select: { id: true },
-				orderBy: [{ scheduleDate: "asc" }, { sequence: "asc" }],
-			});
-			if (earlier) {
-				return { status: "out-of-order", earlierScheduleEntryId: earlier.id };
-			}
-
-			const company = await tx.company.findFirst<CompanyPostingConfig>({
-				where: {
-					id: entry.schedule.asset.companyId,
-					organizationId: job.organizationId,
-				},
-				select: {
-					id: true,
-					name: true,
-					defaultFinanceBookId: true,
-					depreciationEntrySeries: true,
-					defaultCostCenter: true,
-					accumulatedDepreciationAccount: true,
-					depreciationExpenseAccount: true,
-					accountsFrozenThrough: true,
-				},
-			});
-			if (!company) {
-				throw new DepreciationPostingValidationError(
-					`Company ${entry.schedule.asset.companyId} does not exist.`,
-				);
-			}
 			if (
-				company.accountsFrozenThrough &&
-				dateOnlyFromPersistedDateTime(entry.scheduleDate) <=
-					dateOnlyFromPersistedDateTime(company.accountsFrozenThrough)
+				!disposal ||
+				disposal.financeBookId !== entry.schedule.assetFinanceBook.financeBookId
 			) {
 				throw new DepreciationPostingValidationError(
-					`Accounting is frozen through ${dateOnlyFromPersistedDateTime(company.accountsFrozenThrough)} for ${company.name}.`,
+					`Disposal barrier ${job.scheduleEntryId} has invalid disposal lineage.`,
 				);
 			}
-
-			const categoryAccounts = entry.schedule.asset.assetCategoryId
-				? await tx.assetCategoryAccount.findUnique<CategoryAccountConfig>({
-						where: {
-							assetCategoryId_companyId: {
-								assetCategoryId: entry.schedule.asset.assetCategoryId,
-								companyId: company.id,
-							},
-						},
-						select: {
-							accumulatedDepreciationAccount: true,
-							depreciationExpenseAccount: true,
-						},
-					})
-				: null;
-			const accumulatedAccount =
-				categoryAccounts?.accumulatedDepreciationAccount ??
-				company.accumulatedDepreciationAccount;
-			const expenseAccount =
-				categoryAccounts?.depreciationExpenseAccount ??
-				company.depreciationExpenseAccount;
-			if (!accumulatedAccount || !expenseAccount) {
-				throw new DepreciationPostingValidationError(
-					`Depreciation accounts are not configured for ${entry.schedule.asset.series}.`,
-				);
-			}
-
-			const series = await this.allocateSeries(
-				tx,
-				company.depreciationEntrySeries ?? "DEP-.YYYY.-",
-				dateOnlyFromPersistedDateTime(entry.scheduleDate),
+		}
+		const persistedCapitalizationId = entry.schedule.sourceCapitalizationId;
+		const jobCapitalizationId = job.sourceCapitalizationId ?? null;
+		if (jobCapitalizationId !== persistedCapitalizationId) {
+			throw new DepreciationPostingValidationError(
+				`Depreciation job ${job.scheduleEntryId} has mismatched capitalization lineage.`,
 			);
-			const posting = await tx.assetDepreciationJournalEntry.create<{
-				id: string;
-			}>({
-				data: {
-					series,
-					sourceCapitalizationId: expectedCapitalizationId ?? null,
-					assetId: entry.schedule.assetId,
-					assetFinanceBookId: entry.schedule.assetFinanceBookId,
-					companyId: company.id,
-					financeBookName: entry.schedule.assetFinanceBook.financeBook.name,
-					postingDate: entry.scheduleDate,
-					depreciationAmount: entry.depreciationAmount,
-					remarks: `Depreciation for ${entry.schedule.asset.series} on ${dateOnlyFromPersistedDateTime(entry.scheduleDate)}`,
-					status: "POSTED",
-					lines: {
-						create: [
-							{
-								lineType: "DEBIT",
-								account: expenseAccount,
-								debitAmount: entry.depreciationAmount,
-								creditAmount: 0,
-								costCenter: company.defaultCostCenter,
-							},
-							{
-								lineType: "CREDIT",
-								account: accumulatedAccount,
-								debitAmount: 0,
-								creditAmount: entry.depreciationAmount,
-								costCenter: company.defaultCostCenter,
-							},
-						],
-					},
-				},
-				select: { id: true },
-			});
+		}
+		assertFinitePostingAmount("amount", entry.depreciationAmount);
+		assertFinitePostingAmount("book value", entry.bookValueAfterDepreciation);
 
+		if (entry.postingId) {
+			const postingId = entry.postingId;
+			const persistedPosting =
+				await tx.assetDepreciationJournalEntry.findFirst<{
+					id: string;
+					assetId: string;
+					assetFinanceBookId: string;
+					companyId: string;
+					sourceCapitalizationId: string | null;
+					sourceDisposalId: string | null;
+					status: string;
+					postingDate: Date;
+					assetFinanceBook: {
+						id: string;
+						assetId: string;
+						financeBookId: string;
+					};
+					scheduleEntry: {
+						id: string;
+						postingId: string | null;
+						scheduleId: string;
+						scheduleDate: Date;
+						schedule: {
+							id: string;
+							assetId: string;
+							assetFinanceBookId: string;
+							assetFinanceBook: { assetId: string };
+						};
+					} | null;
+				}>({
+					where: {
+						id: postingId,
+						assetId: entry.schedule.assetId,
+						assetFinanceBookId: entry.schedule.assetFinanceBookId,
+						companyId: entry.schedule.asset.companyId,
+						assetFinanceBook: {
+							is: {
+								id: entry.schedule.assetFinanceBook.id,
+								assetId: entry.schedule.assetId,
+								financeBookId: entry.schedule.assetFinanceBook.financeBookId,
+							},
+						},
+						company: { is: { organizationId: job.organizationId } },
+					},
+					select: {
+						id: true,
+						assetId: true,
+						assetFinanceBookId: true,
+						companyId: true,
+						sourceCapitalizationId: true,
+						sourceDisposalId: true,
+						status: true,
+						postingDate: true,
+						assetFinanceBook: {
+							select: { id: true, assetId: true, financeBookId: true },
+						},
+						scheduleEntry: {
+							select: {
+								id: true,
+								postingId: true,
+								scheduleId: true,
+								scheduleDate: true,
+								schedule: {
+									select: {
+										id: true,
+										assetId: true,
+										assetFinanceBookId: true,
+										assetFinanceBook: { select: { assetId: true } },
+									},
+								},
+							},
+						},
+					},
+				});
+			const expectedDisposalId = job.sourceDisposalId ?? null;
+			if (
+				!persistedPosting ||
+				persistedPosting.status !== "POSTED" ||
+				persistedPosting.id !== postingId ||
+				persistedPosting.assetId !== entry.schedule.assetId ||
+				persistedPosting.assetFinanceBookId !==
+					entry.schedule.assetFinanceBookId ||
+				persistedPosting.companyId !== entry.schedule.asset.companyId ||
+				persistedPosting.assetFinanceBook.id !==
+					entry.schedule.assetFinanceBook.id ||
+				persistedPosting.assetFinanceBook.assetId !== entry.schedule.assetId ||
+				persistedPosting.assetFinanceBook.financeBookId !==
+					entry.schedule.assetFinanceBook.financeBookId ||
+				!persistedPosting.scheduleEntry ||
+				persistedPosting.scheduleEntry.id !== entry.id ||
+				persistedPosting.scheduleEntry.postingId !== postingId ||
+				persistedPosting.scheduleEntry.scheduleId !== entry.scheduleId ||
+				dateOnlyFromPersistedDateTime(persistedPosting.postingDate) !==
+					dateOnlyFromPersistedDateTime(entry.scheduleDate) ||
+				dateOnlyFromPersistedDateTime(
+					persistedPosting.scheduleEntry.scheduleDate,
+				) !== dateOnlyFromPersistedDateTime(entry.scheduleDate) ||
+				persistedPosting.scheduleEntry.schedule.id !== entry.schedule.id ||
+				persistedPosting.scheduleEntry.schedule.assetId !==
+					entry.schedule.assetId ||
+				persistedPosting.scheduleEntry.schedule.assetFinanceBookId !==
+					entry.schedule.assetFinanceBookId ||
+				persistedPosting.scheduleEntry.schedule.assetFinanceBook.assetId !==
+					entry.schedule.assetId ||
+				persistedPosting.sourceCapitalizationId !== persistedCapitalizationId ||
+				persistedPosting.sourceDisposalId !== expectedDisposalId
+			) {
+				throw new DepreciationPostingValidationError(
+					`Depreciation journal ${postingId} has incomplete persisted lineage for schedule entry ${entry.id}.`,
+				);
+			}
+			return { status: "already-posted", postingId: entry.postingId };
+		}
+		if (!job.sourceDisposalId) this.validateCursorCapacity(entry);
+
+		const expectedCapitalizationId = persistedCapitalizationId;
+		const existing = await tx.assetDepreciationJournalEntry.findFirst<{
+			id: string;
+			sourceCapitalizationId: string | null;
+			sourceDisposalId: string | null;
+		}>({
+			where: {
+				assetId: entry.schedule.assetId,
+				assetFinanceBookId: job.assetFinanceBookId,
+				postingDate: entry.scheduleDate,
+				assetFinanceBook: {
+					is: { assetId: entry.schedule.assetId },
+				},
+				asset: {
+					is: { company: { is: { organizationId: job.organizationId } } },
+				},
+				company: { is: { organizationId: job.organizationId } },
+			},
+			select: {
+				id: true,
+				sourceCapitalizationId: true,
+				sourceDisposalId: true,
+			},
+		});
+		if (existing) {
+			if (existing.sourceCapitalizationId !== expectedCapitalizationId) {
+				throw new DepreciationPostingValidationError(
+					`Depreciation journal ${existing.id} has mismatched capitalization lineage.`,
+				);
+			}
+			if (existing.sourceDisposalId !== (job.sourceDisposalId ?? null)) {
+				throw new DepreciationPostingValidationError(
+					`Depreciation journal ${existing.id} has mismatched disposal lineage.`,
+				);
+			}
 			const linkedEntry = await tx.assetDepreciationScheduleEntry.updateMany({
 				where: {
 					id: entry.id,
 					schedule: {
-						asset: { company: { is: { organizationId: job.organizationId } } },
+						asset: {
+							company: { is: { organizationId: job.organizationId } },
+						},
 					},
 				},
-				data: { postingId: posting.id, postedAt: new Date() },
+				data: { postingId: existing.id, postedAt: new Date() },
 			});
 			if (linkedEntry.count !== 1) {
 				throw new DepreciationPostingValidationError(
-					`Depreciation schedule entry ${entry.id} changed ownership while posting.`,
+					`Depreciation schedule entry ${entry.id} changed ownership while linking.`,
 				);
 			}
-			const [remaining, booked] = await Promise.all([
-				tx.assetDepreciationScheduleEntry.count({
-					where: {
-						postingId: null,
-						schedule: {
-							status: "ACTIVE",
-							assetFinanceBookId: job.assetFinanceBookId,
-							asset: {
-								company: { is: { organizationId: job.organizationId } },
-							},
-						},
-					},
-				}),
-				tx.assetDepreciationScheduleEntry.count({
-					where: {
-						postingId: { not: null },
-						schedule: {
-							assetFinanceBookId: job.assetFinanceBookId,
-							asset: {
-								company: { is: { organizationId: job.organizationId } },
-							},
-						},
-					},
-				}),
-			]);
-			const fullyDepreciated = remaining === 0;
-			const totalBookedDepreciations =
-				entry.schedule.assetFinanceBook.openingNumberOfBookedDepreciations +
-				booked;
-			assertFinitePostingAmount(
-				"total booked depreciations",
-				totalBookedDepreciations,
-			);
-			const updatedBook = await tx.assetFinanceBook.updateMany({
-				where: {
-					id: job.assetFinanceBookId,
+			return { status: "already-posted", postingId: existing.id };
+		}
+		this.validatePostingEligibility(entry);
+
+		const earlier = await tx.assetDepreciationScheduleEntry.findFirst<{
+			id: string;
+		}>({
+			where: {
+				postingId: null,
+				scheduleDate: { lt: entry.scheduleDate },
+				schedule: {
+					status: "ACTIVE",
+					assetFinanceBookId: job.assetFinanceBookId,
 					asset: { company: { is: { organizationId: job.organizationId } } },
+				},
+			},
+			select: { id: true },
+			orderBy: [{ scheduleDate: "asc" }, { sequence: "asc" }],
+		});
+		if (earlier) {
+			return { status: "out-of-order", earlierScheduleEntryId: earlier.id };
+		}
+
+		const company = await tx.company.findFirst<CompanyPostingConfig>({
+			where: {
+				id: entry.schedule.asset.companyId,
+				organizationId: job.organizationId,
+			},
+			select: {
+				id: true,
+				name: true,
+				defaultFinanceBookId: true,
+				depreciationEntrySeries: true,
+				defaultCostCenter: true,
+				accumulatedDepreciationAccount: true,
+				depreciationExpenseAccount: true,
+				accountsFrozenThrough: true,
+			},
+		});
+		if (!company) {
+			throw new DepreciationPostingValidationError(
+				`Company ${entry.schedule.asset.companyId} does not exist.`,
+			);
+		}
+		if (
+			company.accountsFrozenThrough &&
+			dateOnlyFromPersistedDateTime(entry.scheduleDate) <=
+				dateOnlyFromPersistedDateTime(company.accountsFrozenThrough)
+		) {
+			throw new DepreciationPostingValidationError(
+				`Accounting is frozen through ${dateOnlyFromPersistedDateTime(company.accountsFrozenThrough)} for ${company.name}.`,
+			);
+		}
+
+		const categoryAccounts = entry.schedule.asset.assetCategoryId
+			? await tx.assetCategoryAccount.findUnique<CategoryAccountConfig>({
+					where: {
+						assetCategoryId_companyId: {
+							assetCategoryId: entry.schedule.asset.assetCategoryId,
+							companyId: company.id,
+						},
+					},
+					select: {
+						accumulatedDepreciationAccount: true,
+						depreciationExpenseAccount: true,
+					},
+				})
+			: null;
+		const accumulatedAccount =
+			categoryAccounts?.accumulatedDepreciationAccount ??
+			company.accumulatedDepreciationAccount;
+		const expenseAccount =
+			categoryAccounts?.depreciationExpenseAccount ??
+			company.depreciationExpenseAccount;
+		if (!accumulatedAccount || !expenseAccount) {
+			throw new DepreciationPostingValidationError(
+				`Depreciation accounts are not configured for ${entry.schedule.asset.series}.`,
+			);
+		}
+
+		const series = await this.allocateSeries(
+			tx,
+			company.depreciationEntrySeries ?? "DEP-.YYYY.-",
+			dateOnlyFromPersistedDateTime(entry.scheduleDate),
+		);
+		const posting = await tx.assetDepreciationJournalEntry.create<{
+			id: string;
+		}>({
+			data: {
+				series,
+				sourceCapitalizationId: expectedCapitalizationId ?? null,
+				sourceDisposalId: job.sourceDisposalId ?? null,
+				assetId: entry.schedule.assetId,
+				assetFinanceBookId: entry.schedule.assetFinanceBookId,
+				companyId: company.id,
+				financeBookName: entry.schedule.assetFinanceBook.financeBook.name,
+				postingDate: entry.scheduleDate,
+				depreciationAmount: entry.depreciationAmount,
+				remarks: `Depreciation for ${entry.schedule.asset.series} on ${dateOnlyFromPersistedDateTime(entry.scheduleDate)}`,
+				status: "POSTED",
+				lines: {
+					create: [
+						{
+							lineType: "DEBIT",
+							account: expenseAccount,
+							debitAmount: entry.depreciationAmount,
+							creditAmount: 0,
+							costCenter: company.defaultCostCenter,
+						},
+						{
+							lineType: "CREDIT",
+							account: accumulatedAccount,
+							debitAmount: 0,
+							creditAmount: entry.depreciationAmount,
+							costCenter: company.defaultCostCenter,
+						},
+					],
+				},
+			},
+			select: { id: true },
+		});
+
+		const linkedEntry = await tx.assetDepreciationScheduleEntry.updateMany({
+			where: {
+				id: entry.id,
+				schedule: {
+					asset: { company: { is: { organizationId: job.organizationId } } },
+				},
+			},
+			data: { postingId: posting.id, postedAt: new Date() },
+		});
+		if (linkedEntry.count !== 1) {
+			throw new DepreciationPostingValidationError(
+				`Depreciation schedule entry ${entry.id} changed ownership while posting.`,
+			);
+		}
+		const [remaining, booked] = await Promise.all([
+			tx.assetDepreciationScheduleEntry.count({
+				where: {
+					postingId: null,
+					schedule: {
+						status: "ACTIVE",
+						assetFinanceBookId: job.assetFinanceBookId,
+						asset: {
+							company: { is: { organizationId: job.organizationId } },
+						},
+					},
+				},
+			}),
+			tx.assetDepreciationScheduleEntry.count({
+				where: {
+					postingId: { not: null },
+					schedule: {
+						assetFinanceBookId: job.assetFinanceBookId,
+						asset: {
+							company: { is: { organizationId: job.organizationId } },
+						},
+					},
+				},
+			}),
+		]);
+		const fullyDepreciated = remaining === 0;
+		const totalBookedDepreciations =
+			entry.schedule.assetFinanceBook.openingNumberOfBookedDepreciations +
+			booked;
+		assertFinitePostingAmount(
+			"total booked depreciations",
+			totalBookedDepreciations,
+		);
+		const updatedBook = await tx.assetFinanceBook.updateMany({
+			where: {
+				id: job.assetFinanceBookId,
+				asset: { company: { is: { organizationId: job.organizationId } } },
+			},
+			data: {
+				valueAfterDepreciation: entry.bookValueAfterDepreciation,
+				totalNumberOfBookedDepreciations: totalBookedDepreciations,
+				stateVersion: { increment: 1 },
+				postingStatus: fullyDepreciated
+					? "FULLY_DEPRECIATED"
+					: "PARTIALLY_DEPRECIATED",
+				lastPostedDepreciationDate: entry.scheduleDate,
+			},
+		});
+		if (updatedBook.count !== 1) {
+			throw new DepreciationPostingValidationError(
+				`Asset finance book ${job.assetFinanceBookId} changed ownership while posting.`,
+			);
+		}
+
+		if (
+			isEffectiveProjectionFinanceBook(
+				company.defaultFinanceBookId,
+				entry.schedule.asset.financeBooks,
+				entry.schedule.assetFinanceBook.financeBookId,
+			)
+		) {
+			const updatedAsset = await tx.asset.updateMany({
+				where: {
+					id: entry.schedule.assetId,
+					company: { is: { organizationId: job.organizationId } },
 				},
 				data: {
 					valueAfterDepreciation: entry.bookValueAfterDepreciation,
-					totalNumberOfBookedDepreciations: totalBookedDepreciations,
-					stateVersion: { increment: 1 },
-					postingStatus: fullyDepreciated
+					isFullyDepreciated: fullyDepreciated,
+					status: fullyDepreciated
 						? "FULLY_DEPRECIATED"
 						: "PARTIALLY_DEPRECIATED",
-					lastPostedDepreciationDate: entry.scheduleDate,
 				},
 			});
-			if (updatedBook.count !== 1) {
+			if (updatedAsset.count !== 1) {
 				throw new DepreciationPostingValidationError(
-					`Asset finance book ${job.assetFinanceBookId} changed ownership while posting.`,
+					`Asset ${entry.schedule.assetId} changed ownership while posting.`,
 				);
 			}
-
-			if (
-				isEffectiveProjectionFinanceBook(
-					company.defaultFinanceBookId,
-					entry.schedule.asset.financeBooks,
-					entry.schedule.assetFinanceBook.financeBookId,
-				)
-			) {
-				const updatedAsset = await tx.asset.updateMany({
-					where: {
-						id: entry.schedule.assetId,
-						company: { is: { organizationId: job.organizationId } },
-					},
-					data: {
-						valueAfterDepreciation: entry.bookValueAfterDepreciation,
-						isFullyDepreciated: fullyDepreciated,
-						status: fullyDepreciated
-							? "FULLY_DEPRECIATED"
-							: "PARTIALLY_DEPRECIATED",
-					},
-				});
-				if (updatedAsset.count !== 1) {
-					throw new DepreciationPostingValidationError(
-						`Asset ${entry.schedule.assetId} changed ownership while posting.`,
-					);
-				}
-			}
-			await tx.assetActivity.create({
-				data: {
-					assetId: entry.schedule.assetId,
-					activity: `Depreciation ${series} posted for ${dateOnlyFromPersistedDateTime(entry.scheduleDate)} in ${entry.schedule.assetFinanceBook.financeBook.name}.`,
-				},
-			});
-			return { status: "posted", postingId: posting.id };
+		}
+		await tx.assetActivity.create({
+			data: {
+				assetId: entry.schedule.assetId,
+				activity: `Depreciation ${series} posted for ${dateOnlyFromPersistedDateTime(entry.scheduleDate)} in ${entry.schedule.assetFinanceBook.financeBook.name}.`,
+			},
 		});
+		return { status: "posted", postingId: posting.id };
 	}
 
 	private validatePayloadIdentity(

@@ -14,6 +14,8 @@ export interface DepreciationJobData {
 	organizationId: string;
 	/** Capitalization that requested a posting barrier, when one owns the effect. */
 	sourceCapitalizationId?: string;
+	/** Disposal that owns an explicit disposal-date barrier posting. */
+	sourceDisposalId?: string;
 	assetId: string;
 	assetFinanceBookId: string;
 	scheduleId: string;
