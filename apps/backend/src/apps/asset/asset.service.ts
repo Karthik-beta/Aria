@@ -132,6 +132,187 @@ const isLaterAssetLineageEvent = (
 	);
 };
 
+type AssetFinanceBookSnapshot = {
+	stateVersion: number;
+	valueAfterDepreciation: number;
+	depreciationMethod:
+		| "STRAIGHT_LINE"
+		| "DOUBLE_DECLINING_BALANCE"
+		| "WRITTEN_DOWN_VALUE"
+		| "MANUAL";
+	totalNumberOfDepreciations: number;
+	increaseInAssetLife: number;
+	frequencyOfDepreciation: number;
+	dailyProrataBased: boolean;
+	shiftBased: boolean;
+	precision: number;
+	ratePrecision: number;
+	calculateUsingTotalDays: boolean;
+	rateOfDepreciation: number | null;
+	expectedValueAfterUsefulLife: number;
+	depreciationStartDate: string;
+	openingAccumulatedDepreciation: number;
+	openingNumberOfBookedDepreciations: number;
+	totalNumberOfBookedDepreciations: number;
+	postingStatus: "PENDING" | "PARTIALLY_DEPRECIATED" | "FULLY_DEPRECIATED";
+	lastPostedDepreciationDate: string | null;
+	shiftAllocations: Array<{
+		periodIndex: number;
+		shift: string;
+		factor: number;
+	}>;
+	generatedShiftAllocations: Array<{
+		periodIndex: number;
+		shift: string;
+		factor: number;
+	}>;
+};
+
+const readAssetFinanceBookSnapshot = (
+	value: unknown,
+): AssetFinanceBookSnapshot => {
+	if (typeof value !== "object" || value === null || Array.isArray(value)) {
+		throw new ConflictException(
+			"Capitalization is missing an unambiguous target finance-book snapshot.",
+		);
+	}
+	const raw = value as Record<string, unknown>;
+	const number = (key: string): number => {
+		const candidate = raw[key];
+		if (typeof candidate !== "number" || !Number.isFinite(candidate)) {
+			throw new ConflictException(
+				`Capitalization target finance-book snapshot field ${key} is invalid.`,
+			);
+		}
+		return candidate;
+	};
+	const boolean = (key: string): boolean => {
+		const candidate = raw[key];
+		if (typeof candidate !== "boolean") {
+			throw new ConflictException(
+				`Capitalization target finance-book snapshot field ${key} is invalid.`,
+			);
+		}
+		return candidate;
+	};
+	const nullableNumber = (key: string): number | null => {
+		const candidate = raw[key];
+		if (candidate === null) return null;
+		if (typeof candidate !== "number" || !Number.isFinite(candidate)) {
+			throw new ConflictException(
+				`Capitalization target finance-book snapshot field ${key} is invalid.`,
+			);
+		}
+		return candidate;
+	};
+	const date = (key: string): string => {
+		const candidate = raw[key];
+		if (typeof candidate !== "string" || Number.isNaN(Date.parse(candidate))) {
+			throw new ConflictException(
+				`Capitalization target finance-book snapshot field ${key} is invalid.`,
+			);
+		}
+		return candidate;
+	};
+	const nullableDate = (key: string): string | null => {
+		const candidate = raw[key];
+		if (candidate === null) return null;
+		if (typeof candidate !== "string" || Number.isNaN(Date.parse(candidate))) {
+			throw new ConflictException(
+				`Capitalization target finance-book snapshot field ${key} is invalid.`,
+			);
+		}
+		return candidate;
+	};
+	const depreciationMethod = raw.depreciationMethod;
+	if (
+		depreciationMethod !== "STRAIGHT_LINE" &&
+		depreciationMethod !== "DOUBLE_DECLINING_BALANCE" &&
+		depreciationMethod !== "WRITTEN_DOWN_VALUE" &&
+		depreciationMethod !== "MANUAL"
+	) {
+		throw new ConflictException(
+			"Capitalization target finance-book snapshot has an invalid depreciation method.",
+		);
+	}
+	const postingStatus = raw.postingStatus;
+	if (
+		postingStatus !== "PENDING" &&
+		postingStatus !== "PARTIALLY_DEPRECIATED" &&
+		postingStatus !== "FULLY_DEPRECIATED"
+	) {
+		throw new ConflictException(
+			"Capitalization target finance-book snapshot has an invalid posting status.",
+		);
+	}
+	const readShiftAllocations = (key: string) => {
+		const rawAllocations = raw[key];
+		if (!Array.isArray(rawAllocations)) {
+			throw new ConflictException(
+				"Capitalization target finance-book snapshot has invalid shift allocations.",
+			);
+		}
+		return rawAllocations.map((allocation) => {
+			if (
+				typeof allocation !== "object" ||
+				allocation === null ||
+				Array.isArray(allocation)
+			) {
+				throw new ConflictException(
+					"Capitalization target finance-book snapshot has invalid shift allocations.",
+				);
+			}
+			const row = allocation as Record<string, unknown>;
+			if (
+				typeof row.periodIndex !== "number" ||
+				!Number.isInteger(row.periodIndex) ||
+				typeof row.shift !== "string" ||
+				typeof row.factor !== "number" ||
+				!Number.isFinite(row.factor)
+			) {
+				throw new ConflictException(
+					"Capitalization target finance-book snapshot has invalid shift allocations.",
+				);
+			}
+			return {
+				periodIndex: row.periodIndex,
+				shift: row.shift,
+				factor: row.factor,
+			};
+		});
+	};
+
+	return {
+		stateVersion: number("stateVersion"),
+		valueAfterDepreciation: number("valueAfterDepreciation"),
+		depreciationMethod,
+		totalNumberOfDepreciations: number("totalNumberOfDepreciations"),
+		increaseInAssetLife: number("increaseInAssetLife"),
+		frequencyOfDepreciation: number("frequencyOfDepreciation"),
+		dailyProrataBased: boolean("dailyProrataBased"),
+		shiftBased: boolean("shiftBased"),
+		precision: number("precision"),
+		ratePrecision: number("ratePrecision"),
+		calculateUsingTotalDays: boolean("calculateUsingTotalDays"),
+		rateOfDepreciation: nullableNumber("rateOfDepreciation"),
+		expectedValueAfterUsefulLife: number("expectedValueAfterUsefulLife"),
+		depreciationStartDate: date("depreciationStartDate"),
+		openingAccumulatedDepreciation: number("openingAccumulatedDepreciation"),
+		openingNumberOfBookedDepreciations: number(
+			"openingNumberOfBookedDepreciations",
+		),
+		totalNumberOfBookedDepreciations: number(
+			"totalNumberOfBookedDepreciations",
+		),
+		postingStatus,
+		lastPostedDepreciationDate: nullableDate("lastPostedDepreciationDate"),
+		shiftAllocations: readShiftAllocations("shiftAllocations"),
+		generatedShiftAllocations: readShiftAllocations(
+			"generatedShiftAllocations",
+		),
+	};
+};
+
 @Injectable()
 export class AssetService {
 	private readonly logger = new Logger(AssetService.name);
@@ -2927,23 +3108,42 @@ export class AssetService {
 		organizationId: AssetOrganizationId,
 	): Promise<{ success: boolean; id: string }> {
 		this.assertOrganizationScope(organizationId);
-		const existing = await this.prisma.asset.findFirst({
-			where: assetWhereForOrganization(organizationId, { id }),
-			select: { id: true, status: true },
-		});
-		if (!existing) throw new NotFoundException(`Asset ${id} not found`);
+		await this.prisma.$transaction(async (tx) => {
+			await this.lockAssets(tx, [id]);
+			const existing = await tx.asset.findFirst({
+				where: assetWhereForOrganization(organizationId, { id }),
+				select: { id: true, series: true, status: true },
+			});
+			if (!existing) throw new NotFoundException(`Asset ${id} not found`);
 
-		if (existing.status === "SUBMITTED") {
-			throw new BadRequestException(
-				"Cannot delete a submitted asset. Cancel it first.",
-			);
-		}
+			if (existing.status === "SUBMITTED") {
+				throw new BadRequestException(
+					"Cannot delete a submitted asset. Cancel it first.",
+				);
+			}
 
-		const deleted = await this.prisma.asset.deleteMany({
-			where: assetWhereForOrganization(organizationId, { id }),
+			const capitalization = await tx.assetCapitalization.findFirst({
+				where: {
+					company: { is: { organizationId } },
+					OR: [
+						{ targetAssetId: id },
+						{ assetItems: { some: { assetId: id } } },
+					],
+				},
+				select: { series: true, status: true },
+			});
+			if (capitalization) {
+				throw new ConflictException(
+					`Asset ${existing.series} is linked to capitalization ${capitalization.series} (${capitalization.status}) and cannot be deleted.`,
+				);
+			}
+
+			const deleted = await tx.asset.deleteMany({
+				where: assetWhereForOrganization(organizationId, { id }),
+			});
+			if (deleted.count !== 1)
+				throw new NotFoundException(`Asset ${id} not found`);
 		});
-		if (deleted.count !== 1)
-			throw new NotFoundException(`Asset ${id} not found`);
 		return { success: true, id };
 	}
 
@@ -2953,29 +3153,53 @@ export class AssetService {
 	): Promise<{ success: boolean; count: number; ids: string[] }> {
 		this.assertOrganizationScope(organizationId);
 		const uniqueIds = [...new Set(ids)];
-		const assets = await this.prisma.asset.findMany({
-			where: assetWhereForOrganization(organizationId, {
-				id: { in: uniqueIds },
-			}),
-			select: { id: true, status: true },
-		});
-		if (assets.length !== uniqueIds.length) {
-			throw new NotFoundException(
-				"One or more assets are not available in the active organization",
-			);
-		}
+		await this.prisma.$transaction(async (tx) => {
+			await this.lockAssets(tx, uniqueIds);
+			const assets = await tx.asset.findMany({
+				where: assetWhereForOrganization(organizationId, {
+					id: { in: uniqueIds },
+				}),
+				select: { id: true, series: true, status: true },
+			});
+			if (assets.length !== uniqueIds.length) {
+				throw new NotFoundException(
+					"One or more assets are not available in the active organization",
+				);
+			}
 
-		const submitted = assets.filter((a) => a.status === "SUBMITTED");
-		if (submitted.length > 0) {
-			throw new BadRequestException(
-				`Cannot delete submitted assets: ${submitted.map((a) => a.id).join(", ")}`,
-			);
-		}
+			const submitted = assets.filter((a) => a.status === "SUBMITTED");
+			if (submitted.length > 0) {
+				throw new BadRequestException(
+					`Cannot delete submitted assets: ${submitted.map((a) => a.id).join(", ")}`,
+				);
+			}
 
-		await this.prisma.asset.deleteMany({
-			where: assetWhereForOrganization(organizationId, {
-				id: { in: uniqueIds },
-			}),
+			const capitalizations = await tx.assetCapitalization.findMany({
+				where: {
+					company: { is: { organizationId } },
+					OR: [
+						{ targetAssetId: { in: uniqueIds } },
+						{ assetItems: { some: { assetId: { in: uniqueIds } } } },
+					],
+				},
+				select: { series: true, status: true },
+			});
+			if (capitalizations.length > 0) {
+				throw new ConflictException(
+					`Assets are linked to capitalization ${capitalizations[0]?.series} (${capitalizations[0]?.status}) and cannot be deleted.`,
+				);
+			}
+
+			const deleted = await tx.asset.deleteMany({
+				where: assetWhereForOrganization(organizationId, {
+					id: { in: uniqueIds },
+				}),
+			});
+			if (deleted.count !== uniqueIds.length) {
+				throw new NotFoundException(
+					"One or more assets changed before deletion.",
+				);
+			}
 		});
 		return { success: true, count: uniqueIds.length, ids: uniqueIds };
 	}
@@ -8707,6 +8931,11 @@ export class AssetService {
 				"Target asset is required when capitalizing into an existing asset.",
 			);
 		}
+		if (input.targetType === "NEW_ASSET" && input.targetAssetId) {
+			throw new BadRequestException(
+				"A new-asset capitalization cannot specify a target asset.",
+			);
+		}
 		if (input.targetAssetId && sourceAssetIds.includes(input.targetAssetId)) {
 			throw new BadRequestException(
 				"The target asset cannot also be a consumed asset.",
@@ -8789,7 +9018,12 @@ export class AssetService {
 			let resolvedTargetName = input.targetAssetName ?? null;
 			let resolvedTargetCategory = input.targetAssetCategory ?? null;
 			let resolvedTargetItemCode = input.targetItemCode ?? null;
-			if (input.targetAssetId) {
+			if (input.targetType === "EXISTING_ASSET") {
+				if (!input.targetAssetId) {
+					throw new BadRequestException(
+						"Target asset is required when capitalizing into an existing asset.",
+					);
+				}
 				const target = await tx.asset.findFirst({
 					where: assetWhereForOrganization(organizationId, {
 						id: input.targetAssetId,
@@ -8981,7 +9215,10 @@ export class AssetService {
 					financeBookId: resolvedCapitalizationFinanceBookId,
 					postingDate,
 					targetType: input.targetType,
-					targetAssetId: input.targetAssetId ?? null,
+					targetAssetId:
+						input.targetType === "EXISTING_ASSET"
+							? (input.targetAssetId ?? null)
+							: null,
 					targetAssetName: resolvedTargetName,
 					targetAssetCategory: resolvedTargetCategory,
 					targetItemCode: resolvedTargetItemCode,
@@ -9007,7 +9244,7 @@ export class AssetService {
 						},
 					});
 				}
-				if (input.targetAssetId) {
+				if (input.targetType === "EXISTING_ASSET" && input.targetAssetId) {
 					await tx.assetActivity.create({
 						data: {
 							assetId: input.targetAssetId,
@@ -9056,6 +9293,7 @@ export class AssetService {
 				organizationId,
 				throughDate: cap.postingDate,
 				assetIds: sourceAssetIds,
+				sourceCapitalizationId: input.id,
 				...(cap.financeBookId ? { financeBookId: cap.financeBookId } : {}),
 			});
 		}
@@ -9153,7 +9391,9 @@ export class AssetService {
 				company: { select: { name: true } },
 				assetCategoryId: true,
 				status: true,
+				calculateDepreciation: true,
 				disposalDate: true,
+				isFullyDepreciated: true,
 				netPurchaseAmount: true,
 				valueAfterDepreciation: true,
 				financeBooks: { include: { shiftAllocations: true } },
@@ -9166,10 +9406,12 @@ export class AssetService {
 			id: string;
 			series: string;
 			companyId: string;
+			itemCode: string;
 			assetCategoryId: string | null;
 			status: Asset.AssetStatus;
 			assetType: Asset.AssetType;
 			calculateDepreciation: boolean;
+			isFullyDepreciated: boolean;
 			netPurchaseAmount: Prisma.Decimal;
 			valueAfterDepreciation: Prisma.Decimal;
 			financeBooks: Array<{
@@ -9181,6 +9423,11 @@ export class AssetService {
 		};
 		let target: TargetAsset;
 		let createdTargetAsset = false;
+		if (cap.targetType === "NEW_ASSET" && cap.targetAssetId) {
+			throw new ConflictException(
+				`Capitalization ${cap.series} has a contradictory new-asset target reference.`,
+			);
+		}
 		if (cap.targetType === "EXISTING_ASSET") {
 			if (!cap.targetAssetId) {
 				throw new BadRequestException(
@@ -9195,11 +9442,13 @@ export class AssetService {
 					id: true,
 					series: true,
 					companyId: true,
+					itemCode: true,
 					company: { select: { name: true } },
 					assetCategoryId: true,
 					status: true,
 					assetType: true,
 					calculateDepreciation: true,
+					isFullyDepreciated: true,
 					netPurchaseAmount: true,
 					valueAfterDepreciation: true,
 					financeBooks: {
@@ -9220,6 +9469,8 @@ export class AssetService {
 			}
 			if (
 				existingTarget.companyId !== cap.companyId ||
+				!cap.targetItemCode ||
+				existingTarget.itemCode !== cap.targetItemCode ||
 				existingTarget.status !== "DRAFT" ||
 				existingTarget.assetType !== "COMPOSITE_ASSET"
 			) {
@@ -9281,9 +9532,11 @@ export class AssetService {
 					id: true,
 					series: true,
 					companyId: true,
+					itemCode: true,
 					assetCategoryId: true,
 					status: true,
 					assetType: true,
+					isFullyDepreciated: true,
 					netPurchaseAmount: true,
 					valueAfterDepreciation: true,
 				},
@@ -9292,6 +9545,7 @@ export class AssetService {
 				...created,
 				status: created.status as Asset.AssetStatus,
 				calculateDepreciation: false,
+				isFullyDepreciated: false,
 				financeBooks: [],
 			};
 			createdTargetAsset = true;
@@ -9384,6 +9638,7 @@ export class AssetService {
 
 		let totalAssetValue = 0;
 		const sourceFinanceBookIds = new Map<string, string | null>();
+		const sourceFinanceBookRecordIds = new Map<string, string | null>();
 		const sourceById = new Map(sources.map((source) => [source.id, source]));
 		for (const item of cap.assetItems) {
 			const source = sourceById.get(item.assetId);
@@ -9446,6 +9701,7 @@ export class AssetService {
 			const fixedAssetBalance = bookBalance.grossValue;
 			const accumulatedDepreciation = bookBalance.accumulatedDepreciation;
 			sourceFinanceBookIds.set(source.id, bookBalance.financeBookId);
+			sourceFinanceBookRecordIds.set(source.id, bookBalance.assetFinanceBookId);
 			if (carryingValue < 0 || accumulatedDepreciation < 0) {
 				throw new BadRequestException(
 					`Source asset ${source.series} has inconsistent book values.`,
@@ -9492,6 +9748,7 @@ export class AssetService {
 					assetValue: carryingValue,
 					financeBookId: bookBalance.financeBookId,
 					previousStatus: source.status,
+					previousIsFullyDepreciated: source.isFullyDepreciated,
 					previousDisposalDate: source.disposalDate,
 				},
 			});
@@ -9511,6 +9768,7 @@ export class AssetService {
 		}
 
 		let targetPreviousFinanceBookValue: number | null = null;
+		let targetPreviousFinanceBookSnapshot: Prisma.InputJsonValue | null = null;
 		let targetFinanceBookCreated = false;
 		let targetFinanceBookScheduleCreated = false;
 		const selectedTargetFinanceBookId =
@@ -9522,6 +9780,7 @@ export class AssetService {
 			: undefined;
 		let accountingPrecision = selectedTargetFinanceBook?.precision ?? 6;
 		const targetPreviousCalculateDepreciation = target.calculateDepreciation;
+		const targetPreviousIsFullyDepreciated = target.isFullyDepreciated;
 		const requiresIndependentTargetBook =
 			Boolean(cap.financeBookId) &&
 			(!projectsRootAsset || !company.defaultFinanceBookId);
@@ -9533,6 +9792,7 @@ export class AssetService {
 				},
 				select: {
 					id: true,
+					stateVersion: true,
 					valueAfterDepreciation: true,
 					depreciationMethod: true,
 					totalNumberOfDepreciations: true,
@@ -9570,6 +9830,58 @@ export class AssetService {
 			targetPreviousFinanceBookValue = existingTargetBook
 				? Number(existingTargetBook.valueAfterDepreciation)
 				: 0;
+			if (existingTargetBook) {
+				targetPreviousFinanceBookSnapshot = {
+					stateVersion: existingTargetBook.stateVersion,
+					valueAfterDepreciation: Number(
+						existingTargetBook.valueAfterDepreciation,
+					),
+					depreciationMethod: existingTargetBook.depreciationMethod,
+					totalNumberOfDepreciations:
+						existingTargetBook.totalNumberOfDepreciations,
+					increaseInAssetLife: existingTargetBook.increaseInAssetLife,
+					frequencyOfDepreciation: existingTargetBook.frequencyOfDepreciation,
+					dailyProrataBased: existingTargetBook.dailyProrataBased,
+					shiftBased: existingTargetBook.shiftBased,
+					precision: existingTargetBook.precision,
+					ratePrecision: existingTargetBook.ratePrecision,
+					calculateUsingTotalDays: existingTargetBook.calculateUsingTotalDays,
+					rateOfDepreciation:
+						existingTargetBook.rateOfDepreciation == null
+							? null
+							: Number(existingTargetBook.rateOfDepreciation),
+					expectedValueAfterUsefulLife: Number(
+						existingTargetBook.expectedValueAfterUsefulLife,
+					),
+					depreciationStartDate:
+						existingTargetBook.depreciationStartDate?.toISOString() ?? null,
+					openingAccumulatedDepreciation: Number(
+						existingTargetBook.openingAccumulatedDepreciation,
+					),
+					openingNumberOfBookedDepreciations:
+						existingTargetBook.openingNumberOfBookedDepreciations,
+					totalNumberOfBookedDepreciations:
+						existingTargetBook.totalNumberOfBookedDepreciations,
+					postingStatus: existingTargetBook.postingStatus,
+					lastPostedDepreciationDate:
+						existingTargetBook.lastPostedDepreciationDate?.toISOString() ??
+						null,
+					shiftAllocations: existingTargetBook.shiftAllocations.map(
+						(allocation) => ({
+							periodIndex: allocation.periodIndex,
+							shift: allocation.shift,
+							factor: Number(allocation.factor),
+						}),
+					),
+					generatedShiftAllocations: existingTargetBook.shiftAllocations.map(
+						(allocation) => ({
+							periodIndex: allocation.periodIndex,
+							shift: allocation.shift,
+							factor: Number(allocation.factor),
+						}),
+					),
+				} as Prisma.InputJsonValue;
+			}
 			targetFinanceBookCreated = !existingTargetBook;
 
 			const sourceTemplate = sources
@@ -9664,6 +9976,16 @@ export class AssetService {
 				shift: allocation.shift,
 				factor: Number(allocation.factor),
 			}));
+			if (
+				targetPreviousFinanceBookSnapshot &&
+				typeof targetPreviousFinanceBookSnapshot === "object" &&
+				!Array.isArray(targetPreviousFinanceBookSnapshot)
+			) {
+				targetPreviousFinanceBookSnapshot = {
+					...targetPreviousFinanceBookSnapshot,
+					generatedShiftAllocations: shiftAllocations,
+				} as Prisma.InputJsonValue;
+			}
 			const scheduleConfiguration = {
 				method,
 				totalPeriods,
@@ -9777,6 +10099,7 @@ export class AssetService {
 				projectsRootAsset && target.status === "DRAFT" ? "DRAFT" : "ACTIVE";
 			await tx.assetDepreciationSchedule.create({
 				data: {
+					sourceCapitalizationId: cap.id,
 					assetId: target.id,
 					assetFinanceBookId: book.id,
 					revisionNumber: 1,
@@ -9863,12 +10186,70 @@ export class AssetService {
 			},
 		});
 		for (const source of sources) {
-			await this.depreciationRevision.closeOpenSchedules(
-				tx,
-				organizationId,
+			const sourceFinanceBookId = sourceFinanceBookIds.get(source.id);
+			const sourceFinanceBookRecordId = sourceFinanceBookRecordIds.get(
 				source.id,
-				sourceFinanceBookIds.get(source.id) ?? undefined,
 			);
+			const closedScheduleCount =
+				await this.depreciationRevision.closeOpenSchedules(
+					tx,
+					organizationId,
+					source.id,
+					sourceFinanceBookId ?? undefined,
+					cap.id,
+				);
+			if (source.calculateDepreciation) {
+				if (!sourceFinanceBookRecordId || closedScheduleCount !== 1) {
+					throw new ConflictException(
+						`Source asset ${source.series} did not produce exactly one reversible schedule closure for capitalization ${cap.series}.`,
+					);
+				}
+				const closedSchedules = await tx.assetDepreciationSchedule.findMany({
+					where: {
+						assetId: source.id,
+						assetFinanceBookId: sourceFinanceBookRecordId,
+						status: "CANCELLED",
+						closedByCapitalizationId: cap.id,
+						asset: {
+							is: assetWhereForOrganization(organizationId, {
+								id: source.id,
+							}),
+						},
+						assetFinanceBook: { is: { assetId: source.id } },
+					},
+					select: { id: true },
+				});
+				if (closedSchedules.length !== 1 || !closedSchedules[0]) {
+					throw new ConflictException(
+						`Source asset ${source.series} has ambiguous schedule closure lineage for capitalization ${cap.series}.`,
+					);
+				}
+				const sourceItem = cap.assetItems.find(
+					(item) => item.assetId === source.id,
+				);
+				if (!sourceItem) {
+					throw new ConflictException(
+						`Capitalization ${cap.series} is missing its source item for asset ${source.id}.`,
+					);
+				}
+				const closedScheduleTransition =
+					await tx.assetCapitalizationAssetItem.updateMany({
+						where: {
+							id: sourceItem.id,
+							capitalization: {
+								is: this.assetCapitalizationWhereForOrganization(
+									organizationId,
+								),
+							},
+						},
+						data: { closedScheduleId: closedSchedules[0].id },
+					});
+				if (closedScheduleTransition.count !== 1) {
+					throw new ConflictException(
+						`Capitalization ${cap.series} source schedule lineage could not be persisted.`,
+					);
+				}
+			}
 			await this.updateOwnedAsset(tx, organizationId, source.id, {
 				status: "CAPITALIZED",
 				disposalDate: cap.postingDate,
@@ -9895,7 +10276,10 @@ export class AssetService {
 				accountingEntryId: entry.id,
 				targetPreviousNetPurchaseAmount: targetPreviousNet,
 				targetPreviousValueAfterDepreciation: targetPreviousValue,
+				targetPreviousIsFullyDepreciated,
 				targetPreviousFinanceBookValue,
+				targetPreviousFinanceBookSnapshot:
+					targetPreviousFinanceBookSnapshot ?? Prisma.JsonNull,
 				targetPreviousCalculateDepreciation,
 				targetFinanceBookCreated,
 				targetFinanceBookScheduleCreated,
@@ -9915,6 +10299,135 @@ export class AssetService {
 			}),
 			include: this.assetCapitalizationInclude,
 		});
+	}
+
+	/** Restores one source book after reversing only its capitalization-owned postings. */
+	private async restoreCapitalizationSourceBook(
+		tx: Prisma.TransactionClient,
+		organizationId: AssetOrganizationId,
+		cap: PrismaAssetCapitalization,
+		asset: {
+			id: string;
+			series: string;
+			calculateDepreciation: boolean;
+			defaultFinanceBookId: string | null;
+			financeBooks: ReadonlyArray<{ financeBookId: string }>;
+		},
+		assetFinanceBookId: string,
+		financeBookId: string,
+		closedScheduleId: string,
+		ownPostings: ReadonlyArray<{ depreciationAmount: Prisma.Decimal }>,
+		previousIsFullyDepreciated: boolean,
+	): Promise<void> {
+		const reactivated =
+			await this.depreciationRevision.reactivateSchedulesClosedByCapitalization(
+				tx,
+				organizationId,
+				cap.id,
+				asset.id,
+				closedScheduleId,
+				financeBookId,
+			);
+		const book = await tx.assetFinanceBook.findFirst({
+			where: {
+				id: assetFinanceBookId,
+				asset: {
+					is: assetWhereForOrganization(organizationId, { id: asset.id }),
+				},
+			},
+			select: {
+				id: true,
+				financeBookId: true,
+				stateVersion: true,
+				valueAfterDepreciation: true,
+				totalNumberOfBookedDepreciations: true,
+				postingStatus: true,
+				lastPostedDepreciationDate: true,
+			},
+		});
+		if (!book) {
+			throw new ConflictException(
+				`Source finance book ${assetFinanceBookId} is missing during capitalization ${cap.series} reversal.`,
+			);
+		}
+		const remainingJournals = await tx.assetDepreciationJournalEntry.findMany({
+			where: {
+				assetFinanceBookId: book.id,
+				status: "POSTED",
+				asset: {
+					is: assetWhereForOrganization(organizationId, { id: asset.id }),
+				},
+			},
+			select: { depreciationAmount: true, postingDate: true },
+			orderBy: [{ postingDate: "desc" }, { createdAt: "desc" }],
+		});
+		const remainingUnposted = await tx.assetDepreciationScheduleEntry.count({
+			where: {
+				postingId: null,
+				schedule: {
+					assetFinanceBookId: book.id,
+					status: "ACTIVE",
+					asset: {
+						is: assetWhereForOrganization(organizationId, { id: asset.id }),
+					},
+				},
+			},
+		});
+		const reversedAmount = ownPostings.reduce(
+			(total, posting) => total + Number(posting.depreciationAmount),
+			0,
+		);
+		const restoredValue = this.roundCurrency(
+			Number(book.valueAfterDepreciation) + reversedAmount,
+		);
+		const restoredBooked =
+			book.totalNumberOfBookedDepreciations - ownPostings.length;
+		const restoredStateVersion =
+			book.stateVersion - ownPostings.length - reactivated * 2;
+		if (restoredBooked < 0 || restoredStateVersion < 0) {
+			throw new ConflictException(
+				`Source finance book ${assetFinanceBookId} has an incomplete state-version lineage for capitalization ${cap.series}.`,
+			);
+		}
+		const restoredLastPostedDate = remainingJournals[0]?.postingDate ?? null;
+		const restoredPostingStatus =
+			remainingUnposted === 0
+				? "FULLY_DEPRECIATED"
+				: restoredBooked > 0
+					? "PARTIALLY_DEPRECIATED"
+					: "PENDING";
+		const restoredBook = await tx.assetFinanceBook.updateMany({
+			where: {
+				id: book.id,
+				asset: {
+					is: assetWhereForOrganization(organizationId, { id: asset.id }),
+				},
+			},
+			data: {
+				valueAfterDepreciation: restoredValue,
+				totalNumberOfBookedDepreciations: restoredBooked,
+				postingStatus: restoredPostingStatus,
+				lastPostedDepreciationDate: restoredLastPostedDate,
+				stateVersion: restoredStateVersion,
+			},
+		});
+		if (restoredBook.count !== 1) {
+			throw new ConflictException(
+				`Source finance book ${assetFinanceBookId} changed during capitalization ${cap.series} reversal.`,
+			);
+		}
+		if (
+			isEffectiveProjectionFinanceBook(
+				asset.defaultFinanceBookId,
+				asset.financeBooks,
+				book.financeBookId,
+			)
+		) {
+			await this.updateOwnedAsset(tx, organizationId, asset.id, {
+				valueAfterDepreciation: restoredValue,
+				isFullyDepreciated: previousIsFullyDepreciated,
+			});
+		}
 	}
 
 	/**
@@ -10015,6 +10528,7 @@ export class AssetService {
 			!cap.submittedAt ||
 			cap.targetPreviousNetPurchaseAmount == null ||
 			cap.targetPreviousValueAfterDepreciation == null ||
+			cap.targetPreviousIsFullyDepreciated == null ||
 			!cap.targetPreviousStatus
 		) {
 			throw new ConflictException(
@@ -10028,15 +10542,42 @@ export class AssetService {
 			select: {
 				id: true,
 				series: true,
+				companyId: true,
+				itemCode: true,
+				assetType: true,
+				assetCategoryId: true,
 				status: true,
 				calculateDepreciation: true,
+				isFullyDepreciated: true,
 				netPurchaseAmount: true,
 				valueAfterDepreciation: true,
 				financeBooks: {
 					select: {
 						id: true,
 						financeBookId: true,
+						stateVersion: true,
 						valueAfterDepreciation: true,
+						depreciationMethod: true,
+						totalNumberOfDepreciations: true,
+						increaseInAssetLife: true,
+						frequencyOfDepreciation: true,
+						dailyProrataBased: true,
+						shiftBased: true,
+						precision: true,
+						ratePrecision: true,
+						calculateUsingTotalDays: true,
+						rateOfDepreciation: true,
+						expectedValueAfterUsefulLife: true,
+						depreciationStartDate: true,
+						openingAccumulatedDepreciation: true,
+						openingNumberOfBookedDepreciations: true,
+						totalNumberOfBookedDepreciations: true,
+						postingStatus: true,
+						lastPostedDepreciationDate: true,
+						shiftAllocations: {
+							select: { periodIndex: true, shift: true, factor: true },
+							orderBy: { periodIndex: "asc" },
+						},
 					},
 					orderBy: { createdAt: "asc" },
 				},
@@ -10045,6 +10586,16 @@ export class AssetService {
 		if (!target) {
 			throw new NotFoundException(
 				`Target asset ${cap.targetAssetId} not found.`,
+			);
+		}
+		if (
+			target.companyId !== cap.companyId ||
+			target.assetType !== "COMPOSITE_ASSET" ||
+			!cap.targetItemCode ||
+			target.itemCode !== cap.targetItemCode
+		) {
+			throw new ConflictException(
+				`Target asset ${target.series} no longer matches capitalization ${cap.series}.`,
 			);
 		}
 		const previousNet = Number(cap.targetPreviousNetPurchaseAmount);
@@ -10063,14 +10614,19 @@ export class AssetService {
 				target.financeBooks,
 				cap.financeBookId,
 			);
+		const expectedTargetScheduleStatus = projectsRootAsset ? "DRAFT" : "ACTIVE";
 		const rootValueDelta = projectsRootAsset ? Number(cap.totalValue) : 0;
 		const expectedNet = this.roundCurrency(previousNet + rootValueDelta);
 		const expectedValue = this.roundCurrency(previousValue + rootValueDelta);
 		const expectedTargetStatus = projectsRootAsset
 			? cap.targetPreviousStatus
 			: "SUBMITTED";
+		const expectedTargetIsFullyDepreciated = projectsRootAsset
+			? false
+			: cap.targetPreviousIsFullyDepreciated;
 		if (
 			target.status !== expectedTargetStatus ||
+			target.isFullyDepreciated !== expectedTargetIsFullyDepreciated ||
 			this.roundCurrency(Number(target.netPurchaseAmount)) !== expectedNet ||
 			this.roundCurrency(Number(target.valueAfterDepreciation)) !==
 				expectedValue
@@ -10079,22 +10635,167 @@ export class AssetService {
 				`Target asset ${target.series} changed after capitalization ${cap.series}.`,
 			);
 		}
-		if (cap.targetFinanceBookScheduleCreated && cap.financeBookId) {
-			const targetBook = target.financeBooks.find(
-				(book) => book.financeBookId === cap.financeBookId,
+		if (!cap.accountingEntryId) {
+			throw new ConflictException(
+				`Capitalization ${cap.series} has no accounting entry to reverse.`,
 			);
+		}
+		const capitalizationAccountingEntry =
+			await tx.assetAccountingEntry.findFirst({
+				where: {
+					id: cap.accountingEntryId,
+					companyId: cap.companyId,
+					assetId: target.id,
+					financeBookId: cap.financeBookId,
+					sourceType: "CAPITALIZATION",
+					sourceId: cap.id,
+					status: "POSTED",
+					company: { is: { organizationId } },
+				},
+				select: { id: true },
+			});
+		if (!capitalizationAccountingEntry) {
+			throw new ConflictException(
+				`Capitalization ${cap.series} accounting lineage is incomplete or changed.`,
+			);
+		}
+		if (Number(cap.totalStockValue) > 0 && !cap.stockEntryId) {
+			throw new ConflictException(
+				`Capitalization ${cap.series} stock lineage is incomplete or changed.`,
+			);
+		}
+		const targetFinanceBook =
+			cap.targetFinanceBookScheduleCreated && cap.financeBookId
+				? target.financeBooks.find(
+						(book) => book.financeBookId === cap.financeBookId,
+					)
+				: undefined;
+		if (cap.targetFinanceBookScheduleCreated && cap.financeBookId) {
 			const expectedBookValue = this.roundCurrency(
 				Number(cap.targetPreviousFinanceBookValue ?? 0) +
 					Number(cap.totalValue),
 			);
 			if (
-				!targetBook ||
-				this.roundCurrency(Number(targetBook.valueAfterDepreciation)) !==
+				!targetFinanceBook ||
+				this.roundCurrency(Number(targetFinanceBook.valueAfterDepreciation)) !==
 					expectedBookValue
 			) {
 				throw new ConflictException(
 					`Target finance book state changed after capitalization ${cap.series}.`,
 				);
+			}
+			const generatedSchedules = await tx.assetDepreciationSchedule.findMany({
+				where: {
+					assetId: target.id,
+					assetFinanceBookId: targetFinanceBook.id,
+					sourceCapitalizationId: cap.id,
+					status: expectedTargetScheduleStatus,
+					asset: {
+						is: assetWhereForOrganization(organizationId, { id: target.id }),
+					},
+					assetFinanceBook: { is: { assetId: target.id } },
+				},
+				select: {
+					id: true,
+					assetId: true,
+					assetFinanceBookId: true,
+					sourceCapitalizationId: true,
+					status: true,
+					depreciationMethod: true,
+					totalNumberOfDepreciations: true,
+					frequencyOfDepreciation: true,
+					dailyProrataBased: true,
+					shiftBased: true,
+					precision: true,
+					ratePrecision: true,
+					calculateUsingTotalDays: true,
+					rateOfDepreciation: true,
+					expectedValueAfterUsefulLife: true,
+					startDate: true,
+				},
+			});
+			if (
+				generatedSchedules.length !== 1 ||
+				generatedSchedules[0]?.assetId !== target.id ||
+				generatedSchedules[0]?.assetFinanceBookId !== targetFinanceBook.id ||
+				generatedSchedules[0]?.sourceCapitalizationId !== cap.id ||
+				generatedSchedules[0]?.status !== expectedTargetScheduleStatus
+			) {
+				throw new ConflictException(
+					`Target finance book schedule lineage for capitalization ${cap.series} is incomplete or changed.`,
+				);
+			}
+			const generatedSchedule = generatedSchedules[0];
+			if (!generatedSchedule) {
+				throw new ConflictException(
+					`Target finance book schedule for capitalization ${cap.series} is missing.`,
+				);
+			}
+			if (cap.targetFinanceBookCreated) {
+				if (targetFinanceBook.stateVersion !== 0) {
+					throw new ConflictException(
+						`Target finance book ${cap.financeBookId} changed after capitalization ${cap.series}.`,
+					);
+				}
+			} else {
+				const snapshot = readAssetFinanceBookSnapshot(
+					cap.targetPreviousFinanceBookSnapshot,
+				);
+				if (
+					targetFinanceBook.stateVersion !== snapshot.stateVersion + 1 ||
+					targetFinanceBook.depreciationMethod !==
+						generatedSchedule.depreciationMethod ||
+					targetFinanceBook.totalNumberOfDepreciations !==
+						generatedSchedule.totalNumberOfDepreciations ||
+					targetFinanceBook.increaseInAssetLife !== 0 ||
+					targetFinanceBook.frequencyOfDepreciation !==
+						generatedSchedule.frequencyOfDepreciation ||
+					targetFinanceBook.dailyProrataBased !==
+						generatedSchedule.dailyProrataBased ||
+					targetFinanceBook.shiftBased !== generatedSchedule.shiftBased ||
+					targetFinanceBook.precision !== generatedSchedule.precision ||
+					targetFinanceBook.ratePrecision !== generatedSchedule.ratePrecision ||
+					targetFinanceBook.calculateUsingTotalDays !==
+						generatedSchedule.calculateUsingTotalDays ||
+					this.roundCurrency(
+						Number(targetFinanceBook.rateOfDepreciation ?? 0),
+					) !==
+						this.roundCurrency(
+							Number(generatedSchedule.rateOfDepreciation ?? 0),
+						) ||
+					this.roundCurrency(
+						Number(targetFinanceBook.expectedValueAfterUsefulLife),
+					) !==
+						this.roundCurrency(
+							Number(generatedSchedule.expectedValueAfterUsefulLife ?? 0),
+						) ||
+					dateOnlyFromPersistedDateTime(
+						targetFinanceBook.depreciationStartDate,
+					) !== dateOnlyFromPersistedDateTime(generatedSchedule.startDate) ||
+					this.roundCurrency(
+						Number(targetFinanceBook.openingAccumulatedDepreciation),
+					) !== 0 ||
+					targetFinanceBook.openingNumberOfBookedDepreciations !== 0 ||
+					targetFinanceBook.totalNumberOfBookedDepreciations !== 0 ||
+					targetFinanceBook.postingStatus !== "PENDING" ||
+					targetFinanceBook.lastPostedDepreciationDate !== null ||
+					targetFinanceBook.shiftAllocations.length !==
+						snapshot.generatedShiftAllocations.length ||
+					targetFinanceBook.shiftAllocations.some((allocation, index) => {
+						const expected = snapshot.generatedShiftAllocations[index];
+						return (
+							!expected ||
+							allocation.periodIndex !== expected.periodIndex ||
+							allocation.shift !== expected.shift ||
+							this.roundCurrency(Number(allocation.factor)) !==
+								this.roundCurrency(expected.factor)
+						);
+					})
+				) {
+					throw new ConflictException(
+						`Target finance book ${cap.financeBookId} changed after capitalization ${cap.series}.`,
+					);
+				}
 			}
 		}
 
@@ -10106,11 +10807,19 @@ export class AssetService {
 			select: {
 				id: true,
 				series: true,
+				companyId: true,
 				status: true,
 				disposalDate: true,
 				calculateDepreciation: true,
+				isFullyDepreciated: true,
 				company: { select: { defaultFinanceBookId: true } },
-				financeBooks: { select: { financeBookId: true } },
+				financeBooks: {
+					select: {
+						id: true,
+						financeBookId: true,
+						valueAfterDepreciation: true,
+					},
+				},
 			},
 		});
 		if (sources.length !== sourceIds.length) {
@@ -10122,10 +10831,12 @@ export class AssetService {
 			cap.assetItems.map((item) => [item.assetId, item]),
 		);
 		const sourceFinanceBookIds = new Map<string, string | null>();
+		const sourceFinanceBookRecordIds = new Map<string, string | null>();
 		for (const source of sources) {
 			const snapshot = itemByAssetId.get(source.id);
 			if (
 				!snapshot?.previousStatus ||
+				source.companyId !== cap.companyId ||
 				source.status !== "CAPITALIZED" ||
 				!source.disposalDate ||
 				dateOnlyUtc(
@@ -10137,6 +10848,19 @@ export class AssetService {
 					`Source asset ${source.series} changed after capitalization ${cap.series}.`,
 				);
 			}
+			if (
+				source.calculateDepreciation &&
+				snapshot.previousIsFullyDepreciated == null
+			) {
+				throw new ConflictException(
+					`Source asset ${source.series} has no complete depreciation snapshot in capitalization ${cap.series}.`,
+				);
+			}
+			if (source.calculateDepreciation && !snapshot.financeBookId) {
+				throw new ConflictException(
+					`Source asset ${source.series} has no selected finance-book lineage in capitalization ${cap.series}.`,
+				);
+			}
 			const selectedBook = this.resolveAssetBookForOperation(
 				{
 					series: source.series,
@@ -10144,14 +10868,82 @@ export class AssetService {
 					defaultFinanceBookId: source.company.defaultFinanceBookId,
 					financeBooks: source.financeBooks,
 				},
-				snapshot.financeBookId ?? cap.financeBookId,
+				snapshot.financeBookId,
 			);
 			if (source.calculateDepreciation && !selectedBook) {
 				throw new ConflictException(
 					`Source asset ${source.series} has no unambiguous finance book lineage in capitalization ${cap.series}.`,
 				);
 			}
+			if (source.calculateDepreciation && !snapshot.closedScheduleId) {
+				throw new ConflictException(
+					`Source asset ${source.series} has no persisted schedule closure lineage in capitalization ${cap.series}.`,
+				);
+			}
+			if (
+				source.calculateDepreciation &&
+				selectedBook &&
+				snapshot.closedScheduleId
+			) {
+				const expectedSourceSchedule =
+					await tx.assetDepreciationSchedule.findFirst({
+						where: {
+							id: snapshot.closedScheduleId,
+							assetId: source.id,
+							assetFinanceBookId: selectedBook.id,
+							status: "CANCELLED",
+							closedByCapitalizationId: cap.id,
+							asset: {
+								is: assetWhereForOrganization(organizationId, {
+									id: source.id,
+								}),
+							},
+							assetFinanceBook: { is: { assetId: source.id } },
+						},
+						select: {
+							id: true,
+							assetId: true,
+							assetFinanceBookId: true,
+							status: true,
+							closedByCapitalizationId: true,
+							assetFinanceBook: { select: { assetId: true } },
+						},
+					});
+				const sourceClosedSchedules =
+					await tx.assetDepreciationSchedule.findMany({
+						where: {
+							assetId: source.id,
+							assetFinanceBookId: selectedBook.id,
+							status: "CANCELLED",
+							closedByCapitalizationId: cap.id,
+							asset: {
+								is: assetWhereForOrganization(organizationId, {
+									id: source.id,
+								}),
+							},
+							assetFinanceBook: { is: { assetId: source.id } },
+						},
+						select: { id: true, assetFinanceBookId: true, status: true },
+					});
+				if (
+					!expectedSourceSchedule ||
+					expectedSourceSchedule.assetId !== source.id ||
+					expectedSourceSchedule.assetFinanceBookId !== selectedBook.id ||
+					expectedSourceSchedule.assetFinanceBook.assetId !== source.id ||
+					expectedSourceSchedule.status !== "CANCELLED" ||
+					expectedSourceSchedule.closedByCapitalizationId !== cap.id ||
+					sourceClosedSchedules.length !== 1 ||
+					sourceClosedSchedules[0]?.id !== snapshot.closedScheduleId ||
+					sourceClosedSchedules[0]?.assetFinanceBookId !== selectedBook.id ||
+					sourceClosedSchedules[0]?.status !== "CANCELLED"
+				) {
+					throw new ConflictException(
+						`Source asset ${source.series} has incomplete or ambiguous schedule closure lineage in capitalization ${cap.series}.`,
+					);
+				}
+			}
 			sourceFinanceBookIds.set(source.id, selectedBook?.financeBookId ?? null);
+			sourceFinanceBookRecordIds.set(source.id, selectedBook?.id ?? null);
 		}
 
 		const allAssetIds = [target.id, ...sourceIds];
@@ -10165,58 +10957,276 @@ export class AssetService {
 				),
 			),
 		];
-		const [laterDepreciation, laterAdjustments, laterAccounting] =
-			await Promise.all([
-				tx.assetDepreciationJournalEntry.count({
-					where: {
-						assetId: { in: allAssetIds },
-						asset: { is: assetWhereForOrganization(organizationId) },
-						status: "POSTED",
-						createdAt: { gt: cap.submittedAt },
-						...(selectedFinanceBookIds.length
-							? {
-									assetFinanceBook: {
-										financeBookId: { in: selectedFinanceBookIds },
-									},
-								}
-							: {}),
+		const financeBookEffectFilter = selectedFinanceBookIds.length
+			? { financeBookId: { in: selectedFinanceBookIds } }
+			: {};
+		const [
+			depreciationPostings,
+			laterAdjustments,
+			laterAccounting,
+			laterRepairs,
+			laterCapitalizations,
+			laterDisposals,
+		] = await Promise.all([
+			tx.assetDepreciationJournalEntry.findMany({
+				where: {
+					assetId: { in: allAssetIds },
+					asset: { is: assetWhereForOrganization(organizationId) },
+					status: "POSTED",
+				},
+				select: {
+					id: true,
+					assetId: true,
+					assetFinanceBookId: true,
+					postingDate: true,
+					depreciationAmount: true,
+					createdAt: true,
+					sourceCapitalizationId: true,
+					assetFinanceBook: { select: { financeBookId: true } },
+					scheduleEntry: {
+						select: {
+							id: true,
+							schedule: {
+								select: {
+									assetId: true,
+									assetFinanceBookId: true,
+									sourceCapitalizationId: true,
+								},
+							},
+						},
 					},
-				}),
-				tx.assetValueAdjustment.count({
-					where: {
-						assetId: { in: allAssetIds },
-						asset: { is: assetWhereForOrganization(organizationId) },
-						status: "SUBMITTED",
-						submittedAt: { gt: cap.submittedAt },
-						...(selectedFinanceBookIds.length
-							? { financeBookId: { in: selectedFinanceBookIds } }
-							: {}),
+				},
+			}),
+			tx.assetValueAdjustment.findMany({
+				where: {
+					assetId: { in: allAssetIds },
+					asset: { is: assetWhereForOrganization(organizationId) },
+					status: "SUBMITTED",
+					...(selectedFinanceBookIds.length
+						? { financeBookId: { in: selectedFinanceBookIds } }
+						: {}),
+				},
+				select: {
+					id: true,
+					adjustmentDate: true,
+					submittedAt: true,
+				},
+			}),
+			tx.assetAccountingEntry.findMany({
+				where: {
+					assetId: { in: allAssetIds },
+					asset: { is: assetWhereForOrganization(organizationId) },
+					status: "POSTED",
+					...(cap.accountingEntryId
+						? { id: { not: cap.accountingEntryId } }
+						: {}),
+					...financeBookEffectFilter,
+				},
+				select: {
+					id: true,
+					postingDate: true,
+					createdAt: true,
+				},
+			}),
+			tx.assetRepair.findMany({
+				where: {
+					assetId: { in: allAssetIds },
+					repairStatus: "COMPLETED",
+					company: { is: { organizationId } },
+					asset: { is: assetWhereForOrganization(organizationId) },
+				},
+				select: {
+					id: true,
+					completionDate: true,
+					submittedAt: true,
+					createdAt: true,
+				},
+			}),
+			tx.assetCapitalization.findMany({
+				where: {
+					id: { not: cap.id },
+					status: "SUBMITTED",
+					company: { is: { organizationId } },
+					OR: [
+						{ targetAssetId: { in: allAssetIds } },
+						{ assetItems: { some: { assetId: { in: allAssetIds } } } },
+					],
+				},
+				select: {
+					id: true,
+					financeBookId: true,
+					postingDate: true,
+					submittedAt: true,
+					createdAt: true,
+					assetItems: {
+						where: { assetId: { in: allAssetIds } },
+						select: { financeBookId: true },
 					},
-				}),
-				tx.assetAccountingEntry.count({
-					where: {
-						assetId: { in: allAssetIds },
-						asset: { is: assetWhereForOrganization(organizationId) },
-						status: "POSTED",
-						createdAt: { gt: cap.submittedAt },
-						...(selectedFinanceBookIds.length
-							? { financeBookId: { in: selectedFinanceBookIds } }
-							: {}),
-						...(cap.accountingEntryId
-							? { id: { not: cap.accountingEntryId } }
-							: {}),
-					},
-				}),
-			]);
-		if (laterDepreciation > 0 || laterAdjustments > 0 || laterAccounting > 0) {
-			throw new ConflictException(
-				"Capitalization cancellation is blocked by later depreciation or asset accounting.",
-			);
+				},
+			}),
+			tx.assetDisposal.findMany({
+				where: {
+					assetId: { in: allAssetIds },
+					status: "POSTED",
+					company: { is: { organizationId } },
+					asset: { is: assetWhereForOrganization(organizationId) },
+				},
+				select: {
+					id: true,
+					financeBookId: true,
+					disposalDate: true,
+					createdAt: true,
+				},
+			}),
+		]);
+
+		const currentEvent: AssetLineageEvent = {
+			id: cap.id,
+			effectiveDate: cap.postingDate,
+			committedAt: cap.submittedAt,
+		};
+		const assertNoLater = (
+			kind: string,
+			candidate: AssetLineageEvent,
+		): void => {
+			if (isLaterAssetLineageEvent(currentEvent, candidate)) {
+				throw new ConflictException(
+					`Capitalization ${cap.series} cannot be cancelled because later ${kind} ${candidate.id} advanced the asset lineage.`,
+				);
+			}
+		};
+		const ownDepreciationPostingIds: string[] = [];
+		for (const candidate of depreciationPostings) {
+			const affectsSelectedBook =
+				selectedFinanceBookIds.length === 0 ||
+				selectedFinanceBookIds.includes(
+					candidate.assetFinanceBook.financeBookId,
+				);
+			if (!affectsSelectedBook) {
+				if (candidate.sourceCapitalizationId === cap.id) {
+					throw new ConflictException(
+						`Capitalization ${cap.series} has depreciation posting ${candidate.id} outside its selected finance-book lineage.`,
+					);
+				}
+				continue;
+			}
+			const isOwnPosting =
+				candidate.sourceCapitalizationId === cap.id &&
+				candidate.createdAt <= cap.submittedAt &&
+				dateOnlyFromPersistedDateTime(candidate.postingDate) <=
+					dateOnlyFromPersistedDateTime(cap.postingDate);
+			if (isOwnPosting) {
+				if (
+					!candidate.scheduleEntry ||
+					candidate.scheduleEntry.schedule.assetId !== candidate.assetId ||
+					candidate.scheduleEntry.schedule.assetFinanceBookId !==
+						candidate.assetFinanceBookId ||
+					candidate.scheduleEntry.schedule.sourceCapitalizationId !== cap.id
+				) {
+					throw new ConflictException(
+						`Depreciation posting ${candidate.id} has incomplete capitalization lineage.`,
+					);
+				}
+				ownDepreciationPostingIds.push(candidate.id);
+				continue;
+			}
+			assertNoLater("depreciation posting", {
+				id: candidate.id,
+				effectiveDate: candidate.postingDate,
+				committedAt: candidate.createdAt,
+			});
 		}
-		if (!cap.accountingEntryId) {
-			throw new ConflictException(
-				`Capitalization ${cap.series} has no accounting entry to reverse.`,
-			);
+		for (const candidate of laterAdjustments) {
+			if (!candidate.submittedAt) {
+				throw new ConflictException(
+					`Capitalization ${cap.series} cannot be cancelled because value adjustment ${candidate.id} has incomplete chronology lineage.`,
+				);
+			}
+			assertNoLater("value adjustment", {
+				id: candidate.id,
+				effectiveDate: candidate.adjustmentDate,
+				committedAt: candidate.submittedAt,
+			});
+		}
+		for (const candidate of laterAccounting) {
+			assertNoLater("accounting entry", {
+				id: candidate.id,
+				effectiveDate: candidate.postingDate,
+				committedAt: candidate.createdAt,
+			});
+		}
+		for (const candidate of laterRepairs) {
+			assertNoLater("repair", {
+				id: candidate.id,
+				effectiveDate: candidate.completionDate ?? candidate.createdAt,
+				committedAt: candidate.submittedAt ?? candidate.createdAt,
+			});
+		}
+		for (const candidate of laterCapitalizations) {
+			const affectsSelectedBook =
+				selectedFinanceBookIds.length === 0 ||
+				candidate.financeBookId == null ||
+				selectedFinanceBookIds.includes(candidate.financeBookId) ||
+				candidate.assetItems.some(
+					(item) =>
+						item.financeBookId == null ||
+						selectedFinanceBookIds.includes(item.financeBookId),
+				);
+			if (!affectsSelectedBook) continue;
+			if (!candidate.submittedAt) {
+				throw new ConflictException(
+					`Capitalization ${cap.series} cannot be cancelled because capitalization ${candidate.id} has incomplete chronology lineage.`,
+				);
+			}
+			assertNoLater("capitalization", {
+				id: candidate.id,
+				effectiveDate: candidate.postingDate,
+				committedAt: candidate.submittedAt,
+			});
+		}
+		for (const candidate of laterDisposals) {
+			if (
+				selectedFinanceBookIds.length > 0 &&
+				candidate.financeBookId != null &&
+				!selectedFinanceBookIds.includes(candidate.financeBookId)
+			) {
+				continue;
+			}
+			assertNoLater("disposal", {
+				id: candidate.id,
+				effectiveDate: candidate.disposalDate,
+				committedAt: candidate.createdAt,
+			});
+		}
+		if (ownDepreciationPostingIds.length > 0) {
+			const unlinked = await tx.assetDepreciationScheduleEntry.updateMany({
+				where: {
+					postingId: { in: ownDepreciationPostingIds },
+					schedule: {
+						asset: { is: assetWhereForOrganization(organizationId) },
+					},
+				},
+				data: { postingId: null, postedAt: null },
+			});
+			if (unlinked.count !== ownDepreciationPostingIds.length) {
+				throw new ConflictException(
+					`Capitalization ${cap.series} has incomplete depreciation schedule linkage.`,
+				);
+			}
+			const reversed = await tx.assetDepreciationJournalEntry.updateMany({
+				where: {
+					id: { in: ownDepreciationPostingIds },
+					status: "POSTED",
+					sourceCapitalizationId: cap.id,
+					asset: { is: assetWhereForOrganization(organizationId) },
+				},
+				data: { status: "REVERSED", reversedAt: new Date() },
+			});
+			if (reversed.count !== ownDepreciationPostingIds.length) {
+				throw new ConflictException(
+					`Capitalization ${cap.series} depreciation postings changed before reversal.`,
+				);
+			}
 		}
 		await this.accounting.reversePostedEntry(
 			tx,
@@ -10234,27 +11244,107 @@ export class AssetService {
 			);
 		}
 		if (cap.targetFinanceBookScheduleCreated && cap.financeBookId) {
-			const targetBook = target.financeBooks.find(
-				(book) => book.financeBookId === cap.financeBookId,
-			);
-			if (!targetBook) {
+			if (!targetFinanceBook) {
 				throw new ConflictException(
 					`Target finance book ${cap.financeBookId} is missing during capitalization reversal.`,
 				);
 			}
-			await tx.assetDepreciationSchedule.deleteMany({
-				where: { assetFinanceBookId: targetBook.id },
+			const deletedSchedule = await tx.assetDepreciationSchedule.deleteMany({
+				where: {
+					id: {
+						in: (
+							await tx.assetDepreciationSchedule.findMany({
+								where: {
+									assetFinanceBookId: targetFinanceBook.id,
+									sourceCapitalizationId: cap.id,
+									assetId: target.id,
+									status: expectedTargetScheduleStatus,
+									asset: {
+										is: assetWhereForOrganization(organizationId, {
+											id: target.id,
+										}),
+									},
+									assetFinanceBook: { is: { assetId: target.id } },
+								},
+								select: { id: true },
+							})
+						).map((schedule) => schedule.id),
+					},
+					assetFinanceBookId: targetFinanceBook.id,
+					sourceCapitalizationId: cap.id,
+					assetId: target.id,
+					status: expectedTargetScheduleStatus,
+					asset: {
+						is: assetWhereForOrganization(organizationId, { id: target.id }),
+					},
+					assetFinanceBook: { is: { assetId: target.id } },
+				},
 			});
+			if (deletedSchedule.count !== 1) {
+				throw new ConflictException(
+					`Target schedule lineage for capitalization ${cap.series} changed before reversal.`,
+				);
+			}
 			if (cap.targetFinanceBookCreated) {
-				await tx.assetFinanceBook.delete({ where: { id: targetBook.id } });
+				const deletedBook = await tx.assetFinanceBook.deleteMany({
+					where: { id: targetFinanceBook.id },
+				});
+				if (deletedBook.count !== 1) {
+					throw new ConflictException(
+						`Target finance book ${cap.financeBookId} changed before reversal.`,
+					);
+				}
 			} else {
-				await tx.assetFinanceBook.update({
-					where: { id: targetBook.id },
+				const snapshot = readAssetFinanceBookSnapshot(
+					cap.targetPreviousFinanceBookSnapshot,
+				);
+				await tx.assetFinanceBookShiftAllocation.deleteMany({
+					where: { assetFinanceBookId: targetFinanceBook.id },
+				});
+				const restoredBook = await tx.assetFinanceBook.updateMany({
+					where: { id: targetFinanceBook.id },
 					data: {
-						valueAfterDepreciation: cap.targetPreviousFinanceBookValue ?? 0,
-						stateVersion: { increment: 1 },
+						stateVersion: snapshot.stateVersion,
+						valueAfterDepreciation: snapshot.valueAfterDepreciation,
+						depreciationMethod: snapshot.depreciationMethod,
+						totalNumberOfDepreciations: snapshot.totalNumberOfDepreciations,
+						increaseInAssetLife: snapshot.increaseInAssetLife,
+						frequencyOfDepreciation: snapshot.frequencyOfDepreciation,
+						dailyProrataBased: snapshot.dailyProrataBased,
+						shiftBased: snapshot.shiftBased,
+						precision: snapshot.precision,
+						ratePrecision: snapshot.ratePrecision,
+						calculateUsingTotalDays: snapshot.calculateUsingTotalDays,
+						rateOfDepreciation: snapshot.rateOfDepreciation,
+						expectedValueAfterUsefulLife: snapshot.expectedValueAfterUsefulLife,
+						depreciationStartDate: new Date(snapshot.depreciationStartDate),
+						openingAccumulatedDepreciation:
+							snapshot.openingAccumulatedDepreciation,
+						openingNumberOfBookedDepreciations:
+							snapshot.openingNumberOfBookedDepreciations,
+						totalNumberOfBookedDepreciations:
+							snapshot.totalNumberOfBookedDepreciations,
+						postingStatus: snapshot.postingStatus,
+						lastPostedDepreciationDate: snapshot.lastPostedDepreciationDate
+							? new Date(snapshot.lastPostedDepreciationDate)
+							: null,
 					},
 				});
+				if (restoredBook.count !== 1) {
+					throw new ConflictException(
+						`Target finance book ${cap.financeBookId} changed during reversal.`,
+					);
+				}
+				if (snapshot.shiftAllocations.length > 0) {
+					await tx.assetFinanceBookShiftAllocation.createMany({
+						data: snapshot.shiftAllocations.map((allocation) => ({
+							assetFinanceBookId: targetFinanceBook.id,
+							periodIndex: allocation.periodIndex,
+							shift: allocation.shift,
+							factor: allocation.factor,
+						})),
+					});
+				}
 			}
 		}
 		await this.updateOwnedAsset(tx, organizationId, target.id, {
@@ -10263,7 +11353,7 @@ export class AssetService {
 				? {
 						netPurchaseAmount: cap.targetPreviousNetPurchaseAmount,
 						valueAfterDepreciation: cap.targetPreviousValueAfterDepreciation,
-						isFullyDepreciated: false,
+						isFullyDepreciated: cap.targetPreviousIsFullyDepreciated,
 					}
 				: {}),
 			...(cap.createdTargetAsset ||
@@ -10283,12 +11373,41 @@ export class AssetService {
 		for (const source of sources) {
 			const snapshot = itemByAssetId.get(source.id);
 			if (!snapshot?.previousStatus) continue;
-			await this.depreciationRevision.reactivateLatestClosedSchedules(
-				tx,
-				organizationId,
-				source.id,
-				sourceFinanceBookIds.get(source.id) ?? undefined,
-			);
+			const sourceFinanceBookId = sourceFinanceBookIds.get(source.id);
+			const sourceBookRecordId = sourceFinanceBookRecordIds.get(source.id);
+			if (source.calculateDepreciation) {
+				if (
+					!sourceBookRecordId ||
+					!sourceFinanceBookId ||
+					snapshot.previousIsFullyDepreciated == null
+				) {
+					throw new ConflictException(
+						`Source asset ${source.series} has incomplete depreciation lineage for capitalization ${cap.series}.`,
+					);
+				}
+				await this.restoreCapitalizationSourceBook(
+					tx,
+					organizationId,
+					cap,
+					{
+						id: source.id,
+						series: source.series,
+						calculateDepreciation: source.calculateDepreciation,
+						defaultFinanceBookId: source.company.defaultFinanceBookId,
+						financeBooks: source.financeBooks,
+					},
+					sourceBookRecordId,
+					sourceFinanceBookId,
+					snapshot.closedScheduleId as string,
+					depreciationPostings.filter(
+						(posting) =>
+							ownDepreciationPostingIds.includes(posting.id) &&
+							posting.assetId === source.id &&
+							posting.assetFinanceBookId === sourceBookRecordId,
+					),
+					snapshot.previousIsFullyDepreciated,
+				);
+			}
 			await this.updateOwnedAsset(tx, organizationId, source.id, {
 				status: snapshot.previousStatus,
 				disposalDate: snapshot.previousDisposalDate,

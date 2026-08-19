@@ -69,6 +69,9 @@ describe("R-005 targeted corrections integration", () => {
 	let companyId: string;
 	let singletonCompanyId: string;
 	let categoryId: string;
+	let categoryName: string;
+	let fixedAssetItemCode: string;
+	let fixedAssetItemId: string;
 	let defaultFinanceBookId: string;
 	let secondaryFinanceBookId: string;
 	let singletonFinanceBookId: string;
@@ -211,6 +214,50 @@ describe("R-005 targeted corrections integration", () => {
 		};
 	};
 
+	const createCompositeTarget = async (label: string): Promise<string> => {
+		const target = await prisma.client.asset.create({
+			data: {
+				series: `R011-${label}-TARGET-${suffix}`,
+				assetName: `R-011 ${label} Target`,
+				itemCode: `R011-${label}-TARGET-${suffix}`,
+				assetType: "COMPOSITE_ASSET",
+				assetCategoryId: categoryId,
+				companyId,
+				purchaseDate: new Date("2026-01-01T00:00:00.000Z"),
+				availableForUseDate: new Date("2026-01-01T00:00:00.000Z"),
+				netPurchaseAmount: 0,
+				valueAfterDepreciation: 0,
+				calculateDepreciation: false,
+				status: "DRAFT",
+			},
+		});
+		return target.id;
+	};
+
+	const createExistingTargetCapitalization = (
+		label: string,
+		sourceAssetId: string,
+		targetAssetId: string,
+	) =>
+		service.createAssetCapitalization(
+			{
+				companyId,
+				financeBookId: secondaryFinanceBookId,
+				postingDate: "2026-08-10",
+				targetType: "EXISTING_ASSET",
+				targetAssetId,
+				stockItems: [],
+				assetItems: [{ assetId: sourceAssetId, assetValue: 1 }],
+				serviceItems: [
+					{
+						expenseAccount: `R-011 ${label} Service ${suffix}`,
+						amount: 10,
+					},
+				],
+			},
+			organizationId,
+		);
+
 	beforeAll(async () => {
 		prisma = new PrismaService();
 		await prisma.onModuleInit();
@@ -272,6 +319,16 @@ describe("R-005 targeted corrections integration", () => {
 			},
 		});
 		categoryId = category.id;
+		categoryName = category.name;
+		const fixedAssetItem = await prisma.inventoryItem.create({
+			data: {
+				name: `R-011 Capitalization Item ${suffix}`,
+				code: `R011-CAP-${suffix}`,
+				isFixedAsset: true,
+			},
+		});
+		fixedAssetItemCode = fixedAssetItem.code;
+		fixedAssetItemId = fixedAssetItem.id;
 		await Promise.all([
 			prisma.assetCategoryAccount.create({
 				data: {
@@ -342,6 +399,9 @@ describe("R-005 targeted corrections integration", () => {
 			await prisma.client.assetDisposal.deleteMany({
 				where: { assetId: { in: assetIds } },
 			});
+			await prisma.client.assetDepreciationJournalEntry.deleteMany({
+				where: { companyId: { in: [companyId, singletonCompanyId] } },
+			});
 			const capitalizationRows =
 				await prisma.client.assetCapitalization.findMany({
 					where: { companyId: { in: [companyId, singletonCompanyId] } },
@@ -357,9 +417,6 @@ describe("R-005 targeted corrections integration", () => {
 			await prisma.client.assetAccountingEntry.deleteMany({
 				where: { companyId: { in: [companyId, singletonCompanyId] } },
 			});
-			await prisma.client.assetDepreciationJournalEntry.deleteMany({
-				where: { companyId: { in: [companyId, singletonCompanyId] } },
-			});
 			await prisma.client.assetActivity.deleteMany({
 				where: { assetId: { in: assetIds } },
 			});
@@ -372,6 +429,9 @@ describe("R-005 targeted corrections integration", () => {
 			});
 			await prisma.client.assetCategory.deleteMany({
 				where: { id: categoryId },
+			});
+			await prisma.client.inventoryItem.deleteMany({
+				where: { id: fixedAssetItemId },
 			});
 			await prisma.client.company.updateMany({
 				where: { id: { in: [companyId, singletonCompanyId] } },
@@ -567,6 +627,310 @@ describe("R-005 targeted corrections integration", () => {
 		expect(Number(restoredTarget.netPurchaseAmount)).toBe(0);
 		expect(Number(restoredTarget.valueAfterDepreciation)).toBe(0);
 		expect(targetBooks).toEqual([]);
+	});
+
+	it("protects a generated capitalization target across delete and cancel races", async () => {
+		const source = await createTwoBookAsset("R011-GENERATED", {
+			rootValue: 120,
+			secondaryValue: 100,
+		});
+		const draft = await service.createAssetCapitalization(
+			{
+				companyId,
+				financeBookId: secondaryFinanceBookId,
+				postingDate: "2026-08-10",
+				targetType: "NEW_ASSET",
+				targetAssetName: `R-011 Generated Target ${suffix}`,
+				targetAssetCategory: categoryName,
+				targetItemCode: fixedAssetItemCode,
+				stockItems: [],
+				assetItems: [{ assetId: source.assetId, assetValue: 1 }],
+				serviceItems: [
+					{ expenseAccount: `R-011 Service ${suffix}`, amount: 20 },
+				],
+			},
+			organizationId,
+		);
+		const submitted = await service.submitAssetCapitalization(
+			{ id: draft.id },
+			organizationId,
+		);
+		const targetId = submitted.targetAssetId;
+		if (!targetId) throw new Error("Expected generated capitalization target");
+
+		await expect(
+			service.deleteAsset(targetId, organizationId),
+		).rejects.toThrow();
+		await expect(
+			service.deleteManyAssets([targetId], organizationId),
+		).rejects.toThrow();
+		await expect(
+			prisma.client.$transaction((tx) =>
+				tx.asset.delete({ where: { id: targetId } }),
+			),
+		).rejects.toThrow();
+
+		const [cancelled, deleted] = await Promise.allSettled([
+			service.cancelAssetCapitalization({ id: draft.id }, organizationId),
+			service.deleteAsset(targetId, organizationId),
+		]);
+		expect(cancelled.status).toBe("fulfilled");
+		expect(deleted.status).toBe("rejected");
+
+		const [capitalization, target] = await Promise.all([
+			prisma.client.assetCapitalization.findUniqueOrThrow({
+				where: { id: draft.id },
+				select: { status: true },
+			}),
+			prisma.client.asset.findUniqueOrThrow({
+				where: { id: targetId },
+				select: { status: true },
+			}),
+		]);
+		expect(capitalization.status).toBe("CANCELLED");
+		expect(target.status).toBe("CANCELLED");
+		await expect(service.deleteAsset(targetId, organizationId)).rejects.toThrow(
+			/linked to capitalization/,
+		);
+		await expect(
+			service.deleteManyAssets([targetId], organizationId),
+		).rejects.toThrow(/linked to capitalization/);
+		await expect(
+			prisma.client.$transaction((tx) =>
+				tx.asset.delete({ where: { id: targetId } }),
+			),
+		).rejects.toThrow();
+	});
+
+	it("rejects a later same-date depreciation before capitalization reversal mutates state", async () => {
+		const source = await createTwoBookAsset("R011-SAME-DATE", {
+			rootValue: 120,
+			secondaryValue: 100,
+		});
+		const target = await prisma.client.asset.create({
+			data: {
+				series: `R011-SAME-DATE-TARGET-${suffix}`,
+				assetName: "R-011 Same-Date Composite Target",
+				itemCode: `R011-SAME-DATE-TARGET-${suffix}`,
+				assetType: "COMPOSITE_ASSET",
+				assetCategoryId: categoryId,
+				companyId,
+				purchaseDate: new Date("2026-01-01T00:00:00.000Z"),
+				availableForUseDate: new Date("2026-01-01T00:00:00.000Z"),
+				netPurchaseAmount: 0,
+				valueAfterDepreciation: 0,
+				calculateDepreciation: false,
+				status: "DRAFT",
+			},
+		});
+		const draft = await service.createAssetCapitalization(
+			{
+				companyId,
+				financeBookId: secondaryFinanceBookId,
+				postingDate: "2026-08-10",
+				targetType: "EXISTING_ASSET",
+				targetAssetId: target.id,
+				stockItems: [],
+				assetItems: [{ assetId: source.assetId, assetValue: 1 }],
+				serviceItems: [
+					{ expenseAccount: `R-011 Same-Date Service ${suffix}`, amount: 20 },
+				],
+			},
+			organizationId,
+		);
+		await service.submitAssetCapitalization({ id: draft.id }, organizationId);
+		const persistedCap =
+			await prisma.client.assetCapitalization.findUniqueOrThrow({
+				where: { id: draft.id },
+				select: { submittedAt: true },
+			});
+		if (!persistedCap.submittedAt)
+			throw new Error("Expected submitted timestamp");
+		await prisma.client.assetDepreciationJournalEntry.create({
+			data: {
+				series: `R011-LATER-DEP-${suffix}`,
+				assetId: source.assetId,
+				assetFinanceBookId: source.secondaryAssetFinanceBookId,
+				companyId,
+				financeBookName: `R-005 Secondary ${suffix}`,
+				postingDate: new Date("2026-08-10T00:00:00.000Z"),
+				depreciationAmount: 1,
+				status: "POSTED",
+				createdAt: new Date(persistedCap.submittedAt.getTime() + 1_000),
+			},
+		});
+
+		await expect(
+			service.cancelAssetCapitalization({ id: draft.id }, organizationId),
+		).rejects.toThrow(/later depreciation posting/);
+		const [capitalization, sourceState] = await Promise.all([
+			prisma.client.assetCapitalization.findUniqueOrThrow({
+				where: { id: draft.id },
+				select: { status: true },
+			}),
+			prisma.client.asset.findUniqueOrThrow({
+				where: { id: source.assetId },
+				select: { status: true },
+			}),
+		]);
+		expect(capitalization.status).toBe("SUBMITTED");
+		expect(sourceState.status).toBe("CAPITALIZED");
+	});
+
+	it("rejects target item identity drift before posting capitalization effects", async () => {
+		const source = await createTwoBookAsset("R011-IDENTITY", {
+			rootValue: 120,
+			secondaryValue: 100,
+		});
+		const target = await prisma.client.asset.create({
+			data: {
+				series: `R011-IDENTITY-TARGET-${suffix}`,
+				assetName: "R-011 Identity Composite Target",
+				itemCode: `R011-IDENTITY-TARGET-${suffix}`,
+				assetType: "COMPOSITE_ASSET",
+				assetCategoryId: categoryId,
+				companyId,
+				purchaseDate: new Date("2026-01-01T00:00:00.000Z"),
+				availableForUseDate: new Date("2026-01-01T00:00:00.000Z"),
+				netPurchaseAmount: 0,
+				valueAfterDepreciation: 0,
+				calculateDepreciation: false,
+				status: "DRAFT",
+			},
+		});
+		const draft = await service.createAssetCapitalization(
+			{
+				companyId,
+				financeBookId: defaultFinanceBookId,
+				postingDate: "2026-08-10",
+				targetType: "EXISTING_ASSET",
+				targetAssetId: target.id,
+				stockItems: [],
+				assetItems: [{ assetId: source.assetId, assetValue: 1 }],
+				serviceItems: [
+					{ expenseAccount: `R-011 Identity Service ${suffix}`, amount: 20 },
+				],
+			},
+			organizationId,
+		);
+		await prisma.client.asset.update({
+			where: { id: target.id },
+			data: { itemCode: `R011-IDENTITY-CHANGED-${suffix}` },
+		});
+
+		await expect(
+			service.submitAssetCapitalization({ id: draft.id }, organizationId),
+		).rejects.toThrow(/draft composite asset/);
+		const [capitalization, sourceState] = await Promise.all([
+			prisma.client.assetCapitalization.findUniqueOrThrow({
+				where: { id: draft.id },
+				select: { status: true },
+			}),
+			prisma.client.asset.findUniqueOrThrow({
+				where: { id: source.assetId },
+				select: { status: true },
+			}),
+		]);
+		expect(capitalization.status).toBe("DRAFT");
+		expect(sourceState.status).toBe("PARTIALLY_DEPRECIATED");
+	});
+
+	it("rejects a capitalization whose accounting pointer has been replaced", async () => {
+		const source = await createTwoBookAsset("R011-AAE", {
+			rootValue: 120,
+			secondaryValue: 100,
+		});
+		const target = await prisma.client.asset.create({
+			data: {
+				series: `R011-AAE-TGT-${suffix}`,
+				assetName: "R-011 Accounting Lineage Target",
+				itemCode: `R011-AAE-TGT-${suffix}`,
+				assetType: "COMPOSITE_ASSET",
+				assetCategoryId: categoryId,
+				companyId,
+				purchaseDate: new Date("2026-01-01T00:00:00.000Z"),
+				availableForUseDate: new Date("2026-01-01T00:00:00.000Z"),
+				netPurchaseAmount: 0,
+				valueAfterDepreciation: 0,
+				calculateDepreciation: false,
+				status: "DRAFT",
+			},
+		});
+		const draft = await service.createAssetCapitalization(
+			{
+				companyId,
+				financeBookId: secondaryFinanceBookId,
+				postingDate: "2026-08-10",
+				targetType: "EXISTING_ASSET",
+				targetAssetId: target.id,
+				stockItems: [],
+				assetItems: [{ assetId: source.assetId, assetValue: 1 }],
+				serviceItems: [
+					{ expenseAccount: `R-011 AAE Service ${suffix}`, amount: 20 },
+				],
+			},
+			organizationId,
+		);
+		await service.submitAssetCapitalization({ id: draft.id }, organizationId);
+		const originalAccounting =
+			await prisma.client.assetAccountingEntry.findUniqueOrThrow({
+				where: {
+					sourceType_sourceId: {
+						sourceType: "CAPITALIZATION",
+						sourceId: draft.id,
+					},
+				},
+				include: { lines: true },
+			});
+		const replacement = await prisma.client.assetAccountingEntry.create({
+			data: {
+				series: `R011-WRONG-AAE-${suffix}`,
+				companyId,
+				assetId: target.id,
+				financeBookId: secondaryFinanceBookId,
+				sourceType: "REPAIR",
+				sourceId: `R011-WRONG-AAE-SOURCE-${suffix}`,
+				postingDate: originalAccounting.postingDate,
+				remarks: "R-011 malformed accounting lineage",
+				status: "POSTED",
+				lines: {
+					create: [
+						{
+							lineType: "DEBIT",
+							account: `R-011 Wrong Debit ${suffix}`,
+							debitAmount: 1,
+							creditAmount: 0,
+						},
+						{
+							lineType: "CREDIT",
+							account: `R-011 Wrong Credit ${suffix}`,
+							debitAmount: 0,
+							creditAmount: 1,
+						},
+					],
+				},
+			},
+		});
+		await prisma.client.assetCapitalization.update({
+			where: { id: draft.id },
+			data: { accountingEntryId: replacement.id },
+		});
+
+		await expect(
+			service.cancelAssetCapitalization({ id: draft.id }, organizationId),
+		).rejects.toThrow(/accounting lineage/);
+		const [capitalization, sourceState] = await Promise.all([
+			prisma.client.assetCapitalization.findUniqueOrThrow({
+				where: { id: draft.id },
+				select: { status: true },
+			}),
+			prisma.client.asset.findUniqueOrThrow({
+				where: { id: source.assetId },
+				select: { status: true },
+			}),
+		]);
+		expect(capitalization.status).toBe("SUBMITTED");
+		expect(sourceState.status).toBe("CAPITALIZED");
 	});
 
 	it("resolves the selected disposal book before the barrier and restores only that book", async () => {
@@ -1022,9 +1386,22 @@ describe("R-005 targeted corrections integration", () => {
 
 		const firstEntry = reloadedSchedule.entries[0];
 		if (!firstEntry) throw new Error("Expected a synchronized schedule entry");
+		await expect(
+			worker.post({
+				version: 1,
+				organizationId,
+				sourceCapitalizationId: "wrong-capitalization-lineage",
+				assetId: target.id,
+				assetFinanceBookId: reloadedBook.id,
+				scheduleId: reloadedSchedule.id,
+				scheduleEntryId: firstEntry.id,
+				depreciationDate: firstEntry.scheduleDate.toISOString().slice(0, 10),
+			}),
+		).rejects.toThrow(/mismatched capitalization lineage/);
 		const posting = await worker.post({
 			version: 1,
 			organizationId,
+			sourceCapitalizationId: draft.id,
 			assetId: target.id,
 			assetFinanceBookId: reloadedBook.id,
 			scheduleId: reloadedSchedule.id,
@@ -1039,6 +1416,96 @@ describe("R-005 targeted corrections integration", () => {
 		expect(Number(journal.depreciationAmount)).toBe(
 			Number(firstEntry.depreciationAmount),
 		);
+		expect(journal.sourceCapitalizationId).toBe(draft.id);
+
+		const postedEntryBeforeRetry =
+			await prisma.client.assetDepreciationScheduleEntry.findUniqueOrThrow({
+				where: { id: firstEntry.id },
+				select: { postingId: true, postedAt: true },
+			});
+		await expect(
+			worker.post({
+				version: 1,
+				organizationId,
+				sourceCapitalizationId: "wrong-capitalization-lineage-retry",
+				assetId: target.id,
+				assetFinanceBookId: reloadedBook.id,
+				scheduleId: reloadedSchedule.id,
+				scheduleEntryId: firstEntry.id,
+				depreciationDate: firstEntry.scheduleDate.toISOString().slice(0, 10),
+			}),
+		).rejects.toThrow(/mismatched capitalization lineage/);
+		expect(
+			await prisma.client.assetDepreciationScheduleEntry.findUniqueOrThrow({
+				where: { id: firstEntry.id },
+				select: { postingId: true, postedAt: true },
+			}),
+		).toEqual(postedEntryBeforeRetry);
+
+		const idempotentRetry = await worker.post({
+			version: 1,
+			organizationId,
+			sourceCapitalizationId: draft.id,
+			assetId: target.id,
+			assetFinanceBookId: reloadedBook.id,
+			scheduleId: reloadedSchedule.id,
+			scheduleEntryId: firstEntry.id,
+			depreciationDate: firstEntry.scheduleDate.toISOString().slice(0, 10),
+		});
+		expect(idempotentRetry).toEqual({
+			status: "already-posted",
+			postingId: posting.postingId,
+		});
+
+		await prisma.client.assetDepreciationSchedule.update({
+			where: { id: reloadedSchedule.id },
+			data: { sourceCapitalizationId: null },
+		});
+		await prisma.client.assetDepreciationScheduleEntry.update({
+			where: { id: firstEntry.id },
+			data: { postingId: null, postedAt: null },
+		});
+		const nullLineageEntryBefore =
+			await prisma.client.assetDepreciationScheduleEntry.findUniqueOrThrow({
+				where: { id: firstEntry.id },
+				select: { postingId: true, postedAt: true },
+			});
+		const journalBeforeNullLineage =
+			await prisma.client.assetDepreciationJournalEntry.findUniqueOrThrow({
+				where: { id: posting.postingId },
+				select: { sourceCapitalizationId: true, status: true },
+			});
+		await expect(
+			worker.post({
+				version: 1,
+				organizationId,
+				assetId: target.id,
+				assetFinanceBookId: reloadedBook.id,
+				scheduleId: reloadedSchedule.id,
+				scheduleEntryId: firstEntry.id,
+				depreciationDate: firstEntry.scheduleDate.toISOString().slice(0, 10),
+			}),
+		).rejects.toThrow(/mismatched capitalization lineage/);
+		expect(
+			await prisma.client.assetDepreciationScheduleEntry.findUniqueOrThrow({
+				where: { id: firstEntry.id },
+				select: { postingId: true, postedAt: true },
+			}),
+		).toEqual(nullLineageEntryBefore);
+		expect(
+			await prisma.client.assetDepreciationJournalEntry.findUniqueOrThrow({
+				where: { id: posting.postingId },
+				select: { sourceCapitalizationId: true, status: true },
+			}),
+		).toEqual(journalBeforeNullLineage);
+		await prisma.client.assetDepreciationSchedule.update({
+			where: { id: reloadedSchedule.id },
+			data: { sourceCapitalizationId: draft.id },
+		});
+		await prisma.client.assetDepreciationScheduleEntry.update({
+			where: { id: firstEntry.id },
+			data: { postingId: posting.postingId, postedAt: new Date() },
+		});
 
 		const revisions = await prisma.client.$transaction((tx) =>
 			new AssetDepreciationRevisionService().revise(tx, organizationId, {
@@ -1060,6 +1527,476 @@ describe("R-005 targeted corrections integration", () => {
 		expect(successor.precision).toBe(3);
 		expect(successor.ratePrecision).toBe(3);
 		expect(successor.entries[0]?.shift).toBe("Double");
+	});
+
+	it("fails closed when the persisted source schedule closure marker is missing", async () => {
+		const source = await createTwoBookAsset("B01-MISSING", {
+			rootValue: 120,
+			secondaryValue: 100,
+		});
+		const targetId = await createCompositeTarget("B01-MISSING");
+		const draft = await createExistingTargetCapitalization(
+			"B01 Missing",
+			source.assetId,
+			targetId,
+		);
+		await service.submitAssetCapitalization({ id: draft.id }, organizationId);
+
+		const sourceSchedule =
+			await prisma.client.assetDepreciationSchedule.findFirstOrThrow({
+				where: {
+					assetId: source.assetId,
+					assetFinanceBookId: source.secondaryAssetFinanceBookId,
+				},
+				select: { id: true, status: true, closedByCapitalizationId: true },
+			});
+		const sourceItem =
+			await prisma.client.assetCapitalizationAssetItem.findFirstOrThrow({
+				where: { capitalizationId: draft.id, assetId: source.assetId },
+				select: { closedScheduleId: true },
+			});
+		expect(sourceItem.closedScheduleId).toBe(sourceSchedule.id);
+		expect(sourceSchedule.status).toBe("CANCELLED");
+		expect(sourceSchedule.closedByCapitalizationId).toBe(draft.id);
+
+		const [
+			sourceBefore,
+			sourceBookBefore,
+			targetBefore,
+			targetBookBefore,
+			capBefore,
+			accountingBefore,
+			activityCountBefore,
+		] = await Promise.all([
+			prisma.client.asset.findUniqueOrThrow({
+				where: { id: source.assetId },
+				select: { status: true, disposalDate: true },
+			}),
+			prisma.client.assetFinanceBook.findUniqueOrThrow({
+				where: { id: source.secondaryAssetFinanceBookId },
+				select: {
+					valueAfterDepreciation: true,
+					totalNumberOfBookedDepreciations: true,
+					stateVersion: true,
+					postingStatus: true,
+				},
+			}),
+			prisma.client.asset.findUniqueOrThrow({
+				where: { id: targetId },
+				select: {
+					status: true,
+					netPurchaseAmount: true,
+					valueAfterDepreciation: true,
+				},
+			}),
+			prisma.client.assetFinanceBook.findFirstOrThrow({
+				where: { assetId: targetId, financeBookId: secondaryFinanceBookId },
+				select: {
+					valueAfterDepreciation: true,
+					stateVersion: true,
+					postingStatus: true,
+				},
+			}),
+			prisma.client.assetCapitalization.findUniqueOrThrow({
+				where: { id: draft.id },
+				select: { status: true, accountingEntryId: true, stockEntryId: true },
+			}),
+			prisma.client.assetAccountingEntry.findFirstOrThrow({
+				where: { sourceType: "CAPITALIZATION", sourceId: draft.id },
+				select: { id: true, status: true },
+			}),
+			prisma.client.assetActivity.count({
+				where: { assetId: { in: [source.assetId, targetId] } },
+			}),
+		]);
+
+		await prisma.client.assetDepreciationSchedule.update({
+			where: { id: sourceSchedule.id },
+			data: { closedByCapitalizationId: null },
+		});
+		await expect(
+			service.cancelAssetCapitalization({ id: draft.id }, organizationId),
+		).rejects.toThrow(/schedule closure lineage/);
+
+		expect(
+			await prisma.client.assetCapitalization.findUniqueOrThrow({
+				where: { id: draft.id },
+				select: { status: true, accountingEntryId: true, stockEntryId: true },
+			}),
+		).toEqual(capBefore);
+		expect(
+			await prisma.client.asset.findUniqueOrThrow({
+				where: { id: source.assetId },
+				select: { status: true, disposalDate: true },
+			}),
+		).toEqual(sourceBefore);
+		expect(
+			await prisma.client.assetFinanceBook.findUniqueOrThrow({
+				where: { id: source.secondaryAssetFinanceBookId },
+				select: {
+					valueAfterDepreciation: true,
+					totalNumberOfBookedDepreciations: true,
+					stateVersion: true,
+					postingStatus: true,
+				},
+			}),
+		).toEqual(sourceBookBefore);
+		expect(
+			await prisma.client.asset.findUniqueOrThrow({
+				where: { id: targetId },
+				select: {
+					status: true,
+					netPurchaseAmount: true,
+					valueAfterDepreciation: true,
+				},
+			}),
+		).toEqual(targetBefore);
+		expect(
+			await prisma.client.assetFinanceBook.findFirstOrThrow({
+				where: { assetId: targetId, financeBookId: secondaryFinanceBookId },
+				select: {
+					valueAfterDepreciation: true,
+					stateVersion: true,
+					postingStatus: true,
+				},
+			}),
+		).toEqual(targetBookBefore);
+		expect(
+			await prisma.client.assetAccountingEntry.findFirstOrThrow({
+				where: { sourceType: "CAPITALIZATION", sourceId: draft.id },
+				select: { id: true, status: true },
+			}),
+		).toEqual(accountingBefore);
+		expect(
+			await prisma.client.assetActivity.count({
+				where: { assetId: { in: [source.assetId, targetId] } },
+			}),
+		).toBe(activityCountBefore);
+		expect(
+			await prisma.client.assetDepreciationSchedule.findUniqueOrThrow({
+				where: { id: sourceSchedule.id },
+				select: { status: true, closedByCapitalizationId: true },
+			}),
+		).toEqual({ status: "CANCELLED", closedByCapitalizationId: null });
+	});
+
+	it("fails closed when a generated target schedule points at another Asset", async () => {
+		const source = await createTwoBookAsset("B02-TARGET", {
+			rootValue: 120,
+			secondaryValue: 100,
+		});
+		const targetId = await createCompositeTarget("B02-TARGET");
+		const draft = await createExistingTargetCapitalization(
+			"B02 Target",
+			source.assetId,
+			targetId,
+		);
+		await service.submitAssetCapitalization({ id: draft.id }, organizationId);
+		const generatedSchedule =
+			await prisma.client.assetDepreciationSchedule.findFirstOrThrow({
+				where: { sourceCapitalizationId: draft.id },
+				select: {
+					id: true,
+					assetId: true,
+					assetFinanceBookId: true,
+					status: true,
+					sourceCapitalizationId: true,
+				},
+			});
+		await prisma.client.assetDepreciationSchedule.update({
+			where: { id: generatedSchedule.id },
+			data: { assetId: source.assetId },
+		});
+
+		await expect(
+			service.cancelAssetCapitalization({ id: draft.id }, organizationId),
+		).rejects.toThrow(/schedule lineage/);
+		expect(
+			await prisma.client.assetDepreciationSchedule.findUniqueOrThrow({
+				where: { id: generatedSchedule.id },
+				select: {
+					assetId: true,
+					assetFinanceBookId: true,
+					status: true,
+					sourceCapitalizationId: true,
+				},
+			}),
+		).toEqual({
+			assetId: source.assetId,
+			assetFinanceBookId: generatedSchedule.assetFinanceBookId,
+			status: generatedSchedule.status,
+			sourceCapitalizationId: draft.id,
+		});
+		expect(
+			await prisma.client.assetCapitalization.findUniqueOrThrow({
+				where: { id: draft.id },
+				select: { status: true },
+			}),
+		).toEqual({ status: "SUBMITTED" });
+	});
+
+	it("fails closed when a source closed schedule points at another Asset", async () => {
+		const source = await createTwoBookAsset("B02-SOURCE", {
+			rootValue: 120,
+			secondaryValue: 100,
+		});
+		const targetId = await createCompositeTarget("B02-SOURCE");
+		const draft = await createExistingTargetCapitalization(
+			"B02 Source",
+			source.assetId,
+			targetId,
+		);
+		await service.submitAssetCapitalization({ id: draft.id }, organizationId);
+		const sourceSchedule =
+			await prisma.client.assetDepreciationSchedule.findFirstOrThrow({
+				where: {
+					assetId: source.assetId,
+					assetFinanceBookId: source.secondaryAssetFinanceBookId,
+				},
+				select: { id: true, assetFinanceBookId: true, status: true },
+			});
+		await prisma.client.assetDepreciationSchedule.update({
+			where: { id: sourceSchedule.id },
+			data: { assetId: targetId },
+		});
+
+		await expect(
+			service.cancelAssetCapitalization({ id: draft.id }, organizationId),
+		).rejects.toThrow(/schedule closure lineage/);
+		expect(
+			await prisma.client.assetDepreciationSchedule.findUniqueOrThrow({
+				where: { id: sourceSchedule.id },
+				select: { assetId: true, assetFinanceBookId: true, status: true },
+			}),
+		).toEqual({
+			assetId: targetId,
+			assetFinanceBookId: sourceSchedule.assetFinanceBookId,
+			status: sourceSchedule.status,
+		});
+		expect(
+			await prisma.client.assetCapitalization.findUniqueOrThrow({
+				where: { id: draft.id },
+				select: { status: true },
+			}),
+		).toEqual({ status: "SUBMITTED" });
+	});
+
+	it("fails closed when a source closed schedule points at another FinanceBook", async () => {
+		const source = await createTwoBookAsset("B02-BOOK", {
+			rootValue: 120,
+			secondaryValue: 100,
+		});
+		const targetId = await createCompositeTarget("B02-BOOK");
+		const draft = await createExistingTargetCapitalization(
+			"B02 Book",
+			source.assetId,
+			targetId,
+		);
+		await service.submitAssetCapitalization({ id: draft.id }, organizationId);
+		const sourceSchedule =
+			await prisma.client.assetDepreciationSchedule.findFirstOrThrow({
+				where: {
+					assetId: source.assetId,
+					assetFinanceBookId: source.secondaryAssetFinanceBookId,
+				},
+				select: { id: true, assetId: true, status: true },
+			});
+		await prisma.client.assetDepreciationSchedule.update({
+			where: { id: sourceSchedule.id },
+			data: { assetFinanceBookId: source.defaultAssetFinanceBookId },
+		});
+
+		await expect(
+			service.cancelAssetCapitalization({ id: draft.id }, organizationId),
+		).rejects.toThrow(/schedule closure lineage/);
+		expect(
+			await prisma.client.assetDepreciationSchedule.findUniqueOrThrow({
+				where: { id: sourceSchedule.id },
+				select: { assetId: true, assetFinanceBookId: true, status: true },
+			}),
+		).toEqual({
+			assetId: sourceSchedule.assetId,
+			assetFinanceBookId: source.defaultAssetFinanceBookId,
+			status: sourceSchedule.status,
+		});
+		expect(
+			await prisma.client.assetCapitalization.findUniqueOrThrow({
+				where: { id: draft.id },
+				select: { status: true },
+			}),
+		).toEqual({ status: "SUBMITTED" });
+	});
+
+	it("restores an existing target book exactly when capitalization is cancelled", async () => {
+		const source = await createTwoBookAsset("R011-EXC", {
+			rootValue: 120,
+			secondaryValue: 100,
+		});
+		const generatedShiftAllocations = [
+			{ periodIndex: 0, shift: "Single", factor: 1 },
+			{ periodIndex: 1, shift: "Double", factor: 2 },
+			{ periodIndex: 2, shift: "Single", factor: 1 },
+		];
+		await prisma.client.assetFinanceBook.update({
+			where: { id: source.secondaryAssetFinanceBookId },
+			data: {
+				totalNumberOfDepreciations: 3,
+				frequencyOfDepreciation: 1,
+				dailyProrataBased: true,
+				shiftBased: true,
+				precision: 3,
+				ratePrecision: 3,
+				shiftAllocations: {
+					deleteMany: {},
+					create: generatedShiftAllocations,
+				},
+			},
+		});
+		const target = await prisma.client.asset.create({
+			data: {
+				series: `R011-EXC-TGT-${suffix}`,
+				assetName: "R-011 Existing Cancellation Target",
+				itemCode: `R011-EXISTING-CANCEL-TARGET-${suffix}`,
+				assetType: "COMPOSITE_ASSET",
+				assetCategoryId: categoryId,
+				companyId,
+				purchaseDate: new Date("2026-01-01T00:00:00.000Z"),
+				availableForUseDate: new Date("2026-01-01T00:00:00.000Z"),
+				netPurchaseAmount: 0,
+				valueAfterDepreciation: 0,
+				calculateDepreciation: false,
+				status: "DRAFT",
+			},
+		});
+		const previousLastPostedDate = new Date("2026-07-01T00:00:00.000Z");
+		const legacyShiftAllocations = [
+			{ periodIndex: 0, shift: "Legacy", factor: 0.5 },
+		];
+		const existingTargetBook = await prisma.client.assetFinanceBook.create({
+			data: {
+				assetId: target.id,
+				financeBookId: secondaryFinanceBookId,
+				stateVersion: 4,
+				depreciationMethod: "WRITTEN_DOWN_VALUE",
+				totalNumberOfDepreciations: 5,
+				increaseInAssetLife: 2,
+				frequencyOfDepreciation: 12,
+				dailyProrataBased: false,
+				shiftBased: false,
+				precision: 2,
+				ratePrecision: 2,
+				calculateUsingTotalDays: true,
+				rateOfDepreciation: 5,
+				expectedValueAfterUsefulLife: 20,
+				depreciationStartDate: new Date("2026-01-01T00:00:00.000Z"),
+				openingAccumulatedDepreciation: 3,
+				openingNumberOfBookedDepreciations: 2,
+				valueAfterDepreciation: 7,
+				totalNumberOfBookedDepreciations: 2,
+				postingStatus: "PARTIALLY_DEPRECIATED",
+				lastPostedDepreciationDate: previousLastPostedDate,
+				shiftAllocations: { create: legacyShiftAllocations },
+			},
+		});
+
+		const draft = await service.createAssetCapitalization(
+			{
+				companyId,
+				financeBookId: secondaryFinanceBookId,
+				postingDate: "2026-08-10",
+				targetType: "EXISTING_ASSET",
+				targetAssetId: target.id,
+				stockItems: [],
+				assetItems: [{ assetId: source.assetId, assetValue: 1 }],
+				serviceItems: [
+					{
+						expenseAccount: `R-011 Existing Cancel Service ${suffix}`,
+						amount: 10,
+					},
+				],
+			},
+			organizationId,
+		);
+		await service.submitAssetCapitalization({ id: draft.id }, organizationId);
+		const persistedSourceSchedule =
+			await prisma.client.assetDepreciationSchedule.findFirstOrThrow({
+				where: {
+					assetId: source.assetId,
+					assetFinanceBookId: source.secondaryAssetFinanceBookId,
+				},
+				select: { id: true, status: true, closedByCapitalizationId: true },
+			});
+		const persistedSourceItem =
+			await prisma.client.assetCapitalizationAssetItem.findFirstOrThrow({
+				where: { capitalizationId: draft.id, assetId: source.assetId },
+				select: { closedScheduleId: true },
+			});
+		expect(persistedSourceItem.closedScheduleId).toBe(
+			persistedSourceSchedule.id,
+		);
+		expect(persistedSourceSchedule.status).toBe("CANCELLED");
+		expect(persistedSourceSchedule.closedByCapitalizationId).toBe(draft.id);
+		await service.cancelAssetCapitalization({ id: draft.id }, organizationId);
+
+		const restoredBook = await prisma.client.assetFinanceBook.findUniqueOrThrow(
+			{
+				where: { id: existingTargetBook.id },
+				include: { shiftAllocations: { orderBy: { periodIndex: "asc" } } },
+			},
+		);
+		expect(restoredBook.stateVersion).toBe(4);
+		expect(restoredBook.depreciationMethod).toBe("WRITTEN_DOWN_VALUE");
+		expect(restoredBook.totalNumberOfDepreciations).toBe(5);
+		expect(restoredBook.increaseInAssetLife).toBe(2);
+		expect(restoredBook.frequencyOfDepreciation).toBe(12);
+		expect(restoredBook.calculateUsingTotalDays).toBe(true);
+		expect(Number(restoredBook.rateOfDepreciation)).toBe(5);
+		expect(Number(restoredBook.expectedValueAfterUsefulLife)).toBe(20);
+		expect(Number(restoredBook.openingAccumulatedDepreciation)).toBe(3);
+		expect(restoredBook.openingNumberOfBookedDepreciations).toBe(2);
+		expect(Number(restoredBook.valueAfterDepreciation)).toBe(7);
+		expect(restoredBook.totalNumberOfBookedDepreciations).toBe(2);
+		expect(restoredBook.postingStatus).toBe("PARTIALLY_DEPRECIATED");
+		expect(restoredBook.lastPostedDepreciationDate).toEqual(
+			previousLastPostedDate,
+		);
+		expect(
+			restoredBook.shiftAllocations.map((row) => [
+				row.periodIndex,
+				row.shift,
+				Number(row.factor),
+			]),
+		).toEqual([[0, "Legacy", 0.5]]);
+
+		const [restoredTarget, restoredSourceSchedule, cancelled] =
+			await Promise.all([
+				prisma.client.asset.findUniqueOrThrow({
+					where: { id: target.id },
+					select: {
+						status: true,
+						calculateDepreciation: true,
+						netPurchaseAmount: true,
+						valueAfterDepreciation: true,
+					},
+				}),
+				prisma.client.assetDepreciationSchedule.findFirstOrThrow({
+					where: {
+						assetFinanceBookId: source.secondaryAssetFinanceBookId,
+					},
+					select: { status: true, closedByCapitalizationId: true },
+				}),
+				prisma.client.assetCapitalization.findUniqueOrThrow({
+					where: { id: draft.id },
+					select: { status: true },
+				}),
+			]);
+		expect(restoredTarget.status).toBe("DRAFT");
+		expect(restoredTarget.calculateDepreciation).toBe(false);
+		expect(Number(restoredTarget.netPurchaseAmount)).toBe(0);
+		expect(Number(restoredTarget.valueAfterDepreciation)).toBe(0);
+		expect(restoredSourceSchedule.status).toBe("ACTIVE");
+		expect(restoredSourceSchedule.closedByCapitalizationId).toBe(draft.id);
+		expect(cancelled.status).toBe("CANCELLED");
 	});
 
 	it("uses selected root-book precision for capitalization accounting", async () => {

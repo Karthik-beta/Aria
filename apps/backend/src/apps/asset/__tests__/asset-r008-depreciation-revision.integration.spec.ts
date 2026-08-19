@@ -229,6 +229,12 @@ describe("R-008 depreciation revision semantics", () => {
 		if (assetIds.length === 0 && capitalizationIds.length === 0) return;
 		const ids = [...assetIds];
 		const capIds = [...capitalizationIds];
+		await prisma.client.assetDepreciationJournalEntry.deleteMany({
+			where: { assetId: { in: ids } },
+		});
+		await prisma.client.assetDepreciationSchedule.deleteMany({
+			where: { assetId: { in: ids } },
+		});
 		if (capIds.length > 0) {
 			await prisma.client.assetCapitalization.deleteMany({
 				where: { id: { in: capIds } },
@@ -240,12 +246,6 @@ describe("R-008 depreciation revision semantics", () => {
 				},
 			});
 		}
-		await prisma.client.assetDepreciationJournalEntry.deleteMany({
-			where: { assetId: { in: ids } },
-		});
-		await prisma.client.assetDepreciationSchedule.deleteMany({
-			where: { assetId: { in: ids } },
-		});
 		await prisma.client.assetFinanceBook.deleteMany({
 			where: { assetId: { in: ids } },
 		});

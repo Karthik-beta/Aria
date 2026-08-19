@@ -348,7 +348,11 @@ export class AssetDepreciationRevisionService {
 			const cancelledSchedule = await tx.assetDepreciationSchedule.updateMany({
 				where: {
 					id: activeSchedule.id,
-					asset: { is: assetWhereForOrganization(organizationId) },
+					asset: {
+						is: assetWhereForOrganization(organizationId, {
+							id: input.assetId,
+						}),
+					},
 				},
 				data: { status: "CANCELLED" },
 			});
@@ -639,6 +643,7 @@ export class AssetDepreciationRevisionService {
 		organizationId: AssetOrganizationId,
 		assetId: string,
 		financeBookId?: string,
+		sourceCapitalizationId?: string,
 	): Promise<number> {
 		assertAssetOrganizationId(organizationId);
 		const books = await this.loadLockedBooks(
@@ -651,17 +656,27 @@ export class AssetDepreciationRevisionService {
 		for (const book of books) {
 			const result = await tx.assetDepreciationSchedule.updateMany({
 				where: {
+					assetId,
 					assetFinanceBookId: book.id,
 					status: "ACTIVE",
-					asset: { is: assetWhereForOrganization(organizationId) },
+					asset: {
+						is: assetWhereForOrganization(organizationId, { id: assetId }),
+					},
+					assetFinanceBook: { is: { assetId } },
 				},
-				data: { status: "CANCELLED" },
+				data: {
+					status: "CANCELLED",
+					closedByCapitalizationId: sourceCapitalizationId ?? null,
+				},
 			});
 			if (result.count > 0) {
 				const updatedBook = await tx.assetFinanceBook.updateMany({
 					where: {
 						id: book.id,
-						asset: { is: assetWhereForOrganization(organizationId) },
+						assetId,
+						asset: {
+							is: assetWhereForOrganization(organizationId, { id: assetId }),
+						},
 					},
 					data: { stateVersion: { increment: 1 } },
 				});
@@ -674,6 +689,148 @@ export class AssetDepreciationRevisionService {
 			closed += result.count;
 		}
 		return closed;
+	}
+
+	/** Reactivates only schedules closed by this capitalization document. */
+	async reactivateSchedulesClosedByCapitalization(
+		tx: RevisionTransaction,
+		organizationId: AssetOrganizationId,
+		capitalizationId: string,
+		assetId: string,
+		expectedScheduleId: string,
+		financeBookId?: string,
+	): Promise<number> {
+		assertAssetOrganizationId(organizationId);
+		const books = await this.loadLockedBooks(
+			tx,
+			organizationId,
+			assetId,
+			financeBookId,
+		);
+		if (books.length !== 1) {
+			throw new AssetDepreciationRevisionError(
+				`Capitalization ${capitalizationId} has ambiguous source schedule finance-book lineage for asset ${assetId}.`,
+			);
+		}
+		let reactivated = 0;
+		for (const book of books) {
+			const expectedSchedule = await tx.assetDepreciationSchedule.findFirst({
+				where: {
+					id: expectedScheduleId,
+					assetId,
+					assetFinanceBookId: book.id,
+					status: "CANCELLED",
+					closedByCapitalizationId: capitalizationId,
+					asset: {
+						is: assetWhereForOrganization(organizationId, { id: assetId }),
+					},
+					assetFinanceBook: { is: { assetId } },
+				},
+				select: {
+					id: true,
+					assetId: true,
+					assetFinanceBookId: true,
+					status: true,
+					closedByCapitalizationId: true,
+					revisionNumber: true,
+					assetFinanceBook: { select: { assetId: true } },
+				},
+			});
+			if (
+				!expectedSchedule ||
+				expectedSchedule.assetId !== assetId ||
+				expectedSchedule.assetFinanceBookId !== book.id ||
+				expectedSchedule.assetFinanceBook.assetId !== assetId ||
+				expectedSchedule.status !== "CANCELLED" ||
+				expectedSchedule.closedByCapitalizationId !== capitalizationId
+			) {
+				throw new AssetDepreciationRevisionError(
+					`Capitalization ${capitalizationId} source schedule ${expectedScheduleId} has incomplete Asset or finance-book lineage.`,
+				);
+			}
+			const closedSchedules = await tx.assetDepreciationSchedule.findMany({
+				where: {
+					assetId,
+					assetFinanceBookId: book.id,
+					status: "CANCELLED",
+					closedByCapitalizationId: capitalizationId,
+					asset: {
+						is: assetWhereForOrganization(organizationId, { id: assetId }),
+					},
+					assetFinanceBook: { is: { assetId } },
+				},
+				select: {
+					id: true,
+					assetFinanceBookId: true,
+					status: true,
+					revisionNumber: true,
+				},
+			});
+			if (
+				closedSchedules.length !== 1 ||
+				closedSchedules[0]?.id !== expectedScheduleId ||
+				closedSchedules[0]?.assetFinanceBookId !== book.id ||
+				closedSchedules[0]?.status !== "CANCELLED"
+			) {
+				throw new AssetDepreciationRevisionError(
+					`Capitalization ${capitalizationId} has incomplete or duplicate source schedule lineage for asset ${assetId}.`,
+				);
+			}
+			const closedSchedule = closedSchedules[0];
+			const newerSchedule = await tx.assetDepreciationSchedule.findFirst({
+				where: {
+					assetId,
+					assetFinanceBookId: book.id,
+					assetFinanceBook: { is: { assetId } },
+					revisionNumber: { gt: closedSchedule.revisionNumber },
+					asset: {
+						is: assetWhereForOrganization(organizationId, { id: assetId }),
+					},
+				},
+				select: { id: true },
+			});
+			if (newerSchedule) {
+				throw new AssetDepreciationRevisionError(
+					`Finance book ${book.financeBookId} has a newer schedule after capitalization ${capitalizationId}.`,
+				);
+			}
+			const reactivation = await tx.assetDepreciationSchedule.updateMany({
+				where: {
+					id: closedSchedule.id,
+					assetId,
+					assetFinanceBookId: book.id,
+					assetFinanceBook: { is: { assetId } },
+					status: "CANCELLED",
+					closedByCapitalizationId: capitalizationId,
+					asset: {
+						is: assetWhereForOrganization(organizationId, { id: assetId }),
+					},
+				},
+				data: { status: "ACTIVE" },
+			});
+			if (reactivation.count !== 1) {
+				throw new AssetDepreciationRevisionError(
+					`The schedule closed by capitalization ${capitalizationId} is no longer available in the active organization.`,
+				);
+			}
+			const updatedBook = await tx.assetFinanceBook.updateMany({
+				where: {
+					id: book.id,
+					assetId,
+					asset: {
+						is: assetWhereForOrganization(organizationId, { id: assetId }),
+					},
+				},
+				data: { stateVersion: { increment: 1 } },
+			});
+			if (updatedBook.count !== 1) {
+				throw new AssetDepreciationRevisionError(
+					`Finance book ${book.financeBookId} is no longer available in the active organization.`,
+				);
+			}
+			reactivated += 1;
+		}
+		return reactivated;
 	}
 
 	/** Reactivates the latest closed schedule after a reversible lifecycle close. */

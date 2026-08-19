@@ -12,6 +12,8 @@ export interface DepreciationJobData {
 	version: typeof DEPRECIATION_JOB_VERSION;
 	/** Organization persisted on the Asset's Company at discovery time. */
 	organizationId: string;
+	/** Capitalization that requested a posting barrier, when one owns the effect. */
+	sourceCapitalizationId?: string;
 	assetId: string;
 	assetFinanceBookId: string;
 	scheduleId: string;
@@ -32,6 +34,8 @@ interface DepreciationScopeFilters {
 	company?: string;
 	assetIds?: readonly string[];
 	financeBookId?: string;
+	/** Propagated only for an explicit capitalization posting barrier. */
+	sourceCapitalizationId?: string;
 }
 
 /** Authenticated organization scope for user-triggered depreciation work. */
@@ -66,6 +70,7 @@ export interface EnsureDepreciationPostedResult {
 
 export interface PendingDepreciationPeriod {
 	organizationId: string;
+	sourceCapitalizationId?: string;
 	assetId: string;
 	assetFinanceBookId: string;
 	financeBookId: string;

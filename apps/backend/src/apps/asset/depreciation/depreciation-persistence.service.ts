@@ -78,6 +78,7 @@ interface WorkerEntry {
 	postingId: string | null;
 	schedule: {
 		id: string;
+		sourceCapitalizationId: string | null;
 		status: string;
 		assetId: string;
 		assetFinanceBookId: string;
@@ -105,6 +106,7 @@ interface WorkerEntry {
 		};
 		assetFinanceBook: {
 			id: string;
+			assetId: string;
 			financeBookId: string;
 			financeBook: { name: string };
 			openingNumberOfBookedDepreciations: number;
@@ -262,6 +264,7 @@ export class DepreciationPersistenceService {
 			const frozenThrough = freezes.get(row.schedule.asset.companyId);
 			return {
 				organizationId: row.schedule.asset.company.organizationId,
+				sourceCapitalizationId: scope.sourceCapitalizationId,
 				assetId: row.schedule.assetId,
 				assetFinanceBookId: row.schedule.assetFinanceBookId,
 				financeBookId: row.schedule.assetFinanceBook.financeBookId,
@@ -378,6 +381,13 @@ export class DepreciationPersistenceService {
 				);
 			}
 			this.validatePayloadIdentity(job, entry);
+			const persistedCapitalizationId = entry.schedule.sourceCapitalizationId;
+			const jobCapitalizationId = job.sourceCapitalizationId ?? null;
+			if (jobCapitalizationId !== persistedCapitalizationId) {
+				throw new DepreciationPostingValidationError(
+					`Depreciation job ${job.scheduleEntryId} has mismatched capitalization lineage.`,
+				);
+			}
 			assertFinitePostingAmount("amount", entry.depreciationAmount);
 			assertFinitePostingAmount("book value", entry.bookValueAfterDepreciation);
 
@@ -386,20 +396,31 @@ export class DepreciationPersistenceService {
 			}
 			this.validateCursorCapacity(entry);
 
+			const expectedCapitalizationId = persistedCapitalizationId;
 			const existing = await tx.assetDepreciationJournalEntry.findFirst<{
 				id: string;
+				sourceCapitalizationId: string | null;
 			}>({
 				where: {
+					assetId: entry.schedule.assetId,
 					assetFinanceBookId: job.assetFinanceBookId,
 					postingDate: entry.scheduleDate,
+					assetFinanceBook: {
+						is: { assetId: entry.schedule.assetId },
+					},
 					asset: {
 						is: { company: { is: { organizationId: job.organizationId } } },
 					},
 					company: { is: { organizationId: job.organizationId } },
 				},
-				select: { id: true },
+				select: { id: true, sourceCapitalizationId: true },
 			});
 			if (existing) {
+				if (existing.sourceCapitalizationId !== expectedCapitalizationId) {
+					throw new DepreciationPostingValidationError(
+						`Depreciation journal ${existing.id} has mismatched capitalization lineage.`,
+					);
+				}
 				const linkedEntry = await tx.assetDepreciationScheduleEntry.updateMany({
 					where: {
 						id: entry.id,
@@ -506,6 +527,7 @@ export class DepreciationPersistenceService {
 			}>({
 				data: {
 					series,
+					sourceCapitalizationId: expectedCapitalizationId ?? null,
 					assetId: entry.schedule.assetId,
 					assetFinanceBookId: entry.schedule.assetFinanceBookId,
 					companyId: company.id,
@@ -648,6 +670,7 @@ export class DepreciationPersistenceService {
 			entry.scheduleId !== job.scheduleId ||
 			entry.schedule.assetId !== job.assetId ||
 			entry.schedule.assetFinanceBookId !== job.assetFinanceBookId ||
+			entry.schedule.assetFinanceBook.assetId !== entry.schedule.assetId ||
 			entry.schedule.asset.company.organizationId !== job.organizationId ||
 			dateOnlyFromPersistedDateTime(entry.scheduleDate) !== job.depreciationDate
 		) {

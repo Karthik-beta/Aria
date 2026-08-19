@@ -135,6 +135,7 @@ export class DepreciationDiscoveryService {
 		return {
 			version: DEPRECIATION_JOB_VERSION,
 			organizationId: period.organizationId,
+			sourceCapitalizationId: period.sourceCapitalizationId,
 			assetId: period.assetId,
 			assetFinanceBookId: period.assetFinanceBookId,
 			scheduleId: period.scheduleId,

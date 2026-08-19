@@ -8226,6 +8226,13 @@ export namespace Asset {
 				});
 			}
 			if (value.targetType === "NEW_ASSET") {
+				if (value.targetAssetId) {
+					ctx.addIssue({
+						code: "custom",
+						path: ["targetAssetId"],
+						message: "A new-asset capitalization cannot specify a target asset",
+					});
+				}
 				for (const [field, message] of [
 					["targetAssetName", "Target asset name is required"],
 					["targetAssetCategory", "Target asset category is required"],
