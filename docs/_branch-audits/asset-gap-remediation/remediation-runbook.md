@@ -2146,20 +2146,20 @@ Each finding appears exactly once as a primary mapping. Supporting units are nam
 | Finding | Severity | Title | Primary unit | Wave | Merge gate | Prerequisites | Status | Implementation commit | Independent review | Wave verification | Notes |
 |---|---:|---|---|---:|---|---|---|---|---|---|---|
 | AM-001 | BLOCKER | Organization isolation is not enforced in Asset data access | R-002 | 1 | MUST FIX BEFORE MERGE | R-001 | OPEN | — | — | — | R-001 is the ownership-model prerequisite |
-| AM-002 | HIGH | Asset cancellation ignores linked lifecycle effects | R-010 | 3 | MUST FIX BEFORE MERGE | R-005, R-007, R-009 | OPEN | — | — | — | Exact reversal details also use R-011/R-012/R-014 |
-| AM-003 | HIGH | Composite Asset submission lacks capitalization prerequisite | R-010 | 3 | MUST FIX BEFORE MERGE | R-011 | OPEN | — | — | — | Submit barrier is in R-010; target validity in R-011 |
-| AM-004 | HIGH | Capitalization cancellation uses timestamp instead of lineage | R-011 | 3 | MUST FIX BEFORE MERGE | R-014 | OPEN | — | — | — | Source barrier lineage and later-event guard |
+| AM-002 | HIGH | Asset cancellation ignores linked lifecycle effects | R-010 | 3 | MUST FIX BEFORE MERGE | R-005, R-007, R-009 | VERIFIED_CLOSED | 578e3c570241ad75fcce9d5cb421482c608d602c | REVIEW_PASSED | WAVE 3 VERIFIED_CLOSED | Exact reversal details also use R-011/R-012/R-014 |
+| AM-003 | HIGH | Composite Asset submission lacks capitalization prerequisite | R-010 | 3 | MUST FIX BEFORE MERGE | R-011 | VERIFIED_CLOSED | 578e3c570241ad75fcce9d5cb421482c608d602c | REVIEW_PASSED | WAVE 3 VERIFIED_CLOSED | Submit barrier is in R-010; target validity in R-011 |
+| AM-004 | HIGH | Capitalization cancellation uses timestamp instead of lineage | R-011 | 3 | MUST FIX BEFORE MERGE | R-014 | VERIFIED_CLOSED | f1a5d56c174b8e9fa10ec9ee3006ca5ab2e9a64c | REVIEW_PASSED | WAVE 3 VERIFIED_CLOSED | Source barrier lineage and later-event guard |
 | AM-005 | HIGH | Opening straight-line basis is incorrect | R-007 | 2 | MUST FIX BEFORE MERGE | R-004 | OPEN | — | — | — | Numeric 1000/100/200/3 fixture required |
 | AM-006 | HIGH | WDV revision retains stale rate | R-008 | 2 | MUST FIX BEFORE MERGE | R-005, R-007, R-009 | OPEN | — | — | — | ERPNext current-value derivation |
-| AM-007 | HIGH | Available-for-use date is optional/falls back to purchase date | R-010 | 3 | MUST FIX BEFORE MERGE | R-004 | OPEN | — | — | — | Ordinary Asset rule; explicit component exception |
+| AM-007 | HIGH | Available-for-use date is optional/falls back to purchase date | R-010 | 3 | MUST FIX BEFORE MERGE | R-004 | VERIFIED_CLOSED | 578e3c570241ad75fcce9d5cb421482c608d602c | REVIEW_PASSED | WAVE 3 VERIFIED_CLOSED | Ordinary Asset rule; explicit component exception |
 | AM-008 | HIGH | Secondary-book adjustment can overwrite root/default state | R-005 | 2 | MUST FIX BEFORE MERGE | R-001, R-004 | OPEN | — | — | — | Root fields become defined default projection |
-| AM-009 | HIGH | Contradictory capitalization target input is accepted | R-011 | 3 | MUST FIX BEFORE MERGE | R-010, R-014 | OPEN | — | — | — | Reject NEW_ASSET plus targetAssetId |
+| AM-009 | HIGH | Contradictory capitalization target input is accepted | R-011 | 3 | MUST FIX BEFORE MERGE | R-010, R-014 | VERIFIED_CLOSED | f1a5d56c174b8e9fa10ec9ee3006ca5ab2e9a64c | REVIEW_PASSED | WAVE 3 VERIFIED_CLOSED | Reject NEW_ASSET plus targetAssetId |
 | AM-010 | HIGH | Date-only values shift across timezone/form/report paths | R-004 | 1 | MUST FIX BEFORE MERGE | None | OPEN | — | — | — | R-019 is a frontend adoption/support unit |
 | AM-011 | HIGH | Async category defaults overwrite persisted edit values | R-019 | 4 | MUST FIX BEFORE MERGE | R-004, R-018 | OPEN | — | — | — | Hydration and dirty-state proof |
 | AM-012 | BLOCKER | Realtime Asset events are organization-blind | R-003 | 1 | MUST FIX BEFORE MERGE | R-001, R-002 | OPEN | — | — | — | Separate event privacy boundary |
-| AM-013 | HIGH | Submitted capitalization target can be deleted | R-011 | 3 | MUST FIX BEFORE MERGE | R-010, R-014 | OPEN | — | — | — | Restrictive policy or immutable cancellation proof |
-| AM-014 | HIGH | Submit/cancel has split transaction and race window | R-010 | 3 | MUST FIX BEFORE MERGE | R-005, R-007, R-009 | OPEN | — | — | — | Failure injection and concurrent transition tests |
-| AM-015 | HIGH | Disposal restore omits disposal-date depreciation reversal | R-012 | 3 | MUST FIX BEFORE MERGE | R-011, R-014 | OPEN | — | — | — | Original schedule-date exception required |
+| AM-013 | HIGH | Submitted capitalization target can be deleted | R-011 | 3 | MUST FIX BEFORE MERGE | R-010, R-014 | VERIFIED_CLOSED | f1a5d56c174b8e9fa10ec9ee3006ca5ab2e9a64c | REVIEW_PASSED | WAVE 3 VERIFIED_CLOSED | Restrictive policy or immutable cancellation proof |
+| AM-014 | HIGH | Submit/cancel has split transaction and race window | R-010 | 3 | MUST FIX BEFORE MERGE | R-005, R-007, R-009 | VERIFIED_CLOSED | 578e3c570241ad75fcce9d5cb421482c608d602c | REVIEW_PASSED | WAVE 3 VERIFIED_CLOSED | Failure injection and concurrent transition tests |
+| AM-015 | HIGH | Disposal restore omits disposal-date depreciation reversal | R-012 | 3 | MUST FIX BEFORE MERGE | R-011, R-014 | VERIFIED_CLOSED | e236608e65a72a5ad00d0bd0145e2e5f334f20b8 | REVIEW_PASSED | WAVE 3 VERIFIED_CLOSED | Original schedule-date exception required |
 | AM-016 | HIGH | Submission does not create initial receipt movement | R-013 | 3 | MUST FIX BEFORE MERGE | R-010 | OPEN | — | — | — | Idempotent, actor-attributed receipt |
 | AM-017 | HIGH | Fixed Asset Register lacks exact book/company/as-of scope | R-006 | 2 | MUST FIX BEFORE MERGE | R-002, R-005, R-007 | OPEN | — | — | — | Existing mocked tests are insufficient |
 | AM-018 | HIGH | Carrying-value aggregation mixes books/future adjustments | R-005 | 2 | MUST FIX BEFORE MERGE | R-001, R-004 | OPEN | — | — | — | R-006 consumes the corrected balance service |
@@ -2170,7 +2170,7 @@ Each finding appears exactly once as a primary mapping. Supporting units are nam
 | AM-023 | HIGH | Zero-carrying WDV can persist non-finite values | R-007 | 2 | MUST FIX BEFORE MERGE | R-004 | OPEN | — | — | — | Engine and persistence finite guards |
 | AM-024 | HIGH | CWIP can be reported ready without a worker | R-021 | 5 | MUST FIX BEFORE MERGE | R-010, R-011 | OPEN | — | — | — | Readiness/release contract |
 | AM-025 | HIGH | Maintenance status uses server-local midnight | R-004 | 1 | MUST FIX BEFORE MERGE | None | OPEN | — | — | — | Business timezone adoption |
-| AM-026 (promoted P-004) | HIGH | Value-adjustment cancellation overwrites later state | R-014 | 3 | MUST FIX BEFORE MERGE | R-005, R-010 | OPEN | — | — | — | Promoted hypothesis; no duplicate primary row |
+| AM-026 (promoted P-004) | HIGH | Value-adjustment cancellation overwrites later state | R-014 | 3 | MUST FIX BEFORE MERGE | R-005, R-010 | VERIFIED_CLOSED | 2342855d5b30f6b0a460f872202087fb3047c1b2 | REVIEW_PASSED | WAVE 3 VERIFIED_CLOSED | Promoted hypothesis; no duplicate primary row |
 | AM-027 | MEDIUM | Draft Asset trusts raw company/item references | R-015 | 3 | SHOULD FIX BEFORE MERGE | R-001, R-002 | OPEN | — | — | — | Explicit draft policy and submit revalidation |
 | AM-028 | MEDIUM | Repair invoices lack submitted/unallocated validation | R-016 | 3 | SHOULD FIX BEFORE MERGE | R-001, R-002 | OPEN | — | — | — | Reject unsupported purchasing references |
 | AM-029 | MEDIUM | Maintenance assignment is optional | R-016 | 3 | SHOULD FIX BEFORE MERGE | R-001, R-002 | OPEN | — | — | — | Required assignee or explicit unassigned state |
@@ -2191,7 +2191,7 @@ Each finding appears exactly once as a primary mapping. Supporting units are nam
 | P-007 | MEDIUM | Demo load-twice/cleanup/reload/worker/restart proof incomplete | R-021 | 5 | SHOULD FIX BEFORE RELEASE | R-010, R-011 | OPEN | — | — | — | Bundled with high CWIP readiness |
 | P-008 | LOW | Gap-analysis report has stale counts/terminology | R-023 | 5 | SAFE TO DEFER | Final route inventory | OPEN | — | — | — | Historical labels must be explicit |
 | P-009 | MEDIUM | Asset/book/activity creation is not one transaction | R-015 | 3 | SHOULD FIX BEFORE MERGE | R-001, R-002 | OPEN | — | — | — | Atomic draft initialization |
-| P-010 | MEDIUM | Chronology guards are incomplete | R-014 | 3 | MUST FIX BEFORE MERGE | R-005, R-010 | OPEN | — | — | — | Bundled with high stale-rollback risk |
+| P-010 | MEDIUM | Chronology guards are incomplete | R-014 | 3 | MUST FIX BEFORE MERGE | R-005, R-010 | VERIFIED_CLOSED | 2342855d5b30f6b0a460f872202087fb3047c1b2 | REVIEW_PASSED | WAVE 3 VERIFIED_CLOSED | Bundled with high stale-rollback risk |
 
 No status in this matrix may be advanced by editing the matrix. Status changes require the evidence defined in Section 16.
 
@@ -2278,6 +2278,29 @@ Run the serial Asset backend suite, real PostgreSQL transaction/concurrency test
     bun --cwd apps/backend run test -- asset
     bun --cwd apps/backend run test:depreciation:integration
     bun --cwd apps/backend run db:verify-migrations
+
+**Closure status:** `WAVE 3 VERIFIED_CLOSED`.
+
+**Wave 3 closure evidence:** The integration gate passed on final tested HEAD `e236608e65a72a5ad00d0bd0145e2e5f334f20b8`; local HEAD matched `origin/fix/asset-gap-remediation-final` and the worktree was clean. A disposable fresh PostgreSQL database accepted the complete 54-migration chain from empty state; migration status reported `Database schema is up to date!`, `db:verify-migrations` passed, failed migrations were `0`, and the database was removed after verification.
+
+| Serial regression coverage | Result |
+|---|---:|
+| R-010 lifecycle | 10 passed / 39 expectations |
+| R-014 value adjustment | 8 passed / 46 expectations |
+| R-011 capitalization lineage | 17 passed / 165 expectations |
+| R-012 disposal barrier | 10 passed / 56 expectations |
+| FinanceBook | 1 passed / 12 expectations |
+| R-008 revision | 9 passed / 83 expectations |
+| R-009 options | 5 passed / 35 expectations |
+| Lifecycle actions | 35 passed / 90 expectations |
+| Depreciation persistence | 1 passed / 7 expectations |
+| CWIP persistence | 4 passed / 13 expectations |
+| Depreciation processor | 3 passed / 4 expectations |
+| Depreciation barrier | 3 passed / 5 expectations |
+| Canonical depreciation integration | 7 passed / 55 expectations |
+| Broader non-integration Asset suite | 304 passed / 724 expectations across 32 files |
+
+Root typecheck, backend typecheck, Prisma validate and Client generation, backend build and lint, frontend route type generation, frontend typecheck, and frontend lint passed. The correctly configured `bun run validate:local` remains nonzero only for unrelated repository-wide failures: seven tRPC organization-middleware failures involving `Not authenticated` and one unrelated frontend `window is not defined` error from `src/app/admin/company/page.test.tsx`; no Wave 3 Asset or depreciation test failed, and these findings remain out of scope for Wave 3 closure.
 
 ### Wave 4 gate
 
