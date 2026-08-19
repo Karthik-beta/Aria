@@ -2,6 +2,20 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Agent skills
+
+### Issue tracker
+
+Issues live in GitHub Issues for `Karthik-beta/Aria`, managed with the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Use `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, and `wontfix`. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context layout: use the root `CONTEXT.md` and `docs/adr/`. See `docs/agents/domain.md`.
+
 ## Package Manager: Bun Only
 
 **Always use Bun** — never npm, pnpm, or yarn. This repository is configured for Bun.
