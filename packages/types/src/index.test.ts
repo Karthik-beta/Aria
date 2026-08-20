@@ -1,5 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import {
+	Asset,
+	assetFinanceBookFormFromPersisted,
+	assetFinanceBookInputFromForm,
 	businessDate,
 	dateOnlyFromInstant,
 	dateOnlyFromPersistedDateTime,
@@ -41,6 +44,125 @@ describe("canonical Asset date-only contract", () => {
 		expect(dateOnlyFromInstant("Asia/Kolkata", instant)).toBe("2027-01-01");
 		expect(dateOnlyFromInstant("America/New_York", instant)).toBe("2026-12-31");
 		expect(businessDate("Asia/Kolkata", instant)).toBe("2027-01-01");
+	});
+});
+
+describe("Asset type and finance-book round-trip contract", () => {
+	test("preserves supported typed options through shared input schemas", () => {
+		const parsed = Asset.createAssetSchema.parse({
+			assetName: "Composite Component",
+			assetType: "COMPOSITE_COMPONENT",
+			companyId: "cm1234567890123456789012",
+			purchaseDate: "2026-01-01",
+			availableForUseDate: null,
+			calculateDepreciation: true,
+			financeBooks: [
+				{
+					financeBookId: "cm1234567890123456789999",
+					depreciationMethod: "STRAIGHT_LINE",
+					totalNumberOfDepreciations: 3,
+					frequencyOfDepreciation: 1,
+					depreciationStartDate: "2026-02-28",
+					dailyProrataBased: true,
+					shiftBased: true,
+					precision: 3,
+					ratePrecision: 4,
+					calculateUsingTotalDays: true,
+					rateOfDepreciation: null,
+					shiftAllocations: [
+						{ periodIndex: 0, shift: "Day:Night", factor: 1 },
+						{ periodIndex: 1, shift: "Night,Weekend", factor: 2 },
+						{ periodIndex: 2, shift: "Two Shifts", factor: 1 },
+					],
+					expectedValueAfterUsefulLife: 0,
+					openingAccumulatedDepreciation: 0,
+					openingNumberOfBookedDepreciations: 0,
+				},
+			],
+		});
+
+		expect(parsed.assetType).toBe("COMPOSITE_COMPONENT");
+		expect(parsed.financeBooks?.[0]).toMatchObject({
+			dailyProrataBased: true,
+			shiftBased: true,
+			precision: 3,
+			ratePrecision: 4,
+			calculateUsingTotalDays: true,
+			rateOfDepreciation: null,
+			shiftAllocations: [
+				{ periodIndex: 0, shift: "Day:Night", factor: 1 },
+				{ periodIndex: 1, shift: "Night,Weekend", factor: 2 },
+				{ periodIndex: 2, shift: "Two Shifts", factor: 1 },
+			],
+		});
+	});
+
+	test("gates rate to WDV and round-trips structured shift names", () => {
+		const shiftAllocations = [
+			{ periodIndex: 0, shift: "Day:Night", factor: 1 },
+			{ periodIndex: 1, shift: "Night,Weekend", factor: 2 },
+			{ periodIndex: 2, shift: "Two Shifts", factor: 1 },
+		];
+		const writtenDownValueForm = {
+			financeBookId: "cm1234567890123456789999",
+			depreciationMethod: "WRITTEN_DOWN_VALUE" as const,
+			totalNumberOfDepreciations: "3",
+			frequencyOfDepreciation: "1",
+			depreciationStartDate: "2026-02-28",
+			dailyProrataBased: false,
+			shiftBased: false,
+			precision: "3",
+			ratePrecision: "4",
+			calculateUsingTotalDays: false,
+			rateOfDepreciation: "20",
+			shiftAllocations: JSON.stringify(shiftAllocations),
+			expectedValueAfterUsefulLife: "100",
+			openingAccumulatedDepreciation: "0",
+			openingNumberOfBookedDepreciations: "0",
+			manualEntriesText: "",
+		};
+
+		const input = assetFinanceBookInputFromForm(writtenDownValueForm);
+		expect(input).toMatchObject({
+			rateOfDepreciation: 20,
+			shiftAllocations,
+		});
+
+		const persisted: Asset.AssetFinanceBook = {
+			id: "cm1234567890123456789998",
+			financeBookId: input.financeBookId,
+			financeBookName: "Corporate Book",
+			depreciationMethod: input.depreciationMethod,
+			totalNumberOfDepreciations: input.totalNumberOfDepreciations,
+			increaseInAssetLife: 0,
+			frequencyOfDepreciation: input.frequencyOfDepreciation,
+			depreciationStartDate: input.depreciationStartDate,
+			dailyProrataBased: input.dailyProrataBased ?? false,
+			shiftBased: input.shiftBased ?? false,
+			precision: input.precision ?? 2,
+			ratePrecision: input.ratePrecision ?? 2,
+			calculateUsingTotalDays: input.calculateUsingTotalDays ?? false,
+			shiftAllocations: input.shiftAllocations ?? [],
+			rateOfDepreciation: input.rateOfDepreciation ?? null,
+			expectedValueAfterUsefulLife: input.expectedValueAfterUsefulLife ?? 0,
+			openingAccumulatedDepreciation: input.openingAccumulatedDepreciation ?? 0,
+			openingNumberOfBookedDepreciations:
+				input.openingNumberOfBookedDepreciations ?? 0,
+			valueAfterDepreciation: 900,
+			totalNumberOfBookedDepreciations: 0,
+			lastPostedDepreciationDate: null,
+			postingStatus: "PENDING",
+		};
+		expect(assetFinanceBookFormFromPersisted(persisted)).toEqual(
+			writtenDownValueForm,
+		);
+
+		const nonWdv = assetFinanceBookInputFromForm({
+			...writtenDownValueForm,
+			depreciationMethod: "DOUBLE_DECLINING_BALANCE",
+			rateOfDepreciation: "20",
+		});
+		expect(nonWdv.rateOfDepreciation).toBeNull();
 	});
 });
 

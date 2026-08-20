@@ -1,7 +1,14 @@
 "use client";
 
 import type { AppRouter } from "@aria/api-contract";
-import { Asset, endOfMonthDateOnly, normalizeDateOnly } from "@aria/types";
+import {
+	Asset,
+	assetFinanceBookFormFromPersisted,
+	assetFinanceBookInputFromForm,
+	endOfMonthDateOnly,
+	normalizeDateOnly,
+	parseAssetFinanceBookShiftAllocations,
+} from "@aria/types";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { TRPCClientError } from "@trpc/client";
 import {
@@ -69,9 +76,10 @@ function isTRPCClientError(
 	return error instanceof TRPCClientError;
 }
 
-const assetFormSchema = z
+export const assetFormSchema = z
 	.object({
 		assetName: z.string().min(1, "Asset name is required").max(255),
+		assetType: Asset.assetTypeSchema.default("EXISTING_ASSET"),
 		companyId: z.string().min(1, "Company is required").max(255),
 		itemCode: z.string().max(100).optional().nullable(),
 		barcode: z.string().max(255).optional().nullable(),
@@ -113,6 +121,13 @@ const assetFormSchema = z
 					totalNumberOfDepreciations: z.string().min(1),
 					frequencyOfDepreciation: z.string().min(1),
 					depreciationStartDate: z.iso.date(),
+					dailyProrataBased: z.boolean().default(false),
+					shiftBased: z.boolean().default(false),
+					precision: z.string().default("2"),
+					ratePrecision: z.string().default("2"),
+					calculateUsingTotalDays: z.boolean().default(false),
+					rateOfDepreciation: z.string().optional(),
+					shiftAllocations: z.string().optional(),
 					expectedValueAfterUsefulLife: z.string().optional(),
 					openingAccumulatedDepreciation: z.string().optional(),
 					openingNumberOfBookedDepreciations: z.string().optional(),
@@ -133,6 +148,115 @@ const assetFormSchema = z
 					code: z.ZodIssueCode.custom,
 					message: "Manual schedules require date:amount rows",
 				});
+			}
+
+			const addBookIssue = (field: string, message: string) => {
+				ctx.addIssue({
+					path: ["financeBooks", index, field],
+					code: z.ZodIssueCode.custom,
+					message,
+				});
+			};
+			const precision = Number(book.precision || "2");
+			if (!Number.isInteger(precision) || precision < 0 || precision > 6) {
+				addBookIssue(
+					"precision",
+					"Currency precision must be an integer between 0 and 6",
+				);
+			}
+			const ratePrecision = Number(book.ratePrecision || "2");
+			if (
+				!Number.isInteger(ratePrecision) ||
+				ratePrecision < 0 ||
+				ratePrecision > 6
+			) {
+				addBookIssue(
+					"ratePrecision",
+					"Rate precision must be an integer between 0 and 6",
+				);
+			}
+			if (
+				book.rateOfDepreciation?.trim() &&
+				book.depreciationMethod !== "WRITTEN_DOWN_VALUE"
+			) {
+				addBookIssue(
+					"rateOfDepreciation",
+					"Rate of depreciation is supported only for written-down value",
+				);
+			} else if (book.rateOfDepreciation?.trim()) {
+				const rate = Number(book.rateOfDepreciation);
+				if (!Number.isFinite(rate) || rate < 0) {
+					addBookIssue(
+						"rateOfDepreciation",
+						"Rate of depreciation must be a non-negative number",
+					);
+				}
+			}
+
+			let shiftAllocations: Asset.AssetShiftAllocation[] = [];
+			try {
+				shiftAllocations = parseAssetFinanceBookShiftAllocations(
+					book.shiftAllocations,
+				);
+			} catch (error) {
+				addBookIssue(
+					"shiftAllocations",
+					error instanceof Error ? error.message : "Invalid shift allocations",
+				);
+			}
+			const totalPeriods = Number(book.totalNumberOfDepreciations);
+			const allocationIndices = new Set<number>();
+			for (const [allocationIndex, allocation] of shiftAllocations.entries()) {
+				if (
+					!Number.isInteger(totalPeriods) ||
+					allocation.periodIndex >= totalPeriods
+				) {
+					addBookIssue(
+						"shiftAllocations",
+						`Shift allocation ${allocationIndex + 1} must use a configured period`,
+					);
+				}
+				if (allocationIndices.has(allocation.periodIndex)) {
+					addBookIssue(
+						"shiftAllocations",
+						`Shift allocation period ${allocation.periodIndex} is duplicated`,
+					);
+				}
+				allocationIndices.add(allocation.periodIndex);
+			}
+			if (
+				book.calculateUsingTotalDays &&
+				(book.depreciationMethod !== "STRAIGHT_LINE" || !book.dailyProrataBased)
+			) {
+				addBookIssue(
+					"calculateUsingTotalDays",
+					"Total-days calculation requires daily straight-line depreciation",
+				);
+			}
+			if (
+				book.shiftBased &&
+				(book.depreciationMethod !== "STRAIGHT_LINE" ||
+					shiftAllocations.length !== totalPeriods)
+			) {
+				addBookIssue(
+					"shiftAllocations",
+					"Shift-based depreciation requires one allocation for every period",
+				);
+			}
+			if (!book.shiftBased && shiftAllocations.length > 0) {
+				addBookIssue(
+					"shiftAllocations",
+					"Shift allocations require shift-based depreciation",
+				);
+			}
+			if (
+				shiftAllocations.length > 0 &&
+				book.depreciationMethod !== "STRAIGHT_LINE"
+			) {
+				addBookIssue(
+					"shiftAllocations",
+					"Shift allocations are supported only for straight-line depreciation",
+				);
 			}
 		}
 
@@ -262,6 +386,7 @@ type AssetFormValues = z.input<typeof assetFormSchema>;
 
 const defaultFormValues: AssetFormValues = {
 	assetName: "",
+	assetType: "EXISTING_ASSET",
 	companyId: "",
 	itemCode: "",
 	barcode: "",
@@ -386,6 +511,7 @@ function AssetFormContent() {
 		if (!rawAsset) return;
 		form.reset({
 			assetName: rawAsset.assetName,
+			assetType: rawAsset.assetType ?? "EXISTING_ASSET",
 			companyId: rawAsset.companyId,
 			itemCode: rawAsset.itemCode ?? "",
 			barcode: rawAsset.barcode ?? "",
@@ -438,21 +564,9 @@ function AssetFormContent() {
 				rawAsset.openingNumberOfBookedDepreciations != null
 					? String(rawAsset.openingNumberOfBookedDepreciations)
 					: "",
-			financeBooks: (rawAsset.financeBooks ?? []).map((book) => ({
-				financeBookId: book.financeBookId,
-				depreciationMethod: book.depreciationMethod,
-				totalNumberOfDepreciations: String(book.totalNumberOfDepreciations),
-				frequencyOfDepreciation: String(book.frequencyOfDepreciation),
-				depreciationStartDate: dateInputValue(book.depreciationStartDate),
-				expectedValueAfterUsefulLife: String(book.expectedValueAfterUsefulLife),
-				openingAccumulatedDepreciation: String(
-					book.openingAccumulatedDepreciation,
-				),
-				openingNumberOfBookedDepreciations: String(
-					book.openingNumberOfBookedDepreciations,
-				),
-				manualEntriesText: "",
-			})),
+			financeBooks: (rawAsset.financeBooks ?? []).map(
+				assetFinanceBookFormFromPersisted,
+			),
 		});
 		setInitialized(true);
 	}, [rawAsset, form]);
@@ -476,6 +590,10 @@ function AssetFormContent() {
 		control: form.control,
 		name: "assetOwner",
 	});
+	const watchedAssetType = useWatch({
+		control: form.control,
+		name: "assetType",
+	});
 	const watchedStatus = useWatch({
 		control: form.control,
 		name: "status",
@@ -486,37 +604,39 @@ function AssetFormContent() {
 	);
 
 	React.useEffect(() => {
-		if (selectedCategory) {
-			if (selectedCategory.depreciationMethod) {
-				form.setValue(
-					"depreciationMethod",
-					selectedCategory.depreciationMethod,
-					{ shouldDirty: true },
-				);
-			}
-			if (selectedCategory.totalNumberOfDepreciations != null) {
-				form.setValue(
-					"totalNumberOfDepreciations",
-					String(selectedCategory.totalNumberOfDepreciations),
-					{ shouldDirty: true },
-				);
-			}
-			if (selectedCategory.frequencyOfDepreciation != null) {
-				form.setValue(
-					"frequencyOfDepreciation",
-					String(selectedCategory.frequencyOfDepreciation),
-					{ shouldDirty: true },
-				);
-			}
-			if (selectedCategory.expectedValueAfterUsefulLife != null) {
-				form.setValue(
-					"expectedValueAfterUsefulLife",
-					String(selectedCategory.expectedValueAfterUsefulLife),
-					{ shouldDirty: true },
-				);
-			}
-		}
-	}, [selectedCategory, form]);
+		if (isEdit || !selectedCategory) return;
+
+		const applyCategoryDefault = (
+			field:
+				| "depreciationMethod"
+				| "totalNumberOfDepreciations"
+				| "frequencyOfDepreciation"
+				| "expectedValueAfterUsefulLife",
+			value: string | number | null | undefined,
+		) => {
+			if (value == null || form.getFieldState(field).isDirty) return;
+			const current = form.getValues(field);
+			if (typeof current === "string" && current.trim()) return;
+			form.setValue(field, String(value), { shouldDirty: false });
+		};
+
+		applyCategoryDefault(
+			"depreciationMethod",
+			selectedCategory.depreciationMethod,
+		);
+		applyCategoryDefault(
+			"totalNumberOfDepreciations",
+			selectedCategory.totalNumberOfDepreciations,
+		);
+		applyCategoryDefault(
+			"frequencyOfDepreciation",
+			selectedCategory.frequencyOfDepreciation,
+		);
+		applyCategoryDefault(
+			"expectedValueAfterUsefulLife",
+			selectedCategory.expectedValueAfterUsefulLife,
+		);
+	}, [isEdit, selectedCategory, form]);
 
 	React.useEffect(() => {
 		if (watchedCalculateDepreciation && watchedAvailableForUseDate) {
@@ -562,8 +682,21 @@ function AssetFormContent() {
 	const isPending = createMutation.isPending || updateMutation.isPending;
 
 	const onSubmit = form.handleSubmit((values) => {
+		let financeBooks: Asset.AssetFinanceBookInput[];
+		try {
+			financeBooks = (values.financeBooks ?? []).map(
+				assetFinanceBookInputFromForm,
+			);
+		} catch (error) {
+			toast.error(
+				error instanceof Error ? error.message : "Invalid shift allocations",
+			);
+			return;
+		}
+
 		const common = {
 			assetName: values.assetName.trim(),
+			assetType: values.assetType as Asset.AssetType,
 			companyId: values.companyId,
 			itemCode: values.itemCode?.trim() || null,
 			barcode: values.barcode?.trim() || null,
@@ -618,27 +751,7 @@ function AssetFormContent() {
 				values.openingNumberOfBookedDepreciations
 					? parseInt(values.openingNumberOfBookedDepreciations, 10)
 					: null,
-			financeBooks: (values.financeBooks ?? []).map((book) => ({
-				financeBookId: book.financeBookId,
-				depreciationMethod: book.depreciationMethod,
-				totalNumberOfDepreciations: Number(book.totalNumberOfDepreciations),
-				frequencyOfDepreciation: Number(book.frequencyOfDepreciation),
-				depreciationStartDate: book.depreciationStartDate,
-				expectedValueAfterUsefulLife:
-					Number(book.expectedValueAfterUsefulLife) || 0,
-				openingAccumulatedDepreciation:
-					Number(book.openingAccumulatedDepreciation) || 0,
-				openingNumberOfBookedDepreciations:
-					Number(book.openingNumberOfBookedDepreciations) || 0,
-				manualEntries: book.manualEntriesText
-					?.split(/[\n,]+/)
-					.map((row) => row.trim())
-					.filter(Boolean)
-					.map((row) => {
-						const [date, amount] = row.split(":");
-						return { date: date?.trim() ?? "", amount: Number(amount) };
-					}),
-			})),
+			financeBooks,
 		};
 
 		if (isEdit && assetId) {
@@ -806,6 +919,28 @@ function AssetFormContent() {
 									{formErrors.assetName.message}
 								</p>
 							)}
+						</div>
+
+						<div className="space-y-2">
+							<Label htmlFor="assetType">Asset Type</Label>
+							<select
+								id="assetType"
+								aria-label="Asset Type"
+								disabled={watchedStatus !== "DRAFT"}
+								className="h-10 w-full rounded-md border bg-background px-3"
+								{...form.register("assetType")}
+							>
+								<option value="EXISTING_ASSET">Existing Asset</option>
+								<option value="COMPOSITE_ASSET">Composite Asset</option>
+								<option value="COMPOSITE_COMPONENT">Composite Component</option>
+							</select>
+							<p className="text-xs text-muted-foreground">
+								{watchedAssetType === "COMPOSITE_ASSET"
+									? "A submitted capitalization is required before lifecycle submission."
+									: watchedAssetType === "COMPOSITE_COMPONENT"
+										? "Available-for-use may be omitted; the server uses the purchase date for depreciation."
+										: "Existing assets use the configured purchase and available-for-use dates."}
+							</p>
 						</div>
 
 						<div className="space-y-2">
@@ -1467,6 +1602,13 @@ function AssetFormContent() {
 												frequencyOfDepreciation: "1",
 												depreciationStartDate:
 													form.getValues("depreciationStartDate") || "",
+												dailyProrataBased: false,
+												shiftBased: false,
+												precision: "2",
+												ratePrecision: "2",
+												calculateUsingTotalDays: false,
+												rateOfDepreciation: "",
+												shiftAllocations: "",
 												expectedValueAfterUsefulLife: "0",
 												openingAccumulatedDepreciation: "0",
 												openingNumberOfBookedDepreciations: "0",
@@ -1516,8 +1658,13 @@ function AssetFormContent() {
 												</select>
 											</div>
 											<div className="space-y-1">
-												<Label>Periods</Label>
+												<Label
+													htmlFor={`financeBooks-${index}-totalNumberOfDepreciations`}
+												>
+													Periods
+												</Label>
 												<Input
+													id={`financeBooks-${index}-totalNumberOfDepreciations`}
 													disabled={watchedStatus !== "DRAFT"}
 													type="number"
 													min={1}
@@ -1591,6 +1738,134 @@ function AssetFormContent() {
 														`financeBooks.${index}.openingNumberOfBookedDepreciations`,
 													)}
 												/>
+											</div>
+											<div className="flex items-center gap-2 sm:col-span-2">
+												<Controller
+													name={`financeBooks.${index}.dailyProrataBased`}
+													control={form.control}
+													render={({ field: optionField }) => (
+														<Checkbox
+															id={`financeBooks-${index}-dailyProrataBased`}
+															checked={Boolean(optionField.value)}
+															onCheckedChange={optionField.onChange}
+															disabled={watchedStatus !== "DRAFT"}
+														/>
+													)}
+												/>
+												<Label
+													htmlFor={`financeBooks-${index}-dailyProrataBased`}
+													className="cursor-pointer"
+												>
+													Daily Prorata Based
+												</Label>
+											</div>
+											<div className="flex items-center gap-2 sm:col-span-2">
+												<Controller
+													name={`financeBooks.${index}.shiftBased`}
+													control={form.control}
+													render={({ field: optionField }) => (
+														<Checkbox
+															id={`financeBooks-${index}-shiftBased`}
+															checked={Boolean(optionField.value)}
+															onCheckedChange={optionField.onChange}
+															disabled={watchedStatus !== "DRAFT"}
+														/>
+													)}
+												/>
+												<Label
+													htmlFor={`financeBooks-${index}-shiftBased`}
+													className="cursor-pointer"
+												>
+													Shift Based
+												</Label>
+											</div>
+											<div className="space-y-1">
+												<Label htmlFor={`financeBooks-${index}-precision`}>
+													Currency Precision
+												</Label>
+												<Input
+													id={`financeBooks-${index}-precision`}
+													disabled={watchedStatus !== "DRAFT"}
+													type="number"
+													min={0}
+													max={6}
+													{...form.register(`financeBooks.${index}.precision`)}
+												/>
+											</div>
+											<div className="space-y-1">
+												<Label htmlFor={`financeBooks-${index}-ratePrecision`}>
+													Rate Precision
+												</Label>
+												<Input
+													id={`financeBooks-${index}-ratePrecision`}
+													disabled={watchedStatus !== "DRAFT"}
+													type="number"
+													min={0}
+													max={6}
+													{...form.register(
+														`financeBooks.${index}.ratePrecision`,
+													)}
+												/>
+											</div>
+											{form.watch(
+												`financeBooks.${index}.depreciationMethod`,
+											) === "WRITTEN_DOWN_VALUE" && (
+												<div className="space-y-1">
+													<Label
+														htmlFor={`financeBooks-${index}-rateOfDepreciation`}
+													>
+														Rate of Depreciation
+													</Label>
+													<Input
+														id={`financeBooks-${index}-rateOfDepreciation`}
+														disabled={watchedStatus !== "DRAFT"}
+														type="number"
+														min={0}
+														step="0.01"
+														{...form.register(
+															`financeBooks.${index}.rateOfDepreciation`,
+														)}
+													/>
+												</div>
+											)}
+											<div className="flex items-center gap-2 sm:col-span-2">
+												<Controller
+													name={`financeBooks.${index}.calculateUsingTotalDays`}
+													control={form.control}
+													render={({ field: optionField }) => (
+														<Checkbox
+															id={`financeBooks-${index}-calculateUsingTotalDays`}
+															checked={Boolean(optionField.value)}
+															onCheckedChange={optionField.onChange}
+															disabled={watchedStatus !== "DRAFT"}
+														/>
+													)}
+												/>
+												<Label
+													htmlFor={`financeBooks-${index}-calculateUsingTotalDays`}
+													className="cursor-pointer"
+												>
+													Calculate Using Total Days
+												</Label>
+											</div>
+											<div className="space-y-1 sm:col-span-4">
+												<Label
+													htmlFor={`financeBooks-${index}-shiftAllocations`}
+												>
+													Shift Allocations
+												</Label>
+												<Input
+													id={`financeBooks-${index}-shiftAllocations`}
+													disabled={watchedStatus !== "DRAFT"}
+													placeholder='[{"periodIndex":0,"shift":"DAY","factor":1}]'
+													{...form.register(
+														`financeBooks.${index}.shiftAllocations`,
+													)}
+												/>
+												<p className="text-xs text-muted-foreground">
+													Use a JSON array of periodIndex, shift, and factor
+													objects. Shift names may contain punctuation.
+												</p>
 											</div>
 											{form.watch(
 												`financeBooks.${index}.depreciationMethod`,

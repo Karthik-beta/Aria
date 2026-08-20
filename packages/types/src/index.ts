@@ -8519,3 +8519,11 @@ export interface FiscalYearCompany {
 	fiscalYearId: string;
 	companyId: string;
 }
+
+export type { AssetFinanceBookFormValues } from "./asset-form.js";
+export {
+	assetFinanceBookFormFromPersisted,
+	assetFinanceBookInputFromForm,
+	parseAssetFinanceBookShiftAllocations,
+	serializeAssetFinanceBookShiftAllocations,
+} from "./asset-form.js";

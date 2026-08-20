@@ -2,8 +2,14 @@ import "@testing-library/jest-dom";
 import type { AppRouter } from "@aria/api-contract";
 import { TRPCClientError } from "@trpc/client";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { renderWithProviders, screen, userEvent, waitFor } from "@/test/utils";
-import AssetFormPage from "./page";
+import {
+	fireEvent,
+	renderWithProviders,
+	screen,
+	userEvent,
+	waitFor,
+} from "@/test/utils";
+import AssetFormPage, { assetFormSchema } from "./page";
 
 const mockCreateMutate = vi.fn();
 const mockUpdateMutate = vi.fn();
@@ -58,6 +64,8 @@ const mockCategories = [
 	},
 ];
 
+let categoryItems = mockCategories;
+
 const mockLocations = [
 	{
 		id: "clh789loc",
@@ -74,6 +82,7 @@ const existingAsset = {
 	id: "clhAsset001",
 	series: "AST-2026-00001",
 	assetName: "Company Vehicle",
+	assetType: "COMPOSITE_COMPONENT" as const,
 	itemCode: "VEH-001",
 	assetCategoryId: "clh123cat",
 	assetCategoryName: "Vehicles",
@@ -106,12 +115,49 @@ const existingAsset = {
 	depreciationMethod: "STRAIGHT_LINE",
 	totalNumberOfDepreciations: 60,
 	frequencyOfDepreciation: 12,
+	expectedValueAfterUsefulLife: 4500,
+	financeBooks: [
+		{
+			id: "clhAssetBook001",
+			financeBookId: "clhFinanceBook001",
+			financeBookName: "Corporate Book",
+			depreciationMethod: "STRAIGHT_LINE" as const,
+			totalNumberOfDepreciations: 3,
+			increaseInAssetLife: 0,
+			frequencyOfDepreciation: 12,
+			depreciationStartDate: "2026-02-28",
+			dailyProrataBased: true,
+			shiftBased: true,
+			precision: 3,
+			ratePrecision: 4,
+			calculateUsingTotalDays: true,
+			shiftAllocations: [
+				{ periodIndex: 0, shift: "Day:Night", factor: 1 },
+				{ periodIndex: 1, shift: "Night,Weekend", factor: 2 },
+				{ periodIndex: 2, shift: "Two Shifts", factor: 1 },
+			],
+			rateOfDepreciation: 20,
+			expectedValueAfterUsefulLife: 5000,
+			openingAccumulatedDepreciation: 0,
+			openingNumberOfBookedDepreciations: 0,
+			valueAfterDepreciation: 50000,
+			totalNumberOfBookedDepreciations: 0,
+			lastPostedDepreciationDate: null,
+			postingStatus: "PENDING" as const,
+		},
+	],
 	purchaseReceipt: null,
 	purchaseInvoice: null,
 	status: "DRAFT" as const,
 	activities: [],
 	createdAt: new Date("2026-01-15"),
 	updatedAt: new Date("2026-01-15"),
+};
+
+const submittedAsset = {
+	...existingAsset,
+	id: "clhAssetSubmitted",
+	status: "SUBMITTED" as const,
 };
 
 vi.mock("next/navigation", () => ({
@@ -148,45 +194,51 @@ vi.mock("@/components/barcode-scanner-dialog", () => ({
 		) : null,
 }));
 
-vi.mock("@aria/types", () => ({
-	dateOnlyFromPersistedDateTime: (value: Date) =>
-		value.toISOString().slice(0, 10),
-	normalizeDateOnly: (value: Date | string) =>
-		value instanceof Date
-			? value.toISOString().slice(0, 10)
-			: value.slice(0, 10),
-	parseDateOnly: (value: string) => value,
-	endOfMonthDateOnly: (value: Date | string) => {
-		const normalized =
+vi.mock("@aria/types", async () => {
+	const actual =
+		await vi.importActual<typeof import("@aria/types")>("@aria/types");
+	return {
+		...actual,
+		dateOnlyFromPersistedDateTime: (value: Date) =>
+			value.toISOString().slice(0, 10),
+		normalizeDateOnly: (value: Date | string) =>
 			value instanceof Date
 				? value.toISOString().slice(0, 10)
-				: value.slice(0, 10);
-		const [year, month] = normalized.split("-").map(Number);
-		return `${year}-${String(month).padStart(2, "0")}-${String(
-			new Date(Date.UTC(year, month, 0)).getUTCDate(),
-		).padStart(2, "0")}`;
-	},
-	Asset: {
-		assetOwnerSchema: {
-			parse: vi.fn(() => "COMPANY"),
+				: value.slice(0, 10),
+		parseDateOnly: (value: string) => value,
+		endOfMonthDateOnly: (value: Date | string) => {
+			const normalized =
+				value instanceof Date
+					? value.toISOString().slice(0, 10)
+					: value.slice(0, 10);
+			const [year, month] = normalized.split("-").map(Number);
+			return `${year}-${String(month).padStart(2, "0")}-${String(
+				new Date(Date.UTC(year, month, 0)).getUTCDate(),
+			).padStart(2, "0")}`;
 		},
-		assetStatusSchema: {
-			parse: vi.fn(() => "DRAFT"),
+		Asset: {
+			...actual.Asset,
+			assetOwnerSchema: {
+				parse: vi.fn(() => "COMPANY"),
+			},
+			assetStatusSchema: {
+				parse: vi.fn(() => "DRAFT"),
+			},
+			createAssetSchema: {
+				safeParse: (input: unknown) => ({
+					success: true as const,
+					data: input,
+				}),
+			},
+			updateAssetSchema: {
+				safeParse: (input: unknown) => ({
+					success: true as const,
+					data: input,
+				}),
+			},
 		},
-		createAssetSchema: {
-			safeParse: (input: unknown) => ({
-				success: true as const,
-				data: input,
-			}),
-		},
-		updateAssetSchema: {
-			safeParse: (input: unknown) => ({
-				success: true as const,
-				data: input,
-			}),
-		},
-	},
-}));
+	};
+});
 
 vi.mock("@/lib/trpc", () => ({
 	trpc: {
@@ -216,13 +268,15 @@ vi.mock("@/lib/trpc", () => ({
 		asset: {
 			listFinanceBooks: {
 				useQuery: () => ({
-					data: { items: [] },
+					data: {
+						items: [{ id: "clhFinanceBook001", name: "Corporate Book" }],
+					},
 					isLoading: false,
 				}),
 			},
 			listAssetCategories: {
 				useQuery: () => ({
-					data: { items: mockCategories },
+					data: { items: categoryItems },
 					isLoading: false,
 				}),
 			},
@@ -234,7 +288,12 @@ vi.mock("@/lib/trpc", () => ({
 			},
 			getAssetById: {
 				useQuery: () => ({
-					data: currentId ? existingAsset : undefined,
+					data:
+						currentId === submittedAsset.id
+							? submittedAsset
+							: currentId
+								? existingAsset
+								: undefined,
 					isLoading: false,
 				}),
 			},
@@ -271,8 +330,47 @@ vi.mock("@/lib/trpc", () => ({
 }));
 
 describe("AssetFormPage", () => {
+	const validFormValues = {
+		assetName: "Test Asset",
+		assetType: "EXISTING_ASSET" as const,
+		companyId: "comp-1",
+		assetQuantity: 1,
+		calculateDepreciation: true,
+		isFullyDepreciated: false,
+		maintenanceRequired: false,
+		status: "DRAFT",
+		assetOwner: "COMPANY",
+		purchaseDate: "2026-01-01",
+		availableForUseDate: "2026-01-02",
+		financeBooks: [
+			{
+				financeBookId: "book-1",
+				depreciationMethod: "STRAIGHT_LINE" as const,
+				totalNumberOfDepreciations: "3",
+				frequencyOfDepreciation: "1",
+				depreciationStartDate: "2026-02-28",
+				dailyProrataBased: true,
+				shiftBased: true,
+				precision: "2",
+				ratePrecision: "2",
+				calculateUsingTotalDays: true,
+				rateOfDepreciation: "",
+				shiftAllocations: JSON.stringify([
+					{ periodIndex: 0, shift: "Day:Night", factor: 1 },
+					{ periodIndex: 1, shift: "Night,Weekend", factor: 2 },
+					{ periodIndex: 2, shift: "Two Shifts", factor: 1 },
+				]),
+				expectedValueAfterUsefulLife: "0",
+				openingAccumulatedDepreciation: "0",
+				openingNumberOfBookedDepreciations: "0",
+				manualEntriesText: "",
+			},
+		],
+	};
+
 	beforeEach(() => {
 		currentId = null;
+		categoryItems = mockCategories;
 		mockCreateMutate.mockClear();
 		mockUpdateMutate.mockClear();
 		mockBarcodeFetch.mockReset();
@@ -285,6 +383,106 @@ describe("AssetFormPage", () => {
 		expect(
 			screen.getByRole("heading", { name: /New Asset/i }),
 		).toBeInTheDocument();
+	});
+
+	it("rejects unsupported finance-book option combinations before submission", () => {
+		const totalDaysWithoutDailyProrata = assetFormSchema.safeParse({
+			...validFormValues,
+			financeBooks: [
+				{
+					...validFormValues.financeBooks[0],
+					dailyProrataBased: false,
+				},
+			],
+		});
+		expect(totalDaysWithoutDailyProrata.success).toBe(false);
+
+		const inertRateForStraightLine = assetFormSchema.safeParse({
+			...validFormValues,
+			depreciationMethod: "STRAIGHT_LINE",
+			totalNumberOfDepreciations: "3",
+			frequencyOfDepreciation: "1",
+			financeBooks: [
+				{
+					...validFormValues.financeBooks[0],
+					rateOfDepreciation: "20",
+				},
+			],
+		});
+		expect(inertRateForStraightLine.success).toBe(false);
+		for (const depreciationMethod of [
+			"STRAIGHT_LINE",
+			"DOUBLE_DECLINING_BALANCE",
+			"MANUAL",
+		] as const) {
+			const inertRate = assetFormSchema.safeParse({
+				...validFormValues,
+				depreciationMethod,
+				totalNumberOfDepreciations: "3",
+				frequencyOfDepreciation: "1",
+				financeBooks: [
+					{
+						...validFormValues.financeBooks[0],
+						depreciationMethod,
+						dailyProrataBased: false,
+						shiftBased: false,
+						calculateUsingTotalDays: false,
+						rateOfDepreciation: "20",
+						shiftAllocations: "",
+					},
+				],
+			});
+			expect(inertRate.success).toBe(false);
+		}
+
+		const writtenDownValueRate = assetFormSchema.safeParse({
+			...validFormValues,
+			depreciationMethod: "WRITTEN_DOWN_VALUE",
+			totalNumberOfDepreciations: "3",
+			frequencyOfDepreciation: "1",
+			financeBooks: [
+				{
+					...validFormValues.financeBooks[0],
+					depreciationMethod: "WRITTEN_DOWN_VALUE",
+					dailyProrataBased: false,
+					shiftBased: false,
+					calculateUsingTotalDays: false,
+					rateOfDepreciation: "20",
+					shiftAllocations: "",
+				},
+			],
+		});
+		expect(writtenDownValueRate.success).toBe(true);
+
+		const allocationsWithoutShiftMode = assetFormSchema.safeParse({
+			...validFormValues,
+			financeBooks: [
+				{
+					...validFormValues.financeBooks[0],
+					shiftBased: false,
+				},
+			],
+		});
+		expect(allocationsWithoutShiftMode.success).toBe(false);
+
+		const malformedAllocation = assetFormSchema.safeParse({
+			...validFormValues,
+			financeBooks: [
+				{
+					...validFormValues.financeBooks[0],
+					shiftAllocations: '{"periodIndex":0,"shift":"DAY","factor":1}',
+				},
+			],
+		});
+		expect(malformedAllocation.success).toBe(false);
+	});
+
+	it("rejects an unknown asset type instead of forwarding it", () => {
+		const result = assetFormSchema.safeParse({
+			...validFormValues,
+			assetType: "UNSUPPORTED_ASSET_TYPE",
+		});
+		expect(result.success).toBe(false);
 	});
 
 	it("renders Basic Information, Purchase & Valuation, and Options cards", () => {
@@ -407,6 +605,85 @@ describe("AssetFormPage", () => {
 		});
 	});
 
+	it("submits the typed asset type and every supported finance-book control", async () => {
+		const user = userEvent.setup();
+		renderWithProviders(<AssetFormPage />);
+
+		await user.type(
+			screen.getByLabelText(/Asset Name/i),
+			"Composite Component",
+		);
+		await user.click(screen.getByRole("button", { name: /company/i }));
+		await user.click(await screen.findByText("Test Company"));
+
+		await user.selectOptions(
+			screen.getByRole("combobox", { name: /Asset Type/i }),
+			"COMPOSITE_COMPONENT",
+		);
+
+		await user.click(
+			screen.getByRole("checkbox", { name: /Calculate Depreciation/i }),
+		);
+		await waitFor(() =>
+			expect(screen.getByText(/Depreciation Details/i)).toBeInTheDocument(),
+		);
+		await user.click(screen.getByRole("button", { name: /Add Book/i }));
+
+		await user.click(
+			screen.getByRole("checkbox", { name: /Daily Prorata Based/i }),
+		);
+		await user.click(screen.getByRole("checkbox", { name: /Shift Based/i }));
+		await user.click(
+			screen.getByRole("checkbox", { name: /Calculate Using Total Days/i }),
+		);
+		await user.clear(screen.getByLabelText(/Periods/i));
+		await user.type(screen.getByLabelText(/Periods/i), "3");
+		await user.clear(screen.getByLabelText(/Currency Precision/i));
+		await user.type(screen.getByLabelText(/Currency Precision/i), "3");
+		await user.clear(screen.getByLabelText(/Rate Precision/i));
+		await user.type(screen.getByLabelText(/Rate Precision/i), "4");
+		fireEvent.change(screen.getByLabelText(/Shift Allocations/i), {
+			target: {
+				value: JSON.stringify([
+					{ periodIndex: 0, shift: "Day:Night", factor: 1 },
+					{ periodIndex: 1, shift: "Night,Weekend", factor: 2 },
+					{ periodIndex: 2, shift: "Two Shifts", factor: 1 },
+				]),
+			},
+		});
+
+		await user.click(screen.getByRole("button", { name: /Create Asset/i }));
+
+		await waitFor(() => {
+			expect(mockCreateMutate).toHaveBeenCalledWith(
+				expect.objectContaining({
+					assetType: "COMPOSITE_COMPONENT",
+					financeBooks: [
+						expect.objectContaining({
+							totalNumberOfDepreciations: 3,
+							frequencyOfDepreciation: 1,
+							depreciationStartDate: expect.any(String),
+							dailyProrataBased: true,
+							shiftBased: true,
+							precision: 3,
+							ratePrecision: 4,
+							calculateUsingTotalDays: true,
+							rateOfDepreciation: null,
+							expectedValueAfterUsefulLife: 0,
+							openingAccumulatedDepreciation: 0,
+							openingNumberOfBookedDepreciations: 0,
+							shiftAllocations: [
+								{ periodIndex: 0, shift: "Day:Night", factor: 1 },
+								{ periodIndex: 1, shift: "Night,Weekend", factor: 2 },
+								{ periodIndex: 2, shift: "Two Shifts", factor: 1 },
+							],
+						}),
+					],
+				}),
+			);
+		});
+	});
+
 	it("renders Create Asset and Cancel buttons", () => {
 		renderWithProviders(<AssetFormPage />);
 		expect(
@@ -436,6 +713,181 @@ describe("AssetFormPage", () => {
 		await waitFor(() => {
 			expect(screen.getByText(/Depreciation Details/i)).toBeInTheDocument();
 		});
+	});
+
+	it("hydrates and sends persisted asset type and finance-book controls on a draft edit", async () => {
+		currentId = existingAsset.id;
+		renderWithProviders(<AssetFormPage />);
+
+		await waitFor(() =>
+			expect(screen.getByDisplayValue("Company Vehicle")).toBeInTheDocument(),
+		);
+		expect(
+			screen.getByRole("combobox", { name: /Asset Type/i }),
+		).toHaveTextContent("Composite Component");
+		await waitFor(() =>
+			expect(screen.getByText(/Depreciation Details/i)).toBeInTheDocument(),
+		);
+		expect(screen.getByLabelText(/Daily Prorata Based/i)).toBeChecked();
+		expect(screen.getByLabelText(/Shift Based/i)).toBeChecked();
+		expect(screen.getByLabelText(/Calculate Using Total Days/i)).toBeChecked();
+		expect(screen.getByLabelText(/Currency Precision/i)).toHaveValue(3);
+		expect(screen.getByLabelText(/Rate Precision/i)).toHaveValue(4);
+		expect(
+			screen.queryByLabelText(/Rate of Depreciation/i),
+		).not.toBeInTheDocument();
+		expect(screen.getByLabelText(/Shift Allocations/i)).toHaveValue(
+			JSON.stringify([
+				{ periodIndex: 0, shift: "Day:Night", factor: 1 },
+				{ periodIndex: 1, shift: "Night,Weekend", factor: 2 },
+				{ periodIndex: 2, shift: "Two Shifts", factor: 1 },
+			]),
+		);
+
+		await userEvent
+			.setup()
+			.click(screen.getByRole("button", { name: /Update Asset/i }));
+		await waitFor(() => {
+			expect(mockUpdateMutate).toHaveBeenCalledWith(
+				expect.objectContaining({
+					assetType: "COMPOSITE_COMPONENT",
+					financeBooks: [
+						expect.objectContaining({
+							totalNumberOfDepreciations: 3,
+							frequencyOfDepreciation: 12,
+							depreciationStartDate: "2026-02-28",
+							dailyProrataBased: true,
+							shiftBased: true,
+							precision: 3,
+							ratePrecision: 4,
+							calculateUsingTotalDays: true,
+							rateOfDepreciation: null,
+							expectedValueAfterUsefulLife: 5000,
+							openingAccumulatedDepreciation: 0,
+							openingNumberOfBookedDepreciations: 0,
+							shiftAllocations: [
+								{ periodIndex: 0, shift: "Day:Night", factor: 1 },
+								{ periodIndex: 1, shift: "Night,Weekend", factor: 2 },
+								{ periodIndex: 2, shift: "Two Shifts", factor: 1 },
+							],
+						}),
+					],
+				}),
+			);
+		});
+	});
+
+	it("preserves clean persisted edit values when the category arrives late", async () => {
+		currentId = existingAsset.id;
+		categoryItems = [];
+		const view = renderWithProviders(<AssetFormPage />);
+
+		await waitFor(() =>
+			expect(screen.getByDisplayValue("Company Vehicle")).toBeInTheDocument(),
+		);
+		await waitFor(() =>
+			expect(screen.getByText(/Depreciation Details/i)).toBeInTheDocument(),
+		);
+		expect(screen.getByLabelText(/Depreciation Method/i)).toHaveTextContent(
+			"Straight Line",
+		);
+		expect(screen.getByLabelText(/Total Number of Depreciations/i)).toHaveValue(
+			60,
+		);
+		expect(screen.getByLabelText(/Frequency of Depreciation/i)).toHaveValue(12);
+		expect(
+			screen.getByLabelText(/Expected Value After Useful Life/i),
+		).toHaveValue(4500);
+		expect(screen.getByLabelText(/Daily Prorata Based/i)).toBeChecked();
+		expect(screen.getByLabelText(/Shift Based/i)).toBeChecked();
+		expect(screen.getByLabelText(/Currency Precision/i)).toHaveValue(3);
+		expect(screen.getByLabelText(/Rate Precision/i)).toHaveValue(4);
+		expect(screen.getByLabelText(/Shift Allocations/i)).toHaveValue(
+			JSON.stringify([
+				{ periodIndex: 0, shift: "Day:Night", factor: 1 },
+				{ periodIndex: 1, shift: "Night,Weekend", factor: 2 },
+				{ periodIndex: 2, shift: "Two Shifts", factor: 1 },
+			]),
+		);
+		expect(screen.queryByText("Unsaved Changes")).not.toBeInTheDocument();
+
+		categoryItems = [
+			{
+				...mockCategories[0],
+				depreciationMethod: "WRITTEN_DOWN_VALUE",
+				totalNumberOfDepreciations: 999,
+				frequencyOfDepreciation: 99,
+				expectedValueAfterUsefulLife: 1,
+			},
+		];
+		view.rerender(<AssetFormPage />);
+
+		await waitFor(() =>
+			expect(screen.getByLabelText(/Depreciation Method/i)).toHaveTextContent(
+				"Straight Line",
+			),
+		);
+		expect(screen.getByLabelText(/Total Number of Depreciations/i)).toHaveValue(
+			60,
+		);
+		expect(screen.getByLabelText(/Frequency of Depreciation/i)).toHaveValue(12);
+		expect(
+			screen.getByLabelText(/Expected Value After Useful Life/i),
+		).toHaveValue(4500);
+		expect(screen.getByLabelText(/Daily Prorata Based/i)).toBeChecked();
+		expect(screen.getByLabelText(/Shift Based/i)).toBeChecked();
+		expect(screen.getByLabelText(/Currency Precision/i)).toHaveValue(3);
+		expect(screen.getByLabelText(/Rate Precision/i)).toHaveValue(4);
+		expect(
+			screen.queryByLabelText(/Rate of Depreciation/i),
+		).not.toBeInTheDocument();
+		expect(screen.getByLabelText(/Shift Allocations/i)).toHaveValue(
+			JSON.stringify([
+				{ periodIndex: 0, shift: "Day:Night", factor: 1 },
+				{ periodIndex: 1, shift: "Night,Weekend", factor: 2 },
+				{ periodIndex: 2, shift: "Two Shifts", factor: 1 },
+			]),
+		);
+		expect(screen.queryByText("Unsaved Changes")).not.toBeInTheDocument();
+
+		await userEvent
+			.setup()
+			.click(screen.getByRole("button", { name: /Update Asset/i }));
+		await waitFor(() => {
+			expect(mockUpdateMutate).toHaveBeenCalledWith(
+				expect.objectContaining({
+					depreciationMethod: "STRAIGHT_LINE",
+					totalNumberOfDepreciations: 60,
+					frequencyOfDepreciation: 12,
+					expectedValueAfterUsefulLife: 4500,
+				}),
+			);
+		});
+	});
+
+	it("does not send lifecycle-critical fields for a submitted edit", async () => {
+		currentId = submittedAsset.id;
+		renderWithProviders(<AssetFormPage />);
+
+		await waitFor(() =>
+			expect(screen.getByDisplayValue("Company Vehicle")).toBeInTheDocument(),
+		);
+		expect(
+			screen.getByRole("combobox", { name: /Asset Type/i }),
+		).toBeDisabled();
+		await waitFor(() =>
+			expect(screen.getByLabelText(/Daily Prorata Based/i)).toBeDisabled(),
+		);
+
+		await userEvent
+			.setup()
+			.click(screen.getByRole("button", { name: /Update Asset/i }));
+		await waitFor(() => expect(mockUpdateMutate).toHaveBeenCalled());
+		const [payload] = mockUpdateMutate.mock.calls.at(-1) as [
+			Record<string, unknown>,
+		];
+		expect(payload).not.toHaveProperty("assetType");
+		expect(payload).not.toHaveProperty("financeBooks");
 	});
 
 	it("shows depreciation fields in edit mode even if Calculate Depreciation was false on asset", async () => {
