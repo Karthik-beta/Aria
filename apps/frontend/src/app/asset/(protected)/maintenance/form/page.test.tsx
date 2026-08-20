@@ -3,6 +3,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithProviders, screen, userEvent, waitFor } from "@/test/utils";
 import AssetMaintenanceFormPage from "./page";
 
+vi.mock("@/hooks/use-asset-write-access", () => ({
+	useAssetWriteAccess: () => true,
+}));
+
 const mockCreateMutate = vi.fn();
 const mockUpdateMutate = vi.fn();
 const mockPush = vi.fn();
@@ -91,6 +95,7 @@ vi.mock("@/lib/trpc", () => ({
 	trpc: {
 		useUtils: () => ({
 			asset: {
+				invalidate: vi.fn().mockResolvedValue(undefined),
 				listAssetMaintenances: {
 					invalidate: vi.fn().mockResolvedValue(undefined),
 				},
@@ -100,6 +105,32 @@ vi.mock("@/lib/trpc", () => ({
 			},
 		}),
 		asset: {
+			listAssets: {
+				useQuery: () => ({
+					data: {
+						items: [
+							{
+								id: "clhasset001",
+								series: "AST-001",
+								assetName: "Hydraulic Pump A",
+								companyId: "comp-1",
+								company: "New Corp",
+								status: "SUBMITTED",
+							},
+						],
+						totalCount: 1,
+					},
+					isLoading: false,
+					isFetching: false,
+				}),
+			},
+			listMaintenanceTeams: {
+				useQuery: () => ({
+					data: { items: [], totalCount: 0 },
+					isLoading: false,
+					isFetching: false,
+				}),
+			},
 			getAssetMaintenanceById: {
 				useQuery: () => ({
 					data: currentId === existingRecord.id ? existingRecord : null,
@@ -165,12 +196,14 @@ describe("AssetMaintenanceFormPage", () => {
 		).toBeInTheDocument();
 	});
 
-	it("renders required fields: Asset ID, Company, Maintenance Team ID", () => {
+	it("renders required fields: Asset, Company, Maintenance Team", () => {
 		renderWithProviders(<AssetMaintenanceFormPage />);
 
-		expect(screen.getByLabelText(/Asset ID/i)).toBeInTheDocument();
+		expect(screen.getByLabelText(/^Select asset$/i)).toBeInTheDocument();
 		expect(screen.getByLabelText(/Company/i)).toBeInTheDocument();
-		expect(screen.getByLabelText(/Maintenance Team ID/i)).toBeInTheDocument();
+		expect(
+			screen.getByLabelText(/^Select maintenance team$/i),
+		).toBeInTheDocument();
 	});
 
 	it("renders the Back to List and Save buttons", () => {
@@ -217,7 +250,10 @@ describe("AssetMaintenanceFormPage", () => {
 		const user = userEvent.setup();
 		renderWithProviders(<AssetMaintenanceFormPage />);
 
-		await user.type(screen.getByLabelText(/Asset ID/i), "Draft Asset");
+		await user.type(
+			screen.getByLabelText(/Manager Display Name/i),
+			"Draft Manager",
+		);
 
 		expect(screen.getByText("Not Saved")).toBeInTheDocument();
 	});
@@ -226,10 +262,13 @@ describe("AssetMaintenanceFormPage", () => {
 		const user = userEvent.setup();
 		renderWithProviders(<AssetMaintenanceFormPage />);
 
-		await user.type(screen.getByLabelText(/Asset ID/i), "clhasset001");
+		await user.click(screen.getByLabelText(/^Select asset$/i));
+		await user.click(await screen.findByText(/Hydraulic Pump A/));
 		const companyButton = screen.getByRole("button", { name: /company/i });
 		await user.click(companyButton);
-		const companyOption = await screen.findByText("New Corp");
+		const companyOption = await screen.findByRole("option", {
+			name: "New Corp",
+		});
 		await user.click(companyOption);
 		await user.click(screen.getByRole("button", { name: /Save/i }));
 

@@ -100,6 +100,7 @@ vi.mock("@/lib/trpc", () => ({
 	trpc: {
 		useUtils: () => ({
 			asset: {
+				invalidate: mockInvalidate,
 				listAssetMaintenanceLogs: {
 					cancel: mockCancelQuery,
 					getData: mockGetData,
@@ -162,6 +163,7 @@ describe("AssetMaintenanceLogPage", () => {
 		mockCancelMutate.mockClear();
 		mockCompleteMutate.mockClear();
 		mockInvalidate.mockClear();
+		mockInvalidate.mockResolvedValue(undefined);
 		mockRefetch.mockClear();
 	});
 
@@ -349,6 +351,35 @@ describe("AssetMaintenanceLogPage", () => {
 
 		expect(mockCancelMutate).toHaveBeenCalledWith({
 			logId: expect.any(String),
+		});
+	});
+
+	it("keeps the cancel confirmation open until invalidation completes", async () => {
+		const user = userEvent.setup();
+		let releaseInvalidation: (() => void) | undefined;
+		mockInvalidate.mockImplementation(
+			() =>
+				new Promise<void>((resolve) => {
+					releaseInvalidation = resolve;
+				}),
+		);
+		renderWithProviders(<AssetMaintenanceLogPage />);
+
+		const actionButtons = await screen.findAllByRole("button", {
+			name: /Actions for/i,
+		});
+		await user.click(actionButtons[0]);
+		await user.click(screen.getByRole("menuitem", { name: /Cancel Log/i }));
+		await user.click(await screen.findByRole("button", { name: /Continue/i }));
+
+		await waitFor(() => {
+			expect(mockInvalidate).toHaveBeenCalled();
+			expect(screen.getByText(/Are you sure\?/i)).toBeInTheDocument();
+		});
+
+		releaseInvalidation?.();
+		await waitFor(() => {
+			expect(screen.queryByText(/Are you sure\?/i)).not.toBeInTheDocument();
 		});
 	});
 

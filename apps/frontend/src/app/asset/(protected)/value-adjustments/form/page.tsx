@@ -14,6 +14,11 @@ import {
 } from "react";
 import { type Resolver, useForm } from "react-hook-form";
 import { toast } from "sonner";
+import { AssetWriteRouteGuard } from "@/components/asset/asset-write-route-guard";
+import {
+	AssetSearchSelect,
+	type AssetSelectorItem,
+} from "@/components/asset/server-backed-selectors";
 import { AlertModal } from "@/components/modal/alert-modal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -38,6 +43,7 @@ import {
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { dateInputValue, todayDateInputValue } from "@/lib/asset-date-only";
+import { invalidateAssetDomain } from "@/lib/asset-invalidation";
 import { getToastMessage } from "@/lib/errors";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
@@ -59,9 +65,11 @@ import {
 
 export default function AssetValueAdjustmentFormPage() {
 	return (
-		<Suspense fallback={<AssetValueAdjustmentFormFallback />}>
-			<AssetValueAdjustmentFormContent />
-		</Suspense>
+		<AssetWriteRouteGuard>
+			<Suspense fallback={<AssetValueAdjustmentFormFallback />}>
+				<AssetValueAdjustmentFormContent />
+			</Suspense>
+		</AssetWriteRouteGuard>
 	);
 }
 
@@ -83,6 +91,8 @@ function AssetValueAdjustmentFormContent() {
 	const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
 	const hasHandledMissingRef = useRef(false);
 	const utils = trpc.useUtils();
+	const [selectedAssetOption, setSelectedAssetOption] =
+		useState<AssetSelectorItem | null>(null);
 
 	const form = useForm<AssetValueAdjustmentFormValues>({
 		resolver: zodResolver(
@@ -95,12 +105,6 @@ function AssetValueAdjustmentFormContent() {
 		trpc.asset.getAssetValueAdjustmentById.useQuery(
 			{ id: id ?? "" },
 			{ enabled: isEditMode },
-		);
-
-	const { data: assetsData, isLoading: isFetchingAssets } =
-		trpc.asset.listAssets.useQuery(
-			{ take: 250 },
-			{ refetchOnWindowFocus: false, staleTime: 30_000 },
 		);
 
 	useEffect(() => {
@@ -139,13 +143,13 @@ function AssetValueAdjustmentFormContent() {
 	const watchedNewAssetValue = form.watch("newAssetValue");
 	const watchedDifferenceAccount = form.watch("differenceAccount");
 	const numericNewAssetValue = Number(watchedNewAssetValue);
-	const selectedAsset = useMemo(
-		() =>
-			assetsData?.items.find((asset) => asset.id === watchedAssetId) ??
-			assetsData?.items.find((asset) => asset.id === record?.assetId) ??
-			null,
-		[assetsData?.items, record?.assetId, watchedAssetId],
-	);
+	const selectedAssetLookupId = watchedAssetId || record?.assetId || "";
+	const { data: selectedAssetData, isLoading: isFetchingAsset } =
+		trpc.asset.getAssetById.useQuery(
+			{ id: selectedAssetLookupId },
+			{ enabled: Boolean(selectedAssetLookupId), staleTime: 30_000 },
+		);
+	const selectedAsset = selectedAssetData ?? selectedAssetOption;
 	const financeBookOptions = useMemo(
 		() =>
 			[...(selectedAsset?.financeBooks ?? [])].sort(
@@ -196,14 +200,6 @@ function AssetValueAdjustmentFormContent() {
 				refetchOnWindowFocus: false,
 			},
 		);
-
-	const assetOptions = useMemo(() => {
-		const preservedId = record?.assetId ?? preselectedAssetId;
-		return (assetsData?.items ?? []).filter((asset) => {
-			if (asset.id === preservedId) return true;
-			return !["DRAFT", "CANCELLED", "SOLD", "SCRAPPED"].includes(asset.status);
-		});
-	}, [assetsData?.items, preselectedAssetId, record?.assetId]);
 
 	const isReadonly =
 		record?.status === "SUBMITTED" || record?.status === "CANCELLED";
@@ -306,23 +302,17 @@ function AssetValueAdjustmentFormContent() {
 
 			try {
 				const updated = await updateMutation.mutateAsync(parsed.data);
-				await Promise.all([
-					utils.asset.listAssetValueAdjustments.invalidate(),
-					utils.asset.getAssetValueAdjustmentById.invalidate({ id }),
-					utils.asset.listAssets.invalidate(),
-				]);
+				await invalidateAssetDomain(utils);
+				await utils.asset.getAssetValueAdjustmentById.invalidate({ id });
 				form.reset(form.getValues());
 				toast.success("Asset value adjustment saved successfully");
 
 				if (mode === "submit") {
 					await submitMutation.mutateAsync({ id: updated.id });
-					await Promise.all([
-						utils.asset.listAssetValueAdjustments.invalidate(),
-						utils.asset.getAssetValueAdjustmentById.invalidate({
-							id: updated.id,
-						}),
-						utils.asset.listAssets.invalidate(),
-					]);
+					await invalidateAssetDomain(utils);
+					await utils.asset.getAssetValueAdjustmentById.invalidate({
+						id: updated.id,
+					});
 					toast.success("Asset value adjustment submitted successfully");
 				}
 			} catch (error) {
@@ -342,21 +332,15 @@ function AssetValueAdjustmentFormContent() {
 
 		try {
 			const created = await createMutation.mutateAsync(parsed.data);
-			await Promise.all([
-				utils.asset.listAssetValueAdjustments.invalidate(),
-				utils.asset.listAssets.invalidate(),
-			]);
+			await invalidateAssetDomain(utils);
 			toast.success("Asset value adjustment created successfully");
 
 			if (mode === "submit") {
 				await submitMutation.mutateAsync({ id: created.id });
-				await Promise.all([
-					utils.asset.listAssetValueAdjustments.invalidate(),
-					utils.asset.getAssetValueAdjustmentById.invalidate({
-						id: created.id,
-					}),
-					utils.asset.listAssets.invalidate(),
-				]);
+				await invalidateAssetDomain(utils);
+				await utils.asset.getAssetValueAdjustmentById.invalidate({
+					id: created.id,
+				});
 				toast.success("Asset value adjustment submitted successfully");
 			}
 
@@ -377,11 +361,10 @@ function AssetValueAdjustmentFormContent() {
 
 		try {
 			await cancelMutation.mutateAsync({ id: record.id });
-			await Promise.all([
-				utils.asset.listAssetValueAdjustments.invalidate(),
-				utils.asset.getAssetValueAdjustmentById.invalidate({ id: record.id }),
-				utils.asset.listAssets.invalidate(),
-			]);
+			await invalidateAssetDomain(utils);
+			await utils.asset.getAssetValueAdjustmentById.invalidate({
+				id: record.id,
+			});
 			toast.success("Asset value adjustment cancelled successfully");
 			setIsCancelDialogOpen(false);
 		} catch (error) {
@@ -491,16 +474,29 @@ function AssetValueAdjustmentFormContent() {
 								<Label htmlFor="assetId">
 									Asset <span className="text-destructive">*</span>
 								</Label>
-								<Select
-									value={form.watch("assetId") || undefined}
-									onValueChange={(value) => {
+								<AssetSearchSelect
+									value={form.watch("assetId")}
+									onValueChange={(value) =>
 										form.setValue("assetId", value, {
 											shouldDirty: true,
 											shouldValidate: true,
-										});
-										const selectedBooks =
-											assetsData?.items.find((asset) => asset.id === value)
-												?.financeBooks ?? [];
+										})
+									}
+									onSelect={(asset) => {
+										if (
+											["DRAFT", "CANCELLED", "SOLD", "SCRAPPED"].includes(
+												asset.status,
+											)
+										) {
+											form.setValue("assetId", "", {
+												shouldDirty: true,
+												shouldValidate: true,
+											});
+											toast.error("Select an active asset.");
+											return;
+										}
+										setSelectedAssetOption(asset);
+										const selectedBooks = asset.financeBooks ?? [];
 										form.setValue(
 											"financeBookId",
 											selectedBooks.length === 1 && selectedBooks[0]
@@ -512,19 +508,15 @@ function AssetValueAdjustmentFormContent() {
 											},
 										);
 									}}
-									disabled={isReadonly || isFetchingAssets}
-								>
-									<SelectTrigger id="assetId">
-										<SelectValue placeholder="Select an asset" />
-									</SelectTrigger>
-									<SelectContent>
-										{assetOptions.map((asset) => (
-											<SelectItem key={asset.id} value={asset.id}>
-												{asset.series} · {asset.assetName}
-											</SelectItem>
-										))}
-									</SelectContent>
-								</Select>
+									selectedLabel={
+										selectedAsset
+											? `${selectedAsset.series} · ${selectedAsset.assetName}`
+											: record?.assetName
+												? `${record.assetSeries} · ${record.assetName}`
+												: undefined
+									}
+									disabled={isReadonly || isFetchingAsset}
+								/>
 								{form.formState.errors.assetId && (
 									<p className="text-xs text-destructive">
 										{form.formState.errors.assetId.message}
@@ -549,7 +541,7 @@ function AssetValueAdjustmentFormContent() {
 									}
 									disabled={
 										isReadonly ||
-										isFetchingAssets ||
+										isFetchingAsset ||
 										financeBookOptions.length === 0
 									}
 								>

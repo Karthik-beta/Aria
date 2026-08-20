@@ -3,6 +3,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithProviders, screen, userEvent, waitFor } from "@/test/utils";
 import AssetValueAdjustmentFormPage from "./page";
 
+vi.mock("@/hooks/use-asset-write-access", () => ({
+	useAssetWriteAccess: () => true,
+}));
+
 const mockCreateMutateAsync = vi.fn();
 const mockUpdateMutateAsync = vi.fn();
 const mockSubmitMutateAsync = vi.fn();
@@ -138,6 +142,7 @@ vi.mock("@/lib/trpc", () => ({
 	trpc: {
 		useUtils: () => ({
 			asset: {
+				invalidate: mockInvalidate,
 				listAssetValueAdjustments: {
 					invalidate: mockInvalidate,
 				},
@@ -168,6 +173,13 @@ vi.mock("@/lib/trpc", () => ({
 						totalCount: assetRows.length,
 					},
 					isLoading: false,
+				}),
+			},
+			getAssetById: {
+				useQuery: (input: { id: string }) => ({
+					data: assetRows.find((asset) => asset.id === input.id) ?? null,
+					isLoading: false,
+					isFetching: false,
 				}),
 			},
 			previewAssetValueAdjustment: {

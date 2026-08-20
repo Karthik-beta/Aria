@@ -16,6 +16,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useRef, useTransition } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
+import { AssetWriteRouteGuard } from "@/components/asset/asset-write-route-guard";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -39,9 +40,11 @@ import { toLocationMutationInput } from "../location.utils";
 
 export default function LocationFormPage() {
 	return (
-		<Suspense fallback={<LocationFormFallback />}>
-			<LocationFormContent />
-		</Suspense>
+		<AssetWriteRouteGuard>
+			<Suspense fallback={<LocationFormFallback />}>
+				<LocationFormContent />
+			</Suspense>
+		</AssetWriteRouteGuard>
 	);
 }
 

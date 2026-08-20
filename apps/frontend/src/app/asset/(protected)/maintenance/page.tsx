@@ -43,6 +43,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { DataTableColumnHeader } from "@/components/ui/table/data-table-column-header";
 import { useAssetWriteAccess } from "@/hooks/use-asset-write-access";
 import { dateInputValue } from "@/lib/asset-date-only";
+import { invalidateAssetDomain } from "@/lib/asset-invalidation";
 import { getToastMessage } from "@/lib/errors";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
@@ -183,7 +184,8 @@ export default function AssetMaintenancePage() {
 			});
 			return { previous };
 		},
-		onSuccess: () => {
+		onSuccess: async () => {
+			await invalidateAssetDomain(utils);
 			toast.success("Asset maintenance deleted successfully");
 			setIsDeleteDialogOpen(false);
 			setRecordToDelete(null);
@@ -193,9 +195,6 @@ export default function AssetMaintenancePage() {
 				utils.asset.listAssetMaintenances.setData(queryInput, ctx.previous);
 			}
 			toast.error(getToastMessage(err, "delete"));
-		},
-		onSettled: () => {
-			void utils.asset.listAssetMaintenances.invalidate(queryInput);
 		},
 	});
 

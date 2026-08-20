@@ -13,6 +13,7 @@ import { AssetRepairDialog } from "@/components/asset/repair-form";
 import { Button } from "@/components/ui/button";
 import { ErrorState } from "@/components/ui/error-display";
 import { useAssetWriteAccess } from "@/hooks/use-asset-write-access";
+import { invalidateAssetDomain } from "@/lib/asset-invalidation";
 import { getToastMessage } from "@/lib/errors";
 import { trpc } from "@/lib/trpc";
 import { formatCurrency } from "../reports/fixed-asset-register/fixed-asset-register.utils";
@@ -24,18 +25,25 @@ import { formatCurrency } from "../reports/fixed-asset-register/fixed-asset-regi
 export default function AssetRepairsPage() {
 	const [dialogOpen, setDialogOpen] = React.useState(false);
 	const canWrite = useAssetWriteAccess();
+	const utils = trpc.useUtils();
 
 	const { data, error, isLoading, refetch } =
 		trpc.asset.listAssetRepairs.useQuery({});
 
 	const submitMutation = trpc.asset.submitAssetRepair.useMutation({
-		onSuccess: () => void refetch(),
+		onSuccess: async () => {
+			await invalidateAssetDomain(utils);
+			await refetch();
+		},
 		onError: (mutationError) =>
 			toast.error(getToastMessage(mutationError, "submit")),
 	});
 
 	const cancelMutation = trpc.asset.cancelAssetRepair.useMutation({
-		onSuccess: () => void refetch(),
+		onSuccess: async () => {
+			await invalidateAssetDomain(utils);
+			await refetch();
+		},
 		onError: (mutationError) =>
 			toast.error(getToastMessage(mutationError, "cancel")),
 	});

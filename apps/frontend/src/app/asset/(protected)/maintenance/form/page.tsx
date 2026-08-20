@@ -16,9 +16,9 @@
 
 import { Asset } from "@aria/types";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ChevronDown, Loader2, Plus, Trash2 } from "lucide-react";
+import { Loader2, Plus, Trash2 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useRef, useState, useTransition } from "react";
+import { Suspense, useEffect, useRef, useTransition } from "react";
 import {
 	Controller,
 	type Resolver,
@@ -26,24 +26,18 @@ import {
 	useForm,
 } from "react-hook-form";
 import { toast } from "sonner";
+import { AssetWriteRouteGuard } from "@/components/asset/asset-write-route-guard";
+import {
+	AssetSearchSelect,
+	CompanySearchSelect,
+	MaintenanceTeamSearchSelect,
+	OrganizationMemberSearchSelect,
+} from "@/components/asset/server-backed-selectors";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-	Command,
-	CommandEmpty,
-	CommandGroup,
-	CommandInput,
-	CommandItem,
-	CommandList,
-} from "@/components/ui/command";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
-} from "@/components/ui/popover";
 import {
 	Select,
 	SelectContent,
@@ -60,6 +54,7 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import { dateInputValue } from "@/lib/asset-date-only";
+import { invalidateAssetDomain } from "@/lib/asset-invalidation";
 import { getToastMessage } from "@/lib/errors";
 import { trpc } from "@/lib/trpc";
 import {
@@ -74,9 +69,11 @@ import {
 
 export default function AssetMaintenanceFormPage() {
 	return (
-		<Suspense fallback={<AssetMaintenanceFormFallback />}>
-			<AssetMaintenanceFormContent />
-		</Suspense>
+		<AssetWriteRouteGuard>
+			<Suspense fallback={<AssetMaintenanceFormFallback />}>
+				<AssetMaintenanceFormContent />
+			</Suspense>
+		</AssetWriteRouteGuard>
 	);
 }
 
@@ -96,15 +93,6 @@ function AssetMaintenanceFormContent() {
 	const [isPending, startTransition] = useTransition();
 	const hasHandledMissingRef = useRef(false);
 	const utils = trpc.useUtils();
-
-	const [companyOpen, setCompanyOpen] = useState(false);
-	const { data: companiesData } = trpc.company.listCompanies.useQuery(
-		undefined,
-		{
-			staleTime: 30_000,
-		},
-	);
-	const companies = companiesData?.items ?? [];
 
 	const form = useForm<AssetMaintenanceFormValues>({
 		resolver: zodResolver(
@@ -171,7 +159,7 @@ function AssetMaintenanceFormContent() {
 	const createMutation = trpc.asset.createAssetMaintenance.useMutation({
 		onSuccess: async (data) => {
 			toast.success("Asset maintenance created successfully");
-			await utils.asset.listAssetMaintenances.invalidate();
+			await invalidateAssetDomain(utils);
 			startTransition(() => {
 				router.push(`/asset/maintenance/form?id=${data.id}`);
 			});
@@ -182,9 +170,9 @@ function AssetMaintenanceFormContent() {
 	});
 
 	const updateMutation = trpc.asset.updateAssetMaintenance.useMutation({
-		onSuccess: async () => {
+		onSuccess: async (_data) => {
 			toast.success("Asset maintenance updated successfully");
-			await utils.asset.listAssetMaintenances.invalidate();
+			await invalidateAssetDomain(utils);
 			if (id) {
 				await utils.asset.getAssetMaintenanceById.invalidate({ id });
 			}
@@ -269,13 +257,26 @@ function AssetMaintenanceFormContent() {
 					<div className="grid gap-6 md:grid-cols-2">
 						<div className="space-y-2">
 							<Label htmlFor="assetId">
-								Asset ID <span className="text-destructive">*</span>
+								Asset <span className="text-destructive">*</span>
 							</Label>
-							<Input
-								id="assetId"
-								placeholder="Asset CUID"
-								{...form.register("assetId")}
-								disabled={isEditMode}
+							<Controller
+								name="assetId"
+								control={form.control}
+								render={({ field }) => (
+									<AssetSearchSelect
+										value={field.value}
+										onValueChange={field.onChange}
+										selectedLabel={record?.assetName}
+										disabled={isEditMode}
+										onSelect={(asset) => {
+											field.onChange(asset.id);
+											form.setValue("companyId", asset.companyId, {
+												shouldDirty: true,
+												shouldValidate: true,
+											});
+										}}
+									/>
+								)}
 							/>
 							{form.formState.errors.assetId && (
 								<p className="text-xs text-destructive">
@@ -292,47 +293,11 @@ function AssetMaintenanceFormContent() {
 								name="companyId"
 								control={form.control}
 								render={({ field }) => (
-									<Popover open={companyOpen} onOpenChange={setCompanyOpen}>
-										<PopoverTrigger asChild>
-											<Button
-												id="company"
-												type="button"
-												variant="outline"
-												className={`h-10 w-full justify-between font-normal ${form.formState.errors.companyId ? "border-destructive" : ""}`}
-											>
-												<span className="truncate">
-													{companies.find(
-														(company) => company.id === field.value,
-													)?.name || "Select company…"}
-												</span>
-												<ChevronDown className="h-4 w-4 opacity-50" />
-											</Button>
-										</PopoverTrigger>
-										<PopoverContent
-											className="p-0 pointer-events-auto"
-											style={{ width: "var(--radix-popover-trigger-width)" }}
-										>
-											<Command>
-												<CommandInput placeholder="Search companies…" />
-												<CommandList>
-													<CommandEmpty>No companies found</CommandEmpty>
-													<CommandGroup>
-														{companies.map((comp) => (
-															<CommandItem
-																key={comp.id}
-																onSelect={() => {
-																	field.onChange(comp.id);
-																	setCompanyOpen(false);
-																}}
-															>
-																{comp.name}
-															</CommandItem>
-														))}
-													</CommandGroup>
-												</CommandList>
-											</Command>
-										</PopoverContent>
-									</Popover>
+									<CompanySearchSelect
+										value={field.value}
+										onValueChange={field.onChange}
+										selectedLabel={record?.company}
+									/>
 								)}
 							/>
 							{form.formState.errors.companyId && (
@@ -350,12 +315,19 @@ function AssetMaintenanceFormContent() {
 					<div className="grid gap-6 md:grid-cols-2">
 						<div className="space-y-2">
 							<Label htmlFor="maintenanceTeamId">
-								Maintenance Team ID <span className="text-destructive">*</span>
+								Maintenance Team <span className="text-destructive">*</span>
 							</Label>
-							<Input
-								id="maintenanceTeamId"
-								placeholder="Team CUID"
-								{...form.register("maintenanceTeamId")}
+							<Controller
+								name="maintenanceTeamId"
+								control={form.control}
+								render={({ field }) => (
+									<MaintenanceTeamSearchSelect
+										value={field.value}
+										onValueChange={field.onChange}
+										selectedLabel={record?.maintenanceTeamName}
+										disabled={isEditMode}
+									/>
+								)}
 							/>
 							{form.formState.errors.maintenanceTeamId && (
 								<p className="text-xs text-destructive">
@@ -366,10 +338,23 @@ function AssetMaintenanceFormContent() {
 
 						<div className="space-y-2">
 							<Label htmlFor="maintenanceManager">Maintenance Manager</Label>
-							<Input
-								id="maintenanceManager"
-								placeholder="Email or username (optional)"
-								{...form.register("maintenanceManager")}
+							<Controller
+								name="maintenanceManager"
+								control={form.control}
+								render={({ field }) => (
+									<OrganizationMemberSearchSelect
+										value={field.value}
+										onValueChange={field.onChange}
+										selectedLabel={record?.maintenanceManagerName ?? undefined}
+										onSelect={(member) =>
+											form.setValue(
+												"maintenanceManagerName",
+												member.user?.name ?? member.user?.email ?? "",
+												{ shouldDirty: true },
+											)
+										}
+									/>
+								)}
 							/>
 							{form.formState.errors.maintenanceManager && (
 								<p className="text-xs text-destructive">

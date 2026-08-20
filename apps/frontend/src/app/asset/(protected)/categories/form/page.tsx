@@ -21,6 +21,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef, useTransition } from "react";
 import { useFieldArray, useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
+import { AssetWriteRouteGuard } from "@/components/asset/asset-write-route-guard";
 import {
 	DEPRECIATION_METHOD_DOCS,
 	DepreciationMethodInlineCard,
@@ -50,9 +51,11 @@ import { toAssetCategoryMutationInput } from "../asset-category.utils";
 
 export default function AssetCategoryFormPage() {
 	return (
-		<Suspense fallback={<AssetCategoryFormFallback />}>
-			<AssetCategoryFormContent />
-		</Suspense>
+		<AssetWriteRouteGuard>
+			<Suspense fallback={<AssetCategoryFormFallback />}>
+				<AssetCategoryFormContent />
+			</Suspense>
+		</AssetWriteRouteGuard>
 	);
 }
 

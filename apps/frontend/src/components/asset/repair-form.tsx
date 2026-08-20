@@ -3,7 +3,7 @@
 import { Asset } from "@aria/types";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Plus, Trash2 } from "lucide-react";
-import type * as React from "react";
+import * as React from "react";
 import {
 	type Control,
 	type FieldPath,
@@ -31,21 +31,19 @@ import {
 	FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/ui/select";
 import { dateInputValue, todayDateInputValue } from "@/lib/asset-date-only";
+import { invalidateAssetDomain } from "@/lib/asset-invalidation";
 import { getToastMessage } from "@/lib/errors";
 import { trpc } from "@/lib/trpc";
+import {
+	AssetSearchSelect,
+	type AssetSelectorItem,
+} from "./server-backed-selectors";
 
 type RepairDialogProps = {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
-	onSuccess?: () => void;
+	onSuccess?: () => void | Promise<void>;
 };
 
 /** Records the complete repair cost inputs supported by the current API contract. */
@@ -55,11 +53,8 @@ export function AssetRepairDialog({
 	onSuccess,
 }: RepairDialogProps) {
 	const utils = trpc.useUtils();
-	const { data: assetsData, isLoading: assetsLoading } =
-		trpc.asset.listAssets.useQuery({
-			take: 100,
-		});
-	const assetsList = assetsData?.items ?? [];
+	const [selectedAsset, setSelectedAsset] =
+		React.useState<AssetSelectorItem | null>(null);
 	const form = useForm<Asset.CreateAssetRepairInput>({
 		resolver: zodResolver(
 			Asset.createAssetRepairSchema,
@@ -84,17 +79,13 @@ export function AssetRepairDialog({
 		control: form.control,
 		name: "purchaseInvoices",
 	});
-	const selectedAssetId = form.watch("assetId");
-	const selectedAsset = assetsList.find(
-		(asset) => asset.id === selectedAssetId,
-	);
 
 	const createMutation = trpc.asset.createAssetRepair.useMutation({
-		onSuccess: () => {
-			void utils.asset.listAssetRepairs.invalidate();
+		onSuccess: async () => {
+			await invalidateAssetDomain(utils);
 			toast.success("Pending asset repair recorded");
 			onOpenChange(false);
-			onSuccess?.();
+			await onSuccess?.();
 		},
 		onError: (error) => toast.error(getToastMessage(error, "create")),
 	});
@@ -125,36 +116,22 @@ export function AssetRepairDialog({
 							render={({ field }) => (
 								<FormItem>
 									<FormLabel>Target Asset</FormLabel>
-									<Select
+									<AssetSearchSelect
 										value={field.value}
-										onValueChange={(assetId) => {
-											field.onChange(assetId);
-											form.setValue(
-												"companyId",
-												assetsList.find((asset) => asset.id === assetId)
-													?.companyId ?? "",
-												{ shouldValidate: true },
-											);
+										onValueChange={field.onChange}
+										onSelect={(asset) => {
+											setSelectedAsset(asset);
+											form.setValue("companyId", asset.companyId, {
+												shouldValidate: true,
+											});
 										}}
-										disabled={assetsLoading}
-									>
-										<FormControl>
-											<SelectTrigger>
-												<SelectValue
-													placeholder={
-														assetsLoading ? "Loading assets..." : "Select asset"
-													}
-												/>
-											</SelectTrigger>
-										</FormControl>
-										<SelectContent>
-											{assetsList.map((asset) => (
-												<SelectItem key={asset.id} value={asset.id}>
-													{asset.series} — {asset.assetName}
-												</SelectItem>
-											))}
-										</SelectContent>
-									</Select>
+										selectedLabel={
+											selectedAsset
+												? `${selectedAsset.series} — ${selectedAsset.assetName}`
+												: undefined
+										}
+										disabled={createMutation.isPending}
+									/>
 									<FormMessage />
 								</FormItem>
 							)}
@@ -366,10 +343,7 @@ export function AssetRepairDialog({
 						>
 							Cancel
 						</Button>
-						<Button
-							type="submit"
-							disabled={createMutation.isPending || assetsLoading}
-						>
+						<Button type="submit" disabled={createMutation.isPending}>
 							{createMutation.isPending ? "Creating..." : "Record Repair"}
 						</Button>
 					</DialogFooter>

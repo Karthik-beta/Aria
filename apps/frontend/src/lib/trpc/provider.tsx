@@ -109,6 +109,28 @@ function getQueryClient() {
 	}
 }
 
+/** Returns the browser singleton used by the tRPC provider. */
+export function getBrowserQueryClient() {
+	return getQueryClient();
+}
+
+/**
+ * Removes organization-scoped Asset and Company queries before navigation.
+ *
+ * The tRPC React Query key stores the procedure path as its first segment. A
+ * predicate keeps this reset independent of individual selector/report inputs
+ * while leaving unrelated application caches intact.
+ */
+export function clearAssetQueryCache(queryClient: QueryClient): void {
+	queryClient.removeQueries({
+		predicate: (query) => {
+			const rootKey = query.queryKey[0];
+			const procedureRoot = Array.isArray(rootKey) ? rootKey[0] : rootKey;
+			return procedureRoot === "asset" || procedureRoot === "company";
+		},
+	});
+}
+
 /**
  * Get the tRPC API URL from environment or default to localhost
  *

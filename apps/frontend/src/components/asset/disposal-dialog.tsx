@@ -31,6 +31,7 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { dateInputValue, todayDateInputValue } from "@/lib/asset-date-only";
+import { invalidateAssetDomain } from "@/lib/asset-invalidation";
 import { getToastMessage } from "@/lib/errors";
 import { trpc } from "@/lib/trpc";
 
@@ -38,7 +39,7 @@ type DisposalDialogProps = {
 	asset: Asset.AssetItem;
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
-	onSuccess?: () => void;
+	onSuccess?: () => void | Promise<void>;
 };
 
 /**
@@ -56,23 +57,21 @@ export function AssetDisposalDialog({
 	);
 
 	const scrapMutation = trpc.asset.scrapAsset.useMutation({
-		onSuccess: () => {
-			void utils.asset.getAssetById.invalidate({ id: asset.id });
-			void utils.asset.listAssets.invalidate();
+		onSuccess: async () => {
+			await invalidateAssetDomain(utils);
 			toast.success("Asset scrapped");
 			onOpenChange(false);
-			onSuccess?.();
+			await onSuccess?.();
 		},
 		onError: (error) => toast.error(getToastMessage(error, "scrap")),
 	});
 
 	const sellMutation = trpc.asset.sellAsset.useMutation({
-		onSuccess: () => {
-			void utils.asset.getAssetById.invalidate({ id: asset.id });
-			void utils.asset.listAssets.invalidate();
+		onSuccess: async () => {
+			await invalidateAssetDomain(utils);
 			toast.success("Asset sale recorded");
 			onOpenChange(false);
-			onSuccess?.();
+			await onSuccess?.();
 		},
 		onError: (error) => toast.error(getToastMessage(error, "sell")),
 	});

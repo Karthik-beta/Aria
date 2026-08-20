@@ -3,7 +3,7 @@
 import { Asset } from "@aria/types";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Plus, Trash2 } from "lucide-react";
-import type * as React from "react";
+import * as React from "react";
 import {
 	type Control,
 	type FieldPath,
@@ -38,13 +38,19 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { dateInputValue, todayDateInputValue } from "@/lib/asset-date-only";
+import { invalidateAssetDomain } from "@/lib/asset-invalidation";
 import { getToastMessage } from "@/lib/errors";
 import { trpc } from "@/lib/trpc";
+import {
+	AssetSearchSelect,
+	type AssetSelectorItem,
+	CompanySearchSelect,
+} from "./server-backed-selectors";
 
 type CapitalizationDialogProps = {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
-	onSuccess?: () => void;
+	onSuccess?: () => void | Promise<void>;
 };
 
 /** Captures only data represented by the current capitalization API contract. */
@@ -54,14 +60,9 @@ export function AssetCapitalizationDialog({
 	onSuccess,
 }: CapitalizationDialogProps) {
 	const utils = trpc.useUtils();
-	const { data: assetsData, isLoading: assetsLoading } =
-		trpc.asset.listAssets.useQuery({
-			take: 100,
-		});
-	const { data: companiesData, isLoading: companiesLoading } =
-		trpc.company.listCompanies.useQuery({ take: 250 });
-	const assets = assetsData?.items ?? [];
-	const companies = companiesData?.items ?? [];
+	const [assetMap, setAssetMap] = React.useState<
+		Record<string, AssetSelectorItem>
+	>({});
 	const form = useForm<Asset.CreateAssetCapitalizationInput>({
 		resolver: zodResolver(
 			Asset.createAssetCapitalizationSchema,
@@ -95,21 +96,16 @@ export function AssetCapitalizationDialog({
 	const targetType = form.watch("targetType");
 	const selectedCompanyId = form.watch("companyId");
 	const selectedTargetAssetId = form.watch("targetAssetId");
-	const eligibleSourceAssets = assets.filter(
-		(asset) =>
-			asset.companyId === selectedCompanyId &&
-			asset.id !== selectedTargetAssetId &&
-			["SUBMITTED", "PARTIALLY_DEPRECIATED", "FULLY_DEPRECIATED"].includes(
-				asset.status,
-			),
-	);
+	const selectedTargetAsset = selectedTargetAssetId
+		? assetMap[selectedTargetAssetId]
+		: undefined;
 
 	const createMutation = trpc.asset.createAssetCapitalization.useMutation({
-		onSuccess: () => {
-			void utils.asset.listAssetCapitalizations.invalidate();
+		onSuccess: async () => {
+			await invalidateAssetDomain(utils);
 			toast.success("Asset capitalization draft created");
 			onOpenChange(false);
-			onSuccess?.();
+			await onSuccess?.();
 		},
 		onError: (error) => toast.error(getToastMessage(error, "create")),
 	});
@@ -164,30 +160,10 @@ export function AssetCapitalizationDialog({
 							render={({ field }) => (
 								<FormItem>
 									<FormLabel>Company</FormLabel>
-									<Select
+									<CompanySearchSelect
 										value={field.value}
 										onValueChange={field.onChange}
-										disabled={companiesLoading}
-									>
-										<FormControl>
-											<SelectTrigger>
-												<SelectValue
-													placeholder={
-														companiesLoading
-															? "Loading companies..."
-															: "Select company"
-													}
-												/>
-											</SelectTrigger>
-										</FormControl>
-										<SelectContent>
-											{companies.map((company) => (
-												<SelectItem key={company.id} value={company.id}>
-													{company.name}
-												</SelectItem>
-											))}
-										</SelectContent>
-									</Select>
+									/>
 									<FormMessage />
 								</FormItem>
 							)}
@@ -241,37 +217,24 @@ export function AssetCapitalizationDialog({
 							render={({ field }) => (
 								<FormItem>
 									<FormLabel>Target Asset</FormLabel>
-									<Select
-										value={field.value ?? ""}
-										onValueChange={(assetId) => {
-											field.onChange(assetId);
-											const asset = assets.find((item) => item.id === assetId);
-											if (asset)
-												form.setValue("companyId", asset.companyId, {
-													shouldValidate: true,
-												});
+									<AssetSearchSelect
+										value={field.value}
+										onValueChange={field.onChange}
+										onSelect={(asset) => {
+											setAssetMap((current) => ({
+												...current,
+												[asset.id]: asset,
+											}));
+											form.setValue("companyId", asset.companyId, {
+												shouldValidate: true,
+											});
 										}}
-										disabled={assetsLoading}
-									>
-										<FormControl>
-											<SelectTrigger>
-												<SelectValue
-													placeholder={
-														assetsLoading
-															? "Loading assets..."
-															: "Select target asset"
-													}
-												/>
-											</SelectTrigger>
-										</FormControl>
-										<SelectContent>
-											{assets.map((asset) => (
-												<SelectItem key={asset.id} value={asset.id}>
-													{asset.series} — {asset.assetName}
-												</SelectItem>
-											))}
-										</SelectContent>
-									</Select>
+										selectedLabel={
+											selectedTargetAsset
+												? `${selectedTargetAsset.series} — ${selectedTargetAsset.assetName}`
+												: undefined
+										}
+									/>
 									<FormMessage />
 								</FormItem>
 							)}
@@ -371,34 +334,44 @@ export function AssetCapitalizationDialog({
 									render={({ field }) => (
 										<FormItem>
 											<FormLabel className="text-xs">Asset</FormLabel>
-											<Select
+											<AssetSearchSelect
 												value={field.value}
-												onValueChange={(assetId) => {
-													field.onChange(assetId);
-													const source = eligibleSourceAssets.find(
-														(asset) => asset.id === assetId,
-													);
+												onValueChange={field.onChange}
+												onSelect={(asset) => {
+													const isEligible =
+														asset.companyId === selectedCompanyId &&
+														asset.id !== selectedTargetAssetId &&
+														[
+															"SUBMITTED",
+															"PARTIALLY_DEPRECIATED",
+															"FULLY_DEPRECIATED",
+														].includes(asset.status);
+													if (!isEligible) {
+														toast.error(
+															"Select a submitted asset from the selected company.",
+														);
+														field.onChange("");
+														form.setValue(`assetItems.${index}.assetValue`, 0, {
+															shouldValidate: true,
+														});
+														return;
+													}
+													setAssetMap((current) => ({
+														...current,
+														[asset.id]: asset,
+													}));
 													form.setValue(
 														`assetItems.${index}.assetValue`,
-														source?.valueAfterDepreciation ?? 0,
+														asset.valueAfterDepreciation ?? 0,
 														{ shouldValidate: true },
 													);
 												}}
-												disabled={assetsLoading}
-											>
-												<FormControl>
-													<SelectTrigger>
-														<SelectValue placeholder="Select consumed asset" />
-													</SelectTrigger>
-												</FormControl>
-												<SelectContent>
-													{eligibleSourceAssets.map((asset) => (
-														<SelectItem key={asset.id} value={asset.id}>
-															{asset.series} — {asset.assetName}
-														</SelectItem>
-													))}
-												</SelectContent>
-											</Select>
+												selectedLabel={
+													assetMap[field.value]
+														? `${assetMap[field.value].series} — ${assetMap[field.value].assetName}`
+														: undefined
+												}
+											/>
 											<FormMessage />
 										</FormItem>
 									)}
@@ -467,10 +440,7 @@ export function AssetCapitalizationDialog({
 						>
 							Cancel
 						</Button>
-						<Button
-							type="submit"
-							disabled={createMutation.isPending || companiesLoading}
-						>
+						<Button type="submit" disabled={createMutation.isPending}>
 							{createMutation.isPending
 								? "Creating..."
 								: "Create Capitalization Draft"}

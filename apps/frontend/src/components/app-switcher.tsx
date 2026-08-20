@@ -3,7 +3,7 @@
 import { Check, ChevronsUpDown } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import * as React from "react";
-
+import { toast } from "sonner";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -18,6 +18,10 @@ import {
 	SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import { authClient } from "@/lib/auth/client";
+import {
+	clearAssetQueryCache,
+	getBrowserQueryClient,
+} from "@/lib/trpc/provider";
 
 interface App {
 	id: string;
@@ -77,7 +81,7 @@ export function AppSwitcher({
 	}, [pathname, isNavigating]);
 
 	const handleAppSwitch = React.useCallback(
-		(app: App) => {
+		async (app: App) => {
 			// Don't navigate if already on the same app or already navigating
 			if (pathname.startsWith(app.route) || isNavigating) {
 				return;
@@ -88,14 +92,30 @@ export function AppSwitcher({
 			navigationTargetRef.current = app.route;
 
 			// Sync active organization with the app being switched to
-			if (app.key) {
-				authClient.organization.setActive({
-					organizationSlug: app.key,
-				});
-			}
+			try {
+				if (app.key) {
+					const result = await authClient.organization.setActive({
+						organizationSlug: app.key,
+					});
+					if (result.error) {
+						throw new Error(
+							result.error.message ?? "Organization switch failed",
+						);
+					}
+					clearAssetQueryCache(getBrowserQueryClient());
+				}
 
-			// Navigate immediately without timeout
-			router.push(app.route);
+				// Route only after the trusted active-organization update succeeds.
+				router.push(app.route);
+			} catch (error) {
+				setIsNavigating(false);
+				navigationTargetRef.current = null;
+				toast.error(
+					error instanceof Error
+						? error.message
+						: "Unable to switch organization",
+				);
+			}
 		},
 		[router, pathname, isNavigating],
 	);
@@ -173,7 +193,9 @@ export function AppSwitcher({
 							return (
 								<DropdownMenuItem
 									key={app.id}
-									onClick={() => handleAppSwitch(app)}
+									onClick={() => {
+										void handleAppSwitch(app);
+									}}
 									className="gap-2 p-2"
 									disabled={isNavigating || isActive}
 								>

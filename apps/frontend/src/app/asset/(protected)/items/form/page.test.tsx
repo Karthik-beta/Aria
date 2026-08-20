@@ -11,6 +11,10 @@ import {
 } from "@/test/utils";
 import AssetFormPage, { assetFormSchema } from "./page";
 
+vi.mock("@/hooks/use-asset-write-access", () => ({
+	useAssetWriteAccess: () => true,
+}));
+
 const mockCreateMutate = vi.fn();
 const mockUpdateMutate = vi.fn();
 const mockBarcodeFetch = vi.fn();
@@ -215,6 +219,7 @@ vi.mock("@/lib/trpc", () => ({
 	trpc: {
 		useUtils: () => ({
 			asset: {
+				invalidate: vi.fn().mockResolvedValue(undefined),
 				getAssetByBarcode: {
 					fetch: mockBarcodeFetch,
 				},

@@ -3,6 +3,7 @@
 import { Asset } from "@aria/types";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Plus, Trash2 } from "lucide-react";
+import * as React from "react";
 import { type Resolver, useFieldArray, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -31,13 +32,19 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { dateInputValue, todayDateInputValue } from "@/lib/asset-date-only";
+import { invalidateAssetDomain } from "@/lib/asset-invalidation";
 import { getToastMessage } from "@/lib/errors";
 import { trpc } from "@/lib/trpc";
+import {
+	AssetSearchSelect,
+	type AssetSelectorItem,
+	LocationSearchSelect,
+} from "./server-backed-selectors";
 
 type MovementDialogProps = {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
-	onSuccess?: () => void;
+	onSuccess?: () => void | Promise<void>;
 };
 
 const PURPOSES: Array<{ value: Asset.AssetMovementPurpose; label: string }> = [
@@ -62,14 +69,10 @@ export function AssetMovementDialog({
 	onSuccess,
 }: MovementDialogProps) {
 	const utils = trpc.useUtils();
-	const { data: assetsData, isLoading: assetsLoading } =
-		trpc.asset.listAssets.useQuery({
-			take: 100,
-		});
-	const { data: locationsData, isLoading: locationsLoading } =
-		trpc.asset.listLocations.useQuery({ take: 100 });
-	const assetsList = assetsData?.items ?? [];
-	const locationsList = locationsData?.items ?? [];
+	const [assetMap, setAssetMap] = React.useState<
+		Record<string, AssetSelectorItem>
+	>({});
+	const assetsList = React.useMemo(() => Object.values(assetMap), [assetMap]);
 
 	const form = useForm<Asset.CreateAssetMovementInput>({
 		resolver: zodResolver(
@@ -99,18 +102,26 @@ export function AssetMovementDialog({
 	const companyId = form.watch("companyId");
 
 	const createMutation = trpc.asset.createAssetMovement.useMutation({
-		onSuccess: () => {
-			void utils.asset.listAssetMovements.invalidate();
+		onSuccess: async () => {
+			await invalidateAssetDomain(utils);
 			toast.success("Asset movement draft created");
 			onOpenChange(false);
-			onSuccess?.();
+			await onSuccess?.();
 		},
 		onError: (error) => toast.error(getToastMessage(error, "create")),
 	});
 
-	const updateSourceState = (index: number, assetId: string) => {
-		const selectedAsset = assetsList.find((asset) => asset.id === assetId);
-		form.setValue(`items.${index}.assetId`, assetId, { shouldValidate: true });
+	const updateSourceState = (
+		index: number,
+		selectedAsset: AssetSelectorItem,
+	) => {
+		setAssetMap((current) => ({
+			...current,
+			[selectedAsset.id]: selectedAsset,
+		}));
+		form.setValue(`items.${index}.assetId`, selectedAsset.id, {
+			shouldValidate: true,
+		});
 		form.setValue(
 			`items.${index}.sourceLocationId`,
 			selectedAsset?.locationId ?? null,
@@ -122,11 +133,15 @@ export function AssetMovementDialog({
 
 		const selectedIds = form
 			.getValues("items")
-			.map((item, itemIndex) => (itemIndex === index ? assetId : item.assetId))
+			.map((item) => item.assetId)
 			.filter(Boolean);
 		const companyIds = new Set(
 			selectedIds
-				.map((id) => assetsList.find((asset) => asset.id === id)?.companyId)
+				.map((id) =>
+					id === selectedAsset.id
+						? selectedAsset.companyId
+						: assetMap[id]?.companyId,
+				)
 				.filter((id): id is string => Boolean(id)),
 		);
 		form.setValue(
@@ -290,32 +305,20 @@ export function AssetMovementDialog({
 											render={({ field }) => (
 												<FormItem>
 													<FormLabel>Asset</FormLabel>
-													<Select
+													<AssetSearchSelect
 														value={field.value}
-														onValueChange={(value) =>
-															updateSourceState(index, value)
+														onValueChange={field.onChange}
+														onSelect={(asset) =>
+															updateSourceState(index, asset)
 														}
-														disabled={assetsLoading}
-													>
-														<FormControl>
-															<SelectTrigger>
-																<SelectValue
-																	placeholder={
-																		assetsLoading
-																			? "Loading assets..."
-																			: "Select asset"
-																	}
-																/>
-															</SelectTrigger>
-														</FormControl>
-														<SelectContent>
-															{assetsList.map((asset) => (
-																<SelectItem key={asset.id} value={asset.id}>
-																	{asset.series} — {asset.assetName}
-																</SelectItem>
-															))}
-														</SelectContent>
-													</Select>
+														selectedLabel={
+															assetsList.find(
+																(asset) => asset.id === field.value,
+															)
+																? `${assetsList.find((asset) => asset.id === field.value)?.series} — ${assetsList.find((asset) => asset.id === field.value)?.assetName}`
+																: undefined
+														}
+													/>
 													<FormMessage />
 												</FormItem>
 											)}
@@ -336,33 +339,10 @@ export function AssetMovementDialog({
 												render={({ field }) => (
 													<FormItem>
 														<FormLabel>Target location</FormLabel>
-														<Select
-															value={field.value ?? ""}
+														<LocationSearchSelect
+															value={field.value}
 															onValueChange={field.onChange}
-															disabled={locationsLoading}
-														>
-															<FormControl>
-																<SelectTrigger>
-																	<SelectValue
-																		placeholder={
-																			locationsLoading
-																				? "Loading locations..."
-																				: "Select location"
-																		}
-																	/>
-																</SelectTrigger>
-															</FormControl>
-															<SelectContent>
-																{locationsList.map((location) => (
-																	<SelectItem
-																		key={location.id}
-																		value={location.id}
-																	>
-																		{location.name}
-																	</SelectItem>
-																))}
-															</SelectContent>
-														</Select>
+														/>
 														<FormMessage />
 													</FormItem>
 												)}
@@ -412,10 +392,7 @@ export function AssetMovementDialog({
 						>
 							Cancel
 						</Button>
-						<Button
-							type="submit"
-							disabled={createMutation.isPending || assetsLoading}
-						>
+						<Button type="submit" disabled={createMutation.isPending}>
 							{createMutation.isPending ? "Saving..." : "Create Movement"}
 						</Button>
 					</DialogFooter>

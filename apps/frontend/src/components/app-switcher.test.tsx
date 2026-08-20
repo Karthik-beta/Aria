@@ -11,6 +11,26 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSwitcher } from "./app-switcher";
 
+const { mockClearAssetQueryCache, mockGetBrowserQueryClient, mockSetActive } =
+	vi.hoisted(() => ({
+		mockClearAssetQueryCache: vi.fn(),
+		mockGetBrowserQueryClient: vi.fn(() => ({}) as never),
+		mockSetActive: vi.fn(),
+	}));
+
+vi.mock("@/lib/auth/client", () => ({
+	authClient: {
+		organization: {
+			setActive: mockSetActive,
+		},
+	},
+}));
+
+vi.mock("@/lib/trpc/provider", () => ({
+	clearAssetQueryCache: mockClearAssetQueryCache,
+	getBrowserQueryClient: mockGetBrowserQueryClient,
+}));
+
 // Mock icons
 const MockIcon = ({ className }: { className?: string }) => (
 	<span data-testid="mock-icon" className={className}>
@@ -24,6 +44,17 @@ const testApps = [
 	{ id: "asset", name: "Asset", logo: MockIcon, route: "/asset" },
 	{ id: "crm", name: "CRM", logo: MockIcon, route: "/crm" },
 	{ id: "hrms", name: "HRMS", logo: MockIcon, route: "/hrms" },
+];
+
+const organizationApps = [
+	testApps[0],
+	{
+		id: "asset",
+		key: "asset",
+		name: "Asset",
+		logo: MockIcon,
+		route: "/asset",
+	},
 ];
 
 // Mock router with spies
@@ -67,6 +98,10 @@ function renderWithProviders(ui: React.ReactElement) {
 describe("AppSwitcher Component", () => {
 	beforeEach(() => {
 		mockPush.mockClear();
+		mockClearAssetQueryCache.mockClear();
+		mockGetBrowserQueryClient.mockClear();
+		mockSetActive.mockReset();
+		mockSetActive.mockResolvedValue({ data: {}, error: null });
 		currentPathname = "/inventory";
 	});
 
@@ -154,6 +189,68 @@ describe("AppSwitcher Component", () => {
 			await waitFor(() => {
 				expect(screen.getByText("Switching...")).toBeInTheDocument();
 			});
+		});
+
+		it("awaits a trusted organization switch before routing and clearing Asset caches", async () => {
+			const user = userEvent.setup();
+			let resolveSwitch: (result: { data: object; error: null }) => void =
+				() => {};
+			mockSetActive.mockReturnValue(
+				new Promise((resolve) => {
+					resolveSwitch = resolve;
+				}),
+			);
+			renderWithProviders(
+				<AppSwitcher
+					apps={organizationApps}
+					defaultApp={organizationApps[0]}
+				/>,
+			);
+
+			await waitFor(() => {
+				expect(screen.getByText("Inventory")).toBeInTheDocument();
+			});
+			await user.click(screen.getByRole("button"));
+			await user.click(await screen.findByText("Asset"));
+
+			expect(mockSetActive).toHaveBeenCalledWith({
+				organizationSlug: "asset",
+			});
+			expect(mockPush).not.toHaveBeenCalled();
+			expect(mockClearAssetQueryCache).not.toHaveBeenCalled();
+
+			resolveSwitch({ data: {}, error: null });
+			await waitFor(() => {
+				expect(mockPush).toHaveBeenCalledWith("/asset");
+			});
+			expect(mockClearAssetQueryCache).toHaveBeenCalledOnce();
+			expect(mockGetBrowserQueryClient).toHaveBeenCalledOnce();
+		});
+
+		it("does not route when the active organization switch fails", async () => {
+			const user = userEvent.setup();
+			mockSetActive.mockResolvedValue({
+				data: null,
+				error: { message: "Organization access denied" },
+			});
+			renderWithProviders(
+				<AppSwitcher
+					apps={organizationApps}
+					defaultApp={organizationApps[0]}
+				/>,
+			);
+
+			await waitFor(() => {
+				expect(screen.getByText("Inventory")).toBeInTheDocument();
+			});
+			await user.click(screen.getByRole("button"));
+			await user.click(await screen.findByText("Asset"));
+
+			await waitFor(() => {
+				expect(mockSetActive).toHaveBeenCalled();
+			});
+			expect(mockPush).not.toHaveBeenCalled();
+			expect(mockClearAssetQueryCache).not.toHaveBeenCalled();
 		});
 	});
 

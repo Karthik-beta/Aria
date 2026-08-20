@@ -3,6 +3,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithProviders, screen, userEvent, waitFor } from "@/test/utils";
 import MaintenanceTeamFormPage from "./page";
 
+vi.mock("@/hooks/use-asset-write-access", () => ({
+	useAssetWriteAccess: () => true,
+}));
+
 const mockCreateMutate = vi.fn();
 const mockUpdateMutate = vi.fn();
 const mockPush = vi.fn();
@@ -179,8 +183,10 @@ describe("MaintenanceTeamFormPage", () => {
 
 		expect(screen.queryByText(/No members added/i)).not.toBeInTheDocument();
 		expect(
-			screen.getByPlaceholderText(/Member ID or email/i),
-		).toBeInTheDocument();
+			screen.getAllByRole("button", {
+				name: /Select organization member/i,
+			}).length,
+		).toBe(2);
 	});
 
 	it("removes a member row when the trash icon is clicked", async () => {
@@ -189,8 +195,10 @@ describe("MaintenanceTeamFormPage", () => {
 
 		await user.click(screen.getByRole("button", { name: /Add Member/i }));
 		expect(
-			screen.getByPlaceholderText(/Member ID or email/i),
-		).toBeInTheDocument();
+			screen.getAllByRole("button", {
+				name: /Select organization member/i,
+			}).length,
+		).toBe(2);
 
 		await user.click(screen.getByRole("button", { name: /Remove member 1/i }));
 		expect(screen.getByText(/No members added/i)).toBeInTheDocument();

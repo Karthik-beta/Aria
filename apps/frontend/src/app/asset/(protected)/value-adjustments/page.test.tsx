@@ -3,12 +3,20 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithProviders, screen, userEvent, waitFor } from "@/test/utils";
 import AssetValueAdjustmentPage from "./page";
 
+const mockToast = vi.hoisted(() => ({
+	error: vi.fn(),
+	success: vi.fn(),
+}));
+
+vi.mock("sonner", () => ({ toast: mockToast }));
+
 vi.mock("@/hooks/use-asset-write-access", () => ({
 	useAssetWriteAccess: () => true,
 }));
 
 const mockDeleteMutate = vi.fn();
 const mockSubmitMutate = vi.fn();
+const mockCancelMutate = vi.fn();
 const mockInvalidate = vi.fn().mockResolvedValue(undefined);
 const mockRefetch = vi.fn().mockResolvedValue(undefined);
 
@@ -72,6 +80,7 @@ vi.mock("@/lib/trpc", () => ({
 	trpc: {
 		useUtils: () => ({
 			asset: {
+				invalidate: mockInvalidate,
 				listAssetValueAdjustments: {
 					invalidate: mockInvalidate,
 				},
@@ -101,17 +110,23 @@ vi.mock("@/lib/trpc", () => ({
 				}),
 			},
 			submitAssetValueAdjustment: {
-				useMutation: () => ({
+				useMutation: ({ onSuccess }: Record<string, unknown>) => ({
 					isPending: false,
-					mutate: (vars: unknown) => {
+					mutate: async (vars: unknown) => {
 						mockSubmitMutate(vars);
+						if (typeof onSuccess === "function")
+							await onSuccess(undefined, vars, undefined);
 					},
 				}),
 			},
 			cancelAssetValueAdjustment: {
-				useMutation: () => ({
+				useMutation: ({ onSuccess }: Record<string, unknown>) => ({
 					isPending: false,
-					mutate: vi.fn(),
+					mutate: (vars: unknown) => {
+						mockCancelMutate(vars);
+						if (typeof onSuccess === "function")
+							onSuccess(undefined, vars, undefined);
+					},
 				}),
 			},
 			onAssetValueAdjustmentsChanged: {
@@ -125,8 +140,12 @@ describe("AssetValueAdjustmentPage", () => {
 	beforeEach(() => {
 		mockDeleteMutate.mockClear();
 		mockSubmitMutate.mockClear();
+		mockCancelMutate.mockClear();
 		mockInvalidate.mockClear();
+		mockInvalidate.mockResolvedValue(undefined);
 		mockRefetch.mockClear();
+		mockToast.error.mockClear();
+		mockToast.success.mockClear();
 	});
 
 	it("renders the page heading and listed adjustments", () => {
@@ -177,6 +196,76 @@ describe("AssetValueAdjustmentPage", () => {
 
 		await waitFor(() => {
 			expect(mockDeleteMutate).toHaveBeenCalledWith({ id: "adj-001" });
+		});
+	});
+
+	it("keeps the cancel confirmation open until invalidation completes", async () => {
+		const user = userEvent.setup();
+		let releaseInvalidation: (() => void) | undefined;
+		mockInvalidate.mockImplementation(
+			() =>
+				new Promise<void>((resolve) => {
+					releaseInvalidation = resolve;
+				}),
+		);
+		renderWithProviders(<AssetValueAdjustmentPage />);
+
+		await user.click(
+			screen.getByRole("button", {
+				name: /Open actions for AVA-2026-00002/i,
+			}),
+		);
+		await user.click(
+			screen.getByRole("menuitem", { name: /Cancel Adjustment/i }),
+		);
+		await user.click(screen.getByRole("button", { name: /Continue/i }));
+
+		await waitFor(() => {
+			expect(mockCancelMutate).toHaveBeenCalledWith({ id: "adj-002" });
+			expect(mockInvalidate).toHaveBeenCalled();
+			expect(
+				screen.getByRole("heading", { name: /Are you sure\?/i }),
+			).toBeInTheDocument();
+		});
+
+		releaseInvalidation?.();
+		await waitFor(() => {
+			expect(
+				screen.queryByRole("heading", { name: /Are you sure\?/i }),
+			).not.toBeInTheDocument();
+		});
+	});
+
+	it("waits to announce a submitted adjustment until invalidation completes", async () => {
+		const user = userEvent.setup();
+		let releaseInvalidation: (() => void) | undefined;
+		mockInvalidate.mockImplementation(
+			() =>
+				new Promise<void>((resolve) => {
+					releaseInvalidation = resolve;
+				}),
+		);
+		renderWithProviders(<AssetValueAdjustmentPage />);
+
+		await user.click(
+			screen.getByRole("button", {
+				name: /Open actions for AVA-2026-00001/i,
+			}),
+		);
+		await user.click(
+			screen.getByRole("menuitem", { name: /Submit Adjustment/i }),
+		);
+
+		await waitFor(() => {
+			expect(mockSubmitMutate).toHaveBeenCalledWith({ id: "adj-001" });
+		});
+		expect(mockToast.success).not.toHaveBeenCalled();
+
+		releaseInvalidation?.();
+		await waitFor(() => {
+			expect(mockToast.success).toHaveBeenCalledWith(
+				"Asset value adjustment submitted successfully",
+			);
 		});
 	});
 });

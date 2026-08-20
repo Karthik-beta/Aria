@@ -35,6 +35,7 @@ import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAssetWriteAccess } from "@/hooks/use-asset-write-access";
 import { formatAssetDate } from "@/lib/asset-date-only";
+import { invalidateAssetDomain } from "@/lib/asset-invalidation";
 import { getToastMessage } from "@/lib/errors";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
@@ -107,8 +108,8 @@ export default function AssetDetailPage() {
 	);
 
 	const deleteMutation = trpc.asset.deleteAsset.useMutation({
-		onSuccess: () => {
-			void utils.asset.listAssets.invalidate();
+		onSuccess: async () => {
+			await invalidateAssetDomain(utils);
 			toast.success("Asset deleted successfully");
 			startTransition(() => {
 				router.push("/asset/items");
@@ -120,24 +121,21 @@ export default function AssetDetailPage() {
 	});
 	const submitMutation = trpc.asset.submitAsset.useMutation({
 		onSuccess: async () => {
-			await utils.asset.getAssetById.invalidate({ id: assetId });
-			await utils.asset.listAssets.invalidate();
+			await invalidateAssetDomain(utils);
 			toast.success("Asset submitted and depreciation schedules activated");
 		},
 		onError: (error) => toast.error(getToastMessage(error, "submit")),
 	});
 	const cancelMutation = trpc.asset.cancelAsset.useMutation({
 		onSuccess: async () => {
-			await utils.asset.getAssetById.invalidate({ id: assetId });
-			await utils.asset.listAssets.invalidate();
+			await invalidateAssetDomain(utils);
 			toast.success("Asset cancelled");
 		},
 		onError: (error) => toast.error(getToastMessage(error, "cancel")),
 	});
 	const restoreMutation = trpc.asset.restoreAsset.useMutation({
 		onSuccess: async () => {
-			await utils.asset.getAssetById.invalidate({ id: assetId });
-			await utils.asset.listAssets.invalidate();
+			await invalidateAssetDomain(utils);
 			toast.success("Asset restored");
 		},
 		onError: (error) => toast.error(getToastMessage(error, "restore")),
@@ -199,9 +197,6 @@ export default function AssetDetailPage() {
 				asset={asset}
 				open={isDisposalDialogOpen}
 				onOpenChange={setIsDisposalDialogOpen}
-				onSuccess={() => {
-					void utils.asset.listAssets.invalidate();
-				}}
 			/>
 
 			<div className="container mx-auto px-4 md:px-6 py-6 space-y-6">

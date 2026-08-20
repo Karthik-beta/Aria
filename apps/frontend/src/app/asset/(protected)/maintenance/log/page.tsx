@@ -64,6 +64,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { DataTableColumnHeader } from "@/components/ui/table/data-table-column-header";
 import { useAssetWriteAccess } from "@/hooks/use-asset-write-access";
 import { dateInputValue } from "@/lib/asset-date-only";
+import { invalidateAssetDomain } from "@/lib/asset-invalidation";
 import { getToastMessage } from "@/lib/errors";
 import { trpc } from "@/lib/trpc";
 import {
@@ -141,6 +142,7 @@ function CompleteLogDialog({
 	onClose,
 	onSuccess,
 }: CompleteLogDialogProps) {
+	const utils = trpc.useUtils();
 	const form = useForm<CompleteMaintenanceLogFormValues>({
 		resolver: zodResolver(
 			completeMaintenanceLogFormSchema,
@@ -149,7 +151,8 @@ function CompleteLogDialog({
 	});
 
 	const completeMutation = trpc.asset.completeAssetMaintenanceLog.useMutation({
-		onSuccess: () => {
+		onSuccess: async () => {
+			await invalidateAssetDomain(utils);
 			toast.success("Maintenance log marked as completed");
 			form.reset(getCompleteLogFormDefaults());
 			onSuccess();
@@ -372,7 +375,8 @@ export default function AssetMaintenanceLogPage() {
 			});
 			return { previous };
 		},
-		onSuccess: () => {
+		onSuccess: async () => {
+			await invalidateAssetDomain(utils);
 			toast.success("Maintenance log cancelled");
 			setIsCancelDialogOpen(false);
 			setLogToCancel(null);
@@ -382,9 +386,6 @@ export default function AssetMaintenanceLogPage() {
 				utils.asset.listAssetMaintenanceLogs.setData(queryInput, ctx.previous);
 			}
 			toast.error(getToastMessage(err, "cancel"));
-		},
-		onSettled: () => {
-			void utils.asset.listAssetMaintenanceLogs.invalidate(queryInput);
 		},
 	});
 
@@ -620,7 +621,6 @@ export default function AssetMaintenanceLogPage() {
 					onClose={() => setLogToComplete(null)}
 					onSuccess={() => {
 						setLogToComplete(null);
-						void utils.asset.listAssetMaintenanceLogs.invalidate(queryInput);
 					}}
 				/>
 			)}

@@ -1,5 +1,9 @@
+import { QueryClient } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createRealtimeRecoveryHandlers } from "./provider";
+import {
+	clearAssetQueryCache,
+	createRealtimeRecoveryHandlers,
+} from "./provider";
 
 describe("createRealtimeRecoveryHandlers", () => {
 	const queryClient = {
@@ -54,5 +58,31 @@ describe("createRealtimeRecoveryHandlers", () => {
 		expect(queryClient.refetchQueries).toHaveBeenCalledWith({
 			type: "active",
 		});
+	});
+
+	it("removes Asset and Company queries without removing unrelated domains", () => {
+		const client = new QueryClient();
+		const assetKey = [
+			["asset", "listAssets"],
+			{ input: {}, type: "query" },
+		] as const;
+		const companyKey = [
+			["company", "listCompanies"],
+			{ input: {}, type: "query" },
+		] as const;
+		const inventoryKey = [
+			["inventory", "listItems"],
+			{ input: {}, type: "query" },
+		] as const;
+
+		client.setQueryData(assetKey, "asset");
+		client.setQueryData(companyKey, "company");
+		client.setQueryData(inventoryKey, "inventory");
+
+		clearAssetQueryCache(client);
+
+		expect(client.getQueryData(assetKey)).toBeUndefined();
+		expect(client.getQueryData(companyKey)).toBeUndefined();
+		expect(client.getQueryData(inventoryKey)).toBe("inventory");
 	});
 });

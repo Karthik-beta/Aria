@@ -37,6 +37,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { DataTableColumnHeader } from "@/components/ui/table/data-table-column-header";
 import { useAssetWriteAccess } from "@/hooks/use-asset-write-access";
 import { dateInputValue } from "@/lib/asset-date-only";
+import { invalidateAssetDomain } from "@/lib/asset-invalidation";
 import { getToastMessage } from "@/lib/errors";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
@@ -131,9 +132,9 @@ export default function AssetValueAdjustmentPage() {
 
 	const deleteMutation = trpc.asset.deleteAssetValueAdjustment.useMutation({
 		onSuccess: async () => {
+			await invalidateAssetDomain(utils);
 			toast.success("Asset value adjustment deleted successfully");
 			setPendingAction(null);
-			await utils.asset.listAssetValueAdjustments.invalidate(queryInput);
 		},
 		onError: (error) => {
 			toast.error(getToastMessage(error, "delete"));
@@ -142,12 +143,9 @@ export default function AssetValueAdjustmentPage() {
 
 	const cancelMutation = trpc.asset.cancelAssetValueAdjustment.useMutation({
 		onSuccess: async () => {
+			await invalidateAssetDomain(utils);
 			toast.success("Asset value adjustment cancelled successfully");
 			setPendingAction(null);
-			await Promise.all([
-				utils.asset.listAssetValueAdjustments.invalidate(queryInput),
-				utils.asset.listAssets.invalidate(),
-			]);
 		},
 		onError: (error) => {
 			toast.error(getToastMessage(error, "cancel"));
@@ -156,11 +154,8 @@ export default function AssetValueAdjustmentPage() {
 
 	const submitMutation = trpc.asset.submitAssetValueAdjustment.useMutation({
 		onSuccess: async () => {
+			await invalidateAssetDomain(utils);
 			toast.success("Asset value adjustment submitted successfully");
-			await Promise.all([
-				utils.asset.listAssetValueAdjustments.invalidate(queryInput),
-				utils.asset.listAssets.invalidate(),
-			]);
 		},
 		onError: (error) => {
 			toast.error(getToastMessage(error, "submit"));

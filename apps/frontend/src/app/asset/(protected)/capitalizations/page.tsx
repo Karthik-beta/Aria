@@ -13,6 +13,7 @@ import { AssetCapitalizationDialog } from "@/components/asset/capitalization-for
 import { Button } from "@/components/ui/button";
 import { ErrorState } from "@/components/ui/error-display";
 import { useAssetWriteAccess } from "@/hooks/use-asset-write-access";
+import { invalidateAssetDomain } from "@/lib/asset-invalidation";
 import { getToastMessage } from "@/lib/errors";
 import { trpc } from "@/lib/trpc";
 import {
@@ -27,18 +28,25 @@ import {
 export default function AssetCapitalizationsPage() {
 	const [dialogOpen, setDialogOpen] = React.useState(false);
 	const canWrite = useAssetWriteAccess();
+	const utils = trpc.useUtils();
 
 	const { data, error, isLoading, refetch } =
 		trpc.asset.listAssetCapitalizations.useQuery({});
 
 	const submitMutation = trpc.asset.submitAssetCapitalization.useMutation({
-		onSuccess: () => void refetch(),
+		onSuccess: async () => {
+			await invalidateAssetDomain(utils);
+			await refetch();
+		},
 		onError: (mutationError) =>
 			toast.error(getToastMessage(mutationError, "submit")),
 	});
 
 	const cancelMutation = trpc.asset.cancelAssetCapitalization.useMutation({
-		onSuccess: () => void refetch(),
+		onSuccess: async () => {
+			await invalidateAssetDomain(utils);
+			await refetch();
+		},
 		onError: (mutationError) =>
 			toast.error(getToastMessage(mutationError, "cancel")),
 	});

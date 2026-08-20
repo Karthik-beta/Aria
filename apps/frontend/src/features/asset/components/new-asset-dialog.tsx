@@ -31,6 +31,7 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "@/components/ui/popover";
+import { invalidateAssetDomain } from "@/lib/asset-invalidation";
 import { getToastMessage } from "@/lib/errors";
 import { trpc } from "@/lib/trpc";
 
@@ -123,8 +124,8 @@ export function NewAssetDialog() {
 
 	const createMutation = trpc.asset.createAsset.useMutation({
 		onSuccess: async () => {
+			await invalidateAssetDomain(utils);
 			closeDialog();
-			await utils.asset.listAssets.invalidate();
 		},
 		onError: (error) => {
 			toast.error(getToastMessage(error, "create"));

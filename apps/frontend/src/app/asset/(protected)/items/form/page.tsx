@@ -27,6 +27,7 @@ import { Suspense } from "react";
 import { Controller, useFieldArray, useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 import * as z from "zod";
+import { AssetWriteRouteGuard } from "@/components/asset/asset-write-route-guard";
 import {
 	DEPRECIATION_METHOD_DOCS,
 	DepreciationMethodInlineCard,
@@ -66,6 +67,7 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { dateInputValue } from "@/lib/asset-date-only";
+import { invalidateAssetDomain } from "@/lib/asset-invalidation";
 import { getToastMessage } from "@/lib/errors";
 import { trpc } from "@/lib/trpc";
 import { DEPRECIATION_METHOD_OPTIONS } from "../../categories/asset-category.schema";
@@ -438,15 +440,17 @@ const defaultFormValues: AssetFormValues = {
 
 export default function AssetFormPage() {
 	return (
-		<Suspense
-			fallback={
-				<div className="flex h-[60vh] items-center justify-center">
-					<Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-				</div>
-			}
-		>
-			<AssetFormContent />
-		</Suspense>
+		<AssetWriteRouteGuard>
+			<Suspense
+				fallback={
+					<div className="flex h-[60vh] items-center justify-center">
+						<Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+					</div>
+				}
+			>
+				<AssetFormContent />
+			</Suspense>
+		</AssetWriteRouteGuard>
 	);
 }
 
@@ -681,8 +685,8 @@ function AssetFormContent() {
 	}, [watchedCalculateDepreciation, watchedAvailableForUseDate, form, isEdit]);
 
 	const createMutation = trpc.asset.createAsset.useMutation({
-		onSuccess: (newAsset) => {
-			void utils.asset.listAssets.invalidate();
+		onSuccess: async (newAsset) => {
+			await invalidateAssetDomain(utils);
 			toast.success(`Asset "${newAsset.assetName}" created`);
 			startTransition(() => router.push(`/asset/items/${newAsset.id}`));
 		},
@@ -690,8 +694,8 @@ function AssetFormContent() {
 	});
 
 	const updateMutation = trpc.asset.updateAsset.useMutation({
-		onSuccess: (updated) => {
-			void utils.asset.listAssets.invalidate();
+		onSuccess: async (updated) => {
+			await invalidateAssetDomain(utils);
 			toast.success("Asset updated");
 			startTransition(() => router.push(`/asset/items/${updated.id}`));
 		},

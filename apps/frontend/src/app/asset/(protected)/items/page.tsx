@@ -38,6 +38,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { DataTableColumnHeader } from "@/components/ui/table/data-table-column-header";
 import { NewAssetDialog } from "@/features/asset/components/new-asset-dialog";
 import { useAssetWriteAccess } from "@/hooks/use-asset-write-access";
+import { invalidateAssetDomain } from "@/lib/asset-invalidation";
 import { getToastMessage } from "@/lib/errors";
 import { trpc } from "@/lib/trpc";
 
@@ -204,7 +205,8 @@ export default function AssetListPage() {
 			});
 			return { previous };
 		},
-		onSuccess: () => {
+		onSuccess: async () => {
+			await invalidateAssetDomain(utils);
 			toast.success("Asset deleted successfully");
 			setIsDeleteDialogOpen(false);
 			setAssetToDelete(null);
@@ -214,9 +216,6 @@ export default function AssetListPage() {
 				utils.asset.listAssets.setData(undefined, context.previous);
 			}
 			toast.error(getToastMessage(error, "delete"));
-		},
-		onSettled: () => {
-			void utils.asset.listAssets.invalidate();
 		},
 	});
 
@@ -234,7 +233,8 @@ export default function AssetListPage() {
 			});
 			return { previous };
 		},
-		onSuccess: (result) => {
+		onSuccess: async (result) => {
+			await invalidateAssetDomain(utils);
 			toast.success(`Successfully deleted ${result.count} asset(s)`);
 		},
 		onError: (error, _variables, context) => {
@@ -242,9 +242,6 @@ export default function AssetListPage() {
 				utils.asset.listAssets.setData(undefined, context.previous);
 			}
 			toast.error(getToastMessage(error, "delete"));
-		},
-		onSettled: () => {
-			void utils.asset.listAssets.invalidate();
 		},
 	});
 

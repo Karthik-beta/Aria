@@ -3,6 +3,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithProviders, screen, userEvent, waitFor } from "@/test/utils";
 import AssetCategoryFormPage from "./page";
 
+vi.mock("@/hooks/use-asset-write-access", () => ({
+	useAssetWriteAccess: () => true,
+}));
+
 const mockCreateMutate = vi.fn();
 const mockUpdateMutate = vi.fn();
 const mockPush = vi.fn();

@@ -88,6 +88,7 @@ vi.mock("@/lib/trpc", () => ({
 	trpc: {
 		useUtils: () => ({
 			asset: {
+				invalidate: mockInvalidate,
 				listAssetMaintenances: {
 					cancel: mockCancelQuery,
 					getData: mockGetData,
@@ -137,6 +138,7 @@ describe("AssetMaintenancePage", () => {
 	beforeEach(() => {
 		mockDeleteMutate.mockClear();
 		mockInvalidate.mockClear();
+		mockInvalidate.mockResolvedValue(undefined);
 		mockRefetch.mockClear();
 	});
 
@@ -226,6 +228,42 @@ describe("AssetMaintenancePage", () => {
 			expect(mockDeleteMutate).toHaveBeenCalledWith({
 				id: pumpMaintenance.id,
 			});
+		});
+	});
+
+	it("keeps the delete confirmation open until invalidation completes", async () => {
+		const user = userEvent.setup();
+		let releaseInvalidation: (() => void) | undefined;
+		mockInvalidate.mockImplementation(
+			() =>
+				new Promise<void>((resolve) => {
+					releaseInvalidation = resolve;
+				}),
+		);
+		renderWithProviders(<AssetMaintenancePage />);
+
+		await user.click(
+			screen.getByRole("button", {
+				name: /Open actions for Hydraulic Pump A/i,
+			}),
+		);
+		await user.click(
+			screen.getByRole("menuitem", { name: /Delete Maintenance/i }),
+		);
+		await user.click(screen.getByRole("button", { name: /Continue/i }));
+
+		await waitFor(() => {
+			expect(mockInvalidate).toHaveBeenCalled();
+			expect(
+				screen.getByRole("heading", { name: /Are you sure\?/i }),
+			).toBeInTheDocument();
+		});
+
+		releaseInvalidation?.();
+		await waitFor(() => {
+			expect(
+				screen.queryByRole("heading", { name: /Are you sure\?/i }),
+			).not.toBeInTheDocument();
 		});
 	});
 });
