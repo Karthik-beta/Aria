@@ -38,6 +38,15 @@ describe("canonical Asset date-only contract", () => {
 		).toBe("2026-08-11");
 	});
 
+	test.each([
+		"2026-08-10",
+		"2026-08-31",
+	])("preserves persisted calendar date %s regardless of host timezone", (date) => {
+		expect(
+			dateOnlyFromPersistedDateTime(new Date(`${date}T23:45:00.000Z`)),
+		).toBe(date);
+	});
+
 	test("derives true instants in the requested business timezone", () => {
 		const instant = new Date("2026-12-31T20:00:00.000Z");
 		expect(dateOnlyFromInstant("UTC", instant)).toBe("2026-12-31");
@@ -48,6 +57,30 @@ describe("canonical Asset date-only contract", () => {
 });
 
 describe("Asset type and finance-book round-trip contract", () => {
+	test("enforces shared purchase and available-for-use ordering", () => {
+		const invalid = Asset.createAssetSchema.safeParse({
+			assetName: "Invalid date order",
+			assetType: "EXISTING_ASSET",
+			companyId: "cm1234567890123456789012",
+			purchaseDate: "2026-08-31",
+			availableForUseDate: "2026-08-10",
+			netPurchaseAmount: 100,
+			calculateDepreciation: false,
+		});
+		const component = Asset.createAssetSchema.safeParse({
+			assetName: "Component without availability",
+			assetType: "COMPOSITE_COMPONENT",
+			companyId: "cm1234567890123456789012",
+			purchaseDate: "2026-08-10",
+			availableForUseDate: null,
+			netPurchaseAmount: 0,
+			calculateDepreciation: false,
+		});
+
+		expect(invalid.success).toBe(false);
+		expect(component.success).toBe(true);
+	});
+
 	test("preserves supported typed options through shared input schemas", () => {
 		const parsed = Asset.createAssetSchema.parse({
 			assetName: "Composite Component",

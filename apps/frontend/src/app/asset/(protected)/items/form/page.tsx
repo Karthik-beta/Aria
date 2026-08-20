@@ -137,6 +137,19 @@ export const assetFormSchema = z
 			.default([]),
 	})
 	.superRefine((data, ctx) => {
+		if (data.purchaseDate && data.availableForUseDate) {
+			if (
+				normalizeDateOnly(data.availableForUseDate) <
+				normalizeDateOnly(data.purchaseDate)
+			) {
+				ctx.addIssue({
+					path: ["availableForUseDate"],
+					code: z.ZodIssueCode.custom,
+					message: "Available for use date must be on or after purchase date",
+				});
+			}
+		}
+
 		if (!data.calculateDepreciation) return;
 		for (const [index, book] of data.financeBooks.entries()) {
 			if (
@@ -448,8 +461,6 @@ function AssetFormContent() {
 	const [locationOpen, setLocationOpen] = React.useState(false);
 	const [companyOpen, setCompanyOpen] = React.useState(false);
 	const [scannerOpen, setScannerOpen] = React.useState(false);
-	const [hasUnsavedChanges, setHasUnsavedChanges] = React.useState(false);
-	const [initialized, setInitialized] = React.useState(false);
 
 	const { data: categoriesData } = trpc.asset.listAssetCategories.useQuery(
 		undefined,
@@ -500,12 +511,7 @@ function AssetFormContent() {
 		control: form.control,
 		name: "financeBooks",
 	});
-
-	React.useEffect(() => {
-		if (!isEdit) {
-			setInitialized(true);
-		}
-	}, [isEdit]);
+	const { isDirty: hasUnsavedChanges } = form.formState;
 
 	React.useEffect(() => {
 		if (!rawAsset) return;
@@ -568,7 +574,6 @@ function AssetFormContent() {
 				assetFinanceBookFormFromPersisted,
 			),
 		});
-		setInitialized(true);
 	}, [rawAsset, form]);
 
 	const watchedCalculateDepreciation = useWatch({
@@ -606,6 +611,11 @@ function AssetFormContent() {
 	React.useEffect(() => {
 		if (isEdit || !selectedCategory) return;
 
+		const currentValues = form.getValues();
+		const currentDefaults = (form.formState.defaultValues ??
+			currentValues) as AssetFormValues;
+		const nextDefaults = { ...currentDefaults };
+		let changed = false;
 		const applyCategoryDefault = (
 			field:
 				| "depreciationMethod"
@@ -614,10 +624,13 @@ function AssetFormContent() {
 				| "expectedValueAfterUsefulLife",
 			value: string | number | null | undefined,
 		) => {
-			if (value == null || form.getFieldState(field).isDirty) return;
-			const current = form.getValues(field);
+			if (value == null) return;
+			const fieldState = form.getFieldState(field);
+			if (fieldState.isDirty || fieldState.isTouched) return;
+			const current = currentValues[field];
 			if (typeof current === "string" && current.trim()) return;
-			form.setValue(field, String(value), { shouldDirty: false });
+			nextDefaults[field] = String(value);
+			changed = true;
 		};
 
 		applyCategoryDefault(
@@ -636,32 +649,39 @@ function AssetFormContent() {
 			"expectedValueAfterUsefulLife",
 			selectedCategory.expectedValueAfterUsefulLife,
 		);
+
+		if (changed) {
+			form.reset(nextDefaults, {
+				keepDirtyValues: true,
+				keepDirty: true,
+				keepTouched: true,
+			});
+		}
 	}, [isEdit, selectedCategory, form]);
 
 	React.useEffect(() => {
-		if (watchedCalculateDepreciation && watchedAvailableForUseDate) {
-			const formatted = dateInputValue(
-				endOfMonthDateOnly(watchedAvailableForUseDate),
-			);
-			if (formatted) {
-				form.setValue("depreciationStartDate", formatted, {
-					shouldDirty: true,
-				});
-			}
-		}
-	}, [watchedCalculateDepreciation, watchedAvailableForUseDate, form]);
+		if (isEdit || !watchedCalculateDepreciation || !watchedAvailableForUseDate)
+			return;
 
-	React.useEffect(() => {
-		if (!initialized) return;
-		const subscription = form.watch(() => {
-			setHasUnsavedChanges(true);
-		});
-		return () => subscription.unsubscribe();
-	}, [form, initialized]);
+		const fieldState = form.getFieldState("depreciationStartDate");
+		const current = form.getValues("depreciationStartDate");
+		if (fieldState.isDirty || fieldState.isTouched || current?.trim()) return;
+
+		const formatted = dateInputValue(
+			endOfMonthDateOnly(watchedAvailableForUseDate),
+		);
+		if (!formatted) return;
+
+		const currentDefaults = (form.formState.defaultValues ??
+			form.getValues()) as AssetFormValues;
+		form.reset(
+			{ ...currentDefaults, depreciationStartDate: formatted },
+			{ keepDirtyValues: true, keepDirty: true, keepTouched: true },
+		);
+	}, [watchedCalculateDepreciation, watchedAvailableForUseDate, form, isEdit]);
 
 	const createMutation = trpc.asset.createAsset.useMutation({
 		onSuccess: (newAsset) => {
-			setHasUnsavedChanges(false);
 			void utils.asset.listAssets.invalidate();
 			toast.success(`Asset "${newAsset.assetName}" created`);
 			startTransition(() => router.push(`/asset/items/${newAsset.id}`));
@@ -671,7 +691,6 @@ function AssetFormContent() {
 
 	const updateMutation = trpc.asset.updateAsset.useMutation({
 		onSuccess: (updated) => {
-			setHasUnsavedChanges(false);
 			void utils.asset.listAssets.invalidate();
 			toast.success("Asset updated");
 			startTransition(() => router.push(`/asset/items/${updated.id}`));

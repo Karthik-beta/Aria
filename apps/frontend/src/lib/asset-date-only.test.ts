@@ -38,6 +38,14 @@ describe("Asset date-only helpers", () => {
 		);
 	});
 
+	it.each([
+		"2026-08-10",
+		"2026-08-31",
+	])("keeps canonical form date %s under the process timezone", (date) => {
+		expect(dateInputValue(new Date(`${date}T23:45:00.000Z`))).toBe(date);
+		expect(dateInputValue(date)).toBe(date);
+	});
+
 	it("rejects impossible calendar dates", () => {
 		expect(() => dateInputValue("2026-02-30")).toThrow(
 			"Invalid date-only value",

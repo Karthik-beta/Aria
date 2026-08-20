@@ -18,6 +18,7 @@ const mockPush = vi.fn();
 const mockBack = vi.fn();
 
 let currentId: string | null = null;
+let initialCategoryId: string | null = null;
 
 function createTRPCError(
 	message: string,
@@ -33,7 +34,7 @@ function createTRPCError(
 
 const mockCategories = [
 	{
-		id: "clh123cat",
+		id: "clh1234567890123456789012",
 		name: "Vehicles",
 		depreciationMethod: "STRAIGHT_LINE",
 		totalNumberOfDepreciations: 60,
@@ -48,7 +49,7 @@ const mockCategories = [
 		updatedAt: new Date("2026-01-02"),
 	},
 	{
-		id: "clh456cat",
+		id: "clh4567890123456789012345",
 		name: "Electronics",
 		depreciationMethod: "WRITTEN_DOWN_VALUE",
 		totalNumberOfDepreciations: 36,
@@ -68,7 +69,7 @@ let categoryItems = mockCategories;
 
 const mockLocations = [
 	{
-		id: "clh789loc",
+		id: "clh7890123456789012345678",
 		name: "Head Office",
 		parentLocationId: null,
 		parentLocationName: null,
@@ -79,16 +80,16 @@ const mockLocations = [
 ];
 
 const existingAsset = {
-	id: "clhAsset001",
+	id: "clhasset00123456789012345",
 	series: "AST-2026-00001",
 	assetName: "Company Vehicle",
 	assetType: "COMPOSITE_COMPONENT" as const,
 	itemCode: "VEH-001",
-	assetCategoryId: "clh123cat",
+	assetCategoryId: "clh1234567890123456789012",
 	assetCategoryName: "Vehicles",
-	companyId: "comp-1",
+	companyId: "cm1234567890123456789012",
 	company: "Test Company",
-	locationId: "clh789loc",
+	locationId: "clh7890123456789012345678",
 	locationName: "Head Office",
 	custodian: "John Doe",
 	department: "Operations",
@@ -116,10 +117,11 @@ const existingAsset = {
 	totalNumberOfDepreciations: 60,
 	frequencyOfDepreciation: 12,
 	expectedValueAfterUsefulLife: 4500,
+	depreciationStartDate: new Date("2026-03-15T00:00:00.000Z"),
 	financeBooks: [
 		{
-			id: "clhAssetBook001",
-			financeBookId: "clhFinanceBook001",
+			id: "clhassetbook0012345678901",
+			financeBookId: "clhfinancebook00123456789",
 			financeBookName: "Corporate Book",
 			depreciationMethod: "STRAIGHT_LINE" as const,
 			totalNumberOfDepreciations: 3,
@@ -156,7 +158,7 @@ const existingAsset = {
 
 const submittedAsset = {
 	...existingAsset,
-	id: "clhAssetSubmitted",
+	id: "clhassetsubmitted123456789",
 	status: "SUBMITTED" as const,
 };
 
@@ -168,7 +170,11 @@ vi.mock("next/navigation", () => ({
 		back: mockBack,
 	}),
 	useSearchParams: () => ({
-		get: (key: string) => (key === "id" ? currentId : null),
+		get: (key: string) => {
+			if (key === "id") return currentId;
+			if (key === "assetCategoryId") return initialCategoryId;
+			return null;
+		},
 	}),
 }));
 
@@ -199,43 +205,8 @@ vi.mock("@aria/types", async () => {
 		await vi.importActual<typeof import("@aria/types")>("@aria/types");
 	return {
 		...actual,
-		dateOnlyFromPersistedDateTime: (value: Date) =>
-			value.toISOString().slice(0, 10),
-		normalizeDateOnly: (value: Date | string) =>
-			value instanceof Date
-				? value.toISOString().slice(0, 10)
-				: value.slice(0, 10),
-		parseDateOnly: (value: string) => value,
-		endOfMonthDateOnly: (value: Date | string) => {
-			const normalized =
-				value instanceof Date
-					? value.toISOString().slice(0, 10)
-					: value.slice(0, 10);
-			const [year, month] = normalized.split("-").map(Number);
-			return `${year}-${String(month).padStart(2, "0")}-${String(
-				new Date(Date.UTC(year, month, 0)).getUTCDate(),
-			).padStart(2, "0")}`;
-		},
 		Asset: {
 			...actual.Asset,
-			assetOwnerSchema: {
-				parse: vi.fn(() => "COMPANY"),
-			},
-			assetStatusSchema: {
-				parse: vi.fn(() => "DRAFT"),
-			},
-			createAssetSchema: {
-				safeParse: (input: unknown) => ({
-					success: true as const,
-					data: input,
-				}),
-			},
-			updateAssetSchema: {
-				safeParse: (input: unknown) => ({
-					success: true as const,
-					data: input,
-				}),
-			},
 		},
 	};
 });
@@ -257,8 +228,8 @@ vi.mock("@/lib/trpc", () => ({
 				useQuery: () => ({
 					data: {
 						items: [
-							{ id: "comp-1", name: "Test Company" },
-							{ id: "comp-2", name: "Acme Corp" },
+							{ id: "cm1234567890123456789012", name: "Test Company" },
+							{ id: "cm2234567890123456789012", name: "Acme Corp" },
 						],
 					},
 					isLoading: false,
@@ -269,7 +240,9 @@ vi.mock("@/lib/trpc", () => ({
 			listFinanceBooks: {
 				useQuery: () => ({
 					data: {
-						items: [{ id: "clhFinanceBook001", name: "Corporate Book" }],
+						items: [
+							{ id: "clhfinancebook00123456789", name: "Corporate Book" },
+						],
 					},
 					isLoading: false,
 				}),
@@ -333,7 +306,7 @@ describe("AssetFormPage", () => {
 	const validFormValues = {
 		assetName: "Test Asset",
 		assetType: "EXISTING_ASSET" as const,
-		companyId: "comp-1",
+		companyId: "cm1234567890123456789012",
 		assetQuantity: 1,
 		calculateDepreciation: true,
 		isFullyDepreciated: false,
@@ -344,7 +317,7 @@ describe("AssetFormPage", () => {
 		availableForUseDate: "2026-01-02",
 		financeBooks: [
 			{
-				financeBookId: "book-1",
+				financeBookId: "cm3234567890123456789012",
 				depreciationMethod: "STRAIGHT_LINE" as const,
 				totalNumberOfDepreciations: "3",
 				frequencyOfDepreciation: "1",
@@ -370,6 +343,7 @@ describe("AssetFormPage", () => {
 
 	beforeEach(() => {
 		currentId = null;
+		initialCategoryId = null;
 		categoryItems = mockCategories;
 		mockCreateMutate.mockClear();
 		mockUpdateMutate.mockClear();
@@ -485,6 +459,43 @@ describe("AssetFormPage", () => {
 		expect(result.success).toBe(false);
 	});
 
+	it("matches the shared purchase and available-for-use date ordering", () => {
+		const result = assetFormSchema.safeParse({
+			...validFormValues,
+			purchaseDate: "2026-08-31",
+			availableForUseDate: "2026-08-10",
+		});
+
+		expect(result.success).toBe(false);
+		expect(result.error?.issues).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					path: ["availableForUseDate"],
+					message: "Available for use date must be on or after purchase date",
+				}),
+			]),
+		);
+	});
+
+	it("matches the backend depreciation start ordering", () => {
+		const result = assetFormSchema.safeParse({
+			...validFormValues,
+			purchaseDate: "2026-08-10",
+			availableForUseDate: "2026-08-31",
+			depreciationStartDate: "2026-08-30",
+		});
+
+		expect(result.success).toBe(false);
+		expect(result.error?.issues).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					path: ["depreciationStartDate"],
+					message: "Must be on or after available for use date",
+				}),
+			]),
+		);
+	});
+
 	it("renders Basic Information, Purchase & Valuation, and Options cards", () => {
 		renderWithProviders(<AssetFormPage />);
 		expect(screen.getByText(/Basic Information/i)).toBeInTheDocument();
@@ -498,6 +509,58 @@ describe("AssetFormPage", () => {
 			name: /Calculate Depreciation/i,
 		});
 		expect(checkbox).not.toBeChecked();
+	});
+
+	it("keeps create category defaults clean until a user edits the form", async () => {
+		initialCategoryId = mockCategories[0].id;
+		renderWithProviders(<AssetFormPage />);
+
+		await waitFor(() => {
+			expect(screen.getByText("Vehicles")).toBeInTheDocument();
+		});
+		expect(screen.queryByText("Unsaved Changes")).not.toBeInTheDocument();
+
+		await userEvent
+			.setup()
+			.click(screen.getByRole("checkbox", { name: /Calculate Depreciation/i }));
+		await waitFor(() => {
+			expect(screen.getByLabelText(/Depreciation Method/i)).toHaveTextContent(
+				"Straight Line",
+			);
+		});
+	});
+
+	it("keeps a user override after defaults in the dirty payload", async () => {
+		initialCategoryId = mockCategories[0].id;
+		const user = userEvent.setup();
+		renderWithProviders(<AssetFormPage />);
+
+		await user.type(screen.getByLabelText(/Asset Name/i), "Defaulted Asset");
+		await user.click(screen.getByRole("button", { name: /company/i }));
+		await user.click(await screen.findByText("Test Company"));
+
+		await user.click(
+			screen.getByRole("checkbox", { name: /Calculate Depreciation/i }),
+		);
+		await waitFor(() =>
+			expect(
+				screen.getByLabelText(/Total Number of Depreciations/i),
+			).toHaveValue(60),
+		);
+		await user.clear(screen.getByLabelText(/Total Number of Depreciations/i));
+		await user.type(
+			screen.getByLabelText(/Total Number of Depreciations/i),
+			"48",
+		);
+
+		expect(screen.getByText("Unsaved Changes")).toBeInTheDocument();
+		await user.click(screen.getByRole("button", { name: /Create Asset/i }));
+
+		await waitFor(() => {
+			expect(mockCreateMutate).toHaveBeenCalledWith(
+				expect.objectContaining({ totalNumberOfDepreciations: 48 }),
+			);
+		});
 	});
 
 	it("shows depreciation details fields when Calculate Depreciation is checked", async () => {
@@ -598,7 +661,7 @@ describe("AssetFormPage", () => {
 			expect(mockCreateMutate).toHaveBeenCalledWith(
 				expect.objectContaining({
 					assetName: "Test Asset",
-					companyId: "comp-1",
+					companyId: "cm1234567890123456789012",
 					calculateDepreciation: true,
 				}),
 			);
@@ -615,6 +678,12 @@ describe("AssetFormPage", () => {
 		);
 		await user.click(screen.getByRole("button", { name: /company/i }));
 		await user.click(await screen.findByText("Test Company"));
+		fireEvent.change(screen.getByLabelText(/Purchase Date/i), {
+			target: { value: "2026-08-10" },
+		});
+		fireEvent.change(screen.getByLabelText(/Available For Use/i), {
+			target: { value: "2026-08-10" },
+		});
 
 		await user.selectOptions(
 			screen.getByRole("combobox", { name: /Asset Type/i }),
@@ -662,7 +731,7 @@ describe("AssetFormPage", () => {
 						expect.objectContaining({
 							totalNumberOfDepreciations: 3,
 							frequencyOfDepreciation: 1,
-							depreciationStartDate: expect.any(String),
+							depreciationStartDate: "2026-08-31",
 							dailyProrataBased: true,
 							shiftBased: true,
 							precision: 3,
@@ -731,6 +800,9 @@ describe("AssetFormPage", () => {
 		expect(screen.getByLabelText(/Daily Prorata Based/i)).toBeChecked();
 		expect(screen.getByLabelText(/Shift Based/i)).toBeChecked();
 		expect(screen.getByLabelText(/Calculate Using Total Days/i)).toBeChecked();
+		expect(screen.getByLabelText(/Depreciation Start Date/i)).toHaveValue(
+			"2026-03-15",
+		);
 		expect(screen.getByLabelText(/Currency Precision/i)).toHaveValue(3);
 		expect(screen.getByLabelText(/Rate Precision/i)).toHaveValue(4);
 		expect(
@@ -966,7 +1038,7 @@ describe("AssetFormPage", () => {
 			expect(mockCreateMutate).toHaveBeenCalledWith(
 				expect.objectContaining({
 					assetName: "Test Asset",
-					companyId: "comp-1",
+					companyId: "cm1234567890123456789012",
 					barcode: "987654321",
 				}),
 			);
