@@ -464,6 +464,45 @@ describe("AssetFormPage", () => {
 		expect(result.success).toBe(false);
 	});
 
+	it("accepts blank optional DateOnly fields and preserves canonical dates", () => {
+		const blankDates = assetFormSchema.safeParse({
+			...validFormValues,
+			calculateDepreciation: false,
+			financeBooks: [],
+			purchaseDate: "",
+			availableForUseDate: "",
+			insuranceStartDate: "",
+			insuranceEndDate: "",
+			depreciationStartDate: "",
+		});
+
+		expect(blankDates.success).toBe(true);
+
+		const canonicalDates = assetFormSchema.safeParse({
+			...validFormValues,
+			calculateDepreciation: false,
+			financeBooks: [],
+			purchaseDate: "2026-08-10",
+			availableForUseDate: "2026-08-10",
+			insuranceStartDate: "2026-08-01",
+			insuranceEndDate: "2026-08-31",
+			depreciationStartDate: "2026-08-31",
+		});
+
+		expect(canonicalDates.success).toBe(true);
+		if (canonicalDates.success) {
+			expect(canonicalDates.data).toEqual(
+				expect.objectContaining({
+					purchaseDate: "2026-08-10",
+					availableForUseDate: "2026-08-10",
+					insuranceStartDate: "2026-08-01",
+					insuranceEndDate: "2026-08-31",
+					depreciationStartDate: "2026-08-31",
+				}),
+			);
+		}
+	});
+
 	it("matches the shared purchase and available-for-use date ordering", () => {
 		const result = assetFormSchema.safeParse({
 			...validFormValues,

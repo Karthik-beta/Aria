@@ -33,6 +33,7 @@ import {
 	DepreciationMethodInlineCard,
 	DepreciationMethodLabel,
 } from "@/components/asset/depreciation-method-doc-guide";
+import { CompanySearchSelect } from "@/components/asset/server-backed-selectors";
 import { BarcodeScannerDialog } from "@/components/barcode-scanner-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -78,6 +79,11 @@ function isTRPCClientError(
 	return error instanceof TRPCClientError;
 }
 
+const optionalDateOnlyFormSchema = z
+	.union([z.iso.date(), z.literal("")])
+	.optional()
+	.nullable();
+
 export const assetFormSchema = z
 	.object({
 		assetName: z.string().min(1, "Asset name is required").max(255),
@@ -95,15 +101,15 @@ export const assetFormSchema = z
 		maintenanceRequired: z.boolean(),
 		status: z.string(),
 		netPurchaseAmount: z.string().optional().nullable(),
-		purchaseDate: z.iso.date().optional().nullable(),
-		availableForUseDate: z.iso.date().optional().nullable(),
+		purchaseDate: optionalDateOnlyFormSchema,
+		availableForUseDate: optionalDateOnlyFormSchema,
 		purchaseReceipt: z.string().max(255).optional().nullable(),
 		purchaseInvoice: z.string().max(255).optional().nullable(),
 		policyNumber: z.string().max(255).optional().nullable(),
 		insurer: z.string().max(255).optional().nullable(),
 		insuredValue: z.string().optional().nullable(),
-		insuranceStartDate: z.iso.date().optional().nullable(),
-		insuranceEndDate: z.iso.date().optional().nullable(),
+		insuranceStartDate: optionalDateOnlyFormSchema,
+		insuranceEndDate: optionalDateOnlyFormSchema,
 		assetOwner: z.string(),
 		assetOwnerCompany: z.string().max(255).optional().nullable(),
 		supplier: z.string().max(255).optional().nullable(),
@@ -112,7 +118,7 @@ export const assetFormSchema = z
 		totalNumberOfDepreciations: z.string().optional().nullable(),
 		frequencyOfDepreciation: z.string().optional().nullable(),
 		expectedValueAfterUsefulLife: z.string().optional().nullable(),
-		depreciationStartDate: z.iso.date().optional().nullable(),
+		depreciationStartDate: optionalDateOnlyFormSchema,
 		openingAccumulatedDepreciation: z.string().optional().nullable(),
 		openingNumberOfBookedDepreciations: z.string().optional().nullable(),
 		financeBooks: z
@@ -463,7 +469,6 @@ function AssetFormContent() {
 	const [_isPending, startTransition] = React.useTransition();
 	const [categoryOpen, setCategoryOpen] = React.useState(false);
 	const [locationOpen, setLocationOpen] = React.useState(false);
-	const [companyOpen, setCompanyOpen] = React.useState(false);
 	const [scannerOpen, setScannerOpen] = React.useState(false);
 
 	const { data: categoriesData } = trpc.asset.listAssetCategories.useQuery(
@@ -475,13 +480,6 @@ function AssetFormContent() {
 		staleTime: 30_000,
 	});
 	const locations = locationsData?.items ?? [];
-	const { data: companiesData } = trpc.company.listCompanies.useQuery(
-		undefined,
-		{
-			staleTime: 30_000,
-		},
-	);
-	const companies = companiesData?.items ?? [];
 	const { data: financeBooksData } = trpc.asset.listFinanceBooks.useQuery(
 		{ take: 250 },
 		{ staleTime: 30_000 },
@@ -974,47 +972,14 @@ function AssetFormContent() {
 								name="companyId"
 								control={form.control}
 								render={({ field }) => (
-									<Popover open={companyOpen} onOpenChange={setCompanyOpen}>
-										<PopoverTrigger asChild>
-											<Button
-												id="company"
-												type="button"
-												variant="outline"
-												className={`h-10 w-full justify-between font-normal ${formErrors.companyId ? "border-destructive" : ""}`}
-											>
-												<span className="truncate">
-													{companies.find(
-														(company) => company.id === field.value,
-													)?.name || "Select company…"}
-												</span>
-												<ChevronDown className="h-4 w-4 opacity-50" />
-											</Button>
-										</PopoverTrigger>
-										<PopoverContent
-											className="p-0 pointer-events-auto"
-											style={{ width: "var(--radix-popover-trigger-width)" }}
-										>
-											<Command>
-												<CommandInput placeholder="Search companies…" />
-												<CommandList>
-													<CommandEmpty>No companies found</CommandEmpty>
-													<CommandGroup>
-														{companies.map((comp) => (
-															<CommandItem
-																key={comp.id}
-																onSelect={() => {
-																	field.onChange(comp.id);
-																	setCompanyOpen(false);
-																}}
-															>
-																{comp.name}
-															</CommandItem>
-														))}
-													</CommandGroup>
-												</CommandList>
-											</Command>
-										</PopoverContent>
-									</Popover>
+									<CompanySearchSelect
+										id="company"
+										value={field.value}
+										onValueChange={field.onChange}
+										selectedLabel={rawAsset?.company ?? undefined}
+										placeholder="Select company…"
+										disabled={watchedStatus !== "DRAFT"}
+									/>
 								)}
 							/>
 							{formErrors.companyId && (

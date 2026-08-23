@@ -11,6 +11,7 @@ import {
 	downloadExcelBuffer,
 	useAdvancedDataTable,
 } from "@/components/advanced-data-table";
+import { CompanySearchSelect } from "@/components/asset/server-backed-selectors";
 import { Button } from "@/components/ui/button";
 import {
 	Card,
@@ -109,24 +110,11 @@ function SummaryCard(props: {
 export default function FixedAssetRegisterReportPage() {
 	const [filters, setFilters] =
 		React.useState<FixedAssetRegisterFilterState>(INITIAL_FILTERS);
-	const { data: companiesData } = trpc.company.listCompanies.useQuery(
-		undefined,
-		{ staleTime: 30_000 },
-	);
-	const companies = React.useMemo(
-		() => companiesData?.items.filter((company) => !company.disabled) ?? [],
-		[companiesData?.items],
-	);
 	const { data: financeBooksData } = trpc.asset.listFinanceBooks.useQuery(
 		{ companyId: filters.companyId || undefined, take: 250 },
 		{ enabled: Boolean(filters.companyId), staleTime: 30_000 },
 	);
 	const financeBooks = financeBooksData?.items ?? [];
-
-	React.useEffect(() => {
-		if (filters.companyId || companies.length === 0) return;
-		setFilters((current) => ({ ...current, companyId: companies[0].id }));
-	}, [companies, filters.companyId]);
 
 	const updateFilter = React.useCallback(
 		<Key extends keyof FixedAssetRegisterFilterState>(
@@ -207,9 +195,14 @@ export default function FixedAssetRegisterReportPage() {
 		exportMutation.mutate(queryInput);
 	}, [dateError, exportMutation, filters.companyId, queryInput]);
 
-	const rows: Asset.FixedAssetRegisterRow[] = data?.rows ?? [];
-	const chartPoints: Asset.FixedAssetRegisterChartPoint[] =
-		data?.chartPoints ?? [];
+	const rows = React.useMemo<Asset.FixedAssetRegisterRow[]>(
+		() => data?.rows ?? [],
+		[data?.rows],
+	);
+	const chartPoints = React.useMemo<Asset.FixedAssetRegisterChartPoint[]>(
+		() => data?.chartPoints ?? [],
+		[data?.chartPoints],
+	);
 	const summary =
 		data?.summary ??
 		({
@@ -407,7 +400,7 @@ export default function FixedAssetRegisterReportPage() {
 					</CardTitle>
 				</CardHeader>
 				<CardContent>
-					<div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-8">
+					<div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-8">
 						<div className="flex flex-col gap-1.5">
 							<Label htmlFor="groupBy" className="text-xs">
 								Group By
@@ -435,21 +428,12 @@ export default function FixedAssetRegisterReportPage() {
 							<Label htmlFor="company" className="text-xs">
 								Company
 							</Label>
-							<Select
-								value={filters.companyId || undefined}
+							<CompanySearchSelect
+								id="company"
+								value={filters.companyId}
 								onValueChange={handleCompanyChange}
-							>
-								<SelectTrigger id="company" className="h-9">
-									<SelectValue placeholder="Select Company" />
-								</SelectTrigger>
-								<SelectContent>
-									{companies.map((company) => (
-										<SelectItem key={company.id} value={company.id}>
-											{company.name}
-										</SelectItem>
-									))}
-								</SelectContent>
-							</Select>
+								placeholder="Select Company"
+							/>
 						</div>
 
 						<div className="flex flex-col gap-1.5">

@@ -4,13 +4,6 @@ const mockHandlerFn = mock((_req: Request) =>
 	Promise.resolve(new Response(JSON.stringify({}), { status: 200 })),
 );
 
-mock.module("../auth.config", () => ({
-	auth: {
-		handler: (_req: Request) => mockHandlerFn(_req),
-	},
-	Auth: {} as never,
-}));
-
 const mockPrismaUserFindFirst = mock((_args?: unknown) =>
 	Promise.resolve<unknown>(null),
 );
@@ -31,10 +24,7 @@ const mockPrismaObj = {
 	},
 };
 
-mock.module("../shared/prisma-client.js", () => ({
-	prismaClient: mockPrismaObj,
-}));
-
+import { auth } from "../auth.config.js";
 import { AuthService } from "../auth.service.js";
 
 /**
@@ -46,11 +36,17 @@ import { AuthService } from "../auth.service.js";
  */
 describe("AuthService", () => {
 	let service: AuthService;
+	const originalAuthHandler = auth.handler;
 
 	const originalEnv = { ...process.env };
 
 	beforeEach(() => {
 		service = Object.create(AuthService.prototype) as AuthService;
+		Object.defineProperty(auth, "handler", {
+			configurable: true,
+			writable: true,
+			value: (request: Request) => mockHandlerFn(request),
+		});
 		// biome-ignore lint/suspicious/noExplicitAny: accessing private helpers
 		(service as any).prisma = mockPrismaObj;
 		// biome-ignore lint/suspicious/noExplicitAny: accessing private helpers
@@ -68,6 +64,11 @@ describe("AuthService", () => {
 	});
 
 	afterEach(() => {
+		Object.defineProperty(auth, "handler", {
+			configurable: true,
+			writable: true,
+			value: originalAuthHandler,
+		});
 		process.env = { ...originalEnv };
 		mockPrismaConnect.mockClear();
 		mockPrismaUserFindFirst.mockClear();

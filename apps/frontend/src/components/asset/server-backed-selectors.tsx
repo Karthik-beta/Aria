@@ -41,6 +41,7 @@ export type AssetSelectorItem = Pick<
 >;
 
 type ServerBackedSelectProps<T extends IdentifiedOption> = {
+	id?: string;
 	value: string | null | undefined;
 	onValueChange: (value: string) => void;
 	items: T[];
@@ -61,6 +62,7 @@ type ServerBackedSelectProps<T extends IdentifiedOption> = {
 };
 
 function ServerBackedSelect<T extends IdentifiedOption>({
+	id,
 	value,
 	onValueChange,
 	items,
@@ -103,6 +105,7 @@ function ServerBackedSelect<T extends IdentifiedOption>({
 		<Popover open={open} onOpenChange={setOpen}>
 			<PopoverTrigger asChild>
 				<Button
+					id={id}
 					type="button"
 					variant="outline"
 					className="h-10 w-full justify-between font-normal"
@@ -373,12 +376,14 @@ export function LocationSearchSelect({
 
 /** Selects an organization-scoped Company through server search and pagination. */
 export function CompanySearchSelect({
+	id,
 	value,
 	onValueChange,
 	selectedLabel,
 	placeholder = "Select company",
 	disabled,
 }: {
+	id?: string;
 	value: string | null | undefined;
 	onValueChange: (value: string) => void;
 	selectedLabel?: string;
@@ -412,6 +417,7 @@ export function CompanySearchSelect({
 
 	return (
 		<ServerBackedSelect
+			id={id}
 			value={value}
 			onValueChange={onValueChange}
 			items={items}
