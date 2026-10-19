@@ -9,7 +9,11 @@
 
 import { buildIndianFiscalYears } from "../../src/apps/asset/depreciation/demo-data.utils.js";
 import type { PrismaService } from "../../src/shared/prisma.service.js";
-import { ASSET_CATEGORIES, ASSET_LOCATIONS } from "./asset-data.js";
+import {
+	ASSET_CATEGORIES,
+	ASSET_EMPLOYEES,
+	ASSET_LOCATIONS,
+} from "./asset-data.js";
 import type { DemoConfig } from "./config.js";
 
 const DEMO_ASSET_CATEGORY_NAMES = ASSET_CATEGORIES.map(
@@ -26,6 +30,9 @@ function flattenAssetLocationNames(
 }
 
 const DEMO_ASSET_LOCATION_NAMES = flattenAssetLocationNames(ASSET_LOCATIONS);
+const DEMO_ASSET_EMPLOYEE_IDS = ASSET_EMPLOYEES.map(
+	(employee) => employee.employeeId,
+);
 
 /**
  * Remove all demo data. Returns a summary of deleted record counts.
@@ -88,6 +95,12 @@ export async function cleanDemoData(
 	await del("AssetCategory", () =>
 		prisma.assetCategory.deleteMany({
 			where: { name: { in: DEMO_ASSET_CATEGORY_NAMES } },
+		}),
+	);
+
+	await del("Employee", () =>
+		prisma.employee.deleteMany({
+			where: { employeeId: { in: DEMO_ASSET_EMPLOYEE_IDS } },
 		}),
 	);
 
@@ -263,6 +276,7 @@ export async function getDemoStatus(
 		deliveryTrips,
 		installationNotes,
 		subcontractingOrders,
+		assetEmployees,
 		assetLocations,
 		assetCategories,
 		assets,
@@ -296,6 +310,9 @@ export async function getDemoStatus(
 		prisma.deliveryTrip.count({ where: { company } }),
 		prisma.installationNote.count({ where: { company } }),
 		prisma.subcontractingOrder.count({ where: { company } }),
+		prisma.employee.count({
+			where: { employeeId: { in: DEMO_ASSET_EMPLOYEE_IDS } },
+		}),
 		prisma.location.count({
 			where: { name: { in: DEMO_ASSET_LOCATION_NAMES } },
 		}),
@@ -377,6 +394,7 @@ export async function getDemoStatus(
 		deliveryTrips,
 		installationNotes,
 		subcontractingOrders,
+		assetEmployees,
 		assetLocations,
 		assetCategories,
 		assets,

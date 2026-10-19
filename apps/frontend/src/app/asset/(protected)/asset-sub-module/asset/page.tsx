@@ -416,13 +416,13 @@ export default function AssetListPage() {
 			},
 			{
 				id: "custodian",
-				accessorFn: (row) => row.custodian ?? "",
+				accessorFn: (row) => row.custodianName ?? "",
 				header: ({ column }) => (
 					<DataTableColumnHeader column={column} title="Custodian" />
 				),
 				cell: ({ row }) => (
 					<span className="text-sm text-muted-foreground">
-						{row.original.custodian ?? "—"}
+						{row.original.custodianName ?? "—"}
 					</span>
 				),
 				meta: {

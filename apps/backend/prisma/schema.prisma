@@ -1549,6 +1549,32 @@ model Location {
   @@map("locations")
 }
 
+enum EmployeeStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  LEFT
+}
+
+/// Minimal Employee master (ERPNext `Employee` doctype) used as the link
+/// target for an asset's custodian.
+model Employee {
+  id              String         @id @default(cuid())
+  employeeId      String         @unique @db.VarChar(50)
+  employeeName    String         @db.VarChar(255)
+  company         String?        @db.VarChar(255)
+  department      String?        @db.VarChar(255)
+  designation     String?        @db.VarChar(255)
+  status          EmployeeStatus @default(ACTIVE)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  custodianAssets Asset[]        @relation("AssetCustodian")
+
+  @@index([employeeName])
+  @@index([status])
+  @@map("employees")
+}
+
 model AssetCategory {
   id                            String              @id @default(cuid())
   name                          String              @unique @db.VarChar(255)
@@ -1582,7 +1608,8 @@ model Asset {
   company                            String              @db.VarChar(255)
   locationId                         String?
   location                           Location?           @relation(fields: [locationId], references: [id])
-  custodian                          String?             @db.VarChar(255)
+  custodianId                        String?
+  custodian                          Employee?           @relation("AssetCustodian", fields: [custodianId], references: [id], onDelete: SetNull)
   department                         String?             @db.VarChar(255)
   purchaseDate                       DateTime
   availableForUseDate                DateTime?
@@ -1627,6 +1654,7 @@ model Asset {
   @@index([itemCode])
   @@index([company])
   @@index([locationId])
+  @@index([custodianId])
   @@index([assetCategoryId])
   @@index([purchaseDate])
   @@map("assets")
