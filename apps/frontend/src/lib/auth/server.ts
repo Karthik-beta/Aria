@@ -18,6 +18,16 @@ function getBackendUrl() {
 	return baseUrl.replace(/\/$/, "");
 }
 
+/**
+ * Forward the browser's X-Forwarded-For (set by Caddy) on server-side auth
+ * calls so the backend rate-limits them per real client instead of per
+ * Next.js server. The backend only trusts it from private-network peers.
+ */
+export async function getForwardedForHeader(): Promise<Record<string, string>> {
+	const forwardedFor = (await headers()).get("x-forwarded-for");
+	return forwardedFor ? { "x-forwarded-for": forwardedFor } : {};
+}
+
 function isAuthSessionData(value: unknown): value is AuthSessionData {
 	if (typeof value !== "object" || value === null) {
 		return false;
@@ -56,6 +66,7 @@ async function fetchBackendSession(): Promise<AuthSessionData | null> {
 		headers: {
 			"Content-Type": "application/json",
 			cookie: cookieHeader,
+			...(await getForwardedForHeader()),
 		},
 		cache: "no-store",
 	});
@@ -155,6 +166,7 @@ export const getActiveOrganization = cache(
 					headers: {
 						"Content-Type": "application/json",
 						cookie: cookieHeader,
+						...(await getForwardedForHeader()),
 					},
 					cache: "no-store",
 				},
@@ -195,6 +207,7 @@ export const getMemberRole = cache(async (): Promise<string | null> => {
 				headers: {
 					"Content-Type": "application/json",
 					cookie: cookieHeader,
+					...(await getForwardedForHeader()),
 				},
 				cache: "no-store",
 			},

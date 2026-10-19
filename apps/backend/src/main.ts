@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { logger } from "@aria/utils";
 import { NestFactory } from "@nestjs/core";
+import type { NestExpressApplication } from "@nestjs/platform-express";
 import * as trpcExpress from "@trpc/server/adapters/express";
 import { applyWSSHandler } from "@trpc/server/adapters/ws";
 import { toNodeHandler } from "better-auth/node";
@@ -9,6 +10,7 @@ import { config } from "dotenv";
 import { WebSocketServer } from "ws";
 import { AppModule } from "./app.module";
 import { auth } from "./auth/auth.config";
+import { clientIpMiddleware, resolveTrustedProxies } from "./auth/client-ip";
 import { TrpcContext } from "./trpc/trpc.context";
 import { TrpcService } from "./trpc/trpc.service";
 
@@ -102,7 +104,7 @@ async function bootstrap() {
 	 * Per @thallesp/nestjs-better-auth official docs, we must disable NestJS's
 	 * built-in body parser to allow Better Auth to handle request bodies correctly.
 	 */
-	const app = await NestFactory.create(AppModule, {
+	const app = await NestFactory.create<NestExpressApplication>(AppModule, {
 		bodyParser: false, // Required for Better Auth's Node handler
 	});
 
@@ -172,9 +174,16 @@ async function bootstrap() {
 	const appRouter = trpcService.getAppRouter();
 
 	/**
-	 * Mount Better Auth at /api/auth using the official Node integration.
+	 * Trust X-Forwarded-For only from proxy hops (Caddy, the Next.js server) so
+	 * req.ip is the real client IP and cannot be spoofed by direct callers.
 	 */
-	app.use("/api/auth", toNodeHandler(auth));
+	app.set("trust proxy", resolveTrustedProxies());
+
+	/**
+	 * Mount Better Auth at /api/auth using the official Node integration.
+	 * clientIpMiddleware hands Better Auth the trusted client IP for rate limiting.
+	 */
+	app.use("/api/auth", clientIpMiddleware, toNodeHandler(auth));
 
 	/**
 	 * Mount tRPC adapter at /trpc

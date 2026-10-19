@@ -8,6 +8,7 @@ import { admin } from "better-auth/plugins/admin";
 import { customSession } from "better-auth/plugins/custom-session";
 import { username } from "better-auth/plugins/username";
 import { prismaClient } from "../shared/prisma-client.js";
+import { CLIENT_IP_HEADER } from "./client-ip.js";
 import { ac as orgAc, orgAdmin, orgMember, orgOwner } from "./permissions.js";
 
 // Use the shared Prisma client singleton
@@ -267,6 +268,13 @@ export const auth = betterAuth({
 	advanced: {
 		// Control secure cookie behavior — enabled in production or when backend URL is HTTPS
 		useSecureCookies,
+
+		// Rate limiting keys on the client IP. Read it only from the header that
+		// clientIpMiddleware (main.ts) overwrites with Express's trusted req.ip,
+		// never from raw X-Forwarded-For, which direct callers could spoof.
+		ipAddress: {
+			ipAddressHeaders: [CLIENT_IP_HEADER],
+		},
 
 		// Global cookie attributes for cross-site cookies
 		defaultCookieAttributes: {
