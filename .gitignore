@@ -35,6 +35,7 @@ rustc-ice-*.txt
 !.env.example
 !.env.development.template
 !.env.production.template
+deployment/local/aria-local.override.env
 
 # IDE and Editor files
 .vscode/

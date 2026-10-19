@@ -1,0 +1,199 @@
+# Docker Compose configuration for a local, self-contained demo 🖥️
+#
+# Production builds of the frontend and backend on http://localhost with
+# preloaded settings (deployment/local/aria-local.env) and demo data.
+# Windows: run .\aria-local.cmd (or aria-local.ps1) from the repository root.
+# Anywhere:
+#   docker compose --env-file deployment/local/aria-local.env -f docker-compose.local.yml up -d --build
+#
+# Startup order: postgres/redis -> migrate -> demo-data -> backend -> frontend -> caddy
+
+x-backend-build: &backend-build
+  context: .
+  dockerfile: apps/backend/Dockerfile
+  target: runner
+
+x-backend-env: &backend-env
+  NODE_ENV: production
+  DATABASE_URL: postgresql://${POSTGRES_USER:-aria}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/${POSTGRES_DB:-aria}
+  REDIS_URL: redis://redis:6379
+  REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+  APP_TIME_ZONE: ${APP_TIME_ZONE:-Asia/Kolkata}
+  ASSET_DEPRECIATION_QUEUE_CONCURRENCY: ${ASSET_DEPRECIATION_QUEUE_CONCURRENCY:-5}
+  ASSET_DEPRECIATION_BARRIER_TIMEOUT_MS: ${ASSET_DEPRECIATION_BARRIER_TIMEOUT_MS:-300000}
+
+services:
+  # Caddy reverse proxy (plain HTTP, single origin) 🔀
+  caddy:
+    image: caddy:2.10.2-alpine@sha256:4c6e91c6ed0e2fa03efd5b44747b625fec79bc9cd06ac5235a779726618e530d
+    restart: unless-stopped
+    ports:
+      - '${ARIA_HTTP_PORT:-80}:80'
+    volumes:
+      - ./deployment/local/Caddyfile.local:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    networks:
+      - aria-local
+    depends_on:
+      frontend:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+
+  # Frontend (Next.js production build) ✨
+  frontend:
+    build:
+      context: .
+      dockerfile: apps/frontend/Dockerfile
+      target: runner
+      args:
+        - NODE_ENV=production
+        # Empty = same-origin requests through Caddy
+        - NEXT_PUBLIC_API_URL=
+    image: aria-local-frontend:latest
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      HOSTNAME: 0.0.0.0
+      BACKEND_URL: http://backend:3001
+      NEXT_PUBLIC_API_URL: ${ARIA_PUBLIC_URL:-http://localhost}
+      NEXT_TELEMETRY_DISABLED: 1
+    networks:
+      - aria-local
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "const request=require('http').get('http://localhost:3000/ready/',(response)=>process.exit(response.statusCode===200?0:1));request.on('error',()=>process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 40s
+
+  # One-shot: apply Prisma migrations 🗄️
+  migrate:
+    build: *backend-build
+    image: aria-local-backend:latest
+    restart: 'no'
+    environment:
+      <<: *backend-env
+    networks:
+      - aria-local
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ['bun', 'run', 'db:migrate:deploy']
+
+  # One-shot: load demo data into a fresh database (skipped once loaded) 📦
+  demo-data:
+    build: *backend-build
+    image: aria-local-backend:latest
+    restart: 'no'
+    environment:
+      <<: *backend-env
+      DEMO_DATA_ENABLED: ${DEMO_DATA_ENABLED:-true}
+      DEMO_DATA_SCALE: ${DEMO_DATA_SCALE:-small}
+      DEMO_DATA_FORCE: ${DEMO_DATA_FORCE:-false}
+    volumes:
+      - ./deployment/local/load-demo-data.ts:/app/apps/backend/scripts/load-demo-data.ts:ro
+    networks:
+      - aria-local
+    depends_on:
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    command: ['bun', 'scripts/load-demo-data.ts']
+
+  # Backend (NestJS production build) 🚀
+  backend:
+    build: *backend-build
+    image: aria-local-backend:latest
+    restart: unless-stopped
+    environment:
+      <<: *backend-env
+      PORT: 3001
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?BETTER_AUTH_SECRET is required}
+      BETTER_AUTH_URL: ${ARIA_PUBLIC_URL:-http://localhost}
+      FRONTEND_URL: ${ARIA_PUBLIC_URL:-http://localhost}
+      DEFAULT_ADMIN_USERNAME: ${DEFAULT_ADMIN_USERNAME:-admin}
+      DEFAULT_ADMIN_PASSWORD: ${DEFAULT_ADMIN_PASSWORD:?DEFAULT_ADMIN_PASSWORD is required}
+      DEFAULT_ADMIN_EMAIL: ${DEFAULT_ADMIN_EMAIL:-admin@aria.local}
+      DEFAULT_ADMIN_NAME: ${DEFAULT_ADMIN_NAME:-Administrator}
+      DEFAULT_ORG_NAME: ${DEFAULT_ORG_NAME:-Aria ERP}
+      DEFAULT_ORG_SLUG: ${DEFAULT_ORG_SLUG:-aria-erp}
+    networks:
+      - aria-local
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      demo-data:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ['CMD', 'curl', '-fsS', 'http://localhost:3001/health/ready']
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 60s
+
+  # PostgreSQL 🐘
+  postgres:
+    image: postgres:18-alpine@sha256:54451ecb8ab38c24c3ec123f2fd501303a3a1856a5c66e98cecf2460d5e1e9d7
+    restart: unless-stopped
+    ports:
+      # Localhost only, for DB tools
+      - '127.0.0.1:${ARIA_POSTGRES_PORT:-5433}:5432'
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-aria}
+      POSTGRES_USER: ${POSTGRES_USER:-aria}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_INITDB_ARGS: --encoding=UTF-8 --lc-collate=en_US.UTF-8 --lc-ctype=en_US.UTF-8
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    networks:
+      - aria-local
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -d "$${POSTGRES_DB}" -U "$${POSTGRES_USER}"']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  # Redis (BullMQ queues) ⚡
+  redis:
+    image: redis:7-alpine@sha256:7aec734b2bb298a1d769fd8729f13b8514a41bf90fcdd1f38ec52267fbaa8ee6
+    restart: unless-stopped
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+    volumes:
+      - redis-data:/data
+    networks:
+      - aria-local
+    healthcheck:
+      test: ['CMD-SHELL', 'REDISCLI_AUTH="$${REDIS_PASSWORD}" redis-cli ping | grep -q PONG']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    command:
+      - /bin/sh
+      - -c
+      - exec redis-server --appendonly yes --maxmemory-policy noeviction --requirepass "$${REDIS_PASSWORD}"
+
+volumes:
+  postgres-data:
+  redis-data:
+  caddy-data:
+  caddy-config:
+
+networks:
+  aria-local:
+    driver: bridge

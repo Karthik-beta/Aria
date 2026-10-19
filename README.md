@@ -54,6 +54,12 @@ bun --filter frontend dev       # Frontend on port 3000
 
 See the [Getting Started Guide](./docs/01-getting-started/README.md) for detailed instructions including database setup.
 
+### Local Docker demo (Windows)
+
+With Docker Desktop running, double-click `aria-local.cmd` (or run `.\aria-local.cmd`).
+It builds and starts the full stack on `http://localhost` with preloaded settings and
+demo data. Sign in as `admin` / `Admin@123`. See [deployment/local](./deployment/local/README.md).
+
 ## Development Commands
 
 | Command              | Description                          |
@@ -85,6 +91,7 @@ See the [Getting Started Guide](./docs/01-getting-started/README.md) for detaile
 ### Deployment
 
 - **[Deployment Guide](./docs/05-deployment/README.md)** — Production deployment with Docker and Caddy
+- **[Local Docker demo](./deployment/local/README.md)** — One-command Windows/Docker Desktop setup with demo data
 
 ### Contributing
 
