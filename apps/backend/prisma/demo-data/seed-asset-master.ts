@@ -7,6 +7,7 @@ import { buildDepreciationSchedule } from "../../src/apps/asset/depreciation/dep
 import type { PrismaService } from "../../src/shared/prisma.service.js";
 import {
 	ASSET_CATEGORIES,
+	ASSET_EMPLOYEES,
 	ASSET_LOCATIONS,
 	ASSET_MAINTENANCE_TEAMS,
 	ASSET_REGISTER,
@@ -98,6 +99,21 @@ export async function seedAssetMasterData(
 	}
 
 	await createLocations(ASSET_LOCATIONS, null);
+
+	const employeeIds = new Map<string, string>();
+	for (const employee of ASSET_EMPLOYEES) {
+		const created = await prisma.employee.create({
+			data: {
+				employeeId: employee.employeeId,
+				employeeName: employee.employeeName,
+				company: config.company,
+				department: employee.department,
+				designation: employee.designation,
+				status: employee.status ?? "ACTIVE",
+			},
+		});
+		employeeIds.set(employee.employeeId, created.id);
+	}
 
 	for (const category of ASSET_CATEGORIES) {
 		const created = await prisma.assetCategory.create({
@@ -271,7 +287,9 @@ export async function seedAssetMasterData(
 				locationId: assetDef.location
 					? (ids.assetLocationIds.get(assetDef.location) ?? null)
 					: null,
-				custodian: assetDef.custodian ?? null,
+				custodianId: assetDef.custodian
+					? (employeeIds.get(assetDef.custodian) ?? null)
+					: null,
 				department: assetDef.department ?? null,
 				purchaseDate,
 				availableForUseDate,

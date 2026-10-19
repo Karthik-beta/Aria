@@ -70,6 +70,27 @@ const mockLocations = [
 	},
 ];
 
+const mockEmployees = [
+	{
+		id: "clhEmp001",
+		employeeId: "HR-EMP-00001",
+		employeeName: "John Doe",
+		company: "Test Company",
+		department: "Operations",
+		designation: "Fleet Supervisor",
+		status: "ACTIVE",
+	},
+	{
+		id: "clhEmp002",
+		employeeId: "HR-EMP-00002",
+		employeeName: "Asha Iyer",
+		company: "Test Company",
+		department: "Finance",
+		designation: "Asset Accountant",
+		status: "ACTIVE",
+	},
+];
+
 const existingAsset = {
 	id: "clhAsset001",
 	series: "AST-2026-00001",
@@ -80,7 +101,9 @@ const existingAsset = {
 	company: "Test Company",
 	locationId: "clh789loc",
 	locationName: "Head Office",
-	custodian: "John Doe",
+	custodianId: "clhEmp001",
+	custodianEmployeeId: "HR-EMP-00001",
+	custodianName: "John Doe",
 	department: "Operations",
 	purchaseDate: new Date("2026-01-15"),
 	availableForUseDate: new Date("2026-02-01"),
@@ -211,6 +234,12 @@ vi.mock("@/lib/trpc", () => ({
 			listLocations: {
 				useQuery: () => ({
 					data: { items: mockLocations },
+					isLoading: false,
+				}),
+			},
+			listEmployees: {
+				useQuery: () => ({
+					data: { items: mockEmployees, totalCount: mockEmployees.length },
 					isLoading: false,
 				}),
 			},
@@ -420,6 +449,17 @@ describe("AssetFormPage", () => {
 		});
 	});
 
+	it("shows the linked custodian employee in edit mode", async () => {
+		currentId = existingAsset.id;
+		renderWithProviders(<AssetFormPage />);
+
+		await waitFor(() => {
+			expect(
+				screen.getByRole("button", { name: /Custodian/i }),
+			).toHaveTextContent("John Doe (HR-EMP-00001)");
+		});
+	});
+
 	it("shows depreciation fields in edit mode even if Calculate Depreciation was false on asset", async () => {
 		currentId = existingAsset.id;
 		renderWithProviders(<AssetFormPage />);
@@ -461,6 +501,43 @@ describe("AssetFormPage", () => {
 		expect(screen.getByLabelText(/Custodian/i)).toBeInTheDocument();
 		expect(screen.getByLabelText(/Department/i)).toBeInTheDocument();
 		expect(document.getElementById("company")).toBeInTheDocument();
+	});
+
+	it("renders the custodian as an employee dropdown", async () => {
+		const user = userEvent.setup();
+		renderWithProviders(<AssetFormPage />);
+
+		expect(screen.getByText("Select employee…")).toBeInTheDocument();
+		await user.click(screen.getByRole("button", { name: /Custodian/i }));
+
+		expect(await screen.findByText("John Doe")).toBeInTheDocument();
+		expect(screen.getByText("Asha Iyer")).toBeInTheDocument();
+		expect(
+			screen.getByText("HR-EMP-00002 · Asset Accountant"),
+		).toBeInTheDocument();
+	});
+
+	it("submits the selected employee as the custodian link", async () => {
+		const user = userEvent.setup();
+		renderWithProviders(<AssetFormPage />);
+
+		await user.type(screen.getByLabelText(/Asset Name/i), "Test Asset");
+		await user.click(screen.getByRole("button", { name: /company/i }));
+		await user.click(await screen.findByText("Test Company"));
+		await user.click(screen.getByRole("button", { name: /Custodian/i }));
+		await user.click(await screen.findByText("Asha Iyer"));
+
+		expect(
+			screen.getByRole("button", { name: /Custodian/i }),
+		).toHaveTextContent("Asha Iyer (HR-EMP-00002)");
+
+		await user.click(screen.getByRole("button", { name: /Create Asset/i }));
+
+		await waitFor(() => {
+			expect(mockCreateMutate).toHaveBeenCalledWith(
+				expect.objectContaining({ custodianId: "clhEmp002" }),
+			);
+		});
 	});
 
 	it("renders Purchase & Valuation fields", () => {

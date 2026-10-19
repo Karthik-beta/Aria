@@ -5868,6 +5868,25 @@ export namespace Asset {
 		updatedAt: Date;
 	}
 
+	export const employeeStatusSchema = z.enum([
+		"ACTIVE",
+		"INACTIVE",
+		"SUSPENDED",
+		"LEFT",
+	]);
+	export type EmployeeStatus = z.infer<typeof employeeStatusSchema>;
+
+	/** Employee lookup used for the asset custodian link field. */
+	export interface Employee {
+		id: string;
+		employeeId: string;
+		employeeName: string;
+		company?: string | null;
+		department?: string | null;
+		designation?: string | null;
+		status: EmployeeStatus;
+	}
+
 	export interface AssetCategory {
 		id: string;
 		name: string;
@@ -5958,7 +5977,11 @@ export namespace Asset {
 		company: string;
 		locationId?: string | null;
 		locationName?: string | null;
-		custodian?: string | null;
+		/** Employee record id (ERPNext `custodian` Link → Employee). */
+		custodianId?: string | null;
+		/** Employee number of the custodian, e.g. `HR-EMP-00001`. */
+		custodianEmployeeId?: string | null;
+		custodianName?: string | null;
 		department?: string | null;
 		purchaseDate?: Date | null;
 		availableForUseDate?: Date | null;
@@ -6003,6 +6026,11 @@ export namespace Asset {
 
 	export interface LocationListResult {
 		items: Location[];
+		totalCount: number;
+	}
+
+	export interface EmployeeListResult {
+		items: Employee[];
 		totalCount: number;
 	}
 
@@ -6107,7 +6135,7 @@ export namespace Asset {
 		assetCategoryId?: string | null;
 		company: string;
 		locationId?: string | null;
-		custodian?: string | null;
+		custodianId?: string | null;
 		department?: string | null;
 		purchaseDate?: Date | null;
 		availableForUseDate?: Date | null;
@@ -6146,7 +6174,7 @@ export namespace Asset {
 		assetCategoryId?: string | null;
 		company?: string;
 		locationId?: string | null;
-		custodian?: string | null;
+		custodianId?: string | null;
 		department?: string | null;
 		purchaseDate?: Date | null;
 		availableForUseDate?: Date | null;
@@ -6203,6 +6231,16 @@ export namespace Asset {
 		})
 		.optional();
 	export type ListLocationsInput = z.infer<typeof listLocationsSchema>;
+
+	export const listEmployeesSchema = z
+		.object({
+			skip: z.number().int().min(0).optional(),
+			take: z.number().int().min(1).max(250).optional(),
+			search: z.string().max(255).trim().optional(),
+			status: employeeStatusSchema.optional(),
+		})
+		.optional();
+	export type ListEmployeesInput = z.infer<typeof listEmployeesSchema>;
 
 	export const listAssetCategoriesSchema = z
 		.object({
@@ -6276,7 +6314,7 @@ export namespace Asset {
 		assetCategoryId: z.string().cuid().optional().nullable(),
 		company: z.string().min(1, "Company is required").max(255).trim(),
 		locationId: z.string().cuid().optional().nullable(),
-		custodian: z.string().max(255).trim().optional().nullable(),
+		custodianId: z.string().cuid().optional().nullable(),
 		department: z.string().max(255).trim().optional().nullable(),
 		purchaseDate: z.coerce.date().optional().nullable(),
 		availableForUseDate: z.coerce.date().optional().nullable(),
@@ -6322,7 +6360,7 @@ export namespace Asset {
 		assetCategoryId: assetInputFields.assetCategoryId,
 		company: assetInputFields.company.optional(),
 		locationId: assetInputFields.locationId,
-		custodian: assetInputFields.custodian,
+		custodianId: assetInputFields.custodianId,
 		department: assetInputFields.department,
 		purchaseDate: assetInputFields.purchaseDate,
 		availableForUseDate: assetInputFields.availableForUseDate,

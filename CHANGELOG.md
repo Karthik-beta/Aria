@@ -24,3 +24,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Backend `trpc.inventory.getDashboardData` endpoint for stock KPIs, warehouse stock distribution, low-stock alerts, batch expiry insights, and delivery status
 - Frontend dashboard utilities and insight helpers in `apps/frontend/src/app/inventory/dashboard/overview/dashboard.utils.ts` plus unit tests
 - E2E coverage for inventory dashboard route and rendering: `apps/frontend/e2e/inventory-dashboard.spec.ts`
+- Asset custodian is now a link to an `Employee` master (ERPNext parity): searchable employee dropdown on the asset form, `trpc.asset.listEmployees` lookup, demo employees, and "Asset issued to / returned from Employee" entries in the Asset Activity report when the custodian is set or changed

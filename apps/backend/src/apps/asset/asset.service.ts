@@ -61,12 +61,21 @@ import { DepreciationBarrierService } from "./depreciation/depreciation-barrier.
 const LIST_TAKE_MAX = 250;
 const CURRENCY_SCALE = 6;
 
+type AssetCustodian = {
+	id: string;
+	employeeId: string;
+	employeeName: string;
+};
+
 @Injectable()
 export class AssetService {
 	private readonly logger = new Logger(AssetService.name);
 	private readonly assetInclude = {
 		assetCategory: { select: { id: true, name: true } },
 		location: { select: { id: true, name: true } },
+		custodian: {
+			select: { id: true, employeeId: true, employeeName: true },
+		},
 		activities: { orderBy: { createdAt: "desc" as const } },
 		financeBooks: {
 			include: { financeBook: { select: { name: true } } },
@@ -301,6 +310,56 @@ export class AssetService {
 			),
 			0,
 		);
+	}
+
+	/**
+	 * Resolves the custodian Employee link, mirroring ERPNext's Link validation
+	 * and Asset Movement's `validate_employee` company check.
+	 */
+	private async resolveCustodian(
+		custodianId: string | null | undefined,
+		company: string,
+	): Promise<AssetCustodian | null> {
+		if (!custodianId) return null;
+
+		const employee = await this.prisma.employee.findUnique({
+			where: { id: custodianId },
+			select: {
+				id: true,
+				employeeId: true,
+				employeeName: true,
+				company: true,
+			},
+		});
+		if (!employee) {
+			throw new NotFoundException(`Employee ${custodianId} not found`);
+		}
+		if (employee.company && employee.company !== company) {
+			throw new BadRequestException(
+				`Employee ${employee.employeeId} does not belong to company ${company}`,
+			);
+		}
+
+		return employee;
+	}
+
+	/**
+	 * Builds the Asset Activity line for a custodian change, following the
+	 * wording ERPNext's Asset Movement logs via `add_asset_activity`.
+	 */
+	private custodianActivity(
+		previous: AssetCustodian | null,
+		next: AssetCustodian | null,
+	): string {
+		const label = (employee: AssetCustodian) =>
+			`${employee.employeeName} (${employee.employeeId})`;
+
+		if (next) {
+			return `Asset issued to Employee ${label(next)}`;
+		}
+		return previous
+			? `Asset returned from Employee ${label(previous)}`
+			: "Asset custodian cleared";
 	}
 
 	private getLastDayOfMonth(date: Date): Date {
@@ -715,7 +774,16 @@ export class AssetService {
 				{ series: { contains: params.search, mode: "insensitive" } },
 				{ assetName: { contains: params.search, mode: "insensitive" } },
 				{ itemCode: { contains: params.search, mode: "insensitive" } },
-				{ custodian: { contains: params.search, mode: "insensitive" } },
+				{
+					custodian: {
+						employeeName: { contains: params.search, mode: "insensitive" },
+					},
+				},
+				{
+					custodian: {
+						employeeId: { contains: params.search, mode: "insensitive" },
+					},
+				},
 				{ department: { contains: params.search, mode: "insensitive" } },
 			];
 		}
@@ -767,6 +835,11 @@ export class AssetService {
 				);
 			}
 		}
+
+		const custodian = await this.resolveCustodian(
+			input.custodianId,
+			input.company,
+		);
 
 		const purchaseDate =
 			input.purchaseDate instanceof Date ? input.purchaseDate : new Date();
@@ -840,7 +913,7 @@ export class AssetService {
 				assetCategoryId: input.assetCategoryId ?? null,
 				company: input.company,
 				locationId: input.locationId ?? null,
-				custodian: input.custodian ?? null,
+				custodianId: custodian?.id ?? null,
 				department: input.department ?? null,
 				purchaseDate,
 				availableForUseDate,
@@ -894,6 +967,15 @@ export class AssetService {
 			},
 		});
 
+		if (custodian) {
+			await this.prisma.assetActivity.create({
+				data: {
+					assetId: created.id,
+					activity: this.custodianActivity(null, custodian),
+				},
+			});
+		}
+
 		const asset = await this.prisma.asset.findUniqueOrThrow({
 			where: { id: created.id },
 			include: this.assetInclude,
@@ -909,7 +991,11 @@ export class AssetService {
 			select: {
 				id: true,
 				status: true,
+				company: true,
 				assetCategoryId: true,
+				custodian: {
+					select: { id: true, employeeId: true, employeeName: true },
+				},
 				netPurchaseAmount: true,
 				openingAccumulatedDepreciation: true,
 				calculateDepreciation: true,
@@ -938,6 +1024,16 @@ export class AssetService {
 		if (existing.status === "CANCELLED") {
 			throw new BadRequestException("Cannot update a cancelled asset");
 		}
+
+		const custodianChanged =
+			input.custodianId !== undefined &&
+			(input.custodianId ?? null) !== (existing.custodian?.id ?? null);
+		const nextCustodian = custodianChanged
+			? await this.resolveCustodian(
+					input.custodianId,
+					input.company ?? existing.company,
+				)
+			: null;
 
 		const depreciationCriticalEdit = [
 			input.assetCategoryId,
@@ -1057,7 +1153,7 @@ export class AssetService {
 				}),
 				...(input.company !== undefined && { company: input.company }),
 				...(input.locationId !== undefined && { locationId: input.locationId }),
-				...(input.custodian !== undefined && { custodian: input.custodian }),
+				...(custodianChanged && { custodianId: nextCustodian?.id ?? null }),
 				...(input.department !== undefined && { department: input.department }),
 				...(input.purchaseDate instanceof Date && {
 					purchaseDate: input.purchaseDate,
@@ -1199,6 +1295,15 @@ export class AssetService {
 		await this.prisma.assetActivity.create({
 			data: { assetId: input.id, activity: "Asset updated" },
 		});
+
+		if (custodianChanged) {
+			await this.prisma.assetActivity.create({
+				data: {
+					assetId: input.id,
+					activity: this.custodianActivity(existing.custodian, nextCustodian),
+				},
+			});
+		}
 
 		if (existing.status === "DRAFT" && input.financeBooks !== undefined) {
 			await this.depreciationLifecycle?.configureAssetBooks(
@@ -2316,6 +2421,46 @@ export class AssetService {
 		]);
 
 		return { items: items.map(toAssetLocation), totalCount };
+	}
+
+	async findAllEmployees(
+		params?: Asset.ListEmployeesInput,
+	): Promise<Asset.EmployeeListResult> {
+		const skip = Math.max(params?.skip ?? 0, 0);
+		const take = Math.min(
+			Math.max(params?.take ?? LIST_TAKE_MAX, 1),
+			LIST_TAKE_MAX,
+		);
+
+		const where: Record<string, unknown> = {};
+		if (params?.status) where.status = params.status;
+		if (params?.search) {
+			where.OR = [
+				{ employeeId: { contains: params.search, mode: "insensitive" } },
+				{ employeeName: { contains: params.search, mode: "insensitive" } },
+			];
+		}
+
+		const [items, totalCount] = await Promise.all([
+			this.prisma.employee.findMany({
+				where,
+				select: {
+					id: true,
+					employeeId: true,
+					employeeName: true,
+					company: true,
+					department: true,
+					designation: true,
+					status: true,
+				},
+				orderBy: { employeeName: "asc" },
+				skip,
+				take,
+			}),
+			this.prisma.employee.count({ where }),
+		]);
+
+		return { items, totalCount };
 	}
 
 	async findLocationById(id: string): Promise<Asset.Location | null> {

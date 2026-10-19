@@ -80,12 +80,21 @@ export interface AssetValueAdjustmentSeedDef {
 	cancelledOffsetDays?: number;
 }
 
+export interface AssetEmployeeDef {
+	employeeId: string;
+	employeeName: string;
+	department: string;
+	designation: string;
+	status?: Asset.EmployeeStatus;
+}
+
 export interface AssetSeedDef {
 	key: string;
 	assetName: string;
 	itemCode: string;
 	assetCategory: string;
 	location: string | null;
+	/** Employee number (`ASSET_EMPLOYEES[].employeeId`) of the custodian. */
 	custodian?: string | null;
 	department?: string | null;
 	purchaseOffsetDays: number;
@@ -113,6 +122,91 @@ export interface AssetSeedDef {
 	activityNotes: AssetActivitySeedDef[];
 	maintenancePlan?: AssetMaintenancePlanDef;
 	valueAdjustments?: AssetValueAdjustmentSeedDef[];
+}
+
+/** Employee master used as the Link target for asset custodians. */
+export const ASSET_EMPLOYEES: AssetEmployeeDef[] = [
+	{
+		employeeId: "HR-EMP-00001",
+		employeeName: "Harsha Rao",
+		department: "Manufacturing Engineering",
+		designation: "Production Engineer",
+	},
+	{
+		employeeId: "HR-EMP-00002",
+		employeeName: "Priyanka Narayan",
+		department: "Quality Assurance",
+		designation: "Quality Assurance Lead",
+	},
+	{
+		employeeId: "HR-EMP-00003",
+		employeeName: "Ritika Menon",
+		department: "Field Solutions",
+		designation: "Field Service Engineer",
+	},
+	{
+		employeeId: "HR-EMP-00004",
+		employeeName: "Sandeep Reddy",
+		department: "Warehouse Operations",
+		designation: "Warehouse Supervisor",
+	},
+	{
+		employeeId: "HR-EMP-00005",
+		employeeName: "Akash Prabhu",
+		department: "IT Infrastructure",
+		designation: "IT Administrator",
+	},
+	{
+		employeeId: "HR-EMP-00006",
+		employeeName: "Lakshmi Narayanan",
+		department: "Facilities & Utilities",
+		designation: "Facilities Manager",
+	},
+	{
+		employeeId: "HR-EMP-00007",
+		employeeName: "Amit Kulkarni",
+		department: "Plant Maintenance",
+		designation: "Maintenance Manager",
+	},
+	{
+		employeeId: "HR-EMP-00008",
+		employeeName: "Meghana Rao",
+		department: "Quality Assurance",
+		designation: "Calibration Manager",
+	},
+	{
+		employeeId: "HR-EMP-00009",
+		employeeName: "Naveen Kumar",
+		department: "Plant Maintenance",
+		designation: "Maintenance Technician",
+	},
+	{
+		employeeId: "HR-EMP-00010",
+		employeeName: "Arun Prasad",
+		department: "Quality Assurance",
+		designation: "Quality Technician",
+	},
+	{
+		employeeId: "HR-EMP-00011",
+		employeeName: "Divya Shetty",
+		department: "Finance & Accounts",
+		designation: "Asset Accountant",
+	},
+	{
+		employeeId: "HR-EMP-00012",
+		employeeName: "Rahul Deshpande",
+		department: "Administration",
+		designation: "Office Administrator",
+		status: "LEFT",
+	},
+];
+
+export function formatAssetEmployeeLabel(employeeId: string): string {
+	const employee = ASSET_EMPLOYEES.find((def) => def.employeeId === employeeId);
+	if (!employee) {
+		throw new Error(`Unknown demo employee ${employeeId}`);
+	}
+	return `${employee.employeeName} (${employee.employeeId})`;
 }
 
 export const ASSET_LOCATIONS: AssetLocationDef[] = [
@@ -301,7 +395,7 @@ export const ASSET_REGISTER: AssetSeedDef[] = [
 		itemCode: "FA-SMT-PLACER-01",
 		assetCategory: "SMT & PCB Assembly Equipment",
 		location: "Peenya Production Floor",
-		custodian: "Harsha Rao",
+		custodian: "HR-EMP-00001",
 		department: "Manufacturing Engineering",
 		purchaseOffsetDays: -540,
 		availableForUseOffsetDays: -523,
@@ -405,7 +499,7 @@ export const ASSET_REGISTER: AssetSeedDef[] = [
 		itemCode: "FA-REFLOW-OVEN-02",
 		assetCategory: "SMT & PCB Assembly Equipment",
 		location: "Peenya Production Floor",
-		custodian: "Harsha Rao",
+		custodian: "HR-EMP-00001",
 		department: "Manufacturing Engineering",
 		purchaseOffsetDays: -480,
 		availableForUseOffsetDays: -462,
@@ -519,7 +613,7 @@ export const ASSET_REGISTER: AssetSeedDef[] = [
 		itemCode: "FA-FLYING-PROBE-01",
 		assetCategory: "Test & Calibration Instruments",
 		location: "Whitefield QC Hold Area",
-		custodian: "Priyanka Narayan",
+		custodian: "HR-EMP-00002",
 		department: "Quality Assurance",
 		purchaseOffsetDays: -420,
 		availableForUseOffsetDays: -405,
@@ -606,7 +700,7 @@ export const ASSET_REGISTER: AssetSeedDef[] = [
 		itemCode: "FA-ENV-CHAMBER-01",
 		assetCategory: "Test & Calibration Instruments",
 		location: "Whitefield Reliability Lab",
-		custodian: "Priyanka Narayan",
+		custodian: "HR-EMP-00002",
 		department: "Quality Assurance",
 		purchaseOffsetDays: -300,
 		availableForUseOffsetDays: -288,
@@ -716,7 +810,7 @@ export const ASSET_REGISTER: AssetSeedDef[] = [
 		itemCode: "FA-REF-MULTI-01",
 		assetCategory: "Test & Calibration Instruments",
 		location: "Whitefield Reliability Lab",
-		custodian: "Priyanka Narayan",
+		custodian: "HR-EMP-00002",
 		department: "Quality Assurance",
 		purchaseOffsetDays: -360,
 		availableForUseOffsetDays: -340,
@@ -771,7 +865,7 @@ export const ASSET_REGISTER: AssetSeedDef[] = [
 		itemCode: "KIT-LORA-GW",
 		assetCategory: "Demo & Field Deployment Systems",
 		location: null,
-		custodian: "Ritika Menon",
+		custodian: "HR-EMP-00003",
 		department: "Field Solutions",
 		purchaseOffsetDays: 42,
 		availableForUseOffsetDays: 48,
@@ -807,7 +901,7 @@ export const ASSET_REGISTER: AssetSeedDef[] = [
 		itemCode: "FA-HHT-SCANNER-01",
 		assetCategory: "Warehouse & Material Handling Assets",
 		location: "Ambattur Distribution Centre",
-		custodian: "Sandeep Reddy",
+		custodian: "HR-EMP-00004",
 		department: "Warehouse Operations",
 		purchaseOffsetDays: -760,
 		availableForUseOffsetDays: -748,
@@ -837,7 +931,7 @@ export const ASSET_REGISTER: AssetSeedDef[] = [
 		itemCode: "FA-ENG-WS-03",
 		assetCategory: "IT Infrastructure & End-User Devices",
 		location: "Electronic City Integration Lab",
-		custodian: "Akash Prabhu",
+		custodian: "HR-EMP-00005",
 		department: "IT Infrastructure",
 		purchaseOffsetDays: -950,
 		availableForUseOffsetDays: -942,
@@ -860,7 +954,7 @@ export const ASSET_REGISTER: AssetSeedDef[] = [
 		itemCode: "FA-EDGE-SERVER-01",
 		assetCategory: "IT Infrastructure & End-User Devices",
 		location: "Electronic City Integration Lab",
-		custodian: "Akash Prabhu",
+		custodian: "HR-EMP-00005",
 		department: "IT Infrastructure",
 		purchaseOffsetDays: -120,
 		availableForUseOffsetDays: -110,
@@ -914,7 +1008,7 @@ export const ASSET_REGISTER: AssetSeedDef[] = [
 		itemCode: "FA-UPS-160KVA-01",
 		assetCategory: "Utilities & Power Backup Systems",
 		location: "Peenya Production Floor",
-		custodian: "Lakshmi Narayanan",
+		custodian: "HR-EMP-00006",
 		department: "Facilities & Utilities",
 		purchaseOffsetDays: -650,
 		availableForUseOffsetDays: -636,
@@ -1011,7 +1105,7 @@ export const ASSET_REGISTER: AssetSeedDef[] = [
 		itemCode: "FA-DG-CONTROL-01",
 		assetCategory: "Utilities & Power Backup Systems",
 		location: "Peenya Production Floor",
-		custodian: "Lakshmi Narayanan",
+		custodian: "HR-EMP-00006",
 		department: "Facilities & Utilities",
 		purchaseOffsetDays: -580,
 		availableForUseOffsetDays: -575,
@@ -1067,7 +1161,7 @@ export const ASSET_REGISTER: AssetSeedDef[] = [
 		itemCode: "FA-CAL-TROLLEY-01",
 		assetCategory: "Demo & Field Deployment Systems",
 		location: "Patancheru Field Support Desk",
-		custodian: "Ritika Menon",
+		custodian: "HR-EMP-00003",
 		department: "Field Solutions",
 		purchaseOffsetDays: 105,
 		availableForUseOffsetDays: 112,
@@ -1107,7 +1201,7 @@ export const ASSET_REGISTER: AssetSeedDef[] = [
 		itemCode: "FA-FORKLIFT-2T-01",
 		assetCategory: "Warehouse & Material Handling Assets",
 		location: "Ambattur Distribution Centre",
-		custodian: "Sandeep Reddy",
+		custodian: "HR-EMP-00004",
 		department: "Warehouse Operations",
 		purchaseOffsetDays: -700,
 		availableForUseOffsetDays: -688,
@@ -1175,7 +1269,7 @@ export const ASSET_REGISTER: AssetSeedDef[] = [
 		itemCode: "FA-AOI-MIC-01",
 		assetCategory: "Test & Calibration Instruments",
 		location: "Whitefield Reliability Lab",
-		custodian: "Priyanka Narayan",
+		custodian: "HR-EMP-00002",
 		department: "Quality Assurance",
 		purchaseOffsetDays: 63,
 		availableForUseOffsetDays: 68,

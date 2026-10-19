@@ -83,7 +83,7 @@ const assetFormSchema = z
 		barcode: z.string().max(255).optional().nullable(),
 		assetCategoryId: z.string().optional().nullable(),
 		locationId: z.string().optional().nullable(),
-		custodian: z.string().max(255).optional().nullable(),
+		custodianId: z.string().optional().nullable(),
 		department: z.string().max(255).optional().nullable(),
 		assetQuantity: z.number().int().min(1),
 		calculateDepreciation: z.boolean(),
@@ -271,7 +271,7 @@ const defaultFormValues: AssetFormValues = {
 	barcode: "",
 	assetCategoryId: "",
 	locationId: "",
-	custodian: "",
+	custodianId: "",
 	department: "",
 	assetQuantity: 1,
 	calculateDepreciation: false,
@@ -325,6 +325,7 @@ function AssetFormContent() {
 	const [_isPending, startTransition] = React.useTransition();
 	const [categoryOpen, setCategoryOpen] = React.useState(false);
 	const [locationOpen, setLocationOpen] = React.useState(false);
+	const [custodianOpen, setCustodianOpen] = React.useState(false);
 	const [companyOpen, setCompanyOpen] = React.useState(false);
 	const [scannerOpen, setScannerOpen] = React.useState(false);
 	const [hasUnsavedChanges, setHasUnsavedChanges] = React.useState(false);
@@ -339,6 +340,11 @@ function AssetFormContent() {
 		staleTime: 30_000,
 	});
 	const locations = locationsData?.items ?? [];
+	const { data: employeesData } = trpc.asset.listEmployees.useQuery(
+		{ status: "ACTIVE" },
+		{ staleTime: 30_000 },
+	);
+	const employees = employeesData?.items ?? [];
 	const { data: companiesData } = trpc.company.listCompanies.useQuery(
 		undefined,
 		{
@@ -395,7 +401,7 @@ function AssetFormContent() {
 			barcode: rawAsset.barcode ?? "",
 			assetCategoryId: rawAsset.assetCategoryId ?? "",
 			locationId: rawAsset.locationId ?? "",
-			custodian: rawAsset.custodian ?? "",
+			custodianId: rawAsset.custodianId ?? "",
 			department: rawAsset.department ?? "",
 			assetQuantity: rawAsset.assetQuantity,
 			calculateDepreciation: rawAsset.calculateDepreciation,
@@ -593,7 +599,7 @@ function AssetFormContent() {
 			barcode: values.barcode?.trim() || null,
 			assetCategoryId: values.assetCategoryId || null,
 			locationId: values.locationId || null,
-			custodian: values.custodian?.trim() || null,
+			custodianId: values.custodianId || null,
 			department: values.department?.trim() || null,
 			assetQuantity: values.assetQuantity,
 			calculateDepreciation: values.calculateDepreciation,
@@ -682,7 +688,7 @@ function AssetFormContent() {
 							itemCode: common.itemCode,
 							barcode: common.barcode,
 							locationId: common.locationId,
-							custodian: common.custodian,
+							custodianId: common.custodianId,
 							department: common.department,
 							assetQuantity: common.assetQuantity,
 							maintenanceRequired: common.maintenanceRequired,
@@ -763,6 +769,18 @@ function AssetFormContent() {
 	const selectedLocation = locations.find(
 		(l) => l.id === form.watch("locationId"),
 	);
+
+	const selectedCustodianId = form.watch("custodianId");
+	const selectedCustodian = employees.find(
+		(employee) => employee.id === selectedCustodianId,
+	);
+	// Inactive employees are not offered in the dropdown, but an asset that
+	// already references one must still show who holds it.
+	const selectedCustodianLabel = selectedCustodian
+		? `${selectedCustodian.employeeName} (${selectedCustodian.employeeId})`
+		: selectedCustodianId && rawAsset?.custodianId === selectedCustodianId
+			? `${rawAsset.custodianName} (${rawAsset.custodianEmployeeId})`
+			: null;
 
 	const formErrors = form.formState.errors;
 
@@ -1024,10 +1042,74 @@ function AssetFormContent() {
 
 						<div className="space-y-2">
 							<Label htmlFor="custodian">Custodian</Label>
-							<Input
-								id="custodian"
-								placeholder="Person responsible"
-								{...form.register("custodian")}
+							<Controller
+								name="custodianId"
+								control={form.control}
+								render={({ field }) => (
+									<Popover open={custodianOpen} onOpenChange={setCustodianOpen}>
+										<PopoverTrigger asChild>
+											<Button
+												id="custodian"
+												type="button"
+												variant="outline"
+												className="h-10 w-full justify-between font-normal"
+											>
+												<span className="truncate">
+													{selectedCustodianLabel ?? "Select employee…"}
+												</span>
+												<ChevronDown className="h-4 w-4 opacity-50" />
+											</Button>
+										</PopoverTrigger>
+										<PopoverContent
+											className="p-0 pointer-events-auto"
+											style={{ width: "var(--radix-popover-trigger-width)" }}
+										>
+											<Command>
+												<CommandInput placeholder="Search employees…" />
+												<CommandList>
+													<CommandEmpty>No employees found</CommandEmpty>
+													<CommandGroup>
+														{field.value ? (
+															<CommandItem
+																value="__clear_custodian__"
+																onSelect={() => {
+																	field.onChange("");
+																	setCustodianOpen(false);
+																}}
+															>
+																<span className="text-muted-foreground">
+																	No custodian
+																</span>
+															</CommandItem>
+														) : null}
+														{employees.map((employee) => (
+															<CommandItem
+																key={employee.id}
+																value={`${employee.employeeName} ${employee.employeeId}`}
+																onSelect={() => {
+																	field.onChange(employee.id);
+																	setCustodianOpen(false);
+																}}
+															>
+																<div className="flex min-w-0 flex-col">
+																	<span className="truncate">
+																		{employee.employeeName}
+																	</span>
+																	<span className="truncate text-muted-foreground text-xs">
+																		{employee.employeeId}
+																		{employee.designation
+																			? ` · ${employee.designation}`
+																			: ""}
+																	</span>
+																</div>
+															</CommandItem>
+														))}
+													</CommandGroup>
+												</CommandList>
+											</Command>
+										</PopoverContent>
+									</Popover>
+								)}
 							/>
 						</div>
 
