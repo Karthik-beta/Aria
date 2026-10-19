@@ -138,8 +138,10 @@ start retries (the loader clears partial demo data first).
   (Docker Desktop > Settings > Resources, or `memory=6GB` in `%UserProfile%\.wslconfig`).
 - **"Switch to Linux containers"**: right-click the Docker tray icon and
   switch to Linux containers.
-- **Demo data load failed**: check `.\aria-local.cmd logs -Service demo-data`,
-  then run `.\aria-local.cmd start` again; it retries.
+- **Demo data load failed**: the loader's output is printed in the window just
+  above the error (the failed one-shot container is removed, so
+  `logs -Service demo-data` has nothing to show). Fix the cause, then run
+  `.\aria-local.cmd start` again; it retries.
 - **Login does nothing / logs out immediately**: use `http://localhost`, not
   `127.0.0.1`. If you changed the port, sign in again on the new URL.
 - **Start over**: `.\aria-local.cmd reset -Force`.
