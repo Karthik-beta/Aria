@@ -139,7 +139,7 @@ function Assert-Compose([int]$ExitCode, [string]$What) {
         Write-Host ''
         Write-Warn 'Container status:'
         Invoke-Compose ps -a | Out-Null
-        Stop-WithError "$What failed (exit code $ExitCode). See the output above, or run: .\aria-local.cmd logs"
+        Stop-WithError "$What failed (exit code $ExitCode). See the output above; for running services: .\aria-local.cmd logs -Service <name>"
     }
 }
 
