@@ -41,7 +41,7 @@ param(
     [ValidateSet('start', 'stop', 'restart', 'status', 'logs', 'update', 'backup', 'restore', 'reload-demo', 'reset', 'open', 'uninstall', 'help')]
     [string]$Command = 'start',
 
-    # Host port for http://localhost:<Port>. Default: ARIA_HTTP_PORT from the env file (80).
+    # Host port for http://localhost:<Port>. Default: ARIA_HTTP_PORT from the env file (8080).
     [int]$Port = 0,
 
     # Demo data scale for this run: small | medium | large
@@ -85,6 +85,12 @@ param(
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
+
+# Docker output is piped through Out-Host, so Compose's interactive progress
+# display cannot take over the console and `build` fails with "failed to get
+# console: The handle is invalid". Plain progress works piped or not.
+$env:COMPOSE_PROGRESS = 'plain'
+$env:BUILDKIT_PROGRESS = 'plain'
 
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $ComposeFile = Join-Path $RepoRoot 'docker-compose.local.yml'
@@ -310,7 +316,7 @@ function Set-AppUrl([int]$PortNumber) {
 # Picks the host port, then exports ARIA_HTTP_PORT / ARIA_PUBLIC_URL so they
 # override the env file (shell variables win in Compose interpolation).
 function Resolve-Port {
-    $configured = [int](Get-Setting 'ARIA_HTTP_PORT' '80')
+    $configured = [int](Get-Setting 'ARIA_HTTP_PORT' '8080')
     $running = Get-RunningProxyPort
 
     if ($Port -gt 0) {
@@ -327,11 +333,11 @@ function Resolve-Port {
     }
     else {
         $selected = 0
-        foreach ($candidate in @(8080, 8081, 8088, 8888, 9080)) {
+        foreach ($candidate in @(8081, 8082, 8088, 8888, 9080)) {
             if (-not (Test-PortInUse $candidate)) { $selected = $candidate; break }
         }
         if ($selected -eq 0) { Stop-WithError "Port $configured is in use. Choose a free port with -Port <number>." }
-        Write-Warn "Port $configured is in use (IIS, Skype, another web server?). Using port $selected instead."
+        Write-Warn "Port $configured is in use (another web server or dev tool?). Using port $selected instead."
     }
 
     $script:HttpPort = $selected
@@ -511,6 +517,12 @@ function Remove-RollbackImages {
     }
 }
 
+# Removes the project's untagged images: the previous build after an update,
+# or the failed build after a rollback.
+function Remove-DanglingImages {
+    [void](Test-DockerCommand image prune -f --filter "label=com.docker.compose.project=$(Get-ProjectName)")
+}
+
 # Removes an image reference unless a container (from any project) uses it.
 function Remove-ImageIfUnused([string]$Reference) {
     if (-not (Test-Image $Reference)) { return }
@@ -533,7 +545,18 @@ function Invoke-Start {
     Resolve-Port
     Set-RunOverrides
 
-    if (-not $NoBuild) {
+    $build = -not $NoBuild
+    if (-not $build) {
+        foreach ($image in $BuiltImages) {
+            if (-not (Test-Image "${image}:latest")) {
+                Write-Warn "Image ${image}:latest is missing, building it even though -NoBuild was given"
+                $build = $true
+                break
+            }
+        }
+    }
+
+    if ($build) {
         Write-Step 'Building images (the first build takes 10-20 minutes)'
         $buildCode = Invoke-Compose build
         if ($buildCode -ne 0) {
@@ -742,9 +765,7 @@ function Invoke-Update {
     $exitCode = Invoke-Self @('start')
     if ($exitCode -eq 0) {
         Remove-RollbackImages
-        $ErrorActionPreference = 'Continue'
-        & docker image prune -f --filter "label=com.docker.compose.project=$(Get-ProjectName)" *> $null
-        $ErrorActionPreference = 'Stop'
+        Remove-DanglingImages
         Write-Ok "Updated to $newShort"
         if ($backupName -ne '') { Write-Info "Pre-update backup: deployment\local\backups\$backupName" }
         $running = Get-RunningProxyPort
@@ -767,6 +788,7 @@ function Invoke-Update {
         Stop-WithError "Update failed and the rollback did not finish. Code is back at $oldShort; restore the data with: .\aria-local.cmd restore -File $backupName"
     }
     Remove-RollbackImages
+    Remove-DanglingImages
     Stop-WithError "Update to $newShort failed; Aria was rolled back to $oldShort and is running. See the output above for the cause."
 }
 
@@ -793,7 +815,8 @@ function Invoke-Uninstall {
     foreach ($image in $BuiltImages) {
         foreach ($tag in @('latest', 'rollback')) { Remove-ImageIfUnused "${image}:$tag" }
     }
-    foreach ($image in (Get-DockerOutput image ls -q --filter $label | Sort-Object -Unique)) { Remove-ImageIfUnused $image }
+    # -a: Docker 29 hides untagged images (e.g. a rolled-back build) without it.
+    foreach ($image in (Get-DockerOutput image ls -a -q --filter $label | Sort-Object -Unique)) { Remove-ImageIfUnused $image }
     foreach ($image in $pulledImages) { Remove-ImageIfUnused $image }
 
     # Docker keeps one build cache for every project, so it cannot be cleared
@@ -832,6 +855,7 @@ function Invoke-Uninstall {
     foreach ($image in $BuiltImages) {
         $leftovers += @(Get-DockerOutput image ls $image --format 'image {{.Repository}}:{{.Tag}}')
     }
+    $leftovers += @(Get-DockerOutput image ls -a --filter $label --filter dangling=true --format 'image {{.ID}} (untagged)')
 
     if ($leftovers.Count -gt 0) {
         Write-Warn 'Some Aria resources are still present:'

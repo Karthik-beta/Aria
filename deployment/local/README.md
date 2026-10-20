@@ -2,7 +2,7 @@
 
 Run the full Aria ERP stack on one Windows machine with Docker Desktop, with
 settings, demo data and scheduled jobs already in place. The app runs as
-production builds behind Caddy on `http://localhost`.
+production builds behind Caddy on `http://localhost:8080`.
 
 ## Requirements
 
@@ -25,7 +25,8 @@ The script will:
 
 1. Start Docker Desktop if it is not running and check it uses Linux containers,
    enough memory and enough disk
-2. Pick port 80, or fall back to 8080/8081/... when 80 is taken
+2. Use port 8080 (port 80 is usually taken on Windows), or fall back to
+   8081/8082/... when 8080 is in use too
 3. Build the backend and frontend images (10-20 minutes the first time,
    retried once if the build fails)
 4. Start PostgreSQL and Redis, then apply the Prisma migrations
@@ -40,11 +41,11 @@ Sign in with:
 
 | Field    | Value                                 |
 | -------- | ------------------------------------- |
-| URL      | `http://localhost` (or the port shown) |
+| URL      | `http://localhost:8080` (or the port shown) |
 | Username | `admin`                               |
-| Password | `Admin@123`                           |
+| Password | `admin123`                            |
 
-Open the app at `http://localhost`, not `127.0.0.1` or a LAN IP: auth
+Open the app at `http://localhost:8080`, not `127.0.0.1` or a LAN IP: auth
 cookies are issued for `localhost`. The proxy listens on `127.0.0.1` only, so
 the demo is not reachable from other machines.
 
@@ -91,7 +92,7 @@ Options:
 
 | Option            | Effect                                                    |
 | ----------------- | --------------------------------------------------------- |
-| `-Port 8080`      | Serve on `http://localhost:8080`                          |
+| `-Port 9090`      | Serve on `http://localhost:9090` instead of 8080          |
 | `-Scale large`    | Demo data size for this load: `small`, `medium`, `large`  |
 | `-NoDemoData`     | Start a fresh database without demo data                  |
 | `-NoBuild`        | Reuse the images that are already built                   |
@@ -131,7 +132,7 @@ One command does the whole update:
 6. On success, removes the restore-point images and dangling old images. On
    failure, rolls back automatically: the previous commit, the
    previous images and the pre-update backup, then starts the old version
-   again.
+   again and removes the images the failed build left behind.
 
 Updates only fast-forward. If the local branch has its own commits, `update`
 stops and leaves it to you.
@@ -163,8 +164,8 @@ database but keeps the backups folder, so you can restore after a reset.
 Removes, after a confirmation (`-Force` skips it):
 
 - All Aria containers, the network and the data volumes (database, Redis, Caddy)
-- The built images (`aria-local-backend`, `aria-local-frontend`, and any
-  restore-point images)
+- The built images (`aria-local-backend`, `aria-local-frontend`, any
+  restore-point images and untagged builds left by an earlier update)
 - The pinned PostgreSQL, Redis and Caddy images, unless a container from
   another project still uses them
 - `deployment\local\backups` (keep it with `-KeepBackups`) and
@@ -193,7 +194,7 @@ with just the keys you want to change:
 ```ini
 DEFAULT_ADMIN_PASSWORD=MyLocalPassword1
 DEMO_DATA_SCALE=large
-ARIA_HTTP_PORT=8080
+ARIA_HTTP_PORT=9090
 BACKUP_SCHEDULE=30 21 * * *
 BACKUP_RETENTION=14
 ```
@@ -238,8 +239,8 @@ loader clears partial demo data first).
 
 ## Troubleshooting
 
-- **Port 80 in use**: the script falls back to another port automatically,
-  or pass `-Port 8080`.
+- **Port 8080 in use**: the script falls back to another port automatically,
+  or pass `-Port 9090`.
 - **Build killed / exit code 137**: give Docker more memory
   (Docker Desktop > Settings > Resources, or `memory=6GB` in `%UserProfile%\.wslconfig`).
 - **"Switch to Linux containers"**: right-click the Docker tray icon and
@@ -252,6 +253,6 @@ loader clears partial demo data first).
   finish. A lock left by a closed window is cleared automatically.
 - **Update stops on uncommitted changes**: move your edits to
   `aria-local.override.env`, or commit/discard them.
-- **Login does nothing / logs out immediately**: use `http://localhost`, not
+- **Login does nothing / logs out immediately**: use `http://localhost:8080` (or the port shown), not
   `127.0.0.1`. If you changed the port, sign in again on the new URL.
 - **Start over**: `.\aria-local.cmd reset -Force`.

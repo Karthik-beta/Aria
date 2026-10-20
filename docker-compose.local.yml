@@ -1,6 +1,6 @@
 # Docker Compose configuration for a local, self-contained demo 🖥️
 #
-# Production builds of the frontend and backend on http://localhost with
+# Production builds of the frontend and backend on http://localhost:8080 with
 # preloaded settings (deployment/local/aria-local.env) and demo data.
 # Windows: run .\aria-local.cmd (or aria-local.ps1) from the repository root.
 # Anywhere:
@@ -31,7 +31,7 @@ services:
     restart: unless-stopped
     ports:
       # Localhost only: the demo ships with throwaway credentials
-      - '127.0.0.1:${ARIA_HTTP_PORT:-80}:80'
+      - '127.0.0.1:${ARIA_HTTP_PORT:-8080}:80'
     volumes:
       - ./deployment/local/Caddyfile.local:/etc/caddy/Caddyfile:ro
       - caddy-data:/data
@@ -60,7 +60,7 @@ services:
       NODE_ENV: production
       HOSTNAME: 0.0.0.0
       BACKEND_URL: http://backend:3001
-      NEXT_PUBLIC_API_URL: ${ARIA_PUBLIC_URL:-http://localhost}
+      NEXT_PUBLIC_API_URL: ${ARIA_PUBLIC_URL:-http://localhost:8080}
       NEXT_TELEMETRY_DISABLED: 1
     networks:
       - aria-local
@@ -125,8 +125,8 @@ services:
       <<: *backend-env
       PORT: 3001
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?BETTER_AUTH_SECRET is required}
-      BETTER_AUTH_URL: ${ARIA_PUBLIC_URL:-http://localhost}
-      FRONTEND_URL: ${ARIA_PUBLIC_URL:-http://localhost}
+      BETTER_AUTH_URL: ${ARIA_PUBLIC_URL:-http://localhost:8080}
+      FRONTEND_URL: ${ARIA_PUBLIC_URL:-http://localhost:8080}
       DEFAULT_ADMIN_USERNAME: ${DEFAULT_ADMIN_USERNAME:-admin}
       DEFAULT_ADMIN_PASSWORD: ${DEFAULT_ADMIN_PASSWORD:?DEFAULT_ADMIN_PASSWORD is required}
       DEFAULT_ADMIN_EMAIL: ${DEFAULT_ADMIN_EMAIL:-admin@aria.local}
