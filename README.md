@@ -57,8 +57,10 @@ See the [Getting Started Guide](./docs/01-getting-started/README.md) for detaile
 ### Local Docker demo (Windows)
 
 With Docker Desktop running, double-click `aria-local.cmd` (or run `.\aria-local.cmd`).
-It builds and starts the full stack on `http://localhost` with preloaded settings and
-demo data. Sign in as `admin` / `Admin@123`. See [deployment/local](./deployment/local/README.md).
+It builds and starts the full stack on `http://localhost` with preloaded settings,
+medium-scale demo data and nightly backups. Sign in as `admin` / `Admin@123`.
+Later, `.\aria-local.cmd update` pulls and applies the latest version (rolling back on failure)
+and `.\aria-local.cmd uninstall` removes everything. See [deployment/local](./deployment/local/README.md).
 
 ## Development Commands
 
