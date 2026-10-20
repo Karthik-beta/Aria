@@ -26,8 +26,8 @@ The script will:
 1. Start Docker Desktop if it is not running and check it uses Linux containers,
    enough memory and enough disk
 2. Pick port 80, or fall back to 8080/8081/... when 80 is taken
-3. Build the backend and frontend images (10-20 minutes the first time) using
-   a dedicated build cache, `aria-local`
+3. Build the backend and frontend images (10-20 minutes the first time,
+   retried once if the build fails)
 4. Start PostgreSQL and Redis, then apply the Prisma migrations
 5. Load the **medium** demo dataset (Pivotr Technologies inventory and asset
    data) into a fresh database, once
@@ -100,6 +100,7 @@ Options:
 | `-File <name>`    | Backup to restore (a name in `deployment\local\backups`, or a path) |
 | `-Branch <name>`  | Branch `update` follows (default `master`)                |
 | `-KeepBackups`    | `uninstall` keeps `deployment\local\backups`              |
+| `-PruneBuildCache` | `uninstall` also clears Docker's (shared) build cache without asking |
 
 Demo data is loaded only into a database that does not have it yet. To change
 the scale of an existing install, use `reload-demo -Scale large` or
@@ -127,8 +128,8 @@ One command does the whole update:
 5. Rebuilds, applies new migrations, restarts and waits for health with the
    **new** version of this script and compose file. Your data and demo data
    are kept.
-6. On success, removes the restore-point images and trims the build cache to
-   5 GB. On failure, rolls back automatically: the previous commit, the
+6. On success, removes the restore-point images and dangling old images. On
+   failure, rolls back automatically: the previous commit, the
    previous images and the pre-update backup, then starts the old version
    again.
 
@@ -166,9 +167,12 @@ Removes, after a confirmation (`-Force` skips it):
   restore-point images)
 - The pinned PostgreSQL, Redis and Caddy images, unless a container from
   another project still uses them
-- The `aria-local` build cache and its BuildKit image
 - `deployment\local\backups` (keep it with `-KeepBackups`) and
   `aria-local.override.env`
+
+Docker's build cache is shared by all your Docker projects, so it cannot be
+cleared for Aria alone. Uninstall shows its size and asks whether to clear it;
+`-PruneBuildCache` clears it without asking, and `-Force` alone keeps it.
 
 It then checks Docker for anything still labelled with the `aria-local`
 project and reports either a clean result or what is left. Docker Desktop and

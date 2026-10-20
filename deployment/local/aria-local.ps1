@@ -23,7 +23,7 @@
     reload-demo  Wipe and reload the demo dataset in the existing database
     reset        Delete ALL local data (database, redis) and start fresh
     open         Open the app in the browser
-    uninstall    Remove everything Aria created: containers, volumes, images, build cache, backups
+    uninstall    Remove everything Aria created: containers, volumes, images, backups (build cache on request)
     help         Show this help
 
 .EXAMPLE
@@ -72,6 +72,9 @@ param(
     # uninstall: keep deployment\local\backups
     [switch]$KeepBackups,
 
+    # uninstall: also clear Docker's build cache (shared with other projects) without asking
+    [switch]$PruneBuildCache,
+
     # Internal: set when update runs this script as a child process that already holds the lock
     [switch]$SkipLock,
 
@@ -90,7 +93,6 @@ $OverrideEnvFile = Join-Path $PSScriptRoot 'aria-local.override.env'
 $BackupDir = Join-Path $PSScriptRoot 'backups'
 $LockFile = Join-Path $PSScriptRoot '.aria-local.lock'
 $DockerDesktopExe = "$env:ProgramFiles\Docker\Docker\Docker Desktop.exe"
-$BuilderName = 'aria-local'
 $BuiltImages = @('aria-local-backend', 'aria-local-frontend')
 
 # ---------------------------------------------------------------------------
@@ -275,22 +277,6 @@ function Test-DiskSpace {
             Write-Warn "Only $freeGb GB free on $env:SystemDrive. The build and demo data need about 15 GB."
         }
     }
-}
-
-# Builds use a dedicated BuildKit builder so uninstall can remove exactly
-# Aria's build cache without pruning cache that belongs to other projects.
-function Initialize-Builder {
-    if (Test-DockerCommand buildx inspect $BuilderName) {
-        $env:BUILDX_BUILDER = $BuilderName
-        return
-    }
-    Write-Info "Creating build cache '$BuilderName'"
-    if (Test-DockerCommand buildx create --name $BuilderName --driver docker-container --bootstrap) {
-        $env:BUILDX_BUILDER = $BuilderName
-        return
-    }
-    Write-Warn "Could not create the '$BuilderName' builder; using Docker's default builder. Uninstall cannot remove that cache without 'docker builder prune'."
-    Remove-Item Env:\BUILDX_BUILDER -ErrorAction SilentlyContinue
 }
 
 function Test-PortInUse([int]$PortNumber) {
@@ -549,8 +535,13 @@ function Invoke-Start {
 
     if (-not $NoBuild) {
         Write-Step 'Building images (the first build takes 10-20 minutes)'
-        Initialize-Builder
-        Assert-Compose (Invoke-Compose build) 'Image build'
+        $buildCode = Invoke-Compose build
+        if ($buildCode -ne 0) {
+            # The frontend build downloads Google Fonts; cached layers make a retry quick.
+            Write-Warn 'Image build failed, retrying once in case it was a network hiccup'
+            $buildCode = Invoke-Compose build
+        }
+        Assert-Compose $buildCode 'Image build'
     }
 
     Write-Step 'Starting PostgreSQL and Redis'
@@ -753,9 +744,6 @@ function Invoke-Update {
         Remove-RollbackImages
         $ErrorActionPreference = 'Continue'
         & docker image prune -f --filter "label=com.docker.compose.project=$(Get-ProjectName)" *> $null
-        if (Test-DockerCommand buildx inspect $BuilderName) {
-            & docker buildx prune --builder $BuilderName --force --max-used-space 5gb *> $null
-        }
         $ErrorActionPreference = 'Stop'
         Write-Ok "Updated to $newShort"
         if ($backupName -ne '') { Write-Info "Pre-update backup: deployment\local\backups\$backupName" }
@@ -786,7 +774,7 @@ function Invoke-Update {
 # Uninstall
 # ---------------------------------------------------------------------------
 function Invoke-Uninstall {
-    $what = 'This removes Aria containers, data volumes, images, build cache and local settings'
+    $what = 'This removes Aria containers, data volumes, images and local settings'
     if ($KeepBackups) { $what += ' (backups are kept).' } else { $what += ', including all backups.' }
     Confirm-Action $what
     Assert-Docker
@@ -808,15 +796,22 @@ function Invoke-Uninstall {
     foreach ($image in (Get-DockerOutput image ls -q --filter $label | Sort-Object -Unique)) { Remove-ImageIfUnused $image }
     foreach ($image in $pulledImages) { Remove-ImageIfUnused $image }
 
-    Write-Step 'Removing build cache'
-    if (Test-DockerCommand buildx inspect $BuilderName) {
-        $builderImage = Get-DockerOutput ps -a --filter "name=buildx_buildkit_${BuilderName}" --format '{{.Image}}' | Select-Object -First 1
-        if (Test-DockerCommand buildx rm --force $BuilderName) { Write-Info "Removed builder '$BuilderName' and its cache" }
-        else { Write-Warn "Could not remove builder '$BuilderName'" }
-        if ($builderImage) { Remove-ImageIfUnused $builderImage }
+    # Docker keeps one build cache for every project, so it cannot be cleared
+    # for Aria alone. Clear it only when asked to.
+    Write-Step 'Build cache'
+    $cacheSize = Get-DockerOutput system df --format '{{.Type}}={{.Size}}' | Where-Object { $_ -like 'Build Cache=*' } | Select-Object -First 1
+    $cacheSize = if ($cacheSize) { $cacheSize.Split('=')[1] } else { 'unknown' }
+    $clearCache = $PruneBuildCache
+    if (-not $clearCache -and -not $Force) {
+        $answer = Read-Host "Docker's build cache uses $cacheSize and is shared with your other Docker projects. Clear it too? Type 'yes' to clear"
+        $clearCache = ($answer -eq 'yes')
+    }
+    if ($clearCache) {
+        if (Test-DockerCommand builder prune --all --force) { Write-Info "Cleared Docker's build cache ($cacheSize)" }
+        else { Write-Warn "Could not clear Docker's build cache" }
     }
     else {
-        Write-Info 'No Aria build cache found.'
+        Write-Info "Kept Docker's build cache ($cacheSize). Clear it later with: docker builder prune --all"
     }
 
     Write-Step 'Removing local files'
@@ -837,7 +832,6 @@ function Invoke-Uninstall {
     foreach ($image in $BuiltImages) {
         $leftovers += @(Get-DockerOutput image ls $image --format 'image {{.Repository}}:{{.Tag}}')
     }
-    if (Test-DockerCommand buildx inspect $BuilderName) { $leftovers += "builder $BuilderName" }
 
     if ($leftovers.Count -gt 0) {
         Write-Warn 'Some Aria resources are still present:'

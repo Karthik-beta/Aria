@@ -82,8 +82,9 @@ services:
 
   # One-shot: apply Prisma migrations 🗄️
   migrate:
-    build: *backend-build
+    # Same image as backend (built once by the backend service)
     image: aria-local-backend:latest
+    pull_policy: never
     restart: 'no'
     environment:
       <<: *backend-env
@@ -96,8 +97,8 @@ services:
 
   # One-shot: load demo data into a fresh database (skipped once loaded) 📦
   demo-data:
-    build: *backend-build
     image: aria-local-backend:latest
+    pull_policy: never
     restart: 'no'
     environment:
       <<: *backend-env
