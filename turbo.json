@@ -170,7 +170,15 @@
 			"outputs": []
 		},
 		"test:e2e": {
-			"cache": false
+			"cache": false,
+			"passThroughEnv": [
+				"APP_TIME_ZONE",
+				"BETTER_AUTH_SECRET",
+				"CI",
+				"E2E_*",
+				"PLAYWRIGHT_*",
+				"REDIS_URL"
+			]
 		},
 		"test:integration": {
 			"dependsOn": ["^build", "prisma:generate"],
