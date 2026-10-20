@@ -1,6 +1,7 @@
 import { Injectable, Logger, type OnModuleInit } from "@nestjs/common";
 import { prismaClient } from "../shared/prisma-client.js";
 import { auth } from "./auth.config";
+import { CLIENT_IP_HEADER } from "./client-ip";
 
 /**
  * Authentication service for managing users and default account creation
@@ -117,6 +118,8 @@ export class AuthService implements OnModuleInit {
 					method: "POST",
 					headers: {
 						"Content-Type": "application/json",
+						// In-process call: no socket, so identify it as loopback
+						[CLIENT_IP_HEADER]: "127.0.0.1",
 					},
 					body: JSON.stringify({
 						username,

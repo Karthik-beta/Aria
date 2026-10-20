@@ -2,6 +2,7 @@
 
 import { logger } from "@aria/utils";
 import { cookies } from "next/headers";
+import { getForwardedForHeader } from "@/lib/auth/server";
 
 function getBackendUrl() {
 	const baseUrl =
@@ -25,6 +26,7 @@ export async function addOrgMember(
 				headers: {
 					"Content-Type": "application/json",
 					cookie: cookieHeader,
+					...(await getForwardedForHeader()),
 				},
 				body: JSON.stringify({
 					userId,
@@ -61,6 +63,7 @@ export async function removeOrgMember(
 				headers: {
 					"Content-Type": "application/json",
 					cookie: cookieHeader,
+					...(await getForwardedForHeader()),
 				},
 				body: JSON.stringify({
 					memberIdOrEmail,
@@ -97,6 +100,7 @@ export async function updateMemberRole(
 				headers: {
 					"Content-Type": "application/json",
 					cookie: cookieHeader,
+					...(await getForwardedForHeader()),
 				},
 				body: JSON.stringify({
 					memberId,
