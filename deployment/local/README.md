@@ -40,7 +40,8 @@ Sign in with:
 | Password | `Admin@123`                           |
 
 Open the app at `http://localhost`, not `127.0.0.1` or a LAN IP: auth
-cookies are issued for `localhost`.
+cookies are issued for `localhost`. The proxy listens on `127.0.0.1` only, so
+the demo is not reachable from other machines.
 
 ## Commands
 

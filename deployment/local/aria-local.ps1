@@ -413,7 +413,17 @@ function Invoke-Reset {
 function Invoke-Uninstall {
     Confirm-Action 'This removes Aria containers, data volumes and locally built images.'
     Write-Step 'Removing containers, volumes and images'
-    Assert-Compose (Invoke-Compose down --volumes --remove-orphans --rmi local) 'Uninstall'
+    Assert-Compose (Invoke-Compose down --volumes --remove-orphans) 'Uninstall'
+    # `down --rmi local` skips images with an `image:` tag, so remove the
+    # locally built ones by name. Pulled images (postgres, redis, caddy) stay.
+    $ErrorActionPreference = 'Continue'
+    foreach ($image in @('aria-local-backend:latest', 'aria-local-frontend:latest')) {
+        & docker image inspect $image *> $null
+        if ($LASTEXITCODE -eq 0) {
+            & docker image rm $image | Out-Host
+            if ($LASTEXITCODE -ne 0) { Write-Warn "Could not remove image $image" }
+        }
+    }
     Write-Ok 'Removed'
 }
 
