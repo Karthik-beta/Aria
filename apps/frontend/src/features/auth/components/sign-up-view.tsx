@@ -74,7 +74,7 @@ export default function SignUpViewPage({ stars }: { stars: number }) {
 							Use the preconfigured data set inside the dashboard instead.
 						</p>
 						<Link
-							href="/dashboard/overview"
+							href="/inventory/dashboard/overview"
 							className={cn(
 								buttonVariants({ variant: "default" }),
 								"w-full md:w-auto",

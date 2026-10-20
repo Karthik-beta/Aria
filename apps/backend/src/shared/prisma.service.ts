@@ -234,6 +234,10 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
 	get location() {
 		return this.client.location;
 	}
+
+	get employee() {
+		return this.client.employee;
+	}
 	get assetCategory() {
 		return this.client.assetCategory;
 	}

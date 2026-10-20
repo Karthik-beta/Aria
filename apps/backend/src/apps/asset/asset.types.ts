@@ -8,6 +8,9 @@ export type PrismaAsset = Prisma.AssetGetPayload<{
 	include: {
 		assetCategory: { select: { id: true; name: true } };
 		location: { select: { id: true; name: true } };
+		custodian: {
+			select: { id: true; employeeId: true; employeeName: true };
+		};
 		activities: { orderBy: { createdAt: "desc" } };
 		financeBooks: {
 			include: { financeBook: { select: { name: true } } };
@@ -128,7 +131,9 @@ export function toAsset(raw: PrismaAsset): Asset.AssetItem {
 		company: raw.company,
 		locationId: raw.locationId ?? null,
 		locationName: raw.location?.name ?? null,
-		custodian: raw.custodian ?? null,
+		custodianId: raw.custodianId ?? null,
+		custodianEmployeeId: raw.custodian?.employeeId ?? null,
+		custodianName: raw.custodian?.employeeName ?? null,
 		department: raw.department ?? null,
 		purchaseDate: raw.purchaseDate ?? null,
 		availableForUseDate: raw.availableForUseDate ?? null,

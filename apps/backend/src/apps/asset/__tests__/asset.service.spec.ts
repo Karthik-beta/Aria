@@ -21,6 +21,9 @@ function createMockPrisma() {
 		assetActivity: {
 			create: jest.fn(),
 		},
+		employee: {
+			findUnique: jest.fn(),
+		},
 		documentSeriesCounter: {
 			findUnique: jest.fn(),
 		},
@@ -54,7 +57,8 @@ const mockAssetRow = {
 	assetCategoryId: "cat-123",
 	company: "Test Corp",
 	locationId: "loc-123",
-	custodian: "Jane Doe",
+	custodianId: null,
+	custodian: null,
 	department: "Engineering",
 	purchaseDate: new Date("2026-01-01"),
 	availableForUseDate: new Date("2026-01-02"),
@@ -171,6 +175,186 @@ describe("AssetService > Barcode support", () => {
 				}),
 			);
 			expect(result.barcode).toBe("9876543210");
+		});
+	});
+});
+
+describe("AssetService > Custodian (Employee link)", () => {
+	let service: ReturnType<typeof createTestContext>["service"];
+	let mockPrisma: ReturnType<typeof createTestContext>["mockPrisma"];
+
+	const jane = {
+		id: "emp-jane",
+		employeeId: "HR-EMP-00001",
+		employeeName: "Jane Doe",
+		company: "Test Corp",
+	};
+	const john = {
+		id: "emp-john",
+		employeeId: "HR-EMP-00002",
+		employeeName: "John Roe",
+		company: null,
+	};
+
+	const activities = () =>
+		mockPrisma.assetActivity.create.mock.calls.map(
+			([arg]: [{ data: { activity: string } }]) => arg.data.activity,
+		);
+
+	beforeEach(() => {
+		jest.clearAllMocks();
+		({ service, mockPrisma } = createTestContext());
+	});
+
+	describe("createAsset", () => {
+		beforeEach(() => {
+			mockPrisma.assetCategory.findUnique.mockResolvedValue(null);
+			mockPrisma.documentSeriesCounter.findUnique.mockResolvedValue(null);
+			mockPrisma.asset.findFirst.mockResolvedValue(null);
+			mockPrisma.asset.create.mockResolvedValue(mockAssetRow);
+			mockPrisma.asset.findUniqueOrThrow.mockResolvedValue({
+				...mockAssetRow,
+				custodianId: jane.id,
+				custodian: jane,
+			});
+		});
+
+		it("links the employee and logs an issue activity", async () => {
+			mockPrisma.employee.findUnique.mockResolvedValue(jane);
+
+			const result = await service.createAsset({
+				assetName: "Office Laptop",
+				company: "Test Corp",
+				custodianId: jane.id,
+			});
+
+			expect(mockPrisma.asset.create).toHaveBeenCalledWith(
+				expect.objectContaining({
+					data: expect.objectContaining({ custodianId: jane.id }),
+				}),
+			);
+			expect(activities()).toContain(
+				"Asset issued to Employee Jane Doe (HR-EMP-00001)",
+			);
+			expect(result.custodianId).toBe(jane.id);
+			expect(result.custodianEmployeeId).toBe("HR-EMP-00001");
+			expect(result.custodianName).toBe("Jane Doe");
+		});
+
+		it("does not log a custodian activity when none is set", async () => {
+			mockPrisma.asset.findUniqueOrThrow.mockResolvedValue(mockAssetRow);
+
+			await service.createAsset({
+				assetName: "Office Laptop",
+				company: "Test Corp",
+			});
+
+			expect(mockPrisma.employee.findUnique).not.toHaveBeenCalled();
+			expect(activities()).toEqual([
+				`Asset created with series ${mockAssetRow.series}`,
+			]);
+		});
+
+		it("rejects an unknown employee", async () => {
+			mockPrisma.employee.findUnique.mockResolvedValue(null);
+
+			await expect(
+				service.createAsset({
+					assetName: "Office Laptop",
+					company: "Test Corp",
+					custodianId: "missing",
+				}),
+			).rejects.toThrow("Employee missing not found");
+			expect(mockPrisma.asset.create).not.toHaveBeenCalled();
+		});
+
+		it("rejects an employee from another company", async () => {
+			mockPrisma.employee.findUnique.mockResolvedValue({
+				...jane,
+				company: "Other Corp",
+			});
+
+			await expect(
+				service.createAsset({
+					assetName: "Office Laptop",
+					company: "Test Corp",
+					custodianId: jane.id,
+				}),
+			).rejects.toThrow(
+				"Employee HR-EMP-00001 does not belong to company Test Corp",
+			);
+		});
+	});
+
+	describe("updateAsset", () => {
+		it("logs an issue activity when the custodian changes", async () => {
+			mockPrisma.asset.findUnique.mockResolvedValue({
+				...mockAssetRow,
+				custodianId: jane.id,
+				custodian: jane,
+			});
+			mockPrisma.employee.findUnique.mockResolvedValue(john);
+			mockPrisma.asset.update.mockResolvedValue({
+				...mockAssetRow,
+				custodianId: john.id,
+				custodian: john,
+			});
+
+			const result = await service.updateAsset({
+				id: mockAssetRow.id,
+				custodianId: john.id,
+			});
+
+			expect(mockPrisma.asset.update).toHaveBeenCalledWith(
+				expect.objectContaining({
+					data: expect.objectContaining({ custodianId: john.id }),
+				}),
+			);
+			expect(activities()).toEqual([
+				"Asset updated",
+				"Asset issued to Employee John Roe (HR-EMP-00002)",
+			]);
+			expect(result.custodianName).toBe("John Roe");
+		});
+
+		it("logs a return activity when the custodian is cleared", async () => {
+			mockPrisma.asset.findUnique.mockResolvedValue({
+				...mockAssetRow,
+				custodianId: jane.id,
+				custodian: jane,
+			});
+			mockPrisma.asset.update.mockResolvedValue(mockAssetRow);
+
+			await service.updateAsset({ id: mockAssetRow.id, custodianId: null });
+
+			expect(mockPrisma.asset.update).toHaveBeenCalledWith(
+				expect.objectContaining({
+					data: expect.objectContaining({ custodianId: null }),
+				}),
+			);
+			expect(activities()).toEqual([
+				"Asset updated",
+				"Asset returned from Employee Jane Doe (HR-EMP-00001)",
+			]);
+		});
+
+		it("does not log a custodian activity when it is unchanged", async () => {
+			mockPrisma.asset.findUnique.mockResolvedValue({
+				...mockAssetRow,
+				custodianId: jane.id,
+				custodian: jane,
+			});
+			mockPrisma.asset.update.mockResolvedValue(mockAssetRow);
+
+			await service.updateAsset({ id: mockAssetRow.id, custodianId: jane.id });
+
+			expect(mockPrisma.employee.findUnique).not.toHaveBeenCalled();
+			expect(mockPrisma.asset.update).toHaveBeenCalledWith(
+				expect.objectContaining({
+					data: expect.not.objectContaining({ custodianId: expect.anything() }),
+				}),
+			);
+			expect(activities()).toEqual(["Asset updated"]);
 		});
 	});
 });

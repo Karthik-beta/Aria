@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { SIGNED_OUT_STATE } from "./auth";
 
 /**
  * E2E smoke tests for core application flows.
@@ -12,15 +13,6 @@ test.describe("Smoke tests", () => {
 		await expect(
 			page.getByRole("heading", { name: /inventory dashboard/i }),
 		).toBeVisible({ timeout: 15_000 });
-	});
-
-	test("sign-in page renders correctly", async ({ page }) => {
-		const response = await page.goto("/auth/sign-in");
-		expect(response?.ok()).toBe(true);
-
-		await expect(page.getByText(/sign in/i).first()).toBeVisible({
-			timeout: 10_000,
-		});
 	});
 
 	test("inventory dashboard loads without console errors", async ({ page }) => {
@@ -73,5 +65,18 @@ test.describe("Smoke tests", () => {
 
 		const heading = page.getByRole("heading").first();
 		await expect(heading).toBeVisible({ timeout: 10_000 });
+	});
+});
+
+test.describe("Smoke tests (signed out)", () => {
+	test.use({ storageState: SIGNED_OUT_STATE });
+
+	test("sign-in page renders correctly", async ({ page }) => {
+		const response = await page.goto("/auth/sign-in");
+		expect(response?.ok()).toBe(true);
+
+		await expect(page.getByText(/sign in/i).first()).toBeVisible({
+			timeout: 10_000,
+		});
 	});
 });

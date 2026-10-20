@@ -15,6 +15,7 @@ import {
 	ASSET_MAINTENANCE_TEAMS,
 	ASSET_REGISTER,
 	type AssetSeedDef,
+	formatAssetEmployeeLabel,
 } from "./asset-data.js";
 import type { DemoConfig } from "./config.js";
 import type { MasterIds } from "./seed-master.js";
@@ -725,6 +726,20 @@ export async function seedAssetTransactions(
 				resolveActivityTimestamp(
 					config,
 					asset.availableForUseOffsetDays,
+					activitySequence,
+				),
+			);
+		}
+
+		if (asset.custodian) {
+			activitySequence += 1;
+			await createAssetActivity(
+				prisma,
+				assetId,
+				`Asset issued to Employee ${formatAssetEmployeeLabel(asset.custodian)}`,
+				resolveActivityTimestamp(
+					config,
+					asset.availableForUseOffsetDays ?? asset.purchaseOffsetDays,
 					activitySequence,
 				),
 			);

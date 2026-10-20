@@ -6,6 +6,7 @@
  * context.
  */
 import { expect, test } from "@playwright/test";
+import { openWorkspaceSwitcher } from "./helpers";
 
 test.describe("App navigation – protected route group", () => {
 	const APPS = ["inventory", "asset", "crm", "hrms"] as const;
@@ -30,13 +31,11 @@ test.describe("App navigation – sidebar", () => {
 		page,
 	}) => {
 		await page.goto("/inventory/dashboard/overview");
+		await openWorkspaceSwitcher(page);
 
-		await page.goto("/profile");
-
-		await expect(page.getByTestId("app-access-inventory")).toBeVisible();
-		await expect(page.getByTestId("app-access-asset")).toBeVisible();
-		await expect(page.getByTestId("app-access-crm")).toBeVisible();
-		await expect(page.getByTestId("app-access-hrms")).toBeVisible();
+		for (const app of [/inventory/i, /asset/i, /crm/i, /hrms/i]) {
+			await expect(page.getByRole("menuitem", { name: app })).toBeVisible();
+		}
 	});
 });
 

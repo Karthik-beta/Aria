@@ -265,7 +265,14 @@ export default function AssetDetailPage() {
 									) : null
 								}
 							/>
-							<DetailRow label="Custodian" value={asset.custodian} />
+							<DetailRow
+								label="Custodian"
+								value={
+									asset.custodianName
+										? `${asset.custodianName} (${asset.custodianEmployeeId})`
+										: null
+								}
+							/>
 							<DetailRow label="Department" value={asset.department} />
 							<DetailRow label="Asset Quantity" value={asset.assetQuantity} />
 						</CardContent>

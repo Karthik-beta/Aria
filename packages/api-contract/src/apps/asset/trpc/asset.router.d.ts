@@ -85,7 +85,7 @@ type AssetRouterInput = {
 			assetCategoryId?: string | null | undefined;
 			company: string;
 			locationId?: string | null | undefined;
-			custodian?: string | null | undefined;
+			custodianId?: string | null | undefined;
 			department?: string | null | undefined;
 			purchaseDate?: unknown;
 			availableForUseDate?: unknown;
@@ -123,7 +123,7 @@ type AssetRouterInput = {
 			assetCategoryId?: string | null | undefined;
 			company?: string | undefined;
 			locationId?: string | null | undefined;
-			custodian?: string | null | undefined;
+			custodianId?: string | null | undefined;
 			department?: string | null | undefined;
 			purchaseDate?: unknown;
 			availableForUseDate?: unknown;
@@ -278,6 +278,20 @@ type AssetRouterInput = {
 	deleteAssetValueAdjustment: TRPCMutationProcedure<{
 		input: { id: string };
 		output: { success: boolean; id: string };
+		meta: object;
+	}>;
+
+	// ── Employee lookup (asset custodian) ────────────────────────────────────
+	listEmployees: TRPCQueryProcedure<{
+		input:
+			| {
+					skip?: number | undefined;
+					take?: number | undefined;
+					search?: string | undefined;
+					status?: Asset.EmployeeStatus | undefined;
+			  }
+			| undefined;
+		output: Asset.EmployeeListResult;
 		meta: object;
 	}>;
 

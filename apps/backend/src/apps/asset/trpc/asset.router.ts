@@ -265,6 +265,11 @@ export class AssetRouter {
 					return result;
 				}),
 
+			// ── Employee lookup (asset custodian) ─────────────────────────────
+			listEmployees: assetProcedure
+				.input(Asset.listEmployeesSchema)
+				.query(async ({ input }) => svc.findAllEmployees(input)),
+
 			// ── Location CRUD ─────────────────────────────────────────────────
 			listLocations: assetProcedure
 				.input(Asset.listLocationsSchema)
