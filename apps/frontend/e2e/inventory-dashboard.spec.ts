@@ -193,11 +193,33 @@ test.describe("Inventory dashboard overview", () => {
 			).toBeVisible();
 		}
 
-		await expectChartCardToRender(page, "Stock Movements");
-		await expectChartCardToRender(page, "Warehouse Distribution");
-		await expectChartCardToRender(page, "Stock Value by Category");
-		await expectChartCardToRender(page, "Top Moving Items");
-		await expectChartCardToRender(page, "Stock Entry Breakdown");
+		// Server-prefetched dashboard data comes from the real (empty) E2E
+		// backend, so each chart may render its empty state instead.
+		await expectChartCardToRender(
+			page,
+			"Stock Movements",
+			/no committed stock movement yet/i,
+		);
+		await expectChartCardToRender(
+			page,
+			"Warehouse Distribution",
+			/no warehouse stock to compare/i,
+		);
+		await expectChartCardToRender(
+			page,
+			"Stock Value by Category",
+			/no stock value recorded yet/i,
+		);
+		await expectChartCardToRender(
+			page,
+			"Top Moving Items",
+			/no fast movers yet/i,
+		);
+		await expectChartCardToRender(
+			page,
+			"Stock Entry Breakdown",
+			/no submitted stock entries yet/i,
+		);
 	});
 
 	test("remains usable at a narrower viewport", async ({ page }) => {

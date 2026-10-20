@@ -199,10 +199,28 @@ test.describe("Asset dashboard overview", () => {
 			).toBeVisible();
 		}
 
-		await expectChartCardToRender(page, "Depreciation Trend");
-		await expectChartCardToRender(page, "Status Distribution");
-		await expectChartCardToRender(page, "Value by Category");
-		await expectChartCardToRender(page, "Asset Value by Location");
+		// Server-prefetched dashboard data comes from the real (empty) E2E
+		// backend, so each chart may render its empty state instead.
+		await expectChartCardToRender(
+			page,
+			"Depreciation Trend",
+			/no depreciation data yet/i,
+		);
+		await expectChartCardToRender(
+			page,
+			"Status Distribution",
+			/no assets registered yet/i,
+		);
+		await expectChartCardToRender(
+			page,
+			"Value by Category",
+			/no categorised assets yet/i,
+		);
+		await expectChartCardToRender(
+			page,
+			"Asset Value by Location",
+			/no location data yet/i,
+		);
 	});
 
 	test("remains usable at a narrower viewport", async ({ page }) => {

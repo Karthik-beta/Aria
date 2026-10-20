@@ -25,14 +25,14 @@ test.describe("Inventory module navigation", () => {
 	});
 
 	test("navigates to items catalogue list", async ({ page }) => {
-		await page.getByText("Items Catalogue", { exact: false }).first().click();
-		// Wait for any items-related heading or content
+		// "Items Catalogue" is a collapsible sidebar group; open it, then the list.
+		await page.getByRole("button", { name: "Items Catalogue" }).click();
+		await page.getByRole("link", { name: "Item", exact: true }).click();
+
+		await expectPath(page, "/inventory/items-catalogue/item");
 		await expect(
 			page.getByRole("heading", { name: /item/i }).first(),
 		).toBeVisible({ timeout: 15_000 });
-
-		// Verify URL navigated to an items-catalogue route
-		await expect(page).toHaveURL(/\/inventory\/items-catalogue/);
 	});
 
 	test("navigates to warehouse settings", async ({ page }) => {

@@ -25,3 +25,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Frontend dashboard utilities and insight helpers in `apps/frontend/src/app/inventory/dashboard/overview/dashboard.utils.ts` plus unit tests
 - E2E coverage for inventory dashboard route and rendering: `apps/frontend/e2e/inventory-dashboard.spec.ts`
 - Asset custodian is now a link to an `Employee` master (ERPNext parity): searchable employee dropdown on the asset form, `trpc.asset.listEmployees` lookup, demo employees, and "Asset issued to / returned from Employee" entries in the Asset Activity report when the custodian is set or changed
+
+### Fixed
+
+- E2E suite runs against the real backend again: Playwright starts the API with a seeded super admin, signs in once through better-auth and reuses that session, and stale specs left over from the removed dev auth bypass were updated
+- Sign-up page "View dashboard" link pointed at the non-existent `/dashboard/overview`; it now opens the inventory dashboard
