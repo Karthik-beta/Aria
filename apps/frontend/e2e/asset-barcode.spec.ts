@@ -46,14 +46,6 @@ const mockLocations = {
 	],
 };
 
-async function login(page: Page) {
-	await page.goto("/auth/sign-in");
-	await page.getByLabel(/email or username/i).fill("admin@aria.local");
-	await page.getByLabel(/^password$/i).fill("admin123");
-	await page.getByRole("button", { name: /sign in/i }).click();
-	await expect(page).not.toHaveURL(/\/auth\/sign-in/, { timeout: 45_000 });
-}
-
 async function mockFormQueries(page: Page) {
 	await page.route("**/trpc/asset.listAssetCategories**", async (route) => {
 		const url = route.request().url();
@@ -206,9 +198,8 @@ async function openAssetForm(page: Page) {
 }
 
 test.describe("Asset Barcode Scanning & Input UI", () => {
-	test.beforeEach(async ({ page }) => {
+	test.beforeEach(() => {
 		test.setTimeout(180_000);
-		await login(page);
 	});
 
 	test("renders Scan Barcode button on list page", async ({ page }) => {

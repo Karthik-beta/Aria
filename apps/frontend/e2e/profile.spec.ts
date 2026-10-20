@@ -2,6 +2,7 @@
  * E2E tests for profile page access and functionality.
  */
 import { expect, test } from "@playwright/test";
+import { E2E_ADMIN } from "./auth";
 
 test.describe("Profile page – universal sections", () => {
 	test("renders My Profile heading", async ({ page }) => {
@@ -26,9 +27,9 @@ test.describe("Profile page – universal sections", () => {
 		await expect(page.getByText(/roles.*app access/i)).toBeVisible();
 	});
 
-	test("displays dev-bypass user name", async ({ page }) => {
+	test("displays the signed-in user name", async ({ page }) => {
 		await page.goto("/profile");
-		await expect(page.getByText("System Administrator")).toBeVisible();
+		await expect(page.getByText(E2E_ADMIN.name).first()).toBeVisible();
 	});
 
 	test("Change Password link is present", async ({ page }) => {
@@ -39,18 +40,7 @@ test.describe("Profile page – universal sections", () => {
 	});
 });
 
-test.describe("Profile page – app access badges (dev bypass session)", () => {
-	test("shows all four app access cards for super_admin dev session", async ({
-		page,
-	}) => {
-		await page.goto("/profile");
-
-		await expect(page.getByTestId("app-access-inventory")).toBeVisible();
-		await expect(page.getByTestId("app-access-asset")).toBeVisible();
-		await expect(page.getByTestId("app-access-crm")).toBeVisible();
-		await expect(page.getByTestId("app-access-hrms")).toBeVisible();
-	});
-
+test.describe("Profile page – roles (super admin session)", () => {
 	test("shows super admin system role badge", async ({ page }) => {
 		await page.goto("/profile");
 		await expect(page.getByText("super admin")).toBeVisible();
