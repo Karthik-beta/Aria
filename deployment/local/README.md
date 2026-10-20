@@ -131,7 +131,7 @@ One command does the whole update:
 6. On success, removes the restore-point images and dangling old images. On
    failure, rolls back automatically: the previous commit, the
    previous images and the pre-update backup, then starts the old version
-   again.
+   again and removes the images the failed build left behind.
 
 Updates only fast-forward. If the local branch has its own commits, `update`
 stops and leaves it to you.
@@ -163,8 +163,8 @@ database but keeps the backups folder, so you can restore after a reset.
 Removes, after a confirmation (`-Force` skips it):
 
 - All Aria containers, the network and the data volumes (database, Redis, Caddy)
-- The built images (`aria-local-backend`, `aria-local-frontend`, and any
-  restore-point images)
+- The built images (`aria-local-backend`, `aria-local-frontend`, any
+  restore-point images and untagged builds left by an earlier update)
 - The pinned PostgreSQL, Redis and Caddy images, unless a container from
   another project still uses them
 - `deployment\local\backups` (keep it with `-KeepBackups`) and

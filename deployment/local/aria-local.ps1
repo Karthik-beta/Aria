@@ -511,6 +511,12 @@ function Remove-RollbackImages {
     }
 }
 
+# Removes the project's untagged images: the previous build after an update,
+# or the failed build after a rollback.
+function Remove-DanglingImages {
+    [void](Test-DockerCommand image prune -f --filter "label=com.docker.compose.project=$(Get-ProjectName)")
+}
+
 # Removes an image reference unless a container (from any project) uses it.
 function Remove-ImageIfUnused([string]$Reference) {
     if (-not (Test-Image $Reference)) { return }
@@ -742,9 +748,7 @@ function Invoke-Update {
     $exitCode = Invoke-Self @('start')
     if ($exitCode -eq 0) {
         Remove-RollbackImages
-        $ErrorActionPreference = 'Continue'
-        & docker image prune -f --filter "label=com.docker.compose.project=$(Get-ProjectName)" *> $null
-        $ErrorActionPreference = 'Stop'
+        Remove-DanglingImages
         Write-Ok "Updated to $newShort"
         if ($backupName -ne '') { Write-Info "Pre-update backup: deployment\local\backups\$backupName" }
         $running = Get-RunningProxyPort
@@ -767,6 +771,7 @@ function Invoke-Update {
         Stop-WithError "Update failed and the rollback did not finish. Code is back at $oldShort; restore the data with: .\aria-local.cmd restore -File $backupName"
     }
     Remove-RollbackImages
+    Remove-DanglingImages
     Stop-WithError "Update to $newShort failed; Aria was rolled back to $oldShort and is running. See the output above for the cause."
 }
 
@@ -793,7 +798,8 @@ function Invoke-Uninstall {
     foreach ($image in $BuiltImages) {
         foreach ($tag in @('latest', 'rollback')) { Remove-ImageIfUnused "${image}:$tag" }
     }
-    foreach ($image in (Get-DockerOutput image ls -q --filter $label | Sort-Object -Unique)) { Remove-ImageIfUnused $image }
+    # -a: Docker 29 hides untagged images (e.g. a rolled-back build) without it.
+    foreach ($image in (Get-DockerOutput image ls -a -q --filter $label | Sort-Object -Unique)) { Remove-ImageIfUnused $image }
     foreach ($image in $pulledImages) { Remove-ImageIfUnused $image }
 
     # Docker keeps one build cache for every project, so it cannot be cleared
@@ -832,6 +838,7 @@ function Invoke-Uninstall {
     foreach ($image in $BuiltImages) {
         $leftovers += @(Get-DockerOutput image ls $image --format 'image {{.Repository}}:{{.Tag}}')
     }
+    $leftovers += @(Get-DockerOutput image ls -a --filter $label --filter dangling=true --format 'image {{.ID}} (untagged)')
 
     if ($leftovers.Count -gt 0) {
         Write-Warn 'Some Aria resources are still present:'
