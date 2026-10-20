@@ -41,7 +41,7 @@ param(
     [ValidateSet('start', 'stop', 'restart', 'status', 'logs', 'update', 'backup', 'restore', 'reload-demo', 'reset', 'open', 'uninstall', 'help')]
     [string]$Command = 'start',
 
-    # Host port for http://localhost:<Port>. Default: ARIA_HTTP_PORT from the env file (80).
+    # Host port for http://localhost:<Port>. Default: ARIA_HTTP_PORT from the env file (8080).
     [int]$Port = 0,
 
     # Demo data scale for this run: small | medium | large
@@ -85,6 +85,12 @@ param(
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
+
+# Docker output is piped through Out-Host, so Compose's interactive progress
+# display cannot take over the console and `build` fails with "failed to get
+# console: The handle is invalid". Plain progress works piped or not.
+$env:COMPOSE_PROGRESS = 'plain'
+$env:BUILDKIT_PROGRESS = 'plain'
 
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $ComposeFile = Join-Path $RepoRoot 'docker-compose.local.yml'
@@ -310,7 +316,7 @@ function Set-AppUrl([int]$PortNumber) {
 # Picks the host port, then exports ARIA_HTTP_PORT / ARIA_PUBLIC_URL so they
 # override the env file (shell variables win in Compose interpolation).
 function Resolve-Port {
-    $configured = [int](Get-Setting 'ARIA_HTTP_PORT' '80')
+    $configured = [int](Get-Setting 'ARIA_HTTP_PORT' '8080')
     $running = Get-RunningProxyPort
 
     if ($Port -gt 0) {
@@ -327,11 +333,11 @@ function Resolve-Port {
     }
     else {
         $selected = 0
-        foreach ($candidate in @(8080, 8081, 8088, 8888, 9080)) {
+        foreach ($candidate in @(8081, 8082, 8088, 8888, 9080)) {
             if (-not (Test-PortInUse $candidate)) { $selected = $candidate; break }
         }
         if ($selected -eq 0) { Stop-WithError "Port $configured is in use. Choose a free port with -Port <number>." }
-        Write-Warn "Port $configured is in use (IIS, Skype, another web server?). Using port $selected instead."
+        Write-Warn "Port $configured is in use (another web server or dev tool?). Using port $selected instead."
     }
 
     $script:HttpPort = $selected
@@ -539,7 +545,18 @@ function Invoke-Start {
     Resolve-Port
     Set-RunOverrides
 
-    if (-not $NoBuild) {
+    $build = -not $NoBuild
+    if (-not $build) {
+        foreach ($image in $BuiltImages) {
+            if (-not (Test-Image "${image}:latest")) {
+                Write-Warn "Image ${image}:latest is missing, building it even though -NoBuild was given"
+                $build = $true
+                break
+            }
+        }
+    }
+
+    if ($build) {
         Write-Step 'Building images (the first build takes 10-20 minutes)'
         $buildCode = Invoke-Compose build
         if ($buildCode -ne 0) {
