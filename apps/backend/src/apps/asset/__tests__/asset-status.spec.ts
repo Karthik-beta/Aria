@@ -83,16 +83,15 @@ describe("deriveAssetStatus (ERPNext Asset.get_status)", () => {
 				},
 			],
 		];
-		it.each(cases)(
-			"%s stays %s regardless of depreciation state",
-			(status, overrides) => {
+		for (const [status, overrides] of cases) {
+			it(`${status} stays ${status} regardless of depreciation state`, () => {
 				expect(
 					deriveAssetStatus(
 						depreciating({ currentStatus: status, ...overrides }),
 					),
 				).toBe(status);
-			},
-		);
+			});
+		}
 	});
 
 	describe("non-depreciating assets", () => {
@@ -228,9 +227,8 @@ describe("deriveAssetStatus (ERPNext Asset.get_status)", () => {
 			"IN_MAINTENANCE",
 			"OUT_OF_ORDER",
 		];
-		it.each(recomputed)(
-			"%s is replaced by the derived base status",
-			(status) => {
+		for (const status of recomputed) {
+			it(`${status} is replaced by the derived base status`, () => {
 				expect(
 					deriveAssetStatus(
 						depreciating({
@@ -242,8 +240,8 @@ describe("deriveAssetStatus (ERPNext Asset.get_status)", () => {
 						}),
 					),
 				).toBe("PARTIALLY_DEPRECIATED");
-			},
-		);
+			});
+		}
 	});
 });
 
@@ -282,9 +280,8 @@ describe("deriveOperationalStatus (ERPNext update_maintenance_status)", () => {
 		).toBe("SOLD");
 	});
 
-	it.each<Status>(["DRAFT", "CANCELLED", "SOLD", "SCRAPPED"])(
-		"never touches a %s asset",
-		(base) => {
+	for (const base of ["DRAFT", "CANCELLED", "SOLD", "SCRAPPED"] as const) {
+		it(`never touches a ${base} asset`, () => {
 			expect(
 				deriveOperationalStatus(
 					input({
@@ -294,8 +291,8 @@ describe("deriveOperationalStatus (ERPNext update_maintenance_status)", () => {
 					}),
 				),
 			).toBe(base);
-		},
-	);
+		});
+	}
 
 	it("lets a pending repair win over a due task", () => {
 		expect(
@@ -376,7 +373,7 @@ describe("status constants", () => {
 });
 
 describe("getAssetValueAdjustmentResultState (via the status engine)", () => {
-	it.each<[Status, number, Status, boolean]>([
+	const cases: Array<[Status, number, Status, boolean]> = [
 		["SUBMITTED", 50_000, "PARTIALLY_DEPRECIATED", false],
 		["SUBMITTED", 0, "FULLY_DEPRECIATED", true],
 		["PARTIALLY_DEPRECIATED", 80_000, "PARTIALLY_DEPRECIATED", false],
@@ -390,13 +387,13 @@ describe("getAssetValueAdjustmentResultState (via the status engine)", () => {
 		["CANCELLED", 0, "CANCELLED", true],
 		["SOLD", 50_000, "SOLD", false],
 		["SCRAPPED", 0, "SCRAPPED", true],
-	])(
-		"%s with new value %d gives %s (fully depreciated: %s)",
-		(status, value, expected, fully) => {
+	];
+	for (const [status, value, expected, fully] of cases) {
+		it(`${status} with new value ${value} gives ${expected} (fully depreciated: ${fully})`, () => {
 			expect(getAssetValueAdjustmentResultState(status, value)).toEqual({
 				status: expected,
 				isFullyDepreciated: fully,
 			});
-		},
-	);
+		});
+	}
 });
