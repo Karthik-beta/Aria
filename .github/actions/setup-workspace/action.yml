@@ -1,0 +1,45 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-action.json
+name: Set up workspace
+description: Install Bun and dependencies, restore caches and generate the Prisma client
+
+inputs:
+  turbo-cache-name:
+    description: Name for this job's Turborepo cache, so parallel jobs do not overwrite each other's
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Setup Bun
+      uses: oven-sh/setup-bun@v2
+      with:
+        bun-version: 1.3.1
+
+    - name: Cache Bun dependencies
+      uses: actions/cache@v5
+      with:
+        path: |
+          ~/.bun/install/cache
+          **/node_modules
+        key: bun-${{ runner.os }}-${{ hashFiles('**/bun.lock') }}
+        restore-keys: |
+          bun-${{ runner.os }}-
+
+    # Saved per commit and restored from the newest earlier one, so the cache
+    # follows the code instead of staying at the first save for a lockfile.
+    - name: Cache Turborepo
+      uses: actions/cache@v5
+      with:
+        path: .turbo
+        key: turbo-${{ inputs.turbo-cache-name }}-${{ runner.os }}-${{ github.sha }}
+        restore-keys: |
+          turbo-${{ inputs.turbo-cache-name }}-${{ runner.os }}-
+
+    - name: Install dependencies
+      shell: bash
+      run: bun install --frozen-lockfile
+
+    # The client is git-ignored; backend typecheck, build and tests import it.
+    - name: Generate Prisma client
+      shell: bash
+      run: bun x turbo run prisma:generate --filter=backend
