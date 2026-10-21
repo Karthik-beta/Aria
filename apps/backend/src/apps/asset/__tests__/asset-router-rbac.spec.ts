@@ -53,6 +53,7 @@ function caller() {
 		eventEmitter as never,
 		svc as never,
 		assetCore as never,
+		svc as never,
 	)
 		.getRouter()
 		.createCaller({ req: { headers: {} } } as never);
@@ -153,6 +154,103 @@ describe("Asset router role-based access", () => {
 					(caught: unknown) => caught,
 				);
 			expect((error as TRPCError | null)?.code).not.toBe("FORBIDDEN");
+		});
+	}
+
+	describe("location hierarchy", () => {
+		const locationId = { id: "ckxxxxxxxxxxxxxxxxxxxxxxx" };
+
+		it("lets a member read the location tree, children and ancestors", async () => {
+			await caller().getLocationTree({});
+			await caller().getLocationTree();
+			await caller().listLocationChildren({ parentId: null });
+			await caller().listLocationChildren();
+			await caller().getLocationAncestors(locationId);
+		});
+
+		it("blocks a member from writing locations", async () => {
+			await expectForbidden(caller().createLocation({ name: "HQ" } as never));
+			await expectForbidden(
+				caller().updateLocation({ ...locationId, name: "HQ" } as never),
+			);
+			await expectForbidden(caller().deleteLocation(locationId));
+		});
+
+		it("lets an admin pass the role check on location writes", async () => {
+			memberRole = "admin";
+			await caller().deleteLocation(locationId);
+		});
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Finance book procedures (issue #142)
+// ---------------------------------------------------------------------------
+describe("Asset router role-based access: finance books", () => {
+	let financeBookSessionSpy: ReturnType<typeof spyOn>;
+	const financeBookOriginalDelegates = new Map<string, unknown>();
+
+	function setFinanceBookDelegate(key: string, value: unknown) {
+		Object.defineProperty(prismaClient, key, {
+			value,
+			configurable: true,
+			enumerable: true,
+			writable: true,
+		});
+	}
+
+	const financeBookId = "ckxxxxxxxxxxxxxxxxxxxxxxx";
+	const financeBookCalls = {
+		create: () => caller().createFinanceBook({ name: "IFRS" }),
+		update: () =>
+			caller().updateFinanceBook({ id: financeBookId, name: "IFRS" }),
+		delete: () => caller().deleteFinanceBook({ id: financeBookId }),
+	};
+
+	beforeAll(() => {
+		financeBookSessionSpy = spyOn(auth.api, "getSession").mockImplementation(
+			(() =>
+				Promise.resolve({
+					user: { id: "user-1" },
+					session: { id: "session-1", activeOrganizationId: "org-1" },
+				})) as never,
+		);
+		for (const [key, stub] of Object.entries(delegateStubs)) {
+			financeBookOriginalDelegates.set(
+				key,
+				prismaClient[key as keyof typeof delegateStubs],
+			);
+			setFinanceBookDelegate(key, stub);
+		}
+	});
+
+	afterAll(() => {
+		financeBookSessionSpy.mockRestore();
+		for (const [key, delegate] of financeBookOriginalDelegates) {
+			setFinanceBookDelegate(key, delegate);
+		}
+	});
+
+	beforeEach(() => {
+		memberRole = "member";
+	});
+
+	it("lets a member list finance books", async () => {
+		await caller().listFinanceBooks({});
+	});
+
+	it("blocks a member from creating, updating or deleting finance books", async () => {
+		await expectForbidden(financeBookCalls.create());
+		await expectForbidden(financeBookCalls.update());
+		await expectForbidden(financeBookCalls.delete());
+	});
+
+	for (const role of ["admin", "owner"]) {
+		it(`lets ${role} create, update and delete finance books`, async () => {
+			memberRole = role;
+			await financeBookCalls.create();
+			await financeBookCalls.update();
+			await financeBookCalls.delete();
 		});
 	}
 });

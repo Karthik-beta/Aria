@@ -1,4 +1,4 @@
-import type { Asset } from "@aria/types";
+import { Asset } from "@aria/types";
 import type { LocationFormValues } from "./location.schema";
 
 export const LOCATION_PAGE_SIZE = 20;
@@ -28,18 +28,90 @@ export function getLocationGroupLabel(isGroup: boolean): string {
 }
 
 /**
+ * Parses the GeoJSON textarea. Blank text means "no geolocation"; anything
+ * else must be a FeatureCollection (same rule as the API).
+ */
+export function parseGeolocationText(
+	text: string | undefined,
+): { value: Asset.GeoJsonFeatureCollection | null } | { error: string } {
+	const trimmed = (text ?? "").trim();
+	if (!trimmed) return { value: null };
+
+	let json: unknown;
+	try {
+		json = JSON.parse(trimmed);
+	} catch {
+		return { error: "Geolocation must be valid JSON" };
+	}
+
+	const parsed = Asset.geoJsonFeatureCollectionSchema.safeParse(json);
+	if (!parsed.success) {
+		const detail = parsed.error.issues[0]?.message;
+		return {
+			error: `Geolocation must be a GeoJSON FeatureCollection${detail ? ` (${detail})` : ""}`,
+		};
+	}
+	return { value: parsed.data };
+}
+
+function parseCoordinate(text: string | undefined): number | null {
+	const trimmed = (text ?? "").trim();
+	if (!trimmed) return null;
+	const parsed = Number(trimmed);
+	return Number.isFinite(parsed) ? parsed : null;
+}
+
+/**
  * Converts form values to the mutation payload expected by the API.
- * Empty string parentLocationId is normalized to null.
+ * Empty string parentLocationId is normalized to null. The container, geo
+ * and UOM fields are only included when the form supplied them. `area` is
+ * never sent: the server computes it from the geolocation.
  */
 export function toLocationMutationInput(
 	values: LocationFormValues,
 ): Omit<Asset.CreateLocationInput, never> {
-	return {
+	const input: Asset.CreateLocationInput = {
 		name: values.name.trim(),
 		parentLocationId: (values.parentLocationId ?? "").trim() || null,
 		isGroup: values.isGroup,
 	};
+	if (values.isContainer !== undefined) input.isContainer = values.isContainer;
+	if (values.latitude !== undefined) {
+		input.latitude = parseCoordinate(values.latitude);
+	}
+	if (values.longitude !== undefined) {
+		input.longitude = parseCoordinate(values.longitude);
+	}
+	if (values.areaUom !== undefined) {
+		input.areaUom = values.areaUom.trim() || null;
+	}
+	if (values.geolocation !== undefined) {
+		const parsed = parseGeolocationText(values.geolocation);
+		input.geolocation = "value" in parsed ? parsed.value : null;
+	}
+	return input;
 }
+
+/**
+ * Formats a computed area (square metres) for display; "-" when not set.
+ */
+export function formatArea(area: number | null | undefined): string {
+	if (!area) return "-";
+	return `${new Intl.NumberFormat("en-IN", { maximumFractionDigits: 2 }).format(area)} m²`;
+}
+
+/**
+ * Pretty-prints a stored GeoJSON FeatureCollection for the form textarea.
+ */
+export function formatGeolocationText(
+	geolocation: Asset.GeoJsonFeatureCollection | null | undefined,
+): string {
+	return geolocation ? JSON.stringify(geolocation, null, 2) : "";
+}
+
+export type LocationView = "table" | "tree";
+
+export const LOCATION_VIEW_STORAGE_KEY = "asset-location-view";
 
 /**
  * Builds the list query input from the current filter/pagination state.

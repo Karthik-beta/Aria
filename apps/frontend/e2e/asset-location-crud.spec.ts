@@ -103,9 +103,9 @@ test.describe("asset locations (real backend)", () => {
 		await expect(tableRow(page, CHILD_NAME)).toHaveCount(0);
 	});
 
-	// #141 makes the backend reject deleting a group that still has children.
-	// Until it lands the delete is not blocked, so this step stays fixme.
-	test.fixme("rejects deleting the group while it has a child (#141)", async ({
+	// The backend rejects deleting a group that still has child locations
+	// ("Cannot delete a location that has child locations").
+	test("rejects deleting the group while it has a child (#141)", async ({
 		page,
 	}) => {
 		await page.goto(LIST_PATH);

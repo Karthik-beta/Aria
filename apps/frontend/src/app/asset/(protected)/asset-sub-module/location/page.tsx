@@ -10,7 +10,15 @@
 
 import type { Asset } from "@aria/types";
 import type { ColumnDef, PaginationState } from "@tanstack/react-table";
-import { Edit, MapPin, MoreHorizontal, Plus, Trash } from "lucide-react";
+import {
+	Edit,
+	ListTree,
+	MapPin,
+	MoreHorizontal,
+	Plus,
+	Table2,
+	Trash,
+} from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
 import { useDeferredValue } from "react";
@@ -48,10 +56,14 @@ import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
 import {
 	buildLocationListInput,
+	formatArea,
 	getLocationGroupLabel,
 	getRelativeAge,
 	LOCATION_PAGE_SIZE,
+	LOCATION_VIEW_STORAGE_KEY,
+	type LocationView,
 } from "./location.utils";
+import { LocationTreeView } from "./location-tree-view";
 
 type LocationRow = Omit<Asset.Location, "createdAt" | "updatedAt"> & {
 	createdAt: Date;
@@ -90,6 +102,28 @@ export default function LocationPage() {
 		null,
 	);
 	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
+
+	const [view, setView] = React.useState<LocationView>("table");
+
+	// Restore the last chosen view (the table stays the default).
+	React.useEffect(() => {
+		try {
+			if (window.localStorage.getItem(LOCATION_VIEW_STORAGE_KEY) === "tree") {
+				setView("tree");
+			}
+		} catch {
+			// Storage can be unavailable (private mode); keep the default.
+		}
+	}, []);
+
+	const changeView = React.useCallback((next: LocationView) => {
+		setView(next);
+		try {
+			window.localStorage.setItem(LOCATION_VIEW_STORAGE_KEY, next);
+		} catch {
+			// Ignore storage failures.
+		}
+	}, []);
 
 	const deferredSearch = useDeferredValue(search);
 
@@ -140,6 +174,7 @@ export default function LocationPage() {
 	const handleSubscriptionData = React.useCallback(
 		(_event: LocationSubscriptionEvent) => {
 			void utils.asset.listLocations.invalidate();
+			void utils.asset.listLocationChildren.invalidate();
 		},
 		[utils],
 	);
@@ -167,10 +202,13 @@ export default function LocationPage() {
 			if (ctx?.previous) {
 				utils.asset.listLocations.setData(queryInput, ctx.previous);
 			}
+			setIsDeleteDialogOpen(false);
+			setLocationToDelete(null);
 			toast.error(getToastMessage(err, "delete"));
 		},
 		onSettled: () => {
 			void utils.asset.listLocations.invalidate(queryInput);
+			void utils.asset.listLocationChildren.invalidate();
 		},
 	});
 
@@ -280,6 +318,18 @@ export default function LocationPage() {
 				},
 			},
 			{
+				accessorKey: "area",
+				header: ({ column }) => (
+					<DataTableColumnHeader column={column} title="Area" />
+				),
+				cell: ({ row }) => (
+					<span className="text-muted-foreground">
+						{formatArea(row.original.area)}
+					</span>
+				),
+				meta: { label: "Area", exportable: true },
+			},
+			{
 				id: "age",
 				header: () => null,
 				cell: ({ row }) => (
@@ -367,45 +417,89 @@ export default function LocationPage() {
 							Manage asset locations and site hierarchy
 						</p>
 					</div>
+					<div className="flex items-center gap-1 rounded-md border p-0.5">
+						<Button
+							variant={view === "table" ? "secondary" : "ghost"}
+							size="sm"
+							aria-pressed={view === "table"}
+							onClick={() => changeView("table")}
+						>
+							<Table2 className="mr-2 h-4 w-4" />
+							Table
+						</Button>
+						<Button
+							variant={view === "tree" ? "secondary" : "ghost"}
+							size="sm"
+							aria-pressed={view === "tree"}
+							onClick={() => changeView("tree")}
+						>
+							<ListTree className="mr-2 h-4 w-4" />
+							Tree
+						</Button>
+					</div>
 				</div>
+
+				{view === "tree" && (
+					<>
+						{canManageAssets && (
+							<div>
+								<Link
+									href="/asset/asset-sub-module/location/form"
+									className={cn(
+										buttonVariants({ variant: "default", size: "sm" }),
+									)}
+								>
+									<Plus className="mr-2 h-4 w-4" />
+									Add Location
+								</Link>
+							</div>
+						)}
+						<LocationTreeView
+							canManageAssets={canManageAssets}
+							onDelete={handleDelete}
+						/>
+					</>
+				)}
 
 				{/* Filters */}
-				<div className="flex flex-wrap items-end gap-3">
-					<div className="flex flex-col gap-1">
-						<Label className="text-xs text-muted-foreground">Search</Label>
-						<Input
-							placeholder="Search locations…"
-							value={search}
-							onChange={(e) => {
-								setSearch(e.target.value);
-								resetToFirstPage();
-							}}
-							className="h-8 w-56"
-						/>
-					</div>
+				{view === "table" && (
+					<div className="flex flex-wrap items-end gap-3">
+						<div className="flex flex-col gap-1">
+							<Label className="text-xs text-muted-foreground">Search</Label>
+							<Input
+								placeholder="Search locations…"
+								value={search}
+								onChange={(e) => {
+									setSearch(e.target.value);
+									resetToFirstPage();
+								}}
+								className="h-8 w-56"
+							/>
+						</div>
 
-					<div className="flex flex-col gap-1">
-						<Label className="text-xs text-muted-foreground">Type</Label>
-						<Select
-							value={groupFilter}
-							onValueChange={(v) => {
-								setGroupFilter(v as GroupFilter);
-								resetToFirstPage();
-							}}
-						>
-							<SelectTrigger className="h-8 w-36">
-								<SelectValue />
-							</SelectTrigger>
-							<SelectContent>
-								<SelectItem value="all">All Types</SelectItem>
-								<SelectItem value="group">Group</SelectItem>
-								<SelectItem value="leaf">Leaf</SelectItem>
-							</SelectContent>
-						</Select>
+						<div className="flex flex-col gap-1">
+							<Label className="text-xs text-muted-foreground">Type</Label>
+							<Select
+								value={groupFilter}
+								onValueChange={(v) => {
+									setGroupFilter(v as GroupFilter);
+									resetToFirstPage();
+								}}
+							>
+								<SelectTrigger className="h-8 w-36">
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="all">All Types</SelectItem>
+									<SelectItem value="group">Group</SelectItem>
+									<SelectItem value="leaf">Leaf</SelectItem>
+								</SelectContent>
+							</Select>
+						</div>
 					</div>
-				</div>
+				)}
 
-				{isLoading && (
+				{view === "table" && isLoading && (
 					<div className="flex flex-1 flex-col gap-4">
 						<div className="flex items-center justify-between">
 							<div className="flex items-center gap-4">
@@ -475,7 +569,7 @@ export default function LocationPage() {
 					</div>
 				)}
 
-				{queryError && !isLoading && (
+				{view === "table" && queryError && !isLoading && (
 					<ErrorState
 						error={queryError}
 						operation="load"
@@ -486,7 +580,7 @@ export default function LocationPage() {
 					/>
 				)}
 
-				{!isLoading && !queryError && (
+				{view === "table" && !isLoading && !queryError && (
 					<LocationTable
 						key={tableResetKey}
 						data={locations}
