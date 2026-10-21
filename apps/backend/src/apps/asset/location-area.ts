@@ -118,9 +118,7 @@ export function computeArea(
 			const rings = geometry?.coordinates;
 			if (
 				Array.isArray(rings) &&
-				rings.every(
-					(ring) => Array.isArray(ring) && ring.every(isPosition),
-				)
+				rings.every((ring) => Array.isArray(ring) && ring.every(isPosition))
 			) {
 				layerArea += polygonArea(rings as Position[][]);
 			}

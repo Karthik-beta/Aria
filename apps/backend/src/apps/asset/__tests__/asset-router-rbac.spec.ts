@@ -38,7 +38,7 @@ const svc = new Proxy(
 const eventEmitter = { emit: mock(() => true) };
 
 function caller() {
-	return new AssetRouter(eventEmitter as never, svc as never)
+	return new AssetRouter(eventEmitter as never, svc as never, svc as never)
 		.getRouter()
 		.createCaller({ req: { headers: {} } } as never);
 }
@@ -127,4 +127,29 @@ describe("Asset router role-based access", () => {
 			expect((error as TRPCError | null)?.code).not.toBe("FORBIDDEN");
 		});
 	}
+
+	describe("location hierarchy", () => {
+		const locationId = { id: "ckxxxxxxxxxxxxxxxxxxxxxxx" };
+
+		it("lets a member read the location tree, children and ancestors", async () => {
+			await caller().getLocationTree({});
+			await caller().getLocationTree();
+			await caller().listLocationChildren({ parentId: null });
+			await caller().listLocationChildren();
+			await caller().getLocationAncestors(locationId);
+		});
+
+		it("blocks a member from writing locations", async () => {
+			await expectForbidden(caller().createLocation({ name: "HQ" } as never));
+			await expectForbidden(
+				caller().updateLocation({ ...locationId, name: "HQ" } as never),
+			);
+			await expectForbidden(caller().deleteLocation(locationId));
+		});
+
+		it("lets an admin pass the role check on location writes", async () => {
+			memberRole = "admin";
+			await caller().deleteLocation(locationId);
+		});
+	});
 });

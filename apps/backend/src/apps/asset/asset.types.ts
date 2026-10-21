@@ -20,18 +20,29 @@ export type PrismaAsset = Prisma.AssetGetPayload<{
 }>;
 
 /**
+ * Prisma select for a Location row as consumed by `toAssetLocation`.
+ */
+export const LOCATION_SELECT = {
+	id: true,
+	name: true,
+	parentLocationId: true,
+	parentLocation: { select: { name: true } },
+	isGroup: true,
+	isContainer: true,
+	latitude: true,
+	longitude: true,
+	area: true,
+	areaUom: true,
+	geolocation: true,
+	createdAt: true,
+	updatedAt: true,
+} as const satisfies Prisma.LocationSelect;
+
+/**
  * Prisma model type for Location (with optional parent name).
  */
 export type PrismaLocation = Prisma.LocationGetPayload<{
-	select: {
-		id: true;
-		name: true;
-		parentLocationId: true;
-		parentLocation: { select: { name: true } };
-		isGroup: true;
-		createdAt: true;
-		updatedAt: true;
-	};
+	select: typeof LOCATION_SELECT;
 }>;
 
 /**
@@ -51,6 +62,24 @@ export type PrismaAssetCategory = Prisma.AssetCategoryGetPayload<{
 }>;
 
 /**
+ * Returns the stored `geolocation` JSON as a GeoJSON FeatureCollection, or
+ * null when the column is empty or does not look like one.
+ */
+function toGeoJsonFeatureCollection(
+	value: unknown,
+): Asset.GeoJsonFeatureCollection | null {
+	if (
+		value &&
+		typeof value === "object" &&
+		(value as { type?: unknown }).type === "FeatureCollection" &&
+		Array.isArray((value as { features?: unknown }).features)
+	) {
+		return value as Asset.GeoJsonFeatureCollection;
+	}
+	return null;
+}
+
+/**
  * Maps a Prisma Location record to the Asset.Location domain type.
  */
 export function toAssetLocation(loc: PrismaLocation): Asset.Location {
@@ -60,6 +89,12 @@ export function toAssetLocation(loc: PrismaLocation): Asset.Location {
 		parentLocationId: loc.parentLocationId ?? null,
 		parentLocationName: loc.parentLocation?.name ?? null,
 		isGroup: loc.isGroup,
+		isContainer: loc.isContainer ?? false,
+		latitude: loc.latitude ?? null,
+		longitude: loc.longitude ?? null,
+		area: loc.area ?? 0,
+		areaUom: loc.areaUom ?? null,
+		geolocation: toGeoJsonFeatureCollection(loc.geolocation),
 		createdAt: loc.createdAt,
 		updatedAt: loc.updatedAt,
 	};
