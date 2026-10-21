@@ -5,7 +5,7 @@
 
 # Base stage with Bun package manager 🧱
 # Using Bun's official image which includes Node.js runtime
-FROM oven/bun:1.3.1@sha256:9c5d3c92b234b4708198577d2f39aab7397a242a40da7c2f059e51b9dc62b408 AS base
+FROM oven/bun:1.4.3@sha256:ec06c3b6cea04192ae6770c434f668ca41d343ad19fa6472216c7b48be39c598 AS base
 WORKDIR /app
 
 # Dependencies stage - install all dependencies 📦
