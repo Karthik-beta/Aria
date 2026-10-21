@@ -404,18 +404,25 @@ describe("BarcodeScannerDialog", () => {
 			"NotReadableError",
 			"camera is unavailable or already in use by another application",
 		],
-	] as const)("reports %s without attempting a fallback", async (name, message) => {
-		scannerMocks.decodeFromConstraints.mockRejectedValueOnce(
-			Object.assign(new Error(message), { name }),
-		);
+	] as const)(
+		"reports %s without attempting a fallback",
+		async (name, message) => {
+			scannerMocks.decodeFromConstraints.mockRejectedValueOnce(
+				Object.assign(new Error(message), { name }),
+			);
 
-		render(
-			<BarcodeScannerDialog isOpen onClose={vi.fn()} onScanSuccess={vi.fn()} />,
-		);
+			render(
+				<BarcodeScannerDialog
+					isOpen
+					onClose={vi.fn()}
+					onScanSuccess={vi.fn()}
+				/>,
+			);
 
-		expect(
-			await screen.findByText(new RegExp(message, "i")),
-		).toBeInTheDocument();
-		expect(scannerMocks.decodeFromConstraints).toHaveBeenCalledOnce();
-	});
+			expect(
+				await screen.findByText(new RegExp(message, "i")),
+			).toBeInTheDocument();
+			expect(scannerMocks.decodeFromConstraints).toHaveBeenCalledOnce();
+		},
+	);
 });

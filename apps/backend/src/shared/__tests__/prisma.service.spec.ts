@@ -37,15 +37,16 @@ describe("PrismaService", () => {
 
 		const allModels = [...authModels, ...inventoryModels];
 
-		it.each(
-			allModels,
-		)("exposes %s accessor delegating to the underlying client", (model) => {
-			const accessor = service[model as keyof PrismaService];
-			expect(accessor).toBeDefined();
-			expect(accessor).toBe(
-				service.client[model as keyof typeof service.client],
-			);
-		});
+		it.each(allModels)(
+			"exposes %s accessor delegating to the underlying client",
+			(model) => {
+				const accessor = service[model as keyof PrismaService];
+				expect(accessor).toBeDefined();
+				expect(accessor).toBe(
+					service.client[model as keyof typeof service.client],
+				);
+			},
+		);
 	});
 
 	// ── Transaction Support ─────────────────────────────────────────

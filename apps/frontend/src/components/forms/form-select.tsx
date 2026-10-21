@@ -83,4 +83,4 @@ function FormSelect<
 	);
 }
 
-export { FormSelect, type FormOption };
+export { type FormOption, FormSelect };

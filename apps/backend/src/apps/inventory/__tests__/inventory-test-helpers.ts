@@ -9,16 +9,16 @@ import { Prisma } from "../../../generated/prisma/client";
 import type { PrismaService } from "../../../shared/prisma.service";
 import { InventoryService } from "../inventory.service";
 
+export type { PrismaService };
 // Re-export for convenience in spec files
 export {
-	Inventory,
 	BadRequestException,
 	ConflictException,
+	Inventory,
+	InventoryService,
 	NotFoundException,
 	Prisma,
 };
-export type { PrismaService };
-export { InventoryService };
 
 export const mockItem = {
 	id: "clh1234567890",
