@@ -203,10 +203,19 @@ test.describe("assets (real backend)", () => {
 		await page.goto(`${ASSET_LIST}/${assetId}`);
 		await expect(page.getByText(/^Submitted$/i)).toBeVisible();
 
+		// Cancel Asset opens a confirmation that loads the cancellation preview.
+		await page.getByRole("button", { name: "Cancel Asset" }).click();
+		const dialog = page.getByRole("alertdialog", {
+			name: "Cancel this asset?",
+		});
+		await expect(dialog).toBeVisible();
 		// No depreciation has been posted yet, so cancelling is allowed.
-		await submitAndWait(page, "asset.cancelAsset", () =>
-			page.getByRole("button", { name: "Cancel Asset" }).click(),
-		);
+		await expect(
+			dialog.getByText("No depreciation has been posted for this asset."),
+		).toBeVisible();
+		const confirm = dialog.getByRole("button", { name: "Cancel Asset" });
+		await expect(confirm).toBeEnabled();
+		await submitAndWait(page, "asset.cancelAsset", () => confirm.click());
 		await expect(toast(page, "Asset cancelled")).toBeVisible();
 		await expect(page.getByText(/^Cancelled$/i)).toBeVisible();
 
