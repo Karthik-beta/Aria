@@ -30,6 +30,25 @@ Issues closed as not planned and PRs closed without merging keep their Status; a
 
 The workflow needs a repository secret named `PROJECT_TOKEN`: a classic personal access token with the `project` and `repo` scopes. The default `GITHUB_TOKEN` cannot write to a user-owned project. Without the secret the board step is skipped and everything else still runs.
 
+## Dependency labels
+
+Milestone issues list their blockers in a `Blocked by:` line in the footer, either `Blocked by: #12, #34` or `Blocked by: nothing`. Two labels track whether an issue can be started:
+
+| Label | Meaning |
+|---|---|
+| `agent-ready` | Every issue under `Blocked by:` is closed, or the line says `nothing`. Automated coding agents pick these up. |
+| `blocked` | At least one issue under `Blocked by:` is still open. |
+
+The **Dependency labels** workflow (`.github/workflows/dependency-labels.yml`, logic in `.github/scripts/dependency-labels.sh`) keeps them current:
+
+| Event | Effect |
+|---|---|
+| Issue closed or reopened | Open issues that name it under `Blocked by:` are recomputed. Closing the last open blocker flips them to `agent-ready`; reopening a blocker flips them back to `blocked` |
+| Issue edited | That issue is recomputed, in case its `Blocked by:` line changed |
+| Run manually (`gh workflow run dependency-labels.yml`) | Every open issue carrying either label is recomputed. Use it after a bulk change; it changes nothing when labels already match |
+
+Issues without either label are never changed, and an issue without a `Blocked by:` line is left alone. Each label change is logged as a notice on the run. The workflow uses the default `GITHUB_TOKEN` and needs no secret.
+
 ## Suggested views
 
 - **Board** grouped by Status, filtered to `-status:Done` or recently updated
