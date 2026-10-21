@@ -25,7 +25,7 @@ Aria's core business features are ported from [ERPNext](https://github.com/frapp
 ## Porting a feature
 
 1. **Open an issue** with the `erpnext-port` label and the module label. Link the ERPNext DocType, controller and docs page, and note the ERPNext version (for example `v15.123.1`) you are reading.
-2. **Read upstream at a pinned version.** Keep a local reference checkout outside the repository's tracked files (the asset work used a git-ignored `.erpnext/` copy).
+2. **Read upstream at a pinned version.** Run `./scripts/vendor-repos.sh` to get the git-ignored, sparse `.erpnext/` checkout; see [VENDORED_REPOS.md](../../VENDORED_REPOS.md). The pinned commit is `ERPNEXT_REF` in `scripts/vendor-repos.sh` (also recorded in `VENDORED_REPOS.md`).
 3. **Port the rules, not the framework.** Carry over validations, calculations and state transitions. Replace Frappe-specific mechanisms (hooks, `frappe.db` calls, permission queries) with Aria's services, Prisma and RBAC.
 4. **Port the tests.** Reproduce ERPNext's test cases and expected numbers so parity is checked, not assumed. The depreciation engine's spec does this for straight-line, double-declining and WDV schedules.
 5. **Record deliberate differences** in the PR description and the module's gap analysis. Set the issue's **ERPNext Parity** field on the [project board](Project-Board) to `At parity`, `Partial` or `Diverged by design`.

@@ -80,8 +80,8 @@ Aria is a bun-powered Turborepo that hosts the entire ERP surface area under one
 
 ## Vendored Repositories
 
-This project clones external dependency source trees under `repos/` (run
-`./scripts/vendor-repos.sh`; the folder is gitignored) so that coding agents can
+This project clones external dependency source trees under `repos/` and the ERPNext reference source under `.erpnext/` (run
+`./scripts/vendor-repos.sh`; both folders are gitignored) so that coding agents can
 explore real implementations instead of guessing from documentation. See `VENDORED_REPOS.md` for the full rationale, setup commands,
 and maintenance guide.
 
@@ -91,7 +91,10 @@ and maintenance guide.
 - **Prefer source over docs**: When unsure about an API, explore the vendored
   source code instead of relying on web search or documentation.
 - **Do not import**: Application code must continue importing from normal
-  package dependencies (`node_modules`), not from `repos/`.
+  package dependencies (`node_modules`), not from `repos/` or `.erpnext/`.
+- **ERPNext (`.erpnext/`)**: pinned, sparse, read-only GPLv3 reference. Do not copy files into
+  tracked code. If `.erpnext/` is missing, run `./scripts/vendor-repos.sh`. Link the upstream
+  GitHub `develop` URL in issues and PRs as well, so reviewers can follow it.
 
 ### When to consult each repo
 
@@ -110,6 +113,10 @@ and maintenance guide.
 | Recharts chart components | `repos/recharts` |
 | Date manipulation utilities | `repos/date-fns` |
 | Biome lint/format rules | `repos/biome` |
+| Porting an ERPNext Assets doctype, report or scheduler job | `.erpnext/erpnext/assets` |
+| Journal Entry, GL, Finance Book, depreciation posting | `.erpnext/erpnext/accounts` |
+| Stock Entry, Purchase Receipt | `.erpnext/erpnext/stock` |
+| Controller base classes | `.erpnext/erpnext/controllers` |
 
 ---
 
