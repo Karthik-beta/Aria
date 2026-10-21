@@ -36,9 +36,25 @@ const svc = new Proxy(
 	{ get: () => mock(() => Promise.resolve({ data: [], total: 0 })) },
 );
 const eventEmitter = { emit: mock(() => true) };
+const cancellationPreview = {
+	canCancel: true,
+	blockers: [],
+	postedEntryCount: 0,
+	postedDepreciationTotal: 0,
+	latestPostingDate: null,
+	entries: [],
+};
+const assetCore = {
+	getAssetCancellationPreview: mock(() => Promise.resolve(cancellationPreview)),
+};
 
 function caller() {
-	return new AssetRouter(eventEmitter as never, svc as never, svc as never)
+	return new AssetRouter(
+		eventEmitter as never,
+		svc as never,
+		assetCore as never,
+		svc as never,
+	)
 		.getRouter()
 		.createCaller({ req: { headers: {} } } as never);
 }
@@ -111,6 +127,19 @@ describe("Asset router role-based access", () => {
 	it("blocks a member from submitting or deleting an asset", async () => {
 		await expectForbidden(caller().submitAsset(assetId));
 		await expectForbidden(caller().deleteAsset(assetId));
+	});
+
+	it("lets a member read the asset cancellation preview", async () => {
+		await expect(
+			caller().getAssetCancellationPreview(assetId),
+		).resolves.toEqual(cancellationPreview);
+		expect(assetCore.getAssetCancellationPreview).toHaveBeenCalledWith(
+			(assetId as { id: string }).id,
+		);
+	});
+
+	it("blocks a member from cancelling an asset", async () => {
+		await expectForbidden(caller().cancelAsset(assetId));
 	});
 
 	for (const role of ["admin", "owner", "member,admin"]) {

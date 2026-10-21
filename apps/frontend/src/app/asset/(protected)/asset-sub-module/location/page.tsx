@@ -202,6 +202,8 @@ export default function LocationPage() {
 			if (ctx?.previous) {
 				utils.asset.listLocations.setData(queryInput, ctx.previous);
 			}
+			setIsDeleteDialogOpen(false);
+			setLocationToDelete(null);
 			toast.error(getToastMessage(err, "delete"));
 		},
 		onSettled: () => {

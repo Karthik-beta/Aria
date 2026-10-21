@@ -658,6 +658,11 @@ type AssetRouterInput = {
 		output: unknown;
 		meta: object;
 	}>;
+	getAssetCancellationPreview: TRPCQueryProcedure<{
+		input: { id: string };
+		output: Asset.AssetCancellationPreview;
+		meta: object;
+	}>;
 
 	// ── Location hierarchy ───────────────────────────────────────────────────
 	getLocationTree: TRPCQueryProcedure<{

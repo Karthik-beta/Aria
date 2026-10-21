@@ -7508,6 +7508,32 @@ export namespace Asset {
 		extends AssetDashboardOverviewData,
 			AssetDashboardTopChartsData,
 			AssetDashboardBottomChartsData {}
+
+	// -- Asset cancellation preview (read-only) --------------------------------
+
+	/** One posted depreciation entry that cancelling the asset would reverse. */
+	export const assetCancellationPreviewEntrySchema = z.object({
+		series: z.string(),
+		postingDate: z.string(),
+		depreciationAmount: z.number(),
+		financeBookName: z.string(),
+	});
+
+	/**
+	 * What cancelling an asset would do and what blocks it. `entries` is capped
+	 * at 200 rows; `postedEntryCount` and `postedDepreciationTotal` cover all.
+	 */
+	export const assetCancellationPreviewSchema = z.object({
+		canCancel: z.boolean(),
+		blockers: z.array(z.string()),
+		postedEntryCount: z.number().int().min(0),
+		postedDepreciationTotal: z.number(),
+		latestPostingDate: z.string().nullable(),
+		entries: z.array(assetCancellationPreviewEntrySchema).max(200),
+	});
+	export type AssetCancellationPreview = z.infer<
+		typeof assetCancellationPreviewSchema
+	>;
 }
 
 // ============================================================================
