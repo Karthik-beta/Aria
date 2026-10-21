@@ -1,8 +1,9 @@
 # Vendored Repositories
 
-This project vendors external dependency source trees under `repos/` so that
+This project clones external dependency source trees under `repos/` so that
 coding agents can explore real implementations instead of guessing from
-documentation or web search results.
+documentation or web search results. `repos/` is gitignored: the clones live
+only on your machine and are never committed.
 
 > Inspired by [The One Weird Git Trick That Makes Coding Agents More
 > Effect-ive](https://effect.website/blog/the-one-weird-git-trick-that-makes-coding-agents-more-effect-ive/)
@@ -61,38 +62,11 @@ Well-documented libraries where agents rarely struggle.
 | **date-fns** | `repos/date-fns` | Date utilities. Agents rarely struggle with this. |
 | **Biome** | `repos/biome` | Linting/formatting toolchain. Useful for understanding rule internals. |
 
-## Individual Subtree Commands
-
-If you prefer to add repos one at a time:
-
-```bash
-# Tier 1 — Critical
-git subtree add --prefix=repos/trpc https://github.com/trpc/trpc.git main --squash
-git subtree add --prefix=repos/better-auth https://github.com/better-auth/better-auth.git main --squash
-git subtree add --prefix=repos/zod https://github.com/colinhacks/zod.git main --squash
-git subtree add --prefix=repos/nest https://github.com/nestjs/nest.git master --squash
-
-# Tier 2 — High Value
-git subtree add --prefix=repos/prisma https://github.com/prisma/prisma.git main --squash
-git subtree add --prefix=repos/tanstack-table https://github.com/TanStack/table.git main --squash
-git subtree add --prefix=repos/react-hook-form https://github.com/react-hook-form/react-hook-form.git master --squash
-
-# Tier 3 — Medium Value
-git subtree add --prefix=repos/dnd-kit https://github.com/clauderic/dnd-kit.git main --squash
-git subtree add --prefix=repos/nuqs https://github.com/47ng/nuqs.git next --squash
-git subtree add --prefix=repos/zustand https://github.com/pmndrs/zustand.git main --squash
-
-# Tier 4 — Lower Priority
-git subtree add --prefix=repos/recharts https://github.com/recharts/recharts.git main --squash
-git subtree add --prefix=repos/date-fns https://github.com/date-fns/date-fns.git main --squash
-git subtree add --prefix=repos/biome https://github.com/biomejs/biome.git main --squash
-```
-
-## Updating a Subtree
+## Updating
 
 ```bash
 # Update a single repo
-git subtree pull --prefix=repos/trpc https://github.com/trpc/trpc.git main --squash
+git -C repos/trpc pull --ff-only --depth 1
 
 # Update all repos
 ./scripts/vendor-repos.sh --pull
@@ -160,12 +134,13 @@ This project vendors external dependency source trees under `repos/`.
 **Pros:**
 - Coding agents produce significantly better code when they can read real
   implementations instead of guessing from documentation.
-- No extra tooling required — subtrees behave like normal directories.
+- Nothing is committed: `repos/` is gitignored, so the repository stays small
+  and each clone keeps its own upstream license.
 
 **Cons:**
-- Increases repo size (each subtree adds the full source tree).
+- Each developer runs `./scripts/vendor-repos.sh` once (shallow clones, so it
+  is quick).
 - You take on responsibility for keeping them updated (use
   `./scripts/vendor-repos.sh --pull`).
-- Each update adds a single squash commit to your history.
 
 The payoff in agent output quality is, in our experience, well worth it.

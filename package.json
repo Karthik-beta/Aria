@@ -1,6 +1,7 @@
 {
 	"name": "aria",
 	"version": "0.1.0",
+	"license": "AGPL-3.0-or-later",
 	"private": true,
 	"scripts": {
 		"predev": "bun x turbo run build --filter=@aria/types --filter=@aria/utils",

@@ -1,6 +1,10 @@
 # Contributing to Aria ERP
 
-Internal development guide for the Pivotr engineering team.
+Thanks for your interest in Aria ERP! This guide covers setup, workflow and code standards.
+
+By contributing, you agree that your contributions are licensed under the
+[GNU Affero General Public License v3.0 or later](./LICENSE), and you agree to follow the
+[Code of Conduct](./CODE_OF_CONDUCT.md).
 
 ## Development Setup
 
@@ -153,7 +157,7 @@ Install the [Biome VS Code extension](https://marketplace.visualstudio.com/items
 ### Review Process
 
 1. Open a PR targeting `master`
-2. At least one team member must approve the PR
+2. A maintainer must approve the PR
 3. All CI checks must pass
 4. Address any requested changes by pushing additional commits
 5. The reviewer or author merges once approved
@@ -186,4 +190,4 @@ For detailed architecture information, see the [Architecture Guide](./docs/02-ar
 
 - **Documentation** — [docs/README.md](./docs/README.md)
 - **FAQ** — [docs/01-getting-started/01-faq/README.md](./docs/01-getting-started/01-faq/README.md)
-- **GitHub Issues** — File a bug or feature request internally
+- **GitHub Issues** — [File a bug or feature request](https://github.com/Karthik-beta/Aria/issues)

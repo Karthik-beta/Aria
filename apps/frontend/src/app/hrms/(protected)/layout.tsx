@@ -15,8 +15,8 @@ import { requireProtectedAuthState } from "@/lib/auth/server";
 import { SIDEBAR_COOKIE_NAME } from "@/lib/cookies";
 
 export const metadata: Metadata = {
-	title: "HRMS by Pivotr",
-	description: "HR management system from Pivotr",
+	title: "Aria HRMS",
+	description: "HR management system in Aria ERP",
 	icons: {
 		icon: "/icons/favicon-hrms.svg",
 		shortcut: "/icons/favicon-hrms.svg",

@@ -80,9 +80,9 @@ Aria is a bun-powered Turborepo that hosts the entire ERP surface area under one
 
 ## Vendored Repositories
 
-This project vendors external dependency source trees under `repos/` so that
-coding agents can explore real implementations instead of guessing from
-documentation. See `VENDORED_REPOS.md` for the full rationale, setup commands,
+This project clones external dependency source trees under `repos/` (run
+`./scripts/vendor-repos.sh`; the folder is gitignored) so that coding agents can
+explore real implementations instead of guessing from documentation. See `VENDORED_REPOS.md` for the full rationale, setup commands,
 and maintenance guide.
 
 - **Read-only reference**: Use vendored repos to explore real implementations

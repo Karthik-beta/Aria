@@ -1,3 +1,0 @@
--- AlterTable
-ALTER TABLE "inventory_items" ADD COLUMN     "leadTimeDays" INTEGER NOT NULL DEFAULT 0,
-ADD COLUMN     "safetyStock" DOUBLE PRECISION NOT NULL DEFAULT 0;

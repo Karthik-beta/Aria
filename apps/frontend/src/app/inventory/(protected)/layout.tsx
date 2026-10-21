@@ -15,8 +15,8 @@ import { requireProtectedAuthState } from "@/lib/auth/server";
 import { SIDEBAR_COOKIE_NAME } from "@/lib/cookies";
 
 export const metadata: Metadata = {
-	title: "Inventory by Pivotr",
-	description: "Inventory management system from Pivotr",
+	title: "Aria Inventory",
+	description: "Inventory management system in Aria ERP",
 	icons: {
 		icon: "/icons/favicon-inventory.svg",
 		shortcut: "/icons/favicon-inventory.svg",

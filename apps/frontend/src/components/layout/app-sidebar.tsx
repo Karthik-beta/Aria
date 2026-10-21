@@ -44,7 +44,7 @@ import { AppSwitcher } from "../app-switcher";
 import { Icons } from "../icons";
 import UserDropdownContent from "./user-dropdown-content";
 export const company = {
-	name: "by Pivotr",
+	name: "Aria ERP",
 	logo: IconPhotoUp,
 	plan: "Enterprise",
 };

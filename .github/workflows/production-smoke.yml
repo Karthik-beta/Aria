@@ -14,17 +14,21 @@ concurrency:
 jobs:
   verify-demo:
     name: Verify demo deployment
+    # The demo's public URLs live in the repository variables
+    # DEMO_BACKEND_HEALTH_URL and DEMO_FRONTEND_HEALTH_URL; without them the
+    # check is skipped.
     if: >-
-      github.event_name == 'workflow_dispatch' ||
+      vars.DEMO_BACKEND_HEALTH_URL != '' && vars.DEMO_FRONTEND_HEALTH_URL != '' &&
+      (github.event_name == 'workflow_dispatch' ||
       (github.event.deployment_status.state == 'success' &&
-      github.event.deployment.environment == 'aria-erp-demo / production')
+      github.event.deployment.environment == 'aria-erp-demo / production'))
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - name: Verify public readiness endpoints
         env:
-          BACKEND_HEALTH_URL: https://backend.aria.pivotr.in/health/ready
-          FRONTEND_HEALTH_URL: https://aria.pivotr.in/ready/
+          BACKEND_HEALTH_URL: ${{ vars.DEMO_BACKEND_HEALTH_URL }}
+          FRONTEND_HEALTH_URL: ${{ vars.DEMO_FRONTEND_HEALTH_URL }}
         run: |
           backend_status="$(curl --silent --show-error --retry 12 --retry-all-errors \
             --retry-delay 5 --output /tmp/backend-health.json --write-out '%{http_code}' \

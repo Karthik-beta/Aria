@@ -2,12 +2,12 @@
 
 ## Reporting a Vulnerability
 
-If you discover a security vulnerability in Aria ERP, report it immediately through internal channels.
+If you discover a security vulnerability in Aria ERP, report it privately as described below.
 
 ### How to Report
 
 1. **Do not** create a public GitHub issue for security vulnerabilities
-2. **Contact** the engineering lead directly via email: **karthikpar@protonmail.com**
+2. **Contact** the maintainer, either through [GitHub private vulnerability reporting](https://github.com/Karthik-beta/Aria/security/advisories/new) or by email: **karthikpar@protonmail.com**
 3. **Subject line**: `[SECURITY] Aria ERP — Brief description`
 4. **Include**:
    - Description of the vulnerability
@@ -26,7 +26,7 @@ If you discover a security vulnerability in Aria ERP, report it immediately thro
 
 ## Security Practices
 
-All team members must follow these practices when contributing:
+All contributors must follow these practices:
 
 ### Secrets Management
 

@@ -5,6 +5,7 @@
 [![Bun](https://img.shields.io/badge/Bun-1.3.x-f9f1e1?logo=bun&logoColor=black)](https://bun.sh/)
 [![NestJS](https://img.shields.io/badge/NestJS-11-E0234E?logo=nestjs&logoColor=white)](https://nestjs.com/)
 [![Next.js](https://img.shields.io/badge/Next.js-15-000000?logo=next.js&logoColor=white)](https://nextjs.org/)
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](./LICENSE)
 
 > Modern, modular B2B ERP suite built with TypeScript, NestJS, and Next.js
 
@@ -13,7 +14,7 @@
 
 Aria ERP is a full-stack monorepo providing enterprise resource planning capabilities through specialized modules for asset management, customer relations, human resources, and inventory control.
 
-> **Proprietary Software** — This repository contains confidential intellectual property of Pivotr. See [LICENSE](./LICENSE) for details.
+> **Open source** — Aria ERP is free software under the [GNU AGPL v3.0 or later](./LICENSE).
 
 ## Quick Links
 
@@ -118,7 +119,8 @@ updates and uninstalls the same demo ([Windows installer](./deployment/local/REA
 
 ## Contributing
 
-All team members should read the [Contributing Guide](./CONTRIBUTING.md) before submitting pull requests.
+Contributions are welcome. Read the [Contributing Guide](./CONTRIBUTING.md) and the
+[Code of Conduct](./CODE_OF_CONDUCT.md) before submitting pull requests.
 
 **Quick checklist before PR:**
 
@@ -131,12 +133,18 @@ All team members should read the [Contributing Guide](./CONTRIBUTING.md) before 
 
 ## Resources
 
-- **[Contributing Guide](./CONTRIBUTING.md)** — Internal development workflow and code standards
+- **[Contributing Guide](./CONTRIBUTING.md)** — Development workflow and code standards
+- **[Code of Conduct](./CODE_OF_CONDUCT.md)** — Community standards
 - **[Security Policy](./SECURITY.md)** — Vulnerability reporting and security practices
 - **[Changelog](./CHANGELOG.md)** — Release history and notable changes
 
 ## License
 
-Proprietary — All rights reserved. See [LICENSE](./LICENSE) for details.
+Copyright (C) 2024-present Karthik P ([@Karthik-beta](https://github.com/Karthik-beta))
 
-Copyright (c) 2024-present Pivotr
+This program is free software: you can redistribute it and/or modify it under the terms
+of the GNU Affero General Public License as published by the Free Software Foundation,
+either version 3 of the License, or (at your option) any later version. It is distributed
+in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied
+warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See [LICENSE](./LICENSE)
+for the full text.
