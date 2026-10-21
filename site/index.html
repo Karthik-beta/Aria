@@ -1,0 +1,389 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Aria ERP: open-source modular ERP</title>
+		<meta
+			name="description"
+			content="Aria ERP is a free, open-source (AGPL-3.0-or-later) modular ERP for small and mid-sized businesses: asset management with depreciation, inventory, CRM and HRMS. Try the Windows demo installer."
+		/>
+		<link rel="canonical" href="https://karthik-beta.github.io/Aria/" />
+		<meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff" />
+		<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#09090b" />
+		<meta name="color-scheme" content="light dark" />
+
+		<meta property="og:type" content="website" />
+		<meta property="og:site_name" content="Aria ERP" />
+		<meta property="og:title" content="Aria ERP: open-source modular ERP" />
+		<meta
+			property="og:description"
+			content="Free, open-source modular ERP for small and mid-sized businesses: assets with depreciation, inventory, CRM and HRMS."
+		/>
+		<meta property="og:url" content="https://karthik-beta.github.io/Aria/" />
+		<meta name="twitter:card" content="summary" />
+
+		<link rel="icon" href="favicon.ico" sizes="any" />
+		<link rel="icon" href="icons/favicon-default.svg" type="image/svg+xml" />
+		<link rel="apple-touch-icon" href="icons/favicon-default.svg" />
+
+		<link rel="preconnect" href="https://fonts.googleapis.com" />
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+		<link
+			rel="stylesheet"
+			href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap"
+		/>
+		<link rel="stylesheet" href="styles.css" />
+	</head>
+	<body>
+		<!-- Tabler icons (MIT), path data copied from @tabler/icons-react 3.40.0 -->
+		<svg xmlns="http://www.w3.org/2000/svg" style="display: none" aria-hidden="true">
+			<symbol id="i-logo" viewBox="0 0 24 24"><path d="M15 6v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3V6a3 3 0 1 0-3 3h12a3 3 0 1 0-3-3" /></symbol>
+			<symbol id="i-github" viewBox="0 0 24 24"><path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" /></symbol>
+			<symbol id="i-windows" viewBox="0 0 24 24"><path d="M17.8 20l-12 -1.5c-1 -.1 -1.8 -.9 -1.8 -1.9v-9.2c0 -1 .8 -1.8 1.8 -1.9l12 -1.5c1.2 -.1 2.2 .8 2.2 1.9v12.1c0 1.2 -1.1 2.1 -2.2 1.9l0 .1" /><path d="M12 5l0 14" /><path d="M4 12l16 0" /></symbol>
+			<symbol id="i-download" viewBox="0 0 24 24"><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2" /><path d="M7 11l5 5l5 -5" /><path d="M12 4l0 12" /></symbol>
+			<symbol id="i-docker" viewBox="0 0 24 24"><path d="M22 12.54c-1.804 -.345 -2.701 -1.08 -3.523 -2.94c-.487 .696 -1.102 1.568 -.92 2.4c.028 .238 -.32 1 -.557 1h-14c0 5.208 3.164 7 6.196 7c4.124 .022 7.828 -1.376 9.854 -5c1.146 -.101 2.296 -1.505 2.95 -2.46" /><path d="M5 10h3v3h-3l0 -3" /><path d="M8 10h3v3h-3l0 -3" /><path d="M11 10h3v3h-3l0 -3" /><path d="M8 7h3v3h-3l0 -3" /><path d="M11 7h3v3h-3l0 -3" /><path d="M11 4h3v3h-3l0 -3" /><path d="M4.571 18c1.5 0 2.047 -.074 2.958 -.78" /><path d="M10 16l0 .01" /></symbol>
+			<symbol id="i-box" viewBox="0 0 24 24"><path d="M12 3l8 4.5l0 9l-8 4.5l-8 -4.5l0 -9l8 -4.5" /><path d="M12 12l8 -4.5" /><path d="M12 12l0 9" /><path d="M12 12l-8 -4.5" /></symbol>
+			<symbol id="i-blocks" viewBox="0 0 24 24"><path d="M14 4a1 1 0 0 1 1 -1h5a1 1 0 0 1 1 1v5a1 1 0 0 1 -1 1h-5a1 1 0 0 1 -1 -1l0 -5" /><path d="M3 14h12a2 2 0 0 1 2 2v3a2 2 0 0 1 -2 2h-10a2 2 0 0 1 -2 -2v-10a2 2 0 0 1 2 -2h3a2 2 0 0 1 2 2v12" /></symbol>
+			<symbol id="i-asana" viewBox="0 0 24 24"><path d="M9 7a3 3 0 1 0 6 0a3 3 0 1 0 -6 0" /><path d="M14 16a3 3 0 1 0 6 0a3 3 0 1 0 -6 0" /><path d="M4 16a3 3 0 1 0 6 0a3 3 0 1 0 -6 0" /></symbol>
+			<symbol id="i-users" viewBox="0 0 24 24"><path d="M5 7a4 4 0 1 0 8 0a4 4 0 1 0 -8 0" /><path d="M3 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /><path d="M21 21v-2a4 4 0 0 0 -3 -3.85" /></symbol>
+			<symbol id="i-license" viewBox="0 0 24 24"><path d="M15 21h-9a3 3 0 0 1 -3 -3v-1h10v2a2 2 0 0 0 4 0v-14a2 2 0 1 1 2 2h-2m2 -4h-11a3 3 0 0 0 -3 3v11" /><path d="M9 7l4 0" /><path d="M9 11l4 0" /></symbol>
+			<symbol id="i-info" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0" /><path d="M12 9h.01" /><path d="M11 12h1v4h1" /></symbol>
+			<symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" /><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" /></symbol>
+			<symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7l16 0" /><path d="M10 11l0 6" /><path d="M14 11l0 6" /><path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12" /><path d="M9 7v-3a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v3" /></symbol>
+			<symbol id="i-shield" viewBox="0 0 24 24"><path d="M11.46 20.846a12 12 0 0 1 -7.96 -14.846a12 12 0 0 0 8.5 -3a12 12 0 0 0 8.5 3a12 12 0 0 1 -.09 7.06" /><path d="M15 19l2 2l4 -4" /></symbol>
+			<symbol id="i-terminal" viewBox="0 0 24 24"><path d="M8 9l3 3l-3 3" /><path d="M13 15l3 0" /><path d="M3 6a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2l0 -12" /></symbol>
+			<symbol id="i-book" viewBox="0 0 24 24"><path d="M3 19a9 9 0 0 1 9 0a9 9 0 0 1 9 0" /><path d="M3 6a9 9 0 0 1 9 0a9 9 0 0 1 9 0" /><path d="M3 6l0 13" /><path d="M12 6l0 13" /><path d="M21 6l0 13" /></symbol>
+			<symbol id="i-code" viewBox="0 0 24 24"><path d="M7 8l-4 4l4 4" /><path d="M17 8l4 4l-4 4" /><path d="M14 4l-4 16" /></symbol>
+			<symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12l14 0" /><path d="M13 18l6 -6" /><path d="M13 6l6 6" /></symbol>
+		</svg>
+
+		<a class="skip-link" href="#main">Skip to content</a>
+
+		<header class="site-header">
+			<div class="container">
+				<a class="brand" href="./" aria-label="Aria ERP home">
+					<svg class="icon" aria-hidden="true"><use href="#i-logo" /></svg>
+					Aria ERP
+				</a>
+				<nav class="nav" aria-label="Main">
+					<ul class="nav-links">
+						<li><a class="btn btn-ghost btn-sm" href="#modules">Modules</a></li>
+						<li><a class="btn btn-ghost btn-sm" href="#demo">Windows demo</a></li>
+						<li><a class="btn btn-ghost btn-sm" href="#developers">Developers</a></li>
+					</ul>
+					<a class="btn btn-outline btn-sm" href="https://github.com/Karthik-beta/Aria">
+						<svg class="icon" aria-hidden="true"><use href="#i-github" /></svg>
+						GitHub
+					</a>
+				</nav>
+			</div>
+		</header>
+
+		<main id="main">
+			<section class="hero" aria-labelledby="hero-title">
+				<div class="container">
+					<div class="hero-copy">
+						<a class="badge badge-outline" href="https://github.com/Karthik-beta/Aria/blob/master/LICENSE">
+							<svg class="icon" aria-hidden="true"><use href="#i-license" /></svg>
+							Licence: AGPL-3.0-or-later
+						</a>
+						<h1 id="hero-title">Aria ERP</h1>
+						<p class="lead">
+							A free, open-source, modular ERP for small and mid-sized businesses.
+							Asset management with depreciation, inventory, CRM and HRMS in one
+							TypeScript application you can run and modify yourself.
+						</p>
+						<div class="cta-row">
+							<a
+								class="btn btn-default btn-lg"
+								href="https://github.com/Karthik-beta/Aria/releases/latest/download/AriaSetup.exe"
+							>
+								<svg class="icon" aria-hidden="true"><use href="#i-windows" /></svg>
+								Download for Windows
+							</a>
+							<a class="btn btn-outline btn-lg" href="https://github.com/Karthik-beta/Aria">
+								<svg class="icon" aria-hidden="true"><use href="#i-github" /></svg>
+								View on GitHub
+							</a>
+						</div>
+						<p class="note">
+							<svg class="icon" aria-hidden="true"><use href="#i-docker" /></svg>
+							<span>
+								The Windows demo installer needs
+								<a href="https://www.docker.com/products/docker-desktop/">Docker Desktop</a>.
+								See <a href="#demo">how to try the demo</a>.
+							</span>
+						</p>
+					</div>
+
+					<div class="preview" role="group" aria-label="Aria ERP modules">
+						<div class="preview-bar" aria-hidden="true">
+							<span></span><span></span><span></span>
+							<code>localhost:8080</code>
+						</div>
+						<ul>
+							<li>
+								<span class="tile" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-blocks" /></svg></span>
+								<span>Asset<small>Register, maintenance, depreciation</small></span>
+								<span class="badge badge-secondary">Available</span>
+							</li>
+							<li>
+								<span class="tile" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-box" /></svg></span>
+								<span>Inventory<small>Items, warehouses, stock</small></span>
+								<span class="badge badge-secondary">Available</span>
+							</li>
+							<li>
+								<span class="tile" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-asana" /></svg></span>
+								<span>CRM<small>Customers and sales pipeline</small></span>
+								<span class="badge badge-outline">In progress</span>
+							</li>
+							<li>
+								<span class="tile" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-users" /></svg></span>
+								<span>HRMS<small>Employees, attendance, payroll</small></span>
+								<span class="badge badge-outline">In progress</span>
+							</li>
+						</ul>
+					</div>
+				</div>
+			</section>
+
+			<section id="modules" aria-labelledby="modules-title">
+				<div class="container">
+					<div class="section-head">
+						<p class="eyebrow">Modules</p>
+						<h2 id="modules-title">One suite, separate workspaces</h2>
+						<p class="lead">
+							Each module is its own workspace in the same app, sharing users, roles and an
+							admin console. Asset management and inventory are the most complete today.
+						</p>
+					</div>
+					<div class="grid grid-2 grid-4">
+						<article class="card">
+							<div class="card-head">
+								<span class="card-icon" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-blocks" /></svg></span>
+								<span class="badge badge-secondary">Available</span>
+							</div>
+							<h3>Asset management</h3>
+							<p>
+								Asset register with categories and locations, maintenance logs and teams,
+								value adjustments, and scheduled depreciation with ledger and balance reports.
+							</p>
+						</article>
+						<article class="card">
+							<div class="card-head">
+								<span class="card-icon" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-box" /></svg></span>
+								<span class="badge badge-secondary">Available</span>
+							</div>
+							<h3>Inventory</h3>
+							<p>
+								Items, variants and groups, warehouses, units of measure, serial and batch
+								numbers, purchase, sales and transfer orders, and stock reports.
+							</p>
+						</article>
+						<article class="card">
+							<div class="card-head">
+								<span class="card-icon" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-asana" /></svg></span>
+								<span class="badge badge-outline">In progress</span>
+							</div>
+							<h3>CRM</h3>
+							<p>
+								Planned: customer database, lead tracking, sales pipeline and communication
+								history. The workspace exists; most features are still to come.
+							</p>
+						</article>
+						<article class="card">
+							<div class="card-head">
+								<span class="card-icon" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-users" /></svg></span>
+								<span class="badge badge-outline">In progress</span>
+							</div>
+							<h3>HRMS</h3>
+							<p>
+								Planned: employee management, attendance, leave and payroll. The workspace
+								exists; most features are still to come.
+							</p>
+						</article>
+					</div>
+				</div>
+			</section>
+
+			<section id="demo" aria-labelledby="demo-title">
+				<div class="container">
+					<div class="section-head">
+						<p class="eyebrow">Windows demo</p>
+						<h2 id="demo-title">Try the demo on Windows</h2>
+						<p class="lead">
+							The installer runs the full stack in Docker with demo inventory and asset data.
+							No Git, clone or build needed. Windows 10 or 11, about 4&nbsp;GB of memory for
+							Docker and 15&nbsp;GB of free disk.
+						</p>
+					</div>
+
+					<ol class="steps">
+						<li class="card">
+							<h3>Install Docker Desktop</h3>
+							<p>
+								Install <a href="https://www.docker.com/products/docker-desktop/">Docker Desktop</a>
+								(needs administrator rights), start it once and enable
+								<em>Start Docker Desktop when you sign in</em>.
+							</p>
+						</li>
+						<li class="card">
+							<h3>Run AriaSetup.exe</h3>
+							<p>
+								<a href="https://github.com/Karthik-beta/Aria/releases/latest/download/AriaSetup.exe">Download the installer</a>
+								and run it. It needs no administrator rights and shows its progress, then opens
+								the browser.
+							</p>
+						</li>
+						<li class="card">
+							<h3>Open Aria</h3>
+							<p>
+								Use the <strong>Aria ERP</strong> shortcut, or go to
+								<span class="kbd">http://localhost:8080</span>.
+							</p>
+						</li>
+						<li class="card">
+							<h3>Sign in</h3>
+							<p>
+								Username <span class="kbd">admin</span>, password
+								<span class="kbd">admin123</span>.
+							</p>
+						</li>
+					</ol>
+
+					<div class="grid grid-2 after-steps">
+						<div class="card">
+							<svg class="icon" aria-hidden="true"><use href="#i-refresh" /></svg>
+							<div>
+								<h3>Update</h3>
+								<p>
+									Run a newer installer. It backs up the database first and rolls back
+									automatically if the update fails.
+								</p>
+							</div>
+						</div>
+						<div class="card">
+							<svg class="icon" aria-hidden="true"><use href="#i-trash" /></svg>
+							<div>
+								<h3>Uninstall</h3>
+								<p>
+									Windows Settings &gt; Apps &gt; Aria ERP. It asks whether to keep the
+									database backups.
+								</p>
+							</div>
+						</div>
+					</div>
+
+					<div class="callout">
+						<svg class="icon" aria-hidden="true"><use href="#i-shield" /></svg>
+						<p>
+							<strong>"Windows protected your PC"?</strong> SmartScreen can warn about a new
+							download. Click <em>More info</em>, then <em>Run anyway</em>. Installers are built
+							by GitHub Actions from this repository; code signing through SignPath Foundation
+							is being set up under the
+							<a href="https://github.com/Karthik-beta/Aria/blob/master/CODE_SIGNING.md">code signing policy</a>.
+							Full details in the
+							<a href="https://github.com/Karthik-beta/Aria/blob/master/deployment/local/README.md#windows-installer">installer guide</a>.
+						</p>
+					</div>
+				</div>
+			</section>
+
+			<section id="stack" aria-labelledby="stack-title">
+				<div class="container">
+					<div class="section-head">
+						<p class="eyebrow">Tech stack</p>
+						<h2 id="stack-title">Type-safe from database to browser</h2>
+					</div>
+					<ul class="stack">
+						<li>TypeScript</li>
+						<li>Bun</li>
+						<li>Turborepo</li>
+						<li>NestJS 11</li>
+						<li>Next.js 16</li>
+						<li>React 19</li>
+						<li>tRPC 11</li>
+						<li>Prisma 7</li>
+						<li>PostgreSQL</li>
+						<li>Tailwind CSS 4</li>
+						<li>shadcn/ui</li>
+						<li>Docker Compose</li>
+					</ul>
+				</div>
+			</section>
+
+			<section id="developers" aria-labelledby="dev-title">
+				<div class="container dev">
+					<div>
+						<div class="section-head">
+							<p class="eyebrow">For developers</p>
+							<h2 id="dev-title">Run it from source</h2>
+							<p class="lead">
+								A Bun and Turborepo monorepo: NestJS API, Next.js frontend and shared packages
+								for types and the tRPC contract. You need Bun 1.3+, Node.js 20 or 22, and
+								PostgreSQL 16+ (or Docker).
+							</p>
+						</div>
+						<ul class="link-list">
+							<li>
+								<a href="https://github.com/Karthik-beta/Aria/blob/master/docs/01-getting-started/README.md">
+									<svg class="icon" aria-hidden="true"><use href="#i-arrow" /></svg>
+									Getting started guide
+								</a>
+							</li>
+							<li>
+								<a href="https://github.com/Karthik-beta/Aria/blob/master/docs/README.md">
+									<svg class="icon" aria-hidden="true"><use href="#i-book" /></svg>
+									Documentation
+								</a>
+							</li>
+							<li>
+								<a href="https://github.com/Karthik-beta/Aria/blob/master/CONTRIBUTING.md">
+									<svg class="icon" aria-hidden="true"><use href="#i-code" /></svg>
+									Contributing guide
+								</a>
+							</li>
+						</ul>
+					</div>
+					<div class="code">
+						<div class="code-title">
+							<svg class="icon" aria-hidden="true"><use href="#i-terminal" /></svg>
+							Quick start
+						</div>
+						<pre><code><span class="c"># Clone and install</span>
+git clone https://github.com/Karthik-beta/Aria.git
+cd Aria
+bun install
+
+<span class="c"># Start development</span>
+bun --filter backend start:dev  <span class="c"># API on :3001</span>
+bun --filter frontend dev       <span class="c"># App on :3000</span></code></pre>
+					</div>
+				</div>
+			</section>
+		</main>
+
+		<footer class="site-footer">
+			<div class="container">
+				<a class="brand" href="./" aria-label="Aria ERP home">
+					<svg class="icon" aria-hidden="true"><use href="#i-logo" /></svg>
+					Aria ERP
+				</a>
+				<nav aria-label="Footer">
+					<ul class="footer-links">
+						<li><a href="https://github.com/Karthik-beta/Aria/blob/master/CODE_SIGNING.md">Code signing policy</a></li>
+						<li><a href="https://github.com/Karthik-beta/Aria/blob/master/LICENSE">Licence (AGPL-3.0-or-later)</a></li>
+						<li><a href="https://github.com/Karthik-beta/Aria/blob/master/SECURITY.md">Security policy</a></li>
+						<li><a href="https://github.com/Karthik-beta/Aria">Source code</a></li>
+						<li><a href="https://github.com/Karthik-beta/Aria/releases">Releases</a></li>
+					</ul>
+				</nav>
+				<p class="signing">
+					Free code signing provided by <a href="https://about.signpath.io/">SignPath.io</a>, certificate by <a href="https://signpath.org/">SignPath Foundation</a>
+				</p>
+				<p>Copyright (C) 2024-present Karthik P</p>
+			</div>
+		</footer>
+	</body>
+</html>
