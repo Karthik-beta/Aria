@@ -20,6 +20,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import * as React from "react";
 import { toast } from "sonner";
+import { AssetCancelDialog } from "@/components/asset/asset-cancel-dialog";
 import { AlertModal } from "@/components/modal/alert-modal";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -54,6 +55,13 @@ const STATUS_BADGE_CLASS: Record<string, string> = {
 	OUT_OF_ORDER: "bg-red-200 text-red-800 dark:bg-red-900/50 dark:text-red-300",
 };
 
+/** Statuses an asset can be cancelled from (mirrors the backend guard). */
+const CANCELLABLE_STATUSES = [
+	"SUBMITTED",
+	"PARTIALLY_DEPRECIATED",
+	"FULLY_DEPRECIATED",
+];
+
 function formatStatus(status: string): string {
 	return status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
@@ -83,6 +91,7 @@ export default function AssetDetailPage() {
 	const utils = trpc.useUtils();
 	const [_isPending, startTransition] = React.useTransition();
 	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
+	const [isCancelDialogOpen, setIsCancelDialogOpen] = React.useState(false);
 
 	const { data: rawData, isLoading } = trpc.asset.getAssetById.useQuery(
 		{ id: assetId },
@@ -116,11 +125,15 @@ export default function AssetDetailPage() {
 	});
 	const cancelMutation = trpc.asset.cancelAsset.useMutation({
 		onSuccess: async () => {
+			setIsCancelDialogOpen(false);
 			await utils.asset.getAssetById.invalidate({ id: assetId });
 			await utils.asset.listAssets.invalidate();
 			toast.success("Asset cancelled");
 		},
-		onError: (error) => toast.error(getToastMessage(error, "cancel")),
+		onError: (error) => {
+			toast.error(getToastMessage(error, "cancel"));
+			void utils.asset.getAssetCancellationPreview.invalidate({ id: assetId });
+		},
 	});
 
 	const confirmDelete = () => {
@@ -175,6 +188,13 @@ export default function AssetDetailPage() {
 				onConfirm={confirmDelete}
 				loading={deleteMutation.isPending}
 			/>
+			<AssetCancelDialog
+				assetId={assetId}
+				open={isCancelDialogOpen}
+				onOpenChange={setIsCancelDialogOpen}
+				onConfirm={() => cancelMutation.mutate({ id: assetId })}
+				isConfirming={cancelMutation.isPending}
+			/>
 
 			<div className="container mx-auto px-4 md:px-6 py-6 space-y-6">
 				{/* Header */}
@@ -208,17 +228,16 @@ export default function AssetDetailPage() {
 								Submit
 							</Button>
 						)}
-						{canManageAssets &&
-							["SUBMITTED", "PARTIALLY_DEPRECIATED"].includes(asset.status) && (
-								<Button
-									size="sm"
-									variant="outline"
-									onClick={() => cancelMutation.mutate({ id: asset.id })}
-									disabled={cancelMutation.isPending}
-								>
-									Cancel Asset
-								</Button>
-							)}
+						{canManageAssets && CANCELLABLE_STATUSES.includes(asset.status) && (
+							<Button
+								size="sm"
+								variant="outline"
+								onClick={() => setIsCancelDialogOpen(true)}
+								disabled={cancelMutation.isPending}
+							>
+								Cancel Asset
+							</Button>
+						)}
 						{canManageAssets && (
 							<>
 								<Link

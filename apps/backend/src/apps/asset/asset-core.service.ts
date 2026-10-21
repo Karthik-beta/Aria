@@ -713,7 +713,7 @@ export class AssetCoreService {
 		return toAsset(asset);
 	}
 
-	/** Cancels an unposted asset and cancels its open schedules. */
+	/** Cancels a submitted asset, reversing posted depreciation and open schedules. */
 	async cancelAsset(id: string): Promise<Asset.AssetItem> {
 		if (!this.depreciationLifecycle) {
 			throw new Error("Depreciation lifecycle service is unavailable");
@@ -724,6 +724,16 @@ export class AssetCoreService {
 			include: this.assetInclude,
 		});
 		return toAsset(asset);
+	}
+
+	/** Read-only summary of what cancelling the asset would reverse and what blocks it. */
+	async getAssetCancellationPreview(
+		id: string,
+	): Promise<Asset.AssetCancellationPreview> {
+		if (!this.depreciationLifecycle) {
+			throw new Error("Depreciation lifecycle service is unavailable");
+		}
+		return this.depreciationLifecycle.getCancellationPreview(id);
 	}
 
 	async deleteAsset(id: string): Promise<{ success: boolean; id: string }> {

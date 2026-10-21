@@ -7,7 +7,7 @@ How far Aria's Asset Management module has got in porting ERPNext's **Assets** m
 | Area | Done | Notes |
 |---|---|---|
 | Masters (category, location, finance book) | ~85% | Location has no tree queries or geo fields |
-| Asset register and lifecycle | ~45% | Create, submit and cancel only. No sell, scrap, split or transfer |
+| Asset register and lifecycle | ~50% | Create, submit and cancel (reverses posted depreciation). No sell, scrap, split or transfer |
 | Depreciation | ~85% | Every method except shift-based. Daily posting runs on BullMQ |
 | Value adjustment | 100% | Posts revaluation entries and builds a new schedule revision |
 | Maintenance | ~90% | No asset status change and no overdue job |
@@ -45,7 +45,7 @@ Percentages are judgement calls, not line counts. Each area is weighted by the s
 
 | ERPNext operation | Status | Notes |
 |---|---|---|
-| Submit / cancel | ✅ | Cancel is blocked once depreciation has been posted, and there is no procedure to reverse posted depreciation. No amend flow |
+| Submit / cancel | ✅ | Cancelling a Submitted, Partially or Fully Depreciated asset reverses its posted depreciation entries in place (status `REVERSED`), resets the asset and finance book values, cancels the schedules and logs each reversal. Refused inside the company's frozen period, while a value adjustment is submitted, or in other statuses. A preview shows what will be reversed. No real reversing journal entries until the GL exists, no movement cancellation, no amend flow |
 | Naming series | ✅ | `AST-YYYY-NNNNN` from `DocumentSeriesCounter` |
 | Status: Draft, Submitted, Cancelled, Partially Depreciated, Fully Depreciated | ✅ | |
 | Status: Sold, Scrapped, In Maintenance, Out of Order | 🟠 | In the enum, but no code sets them. Maintenance never changes the asset's status |

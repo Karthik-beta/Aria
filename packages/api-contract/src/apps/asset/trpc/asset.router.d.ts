@@ -646,6 +646,11 @@ type AssetRouterInput = {
 		output: unknown;
 		meta: object;
 	}>;
+	getAssetCancellationPreview: TRPCQueryProcedure<{
+		input: { id: string };
+		output: Asset.AssetCancellationPreview;
+		meta: object;
+	}>;
 };
 
 type AssetRouterRoot = (typeof accountRouter)["_def"]["_config"]["$types"];
