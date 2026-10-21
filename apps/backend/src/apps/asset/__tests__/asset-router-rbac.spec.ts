@@ -156,3 +156,75 @@ describe("Asset router role-based access", () => {
 		});
 	}
 });
+
+// ---------------------------------------------------------------------------
+// Finance book procedures (issue #142)
+// ---------------------------------------------------------------------------
+describe("Asset router role-based access: finance books", () => {
+	let financeBookSessionSpy: ReturnType<typeof spyOn>;
+	const financeBookOriginalDelegates = new Map<string, unknown>();
+
+	function setFinanceBookDelegate(key: string, value: unknown) {
+		Object.defineProperty(prismaClient, key, {
+			value,
+			configurable: true,
+			enumerable: true,
+			writable: true,
+		});
+	}
+
+	const financeBookId = "ckxxxxxxxxxxxxxxxxxxxxxxx";
+	const financeBookCalls = {
+		create: () => caller().createFinanceBook({ name: "IFRS" }),
+		update: () =>
+			caller().updateFinanceBook({ id: financeBookId, name: "IFRS" }),
+		delete: () => caller().deleteFinanceBook({ id: financeBookId }),
+	};
+
+	beforeAll(() => {
+		financeBookSessionSpy = spyOn(auth.api, "getSession").mockImplementation(
+			(() =>
+				Promise.resolve({
+					user: { id: "user-1" },
+					session: { id: "session-1", activeOrganizationId: "org-1" },
+				})) as never,
+		);
+		for (const [key, stub] of Object.entries(delegateStubs)) {
+			financeBookOriginalDelegates.set(
+				key,
+				prismaClient[key as keyof typeof delegateStubs],
+			);
+			setFinanceBookDelegate(key, stub);
+		}
+	});
+
+	afterAll(() => {
+		financeBookSessionSpy.mockRestore();
+		for (const [key, delegate] of financeBookOriginalDelegates) {
+			setFinanceBookDelegate(key, delegate);
+		}
+	});
+
+	beforeEach(() => {
+		memberRole = "member";
+	});
+
+	it("lets a member list finance books", async () => {
+		await caller().listFinanceBooks({});
+	});
+
+	it("blocks a member from creating, updating or deleting finance books", async () => {
+		await expectForbidden(financeBookCalls.create());
+		await expectForbidden(financeBookCalls.update());
+		await expectForbidden(financeBookCalls.delete());
+	});
+
+	for (const role of ["admin", "owner"]) {
+		it(`lets ${role} create, update and delete finance books`, async () => {
+			memberRole = role;
+			await financeBookCalls.create();
+			await financeBookCalls.update();
+			await financeBookCalls.delete();
+		});
+	}
+});
