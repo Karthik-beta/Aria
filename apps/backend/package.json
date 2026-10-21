@@ -84,7 +84,7 @@
 		"@willsoto/nestjs-prometheus": "^6.0.2",
 		"bcrypt": "^6.0.0",
 		"better-auth": "^1.5.4",
-		"bullmq": "^5.80.2",
+		"bullmq": "^6.3.16",
 		"cron": "^4.4.0",
 		"date-fns": "^4.1.0",
 		"dotenv": "^17.2.3",
