@@ -16,7 +16,7 @@ runs:
         bun-version: 1.3.1
 
     - name: Cache Bun dependencies
-      uses: actions/cache@v5
+      uses: actions/cache@v6
       with:
         path: |
           ~/.bun/install/cache
@@ -28,7 +28,7 @@ runs:
     # Saved per commit and restored from the newest earlier one, so the cache
     # follows the code instead of staying at the first save for a lockfile.
     - name: Cache Turborepo
-      uses: actions/cache@v5
+      uses: actions/cache@v6
       with:
         path: .turbo
         key: turbo-${{ inputs.turbo-cache-name }}-${{ runner.os }}-${{ github.sha }}

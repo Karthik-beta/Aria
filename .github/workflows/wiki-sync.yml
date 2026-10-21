@@ -35,7 +35,7 @@ jobs:
       contents: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Push docs/wiki to the wiki repository
         shell: bash
