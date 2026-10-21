@@ -64,7 +64,12 @@ const TECHNICAL_PATTERNS = [
 	/syntax error/i,
 	/unexpected token/i,
 	/invocation/i,
-	/findMany|findUnique|findFirst|create|update|delete/i, // Prisma methods
+	// Prisma client methods. The write methods only count in call form
+	// (`.delete(`), because words like "delete" or "create" appear in ordinary
+	// business messages such as "Cannot delete a location that has child
+	// locations".
+	/\b(findMany|findUnique|findFirst)(OrThrow)?\b/i,
+	/\.(create|createMany|update|updateMany|upsert|delete|deleteMany)\(/,
 ];
 
 /**
