@@ -1,7 +1,5 @@
-import type { FiscalYearService } from "../../../shared/fiscal-year/fiscal-year.service";
 import type { PrismaService } from "../../../shared/prisma.service";
-import { AssetService } from "../asset.service";
-import type { AssetDashboardSubService } from "../asset-dashboard.service";
+import { AssetReportsService } from "../asset-reports.service";
 
 function createMockPrisma() {
 	return {
@@ -13,14 +11,8 @@ function createMockPrisma() {
 
 function createTestContext() {
 	const mockPrisma = createMockPrisma();
-	const mockDashboard = {} as unknown as AssetDashboardSubService;
-	const mockFiscalYear = {
-		getFiscalYearEndDate: jest.fn().mockResolvedValue(null),
-	} as unknown as FiscalYearService;
-	const service = new AssetService(
+	const service = new AssetReportsService(
 		mockPrisma as unknown as PrismaService,
-		mockDashboard,
-		mockFiscalYear,
 	);
 	return { service, mockPrisma };
 }
