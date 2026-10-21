@@ -1,5 +1,5 @@
 import { Injectable, type OnApplicationShutdown } from "@nestjs/common";
-import { type Job, Queue } from "bullmq";
+import { type Job, type JobType, Queue } from "bullmq";
 import {
 	depreciationJobOptions,
 	depreciationProducerRedisConnection,
@@ -29,6 +29,13 @@ export type DepreciationBulkJob = {
 	data: DepreciationJobData;
 	opts: { jobId: string };
 };
+
+/**
+ * bullmq 6 removed "paused" from the JobType union, but paused jobs still sit in
+ * the "paused" list (Queue#pause moves wait -> paused) and getCounts still counts
+ * it at runtime. Cast keeps the `paused` count in status() without changing output.
+ */
+const PAUSED_JOB_COUNT_TYPE = "paused" as JobType;
 
 export interface DepreciationQueueStatus {
 	paused: boolean;
@@ -79,7 +86,7 @@ export class DepreciationQueueClient implements OnApplicationShutdown {
 					"completed",
 					"delayed",
 					"failed",
-					"paused",
+					PAUSED_JOB_COUNT_TYPE,
 					"prioritized",
 					"waiting",
 					"waiting-children",
