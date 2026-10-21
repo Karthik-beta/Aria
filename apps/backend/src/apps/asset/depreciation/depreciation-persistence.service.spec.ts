@@ -45,11 +45,13 @@ function makeEntry(overrides: {
 				company: "Acme",
 				calculateDepreciation: true,
 				status: "SUBMITTED",
+				netPurchaseAmount: 1000,
 				...asset,
 			},
 			assetFinanceBook: {
 				id: "afb-1",
 				financeBookId: "fb-1",
+				expectedValueAfterUsefulLife: 100,
 				financeBook: { name: "Statutory" },
 			},
 			...schedule,
@@ -458,6 +460,22 @@ describe("DepreciationPersistenceService.post", () => {
 			});
 		}
 
+		for (const status of ["IN_MAINTENANCE", "OUT_OF_ORDER"]) {
+			it(`accepts an asset with status ${status}`, async () => {
+				const ctx = setup({ entry: makeEntry({ asset: { status } }) });
+				expect((await ctx.service.post(job)).status).toBe("posted");
+			});
+		}
+
+		it("throws for a FULLY_DEPRECIATED asset", async () => {
+			const ctx = setup({
+				entry: makeEntry({ asset: { status: "FULLY_DEPRECIATED" } }),
+			});
+			const error = await postError(ctx);
+			expect(error).toBeInstanceOf(DepreciationPostingValidationError);
+			expect(error?.message).toContain("not eligible");
+		});
+
 		it("accepts a PARTIALLY_DEPRECIATED asset", async () => {
 			const ctx = setup({
 				entry: makeEntry({ asset: { status: "PARTIALLY_DEPRECIATED" } }),
@@ -497,7 +515,11 @@ describe("DepreciationPersistenceService.post", () => {
 		});
 
 		it("marks the final posting FULLY_DEPRECIATED on the book and the default-book asset", async () => {
-			const ctx = setup({ remaining: 0, booked: 12 });
+			const ctx = setup({
+				entry: makeEntry({ bookValueAfterDepreciation: 100 }),
+				remaining: 0,
+				booked: 12,
+			});
 			await ctx.service.post(job);
 			const book = arg(ctx.tx.assetFinanceBook.update);
 			expect(book.data.postingStatus).toBe("FULLY_DEPRECIATED");
@@ -507,6 +529,60 @@ describe("DepreciationPersistenceService.post", () => {
 				status: "FULLY_DEPRECIATED",
 			});
 		});
+
+		it("derives the asset status from the book value through the status engine", async () => {
+			// Posting that leaves the value at the purchase amount keeps it Submitted.
+			const untouched = setup({
+				entry: makeEntry({ bookValueAfterDepreciation: 1000 }),
+			});
+			await untouched.service.post(job);
+			expect(arg(untouched.tx.asset.update).data.status).toBe("SUBMITTED");
+
+			// Value equal to the expected value after useful life is fully depreciated.
+			const exhausted = setup({
+				entry: makeEntry({ bookValueAfterDepreciation: 100 }),
+			});
+			await exhausted.service.post(job);
+			expect(arg(exhausted.tx.asset.update).data.status).toBe(
+				"FULLY_DEPRECIATED",
+			);
+		});
+
+		for (const status of ["IN_MAINTENANCE", "OUT_OF_ORDER"]) {
+			it(`keeps depreciating an ${status} asset and preserves the overlay`, async () => {
+				const ctx = setup({
+					entry: makeEntry({ asset: { status } }),
+					remaining: 2,
+					booked: 4,
+				});
+				expect((await ctx.service.post(job)).status).toBe("posted");
+				expect(ctx.tx.assetDepreciationJournalEntry.create).toHaveBeenCalled();
+				expect(arg(ctx.tx.asset.update)).toEqual({
+					where: { id: "asset-1" },
+					data: {
+						valueAfterDepreciation: 900,
+						isFullyDepreciated: false,
+						status,
+					},
+				});
+			});
+
+			it(`keeps ${status} when the last posting fully depreciates the asset`, async () => {
+				const ctx = setup({
+					entry: makeEntry({
+						asset: { status },
+						bookValueAfterDepreciation: 100,
+					}),
+					remaining: 0,
+					booked: 12,
+				});
+				await ctx.service.post(job);
+				expect(arg(ctx.tx.asset.update).data).toMatchObject({
+					isFullyDepreciated: true,
+					status,
+				});
+			});
+		}
 
 		it("does not update the Asset row for a non-default finance book", async () => {
 			const ctx = setup({
@@ -587,7 +663,14 @@ describe("DepreciationPersistenceService.pendingPage and pendingSnapshot", () =>
 				status: "ACTIVE",
 				asset: {
 					calculateDepreciation: true,
-					status: { in: ["SUBMITTED", "PARTIALLY_DEPRECIATED"] },
+					status: {
+						in: [
+							"SUBMITTED",
+							"PARTIALLY_DEPRECIATED",
+							"IN_MAINTENANCE",
+							"OUT_OF_ORDER",
+						],
+					},
 					company: "Acme",
 					id: { in: ["a1", "a2"] },
 				},
@@ -606,7 +689,14 @@ describe("DepreciationPersistenceService.pendingPage and pendingSnapshot", () =>
 		const { where } = arg(ctx.db.assetDepreciationScheduleEntry.findMany);
 		expect(where.schedule.asset).toEqual({
 			calculateDepreciation: true,
-			status: { in: ["SUBMITTED", "PARTIALLY_DEPRECIATED"] },
+			status: {
+				in: [
+					"SUBMITTED",
+					"PARTIALLY_DEPRECIATED",
+					"IN_MAINTENANCE",
+					"OUT_OF_ORDER",
+				],
+			},
 		});
 		expect(where.schedule.assetFinanceBook).toEqual({});
 		expect(where.scheduleDate).toEqual({ lte: DATE });

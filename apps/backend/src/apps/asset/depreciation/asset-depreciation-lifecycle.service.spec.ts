@@ -119,11 +119,126 @@ describe("AssetDepreciationLifecycleService", () => {
 		await expect(service.ensureSubmittedSchedules()).resolves.toBe(1);
 
 		expect(configureAssetBooks).toHaveBeenCalledWith("asset-1");
+		expect(findMany.mock.calls[0]?.[0].where.asset.status).toEqual({
+			in: [
+				"SUBMITTED",
+				"PARTIALLY_DEPRECIATED",
+				"IN_MAINTENANCE",
+				"OUT_OF_ORDER",
+			],
+		});
 		expect(findMany.mock.calls[0]?.[0].where.schedules).toEqual({
 			none: {
 				status: { in: ["DRAFT", "ACTIVE"] },
 				entries: { some: {} },
 			},
+		});
+	});
+
+	describe("submitAsset", () => {
+		function createSubmitService(statusRow: {
+			calculateDepreciation: boolean;
+			isFullyDepreciated?: boolean;
+			valueAfterDepreciation: number;
+			book?: { value: number; expected: number };
+		}) {
+			const assetUpdate = mock(async (_args?: unknown) => undefined);
+			const activityCreate = mock(async (_args?: unknown) => undefined);
+			const tx = {
+				asset: {
+					findUniqueOrThrow: mock(async () => ({
+						status: "DRAFT",
+						calculateDepreciation: statusRow.calculateDepreciation,
+						_count: { financeBooks: statusRow.book ? 1 : 0 },
+					})),
+					findUnique: mock(async () => ({
+						status: "DRAFT",
+						company: "Acme",
+						calculateDepreciation: statusRow.calculateDepreciation,
+						isFullyDepreciated: statusRow.isFullyDepreciated ?? false,
+						netPurchaseAmount: 100_000,
+						valueAfterDepreciation: statusRow.valueAfterDepreciation,
+						maintenanceRequired: false,
+						financeBooks: statusRow.book
+							? [
+									{
+										financeBookId: "fb-1",
+										valueAfterDepreciation: statusRow.book.value,
+										expectedValueAfterUsefulLife: statusRow.book.expected,
+									},
+								]
+							: [],
+					})),
+					update: assetUpdate,
+				},
+				company: {
+					findUnique: mock(async () => ({ defaultFinanceBookId: "fb-1" })),
+				},
+				assetDepreciationSchedule: { updateMany: mock(async () => undefined) },
+				assetActivity: { create: activityCreate },
+			};
+			const prisma = {
+				$transaction: mock(async (callback: (t: typeof tx) => Promise<void>) =>
+					callback(tx),
+				),
+			};
+			const service = new AssetDepreciationLifecycleService(
+				prisma as unknown as PrismaService,
+			);
+			service.configureAssetBooks = mock(async () => undefined);
+			return { service, assetUpdate, tx };
+		}
+
+		const submittedStatus = (update: { mock: { calls: unknown[][] } }) =>
+			(update.mock.calls[0][0] as { data: { status: string } }).data.status;
+
+		it("submits an untouched depreciable asset as SUBMITTED", async () => {
+			const { service, assetUpdate } = createSubmitService({
+				calculateDepreciation: true,
+				valueAfterDepreciation: 100_000,
+				book: { value: 100_000, expected: 10_000 },
+			});
+			await service.submitAsset("asset-1");
+			expect(submittedStatus(assetUpdate)).toBe("SUBMITTED");
+		});
+
+		it("submits an asset with opening accumulated depreciation as PARTIALLY_DEPRECIATED", async () => {
+			const { service, assetUpdate } = createSubmitService({
+				calculateDepreciation: true,
+				valueAfterDepreciation: 75_000,
+				book: { value: 75_000, expected: 10_000 },
+			});
+			await service.submitAsset("asset-1");
+			expect(submittedStatus(assetUpdate)).toBe("PARTIALLY_DEPRECIATED");
+		});
+
+		it("submits a depreciable asset already at its salvage value as FULLY_DEPRECIATED", async () => {
+			const { service, assetUpdate } = createSubmitService({
+				calculateDepreciation: true,
+				valueAfterDepreciation: 10_000,
+				book: { value: 10_000, expected: 10_000 },
+			});
+			await service.submitAsset("asset-1");
+			expect(submittedStatus(assetUpdate)).toBe("FULLY_DEPRECIATED");
+		});
+
+		it("submits a non-depreciating asset flagged fully depreciated as FULLY_DEPRECIATED", async () => {
+			const { service, assetUpdate } = createSubmitService({
+				calculateDepreciation: false,
+				isFullyDepreciated: true,
+				valueAfterDepreciation: 0,
+			});
+			await service.submitAsset("asset-1");
+			expect(submittedStatus(assetUpdate)).toBe("FULLY_DEPRECIATED");
+		});
+
+		it("submits a plain non-depreciating asset as SUBMITTED", async () => {
+			const { service, assetUpdate } = createSubmitService({
+				calculateDepreciation: false,
+				valueAfterDepreciation: 100_000,
+			});
+			await service.submitAsset("asset-1");
+			expect(submittedStatus(assetUpdate)).toBe("SUBMITTED");
 		});
 	});
 

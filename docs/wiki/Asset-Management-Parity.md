@@ -10,7 +10,7 @@ How far Aria's Asset Management module has got in porting ERPNext's **Assets** m
 | Asset register and lifecycle | ~50% | Create, submit and cancel (reverses posted depreciation). No sell, scrap, split or transfer |
 | Depreciation | ~85% | Every method except shift-based. Daily posting runs on BullMQ |
 | Value adjustment | 100% | Posts revaluation entries and builds a new schedule revision |
-| Maintenance | ~90% | No asset status change and no overdue job |
+| Maintenance | ~95% | Drives `IN_MAINTENANCE` through the status engine. The daily status job and the overdue log job are not scheduled yet (#155) |
 | Movement, repair, capitalization | 0% | No models, services or UI |
 | Reports and dashboard | ~70% | 3 of 5 reports. Dashboard and number cards are live |
 | Integrations (buying, selling, stock, GL) | ~5% | Purchase links are free text. No general ledger |
@@ -36,7 +36,7 @@ Percentages are judgement calls, not line counts. Each area is weighted by the s
 | Asset Value Adjustment | `AssetValueAdjustment`, `AssetRevaluationEntry` | ✅ Done | Supports preview, submit and cancel |
 | Asset Maintenance (+ Task) | `AssetMaintenance`, `AssetMaintenanceTask` | ✅ Done | Tasks are edited inside the maintenance form |
 | Asset Maintenance Team (+ Member) | `AssetMaintenanceTeam`, `AssetMaintenanceTeamMember` | ✅ Done | |
-| Asset Maintenance Log | `AssetMaintenanceLog` | ✅ Done | Logs can be completed or cancelled. No scheduled status update |
+| Asset Maintenance Log | `AssetMaintenanceLog` | ✅ Done | Logs can be completed or cancelled, which refreshes the asset status. The scheduled overdue update is #155 |
 | Asset Movement (+ Item) | none | ❌ Missing | Location and custodian can only be changed by editing the asset |
 | Asset Repair (+ Consumed Item, Purchase Invoice) | none | ❌ Missing | |
 | Asset Capitalization (+ Asset, Stock and Service Items) | none | ❌ Missing | No CWIP flow and no composite assets |
@@ -47,9 +47,11 @@ Percentages are judgement calls, not line counts. Each area is weighted by the s
 |---|---|---|
 | Submit / cancel | ✅ | Cancelling a Submitted, Partially or Fully Depreciated asset reverses its posted depreciation entries in place (status `REVERSED`), resets the asset and finance book values, cancels the schedules and logs each reversal. Refused inside the company's frozen period, while a value adjustment is submitted, or in other statuses. A preview shows what will be reversed. No real reversing journal entries until the GL exists, no movement cancellation, no amend flow |
 | Naming series | ✅ | `AST-YYYY-NNNNN` from `DocumentSeriesCounter` |
-| Status: Draft, Submitted, Cancelled, Partially Depreciated, Fully Depreciated | ✅ | |
-| Status: Sold, Scrapped, In Maintenance, Out of Order | 🟠 | In the enum, but no code sets them. Maintenance never changes the asset's status |
-| Status: Issue, Receipt, Capitalized, Work In Progress | ❌ | Not in the enum |
+| Status: Draft, Submitted, Cancelled, Partially Depreciated, Fully Depreciated | ✅ | One status engine (`asset-status.ts`, `AssetStatusService`) ports ERPNext `get_status` and `set_status`. Submit, depreciation posting and value adjustment all go through it, so a fully depreciated or opening-depreciated asset no longer starts as plain Submitted. `DRAFT` on create and `CANCELLED` on cancel stay direct writes |
+| Status: In Maintenance | ✅ | `updateMaintenanceStatuses(asOf)` ports ERPNext `update_maintenance_status` (an asset with `maintenanceRequired` and a task due that day is In Maintenance, and goes back the next day). Deleting a schedule, or completing or cancelling a log, refreshes the status straight away. Depreciation keeps posting and keeps the overlay. The daily schedule is #155 |
+| Status: Out of Order | 🟠 | The engine handles it (a pending repair wins over a due task) and `AssetStatusService.hasPendingRepair` is the seam, but it always returns false until Asset Repair exists (#156) |
+| Status: Sold, Scrapped | 🟠 | In the enum and sticky in the engine, but no flow sets them yet (#149, #150) |
+| Status: Issue, Receipt, Capitalized, Work In Progress | ❌ | Not in the enum. `ISSUE` and `RECEIPT` arrive with Asset Movement (#147), `CAPITALIZED` and `WORK_IN_PROGRESS` with Asset Capitalization (#168), each with its own enum migration. The engine tables are `Record<AssetStatus, ...>`, so adding a value fails type-checking until the engine handles it |
 | Scrap / restore asset | ❌ | |
 | Sell asset (disposal, gain or loss) | ❌ | `disposalDate` is stored but unused |
 | Split asset | ❌ | |
@@ -65,6 +67,7 @@ Percentages are judgement calls, not line counts. Each area is weighted by the s
 | Shift-based depreciation | ❌ Needs Shift Allocation and wiring for Shift Factor |
 | Automatic daily posting (`post_depreciation_entries`) | ✅ Daily cron plus BullMQ queue, with barrier and reconciliation |
 | Posting into a general ledger (`make_depreciation_entry`) | 🟡 Posts to Aria's own `AssetDepreciationJournalEntry` tables. Accounts are plain strings because there is no chart of accounts or GL yet |
+| Assets In Maintenance or Out of Order keep depreciating | ✅ Posting and discovery use `ASSET_DEPRECIATING_STATUSES`, and posting preserves the overlay status |
 | Respecting a frozen-accounts date | ✅ |
 | Rescheduling after a value adjustment | ✅ |
 
@@ -79,7 +82,7 @@ Percentages are judgement calls, not line counts. Each area is weighted by the s
 | Asset Maintenance report | ❌ Only the operational log list |
 | Number cards and charts (Asset Value, New Assets, Total Assets, value by category, location and month) | ✅ Live dashboard at `/asset/dashboard/overview` |
 | Scheduled job: post depreciation entries | ✅ |
-| Scheduled job: update asset maintenance status | ❌ |
+| Scheduled job: update asset maintenance status | 🟡 `updateMaintenanceStatuses` exists and is tested; the cron is #155 |
 | Scheduled job: update maintenance log status (overdue) | ❌ |
 | Scheduled job: post deferred CWIP GL entries (`make_post_gl_entry`) | ❌ Needs CWIP and a GL |
 | Onboarding steps and workspace | ❌ |
