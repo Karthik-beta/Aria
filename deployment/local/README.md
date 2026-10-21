@@ -184,8 +184,10 @@ when Docker Desktop is missing.
 | Update    | Run the newer `AriaSetup-<version>.exe`                             |
 | Uninstall | Windows Settings > Apps > Aria ERP (or the Start Menu's *Uninstall Aria ERP*); it asks whether to keep the backups |
 
-**"Windows protected your PC"**: the installer is not code-signed, so Windows
-SmartScreen shows this once for a downloaded copy. It needs no administrator
+**"Windows protected your PC"**: SmartScreen shows this once for a downloaded
+copy until releases are signed through SignPath (see the
+[Code signing policy](../../CODE_SIGNING.md)), and possibly for a while after,
+until Windows trusts the new signature. It needs no administrator
 rights, so this is the only prompt. Either:
 
 - click **More info**, then **Run anyway**, or
@@ -227,7 +229,9 @@ git push origin v0.2.0
 ```
 
 Release Images then builds the images, then the installer, then the GitHub
-Release with `AriaSetup-0.2.0.exe` and `AriaSetup.exe` attached; the download
+Release with `AriaSetup-0.2.0.exe` and `AriaSetup.exe` attached (signed once
+SignPath is set up, after you approve the request; see
+[.signpath/README.md](../../.signpath/README.md)); the download
 link above then serves it (pre-release tags such as `v0.2.0-rc.1` do not
 replace it).
 

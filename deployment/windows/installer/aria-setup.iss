@@ -29,6 +29,9 @@ AppCopyright=Copyright (C) 2024-present Karthik P. Licensed under AGPL-3.0-or-la
 VersionInfoProductName=Aria ERP
 VersionInfoDescription=Aria ERP demo installer
 VersionInfoVersion={#NumericVersion}
+; SignPath checks ProductName and ProductVersion (.signpath/artifact-configuration.xml).
+VersionInfoProductVersion={#NumericVersion}
+VersionInfoProductTextVersion={#AppVersion}
 DefaultDirName={autopf}\Aria ERP
 UsePreviousAppDir=yes
 DisableDirPage=yes
