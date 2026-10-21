@@ -1,0 +1,82 @@
+# yaml-language-server: $schema=https://json.schemastore.org/dependabot-2.0.json
+# Weekly dependency updates. Labels match .github/labeler.yml, so the Triage
+# workflow files these PRs on the project board like any other.
+# Commit messages are Conventional Commits: chore(deps), chore(deps-dev), ci(deps).
+
+version: 2
+
+updates:
+  # Bun workspace: root bun.lock plus every apps/* and packages/* workspace.
+  - package-ecosystem: bun
+    directory: /
+    exclude-paths:
+      - .erpnext/**
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 10
+    labels:
+      - dependencies
+    commit-message:
+      prefix: chore
+      include: scope
+    groups:
+      # Majors stay as individual PRs so breaking changes are reviewed one by one.
+      bun-minor-patch:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+      bun-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+
+  # Workflows in .github/workflows and composite actions in .github/actions.
+  - package-ecosystem: github-actions
+    directories:
+      - /
+      - /.github/actions/*
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - ci
+    commit-message:
+      prefix: ci
+      include: scope
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+
+  # Base images. The oven/bun tag should move together with packageManager in package.json.
+  - package-ecosystem: docker
+    directories:
+      - /apps/backend
+      - /apps/frontend
+      - /deployment/ssl
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - "module: setup"
+    commit-message:
+      prefix: chore
+      include: scope
+    groups:
+      docker-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
