@@ -1,5 +1,13 @@
 import { defineConfig, devices } from "@playwright/test";
-import { ADMIN_STORAGE_STATE, E2E_ADMIN, E2E_BACKEND_URL } from "./e2e/auth";
+import {
+	ADMIN_STORAGE_STATE,
+	E2E_ADMIN,
+	E2E_BACKEND_URL,
+	MEMBER_STORAGE_STATE,
+} from "./e2e/auth";
+
+// Specs that sign in as the organization member instead of the super admin.
+const MEMBER_SPECS = /member-readonly/;
 
 export default defineConfig({
 	testDir: "./e2e",
@@ -30,9 +38,22 @@ export default defineConfig({
 			testMatch: /auth\.setup\.ts/,
 		},
 		{
+			// Needs the organization created by `setup`, so it runs after it.
+			name: "setup-member",
+			testMatch: /member\.setup\.ts/,
+			dependencies: ["setup"],
+		},
+		{
 			name: "chromium",
+			testIgnore: MEMBER_SPECS,
 			use: { ...devices["Desktop Chrome"], storageState: ADMIN_STORAGE_STATE },
 			dependencies: ["setup"],
+		},
+		{
+			name: "chromium-member",
+			testMatch: MEMBER_SPECS,
+			use: { ...devices["Desktop Chrome"], storageState: MEMBER_STORAGE_STATE },
+			dependencies: ["setup-member"],
 		},
 	],
 	webServer: [

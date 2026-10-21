@@ -1,7 +1,13 @@
 import type { Asset } from "@aria/types";
-import { BadRequestException, Injectable, Logger } from "@nestjs/common";
+import {
+	BadRequestException,
+	Injectable,
+	Logger,
+	NotFoundException,
+} from "@nestjs/common";
 import { Prisma } from "../../../generated/prisma/client";
 import type { PrismaService } from "../../../shared/prisma.service";
+import { AssetDepreciationReversalService } from "./asset-depreciation-reversal.service";
 import {
 	buildDepreciationSchedule,
 	type DepreciationBookInput,
@@ -10,6 +16,24 @@ import {
 const BACKFILL_PAGE_SIZE = 100;
 
 const dateOnly = (date: Date): string => date.toISOString().slice(0, 10);
+
+/** Statuses an asset can be cancelled from (ERPNext `validate_cancellation`). */
+const CANCELLABLE_STATUSES = [
+	"SUBMITTED",
+	"PARTIALLY_DEPRECIATED",
+	"FULLY_DEPRECIATED",
+];
+const CANCELLATION_PREVIEW_ENTRY_LIMIT = 200;
+const ACTIVE_MAINTENANCE_STATUSES = ["IN_MAINTENANCE", "OUT_OF_ORDER"];
+const SUBMITTED_ADJUSTMENT_BLOCKER =
+	"Cancel the submitted asset value adjustments first";
+
+const statusLabel = (status: string): string =>
+	status
+		.toLowerCase()
+		.split("_")
+		.map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+		.join(" ");
 
 type BookConfiguration = Asset.AssetFinanceBookInput;
 
@@ -22,7 +46,10 @@ type BookConfiguration = Asset.AssetFinanceBookInput;
 export class AssetDepreciationLifecycleService {
 	private readonly logger = new Logger(AssetDepreciationLifecycleService.name);
 
-	constructor(private readonly prisma: PrismaService) {}
+	constructor(
+		private readonly prisma: PrismaService,
+		private readonly reversal: AssetDepreciationReversalService = new AssetDepreciationReversalService(),
+	) {}
 
 	/** Activates draft schedules as part of explicit asset submission. */
 	async submitAsset(assetId: string): Promise<void> {
@@ -58,17 +85,24 @@ export class AssetDepreciationLifecycleService {
 		});
 	}
 
-	/** Cancels an unposted asset and makes every open schedule immutable. */
+	/**
+	 * Cancels a submitted asset (ERPNext `Asset.on_cancel`): reverses posted
+	 * depreciation, cancels open schedules and marks the asset cancelled, all in
+	 * one transaction.
+	 */
 	async cancelAsset(assetId: string): Promise<void> {
 		await this.prisma.$transaction(async (tx) => {
-			const posted = await tx.assetDepreciationJournalEntry.count({
-				where: { assetId, status: "POSTED" },
+			const asset = await tx.asset.findUnique({
+				where: { id: assetId },
+				select: { id: true, status: true },
 			});
-			if (posted > 0) {
-				throw new BadRequestException(
-					"Posted depreciation must be reversed before cancelling the asset",
-				);
-			}
+			if (!asset) throw new NotFoundException(`Asset ${assetId} not found`);
+			await this.assertCancellable(tx, asset);
+
+			// TODO: cancel submitted asset movements here (ERPNext
+			// `cancel_movement_entries`) once asset movements exist.
+			await this.reversal.reversePostedDepreciation(tx, assetId);
+
 			await tx.assetDepreciationSchedule.updateMany({
 				where: { assetId, status: { in: ["DRAFT", "ACTIVE"] } },
 				data: { status: "CANCELLED" },
@@ -81,6 +115,86 @@ export class AssetDepreciationLifecycleService {
 				data: { assetId, activity: "Asset cancelled" },
 			});
 		});
+	}
+
+	/**
+	 * Read-only preview of `cancelAsset`: applies the same guards (including the
+	 * frozen-period check) and lists the depreciation that would be reversed.
+	 */
+	async getCancellationPreview(
+		assetId: string,
+	): Promise<Asset.AssetCancellationPreview> {
+		const asset = await this.prisma.asset.findUnique({
+			where: { id: assetId },
+			select: { id: true, series: true, status: true },
+		});
+		if (!asset) throw new NotFoundException(`Asset ${assetId} not found`);
+
+		const blockers = await this.collectCancellationBlockers(this.prisma, asset);
+		const entries = await this.reversal.loadPostedEntries(this.prisma, assetId);
+		const frozenBlocker = await this.reversal.findFrozenPeriodBlocker(
+			this.prisma,
+			asset.series,
+			entries,
+		);
+		if (frozenBlocker) blockers.push(frozenBlocker);
+
+		const total = entries.reduce(
+			(sum, entry) => sum.plus(entry.depreciationAmount),
+			new Prisma.Decimal(0),
+		);
+		const latest = entries.at(-1);
+		return {
+			canCancel: blockers.length === 0,
+			blockers,
+			postedEntryCount: entries.length,
+			postedDepreciationTotal: total.toNumber(),
+			latestPostingDate: latest ? dateOnly(latest.postingDate) : null,
+			entries: entries
+				.slice(0, CANCELLATION_PREVIEW_ENTRY_LIMIT)
+				.map((entry) => ({
+					series: entry.series,
+					postingDate: dateOnly(entry.postingDate),
+					depreciationAmount: entry.depreciationAmount.toNumber(),
+					financeBookName: entry.financeBookName,
+				})),
+		};
+	}
+
+	/** Throws the first cancellation blocker that does not need posted entries. */
+	private async assertCancellable(
+		reader: Pick<Prisma.TransactionClient, "assetValueAdjustment">,
+		asset: { id: string; status: string },
+	): Promise<void> {
+		const [blocker] = await this.collectCancellationBlockers(reader, asset);
+		if (blocker) throw new BadRequestException(blocker);
+	}
+
+	/**
+	 * Status and linked-document guards shared by `cancelAsset` and the
+	 * cancellation preview, so both always agree.
+	 */
+	async collectCancellationBlockers(
+		reader: Pick<Prisma.TransactionClient, "assetValueAdjustment">,
+		asset: { id: string; status: string },
+	): Promise<string[]> {
+		const blockers: string[] = [];
+		if (ACTIVE_MAINTENANCE_STATUSES.includes(asset.status)) {
+			blockers.push(
+				"There are active maintenance or repairs against the asset. You must complete all of them before cancelling the asset.",
+			);
+		} else if (!CANCELLABLE_STATUSES.includes(asset.status)) {
+			blockers.push(
+				`Asset cannot be cancelled, as it is already ${statusLabel(asset.status)}`,
+			);
+		}
+		const submittedAdjustments = await reader.assetValueAdjustment.count({
+			where: { assetId: asset.id, status: "SUBMITTED" },
+		});
+		if (submittedAdjustments > 0) {
+			blockers.push(SUBMITTED_ADJUSTMENT_BLOCKER);
+		}
+		return blockers;
 	}
 
 	/** Replaces draft book configuration and generates immutable schedule rows. */

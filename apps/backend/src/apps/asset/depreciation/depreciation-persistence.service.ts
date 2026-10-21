@@ -259,6 +259,7 @@ export class DepreciationPersistenceService {
 
 			const existing = await tx.assetDepreciationJournalEntry.findUnique<{
 				id: string;
+				status: string;
 			}>({
 				where: {
 					assetFinanceBookId_postingDate: {
@@ -266,8 +267,15 @@ export class DepreciationPersistenceService {
 						postingDate: entry.scheduleDate,
 					},
 				},
-				select: { id: true },
+				select: { id: true, status: true },
 			});
+			if (existing?.status === "REVERSED") {
+				// A reversed posting is not a posting: never link it to the schedule
+				// entry. Legitimate flows cancel the schedule on reversal.
+				throw new DepreciationPostingValidationError(
+					`Depreciation for ${normalizeDateOnly(entry.scheduleDate)} was reversed and cannot be posted again.`,
+				);
+			}
 			if (existing) {
 				await tx.assetDepreciationScheduleEntry.update({
 					where: { id: entry.id },

@@ -12,7 +12,7 @@ interface Fixture {
 	entry: Record<string, unknown> | null;
 	company: Record<string, unknown> | null;
 	categoryAccounts: Record<string, unknown> | null;
-	existingJournal: { id: string } | null;
+	existingJournal: { id: string; status?: string } | null;
 	earlier: { id: string } | null;
 	remaining: number;
 	booked: number;
@@ -310,7 +310,9 @@ describe("DepreciationPersistenceService.post", () => {
 		});
 
 		it("links an existing journal entry for the book and date and returns already-posted", async () => {
-			const ctx = setup({ existingJournal: { id: "journal-7" } });
+			const ctx = setup({
+				existingJournal: { id: "journal-7", status: "POSTED" },
+			});
 			expect(await ctx.service.post(job)).toEqual({
 				status: "already-posted",
 				postingId: "journal-7",
@@ -329,6 +331,28 @@ describe("DepreciationPersistenceService.post", () => {
 				ctx.tx.assetDepreciationJournalEntry.create,
 			).not.toHaveBeenCalled();
 			expect(ctx.tx.assetActivity.create).not.toHaveBeenCalled();
+		});
+
+		it("does not treat a reversed journal entry as already posted", async () => {
+			const ctx = setup({
+				existingJournal: { id: "reversed-posting", status: "REVERSED" },
+			});
+			const error = await postError(ctx);
+			expect(error).toBeInstanceOf(DepreciationPostingValidationError);
+			expect(error?.message).toContain("2026-07-05");
+			expect(error?.message).toContain("reversed");
+			expectNoWrites(ctx.tx);
+		});
+
+		it("selects the status of the existing journal entry", async () => {
+			const ctx = setup({ existingJournal: { id: "j", status: "POSTED" } });
+			await ctx.service.post(job);
+			expect(
+				arg(ctx.tx.assetDepreciationJournalEntry.findUnique).select,
+			).toEqual({
+				id: true,
+				status: true,
+			});
 		});
 
 		it("returns out-of-order when an earlier unposted entry exists", async () => {

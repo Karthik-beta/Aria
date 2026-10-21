@@ -7,7 +7,7 @@ How far Aria's Asset Management module has got in porting ERPNext's **Assets** m
 | Area | Done | Notes |
 |---|---|---|
 | Masters (category, location, finance book) | ~85% | Location has no tree queries or geo fields |
-| Asset register and lifecycle | ~45% | Create, submit and cancel only. No sell, scrap, split or transfer |
+| Asset register and lifecycle | ~50% | Create, submit and cancel (reverses posted depreciation). No sell, scrap, split or transfer |
 | Depreciation | ~85% | Every method except shift-based. Daily posting runs on BullMQ |
 | Value adjustment | 100% | Posts revaluation entries and builds a new schedule revision |
 | Maintenance | ~90% | No asset status change and no overdue job |
@@ -45,7 +45,7 @@ Percentages are judgement calls, not line counts. Each area is weighted by the s
 
 | ERPNext operation | Status | Notes |
 |---|---|---|
-| Submit / cancel | ✅ | Cancel is blocked once depreciation has been posted, and there is no procedure to reverse posted depreciation. No amend flow |
+| Submit / cancel | ✅ | Cancelling a Submitted, Partially or Fully Depreciated asset reverses its posted depreciation entries in place (status `REVERSED`), resets the asset and finance book values, cancels the schedules and logs each reversal. Refused inside the company's frozen period, while a value adjustment is submitted, or in other statuses. A preview shows what will be reversed. No real reversing journal entries until the GL exists, no movement cancellation, no amend flow |
 | Naming series | ✅ | `AST-YYYY-NNNNN` from `DocumentSeriesCounter` |
 | Status: Draft, Submitted, Cancelled, Partially Depreciated, Fully Depreciated | ✅ | |
 | Status: Sold, Scrapped, In Maintenance, Out of Order | 🟠 | In the enum, but no code sets them. Maintenance never changes the asset's status |
@@ -105,8 +105,8 @@ None of these exist yet. Most depend on an Accounts module (see [Modules](Module
 - ✅ **Navigation.** Finance Book is in the asset sidebar under Assets (`/asset/asset-sub-module/finance-book`). Every member can read it; owners, admins and super admins can add, rename and delete. The admin console entry remains.
 - ✅ **Service size** (fixed in #138). `asset.service.ts` is now a thin facade over focused sub-services (`AssetCoreService`, `AssetValueAdjustmentService`, `AssetReportsService`, `AssetLocationService`, `AssetFinanceBookService`, `AssetCategoryService`, `AssetMaintenanceTeamService`, `AssetMaintenanceService`), all under `apps/backend/src/apps/asset/` and registered in `AssetModule`. New features add their own service instead of growing the facade.
 - **Tests.**
-  - Backend: 24 spec files. Finance-book CRUD (15 cases, plus 4 router RBAC cases), `DepreciationPersistenceService` posting and pending queries (36 cases) and the report service filters and barrier call (16 cases in `asset-reports.service.spec.ts`) now have direct tests. The pure report builders still have 2 cases each.
-  - Frontend: 26 Vitest files and 6 Playwright specs, but no e2e coverage of the asset form, location, category or maintenance flows.
+  - Backend: 24 spec files. Finance-book CRUD (15 cases, plus 4 router RBAC cases), `DepreciationPersistenceService` posting and pending queries (38 cases) and the report service filters and barrier call (16 cases in `asset-reports.service.spec.ts`) now have direct tests. The pure report builders still have 2 cases each.
+  - Frontend: 26 Vitest files and 11 Playwright asset specs. Five of them (`asset-location-crud`, `asset-category-crud`, `asset-crud`, `asset-maintenance-crud`, `asset-member-readonly`) drive the UI against the real backend: location, category, asset (create, edit, submit, cancel, delete) and maintenance (team, schedule, log completion) CRUD, plus the read-only member role. The older asset specs still run against mocked tRPC responses. Not covered yet: value adjustment writes, depreciation posting and the finance-book pages.
 
 ## Roadmap
 
