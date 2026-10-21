@@ -314,4 +314,137 @@ describe("AssetDepreciationLifecycleService", () => {
 			]);
 		});
 	});
+
+	describe("getCancellationPreview", () => {
+		const build = (
+			overrides: Parameters<typeof createPostedDepreciationState>[0] = {},
+		) => {
+			const state = createPostedDepreciationState(overrides);
+			const service = new AssetDepreciationLifecycleService(
+				createCancellationPrisma(state),
+			);
+			return { state, service };
+		};
+
+		it("summarises the depreciation that cancelling would reverse without writing", async () => {
+			const { state, service } = build();
+			const before = snapshotState(state);
+
+			const preview = await service.getCancellationPreview("asset-1");
+
+			expect(preview).toEqual({
+				canCancel: true,
+				blockers: [],
+				postedEntryCount: 3,
+				postedDepreciationTotal: 30_000,
+				latestPostingDate: "2026-02-28",
+				entries: [
+					{
+						series: "DEP-2026-00001",
+						postingDate: "2026-01-31",
+						depreciationAmount: 10_000,
+						financeBookName: "Statutory",
+					},
+					{
+						series: "DEP-2026-00003",
+						postingDate: "2026-01-31",
+						depreciationAmount: 10_000,
+						financeBookName: "Tax",
+					},
+					{
+						series: "DEP-2026-00002",
+						postingDate: "2026-02-28",
+						depreciationAmount: 10_000,
+						financeBookName: "Statutory",
+					},
+				],
+			});
+			expect(snapshotState(state)).toBe(before);
+			expect(state.locks).toEqual([]);
+		});
+
+		it("reports an asset without posted entries as cancellable", async () => {
+			const { state, service } = build({ status: "SUBMITTED" });
+			state.entries.length = 0;
+
+			await expect(service.getCancellationPreview("asset-1")).resolves.toEqual({
+				canCancel: true,
+				blockers: [],
+				postedEntryCount: 0,
+				postedDepreciationTotal: 0,
+				latestPostingDate: null,
+				entries: [],
+			});
+		});
+
+		it("caps the listed entries at 200 but counts all of them", async () => {
+			const { state, service } = build();
+			const template = state.entries[0];
+			if (!template) throw new Error("fixture has no entries");
+			state.entries = Array.from({ length: 250 }, (_, index) => ({
+				...template,
+				id: `je-bulk-${index}`,
+				series: `DEP-BULK-${String(index).padStart(5, "0")}`,
+				postingDate: new Date(Date.UTC(2026, 0, 1 + index)),
+			}));
+
+			const preview = await service.getCancellationPreview("asset-1");
+
+			expect(preview.entries).toHaveLength(200);
+			expect(preview.postedEntryCount).toBe(250);
+			expect(preview.postedDepreciationTotal).toBe(2_500_000);
+		});
+
+		it("throws NotFoundException for an unknown asset", async () => {
+			const { service } = build();
+
+			await expect(
+				service.getCancellationPreview("missing"),
+			).rejects.toBeInstanceOf(NotFoundException);
+		});
+
+		const scenarios: Array<{
+			name: string;
+			status?: string;
+			frozen?: boolean;
+			adjustment?: boolean;
+		}> = [
+			{ name: "a partially depreciated asset" },
+			{ name: "a fully depreciated asset", status: "FULLY_DEPRECIATED" },
+			{ name: "a draft asset", status: "DRAFT" },
+			{ name: "a cancelled asset", status: "CANCELLED" },
+			{ name: "a scrapped asset", status: "SCRAPPED" },
+			{ name: "a sold asset", status: "SOLD" },
+			{ name: "an asset in maintenance", status: "IN_MAINTENANCE" },
+			{ name: "an asset out of order", status: "OUT_OF_ORDER" },
+			{ name: "an asset with a frozen posting", frozen: true },
+			{ name: "an asset with a submitted adjustment", adjustment: true },
+		];
+		for (const scenario of scenarios) {
+			it(`agrees with cancelAsset for ${scenario.name}`, async () => {
+				const { state, service } = build(
+					scenario.status ? { status: scenario.status } : {},
+				);
+				if (scenario.frozen) {
+					state.companies[0] = {
+						name: "ACME",
+						accountsFrozenThrough: new Date("2026-02-28T00:00:00.000Z"),
+					};
+				}
+				if (scenario.adjustment) {
+					state.adjustments.push({ assetId: "asset-1", status: "SUBMITTED" });
+				}
+
+				const preview = await service.getCancellationPreview("asset-1");
+				const error = await service.cancelAsset("asset-1").then(
+					() => null,
+					(caught: Error) => caught,
+				);
+
+				expect(preview.canCancel).toBe(error === null);
+				if (error) expect(preview.blockers[0]).toBe(error.message);
+				else expect(preview.blockers).toEqual([]);
+			});
+		}
+	});
 });

@@ -23,6 +23,7 @@ const CANCELLABLE_STATUSES = [
 	"PARTIALLY_DEPRECIATED",
 	"FULLY_DEPRECIATED",
 ];
+const CANCELLATION_PREVIEW_ENTRY_LIMIT = 200;
 const ACTIVE_MAINTENANCE_STATUSES = ["IN_MAINTENANCE", "OUT_OF_ORDER"];
 const SUBMITTED_ADJUSTMENT_BLOCKER =
 	"Cancel the submitted asset value adjustments first";
@@ -114,6 +115,50 @@ export class AssetDepreciationLifecycleService {
 				data: { assetId, activity: "Asset cancelled" },
 			});
 		});
+	}
+
+	/**
+	 * Read-only preview of `cancelAsset`: applies the same guards (including the
+	 * frozen-period check) and lists the depreciation that would be reversed.
+	 */
+	async getCancellationPreview(
+		assetId: string,
+	): Promise<Asset.AssetCancellationPreview> {
+		const asset = await this.prisma.asset.findUnique({
+			where: { id: assetId },
+			select: { id: true, series: true, status: true },
+		});
+		if (!asset) throw new NotFoundException(`Asset ${assetId} not found`);
+
+		const blockers = await this.collectCancellationBlockers(this.prisma, asset);
+		const entries = await this.reversal.loadPostedEntries(this.prisma, assetId);
+		const frozenBlocker = await this.reversal.findFrozenPeriodBlocker(
+			this.prisma,
+			asset.series,
+			entries,
+		);
+		if (frozenBlocker) blockers.push(frozenBlocker);
+
+		const total = entries.reduce(
+			(sum, entry) => sum.plus(entry.depreciationAmount),
+			new Prisma.Decimal(0),
+		);
+		const latest = entries.at(-1);
+		return {
+			canCancel: blockers.length === 0,
+			blockers,
+			postedEntryCount: entries.length,
+			postedDepreciationTotal: total.toNumber(),
+			latestPostingDate: latest ? dateOnly(latest.postingDate) : null,
+			entries: entries
+				.slice(0, CANCELLATION_PREVIEW_ENTRY_LIMIT)
+				.map((entry) => ({
+					series: entry.series,
+					postingDate: dateOnly(entry.postingDate),
+					depreciationAmount: entry.depreciationAmount.toNumber(),
+					financeBookName: entry.financeBookName,
+				})),
+		};
 	}
 
 	/** Throws the first cancellation blocker that does not need posted entries. */
