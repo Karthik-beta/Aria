@@ -330,13 +330,13 @@ describe("AppSwitcher Component", () => {
 			});
 		});
 
-		it("should display 'by Pivotr' subtitle", async () => {
+		it("should display 'Aria ERP' subtitle", async () => {
 			renderWithProviders(
 				<AppSwitcher apps={testApps} defaultApp={testApps[0]} />,
 			);
 
 			await waitFor(() => {
-				expect(screen.getByText("by Pivotr")).toBeInTheDocument();
+				expect(screen.getByText("Aria ERP")).toBeInTheDocument();
 			});
 		});
 

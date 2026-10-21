@@ -40,7 +40,7 @@ export async function expectPath(page: Page, pathname: string) {
 }
 
 export async function openWorkspaceSwitcher(page: Page) {
-	await page.getByRole("button", { name: /inventory by pivotr/i }).click();
+	await page.getByRole("button", { name: /inventory\s*aria erp/i }).click();
 }
 
 export async function switchWorkspace(page: Page, workspace: Workspace) {

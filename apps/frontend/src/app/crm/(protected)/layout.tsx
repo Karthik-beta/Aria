@@ -15,8 +15,8 @@ import { requireProtectedAuthState } from "@/lib/auth/server";
 import { SIDEBAR_COOKIE_NAME } from "@/lib/cookies";
 
 export const metadata: Metadata = {
-	title: "CRM by Pivotr",
-	description: "Customer relationship management system from Pivotr",
+	title: "Aria CRM",
+	description: "Customer relationship management system in Aria ERP",
 	icons: {
 		icon: "/icons/favicon-crm.svg",
 		shortcut: "/icons/favicon-crm.svg",

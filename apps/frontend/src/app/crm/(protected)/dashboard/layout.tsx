@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-	title: "CRM by Pivotr",
-	description: "Customer relationship management system from Pivotr",
+	title: "Aria CRM",
+	description: "Customer relationship management system in Aria ERP",
 };
 
 export default async function DashboardLayout({

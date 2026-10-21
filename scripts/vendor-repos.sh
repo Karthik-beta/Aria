@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
-# Vendor external repositories as git subtrees for coding agent reference.
+# Clone external repositories for coding agent reference.
 #
-# This script adds read-only copies of key dependency source trees under repos/
-# so that coding agents can explore real implementations instead of guessing.
+# This script adds read-only shallow clones of key dependency source trees under
+# repos/ so that coding agents can explore real implementations instead of
+# guessing. repos/ is gitignored: the clones stay on your machine and are never
+# committed (each keeps its own upstream license).
 #
 # Usage:
-#   ./scripts/vendor-repos.sh          # vendor all repos
-#   ./scripts/vendor-repos.sh --pull   # update all existing subtrees
+#   ./scripts/vendor-repos.sh          # clone all repos
+#   ./scripts/vendor-repos.sh --pull   # update all existing clones
 #
 # See VENDORED_REPOS.md for rationale and maintenance guidance.
 
@@ -39,47 +41,31 @@ REPOS=(
   "repos/biome|https://github.com/biomejs/biome.git|main"
 )
 
-# ─── Auto-stash ──────────────────────────────────────────────────────────────
-# git subtree requires a clean working tree. Stash uncommitted changes and
-# restore them when the script exits (success or failure).
-
-STASHED=false
-
-restore_stash() {
-  if [ "$STASHED" = true ]; then
-    echo ""
-    log "Restoring stashed changes..."
-    git stash pop
-    ok "Stash restored."
-  fi
-}
-trap restore_stash EXIT
-
-if ! git diff --quiet HEAD 2>/dev/null || ! git diff --cached --quiet HEAD 2>/dev/null; then
-  log "Working tree has uncommitted changes — stashing temporarily..."
-  git stash push -m "vendor-repos: auto-stash"
-  STASHED=true
-fi
-
 # ─── Main ────────────────────────────────────────────────────────────────────
 
+mkdir -p "$REPOS_DIR"
+
 if [ "$MODE" = "--pull" ]; then
-  log "Updating all vendored subtrees..."
+  log "Updating all vendored clones..."
   for entry in "${REPOS[@]}"; do
     IFS='|' read -r prefix repo branch <<< "$entry"
-    log "Pulling $prefix from $repo ($branch)..."
-    if git subtree pull --prefix="$prefix" "$repo" "$branch" --squash -m "chore(vendor): update $prefix" 2>/dev/null; then
+    if [ ! -d "$prefix/.git" ]; then
+      err "$prefix is not a clone — delete it and run without --pull."
+      continue
+    fi
+    log "Pulling $prefix ($branch)..."
+    if git -C "$prefix" pull --ff-only --depth 1 origin "$branch"; then
       ok "Updated $prefix"
     else
-      err "Failed to update $prefix — subtree may not exist yet. Run without --pull first."
+      err "Failed to update $prefix"
     fi
   done
   echo ""
-  ok "All subtrees updated."
+  ok "All clones updated."
   exit 0
 fi
 
-log "Vendoring external repositories into $REPOS_DIR/..."
+log "Cloning external repositories into $REPOS_DIR/..."
 echo ""
 
 for entry in "${REPOS[@]}"; do
@@ -91,19 +77,17 @@ for entry in "${REPOS[@]}"; do
     continue
   fi
 
-  log "Adding $prefix from $repo ($branch)..."
-  if git subtree add --prefix="$prefix" "$repo" "$branch" --squash -m "chore(vendor): add $prefix"; then
+  log "Cloning $prefix from $repo ($branch)..."
+  if git clone --depth 1 --branch "$branch" "$repo" "$prefix"; then
     ok "Added $prefix"
   else
-    err "Failed to add $prefix"
+    err "Failed to clone $prefix"
     exit 1
   fi
   echo ""
 done
 
 echo ""
-ok "All repositories vendored successfully under $REPOS_DIR/"
+ok "All repositories cloned under $REPOS_DIR/"
 echo ""
-echo "Next steps:"
-echo "  1. Add repos/ to your .vscode/settings.json exclusions (see VENDORED_REPOS.md)"
-echo "  2. Commit: git add -A && git commit -m 'chore(vendor): add dependency source trees'"
+echo "Next step: add repos/ to your editor exclusions (see VENDORED_REPOS.md)"

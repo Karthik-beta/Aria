@@ -152,7 +152,7 @@ export function AppSwitcher({
 								<span className="font-semibold">
 									{isNavigating ? "Switching..." : displayApp.name}
 								</span>
-								<span className="text-xs">by Pivotr</span>
+								<span className="text-xs">Aria ERP</span>
 							</div>
 							<ChevronsUpDown className="ml-auto" />
 						</SidebarMenuButton>

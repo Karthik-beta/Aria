@@ -167,3 +167,9 @@ evals/agent-results.json
 
 # Others 
 .kilo
+# Local-only: vendored dependency sources (scripts/vendor-repos.sh), agent
+# notes and prompts. Kept on disk, never committed.
+repos/
+.agent/
+.opencode/
+prompts/

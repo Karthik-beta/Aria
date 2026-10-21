@@ -47,14 +47,14 @@ const useSecureCookies =
 	process.env.NODE_ENV === "production" || backendUrl.startsWith("https");
 
 // Extract parent domain from the first frontend URL for cookie sharing across subdomains.
-// e.g. "https://app.aria.pivotr.in" -> ".aria.pivotr.in"
+// e.g. "https://app.example.com" -> ".example.com"
 const cookieDomain = (() => {
 	try {
 		const firstFrontendUrl = frontendUrlsArray[0];
 		if (firstFrontendUrl) {
 			const url = new URL(firstFrontendUrl);
-			const hostname = url.hostname; // e.g. "app.aria.pivotr.in"
-			// Strip subdomain to get parent domain: "app.aria.pivotr.in" -> ".aria.pivotr.in"
+			const hostname = url.hostname; // e.g. "app.example.com"
+			// Strip subdomain to get parent domain: "app.example.com" -> ".example.com"
 			const parts = hostname.split(".");
 			if (parts.length > 2) {
 				return `.${parts.slice(-2).join(".")}`;
