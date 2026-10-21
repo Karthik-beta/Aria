@@ -8,6 +8,7 @@
 param(
     [string]$InstallPath = "C:\aria",
     [switch]$SkipBuild = $false,
+    [switch]$FromSource = $false,
     [switch]$Help = $false
 )
 
@@ -17,11 +18,13 @@ if ($Help) {
 Aria ERP Installation Script for Windows
 
 Usage:
-    .\install-windows.ps1 [-InstallPath <path>] [-SkipBuild] [-Help]
+    .\install-windows.ps1 [-InstallPath <path>] [-SkipBuild] [-FromSource] [-Help]
 
 Parameters:
     -InstallPath <path>  Installation directory (default: C:\aria)
-    -SkipBuild           Skip Docker image building (use pre-built images)
+    -SkipBuild           Skip preparing Docker images (use images already present)
+    -FromSource          Build the images from source instead of downloading
+                         the prebuilt ones from GitHub Container Registry
     -Help                Display this help message
 
 Example:
@@ -120,6 +123,23 @@ function Test-SystemRequirements {
     Write-InfoLog "✓ System requirements check passed"
 }
 
+# Image tag matching the source being installed: X.Y.Z on a release tag,
+# sha-<commit> on any other commit, empty when unknown or locally changed
+function Get-ImageVersion {
+    if (-not (Get-Command git -ErrorAction SilentlyContinue)) { return '' }
+    $ErrorActionPreference = 'Continue'
+    & git rev-parse --git-dir 2>$null | Out-Null
+    if ($LASTEXITCODE -ne 0) { return '' }
+    $changes = @(& git status --porcelain -- apps packages package.json bun.lock turbo.json tsconfig.base.json 2>$null)
+    if ($changes.Count -gt 0) {
+        Write-WarnLog "Application sources have local changes; prebuilt images will not match them"
+        return ''
+    }
+    $tag = (& git describe --tags --exact-match --match 'v[0-9]*' 2>$null | Out-String).Trim()
+    if ($LASTEXITCODE -eq 0 -and $tag -ne '') { return $tag.Substring(1) }
+    return "sha-$((& git rev-parse HEAD 2>$null | Out-String).Trim())"
+}
+
 # Create installation directory
 function New-InstallDirectory {
     Write-StepLog "Creating installation directory..."
@@ -162,6 +182,10 @@ function Set-Environment {
     if (-not (Test-Path $envPath)) {
         if (Test-Path $envTemplatePath) {
             Copy-Item -Path $envTemplatePath -Destination $envPath
+            if ($script:ImageVersion -ne '') {
+                $envContent = (Get-Content $envPath) -replace '^VERSION=.*', "VERSION=$script:ImageVersion"
+                Set-Content -Path $envPath -Value $envContent
+            }
             Write-WarnLog "Environment file created from template"
             Write-WarnLog "IMPORTANT: Edit $envPath and set all required values"
             Write-WarnLog "Especially: POSTGRES_PASSWORD, REDIS_PASSWORD, BETTER_AUTH_SECRET, DOMAIN"
@@ -205,21 +229,32 @@ function New-SSLCertificates {
     }
 }
 
-# Build Docker images
+# Download the prebuilt images (VERSION in .env); build from source when they
+# are unavailable or -FromSource is given
 function Build-DockerImages {
     if ($SkipBuild) {
-        Write-InfoLog "Skipping Docker image build (using pre-built images)"
+        Write-InfoLog "Skipping Docker image preparation (using images already present)"
         return
     }
     
-    Write-StepLog "Building Docker images..."
+    Write-StepLog "Preparing Docker images..."
     
     Push-Location $InstallPath
     
     try {
         # Pull base images
         Write-InfoLog "Pulling base images..."
-        & docker compose -f docker-compose.production.yml pull --quiet 2>&1 | Out-Null
+        & docker compose -f docker-compose.production.yml pull --quiet --ignore-buildable 2>&1 | Out-Null
+        
+        if (-not $FromSource) {
+            Write-InfoLog "Downloading prebuilt application images..."
+            & docker compose -f docker-compose.production.yml pull --quiet frontend backend migrate
+            if ($LASTEXITCODE -eq 0) {
+                Write-InfoLog "✓ Prebuilt images downloaded"
+                return
+            }
+            Write-WarnLog "Prebuilt images for VERSION in $InstallPath\.env are not available, building from source"
+        }
         
         # Build custom images
         Write-InfoLog "Building application images (this may take a while)..."
@@ -383,6 +418,8 @@ function Install-AriaERP {
         Write-Host ""
         
         Test-SystemRequirements
+        $script:ImageVersion = Get-ImageVersion
+        if ($script:ImageVersion -ne '') { Write-InfoLog "Image version for this source: $script:ImageVersion" }
         New-InstallDirectory
         Copy-ApplicationFiles
         Set-Environment
