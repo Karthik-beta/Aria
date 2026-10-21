@@ -113,6 +113,11 @@ jobs:
         working-directory: apps/backend
         run: bun run db:migrate:deploy
 
+      # Playwright's web servers build and run the apps directly, outside
+      # Turborepo, so the workspace packages they import must be built first.
+      - name: Build workspace packages
+        run: bun x turbo run build --filter='backend^...' --filter='frontend^...'
+
       - name: Playwright version
         id: playwright
         working-directory: apps/frontend
