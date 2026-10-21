@@ -10,7 +10,8 @@
 > Modern, modular B2B ERP suite built with TypeScript, NestJS, and Next.js
 
 **Try the demo on Windows:** [Download AriaSetup.exe](https://github.com/Karthik-beta/Aria/releases/latest/download/AriaSetup.exe)
-(needs [Docker Desktop](https://www.docker.com/products/docker-desktop/); see [Windows installer](./deployment/local/README.md#windows-installer)).
+(needs [Docker Desktop](https://www.docker.com/products/docker-desktop/); see [Windows installer](./deployment/local/README.md#windows-installer)
+and the [Code signing policy](./CODE_SIGNING.md)).
 
 Aria ERP is a full-stack monorepo providing enterprise resource planning capabilities through specialized modules for asset management, customer relations, human resources, and inventory control.
 
@@ -136,6 +137,7 @@ Contributions are welcome. Read the [Contributing Guide](./CONTRIBUTING.md) and 
 - **[Contributing Guide](./CONTRIBUTING.md)** — Development workflow and code standards
 - **[Code of Conduct](./CODE_OF_CONDUCT.md)** — Community standards
 - **[Security Policy](./SECURITY.md)** — Vulnerability reporting and security practices
+- **[Code signing policy](./CODE_SIGNING.md)** — How release installers are signed
 - **[Changelog](./CHANGELOG.md)** — Release history and notable changes
 
 ## License

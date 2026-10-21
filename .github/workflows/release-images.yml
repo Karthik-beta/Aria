@@ -5,6 +5,8 @@ name: Release Images
 # GHCR, so installs and updates download them instead of building on the device.
 #   push to master -> ghcr.io/<owner>/aria-{backend,frontend}:sha-<commit>, :master
 #   tag vX.Y.Z     -> :X.Y.Z, :X.Y, :latest, :sha-<commit>, plus a GitHub Release
+#                     with the Windows installer, signed through SignPath
+#                     (CODE_SIGNING.md) once signing is set up
 # Each platform builds natively on its own runner; a merge job joins the
 # per-platform digests into one multi-arch tag.
 
@@ -169,10 +171,67 @@ jobs:
       version: ${{ github.ref_name }}
       revision: ${{ github.sha }}
 
+  # Signs the installer through SignPath Foundation (CODE_SIGNING.md). Needs the
+  # SIGNPATH_API_TOKEN secret and the SIGNPATH_ORGANIZATION_ID variable; until
+  # both exist the release ships the unsigned installer. Each request waits for
+  # a maintainer to approve it in SignPath.
+  sign:
+    name: Sign installer
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: installer
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      signed: ${{ steps.check.outputs.enabled }}
+    steps:
+      - name: Check signing setup
+        id: check
+        env:
+          SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+          SIGNPATH_ORGANIZATION_ID: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+        run: |
+          echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          if [[ -n "$SIGNPATH_API_TOKEN" && -n "$SIGNPATH_ORGANIZATION_ID" ]]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::SignPath is not set up; the release gets the unsigned installer"
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # The slugs default to the names in .signpath/README.md; the variables
+      # switch them, e.g. SIGNPATH_SIGNING_POLICY_SLUG=test-signing for a trial.
+      - name: Submit signing request
+        if: steps.check.outputs.enabled == 'true'
+        uses: signpath/github-action-submit-signing-request@f6d04783b4569d051e0c80105fe66e82819d0092 # v3.0
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG || 'aria' }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG || 'release-signing' }}
+          artifact-configuration-slug: ${{ vars.SIGNPATH_ARTIFACT_CONFIGURATION_SLUG || 'installer' }}
+          github-artifact-id: ${{ needs.installer.outputs.artifact-id }}
+          parameters: |
+            version: "${{ steps.check.outputs.version }}"
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: ${{ runner.temp }}/signed
+
+      - name: Upload signed installer
+        if: steps.check.outputs.enabled == 'true'
+        uses: actions/upload-artifact@v5
+        with:
+          name: aria-setup-signed
+          path: ${{ runner.temp }}/signed/AriaSetup-*.exe
+          if-no-files-found: error
+          retention-days: 7
+
   release:
     name: GitHub Release
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [merge, installer]
+    needs: [merge, installer, sign]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -181,7 +240,7 @@ jobs:
       - name: Download installer
         uses: actions/download-artifact@v6
         with:
-          name: aria-setup
+          name: ${{ needs.sign.outputs.signed == 'true' && 'aria-setup-signed' || 'aria-setup' }}
           path: ${{ runner.temp }}/installer
 
       - name: Create release
@@ -208,6 +267,8 @@ jobs:
             '## Windows demo installer' \
             '' \
             "Run \`AriaSetup-$version.exe\` (below) on a laptop with Docker Desktop. Running a newer installer updates an existing install, with a restore point and automatic rollback. Uninstall from Windows Settings > Apps." \
+            '' \
+            "[Code signing policy](https://github.com/$GITHUB_REPOSITORY/blob/$TAG/CODE_SIGNING.md)" \
             '' \
             '## Images' \
             '' \
