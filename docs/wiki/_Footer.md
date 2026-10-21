@@ -1,0 +1,1 @@
+Aria ERP · [AGPL-3.0-or-later](https://github.com/Karthik-beta/Aria/blob/master/LICENSE) · Business logic derived from [ERPNext](https://github.com/frappe/erpnext) by Frappe Technologies · [Edit these pages](https://github.com/Karthik-beta/Aria/tree/master/docs/wiki)

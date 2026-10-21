@@ -1,0 +1,67 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+name: Wiki Sync
+
+# Publishes docs/wiki/ to the repository wiki (https://github.com/Karthik-beta/Aria/wiki)
+# whenever it changes on master. The folder is the source of truth: edits made
+# in the wiki's web editor are overwritten by the next sync, so change pages
+# here through a PR instead.
+#
+# GitHub creates the wiki's git repository only when its first page is saved in
+# the web UI, so that has to be done once before this workflow can push.
+
+on:
+  push:
+    branches: ['master']
+    paths:
+      - 'docs/wiki/**'
+      - '.github/workflows/wiki-sync.yml'
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+permissions: {}
+
+concurrency:
+  group: wiki-sync
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish wiki
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Push docs/wiki to the wiki repository
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          wiki_url="https://x-access-token:${GH_TOKEN}@github.com/${REPO}.wiki.git"
+          if ! git clone --depth 1 "$wiki_url" "$RUNNER_TEMP/wiki" 2> clone.err; then
+            sed "s/${GH_TOKEN}/***/g" clone.err
+            echo "::error::Could not clone the wiki. Create its first page at https://github.com/${REPO}/wiki once, then re-run this workflow."
+            exit 1
+          fi
+
+          rsync -a --delete --exclude '.git' docs/wiki/ "$RUNNER_TEMP/wiki/"
+
+          cd "$RUNNER_TEMP/wiki"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "Wiki is already up to date."
+            exit 0
+          fi
+          git -c user.name="github-actions[bot]" \
+              -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+              commit -q -m "Sync from ${REPO}@${SHA::7}"
+          git push -q origin HEAD
+          echo "Published $(git show --stat --format= HEAD | tail -1)"
