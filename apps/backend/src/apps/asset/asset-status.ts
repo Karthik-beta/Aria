@@ -83,6 +83,14 @@ export const ASSET_DEPRECIATING_STATUSES: readonly Asset.AssetStatus[] = [
 export const ASSET_MAINTENANCE_ELIGIBLE_STATUSES: readonly Asset.AssetStatus[] =
 	statusesOfKind("depreciation", "overlay");
 
+/** `PARTIALLY_DEPRECIATED` -> `Partially Depreciated` (the ERPNext status names). */
+export const assetStatusLabel = (status: Asset.AssetStatus): string =>
+	status
+		.toLowerCase()
+		.split("_")
+		.map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+		.join(" ");
+
 export const isOperationalAssetStatus = (status: Asset.AssetStatus): boolean =>
 	STATUS_KIND[status] === "overlay";
 

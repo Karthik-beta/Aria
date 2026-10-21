@@ -8,6 +8,7 @@ import { AssetLocationService } from "./asset-location.service";
 import { AssetMaintenanceService } from "./asset-maintenance.service";
 import { AssetMaintenanceTeamService } from "./asset-maintenance-team.service";
 import { AssetReportsService } from "./asset-reports.service";
+import { AssetStatusService } from "./asset-status.service";
 import { AssetValueAdjustmentService } from "./asset-value-adjustment.service";
 import { DepreciationProcessingModule } from "./depreciation/depreciation-processing.module";
 import { AssetRouter } from "./trpc/asset.router";
@@ -25,6 +26,7 @@ import { AssetRouter } from "./trpc/asset.router";
 		AssetMaintenanceTeamService,
 		AssetMaintenanceService,
 		AssetDashboardSubService,
+		AssetStatusService,
 		AssetRouter,
 	],
 	exports: [AssetRouter],
