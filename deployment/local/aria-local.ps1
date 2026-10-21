@@ -107,7 +107,9 @@ $LockFile = Join-Path $PSScriptRoot '.aria-local.lock'
 $DockerDesktopExe = "$env:ProgramFiles\Docker\Docker\Docker Desktop.exe"
 $BuiltImages = @('aria-local-backend', 'aria-local-frontend')
 # Files that go into the images; a local change to them rules out the prebuilt ones.
-$ImageSources = @('apps', 'packages', 'package.json', 'bun.lock', 'turbo.json', 'tsconfig.base.json')
+$ImageSources = @('apps', 'packages', 'package.json', 'bun.lock', 'turbo.json', 'tsconfig.base.json', '.dockerignore')
+# How many commits back to look for published images that match the sources.
+$MaxImageLookback = 50
 # Set by docker/metadata-action on the prebuilt images.
 $ImageSourceLabel = 'label=org.opencontainers.image.source=https://github.com/Karthik-beta/Aria'
 
@@ -540,25 +542,35 @@ function Get-RegistryRepository([string]$Image) {
     return "$registry/$($Image -replace '^aria-local-', 'aria-')"
 }
 
-# Returns the commit the prebuilt images must match, or '' when only a local
-# build matches the sources (no git, or local changes to them).
-function Get-SourceRevision {
+# Returns the commits whose images match the checked-out sources, newest first:
+# HEAD and the ancestors before it that left the image sources unchanged
+# (CI publishes images only for the commits pushed to master). Returns @() when
+# only a local build matches the sources (no git, or local changes to them).
+function Get-SourceRevisions {
     if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
         Write-Info 'git is not installed, so the matching prebuilt images cannot be identified.'
-        return ''
+        return @()
     }
     $ErrorActionPreference = 'Continue'
     $revision = (& git -C $RepoRoot rev-parse HEAD 2>$null | Out-String).Trim()
     if ($LASTEXITCODE -ne 0 -or $revision -eq '') {
         Write-Info 'This folder is not a git checkout, so the matching prebuilt images cannot be identified.'
-        return ''
+        return @()
     }
     $changes = @(& git -C $RepoRoot status --porcelain -- @ImageSources 2>$null)
     if ($changes.Count -gt 0) {
         Write-Info 'The application sources have local changes, so the prebuilt images do not match them.'
-        return ''
+        return @()
     }
-    return $revision
+    # --first-parent follows master's merge commits, which are the ones CI built.
+    $lastChange = (& git -C $RepoRoot rev-list --first-parent -n 1 HEAD -- @ImageSources 2>$null | Out-String).Trim()
+    $revisions = @()
+    foreach ($commit in @(& git -C $RepoRoot rev-list --first-parent -n $MaxImageLookback HEAD 2>$null)) {
+        $revisions += $commit
+        if ($commit -eq $lastChange) { break }
+    }
+    if ($revisions.Count -eq 0) { $revisions = @($revision) }
+    return $revisions
 }
 
 function Get-ImageRevision([string]$Reference) {
@@ -567,18 +579,39 @@ function Get-ImageRevision([string]$Reference) {
     return "$label".Trim()
 }
 
-# Downloads the images CI built from $Revision and tags them as the local
-# images. Returns $false when they are not available, leaving the local images as they were.
-function Get-PrebuiltImages([string]$Revision) {
-    $short = $Revision.Substring(0, 8)
+# Returns the newest of $Revisions that CI published both images for, or ''.
+function Find-PublishedRevision([string[]]$Revisions) {
+    foreach ($revision in $Revisions) {
+        $published = $true
+        foreach ($image in $BuiltImages) {
+            if (-not (Test-DockerCommand manifest inspect "$(Get-RegistryRepository $image):sha-$revision")) { $published = $false; break }
+        }
+        if ($published) { return $revision }
+    }
+    return ''
+}
+
+# Downloads the images CI built from the newest of $Revisions that has them and
+# tags them as the local images. Returns $false when none are available,
+# leaving the local images as they were.
+function Get-PrebuiltImages([string[]]$Revisions) {
     $current = $true
     foreach ($image in $BuiltImages) {
-        if ((Get-ImageRevision "${image}:latest") -ne $Revision) { $current = $false; break }
+        if ($Revisions -notcontains (Get-ImageRevision "${image}:latest")) { $current = $false; break }
     }
     if ($current) {
-        Write-Ok "Prebuilt images for $short are already here"
+        Write-Ok "Prebuilt images for $($Revisions[0].Substring(0, 8)) are already here"
         return $true
     }
+
+    Write-Step 'Looking for prebuilt images'
+    $Revision = Find-PublishedRevision $Revisions
+    if ($Revision -eq '') {
+        Write-Warn "No prebuilt images match $($Revisions[0].Substring(0, 8)) (it is not on master yet, the Release Images workflow may still be running, or the registry is unreachable)."
+        return $false
+    }
+    $short = $Revision.Substring(0, 8)
+    if ($Revision -ne $Revisions[0]) { Write-Info "Using the images built for $short; the application sources have not changed since." }
 
     Write-Step "Downloading prebuilt images for $short"
     $pulled = @()
@@ -641,8 +674,8 @@ function Invoke-Start {
     }
 
     if ($build -and -not $FromSource) {
-        $revision = Get-SourceRevision
-        if ($revision -ne '' -and (Get-PrebuiltImages $revision)) { $build = $false }
+        $revisions = @(Get-SourceRevisions)
+        if ($revisions.Count -gt 0 -and (Get-PrebuiltImages $revisions)) { $build = $false }
         else { Write-Info 'Building the images from source instead.' }
     }
 
