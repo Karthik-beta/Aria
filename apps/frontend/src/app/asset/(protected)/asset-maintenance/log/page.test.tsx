@@ -1,5 +1,5 @@
 import "@testing-library/jest-dom";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithProviders, screen, userEvent, waitFor } from "@/test/utils";
 import AssetMaintenanceLogPage from "./page";
 
@@ -92,6 +92,12 @@ const MOCK_QUERY_DATA = {
 
 // ── tRPC mock ────────────────────────────────────────────────────────────────
 
+const canManageAssets = vi.hoisted(() => ({ value: true }));
+
+vi.mock("@/hooks/use-can-manage-assets", () => ({
+	useCanManageAssets: () => canManageAssets.value,
+}));
+
 vi.mock("@/lib/trpc", () => ({
 	trpc: {
 		useUtils: () => ({
@@ -155,6 +161,7 @@ vi.mock("@/lib/trpc", () => ({
 
 describe("AssetMaintenanceLogPage", () => {
 	beforeEach(() => {
+		canManageAssets.value = true;
 		mockCancelMutate.mockClear();
 		mockCompleteMutate.mockClear();
 		mockInvalidate.mockClear();
@@ -382,5 +389,32 @@ describe("AssetMaintenanceLogPage — empty state", () => {
 		expect(
 			screen.getByRole("heading", { name: /Asset Maintenance Log/i }),
 		).toBeInTheDocument();
+	});
+});
+
+describe("AssetMaintenanceLogPage — read-only access", () => {
+	beforeEach(() => {
+		canManageAssets.value = false;
+	});
+
+	afterEach(() => {
+		canManageAssets.value = true;
+	});
+
+	it("keeps Mark Complete but hides Cancel Log", async () => {
+		const user = userEvent.setup();
+		renderWithProviders(<AssetMaintenanceLogPage />);
+
+		const actionButtons = await screen.findAllByRole("button", {
+			name: /Actions for/i,
+		});
+		await user.click(actionButtons[0]);
+
+		expect(
+			screen.getByRole("menuitem", { name: /Mark Complete/i }),
+		).toBeInTheDocument();
+		expect(
+			screen.queryByRole("menuitem", { name: /Cancel Log/i }),
+		).not.toBeInTheDocument();
 	});
 });

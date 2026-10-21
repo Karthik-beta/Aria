@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useCanManageAssets } from "@/hooks/use-can-manage-assets";
 import { getToastMessage } from "@/lib/errors";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
@@ -74,6 +75,7 @@ function DetailRow({
 }
 
 export default function AssetDetailPage() {
+	const canManageAssets = useCanManageAssets();
 	const params = useParams();
 	const router = useRouter();
 	const assetId = params.assetId as string;
@@ -196,7 +198,7 @@ export default function AssetDetailPage() {
 						<Badge className={`${badgeClass} border-0`}>
 							{formatStatus(asset.status)}
 						</Badge>
-						{asset.status === "DRAFT" && (
+						{canManageAssets && asset.status === "DRAFT" && (
 							<Button
 								size="sm"
 								onClick={() => submitMutation.mutate({ id: asset.id })}
@@ -205,31 +207,36 @@ export default function AssetDetailPage() {
 								Submit
 							</Button>
 						)}
-						{["SUBMITTED", "PARTIALLY_DEPRECIATED"].includes(asset.status) && (
-							<Button
-								size="sm"
-								variant="outline"
-								onClick={() => cancelMutation.mutate({ id: asset.id })}
-								disabled={cancelMutation.isPending}
-							>
-								Cancel Asset
-							</Button>
+						{canManageAssets &&
+							["SUBMITTED", "PARTIALLY_DEPRECIATED"].includes(asset.status) && (
+								<Button
+									size="sm"
+									variant="outline"
+									onClick={() => cancelMutation.mutate({ id: asset.id })}
+									disabled={cancelMutation.isPending}
+								>
+									Cancel Asset
+								</Button>
+							)}
+						{canManageAssets && (
+							<>
+								<Link
+									href={`/asset/asset-sub-module/asset/form?id=${asset.id}`}
+									className={buttonVariants({ variant: "outline", size: "sm" })}
+								>
+									<Edit className="mr-2 h-4 w-4" />
+									Edit
+								</Link>
+								<Button
+									variant="destructive"
+									size="sm"
+									onClick={() => setIsDeleteDialogOpen(true)}
+								>
+									<Trash className="mr-2 h-4 w-4" />
+									Delete
+								</Button>
+							</>
 						)}
-						<Link
-							href={`/asset/asset-sub-module/asset/form?id=${asset.id}`}
-							className={buttonVariants({ variant: "outline", size: "sm" })}
-						>
-							<Edit className="mr-2 h-4 w-4" />
-							Edit
-						</Link>
-						<Button
-							variant="destructive"
-							size="sm"
-							onClick={() => setIsDeleteDialogOpen(true)}
-						>
-							<Trash className="mr-2 h-4 w-4" />
-							Delete
-						</Button>
 					</div>
 				</div>
 

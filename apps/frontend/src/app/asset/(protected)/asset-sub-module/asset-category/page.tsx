@@ -39,6 +39,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DataTableColumnHeader } from "@/components/ui/table/data-table-column-header";
+import { useCanManageAssets } from "@/hooks/use-can-manage-assets";
 import { getToastMessage } from "@/lib/errors";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
@@ -71,6 +72,7 @@ function AssetCategoriesRealtimeSubscription({
 }
 
 export default function AssetCategoryPage() {
+	const canManageAssets = useCanManageAssets();
 	const utils = trpc.useUtils();
 
 	const [search, setSearch] = React.useState("");
@@ -184,8 +186,8 @@ export default function AssetCategoryPage() {
 		}
 	}, [queryError]);
 
-	const columns = React.useMemo<ColumnDef<CategoryRow>[]>(
-		() => [
+	const columns = React.useMemo<ColumnDef<CategoryRow>[]>(() => {
+		const allColumns: ColumnDef<CategoryRow>[] = [
 			{
 				id: "select",
 				header: ({ table }) => (
@@ -215,14 +217,17 @@ export default function AssetCategoryPage() {
 				header: ({ column }) => (
 					<DataTableColumnHeader column={column} title="Category Name" />
 				),
-				cell: ({ row }) => (
-					<Link
-						href={`/asset/asset-sub-module/asset-category/form?id=${row.original.id}`}
-						className="font-medium text-primary hover:underline"
-					>
-						{row.original.name}
-					</Link>
-				),
+				cell: ({ row }) =>
+					canManageAssets ? (
+						<Link
+							href={`/asset/asset-sub-module/asset-category/form?id=${row.original.id}`}
+							className="font-medium text-primary hover:underline"
+						>
+							{row.original.name}
+						</Link>
+					) : (
+						<span className="font-medium">{row.original.name}</span>
+					),
 				meta: {
 					label: "Category Name",
 					searchable: true,
@@ -322,9 +327,11 @@ export default function AssetCategoryPage() {
 				),
 				enableSorting: false,
 			},
-		],
-		[handleDelete],
-	);
+		];
+		return canManageAssets
+			? allColumns
+			: allColumns.filter((column) => column.id !== "actions");
+	}, [handleDelete, canManageAssets]);
 
 	const handleReload = React.useCallback(async () => {
 		await refetch();
@@ -467,6 +474,7 @@ export default function AssetCategoryPage() {
 						onPaginationChange={setPagination}
 						onReload={handleReload}
 						search={search}
+						canManageAssets={canManageAssets}
 					/>
 				)}
 			</div>
@@ -482,6 +490,7 @@ function AssetCategoryTable(props: {
 	onPaginationChange: (pagination: PaginationState) => void;
 	onReload: () => void | Promise<void>;
 	search: string;
+	canManageAssets: boolean;
 }) {
 	const { table } = useAdvancedDataTable<CategoryRow>({
 		data: props.data,
@@ -508,13 +517,15 @@ function AssetCategoryTable(props: {
 			enableColumnResizing
 			ariaLabel="Asset category table"
 			primaryAction={
-				<Link
-					href="/asset/asset-sub-module/asset-category/form"
-					className={cn(buttonVariants({ variant: "default", size: "sm" }))}
-				>
-					<Plus className="mr-2 h-4 w-4" />
-					Add Category
-				</Link>
+				props.canManageAssets ? (
+					<Link
+						href="/asset/asset-sub-module/asset-category/form"
+						className={cn(buttonVariants({ variant: "default", size: "sm" }))}
+					>
+						<Plus className="mr-2 h-4 w-4" />
+						Add Category
+					</Link>
+				) : undefined
 			}
 			emptyState={
 				<div className="flex flex-col items-center gap-2 py-12">
@@ -524,7 +535,7 @@ function AssetCategoryTable(props: {
 							? "No categories match your filters"
 							: "No asset categories yet"}
 					</p>
-					{!props.search && (
+					{props.canManageAssets && !props.search && (
 						<Link
 							href="/asset/asset-sub-module/asset-category/form"
 							className={cn(

@@ -1,5 +1,5 @@
 import "@testing-library/jest-dom";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithProviders, screen, userEvent, waitFor } from "@/test/utils";
 import LocationFormPage from "./page";
 
@@ -28,6 +28,12 @@ const parentLocation = {
 	createdAt: new Date("2025-12-01"),
 	updatedAt: new Date("2025-12-01"),
 };
+
+const canManageAssets = vi.hoisted(() => ({ value: true }));
+
+vi.mock("@/hooks/use-can-manage-assets", () => ({
+	useCanManageAssets: () => canManageAssets.value,
+}));
 
 vi.mock("next/navigation", () => ({
 	useRouter: () => ({
@@ -123,6 +129,7 @@ vi.mock("@/lib/trpc", () => ({
 
 describe("LocationFormPage", () => {
 	beforeEach(() => {
+		canManageAssets.value = true;
 		currentId = null;
 		mockCreateMutate.mockClear();
 		mockUpdateMutate.mockClear();
@@ -244,5 +251,26 @@ describe("LocationFormPage", () => {
 		expect(
 			screen.getByText(/Group \(can have children\)/i),
 		).toBeInTheDocument();
+	});
+});
+
+describe("LocationFormPage — read-only access", () => {
+	beforeEach(() => {
+		canManageAssets.value = false;
+	});
+
+	afterEach(() => {
+		canManageAssets.value = true;
+	});
+
+	it("renders the write-access notice instead of the form", () => {
+		renderWithProviders(<LocationFormPage />);
+
+		expect(
+			screen.getByText(
+				/You need the owner or admin role in this organization to change asset records/i,
+			),
+		).toBeInTheDocument();
+		expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
 	});
 });

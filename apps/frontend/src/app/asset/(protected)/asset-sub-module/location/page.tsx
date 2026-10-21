@@ -42,6 +42,7 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DataTableColumnHeader } from "@/components/ui/table/data-table-column-header";
+import { useCanManageAssets } from "@/hooks/use-can-manage-assets";
 import { getToastMessage } from "@/lib/errors";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
@@ -76,6 +77,7 @@ function LocationRealtimeSubscription({
 }
 
 export default function LocationPage() {
+	const canManageAssets = useCanManageAssets();
 	const utils = trpc.useUtils();
 
 	const [search, setSearch] = React.useState("");
@@ -191,8 +193,8 @@ export default function LocationPage() {
 		}
 	}, [queryError]);
 
-	const columns = React.useMemo<ColumnDef<LocationRow>[]>(
-		() => [
+	const columns = React.useMemo<ColumnDef<LocationRow>[]>(() => {
+		const allColumns: ColumnDef<LocationRow>[] = [
 			{
 				id: "select",
 				header: ({ table }) => (
@@ -222,14 +224,17 @@ export default function LocationPage() {
 				header: ({ column }) => (
 					<DataTableColumnHeader column={column} title="Location Name" />
 				),
-				cell: ({ row }) => (
-					<Link
-						href={`/asset/asset-sub-module/location/form?id=${row.original.id}`}
-						className="font-medium text-primary hover:underline"
-					>
-						{row.original.name}
-					</Link>
-				),
+				cell: ({ row }) =>
+					canManageAssets ? (
+						<Link
+							href={`/asset/asset-sub-module/location/form?id=${row.original.id}`}
+							className="font-medium text-primary hover:underline"
+						>
+							{row.original.name}
+						</Link>
+					) : (
+						<span className="font-medium">{row.original.name}</span>
+					),
 				meta: { label: "Location Name", searchable: true, exportable: true },
 			},
 			{
@@ -325,9 +330,11 @@ export default function LocationPage() {
 				),
 				enableSorting: false,
 			},
-		],
-		[handleDelete],
-	);
+		];
+		return canManageAssets
+			? allColumns
+			: allColumns.filter((column) => column.id !== "actions");
+	}, [handleDelete, canManageAssets]);
 
 	const handleReload = React.useCallback(async () => {
 		await refetch();
@@ -490,6 +497,7 @@ export default function LocationPage() {
 						onReload={handleReload}
 						search={search}
 						groupFilter={groupFilter}
+						canManageAssets={canManageAssets}
 					/>
 				)}
 			</div>
@@ -506,6 +514,7 @@ function LocationTable(props: {
 	onReload: () => void | Promise<void>;
 	search: string;
 	groupFilter: GroupFilter;
+	canManageAssets: boolean;
 }) {
 	const { table } = useAdvancedDataTable<LocationRow>({
 		data: props.data,
@@ -532,13 +541,15 @@ function LocationTable(props: {
 			enableColumnResizing
 			ariaLabel="Location table"
 			primaryAction={
-				<Link
-					href="/asset/asset-sub-module/location/form"
-					className={cn(buttonVariants({ variant: "default", size: "sm" }))}
-				>
-					<Plus className="mr-2 h-4 w-4" />
-					Add Location
-				</Link>
+				props.canManageAssets ? (
+					<Link
+						href="/asset/asset-sub-module/location/form"
+						className={cn(buttonVariants({ variant: "default", size: "sm" }))}
+					>
+						<Plus className="mr-2 h-4 w-4" />
+						Add Location
+					</Link>
+				) : undefined
 			}
 			emptyState={
 				<div className="flex flex-col items-center gap-2 py-12">
@@ -548,18 +559,20 @@ function LocationTable(props: {
 							? "No locations match your filters"
 							: "No locations yet"}
 					</p>
-					{!props.search && props.groupFilter === "all" && (
-						<Link
-							href="/asset/asset-sub-module/location/form"
-							className={cn(
-								buttonVariants({ variant: "outline", size: "sm" }),
-								"mt-1",
-							)}
-						>
-							<Plus className="mr-2 h-4 w-4" />
-							Add your first location
-						</Link>
-					)}
+					{props.canManageAssets &&
+						!props.search &&
+						props.groupFilter === "all" && (
+							<Link
+								href="/asset/asset-sub-module/location/form"
+								className={cn(
+									buttonVariants({ variant: "outline", size: "sm" }),
+									"mt-1",
+								)}
+							>
+								<Plus className="mr-2 h-4 w-4" />
+								Add your first location
+							</Link>
+						)}
 				</div>
 			}
 		/>

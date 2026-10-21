@@ -1,5 +1,5 @@
 import "@testing-library/jest-dom";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithProviders, screen, userEvent, waitFor } from "@/test/utils";
 import MaintenanceTeamPage from "./page";
 
@@ -41,6 +41,12 @@ const betaTeam = {
 	createdAt: new Date("2026-02-01"),
 	updatedAt: new Date("2026-02-02"),
 };
+
+const canManageAssets = vi.hoisted(() => ({ value: true }));
+
+vi.mock("@/hooks/use-can-manage-assets", () => ({
+	useCanManageAssets: () => canManageAssets.value,
+}));
 
 vi.mock("@/lib/trpc", () => ({
 	trpc: {
@@ -93,6 +99,7 @@ vi.mock("@/lib/trpc", () => ({
 
 describe("MaintenanceTeamPage", () => {
 	beforeEach(() => {
+		canManageAssets.value = true;
 		mockDeleteMutate.mockClear();
 		mockInvalidate.mockClear();
 		mockRefetch.mockClear();
@@ -172,5 +179,24 @@ describe("MaintenanceTeamPage", () => {
 				id: alphaTeam.id,
 			});
 		});
+	});
+});
+
+describe("MaintenanceTeamPage — read-only access", () => {
+	beforeEach(() => {
+		canManageAssets.value = false;
+	});
+
+	afterEach(() => {
+		canManageAssets.value = true;
+	});
+
+	it("hides Add Team and row actions", () => {
+		renderWithProviders(<MaintenanceTeamPage />);
+
+		expect(screen.queryByText(/Add Team/i)).not.toBeInTheDocument();
+		expect(
+			screen.queryByRole("button", { name: /Open actions for/i }),
+		).not.toBeInTheDocument();
 	});
 });

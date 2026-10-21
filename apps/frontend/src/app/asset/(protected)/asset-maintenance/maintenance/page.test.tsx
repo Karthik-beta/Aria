@@ -1,5 +1,5 @@
 import "@testing-library/jest-dom";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithProviders, screen, userEvent, waitFor } from "@/test/utils";
 import AssetMaintenancePage from "./page";
 
@@ -80,6 +80,12 @@ const compressorMaintenance = {
 	updatedAt: new Date("2025-06-02"),
 };
 
+const canManageAssets = vi.hoisted(() => ({ value: true }));
+
+vi.mock("@/hooks/use-can-manage-assets", () => ({
+	useCanManageAssets: () => canManageAssets.value,
+}));
+
 vi.mock("@/lib/trpc", () => ({
 	trpc: {
 		useUtils: () => ({
@@ -131,6 +137,7 @@ vi.mock("@/lib/trpc", () => ({
 
 describe("AssetMaintenancePage", () => {
 	beforeEach(() => {
+		canManageAssets.value = true;
 		mockDeleteMutate.mockClear();
 		mockInvalidate.mockClear();
 		mockRefetch.mockClear();
@@ -223,5 +230,24 @@ describe("AssetMaintenancePage", () => {
 				id: pumpMaintenance.id,
 			});
 		});
+	});
+});
+
+describe("AssetMaintenancePage — read-only access", () => {
+	beforeEach(() => {
+		canManageAssets.value = false;
+	});
+
+	afterEach(() => {
+		canManageAssets.value = true;
+	});
+
+	it("hides Add Maintenance and row actions", () => {
+		renderWithProviders(<AssetMaintenancePage />);
+
+		expect(screen.queryByText(/Add Maintenance/i)).not.toBeInTheDocument();
+		expect(
+			screen.queryByRole("button", { name: /Open actions for/i }),
+		).not.toBeInTheDocument();
 	});
 });

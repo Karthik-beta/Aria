@@ -1,5 +1,5 @@
 import "@testing-library/jest-dom";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithProviders, screen, userEvent, waitFor } from "@/test/utils";
 import AssetCategoryFormPage from "./page";
 
@@ -32,6 +32,12 @@ const nonDepreciableCategory = {
 	createdAt: new Date("2026-02-01"),
 	updatedAt: new Date("2026-02-01"),
 };
+
+const canManageAssets = vi.hoisted(() => ({ value: true }));
+
+vi.mock("@/hooks/use-can-manage-assets", () => ({
+	useCanManageAssets: () => canManageAssets.value,
+}));
 
 vi.mock("next/navigation", () => ({
 	useRouter: () => ({
@@ -141,6 +147,7 @@ vi.mock("@/lib/trpc", () => ({
 
 describe("AssetCategoryFormPage", () => {
 	beforeEach(() => {
+		canManageAssets.value = true;
 		currentId = null;
 		mockCreateMutate.mockClear();
 		mockUpdateMutate.mockClear();
@@ -299,5 +306,26 @@ describe("AssetCategoryFormPage", () => {
 				name: /Enable Capital Work in Progress Accounting/i,
 			}),
 		).toBeInTheDocument();
+	});
+});
+
+describe("AssetCategoryFormPage — read-only access", () => {
+	beforeEach(() => {
+		canManageAssets.value = false;
+	});
+
+	afterEach(() => {
+		canManageAssets.value = true;
+	});
+
+	it("renders the write-access notice instead of the form", () => {
+		renderWithProviders(<AssetCategoryFormPage />);
+
+		expect(
+			screen.getByText(
+				/You need the owner or admin role in this organization to change asset records/i,
+			),
+		).toBeInTheDocument();
+		expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
 	});
 });

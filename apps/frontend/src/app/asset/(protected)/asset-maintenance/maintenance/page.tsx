@@ -41,6 +41,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DataTableColumnHeader } from "@/components/ui/table/data-table-column-header";
+import { useCanManageAssets } from "@/hooks/use-can-manage-assets";
 import { getToastMessage } from "@/lib/errors";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
@@ -91,6 +92,7 @@ function getOverallStatus(
 }
 
 export default function AssetMaintenancePage() {
+	const canManageAssets = useCanManageAssets();
 	const utils = trpc.useUtils();
 
 	const [search, setSearch] = React.useState("");
@@ -215,8 +217,8 @@ export default function AssetMaintenancePage() {
 		}
 	}, [queryError]);
 
-	const columns = React.useMemo<ColumnDef<MaintenanceRow>[]>(
-		() => [
+	const columns = React.useMemo<ColumnDef<MaintenanceRow>[]>(() => {
+		const allColumns: ColumnDef<MaintenanceRow>[] = [
 			{
 				id: "select",
 				header: ({ table }) => (
@@ -246,14 +248,17 @@ export default function AssetMaintenancePage() {
 				header: ({ column }) => (
 					<DataTableColumnHeader column={column} title="Asset" />
 				),
-				cell: ({ row }) => (
-					<Link
-						href={`/asset/asset-maintenance/form?id=${row.original.id}`}
-						className="font-medium text-primary hover:underline"
-					>
-						{row.original.assetName}
-					</Link>
-				),
+				cell: ({ row }) =>
+					canManageAssets ? (
+						<Link
+							href={`/asset/asset-maintenance/form?id=${row.original.id}`}
+							className="font-medium text-primary hover:underline"
+						>
+							{row.original.assetName}
+						</Link>
+					) : (
+						<span className="font-medium">{row.original.assetName}</span>
+					),
 				meta: {
 					label: "Asset",
 					searchable: true,
@@ -387,9 +392,11 @@ export default function AssetMaintenancePage() {
 				),
 				enableSorting: false,
 			},
-		],
-		[handleDelete],
-	);
+		];
+		return canManageAssets
+			? allColumns
+			: allColumns.filter((column) => column.id !== "actions");
+	}, [handleDelete, canManageAssets]);
 
 	const handleReload = React.useCallback(async () => {
 		await refetch();
@@ -544,6 +551,7 @@ export default function AssetMaintenancePage() {
 						onPaginationChange={setPagination}
 						onReload={handleReload}
 						search={search}
+						canManageAssets={canManageAssets}
 					/>
 				)}
 			</div>
@@ -559,6 +567,7 @@ function AssetMaintenanceTable(props: {
 	onPaginationChange: (pagination: PaginationState) => void;
 	onReload: () => void | Promise<void>;
 	search: string;
+	canManageAssets: boolean;
 }) {
 	const { table } = useAdvancedDataTable<MaintenanceRow>({
 		data: props.data,
@@ -585,13 +594,15 @@ function AssetMaintenanceTable(props: {
 			enableColumnResizing
 			ariaLabel="Asset maintenance table"
 			primaryAction={
-				<Link
-					href="/asset/asset-maintenance/form"
-					className={cn(buttonVariants({ variant: "default", size: "sm" }))}
-				>
-					<Plus className="mr-2 h-4 w-4" />
-					Add Maintenance
-				</Link>
+				props.canManageAssets ? (
+					<Link
+						href="/asset/asset-maintenance/form"
+						className={cn(buttonVariants({ variant: "default", size: "sm" }))}
+					>
+						<Plus className="mr-2 h-4 w-4" />
+						Add Maintenance
+					</Link>
+				) : undefined
 			}
 			emptyState={
 				<div className="flex flex-col items-center gap-2 py-12">
@@ -601,7 +612,7 @@ function AssetMaintenanceTable(props: {
 							? "No records match your filters"
 							: "No asset maintenance records yet"}
 					</p>
-					{!props.search && (
+					{props.canManageAssets && !props.search && (
 						<Link
 							href="/asset/asset-maintenance/form"
 							className={cn(

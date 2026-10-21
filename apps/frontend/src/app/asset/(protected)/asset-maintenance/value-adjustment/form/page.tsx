@@ -14,6 +14,7 @@ import {
 } from "react";
 import { type Resolver, useForm } from "react-hook-form";
 import { toast } from "sonner";
+import { AssetWriteAccessNotice } from "@/components/asset/asset-write-access-notice";
 import { AlertModal } from "@/components/modal/alert-modal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -37,6 +38,7 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
+import { useCanManageAssets } from "@/hooks/use-can-manage-assets";
 import { getToastMessage } from "@/lib/errors";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
@@ -57,6 +59,17 @@ import {
 } from "../value-adjustment.utils";
 
 export default function AssetValueAdjustmentFormPage() {
+	const canManageAssets = useCanManageAssets();
+
+	if (!canManageAssets) {
+		return (
+			<AssetWriteAccessNotice
+				backHref="/asset/asset-maintenance/value-adjustment"
+				backLabel="Back to value adjustments"
+			/>
+		);
+	}
+
 	return (
 		<Suspense fallback={<AssetValueAdjustmentFormFallback />}>
 			<AssetValueAdjustmentFormContent />

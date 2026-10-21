@@ -1,5 +1,5 @@
 import "@testing-library/jest-dom";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithProviders, screen, userEvent, waitFor } from "@/test/utils";
 import AssetCategoryPage from "./page";
 
@@ -33,6 +33,12 @@ const landCategory = {
 	createdAt: new Date("2026-01-03"),
 	updatedAt: new Date("2026-01-04"),
 };
+
+const canManageAssets = vi.hoisted(() => ({ value: true }));
+
+vi.mock("@/hooks/use-can-manage-assets", () => ({
+	useCanManageAssets: () => canManageAssets.value,
+}));
 
 vi.mock("@/lib/trpc", () => ({
 	trpc: {
@@ -85,6 +91,7 @@ vi.mock("@/lib/trpc", () => ({
 
 describe("AssetCategoryPage", () => {
 	beforeEach(() => {
+		canManageAssets.value = true;
 		mockDeleteMutate.mockClear();
 		mockInvalidate.mockClear();
 		mockRefetch.mockClear();
@@ -176,5 +183,24 @@ describe("AssetCategoryPage", () => {
 				id: vehiclesCategory.id,
 			});
 		});
+	});
+});
+
+describe("AssetCategoryPage — read-only access", () => {
+	beforeEach(() => {
+		canManageAssets.value = false;
+	});
+
+	afterEach(() => {
+		canManageAssets.value = true;
+	});
+
+	it("hides Add Category and row actions but keeps the list", () => {
+		renderWithProviders(<AssetCategoryPage />);
+
+		expect(screen.queryByText(/Add Category/i)).not.toBeInTheDocument();
+		expect(
+			screen.queryByRole("button", { name: /Open actions for/i }),
+		).not.toBeInTheDocument();
 	});
 });

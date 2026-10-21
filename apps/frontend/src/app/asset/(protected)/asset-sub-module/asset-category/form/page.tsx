@@ -21,6 +21,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef, useTransition } from "react";
 import { useFieldArray, useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
+import { AssetWriteAccessNotice } from "@/components/asset/asset-write-access-notice";
 import {
 	DEPRECIATION_METHOD_DOCS,
 	DepreciationMethodInlineCard,
@@ -38,6 +39,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import { useCanManageAssets } from "@/hooks/use-can-manage-assets";
 import { getToastMessage } from "@/lib/errors";
 import { trpc } from "@/lib/trpc";
 import {
@@ -49,6 +51,17 @@ import {
 import { toAssetCategoryMutationInput } from "../asset-category.utils";
 
 export default function AssetCategoryFormPage() {
+	const canManageAssets = useCanManageAssets();
+
+	if (!canManageAssets) {
+		return (
+			<AssetWriteAccessNotice
+				backHref="/asset/asset-sub-module/asset-category"
+				backLabel="Back to asset categories"
+			/>
+		);
+	}
+
 	return (
 		<Suspense fallback={<AssetCategoryFormFallback />}>
 			<AssetCategoryFormContent />

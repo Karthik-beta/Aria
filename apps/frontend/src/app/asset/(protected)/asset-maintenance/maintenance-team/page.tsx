@@ -40,6 +40,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DataTableColumnHeader } from "@/components/ui/table/data-table-column-header";
+import { useCanManageAssets } from "@/hooks/use-can-manage-assets";
 import { getToastMessage } from "@/lib/errors";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
@@ -77,6 +78,7 @@ function MaintenanceTeamsRealtimeSubscription({
 }
 
 export default function MaintenanceTeamPage() {
+	const canManageAssets = useCanManageAssets();
 	const utils = trpc.useUtils();
 
 	const [search, setSearch] = React.useState("");
@@ -193,8 +195,8 @@ export default function MaintenanceTeamPage() {
 		}
 	}, [queryError]);
 
-	const columns = React.useMemo<ColumnDef<TeamRow>[]>(
-		() => [
+	const columns = React.useMemo<ColumnDef<TeamRow>[]>(() => {
+		const allColumns: ColumnDef<TeamRow>[] = [
 			{
 				id: "select",
 				header: ({ table }) => (
@@ -224,14 +226,17 @@ export default function MaintenanceTeamPage() {
 				header: ({ column }) => (
 					<DataTableColumnHeader column={column} title="Team Name" />
 				),
-				cell: ({ row }) => (
-					<Link
-						href={`/asset/asset-maintenance/maintenance-team/form?id=${row.original.id}`}
-						className="font-medium text-primary hover:underline"
-					>
-						{row.original.name}
-					</Link>
-				),
+				cell: ({ row }) =>
+					canManageAssets ? (
+						<Link
+							href={`/asset/asset-maintenance/maintenance-team/form?id=${row.original.id}`}
+							className="font-medium text-primary hover:underline"
+						>
+							{row.original.name}
+						</Link>
+					) : (
+						<span className="font-medium">{row.original.name}</span>
+					),
 				meta: {
 					label: "Team Name",
 					searchable: true,
@@ -337,9 +342,11 @@ export default function MaintenanceTeamPage() {
 				),
 				enableSorting: false,
 			},
-		],
-		[handleDelete],
-	);
+		];
+		return canManageAssets
+			? allColumns
+			: allColumns.filter((column) => column.id !== "actions");
+	}, [handleDelete, canManageAssets]);
 
 	const handleReload = React.useCallback(async () => {
 		await refetch();
@@ -499,6 +506,7 @@ export default function MaintenanceTeamPage() {
 						onPaginationChange={setPagination}
 						onReload={handleReload}
 						search={search}
+						canManageAssets={canManageAssets}
 					/>
 				)}
 			</div>
@@ -514,6 +522,7 @@ function MaintenanceTeamTable(props: {
 	onPaginationChange: (pagination: PaginationState) => void;
 	onReload: () => void | Promise<void>;
 	search: string;
+	canManageAssets: boolean;
 }) {
 	const { table } = useAdvancedDataTable<TeamRow>({
 		data: props.data,
@@ -540,13 +549,15 @@ function MaintenanceTeamTable(props: {
 			enableColumnResizing
 			ariaLabel="Asset maintenance team table"
 			primaryAction={
-				<Link
-					href="/asset/asset-maintenance/maintenance-team/form"
-					className={cn(buttonVariants({ variant: "default", size: "sm" }))}
-				>
-					<Plus className="mr-2 h-4 w-4" />
-					Add Team
-				</Link>
+				props.canManageAssets ? (
+					<Link
+						href="/asset/asset-maintenance/maintenance-team/form"
+						className={cn(buttonVariants({ variant: "default", size: "sm" }))}
+					>
+						<Plus className="mr-2 h-4 w-4" />
+						Add Team
+					</Link>
+				) : undefined
 			}
 			emptyState={
 				<div className="flex flex-col items-center gap-2 py-12">
@@ -556,7 +567,7 @@ function MaintenanceTeamTable(props: {
 							? "No teams match your filters"
 							: "No maintenance teams yet"}
 					</p>
-					{!props.search && (
+					{props.canManageAssets && !props.search && (
 						<Link
 							href="/asset/asset-maintenance/maintenance-team/form"
 							className={cn(

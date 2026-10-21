@@ -170,6 +170,23 @@ const isAuthenticated = t.middleware(async ({ ctx, next }) => {
 });
 
 /**
+ * Check a member's role against the roles a procedure requires.
+ *
+ * better-auth stores multiple organization roles as a comma-separated string
+ * (for example "admin,member"), so each role is checked individually.
+ *
+ * @see https://www.better-auth.com/docs/plugins/organization#roles
+ */
+export function hasRequiredRole(
+	memberRole: string,
+	requiredRoles: string[],
+): boolean {
+	return memberRole
+		.split(",")
+		.some((role) => requiredRoles.includes(role.trim()));
+}
+
+/**
  * Middleware factory to verify org membership.
  *
  * Resolves the active organization from the session's activeOrganizationId
@@ -266,7 +283,7 @@ function requireOrgMembership(requiredRoles?: string[]) {
 			});
 		}
 
-		if (requiredRoles && !requiredRoles.includes(member.role)) {
+		if (requiredRoles && !hasRequiredRole(member.role, requiredRoles)) {
 			throw new TRPCError({
 				code: "FORBIDDEN",
 				message: `Insufficient role in "${organization.slug}". Required: ${requiredRoles.join(" or ")}`,
