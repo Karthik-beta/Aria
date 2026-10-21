@@ -6,6 +6,10 @@
 # Anywhere:
 #   docker compose --env-file deployment/local/aria-local.env -f docker-compose.local.yml up -d --build
 #
+# aria-local.ps1 downloads the images CI built for the checked-out commit
+# (ghcr.io/karthik-beta/aria-{backend,frontend}:sha-<commit>) and tags them as
+# aria-local-*:latest; it builds from source only when they are unavailable.
+#
 # Startup order: postgres/redis -> migrate -> demo-data -> backend -> frontend -> caddy
 # Scheduled jobs: depreciation cron + reconciliation (backend), nightly pg_dump (backup)
 

@@ -85,7 +85,9 @@ Features: HTTP/3 support, security headers (X-Content-Type-Options, X-Frame-Opti
 ```bash
 cp -n .env.production.template .env.production
 docker compose --env-file .env.production -f docker-compose.production.yml config --quiet
-docker compose --env-file .env.production -f docker-compose.production.yml build backend frontend
+# Download the prebuilt images for VERSION (see "Prebuilt Images" below), or
+# build them from source with: ... build backend frontend
+docker compose --env-file .env.production -f docker-compose.production.yml pull backend frontend
 docker compose --env-file .env.production -f docker-compose.production.yml up -d postgres redis
 docker compose --env-file .env.production -f docker-compose.production.yml run --rm migrate
 docker compose --env-file .env.production -f docker-compose.production.yml run --rm backend bun run demo:load:small
@@ -301,6 +303,34 @@ When using same-origin mode (empty `NEXT_PUBLIC_API_URL`), ensure your platform 
 > deployments. Railway deployments should use the separate-domain mode with
 > `NEXT_PUBLIC_API_URL` configured at build time.
 
+## Prebuilt Images
+
+`.github/workflows/release-images.yml` builds the production backend and
+frontend images on GitHub Actions and publishes them to GitHub Container
+Registry, for `linux/amd64` and `linux/arm64`:
+
+| Trigger          | Tags on `ghcr.io/karthik-beta/aria-{backend,frontend}` |
+| ---------------- | ------------------------------------------------------- |
+| Push to `master` | `sha-<commit>`, `master`                                |
+| Tag `vX.Y.Z`     | `X.Y.Z`, `X.Y`, `latest`, `sha-<commit>`, plus a GitHub Release |
+
+`docker-compose.production.yml` uses
+`${ARIA_IMAGE_REGISTRY}/aria-{backend,frontend}:${VERSION}`, so `VERSION` in
+`.env` picks the release to run. Keep it equal to the source the compose file
+and migrations came from: check out tag `vX.Y.Z` and set `VERSION=X.Y.Z`. The
+`build` sections remain as a fallback for building from source.
+
+To publish a release:
+
+```bash
+git tag v1.4.0
+git push origin v1.4.0
+```
+
+The package must be public for installs to pull without `docker login`
+(GitHub > Packages > `aria-backend` / `aria-frontend` > Package settings >
+Change visibility).
+
 ## Installation Scripts
 
 ### Linux
@@ -309,7 +339,7 @@ When using same-origin mode (empty `NEXT_PUBLIC_API_URL`), ensure your platform 
 sudo bash deployment/scripts/install-linux.sh
 ```
 
-Installs Docker, creates directories, generates SSL certs, builds images, creates a systemd service, and starts the application.
+Installs Docker, creates directories, generates SSL certs, downloads the prebuilt images for the copied source (setting `VERSION` in a new `.env`), creates a systemd service, and starts the application. It builds the images from source when they are unavailable, or always with `sudo ARIA_BUILD_FROM_SOURCE=true bash deployment/scripts/install-linux.sh`.
 
 ### Windows
 
@@ -317,7 +347,7 @@ Installs Docker, creates directories, generates SSL certs, builds images, create
 .\deployment\scripts\install-windows.ps1
 ```
 
-Checks Docker Desktop, creates directories, generates SSL certs, builds images, creates a Windows service, and starts the application.
+Checks Docker Desktop, creates directories, generates SSL certs, downloads the prebuilt images for the copied source (setting `VERSION` in a new `.env`), creates a Windows service, and starts the application. It builds the images from source when they are unavailable, or always with `-FromSource`.
 
 ## Database
 

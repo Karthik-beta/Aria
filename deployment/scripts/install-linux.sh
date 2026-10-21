@@ -16,6 +16,8 @@ INSTALL_DIR="/opt/aria"
 SERVICE_NAME="aria-erp"
 MIN_DOCKER_VERSION="24.0"
 MIN_COMPOSE_VERSION="2.20"
+# Build the images from source instead of downloading the prebuilt ones
+ARIA_BUILD_FROM_SOURCE="${ARIA_BUILD_FROM_SOURCE:-false}"
 
 # Logging functions
 log_info() {
@@ -80,6 +82,29 @@ check_requirements() {
     log_info "✓ System requirements check passed"
 }
 
+# Image tag matching the source being installed: X.Y.Z on a release tag,
+# sha-<commit> on any other commit, empty when unknown or locally changed
+detect_image_version() {
+    IMAGE_VERSION=""
+    # Running under sudo: let root read a checkout owned by another user
+    local git=(git -c "safe.directory=$PWD")
+    if ! command -v git &> /dev/null || ! "${git[@]}" rev-parse --git-dir &> /dev/null; then
+        return
+    fi
+    if [ -n "$("${git[@]}" status --porcelain -- apps packages package.json bun.lock turbo.json tsconfig.base.json)" ]; then
+        log_warn "Application sources have local changes; prebuilt images will not match them"
+        return
+    fi
+    local tag
+    tag=$("${git[@]}" describe --tags --exact-match --match 'v[0-9]*' 2>/dev/null || true)
+    if [ -n "$tag" ]; then
+        IMAGE_VERSION="${tag#v}"
+    else
+        IMAGE_VERSION="sha-$("${git[@]}" rev-parse HEAD)"
+    fi
+    log_info "Image version for this source: $IMAGE_VERSION"
+}
+
 # Create installation directory
 create_install_dir() {
     log_step "Creating installation directory..."
@@ -121,6 +146,9 @@ configure_environment() {
     if [ ! -f "$INSTALL_DIR/.env" ]; then
         if [ -f "$INSTALL_DIR/.env.production.template" ]; then
             cp "$INSTALL_DIR/.env.production.template" "$INSTALL_DIR/.env"
+            if [ -n "$IMAGE_VERSION" ]; then
+                sed -i "s/^VERSION=.*/VERSION=$IMAGE_VERSION/" "$INSTALL_DIR/.env"
+            fi
             log_warn "Environment file created from template"
             log_warn "IMPORTANT: Edit $INSTALL_DIR/.env and set all required values"
             log_warn "Especially: POSTGRES_PASSWORD, REDIS_PASSWORD, BETTER_AUTH_SECRET, DOMAIN"
@@ -162,15 +190,25 @@ generate_ssl_certificates() {
     fi
 }
 
-# Build Docker images
+# Download the prebuilt images (VERSION in .env); build from source when they
+# are unavailable or ARIA_BUILD_FROM_SOURCE=true
 build_images() {
-    log_step "Building Docker images..."
+    log_step "Preparing Docker images..."
     
     cd "$INSTALL_DIR"
     
     # Pull base images first
     log_info "Pulling base images..."
-    docker compose -f docker-compose.production.yml pull --quiet || true
+    docker compose -f docker-compose.production.yml pull --quiet --ignore-buildable || true
+    
+    if [ "$ARIA_BUILD_FROM_SOURCE" != "true" ]; then
+        log_info "Downloading prebuilt application images..."
+        if docker compose -f docker-compose.production.yml pull --quiet frontend backend migrate; then
+            log_info "✓ Prebuilt images downloaded"
+            return
+        fi
+        log_warn "Prebuilt images for VERSION in $INSTALL_DIR/.env are not available, building from source"
+    fi
     
     # Build custom images
     log_info "Building application images (this may take a while)..."
@@ -277,6 +315,7 @@ main() {
     
     check_root
     check_requirements
+    detect_image_version
     create_install_dir
     copy_files
     configure_environment

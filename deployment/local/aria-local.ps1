@@ -3,7 +3,9 @@
     Run Aria ERP locally in Docker Desktop (Windows) with preloaded settings and demo data.
 
 .DESCRIPTION
-    Builds production images of the frontend and backend, starts PostgreSQL,
+    Downloads the production images of the frontend and backend that GitHub
+    Actions built for the checked-out commit (or builds them from source when
+    they are unavailable or -FromSource is given), starts PostgreSQL,
     Redis, a scheduled backup service and a Caddy reverse proxy, applies
     migrations, loads the demo dataset into a fresh database and opens the app
     in your browser. Containers restart on their own whenever Docker Desktop runs.
@@ -12,12 +14,12 @@
     in deployment\local\aria-local.override.env (git-ignored), same KEY=VALUE format.
 
 .PARAMETER Command
-    start        Build (if needed) and start everything, load demo data once (default)
+    start        Fetch or build the images (if needed) and start everything, load demo data once (default)
     stop         Stop and remove containers, keep data
-    restart      stop + start without rebuilding
+    restart      stop + start without fetching or rebuilding
     status       Show container state, app health and recent backups
     logs         Follow logs (all services, or -Service <name>)
-    update       Pull the latest code, back up, rebuild, migrate and restart (rolls back on failure)
+    update       Pull the latest code and images, back up, migrate and restart (rolls back on failure)
     backup       Back up the database now (deployment\local\backups)
     restore      Replace the database with a backup (-File <name>)
     reload-demo  Wipe and reload the demo dataset in the existing database
@@ -30,6 +32,7 @@
     .\aria-local.cmd
     .\aria-local.cmd start -Port 8080
     .\aria-local.cmd update
+    .\aria-local.cmd start -FromSource
     .\aria-local.cmd restore -File aria-nightly-20261020-020000.dump
     .\aria-local.cmd logs -Service backend
     .\aria-local.cmd uninstall -KeepBackups
@@ -51,8 +54,11 @@ param(
     # Start without demo data (only applies to a fresh database)
     [switch]$NoDemoData,
 
-    # Reuse existing images instead of rebuilding
+    # Reuse existing images instead of fetching or rebuilding
     [switch]$NoBuild,
+
+    # Build the images from source instead of downloading the prebuilt ones
+    [switch]$FromSource,
 
     # Do not open the browser when ready
     [switch]$NoBrowser,
@@ -100,6 +106,10 @@ $BackupDir = Join-Path $PSScriptRoot 'backups'
 $LockFile = Join-Path $PSScriptRoot '.aria-local.lock'
 $DockerDesktopExe = "$env:ProgramFiles\Docker\Docker\Docker Desktop.exe"
 $BuiltImages = @('aria-local-backend', 'aria-local-frontend')
+# Files that go into the images; a local change to them rules out the prebuilt ones.
+$ImageSources = @('apps', 'packages', 'package.json', 'bun.lock', 'turbo.json', 'tsconfig.base.json')
+# Set by docker/metadata-action on the prebuilt images.
+$ImageSourceLabel = 'label=org.opencontainers.image.source=https://github.com/Karthik-beta/Aria'
 
 # ---------------------------------------------------------------------------
 # Output helpers
@@ -518,9 +528,83 @@ function Remove-RollbackImages {
 }
 
 # Removes the project's untagged images: the previous build after an update,
-# or the failed build after a rollback.
+# or the failed build or download after a rollback.
 function Remove-DanglingImages {
     [void](Test-DockerCommand image prune -f --filter "label=com.docker.compose.project=$(Get-ProjectName)")
+    [void](Test-DockerCommand image prune -f --filter $ImageSourceLabel)
+}
+
+# Registry repository of a local image, e.g. aria-local-backend -> ghcr.io/karthik-beta/aria-backend
+function Get-RegistryRepository([string]$Image) {
+    $registry = (Get-Setting 'ARIA_IMAGE_REGISTRY' 'ghcr.io/karthik-beta').TrimEnd('/')
+    return "$registry/$($Image -replace '^aria-local-', 'aria-')"
+}
+
+# Returns the commit the prebuilt images must match, or '' when only a local
+# build matches the sources (no git, or local changes to them).
+function Get-SourceRevision {
+    if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
+        Write-Info 'git is not installed, so the matching prebuilt images cannot be identified.'
+        return ''
+    }
+    $ErrorActionPreference = 'Continue'
+    $revision = (& git -C $RepoRoot rev-parse HEAD 2>$null | Out-String).Trim()
+    if ($LASTEXITCODE -ne 0 -or $revision -eq '') {
+        Write-Info 'This folder is not a git checkout, so the matching prebuilt images cannot be identified.'
+        return ''
+    }
+    $changes = @(& git -C $RepoRoot status --porcelain -- @ImageSources 2>$null)
+    if ($changes.Count -gt 0) {
+        Write-Info 'The application sources have local changes, so the prebuilt images do not match them.'
+        return ''
+    }
+    return $revision
+}
+
+function Get-ImageRevision([string]$Reference) {
+    $label = Get-DockerOutput image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' $Reference | Select-Object -First 1
+    if ($null -eq $label -or "$label" -eq '<no value>') { return '' }
+    return "$label".Trim()
+}
+
+# Downloads the images CI built from $Revision and tags them as the local
+# images. Returns $false when they are not available, leaving the local images as they were.
+function Get-PrebuiltImages([string]$Revision) {
+    $short = $Revision.Substring(0, 8)
+    $current = $true
+    foreach ($image in $BuiltImages) {
+        if ((Get-ImageRevision "${image}:latest") -ne $Revision) { $current = $false; break }
+    }
+    if ($current) {
+        Write-Ok "Prebuilt images for $short are already here"
+        return $true
+    }
+
+    Write-Step "Downloading prebuilt images for $short"
+    $pulled = @()
+    foreach ($image in $BuiltImages) {
+        $remote = "$(Get-RegistryRepository $image):sha-$Revision"
+        $ErrorActionPreference = 'Continue'
+        & docker pull $remote | Out-Host
+        $code = $LASTEXITCODE
+        $ErrorActionPreference = 'Stop'
+        if ($code -ne 0) {
+            foreach ($reference in $pulled) { [void](Test-DockerCommand image rm $reference) }
+            Write-Warn "Prebuilt images for $short are not available (the Release Images workflow may still be running, or the registry is unreachable)."
+            return $false
+        }
+        $pulled += $remote
+    }
+
+    # Tag both only once both are here, so frontend and backend stay a matching pair.
+    foreach ($image in $BuiltImages) {
+        $remote = "$(Get-RegistryRepository $image):sha-$Revision"
+        if (-not (Test-DockerCommand image tag $remote "${image}:latest")) { Stop-WithError "Could not tag $remote as ${image}:latest" }
+        # Drop the registry tag; the local tag keeps the image (and its layers for the next download).
+        [void](Test-DockerCommand image rm $remote)
+    }
+    Write-Ok "Downloaded prebuilt images for $short"
+    return $true
 }
 
 # Removes an image reference unless a container (from any project) uses it.
@@ -549,11 +633,17 @@ function Invoke-Start {
     if (-not $build) {
         foreach ($image in $BuiltImages) {
             if (-not (Test-Image "${image}:latest")) {
-                Write-Warn "Image ${image}:latest is missing, building it even though -NoBuild was given"
+                Write-Warn "Image ${image}:latest is missing, fetching it even though -NoBuild was given"
                 $build = $true
                 break
             }
         }
+    }
+
+    if ($build -and -not $FromSource) {
+        $revision = Get-SourceRevision
+        if ($revision -ne '' -and (Get-PrebuiltImages $revision)) { $build = $false }
+        else { Write-Info 'Building the images from source instead.' }
     }
 
     if ($build) {
@@ -701,6 +791,7 @@ function Invoke-Self([string[]]$ScriptArgs) {
     $hostExe = (Get-Process -Id $PID).Path
     $childArgs = @('-NoLogo', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $PSCommandPath) + $ScriptArgs + @('-SkipLock', '-NoBrowser')
     if ($Port -gt 0) { $childArgs += @('-Port', "$Port") }
+    if ($FromSource) { $childArgs += '-FromSource' }
     $ErrorActionPreference = 'Continue'
     & $hostExe @childArgs | Out-Host
     return $LASTEXITCODE
@@ -732,7 +823,7 @@ function Invoke-Update {
     $newShort = $new.Substring(0, 8)
 
     if ($old -eq $new -and -not $Force) {
-        Write-Ok "Already up to date ($oldShort). Use -Force to rebuild anyway."
+        Write-Ok "Already up to date ($oldShort). Use -Force to reinstall anyway."
         return
     }
     if ($old -ne $new) {
@@ -761,7 +852,7 @@ function Invoke-Update {
     }
 
     # The child runs the updated script, compose file and migrations.
-    Write-Step 'Rebuilding and restarting with the new version'
+    Write-Step 'Installing and restarting the new version'
     $exitCode = Invoke-Self @('start')
     if ($exitCode -eq 0) {
         Remove-RollbackImages
@@ -817,6 +908,11 @@ function Invoke-Uninstall {
     }
     # -a: Docker 29 hides untagged images (e.g. a rolled-back build) without it.
     foreach ($image in (Get-DockerOutput image ls -a -q --filter $label | Sort-Object -Unique)) { Remove-ImageIfUnused $image }
+    # Prebuilt images left by an interrupted download or a rolled-back update
+    foreach ($image in $BuiltImages) {
+        foreach ($reference in (Get-DockerOutput image ls (Get-RegistryRepository $image) --format '{{.Repository}}:{{.Tag}}')) { Remove-ImageIfUnused $reference }
+    }
+    foreach ($image in (Get-DockerOutput image ls -a -q --filter $ImageSourceLabel --filter dangling=true | Sort-Object -Unique)) { Remove-ImageIfUnused $image }
     foreach ($image in $pulledImages) { Remove-ImageIfUnused $image }
 
     # Docker keeps one build cache for every project, so it cannot be cleared
@@ -854,8 +950,10 @@ function Invoke-Uninstall {
     $leftovers += @(Get-DockerOutput network ls --filter $label --format 'network {{.Name}}')
     foreach ($image in $BuiltImages) {
         $leftovers += @(Get-DockerOutput image ls $image --format 'image {{.Repository}}:{{.Tag}}')
+        $leftovers += @(Get-DockerOutput image ls (Get-RegistryRepository $image) --format 'image {{.Repository}}:{{.Tag}}')
     }
     $leftovers += @(Get-DockerOutput image ls -a --filter $label --filter dangling=true --format 'image {{.ID}} (untagged)')
+    $leftovers += @(Get-DockerOutput image ls -a --filter $ImageSourceLabel --filter dangling=true --format 'image {{.ID}} (untagged)')
 
     if ($leftovers.Count -gt 0) {
         Write-Warn 'Some Aria resources are still present:'

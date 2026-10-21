@@ -393,11 +393,11 @@ jobs:
 
           # Scan frontend image
           docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
-            aquasec/trivy:latest image --severity HIGH,CRITICAL aria-frontend:latest || true
+            aquasec/trivy:latest image --severity HIGH,CRITICAL ghcr.io/karthik-beta/aria-frontend:latest || true
 
           # Scan backend image
           docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
-            aquasec/trivy:latest image --severity HIGH,CRITICAL aria-backend:latest || true
+            aquasec/trivy:latest image --severity HIGH,CRITICAL ghcr.io/karthik-beta/aria-backend:latest || true
 
   # Performance testing (optional, only on main branch)
   performance-test:

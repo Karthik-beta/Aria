@@ -1,5 +1,9 @@
 # Docker Compose Configuration for Production Environment 🚀
 # This configuration is optimized for production deployments on Linux 🛡️
+#
+# Frontend and backend images are prebuilt by .github/workflows/release-images.yml:
+#   docker compose -f docker-compose.production.yml pull     (VERSION from .env)
+# The build sections stay as the fallback: `... build` builds them from source.
 
 services:
   # Caddy reverse proxy (production mode with HTTPS) 🔐
@@ -47,7 +51,7 @@ services:
         - NODE_ENV=production
         # Empty NEXT_PUBLIC_API_URL = same-origin requests via reverse proxy
         - NEXT_PUBLIC_API_URL=
-    image: aria-frontend:${VERSION:-latest}
+    image: ${ARIA_IMAGE_REGISTRY:-ghcr.io/karthik-beta}/aria-frontend:${VERSION:-latest}
     container_name: aria-frontend
     restart: unless-stopped
     environment:
@@ -98,7 +102,7 @@ services:
       target: runner
       args:
         - NODE_ENV=production
-    image: aria-backend:${VERSION:-latest}
+    image: ${ARIA_IMAGE_REGISTRY:-ghcr.io/karthik-beta}/aria-backend:${VERSION:-latest}
     restart: 'no'
     environment:
       - NODE_ENV=production
@@ -117,7 +121,7 @@ services:
       target: runner
       args:
         - NODE_ENV=production
-    image: aria-backend:${VERSION:-latest}
+    image: ${ARIA_IMAGE_REGISTRY:-ghcr.io/karthik-beta}/aria-backend:${VERSION:-latest}
     container_name: aria-backend
     restart: unless-stopped
     environment:

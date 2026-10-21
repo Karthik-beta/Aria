@@ -27,8 +27,10 @@ The script will:
    enough memory and enough disk
 2. Use port 8080 (port 80 is usually taken on Windows), or fall back to
    8081/8082/... when 8080 is in use too
-3. Build the backend and frontend images (10-20 minutes the first time,
-   retried once if the build fails)
+3. Download the backend and frontend images that GitHub Actions built for
+   the checked-out commit (see [Prebuilt images](#prebuilt-images)). When
+   they are not available it builds them instead (10-20 minutes the first
+   time, retried once if the build fails)
 4. Start PostgreSQL and Redis, then apply the Prisma migrations
 5. Load the **medium** demo dataset (Pivotr Technologies inventory and asset
    data) into a fresh database, once
@@ -72,9 +74,9 @@ the jobs are running.
 ## Commands
 
 ```powershell
-.\aria-local.cmd start          # build if needed, start, load demo data once
+.\aria-local.cmd start          # fetch or build images if needed, start, load demo data once
 .\aria-local.cmd stop           # stop and remove containers (data is kept)
-.\aria-local.cmd restart        # stop + start without rebuilding
+.\aria-local.cmd restart        # stop + start without fetching or rebuilding
 .\aria-local.cmd status         # container state, health and recent backups
 .\aria-local.cmd logs           # follow all logs
 .\aria-local.cmd logs -Service backend
@@ -95,9 +97,10 @@ Options:
 | `-Port 9090`      | Serve on `http://localhost:9090` instead of 8080          |
 | `-Scale large`    | Demo data size for this load: `small`, `medium`, `large`  |
 | `-NoDemoData`     | Start a fresh database without demo data                  |
-| `-NoBuild`        | Reuse the images that are already built                   |
+| `-NoBuild`        | Reuse the images that are already here                    |
+| `-FromSource`     | Build the images from source instead of downloading them  |
 | `-NoBrowser`      | Do not open the browser                                   |
-| `-Force`          | Skip confirmations (`restore`, `reset`, `uninstall`); `update`: rebuild even when up to date |
+| `-Force`          | Skip confirmations (`restore`, `reset`, `uninstall`); `update`: reinstall even when up to date |
 | `-File <name>`    | Backup to restore (a name in `deployment\local\backups`, or a path) |
 | `-Branch <name>`  | Branch `update` follows (default `master`)                |
 | `-KeepBackups`    | `uninstall` keeps `deployment\local\backups`              |
@@ -126,16 +129,45 @@ One command does the whole update:
 3. Saves a restore point: a `pre-update-<commit>` database backup and the
    current images
 4. Fast-forwards the clone and shows the incoming commits
-5. Rebuilds, applies new migrations, restarts and waits for health with the
-   **new** version of this script and compose file. Your data and demo data
-   are kept.
+5. Downloads the new commit's prebuilt images (or builds them when they are
+   not published yet), applies new migrations, restarts and waits for health
+   with the **new** version of this script and compose file. Your data and
+   demo data are kept.
 6. On success, removes the restore-point images and dangling old images. On
    failure, rolls back automatically: the previous commit, the
    previous images and the pre-update backup, then starts the old version
-   again and removes the images the failed build left behind.
+   again and removes the images the failed build or download left behind.
 
 Updates only fast-forward. If the local branch has its own commits, `update`
 stops and leaves it to you.
+
+## Prebuilt images
+
+The [Release Images](../../.github/workflows/release-images.yml) workflow
+builds the production backend and frontend images on every push to `master`
+and every `v*` tag, for `linux/amd64` and `linux/arm64`, and publishes them to
+GitHub Container Registry:
+
+| Image                                | Tags                                               |
+| ------------------------------------ | -------------------------------------------------- |
+| `ghcr.io/karthik-beta/aria-backend`  | `sha-<commit>`, `master`, `X.Y.Z`, `X.Y`, `latest` |
+| `ghcr.io/karthik-beta/aria-frontend` | same                                               |
+
+`start` and `update` pull `sha-<commit>` for the checked-out commit and tag it
+as `aria-local-backend:latest` / `aria-local-frontend:latest`, so the images
+always match the migrations, compose file and script in the clone. If the
+images for that commit are already here, nothing is downloaded. The script
+builds from source instead when:
+
+- the images for that commit are not published yet (the workflow takes about
+  10-15 minutes after a push; run `update -Force` later to switch to them),
+  or the registry cannot be reached
+- `apps/`, `packages/` or the root build files have local changes, or the
+  folder is not a git clone
+- you pass `-FromSource`
+
+To use your own fork's images, set `ARIA_IMAGE_REGISTRY` (for example
+`ghcr.io/<your-user>`) in `aria-local.override.env`.
 
 ## Backups and restore
 
@@ -164,8 +196,9 @@ database but keeps the backups folder, so you can restore after a reset.
 Removes, after a confirmation (`-Force` skips it):
 
 - All Aria containers, the network and the data volumes (database, Redis, Caddy)
-- The built images (`aria-local-backend`, `aria-local-frontend`, any
-  restore-point images and untagged builds left by an earlier update)
+- The app images (`aria-local-backend`, `aria-local-frontend`, any
+  restore-point images, untagged builds left by an earlier update and
+  leftover `ghcr.io/karthik-beta/aria-*` downloads)
 - The pinned PostgreSQL, Redis and Caddy images, unless a container from
   another project still uses them
 - `deployment\local\backups` (keep it with `-KeepBackups`) and
@@ -241,6 +274,10 @@ loader clears partial demo data first).
 
 - **Port 8080 in use**: the script falls back to another port automatically,
   or pass `-Port 9090`.
+- **"Prebuilt images ... are not available"**: the commit was pushed only
+  minutes ago and the Release Images workflow is still running, or
+  `ghcr.io` cannot be reached. The script builds locally instead; run
+  `.\aria-local.cmd update -Force` later to switch to the prebuilt images.
 - **Build killed / exit code 137**: give Docker more memory
   (Docker Desktop > Settings > Resources, or `memory=6GB` in `%UserProfile%\.wslconfig`).
 - **"Switch to Linux containers"**: right-click the Docker tray icon and
