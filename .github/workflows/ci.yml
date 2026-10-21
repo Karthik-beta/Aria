@@ -31,7 +31,7 @@ jobs:
       APP_TIME_ZONE: UTC
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Set up workspace
         uses: ./.github/actions/setup-workspace
@@ -74,7 +74,7 @@ jobs:
     env: *database-env
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Set up workspace
         uses: ./.github/actions/setup-workspace
@@ -102,7 +102,7 @@ jobs:
     env: *database-env
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Set up workspace
         uses: ./.github/actions/setup-workspace
@@ -127,7 +127,7 @@ jobs:
       # cached per Playwright version; its system packages are not cacheable.
       - name: Cache Playwright browsers
         id: playwright-cache
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}-chromium
@@ -152,7 +152,7 @@ jobs:
     env: *database-env
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Set up workspace
         uses: ./.github/actions/setup-workspace
@@ -176,7 +176,7 @@ jobs:
       DOMAIN: localhost
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Build production images from a clean cache
         run: docker compose -f docker-compose.production.yml build --no-cache backend frontend

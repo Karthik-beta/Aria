@@ -1,6 +1,6 @@
 # Asset Management: ERPNext Parity
 
-How far Aria's Asset Management module has got in porting ERPNext's **Assets** module, and what is left. This page reflects the code on `master` as of **21 October 2026** (ERPNext reference: the local `.erpnext/` checkout). For what the module does today, see [Assets](Assets). For the porting process, see [ERPNext Porting](ERPNext-Porting).
+How far Aria's Asset Management module has got in porting ERPNext's **Assets** module, and what is left. This page reflects the code on `master` as of **21 October 2026**, updated after role-based access landed (ERPNext reference: the local `.erpnext/` checkout). For what the module does today, see [Assets](Assets). For the porting process, see [ERPNext Porting](ERPNext-Porting).
 
 ## Summary
 
@@ -14,7 +14,7 @@ How far Aria's Asset Management module has got in porting ERPNext's **Assets** m
 | Movement, repair, capitalization | 0% | No models, services or UI |
 | Reports and dashboard | ~70% | 3 of 5 reports. Dashboard and number cards are live |
 | Integrations (buying, selling, stock, GL) | ~5% | Purchase links are free text. No general ledger |
-| Security (role-based access) | 0% | Any org member can call every asset procedure |
+| Security (role-based access) | 100% | Writes need the org owner or admin role, in both the API and the UI |
 
 **Overall: about 55% of ERPNext's Assets feature set.** The register, depreciation, value adjustment and maintenance are at or near parity. Asset transactions (movement, repair, capitalization, disposal) and every cross-module integration are still missing.
 
@@ -100,22 +100,27 @@ None of these exist yet. Most depend on an Accounts module (see [Modules](Module
 
 ## Platform and quality gaps
 
-- **Role-based access.** Every asset tRPC procedure uses `orgProcedure()` without roles, so any org member can create, submit, cancel and delete. The `requiredRoles` mechanism in `trpc.ts` is available but unused.
-- **Broken dashboard links.** `overview-client.tsx` links to `/asset/maintenance` (line 562) and `/asset/asset` (lines 620 and 692), and both return a 404. The correct routes are `/asset/asset-maintenance/maintenance` and `/asset/asset-sub-module/asset`.
+- ✅ **Role-based access** (done in #123). Asset writes use `managerProcedure` (org `owner` or `admin`, or a global `super_admin`), and the UI hides write controls through `useCanManageAssets()`. Members can still view, export and complete maintenance logs.
+- ✅ **Broken dashboard links** (fixed in #123).
 - **Navigation.** Finance Book is reachable only from the admin console, not the asset sidebar.
 - **Service size.** `asset.service.ts` is about 3,700 lines and covers assets, locations, categories, maintenance, value adjustments and reports. Only the depreciation code has been split out.
 - **Tests.**
   - Backend: 21 spec files. Report specs have 1 or 2 cases each, and finance-book CRUD and depreciation persistence have no direct tests.
   - Frontend: 26 Vitest files and 6 Playwright specs, but no e2e coverage of the asset form, location, category or maintenance flows.
 
-## Suggested order for the remaining work
+## Roadmap
 
-1. **Hardening:** role-based access on asset procedures, the broken dashboard links, and a way to reverse posted depreciation so a submitted asset can be cancelled.
-2. **Asset Movement:** transfer, issue and receipt with custodian and location history and activity log entries. It needs no accounting.
-3. **Disposal:** scrap, restore and sell, including the Sold and Scrapped statuses and the gain or loss calculation. Gain or loss can post to asset-module entries until a GL exists.
-4. **Fixed Asset Register and Asset Maintenance reports**, plus the maintenance status and overdue jobs.
-5. **Asset Repair**, starting with its link to Stock Entry for consumed items, which the inventory module already supports.
-6. **Shift-based depreciation:** wire up Shift Factor and add Shift Allocation.
-7. **Accounts foundation:** chart of accounts, journal entry and GL. This unblocks CWIP, Asset Capitalization, Purchase Receipt and Invoice auto-creation, and Sales Invoice disposal.
+The remaining gaps are planned as eight milestones of self-contained issues, written so automated coding agents can work them in parallel. Each issue ends with a footer listing what blocks it and what it blocks. Issues labelled `agent-ready` have no open blockers. Issues labelled `blocked` are waiting on another open issue.
 
-Track each item as an `erpnext-port` issue with the **Assets** module label on the [Project Board](Project-Board), and update this page when a gap closes.
+| Milestone | Issues | Starts after |
+|---|---|---|
+| [M1: Foundations and hardening](https://github.com/Karthik-beta/Aria/milestone/1) | #137 vendor ERPNext source · #138 split `asset.service.ts` · #139 reverse posted depreciation · #140 status engine · #141 location tree · #142 backend test gaps · #143 timezone bug · #144 e2e coverage · #145 Finance Book nav and maintenance redirect · #146 automatic `agent-ready` labels | Nothing. #138 unblocks most later work |
+| [M2: Asset Movement](https://github.com/Karthik-beta/Aria/milestone/2) | #147 backend · #148 UI | #138 |
+| [M3: Disposal](https://github.com/Karthik-beta/Aria/milestone/3) | #149 scrap and restore · #150 sell · #151 split · #152 UI | #138, #139, #140 |
+| [M4: Reports and scheduled jobs](https://github.com/Karthik-beta/Aria/milestone/4) | #153 Fixed Asset Register · #154 Asset Maintenance report · #155 maintenance jobs | #138 (#155 also needs #140) |
+| [M5: Asset Repair](https://github.com/Karthik-beta/Aria/milestone/5) | #156 backend · #157 UI | #138, #140 |
+| [M6: Shift-based depreciation](https://github.com/Karthik-beta/Aria/milestone/6) | #158 Shift Factor · #159 Shift Allocation and engine · #160 UI | #138 |
+| [M7: General ledger foundation](https://github.com/Karthik-beta/Aria/milestone/7) | #161 ADR · #162 chart of accounts · #163 journal and GL posting · #164 move asset postings to the GL · #165 accounts UI | #161 can start now. #164 also needs #149 and #150 |
+| [M8: Purchase integration, CWIP and capitalization](https://github.com/Karthik-beta/Aria/milestone/8) | #166 assets from Purchase Receipts · #167 CWIP · #168 Asset Capitalization | #138, then M7 |
+
+Purchase Invoice and Sales Invoice don't exist in Aria yet, so the integrations that need them are out of scope until those documents are built. Update this page when an issue closes a gap.
