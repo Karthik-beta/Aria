@@ -1,10 +1,8 @@
 /* eslint-disable */
 
 import type { Asset } from "@aria/types";
-import type { FiscalYearService } from "../../../shared/fiscal-year/fiscal-year.service";
 import type { PrismaService } from "../../../shared/prisma.service";
-import { AssetService } from "../asset.service";
-import type { AssetDashboardSubService } from "../asset-dashboard.service";
+import { AssetCoreService } from "../asset-core.service";
 
 function createMockPrisma() {
 	return {
@@ -36,15 +34,7 @@ function createMockPrisma() {
 function createTestContext() {
 	const mockPrisma = createMockPrisma();
 	mockPrisma.client.$queryRaw.mockResolvedValue([{ value: 1 }]);
-	const mockDashboard = {} as unknown as AssetDashboardSubService;
-	const mockFiscalYear = {
-		getFiscalYearEndDate: jest.fn().mockResolvedValue(null),
-	} as unknown as FiscalYearService;
-	const service = new AssetService(
-		mockPrisma as unknown as PrismaService,
-		mockDashboard,
-		mockFiscalYear,
-	);
+	const service = new AssetCoreService(mockPrisma as unknown as PrismaService);
 	return { service, mockPrisma };
 }
 

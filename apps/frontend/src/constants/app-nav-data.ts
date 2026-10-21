@@ -315,6 +315,10 @@ export const assetNavItems: NavItem[] = [
 				title: "Asset Category",
 				url: "/asset/asset-sub-module/asset-category",
 			},
+			{
+				title: "Finance Book",
+				url: "/asset/asset-sub-module/finance-book",
+			},
 		],
 	},
 	{

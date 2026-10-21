@@ -102,8 +102,8 @@ None of these exist yet. Most depend on an Accounts module (see [Modules](Module
 
 - ✅ **Role-based access** (done in #123). Asset writes use `managerProcedure` (org `owner` or `admin`, or a global `super_admin`), and the UI hides write controls through `useCanManageAssets()`. Members can still view, export and complete maintenance logs.
 - ✅ **Broken dashboard links** (fixed in #123).
-- **Navigation.** Finance Book is reachable only from the admin console, not the asset sidebar.
-- **Service size.** `asset.service.ts` is about 3,700 lines and covers assets, locations, categories, maintenance, value adjustments and reports. Only the depreciation code has been split out.
+- ✅ **Navigation.** Finance Book is in the asset sidebar under Assets (`/asset/asset-sub-module/finance-book`). Every member can read it; owners, admins and super admins can add, rename and delete. The admin console entry remains.
+- ✅ **Service size** (fixed in #138). `asset.service.ts` is now a thin facade over focused sub-services (`AssetCoreService`, `AssetValueAdjustmentService`, `AssetReportsService`, `AssetLocationService`, `AssetFinanceBookService`, `AssetCategoryService`, `AssetMaintenanceTeamService`, `AssetMaintenanceService`), all under `apps/backend/src/apps/asset/` and registered in `AssetModule`. New features add their own service instead of growing the facade.
 - **Tests.**
   - Backend: 21 spec files. Report specs have 1 or 2 cases each, and finance-book CRUD and depreciation persistence have no direct tests.
   - Frontend: 26 Vitest files and 6 Playwright specs, but no e2e coverage of the asset form, location, category or maintenance flows.
