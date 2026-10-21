@@ -88,6 +88,17 @@ jobs:
       - name: Test
         run: bun x turbo run test
 
+      # The default run above is in UTC, which hides date-formatting bugs that
+      # only appear east or west of UTC. Run vitest directly (outside Turborepo,
+      # which would cache the result and drop TZ) in a non-UTC timezone. Scoped
+      # to the asset area and shared helpers; widen it once other modules'
+      # tests are timezone-independent.
+      - name: Frontend asset tests in a non-UTC timezone
+        working-directory: apps/frontend
+        env:
+          TZ: Asia/Kolkata
+        run: bun x vitest run src/app/asset src/lib
+
       - name: Depreciation integration tests
         run: bun x turbo run test:integration
 

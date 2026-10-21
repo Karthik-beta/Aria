@@ -33,6 +33,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCanManageAssets } from "@/hooks/use-can-manage-assets";
+import { formatDateOnly } from "@/lib/date-only";
 import { getToastMessage } from "@/lib/errors";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
@@ -331,7 +332,7 @@ export default function AssetDetailPage() {
 									asset.purchaseDate ? (
 										<span className="flex items-center gap-1">
 											<Calendar className="h-3 w-3" />
-											{new Date(asset.purchaseDate).toLocaleDateString()}
+											{formatDateOnly(asset.purchaseDate)}
 										</span>
 									) : null
 								}
@@ -340,7 +341,7 @@ export default function AssetDetailPage() {
 								label="Available For Use"
 								value={
 									asset.availableForUseDate
-										? new Date(asset.availableForUseDate).toLocaleDateString()
+										? formatDateOnly(asset.availableForUseDate)
 										: null
 								}
 							/>
@@ -400,7 +401,7 @@ export default function AssetDetailPage() {
 								label="Insurance Start"
 								value={
 									asset.insuranceStartDate
-										? new Date(asset.insuranceStartDate).toLocaleDateString()
+										? formatDateOnly(asset.insuranceStartDate)
 										: null
 								}
 							/>
@@ -408,7 +409,7 @@ export default function AssetDetailPage() {
 								label="Insurance End"
 								value={
 									asset.insuranceEndDate
-										? new Date(asset.insuranceEndDate).toLocaleDateString()
+										? formatDateOnly(asset.insuranceEndDate)
 										: null
 								}
 							/>
