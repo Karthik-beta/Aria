@@ -84,4 +84,4 @@ function FormFileUpload<
 	);
 }
 
-export { FormFileUpload, type FileUploadConfig };
+export { type FileUploadConfig, FormFileUpload };

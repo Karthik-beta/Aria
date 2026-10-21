@@ -173,14 +173,15 @@ describe("ZXing barcode decoder integration", () => {
 		}
 	});
 
-	it.each([
-		2, 3, 4, 6,
-	])("decodes the supplied EAN consistently at %d pixels per module", (moduleWidth) => {
-		expect(decodeEan13("8904287602549", moduleWidth)).toEqual({
-			format: "EAN_13",
-			text: "8904287602549",
-		});
-	});
+	it.each([2, 3, 4, 6])(
+		"decodes the supplied EAN consistently at %d pixels per module",
+		(moduleWidth) => {
+			expect(decodeEan13("8904287602549", moduleWidth)).toEqual({
+				format: "EAN_13",
+				text: "8904287602549",
+			});
+		},
+	);
 
 	it("rejects an EAN fixture with an invalid check digit", () => {
 		expect(() => decodeEan13("8904287602548")).toThrow();

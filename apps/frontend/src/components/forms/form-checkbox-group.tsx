@@ -110,4 +110,4 @@ function FormCheckboxGroup<
 	);
 }
 
-export { FormCheckboxGroup, type CheckboxGroupOption };
+export { type CheckboxGroupOption, FormCheckboxGroup };
