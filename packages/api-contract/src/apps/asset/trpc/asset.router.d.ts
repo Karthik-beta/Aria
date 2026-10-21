@@ -303,6 +303,8 @@ type AssetRouterInput = {
 					take?: number | undefined;
 					search?: string | undefined;
 					isGroup?: boolean | undefined;
+					parentLocationId?: string | null | undefined;
+					excludeDescendantsOf?: string | undefined;
 			  }
 			| undefined;
 		output: Asset.LocationListResult;
@@ -318,6 +320,11 @@ type AssetRouterInput = {
 			name: string;
 			parentLocationId?: string | null | undefined;
 			isGroup?: boolean | undefined;
+			isContainer?: boolean | undefined;
+			latitude?: number | null | undefined;
+			longitude?: number | null | undefined;
+			areaUom?: string | null | undefined;
+			geolocation?: Asset.GeoJsonFeatureCollection | null | undefined;
 		};
 		output: Asset.Location;
 		meta: object;
@@ -328,6 +335,11 @@ type AssetRouterInput = {
 			name?: string | undefined;
 			parentLocationId?: string | null | undefined;
 			isGroup?: boolean | undefined;
+			isContainer?: boolean | undefined;
+			latitude?: number | null | undefined;
+			longitude?: number | null | undefined;
+			areaUom?: string | null | undefined;
+			geolocation?: Asset.GeoJsonFeatureCollection | null | undefined;
 		};
 		output: Asset.Location;
 		meta: object;
@@ -644,6 +656,25 @@ type AssetRouterInput = {
 	exportAssetActivityExcel: TRPCMutationProcedure<{
 		input: unknown;
 		output: unknown;
+		meta: object;
+	}>;
+
+	// ── Location hierarchy ───────────────────────────────────────────────────
+	getLocationTree: TRPCQueryProcedure<{
+		input:
+			| { rootId?: string | undefined; includeLeaves?: boolean | undefined }
+			| undefined;
+		output: Asset.LocationTreeNode[];
+		meta: object;
+	}>;
+	listLocationChildren: TRPCQueryProcedure<{
+		input: { parentId?: string | null | undefined } | undefined;
+		output: Asset.LocationChildNode[];
+		meta: object;
+	}>;
+	getLocationAncestors: TRPCQueryProcedure<{
+		input: { id: string };
+		output: Asset.LocationAncestor[];
 		meta: object;
 	}>;
 };

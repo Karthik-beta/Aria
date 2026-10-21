@@ -30,6 +30,43 @@ const leafLocationRecord = {
 	updatedAt: new Date("2026-01-04"),
 };
 
+const rootChild = {
+	id: "clh123location",
+	name: "Head Office",
+	isGroup: true,
+	expandable: true,
+	assetCount: 2,
+	childCount: 1,
+	area: 12345.5,
+	isContainer: true,
+};
+
+const nestedChild = {
+	id: "clh456location",
+	name: "Floor 1",
+	isGroup: false,
+	expandable: false,
+	assetCount: 1,
+	childCount: 0,
+	area: 0,
+	isContainer: false,
+};
+
+const mockChildrenQuery = vi.fn(
+	(input: { parentId: string | null }, opts?: { enabled?: boolean }) => {
+		if (opts?.enabled === false) {
+			return { data: undefined, isLoading: false, error: null };
+		}
+		const data =
+			input.parentId === null
+				? [rootChild]
+				: input.parentId === rootChild.id
+					? [nestedChild]
+					: [];
+		return { data, isLoading: false, error: null, refetch: vi.fn() };
+	},
+);
+
 const canManageAssets = vi.hoisted(() => ({ value: true }));
 
 vi.mock("@/hooks/use-can-manage-assets", () => ({
@@ -44,6 +81,9 @@ vi.mock("@/lib/trpc", () => ({
 					cancel: mockCancelQuery,
 					getData: mockGetData,
 					setData: mockSetData,
+					invalidate: mockInvalidate,
+				},
+				listLocationChildren: {
 					invalidate: mockInvalidate,
 				},
 			},
@@ -78,6 +118,10 @@ vi.mock("@/lib/trpc", () => ({
 					},
 				}),
 			},
+			listLocationChildren: {
+				useQuery: (...args: Parameters<typeof mockChildrenQuery>) =>
+					mockChildrenQuery(...args),
+			},
 			onLocationsChanged: {
 				useSubscription: vi.fn(),
 			},
@@ -88,6 +132,7 @@ vi.mock("@/lib/trpc", () => ({
 describe("LocationPage", () => {
 	beforeEach(() => {
 		canManageAssets.value = true;
+		window.localStorage.clear();
 		mockDeleteMutate.mockClear();
 		mockInvalidate.mockClear();
 		mockRefetch.mockClear();
@@ -186,6 +231,126 @@ describe("LocationPage", () => {
 		// The page has multiple comboboxes (Type filter + table page-size selector),
 		// so use getAllByRole and verify at least one is present.
 		expect(screen.getAllByRole("combobox").length).toBeGreaterThanOrEqual(1);
+	});
+});
+
+describe("LocationPage — tree view", () => {
+	beforeEach(() => {
+		canManageAssets.value = true;
+		window.localStorage.clear();
+		mockDeleteMutate.mockClear();
+		mockChildrenQuery.mockClear();
+	});
+
+	afterEach(() => {
+		window.localStorage.clear();
+	});
+
+	it("shows the table by default with a Tree toggle next to it", () => {
+		renderWithProviders(<LocationPage />);
+
+		expect(screen.getByRole("button", { name: "Table" })).toHaveAttribute(
+			"aria-pressed",
+			"true",
+		);
+		expect(screen.getByRole("button", { name: "Tree" })).toHaveAttribute(
+			"aria-pressed",
+			"false",
+		);
+		expect(screen.queryByLabelText("Location tree")).not.toBeInTheDocument();
+		expect(mockChildrenQuery).not.toHaveBeenCalled();
+	});
+
+	it("renders roots with asset count, area and container badge in tree view", async () => {
+		const user = userEvent.setup();
+		renderWithProviders(<LocationPage />);
+
+		await user.click(screen.getByRole("button", { name: "Tree" }));
+
+		const tree = screen.getByLabelText("Location tree");
+		expect(tree).toBeInTheDocument();
+		expect(screen.getByText("Head Office")).toBeInTheDocument();
+		expect(screen.getByText("2 assets")).toBeInTheDocument();
+		expect(screen.getByText(/12,345\.5 m²/)).toBeInTheDocument();
+		expect(screen.getByText("Container")).toBeInTheDocument();
+		// Roots are requested with parentId null.
+		expect(mockChildrenQuery).toHaveBeenCalledWith(
+			{ parentId: null },
+			expect.anything(),
+		);
+		// The table is replaced by the tree.
+		expect(screen.queryByLabelText("Location table")).not.toBeInTheDocument();
+	});
+
+	it("loads children lazily when a group is expanded", async () => {
+		const user = userEvent.setup();
+		renderWithProviders(<LocationPage />);
+		await user.click(screen.getByRole("button", { name: "Tree" }));
+
+		expect(screen.queryByText("Floor 1")).not.toBeInTheDocument();
+
+		await user.click(
+			screen.getByRole("button", { name: "Expand Head Office" }),
+		);
+
+		expect(screen.getByText("Floor 1")).toBeInTheDocument();
+		expect(screen.getByText("1 asset")).toBeInTheDocument();
+		expect(
+			screen.getByRole("button", { name: "Collapse Head Office" }),
+		).toHaveAttribute("aria-expanded", "true");
+		expect(mockChildrenQuery).toHaveBeenCalledWith(
+			{ parentId: rootChild.id },
+			expect.objectContaining({ enabled: true }),
+		);
+	});
+
+	it("offers edit, add child and delete actions to managers", async () => {
+		const user = userEvent.setup();
+		renderWithProviders(<LocationPage />);
+		await user.click(screen.getByRole("button", { name: "Tree" }));
+
+		await user.click(
+			screen.getByRole("button", { name: /Open actions for Head Office/i }),
+		);
+
+		// next/link is mocked without an <a> wrapper, so assert on the text.
+		expect(screen.getByText(/Edit Location/i)).toBeInTheDocument();
+		expect(screen.getByText(/Add Child Location/i)).toBeInTheDocument();
+		await user.click(
+			screen.getByRole("menuitem", { name: /Delete Location/i }),
+		);
+		expect(
+			screen.getByRole("heading", { name: /Are you sure\?/i }),
+		).toBeInTheDocument();
+	});
+
+	it("remembers the tree view across mounts", async () => {
+		const user = userEvent.setup();
+		const { unmount } = renderWithProviders(<LocationPage />);
+		await user.click(screen.getByRole("button", { name: "Tree" }));
+		unmount();
+
+		renderWithProviders(<LocationPage />);
+
+		await waitFor(() => {
+			expect(screen.getByLabelText("Location tree")).toBeInTheDocument();
+		});
+	});
+
+	it("hides write actions from members but keeps the tree visible", async () => {
+		canManageAssets.value = false;
+		const user = userEvent.setup();
+		renderWithProviders(<LocationPage />);
+		await user.click(screen.getByRole("button", { name: "Tree" }));
+
+		expect(screen.getByText("Head Office")).toBeInTheDocument();
+		expect(screen.queryByText(/Add Location/i)).not.toBeInTheDocument();
+		expect(
+			screen.queryByRole("button", { name: /Open actions for/i }),
+		).not.toBeInTheDocument();
+		expect(
+			screen.getByRole("button", { name: "Expand Head Office" }),
+		).toBeInTheDocument();
 	});
 });
 

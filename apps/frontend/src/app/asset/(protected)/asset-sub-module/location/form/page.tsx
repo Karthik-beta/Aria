@@ -3,7 +3,9 @@
  *
  * Reads ?id= param to switch between create/edit modes.
  * Parent location selector filters to group-type locations only
- * (mirroring ERPNext: parent_location is filtered to is_group = 1).
+ * (mirroring ERPNext: parent_location is filtered to is_group = 1) and,
+ * when editing, leaves out the location itself and its descendants so a
+ * cycle cannot be picked. ?parentId= pre-selects a parent when adding a child.
  *
  * Client component: uses hooks for form state and tRPC mutations.
  */
@@ -12,6 +14,7 @@
 import { Asset } from "@aria/types";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Loader2 } from "lucide-react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useRef, useTransition } from "react";
 import { useForm, useWatch } from "react-hook-form";
@@ -29,6 +32,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { useCanManageAssets } from "@/hooks/use-can-manage-assets";
 import { getToastMessage } from "@/lib/errors";
 import { trpc } from "@/lib/trpc";
@@ -37,7 +41,11 @@ import {
 	type LocationFormValues,
 	locationFormSchema,
 } from "../location.schema";
-import { toLocationMutationInput } from "../location.utils";
+import {
+	formatArea,
+	formatGeolocationText,
+	toLocationMutationInput,
+} from "../location.utils";
 
 export default function LocationFormPage() {
 	const canManageAssets = useCanManageAssets();
@@ -70,6 +78,7 @@ function LocationFormContent() {
 	const router = useRouter();
 	const searchParams = useSearchParams();
 	const id = searchParams.get("id");
+	const presetParentId = searchParams.get("parentId");
 	const isEditMode = Boolean(id);
 	const [isPending, startTransition] = useTransition();
 	const hasHandledMissingRef = useRef(false);
@@ -77,7 +86,10 @@ function LocationFormContent() {
 
 	const form = useForm<LocationFormValues>({
 		resolver: zodResolver(locationFormSchema),
-		defaultValues: getLocationFormDefaults(),
+		defaultValues: {
+			...getLocationFormDefaults(),
+			parentLocationId: presetParentId ?? "",
+		},
 	});
 
 	// Fetch location details in edit mode
@@ -87,13 +99,20 @@ function LocationFormContent() {
 			{ enabled: isEditMode },
 		);
 
-	// Fetch all locations for parent selector (group-type only as per ERPNext logic)
+	// Fetch locations for parent selector (group-type only as per ERPNext logic).
+	// The server leaves out the location itself and all of its descendants.
 	const { data: locationsData } = trpc.asset.listLocations.useQuery(
-		{ isGroup: true, take: 250 },
+		{ isGroup: true, take: 250, excludeDescendantsOf: id ?? undefined },
 		{ refetchOnWindowFocus: false, retry: 2, staleTime: 30_000 },
 	);
 
-	// Locations that can be selected as parent — exclude the current location itself
+	// Ancestor path (root first) for the breadcrumb in edit mode.
+	const { data: ancestors } = trpc.asset.getLocationAncestors.useQuery(
+		{ id: id ?? "" },
+		{ enabled: isEditMode, refetchOnWindowFocus: false, staleTime: 30_000 },
+	);
+
+	// Locations that can be selected as parent — never the location itself
 	const parentOptions = useMemo(
 		() => (locationsData?.items ?? []).filter((l) => l.id !== id),
 		[locationsData?.items, id],
@@ -108,6 +127,11 @@ function LocationFormContent() {
 			name: location.name,
 			parentLocationId: location.parentLocationId ?? "",
 			isGroup: location.isGroup,
+			isContainer: location.isContainer ?? false,
+			latitude: location.latitude != null ? String(location.latitude) : "",
+			longitude: location.longitude != null ? String(location.longitude) : "",
+			areaUom: location.areaUom ?? "",
+			geolocation: formatGeolocationText(location.geolocation),
 		});
 	}, [form, isEditMode, location]);
 
@@ -146,6 +170,7 @@ function LocationFormContent() {
 			await utils.asset.listLocations.invalidate();
 			if (id) {
 				await utils.asset.getLocationById.invalidate({ id });
+				await utils.asset.getLocationAncestors.invalidate({ id });
 			}
 			form.reset(form.getValues()); // clear dirty state
 		},
@@ -180,6 +205,7 @@ function LocationFormContent() {
 	const hasUnsavedChanges = form.formState.isDirty;
 
 	const isGroup = useWatch({ control: form.control, name: "isGroup" });
+	const isContainer = useWatch({ control: form.control, name: "isContainer" });
 	const parentLocationId = useWatch({
 		control: form.control,
 		name: "parentLocationId",
@@ -195,7 +221,28 @@ function LocationFormContent() {
 		<div className="flex min-h-screen flex-col bg-muted px-4 py-4 md:px-6">
 			<div className="mb-4 flex items-center justify-between">
 				<div className="flex items-center gap-3">
-					<h1 className="text-3xl font-bold tracking-tight">{title}</h1>
+					<div>
+						{isEditMode && ancestors && ancestors.length > 0 && (
+							<nav
+								aria-label="Location path"
+								className="mb-1 text-sm text-muted-foreground"
+							>
+								{ancestors.map((ancestor) => (
+									<span key={ancestor.id}>
+										<Link
+											href={`/asset/asset-sub-module/location/form?id=${ancestor.id}`}
+											className="hover:underline"
+										>
+											{ancestor.name}
+										</Link>
+										<span aria-hidden="true"> / </span>
+									</span>
+								))}
+								<span className="text-foreground">{location?.name}</span>
+							</nav>
+						)}
+						<h1 className="text-3xl font-bold tracking-tight">{title}</h1>
+					</div>
 					{hasUnsavedChanges && <Badge variant="secondary">Not Saved</Badge>}
 				</div>
 				<div className="flex items-center gap-2">
@@ -294,7 +341,112 @@ function LocationFormContent() {
 							</SelectContent>
 						</Select>
 						<p className="text-xs text-muted-foreground">
-							Only group-type locations can be selected as a parent.
+							Only group-type locations can be selected as a parent
+							{isEditMode ? ", and never this location or its descendants" : ""}
+							.
+						</p>
+					</div>
+
+					{/* Is Container */}
+					<div className="space-y-4">
+						<div className="flex items-center gap-2">
+							<Checkbox
+								id="isContainer"
+								checked={isContainer}
+								onCheckedChange={(checked) =>
+									form.setValue("isContainer", Boolean(checked), {
+										shouldDirty: true,
+									})
+								}
+							/>
+							<div className="space-y-1">
+								<Label htmlFor="isContainer">Is Container</Label>
+								<p className="text-sm text-muted-foreground">
+									Marks a physical container such as a farm, field or building.
+								</p>
+							</div>
+						</div>
+					</div>
+
+					{/* Area UOM */}
+					<div className="space-y-2">
+						<Label htmlFor="areaUom">Area UOM</Label>
+						<Input
+							id="areaUom"
+							placeholder="e.g. Square Meter"
+							{...form.register("areaUom")}
+						/>
+						{form.formState.errors.areaUom && (
+							<p className="text-xs text-destructive">
+								{form.formState.errors.areaUom.message}
+							</p>
+						)}
+					</div>
+
+					{/* Latitude */}
+					<div className="space-y-2">
+						<Label htmlFor="latitude">Latitude</Label>
+						<Input
+							id="latitude"
+							inputMode="decimal"
+							placeholder="-90 to 90"
+							{...form.register("latitude")}
+						/>
+						{form.formState.errors.latitude && (
+							<p className="text-xs text-destructive">
+								{form.formState.errors.latitude.message}
+							</p>
+						)}
+					</div>
+
+					{/* Longitude */}
+					<div className="space-y-2">
+						<Label htmlFor="longitude">Longitude</Label>
+						<Input
+							id="longitude"
+							inputMode="decimal"
+							placeholder="-180 to 180"
+							{...form.register("longitude")}
+						/>
+						{form.formState.errors.longitude && (
+							<p className="text-xs text-destructive">
+								{form.formState.errors.longitude.message}
+							</p>
+						)}
+					</div>
+
+					{/* Area (computed, read-only) */}
+					<div className="space-y-2">
+						<Label htmlFor="area">Area</Label>
+						<Input
+							id="area"
+							readOnly
+							value={isEditMode ? formatArea(location?.area) : "-"}
+							aria-describedby="area-help"
+						/>
+						<p id="area-help" className="text-xs text-muted-foreground">
+							Computed from the geolocation when you save.
+						</p>
+					</div>
+
+					{/* Geolocation */}
+					<div className="space-y-2 md:col-span-2">
+						<Label htmlFor="geolocation">Geolocation (GeoJSON)</Label>
+						<Textarea
+							id="geolocation"
+							rows={8}
+							className="font-mono text-xs"
+							placeholder='{"type":"FeatureCollection","features":[]}'
+							{...form.register("geolocation")}
+						/>
+						{form.formState.errors.geolocation && (
+							<p className="text-xs text-destructive">
+								{form.formState.errors.geolocation.message}
+							</p>
+						)}
+						<p className="text-xs text-muted-foreground">
+							A FeatureCollection with Polygon features or circle Points
+							(properties.point_type = "circle" and a radius in metres).
 						</p>
 					</div>
 				</div>
