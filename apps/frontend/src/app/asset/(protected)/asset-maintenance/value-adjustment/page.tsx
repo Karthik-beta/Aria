@@ -35,6 +35,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DataTableColumnHeader } from "@/components/ui/table/data-table-column-header";
+import { useCanManageAssets } from "@/hooks/use-can-manage-assets";
 import { getToastMessage } from "@/lib/errors";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
@@ -91,6 +92,7 @@ function AssetValueAdjustmentsRealtimeSubscription({
 }
 
 export default function AssetValueAdjustmentPage() {
+	const canManageAssets = useCanManageAssets();
 	const utils = trpc.useUtils();
 	const [search, setSearch] = React.useState("");
 	const [pagination, setPagination] = React.useState<PaginationState>({
@@ -247,8 +249,8 @@ export default function AssetValueAdjustmentPage() {
 		}
 	}, [queryError]);
 
-	const columns = React.useMemo<ColumnDef<AdjustmentRow>[]>(
-		() => [
+	const columns = React.useMemo<ColumnDef<AdjustmentRow>[]>(() => {
+		const allColumns: ColumnDef<AdjustmentRow>[] = [
 			{
 				id: "select",
 				header: ({ table }) => (
@@ -278,14 +280,17 @@ export default function AssetValueAdjustmentPage() {
 				header: ({ column }) => (
 					<DataTableColumnHeader column={column} title="Adjustment" />
 				),
-				cell: ({ row }) => (
-					<Link
-						href={`/asset/asset-maintenance/value-adjustment/form?id=${row.original.id}`}
-						className="font-medium text-primary hover:underline"
-					>
-						{row.original.series}
-					</Link>
-				),
+				cell: ({ row }) =>
+					canManageAssets ? (
+						<Link
+							href={`/asset/asset-maintenance/value-adjustment/form?id=${row.original.id}`}
+							className="font-medium text-primary hover:underline"
+						>
+							{row.original.series}
+						</Link>
+					) : (
+						<span className="font-medium">{row.original.series}</span>
+					),
 				meta: {
 					label: "Adjustment",
 					searchable: true,
@@ -500,9 +505,11 @@ export default function AssetValueAdjustmentPage() {
 				),
 				enableSorting: false,
 			},
-		],
-		[submitMutation],
-	);
+		];
+		return canManageAssets
+			? allColumns
+			: allColumns.filter((column) => column.id !== "actions");
+	}, [submitMutation, canManageAssets]);
 
 	const pageCount = Math.max(1, Math.ceil(totalCount / pagination.pageSize));
 	const tableResetKey = `${deferredSearch}`;
@@ -687,6 +694,7 @@ export default function AssetValueAdjustmentPage() {
 						onPaginationChange={setPagination}
 						onReload={handleReload}
 						search={search}
+						canManageAssets={canManageAssets}
 					/>
 				)}
 			</div>
@@ -702,6 +710,7 @@ function AssetValueAdjustmentTable(props: {
 	onPaginationChange: (pagination: PaginationState) => void;
 	onReload: () => void | Promise<void>;
 	search: string;
+	canManageAssets: boolean;
 }) {
 	const { table } = useAdvancedDataTable<AdjustmentRow>({
 		data: props.data,
@@ -728,13 +737,15 @@ function AssetValueAdjustmentTable(props: {
 			enableColumnResizing
 			ariaLabel="Asset value adjustment table"
 			primaryAction={
-				<Link
-					href="/asset/asset-maintenance/value-adjustment/form"
-					className={cn(buttonVariants({ variant: "default", size: "sm" }))}
-				>
-					<Plus className="mr-2 h-4 w-4" />
-					New Adjustment
-				</Link>
+				props.canManageAssets ? (
+					<Link
+						href="/asset/asset-maintenance/value-adjustment/form"
+						className={cn(buttonVariants({ variant: "default", size: "sm" }))}
+					>
+						<Plus className="mr-2 h-4 w-4" />
+						New Adjustment
+					</Link>
+				) : undefined
 			}
 			emptyState={
 				<div className="flex flex-col items-center gap-2 py-12">
@@ -744,7 +755,7 @@ function AssetValueAdjustmentTable(props: {
 							? "No adjustments match your filters"
 							: "No asset value adjustments yet"}
 					</p>
-					{!props.search && (
+					{props.canManageAssets && !props.search && (
 						<Link
 							href="/asset/asset-maintenance/value-adjustment/form"
 							className={cn(

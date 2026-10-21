@@ -1,5 +1,5 @@
 import "@testing-library/jest-dom";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithProviders, screen, userEvent, waitFor } from "@/test/utils";
 import AssetValueAdjustmentPage from "./page";
 
@@ -64,6 +64,12 @@ const submittedAdjustment = {
 	},
 };
 
+const canManageAssets = vi.hoisted(() => ({ value: true }));
+
+vi.mock("@/hooks/use-can-manage-assets", () => ({
+	useCanManageAssets: () => canManageAssets.value,
+}));
+
 vi.mock("@/lib/trpc", () => ({
 	trpc: {
 		useUtils: () => ({
@@ -119,6 +125,7 @@ vi.mock("@/lib/trpc", () => ({
 
 describe("AssetValueAdjustmentPage", () => {
 	beforeEach(() => {
+		canManageAssets.value = true;
 		mockDeleteMutate.mockClear();
 		mockSubmitMutate.mockClear();
 		mockInvalidate.mockClear();
@@ -174,5 +181,25 @@ describe("AssetValueAdjustmentPage", () => {
 		await waitFor(() => {
 			expect(mockDeleteMutate).toHaveBeenCalledWith({ id: "adj-001" });
 		});
+	});
+});
+
+describe("AssetValueAdjustmentPage — read-only access", () => {
+	beforeEach(() => {
+		canManageAssets.value = false;
+	});
+
+	afterEach(() => {
+		canManageAssets.value = true;
+	});
+
+	it("hides New Adjustment and row actions but keeps the list", () => {
+		renderWithProviders(<AssetValueAdjustmentPage />);
+
+		expect(screen.getByText("AVA-2026-00001")).toBeInTheDocument();
+		expect(screen.queryByText(/New Adjustment/i)).not.toBeInTheDocument();
+		expect(
+			screen.queryByRole("button", { name: /Open actions for/i }),
+		).not.toBeInTheDocument();
 	});
 });

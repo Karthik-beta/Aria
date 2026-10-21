@@ -27,6 +27,7 @@ import {
 	useForm,
 } from "react-hook-form";
 import { toast } from "sonner";
+import { AssetWriteAccessNotice } from "@/components/asset/asset-write-access-notice";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -52,6 +53,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
+import { useCanManageAssets } from "@/hooks/use-can-manage-assets";
 import { getToastMessage } from "@/lib/errors";
 import { trpc } from "@/lib/trpc";
 import {
@@ -65,6 +67,17 @@ import {
 } from "../maintenance-team.utils";
 
 export default function MaintenanceTeamFormPage() {
+	const canManageAssets = useCanManageAssets();
+
+	if (!canManageAssets) {
+		return (
+			<AssetWriteAccessNotice
+				backHref="/asset/asset-maintenance/maintenance-team"
+				backLabel="Back to maintenance teams"
+			/>
+		);
+	}
+
 	return (
 		<Suspense fallback={<MaintenanceTeamFormFallback />}>
 			<MaintenanceTeamFormContent />

@@ -20,6 +20,7 @@ import { Suspense } from "react";
 import { Controller, useFieldArray, useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 import * as z from "zod";
+import { AssetWriteAccessNotice } from "@/components/asset/asset-write-access-notice";
 import {
 	DEPRECIATION_METHOD_DOCS,
 	DepreciationMethodInlineCard,
@@ -58,6 +59,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import { useCanManageAssets } from "@/hooks/use-can-manage-assets";
 import { getToastMessage } from "@/lib/errors";
 import { trpc } from "@/lib/trpc";
 import { DEPRECIATION_METHOD_OPTIONS } from "../../asset-category/asset-category.schema";
@@ -303,6 +305,17 @@ const defaultFormValues: AssetFormValues = {
 };
 
 export default function AssetFormPage() {
+	const canManageAssets = useCanManageAssets();
+
+	if (!canManageAssets) {
+		return (
+			<AssetWriteAccessNotice
+				backHref="/asset/asset-sub-module/asset"
+				backLabel="Back to assets"
+			/>
+		);
+	}
+
 	return (
 		<Suspense
 			fallback={

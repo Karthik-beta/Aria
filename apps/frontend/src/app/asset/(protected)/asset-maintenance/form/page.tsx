@@ -26,6 +26,7 @@ import {
 	useForm,
 } from "react-hook-form";
 import { toast } from "sonner";
+import { AssetWriteAccessNotice } from "@/components/asset/asset-write-access-notice";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -59,6 +60,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
+import { useCanManageAssets } from "@/hooks/use-can-manage-assets";
 import { getToastMessage } from "@/lib/errors";
 import { trpc } from "@/lib/trpc";
 import {
@@ -72,6 +74,17 @@ import {
 } from "../maintenance/asset-maintenance.utils";
 
 export default function AssetMaintenanceFormPage() {
+	const canManageAssets = useCanManageAssets();
+
+	if (!canManageAssets) {
+		return (
+			<AssetWriteAccessNotice
+				backHref="/asset/asset-maintenance/maintenance"
+				backLabel="Back to maintenance"
+			/>
+		);
+	}
+
 	return (
 		<Suspense fallback={<AssetMaintenanceFormFallback />}>
 			<AssetMaintenanceFormContent />

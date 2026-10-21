@@ -62,6 +62,7 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DataTableColumnHeader } from "@/components/ui/table/data-table-column-header";
+import { useCanManageAssets } from "@/hooks/use-can-manage-assets";
 import { getToastMessage } from "@/lib/errors";
 import { trpc } from "@/lib/trpc";
 import {
@@ -268,6 +269,7 @@ function CompleteLogDialog({
 // ──────────────────────────────────────────────────────────────────────────────
 
 export default function AssetMaintenanceLogPage() {
+	const canManageAssets = useCanManageAssets();
 	const utils = trpc.useUtils();
 
 	const [search, setSearch] = React.useState("");
@@ -544,7 +546,8 @@ export default function AssetMaintenanceLogPage() {
 				cell: ({ row }) => {
 					const log = row.original;
 					const canComplete = canCompleteLog(log.maintenanceStatus);
-					const canCancel = canCancelLog(log.maintenanceStatus);
+					const canCancel =
+						canManageAssets && canCancelLog(log.maintenanceStatus);
 					if (!canComplete && !canCancel) return null;
 
 					return (
@@ -589,7 +592,7 @@ export default function AssetMaintenanceLogPage() {
 				},
 			},
 		],
-		[handleCompleteLog, handleCancelLog],
+		[handleCompleteLog, handleCancelLog, canManageAssets],
 	);
 
 	return (

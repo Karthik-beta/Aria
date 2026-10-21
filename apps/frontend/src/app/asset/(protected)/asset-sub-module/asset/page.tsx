@@ -38,6 +38,7 @@ import { ErrorState } from "@/components/ui/error-display";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DataTableColumnHeader } from "@/components/ui/table/data-table-column-header";
 import { NewAssetDialog } from "@/features/asset/components/new-asset-dialog";
+import { useCanManageAssets } from "@/hooks/use-can-manage-assets";
 import { getToastMessage } from "@/lib/errors";
 import { trpc } from "@/lib/trpc";
 
@@ -85,6 +86,7 @@ function formatStatus(status: string): string {
 }
 
 export default function AssetListPage() {
+	const canManageAssets = useCanManageAssets();
 	const utils = trpc.useUtils();
 	const router = useRouter();
 	const [scannerOpen, setScannerOpen] = React.useState(false);
@@ -265,8 +267,8 @@ export default function AssetListPage() {
 		return "Today";
 	}, []);
 
-	const columns = React.useMemo<ColumnDef<AssetRow>[]>(
-		() => [
+	const columns = React.useMemo<ColumnDef<AssetRow>[]>(() => {
+		const allColumns: ColumnDef<AssetRow>[] = [
 			{
 				id: "select",
 				header: ({ table }) => (
@@ -475,22 +477,26 @@ export default function AssetListPage() {
 										View Details
 									</Link>
 								</DropdownMenuItem>
-								<DropdownMenuItem asChild>
-									<Link
-										href={`/asset/asset-sub-module/asset/form?id=${asset.id}`}
-									>
-										<Edit className="mr-2 h-4 w-4" />
-										Edit Asset
-									</Link>
-								</DropdownMenuItem>
-								<DropdownMenuSeparator />
-								<DropdownMenuItem
-									onClick={() => handleDelete(asset.id)}
-									className="text-destructive focus:text-destructive"
-								>
-									<Trash className="mr-2 h-4 w-4" />
-									Delete Asset
-								</DropdownMenuItem>
+								{canManageAssets && (
+									<>
+										<DropdownMenuItem asChild>
+											<Link
+												href={`/asset/asset-sub-module/asset/form?id=${asset.id}`}
+											>
+												<Edit className="mr-2 h-4 w-4" />
+												Edit Asset
+											</Link>
+										</DropdownMenuItem>
+										<DropdownMenuSeparator />
+										<DropdownMenuItem
+											onClick={() => handleDelete(asset.id)}
+											className="text-destructive focus:text-destructive"
+										>
+											<Trash className="mr-2 h-4 w-4" />
+											Delete Asset
+										</DropdownMenuItem>
+									</>
+								)}
 							</DropdownMenuContent>
 						</DropdownMenu>
 					);
@@ -501,9 +507,11 @@ export default function AssetListPage() {
 				enableColumnFilter: false,
 				enableGlobalFilter: false,
 			},
-		],
-		[handleDelete, getRelativeAge],
-	);
+		];
+		return canManageAssets
+			? allColumns
+			: allColumns.filter((column) => column.id !== "select");
+	}, [handleDelete, getRelativeAge, canManageAssets]);
 
 	const handleBulkDelete = React.useCallback(
 		async (rows: readonly Row<AssetRow>[]) => {
@@ -518,18 +526,21 @@ export default function AssetListPage() {
 	);
 
 	const bulkActions = React.useMemo<BulkAction<AssetRow>[]>(
-		() => [
-			{
-				label: "Delete Selected",
-				icon: <Trash className="h-4 w-4" />,
-				action: handleBulkDelete,
-				variant: "destructive",
-				requiresConfirmation: true,
-				confirmationMessage:
-					"This will permanently delete the selected assets. This action cannot be undone.",
-			},
-		],
-		[handleBulkDelete],
+		() =>
+			!canManageAssets
+				? []
+				: [
+						{
+							label: "Delete Selected",
+							icon: <Trash className="h-4 w-4" />,
+							action: handleBulkDelete,
+							variant: "destructive",
+							requiresConfirmation: true,
+							confirmationMessage:
+								"This will permanently delete the selected assets. This action cannot be undone.",
+						},
+					],
+		[handleBulkDelete, canManageAssets],
 	);
 
 	const handleReload = React.useCallback(async () => {
@@ -541,8 +552,8 @@ export default function AssetListPage() {
 		columns,
 		initialPageSize: 25,
 		initialSorting: [{ id: "age", desc: true }],
-		enableRowSelection: true,
-		enableMultiRowSelection: true,
+		enableRowSelection: canManageAssets,
+		enableMultiRowSelection: canManageAssets,
 		enableGlobalFilter: true,
 		onReload: handleReload,
 	});
@@ -682,7 +693,7 @@ export default function AssetListPage() {
 						enableGlobalSearch
 						enableExport
 						enableImport={false}
-						enableBulkActions
+						enableBulkActions={canManageAssets}
 						enableVirtualization
 						enableColumnResizing
 						enableColumnReordering
@@ -699,7 +710,7 @@ export default function AssetListPage() {
 									<Scan className="mr-2 h-4 w-4" />
 									Scan Barcode
 								</Button>
-								<NewAssetDialog />
+								{canManageAssets && <NewAssetDialog />}
 							</div>
 						}
 						ariaLabel="Assets table"

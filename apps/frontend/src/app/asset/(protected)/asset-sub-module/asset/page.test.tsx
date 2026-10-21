@@ -1,10 +1,16 @@
 import "@testing-library/jest-dom";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithProviders, screen } from "@/test/utils";
 import AssetListPage from "./page";
 
 const mockPush = vi.fn();
 const mockFetch = vi.fn();
+
+const canManageAssets = vi.hoisted(() => ({ value: true }));
+
+vi.mock("@/hooks/use-can-manage-assets", () => ({
+	useCanManageAssets: () => canManageAssets.value,
+}));
 
 vi.mock("next/navigation", () => ({
 	useRouter: () => ({
@@ -75,6 +81,7 @@ vi.mock("@/lib/trpc", () => ({
 
 describe("AssetListPage", () => {
 	beforeEach(() => {
+		canManageAssets.value = true;
 		mockPush.mockClear();
 		mockFetch.mockClear();
 	});
@@ -84,5 +91,29 @@ describe("AssetListPage", () => {
 		expect(
 			screen.getByRole("button", { name: /Scan Barcode/i }),
 		).toBeInTheDocument();
+	});
+});
+
+describe("AssetListPage — read-only access", () => {
+	beforeEach(() => {
+		canManageAssets.value = false;
+	});
+
+	afterEach(() => {
+		canManageAssets.value = true;
+	});
+
+	it("hides the Add Asset button and row selection", () => {
+		renderWithProviders(<AssetListPage />);
+
+		expect(
+			screen.getByRole("button", { name: /Scan Barcode/i }),
+		).toBeInTheDocument();
+		expect(
+			screen.queryByRole("button", { name: /Add Asset/i }),
+		).not.toBeInTheDocument();
+		expect(
+			screen.queryByRole("checkbox", { name: /Select all rows/i }),
+		).not.toBeInTheDocument();
 	});
 });

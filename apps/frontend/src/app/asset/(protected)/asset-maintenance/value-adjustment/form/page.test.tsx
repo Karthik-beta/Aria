@@ -1,5 +1,5 @@
 import "@testing-library/jest-dom";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithProviders, screen, userEvent, waitFor } from "@/test/utils";
 import AssetValueAdjustmentFormPage from "./page";
 
@@ -80,6 +80,12 @@ const submittedRecord = {
 		updatedAt: new Date("2026-04-16T10:00:00Z"),
 	},
 };
+
+const canManageAssets = vi.hoisted(() => ({ value: true }));
+
+vi.mock("@/hooks/use-can-manage-assets", () => ({
+	useCanManageAssets: () => canManageAssets.value,
+}));
 
 vi.mock("next/navigation", () => ({
 	useRouter: () => ({
@@ -195,6 +201,7 @@ vi.mock("@/lib/trpc", () => ({
 
 describe("AssetValueAdjustmentFormPage", () => {
 	beforeEach(() => {
+		canManageAssets.value = true;
 		currentId = null;
 		currentAssetId = null;
 		mockPush.mockClear();
@@ -295,5 +302,26 @@ describe("AssetValueAdjustmentFormPage", () => {
 				id: submittedRecord.id,
 			});
 		});
+	});
+});
+
+describe("AssetValueAdjustmentFormPage — read-only access", () => {
+	beforeEach(() => {
+		canManageAssets.value = false;
+	});
+
+	afterEach(() => {
+		canManageAssets.value = true;
+	});
+
+	it("renders the write-access notice instead of the form", () => {
+		renderWithProviders(<AssetValueAdjustmentFormPage />);
+
+		expect(
+			screen.getByText(
+				/You need the owner or admin role in this organization to change asset records/i,
+			),
+		).toBeInTheDocument();
+		expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
 	});
 });
