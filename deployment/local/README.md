@@ -4,6 +4,10 @@ Run the full Aria ERP stack on one Windows machine with Docker Desktop, with
 settings, demo data and scheduled jobs already in place. The app runs as
 production builds behind Caddy on `http://localhost:8080`.
 
+For demo laptops (sales), use the **Windows installer** instead of a clone:
+see [Windows installer](#windows-installer). The rest of this page covers the
+clone, which developers use.
+
 ## Requirements
 
 - Windows 10/11 with [Docker Desktop](https://www.docker.com/products/docker-desktop/)
@@ -154,6 +158,62 @@ fails), the current version is started again.
 
 Updates only fast-forward. If the local branch has its own commits, `update`
 stops and leaves it to you.
+
+## Windows installer
+
+`AriaSetup-<version>.exe` installs, updates and uninstalls the demo without
+Git or a clone. Every `vX.Y.Z` tag attaches it to the GitHub Release (built by
+`.github/workflows/windows-installer.yml` from `deployment/windows/installer`).
+It runs the images CI built for that tag, so nothing is built on the laptop.
+
+**Before the first install**, on each laptop: install
+[Docker Desktop](https://www.docker.com/products/docker-desktop/) (this needs
+administrator rights), start it once, and enable *Settings > General > Start
+Docker Desktop when you sign in*. Aria restarts with Docker Desktop, so the
+link keeps working after a reboot. The installer stops with a download link
+when Docker Desktop is missing.
+
+| Task      | How                                                                 |
+| --------- | ------------------------------------------------------------------- |
+| Install   | Run `AriaSetup-<version>.exe`. A console window shows progress (download, demo data, health checks), then the browser opens. |
+| Use       | Open the **Aria ERP** shortcut (desktop or Start Menu), or `http://localhost:8080` |
+| Update    | Run the newer `AriaSetup-<version>.exe`                             |
+| Uninstall | Windows Settings > Apps > Aria ERP (or the Start Menu's *Uninstall Aria ERP*); it asks whether to keep the backups |
+
+The installer needs no administrator rights. It installs per user to
+`%LOCALAPPDATA%\Programs\Aria ERP`:
+
+```text
+Aria ERP\
+  versions\<version>\     compose file and deployment\local of each installed version
+  backups\                database backups (shared by every version)
+  logs\                   one log per install or update
+  current-version.txt     the version that is running
+  Aria ERP.url            what the shortcuts open (follows the port Aria runs on)
+```
+
+An update installs the new version next to the old one, then runs the same
+steps as `update` above: it checks the new images are published, creates a
+restore point (app stopped, database backup, data snapshot, images), switches
+to the new version and checks health, the depreciation scheduler and the data.
+On success it removes the restore point and the old version's folder. On any
+failure it rolls back to the old folder, images and database, and the installer
+shows where the log is. Installed copies refuse `update` and `-FromSource`.
+
+To publish a release:
+
+```bash
+git tag v0.2.0
+```
+
+```bash
+git push origin v0.2.0
+```
+
+Release Images then builds the images, then the installer, then the GitHub
+Release with `AriaSetup-0.2.0.exe` attached. The installer is not code-signed,
+so Windows SmartScreen shows an *unknown publisher* warning (*More info >
+Run anyway*).
 
 ## Prebuilt images
 

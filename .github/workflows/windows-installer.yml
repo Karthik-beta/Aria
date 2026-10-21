@@ -1,0 +1,66 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+name: Windows Installer
+
+# Builds AriaSetup-<version>.exe (deployment/windows/installer). Release Images
+# calls it for vX.Y.Z tags and attaches the result to the GitHub Release;
+# pull requests that touch the installer or what it ships build it as a check.
+
+on:
+  pull_request:
+    branches: ['master']
+    paths:
+      - 'deployment/windows/installer/**'
+      - 'deployment/local/**'
+      - 'docker-compose.local.yml'
+      - 'aria-local.cmd'
+      - '.github/workflows/windows-installer.yml'
+  workflow_call:
+    inputs:
+      version:
+        description: Release version or tag (v0.2.0 or 0.2.0)
+        required: true
+        type: string
+      revision:
+        description: Commit the release images were built from
+        required: true
+        type: string
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+permissions: {}
+
+jobs:
+  build:
+    name: Build AriaSetup.exe
+    runs-on: windows-2025
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) {
+            choco install innosetup --yes --no-progress
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+
+      - name: Build installer
+        shell: pwsh
+        env:
+          # Pull requests have no release: a placeholder version, the PR's commit.
+          VERSION: ${{ inputs.version || '0.0.0-pr' }}
+          REVISION: ${{ inputs.revision || github.sha }}
+        run: ./deployment/windows/installer/build-installer.ps1 -Version ($env:VERSION -replace '^v', '') -Revision $env:REVISION -OutDir dist
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v5
+        with:
+          name: aria-setup
+          path: dist/AriaSetup-*.exe
+          if-no-files-found: error
+          retention-days: 7

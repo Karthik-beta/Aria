@@ -22,6 +22,9 @@
     update       Check for a new version; if there is one, save a restore point, pull the code and images,
                  migrate and restart, then check health and data (depreciation records included).
                  Rolls back to the restore point on any failure; removes it on success.
+                 Installed releases update by running the newer AriaSetup.exe instead.
+    install      Installed releases only, run by AriaSetup.exe: start this version, or switch to it
+                 from the installed one with the same restore point, checks and rollback as update
     backup       Back up the database now (deployment\local\backups)
     restore      Replace the database with a backup (-File <name>)
     reload-demo  Wipe and reload the demo dataset in the existing database
@@ -44,7 +47,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Position = 0)]
-    [ValidateSet('start', 'stop', 'restart', 'status', 'logs', 'update', 'backup', 'restore', 'reload-demo', 'reset', 'open', 'uninstall', 'help')]
+    [ValidateSet('start', 'stop', 'restart', 'status', 'logs', 'update', 'install', 'backup', 'restore', 'reload-demo', 'reset', 'open', 'uninstall', 'help')]
     [string]$Command = 'start',
 
     # Host port for http://localhost:<Port>. Default: ARIA_HTTP_PORT from the env file (8080).
@@ -107,9 +110,30 @@ $env:BUILDKIT_PROGRESS = 'plain'
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $ComposeFile = Join-Path $RepoRoot 'docker-compose.local.yml'
 $EnvFile = Join-Path $PSScriptRoot 'aria-local.env'
-$OverrideEnvFile = Join-Path $PSScriptRoot 'aria-local.override.env'
-$BackupDir = Join-Path $PSScriptRoot 'backups'
-$LockFile = Join-Path $PSScriptRoot '.aria-local.lock'
+# Written by the installer build (deployment\windows\installer): this copy is
+# release ARIA_RELEASE_VERSION, installed in <install dir>\versions\<version>,
+# and runs the images CI built from ARIA_RELEASE_REVISION. No git, no sources.
+$ReleaseFile = Join-Path $PSScriptRoot 'release.env'
+$IsRelease = Test-Path $ReleaseFile
+if ($IsRelease) {
+    # Shared by every installed version, so updates and rollbacks keep them.
+    $InstallRoot = Split-Path (Split-Path $RepoRoot -Parent) -Parent
+    $OverrideEnvFile = Join-Path $InstallRoot 'aria-local.override.env'
+    $BackupDir = Join-Path $InstallRoot 'backups'
+    $LockFile = Join-Path $InstallRoot '.aria-local.lock'
+    # The version the installer last switched to successfully.
+    $CurrentVersionFile = Join-Path $InstallRoot 'current-version.txt'
+    # The shortcuts open this file, so it follows the port Aria ends up on.
+    $UrlFile = Join-Path $InstallRoot 'Aria ERP.url'
+    $LogDir = Join-Path $InstallRoot 'logs'
+    # The backup service mounts this instead of deployment/local/backups.
+    $env:ARIA_BACKUP_DIR = $BackupDir
+}
+else {
+    $OverrideEnvFile = Join-Path $PSScriptRoot 'aria-local.override.env'
+    $BackupDir = Join-Path $PSScriptRoot 'backups'
+    $LockFile = Join-Path $PSScriptRoot '.aria-local.lock'
+}
 $DockerDesktopExe = "$env:ProgramFiles\Docker\Docker\Docker Desktop.exe"
 $BuiltImages = @('aria-local-backend', 'aria-local-frontend')
 # Files that go into the images; a local change to them rules out the prebuilt ones.
@@ -653,6 +677,7 @@ function Get-RegistryRepository([string]$Image) {
 # (CI publishes images only for the commits pushed to master). Returns @() when
 # only a local build matches the sources (no git, or local changes to them).
 function Get-SourceRevisions {
+    if ($IsRelease) { return @(Get-Setting 'ARIA_RELEASE_REVISION' '') | Where-Object { $_ -ne '' } }
     if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
         Write-Info 'git is not installed, so the matching prebuilt images cannot be identified.'
         return @()
@@ -788,6 +813,7 @@ function Invoke-Start {
     if ($build -and -not $FromSource) {
         $revisions = @(Get-SourceRevisions)
         if ($revisions.Count -gt 0 -and (Get-PrebuiltImages $revisions)) { $build = $false }
+        elseif ($IsRelease) { Stop-WithError 'This installed release has no sources to build from, and its images could not be downloaded. Check the internet connection and run the installer again.' }
         else { Write-Info 'Building the images from source instead.' }
     }
 
@@ -931,16 +957,19 @@ function Invoke-Git {
     return @($output | ForEach-Object { "$_" })
 }
 
-# Runs this script (as it is on disk now) in a child process; returns its exit code.
-function Invoke-Self([string[]]$ScriptArgs) {
+# Runs a copy of this script in a child process; returns its exit code.
+function Invoke-Script([string]$Path, [string[]]$ScriptArgs) {
     $hostExe = (Get-Process -Id $PID).Path
-    $childArgs = @('-NoLogo', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $PSCommandPath) + $ScriptArgs + @('-SkipLock', '-NoBrowser')
+    $childArgs = @('-NoLogo', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $Path) + $ScriptArgs + @('-SkipLock', '-NoBrowser')
     if ($Port -gt 0) { $childArgs += @('-Port', "$Port") }
     if ($FromSource) { $childArgs += '-FromSource' }
     $ErrorActionPreference = 'Continue'
     & $hostExe @childArgs | Out-Host
     return $LASTEXITCODE
 }
+
+# Runs this script (as it is on disk now) in a child process; returns its exit code.
+function Invoke-Self([string[]]$ScriptArgs) { return (Invoke-Script $PSCommandPath $ScriptArgs) }
 
 function Invoke-Update {
     if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
@@ -991,15 +1020,31 @@ function Invoke-Update {
         Write-Ok "Prebuilt images found ($($published.Substring(0, 8)))"
     }
 
+    # The scriptblocks run inside Invoke-GuardedSwitch and see $old and $new from here.
+    $switch = { if ($old -ne $new) { Write-Step "Pulling $newShort"; [void](Invoke-Git @('merge', '--ff-only', '--quiet', $new)) } }
+    $revert = { if ($old -ne $new) { [void](Invoke-Git @('reset', '--hard', '--quiet', $old)) } }
+    Invoke-GuardedSwitch -OldName $oldShort -NewName $newShort -OldScript $PSCommandPath -Switch $switch -Revert $revert -Commit {}
+}
+
+# Switches the running deployment from version $OldName to $NewName safely:
+# stops the app, saves a restore point (database backup, data snapshot,
+# images), runs $Switch to put the new files in place and starts them with the
+# new script, then checks health, the scheduler and the data. On success it
+# runs $Commit and removes the restore point; on any failure it runs $Revert,
+# restores the old images and database with $OldScript, checks again and exits with an error.
+function Invoke-GuardedSwitch {
+    param([string]$OldName, [string]$NewName, [string]$OldScript, [scriptblock]$Switch, [scriptblock]$Revert, [scriptblock]$Commit)
+
     Write-Step 'Creating a restore point'
     $backupName = ''
     $before = $null
+    $script:RestartScript = $OldScript
     if (Test-DatabaseVolume) {
         # Nothing may be written after the backup, or a rollback would lose it.
         Write-Info 'Stopping the app so the restore point holds every record'
         $script:RestartOnExit = $true
         Assert-Compose (Invoke-Compose stop caddy frontend backend) 'Stopping services'
-        $backupName = New-Backup "pre-update-$oldShort"
+        $backupName = New-Backup "pre-update-$OldName"
         Write-Info "Database saved as $backupName"
         $before = Get-DataSnapshot
         if ($null -eq $before) { Stop-WithError 'Could not read the database to record its contents. Nothing was changed.' }
@@ -1009,13 +1054,11 @@ function Invoke-Update {
         Write-Info 'No database yet, nothing to back up.'
     }
     Save-RollbackImages
+    $backupPath = Join-Path $BackupDir $backupName
 
-    if ($old -ne $new) {
-        Write-Step "Pulling $newShort"
-        [void](Invoke-Git @('merge', '--ff-only', '--quiet', $new))
-    }
+    & $Switch
 
-    # The child runs the updated script, compose file and migrations.
+    # The child runs the new script, compose file and migrations.
     Write-Step 'Installing and restarting the new version'
     $script:RestartOnExit = $false
     $exitCode = Invoke-Self @('start')
@@ -1029,35 +1072,36 @@ function Invoke-Update {
 
     if ($problems.Count -eq 0) {
         if ($null -ne $before) { Write-Ok "Data intact: all $($before.Counts.Count) tables kept their rows and the depreciation records are unchanged" }
+        & $Commit
         Remove-RollbackImages
         Remove-DanglingImages
         if ($backupName -ne '') {
             if ($KeepRestorePoint) {
-                Write-Info "Restore point kept: deployment\local\backups\$backupName"
+                Write-Info "Restore point kept: $backupPath"
             }
             else {
-                Remove-Item -Path (Join-Path $BackupDir $backupName) -Force -ErrorAction SilentlyContinue
+                Remove-Item -Path $backupPath -Force -ErrorAction SilentlyContinue
                 Write-Info 'Restore point removed (pass -KeepRestorePoint to keep it)'
             }
         }
-        Write-Ok "Updated to $newShort"
+        Write-Ok "Updated to $NewName"
         Open-Browser
         return
     }
 
     Write-Host ''
     foreach ($problem in $problems) { Write-Warn $problem }
-    Write-Warn "The update to $newShort failed its checks. Rolling back to $oldShort."
-    if ($old -ne $new) { [void](Invoke-Git @('reset', '--hard', '--quiet', $old)) }
+    Write-Warn "The update to $NewName failed its checks. Rolling back to $OldName."
+    & $Revert
     Restore-RollbackImages
     if ($backupName -ne '') {
-        $rollbackCode = Invoke-Self @('restore', '-File', $backupName, '-Force')
+        $rollbackCode = Invoke-Script $OldScript @('restore', '-File', $backupName, '-Force')
     }
     else {
-        $rollbackCode = Invoke-Self @('start', '-NoBuild')
+        $rollbackCode = Invoke-Script $OldScript @('start', '-NoBuild')
     }
     if ($rollbackCode -ne 0) {
-        Stop-WithError "Update failed and the rollback did not finish. Code is back at $oldShort; restore the data with: .\aria-local.cmd restore -File $backupName"
+        Stop-WithError "Update failed and the rollback did not finish. The files are back at $OldName; restore the data with: $OldScript restore -File $backupName"
     }
 
     Write-Step 'Checking the restored version'
@@ -1066,10 +1110,57 @@ function Invoke-Update {
     Remove-DanglingImages
     if ($rollbackProblems.Count -gt 0) {
         foreach ($problem in $rollbackProblems) { Write-Warn $problem }
-        Stop-WithError "Update to $newShort failed and Aria was rolled back to $oldShort, but the checks above still fail. The restore point is kept: deployment\local\backups\$backupName"
+        Stop-WithError "Update to $NewName failed and Aria was rolled back to $OldName, but the checks above still fail. The restore point is kept: $backupPath"
     }
-    $kept = if ($backupName -ne '') { " The restore point is kept: deployment\local\backups\$backupName" } else { '' }
-    Stop-WithError "Update to $newShort failed; Aria was rolled back to $oldShort, is running and its data matches the restore point.$kept See the output above for the cause."
+    $kept = if ($backupName -ne '') { " The restore point is kept: $backupPath" } else { '' }
+    Stop-WithError "Update to $NewName failed; Aria was rolled back to $OldName, is running and its data matches the restore point.$kept See the output above for the cause."
+}
+
+# ---------------------------------------------------------------------------
+# Install (installed releases, run by AriaSetup.exe)
+# ---------------------------------------------------------------------------
+# The installer copies each version to <install dir>\versions\<version> and
+# runs that copy's `install`. With no installed version it starts this one;
+# otherwise it switches from the installed version with the same restore
+# point, checks and rollback as update, and removes the old folder on success.
+function Invoke-Install {
+    $version = Get-Setting 'ARIA_RELEASE_VERSION' ''
+    New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
+    $log = Join-Path $LogDir "install-$version-$(Get-Date -Format 'yyyyMMdd-HHmmss').log"
+    try { Start-Transcript -Path $log | Out-Null } catch { Write-Warn "Could not write the log $log" }
+
+    $previous = ''
+    if (Test-Path $CurrentVersionFile) { $previous = "$(Get-Content -Path $CurrentVersionFile -TotalCount 1)".Trim() }
+    $previousScript = Join-Path $InstallRoot "versions\$previous\deployment\local\aria-local.ps1"
+
+    if ($previous -eq '' -or $previous -eq $version -or -not (Test-Path $previousScript)) {
+        Write-Step "Installing Aria ERP $version"
+        Invoke-Start
+        Complete-Install $version ''
+        return
+    }
+
+    Write-Step "Updating Aria ERP $previous -> $version"
+    Assert-Docker
+    # Check before touching anything; there are no sources to build from.
+    if ((Find-PublishedRevision @(Get-SourceRevisions)) -eq '') {
+        Stop-WithError "The images for $version could not be found (is the internet connection working?). Nothing was changed; Aria $previous is still installed."
+    }
+    $commit = { Complete-Install $version $previous }
+    Invoke-GuardedSwitch -OldName $previous -NewName $version -OldScript $previousScript -Switch {} -Revert {} -Commit $commit
+}
+
+# Records $Version as installed, points the shortcuts at the URL Aria runs on
+# and removes the $Previous version's folder.
+function Complete-Install([string]$Version, [string]$Previous) {
+    Set-Content -Path $CurrentVersionFile -Value $Version -Encoding ascii
+    Set-Content -Path $UrlFile -Value @('[InternetShortcut]', "URL=$script:AppUrl/") -Encoding ascii
+    if ($Previous -ne '' -and $Previous -ne $Version) {
+        $folder = Join-Path $InstallRoot "versions\$Previous"
+        Remove-Item -Path $folder -Recurse -Force -ErrorAction SilentlyContinue
+        if (Test-Path $folder) { Write-Warn "Could not remove the previous version's folder $folder" }
+    }
+    Write-Ok "Aria ERP $Version is installed. Open it from the 'Aria ERP' shortcut or $script:AppUrl"
 }
 
 # ---------------------------------------------------------------------------
@@ -1151,7 +1242,8 @@ function Invoke-Uninstall {
     }
     Write-Ok 'Aria was removed from Docker cleanly'
     if ($KeepBackups -and (Test-Path $BackupDir)) { Write-Info "Backups kept in $BackupDir" }
-    Write-Info "You can now delete the folder $RepoRoot"
+    # The uninstaller removes an installed release's files.
+    if (-not $IsRelease) { Write-Info "You can now delete the folder $RepoRoot" }
 }
 
 # ---------------------------------------------------------------------------
@@ -1161,6 +1253,7 @@ if (-not (Test-Path $ComposeFile)) { Stop-WithError "Missing $ComposeFile" }
 if (-not (Test-Path $EnvFile)) { Stop-WithError "Missing $EnvFile" }
 
 $script:Settings = Read-EnvFile $EnvFile
+if ($IsRelease) { foreach ($entry in (Read-EnvFile $ReleaseFile).GetEnumerator()) { $script:Settings[$entry.Key] = $entry.Value } }
 foreach ($entry in (Read-EnvFile $OverrideEnvFile).GetEnumerator()) { $script:Settings[$entry.Key] = $entry.Value }
 $script:HttpPort = 80
 $script:AppUrl = 'http://localhost'
@@ -1168,6 +1261,12 @@ $script:OwnsLock = $false
 $script:GitExitCode = 0
 # Set while update has the app stopped for its restore point; an early exit starts it again.
 $script:RestartOnExit = $false
+# The script that starts the version being replaced (an installed release's own copy).
+$script:RestartScript = ''
+
+if ($IsRelease -and $Command -eq 'update') { Stop-WithError 'This is an installed release: run the newer AriaSetup.exe to update it.' }
+if ($IsRelease -and $FromSource) { Stop-WithError 'This is an installed release without sources, so -FromSource is not available.' }
+if (-not $IsRelease -and $Command -eq 'install') { Stop-WithError 'install is run by AriaSetup.exe for installed releases. In a git clone, use start or update.' }
 
 $readOnlyCommands = @('status', 'logs', 'open', 'help')
 
@@ -1181,6 +1280,7 @@ try {
         'status' { Invoke-Status }
         'logs' { Invoke-Logs }
         'update' { Invoke-Update }
+        'install' { Invoke-Install }
         'backup' { Invoke-Backup }
         'restore' { Invoke-Restore }
         'reload-demo' { Invoke-ReloadDemo }
@@ -1199,7 +1299,8 @@ try {
 finally {
     if ($script:RestartOnExit) {
         Write-Warn 'Update stopped before installing anything; starting the current version again'
-        [void](Invoke-Compose up -d --remove-orphans)
+        if ($script:RestartScript -ne '' -and $script:RestartScript -ne $PSCommandPath) { [void](Invoke-Script $script:RestartScript @('start', '-NoBuild')) }
+        else { [void](Invoke-Compose up -d --remove-orphans) }
     }
     Exit-Lock
     Pop-Location

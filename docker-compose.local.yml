@@ -192,7 +192,8 @@ services:
     volumes:
       - ./deployment/local/backup.sh:/usr/local/bin/aria-backup:ro
       - ./deployment/local/restore.sh:/usr/local/bin/aria-restore:ro
-      - ./deployment/local/backups:/backups
+      # aria-local.ps1 sets ARIA_BACKUP_DIR for installed releases (shared by every version)
+      - ${ARIA_BACKUP_DIR:-./deployment/local/backups}:/backups
     networks:
       - aria-local
     depends_on:
