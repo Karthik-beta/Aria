@@ -14,7 +14,7 @@ export class ActiveUserGuard implements CanActivate {
 		const request = context.switchToHttp().getRequest();
 		const user = request.user;
 
-		if (!user || !user.id) {
+		if (!user?.id) {
 			throw new UnauthorizedException("No authenticated user");
 		}
 
