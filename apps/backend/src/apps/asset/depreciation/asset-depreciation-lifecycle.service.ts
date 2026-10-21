@@ -7,6 +7,13 @@ import {
 } from "@nestjs/common";
 import { Prisma } from "../../../generated/prisma/client";
 import type { PrismaService } from "../../../shared/prisma.service";
+import {
+	ASSET_DEPRECIATING_STATUSES,
+	ASSET_OPERATIONAL_STATUSES,
+	assetStatusLabel,
+	deriveAssetStatus,
+} from "../asset-status";
+import { loadAssetStatusInputs } from "../asset-status.service";
 import { AssetDepreciationReversalService } from "./asset-depreciation-reversal.service";
 import {
 	buildDepreciationSchedule,
@@ -24,16 +31,10 @@ const CANCELLABLE_STATUSES = [
 	"FULLY_DEPRECIATED",
 ];
 const CANCELLATION_PREVIEW_ENTRY_LIMIT = 200;
-const ACTIVE_MAINTENANCE_STATUSES = ["IN_MAINTENANCE", "OUT_OF_ORDER"];
+const ACTIVE_MAINTENANCE_STATUSES: readonly string[] =
+	ASSET_OPERATIONAL_STATUSES;
 const SUBMITTED_ADJUSTMENT_BLOCKER =
 	"Cancel the submitted asset value adjustments first";
-
-const statusLabel = (status: string): string =>
-	status
-		.toLowerCase()
-		.split("_")
-		.map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-		.join(" ");
 
 type BookConfiguration = Asset.AssetFinanceBookInput;
 
@@ -75,9 +76,17 @@ export class AssetDepreciationLifecycleService {
 				where: { assetId, status: "DRAFT" },
 				data: { status: "ACTIVE" },
 			});
+			const inputs = await loadAssetStatusInputs(tx, assetId);
 			await tx.asset.update({
 				where: { id: assetId },
-				data: { status: "SUBMITTED" },
+				data: {
+					status: inputs
+						? deriveAssetStatus({
+								...inputs.derive,
+								currentStatus: "SUBMITTED",
+							})
+						: "SUBMITTED",
+				},
 			});
 			await tx.assetActivity.create({
 				data: { assetId, activity: "Asset submitted for depreciation" },
@@ -185,7 +194,7 @@ export class AssetDepreciationLifecycleService {
 			);
 		} else if (!CANCELLABLE_STATUSES.includes(asset.status)) {
 			blockers.push(
-				`Asset cannot be cancelled, as it is already ${statusLabel(asset.status)}`,
+				`Asset cannot be cancelled, as it is already ${assetStatusLabel(asset.status as Asset.AssetStatus)}`,
 			);
 		}
 		const submittedAdjustments = await reader.assetValueAdjustment.count({
@@ -371,7 +380,7 @@ export class AssetDepreciationLifecycleService {
 			const books = await this.prisma.assetFinanceBook.findMany({
 				where: {
 					asset: {
-						status: { in: ["SUBMITTED", "PARTIALLY_DEPRECIATED"] },
+						status: { in: [...ASSET_DEPRECIATING_STATUSES] },
 						calculateDepreciation: true,
 					},
 					schedules: {
