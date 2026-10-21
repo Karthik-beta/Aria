@@ -8,7 +8,8 @@
 # Usage: backup.sh [label]   label defaults to "nightly"
 #
 # Environment: PGHOST, PGUSER, PGPASSWORD, PGDATABASE, BACKUP_RETENTION
-# Only "nightly" backups are pruned; manual and pre-update backups are kept.
+# Only "nightly" backups are pruned here; update removes its own pre-update
+# backup once the update succeeds.
 
 set -eu
 

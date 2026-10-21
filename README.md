@@ -62,6 +62,8 @@ are unavailable) and starts the full stack on `http://localhost:8080` with prelo
 medium-scale demo data and nightly backups. Sign in as `admin` / `admin123`.
 Later, `.\aria-local.cmd update` pulls and applies the latest version (rolling back on failure)
 and `.\aria-local.cmd uninstall` removes everything. See [deployment/local](./deployment/local/README.md).
+For demo laptops without Git, each GitHub Release has `AriaSetup-<version>.exe`, which installs,
+updates and uninstalls the same demo ([Windows installer](./deployment/local/README.md#windows-installer)).
 
 ## Development Commands
 
