@@ -2,10 +2,10 @@
 <!--
   SignPath artifact configuration "installer" for the project "aria".
   The signing job (.github/workflows/release-images.yml) submits the
-  aria-setup GitHub artifact: a zip holding AriaSetup-<version>.exe.
+  aria-setup GitHub artifact: a zip holding Aria-ERP-Setup.exe.
   Paste this into SignPath > Projects > aria > Artifact configurations; see
   README.md in this folder. The version parameter is the release tag without
-  the leading v (0.2.0), and the installer's product name and version must
+  the leading v (0.2.0), and the setup's product name and version must
   match (deployment/windows/installer/aria-setup.iss).
 -->
 <artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
@@ -13,8 +13,8 @@
     <parameter name="version" required="true" />
   </parameters>
   <zip-file>
-    <pe-file path="AriaSetup-${version}.exe" product-name="Aria ERP" product-version="${version}">
-      <authenticode-sign hash-algorithm="sha256" description="Aria ERP demo installer" description-url="https://github.com/Karthik-beta/Aria" />
+    <pe-file path="Aria-ERP-Setup.exe" product-name="Aria ERP" product-version="${version}">
+      <authenticode-sign hash-algorithm="sha256" description="Aria ERP Setup" description-url="https://github.com/Karthik-beta/Aria" />
     </pe-file>
   </zip-file>
 </artifact-configuration>

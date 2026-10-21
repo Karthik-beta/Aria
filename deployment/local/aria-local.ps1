@@ -22,8 +22,8 @@
     update       Check for a new version; if there is one, save a restore point, pull the code and images,
                  migrate and restart, then check health and data (depreciation records included).
                  Rolls back to the restore point on any failure; removes it on success.
-                 Installed releases update by running the newer AriaSetup.exe instead.
-    install      Installed releases only, run by AriaSetup.exe: start this version, or switch to it
+                 Installed releases update through Aria-ERP-Setup.exe instead.
+    install      Installed releases only, run by Aria-ERP-Setup.exe: start this version, or switch to it
                  from the installed one with the same restore point, checks and rollback as update
     backup       Back up the database now (deployment\local\backups)
     restore      Replace the database with a backup (-File <name>)
@@ -93,6 +93,9 @@ param(
     # Internal: set when update runs this script as a child process that already holds the lock
     [switch]$SkipLock,
 
+    # Internal: also print '##aria <kind> <value>' lines (phase, percent, error) for Aria-ERP-Setup.exe
+    [switch]$ReportProgress,
+
     # Minutes to wait for the app to become healthy
     [int]$TimeoutMinutes = 15
 )
@@ -154,8 +157,17 @@ function Write-Info([string]$Message) { Write-Host "    $Message" -ForegroundCol
 function Write-Ok([string]$Message) { Write-Host "[OK] $Message" -ForegroundColor Green }
 function Write-Warn([string]$Message) { Write-Host "[WARN] $Message" -ForegroundColor Yellow }
 
+# Aria-ERP-Setup.exe runs this script without a console and shows these as its steps:
+#   phase   check | backup | download | database | demo | start | verify | rollback | remove | cleanup
+#   percent 0-100 within the current phase (download only)
+#   error   the message the script stops with
+function Send-Progress([string]$Kind, [string]$Value) {
+    if ($ReportProgress) { Write-Host "##aria $Kind $Value" }
+}
+
 function Stop-WithError([string]$Message) {
     Write-Host "[ERROR] $Message" -ForegroundColor Red
+    Send-Progress 'error' $Message
     exit 1
 }
 
@@ -268,6 +280,7 @@ function Exit-Lock {
 # Preflight
 # ---------------------------------------------------------------------------
 function Assert-Docker {
+    Send-Progress 'phase' 'check'
     Write-Step 'Checking Docker Desktop'
 
     if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
@@ -737,6 +750,7 @@ function Get-PrebuiltImages([string[]]$Revisions) {
         if ($Revisions -notcontains (Get-ImageRevision "${image}:latest")) { $current = $false; break }
     }
     if ($current) {
+        $script:PullTotal -= $BuiltImages.Count
         Write-Ok "Prebuilt images for $($Revisions[0].Substring(0, 8)) are already here"
         return $true
     }
@@ -754,10 +768,7 @@ function Get-PrebuiltImages([string[]]$Revisions) {
     $pulled = @()
     foreach ($image in $BuiltImages) {
         $remote = "$(Get-RegistryRepository $image):sha-$Revision"
-        $ErrorActionPreference = 'Continue'
-        & docker pull $remote | Out-Host
-        $code = $LASTEXITCODE
-        $ErrorActionPreference = 'Stop'
+        $code = Invoke-Pull $remote
         if ($code -ne 0) {
             foreach ($reference in $pulled) { [void](Test-DockerCommand image rm $reference) }
             Write-Warn "Prebuilt images for $short are not available (the Release Images workflow may still be running, or the registry is unreachable)."
@@ -775,6 +786,37 @@ function Get-PrebuiltImages([string[]]$Revisions) {
     }
     Write-Ok "Downloaded prebuilt images for $short"
     return $true
+}
+
+# Images the stack runs as published (PostgreSQL, Redis, Caddy), not the Aria ones it tags locally.
+function Get-ServiceImages {
+    return @(Get-ComposeOutput config --images | Where-Object { $_ -ne '' -and $BuiltImages -notcontains ($_ -replace ':.*$', '') } | Sort-Object -Unique)
+}
+
+# Runs `docker pull` with its output streamed to the console; returns the exit
+# code. Reports the download as layers done out of layers seen, with each of
+# the $script:PullTotal pulls of this run taking an equal share of 0-100.
+function Invoke-Pull([string]$Reference) {
+    $layers = @{}
+    $last = -1
+    $ErrorActionPreference = 'Continue'
+    & docker pull $Reference 2>&1 | ForEach-Object {
+        $line = "$_"
+        Write-Host $line
+        if ($line -match '^([0-9a-f]{12}): (.+)$') {
+            $layer, $status = $Matches[1], $Matches[2]
+            # Docker 29 leaves some blobs at 'Download complete' (no 'Pull complete').
+            $layers[$layer] = ($status -match '^(Download complete|Pull complete|Already exists)')
+            $done = @($layers.Values | Where-Object { $_ }).Count
+            $total = [math]::Max($script:PullTotal, 1)
+            $percent = [int][math]::Floor(100 * ($script:PullDone + $done / $layers.Count) / $total)
+            if ($percent -ne $last) { Send-Progress 'percent' ([math]::Min($percent, 100)); $last = $percent }
+        }
+    }
+    $code = $LASTEXITCODE
+    $ErrorActionPreference = 'Stop'
+    $script:PullDone++
+    return $code
 }
 
 # Removes an image reference unless a container (from any project) uses it.
@@ -810,12 +852,25 @@ function Invoke-Start {
         }
     }
 
+    Send-Progress 'phase' 'download'
+    # Fetched here rather than by `up`, so the download is reported as one step.
+    $serviceImages = @(Get-ServiceImages | Where-Object { -not (Test-Image $_) })
+    $script:PullDone = 0
+    $script:PullTotal = $serviceImages.Count
     if ($build -and -not $FromSource) {
+        $script:PullTotal += $BuiltImages.Count
         $revisions = @(Get-SourceRevisions)
         if ($revisions.Count -gt 0 -and (Get-PrebuiltImages $revisions)) { $build = $false }
-        elseif ($IsRelease) { Stop-WithError 'This installed release has no sources to build from, and its images could not be downloaded. Check the internet connection and run the installer again.' }
+        elseif ($IsRelease) { Stop-WithError 'The Aria ERP download did not complete. Check the internet connection and try again.' }
         else { Write-Info 'Building the images from source instead.' }
     }
+    if ($serviceImages.Count -gt 0) {
+        Write-Step 'Downloading PostgreSQL, Redis and Caddy'
+        foreach ($image in $serviceImages) {
+            if ((Invoke-Pull $image) -ne 0) { Stop-WithError "Could not download $image. Check the internet connection and try again." }
+        }
+    }
+    Send-Progress 'percent' 100
 
     if ($build) {
         Write-Step 'Building images (the first build takes 10-20 minutes)'
@@ -828,18 +883,22 @@ function Invoke-Start {
         Assert-Compose $buildCode 'Image build'
     }
 
+    Send-Progress 'phase' 'database'
     Write-Step 'Starting PostgreSQL and Redis'
     Assert-Compose (Invoke-Compose up -d --wait postgres redis) 'Starting PostgreSQL and Redis'
 
     Write-Step 'Applying database migrations'
     Assert-Compose (Invoke-Compose run --rm --no-deps migrate) 'Database migration'
 
+    Send-Progress 'phase' 'demo'
     Write-Step "Loading demo data (first run only, scale=$(if ($Scale -ne '') { $Scale } else { Get-Setting 'DEMO_DATA_SCALE' 'medium' }), can take several minutes)"
     Assert-Compose (Invoke-Compose run --rm --no-deps demo-data) 'Demo data load'
 
+    Send-Progress 'phase' 'start'
     Write-Step 'Starting backend, frontend, backups and proxy'
     Assert-Compose (Invoke-Compose up -d --remove-orphans) 'Starting services'
 
+    Send-Progress 'phase' 'verify'
     Wait-ForApp
     Test-Schedulers
     Show-Summary
@@ -961,6 +1020,8 @@ function Invoke-Git {
 function Invoke-Script([string]$Path, [string[]]$ScriptArgs) {
     $hostExe = (Get-Process -Id $PID).Path
     $childArgs = @('-NoLogo', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $Path) + $ScriptArgs + @('-SkipLock', '-NoBrowser')
+    # A rollback runs the previous version's script, which may predate -ReportProgress.
+    if ($ReportProgress -and (Select-String -Path $Path -Pattern 'ReportProgress' -SimpleMatch -Quiet)) { $childArgs += '-ReportProgress' }
     if ($Port -gt 0) { $childArgs += @('-Port', "$Port") }
     if ($FromSource) { $childArgs += '-FromSource' }
     $ErrorActionPreference = 'Continue'
@@ -1035,6 +1096,7 @@ function Invoke-Update {
 function Invoke-GuardedSwitch {
     param([string]$OldName, [string]$NewName, [string]$OldScript, [scriptblock]$Switch, [scriptblock]$Revert, [scriptblock]$Commit)
 
+    Send-Progress 'phase' 'backup'
     Write-Step 'Creating a restore point'
     $backupName = ''
     $before = $null
@@ -1066,6 +1128,7 @@ function Invoke-GuardedSwitch {
         $problems = @("The new version did not start (exit code $exitCode).")
     }
     else {
+        Send-Progress 'phase' 'verify'
         Write-Step 'Checking the new version (health, scheduler, data)'
         $problems = @(Test-Deployment $before)
     }
@@ -1092,6 +1155,7 @@ function Invoke-GuardedSwitch {
     Write-Host ''
     foreach ($problem in $problems) { Write-Warn $problem }
     Write-Warn "The update to $NewName failed its checks. Rolling back to $OldName."
+    Send-Progress 'phase' 'rollback'
     & $Revert
     Restore-RollbackImages
     if ($backupName -ne '') {
@@ -1117,7 +1181,7 @@ function Invoke-GuardedSwitch {
 }
 
 # ---------------------------------------------------------------------------
-# Install (installed releases, run by AriaSetup.exe)
+# Install (installed releases, run by Aria-ERP-Setup.exe)
 # ---------------------------------------------------------------------------
 # The installer copies each version to <install dir>\versions\<version> and
 # runs that copy's `install`. With no installed version it starts this one;
@@ -1175,8 +1239,9 @@ function Invoke-Uninstall {
     $label = "label=com.docker.compose.project=$project"
 
     # Read the image list before the compose project is gone.
-    $pulledImages = @(Get-ComposeOutput config --images | Where-Object { $_ -ne '' -and $BuiltImages -notcontains ($_ -replace ':.*$', '') })
+    $pulledImages = Get-ServiceImages
 
+    Send-Progress 'phase' 'remove'
     Write-Step 'Removing containers, network and data volumes'
     Assert-Compose (Invoke-Compose down --volumes --remove-orphans) 'Uninstall'
 
@@ -1213,6 +1278,7 @@ function Invoke-Uninstall {
         Write-Info "Kept Docker's build cache ($cacheSize). Clear it later with: docker builder prune --all"
     }
 
+    Send-Progress 'phase' 'cleanup'
     Write-Step 'Removing local files'
     $localFiles = @($OverrideEnvFile)
     if (-not $KeepBackups) { $localFiles += $BackupDir }
@@ -1259,14 +1325,17 @@ $script:HttpPort = 80
 $script:AppUrl = 'http://localhost'
 $script:OwnsLock = $false
 $script:GitExitCode = 0
+# Image pulls finished and planned in this run, for the download percentage.
+$script:PullDone = 0
+$script:PullTotal = 0
 # Set while update has the app stopped for its restore point; an early exit starts it again.
 $script:RestartOnExit = $false
 # The script that starts the version being replaced (an installed release's own copy).
 $script:RestartScript = ''
 
-if ($IsRelease -and $Command -eq 'update') { Stop-WithError 'This is an installed release: run the newer AriaSetup.exe to update it.' }
+if ($IsRelease -and $Command -eq 'update') { Stop-WithError 'This is an installed release: update it from Aria ERP Setup.' }
 if ($IsRelease -and $FromSource) { Stop-WithError 'This is an installed release without sources, so -FromSource is not available.' }
-if (-not $IsRelease -and $Command -eq 'install') { Stop-WithError 'install is run by AriaSetup.exe for installed releases. In a git clone, use start or update.' }
+if (-not $IsRelease -and $Command -eq 'install') { Stop-WithError 'install is run by Aria-ERP-Setup.exe for installed releases. In a git clone, use start or update.' }
 
 $readOnlyCommands = @('status', 'logs', 'open', 'help')
 

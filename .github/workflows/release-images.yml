@@ -159,7 +159,7 @@ jobs:
       - name: Inspect image
         run: docker buildx imagetools inspect "$IMAGE_NAME:sha-$GITHUB_SHA"
 
-  # AriaSetup-<version>.exe for the local demo on Windows, pinned to this tag's images.
+  # Aria-ERP-Setup.exe for the local demo on Windows, pinned to this tag's images.
   installer:
     name: Windows installer
     if: startsWith(github.ref, 'refs/tags/v')
@@ -224,7 +224,7 @@ jobs:
         uses: actions/upload-artifact@v5
         with:
           name: aria-setup-signed
-          path: ${{ runner.temp }}/signed/AriaSetup-*.exe
+          path: ${{ runner.temp }}/signed/Aria-ERP-Setup.exe
           if-no-files-found: error
           retention-days: 7
 
@@ -249,11 +249,10 @@ jobs:
           TAG: ${{ github.ref_name }}
           INSTALLER_DIR: ${{ runner.temp }}/installer
         run: |
-          versioned=("$INSTALLER_DIR"/AriaSetup-*.exe)
-          # A fixed name too, so releases/latest/download/AriaSetup.exe always
-          # downloads the newest stable installer (the README links to it).
-          cp "${versioned[0]}" "$INSTALLER_DIR/AriaSetup.exe"
-          installer=("${versioned[@]}" "$INSTALLER_DIR/AriaSetup.exe")
+          # One fixed name: releases/latest/download/Aria-ERP-Setup.exe is the
+          # newest stable setup (the README links to it), and the Manage page's
+          # update check looks for it in the latest release.
+          installer=("$INSTALLER_DIR/Aria-ERP-Setup.exe")
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
             echo "Release $TAG already exists; attaching the installer"
             gh release upload "$TAG" "${installer[@]}" --repo "$GITHUB_REPOSITORY" --clobber
@@ -264,9 +263,9 @@ jobs:
           prerelease=()
           if [[ "$version" == *-* ]]; then prerelease=(--prerelease); fi
           notes="$(printf '%s\n' \
-            '## Windows demo installer' \
+            '## Aria ERP Setup for Windows' \
             '' \
-            "Run \`AriaSetup-$version.exe\` (below) on a laptop with Docker Desktop. Running a newer installer updates an existing install, with a restore point and automatic rollback. Uninstall from Windows Settings > Apps." \
+            "Run \`Aria-ERP-Setup.exe\` (below) on a laptop with Docker Desktop. It installs Aria ERP $version, or updates an existing install with a restore point and automatic rollback. To update or uninstall later, open Aria ERP Setup from the Start menu." \
             '' \
             "[Code signing policy](https://github.com/$GITHUB_REPOSITORY/blob/$TAG/CODE_SIGNING.md)" \
             '' \

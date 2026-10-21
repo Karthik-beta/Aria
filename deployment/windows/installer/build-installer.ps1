@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Builds AriaSetup-<version>.exe, the Windows installer for the local demo.
+    Builds Aria-ERP-Setup.exe, which installs, updates and uninstalls the local demo on Windows.
 
 .DESCRIPTION
     Stages the files an installed release runs from (the compose file and
@@ -9,7 +9,7 @@
     aria-setup.iss with Inno Setup 6.
 
     The images for -Revision (ghcr.io/karthik-beta/aria-*:sha-<revision>) must
-    be published by the Release Images workflow before the installer is used.
+    be published by the Release Images workflow before the setup is used.
 
 .EXAMPLE
     .\deployment\windows\installer\build-installer.ps1 -Version 0.2.0 -Revision (git rev-parse HEAD)
@@ -26,7 +26,7 @@ param(
     [ValidatePattern('^[0-9a-f]{40}$')]
     [string]$Revision,
 
-    # Where AriaSetup-<version>.exe is written
+    # Where Aria-ERP-Setup.exe is written
     [string]$OutDir = 'dist'
 )
 
@@ -77,4 +77,4 @@ $numericVersion = "$(($Version -split '[-+]')[0]).0"
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 & $iscc "/DAppVersion=$Version" "/DNumericVersion=$numericVersion" "/DPayloadDir=$stage" "/O$OutDir" (Join-Path $PSScriptRoot 'aria-setup.iss')
 if ($LASTEXITCODE -ne 0) { throw "ISCC failed (exit code $LASTEXITCODE)" }
-Write-Host "Built $(Join-Path $OutDir "AriaSetup-$Version.exe")"
+Write-Host "Built $(Join-Path $OutDir 'Aria-ERP-Setup.exe') ($Version)"

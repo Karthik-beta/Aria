@@ -9,8 +9,8 @@
 
 > Modern, modular B2B ERP suite built with TypeScript, NestJS, and Next.js
 
-**Try the demo on Windows:** [Download AriaSetup.exe](https://github.com/Karthik-beta/Aria/releases/latest/download/AriaSetup.exe)
-(needs [Docker Desktop](https://www.docker.com/products/docker-desktop/); see [Windows installer](./deployment/local/README.md#windows-installer)
+**Try the demo on Windows:** [Download Aria-ERP-Setup.exe](https://github.com/Karthik-beta/Aria/releases/latest/download/Aria-ERP-Setup.exe)
+(needs [Docker Desktop](https://www.docker.com/products/docker-desktop/); see [Aria ERP Setup](./deployment/local/README.md#aria-erp-setup-windows)
 and the [Code signing policy](./CODE_SIGNING.md)).
 
 Aria ERP is a full-stack monorepo providing enterprise resource planning capabilities through specialized modules for asset management, customer relations, human resources, and inventory control.
@@ -67,8 +67,8 @@ are unavailable) and starts the full stack on `http://localhost:8080` with prelo
 medium-scale demo data and nightly backups. Sign in as `admin` / `admin123`.
 Later, `.\aria-local.cmd update` pulls and applies the latest version (rolling back on failure)
 and `.\aria-local.cmd uninstall` removes everything. See [deployment/local](./deployment/local/README.md).
-For demo laptops without Git, each GitHub Release has `AriaSetup-<version>.exe`, which installs,
-updates and uninstalls the same demo ([Windows installer](./deployment/local/README.md#windows-installer)).
+For demo laptops without Git, each GitHub Release has `Aria-ERP-Setup.exe`, which installs,
+updates and uninstalls the same demo ([Aria ERP Setup](./deployment/local/README.md#aria-erp-setup-windows)).
 
 ## Development Commands
 
@@ -137,7 +137,7 @@ Contributions are welcome. Read the [Contributing Guide](./CONTRIBUTING.md) and 
 - **[Contributing Guide](./CONTRIBUTING.md)** — Development workflow and code standards
 - **[Code of Conduct](./CODE_OF_CONDUCT.md)** — Community standards
 - **[Security Policy](./SECURITY.md)** — Vulnerability reporting and security practices
-- **[Code signing policy](./CODE_SIGNING.md)** — How release installers are signed
+- **[Code signing policy](./CODE_SIGNING.md)** — How Aria ERP Setup is signed
 - **[Changelog](./CHANGELOG.md)** — Release history and notable changes
 
 ## License
