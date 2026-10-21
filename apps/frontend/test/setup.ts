@@ -10,6 +10,10 @@ import { afterEach, vi } from "vitest";
 // Cleanup after each test
 afterEach(() => {
 	cleanup();
+	// Radix DropdownMenu/Dialog set `pointer-events: none` on <body> while open
+	// and may not restore it on unmount in JSDOM; a leftover value makes
+	// user-event reject clicks in the next test.
+	document.body.style.removeProperty("pointer-events");
 });
 
 // Mock Next.js router
