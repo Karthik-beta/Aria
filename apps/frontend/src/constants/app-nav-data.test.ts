@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { getAppMetadata, getAppNavItems } from "./app-nav-data";
 
@@ -21,6 +23,48 @@ describe("getAppNavItems", () => {
 		expect(items.length).toBeGreaterThan(0);
 		expect(items[0]?.title).toBe("Dashboard");
 		expect(items[0]?.url).toMatch(/^\/asset\/dashboard/);
+	});
+
+	it("lists Finance Book in the Assets group after Asset Category", () => {
+		const group = getAppNavItems("asset").find((i) => i.title === "Assets");
+		const titles = group?.items?.map((i) => i.title) ?? [];
+		expect(titles).toContain("Finance Book");
+		expect(titles.indexOf("Finance Book")).toBe(
+			titles.indexOf("Asset Category") + 1,
+		);
+		expect(
+			group?.items?.find((i) => i.title === "Finance Book")?.url,
+		).toBe("/asset/asset-sub-module/finance-book");
+	});
+
+	it("every asset nav url resolves to an existing page route", () => {
+		const root = path.resolve(__dirname, "../app/asset/(protected)");
+		const hasPage = (segments: string[], dir: string): boolean => {
+			if (segments.length === 0) return fs.existsSync(path.join(dir, "page.tsx"));
+			const [head, ...rest] = segments;
+			if (!head || !fs.existsSync(dir)) return false;
+			const entries = fs.readdirSync(dir, { withFileTypes: true });
+			return entries.some((entry) => {
+				if (!entry.isDirectory()) return false;
+				const matches =
+					entry.name === head ||
+					/^\[.+\]$/.test(entry.name) ||
+					/^\(.+\)$/.test(entry.name);
+				if (!matches) return false;
+				// Route groups do not consume a URL segment.
+				return /^\(.+\)$/.test(entry.name)
+					? hasPage(segments, path.join(dir, entry.name))
+					: hasPage(rest, path.join(dir, entry.name));
+			});
+		};
+		const urls = getAppNavItems("asset").flatMap((item) => [
+			item.url,
+			...(item.items?.map((sub) => sub.url) ?? []),
+		]);
+		for (const url of urls.filter((u) => u && u !== "#")) {
+			const segments = url.split("/").filter(Boolean).slice(1);
+			expect(hasPage(segments, root), `missing page for ${url}`).toBe(true);
+		}
 	});
 
 	it("returns crm nav items for 'crm'", () => {
