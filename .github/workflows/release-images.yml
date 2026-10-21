@@ -190,7 +190,11 @@ jobs:
           TAG: ${{ github.ref_name }}
           INSTALLER_DIR: ${{ runner.temp }}/installer
         run: |
-          installer=("$INSTALLER_DIR"/AriaSetup-*.exe)
+          versioned=("$INSTALLER_DIR"/AriaSetup-*.exe)
+          # A fixed name too, so releases/latest/download/AriaSetup.exe always
+          # downloads the newest stable installer (the README links to it).
+          cp "${versioned[0]}" "$INSTALLER_DIR/AriaSetup.exe"
+          installer=("${versioned[@]}" "$INSTALLER_DIR/AriaSetup.exe")
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
             echo "Release $TAG already exists; attaching the installer"
             gh release upload "$TAG" "${installer[@]}" --repo "$GITHUB_REPOSITORY" --clobber

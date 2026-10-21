@@ -166,6 +166,10 @@ Git or a clone. Every `vX.Y.Z` tag attaches it to the GitHub Release (built by
 `.github/workflows/windows-installer.yml` from `deployment/windows/installer`).
 It runs the images CI built for that tag, so nothing is built on the laptop.
 
+Download the newest one from
+<https://github.com/Karthik-beta/Aria/releases/latest/download/AriaSetup.exe>
+(each release also has the same file as `AriaSetup-<version>.exe`).
+
 **Before the first install**, on each laptop: install
 [Docker Desktop](https://www.docker.com/products/docker-desktop/) (this needs
 administrator rights), start it once, and enable *Settings > General > Start
@@ -211,7 +215,9 @@ git push origin v0.2.0
 ```
 
 Release Images then builds the images, then the installer, then the GitHub
-Release with `AriaSetup-0.2.0.exe` attached. The installer is not code-signed,
+Release with `AriaSetup-0.2.0.exe` and `AriaSetup.exe` attached; the download
+link above then serves it (pre-release tags such as `v0.2.0-rc.1` do not
+replace it). The installer is not code-signed,
 so Windows SmartScreen shows an *unknown publisher* warning (*More info >
 Run anyway*).
 
