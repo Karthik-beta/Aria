@@ -103,6 +103,7 @@ Options:
 | `-Force`          | Skip confirmations (`restore`, `reset`, `uninstall`); `update`: reinstall even when up to date |
 | `-File <name>`    | Backup to restore (a name in `deployment\local\backups`, or a path) |
 | `-Branch <name>`  | Branch `update` follows (default `master`)                |
+| `-KeepRestorePoint` | `update` keeps the pre-update backup after a successful update |
 | `-KeepBackups`    | `uninstall` keeps `deployment\local\backups`              |
 | `-PruneBuildCache` | `uninstall` also clears Docker's (shared) build cache without asking |
 
@@ -125,18 +126,31 @@ One command does the whole update:
 
 1. Checks the clone is on `master` with no uncommitted changes to tracked
    files (put settings in `aria-local.override.env`, which is never touched)
-2. Fetches `origin/master` and stops if there is nothing new
-3. Saves a restore point: a `pre-update-<commit>` database backup and the
-   current images
-4. Fast-forwards the clone and shows the incoming commits
-5. Downloads the new commit's prebuilt images (or builds them when they are
-   not published yet), applies new migrations, restarts and waits for health
-   with the **new** version of this script and compose file. Your data and
-   demo data are kept.
-6. On success, removes the restore-point images and dangling old images. On
-   failure, rolls back automatically: the previous commit, the
-   previous images and the pre-update backup, then starts the old version
-   again and removes the images the failed build or download left behind.
+2. Fetches `origin/master`, stops if there is nothing new, and shows the
+   incoming commits
+3. Checks that the prebuilt images for the new commit are published. If they
+   are not (yet), it stops without changing anything instead of building on
+   this machine; run `update` again later, or pass `-FromSource`
+4. Creates a restore point: stops the app (so nothing is written after it),
+   saves a `pre-update-<commit>` database backup and the current images, and
+   records the data: the row count of every table, plus fingerprints of the
+   depreciation schedules, posted depreciation entries and depreciation
+   journal entries and lines
+5. Fast-forwards the clone, downloads the new images, applies new migrations,
+   restarts and waits for health with the **new** version of this script and
+   compose file. Your data and demo data are kept.
+6. Checks the new version: backend and frontend health, the depreciation
+   scheduler's startup pass, and the data. Every table must still have at
+   least as many rows as before (new records and scheduler catch-up are
+   fine), and the depreciation records that existed before must be unchanged.
+7. On success, removes the restore point (backup and images) and dangling old
+   images; pass `-KeepRestorePoint` to keep the backup. On any failure, rolls
+   back automatically: the previous commit, the previous images and the
+   restore-point backup, then starts the old version, checks it the same way
+   and keeps the restore point for you to inspect.
+
+If the update stops before installing anything (for example the backup
+fails), the current version is started again.
 
 Updates only fast-forward. If the local branch has its own commits, `update`
 stops and leaves it to you.
@@ -177,8 +191,9 @@ To use your own fork's images, set `ARIA_IMAGE_REGISTRY` (for example
 The `backup` service runs `pg_dump` on `BACKUP_SCHEDULE` and writes
 `aria-nightly-<timestamp>.dump` files to `deployment\local\backups` (git-ignored,
 visible in Explorer). It keeps the newest `BACKUP_RETENTION` nightly backups.
-Backups from `backup` (`aria-manual-*`), `update` (`aria-pre-update-*`) and
-`restore` (`aria-pre-restore-*`) are never pruned automatically.
+Backups from `backup` (`aria-manual-*`) and `restore` (`aria-pre-restore-*`)
+are never pruned automatically. `update`'s restore point (`aria-pre-update-*`)
+is removed after a successful update and kept after a rollback.
 
 ```powershell
 .\aria-local.cmd backup
@@ -279,8 +294,13 @@ loader clears partial demo data first).
   or pass `-Port 9090`.
 - **"Prebuilt images ... are not available"**: the commit was pushed only
   minutes ago and the Release Images workflow is still running, or
-  `ghcr.io` cannot be reached. The script builds locally instead; run
+  `ghcr.io` cannot be reached. `start` builds locally instead; run
   `.\aria-local.cmd update -Force` later to switch to the prebuilt images.
+  `update` stops without changing anything; run it again later.
+- **Update rolled back because of the data check**: the output lists the
+  table that lost rows or the depreciation records that changed. Aria is back
+  on the previous version with the restore-point data, and the backup stays in
+  `deployment\local\backups`.
 - **Build killed / exit code 137**: give Docker more memory
   (Docker Desktop > Settings > Resources, or `memory=6GB` in `%UserProfile%\.wslconfig`).
 - **"Switch to Linux containers"**: right-click the Docker tray icon and

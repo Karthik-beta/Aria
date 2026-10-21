@@ -19,7 +19,9 @@
     restart      stop + start without fetching or rebuilding
     status       Show container state, app health and recent backups
     logs         Follow logs (all services, or -Service <name>)
-    update       Pull the latest code and images, back up, migrate and restart (rolls back on failure)
+    update       Check for a new version; if there is one, save a restore point, pull the code and images,
+                 migrate and restart, then check health and data (depreciation records included).
+                 Rolls back to the restore point on any failure; removes it on success.
     backup       Back up the database now (deployment\local\backups)
     restore      Replace the database with a backup (-File <name>)
     reload-demo  Wipe and reload the demo dataset in the existing database
@@ -32,6 +34,7 @@
     .\aria-local.cmd
     .\aria-local.cmd start -Port 8080
     .\aria-local.cmd update
+    .\aria-local.cmd update -KeepRestorePoint
     .\aria-local.cmd start -FromSource
     .\aria-local.cmd restore -File aria-nightly-20261020-020000.dump
     .\aria-local.cmd logs -Service backend
@@ -78,6 +81,9 @@ param(
     # uninstall: keep deployment\local\backups
     [switch]$KeepBackups,
 
+    # update: keep the restore point (pre-update backup) after a successful update
+    [switch]$KeepRestorePoint,
+
     # uninstall: also clear Docker's build cache (shared with other projects) without asking
     [switch]$PruneBuildCache,
 
@@ -110,6 +116,9 @@ $BuiltImages = @('aria-local-backend', 'aria-local-frontend')
 $ImageSources = @('apps', 'packages', 'package.json', 'bun.lock', 'turbo.json', 'tsconfig.base.json', '.dockerignore')
 # How many commits back to look for published images that match the sources.
 $MaxImageLookback = 50
+# Tables whose rows the app removes on its own (expired logins, migration
+# bookkeeping); the update's data check skips them.
+$VolatileTables = @('_prisma_migrations', 'sessions', 'verifications')
 # Set by docker/metadata-action on the prebuilt images.
 $ImageSourceLabel = 'label=org.opencontainers.image.source=https://github.com/Karthik-beta/Aria'
 
@@ -507,6 +516,103 @@ function Restore-Database([string]$Name) {
 }
 
 # ---------------------------------------------------------------------------
+# Data integrity (update)
+# ---------------------------------------------------------------------------
+# Runs SQL in the database through psql on stdin (so quotes survive Windows
+# PowerShell) and returns the '|'-separated output rows.
+function Invoke-Sql([string]$Sql) {
+    $user = Get-Setting 'POSTGRES_USER' 'aria'
+    $database = Get-Setting 'POSTGRES_DB' 'aria'
+    $allArgs = (Get-ComposeArgs) + @('exec', '-T', 'postgres', 'psql', '-X', '-q', '-At', '-F', '|', '-U', $user, '-d', $database, '-f', '-')
+    $ErrorActionPreference = 'Continue'
+    $output = $Sql | & docker @allArgs 2>$null
+    return @($output | ForEach-Object { "$_" } | Where-Object { $_ -ne '' })
+}
+
+# Fingerprints of the depreciation records that existed at $Time (UTC): the
+# fields that never change once a record is written or posted. Each check is
+# its own statement, so a table an older schema lacks only skips that check.
+function Get-FingerprintSql([string]$Time) {
+    $checks = [ordered]@{
+        'depreciation schedules'         = @('asset_depreciation_schedules', '"createdAt"', 'id, "assetId", "assetFinanceBookId", "revisionNumber", "startDate", trim_scale("baseAssetValue"), trim_scale("openingAccumulatedDepreciation")')
+        'posted depreciation entries'    = @('asset_depreciation_schedule_entries', '"postedAt"', 'id, "scheduleId", sequence, "scheduleDate", trim_scale("depreciationAmount"), trim_scale("accumulatedDepreciationAmount"), trim_scale("bookValueAfterDepreciation"), "postingId"')
+        'depreciation journal entries'   = @('asset_depreciation_journal_entries', '"createdAt"', 'id, series, "assetFinanceBookId", "postingDate", trim_scale("depreciationAmount")')
+        'depreciation journal lines'     = @('asset_depreciation_journal_entry_lines', '"createdAt"', 'id, "journalEntryId", account, trim_scale("debitAmount"), trim_scale("creditAmount")')
+    }
+    $statements = foreach ($name in $checks.Keys) {
+        $table, $since, $columns = $checks[$name]
+        "SELECT 'fingerprint', '$name', count(*) || ':' || md5(coalesce(string_agg(concat_ws('|', $columns), ',' ORDER BY id), '')) FROM $table WHERE $since <= '$Time';"
+    }
+    return ($statements -join "`n")
+}
+
+# Row counts of every table plus the depreciation fingerprints. Pass the
+# pre-update snapshot's time to fingerprint the same records again afterwards.
+function Get-DataSnapshot([string]$Time = '') {
+    if ($Time -eq '') {
+        # Prisma stores DateTime columns as UTC timestamps without a zone.
+        $Time = Invoke-Sql "SELECT (now() AT TIME ZONE 'UTC')::text;" | Select-Object -First 1
+        if ($null -eq $Time) { return $null }
+    }
+    $countSql = "SELECT 'count', table_name, (xpath('/row/c/text()', query_to_xml(format('SELECT count(*) AS c FROM public.%I', table_name), false, true, '')))[1]::text FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE' AND table_name NOT IN ('$($VolatileTables -join "', '")') ORDER BY table_name;"
+    $snapshot = @{ Time = $Time; Counts = @{}; Fingerprints = @{} }
+    foreach ($row in (Invoke-Sql "$countSql`n$(Get-FingerprintSql $Time)")) {
+        $kind, $name, $value = $row -split '\|', 3
+        if ($kind -eq 'count') { $snapshot.Counts[$name] = [long]$value }
+        elseif ($kind -eq 'fingerprint') { $snapshot.Fingerprints[$name] = $value }
+    }
+    if ($snapshot.Counts.Count -eq 0) { return $null }
+    return $snapshot
+}
+
+function Get-RowTotal($Snapshot) {
+    $total = 0L
+    foreach ($count in $Snapshot.Counts.Values) { $total += $count }
+    return $total
+}
+
+# Compares the database with a snapshot taken before the update. Tables may
+# gain rows (new records, the scheduler catching up) but never lose any, and
+# the depreciation records that existed before must be unchanged. Returns the problems found.
+function Test-DataIntegrity($Before) {
+    $after = Get-DataSnapshot $Before.Time
+    if ($null -eq $after) { return @('Could not read the database to check the data.') }
+    $problems = @()
+    foreach ($table in ($Before.Counts.Keys | Sort-Object)) {
+        if (-not $after.Counts.ContainsKey($table)) { $problems += "Table $table no longer exists ($($Before.Counts[$table]) rows before)."; continue }
+        if ($after.Counts[$table] -lt $Before.Counts[$table]) { $problems += "Table $table lost rows: $($Before.Counts[$table]) before, $($after.Counts[$table]) after." }
+    }
+    foreach ($name in ($Before.Fingerprints.Keys | Sort-Object)) {
+        if (-not $after.Fingerprints.ContainsKey($name)) { $problems += "Could not check the $name any more." }
+        elseif ($after.Fingerprints[$name] -ne $Before.Fingerprints[$name]) { $problems += "The $name changed (before $($Before.Fingerprints[$name]), after $($after.Fingerprints[$name]))." }
+    }
+    return $problems
+}
+
+# Health of the version that is running now: the app answers, the depreciation
+# scheduler's startup pass did not fail, and the data matches $Before. Returns the problems found.
+function Test-Deployment($Before) {
+    $running = Get-RunningProxyPort
+    if ($running -eq 0) { return @('The Aria proxy is not running.') }
+    Set-AppUrl $running
+    $problems = @()
+    if (-not (Test-Url "$script:AppUrl/health/ready")) { $problems += 'The backend is not healthy.' }
+    if (-not (Test-Url "$script:AppUrl/ready/")) { $problems += 'The frontend is not healthy.' }
+
+    $deadline = (Get-Date).AddMinutes(2)
+    while ($true) {
+        $logs = Get-ComposeOutput logs --no-color backend
+        if ($logs | Select-String -SimpleMatch 'asset_depreciation_discovery_failed' -Quiet) { $problems += 'The depreciation scheduler failed on startup.'; break }
+        if ($logs | Select-String -SimpleMatch 'asset_depreciation_discovery_completed' -Quiet) { break }
+        if ((Get-Date) -gt $deadline) { Write-Warn 'Could not confirm the depreciation scheduler yet; not treating it as a failure.'; break }
+        Start-Sleep -Seconds 5
+    }
+
+    if ($null -ne $Before) { $problems += @(Test-DataIntegrity $Before) }
+    return $problems
+}
+
+# ---------------------------------------------------------------------------
 # Images
 # ---------------------------------------------------------------------------
 function Test-Image([string]$Reference) { return (Test-DockerCommand image inspect $Reference) }
@@ -562,14 +668,20 @@ function Get-SourceRevisions {
         Write-Info 'The application sources have local changes, so the prebuilt images do not match them.'
         return @()
     }
+    return (Get-RevisionCandidates $revision)
+}
+
+# $Revision and the ancestors before it that left the image sources unchanged, newest first.
+function Get-RevisionCandidates([string]$Revision) {
+    $ErrorActionPreference = 'Continue'
     # --first-parent follows master's merge commits, which are the ones CI built.
-    $lastChange = (& git -C $RepoRoot rev-list --first-parent -n 1 HEAD -- @ImageSources 2>$null | Out-String).Trim()
+    $lastChange = (& git -C $RepoRoot rev-list --first-parent -n 1 $Revision -- @ImageSources 2>$null | Out-String).Trim()
     $revisions = @()
-    foreach ($commit in @(& git -C $RepoRoot rev-list --first-parent -n $MaxImageLookback HEAD 2>$null)) {
+    foreach ($commit in @(& git -C $RepoRoot rev-list --first-parent -n $MaxImageLookback $Revision 2>$null)) {
         $revisions += $commit
         if ($commit -eq $lastChange) { break }
     }
-    if ($revisions.Count -eq 0) { $revisions = @($revision) }
+    if ($revisions.Count -eq 0) { $revisions = @($Revision) }
     return $revisions
 }
 
@@ -868,11 +980,30 @@ function Invoke-Update {
         Invoke-Git @('log', '--oneline', '--no-decorate', "$old..$new") | ForEach-Object { Write-Info "  $_" }
     }
 
-    Write-Step 'Saving a restore point'
+    # Check before touching anything, so an update never falls back to a long
+    # local build just because CI has not published the new images yet.
+    if ($old -ne $new -and -not $FromSource) {
+        Write-Step "Checking for prebuilt images of $newShort"
+        $published = Find-PublishedRevision @(Get-RevisionCandidates $new)
+        if ($published -eq '') {
+            Stop-WithError "The prebuilt images for $newShort are not published yet (the Release Images workflow takes about 10-15 minutes after a push), or the registry is unreachable. Nothing was changed; run update again later, or pass -FromSource to build them here (10-20 minutes)."
+        }
+        Write-Ok "Prebuilt images found ($($published.Substring(0, 8)))"
+    }
+
+    Write-Step 'Creating a restore point'
     $backupName = ''
+    $before = $null
     if (Test-DatabaseVolume) {
+        # Nothing may be written after the backup, or a rollback would lose it.
+        Write-Info 'Stopping the app so the restore point holds every record'
+        $script:RestartOnExit = $true
+        Assert-Compose (Invoke-Compose stop caddy frontend backend) 'Stopping services'
         $backupName = New-Backup "pre-update-$oldShort"
         Write-Info "Database saved as $backupName"
+        $before = Get-DataSnapshot
+        if ($null -eq $before) { Stop-WithError 'Could not read the database to record its contents. Nothing was changed.' }
+        Write-Info "Recorded $(Get-RowTotal $before) rows in $($before.Counts.Count) tables and $($before.Fingerprints.Count) depreciation checks"
     }
     else {
         Write-Info 'No database yet, nothing to back up.'
@@ -886,20 +1017,37 @@ function Invoke-Update {
 
     # The child runs the updated script, compose file and migrations.
     Write-Step 'Installing and restarting the new version'
+    $script:RestartOnExit = $false
     $exitCode = Invoke-Self @('start')
-    if ($exitCode -eq 0) {
+    if ($exitCode -ne 0) {
+        $problems = @("The new version did not start (exit code $exitCode).")
+    }
+    else {
+        Write-Step 'Checking the new version (health, scheduler, data)'
+        $problems = @(Test-Deployment $before)
+    }
+
+    if ($problems.Count -eq 0) {
+        if ($null -ne $before) { Write-Ok "Data intact: all $($before.Counts.Count) tables kept their rows and the depreciation records are unchanged" }
         Remove-RollbackImages
         Remove-DanglingImages
+        if ($backupName -ne '') {
+            if ($KeepRestorePoint) {
+                Write-Info "Restore point kept: deployment\local\backups\$backupName"
+            }
+            else {
+                Remove-Item -Path (Join-Path $BackupDir $backupName) -Force -ErrorAction SilentlyContinue
+                Write-Info 'Restore point removed (pass -KeepRestorePoint to keep it)'
+            }
+        }
         Write-Ok "Updated to $newShort"
-        if ($backupName -ne '') { Write-Info "Pre-update backup: deployment\local\backups\$backupName" }
-        $running = Get-RunningProxyPort
-        if ($running -gt 0) { Set-AppUrl $running }
         Open-Browser
         return
     }
 
     Write-Host ''
-    Write-Warn "The new version did not start (exit code $exitCode). Rolling back to $oldShort."
+    foreach ($problem in $problems) { Write-Warn $problem }
+    Write-Warn "The update to $newShort failed its checks. Rolling back to $oldShort."
     if ($old -ne $new) { [void](Invoke-Git @('reset', '--hard', '--quiet', $old)) }
     Restore-RollbackImages
     if ($backupName -ne '') {
@@ -911,9 +1059,17 @@ function Invoke-Update {
     if ($rollbackCode -ne 0) {
         Stop-WithError "Update failed and the rollback did not finish. Code is back at $oldShort; restore the data with: .\aria-local.cmd restore -File $backupName"
     }
+
+    Write-Step 'Checking the restored version'
+    $rollbackProblems = @(Test-Deployment $before)
     Remove-RollbackImages
     Remove-DanglingImages
-    Stop-WithError "Update to $newShort failed; Aria was rolled back to $oldShort and is running. See the output above for the cause."
+    if ($rollbackProblems.Count -gt 0) {
+        foreach ($problem in $rollbackProblems) { Write-Warn $problem }
+        Stop-WithError "Update to $newShort failed and Aria was rolled back to $oldShort, but the checks above still fail. The restore point is kept: deployment\local\backups\$backupName"
+    }
+    $kept = if ($backupName -ne '') { " The restore point is kept: deployment\local\backups\$backupName" } else { '' }
+    Stop-WithError "Update to $newShort failed; Aria was rolled back to $oldShort, is running and its data matches the restore point.$kept See the output above for the cause."
 }
 
 # ---------------------------------------------------------------------------
@@ -1010,6 +1166,8 @@ $script:HttpPort = 80
 $script:AppUrl = 'http://localhost'
 $script:OwnsLock = $false
 $script:GitExitCode = 0
+# Set while update has the app stopped for its restore point; an early exit starts it again.
+$script:RestartOnExit = $false
 
 $readOnlyCommands = @('status', 'logs', 'open', 'help')
 
@@ -1039,6 +1197,10 @@ try {
     }
 }
 finally {
+    if ($script:RestartOnExit) {
+        Write-Warn 'Update stopped before installing anything; starting the current version again'
+        [void](Invoke-Compose up -d --remove-orphans)
+    }
     Exit-Lock
     Pop-Location
 }
