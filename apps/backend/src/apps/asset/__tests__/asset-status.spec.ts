@@ -10,6 +10,7 @@ import {
 	deriveOperationalStatus,
 	isOperationalAssetStatus,
 } from "../asset-status";
+import { getAssetValueAdjustmentResultState } from "../asset-value-adjustment.utils";
 
 type Status = Asset.AssetStatus;
 
@@ -372,4 +373,30 @@ describe("status constants", () => {
 			].sort(),
 		);
 	});
+});
+
+describe("getAssetValueAdjustmentResultState (via the status engine)", () => {
+	it.each<[Status, number, Status, boolean]>([
+		["SUBMITTED", 50_000, "PARTIALLY_DEPRECIATED", false],
+		["SUBMITTED", 0, "FULLY_DEPRECIATED", true],
+		["PARTIALLY_DEPRECIATED", 80_000, "PARTIALLY_DEPRECIATED", false],
+		["PARTIALLY_DEPRECIATED", 0, "FULLY_DEPRECIATED", true],
+		["FULLY_DEPRECIATED", 25_000, "PARTIALLY_DEPRECIATED", false],
+		["FULLY_DEPRECIATED", 0, "FULLY_DEPRECIATED", true],
+		["IN_MAINTENANCE", 50_000, "IN_MAINTENANCE", false],
+		["IN_MAINTENANCE", 0, "IN_MAINTENANCE", true],
+		["OUT_OF_ORDER", 50_000, "OUT_OF_ORDER", false],
+		["DRAFT", 50_000, "DRAFT", false],
+		["CANCELLED", 0, "CANCELLED", true],
+		["SOLD", 50_000, "SOLD", false],
+		["SCRAPPED", 0, "SCRAPPED", true],
+	])(
+		"%s with new value %d gives %s (fully depreciated: %s)",
+		(status, value, expected, fully) => {
+			expect(getAssetValueAdjustmentResultState(status, value)).toEqual({
+				status: expected,
+				isFullyDepreciated: fully,
+			});
+		},
+	);
 });
