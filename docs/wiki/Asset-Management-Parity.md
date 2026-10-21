@@ -6,7 +6,7 @@ How far Aria's Asset Management module has got in porting ERPNext's **Assets** m
 
 | Area | Done | Notes |
 |---|---|---|
-| Masters (category, location, finance book) | ~85% | Location has no tree queries or geo fields |
+| Masters (category, location, finance book) | ~95% | Location is a validated tree with geo and area fields (#141) |
 | Asset register and lifecycle | ~45% | Create, submit and cancel only. No sell, scrap, split or transfer |
 | Depreciation | ~85% | Every method except shift-based. Daily posting runs on BullMQ |
 | Value adjustment | 100% | Posts revaluation entries and builds a new schedule revision |
@@ -26,7 +26,7 @@ Percentages are judgement calls, not line counts. Each area is weighted by the s
 |---|---|---|---|
 | Asset | `Asset` | 🟡 Partial | Submit and cancel only. See [Asset lifecycle](#asset-lifecycle) |
 | Asset Category (+ Account) | `AssetCategory`, `AssetCategoryAccount`, `AssetCategoryFinanceBook` | ✅ Done | CWIP flag and account are stored but never used |
-| Location | `Location` | 🟡 Partial | Has a parent and an `isGroup` flag, but no tree API, area or geo fields |
+| Location | `Location` | ✅ Done | Validated tree (no cycles, group parents only, no leaf with children, no delete with children, `onDelete: Restrict`), `isContainer`, latitude/longitude, `areaUom` and a GeoJSON `geolocation` with `area` computed server-side (`location-area.ts`). Hierarchy API: `getLocationTree`, `listLocationChildren`, `getLocationAncestors`, plus `excludeDescendantsOf` on `listLocations`. Tree view next to the table. Deliberate difference: ERPNext copies child features into every ancestor and rewrites each ancestor's `area` on save; Aria keeps one adjacency list (`parentLocationId`, no `lft`/`rgt`) and rolls areas up at read time as `totalArea` on the tree nodes, so saving a location never writes to its ancestors. The GeoJSON field is a validated textarea, with no map widget |
 | Asset Activity | `AssetActivity` | ✅ Done | |
 | Asset Depreciation Schedule (+ Depreciation Schedule) | `AssetDepreciationSchedule`, `AssetDepreciationScheduleEntry` | ✅ Done | Keeps revisions |
 | Asset Finance Book | `AssetFinanceBook` | ✅ Done | |
