@@ -1,7 +1,7 @@
 # SSL Certificate Generator - Dockerfile 🔐
 # Alpine-based container for generating SSL certificates 🧾
 
-FROM alpine:3.19
+FROM alpine:3.24
 
 # Install OpenSSL 🔧
 RUN apk add --no-cache \
