@@ -16,7 +16,8 @@
 			"!!**/tmp-typecheck",
 			"!!apps/backend/test/**/*.js",
 			"!!apps/backend/test/**/*.js.map",
-			"!!repos"
+			"!!repos",
+			"!!.erpnext"
 		]
 	},
 	"formatter": {

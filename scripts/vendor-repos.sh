@@ -25,7 +25,7 @@ MODE="${1:-add}"
 ERPNEXT_DIR=".erpnext"
 ERPNEXT_URL="https://github.com/frappe/erpnext.git"
 ERPNEXT_BRANCH="develop"
-# Pinned develop tip: __DATE__, __version__ = "17.0.0-dev".
+# Pinned develop tip: committed 2026-10-21T16:51:57Z, __version__ = "17.0.0-dev".
 # Bump only via ./scripts/vendor-repos.sh --update-erpnext, then review.
 ERPNEXT_REF="ea8fb11e745682044f7c24ea1d8ce9c4685582a2"
 ERPNEXT_SPARSE_PATHS=(erpnext/assets erpnext/accounts erpnext/stock erpnext/controllers)
