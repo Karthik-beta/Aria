@@ -23,8 +23,8 @@
 	},
 	"dependencies": {
 		"@aria/types": "workspace:*",
-		"@prisma/client": "^7.2.0",
-		"@trpc/server": "^11.8.1"
+		"@prisma/client": "^7.10.1",
+		"@trpc/server": "^11.19.0"
 	},
 	"devDependencies": {
 		"@aria/tsconfig": "workspace:*",
