@@ -32,15 +32,16 @@ describe("getAppNavItems", () => {
 		expect(titles.indexOf("Finance Book")).toBe(
 			titles.indexOf("Asset Category") + 1,
 		);
-		expect(
-			group?.items?.find((i) => i.title === "Finance Book")?.url,
-		).toBe("/asset/asset-sub-module/finance-book");
+		expect(group?.items?.find((i) => i.title === "Finance Book")?.url).toBe(
+			"/asset/asset-sub-module/finance-book",
+		);
 	});
 
 	it("every asset nav url resolves to an existing page route", () => {
 		const root = path.resolve(__dirname, "../app/asset/(protected)");
 		const hasPage = (segments: string[], dir: string): boolean => {
-			if (segments.length === 0) return fs.existsSync(path.join(dir, "page.tsx"));
+			if (segments.length === 0)
+				return fs.existsSync(path.join(dir, "page.tsx"));
 			const [head, ...rest] = segments;
 			if (!head || !fs.existsSync(dir)) return false;
 			const entries = fs.readdirSync(dir, { withFileTypes: true });

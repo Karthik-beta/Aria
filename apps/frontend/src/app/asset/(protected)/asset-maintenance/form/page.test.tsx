@@ -189,7 +189,9 @@ describe("AssetMaintenanceFormPage", () => {
 		await user.click(screen.getByRole("button", { name: /Back to List/i }));
 
 		await waitFor(() =>
-			expect(mockPush).toHaveBeenCalledWith("/asset/asset-maintenance/maintenance"),
+			expect(mockPush).toHaveBeenCalledWith(
+				"/asset/asset-maintenance/maintenance",
+			),
 		);
 	});
 
@@ -198,7 +200,9 @@ describe("AssetMaintenanceFormPage", () => {
 		renderWithProviders(<AssetMaintenanceFormPage />);
 
 		await waitFor(() =>
-			expect(mockPush).toHaveBeenCalledWith("/asset/asset-maintenance/maintenance"),
+			expect(mockPush).toHaveBeenCalledWith(
+				"/asset/asset-maintenance/maintenance",
+			),
 		);
 	});
 
