@@ -100,49 +100,33 @@ export async function createUser(
 	expect(response.ok(), await response.text()).toBe(true);
 }
 
-type PendingInvitation = {
-	id: string;
-	organizationId: string;
-	status: string;
-	role: string;
-};
-
-/** Invites `email` as a member and returns once the invitation exists. */
+/**
+ * Invites `email` as a member and returns the invitation id. `resend` makes a
+ * rerun reuse an invitation that is still pending instead of failing.
+ */
 export async function inviteMember(
 	request: APIRequestContext,
 	organizationId: string,
 	email: string,
-) {
+): Promise<string> {
 	const response = await request.post(authUrl("/organization/invite-member"), {
 		data: { email, role: "member", organizationId, resend: true },
 	});
 	expect(response.ok(), await response.text()).toBe(true);
+	return ((await response.json()) as { id: string }).id;
 }
 
-/** Accepts the pending invitation to `organizationId` for the signed-in user. */
+/**
+ * Accepts an invitation as the signed-in invitee. The id comes from the invite
+ * response because listing a user's invitations requires a verified email.
+ */
 export async function acceptInvitation(
 	request: APIRequestContext,
-	organizationId: string,
+	invitationId: string,
 ) {
-	const list = await request.get(
-		authUrl("/organization/list-user-invitations"),
-	);
-	expect(list.ok(), await list.text()).toBe(true);
-	const invitations = (await list.json()) as PendingInvitation[];
-	const invitation = invitations.find(
-		(item) =>
-			item.organizationId === organizationId && item.status === "pending",
-	);
-	expect(
-		invitation,
-		`no pending invitation to organization ${organizationId}`,
-	).toBeTruthy();
-
 	const response = await request.post(
 		authUrl("/organization/accept-invitation"),
-		{
-			data: { invitationId: invitation?.id },
-		},
+		{ data: { invitationId } },
 	);
 	expect(response.ok(), await response.text()).toBe(true);
 }

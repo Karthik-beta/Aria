@@ -45,8 +45,12 @@ setup("authenticate as organization member", async ({ playwright }) => {
 
 	const memberOrganizations = await listOrganizations(memberRequest);
 	if (!memberOrganizations.some((item) => item.id === organization.id)) {
-		await inviteMember(adminRequest, organization.id, E2E_MEMBER.email);
-		await acceptInvitation(memberRequest, organization.id);
+		const invitationId = await inviteMember(
+			adminRequest,
+			organization.id,
+			E2E_MEMBER.email,
+		);
+		await acceptInvitation(memberRequest, invitationId);
 	}
 
 	await setActiveOrganization(memberRequest, organization.id);
