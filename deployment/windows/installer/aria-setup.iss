@@ -73,6 +73,8 @@ Source: "{#PayloadDir}\*"; Excludes: "\aria.ico"; DestDir: "{app}\versions\{#App
 Source: "{#PayloadDir}\aria.ico"; DestDir: "{app}"; Flags: ignoreversion
 ; A copy of this setup, which the Start menu opens to update or uninstall.
 Source: "{srcexe}"; DestDir: "{app}"; DestName: "Aria-ERP-Setup.exe"; Flags: external ignoreversion
+; Runs aria-local.ps1 for setup and the uninstaller (see RunAria below).
+Source: "aria-run.ps1"; DestDir: "{app}"; Flags: ignoreversion
 
 [InstallDelete]
 ; Replaced by the Aria ERP Setup shortcut.
@@ -120,6 +122,12 @@ const
   StepDone = 2;
   StepFailed = 3;
 
+type
+  // Room for a Windows MSG in 32- and 64-bit processes; only Windows reads it.
+  TWinMsg = record
+    Data: array[0..11] of Int64;
+  end;
+
 var
   Mode: Integer;
   // The installed copy, from the uninstall registry key.
@@ -149,6 +157,9 @@ var
   DetailsMemo: TNewMemo;
   LastError: String;
   ScriptOk: Boolean;
+  // aria-local.ps1 is running: the window stays usable, but must not close.
+  ScriptRunning: Boolean;
+  RunCount: Integer;
 
   // Uninstaller
   KeepBackups: Boolean;
@@ -554,7 +565,7 @@ begin
 end;
 
 // Output of aria-local.ps1: '##aria' lines move the steps, the rest goes to the details log.
-procedure ScriptOutput(const S: String; const Error, FirstLine: Boolean);
+procedure ScriptOutput(const S: String);
 var
   Rest, Kind, Value: String;
   I: Integer;
@@ -584,21 +595,101 @@ begin
     DetailsMemo.Lines.Add(S);
 end;
 
-// Runs aria-local.ps1 without a console window; returns True when it succeeded.
+function PeekMessage(var Msg: TWinMsg; Wnd: HWND; MsgFilterMin, MsgFilterMax, RemoveMsg: Cardinal): BOOL;
+  external 'PeekMessageW@user32.dll stdcall';
+function TranslateMessage(var Msg: TWinMsg): BOOL;
+  external 'TranslateMessage@user32.dll stdcall';
+function DispatchMessage(var Msg: TWinMsg): Longint;
+  external 'DispatchMessageW@user32.dll stdcall';
+
+// Handles clicks, scrolling and repaints while setup waits for aria-local.ps1.
+procedure PumpMessages;
+var
+  Msg: TWinMsg;
+begin
+  // 1 = PM_REMOVE
+  while PeekMessage(Msg, 0, 0, 0, 1) do
+  begin
+    TranslateMessage(Msg);
+    DispatchMessage(Msg);
+  end;
+end;
+
+function RunnerScript: String;
+begin
+  if IsUninstaller then
+    Result := ExpandConstant('{app}\aria-run.ps1')
+  else
+  begin
+    ExtractTemporaryFile('aria-run.ps1');
+    Result := ExpandConstant('{tmp}\aria-run.ps1');
+  end;
+end;
+
+// Runs aria-local.ps1 without a console window and returns True when it succeeded.
+// Exec and ExecAndLogOutput disable the window while they wait, which would
+// leave "Show details" dead, so aria-run.ps1 starts it without waiting and
+// writes its output to a log file that this loop reads as it grows.
 function RunAria(const ScriptPath, Arguments: String): Boolean;
 var
-  Params: String;
+  Params, LogFile, DoneFile, Pending: String;
   Contents: AnsiString;
-  Code: Integer;
+  Offset, I, Code: Integer;
+  Finished: Boolean;
 begin
   LastError := '';
-  Params := '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + ScriptPath + '" ' + Arguments;
+  Params := Arguments;
   // Older installed versions have no -ReportProgress; they still run, without the step list.
   if LoadStringFromFile(ScriptPath, Contents) and (Pos('ReportProgress', String(Contents)) > 0) then
     Params := Params + ' -ReportProgress';
-  if not ExecAndLogOutput(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'), Params, '',
-    SW_HIDE, ewWaitUntilTerminated, Code, @ScriptOutput) then
-    Code := -1;
+  RunCount := RunCount + 1;
+  LogFile := ExpandConstant('{tmp}\aria-run-') + IntToStr(RunCount) + '.log';
+  DoneFile := ExpandConstant('{tmp}\aria-run-') + IntToStr(RunCount) + '.done';
+  if not Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
+    '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + RunnerScript + '" -Script "' + ScriptPath +
+    '" -Log "' + LogFile + '" -Done "' + DoneFile + '" -Arguments "' + Params + '"',
+    '', SW_HIDE, ewNoWait, Code) then
+  begin
+    LastError := 'Could not start PowerShell: ' + SysErrorMessage(Code);
+    Result := False;
+    Exit;
+  end;
+
+  ScriptRunning := True;
+  Offset := 0;
+  Pending := '';
+  try
+    repeat
+      // Checked before reading, so the last read has everything the script wrote.
+      Finished := FileExists(DoneFile);
+      if LoadStringFromFile(LogFile, Contents) and (Length(Contents) > Offset) then
+      begin
+        Pending := Pending + String(Copy(Contents, Offset + 1, MaxInt));
+        Offset := Length(Contents);
+        I := Pos(#10, Pending);
+        while I > 0 do
+        begin
+          ScriptOutput(TrimRight(Copy(Pending, 1, I - 1)));
+          Pending := Copy(Pending, I + 1, MaxInt);
+          I := Pos(#10, Pending);
+        end;
+      end;
+      if not Finished then
+        for I := 1 to 10 do
+        begin
+          PumpMessages;
+          Sleep(20);
+        end;
+    until Finished;
+  finally
+    ScriptRunning := False;
+  end;
+  if Trim(Pending) <> '' then
+    ScriptOutput(TrimRight(Pending));
+
+  Code := -1;
+  if LoadStringFromFile(DoneFile, Contents) then
+    Code := StrToIntDef(Trim(String(Contents)), -1);
   Result := Code = 0;
   if not Result and (LastError = '') then
     LastError := 'The setup script stopped with exit code ' + IntToStr(Code) + '.';
@@ -818,6 +909,11 @@ begin
     begin
       SetPhase('files');
       SaveStringToFile(AddBackslash(InstalledDir) + DockerRemovedMarker, '', False);
+      // Aria is already out of Docker. Uninstallers of versions before the
+      // marker run the installed script again, in a console window; without
+      // the scripts there they skip that step.
+      DelTree(AddBackslash(InstalledDir) + 'versions', True, True, True);
+      DeleteFile(AddBackslash(InstalledDir) + 'current-version.txt');
       if (UninstallExe <> '') and Exec(UninstallExe, '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART', '', SW_HIDE, ewWaitUntilTerminated, Code) then
         Removed := not FileExists(UninstallExe);
       if not Removed then
@@ -947,8 +1043,15 @@ end;
 
 procedure CancelButtonClick(CurPageID: Integer; var Cancel, Confirm: Boolean);
 begin
+  // Stopping aria-local.ps1 halfway could leave Aria stopped or half-updated.
+  if ScriptRunning then
+  begin
+    Cancel := False;
+    Confirm := False;
+    MsgBox('Please wait until Aria ERP Setup has finished.', mbInformation, MB_OK);
+  end
   // Nothing is half-done on the Manage page, and an update has been handed over.
-  if (CurPageID = ManagePage.ID) or ClosingForUpdate then
+  else if (CurPageID = ManagePage.ID) or ClosingForUpdate then
     Confirm := False;
 end;
 
@@ -958,6 +1061,20 @@ var
 begin
   if CurPageID = ManagePage.ID then
     UpdateManageButtons
+  // The last page before installing; DisableReadyPage leaves its button at "Next".
+  else if CurPageID = OptionsPage.ID then
+    WizardForm.NextButton.Caption := SetupMessage(msgButtonInstall)
+  // Shown only when an older version's Manage page started this setup (/UPDATE):
+  // Inno shows the Ready page when no page comes before it.
+  else if CurPageID = wpReady then
+  begin
+    WizardForm.PageNameLabel.Caption := 'Ready to update';
+    WizardForm.PageDescriptionLabel.Caption := 'Aria ERP ' + InstalledVersion + ' will be updated to {#AppVersion}.';
+    WizardForm.ReadyLabel.Caption := 'Setup saves a restore point first. If anything goes wrong, Aria ERP goes back to version ' +
+      InstalledVersion + ' with your data as it is now.' + #13#10#13#10 + 'Click Update to continue.';
+    WizardForm.ReadyMemo.Visible := False;
+    WizardForm.NextButton.Caption := 'Update';
+  end
   else if CurPageID = wpFinished then
   begin
     if ScriptOk then

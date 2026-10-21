@@ -1020,7 +1020,8 @@ function Invoke-Git {
 function Invoke-Script([string]$Path, [string[]]$ScriptArgs) {
     $hostExe = (Get-Process -Id $PID).Path
     $childArgs = @('-NoLogo', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $Path) + $ScriptArgs + @('-SkipLock', '-NoBrowser')
-    if ($ReportProgress) { $childArgs += '-ReportProgress' }
+    # A rollback runs the previous version's script, which may predate -ReportProgress.
+    if ($ReportProgress -and (Select-String -Path $Path -Pattern 'ReportProgress' -SimpleMatch -Quiet)) { $childArgs += '-ReportProgress' }
     if ($Port -gt 0) { $childArgs += @('-Port', "$Port") }
     if ($FromSource) { $childArgs += '-FromSource' }
     $ErrorActionPreference = 'Continue'
