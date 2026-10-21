@@ -1,11 +1,8 @@
 import type { Asset } from "@aria/types";
 import { addDays, addMonths, differenceInDays, endOfMonth } from "date-fns";
+import { deriveAssetStatus, isOperationalAssetStatus } from "./asset-status";
 
 const CURRENCY_SCALE = 6;
-const OPERATIONAL_ASSET_STATUSES = new Set<Asset.AssetStatus>([
-	"IN_MAINTENANCE",
-	"OUT_OF_ORDER",
-]);
 
 const roundCurrency = (value: number): number =>
 	Number(value.toFixed(CURRENCY_SCALE));
@@ -56,28 +53,27 @@ export const getAssetValueAdjustmentResultState = (
 } => {
 	const isFullyDepreciated = newAssetValue <= 0;
 
-	if (OPERATIONAL_ASSET_STATUSES.has(currentStatus)) {
+	// Operational overlays are kept: the adjustment does not end maintenance.
+	if (isOperationalAssetStatus(currentStatus)) {
 		return {
 			status: currentStatus,
 			isFullyDepreciated,
 		};
 	}
 
-	if (
-		currentStatus === "SUBMITTED" ||
-		currentStatus === "PARTIALLY_DEPRECIATED" ||
-		currentStatus === "FULLY_DEPRECIATED"
-	) {
-		return {
-			status: isFullyDepreciated
-				? "FULLY_DEPRECIATED"
-				: "PARTIALLY_DEPRECIATED",
-			isFullyDepreciated,
-		};
-	}
+	// The status engine decides Fully Depreciated and leaves draft, cancelled,
+	// sold and scrapped assets alone. A revalued asset that still has value is
+	// never plain Submitted, so it becomes Partially Depreciated.
+	const derived = deriveAssetStatus({
+		currentStatus,
+		calculateDepreciation: false,
+		isFullyDepreciated,
+		netPurchaseAmount: 0,
+		valueAfterDepreciation: newAssetValue,
+	});
 
 	return {
-		status: currentStatus,
+		status: derived === "SUBMITTED" ? "PARTIALLY_DEPRECIATED" : derived,
 		isFullyDepreciated,
 	};
 };

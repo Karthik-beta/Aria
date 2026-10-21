@@ -12,13 +12,9 @@ import { Injectable } from "@nestjs/common";
 import { Prisma } from "../../generated/prisma/client";
 // biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
 import { PrismaService } from "../../shared/prisma.service";
+import { ASSET_DEPRECIATING_STATUSES } from "./asset-status";
 
-const ACTIVE_STATUSES: Asset.AssetStatus[] = [
-	"SUBMITTED",
-	"PARTIALLY_DEPRECIATED",
-	"IN_MAINTENANCE",
-	"OUT_OF_ORDER",
-];
+const ACTIVE_STATUSES: Asset.AssetStatus[] = [...ASSET_DEPRECIATING_STATUSES];
 
 const NON_DISPOSED_STATUSES: Asset.AssetStatus[] = [
 	...ACTIVE_STATUSES,
