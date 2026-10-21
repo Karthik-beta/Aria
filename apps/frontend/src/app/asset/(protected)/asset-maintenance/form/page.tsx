@@ -69,6 +69,7 @@ import {
 	getAssetMaintenanceFormDefaults,
 } from "../maintenance/asset-maintenance.schema";
 import {
+	ASSET_MAINTENANCE_LIST_PATH,
 	toCreateAssetMaintenanceInput,
 	toUpdateAssetMaintenanceInput,
 } from "../maintenance/asset-maintenance.utils";
@@ -79,7 +80,7 @@ export default function AssetMaintenanceFormPage() {
 	if (!canManageAssets) {
 		return (
 			<AssetWriteAccessNotice
-				backHref="/asset/asset-maintenance/maintenance"
+				backHref={ASSET_MAINTENANCE_LIST_PATH}
 				backLabel="Back to maintenance"
 			/>
 		);
@@ -177,7 +178,7 @@ function AssetMaintenanceFormContent() {
 			hasHandledMissingRef.current = true;
 			toast.error("Asset maintenance record not found");
 			startTransition(() => {
-				router.push("/asset/asset-maintenance");
+				router.push(ASSET_MAINTENANCE_LIST_PATH);
 			});
 		}
 	}, [isEditMode, isFetchingRecord, record, router]);
@@ -257,7 +258,7 @@ function AssetMaintenanceFormContent() {
 						variant="outline"
 						size="sm"
 						onClick={() =>
-							startTransition(() => router.push("/asset/asset-maintenance"))
+							startTransition(() => router.push(ASSET_MAINTENANCE_LIST_PATH))
 						}
 					>
 						Back to List

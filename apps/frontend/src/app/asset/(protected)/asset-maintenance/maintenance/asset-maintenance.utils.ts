@@ -3,6 +3,9 @@ import type { AssetMaintenanceFormValues } from "./asset-maintenance.schema";
 
 export const MAINTENANCE_PAGE_SIZE = 20;
 
+/** The Asset Maintenance list route; the form returns here. */
+export const ASSET_MAINTENANCE_LIST_PATH = "/asset/asset-maintenance/maintenance";
+
 /**
  * Returns a human-readable relative age string for a date.
  * e.g. "3 d", "2 m", "1 y", "Today"
