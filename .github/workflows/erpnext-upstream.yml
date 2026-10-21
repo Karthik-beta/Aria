@@ -1,0 +1,72 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+name: ERPNext Upstream Watch
+
+# Aria's core business logic is ported from ERPNext (frappe/erpnext). Once a
+# week this opens an "upstream-sync" issue listing the ERPNext releases
+# published since the last run, so fixes in modules Aria ports (Assets, Stock,
+# Company) can be reviewed and carried over. Nothing is opened in a quiet week.
+
+on:
+  schedule:
+    - cron: '0 4 * * 1' # Mondays 04:00 UTC
+  workflow_dispatch:
+    inputs:
+      days:
+        description: Look back this many days
+        required: false
+        default: '7'
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+permissions: {}
+
+jobs:
+  digest:
+    name: Open upstream review issue
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      DAYS: ${{ inputs.days || '7' }}
+    steps:
+      - name: Collect releases and open issue
+        shell: bash
+        run: |
+          set -euo pipefail
+          since=$(date -u -d "-${DAYS} days" +%Y-%m-%dT%H:%M:%SZ)
+
+          releases=$(gh api 'repos/frappe/erpnext/releases?per_page=100' --jq \
+            "[.[] | select(.draft | not) | select(.prerelease | not) | select(.published_at >= \"$since\")]
+             | sort_by(.published_at) | .[] | \"- [\(.tag_name)](\(.html_url)) — \(.published_at[:10])\"")
+
+          if [ -z "$releases" ]; then
+            echo "No ERPNext releases since $since."
+            exit 0
+          fi
+
+          title="ERPNext upstream review: week of $(date -u +%Y-%m-%d)"
+          if gh issue list -R "$REPO" --label upstream-sync --state all --search "\"$title\" in:title" --json number --jq '.[0].number' | grep -q .; then
+            echo "Issue '$title' already exists."
+            exit 0
+          fi
+
+          body=$(cat <<EOF
+          ERPNext releases published since ${since%%T*}:
+
+          ${releases}
+
+          Review the release notes for changes to modules Aria ports, and open an \`erpnext-port\` issue for anything worth carrying over.
+
+          - [ ] Assets (asset, depreciation schedule, maintenance, value adjustment)
+          - [ ] Stock (item, warehouse, stock entry, delivery note, purchase receipt, batch / serial no)
+          - [ ] Setup (company, fiscal year, finance book)
+          - [ ] Nothing relevant: close as not planned
+
+          _Opened by the ERPNext Upstream Watch workflow._
+          EOF
+          )
+          gh issue create -R "$REPO" --title "$title" --label upstream-sync --body "$body"

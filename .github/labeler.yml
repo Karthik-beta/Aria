@@ -1,0 +1,61 @@
+# Path-based PR labels, applied by the Triage workflow (actions/labeler).
+# The "module: *" labels also set the Module field on the Aria ERP project.
+
+'module: assets':
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'apps/backend/src/apps/asset/**'
+          - 'apps/frontend/src/app/asset/**'
+
+'module: inventory':
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'apps/backend/src/apps/inventory/**'
+          - 'apps/frontend/src/app/inventory/**'
+
+'module: crm':
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'apps/frontend/src/app/crm/**'
+
+'module: hrms':
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'apps/frontend/src/app/hrms/**'
+
+'module: platform':
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'apps/backend/src/common/**'
+          - 'apps/backend/src/apps/company/**'
+          - 'apps/backend/prisma/**'
+          - 'apps/frontend/src/app/admin/**'
+          - 'apps/frontend/src/app/auth/**'
+          - 'apps/frontend/src/app/onboarding/**'
+          - 'packages/**'
+
+'module: setup':
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'deployment/**'
+          - 'docker-compose*.yml'
+          - '**/Dockerfile'
+          - 'aria-local.cmd'
+
+ci:
+  - changed-files:
+      - any-glob-to-any-file:
+          - '.github/**'
+          - 'turbo.json'
+
+documentation:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'docs/**'
+          - '*.md'
+
+dependencies:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'bun.lock'
+          - '**/package.json'

@@ -2,6 +2,8 @@
 
 Welcome to the Aria ERP documentation hub. This guide will help you find the right information quickly.
 
+> The [project wiki](https://github.com/Karthik-beta/Aria/wiki) is the short overview. Its pages live in [`wiki/`](./wiki/) and are published by the Wiki Sync workflow on merge to `master`, so edit them here rather than in the wiki's web editor.
+
 ## Documentation Structure
 
 ### Getting Started

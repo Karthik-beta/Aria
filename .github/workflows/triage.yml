@@ -1,0 +1,141 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+name: Triage
+
+# Labels PRs by the paths they touch, then keeps every issue and PR on the
+# "Aria ERP" project board (https://github.com/users/Karthik-beta/projects/4):
+#   issue opened -> Backlog, reopened -> Todo, closed as completed -> Done
+#   PR draft -> In Progress, ready/opened -> In Review, merged -> Done
+# A "module: *" label also sets the board's Module field.
+#
+# GITHUB_TOKEN cannot reach a user-owned project, so the board steps need a
+# PROJECT_TOKEN secret (classic PAT with `project` and `repo` scopes). Without
+# it the board job logs a notice and skips; labelling still runs.
+
+on:
+  issues:
+    types: [opened, reopened, closed, labeled]
+  # _target so PRs from forks get the secret; nothing here checks out PR code.
+  pull_request_target:
+    types: [opened, reopened, ready_for_review, converted_to_draft, closed, labeled, synchronize]
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  PROJECT_OWNER: Karthik-beta
+  PROJECT_NUMBER: 4
+
+permissions: {}
+
+concurrency:
+  group: triage-${{ github.event.issue.number || github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  label:
+    name: Label PR by path
+    if: github.event_name == 'pull_request_target' && github.event.action != 'closed' && github.event.action != 'labeled'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Apply path labels
+        uses: actions/labeler@v7
+        with:
+          sync-labels: false
+
+  board:
+    name: Sync project board
+    needs: label
+    # Runs after labelling, or on its own for issues and the events label skips.
+    if: always() && needs.label.result != 'failure' && !(github.event_name == 'pull_request_target' && github.event.action == 'synchronize')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions: {}
+    env:
+      GH_TOKEN: ${{ secrets.PROJECT_TOKEN }}
+      EVENT: ${{ github.event_name }}
+      ACTION: ${{ github.event.action }}
+      CONTENT_ID: ${{ github.event.issue.node_id || github.event.pull_request.node_id }}
+      NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
+      STATE_REASON: ${{ github.event.issue.state_reason }}
+      MERGED: ${{ github.event.pull_request.merged }}
+      DRAFT: ${{ github.event.pull_request.draft }}
+      REPO: ${{ github.repository }}
+    steps:
+      - name: Add item and set fields
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::notice::PROJECT_TOKEN secret is not set; skipping project board sync."
+            exit 0
+          fi
+
+          # Status for this event; empty means leave the current value alone.
+          status=""
+          case "$EVENT/$ACTION" in
+            issues/opened) status="Backlog" ;;
+            issues/reopened) status="Todo" ;;
+            issues/closed) [ "$STATE_REASON" = "completed" ] && status="Done" ;;
+            pull_request_target/opened|pull_request_target/reopened)
+              if [ "$DRAFT" = "true" ]; then status="In Progress"; else status="In Review"; fi ;;
+            pull_request_target/ready_for_review) status="In Review" ;;
+            pull_request_target/converted_to_draft) status="In Progress" ;;
+            pull_request_target/closed) [ "$MERGED" = "true" ] && status="Done" ;;
+          esac
+
+          # Read labels now rather than from the event: the label job may have added some.
+          labels=$(gh api "repos/$REPO/issues/$NUMBER/labels" --jq '.[].name')
+          module=""
+          while IFS= read -r label; do
+            case "$label" in
+              "module: accounts") module="Accounts" ;;
+              "module: assets") module="Assets" ;;
+              "module: inventory") module="Stock / Inventory" ;;
+              "module: crm") module="CRM" ;;
+              "module: hrms") module="HR / HRMS" ;;
+              "module: platform") module="Platform / Core" ;;
+              "module: setup") module="Setup / Installer" ;;
+            esac
+            [ -n "$module" ] && break
+          done <<< "$labels"
+
+          project=$(gh api graphql -f owner="$PROJECT_OWNER" -F number="$PROJECT_NUMBER" -f query='
+            query($owner: String!, $number: Int!) {
+              user(login: $owner) { projectV2(number: $number) {
+                id
+                fields(first: 50) { nodes { ... on ProjectV2SingleSelectField { id name options { id name } } } }
+              } }
+            }' --jq '.data.user.projectV2')
+          project_id=$(jq -r '.id' <<< "$project")
+
+          # Adding is idempotent: an item already on the board returns its existing id.
+          item_id=$(gh api graphql -f project="$project_id" -f content="$CONTENT_ID" -f query='
+            mutation($project: ID!, $content: ID!) {
+              addProjectV2ItemById(input: { projectId: $project, contentId: $content }) { item { id } }
+            }' --jq '.data.addProjectV2ItemById.item.id')
+          echo "Item $item_id on project #$PROJECT_NUMBER"
+
+          set_field() {
+            local field_name=$1 option_name=$2 field_id option_id
+            field_id=$(jq -r --arg f "$field_name" '.fields.nodes[] | select(.name == $f) | .id' <<< "$project")
+            option_id=$(jq -r --arg f "$field_name" --arg o "$option_name" \
+              '.fields.nodes[] | select(.name == $f) | .options[] | select(.name == $o) | .id' <<< "$project")
+            if [ -z "$field_id" ] || [ -z "$option_id" ]; then
+              echo "::warning::Project has no option '$option_name' in field '$field_name'"
+              return
+            fi
+            gh api graphql -f project="$project_id" -f item="$item_id" -f field="$field_id" -f option="$option_id" -f query='
+              mutation($project: ID!, $item: ID!, $field: ID!, $option: String!) {
+                updateProjectV2ItemFieldValue(input: {
+                  projectId: $project, itemId: $item, fieldId: $field,
+                  value: { singleSelectOptionId: $option }
+                }) { projectV2Item { id } }
+              }' > /dev/null
+            echo "$field_name -> $option_name"
+          }
+
+          [ -n "$status" ] && set_field "Status" "$status"
+          [ -n "$module" ] && set_field "Module" "$module"
+          exit 0
