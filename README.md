@@ -8,6 +8,9 @@
 
 > Modern, modular B2B ERP suite built with TypeScript, NestJS, and Next.js
 
+**Try the demo on Windows:** [Download AriaSetup.exe](https://github.com/Karthik-beta/Aria/releases/latest/download/AriaSetup.exe)
+(needs [Docker Desktop](https://www.docker.com/products/docker-desktop/); see [Windows installer](./deployment/local/README.md#windows-installer)).
+
 Aria ERP is a full-stack monorepo providing enterprise resource planning capabilities through specialized modules for asset management, customer relations, human resources, and inventory control.
 
 > **Proprietary Software** — This repository contains confidential intellectual property of Pivotr. See [LICENSE](./LICENSE) for details.

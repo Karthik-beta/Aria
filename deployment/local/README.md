@@ -166,6 +166,10 @@ Git or a clone. Every `vX.Y.Z` tag attaches it to the GitHub Release (built by
 `.github/workflows/windows-installer.yml` from `deployment/windows/installer`).
 It runs the images CI built for that tag, so nothing is built on the laptop.
 
+Download the newest one from
+<https://github.com/Karthik-beta/Aria/releases/latest/download/AriaSetup.exe>
+(each release also has the same file as `AriaSetup-<version>.exe`).
+
 **Before the first install**, on each laptop: install
 [Docker Desktop](https://www.docker.com/products/docker-desktop/) (this needs
 administrator rights), start it once, and enable *Settings > General > Start
@@ -179,6 +183,18 @@ when Docker Desktop is missing.
 | Use       | Open the **Aria ERP** shortcut (desktop or Start Menu), or `http://localhost:8080` |
 | Update    | Run the newer `AriaSetup-<version>.exe`                             |
 | Uninstall | Windows Settings > Apps > Aria ERP (or the Start Menu's *Uninstall Aria ERP*); it asks whether to keep the backups |
+
+**"Windows protected your PC"**: the installer is not code-signed, so Windows
+SmartScreen shows this once for a downloaded copy. It needs no administrator
+rights, so this is the only prompt. Either:
+
+- click **More info**, then **Run anyway**, or
+- before running it, right-click `AriaSetup.exe` > **Properties**, tick
+  **Unblock** and click **OK**.
+
+To avoid the warning, hand the installer out on a USB drive or from a shared
+company folder instead of a download link. A copy that was not downloaded
+usually has no download mark, so SmartScreen does not check it.
 
 The installer needs no administrator rights. It installs per user to
 `%LOCALAPPDATA%\Programs\Aria ERP`:
@@ -211,9 +227,9 @@ git push origin v0.2.0
 ```
 
 Release Images then builds the images, then the installer, then the GitHub
-Release with `AriaSetup-0.2.0.exe` attached. The installer is not code-signed,
-so Windows SmartScreen shows an *unknown publisher* warning (*More info >
-Run anyway*).
+Release with `AriaSetup-0.2.0.exe` and `AriaSetup.exe` attached; the download
+link above then serves it (pre-release tags such as `v0.2.0-rc.1` do not
+replace it).
 
 ## Prebuilt images
 
