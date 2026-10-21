@@ -59,7 +59,7 @@ These change the slugs the job uses. The defaults are the names above.
 If SignPath rejects the file details:
 
 - The artifact configuration checks the product name `Aria ERP` and the product version.
-- The installer sets the product version from `VersionInfoProductTextVersion` (the tag
+- Aria ERP Setup sets the product version from `VersionInfoProductTextVersion` (the tag
   without the leading `v`) in
   [aria-setup.iss](../deployment/windows/installer/aria-setup.iss).
 - Change one of the two files so they agree.
@@ -69,7 +69,7 @@ If SignPath rejects the file details:
 1. Push the `vX.Y.Z` tag, as before.
 2. The `Sign installer` job submits the installer and waits up to an hour.
 3. Approve the request in SignPath. The job log links to it.
-4. The release then gets the signed `AriaSetup-X.Y.Z.exe` and `AriaSetup.exe`.
+4. The release then gets the signed `Aria-ERP-Setup.exe`.
 
 If the request is rejected or times out, the release fails rather than shipping an
 unsigned file. Re-run the failed jobs to submit a new request.

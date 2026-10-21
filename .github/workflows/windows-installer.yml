@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
 name: Windows Installer
 
-# Builds AriaSetup-<version>.exe (deployment/windows/installer). Release Images
+# Builds Aria-ERP-Setup.exe (deployment/windows/installer). Release Images
 # calls it for vX.Y.Z tags and attaches the result to the GitHub Release;
 # pull requests that touch the installer or what it ships build it as a check.
 
@@ -36,7 +36,7 @@ permissions: {}
 
 jobs:
   build:
-    name: Build AriaSetup.exe
+    name: Build Aria-ERP-Setup.exe
     runs-on: windows-2025
     timeout-minutes: 20
     permissions:
@@ -68,6 +68,6 @@ jobs:
         uses: actions/upload-artifact@v5
         with:
           name: aria-setup
-          path: dist/AriaSetup-*.exe
+          path: dist/Aria-ERP-Setup.exe
           if-no-files-found: error
           retention-days: 7

@@ -4,8 +4,8 @@ Run the full Aria ERP stack on one Windows machine with Docker Desktop, with
 settings, demo data and scheduled jobs already in place. The app runs as
 production builds behind Caddy on `http://localhost:8080`.
 
-For demo laptops (sales), use the **Windows installer** instead of a clone:
-see [Windows installer](#windows-installer). The rest of this page covers the
+For demo laptops (sales), use **Aria ERP Setup** instead of a clone:
+see [Aria ERP Setup](#aria-erp-setup-windows). The rest of this page covers the
 clone, which developers use.
 
 ## Requirements
@@ -159,30 +159,33 @@ fails), the current version is started again.
 Updates only fast-forward. If the local branch has its own commits, `update`
 stops and leaves it to you.
 
-## Windows installer
+## Aria ERP Setup (Windows)
 
-`AriaSetup-<version>.exe` installs, updates and uninstalls the demo without
-Git or a clone. Every `vX.Y.Z` tag attaches it to the GitHub Release (built by
+`Aria-ERP-Setup.exe` installs, updates and uninstalls the demo without Git or
+a clone. Every `vX.Y.Z` tag attaches it to the GitHub Release (built by
 `.github/workflows/windows-installer.yml` from `deployment/windows/installer`).
 It runs the images CI built for that tag, so nothing is built on the laptop.
 
 Download the newest one from
-<https://github.com/Karthik-beta/Aria/releases/latest/download/AriaSetup.exe>
-(each release also has the same file as `AriaSetup-<version>.exe`).
+<https://github.com/Karthik-beta/Aria/releases/latest/download/Aria-ERP-Setup.exe>.
 
 **Before the first install**, on each laptop: install
 [Docker Desktop](https://www.docker.com/products/docker-desktop/) (this needs
 administrator rights), start it once, and enable *Settings > General > Start
 Docker Desktop when you sign in*. Aria restarts with Docker Desktop, so the
-link keeps working after a reboot. The installer stops with a download link
-when Docker Desktop is missing.
+link keeps working after a reboot. Setup stops with a download link when
+Docker Desktop is missing.
 
 | Task      | How                                                                 |
 | --------- | ------------------------------------------------------------------- |
-| Install   | Run `AriaSetup-<version>.exe`. A console window shows progress (download, demo data, health checks), then the browser opens. |
+| Install   | Run `Aria-ERP-Setup.exe`, choose whether to **Load demo data**, click **Install**. The window lists the steps (checking the computer, downloading, preparing the database, demo data, starting, final checks) with the download percentage; **Show details** has the full log. The last page shows the address and sign-in. |
 | Use       | Open the **Aria ERP** shortcut (desktop or Start Menu), or `http://localhost:8080` |
-| Update    | Run the newer `AriaSetup-<version>.exe`                             |
-| Uninstall | Windows Settings > Apps > Aria ERP (or the Start Menu's *Uninstall Aria ERP*); it asks whether to keep the backups |
+| Update    | Start Menu > **Aria ERP Setup** > **Check for updates** > **Update**. It downloads the newer setup and continues the update. Running a newer `Aria-ERP-Setup.exe` offers **Update** straight away. |
+| Uninstall | Start Menu > **Aria ERP Setup** > **Uninstall** (with **Keep my database backups**), or Windows Settings > Apps > Aria ERP |
+
+The demo data choice is saved in `aria-local.override.env`
+(`DEMO_DATA_ENABLED`), so later updates never load demo data into a system
+that started empty.
 
 **"Windows protected your PC"**: SmartScreen shows this once for a downloaded
 copy until releases are signed through SignPath (see the
@@ -191,14 +194,14 @@ until Windows trusts the new signature. It needs no administrator
 rights, so this is the only prompt. Either:
 
 - click **More info**, then **Run anyway**, or
-- before running it, right-click `AriaSetup.exe` > **Properties**, tick
+- before running it, right-click `Aria-ERP-Setup.exe` > **Properties**, tick
   **Unblock** and click **OK**.
 
-To avoid the warning, hand the installer out on a USB drive or from a shared
+To avoid the warning, hand the setup out on a USB drive or from a shared
 company folder instead of a download link. A copy that was not downloaded
 usually has no download mark, so SmartScreen does not check it.
 
-The installer needs no administrator rights. It installs per user to
+Setup needs no administrator rights. It installs per user to
 `%LOCALAPPDATA%\Programs\Aria ERP`:
 
 ```text
@@ -208,6 +211,8 @@ Aria ERP\
   logs\                   one log per install or update
   current-version.txt     the version that is running
   Aria ERP.url            what the shortcuts open (follows the port Aria runs on)
+  Aria-ERP-Setup.exe      what the Aria ERP Setup shortcut opens (update, uninstall)
+  aria-local.override.env settings kept across versions (demo data choice)
 ```
 
 An update installs the new version next to the old one, then runs the same
@@ -215,8 +220,13 @@ steps as `update` above: it checks the new images are published, creates a
 restore point (app stopped, database backup, data snapshot, images), switches
 to the new version and checks health, the depreciation scheduler and the data.
 On success it removes the restore point and the old version's folder. On any
-failure it rolls back to the old folder, images and database, and the installer
-shows where the log is. Installed copies refuse `update` and `-FromSource`.
+failure it rolls back to the old folder, images and database, and setup
+shows the reason and where the log is. Installed copies refuse `update` and
+`-FromSource`.
+
+Setup runs `aria-local.ps1` without a console and passes `-ReportProgress`,
+so the script also prints `##aria phase|percent|error <value>` lines that the
+wizard turns into its step list.
 
 To publish a release:
 
@@ -228,12 +238,12 @@ git tag v0.2.0
 git push origin v0.2.0
 ```
 
-Release Images then builds the images, then the installer, then the GitHub
-Release with `AriaSetup-0.2.0.exe` and `AriaSetup.exe` attached (signed once
-SignPath is set up, after you approve the request; see
-[.signpath/README.md](../../.signpath/README.md)); the download
-link above then serves it (pre-release tags such as `v0.2.0-rc.1` do not
-replace it).
+Release Images then builds the images, then Aria ERP Setup, then the GitHub
+Release with `Aria-ERP-Setup.exe` attached (signed once SignPath is set up,
+after you approve the request; see
+[.signpath/README.md](../../.signpath/README.md)). The download link above
+and **Check for updates** then find it (pre-release tags such as
+`v0.2.0-rc.1` do not count as the latest release).
 
 ## Prebuilt images
 
