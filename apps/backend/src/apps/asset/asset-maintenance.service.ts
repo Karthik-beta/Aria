@@ -20,12 +20,17 @@ import {
 	toAssetMaintenanceLogListItem,
 } from "./asset.types";
 import { LIST_TAKE_MAX } from "./asset-service.shared";
+// biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
+import { AssetStatusService } from "./asset-status.service";
 
 @Injectable()
 export class AssetMaintenanceService {
 	private readonly logger = new Logger(AssetMaintenanceService.name);
 
-	constructor(private readonly prisma: PrismaService) {}
+	constructor(
+		private readonly prisma: PrismaService,
+		private readonly assetStatus: AssetStatusService,
+	) {}
 
 	/**
 	 * Calculates the next due date based on the periodicity and reference date.
@@ -263,6 +268,7 @@ export class AssetMaintenanceService {
 				id: true,
 				taskId: true,
 				maintenanceStatus: true,
+				maintenance: { select: { assetId: true } },
 			},
 		});
 		if (!log)
@@ -286,6 +292,10 @@ export class AssetMaintenanceService {
 				where: { id: log.taskId },
 				data: { maintenanceStatus: "CANCELLED" },
 			});
+
+			// The cancelled task is no longer due, so an In Maintenance asset may
+			// have to go back to its derived status.
+			await this.assetStatus.refreshStatus(tx, log.maintenance.assetId);
 
 			return cancelled;
 		});
@@ -602,12 +612,13 @@ export class AssetMaintenanceService {
 	): Promise<{ success: boolean; id: string }> {
 		const existing = await this.prisma.assetMaintenance.findUnique({
 			where: { id },
-			select: { id: true },
+			select: { id: true, assetId: true },
 		});
 		if (!existing) {
 			throw new NotFoundException(`Asset maintenance ${id} not found`);
 		}
 		await this.prisma.assetMaintenance.delete({ where: { id } });
+		await this.refreshInMaintenanceAssets([existing.assetId]);
 		return { success: true, id };
 	}
 
@@ -615,10 +626,34 @@ export class AssetMaintenanceService {
 		ids: string[],
 	): Promise<{ success: boolean; count: number; ids: string[] }> {
 		const unique = [...new Set(ids)];
+		const schedules = await this.prisma.assetMaintenance.findMany({
+			where: { id: { in: unique } },
+			select: { assetId: true },
+		});
 		const result = await this.prisma.assetMaintenance.deleteMany({
 			where: { id: { in: unique } },
 		});
+		await this.refreshInMaintenanceAssets(
+			schedules.map((schedule) => schedule.assetId),
+		);
 		return { success: true, count: result.count, ids: unique };
+	}
+
+	/**
+	 * Port of ERPNext `AssetMaintenance.after_delete`: an asset that was In
+	 * Maintenance gets its derived status back once its schedule is gone.
+	 */
+	private async refreshInMaintenanceAssets(assetIds: string[]): Promise<void> {
+		if (assetIds.length === 0) return;
+		const assets = await this.prisma.asset.findMany({
+			where: { id: { in: assetIds }, status: "IN_MAINTENANCE" },
+			select: { id: true },
+		});
+		for (const asset of assets) {
+			await this.prisma.$transaction((tx) =>
+				this.assetStatus.refreshStatus(tx, asset.id),
+			);
+		}
 	}
 
 	async completeAssetMaintenanceLog(
@@ -631,6 +666,7 @@ export class AssetMaintenanceService {
 				maintenanceId: true,
 				taskId: true,
 				maintenanceStatus: true,
+				maintenance: { select: { assetId: true } },
 			},
 		});
 		if (!log)
@@ -690,6 +726,10 @@ export class AssetMaintenanceService {
 					},
 				});
 			}
+
+			// ERPNext leaves this to its daily job; refreshing here keeps an asset
+			// from staying In Maintenance until midnight after the work is done.
+			await this.assetStatus.refreshStatus(tx, log.maintenance.assetId);
 
 			return completed;
 		});
