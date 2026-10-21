@@ -80,15 +80,21 @@ export function rowWithLink(page: Page, name: string): Locator {
 		.filter({ has: page.getByRole("link", { name, exact: true }) });
 }
 
-/** Opens the row's actions menu and clicks the given menu item. */
+/**
+ * Opens the row's actions menu and clicks the given menu item. `row` is the
+ * text the row contains, or an already narrowed row locator (for example from
+ * `rowWithLink`) when other rows can contain the same text.
+ */
 export async function clickRowAction(
 	page: Page,
-	rowText: string | RegExp,
+	row: string | RegExp | Locator,
 	action: string | RegExp,
 ) {
-	await tableRow(page, rowText)
-		.getByRole("button", { name: /actions/i })
-		.click();
+	const rowLocator =
+		typeof row === "string" || row instanceof RegExp
+			? tableRow(page, row)
+			: row;
+	await rowLocator.getByRole("button", { name: /actions/i }).click();
 	await page.getByRole("menuitem", { name: action }).click();
 }
 

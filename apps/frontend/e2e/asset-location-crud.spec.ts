@@ -110,7 +110,11 @@ test.describe("asset locations (real backend)", () => {
 	}) => {
 		await page.goto(LIST_PATH);
 		await page.getByPlaceholder("Search locations…").fill(GROUP_NAME);
-		await clickRowAction(page, GROUP_NAME, "Delete Location");
+		await clickRowAction(
+			page,
+			rowWithLink(page, GROUP_NAME),
+			"Delete Location",
+		);
 		await confirmDelete(page);
 
 		await expect(toast(page, /child/i)).toBeVisible();
@@ -139,7 +143,11 @@ test.describe("asset locations (real backend)", () => {
 		await expect(rowWithLink(page, GROUP_NAME)).toBeVisible();
 		await expect(tableRow(page, RENAMED_CHILD_NAME)).toHaveCount(0);
 
-		await clickRowAction(page, GROUP_NAME, "Delete Location");
+		await clickRowAction(
+			page,
+			rowWithLink(page, GROUP_NAME),
+			"Delete Location",
+		);
 		await submitAndWait(page, "asset.deleteLocation", () =>
 			confirmDelete(page),
 		);
