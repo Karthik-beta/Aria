@@ -49,7 +49,8 @@ export class DepreciationProcessor extends WorkerHost {
 		if (!this.worker.isRunning()) {
 			throw new Error("Depreciation worker is not running.");
 		}
-		await this.worker.client.then((client) => client.info());
+		// bullmq 6 moved the Redis client from Worker to its Redis backend.
+		await this.worker.getBackend().client.then((client) => client.info());
 	}
 
 	async process(job: DepreciationJob): Promise<DepreciationJobResult> {
