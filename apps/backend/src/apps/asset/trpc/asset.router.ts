@@ -9,6 +9,8 @@ import { z } from "zod";
 import { orgProcedure, router } from "../../../trpc/trpc";
 // biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
 import { AssetService } from "../asset.service";
+// biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
+import { AssetCoreService } from "../asset-core.service";
 
 /** Organization roles allowed to change asset records. */
 export const ASSET_MANAGER_ROLES = ["owner", "admin"];
@@ -48,6 +50,7 @@ export class AssetRouter {
 	constructor(
 		private readonly eventEmitter: EventEmitter2,
 		private readonly assetService: AssetService,
+		private readonly assetCore: AssetCoreService,
 	) {}
 
 	getRouter() {
@@ -740,6 +743,15 @@ export class AssetRouter {
 						columns,
 					);
 				}),
+
+			// -- Asset cancellation preview (cancel-with-depreciation-reversal) --
+			getAssetCancellationPreview: assetProcedure
+				.input(z.object({ id: z.string().cuid() }))
+				.output(Asset.assetCancellationPreviewSchema)
+				.query(async ({ input }) =>
+					this.assetCore.getAssetCancellationPreview(input.id),
+				),
+			// -- End asset cancellation preview ---------------------------------
 		});
 	}
 }

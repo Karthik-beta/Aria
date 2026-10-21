@@ -726,6 +726,16 @@ export class AssetCoreService {
 		return toAsset(asset);
 	}
 
+	/** Read-only summary of what cancelling the asset would reverse and what blocks it. */
+	async getAssetCancellationPreview(
+		id: string,
+	): Promise<Asset.AssetCancellationPreview> {
+		if (!this.depreciationLifecycle) {
+			throw new Error("Depreciation lifecycle service is unavailable");
+		}
+		return this.depreciationLifecycle.getCancellationPreview(id);
+	}
+
 	async deleteAsset(id: string): Promise<{ success: boolean; id: string }> {
 		const existing = await this.prisma.asset.findUnique({
 			where: { id },
