@@ -155,13 +155,16 @@ GitHub Container Registry:
 
 `start` and `update` pull `sha-<commit>` for the checked-out commit and tag it
 as `aria-local-backend:latest` / `aria-local-frontend:latest`, so the images
-always match the migrations, compose file and script in the clone. If the
-images for that commit are already here, nothing is downloaded. The script
-builds from source instead when:
+always match the migrations, compose file and script in the clone. CI only
+publishes images for commits pushed to `master`, so when the checked-out commit
+has none (a branch, or a change outside `apps/` and `packages/`), the script
+uses the newest earlier commit (up to 50 back) whose images were built from the
+same sources. If matching images are already here, nothing is downloaded. The
+script builds from source instead when:
 
-- the images for that commit are not published yet (the workflow takes about
-  10-15 minutes after a push; run `update -Force` later to switch to them),
-  or the registry cannot be reached
+- no matching images are published yet (the workflow takes about 10-15
+  minutes after a push; run `update -Force` later to switch to them), or the
+  registry cannot be reached
 - `apps/`, `packages/` or the root build files have local changes, or the
   folder is not a git clone
 - you pass `-FromSource`
