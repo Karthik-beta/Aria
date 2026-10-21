@@ -713,7 +713,7 @@ export class AssetCoreService {
 		return toAsset(asset);
 	}
 
-	/** Cancels an unposted asset and cancels its open schedules. */
+	/** Cancels a submitted asset, reversing posted depreciation and open schedules. */
 	async cancelAsset(id: string): Promise<Asset.AssetItem> {
 		if (!this.depreciationLifecycle) {
 			throw new Error("Depreciation lifecycle service is unavailable");
