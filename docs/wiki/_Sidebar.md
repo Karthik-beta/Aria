@@ -4,6 +4,7 @@
 - [Getting Started](Getting-Started)
 - [Modules](Modules)
   - [Assets](Assets)
+    - [ERPNext Parity](Asset-Management-Parity)
   - [Stock and Inventory](Stock-and-Inventory)
 - [Deployment](Deployment)
 
