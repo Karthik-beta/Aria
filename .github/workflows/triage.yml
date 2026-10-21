@@ -25,9 +25,9 @@ env:
 
 permissions: {}
 
-concurrency:
-  group: triage-${{ github.event.issue.number || github.event.pull_request.number }}
-  cancel-in-progress: false
+# No concurrency group: an issue opened with labels fires several events at
+# once, and a group would cancel the queued ones (including "opened"). Every
+# step below is idempotent, so parallel runs are safe.
 
 jobs:
   label:
@@ -70,6 +70,13 @@ jobs:
           if [ -z "$GH_TOKEN" ]; then
             echo "::notice::PROJECT_TOKEN secret is not set; skipping project board sync."
             exit 0
+          fi
+          # Fine-grained tokens cannot reach user-owned projects; say so instead of a bare 403.
+          if ! gh api graphql -f query='query { viewer { login } }' > /dev/null 2>&1 \
+            || ! gh api graphql -f owner="$PROJECT_OWNER" -F number="$PROJECT_NUMBER" \
+              -f query='query($owner: String!, $number: Int!) { user(login: $owner) { projectV2(number: $number) { id } } }' > /dev/null 2>&1; then
+            echo "::error::PROJECT_TOKEN cannot read project #$PROJECT_NUMBER. Use a classic personal access token with the 'project' and 'repo' scopes (fine-grained tokens cannot access user-owned projects)."
+            exit 1
           fi
 
           # Status for this event; empty means leave the current value alone.
