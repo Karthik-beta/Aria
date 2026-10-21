@@ -106,7 +106,7 @@ None of these exist yet. Most depend on an Accounts module (see [Modules](Module
 - ✅ **Service size** (fixed in #138). `asset.service.ts` is now a thin facade over focused sub-services (`AssetCoreService`, `AssetValueAdjustmentService`, `AssetReportsService`, `AssetLocationService`, `AssetFinanceBookService`, `AssetCategoryService`, `AssetMaintenanceTeamService`, `AssetMaintenanceService`), all under `apps/backend/src/apps/asset/` and registered in `AssetModule`. New features add their own service instead of growing the facade.
 - **Tests.**
   - Backend: 21 spec files. Report specs have 1 or 2 cases each, and finance-book CRUD and depreciation persistence have no direct tests.
-  - Frontend: 26 Vitest files and 6 Playwright specs, but no e2e coverage of the asset form, location, category or maintenance flows.
+  - Frontend: 26 Vitest files and 11 Playwright asset specs. Five of them (`asset-location-crud`, `asset-category-crud`, `asset-crud`, `asset-maintenance-crud`, `asset-member-readonly`) drive the UI against the real backend: location, category, asset (create, edit, submit, cancel, delete) and maintenance (team, schedule, log completion) CRUD, plus the read-only member role. The older asset specs still run against mocked tRPC responses. Not covered yet: value adjustment writes, depreciation posting and the finance-book pages.
 
 ## Roadmap
 
