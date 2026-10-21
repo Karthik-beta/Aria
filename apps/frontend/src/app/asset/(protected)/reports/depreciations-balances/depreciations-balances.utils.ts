@@ -1,4 +1,5 @@
 import type { Asset } from "@aria/types";
+import { formatDateOnly } from "@/lib/date-only";
 
 export type AssetDepreciationsAndBalancesFilterState = {
 	company: string;
@@ -98,16 +99,7 @@ export function formatCurrency(value: number | null | undefined): string {
 }
 
 export function formatDateLabel(value: Date | string): string {
-	const date = value instanceof Date ? value : new Date(value);
-	if (Number.isNaN(date.getTime())) {
-		return "-";
-	}
-
-	return date.toLocaleDateString("en-IN", {
-		year: "numeric",
-		month: "short",
-		day: "2-digit",
-	});
+	return formatDateOnly(value);
 }
 
 export function getOpeningDateLabel(fromDate: string): string {

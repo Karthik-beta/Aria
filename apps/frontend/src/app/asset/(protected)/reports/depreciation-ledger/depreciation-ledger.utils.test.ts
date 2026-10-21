@@ -1,8 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
 	buildAssetDepreciationLedgerInput,
 	formatAssetStatus,
 	formatCurrency,
+	formatDate,
 	formatDepreciationMethod,
 	formatRevisionLabel,
 	getDateRangeError,
@@ -56,5 +57,60 @@ describe("depreciation-ledger.utils", () => {
 		expect(formatCurrency(12500)).toContain("12,500.00");
 		expect(getDefaultFromDate()).toMatch(/^\d{4}-\d{2}-\d{2}$/);
 		expect(getDefaultToDate()).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+	});
+});
+
+const ZONES = [
+	"Asia/Kolkata",
+	"Pacific/Auckland",
+	"UTC",
+	"America/Los_Angeles",
+	"Pacific/Kiritimati",
+] as const;
+
+describe.each(ZONES)("formatDate in %s", (zone) => {
+	const originalTz = process.env.TZ;
+
+	beforeEach(() => {
+		process.env.TZ = zone;
+	});
+
+	afterEach(() => {
+		if (originalTz === undefined) {
+			delete process.env.TZ;
+		} else {
+			process.env.TZ = originalTz;
+		}
+	});
+
+	it("shows the stored calendar date", () => {
+		expect(formatDate(new Date("2026-01-01T00:00:00.000Z"))).toBe(
+			"01 Jan 2026",
+		);
+		expect(formatDate("2026-04-30T00:00:00.000Z")).toBe("30 Apr 2026");
+	});
+
+	it("handles month, leap day and year boundaries", () => {
+		expect(formatDate(new Date("2026-03-01T00:00:00.000Z"))).toBe(
+			"01 Mar 2026",
+		);
+		expect(formatDate(new Date("2026-03-31T00:00:00.000Z"))).toBe(
+			"31 Mar 2026",
+		);
+		expect(formatDate(new Date("2028-02-29T00:00:00.000Z"))).toBe(
+			"29 Feb 2028",
+		);
+		expect(formatDate(new Date("2026-12-31T00:00:00.000Z"))).toBe(
+			"31 Dec 2026",
+		);
+		expect(formatDate(new Date("2027-01-01T00:00:00.000Z"))).toBe(
+			"01 Jan 2027",
+		);
+	});
+
+	it("returns a dash for empty or invalid values", () => {
+		expect(formatDate(null)).toBe("-");
+		expect(formatDate(undefined)).toBe("-");
+		expect(formatDate("invalid")).toBe("-");
 	});
 });

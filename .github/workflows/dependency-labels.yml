@@ -1,0 +1,51 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+name: Dependency labels
+
+# Keeps "agent-ready" and "blocked" in step with each issue's "Blocked by:" footer
+# line. An issue is agent-ready once every issue it names is closed (or the line
+# says "nothing"). Issues carrying neither label are never touched.
+#
+# Closing or reopening an issue revisits the open issues that name it. Editing an
+# issue recomputes that issue. workflow_dispatch recomputes every open issue that
+# carries either label. The logic lives in .github/scripts/dependency-labels.sh.
+#
+# Uses GITHUB_TOKEN only: it writes labels on repository issues, not the project board.
+
+on:
+  issues:
+    types: [closed, reopened, edited]
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+permissions: {}
+
+# Overlapping closes queue instead of racing on the same labels.
+concurrency:
+  group: dependency-labels
+  cancel-in-progress: false
+
+jobs:
+  labels:
+    name: Recompute readiness labels
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Update agent-ready and blocked labels
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_ACTION: ${{ github.event.action }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: bash .github/scripts/dependency-labels.sh
