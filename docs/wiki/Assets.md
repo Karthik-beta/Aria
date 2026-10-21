@@ -19,6 +19,7 @@ Fixed-asset management ported from ERPNext's **Assets** module. `asset.service.t
 
 ## Further reading
 
-- [ASSET-MODULE-GAP-ANALYSIS.md](https://github.com/Karthik-beta/Aria/blob/master/ASSET-MODULE-GAP-ANALYSIS.md): what is still missing compared with ERPNext
+- [Asset Management: ERPNext Parity](Asset-Management-Parity): what is done and what is still missing compared with ERPNext
+- [ASSET-MODULE-GAP-ANALYSIS.md](https://github.com/Karthik-beta/Aria/blob/master/ASSET-MODULE-GAP-ANALYSIS.md): the original, more detailed gap analysis (May 2026)
 - [Asset management client guide](https://github.com/Karthik-beta/Aria/blob/master/docs/asset-management-client-guide.md)
 - [Depreciation production runbook](https://github.com/Karthik-beta/Aria/blob/master/docs/05-deployment/depreciation-production-runbook.md)
