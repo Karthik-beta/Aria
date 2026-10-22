@@ -11,6 +11,7 @@ on:
     paths:
       - 'deployment/windows/installer/**'
       - 'deployment/local/**'
+      - 'deployment/tests/docker-detection.ps1'
       - 'docker-compose.local.yml'
       - 'aria-local.cmd'
       - '.github/workflows/windows-installer.yml'
@@ -46,6 +47,15 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+
+      # Setup and aria-local.cmd run aria-local.ps1 with Windows PowerShell 5.1; it also runs under pwsh.
+      - name: Test Docker detection (Windows PowerShell)
+        shell: powershell
+        run: ./deployment/tests/docker-detection.ps1
+
+      - name: Test Docker detection (PowerShell 7)
+        shell: pwsh
+        run: ./deployment/tests/docker-detection.ps1
 
       - name: Install Inno Setup
         shell: pwsh
