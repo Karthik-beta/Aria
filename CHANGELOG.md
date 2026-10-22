@@ -30,3 +30,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - E2E suite runs against the real backend again: Playwright starts the API with a seeded super admin, signs in once through better-auth and reuses that session, and stale specs left over from the removed dev auth bypass were updated
 - Sign-up page "View dashboard" link pointed at the non-existent `/dashboard/overview`; it now opens the inventory dashboard
+- Aria ERP Setup reported Docker Desktop as not installed when it was installed outside `C:\Program Files\Docker\Docker` or when setup was opened from a program started before Docker was installed; setup and `aria-local.ps1` now find it through its registry entries, service and saved `PATH`, and start it from wherever it is installed
