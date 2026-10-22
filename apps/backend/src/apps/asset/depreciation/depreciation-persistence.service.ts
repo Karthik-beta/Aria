@@ -1,6 +1,12 @@
+import type { Asset } from "@aria/types";
 import { Injectable } from "@nestjs/common";
 import { Prisma } from "../../../generated/prisma/client";
 import type { PrismaService } from "../../../shared/prisma.service";
+import {
+	ASSET_DEPRECIATING_STATUSES,
+	deriveAssetStatus,
+	isOperationalAssetStatus,
+} from "../asset-status";
 import { dateOnlyUtc, normalizeDateOnly } from "./depreciation.config";
 import type {
 	DepreciationJobData,
@@ -72,10 +78,12 @@ interface WorkerEntry {
 			company: string;
 			calculateDepreciation: boolean;
 			status: string;
+			netPurchaseAmount: unknown;
 		};
 		assetFinanceBook: {
 			id: string;
 			financeBookId: string;
+			expectedValueAfterUsefulLife: unknown;
 			financeBook: { name: string };
 		};
 	};
@@ -128,7 +136,7 @@ export class DepreciationPersistenceService {
 		const throughDate = dateOnlyUtc(scope.throughDate);
 		const assetFilter: Record<string, unknown> = {
 			calculateDepreciation: true,
-			status: { in: ["SUBMITTED", "PARTIALLY_DEPRECIATED"] },
+			status: { in: [...ASSET_DEPRECIATING_STATUSES] },
 		};
 		if (scope.company) assetFilter.company = scope.company;
 		if (scope.assetIds?.length) assetFilter.id = { in: [...scope.assetIds] };
@@ -259,6 +267,7 @@ export class DepreciationPersistenceService {
 
 			const existing = await tx.assetDepreciationJournalEntry.findUnique<{
 				id: string;
+				status: string;
 			}>({
 				where: {
 					assetFinanceBookId_postingDate: {
@@ -266,8 +275,15 @@ export class DepreciationPersistenceService {
 						postingDate: entry.scheduleDate,
 					},
 				},
-				select: { id: true },
+				select: { id: true, status: true },
 			});
+			if (existing?.status === "REVERSED") {
+				// A reversed posting is not a posting: never link it to the schedule
+				// entry. Legitimate flows cancel the schedule on reversal.
+				throw new DepreciationPostingValidationError(
+					`Depreciation for ${normalizeDateOnly(entry.scheduleDate)} was reversed and cannot be posted again.`,
+				);
+			}
 			if (existing) {
 				await tx.assetDepreciationScheduleEntry.update({
 					where: { id: entry.id },
@@ -431,9 +447,7 @@ export class DepreciationPersistenceService {
 					data: {
 						valueAfterDepreciation: entry.bookValueAfterDepreciation,
 						isFullyDepreciated: fullyDepreciated,
-						status: fullyDepreciated
-							? "FULLY_DEPRECIATED"
-							: "PARTIALLY_DEPRECIATED",
+						status: this.assetStatusAfterPosting(entry),
 					},
 				});
 			}
@@ -444,6 +458,32 @@ export class DepreciationPersistenceService {
 				},
 			});
 			return { status: "posted", postingId: posting.id };
+		});
+	}
+
+	/**
+	 * Status of the asset after a posting on its default finance book. An
+	 * operational overlay (`IN_MAINTENANCE`/`OUT_OF_ORDER`) is kept: depreciation
+	 * continues underneath it and the maintenance flows own that status.
+	 * Otherwise the status engine derives it from the new book value.
+	 */
+	private assetStatusAfterPosting(entry: WorkerEntry): Asset.AssetStatus {
+		const asset = entry.schedule.asset;
+		const currentStatus = asset.status as Asset.AssetStatus;
+		if (isOperationalAssetStatus(currentStatus)) return currentStatus;
+		const valueAfterDepreciation = Number(entry.bookValueAfterDepreciation);
+		return deriveAssetStatus({
+			currentStatus,
+			calculateDepreciation: true,
+			isFullyDepreciated: false,
+			netPurchaseAmount: Number(asset.netPurchaseAmount),
+			valueAfterDepreciation,
+			defaultBook: {
+				valueAfterDepreciation,
+				expectedValueAfterUsefulLife: Number(
+					entry.schedule.assetFinanceBook.expectedValueAfterUsefulLife ?? 0,
+				),
+			},
 		});
 	}
 
@@ -471,8 +511,8 @@ export class DepreciationPersistenceService {
 		}
 		if (
 			!entry.schedule.asset.calculateDepreciation ||
-			!["SUBMITTED", "PARTIALLY_DEPRECIATED"].includes(
-				entry.schedule.asset.status,
+			!ASSET_DEPRECIATING_STATUSES.includes(
+				entry.schedule.asset.status as Asset.AssetStatus,
 			)
 		) {
 			throw new DepreciationPostingValidationError(

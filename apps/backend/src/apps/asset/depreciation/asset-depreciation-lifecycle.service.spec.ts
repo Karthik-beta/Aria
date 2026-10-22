@@ -1,5 +1,12 @@
 import { describe, expect, it, mock } from "bun:test";
+import { BadRequestException, NotFoundException } from "@nestjs/common";
+import { Prisma } from "../../../generated/prisma/client";
 import type { PrismaService } from "../../../shared/prisma.service";
+import {
+	createCancellationPrisma,
+	createPostedDepreciationState,
+	snapshotState,
+} from "./__tests__/cancellation-fixture";
 import { AssetDepreciationLifecycleService } from "./asset-depreciation-lifecycle.service";
 
 describe("AssetDepreciationLifecycleService", () => {
@@ -112,11 +119,447 @@ describe("AssetDepreciationLifecycleService", () => {
 		await expect(service.ensureSubmittedSchedules()).resolves.toBe(1);
 
 		expect(configureAssetBooks).toHaveBeenCalledWith("asset-1");
+		expect(findMany.mock.calls[0]?.[0].where.asset.status).toEqual({
+			in: [
+				"SUBMITTED",
+				"PARTIALLY_DEPRECIATED",
+				"IN_MAINTENANCE",
+				"OUT_OF_ORDER",
+			],
+		});
 		expect(findMany.mock.calls[0]?.[0].where.schedules).toEqual({
 			none: {
 				status: { in: ["DRAFT", "ACTIVE"] },
 				entries: { some: {} },
 			},
 		});
+	});
+
+	describe("submitAsset", () => {
+		function createSubmitService(statusRow: {
+			calculateDepreciation: boolean;
+			isFullyDepreciated?: boolean;
+			valueAfterDepreciation: number;
+			book?: { value: number; expected: number };
+		}) {
+			const assetUpdate = mock(async (_args?: unknown) => undefined);
+			const activityCreate = mock(async (_args?: unknown) => undefined);
+			const tx = {
+				asset: {
+					findUniqueOrThrow: mock(async () => ({
+						status: "DRAFT",
+						calculateDepreciation: statusRow.calculateDepreciation,
+						_count: { financeBooks: statusRow.book ? 1 : 0 },
+					})),
+					findUnique: mock(async () => ({
+						status: "DRAFT",
+						company: "Acme",
+						calculateDepreciation: statusRow.calculateDepreciation,
+						isFullyDepreciated: statusRow.isFullyDepreciated ?? false,
+						netPurchaseAmount: 100_000,
+						valueAfterDepreciation: statusRow.valueAfterDepreciation,
+						maintenanceRequired: false,
+						financeBooks: statusRow.book
+							? [
+									{
+										financeBookId: "fb-1",
+										valueAfterDepreciation: statusRow.book.value,
+										expectedValueAfterUsefulLife: statusRow.book.expected,
+									},
+								]
+							: [],
+					})),
+					update: assetUpdate,
+				},
+				company: {
+					findUnique: mock(async () => ({ defaultFinanceBookId: "fb-1" })),
+				},
+				assetDepreciationSchedule: { updateMany: mock(async () => undefined) },
+				assetActivity: { create: activityCreate },
+			};
+			const prisma = {
+				$transaction: mock(async (callback: (t: typeof tx) => Promise<void>) =>
+					callback(tx),
+				),
+			};
+			const service = new AssetDepreciationLifecycleService(
+				prisma as unknown as PrismaService,
+			);
+			service.configureAssetBooks = mock(async () => undefined);
+			return { service, assetUpdate, tx };
+		}
+
+		const submittedStatus = (update: { mock: { calls: unknown[][] } }) =>
+			(update.mock.calls[0][0] as { data: { status: string } }).data.status;
+
+		it("submits an untouched depreciable asset as SUBMITTED", async () => {
+			const { service, assetUpdate } = createSubmitService({
+				calculateDepreciation: true,
+				valueAfterDepreciation: 100_000,
+				book: { value: 100_000, expected: 10_000 },
+			});
+			await service.submitAsset("asset-1");
+			expect(submittedStatus(assetUpdate)).toBe("SUBMITTED");
+		});
+
+		it("submits an asset with opening accumulated depreciation as PARTIALLY_DEPRECIATED", async () => {
+			const { service, assetUpdate } = createSubmitService({
+				calculateDepreciation: true,
+				valueAfterDepreciation: 75_000,
+				book: { value: 75_000, expected: 10_000 },
+			});
+			await service.submitAsset("asset-1");
+			expect(submittedStatus(assetUpdate)).toBe("PARTIALLY_DEPRECIATED");
+		});
+
+		it("submits a depreciable asset already at its salvage value as FULLY_DEPRECIATED", async () => {
+			const { service, assetUpdate } = createSubmitService({
+				calculateDepreciation: true,
+				valueAfterDepreciation: 10_000,
+				book: { value: 10_000, expected: 10_000 },
+			});
+			await service.submitAsset("asset-1");
+			expect(submittedStatus(assetUpdate)).toBe("FULLY_DEPRECIATED");
+		});
+
+		it("submits a non-depreciating asset flagged fully depreciated as FULLY_DEPRECIATED", async () => {
+			const { service, assetUpdate } = createSubmitService({
+				calculateDepreciation: false,
+				isFullyDepreciated: true,
+				valueAfterDepreciation: 0,
+			});
+			await service.submitAsset("asset-1");
+			expect(submittedStatus(assetUpdate)).toBe("FULLY_DEPRECIATED");
+		});
+
+		it("submits a plain non-depreciating asset as SUBMITTED", async () => {
+			const { service, assetUpdate } = createSubmitService({
+				calculateDepreciation: false,
+				valueAfterDepreciation: 100_000,
+			});
+			await service.submitAsset("asset-1");
+			expect(submittedStatus(assetUpdate)).toBe("SUBMITTED");
+		});
+	});
+
+	describe("cancelAsset", () => {
+		const build = (
+			overrides: Parameters<typeof createPostedDepreciationState>[0] = {},
+		) => {
+			const state = createPostedDepreciationState(overrides);
+			const service = new AssetDepreciationLifecycleService(
+				createCancellationPrisma(state),
+			);
+			return { state, service };
+		};
+
+		it("reverses posted entries on two finance books and cancels the asset", async () => {
+			const { state, service } = build();
+
+			await service.cancelAsset("asset-1");
+
+			expect(state.entries.map((entry) => entry.status)).toEqual([
+				"REVERSED",
+				"REVERSED",
+				"REVERSED",
+			]);
+			for (const entry of state.entries) {
+				expect(entry.reversedAt).toBeInstanceOf(Date);
+			}
+			for (const book of state.books) {
+				expect(book.valueAfterDepreciation.toString()).toBe("100000");
+				expect(book.totalNumberOfBookedDepreciations).toBe(0);
+				expect(book.postingStatus).toBe("PENDING");
+				expect(book.lastPostedDepreciationDate).toBeNull();
+			}
+			expect(state.asset.valueAfterDepreciation.toString()).toBe("100000");
+			expect(state.asset.isFullyDepreciated).toBe(false);
+			expect(state.asset.status).toBe("CANCELLED");
+			expect(state.schedules.map((row) => row.status)).toEqual([
+				"CANCELLED",
+				"CANCELLED",
+			]);
+			expect(state.activities.map((row) => row.activity)).toEqual([
+				"Depreciation DEP-2026-00001 reversed for 2026-01-31 in Statutory.",
+				"Depreciation DEP-2026-00003 reversed for 2026-01-31 in Tax.",
+				"Depreciation DEP-2026-00002 reversed for 2026-02-28 in Statutory.",
+				"Asset cancelled",
+			]);
+		});
+
+		it("takes the posting worker's advisory lock for every finance book", async () => {
+			const { state, service } = build();
+
+			await service.cancelAsset("asset-1");
+
+			expect(state.locks).toEqual(["book-1", "book-2"]);
+		});
+
+		it("restores the opening value of a depreciable asset with opening depreciation", async () => {
+			const { state, service } = build();
+			state.asset.openingAccumulatedDepreciation = new Prisma.Decimal(25_000);
+			for (const book of state.books) {
+				book.openingAccumulatedDepreciation =
+					state.asset.openingAccumulatedDepreciation;
+				book.openingNumberOfBookedDepreciations = 2;
+			}
+
+			await service.cancelAsset("asset-1");
+
+			expect(state.asset.valueAfterDepreciation.toString()).toBe("75000");
+			expect(state.books[0]?.valueAfterDepreciation.toString()).toBe("75000");
+			expect(state.books[0]?.totalNumberOfBookedDepreciations).toBe(2);
+		});
+
+		it("blocks the whole cancellation when any entry is in a frozen period", async () => {
+			const { state, service } = build();
+			state.companies[0] = {
+				name: "ACME",
+				accountsFrozenThrough: new Date("2026-01-31T00:00:00.000Z"),
+			};
+			const before = snapshotState(state);
+
+			const error = await service.cancelAsset("asset-1").catch((e) => e);
+
+			expect(error).toBeInstanceOf(BadRequestException);
+			expect((error as Error).message).toBe(
+				"Accounting is frozen through 2026-01-31 for ACME. Depreciation posted on or before that date cannot be reversed, so asset AST-2026-00001 cannot be cancelled.",
+			);
+			expect(snapshotState(state)).toBe(before);
+		});
+
+		for (const status of [
+			"DRAFT",
+			"CANCELLED",
+			"SCRAPPED",
+			"SOLD",
+			"IN_MAINTENANCE",
+			"OUT_OF_ORDER",
+		]) {
+			it(`rejects an asset in status ${status}`, async () => {
+				const { state, service } = build({ status });
+				const before = snapshotState(state);
+
+				const error = await service.cancelAsset("asset-1").catch((e) => e);
+
+				expect(error).toBeInstanceOf(BadRequestException);
+				expect((error as Error).message).toBe(
+					status === "IN_MAINTENANCE" || status === "OUT_OF_ORDER"
+						? "There are active maintenance or repairs against the asset. You must complete all of them before cancelling the asset."
+						: `Asset cannot be cancelled, as it is already ${status
+								.split("_")
+								.map((w) => w.charAt(0) + w.slice(1).toLowerCase())
+								.join(" ")}`,
+				);
+				expect(snapshotState(state)).toBe(before);
+			});
+		}
+
+		for (const status of [
+			"SUBMITTED",
+			"PARTIALLY_DEPRECIATED",
+			"FULLY_DEPRECIATED",
+		]) {
+			it(`allows an asset in status ${status}`, async () => {
+				const { state, service } = build({ status });
+
+				await service.cancelAsset("asset-1");
+
+				expect(state.asset.status).toBe("CANCELLED");
+			});
+		}
+
+		it("is blocked by a submitted value adjustment", async () => {
+			const { state, service } = build();
+			state.adjustments.push({ assetId: "asset-1", status: "SUBMITTED" });
+			const before = snapshotState(state);
+
+			await expect(service.cancelAsset("asset-1")).rejects.toThrow(
+				"Cancel the submitted asset value adjustments first",
+			);
+			expect(snapshotState(state)).toBe(before);
+		});
+
+		it("ignores value adjustments that are not submitted", async () => {
+			const { state, service } = build();
+			state.adjustments.push(
+				{ assetId: "asset-1", status: "CANCELLED" },
+				{ assetId: "asset-1", status: "DRAFT" },
+			);
+
+			await service.cancelAsset("asset-1");
+
+			expect(state.asset.status).toBe("CANCELLED");
+		});
+
+		it("throws NotFoundException for an unknown asset", async () => {
+			const { service } = build();
+
+			await expect(service.cancelAsset("missing")).rejects.toBeInstanceOf(
+				NotFoundException,
+			);
+		});
+
+		it("cancels an asset without posted entries like before", async () => {
+			const { state, service } = build({ status: "SUBMITTED" });
+			state.entries.length = 0;
+			const before = JSON.stringify(state.books);
+
+			await service.cancelAsset("asset-1");
+
+			expect(state.asset.status).toBe("CANCELLED");
+			expect(state.asset.valueAfterDepreciation.toString()).toBe("80000");
+			expect(JSON.stringify(state.books)).toBe(before);
+			expect(state.schedules.every((row) => row.status === "CANCELLED")).toBe(
+				true,
+			);
+			expect(state.activities).toEqual([
+				{ assetId: "asset-1", activity: "Asset cancelled" },
+			]);
+		});
+
+		it("ignores entries that are already reversed", async () => {
+			const { state, service } = build();
+			for (const entry of state.entries) entry.status = "REVERSED";
+
+			await service.cancelAsset("asset-1");
+
+			expect(state.activities).toEqual([
+				{ assetId: "asset-1", activity: "Asset cancelled" },
+			]);
+		});
+	});
+
+	describe("getCancellationPreview", () => {
+		const build = (
+			overrides: Parameters<typeof createPostedDepreciationState>[0] = {},
+		) => {
+			const state = createPostedDepreciationState(overrides);
+			const service = new AssetDepreciationLifecycleService(
+				createCancellationPrisma(state),
+			);
+			return { state, service };
+		};
+
+		it("summarises the depreciation that cancelling would reverse without writing", async () => {
+			const { state, service } = build();
+			const before = snapshotState(state);
+
+			const preview = await service.getCancellationPreview("asset-1");
+
+			expect(preview).toEqual({
+				canCancel: true,
+				blockers: [],
+				postedEntryCount: 3,
+				postedDepreciationTotal: 30_000,
+				latestPostingDate: "2026-02-28",
+				entries: [
+					{
+						series: "DEP-2026-00001",
+						postingDate: "2026-01-31",
+						depreciationAmount: 10_000,
+						financeBookName: "Statutory",
+					},
+					{
+						series: "DEP-2026-00003",
+						postingDate: "2026-01-31",
+						depreciationAmount: 10_000,
+						financeBookName: "Tax",
+					},
+					{
+						series: "DEP-2026-00002",
+						postingDate: "2026-02-28",
+						depreciationAmount: 10_000,
+						financeBookName: "Statutory",
+					},
+				],
+			});
+			expect(snapshotState(state)).toBe(before);
+			expect(state.locks).toEqual([]);
+		});
+
+		it("reports an asset without posted entries as cancellable", async () => {
+			const { state, service } = build({ status: "SUBMITTED" });
+			state.entries.length = 0;
+
+			await expect(service.getCancellationPreview("asset-1")).resolves.toEqual({
+				canCancel: true,
+				blockers: [],
+				postedEntryCount: 0,
+				postedDepreciationTotal: 0,
+				latestPostingDate: null,
+				entries: [],
+			});
+		});
+
+		it("caps the listed entries at 200 but counts all of them", async () => {
+			const { state, service } = build();
+			const template = state.entries[0];
+			if (!template) throw new Error("fixture has no entries");
+			state.entries = Array.from({ length: 250 }, (_, index) => ({
+				...template,
+				id: `je-bulk-${index}`,
+				series: `DEP-BULK-${String(index).padStart(5, "0")}`,
+				postingDate: new Date(Date.UTC(2026, 0, 1 + index)),
+			}));
+
+			const preview = await service.getCancellationPreview("asset-1");
+
+			expect(preview.entries).toHaveLength(200);
+			expect(preview.postedEntryCount).toBe(250);
+			expect(preview.postedDepreciationTotal).toBe(2_500_000);
+		});
+
+		it("throws NotFoundException for an unknown asset", async () => {
+			const { service } = build();
+
+			await expect(
+				service.getCancellationPreview("missing"),
+			).rejects.toBeInstanceOf(NotFoundException);
+		});
+
+		const scenarios: Array<{
+			name: string;
+			status?: string;
+			frozen?: boolean;
+			adjustment?: boolean;
+		}> = [
+			{ name: "a partially depreciated asset" },
+			{ name: "a fully depreciated asset", status: "FULLY_DEPRECIATED" },
+			{ name: "a draft asset", status: "DRAFT" },
+			{ name: "a cancelled asset", status: "CANCELLED" },
+			{ name: "a scrapped asset", status: "SCRAPPED" },
+			{ name: "a sold asset", status: "SOLD" },
+			{ name: "an asset in maintenance", status: "IN_MAINTENANCE" },
+			{ name: "an asset out of order", status: "OUT_OF_ORDER" },
+			{ name: "an asset with a frozen posting", frozen: true },
+			{ name: "an asset with a submitted adjustment", adjustment: true },
+		];
+		for (const scenario of scenarios) {
+			it(`agrees with cancelAsset for ${scenario.name}`, async () => {
+				const { state, service } = build(
+					scenario.status ? { status: scenario.status } : {},
+				);
+				if (scenario.frozen) {
+					state.companies[0] = {
+						name: "ACME",
+						accountsFrozenThrough: new Date("2026-02-28T00:00:00.000Z"),
+					};
+				}
+				if (scenario.adjustment) {
+					state.adjustments.push({ assetId: "asset-1", status: "SUBMITTED" });
+				}
+
+				const preview = await service.getCancellationPreview("asset-1");
+				const error = await service.cancelAsset("asset-1").then(
+					() => null,
+					(caught: Error) => caught,
+				);
+
+				expect(preview.canCancel).toBe(error === null);
+				if (error) expect(preview.blockers[0]).toBe(error.message);
+				else expect(preview.blockers).toEqual([]);
+			});
+		}
 	});
 });

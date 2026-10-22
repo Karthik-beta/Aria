@@ -9,6 +9,10 @@ import { z } from "zod";
 import { orgProcedure, router } from "../../../trpc/trpc";
 // biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
 import { AssetService } from "../asset.service";
+// biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
+import { AssetCoreService } from "../asset-core.service";
+// biome-ignore lint/style/useImportType: Nest resolves this dependency from emitted runtime metadata.
+import { AssetLocationService } from "../asset-location.service";
 
 /** Organization roles allowed to change asset records. */
 export const ASSET_MANAGER_ROLES = ["owner", "admin"];
@@ -48,6 +52,8 @@ export class AssetRouter {
 	constructor(
 		private readonly eventEmitter: EventEmitter2,
 		private readonly assetService: AssetService,
+		private readonly assetCore: AssetCoreService,
+		private readonly locationService: AssetLocationService,
 	) {}
 
 	getRouter() {
@@ -740,6 +746,34 @@ export class AssetRouter {
 						columns,
 					);
 				}),
+
+			// -- Asset cancellation preview (cancel-with-depreciation-reversal) --
+			getAssetCancellationPreview: assetProcedure
+				.input(z.object({ id: z.string().cuid() }))
+				.output(Asset.assetCancellationPreviewSchema)
+				.query(async ({ input }) =>
+					this.assetCore.getAssetCancellationPreview(input.id),
+				),
+			// -- End asset cancellation preview ---------------------------------
+
+			// ── Location hierarchy ────────────────────────────────────────────
+			getLocationTree: assetProcedure
+				.input(Asset.locationTreeInputSchema)
+				.query(async ({ input }) =>
+					this.locationService.getLocationTree(input),
+				),
+
+			listLocationChildren: assetProcedure
+				.input(Asset.listLocationChildrenInputSchema)
+				.query(async ({ input }) =>
+					this.locationService.listLocationChildren(input),
+				),
+
+			getLocationAncestors: assetProcedure
+				.input(Asset.getLocationAncestorsInputSchema)
+				.query(async ({ input }) =>
+					this.locationService.getLocationAncestors(input.id),
+				),
 		});
 	}
 }

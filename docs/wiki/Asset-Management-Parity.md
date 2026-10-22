@@ -6,11 +6,11 @@ How far Aria's Asset Management module has got in porting ERPNext's **Assets** m
 
 | Area | Done | Notes |
 |---|---|---|
-| Masters (category, location, finance book) | ~85% | Location has no tree queries or geo fields |
-| Asset register and lifecycle | ~45% | Create, submit and cancel only. No sell, scrap, split or transfer |
+| Masters (category, location, finance book) | ~95% | Location is a validated tree with geo and area fields (#141) |
+| Asset register and lifecycle | ~50% | Create, submit and cancel (reverses posted depreciation). No sell, scrap, split or transfer |
 | Depreciation | ~85% | Every method except shift-based. Daily posting runs on BullMQ |
 | Value adjustment | 100% | Posts revaluation entries and builds a new schedule revision |
-| Maintenance | ~90% | No asset status change and no overdue job |
+| Maintenance | ~95% | Drives `IN_MAINTENANCE` through the status engine. The daily status job and the overdue log job are not scheduled yet (#155) |
 | Movement, repair, capitalization | 0% | No models, services or UI |
 | Reports and dashboard | ~70% | 3 of 5 reports. Dashboard and number cards are live |
 | Integrations (buying, selling, stock, GL) | ~5% | Purchase links are free text. No general ledger |
@@ -26,7 +26,7 @@ Percentages are judgement calls, not line counts. Each area is weighted by the s
 |---|---|---|---|
 | Asset | `Asset` | 🟡 Partial | Submit and cancel only. See [Asset lifecycle](#asset-lifecycle) |
 | Asset Category (+ Account) | `AssetCategory`, `AssetCategoryAccount`, `AssetCategoryFinanceBook` | ✅ Done | CWIP flag and account are stored but never used |
-| Location | `Location` | 🟡 Partial | Has a parent and an `isGroup` flag, but no tree API, area or geo fields |
+| Location | `Location` | ✅ Done | Validated tree (no cycles, group parents only, no leaf with children, no delete with children, `onDelete: Restrict`), `isContainer`, latitude/longitude, `areaUom` and a GeoJSON `geolocation` with `area` computed server-side (`location-area.ts`). Hierarchy API: `getLocationTree`, `listLocationChildren`, `getLocationAncestors`, plus `excludeDescendantsOf` on `listLocations`. Tree view next to the table. Deliberate difference: ERPNext copies child features into every ancestor and rewrites each ancestor's `area` on save; Aria keeps one adjacency list (`parentLocationId`, no `lft`/`rgt`) and rolls areas up at read time as `totalArea` on the tree nodes, so saving a location never writes to its ancestors. The GeoJSON field is a validated textarea, with no map widget |
 | Asset Activity | `AssetActivity` | ✅ Done | |
 | Asset Depreciation Schedule (+ Depreciation Schedule) | `AssetDepreciationSchedule`, `AssetDepreciationScheduleEntry` | ✅ Done | Keeps revisions |
 | Asset Finance Book | `AssetFinanceBook` | ✅ Done | |
@@ -36,7 +36,7 @@ Percentages are judgement calls, not line counts. Each area is weighted by the s
 | Asset Value Adjustment | `AssetValueAdjustment`, `AssetRevaluationEntry` | ✅ Done | Supports preview, submit and cancel |
 | Asset Maintenance (+ Task) | `AssetMaintenance`, `AssetMaintenanceTask` | ✅ Done | Tasks are edited inside the maintenance form |
 | Asset Maintenance Team (+ Member) | `AssetMaintenanceTeam`, `AssetMaintenanceTeamMember` | ✅ Done | |
-| Asset Maintenance Log | `AssetMaintenanceLog` | ✅ Done | Logs can be completed or cancelled. No scheduled status update |
+| Asset Maintenance Log | `AssetMaintenanceLog` | ✅ Done | Logs can be completed or cancelled, which refreshes the asset status. The scheduled overdue update is #155 |
 | Asset Movement (+ Item) | none | ❌ Missing | Location and custodian can only be changed by editing the asset |
 | Asset Repair (+ Consumed Item, Purchase Invoice) | none | ❌ Missing | |
 | Asset Capitalization (+ Asset, Stock and Service Items) | none | ❌ Missing | No CWIP flow and no composite assets |
@@ -45,11 +45,13 @@ Percentages are judgement calls, not line counts. Each area is weighted by the s
 
 | ERPNext operation | Status | Notes |
 |---|---|---|
-| Submit / cancel | ✅ | Cancel is blocked once depreciation has been posted, and there is no procedure to reverse posted depreciation. No amend flow |
+| Submit / cancel | ✅ | Cancelling a Submitted, Partially or Fully Depreciated asset reverses its posted depreciation entries in place (status `REVERSED`), resets the asset and finance book values, cancels the schedules and logs each reversal. Refused inside the company's frozen period, while a value adjustment is submitted, or in other statuses. A preview shows what will be reversed. No real reversing journal entries until the GL exists, no movement cancellation, no amend flow |
 | Naming series | ✅ | `AST-YYYY-NNNNN` from `DocumentSeriesCounter` |
-| Status: Draft, Submitted, Cancelled, Partially Depreciated, Fully Depreciated | ✅ | |
-| Status: Sold, Scrapped, In Maintenance, Out of Order | 🟠 | In the enum, but no code sets them. Maintenance never changes the asset's status |
-| Status: Issue, Receipt, Capitalized, Work In Progress | ❌ | Not in the enum |
+| Status: Draft, Submitted, Cancelled, Partially Depreciated, Fully Depreciated | ✅ | One status engine (`asset-status.ts`, `AssetStatusService`) ports ERPNext `get_status` and `set_status`. Submit, depreciation posting and value adjustment all go through it, so a fully depreciated or opening-depreciated asset no longer starts as plain Submitted. `DRAFT` on create and `CANCELLED` on cancel stay direct writes |
+| Status: In Maintenance | ✅ | `updateMaintenanceStatuses(asOf)` ports ERPNext `update_maintenance_status` (an asset with `maintenanceRequired` and a task due that day is In Maintenance, and goes back the next day). Deleting a schedule, or completing or cancelling a log, refreshes the status straight away. Depreciation keeps posting and keeps the overlay. The daily schedule is #155 |
+| Status: Out of Order | 🟠 | The engine handles it (a pending repair wins over a due task) and `AssetStatusService.hasPendingRepair` is the seam, but it always returns false until Asset Repair exists (#156) |
+| Status: Sold, Scrapped | 🟠 | In the enum and sticky in the engine, but no flow sets them yet (#149, #150) |
+| Status: Issue, Receipt, Capitalized, Work In Progress | ❌ | Not in the enum. `ISSUE` and `RECEIPT` arrive with Asset Movement (#147), `CAPITALIZED` and `WORK_IN_PROGRESS` with Asset Capitalization (#168), each with its own enum migration. The engine tables are `Record<AssetStatus, ...>`, so adding a value fails type-checking until the engine handles it |
 | Scrap / restore asset | ❌ | |
 | Sell asset (disposal, gain or loss) | ❌ | `disposalDate` is stored but unused |
 | Split asset | ❌ | |
@@ -65,6 +67,7 @@ Percentages are judgement calls, not line counts. Each area is weighted by the s
 | Shift-based depreciation | ❌ Needs Shift Allocation and wiring for Shift Factor |
 | Automatic daily posting (`post_depreciation_entries`) | ✅ Daily cron plus BullMQ queue, with barrier and reconciliation |
 | Posting into a general ledger (`make_depreciation_entry`) | 🟡 Posts to Aria's own `AssetDepreciationJournalEntry` tables. Accounts are plain strings because there is no chart of accounts or GL yet |
+| Assets In Maintenance or Out of Order keep depreciating | ✅ Posting and discovery use `ASSET_DEPRECIATING_STATUSES`, and posting preserves the overlay status |
 | Respecting a frozen-accounts date | ✅ |
 | Rescheduling after a value adjustment | ✅ |
 
@@ -79,7 +82,7 @@ Percentages are judgement calls, not line counts. Each area is weighted by the s
 | Asset Maintenance report | ❌ Only the operational log list |
 | Number cards and charts (Asset Value, New Assets, Total Assets, value by category, location and month) | ✅ Live dashboard at `/asset/dashboard/overview` |
 | Scheduled job: post depreciation entries | ✅ |
-| Scheduled job: update asset maintenance status | ❌ |
+| Scheduled job: update asset maintenance status | 🟡 `updateMaintenanceStatuses` exists and is tested; the cron is #155 |
 | Scheduled job: update maintenance log status (overdue) | ❌ |
 | Scheduled job: post deferred CWIP GL entries (`make_post_gl_entry`) | ❌ Needs CWIP and a GL |
 | Onboarding steps and workspace | ❌ |
@@ -102,11 +105,11 @@ None of these exist yet. Most depend on an Accounts module (see [Modules](Module
 
 - ✅ **Role-based access** (done in #123). Asset writes use `managerProcedure` (org `owner` or `admin`, or a global `super_admin`), and the UI hides write controls through `useCanManageAssets()`. Members can still view, export and complete maintenance logs.
 - ✅ **Broken dashboard links** (fixed in #123).
-- **Navigation.** Finance Book is reachable only from the admin console, not the asset sidebar.
-- **Service size.** `asset.service.ts` is about 3,700 lines and covers assets, locations, categories, maintenance, value adjustments and reports. Only the depreciation code has been split out.
+- ✅ **Navigation.** Finance Book is in the asset sidebar under Assets (`/asset/asset-sub-module/finance-book`). Every member can read it; owners, admins and super admins can add, rename and delete. The admin console entry remains.
+- ✅ **Service size** (fixed in #138). `asset.service.ts` is now a thin facade over focused sub-services (`AssetCoreService`, `AssetValueAdjustmentService`, `AssetReportsService`, `AssetLocationService`, `AssetFinanceBookService`, `AssetCategoryService`, `AssetMaintenanceTeamService`, `AssetMaintenanceService`), all under `apps/backend/src/apps/asset/` and registered in `AssetModule`. New features add their own service instead of growing the facade.
 - **Tests.**
-  - Backend: 21 spec files. Report specs have 1 or 2 cases each, and finance-book CRUD and depreciation persistence have no direct tests.
-  - Frontend: 26 Vitest files and 6 Playwright specs, but no e2e coverage of the asset form, location, category or maintenance flows.
+  - Backend: 24 spec files. Finance-book CRUD (15 cases, plus 4 router RBAC cases), `DepreciationPersistenceService` posting and pending queries (38 cases) and the report service filters and barrier call (16 cases in `asset-reports.service.spec.ts`) now have direct tests. The pure report builders still have 2 cases each.
+  - Frontend: 26 Vitest files and 11 Playwright asset specs. Five of them (`asset-location-crud`, `asset-category-crud`, `asset-crud`, `asset-maintenance-crud`, `asset-member-readonly`) drive the UI against the real backend: location, category, asset (create, edit, submit, cancel, delete) and maintenance (team, schedule, log completion) CRUD, plus the read-only member role. The older asset specs still run against mocked tRPC responses. Not covered yet: value adjustment writes, depreciation posting and the finance-book pages.
 
 ## Roadmap
 

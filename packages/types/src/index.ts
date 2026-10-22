@@ -5864,6 +5864,15 @@ export namespace Asset {
 		parentLocationId?: string | null;
 		parentLocationName?: string | null;
 		isGroup: boolean;
+		/** ERPNext `is_container`. */
+		isContainer?: boolean;
+		latitude?: number | null;
+		longitude?: number | null;
+		/** Computed server-side from `geolocation` (square metres). */
+		area?: number;
+		areaUom?: string | null;
+		/** GeoJSON FeatureCollection (ERPNext `location` field). */
+		geolocation?: GeoJsonFeatureCollection | null;
 		createdAt: Date;
 		updatedAt: Date;
 	}
@@ -6050,6 +6059,11 @@ export namespace Asset {
 		name: string;
 		parentLocationId?: string | null;
 		isGroup?: boolean;
+		isContainer?: boolean;
+		latitude?: number | null;
+		longitude?: number | null;
+		areaUom?: string | null;
+		geolocation?: GeoJsonFeatureCollection | null;
 	}
 
 	export interface UpdateLocationInput {
@@ -6057,6 +6071,53 @@ export namespace Asset {
 		name?: string;
 		parentLocationId?: string | null;
 		isGroup?: boolean;
+		isContainer?: boolean;
+		latitude?: number | null;
+		longitude?: number | null;
+		areaUom?: string | null;
+		geolocation?: GeoJsonFeatureCollection | null;
+	}
+
+	// ── Location tree ────────────────────────────────────────────────────────
+
+	/** Nested node returned by `getLocationTree`. */
+	export interface LocationTreeNode {
+		id: string;
+		name: string;
+		parentLocationId: string | null;
+		isGroup: boolean;
+		isContainer: boolean;
+		/** Assets assigned directly to this location. */
+		assetCount: number;
+		/** Assets assigned to this location or any descendant. */
+		totalAssetCount: number;
+		/** Number of direct child locations. */
+		childCount: number;
+		/** Own area in square metres. */
+		area: number;
+		/** Own area plus the areas of all descendants. */
+		totalArea: number;
+		children: LocationTreeNode[];
+	}
+
+	/** One entry of `listLocationChildren` (lazy tree loading). */
+	export interface LocationChildNode {
+		id: string;
+		name: string;
+		isGroup: boolean;
+		/** `isGroup` and has at least one child location. */
+		expandable: boolean;
+		assetCount: number;
+		childCount: number;
+		area: number;
+		isContainer: boolean;
+	}
+
+	/** One entry of the root-to-parent chain from `getLocationAncestors`. */
+	export interface LocationAncestor {
+		id: string;
+		name: string;
+		isGroup: boolean;
 	}
 
 	export interface CreateAssetCategoryInput {
@@ -6228,6 +6289,10 @@ export namespace Asset {
 			take: z.number().int().min(1).max(250).optional(),
 			search: z.string().max(255).trim().optional(),
 			isGroup: z.boolean().optional(),
+			/** Filter by parent; `null` returns root locations only. */
+			parentLocationId: z.string().cuid().nullable().optional(),
+			/** Exclude this location and all of its descendants (parent picker). */
+			excludeDescendantsOf: z.string().cuid().optional(),
 		})
 		.optional();
 	export type ListLocationsInput = z.infer<typeof listLocationsSchema>;
@@ -6395,10 +6460,100 @@ export namespace Asset {
 		financeBooks: assetInputFields.financeBooks,
 	});
 
+	// ── GeoJSON (ERPNext Location `location` field) ──────────────────────────
+
+	const geoJsonPositionSchema = z
+		.array(z.number().finite())
+		.min(2, "A GeoJSON position needs at least longitude and latitude");
+
+	const geoJsonFeatureSchema = z
+		.object({
+			type: z.literal("Feature"),
+			properties: z.record(z.string(), z.unknown()).nullable().optional(),
+			geometry: z
+				.object({
+					type: z.enum([
+						"Point",
+						"MultiPoint",
+						"LineString",
+						"MultiLineString",
+						"Polygon",
+						"MultiPolygon",
+						"GeometryCollection",
+					]),
+					coordinates: z.unknown().optional(),
+				})
+				.passthrough(),
+		})
+		.passthrough()
+		.superRefine((feature, ctx) => {
+			const { geometry, properties } = feature;
+			if (geometry.type === "Polygon") {
+				const rings = z
+					.array(z.array(geoJsonPositionSchema).min(4))
+					.min(1)
+					.safeParse(geometry.coordinates);
+				if (!rings.success) {
+					ctx.addIssue({
+						code: "custom",
+						path: ["geometry", "coordinates"],
+						message:
+							"A Polygon needs at least one ring of 4 or more [longitude, latitude] positions",
+					});
+				}
+			} else if (geometry.type === "Point") {
+				if (!geoJsonPositionSchema.safeParse(geometry.coordinates).success) {
+					ctx.addIssue({
+						code: "custom",
+						path: ["geometry", "coordinates"],
+						message: "A Point needs [longitude, latitude] coordinates",
+					});
+				}
+				if (properties?.point_type === "circle") {
+					const radius = properties.radius;
+					if (
+						typeof radius !== "number" ||
+						!Number.isFinite(radius) ||
+						radius < 0
+					) {
+						ctx.addIssue({
+							code: "custom",
+							path: ["properties", "radius"],
+							message: "A circle needs a non-negative numeric radius (metres)",
+						});
+					}
+				}
+			}
+		});
+
+	/** `{ type: "FeatureCollection", features: Feature[] }`; anything else is rejected. */
+	export const geoJsonFeatureCollectionSchema = z.object({
+		type: z.literal("FeatureCollection"),
+		features: z.array(geoJsonFeatureSchema).max(1000),
+	});
+	export type GeoJsonFeatureCollection = z.infer<
+		typeof geoJsonFeatureCollectionSchema
+	>;
+
 	const locationInputFields = {
 		name: z.string().min(1, "Location name is required").max(255).trim(),
 		parentLocationId: z.string().cuid().optional().nullable(),
 		isGroup: z.boolean().default(false),
+		isContainer: z.boolean().optional(),
+		latitude: z
+			.number()
+			.min(-90, "Latitude must be between -90 and 90")
+			.max(90, "Latitude must be between -90 and 90")
+			.optional()
+			.nullable(),
+		longitude: z
+			.number()
+			.min(-180, "Longitude must be between -180 and 180")
+			.max(180, "Longitude must be between -180 and 180")
+			.optional()
+			.nullable(),
+		areaUom: z.string().max(50).trim().optional().nullable(),
+		geolocation: geoJsonFeatureCollectionSchema.optional().nullable(),
 	} satisfies z.ZodRawShape;
 
 	export const createLocationSchema = z.object(locationInputFields);
@@ -6408,6 +6563,34 @@ export namespace Asset {
 		name: locationInputFields.name.optional(),
 		parentLocationId: locationInputFields.parentLocationId,
 		isGroup: z.boolean().optional(),
+		isContainer: locationInputFields.isContainer,
+		latitude: locationInputFields.latitude,
+		longitude: locationInputFields.longitude,
+		areaUom: locationInputFields.areaUom,
+		geolocation: locationInputFields.geolocation,
+	});
+
+	export const locationTreeInputSchema = z
+		.object({
+			rootId: z.string().cuid().optional(),
+			/** Include leaf locations (default true). */
+			includeLeaves: z.boolean().optional(),
+		})
+		.optional();
+	export type LocationTreeInput = z.infer<typeof locationTreeInputSchema>;
+
+	export const listLocationChildrenInputSchema = z
+		.object({
+			/** `null`/absent returns the roots (ERPNext "All Locations"). */
+			parentId: z.string().cuid().nullable().optional(),
+		})
+		.optional();
+	export type ListLocationChildrenInput = z.infer<
+		typeof listLocationChildrenInputSchema
+	>;
+
+	export const getLocationAncestorsInputSchema = z.object({
+		id: z.string().cuid(),
 	});
 
 	const assetCategoryInputFields = {
@@ -7325,6 +7508,32 @@ export namespace Asset {
 		extends AssetDashboardOverviewData,
 			AssetDashboardTopChartsData,
 			AssetDashboardBottomChartsData {}
+
+	// -- Asset cancellation preview (read-only) --------------------------------
+
+	/** One posted depreciation entry that cancelling the asset would reverse. */
+	export const assetCancellationPreviewEntrySchema = z.object({
+		series: z.string(),
+		postingDate: z.string(),
+		depreciationAmount: z.number(),
+		financeBookName: z.string(),
+	});
+
+	/**
+	 * What cancelling an asset would do and what blocks it. `entries` is capped
+	 * at 200 rows; `postedEntryCount` and `postedDepreciationTotal` cover all.
+	 */
+	export const assetCancellationPreviewSchema = z.object({
+		canCancel: z.boolean(),
+		blockers: z.array(z.string()),
+		postedEntryCount: z.number().int().min(0),
+		postedDepreciationTotal: z.number(),
+		latestPostingDate: z.string().nullable(),
+		entries: z.array(assetCancellationPreviewEntrySchema).max(200),
+	});
+	export type AssetCancellationPreview = z.infer<
+		typeof assetCancellationPreviewSchema
+	>;
 }
 
 // ============================================================================

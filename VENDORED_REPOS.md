@@ -72,6 +72,37 @@ git -C repos/trpc pull --ff-only --depth 1
 ./scripts/vendor-repos.sh --pull
 ```
 
+## ERPNext (reference source)
+
+ERPNext's Python source is vendored for the ERPNext-parity ports (see
+`docs/wiki/ERPNext-Porting.md`).
+
+- **Path**: `.erpnext/` (gitignored, not `repos/erpnext`). Existing docs and issues cite
+  `.erpnext/erpnext/...`, and `.gitignore` and `.github/dependabot.yml` already handle it.
+- **Sparse checkout**: a shallow, blob-less clone of `frappe/erpnext` (`develop`) that contains only
+  `erpnext/assets`, `erpnext/accounts`, `erpnext/stock`, `erpnext/controllers`, plus
+  `erpnext/hooks.py`, `erpnext/__init__.py`, `erpnext/exceptions.py` and `license.txt` (about 35 MB).
+  Other directories (for example `erpnext/crm`) are intentionally absent.
+- **Pinned commit**: `ERPNEXT_REF` in `scripts/vendor-repos.sh`. It is checked out detached, so every
+  machine reads the same code. `--pull` skips `.erpnext`.
+  - SHA: `ea8fb11e745682044f7c24ea1d8ce9c4685582a2`
+  - Commit date: 2026-10-21
+  - `__version__`: `17.0.0-dev`
+  - Last reviewed: 2026-10-21
+- **Legacy folder**: if `.erpnext/` exists without a `.git` (a hand-copied folder), the script warns and
+  leaves it alone. Run `mv .erpnext .erpnext.bak` and re-run `./scripts/vendor-repos.sh`.
+- **License (GPLv3)**: read-only reference. Never copy files into tracked code. Port the rules and credit
+  the source file in a header comment. Never import it from application code.
+
+Update procedure:
+
+```bash
+./scripts/vendor-repos.sh --update-erpnext   # fetches develop, prints the new tip log, changes nothing
+```
+
+Review the log, edit `ERPNEXT_REF` (and its date/version comment) in `scripts/vendor-repos.sh`, update the
+SHA and "Last reviewed" lines above, re-run `./scripts/vendor-repos.sh`, and open a PR.
+
 ## Editor Configuration
 
 Exclude vendored repos from search, auto-imports, and file watching.
@@ -80,17 +111,17 @@ Exclude vendored repos from search, auto-imports, and file watching.
 
 ```json
 {
-  "typescript.preferences.autoImportFileExcludePatterns": ["repos/**"],
-  "javascript.preferences.autoImportFileExcludePatterns": ["repos/**"],
-  "files.exclude": { "repos/**": true },
-  "files.watcherExclude": { "repos/**": true },
-  "search.exclude": { "repos/**": true }
+  "typescript.preferences.autoImportFileExcludePatterns": ["repos/**", ".erpnext/**"],
+  "javascript.preferences.autoImportFileExcludePatterns": ["repos/**", ".erpnext/**"],
+  "files.exclude": { "repos/**": true, ".erpnext/**": true },
+  "files.watcherExclude": { "repos/**": true, ".erpnext/**": true },
+  "search.exclude": { "repos/**": true, ".erpnext/**": true }
 }
 ```
 
 ### JetBrains / WebStorm
 
-Mark `repos/` as **Excluded** in Project Structure, or add to
+Mark `repos/` and `.erpnext/` as **Excluded** in Project Structure, or add to
 `.idea/workspace.xml` under `FileTypesManager` exclusion patterns.
 
 ## AGENTS.md Integration
@@ -127,6 +158,10 @@ This project vendors external dependency source trees under `repos/`.
 | Recharts chart components | `repos/recharts` |
 | Date manipulation utilities | `repos/date-fns` |
 | Biome lint/format rules | `repos/biome` |
+| Porting an ERPNext Assets doctype, report or scheduler job | `.erpnext/erpnext/assets` |
+| Journal Entry, GL, Finance Book, depreciation posting | `.erpnext/erpnext/accounts` |
+| Stock Entry, Purchase Receipt | `.erpnext/erpnext/stock` |
+| Controller base classes | `.erpnext/erpnext/controllers` |
 ```
 
 ## Trade-offs

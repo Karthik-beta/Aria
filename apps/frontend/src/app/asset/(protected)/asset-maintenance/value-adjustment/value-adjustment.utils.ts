@@ -1,4 +1,5 @@
 import type { Asset } from "@aria/types";
+import { formatDateOnly } from "@/lib/date-only";
 import type { AssetValueAdjustmentFormValues } from "./value-adjustment.schema";
 
 export const ASSET_VALUE_ADJUSTMENT_PAGE_SIZE = 20;
@@ -46,20 +47,7 @@ export function formatCurrency(value: number | null | undefined): string {
 }
 
 export function formatDate(value: Date | string | null | undefined): string {
-	if (!value) {
-		return "-";
-	}
-
-	const date = value instanceof Date ? value : new Date(value);
-	if (Number.isNaN(date.getTime())) {
-		return "-";
-	}
-
-	return date.toLocaleDateString("en-IN", {
-		year: "numeric",
-		month: "short",
-		day: "2-digit",
-	});
+	return formatDateOnly(value);
 }
 
 export function getRelativeAge(date: Date): string {

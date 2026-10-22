@@ -105,8 +105,7 @@ describe("asset-maintenance-log.utils", () => {
 
 		it("formats a valid date as YYYY-MM-DD", () => {
 			// en-CA locale returns YYYY-MM-DD
-			const result = formatDate(new Date("2026-03-15T00:00:00Z"));
-			expect(result).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+			expect(formatDate(new Date("2026-03-15T00:00:00Z"))).toBe("2026-03-15");
 		});
 	});
 

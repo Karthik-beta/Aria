@@ -77,11 +77,13 @@ export function getRelativeAge(date: Date): string {
 }
 
 /**
- * Formats a Date to a locale date string (YYYY-MM-DD for input fields).
+ * Formats a date-only value (task due date, completion date) as YYYY-MM-DD.
+ * Date-only values are stored as UTC midnight, so they are read in UTC to keep
+ * the calendar day identical in every viewer timezone.
  */
 export function formatDate(date: Date | null | undefined): string {
 	if (!date) return "—";
-	return date.toLocaleDateString("en-CA"); // YYYY-MM-DD
+	return date.toLocaleDateString("en-CA", { timeZone: "UTC" }); // YYYY-MM-DD
 }
 
 /**

@@ -182,6 +182,30 @@ describe("AssetMaintenanceFormPage", () => {
 		expect(screen.getByRole("button", { name: /Save/i })).toBeInTheDocument();
 	});
 
+	it("navigates to the maintenance list when Back to List is clicked", async () => {
+		const user = userEvent.setup();
+		renderWithProviders(<AssetMaintenanceFormPage />);
+
+		await user.click(screen.getByRole("button", { name: /Back to List/i }));
+
+		await waitFor(() =>
+			expect(mockPush).toHaveBeenCalledWith(
+				"/asset/asset-maintenance/maintenance",
+			),
+		);
+	});
+
+	it("redirects to the maintenance list when the record is not found", async () => {
+		currentId = "does-not-exist";
+		renderWithProviders(<AssetMaintenanceFormPage />);
+
+		await waitFor(() =>
+			expect(mockPush).toHaveBeenCalledWith(
+				"/asset/asset-maintenance/maintenance",
+			),
+		);
+	});
+
 	it("renders the Add Task button", () => {
 		renderWithProviders(<AssetMaintenanceFormPage />);
 

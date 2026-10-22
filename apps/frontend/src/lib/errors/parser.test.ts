@@ -73,6 +73,18 @@ describe("isTechnicalError", () => {
 		expect(isTechnicalError("Invalid invocation")).toBe(true);
 		expect(isTechnicalError("findMany failed")).toBe(true);
 		expect(isTechnicalError("findUnique returned null")).toBe(true);
+		expect(isTechnicalError("Invalid `prisma.location.delete()` call")).toBe(
+			true,
+		);
+		expect(isTechnicalError("at repo.update(data)")).toBe(true);
+	});
+
+	it("does not flag business messages that contain create/update/delete", () => {
+		expect(
+			isTechnicalError("Cannot delete a location that has child locations"),
+		).toBe(false);
+		expect(isTechnicalError("Cannot update a cancelled asset")).toBe(false);
+		expect(isTechnicalError("Cannot create a duplicate series")).toBe(false);
 	});
 
 	it("does not match partial words (SyntaxError vs 'syntax error')", () => {
@@ -312,6 +324,16 @@ describe("parseError", () => {
 		// Validation-friendly messages are preserved
 		expect(result.message).toBe("Name is required");
 		expect(result.title).toBe(DEFAULT_ERROR_MESSAGES.validation.title);
+	});
+
+	it("shows the backend's reason when a delete is rejected (BAD_REQUEST)", () => {
+		const message = "Cannot delete a location that has child locations";
+		const result = parseError(
+			{ message, data: { code: "BAD_REQUEST", httpStatus: 400 } },
+			"delete",
+		);
+		expect(result.category).toBe("validation");
+		expect(result.message).toBe(message);
 	});
 
 	it("hides technical error messages and substitutes operation defaults", () => {

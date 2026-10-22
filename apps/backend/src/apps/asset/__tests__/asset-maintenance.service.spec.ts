@@ -1,9 +1,8 @@
 /* eslint-disable */
 import { BadRequestException, NotFoundException } from "@nestjs/common";
-import type { FiscalYearService } from "../../../shared/fiscal-year/fiscal-year.service";
 import type { PrismaService } from "../../../shared/prisma.service";
-import { AssetService } from "../asset.service";
-import type { AssetDashboardSubService } from "../asset-dashboard.service";
+import { AssetMaintenanceService } from "../asset-maintenance.service";
+import type { AssetStatusService } from "../asset-status.service";
 
 // ---------------------------------------------------------------------------
 // Mock factory
@@ -100,16 +99,22 @@ function createMockPrisma() {
 
 function createTestContext() {
 	const mockPrisma = createMockPrisma();
-	const mockDashboard = {} as unknown as AssetDashboardSubService;
-	const mockFiscalYear = {
-		getFiscalYearEndDate: jest.fn().mockResolvedValue(null),
-	} as unknown as FiscalYearService;
-	const service = new AssetService(
+	const mockAssetStatus = {
+		refreshStatus: jest.fn().mockResolvedValue({
+			status: "SUBMITTED",
+			changed: false,
+		}),
+	};
+	const service = new AssetMaintenanceService(
 		mockPrisma as unknown as PrismaService,
-		mockDashboard,
-		mockFiscalYear,
+		mockAssetStatus as unknown as AssetStatusService,
 	);
-	return { service, mockPrisma, mockTx: mockPrisma._mockTx };
+	return {
+		service,
+		mockPrisma,
+		mockTx: mockPrisma._mockTx,
+		mockAssetStatus,
+	};
 }
 
 // ---------------------------------------------------------------------------
@@ -250,10 +255,11 @@ describe("AssetService > AssetMaintenance", () => {
 	let service: ReturnType<typeof createTestContext>["service"];
 	let mockPrisma: ReturnType<typeof createTestContext>["mockPrisma"];
 	let mockTx: ReturnType<typeof createTestContext>["mockTx"];
+	let mockAssetStatus: ReturnType<typeof createTestContext>["mockAssetStatus"];
 
 	beforeEach(() => {
 		jest.clearAllMocks();
-		({ service, mockPrisma, mockTx } = createTestContext());
+		({ service, mockPrisma, mockTx, mockAssetStatus } = createTestContext());
 	});
 
 	// -------------------------------------------------------------------------
@@ -503,7 +509,9 @@ describe("AssetService > AssetMaintenance", () => {
 		it("deletes an existing record and returns success", async () => {
 			mockPrisma.assetMaintenance.findUnique.mockResolvedValue({
 				id: "maint-001",
+				assetId: "asset-001",
 			});
+			mockPrisma.asset.findMany.mockResolvedValue([]);
 			mockPrisma.assetMaintenance.delete.mockResolvedValue({
 				id: "maint-001",
 			});
@@ -514,6 +522,39 @@ describe("AssetService > AssetMaintenance", () => {
 			expect(mockPrisma.assetMaintenance.delete).toHaveBeenCalledWith({
 				where: { id: "maint-001" },
 			});
+		});
+
+		it("refreshes the status of an asset that was In Maintenance", async () => {
+			mockPrisma.assetMaintenance.findUnique.mockResolvedValue({
+				id: "maint-001",
+				assetId: "asset-001",
+			});
+			mockPrisma.assetMaintenance.delete.mockResolvedValue({ id: "maint-001" });
+			mockPrisma.asset.findMany.mockResolvedValue([{ id: "asset-001" }]);
+
+			await service.deleteAssetMaintenance("maint-001");
+
+			expect(mockPrisma.asset.findMany).toHaveBeenCalledWith({
+				where: { id: { in: ["asset-001"] }, status: "IN_MAINTENANCE" },
+				select: { id: true },
+			});
+			expect(mockAssetStatus.refreshStatus).toHaveBeenCalledWith(
+				mockTx,
+				"asset-001",
+			);
+		});
+
+		it("does not refresh an asset that is not In Maintenance", async () => {
+			mockPrisma.assetMaintenance.findUnique.mockResolvedValue({
+				id: "maint-001",
+				assetId: "asset-001",
+			});
+			mockPrisma.assetMaintenance.delete.mockResolvedValue({ id: "maint-001" });
+			mockPrisma.asset.findMany.mockResolvedValue([]);
+
+			await service.deleteAssetMaintenance("maint-001");
+
+			expect(mockAssetStatus.refreshStatus).not.toHaveBeenCalled();
 		});
 
 		it("throws NotFoundException when record does not exist", async () => {
@@ -531,6 +572,7 @@ describe("AssetService > AssetMaintenance", () => {
 
 	describe("deleteManyAssetMaintenances", () => {
 		it("deletes multiple records and returns count", async () => {
+			mockPrisma.assetMaintenance.findMany.mockResolvedValue([]);
 			mockPrisma.assetMaintenance.deleteMany.mockResolvedValue({ count: 2 });
 
 			const result = await service.deleteManyAssetMaintenances([
@@ -546,6 +588,7 @@ describe("AssetService > AssetMaintenance", () => {
 		});
 
 		it("deduplicates ids before deleting", async () => {
+			mockPrisma.assetMaintenance.findMany.mockResolvedValue([]);
 			mockPrisma.assetMaintenance.deleteMany.mockResolvedValue({ count: 1 });
 
 			const result = await service.deleteManyAssetMaintenances([
@@ -694,10 +737,47 @@ describe("AssetService > cancelAssetMaintenanceLog", () => {
 	let service: ReturnType<typeof createTestContext>["service"];
 	let mockPrisma: ReturnType<typeof createTestContext>["mockPrisma"];
 	let mockTx: ReturnType<typeof createTestContext>["mockTx"];
+	let mockAssetStatus: ReturnType<typeof createTestContext>["mockAssetStatus"];
 
 	beforeEach(() => {
 		jest.clearAllMocks();
-		({ service, mockPrisma, mockTx } = createTestContext());
+		({ service, mockPrisma, mockTx, mockAssetStatus } = createTestContext());
+	});
+
+	it("refreshes the asset status in the same transaction after cancelling", async () => {
+		mockPrisma.assetMaintenanceLog.findUnique.mockResolvedValue({
+			id: "log-001",
+			taskId: "task-001",
+			maintenanceStatus: "PLANNED",
+			maintenance: { assetId: "asset-001" },
+		});
+		mockTx.assetMaintenanceLog.update.mockResolvedValue({
+			...mockLog,
+			maintenanceStatus: "CANCELLED",
+		});
+		mockTx.assetMaintenanceTask.update.mockResolvedValue({});
+
+		await service.cancelAssetMaintenanceLog({ logId: "log-001" });
+
+		expect(mockAssetStatus.refreshStatus).toHaveBeenCalledTimes(1);
+		expect(mockAssetStatus.refreshStatus).toHaveBeenCalledWith(
+			mockTx,
+			"asset-001",
+		);
+	});
+
+	it("does not refresh the asset status when the log cannot be cancelled", async () => {
+		mockPrisma.assetMaintenanceLog.findUnique.mockResolvedValue({
+			id: "log-001",
+			taskId: "task-001",
+			maintenanceStatus: "COMPLETED",
+			maintenance: { assetId: "asset-001" },
+		});
+
+		await expect(
+			service.cancelAssetMaintenanceLog({ logId: "log-001" }),
+		).rejects.toThrow(BadRequestException);
+		expect(mockAssetStatus.refreshStatus).not.toHaveBeenCalled();
 	});
 
 	it("throws NotFoundException when log does not exist", async () => {
@@ -737,6 +817,7 @@ describe("AssetService > cancelAssetMaintenanceLog", () => {
 			id: "log-001",
 			taskId: "task-001",
 			maintenanceStatus: "PLANNED",
+			maintenance: { assetId: "asset-001" },
 		});
 
 		const cancelledLog = {
@@ -770,6 +851,7 @@ describe("AssetService > cancelAssetMaintenanceLog", () => {
 			id: "log-002",
 			taskId: "task-001",
 			maintenanceStatus: "OVERDUE",
+			maintenance: { assetId: "asset-001" },
 		});
 
 		const cancelledLog = {
