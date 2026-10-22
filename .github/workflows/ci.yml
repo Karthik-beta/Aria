@@ -263,6 +263,12 @@ jobs:
         if: always()
         run: docker compose -f docker-compose.production.yml ps -a
 
+      # A service that never turns healthy stops `up -d` before the readiness
+      # steps can print its logs.
+      - name: Show service logs
+        if: failure()
+        run: docker compose -f docker-compose.production.yml logs --no-color --tail=300 migrate backend frontend redis
+
       - name: Tear down production stack
         if: always()
         run: docker compose -f docker-compose.production.yml down -v --remove-orphans
