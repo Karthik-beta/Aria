@@ -68,7 +68,6 @@ $HKLM64 = "HKLM:\SOFTWARE\$Uninstall"
 $HKLM32 = "HKLM:\SOFTWARE\WOW6432Node\$Uninstall"
 $HKCUKey = "HKCU:\SOFTWARE\$Uninstall"
 $Service = 'HKLM:\SYSTEM\CurrentControlSet\Services\com.docker.service'
-$StalePath = 'C:\Windows\System32;C:\Windows'
 
 $Root = Join-Path ([IO.Path]::GetTempPath()) ('aria-docker-detection-' + [guid]::NewGuid().ToString('N').Substring(0, 8))
 $SavedEnv = @{}
@@ -94,6 +93,9 @@ function Invoke-Case([string]$Name, [scriptblock]$Setup, [bool]$ExpectDocker, [s
     $env:ProgramFiles = Join-Path $case 'Program Files'
     ${env:ProgramFiles(x86)} = Join-Path $case 'Program Files (x86)'
     $env:LOCALAPPDATA = Join-Path $case 'AppData\Local'
+    # A simulated system folder: the real one can hold a docker.exe (GitHub's
+    # Windows runners have one in System32).
+    $StalePath = (Join-Path $case 'Windows\System32') + ';' + (Join-Path $case 'Windows')
     $script:FakeReg = @{}
     $script:SavedMachinePath = $StalePath
     $script:SavedUserPath = ''
