@@ -137,7 +137,6 @@ else {
     $BackupDir = Join-Path $PSScriptRoot 'backups'
     $LockFile = Join-Path $PSScriptRoot '.aria-local.lock'
 }
-$DockerDesktopExe = "$env:ProgramFiles\Docker\Docker\Docker Desktop.exe"
 $BuiltImages = @('aria-local-backend', 'aria-local-frontend')
 # Files that go into the images; a local change to them rules out the prebuilt ones.
 $ImageSources = @('apps', 'packages', 'package.json', 'bun.lock', 'turbo.json', 'tsconfig.base.json', '.dockerignore')
@@ -250,6 +249,65 @@ function Test-DockerEngine {
     return ($LASTEXITCODE -eq 0)
 }
 
+function Get-RegistryString([string]$Path, [string]$Name) {
+    $item = Get-ItemProperty -Path $Path -Name $Name -ErrorAction SilentlyContinue
+    if ($null -eq $item) { return '' }
+    return ([string]$item.$Name).Trim()
+}
+
+function Test-DockerDir([string]$Dir) {
+    if (-not $Dir) { return $false }
+    foreach ($file in @('Docker Desktop.exe', 'Docker for Windows.exe', 'resources\bin\docker.exe')) {
+        if (Test-Path -LiteralPath (Join-Path $Dir $file)) { return $true }
+    }
+    return $false
+}
+
+# Docker Desktop's folder wherever it was installed (--installation-dir, per
+# user, older versions), or $null.
+function Find-DockerDesktopDir {
+    $uninstallKey = 'Microsoft\Windows\CurrentVersion\Uninstall\Docker Desktop'
+    $candidates = @(
+        (Get-RegistryString "HKLM:\SOFTWARE\$uninstallKey" 'InstallLocation').Trim('"'),
+        (Get-RegistryString "HKLM:\SOFTWARE\WOW6432Node\$uninstallKey" 'InstallLocation').Trim('"'),
+        (Get-RegistryString "HKCU:\SOFTWARE\$uninstallKey" 'InstallLocation').Trim('"')
+    )
+    $imagePath = Get-RegistryString 'HKLM:\SYSTEM\CurrentControlSet\Services\com.docker.service' 'ImagePath'
+    if ($imagePath -match '^"([^"]+)"') { $imagePath = $Matches[1] }
+    if ($imagePath) { $candidates += Split-Path -Parent $imagePath }
+    $candidates += @(
+        "$env:ProgramW6432\Docker\Docker",
+        "$env:ProgramFiles\Docker\Docker",
+        "${env:ProgramFiles(x86)}\Docker\Docker",
+        "$env:LOCALAPPDATA\Programs\Docker\Docker"
+    )
+    foreach ($dir in $candidates) {
+        if (Test-DockerDir $dir) { return $dir }
+    }
+    # docker.exe on PATH is <Docker Desktop>\resources\bin\docker.exe.
+    $docker = Get-Command docker -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($null -ne $docker) {
+        $dir = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $docker.Source))
+        if (Test-DockerDir $dir) { return $dir }
+    }
+    return $null
+}
+
+# Started from a program that was open before Docker Desktop was installed,
+# this process has the old PATH: add the saved one, then Docker's bin folder.
+function Add-DockerToPath {
+    $current = @($env:Path -split ';')
+    $saved = @([Environment]::GetEnvironmentVariable('Path', 'Machine'), [Environment]::GetEnvironmentVariable('Path', 'User')) -join ';'
+    $missing = @($saved -split ';' | Where-Object { $_ -and $current -notcontains $_ })
+    if ($missing.Count -gt 0) { $env:Path = (@($env:Path) + $missing) -join ';' }
+    if (Get-Command docker -ErrorAction SilentlyContinue) { return }
+
+    $dir = Find-DockerDesktopDir
+    if ($null -eq $dir) { return }
+    $bin = Join-Path $dir 'resources\bin'
+    if (Test-Path -LiteralPath (Join-Path $bin 'docker.exe')) { $env:Path = "$bin;$env:Path" }
+}
+
 function Get-ProjectName { return (Get-Setting 'COMPOSE_PROJECT_NAME' 'aria-local') }
 
 # ---------------------------------------------------------------------------
@@ -283,14 +341,23 @@ function Assert-Docker {
     Send-Progress 'phase' 'check'
     Write-Step 'Checking Docker Desktop'
 
+    if (-not (Get-Command docker -ErrorAction SilentlyContinue)) { Add-DockerToPath }
     if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
         Stop-WithError 'Docker is not installed. Install Docker Desktop: https://www.docker.com/products/docker-desktop/'
     }
 
     if (-not (Test-DockerEngine)) {
-        if (Test-Path $DockerDesktopExe) {
+        $desktopExe = $null
+        $desktopDir = Find-DockerDesktopDir
+        if ($null -ne $desktopDir) {
+            $desktopExe = @('Docker Desktop.exe', 'Docker for Windows.exe') |
+                ForEach-Object { Join-Path $desktopDir $_ } |
+                Where-Object { Test-Path -LiteralPath $_ } |
+                Select-Object -First 1
+        }
+        if ($desktopExe) {
             Write-Info 'Docker engine is not running, starting Docker Desktop...'
-            Start-Process -FilePath $DockerDesktopExe | Out-Null
+            Start-Process -FilePath $desktopExe | Out-Null
         }
         else {
             Write-Info 'Docker engine is not running. Please start Docker Desktop.'

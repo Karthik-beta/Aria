@@ -106,6 +106,8 @@ Type: files; Name: "{app}\.aria-docker-removed"
 [Code]
 const
   DockerDownloadUrl = 'https://www.docker.com/products/docker-desktop/';
+  DockerUninstallKey = 'Software\Microsoft\Windows\CurrentVersion\Uninstall\Docker Desktop';
+  DockerServiceKey = 'SYSTEM\CurrentControlSet\Services\com.docker.service';
   ReleaseApiUrl = 'https://api.github.com/repos/Karthik-beta/Aria/releases/latest';
   SetupExeName = 'Aria-ERP-Setup.exe';
   UninstallKey = 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{575C1FDD-5263-4037-AD2A-AF73F30D0077}_is1';
@@ -696,6 +698,74 @@ begin
 end;
 
 // ---------------------------------------------------------------------------
+// Docker Desktop detection
+// ---------------------------------------------------------------------------
+function IsDockerDir(const Dir: String): Boolean;
+begin
+  Result := (Dir <> '') and
+    (FileExists(AddBackslash(Dir) + 'Docker Desktop.exe') or
+     FileExists(AddBackslash(Dir) + 'Docker for Windows.exe') or
+     FileExists(AddBackslash(Dir) + 'resources\bin\docker.exe'));
+end;
+
+function DockerUninstallDir(const RootKey: Integer): String;
+var
+  Dir: String;
+begin
+  if not RegQueryStringValue(RootKey, DockerUninstallKey, 'InstallLocation', Dir) then
+    Dir := '';
+  Result := RemoveQuotes(Trim(Dir));
+end;
+
+// The folder of the Docker Desktop service, e.g. from "C:\...\Docker\com.docker.service".
+function DockerServiceDir: String;
+var
+  ImagePath: String;
+  P: Integer;
+begin
+  Result := '';
+  if not RegQueryStringValue(HKLM, DockerServiceKey, 'ImagePath', ImagePath) then
+    Exit;
+  ImagePath := Trim(ImagePath);
+  if Copy(ImagePath, 1, 1) = '"' then
+  begin
+    Delete(ImagePath, 1, 1);
+    P := Pos('"', ImagePath);
+    if P > 0 then
+      ImagePath := Copy(ImagePath, 1, P - 1);
+  end;
+  Result := ExtractFileDir(ImagePath);
+end;
+
+// Also reads the saved machine and user PATH: setup started from a program
+// that was open before Docker Desktop was installed still has the old PATH.
+function DockerOnPath: Boolean;
+var
+  MachinePath, UserPath: String;
+begin
+  if not RegQueryStringValue(HKLM, 'SYSTEM\CurrentControlSet\Control\Session Manager\Environment', 'Path', MachinePath) then
+    MachinePath := '';
+  if not RegQueryStringValue(HKCU, 'Environment', 'Path', UserPath) then
+    UserPath := '';
+  Result := FileSearch('docker.exe', GetEnv('PATH') + ';' + MachinePath + ';' + UserPath) <> '';
+end;
+
+// Docker Desktop can be installed to any folder (--installation-dir), for all
+// users or per user; look everywhere it records itself before giving up.
+function DockerDesktopInstalled: Boolean;
+begin
+  Result :=
+    IsDockerDir(DockerUninstallDir(HKLM)) or
+    IsDockerDir(DockerUninstallDir(HKLM32)) or
+    IsDockerDir(DockerUninstallDir(HKCU)) or
+    IsDockerDir(DockerServiceDir) or
+    IsDockerDir(ExpandConstant('{commonpf64}\Docker\Docker')) or
+    IsDockerDir(ExpandConstant('{commonpf32}\Docker\Docker')) or
+    IsDockerDir(ExpandConstant('{localappdata}\Programs\Docker\Docker')) or
+    DockerOnPath;
+end;
+
+// ---------------------------------------------------------------------------
 // Setup
 // ---------------------------------------------------------------------------
 function InitializeSetup: Boolean;
@@ -727,7 +797,7 @@ begin
   else
     Mode := ModeManage;
 
-  if (Mode = ModeInstall) and not FileExists(ExpandConstant('{commonpf64}\Docker\Docker\Docker Desktop.exe')) then
+  if (Mode = ModeInstall) and not DockerDesktopInstalled then
   begin
     if MsgBox('Aria ERP runs in Docker Desktop, which is not installed on this computer.' + #13#10#13#10 +
       'Install Docker Desktop (this needs administrator rights), start it once, then run Aria ERP Setup again.' + #13#10#13#10 +
