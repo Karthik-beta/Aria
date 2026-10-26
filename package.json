@@ -27,7 +27,7 @@
 		"prisma"
 	],
 	"devDependencies": {
-		"@biomejs/biome": "2.5.15",
+		"@biomejs/biome": "2.6.2",
 		"@nodelib/fs.walk": "^3.0.1",
 		"husky": "^9.1.7",
 		"prisma": "^7.10.1",
