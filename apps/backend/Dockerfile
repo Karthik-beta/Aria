@@ -10,7 +10,7 @@
 ############################
 # Base: Bun runtime/tooling
 ############################
-FROM oven/bun:1.4.3@sha256:ec06c3b6cea04192ae6770c434f668ca41d343ad19fa6472216c7b48be39c598 AS base
+FROM oven/bun:1.4.4@sha256:1d22548f177f4ff38e0c15baa3c2c46c6c2060ba2d1bc573bb4720b407548f1d AS base
 WORKDIR /app
 
 ########################################
@@ -114,7 +114,7 @@ RUN bun --filter backend build
 #   to keep Bun’s virtual-store links valid (no cross-layer copy)
 # - Copy only compiled JS and required runtime assets
 #######################################################
-FROM oven/bun:1.4.3@sha256:ec06c3b6cea04192ae6770c434f668ca41d343ad19fa6472216c7b48be39c598 AS runner
+FROM oven/bun:1.4.4@sha256:1d22548f177f4ff38e0c15baa3c2c46c6c2060ba2d1bc573bb4720b407548f1d AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 # Put CLI tools in PATH (e.g., prisma, if present)
