@@ -1,0 +1,91 @@
+groups:
+  - name: aria_alerts
+    interval: 30s
+    rules:
+      # Container health alerts
+      - alert: ContainerDown
+        expr: up == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: 'Container {{ $labels.job }} is down'
+          description: 'Container {{ $labels.job }} on {{ $labels.instance }} has been down for more than 2 minutes.'
+
+      # High CPU usage
+      - alert: HighCPUUsage
+        expr: rate(process_cpu_seconds_total[5m]) > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'High CPU usage on {{ $labels.job }}'
+          description: '{{ $labels.job }} is using more than 80% CPU for 5 minutes.'
+
+      # High memory usage
+      - alert: HighMemoryUsage
+        expr: process_resident_memory_bytes / (1024 * 1024 * 1024) > 1.5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'High memory usage on {{ $labels.job }}'
+          description: '{{ $labels.job }} is using more than 1.5GB of memory.'
+
+      # Container restarts
+      - alert: ContainerRestarting
+        expr: rate(container_last_seen[5m]) > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Container is restarting frequently'
+          description: 'Container {{ $labels.name }} has restarted recently.'
+
+      # Disk space alerts
+      - alert: HighDiskUsage
+        expr: (1 - (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"})) > 0.85
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: 'Disk space is running low'
+          description: 'Disk usage is above 85% on {{ $labels.instance }}.'
+
+  - name: aria_asset_depreciation
+    interval: 30s
+    rules:
+      - alert: AssetDepreciationQueueNotReady
+        expr: aria_asset_depreciation_queue_ready == 0 or aria_asset_depreciation_worker_ready == 0 or aria_asset_depreciation_queue_events_ready == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: 'Asset depreciation queue runtime is not ready'
+          description: 'The producer, worker, or queue-events connection has been unready for two minutes.'
+
+      - alert: AssetDepreciationTerminalFailure
+        expr: increase(aria_asset_depreciation_failed_total[5m]) > 0
+        labels:
+          severity: critical
+        annotations:
+          summary: 'Asset depreciation reached a terminal failure'
+          description: 'Pause the queue, inspect the failed job, and correct configuration or accounting data before an operator-directed retry.'
+
+      - alert: AssetDepreciationOldestDuePeriodOver24Hours
+        expr: aria_asset_depreciation_oldest_unposted_lag_seconds > 86400
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: 'Asset depreciation is more than 24 hours behind'
+          description: 'The oldest due, unfrozen, unposted depreciation period is over 24 hours old.'
+
+      - alert: AssetDepreciationDiscoveryMissing
+        expr: absent(aria_asset_depreciation_last_successful_discovery_timestamp_seconds) or (time() - aria_asset_depreciation_last_successful_discovery_timestamp_seconds > 1800)
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: 'Asset depreciation discovery has not succeeded recently'
+          description: 'No successful discovery has been observed for more than 30 minutes.'

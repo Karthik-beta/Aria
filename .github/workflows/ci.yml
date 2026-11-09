@@ -1,0 +1,274 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+name: CI
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+on:
+  push:
+    branches: ['main', 'master']
+  pull_request:
+    branches: ['main', 'master']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  # Every job below runs in parallel; the slowest one (E2E) sets the total.
+  lint-typecheck:
+    name: Lint and typecheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # Same values as the jobs with services; nothing here connects to them.
+    env: &database-env
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/aria?schema=public
+      REDIS_URL: redis://localhost:6379
+      APP_TIME_ZONE: UTC
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up workspace
+        uses: ./.github/actions/setup-workspace
+        with:
+          turbo-cache-name: lint-typecheck
+
+      - name: Lint
+        run: bun x turbo run lint
+
+      - name: Typecheck
+        run: bun x turbo run typecheck
+
+  test:
+    name: Unit and integration tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services: &database-services
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: aria
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d aria"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env: *database-env
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up workspace
+        uses: ./.github/actions/setup-workspace
+        with:
+          turbo-cache-name: test
+
+      - name: Apply database migrations
+        working-directory: apps/backend
+        run: bun run db:migrate:deploy
+
+      - name: Test
+        run: bun x turbo run test
+
+      - name: Depreciation integration tests
+        run: bun x turbo run test:integration
+
+      - name: Depreciation migration compatibility
+        run: bun x turbo run test:depreciation:migrations --filter=backend
+
+  e2e:
+    name: E2E tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services: *database-services
+    env: *database-env
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up workspace
+        uses: ./.github/actions/setup-workspace
+        with:
+          turbo-cache-name: e2e
+
+      - name: Apply database migrations
+        working-directory: apps/backend
+        run: bun run db:migrate:deploy
+
+      # Playwright's web servers build and run the apps directly, outside
+      # Turborepo, so the workspace packages they import must be built first.
+      - name: Build workspace packages
+        run: bun x turbo run build --filter='backend^...' --filter='frontend^...'
+
+      - name: Playwright version
+        id: playwright
+        working-directory: apps/frontend
+        run: echo "version=$(bun x playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+
+      # Only the chromium project runs (playwright.config.ts). The browser is
+      # cached per Playwright version; its system packages are not cacheable.
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}-chromium
+
+      - name: Install Playwright browser
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        working-directory: apps/frontend
+        run: bun x playwright install --with-deps chromium
+
+      - name: Install Playwright system dependencies
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        working-directory: apps/frontend
+        run: bun x playwright install-deps chromium
+
+      - name: Test E2E
+        run: bun x turbo run test:e2e --continue
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env: *database-env
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up workspace
+        uses: ./.github/actions/setup-workspace
+        with:
+          turbo-cache-name: build
+
+      - name: Build
+        run: bun x turbo run build
+
+  docker-production-smoke:
+    name: Docker production smoke and recovery
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      POSTGRES_PASSWORD: docker_test_postgres
+      REDIS_PASSWORD: docker_test_redis
+      APP_TIME_ZONE: UTC
+      BETTER_AUTH_SECRET: docker_test_better_auth_secret
+      DEFAULT_ADMIN_PASSWORD: docker_test_admin_password
+      DOMAIN: localhost
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Build production images from a clean cache
+        run: docker compose -f docker-compose.production.yml build --no-cache backend frontend
+
+      - name: Verify backend command forwarding
+        run: docker compose -f docker-compose.production.yml run --rm --no-deps backend bun --version
+
+      - name: Start migration-gated application
+        run: docker compose -f docker-compose.production.yml up -d postgres redis migrate backend frontend
+
+      - name: Wait for backend readiness
+        run: |
+          for attempt in $(seq 1 40); do
+            if docker compose -f docker-compose.production.yml exec -T backend \
+              curl -fsS http://localhost:3001/health/ready >/dev/null; then
+              exit 0
+            fi
+            sleep 5
+          done
+          docker compose -f docker-compose.production.yml ps
+          docker compose -f docker-compose.production.yml logs migrate backend
+          exit 1
+
+      - name: Verify frontend readiness
+        run: |
+          for attempt in $(seq 1 40); do
+            if docker compose -f docker-compose.production.yml exec -T frontend \
+              node -e "const request=require('http').get('http://localhost:3000/ready/',(response)=>{let body='';response.on('data',(chunk)=>body+=chunk);response.on('end',()=>{try{const value=JSON.parse(body);process.exit(response.statusCode===200&&value.status==='ok'&&value.service==='frontend'?0:1)}catch{process.exit(1)}})});request.on('error',()=>process.exit(1))"; then
+              exit 0
+            fi
+            sleep 5
+          done
+          docker compose -f docker-compose.production.yml ps
+          docker compose -f docker-compose.production.yml logs frontend
+          exit 1
+
+      - name: Verify migration and queue state
+        run: |
+          MIGRATE_ID="$(docker compose -f docker-compose.production.yml ps -aq migrate)"
+          test -n "$MIGRATE_ID"
+          test "$(docker inspect -f '{{.State.ExitCode}}' "$MIGRATE_ID")" = "0"
+          docker compose -f docker-compose.production.yml exec -T backend \
+            bun --cwd=/app/apps/backend run depreciation:queue -- status
+          test "$(docker compose -f docker-compose.production.yml exec -T postgres \
+            psql -U aria -d aria -tAc \
+            'SELECT COUNT(*) FROM (SELECT "assetFinanceBookId", "postingDate" FROM "asset_depreciation_journal_entries" GROUP BY 1, 2 HAVING COUNT(*) > 1) duplicate')" = "0"
+
+      - name: Verify Redis readiness recovery
+        run: |
+          docker compose -f docker-compose.production.yml stop redis
+          if docker compose -f docker-compose.production.yml exec -T backend \
+            curl -fsS http://localhost:3001/health/ready >/dev/null; then
+            echo "Readiness remained healthy while Redis was stopped."
+            exit 1
+          fi
+          docker compose -f docker-compose.production.yml start redis
+          for attempt in $(seq 1 30); do
+            if docker compose -f docker-compose.production.yml exec -T backend \
+              curl -fsS http://localhost:3001/health/ready >/dev/null; then
+              exit 0
+            fi
+            sleep 5
+          done
+          docker compose -f docker-compose.production.yml logs redis backend
+          exit 1
+
+      - name: Verify backend restart rediscovery is idempotent
+        run: |
+          docker compose -f docker-compose.production.yml restart backend
+          for attempt in $(seq 1 30); do
+            if docker compose -f docker-compose.production.yml exec -T backend \
+              curl -fsS http://localhost:3001/health/ready >/dev/null; then
+              break
+            fi
+            sleep 5
+          done
+          docker compose -f docker-compose.production.yml exec -T backend \
+            curl -fsS http://localhost:3001/health/ready >/dev/null
+          test "$(docker compose -f docker-compose.production.yml exec -T postgres \
+            psql -U aria -d aria -tAc \
+            'SELECT COUNT(*) FROM (SELECT "assetFinanceBookId", "postingDate" FROM "asset_depreciation_journal_entries" GROUP BY 1, 2 HAVING COUNT(*) > 1) duplicate')" = "0"
+
+      - name: Show service state
+        if: always()
+        run: docker compose -f docker-compose.production.yml ps -a
+
+      # A service that never turns healthy stops `up -d` before the readiness
+      # steps can print its logs.
+      - name: Show service logs
+        if: failure()
+        run: docker compose -f docker-compose.production.yml logs --no-color --tail=300 migrate backend frontend redis
+
+      - name: Tear down production stack
+        if: always()
+        run: docker compose -f docker-compose.production.yml down -v --remove-orphans
