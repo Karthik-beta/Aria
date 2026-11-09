@@ -1,0 +1,45 @@
+# Caddy configuration for the local Docker demo (docker-compose.local.yml)
+# Plain HTTP on localhost: production builds behind a single same-origin proxy.
+
+{
+	auto_https off
+	admin off
+}
+
+:80 {
+	route {
+		# Backend liveness/readiness endpoints
+		reverse_proxy /health* backend:3001
+
+		# API routes (including Better Auth at /api/auth/*)
+		reverse_proxy /api/* backend:3001 {
+			flush_interval -1
+		}
+
+		# tRPC HTTP routes
+		reverse_proxy /trpc/* backend:3001
+
+		# tRPC WebSocket subscriptions
+		reverse_proxy /trpc-ws backend:3001
+
+		# Frontend (Next.js standalone server)
+		reverse_proxy frontend:3000 {
+			flush_interval -1
+		}
+	}
+
+	header {
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+
+	encode gzip
+
+	log {
+		output stdout
+		format console
+		level WARN
+	}
+}

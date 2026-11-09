@@ -1,0 +1,83 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+name: Windows Installer
+
+# Builds Aria-ERP-Setup.exe (deployment/windows/installer). Release Images
+# calls it for vX.Y.Z tags and attaches the result to the GitHub Release;
+# pull requests that touch the installer or what it ships build it as a check.
+
+on:
+  pull_request:
+    branches: ['main']
+    paths:
+      - 'deployment/windows/installer/**'
+      - 'deployment/local/**'
+      - 'deployment/tests/docker-detection.ps1'
+      - 'docker-compose.local.yml'
+      - 'aria-local.cmd'
+      - '.github/workflows/windows-installer.yml'
+  workflow_call:
+    inputs:
+      version:
+        description: Release version or tag (v0.2.0 or 0.2.0)
+        required: true
+        type: string
+      revision:
+        description: Commit the release images were built from
+        required: true
+        type: string
+    outputs:
+      artifact-id:
+        description: ID of the uploaded aria-setup artifact (what SignPath signs)
+        value: ${{ jobs.build.outputs.artifact-id }}
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+permissions: {}
+
+jobs:
+  build:
+    name: Build Aria-ERP-Setup.exe
+    runs-on: windows-2025
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    outputs:
+      artifact-id: ${{ steps.upload.outputs.artifact-id }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      # Setup and aria-local.cmd run aria-local.ps1 with Windows PowerShell 5.1; it also runs under pwsh.
+      - name: Test Docker detection (Windows PowerShell)
+        shell: powershell
+        run: ./deployment/tests/docker-detection.ps1
+
+      - name: Test Docker detection (PowerShell 7)
+        shell: pwsh
+        run: ./deployment/tests/docker-detection.ps1
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) {
+            choco install innosetup --yes --no-progress
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+
+      - name: Build installer
+        shell: pwsh
+        env:
+          # Pull requests have no release: a placeholder version, the PR's commit.
+          VERSION: ${{ inputs.version || '0.0.0-pr' }}
+          REVISION: ${{ inputs.revision || github.sha }}
+        run: ./deployment/windows/installer/build-installer.ps1 -Version ($env:VERSION -replace '^v', '') -Revision $env:REVISION -OutDir dist
+
+      - name: Upload installer
+        id: upload
+        uses: actions/upload-artifact@v7
+        with:
+          name: aria-setup
+          path: dist/Aria-ERP-Setup.exe
+          if-no-files-found: error
+          retention-days: 7

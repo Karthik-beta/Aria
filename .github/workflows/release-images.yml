@@ -1,0 +1,281 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+name: Release Images
+
+# Builds the production frontend and backend images once and publishes them to
+# GHCR, so installs and updates download them instead of building on the device.
+#   push to main -> ghcr.io/<owner>/aria-erp-{backend,frontend}:sha-<commit>, :main
+#   tag vX.Y.Z     -> :X.Y.Z, :X.Y, :latest, :sha-<commit>, plus a GitHub Release
+#                     with the Windows installer, signed through SignPath
+#                     (CODE_SIGNING.md) once signing is set up
+# Each platform builds natively on its own runner; a merge job joins the
+# per-platform digests into one multi-arch tag.
+
+on:
+  push:
+    branches: ['main']
+    tags: ['v*.*.*']
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+permissions: {}
+
+concurrency:
+  group: release-images-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build ${{ matrix.image }} (${{ matrix.platform }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [backend, frontend]
+        platform: [linux/amd64, linux/arm64]
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-24.04
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+    steps:
+      - name: Prepare
+        run: |
+          platform='${{ matrix.platform }}'
+          echo "PLATFORM_PAIR=${platform//\//-}" >> "$GITHUB_ENV"
+          echo "IMAGE_NAME=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/aria-erp-${{ matrix.image }}" >> "$GITHUB_ENV"
+
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Image metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ env.IMAGE_NAME }}
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      # Same target and build args as docker-compose.local.yml and
+      # docker-compose.production.yml. An empty NEXT_PUBLIC_API_URL makes the
+      # browser call the origin it was served from, so one image fits every host.
+      - name: Build and push by digest
+        id: build
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: apps/${{ matrix.image }}/Dockerfile
+          target: runner
+          platforms: ${{ matrix.platform }}
+          build-args: |
+            NODE_ENV=production
+            ${{ matrix.image == 'frontend' && 'NEXT_PUBLIC_API_URL=' || '' }}
+          labels: ${{ steps.meta.outputs.labels }}
+          outputs: type=image,name=${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=${{ matrix.image }}-${{ env.PLATFORM_PAIR }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}-${{ env.PLATFORM_PAIR }}
+
+      - name: Export digest
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/digests"
+          touch "$RUNNER_TEMP/digests/${DIGEST#sha256:}"
+
+      - name: Upload digest
+        uses: actions/upload-artifact@v7
+        with:
+          name: digests-${{ matrix.image }}-${{ env.PLATFORM_PAIR }}
+          path: ${{ runner.temp }}/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  merge:
+    name: Publish ${{ matrix.image }}
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        image: [backend, frontend]
+    steps:
+      - name: Prepare
+        run: echo "IMAGE_NAME=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/aria-erp-${{ matrix.image }}" >> "$GITHUB_ENV"
+
+      - name: Download digests
+        uses: actions/download-artifact@v8
+        with:
+          path: ${{ runner.temp }}/digests
+          pattern: digests-${{ matrix.image }}-*
+          merge-multiple: true
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      # sha-<commit> is what aria-local.ps1 pulls for a checkout; the version
+      # tags (and latest, for non-prerelease tags) are what installers pin.
+      - name: Image metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ env.IMAGE_NAME }}
+          tags: |
+            type=sha,format=long
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+
+      - name: Create multi-arch tags
+        working-directory: ${{ runner.temp }}/digests
+        run: |
+          args=()
+          while IFS= read -r tag; do args+=(-t "$tag"); done < <(jq -r '.tags[]' <<< "$DOCKER_METADATA_OUTPUT_JSON")
+          for digest in *; do args+=("$IMAGE_NAME@sha256:$digest"); done
+          docker buildx imagetools create "${args[@]}"
+
+      - name: Inspect image
+        run: docker buildx imagetools inspect "$IMAGE_NAME:sha-$GITHUB_SHA"
+
+  # Aria-ERP-Setup.exe for the local demo on Windows, pinned to this tag's images.
+  installer:
+    name: Windows installer
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: merge
+    permissions:
+      contents: read
+    uses: ./.github/workflows/windows-installer.yml
+    with:
+      version: ${{ github.ref_name }}
+      revision: ${{ github.sha }}
+
+  # Signs the installer through SignPath Foundation (CODE_SIGNING.md). Needs the
+  # SIGNPATH_API_TOKEN secret and the SIGNPATH_ORGANIZATION_ID variable; until
+  # both exist the release ships the unsigned installer. Each request waits for
+  # a maintainer to approve it in SignPath.
+  sign:
+    name: Sign installer
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: installer
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      signed: ${{ steps.check.outputs.enabled }}
+    steps:
+      - name: Check signing setup
+        id: check
+        env:
+          SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+          SIGNPATH_ORGANIZATION_ID: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+        run: |
+          echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          if [[ -n "$SIGNPATH_API_TOKEN" && -n "$SIGNPATH_ORGANIZATION_ID" ]]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::SignPath is not set up; the release gets the unsigned installer"
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # The slugs default to the names in .signpath/README.md; the variables
+      # switch them, e.g. SIGNPATH_SIGNING_POLICY_SLUG=test-signing for a trial.
+      - name: Submit signing request
+        if: steps.check.outputs.enabled == 'true'
+        uses: signpath/github-action-submit-signing-request@f6d04783b4569d051e0c80105fe66e82819d0092 # v3.0
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG || 'aria' }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG || 'release-signing' }}
+          artifact-configuration-slug: ${{ vars.SIGNPATH_ARTIFACT_CONFIGURATION_SLUG || 'installer' }}
+          github-artifact-id: ${{ needs.installer.outputs.artifact-id }}
+          parameters: |
+            version: "${{ steps.check.outputs.version }}"
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: ${{ runner.temp }}/signed
+
+      - name: Upload signed installer
+        if: steps.check.outputs.enabled == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: aria-setup-signed
+          path: ${{ runner.temp }}/signed/Aria-ERP-Setup.exe
+          if-no-files-found: error
+          retention-days: 7
+
+  release:
+    name: GitHub Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [merge, installer, sign]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Download installer
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ needs.sign.outputs.signed == 'true' && 'aria-setup-signed' || 'aria-setup' }}
+          path: ${{ runner.temp }}/installer
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          INSTALLER_DIR: ${{ runner.temp }}/installer
+        run: |
+          # One fixed name: releases/latest/download/Aria-ERP-Setup.exe is the
+          # newest stable setup (the README links to it), and the Manage page's
+          # update check looks for it in the latest release.
+          installer=("$INSTALLER_DIR/Aria-ERP-Setup.exe")
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            echo "Release $TAG already exists; attaching the installer"
+            gh release upload "$TAG" "${installer[@]}" --repo "$GITHUB_REPOSITORY" --clobber
+            exit 0
+          fi
+          version="${TAG#v}"
+          registry="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}"
+          prerelease=()
+          if [[ "$version" == *-* ]]; then prerelease=(--prerelease); fi
+          notes="$(printf '%s\n' \
+            '## Aria ERP Setup for Windows' \
+            '' \
+            "Run \`Aria-ERP-Setup.exe\` (below) on a laptop with Docker Desktop. It installs Aria ERP $version, or updates an existing install with a restore point and automatic rollback. To update or uninstall later, open Aria ERP Setup from the Start menu." \
+            '' \
+            "[Code signing policy](https://github.com/$GITHUB_REPOSITORY/blob/$TAG/CODE_SIGNING.md)" \
+            '' \
+            '## Images' \
+            '' \
+            '```bash' \
+            "docker pull $registry/aria-erp-backend:$version" \
+            "docker pull $registry/aria-erp-frontend:$version" \
+            '```' \
+            '' \
+            "Production installs: set \`VERSION=$version\` in \`.env\`. Built for linux/amd64 and linux/arm64.")"
+          gh release create "$TAG" "${installer[@]}" --repo "$GITHUB_REPOSITORY" --verify-tag \
+            --title "$TAG" --notes "$notes" --generate-notes "${prerelease[@]}"

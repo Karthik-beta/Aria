@@ -1,0 +1,26 @@
+{
+	"$schema": "https://json.schemastore.org/tsconfig",
+	"display": "Aria Monorepo Root",
+	"compilerOptions": {
+		"composite": true,
+		"declaration": true,
+		"declarationMap": true,
+		"incremental": true,
+		"noEmit": true,
+		"skipLibCheck": true,
+		"strict": true,
+		"moduleResolution": "Bundler",
+		"resolveJsonModule": true,
+		"esModuleInterop": true,
+		"forceConsistentCasingInFileNames": true
+	},
+	"references": [
+		{ "path": "./apps/backend" },
+		{ "path": "./apps/frontend" },
+		{ "path": "./packages/types" },
+		{ "path": "./packages/utils" },
+		{ "path": "./packages/api-contract" },
+		{ "path": "./packages/report-export" }
+	],
+	"files": []
+}

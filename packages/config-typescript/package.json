@@ -1,0 +1,16 @@
+{
+	"name": "@aria/tsconfig",
+	"version": "0.1.0",
+	"license": "AGPL-3.0-or-later",
+	"files": [
+		"base.json",
+		"next.json",
+		"nest.json"
+	],
+	"exports": {
+		"./package.json": "./package.json",
+		"./base.json": "./base.json",
+		"./next.json": "./next.json",
+		"./nest.json": "./nest.json"
+	}
+}

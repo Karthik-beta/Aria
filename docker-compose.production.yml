@@ -1,0 +1,387 @@
+# Docker Compose Configuration for Production Environment 🚀
+# This configuration is optimized for production deployments on Linux 🛡️
+#
+# Frontend and backend images are prebuilt by .github/workflows/release-images.yml:
+#   docker compose -f docker-compose.production.yml pull     (VERSION from .env)
+# The build sections stay as the fallback: `... build` builds them from source.
+
+services:
+  # Caddy reverse proxy (production mode with HTTPS) 🔐
+  caddy:
+    image: caddy:2.10.2-alpine@sha256:4c6e91c6ed0e2fa03efd5b44747b625fec79bc9cd06ac5235a779726618e530d
+    container_name: aria-caddy
+    restart: unless-stopped
+    ports:
+      - '80:80'
+      - '443:443'
+      - '443:443/udp' # HTTP/3 support
+    volumes:
+      - ./deployment/caddy/Caddyfile.production:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+      - caddy-logs:/var/log/caddy
+    environment:
+      - DOMAIN=${DOMAIN:-localhost}
+    networks:
+      - aria-network
+    depends_on:
+      frontend:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'curl', '-fsS', 'http://localhost/health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+        max-file: '3'
+
+  # Frontend (Next.js production build) ✨
+  frontend:
+    build:
+      context: .
+      dockerfile: apps/frontend/Dockerfile
+      target: runner
+      args:
+        - NODE_ENV=production
+        # Empty NEXT_PUBLIC_API_URL = same-origin requests via reverse proxy
+        - NEXT_PUBLIC_API_URL=
+    image: ${ARIA_IMAGE_REGISTRY:-ghcr.io/karthik-beta}/aria-erp-frontend:${VERSION:-latest}
+    container_name: aria-frontend
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - HOSTNAME=0.0.0.0
+      # Frontend needs to know where to send API requests during SSR
+      # In Docker, frontend container can reach backend via service name
+      - BACKEND_URL=http://backend:3001
+      # Public API URL for browser (via Caddy reverse proxy)
+      - NEXT_PUBLIC_API_URL=https://${DOMAIN:-localhost}
+      - NEXT_TELEMETRY_DISABLED=1
+    networks:
+      - aria-network
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "const request=require('http').get('http://localhost:3000/ready/',(response)=>process.exit(response.statusCode===200?0:1));request.on('error',()=>process.exit(1))",
+        ]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+        max-file: '3'
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  # Backend (NestJS production build) 🚀
+  migrate:
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+      target: runner
+      args:
+        - NODE_ENV=production
+    image: ${ARIA_IMAGE_REGISTRY:-ghcr.io/karthik-beta}/aria-erp-backend:${VERSION:-latest}
+    restart: 'no'
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://aria:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/aria
+    networks:
+      - aria-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ['bun', 'run', 'db:migrate:deploy']
+
+  backend:
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+      target: runner
+      args:
+        - NODE_ENV=production
+    image: ${ARIA_IMAGE_REGISTRY:-ghcr.io/karthik-beta}/aria-erp-backend:${VERSION:-latest}
+    container_name: aria-backend
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://aria:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/aria
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
+      - REDIS_PASSWORD=${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+      - APP_TIME_ZONE=${APP_TIME_ZONE:?APP_TIME_ZONE is required}
+      - ASSET_DEPRECIATION_QUEUE_CONCURRENCY=${ASSET_DEPRECIATION_QUEUE_CONCURRENCY:-5}
+      - ASSET_DEPRECIATION_BARRIER_TIMEOUT_MS=${ASSET_DEPRECIATION_BARRIER_TIMEOUT_MS:-120000}
+      - ASSET_DEPRECIATION_QUEUE_OPERATION_TIMEOUT_MS=${ASSET_DEPRECIATION_QUEUE_OPERATION_TIMEOUT_MS:-5000}
+      - ASSET_DEPRECIATION_RECONCILIATION_INTERVAL_MS=${ASSET_DEPRECIATION_RECONCILIATION_INTERVAL_MS:-900000}
+      - PORT=3001
+      # Better Auth Configuration
+      - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET:?BETTER_AUTH_SECRET is required}
+      - BETTER_AUTH_URL=${BETTER_AUTH_URL:-https://${DOMAIN:-localhost}}
+      - FRONTEND_URL=${FRONTEND_URL:-https://${DOMAIN:-localhost}}
+      # Default Admin Account
+      - DEFAULT_ADMIN_USERNAME=${DEFAULT_ADMIN_USERNAME:-admin}
+      - DEFAULT_ADMIN_PASSWORD=${DEFAULT_ADMIN_PASSWORD:-}
+      - DEFAULT_ADMIN_EMAIL=${DEFAULT_ADMIN_EMAIL:-admin@localhost}
+      - DEFAULT_ADMIN_NAME=${DEFAULT_ADMIN_NAME:-Administrator}
+    networks:
+      - aria-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ['CMD', 'curl', '-fsS', 'http://localhost:3001/health/ready']
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 120s
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+        max-file: '3'
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  # PostgreSQL database
+  postgres:
+    image: postgres:18-alpine@sha256:54451ecb8ab38c24c3ec123f2fd501303a3a1856a5c66e98cecf2460d5e1e9d7
+    container_name: aria-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=aria
+      - POSTGRES_USER=aria
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      - POSTGRES_INITDB_ARGS=--encoding=UTF-8 --lc-collate=en_US.UTF-8 --lc-ctype=en_US.UTF-8
+    volumes:
+      - postgres-data:/var/lib/postgresql
+      - ./deployment/postgres/init:/docker-entrypoint-initdb.d:ro
+    networks:
+      - aria-network
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -d aria -U aria']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+        max-file: '3'
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    command:
+      - 'postgres'
+      - '-c'
+      - 'max_connections=200'
+      - '-c'
+      - 'shared_buffers=256MB'
+      - '-c'
+      - 'effective_cache_size=1GB'
+      - '-c'
+      - 'maintenance_work_mem=64MB'
+      - '-c'
+      - 'checkpoint_completion_target=0.9'
+      - '-c'
+      - 'wal_buffers=16MB'
+      - '-c'
+      - 'default_statistics_target=100'
+      - '-c'
+      - 'random_page_cost=1.1'
+      - '-c'
+      - 'effective_io_concurrency=200'
+      - '-c'
+      - 'work_mem=1310kB'
+      - '-c'
+      - 'min_wal_size=1GB'
+      - '-c'
+      - 'max_wal_size=4GB'
+
+  # Redis (for caching and sessions)
+  redis:
+    image: redis:7-alpine@sha256:7aec734b2bb298a1d769fd8729f13b8514a41bf90fcdd1f38ec52267fbaa8ee6
+    container_name: aria-redis
+    restart: unless-stopped
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+    volumes:
+      - redis-data:/data
+    networks:
+      - aria-network
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'REDISCLI_AUTH="$${REDIS_PASSWORD}" redis-cli ping | grep -q PONG',
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+        max-file: '3'
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+    command:
+      - /bin/sh
+      - -c
+      - exec redis-server --appendonly yes --appendfsync everysec --maxmemory-policy noeviction --requirepass "$${REDIS_PASSWORD}"
+
+  # Monitoring Services 📊
+  prometheus:
+    image: prom/prometheus@sha256:5550dc63da361dc30f6fe02ac0e4dfc736ededfef3c8d12a634db04a67824d78
+    container_name: aria-prometheus
+    restart: unless-stopped
+    volumes:
+      - ./deployment/monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./deployment/monitoring/prometheus/alerts.yml:/etc/prometheus/alerts.yml
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    networks:
+      - aria-network
+    ports:
+      - '9090:9090'
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+        max-file: '3'
+
+  grafana:
+    image: grafana/grafana@sha256:0f86bada30d65ef9d0183b90c1e2682ac92d53d95da8bed322b984ea78a4a73a
+    container_name: aria-grafana
+    restart: unless-stopped
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./deployment/monitoring/grafana/provisioning:/etc/grafana/provisioning
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    networks:
+      - aria-network
+    ports:
+      - '3000:3000'
+    depends_on:
+      - prometheus
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+        max-file: '3'
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor@sha256:3de2bd5203120b866d74a9b283b2ffb8ec382fbf9dc321814700c6ea6f44ec57
+    container_name: aria-cadvisor
+    restart: unless-stopped
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    networks:
+      - aria-network
+    ports:
+      - '8080:8080'
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+        max-file: '3'
+
+  node-exporter:
+    image: prom/node-exporter@sha256:e9cff4fc67b1818f8c97adb115b9f12c9a54b533de86765d4a0effc01b357205
+    container_name: aria-node-exporter
+    restart: unless-stopped
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.rootfs=/rootfs'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    networks:
+      - aria-network
+    ports:
+      - '9100:9100'
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+        max-file: '3'
+
+volumes:
+  postgres-data:
+    driver: local
+  redis-data:
+    driver: local
+  caddy-data:
+    driver: local
+  caddy-config:
+    driver: local
+  caddy-logs:
+    driver: local
+  prometheus-data:
+    driver: local
+  grafana-data:
+    driver: local
+
+networks:
+  aria-network:
+    driver: bridge
+    name: aria-network
