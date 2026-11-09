@@ -102,7 +102,7 @@
 	"devDependencies": {
 		"@aria/api-contract": "workspace:*",
 		"@aria/tsconfig": "workspace:*",
-		"@cloudflare/workers-types": "^4.20260303.0",
+		"@cloudflare/workers-types": "^5.20261106.1",
 		"@nestjs/cli": "^12.0.8",
 		"@nestjs/schematics": "^11.0.0",
 		"@nestjs/testing": "^11.1.10",
